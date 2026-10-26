@@ -426,7 +426,7 @@ defmodule Tuist.Accounts do
     Repo.get_by(Oauth2Identity, provider: provider, id_in_provider: to_string(id_in_provider))
   end
 
-  def update_sso_configuration(organization_id, sso_provider, attrs, opts \\ []) do
+  def update_sso_configuration(organization_id, sso_provider, attrs) do
     case get_organization_by_id(organization_id) do
       {:ok, organization} ->
         sso_attrs =
@@ -442,7 +442,7 @@ defmodule Tuist.Accounts do
           )
 
         organization
-        |> sso_configuration_changeset(sso_attrs, Keyword.get(opts, :actor))
+        |> sso_configuration_changeset(sso_attrs)
         |> Repo.update()
 
       {:error, :not_found} = error ->
@@ -474,7 +474,6 @@ defmodule Tuist.Accounts do
   def sso_login_domain_record_value(%Organization{}), do: nil
 
   defdelegate sso_login_domain_trust(organization), to: SSOLoginDomainTrust, as: :trust
-  defdelegate sso_configuration_allowed?(actor), to: SSOLoginDomainTrust, as: :configuration_allowed?
   defdelegate sso_login_domain_shared?(organization), to: SSOLoginDomainTrust, as: :shared_domain?
 
   defdelegate sso_login_domain_expiring?(organization), to: SSOLoginDomainRecheck, as: :expiring?
@@ -592,25 +591,13 @@ defmodule Tuist.Accounts do
     end
   end
 
-  defp sso_configuration_changeset(organization, attrs, actor) do
+  defp sso_configuration_changeset(organization, attrs) do
     changeset = Organization.sso_configuration_changeset(organization, attrs, validate_security_policy: false)
     trust = changeset |> Changeset.apply_changes() |> SSOLoginDomainTrust.trust()
-
-    changeset
-    |> Organization.validate_sso_security_policy(trust)
-    |> authorize_sso_changes(actor)
+    Organization.validate_sso_security_policy(changeset, trust)
   end
 
-  defp authorize_sso_changes(changeset, actor) do
-    if Enum.any?(Map.keys(changeset.changes), &(&1 in @sso_configuration_attr_keys)) and
-         not sso_configuration_allowed?(actor) do
-      Changeset.add_error(changeset, :sso_provider, "only instance SSO administrators can configure SSO")
-    else
-      changeset
-    end
-  end
-
-  def update_organization(%Organization{} = organization, attrs, opts \\ []) do
+  def update_organization(%Organization{} = organization, attrs) do
     attrs =
       attrs
       |> normalize_sso_configuration_attr_keys()
@@ -619,7 +606,7 @@ defmodule Tuist.Accounts do
       |> prepare_sso_login_domain_attrs(organization)
 
     Multi.new()
-    |> Multi.update(:organization, sso_configuration_changeset(organization, attrs, Keyword.get(opts, :actor)))
+    |> Multi.update(:organization, sso_configuration_changeset(organization, attrs))
     |> Multi.run(:assign_sso_users, fn _repo, %{organization: updated_organization} ->
       if sso_newly_enabled?(
            organization.sso_provider,
@@ -676,7 +663,7 @@ defmodule Tuist.Accounts do
     end
   end
 
-  defp create_organization_multi(%{name: name, creator: %User{id: user_id, email: user_email} = creator}, opts) do
+  defp create_organization_multi(%{name: name, creator: %User{id: user_id, email: user_email}}, opts) do
     sso_provider = Keyword.get(opts, :sso_provider)
     sso_organization_id = Keyword.get(opts, :sso_organization_id)
     sso_login_domain = Keyword.get(opts, :sso_login_domain)
@@ -695,8 +682,7 @@ defmodule Tuist.Accounts do
     Multi.new()
     |> Multi.insert(
       :organization,
-      %Organization{}
-      |> Organization.create_changeset(%{
+      Organization.create_changeset(%Organization{}, %{
         sso_provider: sso_provider,
         sso_organization_id: sso_organization_id,
         sso_login_domain: sso_login_domain,
@@ -712,7 +698,6 @@ defmodule Tuist.Accounts do
         oauth2_user_info_url: oauth2_user_info_url,
         created_at: created_at
       })
-      |> authorize_sso_changes(creator)
     )
     |> Multi.run(:account, fn repo, %{organization: %{id: organization_id}} ->
       repo.insert(
@@ -1829,7 +1814,7 @@ defmodule Tuist.Accounts do
 
   defp email_domain_has_enforced_provider?(domain) do
     legacy_organization_ids = legacy_sso_organization_ids_for_domain(domain)
-    instance_trust? = Environment.sso_login_domain_policy().trust_unverified_domains
+    instance_trust? = Environment.sso_trust_unverified_login_domains?()
 
     Repo.exists?(
       from(o in Organization,

@@ -19,16 +19,8 @@
   <%!-- ============================================================ --%>
   <%!-- Single Sign-On                                                --%>
   <%!-- ============================================================ --%>
-  <.alert
-    :if={not is_nil(@organization) and not @sso_configuration_allowed}
-    id="sso-instance-admin-required"
-    status="information"
-    type="secondary"
-    size="small"
-    title={dgettext("dashboard_account", "Only instance SSO administrators can configure SSO.")}
-  />
   <.form
-    :if={not is_nil(@organization) and @sso_configuration_allowed}
+    :if={@organization}
     for={@form}
     id="sso-form"
     phx-submit="save_sso"

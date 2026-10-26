@@ -1,74 +1,29 @@
 defmodule Tuist.Accounts.SSOLoginDomainTrust do
   @moduledoc """
   Resolves DNS and self-hosted instance trust without persisting operator
-  assertions as DNS proofs. Only operator-selected users may configure SSO
-  while instance trust is enabled.
+  assertions as DNS proofs. Enabling instance trust explicitly trusts the
+  instance's organization administrators to configure identity providers.
   """
 
   import Ecto.Query
 
   alias Tuist.Accounts.Organization
-  alias Tuist.Accounts.User
   alias Tuist.Environment
   alias Tuist.Repo
 
-  @max_user_id 9_223_372_036_854_775_807
+  def parse_config(nil, _hosted), do: {:ok, false}
+  def parse_config("false", _hosted), do: {:ok, false}
+  def parse_config("true", false), do: {:ok, true}
 
-  def parse_config(trust, admin_ids, hosted) do
-    with {:ok, enabled} <- parse_enabled(trust),
-         {:ok, ids} <- parse_admin_ids(admin_ids) do
-      cond do
-        hosted and (enabled or ids != []) ->
-          {:error, "SSO instance trust and configuration administrators are only supported on self-hosted instances"}
+  def parse_config("true", true),
+    do: {:error, "TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS is only supported on self-hosted instances"}
 
-        enabled and ids == [] ->
-          {:error, "TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS requires TUIST_SSO_CONFIGURATION_ADMIN_USER_IDS"}
-
-        true ->
-          {:ok, %{trust_unverified_domains: enabled, admin_user_ids: ids}}
-      end
-    end
-  end
-
-  defp parse_enabled(nil), do: {:ok, false}
-  defp parse_enabled("false"), do: {:ok, false}
-  defp parse_enabled("true"), do: {:ok, true}
-  defp parse_enabled(_), do: {:error, "TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS must be true or false"}
-
-  defp parse_admin_ids(nil), do: {:ok, []}
-
-  defp parse_admin_ids(value) do
-    ids = value |> String.split(",") |> Enum.map(&parse_id/1)
-
-    if :error in ids or Enum.uniq(ids) != ids,
-      do: {:error, "TUIST_SSO_CONFIGURATION_ADMIN_USER_IDS must contain unique positive integer user IDs"},
-      else: {:ok, ids}
-  end
-
-  defp parse_id(value) do
-    case Integer.parse(String.trim(value)) do
-      {id, ""} when id > 0 and id <= @max_user_id -> id
-      _ -> :error
-    end
-  end
-
-  def configuration_allowed?(actor) do
-    policy = Environment.sso_login_domain_policy()
-
-    if policy.trust_unverified_domains or policy.admin_user_ids != [] do
-      case actor do
-        %User{id: id} when is_integer(id) -> id in policy.admin_user_ids
-        _ -> false
-      end
-    else
-      true
-    end
-  end
+  def parse_config(_value, _hosted), do: {:error, "TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS must be true or false"}
 
   def trust(%Organization{sso_login_domain: domain} = organization) when is_binary(domain) do
     cond do
       organization.sso_provider in [:okta, :oauth2] and
-          Environment.sso_login_domain_policy().trust_unverified_domains ->
+          Environment.sso_trust_unverified_login_domains?() ->
         :instance
 
       not is_nil(organization.sso_login_domain_verified_at) ->
@@ -97,7 +52,7 @@ defmodule Tuist.Accounts.SSOLoginDomainTrust do
   def email_domain(_email), do: nil
 
   def shared_domain?(%Organization{sso_login_domain: domain, id: id}) when is_binary(domain) do
-    Environment.sso_login_domain_policy().trust_unverified_domains and
+    Environment.sso_trust_unverified_login_domains?() and
       Repo.exists?(
         from(o in Organization,
           where: o.sso_provider in [:okta, :oauth2] and o.sso_login_domain == ^domain and o.id != ^id
@@ -108,7 +63,7 @@ defmodule Tuist.Accounts.SSOLoginDomainTrust do
   def shared_domain?(_organization), do: false
 
   def discover(domain) when is_binary(domain) do
-    if Environment.sso_login_domain_policy().trust_unverified_domains do
+    if Environment.sso_trust_unverified_login_domains?() do
       organizations =
         Repo.all(
           from(o in Organization,

@@ -17,6 +17,17 @@ defmodule Tuist.DocsTest do
       assert page.body =~ "Install Tuist"
     end
 
+    test "self-hosted SSO documents one switch and the organization-administrator trust boundary" do
+      for slug <- ["/en/guides/integrations/authentication/sso", "/en/guides/server/self-host/server"] do
+        guide = Docs.get_page(slug).markdown
+        assert guide =~ "TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS=true"
+        assert guide =~ "Any signed-in user can create an organization"
+        assert guide =~ "other organizations"
+        assert guide =~ "every replica"
+        refute guide =~ "TUIST_SSO_CONFIGURATION_ADMIN_USER_IDS"
+      end
+    end
+
     test "workload authentication documents account-wide access and shared-provider trust boundaries" do
       guide = Docs.get_page("/en/guides/server/authentication").markdown
       assert guide =~ "only the `ci` scope group and covers all current and future projects"

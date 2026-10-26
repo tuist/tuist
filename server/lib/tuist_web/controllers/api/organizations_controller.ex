@@ -479,11 +479,6 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action."})
 
-      not Accounts.sso_configuration_allowed?(user) ->
-        conn
-        |> put_status(:forbidden)
-        |> json(%{message: "Only instance SSO administrators can configure SSO."})
-
       sso_provider == "none" ->
         {:ok, organization} =
           Accounts.update_organization(
@@ -499,8 +494,7 @@ defmodule TuistWeb.API.OrganizationsController do
               oauth2_authorize_url: nil,
               oauth2_token_url: nil,
               oauth2_user_info_url: nil
-            },
-            actor: user
+            }
           )
 
         json(conn, %{
@@ -572,8 +566,7 @@ defmodule TuistWeb.API.OrganizationsController do
              sso_organization_id: sso_organization_id,
              sso_enforced: sso_enforced || false,
              sso_automatic_enrollment: sso_automatic_enrollment
-           },
-           actor: Authentication.current_user(conn)
+           }
          ) do
       {:ok, organization} ->
         json(conn, %{

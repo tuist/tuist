@@ -19,7 +19,7 @@ defmodule TuistWeb.SSOLoginLiveTest do
       )
     end
 
-    stub(Environment, :sso_login_domain_policy, fn -> %{trust_unverified_domains: true, admin_user_ids: [123]} end)
+    stub(Environment, :sso_trust_unverified_login_domains?, fn -> true end)
     {:ok, lv, _} = live(conn, ~p"/users/log_in/sso")
     html = render_submit(lv, "submit", %{"user" => %{"email" => "new@example.com"}})
     assert html =~ "Multiple organizations use this login domain"

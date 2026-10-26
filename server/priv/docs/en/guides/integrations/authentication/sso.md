@@ -21,7 +21,7 @@ Microsoft Entra ID is an OpenID Connect provider that Tuist configures for you f
 Provider identity, login discovery, and organization enrollment are separate concerns:
 
 - **Provider issuer:** The provider organization or authorization server that authenticated the user. Tuist combines the provider, issuer, and stable provider user identifier when looking up a linked identity. For Okta, the issuer is represented by the Okta domain. For Microsoft Entra ID, it is derived from the directory (tenant) identifier. For a custom provider, it is represented by the provider URL.
-- **Login email domain:** The email domain that Tuist uses to discover an Okta or custom provider from the general login page. Once verified, it also establishes which email addresses may be trusted for new account linking and automatic enrollment.
+- **Login email domain:** The email domain that Tuist uses to discover an Okta or custom provider from the general login page. When trusted through DNS verification or self-hosted instance configuration, it also establishes which email addresses may be trusted for new account linking and automatic enrollment.
 - **Enrollment policy:** Determines whether a user from the trusted domain needs an invitation or may join automatically.
 - **Provisioning:** Creates and manages organization membership independently of the login flow.
 
@@ -44,9 +44,18 @@ Google Workspace does not require this separate Tuist verification step because 
 
 ### Self-hosted: instance-trusted login domains {#operator-trusted-login-domains}
 
-A private instance can enable `TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS=true` to trust every custom provider's saved login domain without DNS verification. The operator must also configure `TUIST_SSO_CONFIGURATION_ADMIN_USER_IDS` with the immutable IDs of users authorized to configure SSO. Those users still need administrator permission in the organization; ordinary organization administrators cannot change SSO settings under this policy. See the <.localized_link href="/guides/server/self-host/server#operator-trusted-login-domains">self-hosting guide</.localized_link> for setup and staged rollout instructions.
+A private instance can enable one switch to trust every Okta, custom OAuth2, and Microsoft Entra configuration's saved login domain without DNS verification:
 
-The status becomes **Trusted by instance configuration**, not **Verified**. Emails must still match the saved domain for enrollment and email-based account linking, and administrators must sign in through the provider before enforcing SSO. Selected SSO administrators can change domains and providers without per-organization or issuer approvals. Existing configurations must be audited before enabling trust, because all custom providers receive this authority to link whole existing Tuist accounts.
+```sh
+TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS=true
+```
+
+No administrator allowlist or additional trust configuration is required. Normal organization-administrator permissions still apply. In the provider setup instructions below, skip the DNS TXT record and **Verify domain** steps when instance trust is enabled; still save the **Login email domain**. See the <.localized_link href="/guides/server/self-host/server#operator-trusted-login-domains">self-hosting guide</.localized_link> for Helm configuration and rollout instructions.
+
+> [!WARNING]
+> Enable this only when the operator trusts everyone who can create or administer an organization. Any signed-in user can create an organization and become its administrator. Their configured provider can assert email addresses on its saved domain and link whole existing Tuist accounts, including access to other organizations. There are no per-domain, organization, or issuer approvals. Audit existing providers before enabling the switch.
+
+The status becomes **Trusted by instance configuration**, not **Verified**. Emails must still match the saved domain for enrollment and email-based account linking, and administrators must sign in through the provider before enforcing SSO. Google Workspace retains its independent authenticated Workspace-domain proof.
 
 When several organizations save the same domain, domain-based discovery prefers a DNS-verified custom provider. Otherwise it requires exactly one matching custom provider. Ambiguous domains require an organization-specific SSO link or DNS verification; they do not disable explicit provider login. Disabling instance trust does not revoke linked identities, sessions, or stored memberships. Without independent DNS verification, it stops new email-based links, automatic enrollment, and domain-based discovery after every replica restarts. Members relying only on dynamic enrollment can lose access.
 

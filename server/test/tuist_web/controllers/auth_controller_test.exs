@@ -1306,13 +1306,8 @@ defmodule TuistWeb.AuthControllerTest do
       other =
         custom_provider_organization(sso_login_domain: "example.com", sso_organization_id: "https://other.example.com")
 
-      admin = AccountsFixtures.user_fixture()
-
-      stub(Tuist.Environment, :sso_login_domain_policy, fn ->
-        %{trust_unverified_domains: true, admin_user_ids: [admin.id]}
-      end)
-
-      %{organization: organization, other: other, admin: admin}
+      stub(Tuist.Environment, :sso_trust_unverified_login_domains?, fn -> true end)
+      %{organization: organization, other: other}
     end
 
     test "links an existing account through an instance-trusted provider", %{conn: conn, organization: organization} do
@@ -1329,11 +1324,10 @@ defmodule TuistWeb.AuthControllerTest do
 
     test "permits new-user signup when automatic enrollment is enabled", %{
       conn: conn,
-      organization: organization,
-      admin: admin
+      organization: organization
     } do
       {:ok, organization} =
-        Tuist.Accounts.update_sso_configuration(organization.id, :oauth2, %{sso_automatic_enrollment: true}, actor: admin)
+        Tuist.Accounts.update_sso_configuration(organization.id, :oauth2, %{sso_automatic_enrollment: true})
 
       stub_sso_userinfo("new-operator-sub", "new-person@example.com")
       conn = sso_callback(conn, organization)
@@ -1341,7 +1335,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert get_session(conn, :pending_oauth_signup)
     end
 
-    test "instance trust also authorizes another operator-configured organization for its saved domain", %{
+    test "instance trust authorizes another organization's provider for its saved domain", %{
       conn: conn,
       other: other
     } do

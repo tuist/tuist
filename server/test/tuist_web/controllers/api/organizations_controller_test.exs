@@ -566,35 +566,28 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
   end
 
   describe "PUT /api/organizations/:organization_name" do
-    for provider <- ["none", "google"] do
-      test "requires instance authorization to configure #{provider} even for an organization administrator", %{
-        conn: conn,
-        user: user
-      } do
-        organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+    test "ordinary organization administrators can disable SSO under instance trust", %{conn: conn, user: user} do
+      AccountsFixtures.organization_fixture(
+        name: "tuist-org",
+        creator: user,
+        sso_provider: :google,
+        sso_organization_id: "example.com"
+      )
 
-        stub(Environment, :sso_login_domain_policy, fn ->
-          %{trust_unverified_domains: true, admin_user_ids: [user.id + 100_000]}
-        end)
+      stub(Environment, :sso_trust_unverified_login_domains?, fn -> true end)
 
-        conn =
-          conn
-          |> Authentication.put_current_user(user)
-          |> put_req_header("content-type", "application/json")
-          |> put(~p"/api/organizations/tuist-org", sso_provider: unquote(provider), sso_organization_id: "example.com")
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/organizations/tuist-org", sso_provider: "none")
 
-        assert json_response(conn, :forbidden)["message"] =~ "instance SSO administrators"
-        assert {:ok, unchanged} = Accounts.get_organization_by_id(organization.id)
-        refute unchanged.sso_provider
-      end
+      assert json_response(conn, :ok)["sso_provider"] == nil
     end
 
-    test "instance SSO administrators still need ordinary organization authorization", %{conn: conn, user: user} do
+    test "instance trust does not bypass ordinary organization authorization", %{conn: conn, user: user} do
       AccountsFixtures.organization_fixture(name: "tuist-org")
-
-      stub(Environment, :sso_login_domain_policy, fn ->
-        %{trust_unverified_domains: true, admin_user_ids: [user.id]}
-      end)
+      stub(Environment, :sso_trust_unverified_login_domains?, fn -> true end)
 
       conn =
         conn
@@ -605,14 +598,11 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       assert json_response(conn, :forbidden)
     end
 
-    test "allows an operator-selected organization administrator to configure Google", %{conn: conn} do
+    test "allows an ordinary organization administrator to configure Google under instance trust", %{conn: conn} do
       domain = unique_sso_domain()
       user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
       AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
-
-      stub(Environment, :sso_login_domain_policy, fn ->
-        %{trust_unverified_domains: true, admin_user_ids: [user.id]}
-      end)
+      stub(Environment, :sso_trust_unverified_login_domains?, fn -> true end)
 
       conn =
         conn

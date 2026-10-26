@@ -92,17 +92,6 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     end
   end
 
-  defp authorize_sso_update!(socket) do
-    :ok = authorize_account_update!(socket)
-
-    if not Accounts.sso_configuration_allowed?(socket.assigns.current_user) do
-      raise UnauthorizedError,
-            dgettext("dashboard_account", "Only instance SSO administrators can configure SSO.")
-    end
-
-    :ok
-  end
-
   @impl true
   def handle_event(event, params, socket)
       when event in [
@@ -290,13 +279,13 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   end
 
   def handle_event("save_sso", _params, %{assigns: %{sso_enabled: false}} = socket) do
-    :ok = authorize_sso_update!(socket)
+    :ok = authorize_account_update!(socket)
 
     disable_sso(socket)
   end
 
   def handle_event("save_sso", params, socket) do
-    :ok = authorize_sso_update!(socket)
+    :ok = authorize_account_update!(socket)
 
     case validate_sso_enforcement(socket) do
       :ok ->
@@ -311,7 +300,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   end
 
   def handle_event("verify_sso_login_domain", _params, socket) do
-    :ok = authorize_sso_update!(socket)
+    :ok = authorize_account_update!(socket)
 
     form_domain = normalize_domain(socket.assigns.current_form_params["sso_login_domain"])
     socket = assign(socket, flash_message: nil)
@@ -450,8 +439,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
             oauth2_authorize_url: nil,
             oauth2_token_url: nil,
             oauth2_user_info_url: nil
-          },
-          actor: socket.assigns.current_user
+          }
         )
 
       {:noreply,
@@ -478,8 +466,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
                sso_enforced: socket.assigns.sso_enforced,
                sso_automatic_enrollment: socket.assigns.sso_automatic_enrollment,
                sso_default_role: socket.assigns.sso_default_role
-             },
-             actor: current_user
+             }
            ) do
       {:noreply,
        socket
@@ -509,7 +496,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
         socket.assigns.sso_default_role
       )
 
-    case Accounts.update_sso_configuration(organization.id, sso_provider, attrs, actor: socket.assigns.current_user) do
+    case Accounts.update_sso_configuration(organization.id, sso_provider, attrs) do
       {:ok, updated_organization} ->
         {:noreply,
          socket
@@ -704,7 +691,6 @@ defmodule TuistWeb.AuthenticationSettingsLive do
           socket.assigns.organization,
           socket.assigns.current_form_params
         ),
-      sso_configuration_allowed: Accounts.sso_configuration_allowed?(socket.assigns.current_user),
       login_domain_shared:
         oauth2_form_provider?(socket.assigns.selected_provider) and
           Accounts.sso_login_domain_shared?(socket.assigns.organization)

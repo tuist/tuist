@@ -33,7 +33,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
   end
 
   describe "instance-trusted login domains" do
-    setup %{organization: organization, user: user} do
+    setup %{organization: organization} do
       {:ok, organization} =
         Accounts.update_sso_configuration(organization.id, :okta, %{
           sso_organization_id: "company.okta.com",
@@ -42,9 +42,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
           oauth2_client_secret: "secret"
         })
 
-      stub(Environment, :sso_login_domain_policy, fn ->
-        %{trust_unverified_domains: true, admin_user_ids: [user.id]}
-      end)
+      stub(Environment, :sso_trust_unverified_login_domains?, fn -> true end)
 
       stub(Environment, :tuist_hosted?, fn -> false end)
       %{organization: organization}
@@ -135,19 +133,17 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     end
   end
 
-  test "ordinary organization administrators cannot forge SSO saves under instance trust", %{
+  test "instance trust preserves ordinary organization authorization on every save", %{
     conn: conn,
     account: account,
-    user: user
+    user: user,
+    organization: organization
   } do
-    stub(Environment, :sso_login_domain_policy, fn ->
-      %{trust_unverified_domains: true, admin_user_ids: [user.id + 100_000]}
-    end)
-
+    stub(Environment, :sso_trust_unverified_login_domains?, fn -> true end)
     {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/authentication")
-    assert has_element?(lv, "#sso-instance-admin-required")
-    refute has_element?(lv, "#sso-form")
+    assert has_element?(lv, "#sso-form")
     assert has_element?(lv, ~s([data-part="scim-card"]))
+    {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :viewer)
     Process.flag(:trap_exit, true)
     assert catch_exit(render_hook(lv, "save_sso", %{}))
   end
@@ -274,9 +270,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
         )
         |> Repo.update!()
 
-        stub(Environment, :sso_login_domain_policy, fn ->
-          %{trust_unverified_domains: true, admin_user_ids: [user.id]}
-        end)
+        stub(Environment, :sso_trust_unverified_login_domains?, fn -> true end)
 
         Accounts.link_oauth_identity_to_user(user, %{
           provider: :google,
@@ -318,7 +312,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
       render_hook(lv, "toggle_sso")
       changeset = organization |> Changeset.change() |> Changeset.add_error(:sso_provider, "configuration changed")
-      expect(Accounts, :update_organization, fn _, _, _ -> {:error, changeset} end)
+      expect(Accounts, :update_organization, fn _, _ -> {:error, changeset} end)
 
       html =
         lv

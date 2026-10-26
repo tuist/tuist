@@ -34,10 +34,9 @@ alias Tuist.Runners.Catalog
 
 case Tuist.Accounts.SSOLoginDomainTrust.parse_config(
        System.get_env("TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS"),
-       System.get_env("TUIST_SSO_CONFIGURATION_ADMIN_USER_IDS"),
        Tuist.Environment.tuist_hosted?()
      ) do
-  {:ok, policy} -> config :tuist, :sso_login_domain_policy, policy
+  {:ok, enabled} -> config :tuist, :sso_trust_unverified_login_domains, enabled
   {:error, reason} -> raise reason
 end
 

@@ -282,14 +282,11 @@ defmodule Tuist.Environment do
     not hosted and enabled == true
   end
 
-  def sso_login_domain_policy(
+  def sso_trust_unverified_login_domains?(
         hosted \\ tuist_hosted?(),
-        policy \\ Application.get_env(:tuist, :sso_login_domain_policy, %{
-          trust_unverified_domains: false,
-          admin_user_ids: []
-        })
+        enabled \\ Application.get_env(:tuist, :sso_trust_unverified_login_domains, false)
       ) do
-    if hosted, do: %{trust_unverified_domains: false, admin_user_ids: []}, else: policy
+    not hosted and enabled == true
   end
 
   def tuist_hosted? do
