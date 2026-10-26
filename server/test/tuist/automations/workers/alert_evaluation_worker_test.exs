@@ -769,6 +769,40 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
+  test "rolling recovery ignores correlated runner crashes (real ClickHouse)" do
+    project = ProjectsFixtures.project_fixture()
+
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        recovery_enabled: true,
+        recovery_config: %{"window_type" => "rolling", "rolling_window_size" => 3},
+        recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
+      )
+
+    test_case_id = UUIDv7.generate()
+    base = NaiveDateTime.utc_now()
+
+    insert_test_case_runs([
+      run_attrs(project.id, test_case_id, NaiveDateTime.add(base, 1, :second)),
+      run_attrs(project.id, test_case_id, NaiveDateTime.add(base, 2, :second)),
+      run_attrs(project.id, test_case_id, NaiveDateTime.add(base, 3, :second),
+        is_flakiness_excluded: true,
+        status: "failure"
+      )
+    ])
+
+    expect(FlakyTestsMonitor, :evaluate, fn _ -> %{triggered: []} end)
+
+    expect(Automations, :list_active_alert_events, fn _ ->
+      [%{test_case_id: test_case_id, triggered_at: base}]
+    end)
+
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
+    assert :ok = run(automation.id)
+  end
+
   test "rolling recovery counts raw runs without clamping (real ClickHouse)" do
     project = ProjectsFixtures.project_fixture()
 

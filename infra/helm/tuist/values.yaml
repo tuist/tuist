@@ -2910,6 +2910,12 @@ runnersFleetLinux:
     image:
       repository: ghcr.io/tuist/tuist-runner-cache-volumes
       tag: "" # Defaults to the matching runnersController.image.tag release.
+    # Moves each job's dockerd onto its repository's Docker cache volume. Turning it
+    # on replaces the Pods of the pools it covers, so `pools` limits it to those
+    # RunnerPool names during a rollout; an empty list covers every Linux pool.
+    dockerCache:
+      enabled: false
+      pools: []
   enabled: false
   # Default `spec.idleTimeoutSeconds` for every Linux pool / shape (a
   # per-pool or per-shape `idleTimeoutSeconds` wins). Same semantics and

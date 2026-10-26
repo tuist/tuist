@@ -179,12 +179,22 @@ for _var in TUIST_CACHE_VOLUME_URL TUIST_CACHE_VOLUME_POD TUIST_CACHE_VOLUME_UID
     printf '%s=%s\\n' "\${_var}" "\${_value}" >> "\${GITHUB_ENV}"
   fi
 done
+# Move dockerd onto the repository's Docker cache volume before the runner
+# pulls job and service containers, beside the cached checkout and within its
+# window. Any miss leaves dockerd on the job's ephemeral data root.
+if [ "\${TUIST_DOCKER_CACHE:-}" = "1" ] && [ -n "\${TUIST_CACHE_VOLUME_URL:-}" ] && [ -x "${CACHE_VOLUME_BIN}" ]; then
+  "${CACHE_VOLUME_BIN}" --docker &
+  _docker_pid=\$!
+fi
 # Mount the job's cached checkout at its workspace before the first step, so a
 # stock actions/checkout reuses it instead of cloning. The host decides whether
 # there is one; any miss leaves the workspace empty and the job checks out as
 # before.
 if [ -n "\${GITHUB_WORKSPACE:-}" ] && [ -n "\${TUIST_CACHE_VOLUME_URL:-}" ] && [ -x "${CACHE_VOLUME_BIN}" ]; then
   "${CACHE_VOLUME_BIN}" --checkout "\${GITHUB_WORKSPACE}" || true
+fi
+if [ -n "\${_docker_pid:-}" ]; then
+  wait "\${_docker_pid}" || true
 fi
 exit 0
 HOOK
@@ -275,6 +285,12 @@ while kill -0 "${runner_pid}" 2>/dev/null; do
   rc=$?
 done
 [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
+# Clean the job's Docker cache volume and hand it back, or report that a job
+# without one used Docker. After the job and outside its billed time; never
+# affects the exit code.
+if [ "${TUIST_DOCKER_CACHE:-}" = "1" ] && [ -x "${CACHE_VOLUME_BIN}" ]; then
+  "${CACHE_VOLUME_BIN}" --docker-teardown || true
+fi
 # Hand the host what the job's checkout added, after the job and outside its
 # billed time; the host verifies it and builds the next cached checkout from it.
 # Never affects the exit code.

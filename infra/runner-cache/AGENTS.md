@@ -293,3 +293,31 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   CheckoutMasterEndToEnd .`; on Linux it runs as root with
   `TUIST_CHECKOUT_E2E_ROOT` on a reflink filesystem (`scripts/test-cache-filesystem.sh`
   in runners-controller provides one).
+- `KindDocker` (`docker.go`) is a repository's Docker data root. Overlay2 needs a
+  filesystem native to the guest kernel, so the guest loop-mounts the branch
+  image itself: `Attach` links the image into the pod's directory as
+  `docker.img` (`exposeDocker`) and never runs losetup or mount; `detach` is a
+  no-op. Never mount a Docker image on the host and never run a filesystem
+  parser on it: a privileged guest writes it at the block level. `Seal`
+  (`sealDocker`) requires the guest's `docker.json` (`ReadDockerReport`, read
+  without following links, bounded and validated) to say it unmounted cleanly,
+  the pod's link to still be the branch (`sameFile`), and the superblock's fixed
+  fields to show no journal to recover and no errors (`ext4Clean`); a report
+  saying unchanged is `ErrUnchanged` (it can only withhold), and a branch whose
+  blocks exceed `DockerPublishBytes` is `ErrFull`. Measurements are the image's
+  allocated bytes and logical size. `Delete` and `Keep` remove the pod directory
+  (guest-written files only) and the image. A Docker identity always has
+  `DockerVolumeBytes`, above the host maximum for other volumes
+  (`kindMaxVolumeBytes`, `HTTPTransfer.maxBytes`), and admission expects its saved
+  bytes plus `DockerGrowthBytes`. Empty images are formatted with
+  `dockerFormatArgs` so the guest's kernel has no background zeroing to do.
+- A Docker branch whose lineage another job saved since it was mounted is merged,
+  not lost: `ExposeDockerHead` clones that head (downloading it when this host
+  lacks it) next to the branch as `.merge`, records it in `.merge.json` and links
+  it into the pod's directory as `head.img`; the guest loads the images only one
+  side keeps into the other. A report naming `merged_generation` and
+  `merged_into` (`sealDockerMerge`) must name the head this host offered; a
+  merge into `head` renames the clone over the branch after the same inode and
+  superblock checks, then the use is rebased on the server (`Rebaser`, the
+  `rebase` image operation; a conflict is `ErrSuperseded`) and published as any
+  branch. Without a merge a branch whose HEAD moved stays `ErrSuperseded`.

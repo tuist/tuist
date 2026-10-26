@@ -44,6 +44,8 @@
 
   & [data-part="actions"] {
     flex-shrink: 0;
+    display: flex;
+    gap: var(--noora-spacing-4);
   }
 
   & [data-part="widgets"] {

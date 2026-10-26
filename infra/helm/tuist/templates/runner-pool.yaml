@@ -494,6 +494,10 @@ spec:
   {{- if $.Values.runnersFleetLinux.cacheVolumes.enabled }}
   cacheVolumeRoot: {{ $.Values.runnersFleetLinux.cacheVolumes.hostPath | quote }}
   cacheVolumeURL: {{ printf "http://%s.%s.svc.cluster.local:8090" (include "tuist.componentName" (dict "root" $ "component" "runner-cache-volumes")) $namespace | quote }}
+  {{- $dockerCache := $.Values.runnersFleetLinux.cacheVolumes.dockerCache }}
+  {{- if and $dockerCache.enabled (or (empty $dockerCache.pools) (has $poolName $dockerCache.pools)) }}
+  dockerCache: true
+  {{- end }}
   {{- end }}
   replicas: {{ $replicas }}
   image: {{ $image | quote }}
@@ -588,6 +592,10 @@ spec:
   {{- if $.Values.runnersFleetLinux.cacheVolumes.enabled }}
   cacheVolumeRoot: {{ $.Values.runnersFleetLinux.cacheVolumes.hostPath | quote }}
   cacheVolumeURL: {{ printf "http://%s.%s.svc.cluster.local:8090" (include "tuist.componentName" (dict "root" $ "component" "runner-cache-volumes")) $namespace | quote }}
+  {{- $dockerCache := $.Values.runnersFleetLinux.cacheVolumes.dockerCache }}
+  {{- if and $dockerCache.enabled (or (empty $dockerCache.pools) (has $poolName $dockerCache.pools)) }}
+  dockerCache: true
+  {{- end }}
   {{- end }}
   replicas: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
   image: {{ $shapeImage | quote }}

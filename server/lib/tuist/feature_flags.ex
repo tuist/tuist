@@ -69,6 +69,16 @@ defmodule Tuist.FeatureFlags do
   defp runner_flag_required?, do: Environment.env() in [:can, :prod]
 
   @doc """
+  Whether the account's Linux jobs get a persistent Docker data root per
+  repository (`Tuist.Runners.CacheVolumes.allocate_docker/1`). Canary and
+  production require the `:runner_docker_cache` flag for the account during the
+  rollout; development, test and staging default to enabled.
+  """
+  def runner_docker_cache_enabled?(account) do
+    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:runner_docker_cache, for: account)
+  end
+
+  @doc """
   Whether the account gets a node in the runner-cache region of each site its
   runners are racked at (`Tuist.Kura.Regions.site/1`). A site's region serves
   only that site's pools, so it holds nodes for the accounts the

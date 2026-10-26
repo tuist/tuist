@@ -28,6 +28,12 @@ type RunnerPoolSpec struct {
 	CacheVolumeRoot string `json:"cacheVolumeRoot,omitempty"`
 	// +optional
 	CacheVolumeURL string `json:"cacheVolumeURL,omitempty"`
+	// DockerCache moves each job's dockerd onto its repository's Docker cache
+	// volume. It needs cache volumes. The dind sidecar then runs a supervisor
+	// that owns dockerd and the mount socket, so turning it on replaces the
+	// pool's Pods.
+	// +optional
+	DockerCache bool `json:"dockerCache,omitempty"`
 
 	// Labels are stamped on the Pods + SAs the controller creates;
 	// not the GitHub Actions runner labels (those come from

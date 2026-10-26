@@ -54,6 +54,9 @@ spec:
                   type: string
                 cacheVolumeURL:
                   type: string
+                dockerCache:
+                  type: boolean
+                  description: Moves each job's dockerd onto its repository's Docker cache volume. Requires cacheVolumeRoot and cacheVolumeURL.
                 labels:
                   type: array
                   items:

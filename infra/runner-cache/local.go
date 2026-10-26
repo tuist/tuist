@@ -597,7 +597,14 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 				}
 			}
 			if err == nil {
-				err = b.operation(slot, "format", "empty", func() error { _, err := b.commandContext(ctx, "mkfs.ext4", "-F", "-m", "0", tmp); return err })
+				args := []string{"-F", "-m", "0"}
+				if slot.Kind == KindDocker {
+					args = dockerFormatArgs
+				}
+				err = b.operation(slot, "format", "empty", func() error {
+					_, err := b.commandContext(ctx, "mkfs.ext4", append(append([]string{}, args...), tmp)...)
+					return err
+				})
 			}
 		}
 		if err != nil {
@@ -612,6 +619,9 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 	}
 	if source == "unknown" {
 		source = "local"
+	}
+	if slot.Kind == KindDocker {
+		return b.operation(slot, "mount", "none", func() error { return b.exposeDocker(slot, path) })
 	}
 	grow := filesystemSmaller(image)
 	device, err := b.deviceContext(ctx, image)
@@ -706,8 +716,17 @@ func writeMarker(slot Slot, path string) error {
 	}
 	return closeErr
 }
-func (b *LocalImages) Measure(_ Slot, path string) (int64, int64, error) { return b.MeasureFS(path) }
+func (b *LocalImages) Measure(slot Slot, path string) (int64, int64, error) {
+	if slot.Kind == KindDocker {
+		return b.measureDocker(slot)
+	}
+	return b.MeasureFS(path)
+}
 func (b *LocalImages) detach(slot Slot, path string) error {
+	// The guest mounted a Docker image inside its VM; the host never did.
+	if slot.Kind == KindDocker {
+		return nil
+	}
 	device, err := b.device(b.image(slot))
 	if err != nil {
 		return err
@@ -736,6 +755,9 @@ func (b *LocalImages) detach(slot Slot, path string) error {
 func (b *LocalImages) Seal(slot Slot, path string) (err error) {
 	done := b.Observe.For(slot).Start("publish", "none")
 	defer func() { done(err) }()
+	if slot.Kind == KindDocker {
+		return b.sealDocker(slot, path)
+	}
 	if b.Cold(slot) && !slot.PublishCold {
 		return ErrWithheld
 	}
@@ -894,10 +916,14 @@ func (b *LocalImages) verify(slot Slot, path string) error {
 }
 
 func (b *LocalImages) Delete(slot Slot, path string) error {
+	suffixes := []string{"", ".tmp", ".zst", ".gz", ".checking", ".detaching", ".verified", ".entries", ".base", ".cold"}
+	if slot.Kind == KindDocker {
+		return b.releaseDocker(slot, path, suffixes)
+	}
 	if err := b.detach(slot, path); err != nil {
 		return err
 	}
-	for _, suffix := range []string{"", ".tmp", ".zst", ".gz", ".checking", ".detaching", ".verified", ".entries", ".base", ".cold"} {
+	for _, suffix := range suffixes {
 		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -915,10 +941,14 @@ func removeMountpoint(path string) error {
 // Keep releases the private branch only after its sealed journal is durable and
 // the server has acknowledged publication. The immutable local master is evictable.
 func (b *LocalImages) Keep(slot Slot, path string) error {
+	suffixes := []string{"", ".verified", ".entries", ".base", ".cold"}
+	if slot.Kind == KindDocker {
+		return b.releaseDocker(slot, path, suffixes)
+	}
 	if err := b.detach(slot, path); err != nil {
 		return err
 	}
-	for _, suffix := range []string{"", ".verified", ".entries", ".base", ".cold"} {
+	for _, suffix := range suffixes {
 		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
 			return err
 		}
