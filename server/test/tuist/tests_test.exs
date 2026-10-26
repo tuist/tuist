@@ -8927,6 +8927,7 @@ defmodule Tuist.TestsTest do
             git_commit_sha: commit_sha,
             status: if(rem(i, 2) == 0, do: "success", else: "failure"),
             is_flaky: true,
+            flakiness_exclusion_reason: "",
             is_new: false,
             is_quarantined: false,
             coverage_evidence: "none",
