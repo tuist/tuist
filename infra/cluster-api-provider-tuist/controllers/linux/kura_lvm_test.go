@@ -95,7 +95,7 @@ func TestKuraLVMRefusesExistingData(t *testing.T) {
 }
 
 func TestKuraLVMUnmountedInstallerData(t *testing.T) {
-	for _, scenario := range []string{"empty", "populated", "ambiguous", "missing", "mounted-elsewhere", "shadowed-directory"} {
+	for _, scenario := range []string{"empty", "populated", "journaled-data", "ambiguous", "missing", "mounted-elsewhere", "shadowed-directory"} {
 		t.Run(scenario, func(t *testing.T) {
 			dir := t.TempDir()
 			os.MkdirAll(dir+"/data", 0755)
@@ -109,7 +109,7 @@ func TestKuraLVMUnmountedInstallerData(t *testing.T) {
 				candidates += "/dev/md126 xfs\n"
 			}
 			os.WriteFile(dir+"/candidates", []byte(candidates), 0644)
-			if scenario == "populated" || scenario == "mounted-elsewhere" {
+			if scenario == "populated" || scenario == "journaled-data" || scenario == "mounted-elsewhere" {
 				os.WriteFile(dir+"/"+scenario, nil, 0644)
 			}
 			if scenario == "shadowed-directory" {
@@ -179,9 +179,9 @@ lsblk() {
 umount() { touch "$r/unmounted"; }
 mount() {
   rm -f "$r/unmounted"
-  if [[ "$*" == *ro,norecovery* ]]; then
+  if [[ "$*" == *"-o ro "* ]]; then
     step inspect-readonly
-    if [ -f "$r/populated" ]; then touch "$r/data/cache"; fi
+    if [ -f "$r/populated" ] || [ -f "$r/journaled-data" ]; then touch "$r/data/cache"; fi
   else
     touch "$r/mounted-lv"; step mount
   fi

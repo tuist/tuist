@@ -37,7 +37,9 @@ kura_lvm_setup() (
           [ "${#candidates[@]}" = 1 ] || fail "expected exactly one unmounted XFS md data filesystem"
           mkdir -p /data
           [ -z "$(find /data -mindepth 1 -maxdepth 1 -print -quit)" ] || fail "unmounted /data is not empty"
-          mount -t xfs -o ro,norecovery "${candidates[0]}" /data
+          # Allow XFS journal replay: norecovery could hide committed files
+          # and make a populated filesystem appear empty during inspection.
+          mount -t xfs -o ro "${candidates[0]}" /data
           inspection_mount=true
         fi
         [ "$(findmnt -no FSTYPE /data)" = xfs ] || fail "/data is not XFS"
