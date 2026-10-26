@@ -4,9 +4,9 @@
   Machine-UID address reservations until policy withdrawal and confirmed host
   cleanup, before deleting SSH credentials or requesting reinstall. Never move
   an existing cache vRack NIC automatically. All environments remain disabled
-  pending staging network resolution and qualification; the delivered blocks,
-  confirmed vRack attachments, observed staging cache
-  network conflict and rollback steps are in
+  pending staging qualification. Staging shares cache vRack `pn-2023588` with
+  its public block, preserving the runner's private cache enrollment. The
+  confirmed block attachments, deployment prerequisites and rollback steps are in
   [OVH runner egress](docs/ovh-runner-egress.md).
 
 - OVH cache vRack reconciliation is additive on the Ready path, scoped by the

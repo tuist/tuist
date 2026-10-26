@@ -2,14 +2,14 @@
 
 `capi.ovhRunnerEgress` routes runner jobs through one OVH Additional IP block
 per environment. All three blocks are delivered and attached to the vRacks
-below, as confirmed by the supplied OVH Manager screenshots. Egress remains
-**disabled in every environment** pending resolution of the existing staging
-private network and qualification on staging. No public
+below. Staging's move to its existing cache vRack was confirmed through the OVH
+API on 2026-10-26; canary and production were confirmed in OVH Manager screenshots.
+Egress remains **disabled in every environment** pending qualification on staging. No public
 allowlist documentation changes until production has passed the checks below.
 
 | Environment | Attached vRack | Delivered block | Usable addresses | Gateway |
 | --- | --- | --- | --- | --- |
-| staging | pn-2025489 | 5.39.98.144/29 | 5.39.98.145–5.39.98.149 (5) | 5.39.98.150 |
+| staging | pn-2023588 | 5.39.98.144/29 | 5.39.98.145–5.39.98.149 (5) | 5.39.98.150 |
 | canary | pn-2025491 | 5.196.103.232/29 | 5.196.103.233–5.196.103.237 (5) | 5.196.103.238 |
 | production | pn-2025483 | 5.135.7.160/27 | 5.135.7.161–5.135.7.189 (29) | 5.135.7.190 |
 
@@ -66,37 +66,43 @@ Physical routing and device selection still require the staging qualification.
 
 ## Staging findings on 2026-10-26
 
-Read-only inspection found two Ready Linux runner Machines, not one:
+The remaining staging runner is
+`tuist-tuist-ovh-fleet-runners-linux-h72m4-llfpg`, service
+`ns3066567.ip-193-70-46.eu`, kernel 6.8.0-139. Its Machine and Node use cache
+vRack `pn-2023588`, with retained private reservation `172.30.241.4`. This is
+an intentional private cache connection. The separate private-cache rollout
+retired the legacy RISE-S host after preserving its fixtures.
 
-- `tuist-tuist-ovh-fleet-runners-linux-h72m4-llfpg`: service
-  `ns3066567.ip-193-70-46.eu`, kernel 6.8.0-139. Its Node already carries
-  `tuist.dev/private-network=pn-2023588`, the **cache** vRack, and the retained
-  cache reservation map assigns it `172.30.241.4`.
-- `tuist-tuist-ovh-fleet-runners-linux-h72m4-wf682`: service
-  `ns340020.ip-37-187-143.eu`, kernel 6.8.0-142, with no private-network Node
-  annotation in that read.
-
-The first host's Cilium 1.18.7 reports both `enp6s0` (public) and `enp7s0`
+The runner's Cilium 1.18.7 reports both `enp6s0` (public) and `enp7s0`
 (private, `172.30.241.4`) as managed devices. BPF masquerading and egress
 Gateway are enabled cluster-wide. This is evidence about that host only.
 
-**Resolve the existing cache-network enrollment before enabling the planned
-runner vRack.** Determine whether it is a temporary experiment to retire or an
-intended private path to preserve. Do not move the NIC or discard the cache
-reservation to make the new controller progress. Both the annotation preflight
-and OVH attachment check refuse that move. The feature can use an existing
-vRack if that becomes the reviewed design and the public block is attached
-there, but that changes the separate-network plan above.
+**The staging attachment conflict is resolved by sharing the cache vRack.**
+The operator moved the unused `5.39.98.144/29` block from `pn-2025489` to
+`pn-2023588`. A subsequent API read confirms its gateway `5.39.98.150/32`,
+region `eu-west-gra`, and `PUBLIC-ROUTING-1-AZ` routing type on the destination;
+the source vRack has no IP blocks. OVH still lists the runner on `pn-2023588`.
+No runner NIC, private reservation or host route was changed by this work.
+The original separate-vRack plan is superseded for staging only.
+
+Before deployment, integrate the private-cache rollout's provider changes so
+the new image retains explicit Kata private-network enrollment and its existing
+route reconciliation. Do not deploy an older provider over that work. Keep its
+account-gated runner cohorts and drain requirements intact. Sharing the NIC
+does not establish successful job egress: qualify public routing and private
+cache traffic together, including rollback. Canary and production still need
+their intended private-cache enrollment reconciled with the recorded public
+block attachments before enabling either environment.
 
 ## Qualification and rollout
 
 1. Recheck the recorded block/vRack associations before activation; delivery
-   and attachment are confirmed in OVH Manager. Resolve the staging conflict
-   above. Confirm enough
+   and attachment are confirmed above. Preserve staging's shared cache vRack.
+   Confirm enough
    usable addresses for hosts plus replacement surge; retained failed-cleanup
    reservations consume capacity.
 2. Deploy the provider and charts with egress disabled and the recorded CIDRs.
-   After resolving the staging conflict, enable only staging. Read
+   After integrating the private-cache provider changes, enable only staging. Read
    `RunnerEgressReady` and both Node
    annotations. A partial fleet rollout leaves unconfigured hosts on their
    primary public IP; do not promise the new allowlist yet.
