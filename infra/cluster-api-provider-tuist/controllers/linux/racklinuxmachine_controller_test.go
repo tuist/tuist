@@ -276,16 +276,63 @@ func TestRackLinuxMachineJoinsAFreshHostWithAOneOffBootstrapToken(t *testing.T) 
 	}
 }
 
-// The converge keeps the port AMT shares, the host's boot MAC, up.
+// The converge keeps the port AMT shares, the host's boot MAC, up: BER1's
+// MS-01s, whose hosts set spec.amt.activate.
 func TestRackLinuxMachineKeepsTheManagementPortUp(t *testing.T) {
 	host := claimedEdgeHost("dev-1")
 	host.Status.BootMAC = "38:05:25:38:b5:b5"
+	activate := true
+	host.Spec.AMT.Activate = &activate
 	h := newRackMachineHarness(t, "v1.34.8", append(rackClusterObjects(true), host, edgeMachine())...)
 
 	h.reconcile(t)
 
 	if len(h.applier.applies) == 0 || !strings.Contains(nodeFile(h.applier.applies[0].req, "/etc/systemd/network/10-tuist-management.network"), "MACAddress=38:05:25:38:b5:b5\n") {
 		t.Fatal("the converge does not keep the boot MAC's port up")
+	}
+}
+
+// A model the fleet activates AMT on shares its boot NIC with AMT whatever the
+// host says.
+func TestRackLinuxMachineKeepsAnAMTModelsManagementPortUp(t *testing.T) {
+	host := claimedEdgeHost("dev-1")
+	host.Status.BootMAC = "38:05:25:38:b5:b5"
+	host.Status.Hardware = &infrav1.RackLinuxHostHardware{Product: "Micro Computer (HK) Tech Limited Venus Series"}
+	h := newRackMachineHarness(t, "v1.34.8", append(rackClusterObjects(true), host, edgeMachine())...)
+	h.r.AMTProducts = []string{"Micro Computer (HK) Tech Limited Venus Series"}
+
+	h.reconcile(t)
+
+	if len(h.applier.applies) == 0 || !strings.Contains(nodeFile(h.applier.applies[0].req, "/etc/systemd/network/10-tuist-management.network"), "MACAddress=38:05:25:38:b5:b5\n") {
+		t.Fatal("the converge does not keep an AMT model's boot port up")
+	}
+}
+
+// A host without AMT, like rack 2's ASUS edges with their own BMC, boots from
+// a NIC that is the host's own: on an edge, its ToR's zero-touch link, which
+// needs ARP and keeps the addresses the edge puts on it.
+func TestRackLinuxMachineLeavesTheBootNICOfAHostWithoutAMT(t *testing.T) {
+	host := claimedEdgeHost("dev-1")
+	host.Status.BootMAC = "a0:ad:9f:25:c7:5f"
+	host.Status.Hardware = &infrav1.RackLinuxHostHardware{Product: "ASUSTeK COMPUTER INC. RS501A-E12-RS12U"}
+	h := newRackMachineHarness(t, "v1.34.8", append(rackClusterObjects(true), host, edgeMachine())...)
+	h.r.AMTProducts = []string{"Micro Computer (HK) Tech Limited Venus Series"}
+
+	h.reconcile(t)
+
+	if len(h.applier.applies) == 0 {
+		t.Fatal("no converge")
+	}
+	req := h.applier.applies[0].req
+	if nodeFile(req, "/etc/systemd/network/10-tuist-management.network") != "" {
+		t.Fatal("the converge treats a host without AMT as sharing its boot NIC with AMT")
+	}
+	removed := false
+	for _, f := range req.Config.Absent {
+		removed = removed || f.Path == "/etc/systemd/network/10-tuist-management.network"
+	}
+	if !removed {
+		t.Fatal("a host converged before keeps the management port configuration")
 	}
 }
 

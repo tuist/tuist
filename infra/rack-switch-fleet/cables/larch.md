@@ -31,6 +31,7 @@ RackHost's, in the tuist chart's `rackFleet.hosts`.
 | larch-r1-tor-a | 29 | larch-edge-a | n225p-1 | dac | data | planned |
 | larch-r1-tor-a | 30 | larch-edge-b | n225p-1 | dac | data | planned |
 | larch-r1-tor-a | 31 | larch-store-a | n225p-1 | dac | data | planned |
+| larch-r1-tor-b | 22 | larch-store-a | bmc | copper | management | planned |
 | larch-r1-tor-b | 23 | larch-r1-pdu-a | netpack | copper | management | planned |
 | larch-r1-tor-b | 24 | larch-r1-ats-a | netpack | copper | management | planned |
 | larch-r1-tor-b | 25 | larch-r1-tor-a |  | dac | isl | installed |
@@ -39,4 +40,3 @@ RackHost's, in the tuist chart's `rackFleet.hosts`.
 | larch-r1-tor-b | 28 | larch-edge-a | bmc | copper | management | planned |
 | larch-r1-tor-b | 29 | larch-edge-a | n225p-2 | dac | data | planned |
 | larch-r1-tor-b | 30 | larch-edge-b | n225p-2 | dac | data | planned |
-| larch-r1-tor-b | 31 | larch-store-a | bmc | copper | management | planned |

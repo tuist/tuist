@@ -513,3 +513,95 @@ func TestInUseFollowsTheBranchesThatHoldAScope(t *testing.T) {
 		t.Fatal("a deleted branch still holds its scope")
 	}
 }
+
+func TestEveryDiscardReportsOneDeleteWithItsReason(t *testing.T) {
+	done := func(string, string) (bool, error) { return true, nil }
+	for _, test := range []struct {
+		name    string
+		sealErr error
+		action  string
+		source  string
+	}{
+		{name: "server decision", action: "delete", source: DiscardServer},
+		{name: "poisoned", sealErr: ErrIncomplete, action: "seal", source: DiscardPoisoned},
+		{name: "withheld", sealErr: ErrUnchanged, action: "seal", source: DiscardWithheld},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s, b := newStore(t)
+			var observed []Observation
+			s.Observe = func(o Observation) { observed = append(observed, o) }
+			if _, err := s.Acquire(context.Background(), identity(first), "p", "u"); err != nil {
+				t.Fatal(err)
+			}
+			if len(observed) != 0 {
+				t.Fatal("attach reported a delete", observed)
+			}
+			b.sealErr = test.sealErr
+			if err := s.Reconcile(done, func(Slot, bool) (string, error) { return test.action, nil }); err != nil {
+				t.Fatal(err)
+			}
+			if len(observed) != 1 || observed[0].Operation != "delete" || observed[0].Source != test.source || observed[0].Err != nil {
+				t.Fatal(observed)
+			}
+			if subject := observed[0].Subject; subject.Use != first || subject.Scope != identity(first).Scope || subject.Kind != KindCustom || subject.Pod != "p" {
+				t.Fatal(subject)
+			}
+			if err := s.Reconcile(done, func(Slot, bool) (string, error) { return "forget", nil }); err != nil {
+				t.Fatal(err)
+			}
+			if len(observed) != 1 {
+				t.Fatal("forgetting a deleted branch reported a delete", observed)
+			}
+		})
+	}
+}
+
+func TestAbandonedAllocationReportsItsDelete(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	b := &cancelledAttachBackend{cancel: cancel}
+	s, err := Open(t.TempDir(), b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	var observed []Observation
+	s.Observe = func(o Observation) { observed = append(observed, o) }
+	if _, err := s.Acquire(ctx, identity(first), "p", "u"); !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	if err := s.Reconcile(func(string, string) (bool, error) { return true, nil }, func(Slot, bool) (string, error) { return "hold", nil }); err != nil {
+		t.Fatal(err)
+	}
+	if len(observed) != 1 || observed[0].Operation != "delete" || observed[0].Source != DiscardAbandoned || observed[0].Err != nil || observed[0].Subject.Use != first {
+		t.Fatal(observed)
+	}
+}
+
+func TestDeleteWaitingForItsLoopDeviceReportsEachPass(t *testing.T) {
+	s, b := newStore(t)
+	var observed []Observation
+	s.Observe = func(o Observation) { observed = append(observed, o) }
+	if _, err := s.Acquire(context.Background(), identity(first), "p", "u"); err != nil {
+		t.Fatal(err)
+	}
+	done := func(string, string) (bool, error) { return true, nil }
+	remove := func(Slot, bool) (string, error) { return "delete", nil }
+	b.deleteErr = ErrReleasePending
+	if err := s.Reconcile(done, remove); err != nil {
+		t.Fatal(err)
+	}
+	b.deleteErr = nil
+	if err := s.Reconcile(done, func(Slot, bool) (string, error) { return "seal", nil }); err != nil {
+		t.Fatal(err)
+	}
+	if len(observed) != 2 {
+		t.Fatal(observed)
+	}
+	if observed[0].Source != DiscardServer || Result(observed[0].Err) != "release_pending" {
+		t.Fatal(observed[0])
+	}
+	if observed[1].Source != DiscardPending || observed[1].Err != nil {
+		t.Fatal(observed[1])
+	}
+}

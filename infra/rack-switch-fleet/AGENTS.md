@@ -1942,8 +1942,8 @@ and the bench key installed; the reset removes both.
 
 ## A site with no management switch
 
-Rack 2 (`sites/larch.json`) has none. Its management ports (BMCs, PDU and
-transfer-switch cards, KVMs) are cabled into the ToRs on a management VLAN
+Rack 2 (`sites/larch.json`) has none. Its management ports (BMCs and the PDU and
+transfer-switch cards) are cabled into the ToRs on a management VLAN
 of its own, and each ToR's own management port goes to an edge
 (`tor_management`). The render follows from the site data:
 
@@ -1959,8 +1959,8 @@ of its own, and each ToR's own management port goes to an edge
 - **A management link lands on the opposite ToR**, so a dead ToR's side stays
   reachable through the other one: not the ToR a node's data link is on, the
   one an edge provisions, or, for power gear, the one its chain's minis are on
-  (a PDU through the minis on its outlets, a transfer switch through its PDUs,
-  a KVM through the PDU powering it). `fleet_check_management_links` refuses
+  (a PDU through the minis on its outlets, a transfer switch through its PDUs).
+  `fleet_check_management_links` refuses
   the rest, so nobody tidies the cross-cabling onto one ToR.
 - **Dual-PSU gear names `feeds`** (`["feed-a", "feed-b"]`) instead of an `ats`
   or `pdu`: one cord per PSU straight into the facility's rails, which the cable
