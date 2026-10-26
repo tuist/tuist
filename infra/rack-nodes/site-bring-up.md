@@ -57,6 +57,9 @@ SITE=larch
    4. The server's two-site routing (#14757).
    5. Power-aware admission (#14755).
    6. The per-site BGP announcement (#14759), once step 2's checks pass.
+   7. The first edge's own WAN and the ToRs' WAN path from zero-touch
+      provisioning (#14765), before the site's WAN address goes into the site
+      file.
 
    Paste `infra/tailscale/acls.json` into the admin console after the site
    PR. Production's deploy and `omada-deployment.yml` then run a
@@ -85,11 +88,17 @@ SITE=larch
      patched it.
 9. **Power the dual-PSU gear** straight from NTT's rails, PSU 1 to A and
    PSU 2 to B: the ToRs, then the edges, then the storage node.
-10. **The first edge installs itself** once the WAN is lit. It boots the
-    installer partition primeLine left on it, attests with its TPM to
-    `rack-boot.tuist.dev`, installs and joins the tailnet. Its rack-edge pod
-    then serves the ToRs' DHCP and zero-touch provisioning. A ToR that missed
-    provisioning at power-on is rebooted over its console.
+10. **The first edge installs itself** once the WAN is lit:
+    1. It boots the installer partition primeLine left on it, attests with
+       its TPM to `rack-boot.tuist.dev`, and installs.
+    2. On its first boot it takes the site's WAN untagged, since the factory
+       ToR passes the carrier untagged, and joins the tailnet.
+    3. Its rack-edge pod then gives that WAN up and serves the ToRs' DHCP and
+       zero-touch provisioning. A ToR that missed provisioning at power-on is
+       rebooted over its console.
+    4. The ToR's bootstrap puts the WAN on its VLAN, and keepalived holds it
+       from there. The edge is offline for those few minutes, and nothing in
+       them needs the internet.
 
     ```
     kubectl $P -n tuist get rlh -l tuist.dev/site=$SITE -w
