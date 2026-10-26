@@ -61,7 +61,7 @@ defmodule TuistWeb.RunnerImageCacheLiveTest do
         enabled: true,
         metric: "hit_rate",
         initialize_percentile: "avg",
-        analytics_preset: "last-7-days",
+        analytics_preset: "last-30-days",
         analytics_period: @period,
         params: %{},
         search: "",
@@ -96,6 +96,12 @@ defmodule TuistWeb.RunnerImageCacheLiveTest do
 
     assert html =~ "Initialize containers"
     assert html =~ "formatMilliseconds"
+  end
+
+  test "the page covers the last 30 days unless another period is picked" do
+    assert %{preset: "last-30-days", period: {start, finish}} = TuistWeb.RunnerVolumesLive.storage_period(%{}, 30)
+    assert DateTime.diff(finish, start, :day) == 30
+    assert %{preset: "last-7-days"} = TuistWeb.RunnerVolumesLive.storage_period(%{})
   end
 
   test "the overview filters repositories by the search" do

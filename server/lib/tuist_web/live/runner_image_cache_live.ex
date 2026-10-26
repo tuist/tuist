@@ -37,7 +37,7 @@ defmodule TuistWeb.RunnerImageCacheLive do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    %{preset: preset, period: period} = RunnerVolumesLive.storage_period(params)
+    %{preset: preset, period: period} = RunnerVolumesLive.storage_period(params, 30)
     sort_by = if params["sort_by"] in @sort_columns, do: params["sort_by"], else: "last_used"
     sort_order = if params["sort_order"] in ["asc", "desc"], do: params["sort_order"], else: default_sort_order(sort_by)
 
