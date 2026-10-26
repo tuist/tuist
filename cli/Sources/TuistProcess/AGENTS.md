@@ -10,7 +10,7 @@
 ## Tests
 - Unit tests live in `cli/Tests/TuistProcessTests` and run on macOS (Xcode) and Linux (`swift test`).
 - Keep `CommandRunnerTests` serialized: pipe-flooding, busy-looping children and deliberate output-handler stalls must not compete with sibling timing assertions. Tests of concurrent subprocesses still create their own task groups.
-- Post-exit drain timing tests use `CommandRunner(maximumConcurrentProcesses: 1)` so their five-second bounds do not include waiting for unrelated tests on the shared process limiter. Preserve the elapsed-time, incomplete-output and primary-exit-status assertions.
+- Post-exit drain timing tests measure from `processExitedHook`, which runs when `runWithOutputHandler` observes the primary's exit and its post-exit bounds start. They assert `CommandRunner.postExitIdleTimeout` or `postExitOutputDeadline` plus a one-second scheduling allowance, which is smaller than the gap between the two bounds. Measuring from before the spawn also counts process-limiter waits and the wait for the cooperative pool to resume the runner after the child is reaped. On Linux CI that wait reaches several seconds while the whole test run starts at once. Preserve the elapsed-time, incomplete-output and primary-exit-status assertions.
 - `drainsBothPipesWithoutSchedulingOutputConsumptionTasks` deterministically holds the post-spawn worker before consumer tasks are created and verifies that a child finishes writing 1 MiB to each pipe during that hold, with all bytes subsequently delivered.
 
 ## Integration coverage

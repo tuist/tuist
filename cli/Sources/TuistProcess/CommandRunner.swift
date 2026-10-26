@@ -103,8 +103,8 @@ private final class ProcessOutputDrain: Sendable {
             let waiting = state.exitedAt.duration(to: now) - state.forwardingTime
                 - (state.forwardingStarted?.duration(to: now) ?? .zero)
             let idle = state.activeHandlers == 0 && !hasBufferedData
-                && state.lastActivity.duration(to: now) >= .milliseconds(250)
-            let deadline = !hasBufferedData && waiting >= .seconds(2)
+                && state.lastActivity.duration(to: now) >= CommandRunner.postExitIdleTimeout
+            let deadline = !hasBufferedData && waiting >= CommandRunner.postExitOutputDeadline
             guard exhausted || idle || deadline else { return false }
             state.incomplete = true
             return true
@@ -294,21 +294,27 @@ extension AsyncThrowingStream where Element == ProcessEvent {
 public struct CommandRunner: CommandRunning {
     private let processLimiter: AsyncResourceLimiter
     private let processStartedHook: (@Sendable () -> Void)?
+    private let processExitedHook: (@Sendable () -> Void)?
 
     public init() {
         processLimiter = Self.sharedProcessLimiter
         processStartedHook = nil
+        processExitedHook = nil
     }
 
     init(maximumConcurrentProcesses: Int) {
         processLimiter = AsyncResourceLimiter(limit: maximumConcurrentProcesses)
         processStartedHook = nil
+        processExitedHook = nil
     }
 
-    /// Lets tests hold the cooperative worker after spawning, before output consumption tasks can run.
-    init(processStartedHook: @escaping @Sendable () -> Void) {
+    /// `processStartedHook` lets tests hold the cooperative worker after spawning, before output consumption tasks can
+    /// run. `processExitedHook` runs when `runWithOutputHandler` observes the primary's exit, where its post-exit
+    /// output bounds start.
+    init(processStartedHook: (@Sendable () -> Void)? = nil, processExitedHook: (@Sendable () -> Void)? = nil) {
         processLimiter = Self.sharedProcessLimiter
         self.processStartedHook = processStartedHook
+        self.processExitedHook = processExitedHook
     }
 
     static let reservedFileDescriptors = 32
@@ -316,6 +322,8 @@ public struct CommandRunner: CommandRunning {
     static let maximumConcurrentProcesses = 256
     static let fallbackMaximumConcurrentProcesses = 16
     private static let gracefulShutdownDuration: Duration = .milliseconds(100)
+    static let postExitIdleTimeout: Duration = .milliseconds(250)
+    static let postExitOutputDeadline: Duration = .seconds(2)
     private static let sharedProcessLimiter = AsyncResourceLimiter(
         limitProvider: { systemMaximumConcurrentProcesses() }
     )
@@ -390,6 +398,7 @@ public struct CommandRunner: CommandRunning {
                     }
                 }
             } catch { executionError = error }
+            processExitedHook?()
             try? outputWriter.close()
             try? errorWriter.close()
             await drain.wait(stdout: output, stderr: errors, onIncompleteOutput: onIncompleteOutput)

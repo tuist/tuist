@@ -13,6 +13,13 @@ import Testing
 #endif
 
 @Suite(.serialized) struct CommandRunnerTests {
+    /// Post-exit bounds start when the runner observes the primary's exit, so they are measured from there. Measured
+    /// from before the spawn, they also count the wait for the cooperative pool to resume the runner once the child is
+    /// reaped, which takes seconds while a loaded Linux runner starts the whole test run at once. The allowance covers
+    /// resuming the test afterwards, and stays below the gap between the idle timeout and the deadline so the idle test
+    /// still proves the runner stopped on the idle timeout.
+    private static let schedulingAllowance: Duration = .seconds(1)
+
     #if os(macOS)
         @Test(arguments: ["--jobserver-auth", "--jobserver-fds"])
         func preservesCargoJobserverDescriptors(flag: String) async throws {
@@ -78,17 +85,18 @@ import Testing
     @Test(.timeLimit(.minutes(1))) func boundsContinuouslyWritingDescendantsAfterPrimaryExit() async throws {
         let count = Mutex(0)
         let incomplete = Mutex(false)
-        let start = Date()
-        try await CommandRunner(maximumConcurrentProcesses: 1).runWithOutputHandler(
+        let exited = Mutex<ContinuousClock.Instant?>(nil)
+        try await CommandRunner(processExitedHook: { exited.withLock { $0 = .now } }).runWithOutputHandler(
             arguments: ["/bin/sh", "-c", "/usr/bin/yes x &"],
             environment: [:], workingDirectory: nil,
             onIncompleteOutput: { incomplete.withLock { $0 = true } }
         ) { event in
             if case let .standardOutput(bytes) = event { count.withLock { $0 += bytes.count } }
         }
+        let elapsed = try #require(exited.withLock { $0 }).duration(to: .now)
         #expect(count.withLock { $0 } >= 8_000_000)
         #expect(incomplete.withLock { $0 })
-        #expect(Date().timeIntervalSince(start) < 5)
+        #expect(elapsed < CommandRunner.postExitOutputDeadline + Self.schedulingAllowance)
     }
 
     @Test(.timeLimit(.minutes(1)), arguments: [0, 23])
@@ -96,14 +104,14 @@ import Testing
         let output = Mutex("")
         let count = Mutex(0)
         let incomplete = Mutex(false)
-        let start = Date()
+        let exited = Mutex<ContinuousClock.Instant?>(nil)
         defer {
             if let pid = Int32(output.withLock { $0.trimmingCharacters(in: .whitespacesAndNewlines) }), pid > 0 {
                 _ = kill(pid, SIGTERM)
             }
         }
         do {
-            try await CommandRunner(maximumConcurrentProcesses: 1).runWithOutputHandler(
+            try await CommandRunner(processExitedHook: { exited.withLock { $0 = .now } }).runWithOutputHandler(
                 arguments: [
                     "/bin/sh", "-c",
                     "(while :; do printf x >&2; /bin/sleep 0.05; done) & printf '%s\\n' \"$!\"; exit \(code)",
@@ -120,10 +128,11 @@ import Testing
         } catch let CommandError.terminated(actual, _, _) {
             #expect(actual == Int32(code))
         }
+        let elapsed = try #require(exited.withLock { $0 }).duration(to: .now)
         #expect(incomplete.withLock { $0 })
         #expect(count.withLock { $0 } > 0)
         #expect(count.withLock { $0 } < 8_000_000)
-        #expect(Date().timeIntervalSince(start) < 5)
+        #expect(elapsed < CommandRunner.postExitOutputDeadline + Self.schedulingAllowance)
     }
 
     @Test(.inTemporaryDirectory) func preservesBufferedTailWhenTheOutputHandlerIsStalled() async throws {
@@ -160,9 +169,9 @@ import Testing
     @Test(arguments: [0, 23]) func returnsAfterChildExitWhenDescendantsKeepPipesOpen(code: Int) async throws {
         let incomplete = Mutex(false)
         let output = Mutex("")
-        let start = Date()
+        let exited = Mutex<ContinuousClock.Instant?>(nil)
         do {
-            try await CommandRunner(maximumConcurrentProcesses: 1).runWithOutputHandler(
+            try await CommandRunner(processExitedHook: { exited.withLock { $0 = .now } }).runWithOutputHandler(
                 arguments: ["/bin/sh", "-c", "/bin/sleep 30 & printf '%s\\n' \"$!\"; exit \(code)"],
                 environment: [:], workingDirectory: nil,
                 onIncompleteOutput: { incomplete.withLock { $0 = true } }
@@ -175,12 +184,12 @@ import Testing
         } catch let CommandError.terminated(actual, _, _) {
             #expect(actual == Int32(code))
         }
-        let elapsed = Date().timeIntervalSince(start)
+        let elapsed = try #require(exited.withLock { $0 }).duration(to: .now)
         let pid = try #require(Int32(output.withLock { $0.trimmingCharacters(in: .whitespacesAndNewlines) }))
         try #require(pid > 0)
         _ = kill(pid, SIGTERM)
         #expect(incomplete.withLock { $0 })
-        #expect(elapsed < 5)
+        #expect(elapsed < CommandRunner.postExitIdleTimeout + Self.schedulingAllowance)
     }
 
     @Test func streamsStandardOutputAndStandardError() async throws {
