@@ -155,6 +155,17 @@ fleet_model() {
   echo "$spec"
 }
 
+# The operating system a switch model runs: omada (TP-Link, written through the
+# Omada controller or over SSH by rack:fleet) unless models.json says picos
+# (written by the rack switch controller over SSH and NETCONF).
+fleet_model_os() { jq -r --arg m "$1" '.[$m].os // "omada"' "$FLEET_MODELS"; }
+
+# A device's switch operating system.
+fleet_device_os() {
+  local site_file="$1" name="$2"
+  fleet_model_os "$(jq -r --arg n "$name" '.devices[] | select(.name == $n) | .model' "$site_file")"
+}
+
 fleet_normalize() { tr -d '\000' | awk -v mode=normalize -v unmanaged="$FLEET_UNMANAGED" -f "$FLEET_AWK"; }
 fleet_context()   { tr -d '\000' | awk -v mode=context   -v unmanaged="$FLEET_UNMANAGED" -f "$FLEET_AWK"; }
 fleet_clean()     { tr -d '\000' | awk -v mode=clean     -v unmanaged="$FLEET_UNMANAGED" -f "$FLEET_AWK"; }
@@ -853,9 +864,12 @@ fleet_check_rack_hosts() {
   [ -n "$hosts" ] || hosts='{"names": [], "outlets": {}}'
 
   # A mini's outlet is its RackHost's and its ToR port is this file's, so this
-  # is the one place both halves meet. They have to resolve to the same
-  # transfer switch: crossed, any one ATS failure takes the whole fleet, half
-  # the minis losing power and the other half their ToR.
+  # is the one place both halves meet. Its ToR has to resolve to its own chain's
+  # transfer switch or to the critical layer, one that feeds no PDU: on another
+  # chain's, any one ATS failure takes the whole fleet, half the minis losing
+  # power and the other half their ToR. The critical layer carries the WAN and
+  # management for every mini already, so a ToR on it adds no new way to lose
+  # them all.
   bad="$(jq -r --argjson hosts "$hosts" --arg values "$(basename "$values")" --arg owned "$FLEET_RACKHOST_OWNED" '
     $hosts.outlets as $outlets |
     (.nodes[]? | select(.rack_host != null) | . as $node |
@@ -864,6 +878,7 @@ fleet_check_rack_hosts() {
       ($owned | split(" ")[] | select(. as $field | $node | has($field)) |
         "\($node.name) sets \(.), which belongs to RackHost \($node.rack_host)")),
     (([.nodes[]? | select(.hardware == "evmafc20a") | {key: .name, value: .ats}] | from_entries) as $pdus |
+    ([$pdus[]] | unique) as $chains |
     ([.nodes[]?, .devices[]] | map({key: .name, value: (if .ats != null then .ats elif .pdu != null then $pdus[.pdu] else null end)}) | from_entries) as $feeder |
     .nodes[]? | select(.rack_host != null) | . as $node |
     ($outlets[$node.rack_host] // "") as $pdu | select($pdu != "") |
@@ -873,8 +888,8 @@ fleet_check_rack_hosts() {
       $pdus[$pdu] as $ats |
       $node.links[]? | select(.purpose == "data" and .switch != null) |
       .switch as $tor | $feeder[$tor] as $tor_ats |
-      select($tor_ats != null and $tor_ats != $ats) |
-        "\($node.name): its outlet on \($pdu) resolves to \($ats) but its ToR \($tor) to \($tor_ats); a mini and its ToR must lose power together"
+      select($tor_ats != null and $tor_ats != $ats and ($chains | index($tor_ats))) |
+        "\($node.name): its outlet on \($pdu) resolves to \($ats) but its ToR \($tor) to \($tor_ats), another chain; a mini and its ToR must lose power together"
     end)
   ' "$site_file")"
 
@@ -900,10 +915,13 @@ fleet_config_revision() {
 fleet_render_k8s() {
   local site_file="$1" name="$2" rendered="${3:-}" device revision
   device="$(fleet_device "$site_file" "$name")" || return 1
-  if [ -n "$rendered" ]; then
-    revision="$(shasum -a 256 < "$rendered" | cut -c1-16)"
-  else
-    revision="$(fleet_config_revision "$site_file" "$name")"
+  # A PicOS switch has no configuration text; its revision is set below.
+  if [ "$(fleet_model_os "$(jq -r '.model' <<<"$device")")" != picos ]; then
+    if [ -n "$rendered" ]; then
+      revision="$(shasum -a 256 < "$rendered" | cut -c1-16)"
+    else
+      revision="$(fleet_config_revision "$site_file" "$name")"
+    fi
   fi
   # The desired configuration, for the reconciler that writes it through the
   # controller: the same site data the configuration text is rendered from, so
@@ -933,9 +951,17 @@ fleet_render_k8s() {
       lags: [$d.lags[]? | {id, name: (.name // "lag\(.id)"), ports}],
       ports: $ports
     }')"
+  # A PicOS switch has no configuration text: the rack switch controller writes
+  # it from this object alone, so its revision is the digest of what it asks.
+  local os
+  os="$(jq -r '.os // "omada"' <<<"$spec")"
+  if [ "$os" = picos ]; then
+    revision="$(jq -cS . <<<"$config" | shasum -a 256 | cut -c1-16)"
+  fi
   jq -n --argjson d "$device" \
         --arg site "$(jq -r '.site' "$site_file")" \
         --arg revision "$revision" \
+        --arg os "$os" \
         --argjson config "$config" \
         --argjson ports "$(fleet_port_map "$site_file" "$name" | jq -R -s '
             split("\n") | map(select(length > 0) | split("\t")) |
@@ -956,7 +982,8 @@ fleet_render_k8s() {
         credentialItem: $d.credential_item,
         configRevision: $revision,
         config: $config
-      } + (if ($ports | length) > 0 then { ports: $ports } else {} end))
+      } + (if ($ports | length) > 0 then { ports: $ports } else {} end)
+        + (if $os == "picos" then { driver: "picos" } else {} end))
     }' | yq -P -
 }
 

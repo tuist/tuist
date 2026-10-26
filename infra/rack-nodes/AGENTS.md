@@ -92,7 +92,8 @@ only route out, its provisioning lease.
 
 - A box with an empty disk boots the stick on its own, with the firmware's
   defaults: Secure Boot on and the network stack off.
-- To reinstall a running host, the operator looks for a USB disk whose ISO
+- To reinstall a running host, the operator boots the installer partition of a
+  preinstalled host (below), else looks for a USB disk whose ISO
   carries `nocloud/tuist-install-stick`, gives its EFI partition a boot entry of
   its own (`tuist install stick`, left out of `BootOrder`), sets `BootNext` to
   it and reboots. A host without one netboots instead.
@@ -373,6 +374,11 @@ carries the same guard.
   also keeps: the MS-01's Bluetooth dereferences NULL on a warm boot of the 6.8
   kernel, and the node's `panic_on_oops` turns that into a reboot every 70
   seconds;
+- `10-tuist-no-start-limit.conf` drop-ins for `ssh.service` and `ssh.socket`,
+  which the converge also keeps: five sshd starts within 10s otherwise leave
+  nothing listening on `:22`, and the operator reaches the host over SSH alone.
+  See "sshd stays reachable on Linux hosts" in
+  [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md);
 - nothing for the management port (the i226-LM, the host's boot MAC). The
   converge keeps it up with no address, no IPv6 link-local and no ARP
   (`/etc/systemd/network/10-tuist-management.network`), because AMT shares the
@@ -412,6 +418,179 @@ ssh tuist@<LAN address> sudo tailscale up --hostname=<host> --advertise-tags=<ta
 ```
 
 A tailnet admin opens the login URL it prints.
+
+## The preinstall image
+
+A box a vendor ships straight to a site arrives with its installer on its own
+boot drive, so it needs no stick, the first edge of a site included. The
+vendor boots the preinstall image once on the box:
+
+```
+mise run rack:write-install-usb --preinstall --output tuist_preinstall_<date>.iso [--internet-server https://<host>]
+```
+
+It writes `tuist_preinstall_<date>.iso` and its `.sha256`. The image is
+Ubuntu's live server ISO with Ubuntu's signed boot chain, so it boots with
+Secure Boot on, and carries no credential. Booted once (PXE, HTTP boot,
+virtual media or a stick), its deploy seed:
+
+1. picks the smallest internal disk of at least 100 GB, the M.2 boot drive,
+   never a storage node's data drive, and refuses one that holds anything but
+   an installer partition;
+2. writes partition 1 (4 GiB, ESP type, FAT label `TUISTINST`, GPT name
+   `tuist-installer`) with the ISO's tree, checked against its `md5sum.txt`,
+   and the resident seed in place of its own;
+3. adds a UEFI boot entry `tuist installer`, first in `BootOrder`, with the
+   efibootmgr from the ISO's pool (the live system has its libraries but not
+   the binary), after deleting any entry of that name: the ASUS firmware keeps
+   an entry whose partition is gone, turned into a group of its network
+   entries (`VenHw(99e275e7-…)`). Without the entry the firmware lists no disk
+   option and boots the partition only after every network entry failed;
+4. prints the unit sheet on the screen and the serial console, and to
+   `TUISTINST:/tuist/unit-sheet.txt`: product, serial, SMBIOS UUID, each NIC's
+   MAC, driver and name, the TPM endorsement key's SHA-256, and its check
+   code, the first 16 hex digits in four groups, for the vendor's acceptance
+   report;
+5. powers the box off.
+
+From then on the box boots the resident installer: the `--any-host` stick's
+installer, which casper boots from `TUISTINST` alone
+(`live-media=/dev/disk/by-label/TUISTINST`) with persistence off
+(`nopersistent`: casper otherwise turns the drive's free space into a
+`writable` partition). It asks the env's boot server and then
+`--internet-server` for the install published for one of its NICs. With no
+default route from DHCP, it tries each site's static WAN
+(`management.edge.wan` of `infra/rack-switch-fleet/sites/*.json`) on each
+port with a link, untagged and on the site's VLAN, and keeps the one whose
+address nobody answers for and whose gateway does (`busybox arping`).
+
+**A preinstalled box earns its install with its TPM.** The vendor's acceptance
+report carries the box's SMBIOS UUID and its TPM check code from the unit
+sheet. Declaring the box takes both:
+
+```yaml
+- uuid: 03de3d42-4a8e-9278-ee1a-a0ad9f25c75f
+  hostname: ber2-edge-b
+  role: edge
+  tpmCheckCode: 1a2b-3c4d-5e6f-7a8b
+```
+
+The operator then pins the host's TPM only from an announcement whose key has
+that code (`TPMCheckCodeMismatch` on `HardwarePinned` otherwise), and the
+internet boot server (`rackLinuxFleet.boot.internet`, `rack-boot --internet`
+on cloud nodes behind the ingress) takes announcements only from hosts
+declared with one. Anyone on the internet reaches that server, so it hands out
+nothing but seeds sealed to a pinned TPM, which only that TPM can open, and
+serves nothing to netboot. With it configured, the operator publishes the
+install of an edge whose TPM is pinned even with no other edge of its site to
+serve it: the first edge of a site asks the internet boot server for it.
+Production runs it at `rack-boot.tuist.dev` and lists the RS501A in
+`rackLinuxFleet.preinstall.products`, so a vendor's image for production is
+written with `--internet-server https://rack-boot.tuist.dev`.
+
+casper takes the first live medium it finds. Booting the image on a drive that
+already holds an installer partition can boot that partition's tree instead,
+whose seed is the resident one; the deploy seed refuses to run from it. Wipe
+the drive to deploy again.
+
+## The ASUS RS501A and its BMC
+
+From rack 2 on, edges and storage nodes are ASUS RS501A-E12-RS12U/1G servers
+with an ASMB11-iKVM BMC (AMI MegaRAC on an AST2600), driven over Redfish by
+`rack-bmc` (`infra/cluster-api-provider-tuist/cmd/rack-bmc`, client in
+`internal/redfish`). The BMC's dedicated port is the leftmost of the three
+RJ45 ports at the back, LAN port 1 the middle one, LAN port 2 the right one.
+
+```
+go build -o rack-bmc ./cmd/rack-bmc        # in infra/cluster-api-provider-tuist
+export RACK_BMC_PASSWORD=...               # the BMC's admin password
+./rack-bmc -bmc https://<bmc> inventory    # serial, SMBIOS UUID, MACs, versions, TPM, Secure Boot
+./rack-bmc -bmc https://<bmc> check        # the BIOS, BMC and IPMI against the baseline; exits 3 on drift
+./rack-bmc -bmc https://<bmc> power off && ./rack-bmc -bmc https://<bmc> apply && ./rack-bmc -bmc https://<bmc> power on
+./rack-bmc -bmc https://<bmc> rotate Administrator <new-password-file
+```
+
+The baseline (`redfish.Baseline`): Restore AC Power Loss Power On
+(`AridApmLastState`), Network Stack, IPv4 PXE and IPv4 HTTP boot on
+(`NWSK000`, `NWSK001`, `NWSK006`), TPM on (`TCG001`), console redirection on
+COM2 for serial-over-LAN (`TER002`), and Secure Boot on with the factory keys,
+whose db holds Microsoft's UEFI CA 2011 and 2023, so Ubuntu's shim boots.
+
+The BMC's own baseline (`redfish.BMCBaseline`, and IPMI in `cmd/rack-bmc`):
+- **SSDP off.**
+- **The NC-SI sideband off** (`eth1`, which takes a DHCP lease of its own
+  through the host's LAN port 2), so the BMC is reachable only on its
+  management port.
+- **IPMI over LAN on cipher suite 17 alone** (HMAC-SHA256, AES-128); the BMC
+  ships taking the SHA-1, MD5 and unencrypted suites too.
+- **Serial-over-LAN forcing encryption and authentication.**
+
+The BMC and IPMI settings apply at once, with the host running. Redfish has
+no setting for the IPMI ones, so `rack-bmc` sets them through `ipmitool`
+(`-I lanplus -C 17`), which has to be installed. A BMC firmware update
+resets them, and the rotated logins and the network, unless the
+UpdateService's `PreserveConfiguration` flags, all off as shipped, are set
+first, so `check` again after one. SNMP is not in the baseline: this BMC keeps it on,
+and its version switches are read-only over Redfish, but with no community
+and no account enabled for SNMP, v1 and v2c answer nothing. IPMI 1.5
+(`-I lan`, MD5) cannot log in with a password longer than 16 bytes, which a
+rotated one is.
+
+What the BMC does differently from the standard:
+
+- BIOS settings go to `Systems/Self/Bios/SD` and the BIOS applies them at its
+  next POST, which takes about three minutes. The BMC answers 503 to a BIOS
+  write, and to a one-time boot, while the host is running or in POST
+  (`ServiceTemporarilyUnavailableDueToHostBooting`): write them with it off.
+- The BIOS lists in its `MAPIDS` attribute which attributes Redfish may set.
+  Secure Boot (`SECB001`) is not one of them, and the BIOS drops it at POST;
+  `rack-bmc` enables it through `Systems/Self/SecureBoot` instead.
+- The attribute registry (`/redfish/v1/Registries/BiosAttributeRegistryS0310.en-US.13.1.0.json`)
+  is served gzip-compressed.
+- Reset takes On, ForceOff, ForceRestart and GracefulShutdown; a power cycle
+  is ForceOff, then On.
+- A one-time boot is `Systems/Self/SD` with `Boot.BootSourceOverrideEnabled: Once` and mode UEFI.
+  A CD boot needs the virtual CD attached for some seconds before power-on,
+  or POST finds no USB CD and falls through to network boot. The BMC accepts
+  `Boot.HttpBootUri` but the firmware ignores it: HTTP boot takes its URL from
+  DHCP alone.
+- With no UEFI entry for a disk, the firmware lists no disk boot option: it
+  tries every network entry (about eight minutes with no DHCP on LAN port 1),
+  then falls back to the first disk's `\EFI\BOOT\BOOTX64.EFI`.
+- Virtual media needs the OEM actions `AMIVirtualMedia.EnableRMedia` and
+  `AMIVirtualMedia.ConfigureCDInstance` before `VirtualMedia/CD1` exists. It
+  reads an HTTPS image only from port 443, with a file name of letters, digits
+  and underscores, and refuses one without a user name and password for the
+  server. It takes a self-signed certificate, but only one that names the
+  server's address: with another name it hangs up after the handshake without
+  a request. It offers `h2` in ALPN, and a server that negotiated HTTP/2 got
+  no HTTP/2 preface from it; one that offers only HTTP/1.1 works. A failed
+  open leaves `CD1` at `Stopped - Unable to Open`, and the BMC makes no
+  further attempt until it restarts.
+- `CertificateService.ReplaceCertificate` on
+  `Managers/Self/NetworkProtocol/HTTPS/Certificates/1` takes the certificate
+  followed by its private key (PKCS#1) in `CertificateString`; the web server
+  serves it within seconds and keeps it across a BMC restart. A certificate
+  alone, even one issued for the BMC's own `GenerateCSR`, answers 204 and
+  shows in the collection, but the web server never serves it and a restart
+  reverts it. `GenerateCSR` also puts the IP addresses in `AlternativeNames`
+  as DNS names. A BMC restart (`Manager.Reset` takes `ForceRestart` only)
+  takes about two and a half minutes and leaves the host running.
+- A PSU that loses AC keeps `Status.State: Present` in `Chassis/Self/Power`,
+  and its `Status.Health` becomes a raw hex code (`0x2849`) rather than
+  Warning or Critical. The SEL records `Power Supply PSUn AC lost`
+  asserted and deasserted, and the PSU's `PowerInputWatts` and
+  `LineInputVoltage` drop to about zero. `PowerControl` `PowerConsumedWatts`
+  lags and reads low; the PSU inputs are the chassis's draw.
+- The BMC's clock follows NTP (`pool.ntp.org`), but `DateTimeLocalOffset`
+  is a fixed offset, `+02:00` from the factory, which DST does not move, and
+  the SEL is stamped in local time. Set it to `+00:00` (PATCH
+  `Managers/Self`).
+- Serial-over-LAN is IPMI over LAN with the same accounts
+  (`ipmitool -I lanplus -H <bmc> -U admin -E sol activate`).
+- Besides `admin` and the factory `Administrator`, the BMC carries a
+  `HostInterfaceAdministrator` account for the in-band Redfish host
+  interface (`usb0`, 169.254.0.17 on the BMC side).
 
 ## Roles
 
@@ -494,13 +673,13 @@ the cluster reaches it.
   to the API server it joined through (`/etc/tuist/kubernetes-service.nft`,
   which the node agent loads on every apply), so an in-cluster client on the
   node, host network or not, reaches the API at the address it is given.
-- **Names.** A pod that needs them sets its own nameservers. Kura's
-  `nodeLocalNetwork` instances use Tailscale's `100.100.100.100`, which
-  answers tailnet names and fails others over, then public resolvers.
+- **Names.** A pod that needs them sets its own nameservers, such as
+  Tailscale's `100.100.100.100`, which answers tailnet names and fails others
+  over, then public resolvers.
 - **Telemetry.** `alloy-rack` (`infra/helm/k8s-monitoring`) on each rack node
-  ships its pods' logs, scrapes its node-local Kura pods and exports the
-  host's own metrics, and pushes them to the Alloy receiver at its tailnet
-  name. Kura exports its traces there too.
+  ships its pods' logs, scrapes any node-local Kura pods (none since the
+  storage node joined the cluster network) and exports the host's own
+  metrics, and pushes them to the Alloy receiver at its tailnet name.
 - **Being reached.** A pod the cluster has to read from is reached through the
   API server: the Kura controller samples node-local pods through a
   port-forward, which goes through the kubelet.
@@ -593,7 +772,11 @@ takes the Kura region with it.
   cannot be used: it starts from the registry's repository listing, which
   ghcr.io refuses. The tags come from the same catalog values as the pools'
   images; the deploy passes `runnersFleet.runnerImageSemver` to this release
-  too.
+  too. Pools name each image by the digest of that tag, so a host's probe
+  asks the cache for the digest and gets the manifest the prewarm synced. An
+  Xcode outside `prewarm` is synced on demand by digest, which zot stores
+  untagged, so retention frees it at the next garbage collection: list every
+  Xcode the rack keeps warm in `prewarm`.
 - **Eviction.** A retention policy keeps the `prewarm` tags and any tag pulled
   within `keepPulledWithin`, and deletes the rest; garbage collection then
   frees their blobs. A release's previous images go a day after the rack has
@@ -973,6 +1156,16 @@ hands a queued job to any idle runner of the org that carries its labels, and
 a rack runner carries the same label as a rented one, so keeping rented
 runners from being minted is what keeps the jobs on the rack.
 
+Staging and canary rent no macOS runner hosts: their only macOS runners are
+the rack hosts production lends them (b01 and b02, "Lending a host to
+another env" below), and `runner_site` is on for every account there
+(`Tuist.FeatureFlags.runner_site_enabled?/1`). Their `runnersFleet.hostCount`
+is 0, so the chart renders no rented macOS pools and sets
+`TUIST_RUNNERS_RENTED_MACOS_FLEET=false`: dispatch sends every macOS profile
+to the rack's pool, and nothing spills over. A job waits while its env's host
+is down, cordoned or busy. Their Scaleway minis only run the xcresult
+processor (`macosFleet`).
+
 A catalog shape can run a bigger guest on the rack than on the rented fleet
 (`rackFleet.runners.guestShapes`): in production the 6 vCPU / 14 GB shape runs
 8 vCPU / 24 GB guests and the 12 vCPU / 28 GB shape 16 vCPU / 48 GB, which the
@@ -999,7 +1192,8 @@ The rented fleet is the rack's backup while it is down (`Tuist.Runners.Sites`):
 
 While a pool is down, dispatch routes new jobs to the rented pool for the same
 Xcode and shape, and `SiteSpilloverWorker` moves its queued ones there every
-minute. A cluster the server cannot read leaves the rack up.
+minute. A cluster the server cannot read leaves the rack up. An env that
+rents no macOS fleet (staging, canary) has no backup, so neither happens there.
 
 The flag also gives the account a node in `ber1-runners`, as
 `runner_site_cache` does. With the
@@ -1019,58 +1213,129 @@ entry on a newer guest needs the hosts updated first.
 
 ### Lending a host to another env
 
-A rack host can run another env's runners while it stays in the rack's env:
-its Machine, power, OS updates and bootstrap stay there, and its tart-kubelet
-registers its Node in the other env's cluster, whose runner pools and server
-then drive its guests. Staging borrows production's this way, so staging jobs
-run on rack hardware. The borrowing env's chart issues the host a node
-identity (`rackFleet.joiningNodes`), and the lending env's RackHost points the
-host at it (`nodeCluster`, `nodeFleet`). The operator waits for that
-kubeconfig, then revokes the host's identity in its own cluster, deletes its
-Node there, and pushes the other cluster's kubeconfig through the drift loop.
-The Machine carries `cluster.x-k8s.io/skip-remediation` while lent, since its
-cluster never sees the Node.
+A rack host can run another env's runners while it stays production's.
+Production keeps the site: the host's Machine, power, MDM, OS updates and
+bootstrap from a reinstall. The borrowing env's operator runs the host's runner
+runtime (tart-kubelet and its config, the VM egress firewall, cache volumes,
+Tailscale, the Node) from its own fleet config and rolls it with its own
+deploys, as it does its rented minis, so a rack runtime change reaches a rack
+host in staging first. The two operators hand the host over through a
+RackHostLease in the borrowing cluster, and never push to it at the same time.
+How it works is "A host lent to another env" in
+[`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md).
 
-1. **Issue the identity** (remote). In the borrowing env's values, add the
-   host's Machine name (`<fleet>-<host>`) to `rackFleet.joiningNodes`, set
-   `rackFleet.name` to the fleet its pools select and `rackFleet.site`, enable
-   `rackFleet.runners`, and deploy.
-2. **Store it in the lending env's vault** (remote, by a person: it writes a
-   credential into 1Password). With `S` the borrowing cluster's context and
-   `M` the Machine name:
+**Once per borrowing env** (remote, by a person: it writes a credential into
+1Password). The borrowing env's values set `rackFleet.borrow.enabled` (staging
+and canary do), which renders the `rack-lender` identity production's operator
+writes that env's leases with. With `C` the borrowing cluster's context, `N`
+its namespace and `E` its name. Every variable is quoted, since zsh does not
+word-split an unquoted one, and each step runs only if the one before it
+succeeded:
 
-   ```
-   M=tuist-tuist-rack-fleet-ber1-runner-b01; S="--context kube-staging.tuist.dev"
-   umask 077; d="$(mktemp -d)"
-   kubectl $S -n tuist-staging get secret "tart-kubelet-$M-token" -o json >"$d/s.json"
-   server="$(kubectl $S -n kube-public get cm cluster-info -o jsonpath='{.data.kubeconfig}' | yq -r '.clusters[0].cluster.server')"
-   printf 'apiVersion: v1\nkind: Config\ncurrent-context: tart-kubelet\nclusters:\n  - name: cluster\n    cluster:\n      server: %s\n      certificate-authority-data: %s\ncontexts:\n  - name: tart-kubelet\n    context:\n      cluster: cluster\n      user: tart-kubelet-%s\nusers:\n  - name: tart-kubelet-%s\n    user:\n      token: %s\n' \
-     "$server" "$(jq -r '.data["ca.crt"]' "$d/s.json")" "$M" "$M" "$(jq -r .data.token "$d/s.json" | base64 -d)" >"$d/kubeconfig"
-   jq -n --rawfile k "$d/kubeconfig" '{title: "BER1_RUNNER_B01_STAGING_KUBECONFIG", category: "API_CREDENTIAL", fields: [{id: "kubeconfig", label: "kubeconfig", type: "CONCEALED", value: $k}]}' >"$d/item.json"
-   op item create --vault tuist-k8s-production --template "$d/item.json"; rm -rf "$d"
-   ```
+```
+C=kube-staging.tuist.dev; N=tuist-staging; E=STAGING
+umask 077; d="$(mktemp -d)"
+kubectl --context "$C" -n "$N" get secret tuist-tuist-rack-lender-token -o json >"$d/s.json" && server="$(kubectl --context "$C" -n kube-public get cm cluster-info -o jsonpath='{.data.kubeconfig}' | yq -r '.clusters[0].cluster.server')" && test -n "$server" && test -n "$(jq -r .data.token "$d/s.json")" && printf 'apiVersion: v1\nkind: Config\ncurrent-context: rack-lender\nclusters:\n  - name: cluster\n    cluster:\n      server: %s\n      certificate-authority-data: %s\ncontexts:\n  - name: rack-lender\n    context:\n      cluster: cluster\n      user: rack-lender\n      namespace: %s\nusers:\n  - name: rack-lender\n    user:\n      token: %s\n' "$server" "$(jq -r '.data["ca.crt"]' "$d/s.json")" "$N" "$(jq -r .data.token "$d/s.json" | base64 -d)" >"$d/kubeconfig" && KUBECONFIG="$d/kubeconfig" kubectl auth whoami && jq -n --rawfile k "$d/kubeconfig" --arg t "RACK_BORROWER_${E}_KUBECONFIG" '{title: $t, category: "API_CREDENTIAL", fields: [{id: "kubeconfig", label: "kubeconfig", type: "CONCEALED", value: $k}]}' >"$d/item.json" && op item create --vault tuist-k8s-production --template "$d/item.json"; rm -rf "$d"
+```
 
-3. **Lend it** (remote). Cordon the host's Node in the lending env and let
-   its jobs finish, then set the host's `nodeFleet` (the borrowing env's
-   `rackFleet.name`) and `nodeCluster.kubeconfigItem` (the item above) in the
-   lending env's `rackFleet.hosts`, and deploy. A host that cannot read its
-   kubeconfig keeps serving its own env and records `Not lending ... yet`
-   events on its RackAppleSiliconMachine.
-4. **Check it** (remote): `kubectl $S get node $M -L tuist.dev/fleet` is
-   Ready in the borrowing cluster, and the lending cluster has no Node `$M`.
+`kubectl auth whoami` must print
+`system:serviceaccount:<N>:tuist-tuist-rack-lender` before anything is stored.
+To replace an item that exists already, run the same with `op item edit <item>
+--vault tuist-k8s-production --template "$d/item.json"` in place of `op item
+create`.
 
-Returning the host is the reverse: drop `nodeCluster` and `nodeFleet` in the
-lending env and deploy (the operator mints its identity there again and pushes
-it), then drop it from `joiningNodes` in the borrowing env, deploy, and delete
-the Node there. Rotating the kubeconfig takes a new item name: the Secret is
-named after the item, and the drift loop keys on the Secret's name, not its
-contents.
+Staging's and canary's entries in `rackFleet.borrowers` in
+values-managed-production.yaml name their items already; a new borrowing env
+needs an entry with its `kubeconfigItem`, and a production deploy. Rotating it
+is deleting the token Secret in the borrowing env (its next deploy makes a new
+one), storing the new kubeconfig under the same item, and waiting for ESO's
+five-minute refresh.
 
-Before enabling the flag for any account other than Tuist's own, the rack's
-runner VMs have to be isolated from the rack's private networks and the
-tailnet (the VM egress firewall in `infra/macos-host-bootstrap`, the ACL
-catch-all in `infra/tailscale/acls.json`), and the isolation probed from a
-runner VM.
+**Lend a host** (remote). Only a host production has bootstrapped: production
+does not bootstrap a host while it lends it, so a new one joins production
+first.
+
+1. In the borrowing env's values, add the host to `rackFleet.borrow.hosts` and
+   deploy. A host not on that list is refused.
+2. In production's `rackFleet.hosts`, set the host's `lendTo` to the borrowing
+   env and deploy.
+3. Watch it: `kubectl get rh` in production shows the lease's state (Offered,
+   Draining while production's jobs on the host finish, then Lent), and
+   `kubectl $S get rhl` in the borrowing env shows the borrower's (Accepted,
+   then Active once its runtime is on the host, with the Node it registers as
+   `<rackFleet.name>-<host>`).
+
+**Return it**: drop `lendTo` in production and deploy. The borrower drains its
+Node, so its running jobs finish, and releases the host; production then takes
+the runtime back and bootstraps its own (Returning, then Reclaimed). It also
+deletes the tailnet devices the host ran as; if its tailnet API cannot, a
+`TailnetCleanupFailed` event names them for the Tailscale admin console.
+Remove the host from `rackFleet.borrow.hosts` afterwards. A borrower that is
+gone cannot release the host: `kubectl annotate rh <host> tuist.dev/reclaim-runtime=true`
+in production takes it back without it (whatever the borrower ran there is
+lost), and remove the annotation once the host is back.
+
+**Rotate the borrower's key**: delete `rack-lease-<host>-ssh` in the borrowing
+env. Its operator mints a new key and waits for production to authorize it,
+which takes a minute; the host keeps running meanwhile.
+
+**Power-cycle or update a lent host** from the borrowing env, which holds no
+credential for either: annotate its lease, and production does it.
+
+```
+kubectl $S annotate rhl ber1-runner-b01 tuist.dev/power-cycle=wedged
+kubectl $S annotate rhl ber1-runner-b01 tuist.dev/os-update=26.7
+```
+
+An update drains the borrower's Node first, so its jobs finish, and the
+borrower pushes its runtime again afterwards. Follow it in the lease's
+`SiteRequest` condition, `status.siteRequest` and `spec.siteRequestResult`. A
+reinstall is not a site request: return the host, reinstall it in production,
+and lend it again.
+
+#### Moving ber1-runner-b01 and b02 off the manual lend
+
+b01 (staging) and b02 (canary) were lent the earlier way: production pushed its
+own runtime with a kubeconfig the borrowing env issued (`nodeCluster`,
+`nodeFleet`, `rackFleet.joiningNodes`). The change that brought `lendTo` also
+switches them, and each env takes its host over as soon as it can:
+
+- **canary** on the merge's own cascade. Canary deploys first, with its lease
+  controller and `rack-lender` identity, and its runners acceptance gate still
+  runs on b02's old Node. Production then deploys with `lendTo: canary`, and
+  the lend starts once `RACK_BORROWER_CANARY_KUBECONFIG` exists (above), which a
+  person stores after that canary deploy; ESO picks it up within five minutes.
+- **staging** once it has run the change: a staging deploy of the branch before
+  the merge (with the operator image built from it, `capi_image_tag`) lets
+  `RACK_BORROWER_STAGING_KUBECONFIG` be stored ahead, and production lends b01
+  as soon as it deploys.
+
+Until its item exists and its env runs the change, a host stays exactly as it
+is: production pushes nothing to it, and its old Node keeps running jobs. The
+borrower drains that Node (`tuist-tuist-rack-fleet-<host>`) only once it has
+reached the host with its own key, which needs the staging and canary grants in
+`infra/tailscale/acls.json` pasted, then takes the host over and deletes it.
+Each env's rack jobs wait out that drain and the push, a few minutes.
+
+Afterwards, in a later change: drop canary's `joiningNodes`, staging's leftover
+`tart-kubelet-tuist-tuist-rack-fleet-ber1-runner-b01` identity, the
+`BER1_RUNNER_B0{1,2}_*_KUBECONFIG` items, and the leftover staging
+RackAppleSiliconMachines and Machines for b01..b03 (step 17 of "Into
+production"); then `nodeCluster`, `nodeFleet` and `rackFleet.joiningNodes` go
+from the chart and the operator.
+
+Any account's jobs can run on a rack host, since staging and canary route all
+of theirs there. A runner VM is isolated from the rack's private networks, the
+host's own listeners, its sibling guests and the tailnet: the VM egress
+firewall in `infra/macos-host-bootstrap` filters guest traffic before the host
+translates it, and `infra/tailscale/acls.json` has no catch-all grant. The
+`vm_isolation` job in `.github/workflows/runners-staging-smoke.yml` probes it
+from a VM on the host it lands on (`environment` picks staging's or canary's
+runners); run it on a host before lending it to an env, and after a change to
+either. The one rack target a guest reaches on purpose is the site's Kura
+gateway (`rackFleet.vmCacheGatewayCIDRs`). The probe's cluster DNS check fails
+on a host lent by hand, which has no route to the borrowing cluster's Service
+CIDR.
 
 ## Tests
 

@@ -1,5 +1,5 @@
 defmodule Atlas.LLMs.RunnerTest do
-  use ExUnit.Case, async: true
+  use Atlas.DataCase, async: true
 
   alias Atlas.Documents.Agents.DocumentClassifierAgent
   alias Atlas.LLMs.LocalTransport
@@ -139,68 +139,99 @@ defmodule Atlas.LLMs.RunnerTest do
   end
 
   describe "local-mode plug threading through Condukt" do
-    # Guards against the regression that caused every classifier call in
-    # production to fail with `:nxdomain`: Condukt 1.7.0 silently dropped
-    # `:llm_request_options`, so the LocalTransport plug never attached
-    # and every ReqLLM call escaped to the `http://atlas-local` sentinel
-    # host. Condukt 1.13+ wires `:llm_request_options` into the base opts
-    # of `ReqLLM.generate_text`, which carries `:req_http_options` into
-    # `Req.new/1`, which honors the `:plug` adapter. If a future Condukt
-    # downgrade or refactor loses that forwarding, this test fires before
-    # the Slack #support ping degrades silently.
     test "the ReqLLM request flows through the Plug carried in llm_request_options" do
       test_pid = self()
 
-      defmodule ProbePlug do
-        @behaviour Plug
+      opts =
+        probe_opts(fn conn ->
+          send(test_pid, {:probe_plug_called, conn.request_path})
+          Req.Test.json(conn, completion(%{"role" => "assistant", "content" => "ok"}))
+        end)
 
-        import Plug.Conn
-
-        @impl true
-        def init(opts), do: opts
-
-        @impl true
-        def call(conn, opts) do
-          send(opts[:test_pid], {:probe_plug_called, conn.request_path})
-
-          body =
-            JSON.encode!(%{
-              "id" => "chatcmpl-test",
-              "object" => "chat.completion",
-              "created" => 0,
-              "model" => "probe-model",
-              "choices" => [
-                %{
-                  "index" => 0,
-                  "finish_reason" => "stop",
-                  "message" => %{"role" => "assistant", "content" => "ok"}
-                }
-              ],
-              "usage" => %{"prompt_tokens" => 1, "completion_tokens" => 1, "total_tokens" => 2}
-            })
-
-          conn
-          |> put_resp_content_type("application/json")
-          |> send_resp(200, body)
-        end
-      end
-
-      defmodule ProbeAgent do
-        use Condukt
-
-        @impl true
-        def system_prompt, do: "You are a probe."
-      end
-
-      opts = [
-        model: ReqLLM.model!(%{id: "probe-model", provider: :openai}),
-        api_key: "test",
-        base_url: "http://atlas-local",
-        llm_request_options: [req_http_options: [plug: {ProbePlug, test_pid: test_pid}]]
-      ]
-
-      assert {:ok, _response} = Condukt.run(ProbeAgent, "ping", opts)
+      assert {:ok, "ok"} = Condukt.run(AnonymousAgent, "ping", opts)
       assert_receive {:probe_plug_called, "/chat/completions"}, 2_000
     end
+
+    test "local reply events execute the real model/tool loop through the Plug instead of Finch streaming" do
+      test_pid = self()
+
+      tool =
+        Condukt.tool(
+          name: "lookup_status",
+          description: "Look up the current status",
+          parameters: %{type: "object", properties: %{}},
+          call: fn _params, _context ->
+            send(test_pid, :tool_executed)
+            {:ok, "healthy"}
+          end
+        )
+
+      opts =
+        probe_opts(fn conn ->
+          assert conn.request_path == "/chat/completions"
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          request = JSON.decode!(body)
+          refute request["stream"]
+
+          response =
+            if Enum.any?(request["messages"], &(&1["role"] == "tool")) do
+              assert Enum.any?(request["messages"], &(&1["content"] == "healthy"))
+              completion(%{"role" => "assistant", "content" => "Everything is healthy."})
+            else
+              completion(
+                %{
+                  "role" => "assistant",
+                  "content" => nil,
+                  "tool_calls" => [
+                    %{
+                      "id" => "call-status",
+                      "type" => "function",
+                      "function" => %{"name" => "lookup_status", "arguments" => "{}"}
+                    }
+                  ]
+                },
+                "tool_calls"
+              )
+            end
+
+          Req.Test.json(conn, response)
+        end)
+        |> Keyword.put(:tools, [tool])
+
+      assert [{:text, "Everything is healthy."}, :done] =
+               Runner.with_reply_stream(%{mode: :local}, AnonymousAgent, "Check status", opts, &Enum.to_list/1)
+
+      assert_receive :tool_executed
+    end
+
+    test "local reply events preserve provider failures" do
+      opts =
+        probe_opts(fn conn ->
+          conn
+          |> Plug.Conn.put_status(402)
+          |> Req.Test.json(%{"error" => %{"message" => "Payment required"}})
+        end)
+
+      assert [{:error, %{status: 402}}] =
+               Runner.with_reply_stream(%{mode: :local}, AnonymousAgent, "ping", opts, &Enum.to_list/1)
+    end
+  end
+
+  defp probe_opts(plug) do
+    %{mode: :local}
+    |> Runner.client_opts()
+    |> Keyword.put(:load_project_instructions, false)
+    |> Keyword.put(:llm_request_options, req_http_options: [plug: plug])
+  end
+
+  defp completion(message, finish_reason \\ "stop") do
+    %{
+      "id" => "chatcmpl-test",
+      "object" => "chat.completion",
+      "created" => 0,
+      "model" => "atlas-default",
+      "choices" => [%{"index" => 0, "finish_reason" => finish_reason, "message" => message}],
+      "usage" => %{"prompt_tokens" => 1, "completion_tokens" => 1, "total_tokens" => 2}
+    }
   end
 end

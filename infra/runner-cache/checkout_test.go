@@ -1,0 +1,866 @@
+package cachevolumes
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+)
+
+var checkoutTestScope = strings.Repeat("a", 64)
+
+const checkoutTestCommit = "0123456789abcdef0123456789abcdef01234567"
+const checkoutTestOther = "fedcba9876543210fedcba9876543210fedcba98"
+const checkoutTestUse = "11111111-1111-4111-8111-111111111111"
+
+type checkoutCall struct {
+	dir  string
+	env  []string
+	name string
+	args []string
+}
+
+// fakeCheckoutHost stands in for hdiutil, cp and git. It creates the files the
+// real tools would, so the master lifecycle runs end to end on any platform.
+type fakeCheckoutHost struct {
+	mu    sync.Mutex
+	calls []checkoutCall
+	fail  func(checkoutCall) bool
+	// lfs is what `git lfs ls-files --long` lists for any commit.
+	lfs []string
+	// parents is what `git cat-file commit` names as each commit's parents.
+	parents map[string][]string
+}
+
+func (f *fakeCheckoutHost) run(_ context.Context, dir string, env []string, name string, args ...string) ([]byte, error) {
+	call := checkoutCall{dir: dir, env: env, name: name, args: args}
+	f.mu.Lock()
+	f.calls = append(f.calls, call)
+	fail := f.fail
+	lfs := append([]string(nil), f.lfs...)
+	parents := f.parents
+	f.mu.Unlock()
+	if fail != nil && fail(call) {
+		return nil, os.ErrInvalid
+	}
+	switch {
+	case name == "hdiutil" && args[0] == "create":
+		return nil, os.WriteFile(args[len(args)-1], []byte("image"), 0600)
+	case name == "cp":
+		data, err := os.ReadFile(args[1])
+		if err != nil {
+			return nil, err
+		}
+		return nil, os.WriteFile(args[2], data, 0600)
+	case name == "git" && args[0] == "init":
+		return nil, os.MkdirAll(filepath.Join(dir, ".git", "info"), 0755)
+	case name == "git" && args[0] == "index-pack":
+		pack := args[len(args)-1]
+		return []byte(strings.Repeat("9", 40) + "\n"), os.WriteFile(strings.TrimSuffix(pack, ".pack")+".idx", nil, 0644)
+	case name == "git" && args[0] == "cat-file" && args[1] == "commit":
+		object := "tree " + strings.Repeat("7", 40) + "\n"
+		for _, parent := range parents[args[2]] {
+			object += "parent " + parent + "\n"
+		}
+		return []byte(object + "author t <t@t> 0 +0000\n\nparent " + checkoutTestOther + "\n"), nil
+	case name == "git" && args[0] == "rev-parse":
+		return []byte(checkoutTestCommit + "\n"), nil
+	case name == "git" && len(args) > 1 && args[0] == "lfs" && args[1] == "ls-files":
+		var out []string
+		for _, oid := range lfs {
+			out = append(out, oid+" * file-"+oid[:4])
+		}
+		return []byte(strings.Join(out, "\n")), nil
+	}
+	return nil, nil
+}
+
+func (f *fakeCheckoutHost) commands() []checkoutCall {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]checkoutCall(nil), f.calls...)
+}
+
+func (f *fakeCheckoutHost) reset() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = nil
+}
+
+func (f *fakeCheckoutHost) ran(name string, args ...string) bool {
+	for _, call := range f.commands() {
+		if call.name == name && len(call.args) >= len(args) && strings.Join(call.args[:len(args)], " ") == strings.Join(args, " ") {
+			return true
+		}
+	}
+	return false
+}
+
+// fakeCheckoutTransfer records publications and serves a HEAD for restores.
+type fakeCheckoutTransfer struct {
+	published []Slot
+	downloads []Slot
+	paths     []string
+	// partials records which partial downloads were next to the download.
+	partials []string
+	conflict bool
+}
+
+func (f *fakeCheckoutTransfer) Download(_ context.Context, slot Slot, path string) error {
+	f.downloads = append(f.downloads, slot)
+	f.paths = append(f.paths, path)
+	parts, _ := filepath.Glob(filepath.Join(filepath.Dir(path), "*.part"))
+	for _, part := range parts {
+		f.partials = append(f.partials, filepath.Base(part))
+	}
+	return os.WriteFile(path, []byte("head"), 0600)
+}
+
+func (f *fakeCheckoutTransfer) Publish(slot Slot, path, _, _ string) (int64, error) {
+	if _, err := os.Stat(path); err != nil {
+		return 0, err
+	}
+	if f.conflict {
+		return 0, ErrConflict
+	}
+	f.published = append(f.published, slot)
+	return slot.BaseGeneration + 1, nil
+}
+
+func newCheckouts(t *testing.T) (*Checkouts, *fakeCheckoutHost) {
+	t.Helper()
+	host := &fakeCheckoutHost{}
+	return &Checkouts{Root: t.TempDir(), Run: host.run, Images: &APFSCheckoutImages{Run: host.run}}, host
+}
+
+func lfsOID(content string) string {
+	sum := sha256.Sum256([]byte(content))
+	return hex.EncodeToString(sum[:])
+}
+
+// exportFrom writes what a guest's teardown hands the host, already moved to
+// the incoming directory, and returns a task to build from it.
+func exportFrom(t *testing.T, c *Checkouts, name, head string, lfs map[string]string) CheckoutTask {
+	t.Helper()
+	dir := c.Incoming(name)
+	if err := os.MkdirAll(filepath.Join(dir, "lfs"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	for oid, content := range lfs {
+		if err := os.WriteFile(filepath.Join(dir, "lfs", oid), []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for file, content := range map[string]string{"head": head + "\n", "pack": "PACK", "shallow": head + "\n"} {
+		if err := os.WriteFile(filepath.Join(dir, file), []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	task := checkoutTestTask()
+	task.Export = dir
+	return task
+}
+
+func checkoutTestTask() CheckoutTask {
+	return CheckoutTask{
+		Scope: checkoutTestScope, Generation: 1, CloneURL: "https://github.com/org/repo", DefaultBranch: "main",
+		Commit: checkoutTestCommit, DefaultBranchJob: true, Use: checkoutTestUse,
+	}
+}
+
+func lfsStore(c *Checkouts) string {
+	return filepath.Join(c.dir(checkoutTestScope, 1), "next.mnt", ".git", "lfs", "objects")
+}
+
+func TestCheckoutColdBuildCreatesTheMasterFromAJobsExport(t *testing.T) {
+	c, host := newCheckouts(t)
+	content := "large file"
+	oid := lfsOID(content)
+	host.lfs = []string{oid}
+	task := exportFrom(t, c, "job", checkoutTestCommit, map[string]string{oid: content})
+
+	c.Process(context.Background(), task)
+
+	if c.Master(checkoutTestScope, 1) == "" {
+		t.Fatal("no master after a cold build")
+	}
+	if !host.ran("hdiutil", "create") || host.ran("cp") {
+		t.Fatal("a cold build formats a new image")
+	}
+	for _, want := range [][]string{
+		{"remote", "add", "origin", "https://github.com/org/repo"},
+		{"config", "core.checkStat", "minimal"},
+		{"index-pack", "--strict"},
+		{"rev-list", "--quiet", "--objects", checkoutTestCommit},
+		{"update-ref", "refs/tuist/recent/" + checkoutTestCommit, checkoutTestCommit},
+		{"update-ref", "refs/remotes/origin/main", checkoutTestCommit},
+		{"checkout", "-q", "--detach", "--force", checkoutTestCommit},
+		{"lfs", "checkout"},
+		{"update-index", "-q", "--really-refresh"},
+	} {
+		if !host.ran("git", want...) {
+			t.Fatalf("missing git %v", want)
+		}
+	}
+	for _, call := range host.commands() {
+		if call.name == "git" && (call.args[0] == "fetch" || call.args[0] == "-c") {
+			t.Fatalf("the host must never reach a remote: %v", call.args)
+		}
+	}
+	if data, err := os.ReadFile(filepath.Join(lfsStore(c), oid[:2], oid[2:4], oid)); err != nil || string(data) != content {
+		t.Fatal("the verified LFS object was not installed")
+	}
+	if shallow, _ := os.ReadFile(filepath.Join(c.dir(checkoutTestScope, 1), "next.mnt", ".git", "shallow")); !strings.Contains(string(shallow), checkoutTestCommit) {
+		t.Fatal("the export's shallow boundary was not recorded")
+	}
+	meta, err := c.readMeta(checkoutTestScope, 1)
+	if err != nil || meta.Tip != checkoutTestCommit || meta.Recent[checkoutTestCommit].IsZero() {
+		t.Fatalf("meta %+v %v", meta, err)
+	}
+	if _, err := os.Stat(task.Export); !os.IsNotExist(err) {
+		t.Fatal("the consumed export was kept")
+	}
+}
+
+func TestCheckoutLFSObjectsMustHashToTheirNames(t *testing.T) {
+	c, host := newCheckouts(t)
+	oid := lfsOID("the real content")
+	host.lfs = []string{oid}
+	c.Process(context.Background(), exportFrom(t, c, "job", checkoutTestCommit, map[string]string{oid: "forged content"}))
+	if c.Master(checkoutTestScope, 1) != "" {
+		t.Fatal("built a master from a forged LFS object")
+	}
+	if _, err := os.Stat(filepath.Join(lfsStore(c), oid[:2], oid[2:4], oid)); !os.IsNotExist(err) {
+		t.Fatal("installed a forged LFS object")
+	}
+}
+
+func TestCheckoutIncompleteExportsAreRefused(t *testing.T) {
+	c, host := newCheckouts(t)
+	host.fail = func(call checkoutCall) bool { return call.name == "git" && call.args[0] == "rev-list" }
+	c.Process(context.Background(), exportFrom(t, c, "job", checkoutTestCommit, nil))
+	if c.Master(checkoutTestScope, 1) != "" {
+		t.Fatal("built a master whose commit is missing objects")
+	}
+}
+
+func TestCheckoutTipOnlyMovesToCompleteDefaultBranchCommits(t *testing.T) {
+	c, host := newCheckouts(t)
+	c.Process(context.Background(), exportFrom(t, c, "first", checkoutTestCommit, nil))
+
+	// A pull request's objects are kept, but its commit never becomes the tip.
+	host.reset()
+	branch := exportFrom(t, c, "branch", checkoutTestOther, nil)
+	branch.DefaultBranchJob = false
+	c.Process(context.Background(), branch)
+	if !host.ran("git", "index-pack") || !host.ran("git", "update-ref", "refs/tuist/recent/"+checkoutTestOther) || host.ran("git", "checkout") {
+		t.Fatal("a branch job adds its objects without moving the tip")
+	}
+	if host.ran("git", "update-ref", "refs/remotes/origin/main") {
+		t.Fatal("a branch job moved the default branch")
+	}
+	if meta, _ := c.readMeta(checkoutTestScope, 1); meta.Tip != checkoutTestCommit {
+		t.Fatalf("tip %s", meta.Tip)
+	}
+
+	// A default-branch commit whose LFS objects are not all here stays a ref only.
+	host.reset()
+	host.lfs = []string{lfsOID("missing")}
+	next := exportFrom(t, c, "next", checkoutTestOther, nil)
+	next.Commit = checkoutTestOther
+	c.Process(context.Background(), next)
+	if host.ran("git", "checkout") {
+		t.Fatal("moved the tip to a commit whose LFS objects are missing")
+	}
+
+	host.reset()
+	host.lfs = nil
+	next = exportFrom(t, c, "complete", checkoutTestOther, nil)
+	next.Commit = checkoutTestOther
+	c.Process(context.Background(), next)
+	if !host.ran("git", "checkout", "-q", "--detach", "--force", checkoutTestOther) || !host.ran("cp", "-c", c.masterPath(checkoutTestScope, 1)) {
+		t.Fatal("a complete default-branch commit becomes the tip of a clone of the master")
+	}
+}
+
+func TestCheckoutColdBuildNeedsEveryLFSObjectOfItsCommit(t *testing.T) {
+	c, host := newCheckouts(t)
+	host.lfs = []string{lfsOID("missing")}
+	c.Process(context.Background(), exportFrom(t, c, "job", checkoutTestCommit, nil))
+	if c.Master(checkoutTestScope, 1) != "" {
+		t.Fatal("a master with LFS pointers in its working tree would serve them as content")
+	}
+}
+
+func TestCheckoutPublishesMastersOfDefaultBranchCommits(t *testing.T) {
+	c, _ := newCheckouts(t)
+	transfer := &fakeCheckoutTransfer{}
+	c.Transfer = transfer
+	branch := exportFrom(t, c, "branch", checkoutTestCommit, nil)
+	branch.DefaultBranchJob = false
+	c.Process(context.Background(), branch)
+	if len(transfer.published) != 0 {
+		t.Fatal("published a master built from a branch job")
+	}
+
+	task := exportFrom(t, c, "main", checkoutTestOther, nil)
+	task.Commit, task.BaseGeneration = checkoutTestOther, 0
+	c.Process(context.Background(), task)
+	if len(transfer.published) != 1 || transfer.published[0].ID != checkoutTestUse || transfer.published[0].Scope != checkoutTestScope {
+		t.Fatalf("published %+v", transfer.published)
+	}
+	if _, err := os.Stat(filepath.Join(c.dir(checkoutTestScope, 1), "master.zst")); !os.IsNotExist(err) {
+		t.Fatal("left the archive behind")
+	}
+
+	transfer.conflict = true
+	again := exportFrom(t, c, "again", checkoutTestCommit, nil)
+	c.Process(context.Background(), again)
+	if c.Master(checkoutTestScope, 1) == "" {
+		t.Fatal("another host publishing first must not cost this host its master")
+	}
+}
+
+func TestCheckoutRestoresTheHeadOnAHostWithoutAMaster(t *testing.T) {
+	c, host := newCheckouts(t)
+	transfer := &fakeCheckoutTransfer{}
+	c.Transfer = transfer
+	task := checkoutTestTask()
+	task.BaseGeneration, task.ImageDigest, task.ContentDigest = 3, strings.Repeat("b", 40), strings.Repeat("c", 64)
+
+	c.Process(context.Background(), task)
+
+	if len(transfer.downloads) != 1 || transfer.downloads[0].BaseGeneration != 3 || transfer.downloads[0].ContentDigest != task.ContentDigest {
+		t.Fatalf("downloads %+v", transfer.downloads)
+	}
+	if data, _ := os.ReadFile(c.Master(checkoutTestScope, 1)); string(data) != "head" {
+		t.Fatal("the HEAD did not become this host's master")
+	}
+	if !host.ran("hdiutil", "attach", c.restorePath(task), "-readonly") {
+		t.Fatal("the restored master's tip is read from a read-only mount")
+	}
+	if meta, err := c.readMeta(checkoutTestScope, 1); err != nil || meta.Tip != checkoutTestCommit {
+		t.Fatalf("meta %+v %v", meta, err)
+	}
+
+	c.Process(context.Background(), task)
+	if len(transfer.downloads) != 1 {
+		t.Fatal("restored over an existing master")
+	}
+}
+
+func TestCheckoutExportsAreReadWithoutFollowingLinks(t *testing.T) {
+	c, _ := newCheckouts(t)
+	outside := filepath.Join(t.TempDir(), "secret")
+	_ = os.WriteFile(outside, []byte("host file"), 0600)
+	for _, entry := range []string{"pack", "head"} {
+		task := exportFrom(t, c, "job-"+entry, checkoutTestCommit, nil)
+		_ = os.Remove(filepath.Join(task.Export, entry))
+		if err := os.Symlink(outside, filepath.Join(task.Export, entry)); err != nil {
+			t.Fatal(err)
+		}
+		if export, err := openCheckoutExport(task.Export); err == nil {
+			export.Close()
+			t.Fatalf("followed a %s link out of the export", entry)
+		}
+	}
+	link := filepath.Join(t.TempDir(), "export")
+	_ = os.Symlink(t.TempDir(), link)
+	if _, err := openCheckoutExport(link); err == nil {
+		t.Fatal("opened an export that is a link")
+	}
+}
+
+func TestCheckoutFailedBuildKeepsThePreviousMaster(t *testing.T) {
+	c, host := newCheckouts(t)
+	c.Process(context.Background(), exportFrom(t, c, "first", checkoutTestCommit, nil))
+	before, _ := os.ReadFile(c.Master(checkoutTestScope, 1))
+	host.fail = func(call checkoutCall) bool {
+		return call.name == "git" && call.args[0] == "lfs" && call.args[1] == "checkout"
+	}
+	next := exportFrom(t, c, "next", checkoutTestOther, nil)
+	next.Commit = checkoutTestOther
+	host.reset()
+	c.Process(context.Background(), next)
+	if !host.ran("git", "lfs", "checkout") {
+		t.Fatal("the build never ran")
+	}
+	after, err := os.ReadFile(c.Master(checkoutTestScope, 1))
+	if err != nil || string(after) != string(before) {
+		t.Fatal("a failed build replaced the master")
+	}
+	if _, err := os.Stat(filepath.Join(c.dir(checkoutTestScope, 1), "next.sparseimage")); !os.IsNotExist(err) {
+		t.Fatal("a failed build left its image behind")
+	}
+}
+
+func TestCheckoutRecentCommitsExpire(t *testing.T) {
+	c, host := newCheckouts(t)
+	c.Process(context.Background(), exportFrom(t, c, "first", checkoutTestCommit, nil))
+	meta, _ := c.readMeta(checkoutTestScope, 1)
+	old := strings.Repeat("e", 40)
+	meta.Recent[old] = time.Now().Add(-15 * 24 * time.Hour)
+	_ = c.writeMeta(checkoutTestScope, 1, meta)
+	host.reset()
+	c.Process(context.Background(), exportFrom(t, c, "next", checkoutTestCommit, nil))
+	if !host.ran("git", "remote", "set-url", "origin") || !host.ran("git", "update-ref", "-d", "refs/tuist/recent/"+old) {
+		t.Fatal("a build keeps the remote canonical and expires old job commits")
+	}
+	if meta, _ = c.readMeta(checkoutTestScope, 1); !meta.Recent[old].IsZero() {
+		t.Fatal("expired commit still recorded")
+	}
+}
+
+func TestCheckoutClearDropsThePreviousScopesCopies(t *testing.T) {
+	c, _ := newCheckouts(t)
+	first := exportFrom(t, c, "first", checkoutTestCommit, nil)
+	first.VolumeKey = strings.Repeat("d", 64)
+	c.Track(first)
+	c.Process(context.Background(), first)
+
+	cleared := exportFrom(t, c, "cleared", checkoutTestCommit, nil)
+	cleared.VolumeKey, cleared.Scope = first.VolumeKey, strings.Repeat("e", 64)
+	c.Track(cleared)
+	deadline := time.Now().Add(5 * time.Second)
+	for c.Master(first.Scope, 1) != "" && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if c.Master(first.Scope, 1) != "" {
+		t.Fatal("a cleared volume's copy survived")
+	}
+	c.Track(cleared)
+	c.Process(context.Background(), cleared)
+	if c.Master(cleared.Scope, 1) == "" {
+		t.Fatal("the new scope has no copy")
+	}
+}
+
+func TestCheckoutColdBuildsOnlyStartFromDefaultBranchCommits(t *testing.T) {
+	c, host := newCheckouts(t)
+	branch := exportFrom(t, c, "branch", checkoutTestCommit, nil)
+	branch.DefaultBranchJob = false
+	c.Process(context.Background(), branch)
+	if c.Master(checkoutTestScope, 1) != "" || host.ran("hdiutil", "create") {
+		t.Fatal("a branch job started a master every later job would be handed")
+	}
+
+	moved := exportFrom(t, c, "moved", checkoutTestOther, nil)
+	c.Process(context.Background(), moved)
+	if c.Master(checkoutTestScope, 1) != "" {
+		t.Fatal("a default-branch job whose checkout is not its commit started a master")
+	}
+}
+
+func TestCheckoutEligibleBranchJobStartsALineageWithoutAHead(t *testing.T) {
+	c, host := newCheckouts(t)
+	transfer := &fakeCheckoutTransfer{}
+	c.Transfer = transfer
+	branch := exportFrom(t, c, "branch", checkoutTestCommit, nil)
+	branch.DefaultBranchJob, branch.MayStartMaster = false, true
+
+	c.Process(context.Background(), branch)
+
+	if c.Master(checkoutTestScope, 1) == "" || !host.ran("hdiutil", "create") {
+		t.Fatal("an eligible branch job did not start the master")
+	}
+	if !host.ran("git", "checkout", "-q", "--detach", "--force", checkoutTestCommit) || host.ran("git", "update-ref", "refs/remotes/origin/main") {
+		t.Fatal("the master's tip is the job's commit, without moving the default branch")
+	}
+	if meta, _ := c.readMeta(checkoutTestScope, 1); meta.Tip != checkoutTestCommit {
+		t.Fatalf("tip %s", meta.Tip)
+	}
+	if len(transfer.published) != 1 || transfer.published[0].ID != checkoutTestUse || transfer.published[0].BaseGeneration != 0 {
+		t.Fatalf("published %+v", transfer.published)
+	}
+
+	// Once the master exists, another branch job only adds its objects.
+	host.reset()
+	other := exportFrom(t, c, "other", checkoutTestOther, nil)
+	other.Commit, other.DefaultBranchJob, other.MayStartMaster = checkoutTestOther, false, true
+	c.Process(context.Background(), other)
+	if !host.ran("git", "update-ref", "refs/tuist/recent/"+checkoutTestOther) || host.ran("git", "checkout") || len(transfer.published) != 1 {
+		t.Fatal("a branch job moved or republished an existing master")
+	}
+
+	// The first default-branch job moves the tip and republishes.
+	host.reset()
+	main := exportFrom(t, c, "main", checkoutTestOther, nil)
+	main.Commit, main.BaseGeneration = checkoutTestOther, 1
+	main.ImageDigest, main.ContentDigest = strings.Repeat("b", 40), strings.Repeat("c", 64)
+	c.Process(context.Background(), main)
+	if !host.ran("git", "checkout", "-q", "--detach", "--force", checkoutTestOther) || !host.ran("git", "update-ref", "refs/remotes/origin/main", checkoutTestOther) {
+		t.Fatal("a default-branch job did not move the tip")
+	}
+	if len(transfer.published) != 2 || transfer.published[1].BaseGeneration != 1 {
+		t.Fatalf("published %+v", transfer.published)
+	}
+}
+
+func TestCheckoutBranchJobsOnlyStartLineagesTheServerAllows(t *testing.T) {
+	merge := []string{strings.Repeat("5", 40), checkoutTestOther}
+	cases := map[string]struct {
+		change func(*CheckoutTask)
+		// parents are the exported commit's.
+		parents []string
+	}{
+		// The server never allows forks or events that run untrusted code.
+		"not eligible": {change: func(task *CheckoutTask) {}},
+		// A host without a master of a lineage that has a HEAD restores it instead.
+		"lineage has a HEAD": {change: func(task *CheckoutTask) {
+			task.MayStartMaster, task.BaseGeneration = true, 2
+			task.ImageDigest, task.ContentDigest = strings.Repeat("b", 40), strings.Repeat("c", 64)
+		}},
+		"lineage has a HEAD, export merges the job's commit": {parents: merge, change: func(task *CheckoutTask) {
+			task.MayStartMaster, task.Commit, task.BaseGeneration = true, checkoutTestOther, 2
+			task.ImageDigest, task.ContentDigest = strings.Repeat("b", 40), strings.Repeat("c", 64)
+		}},
+		"export is not the job's commit": {change: func(task *CheckoutTask) {
+			task.MayStartMaster, task.Commit = true, checkoutTestOther
+		}},
+		"export merges another commit": {parents: merge, change: func(task *CheckoutTask) {
+			task.MayStartMaster, task.Commit = true, strings.Repeat("6", 40)
+		}},
+		// The fake commit message is a line naming checkoutTestOther as a parent.
+		"export's message names the job's commit": {parents: merge[:1], change: func(task *CheckoutTask) {
+			task.MayStartMaster, task.Commit = true, checkoutTestOther
+		}},
+		"export merges more than two commits": {parents: append(merge, strings.Repeat("4", 40)), change: func(task *CheckoutTask) {
+			task.MayStartMaster, task.Commit = true, checkoutTestOther
+		}},
+	}
+	for name, test := range cases {
+		t.Run(name, func(t *testing.T) {
+			c, host := newCheckouts(t)
+			host.parents = map[string][]string{checkoutTestCommit: test.parents}
+			transfer := &fakeCheckoutTransfer{}
+			c.Transfer = transfer
+			task := exportFrom(t, c, "branch", checkoutTestCommit, nil)
+			task.DefaultBranchJob = false
+			test.change(&task)
+			c.Process(context.Background(), task)
+			if c.Master(checkoutTestScope, 1) != "" || len(transfer.published) != 0 {
+				t.Fatal("a branch job started a master")
+			}
+		})
+	}
+}
+
+// actions/checkout checks out a pull request's test merge commit, not its head,
+// and fetches it at depth 1, so its parents are not in the export.
+func TestCheckoutEligiblePullRequestMergeStartsALineage(t *testing.T) {
+	c, host := newCheckouts(t)
+	transfer := &fakeCheckoutTransfer{}
+	c.Transfer = transfer
+	merge := strings.Repeat("5", 40)
+	host.parents = map[string][]string{merge: {checkoutTestOther, checkoutTestCommit}}
+	task := exportFrom(t, c, "pull-request", merge, nil)
+	task.DefaultBranchJob, task.MayStartMaster = false, true
+
+	c.Process(context.Background(), task)
+
+	if c.Master(checkoutTestScope, 1) == "" || !host.ran("git", "checkout", "-q", "--detach", "--force", merge) {
+		t.Fatal("the job's test merge did not start the master")
+	}
+	if host.ran("git", "update-ref", "refs/remotes/origin/main") {
+		t.Fatal("a pull request job moved the default branch")
+	}
+	if meta, _ := c.readMeta(checkoutTestScope, 1); meta.Tip != merge {
+		t.Fatalf("tip %s", meta.Tip)
+	}
+	if len(transfer.published) != 1 || transfer.published[0].BaseGeneration != 0 {
+		t.Fatalf("published %+v", transfer.published)
+	}
+}
+
+func TestCheckoutKeepsOnlyLFSObjectsTheCommitReferences(t *testing.T) {
+	c, host := newCheckouts(t)
+	used, unused := "used content", "unused content"
+	host.lfs = []string{lfsOID(used)}
+	c.Process(context.Background(), exportFrom(t, c, "job", checkoutTestCommit, map[string]string{lfsOID(used): used, lfsOID(unused): unused}))
+	if _, err := os.Stat(filepath.Join(lfsStore(c), lfsOID(used)[:2], lfsOID(used)[2:4], lfsOID(used))); err != nil {
+		t.Fatal("the referenced LFS object was not kept")
+	}
+	if _, err := os.Stat(filepath.Join(lfsStore(c), lfsOID(unused)[:2], lfsOID(unused)[2:4], lfsOID(unused))); !os.IsNotExist(err) {
+		t.Fatal("kept an LFS object no commit references")
+	}
+}
+
+func TestCheckoutReservesRoomForLargeExportsAndRefusesOversizedOnes(t *testing.T) {
+	c, _ := newCheckouts(t)
+	var reserved uint64
+	c.Room = func(_ context.Context, bytes uint64) (func(), error) {
+		reserved = bytes
+		return func() {}, nil
+	}
+	large := exportFrom(t, c, "large", checkoutTestCommit, nil)
+	if err := os.Truncate(filepath.Join(large.Export, "pack"), 15_000_000_000); err != nil {
+		t.Fatal(err)
+	}
+	c.Process(context.Background(), large)
+	if reserved < 30_000_000_000 {
+		t.Fatalf("reserved %d for a 15 GB export", reserved)
+	}
+
+	oversized := exportFrom(t, c, "oversized", checkoutTestCommit, nil)
+	if err := os.Truncate(filepath.Join(oversized.Export, "pack"), checkoutExportMax+1); err != nil {
+		t.Fatal(err)
+	}
+	if export, err := openCheckoutExport(oversized.Export); err == nil {
+		export.Close()
+		t.Fatal("accepted an export larger than an image can hold")
+	}
+}
+
+func TestCheckoutRestoreKeepsAgingThePublishersJobCommits(t *testing.T) {
+	host := &fakeCheckoutHost{}
+	c := &Checkouts{Root: t.TempDir(), Transfer: &fakeCheckoutTransfer{}, Run: func(ctx context.Context, dir string, env []string, name string, args ...string) ([]byte, error) {
+		if name == "git" && args[0] == "for-each-ref" {
+			return []byte(checkoutTestOther + "\n"), nil
+		}
+		return host.run(ctx, dir, env, name, args...)
+	}, Images: &APFSCheckoutImages{Run: host.run}}
+	task := checkoutTestTask()
+	task.BaseGeneration, task.ImageDigest, task.ContentDigest = 3, strings.Repeat("b", 40), strings.Repeat("c", 64)
+	c.Process(context.Background(), task)
+	if meta, err := c.readMeta(checkoutTestScope, 1); err != nil || meta.Recent[checkoutTestOther].IsZero() {
+		t.Fatalf("meta %+v %v", meta, err)
+	}
+}
+
+func TestCheckoutTasksAreValidated(t *testing.T) {
+	c, _ := newCheckouts(t)
+	c.queue, c.ready = make(chan string, 1), true
+	for name, mutate := range map[string]func(*CheckoutTask){
+		"other host":            func(t *CheckoutTask) { t.CloneURL = "https://example.com/org/repo" },
+		"option branch":         func(t *CheckoutTask) { t.DefaultBranch = "--upload-pack=evil" },
+		"dotted branch":         func(t *CheckoutTask) { t.DefaultBranch = "a..b" },
+		"short commit":          func(t *CheckoutTask) { t.Commit = "abc" },
+		"bad scope":             func(t *CheckoutTask) { t.Scope = "../x" },
+		"no use":                func(t *CheckoutTask) { t.Use = "" },
+		"export elsewhere":      func(t *CheckoutTask) { t.Export = "/etc" },
+		"restore without HEAD":  func(t *CheckoutTask) { t.Export = "" },
+		"HEAD without digests":  func(t *CheckoutTask) { t.BaseGeneration = 2 },
+		"negative base":         func(t *CheckoutTask) { t.BaseGeneration = -1 },
+		"negative generation":   func(t *CheckoutTask) { t.Generation = -1 },
+		"export outside folder": func(t *CheckoutTask) { t.Export = filepath.Join(c.Root, "export") },
+	} {
+		task := checkoutTestTask()
+		task.Export = c.Incoming("job")
+		mutate(&task)
+		if c.Enqueue(task) {
+			t.Fatalf("%s accepted", name)
+		}
+	}
+	first := exportFrom(t, c, "first", checkoutTestCommit, nil)
+	second := exportFrom(t, c, "second", checkoutTestCommit, nil)
+	if !c.Enqueue(first) || !c.Enqueue(second) {
+		t.Fatal("repeated requests coalesce")
+	}
+	if len(c.queue) != 1 || c.pending[checkoutTestScope].Export != second.Export {
+		t.Fatal("one queued build per volume, the newest")
+	}
+	if _, err := os.Stat(first.Export); !os.IsNotExist(err) {
+		t.Fatal("a replaced export was kept")
+	}
+	restore := checkoutTestTask()
+	restore.BaseGeneration, restore.ImageDigest, restore.ContentDigest = 1, strings.Repeat("b", 40), strings.Repeat("c", 64)
+	if !c.Enqueue(restore) || c.pending[checkoutTestScope].Export != second.Export {
+		t.Fatal("a restore never replaces a queued export")
+	}
+}
+
+func TestCheckoutSeedClonesTheMasterAndRefusesOthers(t *testing.T) {
+	c, _ := newCheckouts(t)
+	c.Process(context.Background(), exportFrom(t, c, "first", checkoutTestCommit, nil))
+	slot := Slot{Identity: Identity{Scope: checkoutTestScope, Kind: KindCheckout, Generation: 1}}
+	dst := filepath.Join(t.TempDir(), "branch")
+	if err := c.Seed(context.Background(), slot, dst); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(dst); string(data) != "image" {
+		t.Fatal("seed did not clone the master")
+	}
+	slot.Generation = 2
+	if err := c.Seed(context.Background(), slot, dst+"2"); err == nil {
+		t.Fatal("seeded from another generation")
+	}
+	slot.Kind = ""
+	if err := c.Seed(context.Background(), slot, dst+"3"); err == nil {
+		t.Fatal("seeded a custom volume")
+	}
+}
+
+func TestCheckoutEvictionSkipsMastersInUse(t *testing.T) {
+	c, _ := newCheckouts(t)
+	c.Process(context.Background(), exportFrom(t, c, "first", checkoutTestCommit, nil))
+	other := exportFrom(t, c, "other", checkoutTestCommit, nil)
+	other.Scope = strings.Repeat("b", 64)
+	c.Process(context.Background(), other)
+	old := time.Now().Add(-8 * 24 * time.Hour)
+	_ = os.Chtimes(c.Master(checkoutTestScope, 1), old, old)
+
+	c.setBusy(checkoutTestScope, true)
+	c.Maintain()
+	if c.Master(checkoutTestScope, 1) == "" {
+		t.Fatal("evicted a master being built")
+	}
+	c.setBusy(checkoutTestScope, false)
+	c.Maintain()
+	if c.Master(checkoutTestScope, 1) != "" || c.Master(other.Scope, 1) == "" {
+		t.Fatal("idle eviction removes only week-old masters")
+	}
+	if !c.Evict(func() bool { return false }) || c.Master(other.Scope, 1) != "" {
+		t.Fatal("pressure eviction removes least recently used masters")
+	}
+}
+
+func TestCheckoutBuildRefusedForRoomIsRetriedByMaintain(t *testing.T) {
+	c, _ := newCheckouts(t)
+	c.ready, c.queue = true, make(chan string, checkoutQueue)
+	full := true
+	c.Room = func(context.Context, uint64) (func(), error) {
+		if full {
+			return nil, ErrCapacity
+		}
+		return func() {}, nil
+	}
+	task := exportFrom(t, c, "job", checkoutTestCommit, nil)
+	c.Process(context.Background(), task)
+	if c.Master(checkoutTestScope, 1) != "" || len(c.queue) != 0 {
+		t.Fatal("a build without room ran or was queued straight away")
+	}
+	if _, err := os.Stat(task.Export); err != nil {
+		t.Fatal("a waiting build lost its export")
+	}
+
+	full = false
+	c.Maintain()
+	if len(c.queue) != 1 {
+		t.Fatal("maintain did not retry the refused build")
+	}
+	c.Process(context.Background(), c.pending[<-c.queue])
+	if c.Master(checkoutTestScope, 1) == "" {
+		t.Fatal("the retried build made no master")
+	}
+	c.Maintain()
+	if len(c.queue) != 0 {
+		t.Fatal("a finished build was retried again")
+	}
+}
+
+func TestCheckoutWaitingBuildsGiveUpAfterAWhile(t *testing.T) {
+	c, _ := newCheckouts(t)
+	c.ready, c.queue = true, make(chan string, checkoutQueue)
+	c.Room = func(context.Context, uint64) (func(), error) { return nil, ErrCapacity }
+	task := exportFrom(t, c, "job", checkoutTestCommit, nil)
+	task.Since = time.Now().Add(-2 * checkoutWaitFor)
+	c.Process(context.Background(), task)
+	c.Maintain()
+	if len(c.queue) != 0 {
+		t.Fatal("kept retrying a build past its wait")
+	}
+	if _, err := os.Stat(task.Export); !os.IsNotExist(err) {
+		t.Fatal("kept the export of a build it gave up on")
+	}
+}
+
+func TestCheckoutNewerRequestReplacesAWaitingBuild(t *testing.T) {
+	c, _ := newCheckouts(t)
+	c.ready, c.queue = true, make(chan string, checkoutQueue)
+	c.Room = func(context.Context, uint64) (func(), error) { return nil, ErrCapacity }
+	first := exportFrom(t, c, "first", checkoutTestCommit, nil)
+	c.Process(context.Background(), first)
+
+	newer := exportFrom(t, c, "newer", checkoutTestOther, nil)
+	c.Enqueue(newer)
+	c.Maintain()
+	if len(c.queue) != 1 || c.pending[checkoutTestScope].Export != newer.Export {
+		t.Fatal("the waiting build was not replaced by the newer request")
+	}
+	if _, err := os.Stat(first.Export); !os.IsNotExist(err) {
+		t.Fatal("kept the replaced export")
+	}
+}
+
+func TestCheckoutEvictableCountsOnlyMastersNoBuildHolds(t *testing.T) {
+	c, _ := newCheckouts(t)
+	c.Process(context.Background(), exportFrom(t, c, "first", checkoutTestCommit, nil))
+	other := exportFrom(t, c, "other", checkoutTestCommit, nil)
+	other.Scope = strings.Repeat("b", 64)
+	c.Process(context.Background(), other)
+	size := func(string) (uint64, error) { return 3, nil }
+
+	if got := c.Evictable(size); got != 6 {
+		t.Fatalf("evictable %d, want both masters", got)
+	}
+	c.setBusy(other.Scope, true)
+	if got := c.Evictable(size); got != 3 {
+		t.Fatalf("evictable %d, want only the idle master", got)
+	}
+}
+
+// A download interrupted by a restart leaves a partial archive that the transfer
+// resumes. A restore only resumes one of the HEAD it restores: appending another
+// HEAD's archive to it makes an image that cannot be read.
+func TestCheckoutRestoreOnlyResumesItsOwnHeadsDownload(t *testing.T) {
+	c, _ := newCheckouts(t)
+	transfer := &fakeCheckoutTransfer{}
+	c.Transfer = transfer
+	task := checkoutTestTask()
+	task.BaseGeneration, task.ImageDigest, task.ContentDigest = 3, strings.Repeat("b", 40), strings.Repeat("c", 64)
+	dir := c.dir(checkoutTestScope, 1)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	own := filepath.Join(dir, "restore-00000000000000000003-"+task.ContentDigest+".sparseimage")
+	stale := []string{
+		filepath.Join(dir, "next.sparseimage.part"),
+		filepath.Join(dir, "restore-00000000000000000002-"+strings.Repeat("e", 64)+".sparseimage.part"),
+	}
+	for _, path := range append(stale, own+".part") {
+		if err := os.WriteFile(path, []byte("partial"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	c.Process(context.Background(), task)
+
+	if len(transfer.paths) != 1 || transfer.paths[0] != own {
+		t.Fatalf("downloaded into %v, want %s", transfer.paths, own)
+	}
+	if strings.Join(transfer.partials, ",") != filepath.Base(own)+".part" {
+		t.Fatalf("partials beside the download: %v", transfer.partials)
+	}
+	if data, _ := os.ReadFile(c.Master(checkoutTestScope, 1)); string(data) != "head" {
+		t.Fatal("the HEAD did not become this host's master")
+	}
+}
+
+func TestCheckoutMaintainRemovesAbandonedRestoreDownloads(t *testing.T) {
+	c, _ := newCheckouts(t)
+	task := checkoutTestTask()
+	task.BaseGeneration, task.ContentDigest = 3, strings.Repeat("c", 64)
+	if err := os.MkdirAll(c.dir(checkoutTestScope, 1), 0700); err != nil {
+		t.Fatal(err)
+	}
+	abandoned, recent := c.restorePath(task)+".part", c.restorePath(task)+".other.part"
+	for _, path := range []string{abandoned, recent} {
+		if err := os.WriteFile(path, []byte("partial"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := time.Now().Add(-2 * time.Hour)
+	_ = os.Chtimes(abandoned, old, old)
+	c.Maintain()
+	if _, err := os.Stat(abandoned); !os.IsNotExist(err) {
+		t.Fatal("kept a download abandoned for two hours")
+	}
+	if _, err := os.Stat(recent); err != nil {
+		t.Fatal("removed a download still being written")
+	}
+}

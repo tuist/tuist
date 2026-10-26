@@ -363,6 +363,24 @@ defmodule TuistWeb.Marketing.LocalizationTest do
     # which is trimmed to "en" unless TUIST_DEV_ALL_LOCALES=1.
     @describetag :locale
 
+    test "language choices preserve repeated query values and replace the previous choice" do
+      uri =
+        "/blog?tag[]=one&tag[]=two&source=first&source=second&set_locale=en#latest"
+        |> Localization.language_switch_href("ja")
+        |> URI.parse()
+
+      assert uri.path == "/ja/blog"
+      assert uri.fragment == "latest"
+
+      assert uri.query |> URI.query_decoder() |> Enum.to_list() == [
+               {"tag[]", "one"},
+               {"tag[]", "two"},
+               {"source", "first"},
+               {"source", "second"},
+               {"set_locale", "ja"}
+             ]
+    end
+
     test "places the locale before the path" do
       Gettext.put_locale(TuistWeb.Gettext, "ko")
 

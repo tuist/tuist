@@ -10,6 +10,9 @@ defmodule TuistWeb.OriginAppSetupController do
   alias Tuist.Origin.Signatures
   alias TuistWeb.Authentication
   alias TuistWeb.Errors.BadRequestError
+  alias TuistWeb.IntegrationInstallationController
+
+  require Logger
 
   def start(conn, %{"account_id" => account_id}) when is_binary(account_id) do
     user = Authentication.current_user(conn)
@@ -50,8 +53,29 @@ defmodule TuistWeb.OriginAppSetupController do
   def setup(conn, %{"installation_receipt" => receipt}) do
     user = Authentication.current_user(conn)
 
-    with %{state: state, account_id: account_id, user_id: user_id, issued_at: issued_at} <-
-           get_session(conn, :origin_installation),
+    case get_session(conn, :origin_installation) do
+      nil -> select_account(conn, receipt)
+      pending -> complete_setup(conn, receipt, user, pending)
+    end
+  end
+
+  def setup(_conn, _params), do: invalid_request!()
+
+  defp select_account(conn, receipt, setup_failure \\ nil) do
+    case Signatures.verify_receipt(receipt, nil) do
+      {:ok, _claims} ->
+        conn
+        |> delete_session(:origin_installation)
+        |> IntegrationInstallationController.select(:origin, receipt)
+
+      _ ->
+        log_setup_failure(setup_failure)
+        invalid_request!()
+    end
+  end
+
+  defp complete_setup(conn, receipt, user, pending) do
+    with %{state: state, account_id: account_id, user_id: user_id, issued_at: issued_at} <- pending,
          true <- (System.system_time(:second) - issued_at) in -60..600,
          %{id: ^user_id} <- user,
          {:ok, account} <- Accounts.get_account_by_id(account_id),
@@ -62,11 +86,19 @@ defmodule TuistWeb.OriginAppSetupController do
       |> delete_session(:origin_installation)
       |> redirect(to: ~p"/#{account.name}/settings/integrations")
     else
-      _ -> invalid_request!()
+      failure -> select_account(conn, receipt, failure)
     end
   end
 
-  def setup(_conn, _params), do: invalid_request!()
+  defp log_setup_failure(nil), do: :ok
+
+  defp log_setup_failure({:error, reason}) when is_atom(reason) do
+    Logger.warning("Origin installation could not complete the pending Tuist setup", reason: reason)
+  end
+
+  defp log_setup_failure(_failure) do
+    Logger.warning("Origin installation could not complete the pending Tuist setup", reason: :invalid_setup_state)
+  end
 
   defp invalid_request! do
     raise BadRequestError,

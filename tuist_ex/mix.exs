@@ -9,9 +9,11 @@ defmodule TuistEx.MixProject do
       elixir: "~> 1.18",
       # `cover` belongs to the :tools application, which `mix test --cover`
       # starts and which no project lists among its dependencies.
-      elixirc_options: [no_warn_undefined: [:cover, Mimic.Server]],
+      elixirc_options: [no_warn_undefined: [:cover, Mimic]],
       deps: [
         {:grpc, "~> 0.11"},
+        # Older Mint generators iterate atom-keyed maps and produce unstable BEAMs.
+        {:mint, ">= 1.10.2 and < 2.0.0"},
         {:quokka, "~> 2.13", only: [:dev, :test], runtime: false},
         {:mimic, "~> 2.0", only: :test},
         {:ex_doc, "~> 0.40", only: :dev, runtime: false}

@@ -23,7 +23,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     queue: :process_xcresult,
     max_attempts: 20,
     unique: [
-      keys: [:test_run_id, :shard_index],
+      keys: [:test_run_id, :shard_index, :shard_attempt, :shard_report_revision],
       states: :incomplete,
       period: :infinity
     ]
@@ -236,18 +236,10 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   # with a different personal account.
   defp process_xcresult(test_run_id, storage_key, args) do
     with {:ok, account} <- storage_account(args["project_id"]) do
-      # For sharded runs, multiple workers share the same merged
-      # test_run_id and can run concurrently. Suffix the temp path with
-      # the shard index so they never clobber each other's download
-      # mid-parse. Oban's unique job configuration already keeps a given
-      # (test_run_id, shard_index) pair from running in parallel.
-      filename =
-        case Map.get(args, "shard_index") do
-          nil -> "xcresult_#{test_run_id}.zip"
-          index -> "xcresult_#{test_run_id}_s#{index}.zip"
-        end
-
-      temp_path = Path.join(System.tmp_dir!(), filename)
+      # Attempts and revisions of one shard may run concurrently, as may
+      # duplicate jobs during rolling upgrades. Local files are per invocation,
+      # never protected by Oban uniqueness or the canonical run identity.
+      temp_path = Path.join(System.tmp_dir!(), "xcresult_#{test_run_id}_#{Ecto.UUID.generate()}.zip")
 
       try do
         download =
@@ -257,15 +249,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
 
         case download do
           {:ok, _} ->
-            opts = [
-              test_run_id: test_run_id,
-              account_handle: args["account_handle"],
-              project_handle: args["project_handle"],
-              s3_bucket: Environment.s3_bucket_name(),
-              read_coverage: FeatureFlags.xcode_coverage_enabled?(account)
-            ]
-
-            XCResultProcessor.process_local(temp_path, opts)
+            XCResultProcessor.process_local(temp_path, processor_options(test_run_id, args, account))
 
           {:error, _} = error ->
             error
@@ -274,6 +258,21 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
         File.rm(temp_path)
       end
     end
+  end
+
+  defp processor_options(test_run_id, args, account) do
+    [
+      test_run_id: test_run_id,
+      source_test_run_id: Map.get(args, "source_test_run_id") || test_run_id,
+      shard_index: Map.get(args, "shard_index"),
+      shard_attempt: Map.get(args, "shard_attempt") || 0,
+      shard_report_revision: Map.get(args, "shard_report_revision") || 0,
+      artifact: :main,
+      account_handle: args["account_handle"],
+      project_handle: args["project_handle"],
+      s3_bucket: Environment.s3_bucket_name(),
+      read_coverage: Map.get(args, "reporting_version", 0) != 1 and FeatureFlags.xcode_coverage_enabled?(account)
+    ]
   end
 
   # The stress gate reruns a run's new test cases in a second xcodebuild pass,
@@ -309,12 +308,13 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       try do
         case Storage.download_to_file(storage_key, temp_path, account) do
           {:ok, _} ->
-            XCResultProcessor.process_local(temp_path,
-              test_run_id: test_run_id,
-              account_handle: args["account_handle"],
-              project_handle: args["project_handle"],
-              s3_bucket: Environment.s3_bucket_name()
-            )
+            opts =
+              test_run_id
+              |> processor_options(args, account)
+              |> Keyword.put(:artifact, :stress)
+              |> Keyword.put(:read_coverage, false)
+
+            XCResultProcessor.process_local(temp_path, opts)
 
           {:error, _} = error ->
             error
@@ -428,8 +428,12 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
 
   defp storage_account(project_id) do
     case Projects.get_project_by_id(project_id) do
-      nil -> {:error, :project_not_found}
-      project -> {:ok, project.account}
+      nil ->
+        {:error, :project_not_found}
+
+      project ->
+        Tuist.Observability.set_selection(%{selected_project: project})
+        {:ok, project.account}
     end
   end
 

@@ -74,6 +74,45 @@ defmodule TuistWeb.RateLimitTest do
                {:deny, 100}
     end
 
+    test "fixed-window strict quotas return backend failures without falling back" do
+      stub(Environment, :redis_url, fn -> "redis://example" end)
+      reject(InMemory, :hit, 4)
+      expect(PersistentFixedWindow, :hit, fn _, _, _, _ -> raise Redix.ConnectionError, reason: :timeout end)
+      assert RateLimit.hit("strict", limit: 10, window: 60_000, fallback: false) == {:error, :unavailable}
+      expect(PersistentFixedWindow, :hit, fn _, _, _, _ -> exit(:quota_backend_down) end)
+      assert RateLimit.hit("strict", limit: 10, window: 60_000, fallback: false) == {:error, :unavailable}
+    end
+
+    test "strict quotas override local fallback and reject unexpected backend responses" do
+      stub(Environment, :redis_url, fn -> "redis://example" end)
+      reject(InMemory, :hit, 4)
+      reject(InMemory.Local, :hit, 4)
+      expect(PersistentFixedWindow, :hit, fn _, _, _, _ -> {:error, :timeout} end)
+
+      assert RateLimit.hit("strict", limit: 10, window: 60_000, fallback: false, failure_policy: :local) ==
+               {:error, :unavailable}
+    end
+
+    test "strict quotas preserve healthy shared denials without using local counters" do
+      stub(Environment, :redis_url, fn -> "redis://example" end)
+      reject(InMemory.Local, :hit, 4)
+      expect(PersistentFixedWindow, :hit, fn _, _, _, _ -> {:deny, 123} end)
+      assert RateLimit.hit("strict", limit: 10, window: 60_000, fallback: false) == {:deny, 123}
+      expect(PersistentTokenBucket, :hit, fn _, _, _, _ -> {:deny, 456} end)
+
+      assert RateLimit.hit("strict", algorithm: :token_bucket, refill_rate: 1, capacity: 10, fallback: false) ==
+               {:deny, 456}
+    end
+
+    test "token-bucket strict quotas also disable the in-memory fallback" do
+      stub(Environment, :redis_url, fn -> "redis://example" end)
+      reject(InMemory, :hit_token_bucket, 4)
+      expect(PersistentTokenBucket, :hit, fn _, _, _, _ -> raise Redix.ConnectionError, reason: :timeout end)
+
+      assert RateLimit.hit("strict", algorithm: :token_bucket, refill_rate: 1, capacity: 10, fallback: false) ==
+               {:error, :unavailable}
+    end
+
     test "uses the token-bucket in-memory limiter when Valkey is not configured" do
       refill_rate = 1 / 60
 

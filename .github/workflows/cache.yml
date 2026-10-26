@@ -47,12 +47,10 @@ jobs:
           working_directory: cache
       - uses: tuist/cache-volume@v1
         with:
-          key: ci-cache-${{ github.job }}-deps-v2
-          path: cache/deps
-      - uses: tuist/cache-volume@v1
-        with:
-          key: ci-cache-${{ github.job }}-build-v2
-          path: cache/_build
+          key: ci-cache-${{ github.job }}-mix-v1
+          path: |
+            cache/deps
+            cache/_build
       - name: Install dependencies
         run: mise run --skip-tools install
       - name: Check format
@@ -71,12 +69,10 @@ jobs:
           working_directory: cache
       - uses: tuist/cache-volume@v1
         with:
-          key: ci-cache-${{ github.job }}-deps-v2
-          path: cache/deps
-      - uses: tuist/cache-volume@v1
-        with:
-          key: ci-cache-${{ github.job }}-build-v2
-          path: cache/_build
+          key: ci-cache-${{ github.job }}-mix-v1
+          path: |
+            cache/deps
+            cache/_build
       - name: Install dependencies
         run: mise run --skip-tools install
       - name: Run Credo
@@ -95,12 +91,10 @@ jobs:
           working_directory: cache
       - uses: tuist/cache-volume@v1
         with:
-          key: ci-cache-${{ github.job }}-deps-v2
-          path: cache/deps
-      - uses: tuist/cache-volume@v1
-        with:
-          key: ci-cache-${{ github.job }}-build-v2
-          path: cache/_build
+          key: ci-cache-${{ github.job }}-mix-v1
+          path: |
+            cache/deps
+            cache/_build
       - name: Install dependencies
         run: mise run --skip-tools install
       - name: Run tests
@@ -119,12 +113,10 @@ jobs:
           working_directory: cache
       - uses: tuist/cache-volume@v1
         with:
-          key: ci-cache-${{ github.job }}-deps-v2
-          path: cache/deps
-      - uses: tuist/cache-volume@v1
-        with:
-          key: ci-cache-${{ github.job }}-build-v2
-          path: cache/_build
+          key: ci-cache-${{ github.job }}-mix-v1
+          path: |
+            cache/deps
+            cache/_build
       - name: Install dependencies
         run: mise run --skip-tools install
       - name: Compile with MIX_ENV=prod

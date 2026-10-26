@@ -329,12 +329,12 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     }
 
     public func validateCapabilities() async throws {
-        var options = options
-        options.timeout = .seconds(10)
-        let response = try await withClient { client in
-            try await Build_Bazel_Remote_Execution_V2_Capabilities.Client(wrapping: client).getCapabilities(
-                .with { $0.instanceName = instanceName }, metadata: try await metadata(), options: options
-            )
+        let response = try await REAPICapabilityNegotiation.run { options in
+            try await withClient { client in
+                try await Build_Bazel_Remote_Execution_V2_Capabilities.Client(wrapping: client).getCapabilities(
+                    .with { $0.instanceName = instanceName }, metadata: try await metadata(), options: options
+                )
+            }
         }
         guard response.hasCacheCapabilities, response.cacheCapabilities.digestFunctions.contains(.sha256) else {
             throw REAPICacheError.unsupportedEndpoint
@@ -371,9 +371,16 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         var deadlineAttempts = 0
         var backpressureAttempts = 0
         var backpressureDelay: Duration = .zero
+        var drain = REAPIDrainRetryLadder()
         while true {
             do { return try await operation() } catch {
                 if error is CancellationError || Task.isCancelled { throw error }
+                // The refused connection cools in `withClient`, so the retry goes out on another one.
+                if REAPIDrainRetryLadder.isDrainRefusal(error) {
+                    guard let delay = drain.nextDelay() else { throw error }
+                    try await Task.sleep(for: delay)
+                    continue
+                }
                 if let uploadBudget, let rpcError = error as? RPCError, rpcError.code == .resourceExhausted {
                     guard backpressureAttempts < backpressureRetryPolicy.maximumRetryCount else { throw error }
                     let delay = backpressureRetryPolicy.delay(for: backpressureAttempts, error: rpcError)
@@ -411,10 +418,14 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
 
     /// A transfer that stalled is tried again like a transient server failure: a write carries the
     /// blob from its first byte, so the attempt it replaces delivered nothing that can be kept.
+    /// `.internalError`, `.unknown` and `.cancelled` are how a stream cut by a proxy, a peer rotating its
+    /// connections, or an ingress answering with a non-gRPC error reaches the client. Every call this wraps is
+    /// idempotent, and `retry` checks for local cancellation before consulting this.
     private static func isRetryable(_ error: any Error) -> Bool {
         if let error = error as? REAPICacheError { if case .transferStalled = error { return true }; return false }
         guard let error = error as? RPCError else { return false }
-        return [.unavailable, .resourceExhausted, .deadlineExceeded].contains(error.code)
+        return [.unavailable, .resourceExhausted, .deadlineExceeded, .internalError, .unknown, .cancelled]
+            .contains(error.code)
     }
 
     private static func batchFailure(codes: [Int32]) -> RPCError? {
@@ -1171,9 +1182,10 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
             let handle = try FileHandle(forWritingTo: path)
             defer { try? handle.close() }
             let progress = ReadProgress()
-            let startedReading = ContinuousClock.now
+            var startedReading = ContinuousClock.now
             var stalledAttempts = 0
             var backpressureDelay: Duration = .zero
+            var drain = REAPIDrainRetryLadder()
             var failure: (any Error)?
             var compressed = compression.withLock { $0.stream } && digest.sizeBytes >= REAPICompression.threshold
             while true {
@@ -1187,6 +1199,13 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                     continue
                 } catch {
                     if error is CancellationError || Task.isCancelled { throw error }
+                    if REAPIDrainRetryLadder.isDrainRefusal(error) {
+                        guard let delay = drain.nextDelay() else { throw error }
+                        // Time spent waiting out a drain is not time the link was slow.
+                        startedReading += delay
+                        try await Task.sleep(for: delay)
+                        continue
+                    }
                     guard Self.isResumable(error) else { throw error }
                     failure = error
                 }

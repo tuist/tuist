@@ -12,11 +12,6 @@ defmodule Tuist.ClickHouseRepo.PromExPluginTest do
                %{repo: "clickhouse_read", result: "ok"}
     end
 
-    test "attributes routed reads to the physical shadow repo" do
-      assert PromExPlugin.tag_values(%{repo: Tuist.ShadowClickHouseRepo, result: {:ok, %Ch.Result{}}}) ==
-               %{repo: "clickhouse_shadow_read", result: "ok"}
-    end
-
     test "labels an error ClickHouse returned with its code" do
       error = %Ch.Error{code: 159, message: "Code: 159. DB::Exception: Timeout exceeded"}
 
@@ -59,7 +54,7 @@ defmodule Tuist.ClickHouseRepo.PromExPluginTest do
     end
   end
 
-  test "exports both physical read events without duplicate metric families", context do
+  test "exports read events without duplicate metric families", context do
     owner = self()
 
     metrics =
@@ -70,7 +65,6 @@ defmodule Tuist.ClickHouseRepo.PromExPluginTest do
 
     start_supervised!(StripedPeep.child_spec(context.test, metrics))
     measurements = %{total_time: System.convert_time_unit(2, :millisecond, :native)}
-    assert :ok = PromExPlugin.handle_query([:tuist, :shadow_click_house_repo, :query], measurements, %{}, nil)
 
     :telemetry.execute([:tuist, :click_house_repo, :query], measurements, %{
       repo: ClickHouseRepo,
@@ -79,64 +73,29 @@ defmodule Tuist.ClickHouseRepo.PromExPluginTest do
       params: ["private parameter"]
     })
 
-    for _ <- 1..2 do
-      :telemetry.execute([:tuist, :shadow_click_house_repo, :query], measurements, %{
-        repo: Tuist.ShadowClickHouseRepo,
-        result: {:ok, %{}}
-      })
-    end
-
     output = StripedPeep.scrape(context.test)
 
-    for {repo, count} <- [{"clickhouse_read", 1}, {"clickhouse_shadow_read", 2}] do
-      tags = ~s(repo="#{repo}",result="ok")
-      assert output =~ ~s(tuist_clickhouse_query_count{#{tags}} #{count})
-      assert output =~ ~s(tuist_clickhouse_query_duration_milliseconds_sum{#{tags}} #{count * 2})
-    end
+    tags = ~s(repo="clickhouse_read",result="ok")
+    assert output =~ ~s(tuist_clickhouse_query_count{#{tags}} 1)
+    assert output =~ ~s(tuist_clickhouse_query_duration_milliseconds_sum{#{tags}} 2)
 
     refute output =~ "private"
     assert length(Regex.scan(~r/^# TYPE tuist_clickhouse_query_count counter$/m, output)) == 1
     assert length(Regex.scan(~r/^# TYPE tuist_clickhouse_query_duration_milliseconds histogram$/m, output)) == 1
   end
 
-  test "ignores ops and shadow-write events even when they have a result" do
+  test "ignores ops events even when they have a result" do
     event_name = [:tuist, :clickhouse, :read, :query]
     event_ref = TelemetryCapture.attach_event_handlers([event_name])
     measurements = %{total_time: System.convert_time_unit(2, :millisecond, :native)}
 
-    for prefix <- [:ops_click_house_repo, :shadow_ingest_repo] do
-      assert :ok = PromExPlugin.handle_query([:tuist, prefix, :query], measurements, %{result: {:ok, %{}}}, nil)
-    end
+    assert :ok =
+             PromExPlugin.handle_query([:tuist, :ops_click_house_repo, :query], measurements, %{result: {:ok, %{}}}, nil)
 
     refute_received {^event_name, ^event_ref, _, _}
 
     PromExPlugin.handle_query([:tuist, :click_house_repo, :query], measurements, %{result: {:ok, %{}}}, nil)
     assert_received {^event_name, ^event_ref, ^measurements, %{repo: "clickhouse_read", result: "ok"}}
-  end
-
-  test "an actual dynamic-repo read emits the shadow prefix and labels", context do
-    name = context.test
-
-    opts =
-      ClickHouseRepo.config()
-      |> Keyword.delete(:telemetry_prefix)
-      |> Keyword.merge(name: name, pool: DBConnection.ConnectionPool, pool_size: 1)
-
-    start_supervised!({Tuist.ShadowClickHouseRepo, opts})
-
-    event_name = [:tuist, :shadow_click_house_repo, :query]
-    event_ref = TelemetryCapture.attach_event_handlers([event_name])
-    previous_dynamic_repo = ClickHouseRepo.get_dynamic_repo()
-    ClickHouseRepo.put_dynamic_repo(name)
-
-    try do
-      assert {:ok, %Ch.Result{rows: [[1]]}} = ClickHouseRepo.query("SELECT 1")
-    after
-      ClickHouseRepo.put_dynamic_repo(previous_dynamic_repo)
-    end
-
-    assert_received {^event_name, ^event_ref, %{total_time: _}, %{repo: Tuist.ShadowClickHouseRepo} = metadata}
-    assert PromExPlugin.tag_values(metadata) == %{repo: "clickhouse_shadow_read", result: "ok"}
   end
 
   test "a query ClickHouse stops at max_execution_time is labelled as a ClickHouse timeout", context do

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/netip"
 	"sort"
@@ -35,6 +36,14 @@ type privateNetworkReservations struct {
 }
 
 type privateNetworkPeer struct{ Public, Private string }
+
+// privateNetworkPending reports a host that installed the current membership
+// while peers have not. It is a wait on those peers, not a local failure.
+type privateNetworkPending struct{ peers []string }
+
+func (e *privateNetworkPending) Error() string {
+	return fmt.Sprintf("waiting for private routes on %s before advertising topology", strings.Join(e.peers, ", "))
+}
 
 func privateNetworkCacheMachine(machine *infrav1.OVHDedicatedMachine) bool {
 	return !machine.Spec.KataRuntime && privateNetworkCacheTaint(machine.Spec.NodeTaints)
@@ -157,7 +166,10 @@ func (r *OVHDedicatedMachineReconciler) reconcilePrivateNetwork(ctx context.Cont
 		return nil
 	}
 	defer func() {
-		if err != nil {
+		var pending *privateNetworkPending
+		if errors.As(err, &pending) {
+			conditions.MarkFalse(machine, privateNetworkReady, "WaitingForPeerRoutes", clusterv1.ConditionSeverityInfo, "%s", err)
+		} else if err != nil {
 			conditions.MarkFalse(machine, privateNetworkReady, "ConfigurationFailed", clusterv1.ConditionSeverityError, "%s", err)
 		}
 	}()
@@ -217,6 +229,7 @@ func (r *OVHDedicatedMachineReconciler) reconcilePrivateNetwork(ctx context.Cont
 			return err
 		}
 	}
+	lagging := []string{}
 	for i := range machines {
 		peer := &machines[i]
 		if !privateNetworkCacheMachine(peer) || !peer.DeletionTimestamp.IsZero() || privateNetworkPublicAddress(peer) == "" {
@@ -227,8 +240,12 @@ func (r *OVHDedicatedMachineReconciler) reconcilePrivateNetwork(ctx context.Cont
 			return err
 		}
 		if remote.Annotations[privateNetworkAnnotation] != network || remote.Annotations[privateNetworkMembers] != membership {
-			return fmt.Errorf("waiting for private routes on %s before advertising topology", peer.Name)
+			lagging = append(lagging, peer.Name)
 		}
+	}
+	if len(lagging) > 0 {
+		sort.Strings(lagging)
+		return &privateNetworkPending{peers: lagging}
 	}
 	if node.Labels[privateNetworkAnnotation] != network {
 		before := node.DeepCopy()

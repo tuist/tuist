@@ -40,6 +40,13 @@ defmodule AtlasWeb.ConnCase do
 
   setup tags do
     Atlas.DataCase.setup_sandbox(tags)
+
+    # Lifecycle tests opt in and await cleanup while their sandbox is still owned.
+    # Unrelated LiveViews must not start cleanup tasks that outlive that sandbox.
+    if !tags[:presence_tracking] do
+      Mimic.stub(Atlas.Presence, :track, fn _user, _connection_id -> {:ok, self()} end)
+    end
+
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 
@@ -92,9 +99,8 @@ defmodule AtlasWeb.ConnCase do
   def assign_role_or_scopes(_user, :employee, nil), do: :ok
 
   def assign_role_or_scopes(user, :executive, _scopes) do
-    role = Roles.ensure_executive_role!()
-    %UserRole{} |> UserRole.changeset(%{user_id: user.id, role_id: role.id}) |> Atlas.Repo.insert!()
-    :ok
+    # Updating the shared builtin role can deadlock concurrent sandbox transactions.
+    assign_role_or_scopes(user, nil, Authorization.executive_scopes())
   end
 
   def assign_role_or_scopes(user, _role, scopes) when is_list(scopes) do

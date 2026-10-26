@@ -147,6 +147,7 @@ defmodule TuistWeb.API.ShardsController do
       id: result.plan.id,
       reference: result.plan.reference,
       shard_count: result.shard_count,
+      reporting_version: result.plan.reporting_version,
       upload_url:
         url(~p"/api/projects/#{selected_project.account.name}/#{selected_project.name}/tests/shards/upload/start"),
       shards: result.shard_assignments

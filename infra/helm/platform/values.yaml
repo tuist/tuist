@@ -83,6 +83,8 @@ ingress-nginx:
       compute-full-forwarded-for: "true"
       upstream-keepalive-connections: "0"
       upstream-keepalive-timeout: "10"
+      # Never replay a POST, PATCH or LOCK nginx already started sending.
+      retry-non-idempotent: "false"
     # The address of the edge that opened this connection, which the
     # application needs and cannot otherwise see. With PROXY protocol,
     # $remote_addr is the CDN edge the load balancer declared, but the
@@ -408,6 +410,12 @@ clusterPortsHostPolicy:
     - port: 9962
       protocol: TCP
     - port: 9965
+      protocol: TCP
+    - port: 9963
+      protocol: TCP
+    - port: 9964
+      protocol: TCP
+    - port: 9100
       protocol: TCP
 
 external-dns:

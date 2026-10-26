@@ -53,7 +53,7 @@ func TestPublicationPreflightChecksumAndRetry(t *testing.T) {
 	dir := t.TempDir()
 	token := filepath.Join(dir, "token")
 	os.WriteFile(token, []byte("trusted"), 0600)
-	archive := filepath.Join(dir, "image.gz")
+	archive := filepath.Join(dir, "image.zst")
 	os.WriteFile(archive, []byte("archive"), 0600)
 	transfer := &imageTransfer{URL: upstream.URL, Node: "host", TokenPath: token, Client: upstream.Client()}
 	slot := cachevolumes.Slot{Identity: cachevolumes.Identity{ID: "lease", BaseGeneration: 1}}

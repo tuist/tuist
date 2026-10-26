@@ -14,15 +14,18 @@ import org.gradle.api.tasks.testing.TestDescriptor
 import org.gradle.api.tasks.testing.TestListener
 import org.gradle.api.tasks.testing.TestResult
 import java.io.BufferedReader
+import java.io.IOException
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URI
+import java.util.UUID
 import javax.inject.Inject
 
 // --- Data classes ---
 
 data class TestReport(
+    val id: String,
     val duration: Long,
     val status: String,
     @SerializedName("is_ci") val isCi: Boolean,
@@ -183,7 +186,8 @@ internal class TestReportCollector {
         shardPlanId: String? = null,
         shardIndex: Int? = null,
         stressNewTests: StressNewTestsReport? = null,
-        gitHistory: TestRunGitHistory? = null
+        gitHistory: TestRunGitHistory? = null,
+        id: String = UUID.randomUUID().toString()
     ): TestReport {
         val testModules = attemptsByModule.map { (moduleName, attempts) ->
             val testCases = buildTestCases(attempts).map { withStressReruns(it, moduleName, stressNewTests) }
@@ -214,6 +218,7 @@ internal class TestReportCollector {
         val overallStatus = if (hasNonQuarantinedFailure) "failure" else "success"
 
         return TestReport(
+            id = id,
             duration = totalDurationMs,
             status = overallStatus,
             isCi = isCi,
@@ -498,15 +503,22 @@ abstract class TuistTestInsightsService :
         }
     }
 
+    private val httpClients: TuistHttpClients by lazy {
+        TuistHttpClients(useEnvironmentProxy = parameters.useEnvironmentProxy.get())
+    }
+
+    private val configurationProvider: ReportConfigurationProvider by lazy {
+        ReportConfigurationProvider(
+            project = parameters.project.orNull,
+            serverUrl = parameters.url.get(),
+            projectDir = parameters.projectDir.asFile.get(),
+            httpClients = httpClients
+        )
+    }
+
     private val httpClient: TuistHttpClient by lazy {
-        val httpClients = TuistHttpClients(useEnvironmentProxy = parameters.useEnvironmentProxy.get())
         TuistHttpClient(
-            configurationProvider = DefaultConfigurationProvider(
-                project = parameters.project.orNull,
-                serverUrl = parameters.url.get(),
-                projectDir = parameters.projectDir.asFile.get(),
-                httpClients = httpClients
-            ),
+            configurationProvider = configurationProvider,
             httpClients = httpClients,
             connectTimeoutMs = 10_000,
             readTimeoutMs = 10_000
@@ -528,7 +540,7 @@ abstract class TuistTestInsightsService :
      */
     internal fun publishGitHistory(): CollectedGitHistory? =
         try {
-            gitHistoryPublisher.publish()
+            if (configurationProvider.getConfiguration().token.isBlank()) null else gitHistoryPublisher.publish()
         } catch (e: Exception) {
             logger.info("Tuist: The run's Git history could not be published: ${e.message}")
             null
@@ -557,38 +569,52 @@ abstract class TuistTestInsightsService :
         )
 
         val response = httpClient.execute { config ->
-            val baseUrl = parameters.url.get().trimEnd('/')
+            val baseUrl = ServerUrlResolver.resolve(parameters.url.get(), parameters.projectDir.asFile.get()).trimEnd('/')
             val url = URI(baseUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/tests")
-            val connection = httpClient.openConnection(url, config)
-            try {
-                connection.requestMethod = "POST"
-                connection.doOutput = true
-                connection.setRequestProperty("Content-Type", "application/json")
-                ActorIdentifier.resolve(override = parameters.actorId.orNull)?.let {
-                    connection.setRequestProperty(ActorIdentifier.HEADER, it)
-                }
+            // Every attempt sends the same report id, and the server stores a replayed id only once
+            // (a server that does not deduplicate by id stores the replay as another run).
+            httpClient.retrying("Test insights request", replaySafe = true) {
+                val connection = httpClient.openConnection(url, config)
+                try {
+                    connection.requestMethod = "POST"
+                    connection.doOutput = true
+                    connection.setRequestProperty("Content-Type", "application/json")
+                    ActorIdentifier.resolve(override = parameters.actorId.orNull)?.let {
+                        connection.setRequestProperty(ActorIdentifier.HEADER, it)
+                    }
 
-                OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                    Gson().toJson(report, writer)
-                }
+                    OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
+                        val outgoingReport = if (config.token.isBlank()) report.copy(
+                            gradleBuildId = null, shardPlanId = null, shardIndex = null, stressNewTests = null,
+                            gitRemoteUrlOrigin = null, baseBranch = null, mergeBaseSha = null,
+                            isPullRequest = null, pullRequestNumber = null, gitObjectFormat = null,
+                            historySource = null, historyFallbackReason = null
+                        ) else report
+                        Gson().toJson(outgoingReport, writer)
+                    }
 
-                when (connection.responseCode) {
-                    HttpURLConnection.HTTP_OK -> {
-                        BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                            Gson().fromJson(reader, TestResponse::class.java)
+                    when (val status = connection.responseCode) {
+                        HttpURLConnection.HTTP_OK -> {
+                            BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
+                                Gson().fromJson(reader, TestResponse::class.java)
+                            }
+                        }
+                        HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
+                        else -> {
+                            val errorBody = try {
+                                connection.errorStream?.bufferedReader()?.use { it.readText() }
+                            } catch (_: Exception) { null }
+                            val message = "Test insights request failed with HTTP $status: ${errorBody ?: "(no response body)"}"
+                            if (status in TuistRetry.RETRYABLE_STATUSES) {
+                                throw TuistRetry.statusFailure(connection, status) { IOException(message) }
+                            }
+                            logger.warn("Tuist: $message")
+                            null
                         }
                     }
-                    HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                    else -> {
-                        val errorBody = try {
-                            connection.errorStream?.bufferedReader()?.use { it.readText() }
-                        } catch (_: Exception) { null }
-                        logger.warn("Tuist: Test insights request failed with HTTP ${connection.responseCode}: ${errorBody ?: "(no response body)"}")
-                        null
-                    }
+                } finally {
+                    connection.disconnect()
                 }
-            } finally {
-                connection.disconnect()
             }
         }
 

@@ -39,6 +39,12 @@ RUN swift build -c release --replace-scm-with-registry --product xcactivitylog-p
     mkdir -p /nif/swift-libs && \
     cp -a /usr/lib/swift/linux/lib*.so* /nif/swift-libs/
 
+# Isolate the shipped artifacts so downstream COPYs do not materialize the
+# Swift toolchain and .build tree on a fresh BuildKit worker.
+FROM scratch AS swift-artifacts
+COPY --from=swift-builder /nif/xcactivitylog-parser /xcactivitylog-parser
+COPY --from=swift-builder /nif/swift-libs/ /swift-libs/
+
 # ========================================
 # Stage 1: NPM dependencies
 # ========================================
@@ -52,11 +58,17 @@ WORKDIR /app
 RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install --frozen-lockfile
 
 # Build noora static assets (JS + CSS) from source
-COPY noora /noora
+COPY noora/package.json noora/aube-lock.yaml /noora/
 WORKDIR /noora
 RUN --mount=type=cache,id=aube,target=/aube-data/aube aube install
+COPY noora /noora
 RUN aube run build
 WORKDIR /app
+
+# Empty by default. CI can supply production project builds with
+# --build-context mix-cache=<directory>, without replacing fetched dependencies.
+FROM ${BUILDER_IMAGE} AS mix-cache
+RUN mkdir /_build
 
 # ========================================
 # Stage 2: Base dependencies builder
@@ -92,10 +104,10 @@ COPY server/mix.exs server/mix.lock ./
 COPY server/mise/tasks/cldr mise/tasks/cldr
 RUN mkdir config
 
-# Copy path dependencies (only mix.exs/mix.lock for dep resolution)
-COPY tuist_common /tuist_common
-COPY tuist_ex /tuist_ex
-COPY noora /noora
+# Resolve and compile fetched dependencies independently of local source edits.
+COPY tuist_common/mix.exs /tuist_common/mix.exs
+COPY tuist_ex/mix.exs /tuist_ex/mix.exs
+COPY noora/mix.exs /noora/mix.exs
 
 # Retry deps.get up to 3 times — hex.pm resolver can fall through to an empty
 # local cache on network flakes, producing "Unknown package in lockfile"
@@ -129,7 +141,7 @@ RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN \
 COPY server/config/config.exs config/
 COPY server/config/prod.exs server/config/can.exs server/config/stag.exs config/
 
-RUN mix deps.compile
+RUN mix deps.compile --skip-local-deps
 # Prefetch CLDR locale JSON before the full-locale compile so ex_cldr does not
 # fall back to rate-limited raw.githubusercontent.com downloads. Authenticate
 # via a BuildKit secret (never baked into a layer) to lift the unauthenticated
@@ -144,8 +156,11 @@ RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN \
 # ========================================
 # Stage 3: Main application builder
 # ========================================
-FROM deps-builder AS builder
+FROM deps-builder AS compiled
 
+COPY tuist_common /tuist_common
+COPY tuist_ex /tuist_ex
+COPY noora /noora
 COPY server/priv priv
 COPY skills/skills priv/static/skills
 COPY server/assets assets
@@ -157,7 +172,21 @@ COPY examples/xcode priv/examples/xcode
 
 COPY server/lib lib
 
-RUN mix compile --warnings-as-errors
+RUN --mount=type=bind,from=mix-cache,source=/_build,target=/mix-cache \
+    mkdir -p "_build/${MIX_ENV}/lib" && \
+    cp -a /mix-cache/. "_build/${MIX_ENV}/lib/" && \
+    mix compile --warnings-as-errors
+
+# Keep fetched dependencies layer-cached; retain only the four local projects.
+# Export before assets/release so the snapshot never contains an old release.
+FROM scratch AS mix-cache-export
+ARG MIX_ENV=prod
+COPY --from=compiled /app/_build/${MIX_ENV}/lib/tuist/ /_build/tuist/
+COPY --from=compiled /app/_build/${MIX_ENV}/lib/tuist_common/ /_build/tuist_common/
+COPY --from=compiled /app/_build/${MIX_ENV}/lib/tuist_ex/ /_build/tuist_ex/
+COPY --from=compiled /app/_build/${MIX_ENV}/lib/noora/ /_build/noora/
+
+FROM compiled AS builder
 
 COPY server/config/runtime.exs config/
 COPY server/rel rel
@@ -176,7 +205,7 @@ RUN mix release
 # ========================================
 FROM builder AS release-with-parser
 
-COPY --from=swift-builder /nif/xcactivitylog-parser /tmp/nif/xcactivitylog-parser
+COPY --from=swift-artifacts /xcactivitylog-parser /tmp/nif/xcactivitylog-parser
 
 RUN TUIST_REL_DIR=$(ls -d /app/_build/${MIX_ENV}/rel/tuist/lib/tuist-*) && \
     mkdir -p "$TUIST_REL_DIR/priv/native" && \
@@ -226,7 +255,7 @@ ENV TUIST_VERSION=$TUIST_VERSION
 # Swift runtime libs the parser links against. Small (~20 MB) but carried by
 # every release image because any pod may run in processor mode
 # (TUIST_PROCESSOR_MODE=true) and spawn the xcactivitylog parser.
-COPY --from=swift-builder /nif/swift-libs/ /usr/local/lib/
+COPY --from=swift-artifacts /swift-libs/ /usr/local/lib/
 RUN ldconfig
 
 # Release taken from release-with-parser so xcactivitylog-parser is already

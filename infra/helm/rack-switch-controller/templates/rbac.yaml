@@ -1,6 +1,7 @@
 {{- $watch := include "rack-switch-controller.watchNamespace" . }}
-# In the rack's namespace: read the RackSwitches, write their status, and
-# record events on them. Events land in the namespace of the object they are
+# In the rack's namespace: read the RackSwitches, hold a PicOS one with a
+# finalizer while it has an egress Service, write their status, and record
+# events on them. Events land in the namespace of the object they are
 # about, which is this one, not the controller's.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -12,7 +13,7 @@ metadata:
 rules:
   - apiGroups: ["tuist.dev"]
     resources: [rackswitches]
-    verbs: [get, list, watch]
+    verbs: [get, list, watch, update, patch]
   - apiGroups: ["tuist.dev"]
     resources: [rackswitches/status]
     verbs: [get, update, patch]
@@ -67,3 +68,35 @@ roleRef:
   kind: Role
   name: rack-switch-controller-leader-election
   apiGroup: rbac.authorization.k8s.io
+{{- if and .Values.picos.sshKeyItem .Values.picos.egress.proxyGroup }}
+---
+# In the Tailscale operator's namespace: the egress Service each PicOS switch
+# is dialled through.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rack-switch-controller-egress
+  namespace: {{ .Values.picos.egress.namespace }}
+  labels:
+    {{- include "rack-switch-controller.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [get, list, watch, create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rack-switch-controller-egress
+  namespace: {{ .Values.picos.egress.namespace }}
+  labels:
+    {{- include "rack-switch-controller.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: rack-switch-controller
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: rack-switch-controller-egress
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

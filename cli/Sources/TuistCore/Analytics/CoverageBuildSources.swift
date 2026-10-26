@@ -13,15 +13,25 @@ public struct CoverageBuildSources: Codable, Equatable, Sendable {
     /// attributes files to and finds products for, in place of the result bundle's report. Empty
     /// when the build had no graph (`tuist xcodebuild`).
     public let targets: [CoverageBuildTarget]
+    /// Each target's coverage prefix map (alias to directory), from the build's intermediates:
+    /// what maps the `/^src/…` paths of a prefix-mapped build back to the build's checkout in a
+    /// run whose derived data never compiled the products. Empty when the build mapped nothing.
+    public let prefixMaps: [String: [String: String]]
 
-    public init(rootDirectories: [String], files: [String: String], targets: [CoverageBuildTarget] = []) {
+    public init(
+        rootDirectories: [String],
+        files: [String: String],
+        targets: [CoverageBuildTarget] = [],
+        prefixMaps: [String: [String: String]] = [:]
+    ) {
         self.rootDirectories = rootDirectories
         self.files = files
         self.targets = targets
+        self.prefixMaps = prefixMaps
     }
 
     enum CodingKeys: String, CodingKey {
-        case rootDirectories, files, targets
+        case rootDirectories, files, targets, prefixMaps
     }
 
     public init(from decoder: Decoder) throws {
@@ -29,6 +39,7 @@ public struct CoverageBuildSources: Codable, Equatable, Sendable {
         rootDirectories = try container.decode([String].self, forKey: .rootDirectories)
         files = try container.decode([String: String].self, forKey: .files)
         targets = try container.decodeIfPresent([CoverageBuildTarget].self, forKey: .targets) ?? []
+        prefixMaps = try container.decodeIfPresent([String: [String: String]].self, forKey: .prefixMaps) ?? [:]
     }
 
     public static let fileName = "tuist_coverage_build.json"

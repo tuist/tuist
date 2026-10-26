@@ -338,6 +338,9 @@ open class StressNewTestsExtension {
 open class BuildInsightsExtension {
     var actorId: String? = null
 
+    @Deprecated("Credential-free reporting is discovered automatically from the self-hosted server.")
+    var networkTrustedPublishing: Boolean = false
+
     private val configuredTags = mutableListOf<String>()
     private val configuredValues = mutableMapOf<String, String>()
 

@@ -4,19 +4,28 @@ defmodule TuistWeb.API.MixController do
 
   alias OpenApiSpex.Schema
   alias Tuist.Mix
+  alias Tuist.Mix.Query
   alias Tuist.Projects
   alias Tuist.VCS.RemoteURL
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.MixBuild
+  alias TuistWeb.API.Schemas.ReportActor
   alias TuistWeb.Authentication
+  alias TuistWeb.Plugs.ReportActorPlug
+  alias TuistWeb.Plugs.ReportPublishingPlug
+
+  plug(ReportPublishingPlug, {:preflight, :mix} when action == :create_build)
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
-  plug(TuistWeb.Plugs.LoaderPlug)
-  plug(TuistWeb.API.Authorization.AuthorizationPlug, :build)
+  plug(ReportActorPlug when action == :create_build)
+  plug(ReportPublishingPlug, :mix when action == :create_build)
+  plug(TuistWeb.Plugs.LoaderPlug when action != :create_build)
+  plug(TuistWeb.API.Authorization.AuthorizationPlug, :build when action != :create_build)
 
   tags ["Mix"]
 
@@ -32,6 +41,7 @@ defmodule TuistWeb.API.MixController do
     summary: "Create a Mix (Elixir) compile build.",
     operation_id: "createMixBuild",
     parameters: [
+      "x-tuist-actor-id": ReportActor.header(),
       account_handle: [
         in: :path,
         type: :string,
@@ -150,7 +160,7 @@ defmodule TuistWeb.API.MixController do
                values: %Schema{
                  type: :object,
                  additionalProperties: %Schema{type: :string, maxLength: 500},
-                 maxProperties: 20
+                 maxProperties: 64
                }
              }
            },
@@ -261,7 +271,8 @@ defmodule TuistWeb.API.MixController do
            dependency_cache: %Schema{
              type: :array,
              maxItems: 5_000,
-             description: "Dependency-cache lookups and bypasses. An omitted array means no caching data was reported.",
+             description:
+               "Dependency-cache lookups, up-to-date local reuse and bypasses. An omitted array means no caching data was reported.",
              items: %Schema{
                type: :object,
                properties: %{
@@ -276,11 +287,21 @@ defmodule TuistWeb.API.MixController do
                      "custom_compiler",
                      "unmodeled_input",
                      "inputs_changed",
-                     "store_failed"
+                     "store_failed",
+                     "up_to_date"
                    ]
                  },
-                 key: %Schema{type: :string, pattern: "^([a-f0-9]{64})?$"},
-                 duration_ms: %Schema{type: :integer, minimum: 0, maximum: @uint32},
+                 key: %Schema{
+                   type: :string,
+                   pattern: "^([a-f0-9]{64})?$",
+                   description: "Modeled action input digest for a lookup; empty for up-to-date local reuse or a bypass."
+                 },
+                 duration_ms: %Schema{
+                   type: :integer,
+                   minimum: 0,
+                   maximum: @uint32,
+                   description: "Lookup/compilation duration, or validation time for up-to-date local reuse."
+                 },
                  read_bytes: %Schema{
                    type: :integer,
                    nullable: true,
@@ -371,7 +392,8 @@ defmodule TuistWeb.API.MixController do
          %Schema{
            type: :object,
            properties: %{
-             id: %Schema{type: :string, format: :uuid, description: "The build ID."}
+             id: %Schema{type: :string, format: :uuid, description: "The build ID."},
+             actor: ReportActor
            },
            required: [:id]
          }},
@@ -382,15 +404,16 @@ defmodule TuistWeb.API.MixController do
   )
 
   def create_build(%{assigns: %{selected_project: project}, body_params: body} = conn, _params) do
-    body = RemoteURL.strip_credentials_from_params(body)
+    body = conn |> ReportPublishingPlug.parameters(body) |> RemoteURL.strip_credentials_from_params()
 
     case Mix.create_build(build_attributes(conn, project, body)) do
       {:ok, build_id} ->
-        Projects.notify_connected(project, Authentication.current_user(conn))
+        if !ReportPublishingPlug.network_publisher?(conn),
+          do: Projects.notify_connected(project, Authentication.current_user(conn))
 
         conn
         |> put_status(:created)
-        |> json(%{id: build_id})
+        |> json(%{id: build_id, actor: ReportActorPlug.actor(conn)})
 
       {:error, :invalid_dependency_cache} ->
         conn
@@ -401,6 +424,13 @@ defmodule TuistWeb.API.MixController do
         conn
         |> put_status(:bad_request)
         |> json(%{message: "The custom metadata is invalid."})
+    end
+  end
+
+  defp publisher_id(conn) do
+    case Authentication.authenticated_subject_account(conn) do
+      nil -> 0
+      account -> account.id
     end
   end
 
@@ -415,7 +445,7 @@ defmodule TuistWeb.API.MixController do
     |> Map.take(@build_fields)
     |> Map.merge(%{
       project_id: project.id,
-      account_id: Authentication.authenticated_subject_account(conn).id,
+      account_id: publisher_id(conn),
       is_ci: body[:is_ci] || false,
       custom_tags: Map.get(metadata, :tags, []),
       custom_values: Map.get(metadata, :values, %{}),
@@ -425,5 +455,76 @@ defmodule TuistWeb.API.MixController do
       machine_metrics: body[:machine_metrics] || [],
       dependency_cache: body[:dependency_cache] || []
     })
+    |> Map.merge(Tuist.ReportActor.attributes(conn))
+  end
+
+  operation(:list_builds,
+    summary: "List Mix (Elixir) builds for a project, newest first.",
+    operation_id: "listMixBuilds",
+    parameters: [
+      account_handle: [in: :path, type: :string, required: true, description: "The handle of the account."],
+      project_handle: [in: :path, type: :string, required: true, description: "The handle of the project."],
+      git_branch: [in: :query, type: :string, description: "Filter by git branch."],
+      status: [
+        in: :query,
+        type: %Schema{title: "MixBuildStatus", type: :string, enum: ["success", "failure"]},
+        description: "Filter by build status."
+      ],
+      is_ci: [in: :query, type: :boolean, description: "Filter by whether the build ran on CI."],
+      mix_env: [in: :query, type: :string, description: "Filter by Mix environment, for example dev or test."],
+      page_size: [
+        in: :query,
+        type: %Schema{
+          title: "MixBuildsIndexPageSize",
+          description: "The maximum number of builds to return in a single page.",
+          type: :integer,
+          default: 20,
+          minimum: 1,
+          maximum: 100
+        }
+      ],
+      page: [
+        in: :query,
+        type: %Schema{
+          title: "MixBuildsIndexPage",
+          description: "The page number to return.",
+          type: :integer,
+          default: 1,
+          minimum: 1
+        }
+      ]
+    ],
+    responses: %{
+      ok: {"List of Mix builds", "application/json", MixBuild.list()},
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
+    }
+  )
+
+  def list_builds(%{assigns: %{selected_project: project}, params: params} = conn, _params) do
+    json(conn, Query.list_builds(project.id, Map.new(params, fn {key, value} -> {to_string(key), value} end)))
+  end
+
+  operation(:get_build,
+    summary: "Get a Mix (Elixir) build with its diagnostics counts and dependency cache summary.",
+    operation_id: "getMixBuild",
+    parameters: [
+      account_handle: [in: :path, type: :string, required: true, description: "The handle of the account."],
+      project_handle: [in: :path, type: :string, required: true, description: "The handle of the project."],
+      build_id: [in: :path, type: :string, required: true, description: "The build ID."]
+    ],
+    responses: %{
+      ok: {"Mix build details", "application/json", MixBuild.detail()},
+      not_found: {"Build not found", "application/json", Error},
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
+    }
+  )
+
+  def get_build(%{assigns: %{selected_project: project}, params: %{build_id: build_id}} = conn, _params) do
+    case Query.get_build(project.id, build_id) do
+      {:ok, build} -> json(conn, build)
+      {:error, :not_found} -> conn |> put_status(:not_found) |> json(%{message: "Build not found."})
+    end
   end
 end

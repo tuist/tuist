@@ -1,8 +1,10 @@
 package dev.tuist.gradle
 
 import com.google.gson.Gson
+import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import okhttp3.mockwebserver.SocketPolicy
 import org.gradle.caching.BuildCacheEntryReader
 import org.gradle.caching.BuildCacheEntryWriter
@@ -230,11 +232,13 @@ class TuistBuildCacheTest {
 
     @Test
     fun `store throws BuildCacheException with context on server error`() {
-        mockServer.enqueue(
-            MockResponse()
-                .setResponseCode(503)
-                .setBody("cache unavailable")
-        )
+        repeat(4) {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(503)
+                    .setBody("cache unavailable")
+            )
+        }
 
         val service = createService(isPushEnabled = true)
 
@@ -250,6 +254,79 @@ class TuistBuildCacheTest {
             message.contains("cache unavailable"),
             "expected response body snippet in message, got: $message"
         )
+    }
+
+    @Test
+    fun `load retries when the server closes the connection without responding`() {
+        repeat(2) { mockServer.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST)) }
+        mockServer.enqueue(MockResponse().setBody("cached-build-output").setResponseCode(200))
+
+        val reader = TestBuildCacheEntryReader()
+        val result = createService().load(TestBuildCacheKey("dropped"), reader)
+
+        assertTrue(result)
+        assertEquals("cached-build-output", reader.content)
+        assertEquals(3, mockServer.requestCount)
+    }
+
+    @Test
+    fun `load retries a 503 and returns the entry`() {
+        mockServer.enqueue(MockResponse().setResponseCode(503).setBody("upstream connect error"))
+        mockServer.enqueue(MockResponse().setBody("cached-build-output").setResponseCode(200))
+
+        val reader = TestBuildCacheEntryReader()
+        val result = createService().load(TestBuildCacheKey("rollout"), reader)
+
+        assertTrue(result)
+        assertEquals("cached-build-output", reader.content)
+        assertEquals(2, mockServer.requestCount)
+    }
+
+    @Test
+    fun `store retries a 502 and stores the entry`() {
+        mockServer.enqueue(MockResponse().setResponseCode(502))
+        mockServer.enqueue(MockResponse().setResponseCode(201))
+
+        createService(isPushEnabled = true).store(TestBuildCacheKey("rollout"), TestBuildCacheEntryWriter("payload"))
+
+        assertEquals(2, mockServer.requestCount)
+        repeat(2) {
+            val request = mockServer.takeRequest()
+            assertEquals("PUT", request.method)
+            assertEquals("payload", request.body.readUtf8())
+        }
+    }
+
+    @Test
+    fun `load still fails after four 503 responses so Gradle disables the remote cache`() {
+        repeat(4) { mockServer.enqueue(MockResponse().setResponseCode(503)) }
+        mockServer.enqueue(MockResponse().setBody("cached-build-output").setResponseCode(200))
+
+        val exception = assertThrows<BuildCacheException> {
+            createService().load(TestBuildCacheKey("down"), TestBuildCacheEntryReader())
+        }
+
+        assertTrue(exception.message!!.contains("HTTP 503"), exception.message)
+        assertEquals(4, mockServer.requestCount)
+    }
+
+    @Test
+    fun `load does not retry a miss or a non-transient error`() {
+        var status = 404
+        mockServer.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest) = MockResponse().setResponseCode(status)
+        }
+
+        assertFalse(createService().load(TestBuildCacheKey("missing"), TestBuildCacheEntryReader()))
+        assertEquals(1, mockServer.requestCount)
+
+        for ((index, code) in listOf(400, 500).withIndex()) {
+            status = code
+            assertThrows<BuildCacheException> {
+                createService().load(TestBuildCacheKey("error-$code"), TestBuildCacheEntryReader())
+            }
+            assertEquals(2 + index, mockServer.requestCount, "HTTP $code")
+        }
     }
 
     @Test
@@ -504,7 +581,8 @@ class TuistBuildCacheTest {
             configurationProvider = object : ConfigurationProvider {
                 override fun getConfiguration(forceRefresh: Boolean): CacheConfiguration =
                     configProvider(forceRefresh)
-            }
+            },
+            retryPolicy = RetryPolicy(sleeper = {})
         )
         return TuistBuildCacheService(
             httpClient = httpClient,

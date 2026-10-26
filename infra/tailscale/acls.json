@@ -180,9 +180,9 @@
 		//   :22         tart-kubelet drift updates. The CAPI controller
 		//               rolls host config to already-bootstrapped minis
 		//               over the tailnet because a running runner mini
-		//               filters inbound :22 on its public interface. Also
-		//               `tailscale ssh admin@<vm>` into the xcresult VMs
-		//               (see the ssh block).
+		//               filters inbound :22 on its public interface. The
+		//               ssh block grants the cluster no Tailscale SSH, so
+		//               on an xcresult VM this port is refused.
 		//   :8080       controller-runtime metrics on tart-kubelet, scraped
 		//               by alloy-metrics.
 		//   :9091       PromEx on the xcresult-processor Tart VM, fronted by
@@ -303,6 +303,14 @@
 			"dst": ["svc:tuist-clickhouse-canary"],
 			"ip":  ["tcp:8123"],
 		},
+		{
+			// The CNPG pooler, for when it is served the same way
+			// (postgresql.cnpg.pooler.tailscale.proxyGroup, empty in every env
+			// today, so this grant is currently unused).
+			"src": ["tag:tuist-macmini-production"],
+			"dst": ["svc:tuist-pg-pooler-production"],
+			"ip":  ["tcp:5432"],
+		},
 
 		// Runner hosts -> the same-env Alloy receiver, for host logs only.
 		// That is the one thing a runner host dials over the tailnet
@@ -409,8 +417,8 @@
 		// One /32 per mini, matching exactly what the edges advertise
 		// (infra/helm/rack-edge/sites/ber1/tailnet-routes.sh, rendered from
 		// infra/rack-switch-fleet/sites/ber1.json, and the hosts' addresses
-		// in rackFleet.hosts in values-managed-production.yaml): b01-b09 at
-		// 10.10.0.101-10.10.0.109. Not the segment's /24, although the
+		// in rackFleet.hosts in values-managed-production.yaml): b01-b16 at
+		// 10.10.0.101-10.10.0.116. Not the segment's /24, although the
 		// edges' routes are auto-approved inside it: the segment also holds
 		// the edges (10.10.0.2, .3) and ber1-store-a (10.10.0.11), and a
 		// /24 here would hand SSH to any of them the moment an edge
@@ -428,29 +436,70 @@
 				"10.10.0.107/32",
 				"10.10.0.108/32",
 				"10.10.0.109/32",
+				"10.10.0.110/32",
+				"10.10.0.111/32",
+				"10.10.0.112/32",
+				"10.10.0.113/32",
+				"10.10.0.114/32",
+				"10.10.0.115/32",
+				"10.10.0.116/32",
 			],
 			"ip":  ["tcp:22"],
 		},
 
-		// Production cluster -> ber1-pdu-b's REST API, which the operator adopts
-		// the card through and switches the rack Macs' outlets through (the
-		// RackPDU ber1-pdu-b), through the macmini-egress ProxyGroup. The PDU
-		// sits on the rack's management LAN; the edge holding the management
+		// Staging and canary clusters -> the same minis, on SSH only: the
+		// first-dial path of a host production lends one of them
+		// (RackHost `lendTo`). The borrowing env's operator runs a lent host's
+		// runtime and dials it through its own `rack-<host>` egress Service,
+		// before the host is its tailnet device and whenever that device does
+		// not answer. Every mini, so lending one is a field in production's
+		// values and not an ACL change as well. Reaching :22 is not reaching
+		// the host: only the lent host authorizes the borrower's key, which
+		// production's operator installs for the lease and removes on return
+		// (infra/cluster-api-provider-tuist/AGENTS.md, "A host lent to another
+		// env").
+		{
+			"src": ["tag:tuist-k8s-staging", "tag:tuist-k8s-canary"],
+			"dst": [
+				"10.10.0.101/32",
+				"10.10.0.102/32",
+				"10.10.0.103/32",
+				"10.10.0.104/32",
+				"10.10.0.105/32",
+				"10.10.0.106/32",
+				"10.10.0.107/32",
+				"10.10.0.108/32",
+				"10.10.0.109/32",
+				"10.10.0.110/32",
+				"10.10.0.111/32",
+				"10.10.0.112/32",
+				"10.10.0.113/32",
+				"10.10.0.114/32",
+				"10.10.0.115/32",
+				"10.10.0.116/32",
+			],
+			"ip":  ["tcp:22"],
+		},
+
+		// Production cluster -> ber1-pdu-a and ber1-pdu-b's REST API, which the
+		// operator adopts each card through and switches the rack Macs' outlets
+		// through (the RackPDU objects), through the macmini-egress ProxyGroup.
+		// A PDU sits on the rack's management LAN; the edge holding the management
 		// address advertises it as a /32 and forwards to it with SNAT. HTTPS
 		// only.
 		{
 			"src": ["tag:tuist-k8s-production"],
-			"dst": ["192.168.0.16/32"],
+			"dst": ["192.168.0.16/32", "192.168.0.17/32"],
 			"ip":  ["tcp:443"],
 		},
 
-		// Production cluster -> ber1-ats-1 and ber1-ats-3's REST API, which the
-		// operator adopts each transfer switch's card through and reads its
+		// Production cluster -> ber1-ats-1, ber1-ats-2 and ber1-ats-3's REST API,
+		// which the operator adopts each transfer switch's card through and reads its
 		// sources through every minute (the RackATS objects), through the
 		// macmini-egress ProxyGroup. Same path as the PDU above. HTTPS only.
 		{
 			"src": ["tag:tuist-k8s-production"],
-			"dst": ["192.168.0.14/32", "192.168.0.15/32"],
+			"dst": ["192.168.0.14/32", "192.168.0.15/32", "192.168.0.18/32"],
 			"ip":  ["tcp:443"],
 		},
 
@@ -554,6 +603,21 @@
 			"src": ["autogroup:owner", "autogroup:admin"],
 			"dst": ["tag:tuist-rack-edge", "tag:tuist-rack-node"],
 			"ip":  ["tcp:22"],
+		},
+
+		// Admins -> :22 on the macOS fleet's tailnet addresses. The network
+		// half of the `check` SSH rule into the xcresult-processor VMs (see
+		// the ssh block). Admins already reach the minis' own sshd on a
+		// rented mini's public address or through a rack edge, so this
+		// adds no reach to the hosts they don't have.
+		{
+			"src": ["autogroup:owner", "autogroup:admin"],
+			"dst": [
+				"tag:tuist-macmini-staging",
+				"tag:tuist-macmini-canary",
+				"tag:tuist-macmini-production",
+			],
+			"ip": ["tcp:22"],
 		},
 
 		// tag:tuist-ops -> SSH into any Mac mini. No device carries
@@ -677,7 +741,8 @@
 	// into the tailnet's routing table; what is reachable through those
 	// routes is decided by the per-host grant above, not by the approval.
 	// On the management LAN, only the installed power devices' addresses
-	// are approved: ber1-ats-1, ber1-ats-3 and ber1-pdu-b.
+	// are approved: ber1-ats-1, ber1-ats-2, ber1-ats-3, ber1-pdu-a and
+	// ber1-pdu-b.
 	"autoApprovers": {
 		"routes": {
 			"10.128.0.0/12":   ["tag:tuist-k8s-staging"],
@@ -685,6 +750,8 @@
 			"192.168.0.14/32": ["tag:tuist-rack-edge"],
 			"192.168.0.15/32": ["tag:tuist-rack-edge"],
 			"192.168.0.16/32": ["tag:tuist-rack-edge"],
+			"192.168.0.17/32": ["tag:tuist-rack-edge"],
+			"192.168.0.18/32": ["tag:tuist-rack-edge"],
 		},
 		// Tailscale Services the operator's ingress ProxyGroups advertise
 		// (infra/helm/tailscale-operator, `tailnetIngress`). The operator
@@ -695,29 +762,31 @@
 			"svc:tuist-clickhouse-production": ["tag:tuist-k8s-production"],
 			"svc:tuist-clickhouse-staging":    ["tag:tuist-k8s-staging"],
 			"svc:tuist-clickhouse-canary":     ["tag:tuist-k8s-canary"],
+			"svc:tuist-pg-pooler-production": ["tag:tuist-k8s-production"],
 		},
 	},
 
 	// Tailscale SSH (distinct from "grants"). Only the xcresult-processor
 	// Tart VMs run tailscaled with --ssh=true
 	// (infra/xcresult-processor-image/tailscale-up.sh); Mac mini hosts and
-	// rack nodes join with --ssh=false, so the accept rules below reach the
-	// VMs only. They let the cluster-side subnet router
-	// `tailscale ssh admin@<vm-tailnet-ip>` into matching-env xcresult VMs:
-	// diagnostic shell access when `kubectl logs` / `kubectl exec` against
-	// the kubelet endpoint fails (tart-kubelet's Node hostname doesn't
-	// resolve from the K8s apiserver's DNS, so the standard debug path is
-	// broken on macOS fleets and this is the substitute). The tcp:22 in the
-	// cluster -> Mac mini grants is the network half of it.
+	// rack nodes join with --ssh=false, so the macmini rule below reaches
+	// the VMs only. It lets an admin `tailscale ssh admin@<vm-tailnet-ip>`
+	// into an xcresult VM: diagnostic shell access when `kubectl logs` /
+	// `kubectl exec` against the kubelet endpoint fails (tart-kubelet's
+	// Node hostname doesn't resolve from the K8s apiserver's DNS, so the
+	// standard debug path is broken on macOS fleets and this is the
+	// substitute). The admins -> Mac mini tcp:22 grant is the network half
+	// of it.
 	//
-	// Locked down to the `admin` user only, the bake-time user that owns
-	// /opt/tuist and the launchd plist. Explicitly excludes `root` and the
-	// broader `autogroup:nonroot` to keep a compromise of the k8s tag
-	// (large blast radius: cluster subnet router, every operator pod the
-	// Tailscale operator exposes) from being a root-shell pivot.
-	// Tagged-device SSH can't use `check` mode (no re-auth flow for a
-	// non-human source), so `accept` is the only option and the narrowing
-	// happens via `users`. No rule targets tag:tuist-runner-host-<env>:
+	// The source is people in `check` mode, never a tag. Tailscale SSH
+	// authenticates the device, and the root tailscaled serves a session's
+	// port and unix-socket forwards, which the policy file has no field to
+	// turn off. A session therefore reaches whatever root can, whichever
+	// `users` it logs in as, so an SSH rule from a tag would make that
+	// tag's devices (the cluster subnet router, every proxy the Tailscale
+	// operator runs) root on the VMs without a person in the loop.
+	// `users` stays `admin`, the bake-time user that owns /opt/tuist and
+	// the launchd plist. No rule targets tag:tuist-runner-host-<env>:
 	// runner hosts and their guests run no Tailscale SSH server. See
 	// sshTests below.
 	"ssh": [
@@ -728,67 +797,39 @@
 			"users":  ["autogroup:nonroot", "root"],
 		},
 		{
-			"action": "accept",
-			"src":    ["tag:tuist-k8s-staging"],
-			"dst":    ["tag:tuist-macmini-staging"],
-			"users":  ["admin"],
-		},
-		{
-			"action": "accept",
-			"src":    ["tag:tuist-k8s-canary"],
-			"dst":    ["tag:tuist-macmini-canary"],
-			"users":  ["admin"],
-		},
-		{
-			"action": "accept",
-			"src":    ["tag:tuist-k8s-production"],
-			"dst":    ["tag:tuist-macmini-production"],
-			"users":  ["admin"],
+			"action":      "check",
+			"src":         ["autogroup:owner", "autogroup:admin"],
+			"dst":         [
+				"tag:tuist-macmini-staging",
+				"tag:tuist-macmini-canary",
+				"tag:tuist-macmini-production",
+			],
+			"users":       ["admin"],
+			"checkPeriod": "1h",
 		},
 	],
 
-	// SSH ACL assertions, enforced on every save in the admin
-	// console. The accept lines lock in the `admin`-only narrowing
-	// added with #11134's diagnostic grants; the reject lines
-	// catch the failure modes that would re-expand blast radius:
-	// root SSH (host take-over), cross-env SSH (staging subnet
-	// router into production VMs), and Tailscale SSH onto runner
-	// hosts.
+	// SSH ACL assertions, enforced on every save in the admin console.
+	// They pin that no tag gets Tailscale SSH onto the macOS fleet: the
+	// cluster tags hold tcp:22 to the minis for drift updates, so the SSH
+	// policy is the only thing between them and a VM shell. The test
+	// engine doesn't resolve `autogroup:*`, so the admin rule has no
+	// accept assertion here; check it by hand after a paste.
 	"sshTests": [
 		{
-			"src":    "tag:tuist-k8s-staging",
-			"dst":    ["tag:tuist-macmini-staging"],
-			"accept": ["admin"],
+			"src":  "tag:tuist-k8s-staging",
+			"dst":  ["tag:tuist-macmini-staging"],
+			"deny": ["admin", "root"],
 		},
 		{
-			"src":    "tag:tuist-k8s-staging",
-			"dst":    ["tag:tuist-macmini-staging"],
-			"deny":   ["root"],
+			"src":  "tag:tuist-k8s-canary",
+			"dst":  ["tag:tuist-macmini-canary"],
+			"deny": ["admin", "root"],
 		},
 		{
-			"src":    "tag:tuist-k8s-staging",
-			"dst":    ["tag:tuist-macmini-production"],
-			"deny":   ["admin"],
-		},
-		{
-			"src":    "tag:tuist-k8s-canary",
-			"dst":    ["tag:tuist-macmini-canary"],
-			"accept": ["admin"],
-		},
-		{
-			"src":    "tag:tuist-k8s-canary",
-			"dst":    ["tag:tuist-macmini-canary"],
-			"deny":   ["root"],
-		},
-		{
-			"src":    "tag:tuist-k8s-production",
-			"dst":    ["tag:tuist-macmini-production"],
-			"accept": ["admin"],
-		},
-		{
-			"src":    "tag:tuist-k8s-production",
-			"dst":    ["tag:tuist-macmini-production"],
-			"deny":   ["root"],
+			"src":  "tag:tuist-k8s-production",
+			"dst":  ["tag:tuist-macmini-production"],
+			"deny": ["admin", "root"],
 		},
 		{
 			"src":    "tag:tuist-k8s-production",
@@ -801,11 +842,13 @@
 	// assertions are meaningful: they pin the boundaries this file exists
 	// to draw (cross-env, Mac minis away from other envs' databases, runner
 	// hosts away from every database, nothing but the production cluster
-	// into the rack).
+	// into the rack except SSH to the minis, which a lent host's borrower
+	// dials).
 	//
 	// Note: no test entries with autogroup-based src. Tailscale's test
 	// engine doesn't resolve `autogroup:*` as a concrete identity, so the
-	// human grants (Talos, MDM, Omada UI, rack SSH, staging kubectl) are
+	// human grants (Talos, MDM, Omada UI, rack SSH, macOS fleet SSH,
+	// staging kubectl) are
 	// exercised only by the live access decisions in the console. Check
 	// them by hand after a paste (NOTES.md in the draft lists how).
 	"tests": [
@@ -821,6 +864,8 @@
 				"tag:tuist-macmini-staging:5901",
 				"tag:tuist-runner-host-staging:22",
 				"tag:tuist-runner-host-staging:5901",
+				// A lent rack mini's first dial.
+				"10.10.0.101:22",
 			],
 			"deny": [
 				"tag:tuist-macmini-production:22",
@@ -831,7 +876,9 @@
 				"tag:tuist-k8s-production:8123",
 				"tag:tuist-k8s-production:9000",
 				"tag:tuist-mgmt:50000",
-				"10.10.0.101:22",
+				"10.10.0.101:5900",
+				"10.10.0.2:22",
+				"10.10.0.11:22",
 				"192.168.0.16:443",
 				"tag:tuist-rack-edge:22",
 			],
@@ -846,12 +893,15 @@
 				"tag:tuist-macmini-canary:5900",
 				"tag:tuist-macmini-canary:5901",
 				"tag:tuist-runner-host-canary:22",
+				// A lent rack mini's first dial.
+				"10.10.0.102:22",
 			],
 			"deny": [
 				"tag:tuist-macmini-production:22",
 				"tag:tuist-macmini-staging:22",
 				"tag:tuist-k8s-production:5432",
-				"10.10.0.101:22",
+				"10.10.0.102:5900",
+				"10.10.0.3:22",
 			],
 		},
 		{
@@ -1037,9 +1087,12 @@
 				"10.10.0.103:22",
 				"10.10.0.104:22",
 				"10.10.0.109:22",
+				"10.10.0.116:22",
 				"192.168.0.14:443",
 				"192.168.0.15:443",
 				"192.168.0.16:443",
+				"192.168.0.17:443",
+				"192.168.0.18:443",
 			],
 			"deny": [
 				// The edges' and ber1-store-a's addresses on the machines
@@ -1047,7 +1100,7 @@
 				"10.10.0.2:22",
 				"10.10.0.11:22",
 				"10.10.0.101:5900",
-				"10.10.0.110:22",
+				"10.10.0.117:22",
 				"192.168.0.16:80",
 			],
 		},

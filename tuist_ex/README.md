@@ -112,8 +112,9 @@ starts in `dev` and has to start over in a new process. If you call the tasks
 by name, set `MIX_ENV=test` or add
 `preferred_envs: ["tuist.test": :test, "tuist.test.build": :test]` to
 `def cli` in your `mix.exs`. Aliasing `compile` covers every compile, including
-the ones `mix test` or `mix phx.server` trigger; a compile that finds nothing
-to do is not reported.
+the ones `mix test` or `mix phx.server` trigger. A compile with no project work
+is still reported when dependency caching observes supported dependencies reused
+from existing outputs; otherwise an idle compile is not reported.
 
 ## Cache compiled dependencies
 
@@ -130,19 +131,46 @@ unsupported chains still compile and changed locks are checked. Non-allowlisted
 fetched dependencies compile in batches, retaining Mix's OS-worker parallelism.
 Without an
 alias, use `mix do deps.compile tuist_ex --include-children + deps.loadpaths --no-compile --no-deps-check + tuist.compile`.
-Dependencies needed to bootstrap Tuist itself compile normally and, when already
-current, do not produce cache lookups. Jason and Decimal are bootstrap
-dependencies, so they are not useful demonstration allowlist entries; replace
-any restore demonstration with dependencies your project actually uses.
+Dependencies needed to bootstrap Tuist itself compile normally. When already
+current and supported, they count as local hits without a cache lookup. Jason
+and Decimal are bootstrap dependencies, so they are not useful demonstration
+allowlist entries for snapshot restores; replace any restore demonstration with
+dependencies your project actually uses.
 A standalone `mix tuist.compile` may compile dependencies while discovering the
-task, before caching is available. It caches fetched, pure Elixir dependencies,
-not the project's own code. Native and custom compilers, local dependencies,
-and inputs it cannot model compile normally. Dependencies Mix already considers
-up to date need no lookup and are not counted as hits.
+task, before caching is available. It caches fetched Mix and ordinary rebar3
+dependencies using the standard Elixir, Erlang, yecc and leex compilers, not the
+project's own code. Rebar configuration, headers and the rebar executable enter
+the key. Passive Makefiles, packaged application metadata and rebar configuration
+scripts already evaluated by Mix do not by themselves reject a standard build.
+Application source scripts (`*.app.src.script`) still require an audited contract.
+Compiler-owned lexer/parser outputs are excluded only with locked-source provenance;
+shipped Erlang files remain inputs. Parsetools paths are restored after SDK bootstrap,
+and missing rebar launchers are installed before fingerprinting.
+Native/custom Mix, rebar3 and Make builders can opt in through an audited
+`builders:` contract with a compatible `platform`, required build `outputs`, and
+optional source-side `generated` paths, `env`, external `inputs` and `tools`.
+Native keys include resolved project configuration, standard native build environment
+and declared executable fingerprints under the dependency's effective environment. These
+snapshots materialize source-backed `ebin`/`priv`/`include`/`src` resources,
+including native libraries and executables; missing required outputs are repaired
+rather than reported as current. Native resource bytes invalidate downstream
+keys too. See [native and custom builders](https://tuist.dev/en/docs/guides/features/cache/elixir-advanced#native-and-custom-builders)
+for the contract and platform requirements. Unmodeled builders, local
+dependencies, and inputs it cannot model compile normally. Selected, supported dependencies
+that Mix considers up to date count as `local_hit` with reason `up_to_date` after
+validating their installed application metadata, declared BEAMs and SCM manifest.
+This observes Mix's reuse decision, not a snapshot restore or retrospective
+publication. These hits have no artifact key, transfer bytes, restore latency or
+estimated compilation time saved. Warm builds only enumerate source paths for
+structural eligibility; they do not hash dependency contents or declared inputs.
+Older servers can reject this new reason. On an explicit cache/schema-enumeration
+validation rejection, the package retries once without the new reuse observations,
+preserving the rest of the build report. Upgrade the server to see these local hits.
 
 Declare extra compile-time file or directory inputs with `inputs: ["path"]`
 and environment-variable names with `env: ["NAME"]` in `cache`. Source contents,
-locked dependency identities, upstream sources and BEAMs, effective application
+locked dependency identities and runtime/optional/app flags, upstream sources,
+BEAMs and application resources, resolved application metadata, effective application
 configuration (explicit configured keys, with application defaults covered by
 dependency sources), dependency and VM-wide compiler options, dependency-specific
 `env:` and `system_env:`, Mix environment/target,
@@ -150,9 +178,14 @@ and the Elixir build, full OTP version (when available), ERTS, compiler bytecode
 OS version, architecture, word size and byte order enter the key. Standard
 compiler/runtime inputs (`ERL_COMPILER_OPTIONS`, `ELIXIR_ERL_OPTIONS`, `ERL_AFLAGS`,
 `ERL_FLAGS`, `ERL_ZFLAGS`, `SOURCE_DATE_EPOCH`, `ERL_LIBS`, `MIX_PATH`, and `MIX_ARCHIVES`) are included automatically;
-declare other compile-time environment variables explicitly. Inputs and effective
-configuration are captured before each dependency lookup and rechecked before
-publishing, so an earlier compilation cannot leave later lookups using stale inputs. Custom global tracers bypass
+declare other compile-time environment variables explicitly. The effective context
+is captured before each lookup. Lookup planning shares per-dependency input models
+within one preparation, clearing them after compilation and invalidating restored
+applications. Installation and publication always recheck fresh inputs without the
+lookup memo. A lookup miss also captures a fresh key before compiling, so speculative
+planning cannot install or publish artifacts for stale inputs. Keys use deterministic encoding, sorted source
+enumeration and normalized unordered declarations, without filesystem timestamps;
+ordered compiler settings retain their order. Custom global tracers bypass
 caching so their side effects are not skipped.
 
 Elixir macros can read arbitrary inputs. Declare additional inputs, exclude
@@ -160,10 +193,42 @@ non-deterministic dependencies with `exclude: [:dependency]`, or restrict select
 with `dependencies: [:dependency]` when you need an audited allowlist. This is not automatic hermetic
 input discovery; changing undeclared external inputs can still make a bundle stale.
 
+Deterministic key encoding does not make compiler output deterministic. On recent
+Elixir versions, consider reproducible compiler output when upstream BEAM bytes
+change between otherwise identical builds:
+
+```sh
+ERL_COMPILER_OPTIONS='[deterministic]' mix compile
+```
+
+Apply the same setting before SDK bootstrap and throughout cache seeding and
+consumption. Start with clean dependency build directories when changing compiler
+options; already-current outputs are not automatically rebuilt. If you already
+set `ERL_COMPILER_OPTIONS`, merge `deterministic` into your existing Erlang option
+list instead of replacing it. The SDK does not change this variable for you, and
+the exact value enters artifact keys. This stabilizes supported compiler metadata
+encoding; it does not guarantee byte-identical output for arbitrary generators,
+protocol consolidation, undeclared inputs or different checkout paths.
+`deterministic` also omits source/options from `module_info(:compile)`, so validate
+your coverage, debugging and source-discovery tooling before adopting it. Cache
+keys still include complete upstream BEAM bytes, without stripping metadata.
+
+Compiler flags cannot make unordered compile-time generators reproducible. The
+SDK requires Mint 1.10.2 or later (including its security backports) because
+versions before 1.10 generate functions by
+iterating atom-keyed maps, producing different BEAMs across fresh VMs. This
+minimum fixes that generator, not every dependency or compiler pass: even with
+`deterministic`, other bootstrap outputs can still vary and invalidate downstream
+keys. A high hit rate on a small fixture is not proof of full-graph reuse.
+
 Verified local snapshots are tried before the remote cache. Idle builds and
 builds fully served locally do not contact cache endpoints or resolve credentials.
 A compile lazily opens one remote session, closes it even on compiler failure,
 and enforces a 30-second client RPC deadline independently of the server.
+Independent dependency misses fetch concurrently in bounded windows of four;
+key planning, compilation and installation remain serialized because Mix's
+project and compiler state is VM-global. Prefetched artifacts are installed only
+if their key still matches the current inputs.
 
 Remote caching uses the existing account endpoint discovery and project-scoped
 cache-token exchange. Kura reports signed action-cache and CAS analytics with
@@ -178,7 +243,12 @@ OTP runtimes and endpoints without compression use identity transport. CAS diges
 and reported transfer bytes always describe the uncompressed bundle. Set
 `remote: false` for local-only caching;
 `endpoint:` can select a self-hosted HTTPS REAPI endpoint (HTTP is limited to
-loopback development hosts). Authentication, unavailable
+loopback development hosts). A nonempty `TUIST_CACHE_ENDPOINT` takes precedence
+over `endpoint:` and account discovery. Hosted runners use this override to
+reach their in-cluster cache. The environment override explicitly permits HTTP
+on non-loopback hosts: bearer tokens travel unencrypted, so use it only on a
+trusted network. Invalid overrides fall back to local snapshots, not discovery.
+Authentication, unavailable
 endpoints, quota refusals and storage failures fall back without hiding compiler
 failures. Set `upload: false` to read remote bundles without publishing new ones;
 local snapshots still populate. This is a client behavior option, not an
@@ -305,9 +375,28 @@ mix tuist.test --cover
 mix tuist.coverage.complete
 ```
 
-Tuist reads the counters Erlang's `cover` collected once the suite finishes,
-so your coverage tool keeps working as before: `mix test`'s HTML report and
-threshold, or excoveralls.
+Erlang's `cover` compiles every module of the project again at the start of
+each run, which on a large project costs a minute or more. So with `--cover`,
+Tuist recompiles the project's modules once with the runtime's native line
+counters, switches the counters on and counts with them instead of running
+Mix's coverage tool. Later runs recompile only the modules a compile wrote
+since. The modules Mimic copies are swapped for Mimic's copies before any
+test runs, and count natively too: Mimic compiles each original under
+another name with the module's own options, which carry the counters. The
+calls they took before the swap, while the application started, are read
+first and added to the copy's.
+
+Mix's summary and threshold still apply: once the suite finishes, the task
+prints each module's coverage and fails the run (exit status 3) when the
+total is below `test_coverage: [summary: [threshold: N]]`, 90 unless set;
+`summary: false` turns both off, and `ignore_modules` is honoured. A shard
+prints no summary and isn't held to the threshold. Counting natively writes
+no HTML report: a project that sets `:output` is warned, and
+`mix test --cover --export-coverage NAME` followed by `mix test.coverage`
+produces one with Mix's tool. A project that sets another coverage tool
+(`test_coverage: [tool: ...]`, such as excoveralls) keeps it: Tuist reads the
+counters Erlang's `cover` collected once the suite finishes, as does a run on
+a runtime without the JIT, which cannot count natively.
 
 ### With shards
 
@@ -359,21 +448,17 @@ jobs:
       - run: mix tuist.coverage.complete
 ```
 
-Each shard reports its share and Tuist merges them into one run. Erlang's
-`cover` compiles every module of the project again at the start of each run,
-which on a large project costs every shard a minute or more, so with `--cover`
-the build's modules are recompiled once, on the machine that builds, with the
-runtime's native line counters. Each shard switches the counters on and counts
-with them instead of running Mix's coverage tool, so no Mix coverage report is
-written. Only the modules Mimic copies are compiled for `cover`, because Mimic
-keeps a `cover` compiled module's counts across the swaps it makes and
-reloading a module resets its native counters.
+Each shard reports its share and Tuist merges them into one run. Shards count
+natively as an unsharded run does, and `mix tuist.test.build --cover`
+recompiles the build's modules with the counters once, on the machine that
+builds, so the shards don't each do it. A shard of a build made without
+`--cover` recompiles them itself.
 
-A shard on a runtime without the JIT cannot count natively and uses Mix's
-coverage tool, as does one built without `--cover`. Its coverage is then
-exported, under `cover/shard-<index>` unless you pass `--export-coverage`
-yourself, rather than held to the project's threshold, which a shard running
-part of the suite would not meet.
+A shard that uses Mix's coverage tool, on a runtime without the JIT or in a
+project that sets another tool, exports its coverage, under
+`cover/shard-<index>` unless you pass `--export-coverage` yourself, rather
+than holding it to the project's threshold, which a shard running part of
+the suite would not meet.
 
 ### What is reported
 

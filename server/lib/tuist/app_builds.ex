@@ -170,6 +170,10 @@ defmodule Tuist.AppBuilds do
     |> Repo.update!()
   end
 
+  def has_previews?(%Project{id: project_id}) do
+    Repo.exists?(from(p in Preview, where: p.project_id == ^project_id))
+  end
+
   def list_preview_tracks(%Project{id: project_id}) do
     tracks =
       Repo.all(

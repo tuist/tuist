@@ -124,14 +124,12 @@ strand `queued` runner_jobs rows pointing at the old `fleet_name`
 (a runner only claims work for its own pool) and split fleet
 analytics at the deploy. `Catalog.pool_name/1` applies the same rule.
 
-The `runnerImage` for each pool is derived from a shared
-`runnerImageRepository` + per-semver tag computed as
-`<repository>:macos-<xcode-dashes>-<semver>`, so the release flow
-only bumps a single `runnerImageSemver` value at release time and
-every Xcode pool's image updates in lockstep. An xcodeVersion entry
-can override `imageTag` to pin a specific tag (useful for an
-out-of-rotation Xcode refreshed via `runner-image.yml` dispatch with
-a `:<profile>-<git-sha>` tag).
+Each pool's image is its Xcode's `tuist.macosRunnerImage`: the digest the
+deploy resolved for `<repository>:macos-<xcode-dashes>-<semver>`
+(`runnerImageDigests`), so a release moves only the pools whose image it
+rebuilt. An xcodeVersion entry can override `imageTag` to pin a specific tag
+(useful for an out-of-rotation Xcode refreshed via `runner-image.yml`
+dispatch with a `:<profile>-<git-sha>` tag).
 
 The catalog renders once per placement: the rented fleet, and, with
 `rackFleet.runners.enabled`, the rack fleet at its site. A rack placement's
@@ -211,7 +209,14 @@ The rendered set is the default shape plus every non-default shape.
     {{- $extraShapes = append $extraShapes . }}
   {{- end }}
 {{- end }}
-{{- $placements := list (dict "fleet" $hostFleetName "site" "" "overrides" $overrides "autoscaling" nil "rollout" nil "shapes" $extraShapes "guestShapes" (dict)) }}
+{{- /*
+The rented placement is left out when the env rents no hosts for it and racks
+the catalog at a site instead (`tuist.runnersFleetRentsMacOS`).
+*/}}
+{{- $placements := list }}
+{{- if eq (include "tuist.runnersFleetRentsMacOS" .) "true" }}
+{{- $placements = append $placements (dict "fleet" $hostFleetName "site" "" "overrides" $overrides "autoscaling" nil "rollout" nil "shapes" $extraShapes "guestShapes" (dict)) }}
+{{- end }}
 {{- $rackPools := include "tuist.rackCatalogPools" . | fromJsonArray }}
 {{- if $rackPools }}
 {{- $rackRunners := .Values.rackFleet.runners }}
@@ -236,7 +241,7 @@ recorded, billed and counted against concurrency limits at the shape the
 profile names, while its Pods are sized to the guest. A guest smaller than its
 shape fails the render, since a job would get less than its profile names.
 */}}
-{{- $placements = append $placements (dict "fleet" (include "tuist.rackFleetName" .) "site" .Values.rackFleet.site "overrides" ($rackRunners.xcodeOverrides | default dict) "autoscaling" $rackRunners.autoscaling "rollout" $rackRunners.rollout "shapes" $rackShapes "guestShapes" ($rackRunners.guestShapes | default dict)) }}
+{{- $placements = append $placements (dict "fleet" (include "tuist.rackFleetName" .) "site" .Values.rackFleet.site "overrides" ($rackRunners.xcodeOverrides | default dict) "autoscaling" $rackRunners.autoscaling "rollout" $rackRunners.rollout "shapes" $rackShapes "guestShapes" ($rackRunners.guestShapes | default dict) "stacked" ($rackRunners.stackedImages | default false)) }}
 {{- end }}
 {{- range $xcode := $xcodeVersions }}
 {{- $xcodeVersion := required "runnersFleet.xcodeVersions[].xcodeVersion required" $xcode.xcodeVersion | toString }}
@@ -247,6 +252,23 @@ shape fails the render, since a job would get less than its profile names.
 {{- $podCPU := dig "pod" "cpuMilli" $defaultCPU $imageOverride }}
 {{- $podMem := dig "pod" "memoryMB" $defaultMem $imageOverride }}
 {{- range $placement := $placements }}
+{{- $poolImage := $image }}
+{{- if $placement.stacked }}
+{{- with include "tuist.macosRunnerStackedImage" (dict "root" $ "xcodeVersion" $xcodeVersion) }}
+{{- $poolImage = . }}
+{{- end }}
+{{- end }}
+{{- /*
+Which of the Xcode's catalog images the pool runs, `standalone` or `stacked`,
+so tart-kubelet can find the image a release moves the pool to next in the
+upcoming runner images ConfigMap (`.github/workflows/runner-image-release.yml`)
+and pull it before the deploy that moves the pool. A pool whose Xcode pins an
+`imageTag` follows no release and has none.
+*/}}
+{{- $imageVariant := ternary "standalone" "stacked" (eq $poolImage $image) }}
+{{- if dig "imageTag" "" $imageOverride }}
+{{- $imageVariant = "" }}
+{{- end }}
 {{- $override := dig $xcodeVersion (dict) $placement.overrides }}
 {{- $site := $placement.site }}
 {{- $sitePart := ternary "" (printf "%s-" $site) (eq $site "") }}
@@ -276,6 +298,9 @@ metadata:
     tuist.dev/runner-pool: {{ $poolName | quote }}
     tuist.dev/managed-by: helm
     tuist.dev/xcode-version: {{ $xcodeVersion | quote }}
+    {{- with $imageVariant }}
+    tuist.dev/runner-image-variant: {{ . | quote }}
+    {{- end }}
     tuist.dev/shape: {{ printf "%dvcpu-%dgb" (div $defaultCPU 1000) (div $defaultMem 1024) | quote }}
     tuist.dev/shape-vcpus: {{ div $defaultCPU 1000 | quote }}
     tuist.dev/shape-memory-gb: {{ div $defaultMem 1024 | quote }}
@@ -292,7 +317,7 @@ metadata:
 spec:
   labels: []
   replicas: {{ $replicas }}
-  image: {{ $image | quote }}
+  image: {{ $poolImage | quote }}
   os: darwin
   fleetSelector: {{ $placement.fleet | quote }}
   dispatchLabel: {{ printf "shape-macos-%s%s" $sitePart $xcodeTag | quote }}
@@ -359,6 +384,9 @@ metadata:
     tuist.dev/runner-pool: {{ $shapePoolName | quote }}
     tuist.dev/managed-by: helm
     tuist.dev/xcode-version: {{ $xcodeVersion | quote }}
+    {{- with $imageVariant }}
+    tuist.dev/runner-image-variant: {{ . | quote }}
+    {{- end }}
     tuist.dev/shape: {{ $shapeKey | quote }}
     tuist.dev/shape-vcpus: {{ $vcpus | quote }}
     tuist.dev/shape-memory-gb: {{ $memoryGb | quote }}
@@ -374,7 +402,7 @@ metadata:
 spec:
   labels: []
   replicas: {{ dig "minWarmPoolFloor" 0 (default dict $shapeAutoscaling) }}
-  image: {{ $image | quote }}
+  image: {{ $poolImage | quote }}
   os: darwin
   fleetSelector: {{ $placement.fleet | quote }}
   dispatchLabel: {{ printf "shape-macos-%s%s-%s" $sitePart $xcodeTag $shapeKey | quote }}

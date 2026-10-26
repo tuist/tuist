@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/sshd"
 )
 
 // Seed is everything one install is rendered from.
@@ -38,7 +40,20 @@ type Seed struct {
 	// Edge, for an edge, is its way out on the first boot. Unset, an edge
 	// takes DHCP on its uplinks like every other role.
 	Edge *EdgeNetwork
+	// ResidentInstaller installs beside the installer partition a preinstalled
+	// box carries on its boot drive (the preinstall image), keeping it for the
+	// next reinstall, rather than over the whole drive. The resident installer
+	// fills in the drive and the space left on it.
+	ResidentInstaller bool
 }
+
+// The placeholders a resident installer replaces in a ResidentInstaller seed
+// before it installs: the drive its partition is on, and the bytes left on it
+// after the installer, ESP and /boot partitions.
+const (
+	InstallerDiskPlaceholder = "TUIST_INSTALLER_DISK"
+	InstallerRestPlaceholder = "TUIST_REST_OF_INSTALLER_DISK"
+)
 
 // EdgeNetwork is an edge's end of the site's VRRP VLAN, built the way the
 // rack-edge pod builds it (edge_vlan_bond in
@@ -286,16 +301,20 @@ autoinstall:
       mkdir -p /target/etc/modprobe.d
       cat > /target%[11]s <<'TUIST_EOF'
 %[12]s      TUIST_EOF
-%[13]s%[15]s%[17]s`, s.Host, s.User, s.ConsolePassword, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
+%[13]s%[15]s%[17]s%[18]s`, s.Host, s.User, s.ConsolePassword, keys.String(), tags, s.TailnetKey, s.TailnetKeyID, s.Role, built,
 		indent(handover(fmt.Sprintf("grep -qx 'tailnet_key=%s' /run/tuist-prev/etc/tuist-rack-node 2>/dev/null", s.TailnetKeyID),
 			"this installer already installed "+s.Host), "      "),
-		ModprobePath, indent(ModprobeConf, "      "), hostKey, storageLayout(s.Role), dataMounts(s.Role),
-		networkConfig(s.Edge), edgeResolvers(s.Edge)), nil
+		ModprobePath, indent(ModprobeConf, "      "), hostKey, storageLayout(s.Role, s.ResidentInstaller), dataMounts(s.Role),
+		networkConfig(s.Edge), edgeResolvers(s.Edge), sshStartLimit()), nil
 }
 
-// networkConfig is the install's netplan, which configures the SFP+ uplinks
-// (the MS-01's X710, driver i40e) and nothing else, so the 2.5G ports stay
-// unmanaged for the node's pods.
+// UplinkDrivers are the drivers of the rack hosts' uplinks: the MS-01's X710
+// (i40e) and the ASUS RS501A's Broadcom N225P (bnxt_en).
+var UplinkDrivers = []string{"i40e", "bnxt_en"}
+
+// networkConfig is the install's netplan, which configures the uplinks
+// (UplinkDrivers) and nothing else, so the onboard ports stay unmanaged for
+// the node's pods.
 //
 // With no edge network that is DHCP on the uplinks. An edge's uplinks carry
 // no address: it goes out over the site's VRRP VLAN through the other edge,
@@ -308,7 +327,7 @@ func networkConfig(e *EdgeNetwork) string {
     ethernets:
       uplinks:
         match:
-          driver: i40e
+          driver: [` + strings.Join(UplinkDrivers, ", ") + `]
         dhcp4: true
 `
 	}
@@ -348,6 +367,19 @@ func edgeResolvers(e *EdgeNetwork) string {
 		path.Dir(EdgeResolvedPath), EdgeResolvedPath, indent(EdgeResolvedConf, "      "))
 }
 
+// sshStartLimit takes sshd out of systemd's start rate limit (internal/sshd)
+// from the first boot, since the operator reaches the host over SSH alone. The
+// converge keeps the drop-ins.
+func sshStartLimit() string {
+	var b strings.Builder
+	b.WriteString("    - |\n")
+	fmt.Fprintf(&b, "      mkdir -p /target%s /target%s\n", path.Dir(sshd.ServiceDropInPath), path.Dir(sshd.SocketDropInPath))
+	for _, f := range [][2]string{{sshd.ServiceDropInPath, sshd.ServiceDropInContent}, {sshd.SocketDropInPath, sshd.SocketDropInContent}} {
+		fmt.Fprintf(&b, "      cat > /target%s <<'TUIST_EOF'\n%s      TUIST_EOF\n", f[0], indent(f[1], "      "))
+	}
+	return b.String()
+}
+
 // handover boots the rack install on this machine's disks that match selects
 // (a command run with the install's root at /run/tuist-prev) through BootNext,
 // with the installed system's own efibootmgr, instead of installing again.
@@ -374,7 +406,35 @@ done
 // prjquota beside a capped ext4 /. The quota option can only be set when the
 // filesystem is mounted, and the layout cannot change without a reinstall.
 // Every other role takes Ubuntu's direct layout.
-func storageLayout(role string) string {
+//
+// A box with a resident installer keeps partition 1 of its boot drive, the
+// installer, and puts the ESP, /boot and / after it; a storage node's /data
+// takes the whole of its largest drive, the data drive.
+func storageLayout(role string, resident bool) string {
+	if resident {
+		layout := `  storage:
+    config:
+      - {type: disk, id: disk0, match: {path: ` + InstallerDiskPlaceholder + `}, ptable: gpt, preserve: true}
+      - {type: partition, id: installer, device: disk0, number: 1, offset: 1048576, size: 4294967296, preserve: true}
+      - {type: partition, id: esp, device: disk0, number: 2, size: 1G, flag: boot, grub_device: true}
+      - {type: format, id: esp-fs, volume: esp, fstype: fat32}
+      - {type: partition, id: boot, device: disk0, number: 3, size: 2G}
+      - {type: format, id: boot-fs, volume: boot, fstype: ext4}
+      - {type: partition, id: root, device: disk0, number: 4, size: ` + InstallerRestPlaceholder + `}
+      - {type: format, id: root-fs, volume: root, fstype: ext4}
+      - {type: mount, id: root-mount, device: root-fs, path: /}
+      - {type: mount, id: boot-mount, device: boot-fs, path: /boot}
+      - {type: mount, id: esp-mount, device: esp-fs, path: /boot/efi}
+`
+		if role == "storage" {
+			layout += `      - {type: disk, id: disk1, match: {size: largest}, ptable: gpt, wipe: superblock-recursive, preserve: false}
+      - {type: partition, id: data, device: disk1, number: 1, size: -1}
+      - {type: format, id: data-fs, volume: data, fstype: xfs}
+      - {type: mount, id: data-mount, device: data-fs, path: /data, options: "defaults,prjquota"}
+`
+		}
+		return layout
+	}
 	if role != "storage" {
 		return "  storage:\n    layout:\n      name: direct\n"
 	}

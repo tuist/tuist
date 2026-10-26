@@ -37,6 +37,45 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     %{account: account, project: project}
   end
 
+  test "unsigned runs are not proof that an unmeasured pipeline executed", %{project: project, account: account} do
+    CoverageFixtures.run_with_coverage(project, account, [], %{
+      git_commit_sha: "head",
+      submission_auth: "network_trusted",
+      account_id: 0,
+      xcode_coverage: nil,
+      recompute: false,
+      build_system: "bazel"
+    })
+
+    assert Reported.compute(project, "head") == nil
+    assert Reported.repository_id(project.id, "head") == nil
+    assert Reported.build_system(project.id, "head") == ""
+  end
+
+  test "unsigned outcomes cannot enqueue recomputation or change carried coverage", %{project: project, account: account} do
+    base_run(project, account)
+    head_run(project, account, head_files())
+    before = Reported.compute(project, "head")
+    before_commit = Commits.summary(project.id, "head")
+    assert before
+    assert before.carried_tests_count > 0
+    reject(Commits, :enqueue_recompute, 1)
+
+    CoverageFixtures.run_with_coverage(project, account, [], %{
+      git_commit_sha: "head",
+      submission_auth: "network_trusted",
+      account_id: 0,
+      xcode_coverage: nil,
+      recompute: false,
+      build_system: "bazel",
+      test_modules: modules([test_case("testTrim()", "TextTests", "failure")])
+    })
+
+    assert Reported.compute(project, "head") == before
+    assert Commits.summary(project.id, "head") == before_commit
+    assert Reported.build_system(project.id, "head") == "xcode"
+  end
+
   defp track_default_files, do: stub(GitHistory, :settings, &call_original(GitHistory, :settings, [&1]))
 
   defp file(path, counts, opts \\ []), do: CoverageFixtures.file(path, counts, opts)
@@ -120,16 +159,19 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
               %{
                 paths: ["Sources/Math.swift", "Sources/Text.swift"],
                 scopes:
-                  [
-                    %{
-                      kind: "test",
-                      module: "AppTests",
-                      suite: "MathTests",
-                      name: "testAdd()",
-                      files: [0],
-                      lines: [[1, 2]]
-                    }
-                  ] ++
+                  if(Keyword.get(opts, :test_scope, true),
+                    do: [
+                      %{
+                        kind: "test",
+                        module: "AppTests",
+                        suite: "MathTests",
+                        name: "testAdd()",
+                        files: [0],
+                        lines: [[1, 2]]
+                      }
+                    ],
+                    else: []
+                  ) ++
                     if(target_scope?, do: [target], else: []),
                 overlapped_tests: Keyword.get(opts, :overlapped_tests, [])
               },
@@ -153,8 +195,23 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     project: project,
     account: account
   } do
-    assert reasons(missing_evidence_runs(project, account, "collected", false)) == [:not_linked]
+    assert reasons(missing_evidence_runs(project, account, "collected", false, test_scope: false)) == [:not_linked]
     assert [%{coverage_evidence_status: "collected"}] = Commits.runs(project.id, "base")
+  end
+
+  test "a target with only its process's evidence doesn't link the package", %{project: project, account: account} do
+    assert reasons(missing_evidence_runs(project, account, "collected", true, test_scope: false)) == [:not_linked]
+  end
+
+  test "a test whose target recorded only overlapping tests has no attribution because of the overlap", %{
+    project: project,
+    account: account
+  } do
+    overlapped = [%{module: "AppTests", suite: "TextTests", name: "testTrim()"}]
+
+    assert reasons(
+             missing_evidence_runs(project, account, "collected", true, test_scope: false, overlapped_tests: overlapped)
+           ) == [:overlapped]
   end
 
   test "a test of a target that recorded evidence has no attribution of its own", %{project: project, account: account} do
@@ -1018,7 +1075,6 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   end
 
   test "records a target whose run skipped tests of other targets", %{project: project, account: account} do
-    # Quarantine skips a test of another target on every run.
     recorded_source(project, account, [], %{skip_test_identifiers: ["AppTests/MathTests/testFlaky()"]})
     skipped_head(project, account, [{"TextKitTests", :local, "text"}])
 
@@ -1647,6 +1703,31 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     assert %{kind: "measured", skipped_tests_count: 0} = Reported.compute(project, "head")
   end
 
+  # The client reports only the caller's skips: a quarantined test it skipped
+  # is outside the suite, so a run that skipped only it is a full run.
+  test "a commit whose only skipped test is a quarantined one is measured", %{project: project, account: account} do
+    base_run(project, account)
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      test_modules: modules([test_case("testAdd()", "MathTests")])
+    })
+
+    assert %{kind: "measured", skipped_tests_count: 0, carried_tests_count: 0} = Reported.compute(project, "head")
+  end
+
+  test "a caller's skip beside a quarantined test carries only the caller's", %{project: project, account: account} do
+    base_run(project, account)
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      test_modules: modules([]),
+      skip_test_identifiers: ["AppTests/TextTests/testTrim()"]
+    })
+
+    assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1} = Reported.compute(project, "head")
+  end
+
   test "a target selective testing skipped that no ancestor run executed is a gap", %{
     project: project,
     account: account
@@ -1884,5 +1965,160 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
 
     assert %{kind: "measured", covered_lines: 1, executable_lines: 2} = Reported.compute(project, "head")
     assert Reported.compute(project, "unknown") == nil
+  end
+
+  # Another run of the commit's scheme, as a second pipeline runs it beside a
+  # selective one: every test, or those its caller selected.
+  defp other_run(project, account, attrs \\ %{}) do
+    CoverageFixtures.run_with_coverage(
+      project,
+      account,
+      [
+        file("Sources/Math.swift", [1, 1, 0]),
+        file("Sources/Text.swift", [1, 1, 1, 0]),
+        file("Tests/AppTests.swift", [1, 1], is_test: true)
+      ],
+      Map.merge(
+        %{
+          git_commit_sha: "head",
+          test_modules: modules([test_case("testAdd()", "MathTests"), test_case("testTrim()", "TextTests")])
+        },
+        attrs
+      )
+    )
+  end
+
+  defp change_tracked_file(account) do
+    track_default_files()
+    repository_id = CoverageFixtures.repository_id(account)
+    listing = fn blob -> [%{path: "Package.resolved", git_blob_id: blob, mode: 0o100644}] end
+    GitHistory.record_listing(repository_id, "base", listing.("one"), files_count: 1)
+    GitHistory.record_listing(repository_id, "head", listing.("two"), files_count: 1)
+  end
+
+  test "a target selective testing skipped that another run of the commit executed is measured, whatever the commit changed",
+       %{project: project, account: account} do
+    base_run(project, account)
+    skipped_head(project, account, [{"AppTests", :remote}])
+    change_tracked_file(account)
+
+    assert :tracked_file_changed in reasons(Reported.compute(project, "head"))
+
+    other_run(project, account)
+
+    assert %{kind: "measured", skipped_tests_count: 0, carried_tests_count: 0, gap_files_count: 0} =
+             reported = Reported.compute(project, "head")
+
+    assert reasons(reported) == []
+  end
+
+  test "carries only the skipped targets no other run of the commit executed", %{project: project, account: account} do
+    target_only_runs(project, account, head: :skipped)
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      test_modules: modules([test_case("testAdd()", "MathTests")])
+    })
+
+    assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1, gap_files_count: 0} =
+             Reported.compute(project, "head")
+  end
+
+  test "a skipped target another run of the commit executed is no gap when its test files changed", %{
+    project: project,
+    account: account
+  } do
+    baseline_lists_runs(project, account, [{"Tests/AppTests.swift", "blob-changed"}])
+    assert :test_list_changed in reasons(Reported.compute(project, "head"))
+
+    CoverageFixtures.run_with_coverage(
+      project,
+      account,
+      [file("Sources/Math.swift", [1, 1, 0]), file("Tests/AppTests.swift", [1, 1], is_test: true)],
+      %{git_commit_sha: "head", test_modules: modules([test_case("testAdd()", "MathTests")])}
+    )
+
+    assert %{kind: "measured"} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == []
+  end
+
+  test "a target another run executed only the tests its caller selected of stays skipped", %{
+    project: project,
+    account: account
+  } do
+    base_run(project, account)
+    skipped_head(project, account, [{"AppTests", :remote}])
+
+    other_run(project, account, %{
+      only_test_identifiers: ["AppTests/MathTests"],
+      test_modules: modules([test_case("testAdd()", "MathTests")])
+    })
+
+    # What the caller's run executed is measured; the rest of the target is carried.
+    assert %{skipped_tests_count: 1, carried_tests_count: 1} = Reported.compute(project, "head")
+
+    change_tracked_file(account)
+    assert :tracked_file_changed in reasons(Reported.compute(project, "head"))
+  end
+
+  test "a test a skip identifier names that another run of the commit executed is measured, whatever the commit changed",
+       %{project: project, account: account} do
+    base_run(project, account)
+    head_run(project, account, head_files())
+    change_tracked_file(account)
+
+    assert reasons(Reported.compute(project, "head")) == [:tracked_file_changed]
+
+    other_run(project, account)
+
+    assert %{kind: "measured", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == []
+  end
+
+  test "a suite the other run skipped itself stays skipped and is carried", %{project: project, account: account} do
+    base_run(project, account)
+    skipped_head(project, account, [{"AppTests", :remote}])
+
+    other_run(project, account, %{
+      test_modules: modules([test_case("testAdd()", "MathTests")]),
+      skip_test_identifiers: ["AppTests/TextTests"]
+    })
+
+    assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1} = Reported.compute(project, "head")
+  end
+
+  test "a suite a skip identifier names that another run executed is measured, whatever the commit changed", %{
+    project: project,
+    account: account
+  } do
+    base_run(project, account)
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      test_modules: modules([test_case("testAdd()", "MathTests")]),
+      skip_test_identifiers: ["AppTests/TextTests"]
+    })
+
+    change_tracked_file(account)
+    assert :tracked_file_changed in reasons(Reported.compute(project, "head"))
+
+    other_run(project, account)
+
+    assert %{kind: "measured", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == []
+  end
+
+  test "a test a skip identifier names that another scheme's run executed is measured, whatever the commit changed",
+       %{project: project, account: account} do
+    base_run(project, account)
+    head_run(project, account, head_files())
+    change_tracked_file(account)
+
+    assert reasons(Reported.compute(project, "head")) == [:tracked_file_changed]
+
+    other_run(project, account, %{scheme: "Other"})
+
+    assert %{kind: "measured", skipped_tests_count: 0} = reported = Reported.compute(project, "head")
+    assert reasons(reported) == []
   end
 end

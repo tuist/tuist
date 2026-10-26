@@ -153,14 +153,6 @@
             </div>
           </div>
           <div data-part="metadata-row">
-            <div :if={@build.gradle_version} data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_gradle", "Gradle Version")}</div>
-              <span data-part="label">{@build.gradle_version}</span>
-            </div>
-            <div :if={@build.java_version} data-part="metadata">
-              <div data-part="title">{dgettext("dashboard_gradle", "Java Version")}</div>
-              <span data-part="label">{@build.java_version}</span>
-            </div>
             <div :if={@build.git_branch} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_gradle", "Branch")}</div>
               <span data-part="label">
@@ -179,8 +171,12 @@
               data-part="metadata"
               data-field="requested-tasks"
             >
-              <div data-part="title">{dgettext("dashboard_gradle", "Requested tasks")}</div>
-              <span data-part="label">{Enum.join(@build.requested_tasks, " ")}</span>
+              <div id="requested-tasks-label" data-part="title">
+                {dgettext("dashboard_gradle", "Requested tasks")}
+              </div>
+              <ul id="requested-tasks" aria-labelledby="requested-tasks-label" role="list">
+                <li :for={task <- @build.requested_tasks}><code>{task}</code></li>
+              </ul>
             </div>
             <div data-part="metadata">
               <div data-part="title">
@@ -205,34 +201,16 @@
           </div>
         </div>
         <TuistWeb.Components.BuildHealth.category_detail category={@failure_category} />
-        <div :if={map_size(@build.custom_values || %{}) > 0} data-part="custom-metadata-section">
-          <span data-part="custom-metadata-label">
-            {dgettext("dashboard_gradle", "Custom metadata")}
-          </span>
-          <.table
-            id="custom-metadata-table"
-            rows={Map.to_list(@build.custom_values)}
-            row_key={fn {key, _value} -> key end}
-          >
-            <:col :let={{key, _value}} label={dgettext("dashboard_gradle", "Key")}>
-              <.text_cell label={key} />
-            </:col>
-            <:col :let={{_key, value}} label={dgettext("dashboard_gradle", "Value")}>
-              <a
-                :if={url?(value)}
-                href={value}
-                target="_blank"
-                rel="noopener noreferrer"
-                data-part="custom-metadata-link"
-              >
-                {value}
-              </a>
-              <.text_cell :if={not url?(value)} label={value} />
-            </:col>
-          </.table>
-        </div>
+        <TuistWeb.Components.BuildMetadata.build_metadata values={@build.custom_values || %{}} />
       </.card_section>
     </.card>
+    <TuistWeb.Components.BuildMetadata.environment_metadata
+      values={@build.custom_values || %{}}
+      fields={[
+        {dgettext("dashboard_gradle", "Gradle Version"), @build.gradle_version},
+        {dgettext("dashboard_gradle", "Java Version"), @build.java_version}
+      ]}
+    />
     <.card
       title={dgettext("dashboard_gradle", "Tasks")}
       icon="subtask"

@@ -63,6 +63,7 @@ fleet_edge_check() {
   fleet_edge_check_machines "$site_file" || return 1
   fleet_edge_check_rack_caches "$site_file" || return 1
   fleet_edge_check_wan "$site_file" || return 1
+  fleet_edge_check_tor_management "$site_file" || return 1
   fleet_edge_check_power "$site_file"
 }
 
@@ -88,10 +89,172 @@ fleet_edge_check_wan() {
       bad="management.edge.wan.address6 and gateway6 are an IPv6 address with its prefix length and an IPv6 address, in lower case"
     fi
   fi
+  [ -z "$bad" ] && bad="$(fleet_edge_check_bgp "$site_file" "$address" "$address6")"
+  [ -z "$bad" ] && bad="$(fleet_edge_check_egress "$site_file")"
   if [ -n "$bad" ]; then
     echo "error: $bad" >&2
     return 1
   fi
+}
+
+# The site's own prefixes and the AS that announces them over the WAN, when it
+# has them: the site's ASN and the upstream's, and each prefix as a network
+# with no host bits. An IPv4 prefix needs the WAN's IPv4 address and an IPv6
+# one its IPv6 address, which the sessions run from. Prints what is wrong.
+fleet_edge_check_bgp() {
+  local site_file="$1" address="$2" address6="$3" asn peer_asn prefix
+  local -a prefixes
+  jq -e '.management.edge.wan.bgp' "$site_file" >/dev/null 2>&1 || return 0
+  IFS=$'\x1f' read -r asn peer_asn < <(jq -r '.management.edge.wan.bgp as $b | [($b.asn // ""), ($b.peer_asn // "")] | map(tostring) | join("\u001f")' "$site_file")
+  mapfile -t prefixes < <(jq -r '.management.edge.wan.bgp.prefixes // [] | .[] | tostring' "$site_file")
+  if [ -z "$address" ]; then
+    echo "management.edge.wan.bgp needs the WAN's address, which its sessions run from"
+    return 0
+  fi
+  for prefix in "$asn" "$peer_asn"; do
+    if ! [[ "$prefix" =~ ^[1-9][0-9]{0,9}$ ]] || (( prefix > 4294967295 )); then
+      echo "management.edge.wan.bgp.asn and peer_asn are AS numbers, not '$asn' and '$peer_asn'"
+      return 0
+    fi
+  done
+  if [ "${#prefixes[@]}" -eq 0 ]; then
+    echo "management.edge.wan.bgp announces no prefixes"
+    return 0
+  fi
+  for prefix in "${prefixes[@]}"; do
+    if [[ "$prefix" == *:* ]]; then
+      if ! [[ "$prefix" =~ ^[0-9a-f:]+::/([0-9]|[1-9][0-9]|1[01][0-9]|12[0-8])$ ]]; then
+        echo "management.edge.wan.bgp.prefixes '$prefix' is not an IPv6 network ending in :: with its prefix length, in lower case"
+        return 0
+      elif [ -z "$address6" ]; then
+        echo "management.edge.wan.bgp.prefixes '$prefix' is IPv6, and the WAN has no IPv6 address to announce it from"
+        return 0
+      fi
+    elif ! [[ "$prefix" =~ ^[0-9.]+/([0-9]|[12][0-9]|3[0-2])$ ]] || ! fleet_is_ipv4 "${prefix%/*}" || [ "$(fleet_network "$prefix")" != "$prefix" ]; then
+      echo "management.edge.wan.bgp.prefixes '$prefix' is not an IPv4 network with its prefix length"
+      return 0
+    fi
+  done
+}
+
+# Where the site's Mac minis go out from, when not the WAN address: a block of
+# an IPv4 prefix the site announces, and, while they move onto it one at a
+# time, the minis that do. Without nodes, every Mac mini does. Prints what is
+# wrong.
+fleet_edge_check_egress() {
+  local site_file="$1" prefix announced node found
+  local -a nodes minis
+  jq -e '.management.edge.wan.egress' "$site_file" >/dev/null 2>&1 || return 0
+  prefix="$(jq -r '.management.edge.wan.egress.prefix // ""' "$site_file")"
+  if ! [[ "$prefix" =~ ^[0-9.]+/([0-9]|[12][0-9]|3[0-2])$ ]] || ! fleet_is_ipv4 "${prefix%/*}" || [ "$(fleet_network "$prefix")" != "$prefix" ]; then
+    echo "management.edge.wan.egress.prefix '$prefix' is not an IPv4 network with its prefix length"
+    return 0
+  fi
+  found=""
+  while read -r announced; do
+    [ -n "$announced" ] || continue
+    if (( $(fleet_prefix_length "$prefix") >= $(fleet_prefix_length "$announced") )) &&
+      [ "$(fleet_network "${prefix%/*}/${announced#*/}")" = "$announced" ]; then
+      found=1
+    fi
+  done < <(jq -r '.management.edge.wan.bgp.prefixes // [] | .[] | select(contains(":") | not)' "$site_file")
+  if [ -z "$found" ]; then
+    echo "management.edge.wan.egress.prefix '$prefix' is not inside an IPv4 prefix management.edge.wan.bgp announces"
+    return 0
+  fi
+  mapfile -t nodes < <(jq -r '.management.edge.wan.egress.nodes // [] | .[] | tostring' "$site_file")
+  [ "${#nodes[@]}" -gt 0 ] || return 0
+  mapfile -t minis < <(fleet_edge_machines "$site_file" | awk -F'\037' '$4 == "RackHost" {print $1}')
+  for node in "${nodes[@]}"; do
+    if [[ " ${minis[*]} " != *" $node "* ]]; then
+      echo "management.edge.wan.egress.nodes '$node' is not a Mac mini on the machines segment"
+      return 0
+    fi
+  done
+}
+
+# The first and last address of an IPv4 network, as nft's range: 95.130.119.16/28
+# is 95.130.119.16-95.130.119.31.
+fleet_prefix_range() {
+  local prefix="$1" bits octets value i first last
+  bits="$(fleet_prefix_length "$prefix")"
+  IFS=. read -r -a octets <<<"${prefix%/*}"
+  value=0
+  for i in 0 1 2 3; do value=$(( (value << 8) | octets[i] )); done
+  first="$value" last=$(( value | ((1 << (32 - bits)) - 1) ))
+  printf '%d.%d.%d.%d-%d.%d.%d.%d\n' \
+    $(( first >> 24 & 255 )) $(( first >> 16 & 255 )) $(( first >> 8 & 255 )) $(( first & 255 )) \
+    $(( last >> 24 & 255 )) $(( last >> 16 & 255 )) $(( last >> 8 & 255 )) $(( last & 255 ))
+}
+
+# The site's BIRD configuration, when it announces prefixes of its own: one
+# session per address family to the WAN's upstream, from the WAN address. Both
+# edges run it, and only the master holds that address, so only the master's
+# session comes up: a session is direct, which it is only on an edge with an
+# address in the upstream's network, and it binds to the WAN address, so the
+# standby cannot open one through the master's translation either. When the
+# master changes, the upstream's session to the old one is reset by the new
+# master, which holds the address but not the session, and the new master's
+# BIRD connects within seconds. Graceful restart asks the upstream to keep the
+# routes meanwhile.
+# Each prefix is a blackhole route in BIRD's own table, announced and installed
+# nowhere else: what the rack sends out from the prefix is translated by the
+# edge, so the replies come back as the translation's, and anything else the
+# upstream delivers to it is dropped by tuist_rack_wan. Of what the upstream
+# sends, the default route is kept and nothing goes into the node's routes:
+# the node's default through the WAN is keepalived's.
+fleet_edge_bgp() {
+  local site_file="$1" address gateway address6 gateway6 asn peer_asn prefix family
+  local -a prefixes
+  fleet_edge_check "$site_file" || return 1
+  IFS=$'\x1f' read -r address gateway address6 gateway6 asn peer_asn < <(jq -r '.management.edge.wan as $w | [
+      $w.address, $w.gateway, ($w.address6 // ""), ($w.gateway6 // ""), $w.bgp.asn, $w.bgp.peer_asn
+    ] | map(tostring) | join("\u001f")' "$site_file")
+  mapfile -t prefixes < <(jq -r '.management.edge.wan.bgp.prefixes[]' "$site_file")
+  cat <<CONF
+# generated by rack:fleet render from infra/rack-switch-fleet/sites/$(basename "$site_file")
+log stderr all;
+router id ${address%/*};
+
+protocol device {
+}
+CONF
+  for family in 4 6; do
+    local routes="" peer local_address
+    for prefix in "${prefixes[@]}"; do
+      if { [ "$family" = 6 ] && [[ "$prefix" == *:* ]]; } || { [ "$family" = 4 ] && [[ "$prefix" != *:* ]]; }; then
+        routes+="  route $prefix blackhole;"$'\n'
+      fi
+    done
+    [ -n "$routes" ] || continue
+    if [ "$family" = 4 ]; then
+      peer="$gateway" local_address="${address%/*}"
+    else
+      peer="$gateway6" local_address="${address6%/*}"
+    fi
+    cat <<CONF
+
+protocol static originate$family {
+  ipv$family;
+${routes}}
+
+protocol bgp upstream$family {
+  local $local_address as $asn;
+  neighbor $peer as $peer_asn;
+  direct;
+  connect retry time 5;
+  graceful restart on;
+  ipv$family {
+    import filter {
+      if net.len = 0 then accept;
+      reject;
+    };
+    import limit 10 action block;
+    export where proto = "originate$family";
+  };
+}
+CONF
+  done
 }
 
 # The power devices the tailnet reaches through the edge, one management
@@ -462,9 +625,25 @@ SCRIPT
     uplinks="    oifname != { \"tailscale0\", \"$interface\" } ip saddr $(fleet_network "$provisioning") masquerade"
   fi
   # The machines reach the internet through their gateway, translated onto the
-  # uplinks the same way.
+  # uplinks the same way. The Mac minis the site's egress names go out from
+  # its block of the site's own prefix instead, each mini keeping one address
+  # of it, which BGP routes back to the WAN address. Everything else keeps the
+  # WAN address: the edges, the switches, and the storage node, which is in
+  # the cluster under it.
   if [ -n "$machines_vlan" ]; then
+    local egress_prefix egress_sources=""
+    local -a egress_nodes
+    egress_prefix="$(jq -r '.management.edge.wan.egress.prefix // ""' "$site_file")"
+    if [ -n "$egress_prefix" ]; then
+      mapfile -t egress_nodes < <(jq -r '.management.edge.wan.egress.nodes // [] | .[]' "$site_file")
+      egress_sources="$(fleet_edge_machines "$site_file" |
+        awk -F'\037' -v want=" ${egress_nodes[*]} " '$4 == "RackHost" && $3 != "" && (want == "  " || index(want, " " $1 " ")) {print $3}' |
+        paste -sd, - | sed 's/,/, /g')"
+    fi
     [ -n "$uplinks" ] && uplinks+=$'\n'
+    if [ -n "$egress_sources" ]; then
+      uplinks+="    oifname \"wan0\" ip saddr { $egress_sources } snat ip to $(fleet_prefix_range "$egress_prefix") persistent"$'\n'
+    fi
     uplinks+="    oifname != { \"tailscale0\", \"machines0\", \"$interface\" } ip saddr $(fleet_network "$machines_gateway") masquerade"
   fi
   # The standby edge goes out through the master from its address on the
@@ -855,6 +1034,16 @@ if ip -4 -o addr show dev $interface 2>/dev/null | grep -qF ' $edge_address/'; t
 fi
 SCRIPT
   fi
+  # A PicOS ToR's management address, from the edge whose link reaches it:
+  # the one holding its end of that link.
+  local node link_interface link_address tor_address
+  while IFS=$'\t' read -r node link_interface link_address _ _ tor_address; do
+    cat <<SCRIPT
+if ip -4 -o addr show dev $link_interface 2>/dev/null | grep -qF ' $link_address'; then
+  routes="\${routes:+\$routes,}$tor_address/32"
+fi
+SCRIPT
+  done < <(fleet_edge_tor_links "$site_file")
   cat <<'SCRIPT'
 exec tailscale --socket=/run/tailscale/tailscaled.sock set --advertise-routes="$routes"
 SCRIPT
@@ -890,4 +1079,163 @@ fleet_edge_install() {
     printf '  %s:\n    uplinks: [%s]\n    vrrp:\n      vlan: %s\n      address: %s/%s\n      peer: %s\n' \
       "$node" "${uplink_names// /, }" "$vrrp_vlan" "$address" "$vrrp_length" "$peer"
   done
+}
+
+# --- a PicOS ToR's zero-touch provisioning -----------------------------------
+#
+# A PicOS ToR's management port (eth0) is cabled straight to an edge, which
+# provisions it: `tor_management` on the edge node names the ToR, the edge's
+# NIC on the link and the edge's address on it (a /30, the ToR's mgmt_address
+# being the other host). The edge answers DHCP there for the ToR's MAC alone,
+# with options 66 and 67 naming the bootstrap and 7 itself for ZTP's syslog,
+# serves the bootstrap over TFTP, and forwards the ToR's NTP and nothing else
+# it starts. See AGENTS.md, "PicOS switches".
+
+# One line per edge that provisions a ToR: node, OS interface, the edge's
+# address with its prefix, and the ToR's name, MAC and address.
+fleet_edge_tor_links() {
+  jq -r --slurpfile hw "$FLEET_NODE_MODELS" '
+    . as $s | .nodes[]? | select(.role == "edge" and .tor_management != null) |
+    . as $n | .tor_management as $t |
+    ([$s.devices[] | select(.name == $t.switch)] | first // {}) as $tor |
+    [$n.name, ($hw[0][$n.hardware // ""].interfaces[$t.nic].os_name // ""),
+     $t.address, $t.switch, ($tor.mac // ""), ($tor.mgmt_address // "")] | join("\t")' "$1"
+}
+
+fleet_edge_check_tor_management() {
+  local site_file="$1" bad node interface address tor mac tor_address
+  bad="$(jq -r --slurpfile hw "$FLEET_NODE_MODELS" --slurpfile models "$FLEET_MODELS" '
+    . as $s | [.nodes[]? | select(.role == "edge" and .tor_management != null)] as $edges |
+    (
+      ($edges[] | . as $n | .tor_management as $t |
+        ([$s.devices[] | select(.name == $t.switch)] | first) as $tor |
+        if $tor == null then "\($n.name): tor_management names \($t.switch), which is not one of the site'\''s switches"
+        elif ($models[0][$tor.model].os // "omada") != "picos" then "\($n.name): \($tor.name) is not a PicOS switch, and only those are provisioned from an edge"
+        elif ($tor.mac // "") == "" then "\($tor.name) has no mac, and its edge answers DHCP for that MAC alone"
+        elif ($tor.mgmt_address // "") == "" then "\($tor.name) has no mgmt_address"
+        elif ($hw[0][$n.hardware // ""].interfaces[$t.nic // ""].os_name // "") == "" then "\($n.name): \($t.nic) is not an interface of a \($n.hardware // "node of no hardware") that has an OS name"
+        elif ($t.address | test("^[0-9]+([.][0-9]+){3}/30$") | not) then "\($n.name): tor_management.address \($t.address) is not an address on a /30"
+        else empty end),
+      ($edges | group_by(.tor_management.switch)[] | select(length > 1) |
+        "\(.[0].tor_management.switch) is provisioned from \(length) edges; one link, one edge")
+    )' "$site_file" | head -1)"
+  if [ -n "$bad" ]; then
+    echo "error: $bad" >&2
+    return 1
+  fi
+  while IFS=$'\t' read -r node interface address tor mac tor_address; do
+    if [ "$tor_address" = "${address%/*}" ] || ! fleet_in_network "$tor_address" "$address"; then
+      echo "error: $tor's mgmt_address $tor_address is not the other host on $node's link $address" >&2
+      return 1
+    fi
+  done < <(fleet_edge_tor_links "$site_file")
+}
+
+# ztp.sh: the edge's address on its ToR's link, the forwarding the ToR gets,
+# then dnsmasq with that edge's configuration; `ztp.sh console` instead
+# watches the ToR and reboots it over its console when ZTP missed it
+# (edge/tor-console). An edge that provisions no ToR sleeps, so neither
+# container restarts.
+fleet_edge_ztp_run() {
+  local site_file="$1" node interface address tor_address
+  fleet_edge_check_tor_management "$site_file" || return 1
+  cat <<SCRIPT
+#!/bin/sh
+# generated by rack:fleet render from infra/rack-switch-fleet/sites/$(basename "$site_file")
+SCRIPT
+  cat <<'SCRIPT'
+case "${NODE_NAME:?the pod passes the name of the node it runs on}" in
+SCRIPT
+  while IFS=$'\t' read -r node interface address _ _ tor_address; do
+    printf '  %s) interface=%s address=%s tor_address=%s ;;\n' "$node" "$interface" "$address" "$tor_address"
+  done < <(fleet_edge_tor_links "$site_file")
+  cat <<'SCRIPT'
+  *) echo "$NODE_NAME provisions no ToR"; exec sleep infinity ;;
+esac
+if [ "${1:-}" = console ]; then
+  exec rack-tor-console -address "$tor_address"
+fi
+ip link set "$interface" up
+ip addr replace "$address" dev "$interface"
+network=$(ip -4 -o route show dev "$interface" proto kernel scope link | awk '{print $1; exit}')
+# The ToR reaches NTP through the edge and nothing else it starts; the
+# controller's connections to it, from the tailnet, come back as replies.
+nft -f - <<NFT
+table inet tuist_rack_ztp
+delete table inet tuist_rack_ztp
+table inet tuist_rack_ztp {
+  chain forward {
+    type filter hook forward priority filter;
+    iifname "$interface" ct state established,related accept
+    iifname "$interface" udp dport 123 accept
+    iifname "$interface" drop
+  }
+  chain clamp {
+    type filter hook forward priority mangle;
+    oifname "tailscale0" ip saddr $network tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu
+  }
+  chain postrouting {
+    type nat hook postrouting priority srcnat;
+    ip saddr $network udp dport 123 masquerade
+  }
+}
+NFT
+exec dnsmasq --no-daemon --conf-file="/etc/rack-edge/ztp-$NODE_NAME.conf"
+SCRIPT
+}
+
+# ztp-<node>.conf: DHCP for the ToR's MAC alone, and the bootstrap over TFTP,
+# on that edge's link only.
+fleet_edge_ztp_dhcp() {
+  local site_file="$1" want="$2" node interface address tor mac tor_address
+  fleet_edge_check_tor_management "$site_file" || return 1
+  while IFS=$'\t' read -r node interface address tor mac tor_address; do
+    [ "$node" = "$want" ] || continue
+    cat <<CONF
+# generated by rack:fleet render from infra/rack-switch-fleet/sites/$(basename "$site_file")
+# $tor's zero-touch provisioning, on $node's link to its management port.
+port=0
+interface=$interface
+bind-interfaces
+no-hosts
+no-resolv
+dhcp-authoritative
+dhcp-leasefile=/var/lib/misc/tuist-rack-ztp.leases
+log-facility=-
+log-dhcp
+dhcp-range=$(fleet_network "$address" | cut -d/ -f1),static,255.255.255.252,1h
+dhcp-host=$mac,$tor_address,$tor
+dhcp-ignore=tag:!known
+dhcp-option=option:router,${address%/*}
+dhcp-option=66,${address%/*}
+dhcp-option=67,"picos-bootstrap.sh"
+dhcp-option=7,${address%/*}
+enable-tftp
+tftp-root=/etc/rack-edge
+CONF
+    return 0
+  done < <(fleet_edge_tor_links "$site_file")
+  echo "error: $want provisions no ToR" >&2
+  return 1
+}
+
+# picos-bootstrap.sh: what a factory PicOS ToR runs from ZTP, from the
+# template in picos/ with the site's parameters. Public data only.
+fleet_picos_bootstrap() {
+  local site_file="$1" user keys ntp template
+  user="$(jq -r '.credentials.username' "$site_file")"
+  keys="$(jq -r '.management.picos.authorized_keys // [] | join("\n")' "$site_file")"
+  ntp="$(jq -r '.management.picos.ntp // [] | join(" ")' "$site_file")"
+  if [ -z "$keys" ] || [ -z "$ntp" ]; then
+    echo "error: management.picos needs authorized_keys (the rack switch controller's public key) and ntp servers" >&2
+    return 1
+  fi
+  if grep -q "'" <<<"$keys$ntp$user"; then
+    echo "error: management.picos and credentials.username cannot hold a single quote" >&2
+    return 1
+  fi
+  template="$(cat "$FLEET_ROOT/picos/bootstrap.sh.tmpl")"
+  template="${template//@USER@/$user}"
+  template="${template//@NTP_SERVERS@/$ntp}"
+  printf '%s\n' "${template//@AUTHORIZED_KEYS@/$keys}"
 }

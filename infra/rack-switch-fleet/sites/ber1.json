@@ -70,7 +70,18 @@
         "address": "149.6.170.31/31",
         "gateway": "149.6.170.30",
         "address6": "2001:978:2:b::4:11/127",
-        "gateway6": "2001:978:2:b::4:10"
+        "gateway6": "2001:978:2:b::4:10",
+        "bgp": {
+          "asn": 218377,
+          "peer_asn": 174,
+          "prefixes": [
+            "95.130.119.0/24",
+            "2a11:83c0::/29"
+          ]
+        },
+        "egress": {
+          "prefix": "95.130.119.16/28"
+        }
       }
     },
     "controller": {
@@ -412,8 +423,8 @@
       "name": "ber1-ats-2",
       "role": "power",
       "hardware": "eats16n",
-      "status": "planned",
-      "note": "Chain A: its C19 output feeds ber1-pdu-a and nothing else. Prefers feed A. Bought and boxed; chain A exists only at the colo.",
+      "status": "installed",
+      "note": "Chain A: its C19 output feeds ber1-pdu-a and nothing else. Prefers feed A.",
       "links": [
         {
           "switch": "ber1-mgmt",
@@ -423,7 +434,9 @@
           "purpose": "management"
         }
       ],
-      "preferred_source": 1
+      "mgmt_address": "192.168.0.18",
+      "preferred_source": 1,
+      "mac": "00:20:85:a6:29:54"
     },
     {
       "name": "ber1-ats-3",
@@ -448,8 +461,8 @@
       "name": "ber1-pdu-a",
       "role": "power",
       "hardware": "evmafc20a",
-      "status": "planned",
-      "note": "Eaton Rack PDU G4 on chain A. Carries the chain A minis and the RS485 sensor chain on its SENSOR port. The second PDU, ordered 2026-09-24.",
+      "status": "installed",
+      "note": "Eaton Rack PDU G4 on chain A, serial G315V03024 (the rack's first PDU, chain B until 2026-10-23). Carries the minis cabled to ToR A and the RS485 sensor chain on its SENSOR port.",
       "links": [
         {
           "switch": "ber1-mgmt",
@@ -459,14 +472,16 @@
           "purpose": "management"
         }
       ],
-      "ats": "ber1-ats-2"
+      "ats": "ber1-ats-2",
+      "mgmt_address": "192.168.0.16",
+      "mac": "00:20:85:b8:0e:3e"
     },
     {
       "name": "ber1-pdu-b",
       "role": "power",
       "hardware": "evmafc20a",
       "status": "installed",
-      "note": "Eaton Rack PDU G4 on chain B. Carries ber1-tor-b, ber1-edge-b, ber1-store-b and the minis cabled to ToR B, so a mini and its ToR always lose power together.",
+      "note": "Eaton Rack PDU G4 on chain B, serial HJ40V37004 (part EVMAFC20A). Carries ber1-tor-b, ber1-edge-b, ber1-store-b and the minis cabled to ToR B, so a mini and its ToR always lose power together.",
       "links": [
         {
           "switch": "ber1-mgmt",
@@ -477,8 +492,8 @@
         }
       ],
       "ats": "ber1-ats-3",
-      "mgmt_address": "192.168.0.16",
-      "mac": "00:20:85:b8:0e:3e"
+      "mgmt_address": "192.168.0.17",
+      "mac": "00:20:85:b8:58:7c"
     },
     {
       "name": "ber1-env-inlet",
@@ -632,8 +647,8 @@
       "status": "installed",
       "links": [
         {
-          "switch": "ber1-tor-b",
-          "port": 8,
+          "switch": "ber1-tor-a",
+          "port": 2,
           "media": "copper",
           "nic": "en0",
           "purpose": "data",
@@ -649,8 +664,8 @@
       "status": "installed",
       "links": [
         {
-          "switch": "ber1-tor-b",
-          "port": 9,
+          "switch": "ber1-tor-a",
+          "port": 3,
           "media": "copper",
           "nic": "en0",
           "purpose": "data",
@@ -666,12 +681,131 @@
       "status": "installed",
       "links": [
         {
-          "switch": "ber1-tor-b",
-          "port": 10,
+          "switch": "ber1-tor-a",
+          "port": 4,
           "media": "copper",
           "nic": "en0",
           "purpose": "data",
           "mac": "bc:74:ea:c9:be:68"
+        }
+      ]
+    },
+    {
+      "name": "ber1-runner-b10",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "ber1-runner-b10",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "ber1-tor-a",
+          "port": 5,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:ae:ca:33"
+        }
+      ]
+    },
+    {
+      "name": "ber1-runner-b11",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "ber1-runner-b11",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "ber1-tor-a",
+          "port": 6,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:c3:4d:13"
+        }
+      ]
+    },
+    {
+      "name": "ber1-runner-b12",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "ber1-runner-b12",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "ber1-tor-a",
+          "port": 7,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:e1:e1:50"
+        }
+      ]
+    },
+    {
+      "name": "ber1-runner-b13",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "ber1-runner-b13",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "ber1-tor-a",
+          "port": 8,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:d8:5d:b0"
+        }
+      ]
+    },
+    {
+      "name": "ber1-runner-b14",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "ber1-runner-b14",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "ber1-tor-a",
+          "port": 9,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:e0:99:21"
+        }
+      ]
+    },
+    {
+      "name": "ber1-runner-b15",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "ber1-runner-b15",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "ber1-tor-b",
+          "port": 8,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:d1:f1:c3"
+        }
+      ]
+    },
+    {
+      "name": "ber1-runner-b16",
+      "role": "runner",
+      "hardware": "mac-mini",
+      "rack_host": "ber1-runner-b16",
+      "status": "installed",
+      "links": [
+        {
+          "switch": "ber1-tor-b",
+          "port": 9,
+          "media": "copper",
+          "nic": "en0",
+          "purpose": "data",
+          "mac": "bc:74:ea:bc:1f:b0"
         }
       ]
     }

@@ -6,6 +6,7 @@ defmodule TuistEx.Cache.ReapiTest.ActionServer do
   def get_action_result(request, stream) do
     pid = request.instance_name |> to_charlist() |> :erlang.list_to_pid()
     capture(pid, stream)
+    barrier(pid, :lookup_barrier)
     hints = Map.get(request, :inline_output_files, [])
     Agent.update(pid, &Map.update!(&1, :inline_requests, fn requests -> [hints | requests] end))
     if Agent.get(pid, &Map.get(&1, :stall, false)), do: Process.sleep(:infinity)
@@ -50,6 +51,18 @@ defmodule TuistEx.Cache.ReapiTest.ActionServer do
 
     Agent.update(pid, &put_in(&1, [:actions, request.action_digest.hash], request.action_result))
     request.action_result
+  end
+
+  def barrier(pid, name) do
+    if observer = Agent.get(pid, &Map.get(&1, name)) do
+      send(observer, {name, self()})
+
+      receive do
+        :release -> :ok
+      after
+        10_000 -> raise "concurrent transport did not reach the barrier"
+      end
+    end
   end
 
   def capture(pid, stream) do
@@ -140,6 +153,7 @@ defmodule TuistEx.Cache.ReapiTest.ByteServer do
 
     pid = instance |> to_charlist() |> :erlang.list_to_pid()
     ActionServer.capture(pid, stream)
+    ActionServer.barrier(pid, :blob_barrier)
 
     case Agent.get(pid, &Map.get(&1.blobs, hash)) do
       nil ->
@@ -225,6 +239,55 @@ defmodule TuistEx.Cache.ReapiTest do
     assert Process.info(self(), :links) == links
     on_exit(fn -> Reapi.close(session) end)
     %{session: session, store: store}
+  end
+
+  for barrier <- [:lookup_barrier, :blob_barrier] do
+    @tag barrier: barrier
+    test "#{barrier} multiplexes four verified artifacts over one channel", %{
+      session: session,
+      store: store,
+      barrier: barrier
+    } do
+      requests =
+        for index <- 1..4, do: {Key.build({:parallel, index}), String.to_atom("dep_#{index}")}
+
+      for {key, app} <- requests,
+          do: assert({:ok, _} = Reapi.put(session, key, app, "artifact-#{app}"))
+
+      observer = self()
+      Agent.update(store, &Map.put(&1, barrier, observer))
+      flags = Process.info(self(), :trap_exit)
+      results = Task.async(fn -> Reapi.get_many(session, requests) end)
+
+      workers =
+        for _ <- requests do
+          assert_receive {^barrier, worker}, 5_000
+          worker
+        end
+
+      for worker <- workers, do: send(worker, :release)
+      results = Task.await(results, 5_000)
+      assert Process.info(self(), :trap_exit) == flags
+      assert map_size(results) == 4
+
+      for {key, app} = request <- requests do
+        binary = "artifact-#{app}"
+        assert {:ok, ^binary, %{read_source: "remote"}} = results[request]
+
+        assert Enum.any?(Agent.get(store, & &1.metadata), fn {_headers, metadata} ->
+                 metadata.action_id == key and metadata.target_id == to_string(app)
+               end)
+      end
+    end
+  end
+
+  test "a missing concurrent artifact does not discard its siblings", %{session: session} do
+    present = {Key.build(:present), :present}
+    missing = {Key.build(:missing), :missing}
+    assert {:ok, _} = Reapi.put(session, elem(present, 0), :present, "artifact")
+    results = Reapi.get_many(session, [missing, present])
+    assert :miss = results[missing]
+    assert {:ok, "artifact", _} = results[present]
   end
 
   test "requests bounded inlining and verifies small bundles without a ByteStream read", %{
@@ -678,6 +741,249 @@ defmodule TuistEx.Cache.ReapiTest do
     assert String.downcase(request) =~ "authorization: bearer api-token"
   end
 
+  @tag timeout: 300_000
+  test "the ordinary cold compile alias publishes and restores dependency bundles remotely", %{
+    port: port,
+    store: store
+  } do
+    root =
+      Path.join(
+        System.tmp_dir!(),
+        "tuist-cold-remote-#{System.pid()}-#{System.unique_integer([:positive])}"
+      )
+
+    dependency = Path.join(root, "dependency")
+    other = Path.join(root, "other")
+    project_dir = Path.join(root, "project")
+    File.mkdir_p!(project_dir)
+    on_exit(fn -> File.rm_rf!(root) end)
+
+    for {path, module, app} <- [
+          {dependency, "ColdDependency", :cold_dependency},
+          {other, "OtherDependency", :other_dependency}
+        ] do
+      if app == :other_dependency do
+        File.mkdir_p!(Path.join(path, "src"))
+        File.write!(Path.join(path, "rebar.config"), "{erl_opts, [debug_info]}.\n")
+
+        File.write!(
+          Path.join(path, "src/other_dependency.erl"),
+          "-module(other_dependency).\n-export([value/0]).\nvalue() -> 1.\n"
+        )
+
+        File.write!(
+          Path.join(path, "src/other_dependency.app.src"),
+          "{application, other_dependency, [{vsn, \"0.1.0\"}, {modules, []}, {applications, [kernel, stdlib]}]}.\n"
+        )
+      else
+        File.mkdir_p!(Path.join(path, "lib"))
+
+        File.write!(Path.join(path, "mix.exs"), """
+        defmodule #{module}.MixProject do
+          use Mix.Project
+          def project, do: [app: #{inspect(app)}, version: "0.1.0"]
+        end
+        """)
+
+        File.write!(Path.join(path, "lib/probe.ex"), "defmodule #{module}, do: def(value, do: 1)")
+      end
+
+      for args <- [
+            ["init", "--quiet"],
+            ["add", "."],
+            [
+              "-c",
+              "user.name=Fixture",
+              "-c",
+              "user.email=fixture@example.com",
+              "commit",
+              "-qm",
+              "fixture"
+            ]
+          ] do
+        {output, status} = System.cmd("git", args, cd: path, stderr_to_stdout: true)
+        assert status == 0, output
+      end
+    end
+
+    package = Path.dirname(Mix.Project.project_file()) |> Path.expand()
+
+    File.write!(Path.join(project_dir, "mix.exs"), """
+    defmodule ColdProject.MixProject do
+      use Mix.Project
+      def project do
+        [app: :cold_project, version: "0.1.0",
+         deps: [{:tuist_ex, path: #{inspect(package)}, runtime: false}, {:cold_dependency, git: #{inspect(dependency)}}, {:other_dependency, git: #{inspect(other)}}],
+         aliases: [compile: ["deps.compile tuist_ex --include-children", "deps.loadpaths --no-compile --no-deps-check", "tuist.compile"]],
+         tuist: [cache: [dependencies: [:cold_dependency, :other_dependency], path: #{inspect(Path.join(root, "cache"))}]]]
+      end
+    end
+    """)
+
+    project = store |> :erlang.pid_to_list() |> to_string()
+
+    {server_url, requests} =
+      serve_responses([%{token: "scoped-cache-token"}, %{token: "scoped-cache-token"}], 240_000)
+
+    env = [
+      {"MIX_ENV", "test"},
+      {"MIX_BUILD_PATH", nil},
+      {"MIX_DEPS_PATH", nil},
+      {"MIX_OS_DEPS_COMPILE_PARTITION_COUNT", "2"},
+      {"TUIST_TOKEN", "fixture-token"},
+      {"TUIST_URL", server_url},
+      {"TUIST_PROJECT", "acme/" <> project},
+      {"TUIST_CACHE_ENDPOINT", "http://127.0.0.1:#{port}"}
+    ]
+
+    {output, status} =
+      System.cmd(System.find_executable("mix"), ["deps.get"],
+        cd: project_dir,
+        env: env,
+        stderr_to_stdout: true
+      )
+
+    assert status == 0, output
+
+    {output, status} =
+      System.cmd(System.find_executable("mix"), ["compile"],
+        cd: project_dir,
+        env: env,
+        stderr_to_stdout: true
+      )
+
+    assert status == 0, output
+    assert Agent.get(store, &map_size(&1.actions)) == 2, output
+    File.rm_rf!(Path.join(root, "cache"))
+    build_path = Path.join(project_dir, "_build/test/lib/cold_dependency")
+    other_build = Path.join(project_dir, "_build/test/lib/other_dependency")
+    File.rm_rf!(build_path)
+    File.rm_rf!(other_build)
+    observer = self()
+    Agent.update(store, &Map.put(%{&1 | metadata: []}, :lookup_barrier, observer))
+
+    restore =
+      Task.async(fn ->
+        System.cmd(System.find_executable("mix"), ["compile"],
+          cd: project_dir,
+          env: env,
+          stderr_to_stdout: true
+        )
+      end)
+
+    assert_receive {:lookup_barrier, first}, 120_000
+    assert_receive {:lookup_barrier, second}, 5_000
+    Agent.update(store, &Map.delete(&1, :lookup_barrier))
+    send(first, :release)
+    send(second, :release)
+    {output, status} = Task.await(restore, 30_000)
+
+    assert status == 0, output
+    refute output =~ "Generated cold_dependency app"
+    refute output =~ "Generated other_dependency app"
+    assert File.regular?(Path.join(build_path, "ebin/Elixir.ColdDependency.beam"))
+    refute output =~ "Compiling other_dependency"
+    assert File.regular?(Path.join(other_build, "ebin/other_dependency.beam"))
+    assert Agent.get(store, & &1.metadata) != []
+    token_requests = Task.await(requests)
+    assert length(token_requests) == 2
+    assert Enum.all?(token_requests, &String.contains?(&1, "POST /api/cache/token?"))
+  end
+
+  test "the runner endpoint override skips discovery and supports remote writes and hits", %{
+    port: port,
+    store: store
+  } do
+    {server_url, requests} = serve_responses([%{token: "scoped-cache-token"}])
+    project = "acme/" <> (store |> :erlang.pid_to_list() |> List.to_string())
+
+    options = [
+      url: server_url,
+      project: project,
+      environment: fn
+        "TUIST_TOKEN" -> "api-token"
+        "TUIST_CACHE_ENDPOINT" -> "http://127.1:#{port}"
+        _ -> nil
+      end
+    ]
+
+    assert {:ok, session} =
+             Reapi.open([endpoint: "https://unreachable.invalid"], "runner-build", options)
+
+    on_exit(fn -> Reapi.close(session) end)
+    assert [request] = Task.await(requests)
+    assert request =~ "POST /api/cache/token?"
+    assert session.invocation_id == "runner-build"
+    assert :sys.get_state(session.channel.adapter_payload.conn_pid).conn.hostname == "127.1"
+
+    key = Key.build(:runner_override)
+    assert :miss = Reapi.get(session, key, :jason)
+    assert {:ok, uploaded} = Reapi.put(session, key, :jason, "runner-artifact")
+    assert uploaded.write_source == "remote"
+    assert {:ok, "runner-artifact", downloaded} = Reapi.get(session, key, :jason)
+    assert downloaded.read_source == "remote"
+    assert Agent.get(store, & &1.actions) != %{}
+
+    for {headers, metadata} <- Agent.get(store, & &1.metadata) do
+      assert headers["authorization"] == "Bearer scoped-cache-token"
+      assert metadata.tool_details.tool_name == "mix"
+      assert metadata.tool_invocation_id == "runner-build"
+      assert metadata.target_id == "jason"
+      assert metadata.action_id == key
+    end
+  end
+
+  test "discovery cannot opt a non-localhost endpoint into plaintext", %{store: store} do
+    {server_url, requests} =
+      serve_responses([
+        %{endpoints: ["http://cache.example.com"]},
+        %{token: "scoped-cache-token"}
+      ])
+
+    options = cache_options(server_url, store)
+    assert Reapi.open([], "insecure-discovery", options) == nil
+    assert [discovery, token] = Task.await(requests)
+    assert discovery =~ "/api/cache/endpoints?"
+    assert token =~ "/api/cache/token?"
+  end
+
+  test "a project endpoint option still rejects non-localhost plaintext", %{store: store} do
+    {server_url, requests} = serve_responses([%{token: "scoped-cache-token"}])
+    options = cache_options(server_url, store, "")
+    assert Reapi.open([endpoint: "http://cache.example.com"], "project-endpoint", options) == nil
+    assert [_token] = Task.await(requests)
+  end
+
+  test "an empty environment override falls back to the project endpoint", %{
+    port: port,
+    store: store
+  } do
+    {server_url, requests} = serve_responses([%{token: "scoped-cache-token"}])
+    options = cache_options(server_url, store, "")
+
+    assert {:ok, session} =
+             Reapi.open([endpoint: "http://127.0.0.1:#{port}"], "empty-override", options)
+
+    on_exit(fn -> Reapi.close(session) end)
+    assert [_token] = Task.await(requests)
+  end
+
+  test "invalid overrides fail locally without falling back to discovery", %{store: store} do
+    for endpoint <- [
+          "not-a-url",
+          "http://user:password@cache.example.com",
+          "http://cache.example.com/artifacts",
+          "http://cache.example.com?token=secret",
+          "http://cache.example.com#fragment"
+        ] do
+      {server_url, requests} = serve_responses([%{token: "scoped-cache-token"}])
+      options = cache_options(server_url, store, endpoint)
+      assert Reapi.open([], "invalid-override", options) == nil
+      assert [request] = Task.await(requests)
+      assert request =~ "POST /api/cache/token?"
+    end
+  end
+
   test "endpoint discovery requests Kura using the shared client feature flag header", %{
     port: port,
     store: store
@@ -724,6 +1030,45 @@ defmodule TuistEx.Cache.ReapiTest do
     refute String.downcase(discovery) =~ "x-tuist-client-feature-flags"
     assert token =~ "/api/cache/token?"
     assert session.project == store |> :erlang.pid_to_list() |> List.to_string()
+  end
+
+  defp cache_options(server_url, store, endpoint \\ nil) do
+    [
+      url: server_url,
+      project: "acme/" <> (store |> :erlang.pid_to_list() |> List.to_string()),
+      environment: fn
+        "TUIST_TOKEN" -> "api-token"
+        "TUIST_CACHE_ENDPOINT" -> endpoint
+        _ -> nil
+      end
+    ]
+  end
+
+  defp serve_responses(responses, timeout \\ 5_000) do
+    {:ok, listener} = :gen_tcp.listen(0, [:binary, active: false, ip: {127, 0, 0, 1}])
+    {:ok, port} = :inet.port(listener)
+    on_exit(fn -> :gen_tcp.close(listener) end)
+
+    requests =
+      Task.async(fn ->
+        for response <- responses do
+          {:ok, socket} = :gen_tcp.accept(listener, timeout)
+          {:ok, request} = :gen_tcp.recv(socket, 0, 5_000)
+          body = JSON.encode!(response)
+
+          :ok =
+            :gen_tcp.send(
+              socket,
+              "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: #{byte_size(body)}\r\nConnection: close\r\n\r\n" <>
+                body
+            )
+
+          :gen_tcp.close(socket)
+          request
+        end
+      end)
+
+    {"http://127.0.0.1:#{port}", requests}
   end
 
   test "evicted CAS content is a recoverable miss and does not disable later uploads", %{

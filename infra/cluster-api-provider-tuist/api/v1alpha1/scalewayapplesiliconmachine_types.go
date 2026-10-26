@@ -154,11 +154,10 @@ type ScalewayAppleSiliconMachineSpec struct {
 	MaxPods int `json:"maxPods,omitempty"`
 
 	// RunnerCacheVolumeGiB is the quota (GiB) of the dedicated APFS
-	// volume host bootstrap provisions to hold per-account cache-volume
-	// images. Unset (nil) falls back to the operator's
+	// volume host bootstrap provisions to hold the runner cache
+	// volumes. Unset (nil) falls back to the operator's
 	// `--runner-cache-volume-gib` global default; an explicit 0
-	// disables cache volumes on this host entirely (every VM boots on
-	// the cold path).
+	// disables cache volumes on this host entirely.
 	//
 	// A pointer, unlike its sibling sizing fields, because 0 is a
 	// meaningful value here and nonsense for them — a host with no CPU
@@ -174,11 +173,7 @@ type ScalewayAppleSiliconMachineSpec struct {
 	// disk, and the SKUs differ by 4x: the 512 GB M2-L has no room
 	// above ~80 GiB once the ~85 GB goldens and a job VM's transient
 	// CoW growth are accounted for, while a 2 TB M4 can hold several
-	// times that. Resident masters scale as
-	// `gib / masterCapGib - (liveBranches + 1)`, and a dual-guest host
-	// can have two live branches, so a host that runs two VMs needs a
-	// LARGER quota than a single-guest host just to hold the same
-	// number of accounts hot.
+	// times that.
 	//
 	// The provisioning script never resizes an existing volume (see
 	// renderRunnerCacheVolumeScript), so changing this on a live host

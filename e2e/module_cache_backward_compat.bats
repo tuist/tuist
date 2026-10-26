@@ -41,11 +41,18 @@ setup_file() {
     # own tmp dir races those writes and aborts the run with "Directory not
     # empty" even when the test passed. Owning the dir keeps the exit status
     # independent of that race.
+    #
+    # The CLI reads TUIST_XDG_* before XDG_*, and managed runner steps export
+    # TUIST_XDG_CACHE_HOME pointing at a cache volume that outlives the job, so
+    # both spellings are set here.
     export TUIST_TEST_HOME
     TUIST_TEST_HOME="$(mktemp -d "${TMPDIR:-/tmp}/module-cache-bc.XXXXXX")"
     export XDG_CACHE_HOME="${TUIST_TEST_HOME}/cache"
     export XDG_STATE_HOME="${TUIST_TEST_HOME}/state"
     export XDG_CONFIG_HOME="${TUIST_TEST_HOME}/config"
+    export TUIST_XDG_CACHE_HOME="$XDG_CACHE_HOME"
+    export TUIST_XDG_STATE_HOME="$XDG_STATE_HOME"
+    export TUIST_XDG_CONFIG_HOME="$XDG_CONFIG_HOME"
     mkdir -p "$XDG_CACHE_HOME" "$XDG_STATE_HOME" "$XDG_CONFIG_HOME"
 
     export FIXTURE_DIR="${BATS_FILE_TMPDIR}/module_cache_app"
@@ -65,6 +72,11 @@ let tuist = Tuist(
     url: "${TUIST_URL}"
 )
 EOF
+
+    # The CLI loads the nearest Tuist.swift from the working directory. Run from
+    # the fixture so the old binary never picks up the repository's own manifest,
+    # which may use APIs newer than it.
+    cd "$FIXTURE_DIR"
 
     echo "# Using tuist binary: $("$TUIST_EXECUTABLE" version 2>/dev/null || echo unknown)" >&3
     # The way `auth login` is pointed at a server changed across versions: older
@@ -124,10 +136,23 @@ teardown_file() {
     cd "$FIXTURE_DIR"
 
     # Warm the cache: build the Framework and upload its xcframework to canary.
+    # `tuist cache` exits 0 when the upload is refused and only warns about it,
+    # so the output is what proves the artifact reached the remote cache.
+    #
+    # The run-metadata warning is excluded: it reports the analytics upload, not
+    # the cache, and the server can still answer 404 for a project created
+    # seconds earlier because the project lookup is cached for up to a minute.
     run "$TUIST_EXECUTABLE" cache --path "$FIXTURE_DIR"
     echo "# tuist cache output:" >&3
     echo "$output" >&3
     [ "$status" -eq 0 ]
+    local cache_output
+    cache_output="$(grep -v "Failed to upload run metadata" <<<"$output" || true)"
+    if ! grep -q "target stored: Framework" <<<"$cache_output" ||
+        grep -qiE "No targets were stored|Failed to upload|authentication failed" <<<"$cache_output"; then
+        echo "# tuist cache did not upload Framework to the remote cache" >&3
+        return 1
+    fi
 
     # A just-warmed artifact takes a moment to become downloadable from the
     # remote cache, so wipe the local cache and poll: re-run the focused generate
@@ -140,12 +165,25 @@ teardown_file() {
     # only be linked if the old CLI completed a signed download. If the server
     # stopped signing, the pull would fail and no xcframework would ever appear,
     # so this still fails on the regression it guards, without matching log wording.
+    #
+    # Linking alone proves nothing when the binary is still on disk: `tuist cache`
+    # keeps a local copy, so the cache directory is emptied first and the pull
+    # only counts once the binary is back in it.
+    local binaries_dir="${TUIST_XDG_CACHE_HOME}/tuist/Binaries"
     linked=0
     for attempt in 1 2 3 4; do
-        rm -rf "${XDG_CACHE_HOME:?}"/* 2>/dev/null || true
+        rm -rf "${TUIST_XDG_CACHE_HOME:?}"/* 2>/dev/null || true
+        if [ -n "$(find "$TUIST_XDG_CACHE_HOME" -name '*.xcframework' -print -quit)" ]; then
+            echo "# a cached xcframework survived the local cache wipe" >&3
+            return 1
+        fi
         echo "# tuist generate (attempt ${attempt}):" >&3
-        "$TUIST_EXECUTABLE" generate App --path "$FIXTURE_DIR" --no-open >&3 2>&1 || true
-        if grep -q "xcframework" "${FIXTURE_DIR}"/*.xcodeproj/project.pbxproj 2>/dev/null; then
+        run "$TUIST_EXECUTABLE" generate App --path "$FIXTURE_DIR" --no-open
+        echo "$output" >&3
+        if grep -qiE "authentication failed|Unable to retrieve" <<<"$output"; then
+            echo "# the remote cache refused the pull" >&3
+        elif grep -q "xcframework" "${FIXTURE_DIR}"/*.xcodeproj/project.pbxproj 2>/dev/null &&
+            [ -n "$(find "$binaries_dir" -name 'Framework.xcframework' -print -quit 2>/dev/null)" ]; then
             linked=1
             break
         fi

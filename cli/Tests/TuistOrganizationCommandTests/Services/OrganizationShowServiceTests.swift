@@ -56,10 +56,22 @@ struct OrganizationShowServiceTests {
                     ]
                 )
             )
-
         given(getOrganizationUsageService)
             .getOrganizationUsage(organizationName: .any, serverURL: .any)
-            .willReturn(.test(currentMonthRemoteCacheHits: 210))
+            .willReturn(
+                .test(
+                    cacheEgress: .init(
+                        used: 120_300_000_000,
+                        included: 100_000_000_000,
+                        billable: 20_300_000_000,
+                        chargeCents: 710
+                    ),
+                    cacheRequests: .init(used: 412_000, included: 1_000_000, billable: 0, chargeCents: 0),
+                    passingTestCases: .init(used: 1_200_000, included: 5_000_000, billable: 0, chargeCents: 0),
+                    runnerMinutes: .init(used: 250, included: 100, chargeCents: 1200),
+                    estimatedChargeCents: 1910
+                )
+            )
 
         // When
         try await subject.run(
@@ -76,8 +88,12 @@ struct OrganizationShowServiceTests {
                 Name: test-one
                 Plan: Air
 
-                \(TerminalStyle.bold.open)Usage\(TerminalStyle.reset.open) (current calendar month)
-                Remote cache hits: 210
+                \(TerminalStyle.bold.open)Usage\(TerminalStyle.reset.open) (Oct 22 to Nov 22, 2026)
+                Cache egress: 120.3 GB of 100 GB included
+                Cache requests: 412,000 of 1,000,000 included
+                Passing test cases: 1,200,000 of 5,000,000 included
+                Runner minutes: 250 of 100 included
+                Estimated charge: $19.10
 
                 \(TerminalStyle.bold.open)Organization members\(TerminalStyle.reset.open) (total number: 2)
                 username  email              role
@@ -160,5 +176,29 @@ struct OrganizationShowServiceTests {
                 """
             )
         )
+    }
+
+    @Test(.withMockedNoora) func organization_show_with_json_includes_usage() async throws {
+        // Given
+        given(getOrganizationService)
+            .getOrganization(organizationName: .any, serverURL: .any)
+            .willReturn(.test(name: "test-one", plan: .pro))
+        given(getOrganizationUsageService)
+            .getOrganizationUsage(organizationName: .any, serverURL: .any)
+            .willReturn(.test(estimatedChargeCents: 1910))
+
+        // When
+        try await subject.run(
+            organizationName: "tuist",
+            json: true,
+            directory: nil
+        )
+
+        // Then
+        let output = logOutput()
+        #expect(output.contains("\"usage\""))
+        #expect(output.contains("\"estimatedChargeCents\""))
+        #expect(output.contains("1910"))
+        #expect(output.contains("2026-10-22T08:30:00Z"))
     }
 }

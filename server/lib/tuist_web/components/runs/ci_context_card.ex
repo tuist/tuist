@@ -6,6 +6,7 @@ defmodule TuistWeb.Runs.CIContextCard do
   use Noora
 
   alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Helpers.RunnerJobDurations
   alias TuistWeb.RunnerJobLive
 
   attr :context, :map, required: true
@@ -64,14 +65,14 @@ defmodule TuistWeb.Runs.CIContextCard do
               <div data-part="title">{dgettext("dashboard_runners", "Queue time")}</div>
               <span data-part="label">
                 <.history />
-                {duration_label(RunnerJobLive.queued_duration_ms(job))}
+                {duration_label(RunnerJobDurations.queued_ms(job))}
               </span>
             </div>
             <div data-part="ci-context-metadata">
               <div data-part="title">{dgettext("dashboard_runners", "CI job duration")}</div>
               <span data-part="label">
                 <.history />
-                {duration_label(RunnerJobLive.run_duration_ms(job))}
+                {duration_label(RunnerJobDurations.run_ms(job))}
               </span>
             </div>
             <div data-part="ci-context-metadata">

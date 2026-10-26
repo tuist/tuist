@@ -3,7 +3,7 @@ description: Run a distinct build or test operation through Once.
 
 inputs:
   platform:
-    description: android, ios, cli or core
+    description: android, ios, ios-device, cli or core
     required: true
   operation:
     description: build or test
@@ -53,7 +53,7 @@ runs:
         echo "ANDROID_DEBUG_KEYSTORE=$keystore" >> "$GITHUB_ENV"
 
     - name: Install Rust mobile standard library
-      if: inputs.platform == 'android' || inputs.platform == 'ios'
+      if: inputs.platform == 'android' || inputs.platform == 'ios' || inputs.platform == 'ios-device'
       shell: bash
       working-directory: atlas-native
       env:
@@ -61,6 +61,8 @@ runs:
       run: |
         if [ "$TARGET_SURFACE" = android ]; then
           mise exec -- rustup target add aarch64-linux-android
+        elif [ "$TARGET_SURFACE" = ios-device ]; then
+          mise exec -- rustup target add aarch64-apple-ios
         else
           mise exec -- rustup target add aarch64-apple-ios-sim
         fi
@@ -93,7 +95,15 @@ runs:
       run: |
         mise run "build:$TARGET_SURFACE"
         if [ "$TARGET_SURFACE" = ios ]; then
+          bash modules/check-sdk.sh iphonesimulator .once/out/AtlasIOS/Atlas.app/Atlas
+          bash modules/check-sdk.sh iphonesimulator .once/out/AtlasIOS/Atlas.app/PlugIns/AtlasLiveActivity.appex/AtlasLiveActivity
+          bash modules/check-widget.sh .once/out/AtlasIOS/Atlas.app/PlugIns/AtlasLiveActivity.appex/AtlasLiveActivity
           ditto -c -k --sequesterRsrc --keepParent .once/out/AtlasIOS/Atlas.app Atlas-ios-simulator.zip
+        elif [ "$TARGET_SURFACE" = ios-device ]; then
+          bash modules/check-sdk.sh iphoneos .once/out/AtlasIOSDevice/Atlas.app/Atlas
+          bash modules/check-sdk.sh iphoneos .once/out/AtlasIOSDevice/Atlas.app/PlugIns/AtlasLiveActivity.appex/AtlasLiveActivity
+          bash modules/check-widget.sh .once/out/AtlasIOSDevice/Atlas.app/PlugIns/AtlasLiveActivity.appex/AtlasLiveActivity
+          ditto -c -k --sequesterRsrc --keepParent .once/out/AtlasIOSDevice/Atlas.app Atlas-ios-device.zip
         elif [ "$TARGET_SURFACE" = cli ]; then
           .once/out/AtlasCLI/atlas --help
           .once/out/AtlasCLI/atlas sections
@@ -115,7 +125,7 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: ${{ inputs.platform == 'cli' && format('atlas-native-cli-{0}-{1}', runner.os, runner.arch) || format('atlas-mobile-{0}', inputs.platform) }}
-        path: ${{ inputs.platform == 'android' && 'atlas-native/.once/out/AtlasAndroid/AtlasAndroid.apk' || inputs.platform == 'cli' && 'atlas-native/Atlas-cli.tar.gz' || 'atlas-native/Atlas-ios-simulator.zip' }}
+        path: ${{ inputs.platform == 'android' && 'atlas-native/.once/out/AtlasAndroid/AtlasAndroid.apk' || inputs.platform == 'cli' && 'atlas-native/Atlas-cli.tar.gz' || inputs.platform == 'ios-device' && 'atlas-native/Atlas-ios-device.zip' || 'atlas-native/Atlas-ios-simulator.zip' }}
         if-no-files-found: error
         retention-days: 14
         include-hidden-files: true

@@ -7,6 +7,7 @@ defmodule Atlas.MCP.Server do
   """
 
   alias Atlas.Audit
+  alias Atlas.Automations.Interfaces
   alias Atlas.MCP.Prompts.GenerateEnterpriseContract, as: GenerateEnterpriseContractPrompt
   alias Atlas.MCP.Proxy
   alias Atlas.MCP.Tool
@@ -55,6 +56,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.CreateInsurancePolicy
   alias Atlas.MCP.Tools.CreateLetterDocumentUpload
   alias Atlas.MCP.Tools.CreateLicense
+  alias Atlas.MCP.Tools.CreateManualFinanceInvoice
   alias Atlas.MCP.Tools.CreateMCPServer
   alias Atlas.MCP.Tools.CreateNote
   alias Atlas.MCP.Tools.CreatePOC
@@ -75,6 +77,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.DeleteEngineeringProject
   alias Atlas.MCP.Tools.DeleteFinancing
   alias Atlas.MCP.Tools.DeleteInsurancePolicy
+  alias Atlas.MCP.Tools.DeleteManualFinanceInvoice
   alias Atlas.MCP.Tools.DeleteMCPServer
   alias Atlas.MCP.Tools.DeletePOC
   alias Atlas.MCP.Tools.DeletePOCTimelineEntry
@@ -84,6 +87,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.DeleteSocialPostRevision
   alias Atlas.MCP.Tools.DeleteSpec
   alias Atlas.MCP.Tools.DeleteSpecComment
+  alias Atlas.MCP.Tools.DeleteTask
   alias Atlas.MCP.Tools.DescribeTuistClickhouseTable
   alias Atlas.MCP.Tools.DescribeTuistPostgresTable
   alias Atlas.MCP.Tools.DetachDocumentFromFinancing
@@ -103,6 +107,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.EnrichGTMOpportunityContacts
   alias Atlas.MCP.Tools.EnrollOutreachCandidate
   alias Atlas.MCP.Tools.EnrollOutreachContact
+  alias Atlas.MCP.Tools.EvaluateTuistFeatureFlags
   alias Atlas.MCP.Tools.ExercisePurchaseOption
   alias Atlas.MCP.Tools.ExpireInsurancePolicy
   alias Atlas.MCP.Tools.ExtendLicense
@@ -129,6 +134,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetEmailAudience
   alias Atlas.MCP.Tools.GetEngineeringDomain
   alias Atlas.MCP.Tools.GetEngineeringProject
+  alias Atlas.MCP.Tools.GetErrorEventContexts
   alias Atlas.MCP.Tools.GetErrorIssue
   alias Atlas.MCP.Tools.GetEvent
   alias Atlas.MCP.Tools.GetFeatureInterest
@@ -139,6 +145,8 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetGTMOpportunity
   alias Atlas.MCP.Tools.GetInsurancePolicy
   alias Atlas.MCP.Tools.GetMCPConnectionStatus
+  alias Atlas.MCP.Tools.GetMonthlyInvoiceTotals
+  alias Atlas.MCP.Tools.GetMyProfile
   alias Atlas.MCP.Tools.GetNote
   alias Atlas.MCP.Tools.GetNudgeAnalyticsStatus
   alias Atlas.MCP.Tools.GetOutreachContact
@@ -154,6 +162,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.GetSupportThread
   alias Atlas.MCP.Tools.GetTimeOffCalendar
   alias Atlas.MCP.Tools.GetTimeOffOverview
+  alias Atlas.MCP.Tools.GetTuistFeatureFlag
   alias Atlas.MCP.Tools.IgnoreErrorIssue
   alias Atlas.MCP.Tools.ImportFinancingSchedule
   alias Atlas.MCP.Tools.ImportPublicHolidays
@@ -206,6 +215,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListNotes
   alias Atlas.MCP.Tools.ListOutreachCandidates
   alias Atlas.MCP.Tools.ListOutreachContacts
+  alias Atlas.MCP.Tools.ListPeople
   alias Atlas.MCP.Tools.ListPOCs
   alias Atlas.MCP.Tools.ListPostmortemActionItems
   alias Atlas.MCP.Tools.ListPostmortems
@@ -217,6 +227,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListSupportThreads
   alias Atlas.MCP.Tools.ListTasks
   alias Atlas.MCP.Tools.ListTuistClickhouseTables
+  alias Atlas.MCP.Tools.ListTuistFeatureFlags
   alias Atlas.MCP.Tools.ListTuistPostgresTables
   alias Atlas.MCP.Tools.ListUpcomingRenewals
   alias Atlas.MCP.Tools.MarkAccountNotAccount
@@ -269,6 +280,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.SendAccountEmail
   alias Atlas.MCP.Tools.SendEmailBroadcast
   alias Atlas.MCP.Tools.SendNudge
+  alias Atlas.MCP.Tools.SendTestPushNotification
   alias Atlas.MCP.Tools.SetFinancingAccountingTreatment
   alias Atlas.MCP.Tools.SetFinancingLines
   alias Atlas.MCP.Tools.SetPOCContext
@@ -289,6 +301,8 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateFeatureInterestAccountContext
   alias Atlas.MCP.Tools.UpdateHoliday
   alias Atlas.MCP.Tools.UpdateInsuranceClaim
+  alias Atlas.MCP.Tools.UpdateManualFinanceInvoice
+  alias Atlas.MCP.Tools.UpdateMyProfile
   alias Atlas.MCP.Tools.UpdateNote
   alias Atlas.MCP.Tools.UpdatePOC
   alias Atlas.MCP.Tools.UpdatePOCTimelineEntry
@@ -300,10 +314,11 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.UpdateSpecComment
   alias Atlas.MCP.Tools.UpdateSupportThread
   alias Atlas.MCP.Tools.UpdateTask
+  alias Atlas.MCP.Tools.UpdateTuistFeatureFlag
   alias Atlas.MCP.Tools.UploadPostalLetter
 
   @name "atlas"
-  @version "0.2.0"
+  @version "0.3.0"
   @title "Atlas"
   @description "Tuist's source of truth for customer, commercial, contract, finance, email audience, and operational context."
   @instructions """
@@ -364,6 +379,10 @@ defmodule Atlas.MCP.Server do
     ListFinanceAccounts,
     ListFinanceCategories,
     ListFinanceInvoices,
+    CreateManualFinanceInvoice,
+    UpdateManualFinanceInvoice,
+    DeleteManualFinanceInvoice,
+    GetMonthlyInvoiceTotals,
     ListFinanceTransactions,
     ListAccountInvoices,
     CreateStripeDraftInvoice,
@@ -494,16 +513,27 @@ defmodule Atlas.MCP.Server do
     DescribeTuistPostgresTable,
     QueryTuistClickhouse,
     ListTuistClickhouseTables,
-    DescribeTuistClickhouseTable
+    DescribeTuistClickhouseTable,
+    EvaluateTuistFeatureFlags,
+    ListTuistFeatureFlags,
+    GetTuistFeatureFlag,
+    UpdateTuistFeatureFlag
   ]
+  @feature_flag_read_tools [ListTuistFeatureFlags, GetTuistFeatureFlag, EvaluateTuistFeatureFlags]
+  @feature_flag_write_tools [UpdateTuistFeatureFlag]
+  @automation_read_tools Interfaces.tools(:read)
+  @automation_write_tools Interfaces.tools(:write)
   @static_tools [
     GetMCPConnectionStatus,
+    GetMyProfile,
+    UpdateMyProfile,
     ListLLMProviderConnections,
     ConnectClaudeProvider,
     StartChatGPTProviderLogin,
     PollChatGPTProviderLogin,
     CancelChatGPTProviderLogin,
     DisconnectLLMProvider,
+    SendTestPushNotification,
     CreateMCPServer,
     DeleteMCPServer,
     GetNudgeAnalyticsStatus,
@@ -550,6 +580,7 @@ defmodule Atlas.MCP.Server do
     # them would hand agents URLs that return 404 in production.
     ListErrorIssues,
     GetErrorIssue,
+    GetErrorEventContexts,
     ResolveErrorIssue,
     IgnoreErrorIssue,
     ListLicenses,
@@ -608,10 +639,12 @@ defmodule Atlas.MCP.Server do
     RemovePublicHoliday,
     ImportPublicHolidays,
     SyncPublicHolidays,
+    ListPeople,
     ListTasks,
     CreateTask,
     UpdateTask,
     CompleteTask,
+    DeleteTask,
     ListUpcomingRenewals,
     CreateAccount,
     GetAccount,
@@ -630,6 +663,10 @@ defmodule Atlas.MCP.Server do
     ListFinanceAccounts,
     ListFinanceCategories,
     ListFinanceInvoices,
+    CreateManualFinanceInvoice,
+    UpdateManualFinanceInvoice,
+    DeleteManualFinanceInvoice,
+    GetMonthlyInvoiceTotals,
     ListFinanceTransactions,
     ListAccountContacts,
     ListAccountIncidentContacts,
@@ -713,6 +750,10 @@ defmodule Atlas.MCP.Server do
     QueryTuistClickhouse,
     ListTuistClickhouseTables,
     DescribeTuistClickhouseTable,
+    EvaluateTuistFeatureFlags,
+    ListTuistFeatureFlags,
+    GetTuistFeatureFlag,
+    UpdateTuistFeatureFlag,
     ListAssets,
     GetAsset,
     ListAssetFinancings,
@@ -793,6 +834,29 @@ defmodule Atlas.MCP.Server do
     UnpublishPOC
   ]
 
+  @static_tools @static_tools ++ @automation_read_tools ++ @automation_write_tools
+
+  def static_tools, do: @static_tools
+
+  def workflow_tool_scopes(module) do
+    cond do
+      module in @admin_write_tools -> ["admin:write"]
+      module in @admin_tools -> ["admin:read"]
+      module in @feature_flag_write_tools -> ["feature_flags:write"]
+      module in @feature_flag_read_tools -> ["feature_flags:read"]
+      module == GetErrorEventContexts -> ["engineering:read"]
+      true -> []
+    end
+  end
+
+  def workflow_tool_allowed?(actor, name) when is_binary(name) do
+    Enum.any?(@static_tools, &(&1.name() == name and tool_allowed?(%{assigns: %{current_user: actor}}, &1)))
+  end
+
+  def workflow_tool_allowed?(actor, module) do
+    module in @static_tools and tool_allowed?(%{assigns: %{current_user: actor}}, module)
+  end
+
   def server do
     EMCP.Server.new(
       name: @name,
@@ -808,6 +872,9 @@ defmodule Atlas.MCP.Server do
 
   @doc "MCP protocol revisions this server can speak, newest first."
   def supported_protocol_versions, do: @supported_protocol_versions
+
+  @doc "Static Atlas tool modules, before per-caller filtering."
+  def tool_modules, do: @static_tools
 
   def handle_message(conn, raw) when is_binary(raw) do
     case JSON.decode(raw) do
@@ -886,7 +953,9 @@ defmodule Atlas.MCP.Server do
   end
 
   defp tool_allowed?(conn, tool_module) do
-    admin_tool_allowed?(conn, tool_module) and approval_tool_allowed?(conn, tool_module) and
+    admin_tool_allowed?(conn, tool_module) and automation_tool_allowed?(conn, tool_module) and
+      approval_tool_allowed?(conn, tool_module) and feature_flag_tool_allowed?(conn, tool_module) and
+      error_context_tool_allowed?(conn, tool_module) and
       (not restricted_mcp_session?(conn) or tool_group(tool_module) in allowed_tool_groups(conn))
   end
 
@@ -905,11 +974,28 @@ defmodule Atlas.MCP.Server do
   defp tool_group(tool_module) when tool_module in @contract_tools, do: "contracts"
   defp tool_group(tool_module) when tool_module in @admin_tools, do: "admin"
   defp tool_group(tool_module) when tool_module in @hardware_tools, do: "hardware"
-  # The read-only Tuist database tools sit in the same "observability"
-  # ("Production systems") group as the Grafana/ClickHouse proxy tools — same
-  # gating, granted by the same identity toggle. They are not executive-only.
+  # Tuist's internal API tools share the "Production systems" identity toggle.
+  # Feature flag tools additionally require their dedicated role scopes.
   defp tool_group(tool_module) when tool_module in @tuist_server_tools, do: "observability"
+  defp tool_group(GetErrorEventContexts), do: "observability"
   defp tool_group(_tool_module), do: "default"
+
+  defp error_context_tool_allowed?(conn, GetErrorEventContexts),
+    do: Atlas.Users.has_scope?(Tool.current_user(conn), "engineering:read")
+
+  defp error_context_tool_allowed?(_conn, _tool_module), do: true
+
+  defp feature_flag_tool_allowed?(conn, tool_module) when tool_module in @feature_flag_read_tools do
+    Atlas.TuistFeatureFlags.allowed_context?(conn) and
+      Atlas.Users.has_scope?(Tool.current_user(conn), "feature_flags:read")
+  end
+
+  defp feature_flag_tool_allowed?(conn, tool_module) when tool_module in @feature_flag_write_tools do
+    Atlas.TuistFeatureFlags.allowed_context?(conn) and
+      Atlas.Users.has_scope?(Tool.current_user(conn), "feature_flags:write")
+  end
+
+  defp feature_flag_tool_allowed?(_conn, _tool_module), do: true
 
   defp admin_tool_allowed?(conn, tool_module) when tool_module in @admin_write_tools do
     conn
@@ -925,6 +1011,16 @@ defmodule Atlas.MCP.Server do
 
   defp admin_tool_allowed?(_conn, _tool_module), do: true
 
+  defp automation_tool_allowed?(conn, tool_module) when tool_module in @automation_read_tools do
+    Atlas.Users.has_scope?(Tool.current_user(conn), "automation:read")
+  end
+
+  defp automation_tool_allowed?(conn, tool_module) when tool_module in @automation_write_tools do
+    Atlas.Users.has_scope?(Tool.current_user(conn), "automation:write")
+  end
+
+  defp automation_tool_allowed?(_conn, _tool_module), do: true
+
   defp log_tool_call(conn, name, arguments, response) do
     if Tool.current_user(conn) do
       Audit.record("mcp.tool_called", %{
@@ -935,19 +1031,27 @@ defmodule Atlas.MCP.Server do
           conn
           |> mcp_claim_metadata()
           |> Map.merge(%{
-            arguments: audit_arguments(name, arguments),
+            arguments: audit_arguments(conn, name, arguments),
             status: tool_call_status(response)
           })
       })
     end
   end
 
+  defp audit_arguments(conn, name, arguments)
+
+  # Orbit tool arguments can quote private thread content, which must not
+  # become readable through the audit trail. The thread itself keeps the
+  # rendered call for its participants.
+  defp audit_arguments(%{assigns: %{mcp_claims: %{"orbit_run_id" => _}}}, _name, _arguments), do: %{}
+  defp audit_arguments(_conn, name, arguments), do: audit_arguments(name, arguments)
+
   defp audit_arguments("create_mcp_server", arguments) when is_map(arguments) do
     Map.drop(arguments, ["bearer_token", :bearer_token])
   end
 
   defp audit_arguments(name, _arguments)
-       when name in ~w(connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login),
+       when name in ~w(update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login),
        do: %{}
 
   defp audit_arguments(_name, arguments), do: arguments

@@ -1,0 +1,18 @@
+name: Tuist module cache
+description: Keep the Tuist module cache across jobs on Tuist macOS runners.
+branding:
+  icon: package
+  color: purple
+inputs:
+  size:
+    description: Cache volume capacity, a whole number of GB from 1gb to 100gb, such as 50gb. New volumes start at 20gb when omitted.
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        TUIST_RUNNER_CACHE_SIZE: ${{ inputs.size }}
+        TUIST_ACTION_PATH: ${{ github.action_path }}
+      run: bash "$TUIST_ACTION_PATH/activate.sh" module

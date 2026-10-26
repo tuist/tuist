@@ -8,7 +8,7 @@ defmodule AtlasWeb.DocsHTML do
 
   @overview_introduction "Atlas grew out of Tuist's need to maximize the value each employee could create. We engineered our operations around that goal: centralizing the company's context in one place, connecting it through database relationships, and giving agents and bots interfaces to query it and act on it. We built Atlas incrementally as our way of working evolved."
 
-  @sidebar_titles %{"ai-accounts" => "AI accounts"}
+  @sidebar_titles %{"ai-accounts" => "AI accounts", "automation" => "Automation"}
 
   @pages (for {slug, title, category, section, description} <- [
                 {"", "Overview", "Guides", "Atlas",
@@ -16,8 +16,12 @@ defmodule AtlasWeb.DocsHTML do
                 {"ai-accounts", "Connect Claude or ChatGPT", "Guides", "Atlas",
                  "Connect your Claude or ChatGPT account for inference in sessions you start."},
                 {"mcps", "MCPs", "Guides", "Atlas", "Configure upstream MCP servers in Atlas."},
+                {"automation", "Build and run workflows", "Guides", "Atlas",
+                 "Create versioned workflows, review exact approvals, and monitor durable executions on web and mobile."},
                 {"ai-account-tools", "AI accounts", "References", "MCP",
                  "Manage personal Claude and ChatGPT connections through Atlas's MCP tools."},
+                {"automation-tools", "Automation", "References", "MCP",
+                 "Discover behavior contracts and manage workflows, executions, triggers, and approvals through API or MCP."},
                 {"self-hosting", "Self-hosting", "Guides", "Self-hosting",
                  "Deploy Atlas with Docker Compose or Helm on your own infrastructure."}
               ] do

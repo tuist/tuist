@@ -1,8 +1,43 @@
 # Include this file at an immutable commit, then reference the snippet before
 # dependency installation. CI variables are arguments, never interpolated code.
+# TUIST_VOLUME_PATH holds one path per line; all paths share the volume.
+# TUIST_VOLUME_KEY is required; TUIST_VOLUME_SIZE is optional.
 .tuist-cache-volume:
   before_script:
     - |
-      : "${TUIST_VOLUME_KEY:?Set TUIST_VOLUME_KEY}"
       : "${TUIST_VOLUME_PATH:?Set TUIST_VOLUME_PATH}"
-      tuist-cache-volume --key "$TUIST_VOLUME_KEY" --path "$TUIST_VOLUME_PATH"
+      tuist_volume_key=${TUIST_VOLUME_KEY:-}
+      tuist_volume_key=${tuist_volume_key#"${tuist_volume_key%%[![:space:]]*}"}
+      tuist_volume_key=${tuist_volume_key%"${tuist_volume_key##*[![:space:]]}"}
+      case "$tuist_volume_key" in
+        "")
+          echo "Set TUIST_VOLUME_KEY." >&2
+          exit 1
+          ;;
+        [Tt][Uu][Ii][Ss][Tt]-*)
+          echo "TUIST_VOLUME_KEY: keys starting with tuist- are reserved for Tuist. Choose another key." >&2
+          exit 1
+          ;;
+      esac
+      tuist_volume_arguments=(--key "$tuist_volume_key")
+      while IFS= read -r tuist_volume_path || [ -n "$tuist_volume_path" ]; do
+        tuist_volume_path=${tuist_volume_path#"${tuist_volume_path%%[![:space:]]*}"}
+        tuist_volume_path=${tuist_volume_path%"${tuist_volume_path##*[![:space:]]}"}
+        if [ -n "$tuist_volume_path" ]; then
+          tuist_volume_arguments+=(--path "$tuist_volume_path")
+        fi
+      done <<< "$TUIST_VOLUME_PATH"
+      if [ "${#tuist_volume_arguments[@]}" -eq 2 ]; then
+        echo "TUIST_VOLUME_PATH must contain at least one path." >&2
+        exit 1
+      fi
+      tuist_volume_size=${TUIST_VOLUME_SIZE:-}
+      tuist_volume_size=${tuist_volume_size#"${tuist_volume_size%%[![:space:]]*}"}
+      tuist_volume_size=${tuist_volume_size%"${tuist_volume_size##*[![:space:]]}"}
+      if [ -n "$tuist_volume_size" ]; then
+        case "$(tuist-cache-volume -h 2>&1 || true)" in
+          *-size*) tuist_volume_arguments+=(--size "$tuist_volume_size") ;;
+          *) echo "TUIST_VOLUME_SIZE: this runner image does not support size yet; the volume keeps its current size." >&2 ;;
+        esac
+      fi
+      tuist-cache-volume "${tuist_volume_arguments[@]}"

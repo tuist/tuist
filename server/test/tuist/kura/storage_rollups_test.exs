@@ -5,6 +5,7 @@ defmodule Tuist.Kura.StorageRollupsTest do
   alias Tuist.Kura.EvictionEvent
   alias Tuist.Kura.StorageRollups
   alias Tuist.Kura.StorageSnapshot
+  alias Tuist.Kura.UsageEvent
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
@@ -81,6 +82,48 @@ defmodule Tuist.Kura.StorageRollupsTest do
       assert rollup.eviction_count == 1
     end
 
+    test "counts the downloads each instance served as its hits", %{account: account} do
+      date = unique_date()
+      insert_snapshot(account.id, "snap-1-#{account.id}", at(date, ~T[12:00:00]))
+      insert_usage(account.id, "usage-1-#{account.id}", "egress", 40, at(date, ~T[10:00:00]))
+      insert_usage(account.id, "usage-2-#{account.id}", "egress", 2, at(date, ~T[11:00:00]))
+      insert_usage(account.id, "usage-3-#{account.id}", "ingress", 500, at(date, ~T[11:00:00]))
+
+      {:ok, 1} = StorageRollups.refresh([date])
+
+      assert [rollup] = StorageRollups.for_account(account, date)
+      assert rollup.hit_count == 42
+      assert rollup.snapshot_count == 1
+    end
+
+    test "counts a redelivered usage report once", %{account: account} do
+      date = unique_date()
+      insert_usage(account.id, "usage-1-#{account.id}", "egress", 40, at(date, ~T[10:00:00]))
+      insert_usage(account.id, "usage-1-#{account.id}", "egress", 40, at(date, ~T[10:00:00]))
+
+      {:ok, 1} = StorageRollups.refresh([date])
+
+      assert [rollup] = StorageRollups.for_account(account, date)
+      assert rollup.hit_count == 40
+      assert rollup.snapshot_count == 0
+    end
+
+    test "upserts more rows than one statement can bind parameters for", %{account: account} do
+      date = unique_date()
+      # 17 columns a row: 4,000 rows bind 68,000 parameters, past Postgres's 65,535.
+      region_count = 4_000
+
+      IngestRepo.insert_all(
+        StorageSnapshot,
+        Enum.map(1..region_count, fn index ->
+          snapshot_row(account.id, "snap-#{index}-#{account.id}", "region-#{index}", at(date, ~T[12:00:00]))
+        end)
+      )
+
+      assert {:ok, ^region_count} = StorageRollups.refresh([date])
+      assert length(StorageRollups.for_account(account, date)) == region_count
+    end
+
     test "telemetry for accounts that no longer exist is dropped" do
       date = unique_date()
       ghost_id = System.unique_integer([:positive]) + 5_000_000
@@ -123,22 +166,48 @@ defmodule Tuist.Kura.StorageRollupsTest do
     ])
   end
 
-  defp insert_snapshot(account_id, event_id, captured_at, inserted_at \\ nil) do
-    IngestRepo.insert_all(StorageSnapshot, [
+  defp insert_usage(account_id, event_id, direction, request_count, window_start) do
+    IngestRepo.insert_all(UsageEvent, [
       %{
         event_id: event_id,
         account_id: account_id,
+        project_id: 0,
         node_id: "kura-0",
         region: "us-east",
-        captured_at: captured_at,
-        ring_budget_bytes: 10_737_418_240,
-        desired_segment_count: 20,
-        live_segment_count: 10,
-        live_segment_bytes: 5_368_709_120,
-        oldest_segment_created_at: ~N[2026-08-19 00:00:00],
-        newest_content_at: ~N[2026-08-20 00:00:00],
-        inserted_at: inserted_at || captured_at
+        traffic_plane: "public",
+        direction: direction,
+        operation: if(direction == "egress", do: "download", else: "upload"),
+        protocol: "grpc",
+        artifact_kind: "reapi",
+        bytes: request_count * 1_024,
+        request_count: request_count,
+        window_start: window_start,
+        window_seconds: 60,
+        inserted_at: window_start
       }
     ])
+  end
+
+  defp insert_snapshot(account_id, event_id, captured_at, inserted_at \\ nil) do
+    IngestRepo.insert_all(StorageSnapshot, [
+      snapshot_row(account_id, event_id, "us-east", captured_at, inserted_at)
+    ])
+  end
+
+  defp snapshot_row(account_id, event_id, region, captured_at, inserted_at \\ nil) do
+    %{
+      event_id: event_id,
+      account_id: account_id,
+      node_id: "kura-0",
+      region: region,
+      captured_at: captured_at,
+      ring_budget_bytes: 10_737_418_240,
+      desired_segment_count: 20,
+      live_segment_count: 10,
+      live_segment_bytes: 5_368_709_120,
+      oldest_segment_created_at: ~N[2026-08-19 00:00:00],
+      newest_content_at: ~N[2026-08-20 00:00:00],
+      inserted_at: inserted_at || captured_at
+    }
   end
 end

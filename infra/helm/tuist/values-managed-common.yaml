@@ -130,6 +130,11 @@ server:
       nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
       nginx.ingress.kubernetes.io/proxy-body-size: "50m"
       nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+      # A request moves to another pod only when nginx could not connect to the
+      # first (refused, unreachable, connect timeout), so it never reached Phoenix.
+      # With request buffering off, nginx retries nothing it started sending.
+      nginx.ingress.kubernetes.io/proxy-next-upstream: "error timeout"
+      nginx.ingress.kubernetes.io/proxy-next-upstream-tries: "3"
 
   # Runtime secrets are sourced from 1Password by ESO; the encrypted priv/secrets
   # blob (and MASTER_KEY) are gone. `config.managedSecrets` syncs the
@@ -144,6 +149,11 @@ server:
   config:
     managedSecrets: true
     opsClickHouse:
+      enabled: true
+    # Grafana Cloud reads each environment's in-cluster ClickHouse as this
+    # identity. The CLICKHOUSE_GRAFANA item must exist in the environment's
+    # vault before a deploy.
+    grafanaClickHouse:
       enabled: true
   externalSecrets:
     refreshInterval: "1h"
@@ -203,6 +213,13 @@ server:
     # env vars will be emitted by the chart.
     enabled: false
     applicationName: tuist
+    # Each environment's onepassword store reads its own tuist-k8s-<env>
+    # vault. Keep the durable cookie outside the disposable workload cluster.
+    cookieExistingSecret: tuist-server-cluster-cookie
+    externalSecret:
+      enabled: true
+      item: SERVER_CLUSTER_COOKIE
+      field: password
 
   strategy:
     type: RollingUpdate
@@ -386,6 +403,10 @@ swiftRegistrySync:
 # drop `:process_xcresult` and the macOS Pods own the queue.
 xcresultProcessor:
   enabled: true
+  # Installed by server-deployment.yml as the `<release>-xcresult-processor`
+  # release from infra/helm/xcresult-processor, which the deploy does not
+  # roll back on; see that chart.
+  ownRelease: true
   replicaCount: 2
   queueConcurrency: 4
   image:
@@ -501,9 +522,7 @@ postgresql:
         field: password
 
 clickhouse:
-  mode: external
-  external:
-    url: ""  # https://<clickhouse-cloud>.clickhouse.cloud:8443/tuist_prod
+  mode: managed
 
 objectStorage:
   mode: external
