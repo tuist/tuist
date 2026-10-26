@@ -4,6 +4,7 @@ defmodule TuistWeb.API.GenerationsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.CommandEvents
+  alias Tuist.CommandEvents.Event
   alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
@@ -127,6 +128,13 @@ defmodule TuistWeb.API.GenerationsController do
                      description: "Remote cache target hits."
                    },
                    command_arguments: %Schema{type: :string, nullable: true, description: "Command arguments used."},
+                   command_arguments_array: %Schema{
+                     type: :array,
+                     nullable: true,
+                     items: %Schema{type: :string},
+                     description:
+                       "Arguments as recorded by the CLI, preserving argument boundaries. Null when unavailable for historical or legacy reports. An empty array means an explicitly recorded empty argument list. Missing or null must be treated as unknown, not as a generation without focus queries. Does not describe effective configuration or which targets were generated from source."
+                   },
                    ran_at: %Schema{type: :integer, description: "Unix timestamp when the generation ran."},
                    url: %Schema{type: :string, description: "URL to view the generation in the dashboard."},
                    ran_by: %Schema{
@@ -208,6 +216,7 @@ defmodule TuistWeb.API.GenerationsController do
             :local_cache_target_hits,
             :remote_cache_target_hits
           ])
+          |> Map.put(:command_arguments_array, Event.recorded_command_arguments(event))
           |> Map.put(:status, status_to_string(event.status))
           |> Map.put(:is_ci, event.is_ci)
           |> Map.put(
@@ -273,6 +282,13 @@ defmodule TuistWeb.API.GenerationsController do
              git_commit_sha: %Schema{type: :string, nullable: true, description: "Git commit SHA."},
              git_ref: %Schema{type: :string, nullable: true, description: "Git ref."},
              command_arguments: %Schema{type: :string, nullable: true, description: "Command arguments used."},
+             command_arguments_array: %Schema{
+               type: :array,
+               nullable: true,
+               items: %Schema{type: :string},
+               description:
+                 "Arguments as recorded by the CLI, preserving argument boundaries. Null when unavailable for historical or legacy reports. An empty array means an explicitly recorded empty argument list. Missing or null must be treated as unknown, not as a generation without focus queries. Does not describe effective configuration or which targets were generated from source."
+             },
              cacheable_targets: %Schema{type: :array, items: %Schema{type: :string}, description: "Cacheable targets."},
              local_cache_target_hits: %Schema{
                type: :array,
@@ -318,6 +334,7 @@ defmodule TuistWeb.API.GenerationsController do
             git_commit_sha: event.git_commit_sha,
             git_ref: event.git_ref,
             command_arguments: event.command_arguments,
+            command_arguments_array: Event.recorded_command_arguments(event),
             cacheable_targets: event.cacheable_targets,
             local_cache_target_hits: event.local_cache_target_hits,
             remote_cache_target_hits: event.remote_cache_target_hits,

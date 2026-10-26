@@ -4,6 +4,7 @@ This module handles CLI integration with the Tuist Server APIs.
 
 ## Responsibilities
 - Resolve server environment (base URL, OAuth client ID) with env var overrides.
+- Runs and generations retain legacy string `command_arguments` responses and expose optional, nullable `command_arguments_array`. Decode missing/null as unknown and preserve recorded empty arrays. Uploads continue sending the existing argument array; no capability negotiation or client-side splitting is needed. `CommandArgumentsCompatibilityTests` covers old/new server response shapes.
 - `ExchangeOIDCTokenService` forwards optional `TUIST_OIDC_ACCOUNT` as `account_handle`. Custom workload providers require this account selector; built-in CI providers keep it optional. It chooses the destination account, never substitutes for verified workload identity and project trust. Keep the request additive for existing CI providers and regenerate OpenAPI types from the controller schema.
 - Provide cache storage factories and API clients for server-backed features.
 - Map CLI actions to server operations (projects, previews, analytics, registry).

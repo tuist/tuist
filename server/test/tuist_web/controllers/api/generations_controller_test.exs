@@ -47,7 +47,41 @@ defmodule TuistWeb.API.GenerationsControllerTest do
       assert returned_generation["status"] == "success"
       assert returned_generation["cacheable_targets"] == ["TargetA", "TargetB"]
       assert returned_generation["command_arguments"] == "--no-open"
+      assert returned_generation["command_arguments_array"] == ["--no-open"]
       assert returned_generation["ran_by"] == %{"handle" => user.account.name}
+    end
+
+    for {label, arguments, expected} <- [
+          {"recorded", ["generate", "--configuration", "Debug Scheme", "FocusedTargetName", ""],
+           ["generate", "--configuration", "Debug Scheme", "FocusedTargetName", ""]},
+          {"empty", [], []},
+          {"legacy", "generate --configuration Debug Scheme", nil}
+        ] do
+      test "preserves #{label} arguments on list and detail", %{conn: conn, user: user, project: project} do
+        arguments = unquote(Macro.escape(arguments))
+        expected = unquote(Macro.escape(expected))
+        event = CommandEventsFixtures.command_event_fixture(project_id: project.id, command_arguments: arguments)
+
+        list =
+          conn
+          |> Authentication.put_current_user(user)
+          |> get(~p"/api/projects/#{project.account.name}/#{project.name}/generations")
+          |> json_response(:ok)
+
+        assert [generation] = list["generations"]
+
+        details =
+          conn
+          |> Authentication.put_current_user(user)
+          |> get(~p"/api/projects/#{project.account.name}/#{project.name}/generations/#{event.id}")
+          |> json_response(:ok)
+
+        for response <- [generation, details] do
+          assert response["id"] == event.id
+          assert response["command_arguments"] == event.command_arguments
+          assert Map.fetch!(response, "command_arguments_array") == expected
+        end
+      end
     end
 
     test "returns empty list when no generations exist", %{conn: conn, user: user, project: project} do
@@ -237,6 +271,7 @@ defmodule TuistWeb.API.GenerationsControllerTest do
       assert response["duration"] == 5000
       assert response["status"] == "success"
       assert response["command_arguments"] == "--no-open"
+      assert response["command_arguments_array"] == ["--no-open"]
     end
 
     test "returns 404 when generation not found", %{conn: conn, user: user, project: project} do

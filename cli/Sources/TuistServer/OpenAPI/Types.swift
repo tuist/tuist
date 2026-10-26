@@ -19154,10 +19154,14 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Run/cacheable_targets`.
             public var cacheable_targets: [Swift.String]?
-            /// Arguments passed to the command
+            /// Recorded command arguments joined with spaces. Argument boundaries are not preserved.
             ///
             /// - Remark: Generated from `#/components/schemas/Run/command_arguments`.
-            public var command_arguments: [Swift.String]
+            public var command_arguments: Swift.String?
+            /// Arguments as recorded by the CLI, preserving argument boundaries. Null when unavailable for historical or legacy reports. An empty array means an explicitly recorded empty argument list. Missing or null must be treated as unknown, not as a generation without focus queries. Does not describe effective configuration or which targets were generated from source.
+            ///
+            /// - Remark: Generated from `#/components/schemas/Run/command_arguments_array`.
+            public var command_arguments_array: [Swift.String]?
             /// Duration of the run
             ///
             /// - Remark: Generated from `#/components/schemas/Run/duration`.
@@ -19258,7 +19262,8 @@ public enum Components {
             /// - Parameters:
             ///   - actor:
             ///   - cacheable_targets: Cacheable targets of the run
-            ///   - command_arguments: Arguments passed to the command
+            ///   - command_arguments: Recorded command arguments joined with spaces. Argument boundaries are not preserved.
+            ///   - command_arguments_array: Arguments as recorded by the CLI, preserving argument boundaries. Null when unavailable for historical or legacy reports. An empty array means an explicitly recorded empty argument list. Missing or null must be treated as unknown, not as a generation without focus queries. Does not describe effective configuration or which targets were generated from source.
             ///   - duration: Duration of the run
             ///   - error_message: Error reported by a failed run, truncated to 255 characters. Null when the run succeeded.
             ///   - git_branch: Git branch of the repository
@@ -19284,7 +19289,8 @@ public enum Components {
             public init(
                 actor: Components.Schemas.ReportActor? = nil,
                 cacheable_targets: [Swift.String]? = nil,
-                command_arguments: [Swift.String],
+                command_arguments: Swift.String? = nil,
+                command_arguments_array: [Swift.String]? = nil,
                 duration: Swift.Double,
                 error_message: Swift.String? = nil,
                 git_branch: Swift.String,
@@ -19311,6 +19317,7 @@ public enum Components {
                 self.actor = actor
                 self.cacheable_targets = cacheable_targets
                 self.command_arguments = command_arguments
+                self.command_arguments_array = command_arguments_array
                 self.duration = duration
                 self.error_message = error_message
                 self.git_branch = git_branch
@@ -19338,6 +19345,7 @@ public enum Components {
                 case actor
                 case cacheable_targets
                 case command_arguments
+                case command_arguments_array
                 case duration
                 case error_message
                 case git_branch
@@ -26509,6 +26517,10 @@ public enum Operations {
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json/command_arguments`.
                         public var command_arguments: Swift.String?
+                        /// Arguments as recorded by the CLI, preserving argument boundaries. Null when unavailable for historical or legacy reports. An empty array means an explicitly recorded empty argument list. Missing or null must be treated as unknown, not as a generation without focus queries. Does not describe effective configuration or which targets were generated from source.
+                        ///
+                        /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json/command_arguments_array`.
+                        public var command_arguments_array: [Swift.String]?
                         /// Generation duration in milliseconds.
                         ///
                         /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/{generation_id}/GET/responses/200/content/json/duration`.
@@ -26577,6 +26589,7 @@ public enum Operations {
                         /// - Parameters:
                         ///   - cacheable_targets: Cacheable targets.
                         ///   - command_arguments: Command arguments used.
+                        ///   - command_arguments_array: Arguments as recorded by the CLI, preserving argument boundaries. Null when unavailable for historical or legacy reports. An empty array means an explicitly recorded empty argument list. Missing or null must be treated as unknown, not as a generation without focus queries. Does not describe effective configuration or which targets were generated from source.
                         ///   - duration: Generation duration in milliseconds.
                         ///   - git_branch: Git branch.
                         ///   - git_commit_sha: Git commit SHA.
@@ -26594,6 +26607,7 @@ public enum Operations {
                         public init(
                             cacheable_targets: [Swift.String]? = nil,
                             command_arguments: Swift.String? = nil,
+                            command_arguments_array: [Swift.String]? = nil,
                             duration: Swift.Int,
                             git_branch: Swift.String? = nil,
                             git_commit_sha: Swift.String? = nil,
@@ -26611,6 +26625,7 @@ public enum Operations {
                         ) {
                             self.cacheable_targets = cacheable_targets
                             self.command_arguments = command_arguments
+                            self.command_arguments_array = command_arguments_array
                             self.duration = duration
                             self.git_branch = git_branch
                             self.git_commit_sha = git_commit_sha
@@ -26629,6 +26644,7 @@ public enum Operations {
                         public enum CodingKeys: String, CodingKey {
                             case cacheable_targets
                             case command_arguments
+                            case command_arguments_array
                             case duration
                             case git_branch
                             case git_commit_sha
@@ -107599,6 +107615,10 @@ public enum Operations {
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generationsPayload/command_arguments`.
                             public var command_arguments: Swift.String?
+                            /// Arguments as recorded by the CLI, preserving argument boundaries. Null when unavailable for historical or legacy reports. An empty array means an explicitly recorded empty argument list. Missing or null must be treated as unknown, not as a generation without focus queries. Does not describe effective configuration or which targets were generated from source.
+                            ///
+                            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generationsPayload/command_arguments_array`.
+                            public var command_arguments_array: [Swift.String]?
                             /// Generation duration in milliseconds.
                             ///
                             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/responses/200/content/json/generationsPayload/duration`.
@@ -107690,6 +107710,7 @@ public enum Operations {
                             /// - Parameters:
                             ///   - cacheable_targets: Cacheable targets.
                             ///   - command_arguments: Command arguments used.
+                            ///   - command_arguments_array: Arguments as recorded by the CLI, preserving argument boundaries. Null when unavailable for historical or legacy reports. An empty array means an explicitly recorded empty argument list. Missing or null must be treated as unknown, not as a generation without focus queries. Does not describe effective configuration or which targets were generated from source.
                             ///   - duration: Generation duration in milliseconds.
                             ///   - git_branch: Git branch.
                             ///   - git_commit_sha: Git commit SHA.
@@ -107708,6 +107729,7 @@ public enum Operations {
                             public init(
                                 cacheable_targets: [Swift.String]? = nil,
                                 command_arguments: Swift.String? = nil,
+                                command_arguments_array: [Swift.String]? = nil,
                                 duration: Swift.Int,
                                 git_branch: Swift.String? = nil,
                                 git_commit_sha: Swift.String? = nil,
@@ -107726,6 +107748,7 @@ public enum Operations {
                             ) {
                                 self.cacheable_targets = cacheable_targets
                                 self.command_arguments = command_arguments
+                                self.command_arguments_array = command_arguments_array
                                 self.duration = duration
                                 self.git_branch = git_branch
                                 self.git_commit_sha = git_commit_sha
@@ -107745,6 +107768,7 @@ public enum Operations {
                             public enum CodingKeys: String, CodingKey {
                                 case cacheable_targets
                                 case command_arguments
+                                case command_arguments_array
                                 case duration
                                 case git_branch
                                 case git_commit_sha
