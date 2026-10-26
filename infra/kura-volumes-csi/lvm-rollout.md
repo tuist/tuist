@@ -59,6 +59,69 @@ Keep this window bounded and treat it as part of the accepted staging outage.
 A mixed fleet is not a way to migrate silently: LVM pods require advertised
 capacity and plain claims cannot fall back to files.
 
+## Staging validation, 2026-10-26
+
+The approved Paris Machine replacement used the existing rented server
+`tuist-kura-em-staging-1` (`915db32b-344c-42e4-932c-e51ab0a5e9fb`), through
+Machine deletion. The replacement is `tuist-tuist-kura-fleet-fm4h8-qmkn8`.
+The OS reinstall ran from 21:31 to 21:38 UTC. Its custom layout created XFS on
+`/dev/md2` but omitted `/data` and its `fstab` entry; the original mount guard
+stopped without wiping. The guarded discovery correction let bootstrap resume,
+and the replacement reached Ready at 21:57 UTC.
+
+The live VG is 949,980,495,872 bytes (884.738 GiB). Its `data` LV is exactly
+128 GiB, mounted as XFS with `prjquota`. Both Node capacity and allocatable
+advertised `tuist.dev/kura-disk: 812541542400` (756.738 GiB), precisely the VG
+minus the data LV. Four test replicas each requested and limited `8Gi` of that
+resource and reserved no claim bytes as `ephemeral-storage`.
+
+Temporary instances for the existing staging `tuist` and regional smoke
+accounts exercised the deployed Paris manifest settings with two replicas
+each. They used normal capacity admission and account-scoped cache tokens.
+Only these new test server rows were held in the 15-minute drain window so the
+private-cache demand sweep would not retire them before validation; the
+manifests had no external peers. This validates the volumes and controller,
+not an end-to-end runner-demand provisioning flow.
+
+CSI created four LVs, two with LUKS2 and two with direct XFS. The server issued
+key version 1 for each encrypted claim. After deleting ordinal 0 of each test
+instance, CSI unstaged and restaged both existing volumes, fetched the encrypted
+key again, and emitted no formatting event. Both replicas returned the saved
+16 KiB object with its original SHA-256. LV and filesystem UUIDs were unchanged;
+the encrypted volume's LUKS UUID remained
+`86a40585-647f-4e6b-a7e5-d941d04fdccf`. The plain LV had no LUKS header.
+
+The same-host benchmark used Kura's `/api/cache/gradle/{key}` PUT/GET route,
+HTTP/1.1 keepalive, concurrency 1, fresh random 16 KiB bodies, 20 warmup pairs
+and 200 measured pairs per instance. Each upload declared its SHA-256 and every
+GET was compared byte-for-byte. The client ran in the Paris CSI pod and called
+the local Kura pod IPs directly.
+
+| Backing | PUT median | PUT p95 | GET median | GET p95 |
+| --- | ---: | ---: | ---: | ---: |
+| LUKS2 on LVM | 11.47 ms | 18.59 ms | 0.99 ms | 1.23 ms |
+| Plain XFS on LVM | 11.88 ms | 17.92 ms | 1.14 ms | 2.16 ms |
+
+The fresh RAID mirror was resynchronizing at about 200 MiB/s. These are
+functional same-host measurements under that background load, not a quiet-disk
+comparison against the earlier loop-file benchmark or evidence that encryption
+is faster. All 440 upload/download pairs, including warmup, passed content
+verification. Normal teardown removed all four test claims and LVs; both test
+server records reached `destroyed`. Only the 128 GiB data LV remained, with
+812,541,542,400 bytes free in the VG. Temporary credentials were removed.
+
+First-boot conversion ran with provider `3d339167`. The final inspection
+refinement allows XFS journal replay on the read-only mount, because
+`norecovery` could hide committed files from the emptiness check. Its safety
+behavior is covered by the shell regression tests; the host was not reinstalled
+a second time merely to exercise that option on an already-empty filesystem.
+The final staging provider is `3e8f2a29`; server, controller and CSI remain on
+`sha-884be9cebbec`, and Kura remains on `sha-6e7fbe5cf700`. The final
+[provider build](https://github.com/tuist/tuist/actions/runs/40408421405) and
+[staging deployment](https://github.com/tuist/tuist/actions/runs/40409103928)
+passed. Benchmark demand also woke the smoke account's pre-existing archived
+`ca-east` server; that instance remains under its normal public-cache lifecycle.
+
 ## Proposed production rollout (requires approval)
 
 No production reinstall is authorized by the staging work.
