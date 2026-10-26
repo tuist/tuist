@@ -1,5 +1,6 @@
 defmodule Tuist.OAuth.UpstreamExchangeConcurrencyTest do
   use ExUnit.Case, async: false
+  use Mimic
 
   import Ecto.Query
 
@@ -17,9 +18,14 @@ defmodule Tuist.OAuth.UpstreamExchangeConcurrencyTest do
 
   @redirect_uri "https://example.test/callback"
 
-  for grant <- ["authorization_code", "refresh_token"], carrier <- [:form, :request] do
-    @tag grant: grant, carrier: carrier
-    test "real upstream #{grant} via #{carrier} serializes redemption and reuse", %{grant: grant, carrier: carrier} do
+  for grant <- ["authorization_code", "refresh_token"],
+      {carrier, retry_carrier} <- [{:form, :form}, {:request, :request}, {:form, :request}, {:request, :form}] do
+    @tag grant: grant, carrier: carrier, retry_carrier: retry_carrier
+    test "real controller #{grant} via #{carrier}/#{retry_carrier} serializes redemption and reuse", %{
+      grant: grant,
+      carrier: carrier,
+      retry_carrier: retry_carrier
+    } do
       {client, token, credential} = fixture(grant)
       parent = self()
 
@@ -29,7 +35,8 @@ defmodule Tuist.OAuth.UpstreamExchangeConcurrencyTest do
           send(parent, {:connection, first?, pid})
           key = if grant == "authorization_code", do: "code", else: "refresh_token"
           params = Map.put(params(client.id, grant), key, credential)
-          body = if carrier == :request, do: %{"request" => jwt(params)}, else: params
+          request_carrier = if first?, do: carrier, else: retry_carrier
+          body = if request_carrier == :request, do: %{"request" => jwt(params)}, else: params
 
           authorize = fn request ->
             assert Repo.in_transaction?()
@@ -47,7 +54,14 @@ defmodule Tuist.OAuth.UpstreamExchangeConcurrencyTest do
             Authorization.token(request)
           end
 
-          body |> connection() |> Exchange.token(TokenController, authorize: authorize)
+          expect(Exchange, :token, fn conn, application ->
+            Mimic.call_original(Exchange, :token, [conn, application, [authorize: authorize]])
+          end)
+
+          conn = connection(body)
+          response = TokenController.token(conn, conn.params)
+          Mimic.verify!()
+          response
         end)
       end
 
@@ -138,7 +152,7 @@ defmodule Tuist.OAuth.UpstreamExchangeConcurrencyTest do
             |> Repo.all()
             |> Enum.map(&:crypto.hash(:sha256, &1))
 
-          Repo.delete_all(from(r in "refresh_replays", where: r.kind == "oauth" and r.token_hash in ^token_hashes))
+          Repo.delete_all(from(r in "refresh_token_replays", where: r.kind == "oauth" and r.token_hash in ^token_hashes))
           Repo.delete_all(from(t in Token, where: t.client_id == ^client.id))
           Repo.delete_all(from(c in Client, where: c.id == ^client.id))
         end)
@@ -170,7 +184,9 @@ defmodule Tuist.OAuth.UpstreamExchangeConcurrencyTest do
   end
 
   defp params(client_id, grant), do: %{"grant_type" => grant, "client_id" => client_id, "redirect_uri" => @redirect_uri}
-  defp connection(body), do: :post |> Plug.Test.conn("/oauth2/token", body) |> Plug.Conn.fetch_query_params()
+
+  defp connection(body),
+    do: :post |> Plug.Test.conn("/oauth2/token?grant_type=refresh_token", body) |> Plug.Conn.fetch_query_params()
 
   defp jwt(claims),
     do:

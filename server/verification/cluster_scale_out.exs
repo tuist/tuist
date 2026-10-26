@@ -12,7 +12,7 @@ helpers =
       spawn(fn ->
         monitor = Process.monitor(controller)
         caches = [:display, :tuist, :license, :token_verification, :auth_subjects]
-        children = Enum.map(caches, &{Cachex, [&1, []]})
+        children = Enum.map(caches, &%{id: &1, start: {Cachex, :start_link, [&1, []]}, type: :supervisor})
         children = children ++ [
           {Phoenix.PubSub, name: Tuist.PubSub},
           %{id: :flags, start: {FunWithFlags.Store.Cache, :start_link, []}},
@@ -40,6 +40,8 @@ helpers =
 defmodule ClusterScaleOut do
   @moduledoc false
 
+  alias FunWithFlags.Flag
+  alias FunWithFlags.Store.Cache, as: FlagCache
   alias Tuist.KeyValueStore
   alias Tuist.KeyValueStore.Invalidator
 
@@ -104,11 +106,15 @@ defmodule ClusterScaleOut do
       verify_invalidation(remote)
 
       :ok = Cachex.put(:display, "missed-invalidation", :stale)
+      flag = %Flag{name: :scale_out_verification}
+      {:ok, ^flag} = FlagCache.put(flag)
+      {:ok, ^flag} = FlagCache.get(flag.name)
       :ok = :peer.stop(peer)
       await(fn -> remote not in Node.list(:connected) end, "owned peer did not depart")
       await(fn -> Cachex.get(:display, "missed-invalidation") == nil end, "departure did not evict display entries")
+      await(fn -> FlagCache.get(flag.name) == {:miss, :not_found, nil} end, "departure did not flush flag cache")
       protected_warm(node())
-      IO.puts("PASS: actual peer departure evicts display entries and preserves protected cache markers")
+      IO.puts("PASS: actual peer departure evicts display/flag entries and preserves protected cache markers")
     after
       if Process.alive?(peer), do: :peer.stop(peer)
     end
@@ -120,11 +126,11 @@ defmodule ClusterScaleOut do
         :ok = :erpc.call(target, Cachex, :put, [cache, "balance", :warm])
       end
 
-      :ok = :erpc.call(target, KeyValueStore, :put, ["unrelated", :warm, [cache: :display]])
+      {:ok, true} = :erpc.call(target, KeyValueStore, :put, ["unrelated", :warm, [cache: :display]])
     end
 
     :ok = KeyValueStore.invalidate("balance", cache: :display)
-    :ok = KeyValueStore.put("balance", :replacement, cache: :display)
+    {:ok, true} = KeyValueStore.put("balance", :replacement, cache: :display)
 
     await(
       fn -> :erpc.call(remote, KeyValueStore, :get, ["balance", [cache: :display]]) == nil end,
@@ -160,8 +166,11 @@ defmodule ClusterScaleOut do
   end
 
   defp ready(owner) do
+    ref = Process.monitor(owner)
+
     receive do
-      {:probe_ready, ^owner} -> :ok
+      {:probe_ready, ^owner} -> Process.demonitor(ref, [:flush])
+      {:DOWN, ^ref, :process, ^owner, reason} -> raise "owned cache supervisor failed: #{inspect(reason)}"
     after
       5_000 -> raise "owned cache supervisor did not start"
     end

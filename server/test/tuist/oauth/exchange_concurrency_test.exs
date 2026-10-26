@@ -41,7 +41,7 @@ defmodule Tuist.OAuth.ExchangeConcurrencyTest do
       on_exit(fn ->
         Sandbox.unboxed_run(Repo, fn ->
           hash = :crypto.hash(:sha256, value)
-          Repo.delete_all(from(r in "refresh_replays", where: r.kind == "oauth" and r.token_hash == ^hash))
+          Repo.delete_all(from(r in "refresh_token_replays", where: r.kind == "oauth" and r.token_hash == ^hash))
           Repo.delete_all(from(t in Token, where: t.id == ^token.id))
         end)
       end)
@@ -101,21 +101,25 @@ defmodule Tuist.OAuth.ExchangeConcurrencyTest do
       end
 
       first = Task.async(fn -> run.(true) end)
-      assert_receive {:database_connection, true, first_db}
-      assert_receive {:entered, first_pid}
-      second = Task.async(fn -> run.(false) end)
 
       try do
-        assert_receive {:database_connection, false, second_db}
-        refute first_db == second_db
-        assert wait_for_lock(second_db, 100)
-        send(first_pid, :release)
-        assert Task.await(first) == 200
-        assert Task.await(second) == 400
+        assert_receive {:database_connection, true, first_db}, 5_000
+        assert_receive {:entered, first_pid}, 5_000
+        second = Task.async(fn -> run.(false) end)
+
+        try do
+          assert_receive {:database_connection, false, second_db}, 5_000
+          refute first_db == second_db
+          assert wait_for_lock(second_db, 100)
+          send(first_pid, :release)
+          assert Task.await(first) == 200
+          assert Task.await(second) == 400
+        after
+          send(first_pid, :release)
+          Task.shutdown(second, :brutal_kill)
+        end
       after
-        send(first_pid, :release)
         Task.shutdown(first, :brutal_kill)
-        Task.shutdown(second, :brutal_kill)
       end
     end
   end

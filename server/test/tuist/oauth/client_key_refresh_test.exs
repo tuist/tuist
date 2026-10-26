@@ -47,7 +47,8 @@ defmodule Tuist.OAuth.ClientKeyRefreshTest do
         Mimic.call_original(Repo, :query!, [sql])
       end)
 
-      conn = Exchange.token(connection(client, assertion(client, new_key), grant), TokenController)
+      conn = connection(client, assertion(client, new_key), grant)
+      conn = TokenController.token(conn, conn.params)
       assert conn.status == 400
       assert JSON.decode!(conn.resp_body)["error"] == "invalid_grant"
       assert Repo.get!(Client, client.id).jwt_public_key == public_pem(new_key)

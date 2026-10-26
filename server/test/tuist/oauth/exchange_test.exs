@@ -24,54 +24,64 @@ defmodule Tuist.OAuth.ExchangeTest do
     end
   end
 
-  test "authorization runs inside a transaction but HTTP succeeds only after commit" do
-    assert %{status: 200, state: :sent} =
-             exchange(connection(), fn _ ->
-               send(self(), {:exchange_transaction, Repo.in_transaction?()})
-               success()
-             end)
+  for grant <- ["authorization_code", "refresh_token"] do
+    @tag grant: grant
+    test "#{grant} authorization runs inside a transaction but HTTP succeeds only after commit", %{grant: grant} do
+      assert %{status: 200, state: :sent} =
+               exchange(grant_connection(grant), fn _ ->
+                 send(self(), {:exchange_transaction, Repo.in_transaction?()})
+                 success()
+               end)
 
-    assert_receive {:exchange_transaction, true}
-    assert_receive {:response_transaction, false}
-  end
+      assert_receive {:exchange_transaction, true}
+      assert_receive {:response_transaction, false}
+    end
 
-  test "a database lock timeout returns unavailable without invoking the grant or sending within a transaction" do
-    expect(Repo, :query!, fn "SET LOCAL lock_timeout = '5s'" ->
-      raise %Postgrex.Error{
-        postgres: %{code: :lock_not_available, pg_code: "55P03", severity: "ERROR", message: "lock timeout"}
-      }
-    end)
+    @tag grant: grant
+    test "#{grant} lock timeout returns unavailable without invoking the grant or sending within a transaction", %{
+      grant: grant
+    } do
+      expect(Repo, :query!, fn "SET LOCAL lock_timeout = '5s'" ->
+        raise %Postgrex.Error{
+          postgres: %{code: :lock_not_available, pg_code: "55P03", severity: "ERROR", message: "lock timeout"}
+        }
+      end)
 
-    assert %{status: 503, state: :sent} = exchange(connection(), fn _ -> flunk("grant ran without its lock") end)
-    assert_receive {:response_transaction, false, %Error{error: :temporarily_unavailable}}
-  end
+      assert %{status: 503, state: :sent} =
+               exchange(grant_connection(grant), fn _ -> flunk("grant ran without its lock") end)
 
-  test "a failed rotation rolls back replacement writes before sending an error" do
-    assert %{status: 500} =
-             exchange(connection(), fn _ ->
-               user = AccountsFixtures.user_fixture()
-               send(self(), {:new_user, user.id})
-               {:error, %Error{error: :unknown_error, status: :internal_server_error, error_description: "unavailable"}}
-             end)
+      assert_receive {:response_transaction, false, %Error{error: :temporarily_unavailable}}
+    end
 
-    assert_receive {:new_user, id}
-    assert Repo.get(User, id) == nil
-    assert_receive {:response_transaction, false, _}
-  end
+    @tag grant: grant
+    test "#{grant} failure rolls back replacement writes before sending an error", %{grant: grant} do
+      assert %{status: 500} =
+               exchange(grant_connection(grant), fn _ ->
+                 user = AccountsFixtures.user_fixture()
+                 send(self(), {:new_user, user.id})
+                 {:error, %Error{error: :unknown_error, status: :internal_server_error, error_description: "unavailable"}}
+               end)
 
-  test "an unexpected authorization return rolls back before responding" do
-    assert %{status: 500} =
-             exchange(connection(), fn _ ->
-               user = AccountsFixtures.user_fixture()
-               send(self(), {:unexpected_user, user.id})
-               :unexpected
-             end)
+      assert_receive {:new_user, id}
+      assert Repo.get(User, id) == nil
+      assert_receive {:response_transaction, false, _}
+    end
 
-    assert_receive {:unexpected_user, id}
-    assert Repo.get(User, id) == nil
+    @tag grant: grant
+    test "#{grant} unexpected authorization return rolls back before responding", %{grant: grant} do
+      assert %{status: 500} =
+               exchange(grant_connection(grant), fn _ ->
+                 user = AccountsFixtures.user_fixture()
+                 send(self(), {:unexpected_user, user.id})
+                 :unexpected
+               end)
 
-    assert_receive {:response_transaction, false,
-                    %Error{error: :unknown_error, error_description: ":unexpected_authorization_result"}}
+      assert_receive {:unexpected_user, id}
+      assert Repo.get(User, id) == nil
+
+      assert_receive {:response_transaction, false,
+                      %Error{error: :unknown_error, error_description: ":unexpected_authorization_result"}}
+    end
   end
 
   test "a refresh credential carried only by a request object is locked" do
@@ -262,6 +272,16 @@ defmodule Tuist.OAuth.ExchangeTest do
 
   defp success do
     {:ok, %{token: %Token{type: "access_token", value: "issued", expires_at: System.system_time(:second) + 60}}}
+  end
+
+  defp grant_connection("authorization_code"), do: connection()
+
+  defp grant_connection("refresh_token") do
+    connection(%{
+      "grant_type" => "refresh_token",
+      "refresh_token" => Ecto.UUID.generate(),
+      "client_id" => Ecto.UUID.generate()
+    })
   end
 
   defp connection(params \\ nil, path \\ "/oauth2/token") do

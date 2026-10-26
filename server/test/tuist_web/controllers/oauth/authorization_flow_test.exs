@@ -83,16 +83,21 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     refute third_access_token in [access_token, refreshed_access_token]
   end
 
-  for envelope <- [:query, :body] do
-    @tag envelope: envelope
-    test "anonymous #{envelope} external request URIs never reach the network", %{envelope: envelope} do
+  for envelope <- [:query, :body], grant <- [nil, "refresh_token"] do
+    @tag envelope: envelope, grant: grant
+    test "anonymous #{envelope} external URI with outer grant #{inspect(grant)} never reaches network or transaction", %{
+      envelope: envelope,
+      grant: grant
+    } do
       reject(&Finch.request/2)
+      reject(&Repo.transaction/1)
       uri = "http://127.0.0.1/private"
+      params = if grant, do: %{"request_uri" => uri, "grant_type" => grant}, else: %{"request_uri" => uri}
 
       {path, body} =
         case envelope do
-          :query -> {"/oauth2/token?" <> URI.encode_query(%{"request_uri" => uri}), %{}}
-          :body -> {"/oauth2/token", %{"request_uri" => uri}}
+          :query -> {"/oauth2/token?" <> URI.encode_query(params), %{}}
+          :body -> {"/oauth2/token", params}
         end
 
       response = build_conn() |> post(path, body) |> json_response(400)
