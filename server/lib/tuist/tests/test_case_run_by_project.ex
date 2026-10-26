@@ -1,9 +1,10 @@
 defmodule Tuist.Tests.TestCaseRunByProject do
   @moduledoc """
-  Slim read-only schema backed by the `test_case_runs_by_project` materialized
-  view. Ordered by `(project_id, ran_at, id)`, making queries that filter by
-  `project_id` and sort by `ran_at` efficient without scanning the whole
-  project on the main table.
+  Slim read-only schema backed by `test_case_runs_by_project_v2`, which a
+  materialized view fills from `test_case_runs`. Ordered by
+  `(project_id, ran_at, id)`, making queries that filter by `project_id` and
+  sort by `ran_at` efficient without scanning the whole project on the main
+  table. Rows expire 90 days after they were inserted.
 
   Used by `Tuist.Tests.list_test_case_runs/2` for the project-only filter
   path: filter + sort + paginate run on the MV, then the page-sized set of
@@ -31,7 +32,7 @@ defmodule Tuist.Tests.TestCaseRunByProject do
   }
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
-  schema "test_case_runs_by_project" do
+  schema "test_case_runs_by_project_v2" do
     field :project_id, Ch, type: "Int64"
     field :ran_at, Ch, type: "DateTime64(6)"
     field :inserted_at, Ch, type: "DateTime64(6)"

@@ -19,7 +19,7 @@ defmodule Tuist.Tests.Analytics do
   alias Tuist.Tests.TestCaseRunDailyAggregate
   alias Tuist.Tests.TestModuleRun
 
-  @test_case_runs_by_inserted_at {"test_case_runs_by_inserted_at", TestCaseRun}
+  @test_case_runs_by_inserted_at {"test_case_runs_by_inserted_at_v2", TestCaseRun}
 
   defmacrop measured_case_duration(duration, scheme) do
     quote do
@@ -871,8 +871,8 @@ defmodule Tuist.Tests.Analytics do
   def test_runs_metrics(project_id, test_runs) when is_list(test_runs) do
     test_run_ids = Enum.map(test_runs, & &1.id)
 
-    # The `test_case_runs_by_test_run` MV is ordered by
-    # `(test_run_id, ran_at, id)`, giving an O(log N) seek per test_run_id.
+    # `test_case_runs_by_test_run_v2` is ordered by
+    # `(test_run_id, name, id)`, giving an O(log N) seek per test_run_id.
     # It is ReplacingMergeTree, so re-inserts can duplicate rows per id;
     # `count(DISTINCT id)` gets the right count without paying for FINAL.
     case_source =

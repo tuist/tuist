@@ -1,8 +1,10 @@
 defmodule Tuist.Tests.TestCaseRunByShardId do
   @moduledoc """
-  Read-only schema backed by the `test_case_runs_by_shard_id` materialized
-  view. Ordered by `(shard_id, name, id)` for efficient filtering, sorting,
-  and pagination of sharded test runs.
+  Read-only schema backed by `test_case_runs_by_shard_id_v2`, which a
+  materialized view fills from `test_case_runs`. Ordered by
+  `(shard_id, name, id)` for efficient filtering, sorting, and pagination of
+  sharded test runs. ReplacingMergeTree on `inserted_at`, so reads dedup with
+  `FINAL`. Rows expire 90 days after they were inserted.
 
   Only rows with non-null shard_id are stored.
   For full row data, look up the returned IDs in the main `test_case_runs` table.
@@ -15,7 +17,7 @@ defmodule Tuist.Tests.TestCaseRunByShardId do
   }
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
-  schema "test_case_runs_by_shard_id" do
+  schema "test_case_runs_by_shard_id_v2" do
     field :shard_id, Ecto.UUID
     field :name, Ch, type: "String"
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"

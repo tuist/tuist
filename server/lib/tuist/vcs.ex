@@ -1098,7 +1098,7 @@ defmodule Tuist.VCS do
   end
 
   defp get_flaky_tests_body(%{test_runs: test_runs, project: project}) do
-    # Batched lookup: one round-trip against `test_case_runs_by_test_run` for
+    # Batched lookup: one round-trip against `test_case_runs_by_test_run_v2` for
     # every test run on the PR instead of N. This is the dominant query in the
     # post-CI burst when several schemes report at once. The comment only lists
     # test cases, so the runs' failures and repetitions are not loaded.
