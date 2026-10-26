@@ -1,6 +1,10 @@
 package controllers
 
-import corev1 "k8s.io/api/core/v1"
+import (
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
+)
 
 const (
 	nodeFilteredUnschedulable  = "unschedulable"
@@ -111,4 +115,35 @@ func summarizeFleetNodes(nodes []corev1.Node) (int, map[string]int) {
 		filtered[reason]++
 	}
 	return ready, filtered
+}
+
+// nodeUnreachableRetireAfter is how long a Node's Ready condition must have
+// been other than True before the idle runners on it are retired. A rack site
+// that goes dark takes its Nodes NotReady, and its warm runners would otherwise
+// count as capacity until taint-based eviction deletes them about five minutes
+// later, so the autoscaler would create no replacements at the sites still up.
+// The wait rides out a kubelet restart.
+const nodeUnreachableRetireAfter = 2 * time.Minute
+
+// nodeNotReady reports whether the node's Ready condition is present and other
+// than True. A node with no Ready condition yet has not joined, and is not.
+func nodeNotReady(node *corev1.Node) bool {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == corev1.NodeReady {
+			return condition.Status != corev1.ConditionTrue
+		}
+	}
+	return false
+}
+
+// nodeUnreachable reports whether the node has been NotReady for at least
+// nodeUnreachableRetireAfter at now.
+func nodeUnreachable(node *corev1.Node, now time.Time) bool {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == corev1.NodeReady {
+			return condition.Status != corev1.ConditionTrue &&
+				now.Sub(condition.LastTransitionTime.Time) >= nodeUnreachableRetireAfter
+		}
+	}
+	return false
 }

@@ -37,6 +37,13 @@ import (
 )
 
 const (
+	// RackSiteNodeLabel carries a rack host's site on its Node. A pool with
+	// `spec.site` selects it within its fleet.
+	//
+	// CONTRACT: must match cluster-api-provider-tuist's
+	// `v1alpha1.RackSiteNodeLabel`.
+	RackSiteNodeLabel = "node.cluster.x-k8s.io/rack-site"
+
 	// RuntimeClassRevisionAnnotation is the deterministic revision Helm
 	// derives from the Linux RuntimeClass name and fixed overhead. The
 	// RunnerPool carries the desired revision and each Pod records the
@@ -824,18 +831,22 @@ func schedulingFor(pool *tuistv1.RunnerPool) (map[string]string, []corev1.Tolera
 				reservationToleration(pool),
 			}
 	default:
-		return map[string]string{
-				"kubernetes.io/os":  "darwin",
-				"tuist.dev/runtime": "tart",
-				"tuist.dev/fleet":   pool.Spec.FleetSelector,
-			}, []corev1.Toleration{
-				{
-					Key:      "tuist.dev/macos",
-					Operator: corev1.TolerationOpExists,
-					Effect:   corev1.TaintEffectNoSchedule,
-				},
-				reservationToleration(pool),
-			}
+		selector := map[string]string{
+			"kubernetes.io/os":  "darwin",
+			"tuist.dev/runtime": "tart",
+			"tuist.dev/fleet":   pool.Spec.FleetSelector,
+		}
+		if pool.Spec.Site != "" {
+			selector[RackSiteNodeLabel] = pool.Spec.Site
+		}
+		return selector, []corev1.Toleration{
+			{
+				Key:      "tuist.dev/macos",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			},
+			reservationToleration(pool),
+		}
 	}
 }
 

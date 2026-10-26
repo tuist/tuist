@@ -176,9 +176,9 @@ defmodule Tuist.Runners.WorkflowJobs do
   missing or not `queued` (a completion raced the claim, or the row
   predates this table).
   """
-  def transition_claimed(workflow_job_id, pod_name, %DateTime{} = claimed_at)
+  def transition_claimed(workflow_job_id, pod_name, %DateTime{} = claimed_at, site \\ nil)
       when is_integer(workflow_job_id) and is_binary(pod_name) do
-    case transition(workflow_job_id, ["queued"], "claimed", pod_name: pod_name, claimed_at: claimed_at) do
+    case transition(workflow_job_id, ["queued"], "claimed", pod_name: pod_name, site: site, claimed_at: claimed_at) do
       {:applied, _row} -> :ok
       :noop -> :noop
     end
@@ -236,7 +236,7 @@ defmodule Tuist.Runners.WorkflowJobs do
   moment rather than the minting claim's: B waited in the queue until
   GitHub placed it here, not until the Pod that took it was reserved.
   """
-  def transition_executing(workflow_job_id, runner_name, pod_name)
+  def transition_executing(workflow_job_id, runner_name, pod_name, site \\ nil)
       when is_integer(workflow_job_id) and is_binary(runner_name) and runner_name != "" and is_binary(pod_name) and
              pod_name != "" do
     now = DateTime.utc_now()
@@ -245,6 +245,7 @@ defmodule Tuist.Runners.WorkflowJobs do
     |> transition(["queued"], "running",
       runner_name: runner_name,
       pod_name: pod_name,
+      site: site,
       claimed_at: now,
       started_at: now,
       executed_workflow_job_id: workflow_job_id
@@ -270,7 +271,7 @@ defmodule Tuist.Runners.WorkflowJobs do
   that is running, and the handle guard confines the takeover to the
   claim the caller found naming the job.
   """
-  def take_over_executing(workflow_job_id, runner_name, pod_name, %DateTime{} = stale_claimed_at)
+  def take_over_executing(workflow_job_id, runner_name, pod_name, %DateTime{} = stale_claimed_at, site \\ nil)
       when is_integer(workflow_job_id) and is_binary(runner_name) and runner_name != "" and is_binary(pod_name) and
              pod_name != "" do
     now = DateTime.utc_now()
@@ -282,6 +283,7 @@ defmodule Tuist.Runners.WorkflowJobs do
       [
         runner_name: runner_name,
         pod_name: pod_name,
+        site: site,
         claimed_at: now,
         started_at: now,
         executed_workflow_job_id: workflow_job_id
@@ -303,6 +305,7 @@ defmodule Tuist.Runners.WorkflowJobs do
   """
   def hand_over(workflow_job_id, %DateTime{} = from_claimed_at, %Claim{
         pod_name: pod_name,
+        site: site,
         runner_name: runner_name,
         claimed_at: claimed_at
       })
@@ -313,6 +316,7 @@ defmodule Tuist.Runners.WorkflowJobs do
            "running",
            [
              pod_name: pod_name,
+             site: site,
              runner_name: runner_name,
              claimed_at: claimed_at,
              started_at: DateTime.utc_now(),
@@ -401,6 +405,7 @@ defmodule Tuist.Runners.WorkflowJobs do
           status: "running",
           runner_name: c.runner_name,
           pod_name: c.pod_name,
+          site: c.site,
           executed_workflow_job_id: j.workflow_job_id,
           claimed_at: ^now,
           started_at: ^now,
@@ -459,6 +464,7 @@ defmodule Tuist.Runners.WorkflowJobs do
     [
       conclusion: nil,
       pod_name: nil,
+      site: nil,
       runner_name: nil,
       claimed_at: nil,
       started_at: nil,

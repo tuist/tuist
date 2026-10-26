@@ -1578,12 +1578,17 @@ rackFleet:
           enabled: true
           minWarmPoolFloor: 0
           maxReplicas: 16
-  # The fleet's sites other than ber1 (`site`). Each site's minis register
-  # with its own fleet, tuist-tuist-rack-fleet-<site>, so its catalog pools
-  # (tuist-runner-pool-macos-<site>-<xcode>) select only them.
+  # The fleet's sites other than ber1 (`site`). While a site's runners are off,
+  # its minis register with their own fleet, tuist-tuist-rack-fleet-<site>, and
+  # run nothing. Turning them on moves the minis onto the rack fleet, so the
+  # rack's pools above (still named after ber1) span both sites and run each job
+  # at whichever site claims it first (infra/rack-nodes/AGENTS.md, "Several
+  # sites"). The site then runs `runners` above as is.
   sites:
     # Rack 2 (infra/rack-switch-fleet/sites/larch.json). Its runners stay off
-    # until its minis are declared and its internet port is up.
+    # until its minis are declared and its internet port is up. When turning
+    # them on, raise the rack pools' maxReplicas to the guest slots of both
+    # sites, and decide whether to rename the pools in the same change.
     larch:
       # larch-edge-a and larch-edge-b on the machines segment
       # (management.edge.machines in larch.json).

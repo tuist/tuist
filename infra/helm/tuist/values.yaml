@@ -1865,7 +1865,8 @@ rackFleet:
 
   # The runner catalog on this fleet. Enabled, every `runnersFleet.xcodeVersions`
   # entry renders a second macOS pool, on the catalog's default shape, that
-  # selects this fleet: `<release>-runner-pool-macos-<site>-<xcode-dashes>`,
+  # selects this fleet, at every site whose runners are on (`sites` below):
+  # `<release>-runner-pool-macos-<site>-<xcode-dashes>`, named after `site`,
   # with the same image as the rented fleet's pool for that Xcode. Accounts on
   # the server's `runner_site` flag have their profiles routed to these pools,
   # and the server falls back to the rented fleet for a profile the site has no
@@ -1921,15 +1922,20 @@ rackFleet:
   # The fleet's other sites, keyed by site name. `site` above is the default
   # site, and everything else in this block applies to it. A host whose `site`
   # is a key here belongs to that site:
-  # - Its Node carries the site's own fleet (`nodeFleet`, by default
-  #   `<fleet name>-<site>`) instead of the default site's, so each site's
-  #   runner pools select only that site's minis. The Machine keeps the
-  #   operator's fleet, its name and its credentials, as for any `nodeFleet`.
+  # - While the site's `runners.enabled` is false, its Node carries the site's
+  #   own fleet (`nodeFleet`, by default `<fleet name>-<site>`) instead of the
+  #   rack fleet, so no rack pool places a runner on its minis. The Machine
+  #   keeps the operator's fleet, its name and its credentials, as for any
+  #   `nodeFleet`.
+  # - Once `runners.enabled` is true, its Node joins the rack fleet, and the
+  #   rack's pools (`runners` above) span this site too: a queued job runs at
+  #   whichever site claims it first. A RunnerPool has one guest size, so the
+  #   site runs `runners` above as is: setting any of its other keys here to a
+  #   different value, or `nodeFleet`, fails the render, and so does enabling
+  #   it while `runners` above is off. Keep it disabled until the site has
+  #   hosts.
   # - Its SSH ingress defaults to the site's `sshIngressAllowCIDRs`, the site's
   #   edges, never the default site's.
-  # - `runners` is the site's runner catalog, the same keys as `runners`
-  #   above, rendered as `<release>-runner-pool-macos-<site>-<xcode-dashes>`.
-  #   Keep it disabled until the site has hosts.
   # - `vmCacheGatewayCIDRs` joins the operator's fleet-wide list.
   # A host naming a site that is neither `site` nor a key here fails the
   # render.
