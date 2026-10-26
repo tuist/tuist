@@ -217,7 +217,7 @@ hostname, VLANs (not VLAN 1), each port's description, VLAN membership
 (`family ethernet-switching`) and LAG membership, LAGs (`aggregate-ethernet`)
 with LACP, and each LAG member's LACP rate. A LAG's VLANs are its first member
 port's, written on the `aeN` interface. Everything else, the management port,
-users, NETCONF and the port speeds ZTP set, is left alone.
+users, NETCONF and port speeds, is left alone.
 
 What PicOS does that the code is shaped around:
 
@@ -264,7 +264,8 @@ NETCONF behaviour, which the controller's tests run against.
 namespace (`omada`) by `.github/workflows/omada-deployment.yml`, in the cluster
 the rack belongs to, watching the rack's namespace. Both, and the Omada site,
 the controller address and the 1Password items below, come from the site
-definition (`kubernetes.namespace` and `management.controller`, rendered by
+definitions of every rack in the env (`kubernetes.namespace`,
+`management.controller` and `management.picos`, merged by
 `mise run rack:fleet helm-values rack-switch-controller`), not from per-env
 chart values. The pod has a required node
 affinity away from rack nodes (`rackNodeLabels`: `kubernetes.io/os=darwin`,

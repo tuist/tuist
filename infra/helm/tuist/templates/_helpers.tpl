@@ -159,6 +159,44 @@ green-field cluster.
 {{- .Values.rackFleet.name | default (include "tuist.componentName" (dict "root" . "component" "rack-fleet")) -}}
 {{- end -}}
 
+{{/*
+The `tuist.dev/fleet` a rack site's Nodes carry: the rack fleet's own name at
+`rackFleet.site`, and at each `rackFleet.sites.<site>` its `nodeFleet`, by
+default `<rack fleet>-<site>`. Called with (dict "root" $ "site" <site>).
+*/}}
+{{- define "tuist.rackSiteFleetName" -}}
+{{- $root := .root -}}
+{{- $fleet := include "tuist.rackFleetName" $root -}}
+{{- if ne .site $root.Values.rackFleet.site -}}
+{{- $site := get ($root.Values.rackFleet.sites | default dict) .site | default dict -}}
+{{- $fleet = $site.nodeFleet | default (printf "%s-%s" $fleet .site) -}}
+{{- if gt (len $fleet) 63 -}}
+{{- fail (printf "rackFleet.sites.%s: the fleet %q is longer than a label value's 63 characters; set its nodeFleet" .site $fleet) -}}
+{{- end -}}
+{{- end -}}
+{{- $fleet -}}
+{{- end -}}
+
+{{/*
+The rack fleet's sites as a JSON list of `{site, fleet}`: `rackFleet.site`
+first, when set, then each key of `rackFleet.sites` in name order. Each site's
+Nodes carry its own fleet (`tuist.rackSiteFleetName`), so a site's runner pools
+select only its own minis.
+*/}}
+{{- define "tuist.rackSites" -}}
+{{- $sites := list -}}
+{{- with .Values.rackFleet.site -}}
+{{- $sites = append $sites (dict "site" . "fleet" (include "tuist.rackFleetName" $)) -}}
+{{- end -}}
+{{- range $name := keys (.Values.rackFleet.sites | default dict) | sortAlpha -}}
+{{- if eq $name $.Values.rackFleet.site -}}
+{{- fail (printf "rackFleet.sites.%s is rackFleet.site; that site's settings are rackFleet's own" $name) -}}
+{{- end -}}
+{{- $sites = append $sites (dict "site" $name "fleet" (include "tuist.rackSiteFleetName" (dict "root" $ "site" $name))) -}}
+{{- end -}}
+{{- $sites | toJson -}}
+{{- end -}}
+
 {{- define "tuist.rackLinuxFleetName" -}}
 {{- .Values.rackLinuxFleet.name | default (include "tuist.componentName" (dict "root" . "component" "rack-linux")) -}}
 {{- end -}}
@@ -1470,29 +1508,42 @@ case the pool runs `tuist.macosRunnerImage`.
 {{- end -}}
 
 {{/*
-The macOS catalog pools racked at the rack fleet's site, as a list of
-`{name, site}` in JSON: every `runnersFleet.xcodeVersions` entry on the
-catalog's default shape, plus each non-default shape `rackFleet.runners.shapes`
-names. `templates/runner-pool.yaml` renders exactly these, and the server
-learns them through TUIST_RUNNERS_SITE_POOLS, which is how it knows which
-profiles a site can serve. Empty unless `rackFleet.runners.enabled`, which
-does not need `rackFleet.enabled`: an env whose rack hosts are lent to it by
-another env (`rackFleet.borrow`) runs the pools without owning the hosts.
+The macOS catalog pools racked at the rack fleet's sites, as a list of
+`{name, site, fleet}` in JSON: at each site whose runners are enabled
+(`rackFleet.runners` at `rackFleet.site`, `rackFleet.sites.<site>.runners`
+elsewhere), every `runnersFleet.xcodeVersions` entry on the catalog's default
+shape, plus each non-default shape that site's `runners.shapes` names.
+`templates/runner-pool.yaml` renders exactly these, and the server learns them
+through TUIST_RUNNERS_SITE_POOLS, which is how it knows which profiles a site
+can serve. Empty unless a site's runners are enabled, which does not need
+`rackFleet.enabled`: an env whose rack hosts are lent to it by another env
+(`rackFleet.borrow`) runs the pools without owning the hosts.
 */}}
 {{- define "tuist.rackCatalogPools" -}}
 {{- $pools := list -}}
-{{- if and .Values.runnersFleet.enabled (dig "runners" "enabled" false .Values.rackFleet) -}}
-{{- $site := required "rackFleet.site is required when rackFleet.runners.enabled is true" .Values.rackFleet.site -}}
+{{- if .Values.runnersFleet.enabled -}}
+{{- if dig "runners" "enabled" false .Values.rackFleet -}}
+{{- $_ := required "rackFleet.site is required when rackFleet.runners.enabled is true" .Values.rackFleet.site -}}
+{{- end -}}
 {{- $prefix := include "tuist.componentName" (dict "root" . "component" "runner-pool-macos") -}}
-{{- $rackShapes := dig "runners" "shapes" (dict) .Values.rackFleet -}}
-{{- range $xcode := (.Values.runnersFleet.xcodeVersions | default list) -}}
+{{- range $placement := include "tuist.rackSites" . | fromJsonArray -}}
+{{- $site := $placement.site -}}
+{{- $runners := $.Values.rackFleet.runners | default dict -}}
+{{- if ne $site $.Values.rackFleet.site -}}
+{{- $runners = dig $site "runners" (dict) $.Values.rackFleet.sites -}}
+{{- end -}}
+{{- if dig "enabled" false $runners -}}
+{{- $rackShapes := $runners.shapes | default dict -}}
+{{- range $xcode := ($.Values.runnersFleet.xcodeVersions | default list) -}}
 {{- $xcodeTag := required "runnersFleet.xcodeVersions[].xcodeVersion required" $xcode.xcodeVersion | toString | replace "." "-" -}}
-{{- $pools = append $pools (dict "name" (printf "%s-%s-%s" $prefix $site $xcodeTag) "site" $site) -}}
+{{- $pools = append $pools (dict "name" (printf "%s-%s-%s" $prefix $site $xcodeTag) "site" $site "fleet" $placement.fleet) -}}
 {{- range $shape := ($.Values.runnersFleet.shapes | default list) -}}
 {{- if not $shape.default -}}
 {{- $shapeKey := printf "%dvcpu-%dgb" (int $shape.vcpus) (int $shape.memoryGb) -}}
 {{- if hasKey $rackShapes $shapeKey -}}
-{{- $pools = append $pools (dict "name" (printf "%s-%s-%s-%s" $prefix $site $xcodeTag $shapeKey) "site" $site) -}}
+{{- $pools = append $pools (dict "name" (printf "%s-%s-%s-%s" $prefix $site $xcodeTag $shapeKey) "site" $site "fleet" $placement.fleet) -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 {{- end -}}

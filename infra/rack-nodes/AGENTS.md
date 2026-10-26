@@ -11,6 +11,9 @@ a box with an empty disk boots it on its own, and a running one is reinstalled
 by raising its `reinstallGeneration`. The edges run the boot server, each serving the other, so
 only the first edge of a site is installed from a stick of its own.
 
+Bringing up a whole new site, from boxes to taking jobs, follows
+[`site-bring-up.md`](site-bring-up.md).
+
 ## The pieces
 
 - **Inventory** is `rackLinuxFleet.hosts` in the env's tuist chart values,
@@ -18,8 +21,8 @@ only the first edge of a site is installed from a stick of its own.
   its hostname (the node, OS and tailnet name), role, site, and optionally its
   `bootMAC`, the MAC of the NIC it netboots from (the MS-01's i226-LM, on the
   management switch), which otherwise comes from the machine's announcement.
-  Its role's `rackLinuxFleet.roles.<role>` gives its tailnet tags, labels and
-  taints. The operator keeps a CAPI Machine for each host, which makes it a
+  Its role's `rackLinuxFleet.sites.<site>.roles.<role>`, else
+  `rackLinuxFleet.roles.<role>`, gives its tailnet tags, labels and taints. The operator keeps a CAPI Machine for each host, which makes it a
   node.
 - **The operator** (`infra/cluster-api-provider-tuist`, `controllers/linux`)
   publishes each host's install, finds the host on the tailnet and joins it.
@@ -363,7 +366,11 @@ carries the same guard.
   `vrrp0-<n>` on the n-th uplink with its VRRP address and a default route
   through the other edge at metric 200, built the way the rack-edge pod
   builds it, plus global resolvers in
-  `/etc/systemd/resolved.conf.d/10-tuist-edge.conf`. Nothing serves DHCP on
+  `/etc/systemd/resolved.conf.d/10-tuist-edge.conf`. Once the site's WAN
+  address is known, an edge also gets a first-boot WAN service. The first
+  edge of a site has no other edge to go out through, so it takes the site's
+  static WAN itself until its rack-edge pod runs ("The first edge of a site" in
+  `infra/cluster-api-provider-tuist/AGENTS.md`). Nothing serves DHCP on
   the management VLAN at the colo, so that is how a reinstalled edge reaches
   the tailnet and gets converged. It needs the other edge up as master, so the
   edges are reinstalled one at a time. A per-host stick (`--host`) renders no
@@ -470,7 +477,7 @@ sheet. Declaring the box takes both:
 
 ```yaml
 - uuid: 03de3d42-4a8e-9278-ee1a-a0ad9f25c75f
-  hostname: ber2-edge-b
+  hostname: larch-edge-b
   role: edge
   tpmCheckCode: 1a2b-3c4d-5e6f-7a8b
 ```
@@ -505,7 +512,7 @@ RJ45 ports at the back, LAN port 1 the middle one, LAN port 2 the right one.
 go build -o rack-bmc ./cmd/rack-bmc        # in infra/cluster-api-provider-tuist
 export RACK_BMC_PASSWORD=...               # the BMC's admin password
 ./rack-bmc -bmc https://<bmc> inventory    # serial, SMBIOS UUID, MACs, versions, TPM, Secure Boot
-./rack-bmc -bmc https://<bmc> check        # the BIOS against the baseline; exits 3 on drift
+./rack-bmc -bmc https://<bmc> check        # the BIOS, BMC and IPMI against the baseline; exits 3 on drift
 ./rack-bmc -bmc https://<bmc> power off && ./rack-bmc -bmc https://<bmc> apply && ./rack-bmc -bmc https://<bmc> power on
 ./rack-bmc -bmc https://<bmc> rotate Administrator <new-password-file
 ```
@@ -515,6 +522,26 @@ The baseline (`redfish.Baseline`): Restore AC Power Loss Power On
 (`NWSK000`, `NWSK001`, `NWSK006`), TPM on (`TCG001`), console redirection on
 COM2 for serial-over-LAN (`TER002`), and Secure Boot on with the factory keys,
 whose db holds Microsoft's UEFI CA 2011 and 2023, so Ubuntu's shim boots.
+
+The BMC's own baseline (`redfish.BMCBaseline`, and IPMI in `cmd/rack-bmc`):
+- **SSDP off.**
+- **The NC-SI sideband off** (`eth1`, which takes a DHCP lease of its own
+  through the host's LAN port 2), so the BMC is reachable only on its
+  management port.
+- **IPMI over LAN on cipher suite 17 alone** (HMAC-SHA256, AES-128); the BMC
+  ships taking the SHA-1, MD5 and unencrypted suites too.
+- **Serial-over-LAN forcing encryption and authentication.**
+
+The BMC and IPMI settings apply at once, with the host running. Redfish has
+no setting for the IPMI ones, so `rack-bmc` sets them through `ipmitool`
+(`-I lanplus -C 17`), which has to be installed. A BMC firmware update
+resets them, and the rotated logins and the network, unless the
+UpdateService's `PreserveConfiguration` flags, all off as shipped, are set
+first, so `check` again after one. SNMP is not in the baseline: this BMC keeps it on,
+and its version switches are read-only over Redfish, but with no community
+and no account enabled for SNMP, v1 and v2c answer nothing. IPMI 1.5
+(`-I lan`, MD5) cannot log in with a password longer than 16 bytes, which a
+rotated one is.
 
 What the BMC does differently from the standard:
 
@@ -1209,6 +1236,39 @@ fixed count would hold slots it believes free.
 A Tart guest cannot be newer than its host. Every catalog image is a macOS 26
 guest and the rack's hosts run macOS 27, so every Xcode runs there; a catalog
 entry on a newer guest needs the hosts updated first.
+
+### More than one site
+
+One rack fleet holds every site's minis: one operator, one set of credentials
+and one CAPI fleet, whose Machines are `<rackFleet.name>-<host>` at every site.
+`rackFleet.site` (ber1) is the default site, and every other site is a key of
+`rackFleet.sites` (larch). A host at such a site sets `site: <site>` and takes
+that site's block:
+
+- **Its Node's fleet.** The host's Node carries `tuist.dev/fleet:
+  <rackFleet.name>-<site>` (`RackHost.spec.nodeFleet`, overridable as the
+  site's `nodeFleet`), not the default site's fleet. Runner pools select Nodes
+  by that label alone, so without it ber1's pools would place runners on larch
+  minis. The Machine keeps the operator's fleet, its name and its credentials,
+  as for any `nodeFleet`. A lent host (`lendTo`) keeps the borrower's fleet.
+- **Its SSH ingress** is the site's `sshIngressAllowCIDRs`, the site's own
+  edges. It never falls back to the default site's, and the chart refuses a
+  host at a site whose block has none.
+- **Its pools.** The site's `runners` is a runner catalog of its own, with the
+  same keys as `rackFleet.runners`. It renders
+  `<release>-runner-pool-macos-<site>-<xcode>` pools that select the site's
+  fleet, so each site's pools share only that site's guest slots, and
+  `TUIST_RUNNERS_SITE_POOLS` lists them as `<pool>=<site>:macos` after the
+  default site's.
+- **Its VMs' cache gateways** (`vmCacheGatewayCIDRs`) join the operator's
+  fleet-wide `--rackhost-vm-cache-gateway-cidrs`: the pf pass is the same on
+  every rack host, and a host has no route to another site's gateway.
+
+A host naming a site that is neither `rackFleet.site` nor a key of
+`rackFleet.sites` fails the render. Keep a site's `runners` disabled until
+its minis are declared and its uplink is up. The rack fleet's
+MachineHealthCheck still spans every site, so while one site is dark its
+`unhealthyRange` also holds back remediation of a single mini at the other.
 
 ### Lending a host to another env
 

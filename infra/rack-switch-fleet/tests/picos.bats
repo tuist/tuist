@@ -14,7 +14,8 @@ site_with_picos_tor() {
             name: "ber1-tor-p", role: "tor", model: "s5860-24xmg",
             mgmt_address: "192.168.61.2", mac: "64:9d:99:d9:81:0e", adopted: true,
             credential_item: "ber1-tor-p admin", console_baud: 115200,
-            apply_order: 9, apply_note: "bench"
+            apply_order: 9, apply_note: "bench",
+            feeds: ["feed-a", "feed-b"]
         }]
         | (.nodes[] | select(.name == "ber1-edge-a")) |= (.tor_management = {
             switch: "ber1-tor-p", nic: "sfp28-2", address: "192.168.61.1/30"})
@@ -141,4 +142,13 @@ edge_sh() { bash -c "source '$FLEET_ROOT/lib/config.sh'; source '$FLEET_ROOT/lib
     run edge_sh "fleet_edge_tor_links '$SITE_FILE'"
     [ "$status" -eq 0 ]
     [ -z "$output" ]
+}
+
+# SFP28 runs at its 25G default, which rack 2's DACs need: the bootstrap
+# pins no port speed.
+@test "the bootstrap sets no port speed" {
+    site="$(site_with_picos_tor)"
+    run edge_sh "fleet_picos_bootstrap '$site'"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *" speed "* ]]
 }

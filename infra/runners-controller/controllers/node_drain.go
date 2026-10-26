@@ -113,7 +113,7 @@ func drainingNodePredicate() predicate.Predicate {
 		if !ok {
 			return false
 		}
-		return node.Spec.Unschedulable || !node.DeletionTimestamp.IsZero()
+		return node.Spec.Unschedulable || !node.DeletionTimestamp.IsZero() || hasPowerBudgetTaint(node)
 	})
 }
 
@@ -147,6 +147,11 @@ func (r *RunnerPoolReconciler) enqueueAllRunnerPools(ctx context.Context, _ clie
 // it drains, so `spec.unschedulable` is the signal that a Machine
 // replacement has started.
 //
+// A rack mini held by its power budget (powerBudgetTaintKey) counts too:
+// the runners it already holds are what would otherwise keep starting jobs on
+// a chain over its breaker's budget. Its jobs finish, and the autoscaler
+// replaces its idle runners on hosts that are not held.
+//
 // A node that cannot be read is reported as not draining. Reaping is
 // destructive and an unreadable node is ambiguous — a transient read
 // failure must not be able to retire warm capacity fleet-wide. A Pod
@@ -160,5 +165,5 @@ func (r *RunnerPoolReconciler) nodeIsDraining(ctx context.Context, name string) 
 		}
 		return false, fmt.Errorf("get node %s: %w", name, err)
 	}
-	return node.Spec.Unschedulable || !node.DeletionTimestamp.IsZero(), nil
+	return node.Spec.Unschedulable || !node.DeletionTimestamp.IsZero() || hasPowerBudgetTaint(node), nil
 }

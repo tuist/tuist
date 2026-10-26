@@ -38,6 +38,15 @@ ip addr replace "$vrrp_address" dev vrrp0
 edge_vlan_bond machines0 10
 ip addr replace "$machines_address" dev machines0
 edge_vlan_bond wan0 4001
+if [ -s /run/rack-edge/first-wan ]; then
+  read -r first_wan </run/rack-edge/first-wan
+  case "$first_wan" in
+    wan0) ip route del default via 149.6.170.30 dev wan0 metric 50 2>/dev/null || true
+      ip addr del 149.6.170.31/31 dev wan0 2>/dev/null || true ;;
+    *) ip link del "$first_wan" 2>/dev/null || true ;;
+  esac
+  rm -f /run/rack-edge/first-wan
+fi
 ip route replace default via "$peer_address" dev vrrp0 metric 200 proto static
 nexthops=""; for uplink in $uplinks; do nexthops="$nexthops nexthop dev $uplink"; done
 ip route replace 192.168.0.12/32 $nexthops

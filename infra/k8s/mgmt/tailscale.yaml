@@ -173,6 +173,18 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+            # Reach the API server through Talos's KubePrism on the host
+            # loopback, not the `kubernetes` Service. tailscaled reads its
+            # state from the API before it brings the tailnet up, so it must
+            # not depend on an address that only exists once it runs. The
+            # Service's endpoint is the API server's advertise address,
+            # which was the tailnet IP on tuist-mgmt.
+            - name: TS_KUBERNETES_READ_API_SERVER_ADDRESS_FROM_ENV
+              value: "true"
+            - name: KUBERNETES_SERVICE_HOST
+              value: localhost
+            - name: KUBERNETES_SERVICE_PORT_HTTPS
+              value: "7445"
             - name: TS_AUTHKEY
               valueFrom:
                 secretKeyRef:

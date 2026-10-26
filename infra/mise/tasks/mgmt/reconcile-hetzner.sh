@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
-#MISE description="Reconcile the management cluster's Hetzner Cloud network and API load balancer with infra/k8s/mgmt/talos/hetzner.yaml. Prints the changes; pass --apply to make them."
+#MISE description="Reconcile the management cluster's Hetzner Cloud servers, network and API load balancer with infra/k8s/mgmt/talos/hetzner.yaml. Prints the changes; pass --apply to make them."
 #USAGE flag "--apply" help="Make the changes instead of only printing them"
 
 # Needs HCLOUD_TOKEN for project tuist-mgmt.
 #
-# Reconciles: the network and its subnet, each node's attachment to the
-# network at its declared private IP, a primary IPv4 named after the load
+# Reconciles: the network and its subnet, the spread placement group, a
+# server for each node (created from the Talos snapshot when missing), each
+# node's attachment to the network at its declared private IP, delete and
+# rebuild protection on each server, a primary IPv4 named after the load
 # balancer (so the endpoint address survives a load balancer recreate), the
 # load balancer's type, network attachment, TCP services and server targets,
 # and delete protection on the network, primary IP and load balancer.
+#
+# A new server is created powered off, attached to the network at its
+# private IP and then powered on, so Talos sees the private interface from
+# the first boot. It gets no user data: Talos waits in maintenance mode until
+# reconcile-talos.sh applies the control-plane machine config, which holds
+# the cluster's private keys and must not sit in Hetzner's metadata service,
+# where every pod on the node could read it.
 #
 # The only thing it removes is a load balancer target whose server is not
 # listed under `nodes`. It refuses to leave the load balancer without a
@@ -44,7 +53,11 @@ yq -e '
   (.loadBalancer.type | tag == "!!str") and
   (.loadBalancer.usePrivateIP | tag == "!!bool") and
   (.loadBalancer.ports | (tag == "!!seq" and length > 0 and all_c(tag == "!!int"))) and
-  (.nodes | (tag == "!!seq" and length > 0 and all_c((.name | tag == "!!str") and (.privateIP | tag == "!!str"))))
+  (.server.type | tag == "!!str") and
+  (.server.image | tag == "!!str") and
+  (.server.firewall | tag == "!!str") and
+  (.server.placementGroup | tag == "!!str") and
+  (.nodes | (tag == "!!seq" and length > 0 and all_c((.name | tag == "!!str") and (.privateIP | tag == "!!str") and ((.location // "") | tag == "!!str"))))
 ' "$SPEC" >/dev/null || fail "$SPEC is missing a field or has one of the wrong type"
 
 spec() { yq -r "$1" "$SPEC"; }
@@ -64,8 +77,14 @@ lb_name="$(spec .loadBalancer.name)"
 lb_type="$(spec .loadBalancer.type)"
 use_private_ip="$(spec .loadBalancer.usePrivateIP)"
 read -r -a lb_ports <<<"$(spec '.loadBalancer.ports | join(" ")')"
+server_type="$(spec .server.type)"
+server_image="$(spec .server.image)"
+firewall_name="$(spec .server.firewall)"
+placement_group_name="$(spec .server.placementGroup)"
 read -r -a nodes <<<"$(spec '[.nodes[].name] | join(" ")')"
 read -r -a node_ips <<<"$(spec '[.nodes[].privateIP] | join(" ")')"
+# shellcheck disable=SC2016 # $s is a yq variable.
+read -r -a node_locations <<<"$(spec '. as $s | [.nodes[] | .location // $s.location] | join(" ")')"
 
 network_zone="$(hcloud location describe "$location" -o json | jq -r .network_zone)"
 
@@ -88,17 +107,53 @@ if [[ -z "$network" ]] || ! jq -e --arg r "$subnet_range" 'any(.subnets[]; .ip_r
 fi
 network_id="$(jq -r '.id // empty' <<<"${network:-null}")"
 
+echo "==> Placement group $placement_group_name"
+placement_group="$(hcloud placement-group list -o json | jq --arg n "$placement_group_name" '.[] | select(.name == $n)')"
+if [[ -z "$placement_group" ]]; then
+  change placement-group create --name "$placement_group_name" --type spread --label "$LABEL"
+elif [[ "$(jq -r .type <<<"$placement_group")" != "spread" ]]; then
+  fail "placement group $placement_group_name is of type $(jq -r .type <<<"$placement_group"), the spec needs spread"
+fi
+
 echo "==> Servers"
+image_id="$(hcloud image list --type snapshot -o json |
+  jq -r --arg d "$server_image" '[.[] | select(.description == $d)] | if length == 1 then .[0].id else empty end')"
+hcloud firewall describe "$firewall_name" >/dev/null 2>&1 || fail "firewall $firewall_name does not exist"
+
+# One server JSON per node, empty for a server a dry run would create.
+servers=()
 for i in "${!nodes[@]}"; do
   node="${nodes[$i]}"
   node_ip="${node_ips[$i]}"
-  attached_ip="$(hcloud server describe "$node" -o json |
-    jq -r --argjson id "${network_id:-0}" '.private_net[]? | select(.network == $id) | .ip')"
+  node_location="${node_locations[$i]}"
+  server="$(hcloud server list -o json | jq --arg n "$node" '.[] | select(.name == $n)')"
+
+  if [[ -z "$server" ]]; then
+    [[ -n "$image_id" ]] || fail "creating server $node needs exactly one snapshot described $server_image"
+    change server create --name "$node" --type "$server_type" --image "$image_id" --location "$node_location" \
+      --firewall "$firewall_name" --placement-group "$placement_group_name" \
+      --label "$LABEL" --label purpose=mgmt-cluster --start-after-create=false
+    change server attach-to-network "$node" --network "$network_name" --ip "$node_ip"
+    change server enable-protection "$node" delete rebuild
+    change server poweron "$node"
+    if $apply; then server="$(hcloud server describe "$node" -o json)"; fi
+    servers+=("$server")
+    continue
+  fi
+
+  if [[ "$(jq -r .location.name <<<"$server")" != "$node_location" ]]; then
+    fail "server $node is in $(jq -r .location.name <<<"$server"), the spec says $node_location; Hetzner cannot move it"
+  fi
+  attached_ip="$(jq -r --argjson id "${network_id:-0}" '.private_net[]? | select(.network == $id) | .ip' <<<"$server")"
   if [[ -z "$attached_ip" ]]; then
     change server attach-to-network "$node" --network "$network_name" --ip "$node_ip"
   elif [[ "$attached_ip" != "$node_ip" ]]; then
     fail "server $node is attached to network $network_name as $attached_ip, the spec says $node_ip; Hetzner cannot change it in place"
   fi
+  if [[ "$(jq -r '.protection.delete and .protection.rebuild' <<<"$server")" != "true" ]]; then
+    change server enable-protection "$node" delete rebuild
+  fi
+  servers+=("$(hcloud server describe "$node" -o json)")
 done
 
 echo "==> Primary IPv4 $lb_name"
@@ -144,8 +199,13 @@ done
 
 target_count="$(jq '[.targets[]? | select(.type == "server")] | length' <<<"${lb:-null}")"
 wanted_ids=()
-for node in "${nodes[@]}"; do
-  server="$(hcloud server describe "$node" -o json)"
+for i in "${!nodes[@]}"; do
+  node="${nodes[$i]}"
+  server="${servers[$i]}"
+  if [[ -z "$server" ]]; then
+    change load-balancer add-target "$lb_name" --server "$node" --use-private-ip="$use_private_ip"
+    continue
+  fi
   server_id="$(jq -r .id <<<"$server")"
   wanted_ids+=("$server_id")
   target="$(jq --argjson id "$server_id" '.targets[]? | select(.type == "server" and .server.id == $id)' <<<"${lb:-null}")"

@@ -231,6 +231,15 @@ job details warn when a failed job's copy reached 99% of its volume.
 Readers need `runners_read`; clearing requires `account_update`
 and a confirmation. Every browser query and mutation is account-scoped.
 
+Operators clear a volume from a server Pod with the same semantics:
+
+```bash
+kubectl exec deploy/tuist-tuist-server -- bin/tuist eval 'Tuist.Release.clear_runner_cache_volume(<account id>, "<volume id>")'
+```
+
+It starts the repository and an insert-only Oban instance, so the prune of the
+saved master is still scheduled, and raises when the account has no such volume.
+
 Clearing invalidates immediately. Physical removal waits for running jobs,
 responding storage agents and eviction of local master replicas. History remains available.
 Account deletion cascades metadata; agents receive a delete decision for their

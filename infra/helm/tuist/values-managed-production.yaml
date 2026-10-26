@@ -1464,6 +1464,20 @@ rackFleet:
       power:
         pdu: ber1-pdu-b
         outlet: "8"
+    # larch's ten M5 Pro minis (rack r1), five per chain: a01 to a05 on chain A
+    # (larch-tor-a and larch-pdu-a), b01 to b05 on chain B
+    # (larch-tor-b and larch-pdu-b). None is declared until their serials
+    # and MACs are read off the box labels. Each takes the larch block in
+    # `sites` below for its Node's fleet and SSH ingress. For example:
+    # - name: larch-runner-a01
+    #   site: larch
+    #   serial: <from the box label>
+    #   address: 10.20.0.101
+    #   rack: r1
+    #   shelf: <tray>
+    #   power:
+    #     pdu: larch-pdu-a
+    #     outlet: "1"
   machine:
     # Two 8 vCPU / 24 GB guests or one 16 vCPU / 48 GB guest (the rack's
     # `guestShapes` below), both dimensions binding at the same count, and 2 of
@@ -1564,6 +1578,20 @@ rackFleet:
           enabled: true
           minWarmPoolFloor: 0
           maxReplicas: 16
+  # The fleet's sites other than ber1 (`site`). Each site's minis register
+  # with its own fleet, tuist-tuist-rack-fleet-<site>, so its catalog pools
+  # (tuist-runner-pool-macos-<site>-<xcode>) select only them.
+  sites:
+    # Rack 2 (infra/rack-switch-fleet/sites/larch.json). Its runners stay off
+    # until its minis are declared and its internet port is up.
+    larch:
+      # larch-edge-a and larch-edge-b on the machines segment
+      # (management.edge.machines in larch.json).
+      sshIngressAllowCIDRs:
+        - 10.20.0.2/32
+        - 10.20.0.3/32
+      runners:
+        enabled: false
   sshExternalSecret:
     enabled: true
     item: BER1_FLEET_SSH
@@ -1607,6 +1635,26 @@ rackLinuxFleet:
         node.cluster.x-k8s.io/pool: rack-storage-ber1
       nodeTaints:
         - {key: tuist.dev/rack-storage, value: ber1, effect: NoSchedule}
+  # Rack 2 (infra/rack-switch-fleet/sites/larch.json). Its hosts set `site:
+  # larch`; none is declared until primeLine's unit sheets give their UUIDs and
+  # TPM check codes.
+  sites:
+    larch:
+      roles:
+        edge:
+          tailnetTags: [tag:tuist-rack-edge]
+          nodeLabels:
+            tuist.dev/rack-edge: larch
+          nodeTaints:
+            - {key: tuist.dev/rack-edge, value: larch, effect: NoSchedule}
+        storage:
+          tailnetTags: [tag:tuist-rack-node]
+          nodeLabels:
+            tuist.dev/rack-storage: larch
+            # The pool a larch Kura region would place its instances in.
+            node.cluster.x-k8s.io/pool: rack-storage-larch
+          nodeTaints:
+            - {key: tuist.dev/rack-storage, value: larch, effect: NoSchedule}
   hosts:
     # The two edges, each netbooting from the other. ber1-edge-a is preferred.
     # It was netbooted rather than announced by its stick, so its boot MAC (its

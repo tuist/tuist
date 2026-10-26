@@ -8,6 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 )
@@ -192,5 +193,52 @@ func TestReconcile_UnscheduledIdlePodSurvivesCordonReap(t *testing.T) {
 	got := &corev1.Pod{}
 	if err := c.Get(context.Background(), nn(idle.Namespace, idle.Name), got); err != nil {
 		t.Fatalf("unscheduled idle Pod must not be reaped by the cordon path: %v", err)
+	}
+}
+
+func powerHeldNode(name string) *corev1.Node {
+	node := schedulableNode(name)
+	node.Spec.Taints = []corev1.Taint{{Key: powerBudgetTaintKey, Value: "chain", Effect: corev1.TaintEffectNoSchedule}}
+	return node
+}
+
+// TestReconcile_ReapsIdlePodOnPowerHeldNodeAndKeepsItsJob: a rack mini whose
+// chain is over its power budget starts no more jobs. Its idle runner would
+// take the next one, so it is retired; the runner already running a job
+// finishes.
+func TestReconcile_ReapsIdlePodOnPowerHeldNodeAndKeepsItsJob(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newPool("p", "img", 2)
+	idle := podOnNode(newRunnerPod("p-runner-idle", "img", corev1.PodPending, "p"), "node-a")
+	busy := podOnNode(newRunnerPod("p-runner-busy", "img", corev1.PodRunning, "p"), "node-a")
+	busy.Labels["tuist.dev/runner-pool-owner"] = "acme"
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, idle, busy, powerHeldNode("node-a")).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if err := c.Get(context.Background(), nn(idle.Namespace, idle.Name), &corev1.Pod{}); err == nil {
+		t.Fatal("idle Pod on a power-held node survived")
+	}
+	if err := c.Get(context.Background(), nn(busy.Namespace, busy.Name), &corev1.Pod{}); err != nil {
+		t.Fatalf("the job on a power-held node must finish: %v", err)
+	}
+}
+
+func TestNodeFilterReason_PowerHeldNodeIsNoCapacity(t *testing.T) {
+	if reason := nodeFilterReason(powerHeldNode("node-a")); reason != nodeFilteredPowerBudget {
+		t.Fatalf("nodeFilterReason = %q, want %q", reason, nodeFilteredPowerBudget)
+	}
+	if !drainingNodePredicate().Update(event.UpdateEvent{ObjectOld: schedulableNode("node-a"), ObjectNew: powerHeldNode("node-a")}) {
+		t.Fatal("a Node newly held by its power budget does not wake the pools")
 	}
 }

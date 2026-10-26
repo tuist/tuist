@@ -6837,7 +6837,9 @@ label_replace(label_replace(
 
 While an ATS is not observed its redundancy and active-source series are
 absent, so the two power rules above cannot fire for it. The RackATS or
-RackPDU `Ready` reason says why.
+RackPDU `Ready` reason says why. A standalone RackATS or RackPDU, as a planned
+one at a site that is not racked yet, exports no series, so this rule does not
+fire for it.
 
 `capt_rackats_ready` has no rule of its own: `capt_rackats_observed` is 1 only
 while the RackATS is Ready, so the two go to 0 together.
@@ -7080,6 +7082,14 @@ site definition changes. If the draw goes over the contracted power by up to
 10%, the facility sends a written notice and gives 7 working days to fix it.
 Above 10%, it may switch off the feeders. Firing at 80% leaves room to move
 load or order more power before either happens.
+
+The alert warns before the RackSite's power budget acts. That budget holds
+every Mac mini at the site against new runner VMs once the transfer switches
+together reach the contracted power less `power_budget.other_watts`, and holds
+a chain's minis at `power_budget.chain_amps`. It is in "Power-aware admission"
+in `infra/cluster-api-provider-tuist/AGENTS.md`. While the alert fires,
+`capt_racksite_site_held` and `capt_racksite_chain_held` say whether admission
+is already holding work back.
 
 The draw is every PDU outlet's active power, plus the output of each transfer
 switch that feeds no reporting PDU. At BER1 that switch is `ber1-ats-1`, which

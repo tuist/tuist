@@ -1918,6 +1918,29 @@ rackFleet:
     #       minWarmPoolFloor: 0
     #       maxReplicas: 9
 
+  # The fleet's other sites, keyed by site name. `site` above is the default
+  # site, and everything else in this block applies to it. A host whose `site`
+  # is a key here belongs to that site:
+  # - Its Node carries the site's own fleet (`nodeFleet`, by default
+  #   `<fleet name>-<site>`) instead of the default site's, so each site's
+  #   runner pools select only that site's minis. The Machine keeps the
+  #   operator's fleet, its name and its credentials, as for any `nodeFleet`.
+  # - Its SSH ingress defaults to the site's `sshIngressAllowCIDRs`, the site's
+  #   edges, never the default site's.
+  # - `runners` is the site's runner catalog, the same keys as `runners`
+  #   above, rendered as `<release>-runner-pool-macos-<site>-<xcode-dashes>`.
+  #   Keep it disabled until the site has hosts.
+  # - `vmCacheGatewayCIDRs` joins the operator's fleet-wide list.
+  # A host naming a site that is neither `site` nor a key here fails the
+  # render.
+  sites: {}
+  #   larch:
+  #     nodeFleet: ""                  # default: <fleet name>-larch
+  #     sshIngressAllowCIDRs: [10.20.0.2/32, 10.20.0.3/32]
+  #     vmCacheGatewayCIDRs: []
+  #     runners:
+  #       enabled: false
+
   # The fleet SSH key + the service account's password, synced from 1Password.
   # NOT optional: the controller never mints a replacement, because a credential
   # generated in-cluster is one no MDM-provisioned host has heard of.
@@ -1998,6 +2021,19 @@ rackLinuxFleet:
   #     nodeTaints:
   #       - {key: tuist.dev/rack-edge, value: ber1, effect: NoSchedule}
   roles: {}
+
+  # A role's configuration for the hosts of one site, in place of `roles`
+  # for that role, when the env's cluster holds more than one rack: their
+  # labels and taints name the site.
+  #   larch:
+  #     roles:
+  #       edge:
+  #         tailnetTags: [tag:tuist-rack-edge]
+  #         nodeLabels:
+  #           tuist.dev/rack-edge: larch
+  #         nodeTaints:
+  #           - {key: tuist.dev/rack-edge, value: larch, effect: NoSchedule}
+  sites: {}
 
   # One entry per box, by the SMBIOS UUID its install stick announced
   # (`kubectl get rlc`). The rest is optional:
