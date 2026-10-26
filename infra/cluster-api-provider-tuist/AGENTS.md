@@ -1,5 +1,13 @@
 # cluster-api-provider-tuist
 
+- OVH runner public egress is opt-in through `capi.ovhRunnerEgress`. Keep
+  Machine-UID address reservations until policy withdrawal and confirmed host
+  cleanup, before deleting SSH credentials or requesting reinstall. Never move
+  an existing cache vRack NIC automatically. All environments remain disabled
+  pending block delivery and staging qualification; the observed staging cache
+  network conflict and rollback steps are in
+  [OVH runner egress](docs/ovh-runner-egress.md).
+
 - OVH cache vRack reconciliation is additive on the Ready path, scoped by the
   environment ConfigMap and cache taint. Persist address reservations across
   Machine deletion, preserve main-table unreachable guards for existing Machines,

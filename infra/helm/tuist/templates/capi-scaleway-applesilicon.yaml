@@ -441,6 +441,7 @@ spec:
             {{- if .Values.capi.ovhPrivateNetwork.enabled }}
             - --ovh-private-network-config={{ include "tuist.componentName" (dict "root" . "component" "ovh-private-network") }}
             {{- end }}
+            - --ovh-runner-egress-config={{ include "tuist.componentName" (dict "root" . "component" "ovh-runner-egress") }}
             {{- if and .Values.rackLinuxFleet.enabled .Values.rackLinuxFleet.tailscale.externalSecret.enabled }}
             - --rack-linux-tailscale-secret-name={{ include "tuist.rackLinuxFleetName" . }}-tailscale
             {{- end }}
