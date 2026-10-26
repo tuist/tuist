@@ -457,6 +457,7 @@ components:
             - mix
             - bazel
             - cargo
+            - once
           type: string
           x-struct:
           x-validate:
@@ -3264,6 +3265,11 @@ components:
         reference:
           description: A unique shard plan reference, typically derived from CI environment.
           type: string
+          x-struct:
+          x-validate:
+        reporting_version:
+          description: 'The persisted reporting contract: 0 for legacy reports, 1 for immutable attempt-ordered reports.'
+          type: integer
           x-struct:
           x-validate:
         shard_count:
@@ -17797,6 +17803,7 @@ paths:
                     - mix
                     - bazel
                     - cargo
+                    - once
                   type: string
                   x-struct:
                   x-validate:
