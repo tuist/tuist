@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/tuist/tuist/infra/kura-volumes-csi/internal/driver"
+	"github.com/tuist/tuist/infra/kura-volumes-csi/internal/nodecapacity"
 	"github.com/tuist/tuist/infra/kura-volumes-csi/internal/volumekeys"
 )
 
@@ -38,6 +39,7 @@ func main() {
 	keyServiceURL := flag.String("key-service-url", "", "base URL of the Tuist server that serves volume keys")
 	tokenPath := flag.String("token-path", "/var/run/secrets/kura-volume-keys/token", "projected service account token presented to the key service")
 	logLevel := flag.String("log-level", "info", "debug, info, warn or error")
+	advertiseInterval := flag.Duration("advertise-interval", time.Minute, "how often the node's Kura disk capacity is advertised; 0 disables it")
 	flag.Parse()
 
 	var level slog.Level
@@ -46,13 +48,13 @@ func main() {
 		os.Exit(2)
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
-	if err := run(logger, *endpoint, *nodeID, *stateDir, *reserveBytes, *volumeGroup, *keyServiceURL, *tokenPath); err != nil {
+	if err := run(logger, *endpoint, *nodeID, *stateDir, *reserveBytes, *volumeGroup, *keyServiceURL, *tokenPath, *advertiseInterval); err != nil {
 		logger.Error("kura-volumes-csi failed", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(logger *slog.Logger, endpoint, nodeID, stateDir string, reserveBytes int64, volumeGroup, keyServiceURL, tokenPath string) error {
+func run(logger *slog.Logger, endpoint, nodeID, stateDir string, reserveBytes int64, volumeGroup, keyServiceURL, tokenPath string, advertiseInterval time.Duration) error {
 	socket, err := socketPath(endpoint)
 	if err != nil {
 		return err
@@ -92,6 +94,14 @@ func run(logger *slog.Logger, endpoint, nodeID, stateDir string, reserveBytes in
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
+	if advertiseInterval > 0 {
+		patcher, err := nodecapacity.NewInClusterPatcher()
+		if err != nil {
+			return err
+		}
+		advertiser := &nodecapacity.Advertiser{Node: nodeID, Measure: d.KuraDiskCapacity, Patcher: patcher, Interval: advertiseInterval, Logger: logger}
+		go advertiser.Run(ctx)
+	}
 	go func() {
 		<-ctx.Done()
 		logger.Info("shutting down")

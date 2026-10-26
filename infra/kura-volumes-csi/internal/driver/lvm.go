@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -136,4 +137,40 @@ func wipeDeviceHeader(path string, size int64) error {
 		return err
 	}
 	return f.Close()
+}
+
+// KuraDiskCapacity is the room the volume group holds for Kura volumes: its
+// size less every logical volume that is not one, such as the node's /data.
+// It is false when the driver has no volume group or the node lacks it.
+func (d *Driver) KuraDiskCapacity(ctx context.Context) (int64, bool, error) {
+	if d.volumeGroup == "" {
+		return 0, false, nil
+	}
+	out, err := d.lvm(ctx, "vgs", "--noheadings", "--nosuffix", "--units", "b", "-o", "vg_size", d.volumeGroup)
+	if code, ok := exitCode(err); ok && code == lvmNotFound {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	capacity, err := strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64)
+	if err != nil {
+		return 0, false, fmt.Errorf("parse size of %s: %q", d.volumeGroup, out)
+	}
+	out, err = d.lvm(ctx, "lvs", "--noheadings", "--nosuffix", "--units", "b", "--separator", ",", "-o", "lv_name,lv_size", d.volumeGroup)
+	if err != nil {
+		return 0, false, err
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		name, size, found := strings.Cut(strings.TrimSpace(line), ",")
+		if !found || volumeIDPattern.MatchString(name) {
+			continue
+		}
+		bytes, err := strconv.ParseInt(size, 10, 64)
+		if err != nil {
+			return 0, false, fmt.Errorf("parse size of %s/%s: %q", d.volumeGroup, name, size)
+		}
+		capacity -= bytes
+	}
+	return max(capacity, 0), true, nil
 }

@@ -265,12 +265,25 @@ func (d *Driver) mountAt(path string) (*Mount, error) {
 	return found, nil
 }
 
+// isVolumeMount reports whether m is the volume's filesystem: its dm-crypt
+// mapping, or for an unencrypted volume its logical volume.
 func (d *Driver) isVolumeMount(m *Mount, v volume) bool {
 	if m.Source == v.mapperPath() {
 		return true
 	}
-	number, err := d.host.DeviceNumber(v.mapperPath())
-	return err == nil && number == m.MajorMinor
+	for _, device := range d.volumeDevices(v) {
+		if number, err := d.host.DeviceNumber(device); err == nil && number == m.MajorMinor {
+			return true
+		}
+	}
+	return false
+}
+
+func (d *Driver) volumeDevices(v volume) []string {
+	if d.volumeGroup == "" {
+		return []string{v.mapperPath()}
+	}
+	return []string{v.mapperPath(), d.lvPath(v)}
 }
 
 // volumeMounted reports whether the volume's filesystem is mounted at path,

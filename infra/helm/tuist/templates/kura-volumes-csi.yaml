@@ -98,6 +98,11 @@ rules:
   - apiGroups: [""]
     resources: [nodes]
     verbs: [get, list, watch]
+  # The node plugin advertises its volume group's room for Kura volumes as
+  # the tuist.dev/kura-disk extended resource.
+  - apiGroups: [""]
+    resources: [nodes/status]
+    verbs: [patch]
   - apiGroups: [storage.k8s.io]
     resources: [volumeattachments]
     verbs: [get, list, watch]
@@ -153,6 +158,25 @@ metadata:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: kura-volumes-csi
 provisioner: {{ $driver }}
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: false
+---
+# Unencrypted Kura volumes as plain XFS logical volumes in the node's volume
+# group. Only nodes with the group can hold one, and the region's Kura pods
+# request tuist.dev/kura-disk, which only those nodes advertise.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  annotations:
+    helm.sh/resource-policy: keep
+  name: kura-lvm-nvme
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-volumes-csi
+provisioner: {{ $driver }}
+parameters:
+  encryption: none
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: false

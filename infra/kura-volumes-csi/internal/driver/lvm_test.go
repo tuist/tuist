@@ -232,3 +232,147 @@ func TestNewRejectsInvalidVolumeGroup(t *testing.T) {
 		}
 	}
 }
+
+func plainCreateRequest(required int64) *csi.CreateVolumeRequest {
+	r := createRequest(required)
+	r.Parameters = map[string]string{encryptionParameter: encryptionNone}
+	return r
+}
+
+func (e *env) plainStageRequest() *csi.NodeStageVolumeRequest {
+	r := e.stageRequest()
+	r.VolumeContext = map[string]string{encryptionParameter: encryptionNone}
+	return r
+}
+
+func TestCreatePlainVolume(t *testing.T) {
+	e := newLVMEnv(t)
+	e.runner.expect(
+		e.lvsCall(-1),
+		vgsCall(1<<30),
+		call{cmd: lvmCmd("lvcreate", "--yes --wipesignatures y --zero y --size 1048576b --name "+testVolumeID+" "+testVolumeGroup)},
+	)
+	resp, err := e.d.CreateVolume(context.Background(), plainCreateRequest(mib))
+	requireCode(t, err, codes.OK)
+	if got := resp.GetVolume().GetVolumeContext()[encryptionParameter]; got != encryptionNone {
+		t.Errorf("volume context encryption = %q, want %q", got, encryptionNone)
+	}
+}
+
+func TestCreatePlainVolumeNeedsTheVolumeGroup(t *testing.T) {
+	e := newLVMEnv(t)
+	e.runner.expect(e.lvsCall(-1), vgsCall(-1))
+	_, err := e.d.CreateVolume(context.Background(), plainCreateRequest(mib))
+	requireCode(t, err, codes.ResourceExhausted)
+	if e.exists(e.v.image) || e.exists(e.v.temp) {
+		t.Error("a backing file was created for an unencrypted volume")
+	}
+}
+
+func TestCreateVolumeRejectsUnknownEncryption(t *testing.T) {
+	e := newLVMEnv(t)
+	r := createRequest(mib)
+	r.Parameters = map[string]string{encryptionParameter: "aes"}
+	_, err := e.d.CreateVolume(context.Background(), r)
+	requireCode(t, err, codes.InvalidArgument)
+}
+
+func TestCreateEncryptedVolumeReportsItsEncryption(t *testing.T) {
+	e := newLVMEnv(t)
+	e.runner.expect(e.lvsCall(2 * mib))
+	resp, err := e.d.CreateVolume(context.Background(), createRequest(mib))
+	requireCode(t, err, codes.OK)
+	if got := resp.GetVolume().GetVolumeContext()[encryptionParameter]; got != encryptionLUKS2 {
+		t.Errorf("volume context encryption = %q, want %q", got, encryptionLUKS2)
+	}
+}
+
+func TestNodeStagePlainVolume(t *testing.T) {
+	tests := []struct {
+		name     string
+		marker   bool
+		luks     bool
+		wantCode codes.Code
+		wantMkfs bool
+	}{
+		{name: "formats a new volume without a key", marker: true, wantMkfs: true},
+		{name: "mounts a formatted volume without a key"},
+		{name: "refuses a LUKS volume", luks: true, wantCode: codes.FailedPrecondition},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := newLVMEnv(t)
+			device := e.lvPath()
+			if tt.marker {
+				e.writeMarker()
+			}
+			e.runner.expect(e.lvsCall(2 * mib))
+			e.runner.expect(e.activateCalls()...)
+			if tt.wantMkfs {
+				e.runner.expect(call{cmd: "mkfs.xfs -q -K -f " + device})
+			} else {
+				isLuks := call{cmd: "cryptsetup isLuks --type luks2 " + device}
+				if !tt.luks {
+					isLuks.err = exitWith(1)
+				}
+				e.runner.expect(isLuks)
+			}
+			if tt.wantCode == codes.OK {
+				e.runner.expect(call{cmd: "mount -t xfs -o nodev,nosuid,noatime " + device + " " + e.staging})
+			}
+			_, err := e.d.NodeStageVolume(context.Background(), e.plainStageRequest())
+			requireCode(t, err, tt.wantCode)
+			if len(e.keys.requested) != 0 {
+				t.Errorf("fetched a key for an unencrypted volume")
+			}
+			if tt.marker && e.exists(e.v.marker) {
+				t.Error("unformatted marker survived the format")
+			}
+		})
+	}
+}
+
+func TestNodeStagePlainVolumeRefusesABackingFile(t *testing.T) {
+	e := newLVMEnv(t)
+	e.writeImage(mib)
+	e.runner.expect(e.lvsCall(-1))
+	_, err := e.d.NodeStageVolume(context.Background(), e.plainStageRequest())
+	requireCode(t, err, codes.FailedPrecondition)
+}
+
+func TestNodePublishRecognisesAPlainVolumeStaging(t *testing.T) {
+	e := newLVMEnv(t)
+	e.host.devices[e.lvPath()] = "252:9"
+	e.mounts.add(Mount{MajorMinor: "252:9", MountPoint: e.staging, FSType: "xfs", Source: "/dev/mapper/kuravg-pvc--0b5a7f7e"})
+	target := filepath.Join(e.dir, "target")
+	e.runner.expect(call{cmd: "mount -o bind,nodev,nosuid " + e.staging + " " + target})
+	_, err := e.d.NodePublishVolume(context.Background(), &csi.NodePublishVolumeRequest{
+		VolumeId: testVolumeID, StagingTargetPath: e.staging, TargetPath: target, VolumeCapability: rwo,
+	})
+	requireCode(t, err, codes.OK)
+}
+
+func TestKuraDiskCapacityExcludesOtherVolumes(t *testing.T) {
+	e := newLVMEnv(t)
+	e.runner.expect(
+		call{cmd: lvmCmd("vgs", "--noheadings --nosuffix --units b -o vg_size "+testVolumeGroup), out: "  1000000\n"},
+		call{cmd: lvmCmd("lvs", "--noheadings --nosuffix --units b --separator , -o lv_name,lv_size "+testVolumeGroup),
+			out: "  data,300000\n  " + testVolumeID + ",200000\n"},
+	)
+	capacity, ok, err := e.d.KuraDiskCapacity(context.Background())
+	if err != nil || !ok {
+		t.Fatalf("ok = %v, err = %v", ok, err)
+	}
+	// Kura's own volumes stay counted: they are what the room is for.
+	if capacity != 700000 {
+		t.Errorf("capacity = %d, want 700000", capacity)
+	}
+}
+
+func TestKuraDiskCapacityWithoutTheVolumeGroup(t *testing.T) {
+	e := newLVMEnv(t)
+	e.runner.expect(call{cmd: lvmCmd("vgs", "--noheadings --nosuffix --units b -o vg_size "+testVolumeGroup), err: exitWith(lvmNotFound)})
+	if _, ok, err := e.d.KuraDiskCapacity(context.Background()); ok || err != nil {
+		t.Fatalf("ok = %v, err = %v; want false, nil", ok, err)
+	}
+}
