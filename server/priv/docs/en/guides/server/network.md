@@ -17,7 +17,7 @@ Allowlist the Tuist IP range and the server addresses below. If your workflows r
 
 ### Tuist IP range {#tuist-ip-range}
 
-Tuist operates its own network under [AS218377](https://stat.ripe.net/AS218377), registered to Tuist GmbH in the RIPE Database. macOS jobs on Tuist Runners hosted in Tuist's own racks already reach the internet from this range, and the rest of Tuist's traffic is moving to it. Add it to your allowlist so the move requires no changes on your side.
+Tuist operates its own network under [AS218377](https://stat.ripe.net/AS218377), registered to Tuist GmbH in the RIPE Database. macOS jobs on Tuist Runners reach the internet from this range.
 
 | IP version | CIDR notation |
 |---|---|
@@ -45,26 +45,11 @@ Tuist only connects to your infrastructure over HTTPS, so you only need to allow
 
 ### Tuist Runners {#tuist-runners}
 
-Jobs that run on <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> reach the internet directly from the machine they run on, not through the addresses above. If a job needs to reach infrastructure that restricts traffic by IP address, for example to check out a repository from a GitHub organization with an IP allow list, also allowlist the addresses for every platform your workflows run on.
+Jobs that run on <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link> do not use the [server IP addresses](#server-ip-addresses). If a job needs to reach infrastructure that restricts traffic by IP address, for example to check out a repository from a GitHub organization with an IP allow list, also allowlist the addresses for every platform your workflows run on.
 
 #### macOS {#tuist-runners-macos}
 
-macOS jobs on Tuist's own racks reach the internet from the [Tuist IP range](#tuist-ip-range). Jobs on other macOS hosts use the following addresses.
-
-| IP address | CIDR notation |
-|---|---|
-| 62.210.150.71 | `62.210.150.71/32` |
-| 62.210.150.138 | `62.210.150.138/32` |
-| 62.210.150.147 | `62.210.150.147/32` |
-| 62.210.150.178 | `62.210.150.178/32` |
-| 62.210.193.23 | `62.210.193.23/32` |
-| 62.210.193.35 | `62.210.193.35/32` |
-| 62.210.193.45 | `62.210.193.45/32` |
-| 62.210.194.9 | `62.210.194.9/32` |
-| 62.210.194.25 | `62.210.194.25/32` |
-| 62.210.194.125 | `62.210.194.125/32` |
-| 62.210.194.173 | `62.210.194.173/32` |
-| 62.210.195.116 | `62.210.195.116/32` |
+macOS jobs reach the internet from the [Tuist IP range](#tuist-ip-range). There are no per-machine addresses to allowlist.
 
 #### Linux {#tuist-runners-linux}
 
@@ -82,7 +67,7 @@ macOS jobs on Tuist's own racks reach the internet from the [Tuist IP range](#tu
 | 217.182.193.152 | `217.182.193.152/32` |
 
 > [!NOTE]
-> These lists change when we add machines to the fleets. Runners are moving to the [Tuist IP range](#tuist-ip-range), after which these per-machine addresses are no longer needed.
+> This list changes when we add machines to the fleet.
 
 <!--
 MAINTAINERS: the server table is the customer-facing contract for the reserved
@@ -93,9 +78,10 @@ Floating IPs in the tuist-workloads project, add their /32s to BOTH places
 *before* they are ever used as egress.
 
 The rack's Mac minis leave from `management.edge.wan.egress.prefix` in
-infra/rack-switch-fleet/sites/ber1.json, inside the Tuist IP range, so the
-macOS table lists only the rented hosts. A new rack site has to egress from
-the range too, or its address has to be added to the table.
+infra/rack-switch-fleet/sites/ber1.json, inside the Tuist IP range, and customer
+macOS jobs run only on the rack, so macOS has no address table. Any new macOS
+host that takes customer jobs (a new rack site, or rented machines) has to egress
+from the range, or a macOS table has to come back first.
 
 The Tuist IP range is registered to ORG-TG278-RIPE (LIR de.tuist) and announced
 from AS218377. Only list a prefix here once it is registered to Tuist GmbH in
