@@ -262,6 +262,7 @@ jobs:
         if: ${{ !inputs.stable_cache_dns && !inputs.compare_private_cache }}
         run: bash infra/linux-runner-image/gradle-cache-smoke.sh
       - name: Compare private and remote Gradle caches
+        id: benchmark
         if: ${{ inputs.compare_private_cache }}
         run: |
           test "$TUIST_URL" = https://staging.tuist.dev
@@ -276,7 +277,13 @@ jobs:
           name: gradle-container-cache-logs
           path: |
             ${{ runner.temp }}/gradle-cache-smoke/*.log
-            ${{ runner.temp }}/gradle-pn-benchmark/*.log
-            ${{ runner.temp }}/gradle-pn-benchmark/*.csv
-            ${{ runner.temp }}/gradle-pn-benchmark/environment.txt
           if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && inputs.compare_private_cache && steps.benchmark.outputs.logs != '' }}
+        with:
+          name: gradle-pn-benchmark-logs
+          path: |
+            ${{ steps.benchmark.outputs.logs }}/*.log
+            ${{ steps.benchmark.outputs.logs }}/*.csv
+            ${{ steps.benchmark.outputs.logs }}/environment.txt
+          if-no-files-found: error

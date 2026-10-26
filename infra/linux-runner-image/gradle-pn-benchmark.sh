@@ -14,6 +14,7 @@ pn_endpoint="$TUIST_CACHE_ENDPOINT"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fixture="$RUNNER_TEMP/gradle-pn-benchmark"
 mkdir -p "$fixture"
+printf 'logs=%s\n' "$fixture" >> "${GITHUB_OUTPUT:?}"
 cd "$fixture"
 export GRADLE_USER_HOME="$fixture/gradle-home"
 printf 'project = "%s"\n' "$SMOKE_PROJECT" > tuist.toml
@@ -64,7 +65,8 @@ for mode in wan pn; do
   curl --fail --silent --show-error --max-time 15 "${TUIST_CACHE_ENDPOINT}/up"
   "$repo_root/gradle/gradlew" help --daemon --no-configuration-cache --console=plain > "warmup-$mode.log" 2>&1
 done
-for size in 1 128; do
+# Stay below Kura's 100 MiB Gradle artifact limit, including archive overhead.
+for size in 1 64; do
   export BENCH_SIZE_MIB="$size"
   for round in 1 2 3 4 5; do
     if (( round % 2 )); then modes='wan pn'; else modes='pn wan'; fi

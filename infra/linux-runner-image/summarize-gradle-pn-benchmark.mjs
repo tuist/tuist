@@ -8,7 +8,7 @@ const rows = lines.map((line) => {
   const [mode, size, round, phase, wall, task, hash] = line.split(',');
   assert(['pn', 'wan'].includes(mode));
   assert(['cold', 'warm'].includes(phase));
-  assert([1, 128].includes(Number(size)));
+  assert([1, 64].includes(Number(size)));
   assert(Number(round) >= 1 && Number(round) <= 5);
   assert(Number(wall) > 0 && Number(task) >= 0);
   assert.match(hash, /^[a-f0-9]{64}$/);
@@ -18,7 +18,7 @@ assert.equal(new Set(rows.map(r => [r.mode, r.size, r.round, r.phase].join('/'))
 const median = (values) => [...values].sort((a, b) => a - b)[2];
 console.log('| Payload | Phase | WAN wall median (range) | PN wall median (range) | Paired wall speedup | WAN / PN task medians |');
 console.log('| --- | --- | --- | --- | --- | --- |');
-for (const size of [1, 128]) {
+for (const size of [1, 64]) {
   assert.equal(new Set(rows.filter(r => r.size === size).map(r => r.hash)).size, 1, 'Both paths must restore identical content');
   for (const phase of ['cold', 'warm']) {
     const wan = rows.filter(r => r.size === size && r.phase === phase && r.mode === 'wan');
