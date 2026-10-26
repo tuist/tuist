@@ -1,15 +1,17 @@
 # OVH Linux runner egress
 
 `capi.ovhRunnerEgress` routes runner jobs through one OVH Additional IP block
-per environment. It is **disabled in every environment** until the block has
-been delivered, attached to its vRack, and qualified on staging. No public
+per environment. All three blocks are delivered and attached to the vRacks
+below, as confirmed by the supplied OVH Manager screenshots. Egress remains
+**disabled in every environment** pending resolution of the existing staging
+private network and qualification on staging. No public
 allowlist documentation changes until production has passed the checks below.
 
-| Environment | Planned vRack | Block size | Usable addresses |
-| --- | --- | --- | --- |
-| staging | pn-2025489 | /29 | 5 |
-| canary | pn-2025491 | /29 | 5 |
-| production | pn-2025483 | /27 | 29 |
+| Environment | Attached vRack | Delivered block | Usable addresses | Gateway |
+| --- | --- | --- | --- | --- |
+| staging | pn-2025489 | 5.39.98.144/29 | 5.39.98.145–5.39.98.149 (5) | 5.39.98.150 |
+| canary | pn-2025491 | 5.196.103.232/29 | 5.196.103.233–5.196.103.237 (5) | 5.196.103.238 |
+| production | pn-2025483 | 5.135.7.160/27 | 5.135.7.161–5.135.7.189 (29) | 5.135.7.190 |
 
 OVH reserves the first, penultimate and last addresses for network, gateway and
 broadcast. A block has a 5 Gbps limit; each RISE private NIC has its own limit.
@@ -88,12 +90,14 @@ there, but that changes the separate-network plan above.
 
 ## Qualification and rollout
 
-1. Confirm the delivered CIDR belongs to the environment and is attached to
-   its intended vRack. Resolve the staging conflict above. Confirm enough
+1. Recheck the recorded block/vRack associations before activation; delivery
+   and attachment are confirmed in OVH Manager. Resolve the staging conflict
+   above. Confirm enough
    usable addresses for hosts plus replacement surge; retained failed-cleanup
    reservations consume capacity.
-2. Deploy the provider and charts with egress disabled. Set the real staging
-   CIDR, then enable only staging. Read `RunnerEgressReady` and both Node
+2. Deploy the provider and charts with egress disabled and the recorded CIDRs.
+   After resolving the staging conflict, enable only staging. Read
+   `RunnerEgressReady` and both Node
    annotations. A partial fleet rollout leaves unconfigured hosts on their
    primary public IP; do not promise the new allowlist yet.
    The chart adds an operator flag, so use the matching provider release. For

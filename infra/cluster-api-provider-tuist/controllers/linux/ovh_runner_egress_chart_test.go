@@ -47,7 +47,7 @@ func TestRunnerEgressChart(t *testing.T) {
 			for _, enabled := range []bool{false, true} {
 				args := append([]string{}, base...)
 				if enabled {
-					args = append(args, "--set", "capi.ovhRunnerEgress.enabled=true,capi.ovhRunnerEgress.cidr=198.51.100.0/29")
+					args = append(args, "--set", "capi.ovhRunnerEgress.enabled=true")
 				}
 				output, err := exec.Command(helm, args...).CombinedOutput()
 				if err != nil {
@@ -70,8 +70,8 @@ func TestRunnerEgressChart(t *testing.T) {
 						if (data["enabled"] == "true") != enabled {
 							t.Fatalf("wrong enabled: %v", data)
 						}
-						if !enabled && data["cidr"] != "" {
-							t.Fatal("enabled a not-yet-delivered block")
+						if _, _, err := runnerEgressPrefix(data["vrackID"], data["cidr"]); err != nil {
+							t.Fatalf("invalid delivered block: %v", err)
 						}
 					}
 					if obj.GetKind() == "Deployment" && strings.Contains(string(output), "--ovh-runner-egress-config=") {
@@ -85,7 +85,7 @@ func TestRunnerEgressChart(t *testing.T) {
 					t.Fatalf("missing config/argument/RBAC: %v %v %v", configFound, argumentFound, rbacFound)
 				}
 			}
-			output, err := exec.Command(helm, append(base, "--set", "capi.ovhRunnerEgress.enabled=true")...).CombinedOutput()
+			output, err := exec.Command(helm, append(base, "--set", "capi.ovhRunnerEgress.enabled=true,capi.ovhRunnerEgress.cidr=")...).CombinedOutput()
 			if err == nil || !strings.Contains(string(output), "cidr is required") {
 				t.Fatalf("missing block accepted: %v %s", err, output)
 			}
