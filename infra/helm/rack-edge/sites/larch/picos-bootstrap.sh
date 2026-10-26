@@ -13,8 +13,7 @@
 #     ones generated on the switch and never printed, so the factory
 #     admin/pica8 login stops working; the controller sets admin's real
 #     password when it adopts the switch,
-#   - sets the NTP servers, enables NETCONF and, on an S5860-24XMG, puts the
-#     SFP28 speed group at 10G,
+#   - sets the NTP servers and enables NETCONF,
 # and commits; then, once the key file exists, turns ZTP's configuration leaf
 # off in a second commit, which saves the key into the backup, and disables
 # ZTP itself. A failure anywhere leaves ZTP on, so the next boot tries again.
@@ -62,11 +61,6 @@ for server in $ntp_servers; do
   commands+=";set system ntp server-ip $server"
 done
 commands+=";set protocols netconf"
-if [ "$model" = "S5860-24XMG" ]; then
-  for port in 29 30 31 32; do
-    commands+=";set interface gigabit-ethernet te-1/1/$port speed 10000"
-  done
-fi
 commands+=";commit"
 
 # pica_sh echoes every line it runs, passwords included, so nothing it prints
