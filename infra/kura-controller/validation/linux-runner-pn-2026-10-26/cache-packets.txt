@@ -1,0 +1,19 @@
+Mon Oct 26 13:05:09 UTC 2026
+Mon Oct 26 13:06:04 UTC 2026
+INTERFACE=enp3s0f1
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on enp3s0f1, link-type EN10MB (Ethernet), snapshot length 64 bytes
+402728 packets captured
+403217 packets received by filter
+0 packets dropped by kernel
+13:05:10.638039 IP 193.70.46.18.45215 > 162.19.86.189.8472: UDP, length 74
+13:05:10.638154 IP 162.19.86.189.42210 > 193.70.46.18.8472: UDP, length 74
+13:05:10.638416 IP 193.70.46.18.45215 > 162.19.86.189.8472: UDP, length 74
+13:05:15.139485 IP 162.19.86.189.42265 > 193.70.46.18.8472: UDP, length 74
+INTERFACE=enp3s0f0
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on enp3s0f0, link-type EN10MB (Ethernet), snapshot length 64 bytes
+0 packets captured
+0 packets received by filter
+0 packets dropped by kernel
+
