@@ -59,6 +59,8 @@ on:
       - 'infra/k8s/mgmt/tailscale.yaml'
       - 'infra/k8s/mgmt/hetzner-robot-controller.yaml'
       - 'infra/k8s/mgmt/observability-namespace.yaml'
+      - 'infra/k8s/mgmt/controller-replicas.yaml'
+      - 'infra/k8s/mgmt/external-secrets-values.yaml'
       - 'infra/k8s/mgmt/talos/hetzner.yaml'
       - 'infra/k8s/mgmt/talos/patches/**'
       - 'infra/k8s/mgmt/talos-patcher.yaml'
@@ -345,6 +347,10 @@ jobs:
           # A no-op once done.
           infra/mise/tasks/mgmt/migrate-tailscale.sh
           kubectl apply -f infra/k8s/mgmt/tailscale.yaml
+          # Owns only replicas and pod anti-affinity on Deployments that
+          # clusterctl installed; see the file header.
+          kubectl apply --server-side --field-manager=mgmt-cluster-apply \
+            --force-conflicts -f infra/k8s/mgmt/controller-replicas.yaml
 
           # These regional clusters were retired, but kubectl apply does not
           # remove resources that disappear from a manifest.
@@ -352,6 +358,14 @@ jobs:
             cluster-autoscaler-tuist-kura-us-east \
             cluster-autoscaler-tuist-kura-us-west \
             --ignore-not-found
+      - name: Install External Secrets
+        run: |
+          set -euo pipefail
+          helm upgrade --install external-secrets external-secrets \
+            --repo https://charts.external-secrets.io --version 2.3.0 \
+            --namespace external-secrets \
+            -f infra/k8s/mgmt/external-secrets-values.yaml \
+            --atomic --cleanup-on-fail --wait --timeout 10m
       - name: Install management-cluster monitoring
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}

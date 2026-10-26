@@ -87,6 +87,41 @@ func TestBaselineAppliesAtPOST(t *testing.T) {
 	}
 }
 
+// The BMC ships announcing itself with SSDP and leasing an address through
+// the host's LAN port 2; adoption turns both off, with the host running.
+func TestBMCBaseline(t *testing.T) {
+	bmc, c := newBMC(t)
+	ctx := context.Background()
+	bmc.Mu.Lock()
+	bmc.PowerOn = true
+	bmc.Mu.Unlock()
+	drift, err := c.CheckBMC(ctx, BMCBaseline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, d := range drift {
+		names = append(names, d.Attribute)
+	}
+	if got := strings.Join(names, " "); got != "SSDP Sideband" {
+		t.Fatalf("drift as shipped: %s", got)
+	}
+	if err := c.ApplyBMC(ctx, drift); err != nil {
+		t.Fatal(err)
+	}
+	if drift, err := c.CheckBMC(ctx, BMCBaseline); err != nil || len(drift) != 0 {
+		t.Fatalf("drift after apply: %+v %v", drift, err)
+	}
+	if err := c.ApplyBMC(ctx, nil); err != nil {
+		t.Errorf("applying no drift wrote: %v", err)
+	}
+	bmc.Mu.Lock()
+	defer bmc.Mu.Unlock()
+	if bmc.SSDP || bmc.Sideband {
+		t.Errorf("SSDP %t, sideband %t", bmc.SSDP, bmc.Sideband)
+	}
+}
+
 func TestSetBIOS(t *testing.T) {
 	bmc, c := newBMC(t)
 	ctx := context.Background()

@@ -503,8 +503,8 @@
 			"ip":  ["tcp:443"],
 		},
 
-		// Production cluster -> rack 2's PDU and ATS cards (larch-r1-pdu-a,
-		// larch-r1-pdu-b, larch-r1-ats-a, larch-r1-ats-b), the same path as BER1's above,
+		// Production cluster -> rack 2's PDU and ATS cards (larch-pdu-a,
+		// larch-pdu-b, larch-ats-a, larch-ats-b), the same path as BER1's above,
 		// on rack 2's management VLAN. HTTPS only.
 		{
 			"src": ["tag:tuist-k8s-production"],
@@ -512,7 +512,7 @@
 			"ip":  ["tcp:443"],
 		},
 
-		// Production cluster -> rack 2's PicOS ToRs (larch-r1-tor-a, larch-r1-tor-b),
+		// Production cluster -> rack 2's PicOS ToRs (larch-tor-a, larch-tor-b),
 		// which the rack switch controller configures (the RackSwitch objects
 		// with driver picos): SSH for its CLI and NETCONF over SSH, through the
 		// macmini-egress ProxyGroup. Each ToR's management port is a link of
