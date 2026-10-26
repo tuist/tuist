@@ -239,6 +239,8 @@ jobs:
       # Check cookie ownership after the full manifest render validation.
       - name: Test cluster cookie ownership and managed environment wiring
         run: python3 infra/helm/tuist/test-cluster-cookie.py
+      - name: Test SSO domain verification deployment policy
+        run: python3 infra/helm/tuist/test-sso-domain-verification.py
       # A release a deploy waits on must not run pods on a rack node, or a dark
       # rack fails every deploy. See "Deploys and the rack's health" in
       # infra/rack-nodes/AGENTS.md.

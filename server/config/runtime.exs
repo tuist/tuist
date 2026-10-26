@@ -32,12 +32,11 @@ alias Tuist.Oban.RuntimeConfig
 # A boot failure here is caught in the canary stage before production.
 alias Tuist.Runners.Catalog
 
-case Tuist.Accounts.SSOLoginDomainTrust.parse_config(
-       System.get_env("TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS"),
-       Tuist.Environment.tuist_hosted?()
-     ) do
-  {:ok, enabled} -> config :tuist, :sso_trust_unverified_login_domains, enabled
-  {:error, reason} -> raise reason
+if value = System.get_env("TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION") do
+  case Tuist.Accounts.SSOLoginDomainTrust.parse_config(value) do
+    {:ok, enabled} -> config :tuist, :sso_require_login_domain_verification, enabled
+    {:error, reason} -> raise reason
+  end
 end
 
 config :tuist, :network_trusted_report_publishing, System.get_env("TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING") == "true"

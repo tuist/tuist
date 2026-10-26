@@ -42,7 +42,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
           oauth2_client_secret: "secret"
         })
 
-      stub(Environment, :sso_trust_unverified_login_domains?, fn -> true end)
+      stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
 
       stub(Environment, :tuist_hosted?, fn -> false end)
       %{organization: organization}
@@ -139,7 +139,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     user: user,
     organization: organization
   } do
-    stub(Environment, :sso_trust_unverified_login_domains?, fn -> true end)
+    stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
     {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/authentication")
     assert has_element?(lv, "#sso-form")
     assert has_element?(lv, ~s([data-part="scim-card"]))
@@ -270,7 +270,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
         )
         |> Repo.update!()
 
-        stub(Environment, :sso_trust_unverified_login_domains?, fn -> true end)
+        stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
 
         Accounts.link_oauth_identity_to_user(user, %{
           provider: :google,

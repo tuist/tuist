@@ -31,9 +31,6 @@ The provider issuer and login email domain are often different. For example, a c
 
 New Okta and custom-provider configurations require a verified login email domain before they can create a new Tuist account or link an existing account by its email address. Members can still <.localized_link href="/guides/integrations/authentication/sso#link-an-existing-account">link their existing account</.localized_link> while the domain is unverified. Organizations configured before this requirement retain their previous enrollment behavior until they verify a login domain or change their provider configuration.
 
-> [!NOTE]
-> Self-hosted instances can optionally trust login domains without DNS verification. See the <.localized_link href="/guides/server/self-host/server#operator-trusted-login-domains">self-hosting guide</.localized_link>.
-
 1. Enter the employee email domain, such as `example.com`, in **Login email domain**.
 2. Save the single sign-on configuration.
 3. Add the text record shown by Tuist to the domain's [Domain Name System](https://www.cloudflare.com/learning/dns/dns-records/dns-txt-record/) configuration.

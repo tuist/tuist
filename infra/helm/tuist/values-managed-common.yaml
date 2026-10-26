@@ -78,6 +78,7 @@ server:
     name: tuist-server
   enabled: true
   hosted: true
+  ssoRequireLoginDomainVerification: true
   skipEmailConfirmation: false
   logLevel: info
   image:

@@ -29,6 +29,7 @@ server:
   # this at the chart's self-hosted default redirects every public route to the
   # login page.
   hosted: true
+  ssoRequireLoginDomainVerification: true
   replicaCount: 1
   autoscaling:
     enabled: false

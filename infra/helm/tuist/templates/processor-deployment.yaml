@@ -155,6 +155,8 @@ spec:
             {{- include "tuist.githubEnv" . | nindent 12 }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            - name: TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION
+              value: {{ .Values.server.ssoRequireLoginDomainVerification | ternary "true" "false" | quote }}
             # Tuist.License.assert_valid!/0 runs unconditionally at boot
             # (application.ex), so the processor needs the license key. It used
             # to come from the encrypted blob; with the blob gone it must be

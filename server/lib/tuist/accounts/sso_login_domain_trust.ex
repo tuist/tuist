@@ -1,8 +1,8 @@
 defmodule Tuist.Accounts.SSOLoginDomainTrust do
   @moduledoc """
-  Resolves DNS and self-hosted instance trust without persisting operator
-  assertions as DNS proofs. Enabling instance trust explicitly trusts the
-  instance's organization administrators to configure identity providers.
+  Resolves login-domain trust without persisting instance policy as DNS proof.
+  Instances trust saved custom-provider domains by default; requiring DNS
+  verification is an explicit deployment policy.
   """
 
   import Ecto.Query
@@ -11,19 +11,16 @@ defmodule Tuist.Accounts.SSOLoginDomainTrust do
   alias Tuist.Environment
   alias Tuist.Repo
 
-  def parse_config(nil, _hosted), do: {:ok, false}
-  def parse_config("false", _hosted), do: {:ok, false}
-  def parse_config("true", false), do: {:ok, true}
+  def parse_config(nil), do: {:ok, false}
+  def parse_config("false"), do: {:ok, false}
+  def parse_config("true"), do: {:ok, true}
 
-  def parse_config("true", true),
-    do: {:error, "TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS is only supported on self-hosted instances"}
-
-  def parse_config(_value, _hosted), do: {:error, "TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS must be true or false"}
+  def parse_config(_value), do: {:error, "TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION must be true or false"}
 
   def trust(%Organization{sso_login_domain: domain} = organization) when is_binary(domain) do
     cond do
       organization.sso_provider in [:okta, :oauth2] and
-          Environment.sso_trust_unverified_login_domains?() ->
+          not Environment.sso_require_login_domain_verification?() ->
         :instance
 
       not is_nil(organization.sso_login_domain_verified_at) ->
@@ -52,7 +49,7 @@ defmodule Tuist.Accounts.SSOLoginDomainTrust do
   def email_domain(_email), do: nil
 
   def shared_domain?(%Organization{sso_login_domain: domain, id: id}) when is_binary(domain) do
-    Environment.sso_trust_unverified_login_domains?() and
+    not Environment.sso_require_login_domain_verification?() and
       Repo.exists?(
         from(o in Organization,
           where: o.sso_provider in [:okta, :oauth2] and o.sso_login_domain == ^domain and o.id != ^id
@@ -63,7 +60,9 @@ defmodule Tuist.Accounts.SSOLoginDomainTrust do
   def shared_domain?(_organization), do: false
 
   def discover(domain) when is_binary(domain) do
-    if Environment.sso_trust_unverified_login_domains?() do
+    if Environment.sso_require_login_domain_verification?() do
+      :unbound
+    else
       organizations =
         Repo.all(
           from(o in Organization,
@@ -86,8 +85,6 @@ defmodule Tuist.Accounts.SSOLoginDomainTrust do
         _ ->
           {:error, :login_domain_ambiguous}
       end
-    else
-      :unbound
     end
   end
 

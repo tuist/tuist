@@ -16,6 +16,8 @@ runs the mixed-version latency expression through promtool.
 
 ## Conventions
 
+- SSO DNS verification is an explicit deployment policy: `server.ssoRequireLoginDomainVerification` defaults false and is enabled in managed-common, preview, and pentest values. Inject `TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION` into every server runtime, including migrations, registry sync, and the separate xcresult processor. `tuist/test-sso-domain-verification.py` checks rendered wiring; never infer the policy from `server.hosted`.
+
 - Xcode 27.1 RC retirement requires the additive stable chart already deployed
   and a published versioned runner image containing stable. Keep 26.6 as the
   default. Follow the prerequisites, rollback floor and required

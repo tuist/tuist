@@ -574,7 +574,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
         sso_organization_id: "example.com"
       )
 
-      stub(Environment, :sso_trust_unverified_login_domains?, fn -> true end)
+      stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
 
       conn =
         conn
@@ -587,7 +587,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
 
     test "instance trust does not bypass ordinary organization authorization", %{conn: conn, user: user} do
       AccountsFixtures.organization_fixture(name: "tuist-org")
-      stub(Environment, :sso_trust_unverified_login_domains?, fn -> true end)
+      stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
 
       conn =
         conn
@@ -602,7 +602,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       domain = unique_sso_domain()
       user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
       AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
-      stub(Environment, :sso_trust_unverified_login_domains?, fn -> true end)
+      stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
 
       conn =
         conn

@@ -11,7 +11,10 @@ latency queries across mixed-version rollout states. These checks need no cloud
 credentials and must never write to the production telemetry destinations.
 The Helm render job also runs `infra/helm/tuist/test-cluster-cookie.py` offline:
 check all managed environment cookie references and Secret ownership without
-reading 1Password or logging rendered cookie values.
+reading 1Password or logging rendered cookie values. It also runs
+`infra/helm/tuist/test-sso-domain-verification.py` to check the default-off DNS
+policy and explicit opt-in across managed server runtime modes. The hosted
+Docker smoke test explicitly enables and asserts the same DNS policy.
 
 The existing runner-image release workflow runs the portable TCC report tests
 on PRs with read-only permissions and without persisted checkout credentials

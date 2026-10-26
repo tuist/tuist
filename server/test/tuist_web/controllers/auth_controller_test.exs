@@ -1306,7 +1306,7 @@ defmodule TuistWeb.AuthControllerTest do
       other =
         custom_provider_organization(sso_login_domain: "example.com", sso_organization_id: "https://other.example.com")
 
-      stub(Tuist.Environment, :sso_trust_unverified_login_domains?, fn -> true end)
+      stub(Tuist.Environment, :sso_require_login_domain_verification?, fn -> false end)
       %{organization: organization, other: other}
     end
 

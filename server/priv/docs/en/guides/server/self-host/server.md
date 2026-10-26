@@ -425,23 +425,6 @@ You will need to set the following environment variables once you obtain the cli
 
 The number `1` needs to be replaced with your organization ID. This will typically be 1, but check in your database.
 
-#### Instance-wide trust for login domains {#operator-trusted-login-domains}
-
-Self-hosted instances can skip DNS verification for Okta, Microsoft Entra ID, and custom OAuth2 login domains by setting:
-
-```sh
-TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS=true
-```
-
-The default is `false`. Emails must still match the saved **Login email domain**, and normal organization-administrator permissions apply. For Helm, set this through `server.extraEnv`.
-
-> [!WARNING]
-> Enable this only if you trust everyone who can create or administer an organization. Any signed-in user can create an organization, and its provider can link whole existing Tuist accounts, including access to other organizations. Review existing providers before enabling it.
-
-Follow the <.localized_link href="/guides/integrations/authentication/sso">SSO guide</.localized_link> to configure the provider, saving the **Login email domain** but skipping DNS verification.
-
-Restart every replica when enabling or disabling this setting. Disabling it does not revoke existing account links or sessions.
-
 ### Storage environment configuration {#storage-environment-configuration}
 
  Tuist needs storage to house artifacts uploaded through the API. It's **essential to configure one of the supported storage solutions** for Tuist to operate effectively.

@@ -1814,7 +1814,7 @@ defmodule Tuist.Accounts do
 
   defp email_domain_has_enforced_provider?(domain) do
     legacy_organization_ids = legacy_sso_organization_ids_for_domain(domain)
-    instance_trust? = Environment.sso_trust_unverified_login_domains?()
+    instance_trust? = not Environment.sso_require_login_domain_verification?()
 
     Repo.exists?(
       from(o in Organization,

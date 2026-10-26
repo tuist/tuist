@@ -18,23 +18,36 @@ defmodule Tuist.Accounts.SSOLoginDomainTrustTest do
     :ok
   end
 
-  test "parses a single explicit instance-wide switch without additional configuration" do
-    assert {:ok, false} = SSOLoginDomainTrust.parse_config(nil, false)
-    assert {:ok, false} = SSOLoginDomainTrust.parse_config("false", false)
-    assert {:ok, true} = SSOLoginDomainTrust.parse_config("true", false)
+  test "DNS verification defaults off and requires an explicit boolean opt-in" do
+    assert {:ok, false} = SSOLoginDomainTrust.parse_config(nil)
+    assert {:ok, false} = SSOLoginDomainTrust.parse_config("false")
+    assert {:ok, true} = SSOLoginDomainTrust.parse_config("true")
 
     for invalid <- ["", "yes", "1", "TRUE", " true "] do
-      assert {:error, _} = SSOLoginDomainTrust.parse_config(invalid, false)
+      assert {:error, _} = SSOLoginDomainTrust.parse_config(invalid)
     end
   end
 
-  test "hosted startup and runtime independently deny enabling trust" do
-    assert {:ok, false} = SSOLoginDomainTrust.parse_config(nil, true)
-    assert {:ok, false} = SSOLoginDomainTrust.parse_config("false", true)
-    assert {:error, _} = SSOLoginDomainTrust.parse_config("true", true)
-    refute Environment.sso_trust_unverified_login_domains?(true, true)
-    refute Environment.sso_trust_unverified_login_domains?(false, false)
-    assert Environment.sso_trust_unverified_login_domains?(false, true)
+  test "verification depends on deployment policy, not hosted mode" do
+    refute Environment.sso_require_login_domain_verification?(false)
+    assert Environment.sso_require_login_domain_verification?(true)
+
+    for invalid <- [nil, "true", 1] do
+      refute Environment.sso_require_login_domain_verification?(invalid)
+    end
+  end
+
+  test "the default deployment policy trusts saved domains without consulting hosted mode" do
+    assert {:ok, required} = SSOLoginDomainTrust.parse_config(nil)
+    stub(Environment, :sso_require_login_domain_verification?, fn -> required end)
+    organization = configured_organization()
+
+    for hosted <- [false, true] do
+      stub(Environment, :tuist_hosted?, fn -> hosted end)
+      assert SSOLoginDomainTrust.trust(organization) == :instance
+      assert Accounts.sso_identity_linking_allowed?(organization, "employee@example.com")
+      refute Accounts.sso_identity_linking_allowed?(organization, "employee@other.com")
+    end
   end
 
   test "instance trust requires a custom provider and saved domain, without DNS writes" do
@@ -126,7 +139,7 @@ defmodule Tuist.Accounts.SSOLoginDomainTrustTest do
     assert updated.sso_default_role == "viewer"
   end
 
-  test "withdrawal removes dynamic access, preserves identities and stored memberships, and allows secret rotation" do
+  test "requiring DNS removes dynamic access, preserves identities and stored memberships, and allows secret rotation" do
     organization = configured_organization()
     user = AccountsFixtures.user_fixture(email: "enrolled@example.com")
 
@@ -183,7 +196,7 @@ defmodule Tuist.Accounts.SSOLoginDomainTrustTest do
     end
   end
 
-  test "DNS rechecks cannot revoke instance trust, and independent DNS trust survives policy removal" do
+  test "DNS rechecks cannot revoke instance trust, and DNS proof remains valid when verification becomes required" do
     organization = configured_organization(sso_login_domain_verified_at: ~U[2026-09-01 12:00:00Z])
 
     organization =
@@ -214,6 +227,6 @@ defmodule Tuist.Accounts.SSOLoginDomainTrustTest do
   end
 
   defp trust_unverified_domains(enabled) do
-    stub(Environment, :sso_trust_unverified_login_domains?, fn -> enabled end)
+    stub(Environment, :sso_require_login_domain_verification?, fn -> not enabled end)
   end
 end
