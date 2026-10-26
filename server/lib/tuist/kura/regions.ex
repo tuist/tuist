@@ -488,15 +488,27 @@ defmodule Tuist.Kura.Regions do
   #     across the WAN, which is worse than the public ingress it's
   #     meant to replace.
   #
-  # Linux runners have no private cache region. `hetzner-staging-runners`
-  # was one, on the staging cluster's Hetzner node pool, but that pool is
-  # gone: the Kura fleet is bare metal (Dedibox/OVH/Scaleway Elastic
-  # Metal) and staging's Linux runners moved to the `runners-linux` pool.
-  # The spec outlived the pool and kept minting instances that could
-  # never schedule, so it was removed rather than repointed — staging's
-  # Mac minis already exercise the co-located topology through
-  # `scw-fr-par-runners`, the same spec production uses.
+  # OVH Linux runners opt into their environment's vRack. The private region
+  # is enabled only after runner and cache hosts have qualified that path.
   @private_region_specs [
+    %{
+      id: "ovh-gra-runners",
+      display_name: "OVH Gravelines (runner cache)",
+      cluster_id: "ovh-gra-runners",
+      node_pool: "kura-ovh-gra-runners",
+      storage_class: "scw-local-nvme",
+      storage_size: "50Gi",
+      storage_governed: true,
+      memory_governed: true,
+      replicas: 2,
+      runner_platforms: [:linux],
+      egress_burst_mbps: 750,
+      tolerations: [
+        %{"key" => "tuist.dev/kura-cache", "operator" => "Exists", "effect" => "NoSchedule"}
+      ],
+      country: "FR",
+      subdivision: "FR-HDF"
+    },
     %{
       id: "scw-fr-par-runners",
       replicas: 2,

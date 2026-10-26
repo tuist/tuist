@@ -45,8 +45,12 @@ func (e *privateNetworkPending) Error() string {
 	return fmt.Sprintf("waiting for private routes on %s before advertising topology", strings.Join(e.peers, ", "))
 }
 
-func privateNetworkCacheMachine(machine *infrav1.OVHDedicatedMachine) bool {
-	return !machine.Spec.KataRuntime && privateNetworkCacheTaint(machine.Spec.NodeTaints)
+func privateNetworkOVHMachine(machine *infrav1.OVHDedicatedMachine) bool {
+	// Runner hosts opt in explicitly; legacy RISE-S hosts have no private NIC.
+	if machine.Spec.KataRuntime {
+		return machine.Spec.VRackID != ""
+	}
+	return privateNetworkCacheTaint(machine.Spec.NodeTaints)
 }
 
 func privateNetworkCacheTaint(taints []corev1.Taint) bool {
@@ -117,7 +121,7 @@ func (r *OVHDedicatedMachineReconciler) reservePrivateNetwork(ctx context.Contex
 	services := []string{}
 	for i := range machines.Items {
 		peer := &machines.Items[i]
-		if privateNetworkCacheMachine(peer) && peer.Status.ServiceName != "" {
+		if privateNetworkOVHMachine(peer) && peer.Status.ServiceName != "" {
 			services = append(services, peer.Status.ServiceName)
 		}
 	}
@@ -162,7 +166,7 @@ func (r *OVHDedicatedMachineReconciler) reservePrivateNetwork(ctx context.Contex
 }
 
 func (r *OVHDedicatedMachineReconciler) reconcilePrivateNetwork(ctx context.Context, machine *infrav1.OVHDedicatedMachine, node *corev1.Node) (err error) {
-	if r.PrivateNetworkConfigName == "" || machine.Namespace != r.PrivateNetworkNamespace || !privateNetworkCacheMachine(machine) {
+	if r.PrivateNetworkConfigName == "" || machine.Namespace != r.PrivateNetworkNamespace || !privateNetworkOVHMachine(machine) {
 		return nil
 	}
 	defer func() {
@@ -232,7 +236,7 @@ func (r *OVHDedicatedMachineReconciler) reconcilePrivateNetwork(ctx context.Cont
 	lagging := []string{}
 	for i := range machines {
 		peer := &machines[i]
-		if !privateNetworkCacheMachine(peer) || !peer.DeletionTimestamp.IsZero() || privateNetworkPublicAddress(peer) == "" {
+		if !privateNetworkOVHMachine(peer) || !peer.DeletionTimestamp.IsZero() || privateNetworkPublicAddress(peer) == "" {
 			continue
 		}
 		remote := &corev1.Node{}
@@ -277,7 +281,7 @@ func ovhPrivateParticipants(service string, machines []infrav1.OVHDedicatedMachi
 		peer := &machines[i]
 		owner := privateNetworkOwner(peer.ObjectMeta)
 		owners[owner] = ""
-		if !privateNetworkCacheMachine(peer) {
+		if !privateNetworkOVHMachine(peer) {
 			continue
 		}
 		ip := privateNetworkPublicAddress(peer)
