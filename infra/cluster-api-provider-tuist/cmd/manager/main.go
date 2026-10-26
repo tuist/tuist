@@ -102,8 +102,6 @@ func main() {
 		tartKubeletMaxPods           int
 		tartKubeletGuestCapacity     int
 		runnerCacheVolumeGiB         int
-		cacheVolumeMasterCapGiB      int
-		cacheVolumeCASGiB            int
 		customCacheURL               string
 		customCacheNamespace         string
 		customCacheSA                string
@@ -278,24 +276,13 @@ func main() {
 			"macosFleet.sshIngressAllowCIDRs.")
 	flag.IntVar(&runnerCacheVolumeGiB, "runner-cache-volume-gib", 0,
 		"When > 0, bootstrap provisions a quota-bounded APFS volume of this many GiB on each Mac mini "+
-			"to hold per-account cache-volume images and turns the feature on in tart-kubelet. "+
+			"to hold the runner cache volumes and turns them on in tart-kubelet. "+
 			"This quota is the aggregate ceiling for all cache volumes on the host — the filesystem bound "+
 			"that keeps cache volumes from ever starving the VM image path. 0 (default) leaves the feature "+
 			"off. Flows from the chart's macosFleet.runnerCacheVolume.gib.")
 	flag.StringVar(&customCacheURL, "custom-cache-url", "", "Opt-in server URL for macOS custom cache volumes")
 	flag.StringVar(&customCacheNamespace, "custom-cache-namespace", "tuist-runners", "Custom cache agent namespace")
 	flag.StringVar(&customCacheSA, "custom-cache-service-account", "tuist-runner-cache-volumes", "Custom cache agent service account")
-	flag.IntVar(&cacheVolumeMasterCapGiB, "cache-volume-master-cap-gib", 0,
-		"Per-account cache master image cap (GiB) passed to tart-kubelet's --cache-volume-cap-gib. The "+
-			"image is sparse so this is a ceiling, not an allocation. 0 uses tart-kubelet's default (20 GiB). "+
-			"Only meaningful with --runner-cache-volume-gib > 0. Flows from macosFleet.runnerCacheVolume.masterCapGib.")
-	flag.IntVar(&cacheVolumeCASGiB, "cache-volume-cas-gib", 0,
-		"Xcode compilation cache (CAS) share (GiB) of each per-account cache image, passed to tart-kubelet's "+
-			"--cache-volume-cas-gib. > 0 folds the CAS into the image as a subdir. The CAS and the binary cache "+
-			"share the master cap less a reserve, which the guest divides by what each holds; this value is the "+
-			"CAS's share of the fixed split that runner images older than that division apply. 0 (default) "+
-			"leaves the compilation cache VM-local. Only "+
-			"meaningful with --runner-cache-volume-gib > 0. Flows from macosFleet.runnerCacheVolume.casGib.")
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 2,
@@ -322,6 +309,17 @@ func main() {
 		"The rack Linux fleet whose Secrets the RackLinuxHost controller publishes installs with: <fleet>-ssh, <fleet>-boot and <fleet>-console.")
 	flag.StringVar(&rackLinuxInstallServerURL, "rack-linux-install-server-url", "",
 		"The rack boot server's HTTP address as a netbooting host reaches it. Empty, or no --rack-linux-fleet-name, publishes no installs.")
+	var rackLinuxInternetBootServerURL string
+	flag.StringVar(&rackLinuxInternetBootServerURL, "rack-linux-internet-boot-server-url", "",
+		"The boot server preinstalled rack hosts reach over the internet before their site has one. Set, the first edge of a site is published an install once its TPM is pinned.")
+	var rackLinuxPreinstalledProducts []string
+	flag.Func("rack-linux-preinstalled-product",
+		"A hardware model, as its SMBIOS vendor and product name, that arrives with the preinstall image's installer partition, "+
+			"which its installs keep. Repeatable.",
+		func(v string) error {
+			rackLinuxPreinstalledProducts = append(rackLinuxPreinstalledProducts, v)
+			return nil
+		})
 	var rackLinuxAMTProvisioningSecretName string
 	flag.StringVar(&rackLinuxAMTProvisioningSecretName, "rack-linux-amt-provisioning-secret-name", "",
 		"Secret in the operator namespace holding the AMT provisioning certificate (pfx, password) the RackLinuxHost controller "+
@@ -630,8 +628,6 @@ func main() {
 		HostMemoryMB:              tartKubeletHostMemory,
 		MaxPods:                   tartKubeletMaxPods,
 		RunnerCacheVolumeGiB:      runnerCacheVolumeGiB,
-		CacheVolumeMasterCapGiB:   cacheVolumeMasterCapGiB,
-		CacheVolumeCASGiB:         cacheVolumeCASGiB,
 		CustomCacheURL:            customCacheURL,
 		CustomCacheNamespace:      customCacheNamespace,
 		CustomCacheServiceAccount: customCacheSA,
@@ -914,7 +910,8 @@ func main() {
 
 	var rackInstall *linux.RackInstall
 	if rackLinuxFleetName != "" && rackLinuxInstallServerURL != "" {
-		rackInstall = &linux.RackInstall{FleetName: rackLinuxFleetName, ServerURL: rackLinuxInstallServerURL, AuthorizedKeys: rackLinuxAuthorizedKeys}
+		rackInstall = &linux.RackInstall{FleetName: rackLinuxFleetName, ServerURL: rackLinuxInstallServerURL, InternetServerURL: rackLinuxInternetBootServerURL,
+			PreinstalledProducts: rackLinuxPreinstalledProducts, AuthorizedKeys: rackLinuxAuthorizedKeys}
 	}
 	var rackAMT *linux.RackAMT
 	if rackLinuxFleetName != "" && rackLinuxAMTProvisioningSecretName != "" {

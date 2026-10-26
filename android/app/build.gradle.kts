@@ -161,6 +161,20 @@ openApiGenerate {
     ))
 }
 
+// With "original" enum naming, an empty-string enum value generates a constant without a name.
+tasks.named("openApiGenerate") {
+    val generatedSources = layout.buildDirectory.dir("generated/openapi/src/main/kotlin")
+    doLast {
+        generatedSources.get().asFile.walkTopDown()
+            .filter { it.extension == "kt" }
+            .forEach { file ->
+                val source = file.readText()
+                val patched = source.replace("@Json(name = \"\") (\"\")", "@Json(name = \"\") EMPTY(\"\")")
+                if (patched != source) file.writeText(patched)
+            }
+    }
+}
+
 tasks.named("preBuild") {
     dependsOn("openApiGenerate")
 }

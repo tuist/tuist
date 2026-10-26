@@ -3,6 +3,8 @@ package dev.tuist.gradle
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.model.ObjectFactory
+import org.gradle.internal.work.WorkerLeaseService
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.internal.build.event.BuildEventListenerRegistryInternal
@@ -28,6 +30,7 @@ import org.gradle.operations.dependencies.transforms.ExecutePlannedTransformStep
 import org.gradle.internal.time.Time
 import org.gradle.internal.cc.impl.InputTrackingState
 import java.io.BufferedReader
+import java.io.IOException
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
@@ -156,6 +159,9 @@ abstract class TuistBuildInsightsService :
         val backgroundUpload: Property<Boolean>
         val actorId: Property<String>
     }
+
+    @get:Inject
+    abstract val objects: ObjectFactory
 
     private val logger = Logging.getLogger(TuistBuildInsightsService::class.java)
 
@@ -287,12 +293,20 @@ abstract class TuistBuildInsightsService :
     override fun close() {
         val machineMetrics = downsample(machineMetricsService.finish(), maxCount = 3600)
         val shouldUploadInBackground = uploadInBackground ?: parameters.backgroundUpload.getOrElse(!ciDetector.isCi())
+        val observations = try {
+            withoutMetadataInputTracking(objects.newInstance(MetricsInputTracking::class.java).state) {
+                val maxWorkers = try {
+                    objects.newInstance(MetadataWorkerLimits::class.java).workers.maxWorkerCount
+                } catch (_: Exception) { null } catch (_: LinkageError) { null }
+                buildEnvironmentMetadata(maxWorkers = maxWorkers)
+            }
+        } catch (_: Exception) { emptyMap<String, String>() } catch (_: LinkageError) { emptyMap<String, String>() }
 
         if (shouldUploadInBackground) {
             logger.lifecycle("Tuist: Uploading build insights in the background...")
             Thread({
                 try {
-                    sendReport(machineMetrics)
+                    sendReport(machineMetrics, observations)
                 } catch (e: Exception) {
                     logger.warn("Tuist: Failed to send build insights: ${e.message}")
                 }
@@ -302,14 +316,14 @@ abstract class TuistBuildInsightsService :
             }
         } else {
             try {
-                sendReport(machineMetrics)
+                sendReport(machineMetrics, observations)
             } catch (e: Exception) {
                 logger.warn("Tuist: Failed to send build insights: ${e.message}")
             }
         }
     }
 
-    private fun sendReport(machineMetrics: List<MachineMetricSample>) {
+    private fun sendReport(machineMetrics: List<MachineMetricSample>, observations: Map<String, String>) {
         val projectValue = parameters.project.orNull
         val httpClients = TuistHttpClients(useEnvironmentProxy = parameters.useEnvironmentProxy.get())
         val projectDir = parameters.projectDir.asFile.get()
@@ -369,37 +383,49 @@ abstract class TuistBuildInsightsService :
                 projectDir = projectDir
             )
             val url = URI(resolvedUrl).resolve("/api/projects/${config.accountHandle}/${config.projectHandle}/gradle/builds")
-            val connection = httpClient.openConnection(url, config)
-            try {
-                connection.requestMethod = "POST"
-                connection.doOutput = true
-                connection.setRequestProperty("Content-Type", "application/json")
-                ActorIdentifier.resolve(override = parameters.actorId.orNull)?.let {
-                    connection.setRequestProperty(ActorIdentifier.HEADER, it)
-                }
+            val limit = if ((report.customMetadata.values.keys + observations.keys).size > MAX_BUILD_METADATA_VALUES) {
+                discoverBuildMetadataLimit(URI(resolvedUrl)) { httpClients.openConnection(it) }
+            } else MAX_BUILD_METADATA_VALUES
+            val enriched = report.copy(customMetadata = report.customMetadata.withObservations(observations, limit))
+            val body = if (config.token.isEmpty()) enriched.copy(gitRemoteUrlOrigin = null) else enriched
+            // Every attempt sends the same build id, and the server stores a replayed id only once
+            // (a server that does not deduplicate by id stores the replay as another build).
+            httpClient.retrying("Build insights request", replaySafe = true) {
+                val connection = httpClient.openConnection(url, config)
+                try {
+                    connection.requestMethod = "POST"
+                    connection.doOutput = true
+                    connection.setRequestProperty("Content-Type", "application/json")
+                    ActorIdentifier.resolve(override = parameters.actorId.orNull)?.let {
+                        connection.setRequestProperty(ActorIdentifier.HEADER, it)
+                    }
 
-                OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-                    val body = if (config.token.isEmpty()) report.copy(gitRemoteUrlOrigin = null) else report
-                    Gson().toJson(body, writer)
-                }
+                    OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
+                        Gson().toJson(body, writer)
+                    }
 
-                when (connection.responseCode) {
-                    HttpURLConnection.HTTP_CREATED -> {
-                        BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
-                            Gson().fromJson(reader, BuildReportResponse::class.java)
+                    when (val status = connection.responseCode) {
+                        HttpURLConnection.HTTP_CREATED -> {
+                            BufferedReader(InputStreamReader(connection.inputStream, Charsets.UTF_8)).use { reader ->
+                                Gson().fromJson(reader, BuildReportResponse::class.java)
+                            }
+                        }
+                        HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
+                        else -> {
+                            val errorBody = try {
+                                connection.errorStream?.bufferedReader()?.use { it.readText() }
+                            } catch (_: Exception) { null }
+                            val message = "Build insights request failed with HTTP $status: ${errorBody ?: "(no response body)"}"
+                            if (status in TuistRetry.RETRYABLE_STATUSES) {
+                                throw TuistRetry.statusFailure(connection, status) { IOException(message) }
+                            }
+                            logger.warn("Tuist: $message")
+                            null
                         }
                     }
-                    HttpURLConnection.HTTP_UNAUTHORIZED -> throw TokenExpiredException()
-                    else -> {
-                        val errorBody = try {
-                            connection.errorStream?.bufferedReader()?.use { it.readText() }
-                        } catch (_: Exception) { null }
-                        logger.warn("Tuist: Build insights request failed with HTTP ${connection.responseCode}: ${errorBody ?: "(no response body)"}")
-                        null
-                    }
+                } finally {
+                    connection.disconnect()
                 }
-            } finally {
-                connection.disconnect()
             }
         }
 
@@ -541,3 +567,5 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
 }
 
 internal abstract class MetricsInputTracking @Inject constructor(val state: InputTrackingState)
+
+internal abstract class MetadataWorkerLimits @Inject constructor(val workers: WorkerLeaseService)

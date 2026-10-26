@@ -7,37 +7,53 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
 type HTTPTransfer struct {
 	URL, Node, TokenPath string
 	Client               *http.Client
-	// DownloadClient fetches image archives. It must not bound the whole
-	// transfer: a stall, not a deadline, ends an attempt. Nil uses Client.
-	DownloadClient *http.Client
-	MaxBytes       int64
-	Token          func(context.Context) (string, error)
+	// ObjectClient downloads and uploads image archives. It must not bound the
+	// whole transfer: a stall, not a deadline, ends an attempt. Nil uses Client
+	// without its timeout.
+	ObjectClient *http.Client
+	MaxBytes     int64
+	Token        func(context.Context) (string, error)
+	// Log records retried server requests and uploads; nil is slog.Default.
+	Log *slog.Logger
 
 	// Zero values use the package defaults; injectable so tests don't wait real minutes.
-	stallTimeout time.Duration
-	retryBackoff time.Duration
+	stallTimeout      time.Duration
+	retryBackoff      time.Duration
+	partBytes         int64
+	uploadParallelism int
 }
 
 const (
-	// downloadStallTimeout abandons an attempt that receives nothing for this
-	// long. downloadAttempts / downloadRetryBackoff bound the retries of one
-	// call; each resumes where the last one stopped.
-	downloadStallTimeout = 2 * time.Minute
+	// transferStallTimeout abandons a download that receives nothing, or an
+	// upload that sends nothing, for this long. downloadAttempts /
+	// transferRetryBackoff bound the retries of one download; each resumes where the
+	// last one stopped. uploadAttempts bounds the attempts of one publication;
+	// each sends the whole archive again, waiting transferRetryBackoff times its number.
+	transferStallTimeout = 2 * time.Minute
 	downloadAttempts     = 5
-	downloadRetryBackoff = 10 * time.Second
+	uploadAttempts       = 4
+	transferRetryBackoff = 10 * time.Second
 )
 
 var errDownloadStalled = errors.New("image download stalled")
+var errUploadStalled = errors.New("image upload stalled")
+
+// errTransport is a request that failed before the remote end answered it.
+var errTransport = errors.New("transport error")
 
 // ErrDownloadIncomplete is a download its context ended while it was still
 // receiving bytes. What it received is kept for the next call to resume.
@@ -45,17 +61,26 @@ var ErrDownloadIncomplete = errors.New("image download incomplete")
 var errArchiveTooLarge = errors.New("cache image archive exceeds the image size limit")
 
 type transferResponse struct {
-	DownloadURL   string `json:"download_url"`
-	UploadURL     string `json:"upload_url"`
-	Checksum      string `json:"checksum_sha256"`
-	Generation    int64  `json:"generation"`
-	ImageDigest   string `json:"image_digest"`
-	ContentDigest string `json:"content_digest"`
-	Conflict      bool   `json:"conflict"`
+	DownloadURL   string     `json:"download_url"`
+	UploadURL     string     `json:"upload_url"`
+	Checksum      string     `json:"checksum_sha256"`
+	Generation    int64      `json:"generation"`
+	ImageDigest   string     `json:"image_digest"`
+	ContentDigest string     `json:"content_digest"`
+	Conflict      bool       `json:"conflict"`
+	UploadID      string     `json:"upload_id"`
+	Parts         []partLink `json:"parts"`
 }
 
 func (t *HTTPTransfer) request(ctx context.Context, slot Slot, operation, digest, content string) (transferResponse, error) {
+	return t.requestWith(ctx, slot, operation, digest, content, nil)
+}
+
+func (t *HTTPTransfer) requestWith(ctx context.Context, slot Slot, operation, digest, content string, extra map[string]any) (transferResponse, error) {
 	fields := map[string]any{"id": slot.ID, "node_name": t.Node, "operation": operation, "image_digest": digest, "content_digest": content}
+	for key, value := range extra {
+		fields[key] = value
+	}
 	// A download names its generation: a host may refresh a stale master to the
 	// current HEAD of the lineage it already holds.
 	if operation == "download" {
@@ -74,7 +99,7 @@ func (t *HTTPTransfer) request(ctx context.Context, slot Slot, operation, digest
 	}
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
 	req.Header.Set("Content-Type", "application/json")
-	response, err := t.Client.Do(req)
+	response, err := DoServer(t.Client, req, t.Log)
 	if err != nil {
 		return transferResponse{}, fmt.Errorf("image metadata request failed: %w", transferError(err))
 	}
@@ -86,7 +111,7 @@ func (t *HTTPTransfer) request(ctx context.Context, slot Slot, operation, digest
 		return transferResponse{}, &RemoteError{Operation: "metadata", StatusCode: response.StatusCode}
 	}
 	var result transferResponse
-	if err = json.NewDecoder(io.LimitReader(response.Body, 16384)).Decode(&result); err != nil {
+	if err = json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&result); err != nil {
 		return result, err
 	}
 	if result.Conflict {
@@ -119,10 +144,7 @@ func (t *HTTPTransfer) Download(ctx context.Context, slot Slot, path string) err
 }
 
 func (t *HTTPTransfer) fetchArchive(ctx context.Context, slot Slot, archive string) error {
-	backoff := t.retryBackoff
-	if backoff <= 0 {
-		backoff = downloadRetryBackoff
-	}
+	backoff := t.backoff()
 	for attempt := 1; ; attempt++ {
 		// Every attempt asks for a fresh link: a presigned URL can expire mid-download.
 		result, err := t.request(ctx, slot, "download", "", "")
@@ -160,11 +182,11 @@ func (t *HTTPTransfer) fetch(ctx context.Context, url, archive string) error {
 	if offset > 0 {
 		req.Header.Set("Range", "bytes="+strconv.FormatInt(offset, 10)+"-")
 	}
-	client := t.DownloadClient
-	if client == nil {
-		client = t.Client
-	}
-	response, err := client.Do(req)
+	stall := t.stall()
+	// The watchdog also covers a server that accepts the request but never answers.
+	watchdog := time.AfterFunc(stall, func() { cancel(errDownloadStalled) })
+	defer watchdog.Stop()
+	response, err := t.objectClient().Do(req)
 	if err != nil {
 		if cause := context.Cause(ctx); errors.Is(cause, errDownloadStalled) {
 			return cause
@@ -190,7 +212,7 @@ func (t *HTTPTransfer) fetch(ctx context.Context, url, archive string) error {
 	case response.StatusCode == http.StatusOK:
 		offset, total = 0, response.ContentLength
 	default:
-		return &RemoteError{Operation: "download", StatusCode: response.StatusCode}
+		return remoteError("download", response)
 	}
 	// Incompressible payloads can grow slightly when compressed (see RestoreImage).
 	limit := t.MaxBytes + t.MaxBytes/100 + (1 << 20)
@@ -209,12 +231,7 @@ func (t *HTTPTransfer) fetch(ctx context.Context, url, archive string) error {
 	if _, err = file.Seek(offset, io.SeekStart); err != nil {
 		return err
 	}
-	stall := t.stallTimeout
-	if stall <= 0 {
-		stall = downloadStallTimeout
-	}
-	watchdog := time.AfterFunc(stall, func() { cancel(errDownloadStalled) })
-	defer watchdog.Stop()
+	watchdog.Reset(stall)
 	body := &progressReader{r: response.Body, progress: func() { watchdog.Reset(stall) }}
 	written, err := io.Copy(file, io.LimitReader(body, limit+1-offset))
 	if err != nil {
@@ -237,11 +254,14 @@ func (t *HTTPTransfer) fetch(ctx context.Context, url, archive string) error {
 type progressReader struct {
 	r        io.Reader
 	progress func()
+	// n counts what was read; net/http may read an upload's body after Do returns.
+	n atomic.Int64
 }
 
 func (p *progressReader) Read(b []byte) (int, error) {
 	n, err := p.r.Read(b)
 	if n > 0 {
+		p.n.Add(int64(n))
 		p.progress()
 	}
 	return n, err
@@ -258,44 +278,42 @@ func parseContentRange(value string) (start, size int64, ok bool) {
 	}
 	return 0, 0, false
 }
-func (t *HTTPTransfer) Publish(slot Slot, path, digest, content string) (int64, error) {
-	result, err := t.request(context.Background(), slot, "upload", digest, content)
-	if err != nil {
-		return 0, err
+
+// remoteError names an object store's error code (S3's <Code>) when its
+// response body carries one, so a 5xx says whether storage was overloaded,
+// failed internally or never answered behind a proxy.
+func remoteError(operation string, response *http.Response) *RemoteError {
+	body, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
+	remote := &RemoteError{Operation: operation, StatusCode: response.StatusCode}
+	if match := storageErrorCode.FindSubmatch(body); match != nil {
+		remote.Code = string(match[1])
 	}
-	if result.Generation > 0 {
-		return result.Generation, nil
+	return remote
+}
+
+var storageErrorCode = regexp.MustCompile(`<Code>([A-Za-z]{1,64})</Code>`)
+
+func (t *HTTPTransfer) objectClient() *http.Client {
+	if t.ObjectClient != nil {
+		return t.ObjectClient
 	}
-	file, err := os.Open(path)
-	if err != nil {
-		return 0, err
+	client := *t.Client
+	client.Timeout = 0
+	return &client
+}
+
+func (t *HTTPTransfer) stall() time.Duration {
+	if t.stallTimeout > 0 {
+		return t.stallTimeout
 	}
-	defer file.Close()
-	stat, err := file.Stat()
-	if err != nil {
-		return 0, err
+	return transferStallTimeout
+}
+
+func (t *HTTPTransfer) backoff() time.Duration {
+	if t.retryBackoff > 0 {
+		return t.retryBackoff
 	}
-	req, err := http.NewRequest("PUT", result.UploadURL, file)
-	if err != nil {
-		return 0, errors.New("invalid upload URL")
-	}
-	req.ContentLength = stat.Size()
-	if result.Checksum != "" {
-		req.Header.Set("x-amz-checksum-sha256", result.Checksum)
-	}
-	response, err := t.Client.Do(req)
-	if err != nil {
-		return 0, fmt.Errorf("image upload failed: %w", transferError(err))
-	}
-	response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return 0, &RemoteError{Operation: "upload", StatusCode: response.StatusCode}
-	}
-	result, err = t.request(context.Background(), slot, "publish", digest, content)
-	if err == nil && result.Generation <= slot.BaseGeneration {
-		return 0, errors.New("invalid published generation")
-	}
-	return result.Generation, err
+	return transferRetryBackoff
 }
 
 func (t *HTTPTransfer) Head(slot Slot) (Identity, error) {
@@ -306,7 +324,9 @@ func (t *HTTPTransfer) Head(slot Slot) (Identity, error) {
 	return Identity{BaseGeneration: result.Generation, ImageDigest: result.ImageDigest, ContentDigest: result.ContentDigest}, nil
 }
 
-// Preserve cancellation for classification without logging credential-bearing URLs.
+// transferError preserves cancellation for classification and keeps what the
+// network reported (a reset, a broken pipe, an EOF, a TLS failure) without the
+// credential-bearing URL net/http puts in front of it.
 func transferError(err error) error {
 	if errors.Is(err, context.DeadlineExceeded) {
 		return context.DeadlineExceeded
@@ -314,8 +334,15 @@ func transferError(err error) error {
 	if errors.Is(err, context.Canceled) {
 		return context.Canceled
 	}
-	return errors.New("transport error")
+	var request *url.Error
+	if errors.As(err, &request) {
+		err = request.Err
+	}
+	return fmt.Errorf("%w: %s", errTransport, signedURL.ReplaceAllString(err.Error(), "<url>"))
 }
+
+// signedURL matches a URL, which may carry a signature, in an error's text.
+var signedURL = regexp.MustCompile(`https?://[^\s"']+`)
 
 func (t *HTTPTransfer) token(ctx context.Context) (string, error) {
 	if t.Token != nil {

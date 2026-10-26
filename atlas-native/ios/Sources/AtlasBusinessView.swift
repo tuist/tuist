@@ -26,9 +26,6 @@ struct AtlasBusinessView: View {
 
     private var list: some View {
         List {
-            Color.clear.frame(height: 0)
-                .listRowInsets(EdgeInsets()).listRowSeparator(.hidden).listRowBackground(Color.clear)
-                .environment(\.defaultMinListRowHeight, 0).accessibilityHidden(true).id("business-start")
             if model.forbidden {
                 ContentUnavailableView("Access required", systemImage: "lock", description: Text("Ask an Atlas administrator for access."))
             } else if let page = model.page {
@@ -69,6 +66,9 @@ struct AtlasBusinessView: View {
                     }
                 }
             }
+            if model.busy, !model.loading {
+                ProgressView().frame(maxWidth: .infinity).accessibilityLabel("Loading")
+            }
             if let error = model.errorMessage {
                 Section {
                     Text(error).foregroundStyle(.red)
@@ -80,16 +80,20 @@ struct AtlasBusinessView: View {
                         .disabled(model.busy)
                 }
             }
-            if model.busy, !model.loading || model.page == nil {
-                ProgressView().frame(maxWidth: .infinity).accessibilityLabel("Loading")
-            }
         }
         // Reset only the list for new criteria; scrolling headers can clip them under native navigation.
         .id(model.query)
         .id(model.filters)
         .id(listRevision)
         .modifier(AtlasThemedContent())
+        .overlay {
+            if model.loading, model.page == nil {
+                ProgressView("Loading \(model.resource.title.lowercased())")
+            }
+        }
+        .defaultScrollAnchor(.top)
         .navigationTitle(model.resource.title)
+        .navigationBarTitleDisplayMode(.large)
         .searchable(text: $query, prompt: "Search \(model.resource.title.lowercased())")
         .onSubmit(of: .search) { Task { await model.load(query: query) } }
         .onChange(of: query) { _, value in
@@ -102,6 +106,7 @@ struct AtlasBusinessView: View {
         }
         .onAppear { presence?.show(resource: model.resource.rawValue) }
         .toolbar {
+            AtlasPresenceToolbar()
             ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: model.resource.rawValue) }
             ToolbarItem(placement: .topBarTrailing) {
                 filterMenu.disabled(model.busy && !model.loading)
@@ -289,6 +294,7 @@ struct AtlasBusinessDetail: View {
         .modifier(AtlasThemedContent())
         .navigationTitle(model.resource.singular).navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            AtlasPresenceToolbar()
             ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: model.resource.rawValue, recordID: item.id) }
             ToolbarItem(placement: .topBarTrailing) {
                 if item.canEdit { Button("Edit") { editing = true }.disabled(model.busy || model.page == nil) }

@@ -17,6 +17,7 @@ This area owns Plug middleware for request processing.
 - `BrowserTelemetryPlug` owns the bounded same-origin `/-/faro/collect` gateway before the endpoint body parser. Validate signed sessions without refreshing cookies; never forward browser credentials to Alloy. Keep body/item/time limits, trusted Ray-ID handling and failure responses covered by tests.
 
 ## Boundaries
+- Observability and Sentry plugs share `Tuist.Observability` normalization and replacement semantics. Set selected resources only from authoritative loaded structs, retaining auth separately. Clear absent keys and old cohorts on context changes; never copy headers, credentials or arbitrary conn assigns. Project ownership wins over inconsistent selected-account assigns.
 - Domain logic belongs in `server/lib/tuist` contexts.
 - Frontend assets are in `server/assets`.
 

@@ -13,6 +13,7 @@
 - Keep `CargoCacheReport` and `CargoCacheDetailsReport` bounded by file count, bytes, records, keys, and wire size. Aggregate up to 4096 report files within the 8 MB budget (not the inspection detail's smaller file cap); mark available details truncated when the aggregate scan is cut short. Never collect arbitrary compiler arguments, environment values, or credentials in telemetry, or infer local/remote hit provenance. Historical server payload fields remain compatible, but unsupported counters stay zero.
 
 ## Cargo and nextest semantics
+- Build metadata reuses `custom_metadata`, `TUIST_BUILD_TAGS` and `TUIST_BUILD_VALUE_*`; explicit values override allowlisted live-wrapper observations. Because older Cargo receivers had no metadata field, omit the entire field until credential-free discovery advertises expanded support (greater than 20), even for small maps. Runner names require opt-in. See `server/docs/build-metadata.md`.
 
 - Project, server, and network configuration is exclusively `tuist.toml` plus environment overrides, even in checkouts with `Tuist.swift`. Use `ConfigLoader.loadCargoConfig`; do not extend ProjectDescription for Cargo settings.
 - Dispatch Cargo before generic flag stripping and command analytics. Preserve Cargo's quiet/verbose flags, output, argument order, failures, and signals. Nested Cargo commands must not recursively decorate a session.
@@ -24,5 +25,5 @@
 - Stable identities use nextest binary IDs and Rust namespaces, not artifact hashes or checkout paths.
 - Nextest binaries are concurrent module-level units, not Xcode suite-level units. Declare `concurrent_modules` and reuse the shared measured-concurrency planner with a longest-binary floor. Binary/suite timings use complete attempt timestamp windows, including retry delays and ignoring skips. Omit concurrency evidence when timestamps or wall time are missing; never infer utilization from CPU count or thread limits.
 - Analytics failures must not change Cargo's exit status. Planning/downloading failures must fail a shard rather than execute the entire suite.
-- Repeatable archive upload/download, exactly-once shard execution, merged reports, and fail-closed checks live in `cli/Tests/Fixtures/CargoSharding/AGENTS.md`. Archive downloads use the policy-protected `URLSession.tuistDefault` while preserving native default transfer timeouts.
+- Repeatable archive upload/download, exactly-once shard execution, merged reports, and fail-closed checks live in `cli/Tests/Fixtures/CargoSharding/AGENTS.md`. Archive downloads use `RetryingURLTransfer` with the policy-protected `URLSession.tuistDefault`, retaining bounded retry and native default transfer timeouts.
 - Keep docs aligned with the deliberately narrow experimental cache. Do not claim parity with a general compiler cache, undeclared-input sandboxing, cross-worker qualification, quarantine enforcement, coverage, or selective testing.

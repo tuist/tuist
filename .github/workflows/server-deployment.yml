@@ -1078,6 +1078,24 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Hold runner pools on images their hosts have not staged
+        # A runner image release announces its images and the macOS hosts
+        # pull them in the background (infra/tart-kubelet/AGENTS.md). Until
+        # the hosts serving a pool hold its new image, or an hour after the
+        # announcement, the pool keeps the digest it runs now, so no job
+        # waits on the pull. A gate that cannot read the cluster moves the
+        # pools as before, and a checkout predating the gate has none.
+        if: env.RUNNER_IMAGE_DIGESTS != ''
+        run: |
+          set -euo pipefail
+          gate=.github/scripts/runner-image-staging-gate.sh
+          [ -x "$gate" ] || exit 0
+          if ! gated="$("$gate" "$RUNNER_IMAGE_DIGESTS" "${RUNNER_IMAGE_STACKED_DIGESTS:-"{}"}")"; then
+            echo "::warning::Could not check which runner images the hosts have staged; moving the pools to the release's images."
+            exit 0
+          fi
+          echo "RUNNER_IMAGE_DIGESTS=$(jq -c .digests <<< "$gated")" >> "$GITHUB_ENV"
+          echo "RUNNER_IMAGE_STACKED_DIGESTS=$(jq -c .stacked <<< "$gated")" >> "$GITHUB_ENV"
       - name: Pre-pull the server image
         # The migration Job and every server Pod the rollout replaces one at a
         # time otherwise start by pulling the new image on their node (22-40s

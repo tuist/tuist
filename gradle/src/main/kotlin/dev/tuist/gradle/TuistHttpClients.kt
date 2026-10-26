@@ -1,5 +1,6 @@
 package dev.tuist.gradle
 
+import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -18,6 +19,8 @@ import javax.net.ssl.X509TrustManager
  * metrics, SSL) live in exactly one place, and the underlying OkHttp connection
  * pool is shared.
  *
+ * Requests the plugin sends retry transient failures with [retryPolicy] (see [TuistRetry]).
+ *
  * When the `HTTPS_PROXY` or `HTTP_PROXY` environment variable is set, the
  * clients automatically route requests through it by default; otherwise they use
  * direct connections. Callers can opt out by setting [useEnvironmentProxy] to
@@ -28,7 +31,8 @@ open class TuistHttpClients(
     private val proxyURLProvider: () -> String? = { environmentProxyURL() },
     private val environmentVariables: Map<String, String> = System.getenv(),
     private val pluginVersion: String? = PluginVersion.current,
-    private val trustManagerProvider: () -> X509TrustManager = { CertificateTrust.systemTrustManager() }
+    private val trustManagerProvider: () -> X509TrustManager = { CertificateTrust.systemTrustManager() },
+    val retryPolicy: RetryPolicy = RetryPolicy()
 ) {
 
     private val tls by lazy { CertificateTrust.create(trustManagerProvider()) }
@@ -40,6 +44,7 @@ open class TuistHttpClients(
     open val okHttp: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .sslSocketFactory(tls.socketFactory, tls.trustManager)
+            .connectionPool(ConnectionPool(MAX_IDLE_CONNECTIONS, IDLE_CONNECTION_KEEP_ALIVE_SECONDS, TimeUnit.SECONDS))
             .connectTimeout(DEFAULT_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(DEFAULT_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .addInterceptor(FeatureFlagsInterceptor(environmentVariables))
@@ -103,6 +108,9 @@ open class TuistHttpClients(
         private const val DEFAULT_CONNECT_TIMEOUT_SECONDS = 30L
         private const val DEFAULT_READ_TIMEOUT_SECONDS = 60L
         private const val LATENCY_TIMEOUT_SECONDS = 5L
+        private const val MAX_IDLE_CONNECTIONS = 5
+        // Below the server's 15 s idle timeout, so a connection is never reused while the server closes it.
+        internal const val IDLE_CONNECTION_KEEP_ALIVE_SECONDS = 10L
         private const val DEFAULT_CONNECT_TIMEOUT_MS = 30_000
         private const val DEFAULT_READ_TIMEOUT_MS = 60_000
 

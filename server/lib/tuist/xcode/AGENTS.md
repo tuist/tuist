@@ -14,6 +14,7 @@ This context owns Xcode graph ingestion and analytics.
 
 ## Guardrails
 - Xcode graph data is analytics data; update `server/data-export.md` on schema changes.
+- Capture `xcode_graphs.modules_count` from distinct project/module pairs across every reported target, including noncacheable targets, while preparing the complete graph payload. Store this with the server-attributed project ID in the graph header so partial target-buffer arrival cannot imply removals and client event-ID collisions cannot mix tenants. The project-leading projection covers new headers only; do not materialize/backfill historical snapshots. Empty graphs record zero; legacy graphs stay NULL, with no retrospective inference/backfill. This is a reported workspace snapshot, not an exhaustive repository inventory. Graph retention remains 30 days; `Tuist.BuildEntities.default_branch_module_counts/3` supplies independently bounded default-branch dashboard state.
 
 ## Related Context
 - Parent business logic: `server/lib/tuist/AGENTS.md`

@@ -130,6 +130,11 @@ server:
       nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
       nginx.ingress.kubernetes.io/proxy-body-size: "50m"
       nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+      # A request moves to another pod only when nginx could not connect to the
+      # first (refused, unreachable, connect timeout), so it never reached Phoenix.
+      # With request buffering off, nginx retries nothing it started sending.
+      nginx.ingress.kubernetes.io/proxy-next-upstream: "error timeout"
+      nginx.ingress.kubernetes.io/proxy-next-upstream-tries: "3"
 
   # Runtime secrets are sourced from 1Password by ESO; the encrypted priv/secrets
   # blob (and MASTER_KEY) are gone. `config.managedSecrets` syncs the

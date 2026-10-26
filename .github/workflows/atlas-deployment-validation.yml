@@ -29,6 +29,8 @@ jobs:
           bash infra/helm/atlas/test-agent-boundary.sh
           bash infra/helm/atlas/test-chatgpt-config.sh
           bash atlas/deploy/test-sandbox-retention.sh
+      - name: Test documentation capture bounds and diagnostics
+        run: node --test atlas/deploy/capture-docs.test.mjs
       - uses: helm/kind-action@v1.14.0
         with:
           install_only: true
@@ -41,5 +43,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: atlas-deployment-screenshots
-          path: atlas-deployment-screenshots/*.png
+          path: atlas-deployment-screenshots/
           if-no-files-found: ignore

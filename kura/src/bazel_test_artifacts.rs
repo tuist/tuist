@@ -43,12 +43,18 @@ pub struct BazelTestArtifactDelivery {
     metrics: Metrics,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct BazelAction {
     pub account_handle: String,
     pub project_handle: String,
     pub invocation_id: String,
     pub primary_output: String,
+    pub target_label: String,
+    pub mnemonic: String,
+    pub duration_ms: Option<u64>,
+    pub git_branch: String,
+    pub git_commit_sha: String,
+    pub is_ci: Option<bool>,
     pub started_at_ms: u64,
     pub success: bool,
     pub logs: Vec<(String, u64)>,
@@ -447,7 +453,7 @@ impl Runtime {
             }
             log.push(b'\n');
         }
-        let payload = serde_json::json!({
+        let mut payload = serde_json::json!({
             "account_handle": action.account_handle,
             "project_handle": action.project_handle,
             "invocation_id": action.invocation_id,
@@ -457,6 +463,18 @@ impl Runtime {
             "log": String::from_utf8_lossy(&log),
             "log_truncated": truncated,
         });
+        if !action.target_label.is_empty() && !action.mnemonic.is_empty() {
+            payload["target_label"] = serde_json::json!(action.target_label);
+            payload["mnemonic"] = serde_json::json!(action.mnemonic);
+            payload["git_branch"] = serde_json::json!(action.git_branch);
+            payload["git_commit_sha"] = serde_json::json!(action.git_commit_sha);
+            if let Some(duration) = action.duration_ms {
+                payload["duration_ms"] = serde_json::json!(duration);
+            }
+            if let Some(is_ci) = action.is_ci {
+                payload["is_ci"] = serde_json::json!(is_ci);
+            }
+        }
         payload
     }
 
@@ -834,6 +852,7 @@ mod tests {
             started_at_ms: 1,
             success: true,
             logs: vec![],
+            ..Default::default()
         };
         delivery.enqueue_action(action.clone());
         delivery.enqueue_action(action);
@@ -1056,9 +1075,14 @@ mod tests {
                         project_handle: "app".into(),
                         invocation_id: "build".into(),
                         primary_output: format!("{i}.o"),
+                        target_label: "//app:lib".into(),
+                        mnemonic: "CppCompile".into(),
+                        duration_ms: if i == 34 { None } else { Some(i) },
+                        is_ci: Some(true),
                         started_at_ms: i,
                         success: true,
                         logs: vec![],
+                        ..Default::default()
                     }))
                     .unwrap();
             }
@@ -1081,6 +1105,16 @@ mod tests {
                     vec![payload]
                 };
                 assert!(rows.len() <= 32);
+                for row in &rows {
+                    assert_eq!(row["target_label"], "//app:lib");
+                    assert_eq!(row["mnemonic"], "CppCompile");
+                    if row["started_at_ms"] == 34 {
+                        assert!(row.get("duration_ms").is_none());
+                    } else {
+                        assert_eq!(row["duration_ms"], row["started_at_ms"]);
+                    }
+                    assert_eq!(row["is_ci"], true);
+                }
                 outputs.extend(
                     rows.into_iter()
                         .map(|row| row["primary_output"].as_str().unwrap().to_owned()),

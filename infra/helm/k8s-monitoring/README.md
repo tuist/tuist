@@ -207,6 +207,28 @@ and the next cycle reapplies it. Pair every deletion with the query that
 protects it, which for Kura page cache is the **Page cache by node** panel in
 `infra/grafana-dashboards/tuist-kura-region-scalability.json`.
 
+**Counters need `sum:counter`.** A rule's `aggregations` decide which queries the
+aggregated series answers. Plain `sum` stores the sum of the raw values, which
+drops whenever a source restarts, and `rate()` or `increase()` over it return
+an empty result rather than an error. `sum:counter` stores a counter-aware sum
+that `rate()` reads. The `tuist_` prefix rule (drops `pod`, `instance`,
+`pod_template_hash`; stores `sum`, `count`, `max`) catches every `tuist_*`
+metric without an exact rule, so a new counter under that prefix cannot be
+rated until it gets an exact rule with `sum:counter`. An exact rule takes
+precedence over a prefix rule, as `tuist_runners_dispatch_request_count`
+shows. `tuist_runner_cache_volume_operations_total` and
+`tuist_runner_cache_volume_operation_duration_seconds_{bucket,count,sum}` got
+theirs on 2026-10-22 at 16:50 UTC; samples stored before then still cannot be
+rated.
+
+`sum:counter` cannot count an increment it never saw. A counter series a
+source creates on its first increment (a label combination the code does not
+initialize to 0) appears already at 1, and that first 1 is lost. Over
+17:20 to 18:20 UTC on 2026-10-22 the cache volume counter read 12 to 31% below
+the host logs for successes, and showed none of the hour's single macOS publish
+error or Linux acquire error. Alert on a rare failure from logs, or initialize
+its series to 0 in the code first.
+
 `recommendations/config` also carries a global `keep_labels` list: a label named
 there is never proposed for aggregation on any metric. It is empty today.
 Putting `cluster` in it would end this whole class of bug, at the cost of every

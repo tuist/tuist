@@ -3202,6 +3202,13 @@ impl Proxy {
         observed: u64,
         snapshot_ready: bool,
     ) -> Result<Option<Vec<u8>>, String> {
+        // A remote that is not answering lookups is a miss, but not one to
+        // remember: the key may well be there once the remote is back. Answered
+        // as a plain miss rather than an error, because the build reports every
+        // errored lookup and this one never reached the remote.
+        if remote.skip_lookup() {
+            return Ok(None);
+        }
         let op_start = Instant::now();
         let phase = Instant::now();
         let manifest = match remote.get_action(key)? {
@@ -6045,8 +6052,8 @@ impl Proxy {
         }
         drop(paths);
         for (instance, (_, remote)) in self.remotes.lock().unwrap().iter() {
-            parts.push(format!("{instance}: batch_download_bytes={} reused_chunk_bytes={}",
-                remote.downloaded_blob_bytes(), remote.reused_chunk_bytes()));
+            parts.push(format!("{instance}: batch_download_bytes={} reused_chunk_bytes={} skipped_lookups={}",
+                remote.downloaded_blob_bytes(), remote.reused_chunk_bytes(), remote.skipped_lookups()));
         }
         parts.join(" | ")
     }

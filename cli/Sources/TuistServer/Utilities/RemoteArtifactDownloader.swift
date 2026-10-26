@@ -30,20 +30,20 @@ public protocol RemoteArtifactDownloading {
 }
 
 public struct RemoteArtifactDownloader: RemoteArtifactDownloading {
-    private let urlSession: URLSession
+    private let transfer: RetryingURLTransfer
 
     public init() {
         self.init(urlSession: URLSession.tuistDefault)
     }
 
-    init(urlSession: URLSession) {
-        self.urlSession = urlSession
+    init(urlSession: URLSession, retryProvider: RetryProviding = RetryProvider()) {
+        transfer = RetryingURLTransfer(urlSession: urlSession, retryProvider: retryProvider)
     }
 
     public func download(url: URL) async throws -> AbsolutePath? {
         let request = URLRequest(url: url)
         do {
-            let (localUrl, response) = try await urlSession.download(for: request)
+            let (localUrl, response) = try await transfer.download(request)
             guard let urlResponse = response as? HTTPURLResponse else {
                 throw RemoteArtifactDownloaderError.noURLResponse(request.url)
             }

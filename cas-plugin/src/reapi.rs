@@ -127,6 +127,22 @@ const PRESSURE_BACKOFF_MS: u64 = 30_000;
 // blocking on it, it is the proxy's 10s sweep: at 5s every sweep re-probes, so
 // a node that recovers is picked up on the next one rather than waited out.
 const WRITE_PRESSURE_BACKOFF_MS: u64 = 5_000;
+// After a lookup ends UNAVAILABLE, how long the same `Remote` answers lookups
+// without asking. A build blocks on every lookup, and a remote that is not
+// answering can take tens of seconds to say so (the activation gateway holds a
+// request for its whole activation wait first), so asking it again per lookup
+// costs that wait per compile. Recovery is detected by a background probe, so
+// the window only bounds how long a node that came straight back is ignored.
+const LOOKUP_UNAVAILABLE_BACKOFF_MS: u64 = 5_000;
+// The background probe's lookup. Nothing publishes it, so a serving node
+// answers NOT_FOUND, which is what closes the breaker.
+const LOOKUP_PROBE_KEY: &[u8] = b"tuist-cas-plugin/lookup-probe";
+const LOOKUP_SKIPPED: &str = "remote is not answering lookups; skipped without asking";
+// The cache activation gateway's mark on an answer it gave without forwarding
+// the request: it waited its full activation window and the instance still was
+// not serving.
+const ACTIVATION_HEADER: &str = "x-tuist-cache-activation";
+const ACTIVATION_PENDING: &str = "pending";
 
 pub(crate) fn now_ms() -> u64 {
     std::time::SystemTime::now()
@@ -142,22 +158,94 @@ pub(crate) fn now_ms() -> u64 {
 /// struggling.
 const RETRY_BACKOFF: Duration = Duration::from_millis(200);
 
+/// How kura refuses work while it drains before a restart. A draining replica
+/// refuses every request until it exits, 20 s later in a hosted rollout, so the
+/// refusal is retried on a new connection (see `RemoteChannel`) for as long as a
+/// stale endpoint list may still route that connection back to it.
+const DRAINING_MESSAGE: &str = "server is draining";
+const DRAIN_RETRY_WINDOW: Duration = Duration::from_secs(5);
+const DRAIN_RETRY_BACKOFF: Duration = Duration::from_millis(250);
+const DRAIN_RETRY_MAX_BACKOFF: Duration = Duration::from_secs(1);
+
+fn draining(status: &tonic::Status) -> bool {
+    status.code() == tonic::Code::Unavailable
+        && status.message() == DRAINING_MESSAGE
+        && !activation_pending(status)
+}
+
+/// The retry policy every gRPC call shares: up to `attempts` tries on statuses
+/// `should_retry` accepts, and, when more than one try is allowed, a draining
+/// refusal retried for `DRAIN_RETRY_WINDOW` whatever `should_retry` says.
+struct RetryLadder {
+    attempts: usize,
+    failures: usize,
+    drain_refusals: u32,
+    draining_since: Option<Instant>,
+}
+
+impl RetryLadder {
+    fn new(attempts: usize) -> Self {
+        Self {
+            attempts,
+            failures: 0,
+            drain_refusals: 0,
+            draining_since: None,
+        }
+    }
+
+    /// How long to wait before re-issuing a call that failed with `status`, or
+    /// `None` when the failure is final.
+    fn next_delay(
+        &mut self,
+        status: &tonic::Status,
+        should_retry: impl Fn(&tonic::Status) -> bool,
+    ) -> Option<Duration> {
+        if self.attempts > 1 && draining(status) {
+            let elapsed = self
+                .draining_since
+                .get_or_insert_with(Instant::now)
+                .elapsed();
+            let remaining = DRAIN_RETRY_WINDOW.checked_sub(elapsed)?;
+            let delay = match self.drain_refusals {
+                0 => Duration::ZERO,
+                refusals => (DRAIN_RETRY_BACKOFF * 2u32.pow((refusals - 1).min(8)))
+                    .min(DRAIN_RETRY_MAX_BACKOFF),
+            };
+            self.drain_refusals += 1;
+            return Some(delay.min(remaining));
+        }
+        self.failures += 1;
+        if !should_retry(status) || self.failures >= self.attempts {
+            return None;
+        }
+        Some(match self.failures {
+            1 => Duration::ZERO,
+            failures => RETRY_BACKOFF * (failures - 1) as u32,
+        })
+    }
+}
+
 /// Retries a synchronous gRPC call up to `ATTEMPTS` times on retryable statuses,
 /// keeping the retry policy in one place. The caller maps success and terminal
 /// errors (e.g. NotFound) at the call site.
-fn retry_call<T>(mut op: impl FnMut() -> Result<T, tonic::Status>) -> Result<T, tonic::Status> {
-    let mut last = None;
-    for attempt in 0..ATTEMPTS {
-        if attempt > 1 {
-            std::thread::sleep(RETRY_BACKOFF * (attempt - 1) as u32);
-        }
+fn retry_call<T>(op: impl FnMut() -> Result<T, tonic::Status>) -> Result<T, tonic::Status> {
+    retry_call_if(op, retryable)
+}
+
+fn retry_call_if<T>(
+    mut op: impl FnMut() -> Result<T, tonic::Status>,
+    should_retry: impl Fn(&tonic::Status) -> bool,
+) -> Result<T, tonic::Status> {
+    let mut ladder = RetryLadder::new(ATTEMPTS);
+    loop {
         match op() {
             Ok(value) => return Ok(value),
-            Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => last = Some(status),
-            Err(status) => return Err(status),
+            Err(status) => match ladder.next_delay(&status, &should_retry) {
+                Some(delay) => std::thread::sleep(delay),
+                None => return Err(status),
+            },
         }
     }
-    Err(last.unwrap_or_else(|| tonic::Status::unknown("retry attempts exhausted")))
 }
 
 /// `retry_call` for a publication's write RPCs, with the ladder gated on a
@@ -179,32 +267,34 @@ fn retry_write<T>(
     breaker: &AtomicU64,
     mut op: impl FnMut() -> Result<T, tonic::Status>,
 ) -> Result<T, tonic::Status> {
-    let attempts = if now_ms() < breaker.load(Ordering::Relaxed) {
+    let mut ladder = write_ladder(breaker);
+    loop {
+        match op() {
+            Ok(value) => return Ok(value),
+            Err(status) => match ladder.next_delay(&status, retryable) {
+                Some(delay) => std::thread::sleep(delay),
+                None => {
+                    // Only a shed arms the breaker. An unreachable node
+                    // (UNAVAILABLE) or a dropped connection is transient and
+                    // unrelated to load, and failing publications fast for 5s
+                    // because one connection blipped would turn a reconnect into a
+                    // window of skipped publications.
+                    if status.code() == tonic::Code::ResourceExhausted {
+                        arm_write_pressure_backoff(breaker);
+                    }
+                    return Err(status);
+                }
+            },
+        }
+    }
+}
+
+fn write_ladder(breaker: &AtomicU64) -> RetryLadder {
+    RetryLadder::new(if now_ms() < breaker.load(Ordering::Relaxed) {
         1
     } else {
         ATTEMPTS
-    };
-    for attempt in 0..attempts {
-        if attempt > 1 {
-            std::thread::sleep(RETRY_BACKOFF * (attempt - 1) as u32);
-        }
-        match op() {
-            Ok(value) => return Ok(value),
-            Err(status) if retryable(&status) && attempt + 1 < attempts => continue,
-            Err(status) => {
-                // Only a shed arms the breaker. An unreachable node
-                // (UNAVAILABLE) or a dropped connection is transient and
-                // unrelated to load, and failing publications fast for 5s
-                // because one connection blipped would turn a reconnect into a
-                // window of skipped publications.
-                if status.code() == tonic::Code::ResourceExhausted {
-                    arm_write_pressure_backoff(breaker);
-                }
-                return Err(status);
-            }
-        }
-    }
-    Err(tonic::Status::unknown("retry attempts exhausted"))
+    })
 }
 
 /// Opens a fresh fail-fast window, logging the transition once. Same
@@ -235,17 +325,9 @@ fn arm_write_pressure_backoff(breaker: &AtomicU64) {
     ));
 }
 
-/// Async counterpart of `retry_call`, for calls issued from within a tokio task
-/// where blocking is not allowed. `op` is re-invoked (returning a fresh future)
-/// per attempt.
-async fn retry_call_async<T, F, Fut>(mut op: F) -> Result<T, tonic::Status>
-where
-    F: FnMut() -> Fut,
-    Fut: std::future::Future<Output = Result<T, tonic::Status>>,
-{
-    retry_call_async_if(&mut op, retryable).await
-}
-
+/// Async counterpart of `retry_call_if`, for calls issued from within a tokio
+/// task where blocking is not allowed. `op` is re-invoked (returning a fresh
+/// future) per attempt.
 async fn retry_call_async_if<T, F, Fut>(
     mut op: F,
     should_retry: impl Fn(&tonic::Status) -> bool,
@@ -254,18 +336,16 @@ where
     F: FnMut() -> Fut,
     Fut: std::future::Future<Output = Result<T, tonic::Status>>,
 {
-    let mut last = None;
-    for attempt in 0..ATTEMPTS {
-        if attempt > 1 {
-            tokio::time::sleep(RETRY_BACKOFF * (attempt - 1) as u32).await;
-        }
+    let mut ladder = RetryLadder::new(ATTEMPTS);
+    loop {
         match op().await {
             Ok(value) => return Ok(value),
-            Err(status) if should_retry(&status) && attempt + 1 < ATTEMPTS => last = Some(status),
-            Err(status) => return Err(status),
+            Err(status) => match ladder.next_delay(&status, &should_retry) {
+                Some(delay) => tokio::time::sleep(delay).await,
+                None => return Err(status),
+            },
         }
     }
-    Err(last.unwrap_or_else(|| tonic::Status::unknown("retry attempts exhausted")))
 }
 
 async fn retry_write_async<T, F, Fut>(breaker: &AtomicU64, mut op: F) -> Result<T, tonic::Status>
@@ -273,27 +353,21 @@ where
     F: FnMut() -> Fut,
     Fut: std::future::Future<Output = Result<T, tonic::Status>>,
 {
-    let attempts = if now_ms() < breaker.load(Ordering::Relaxed) {
-        1
-    } else {
-        ATTEMPTS
-    };
-    for attempt in 0..attempts {
-        if attempt > 1 {
-            tokio::time::sleep(RETRY_BACKOFF * (attempt - 1) as u32).await;
-        }
+    let mut ladder = write_ladder(breaker);
+    loop {
         match op().await {
             Ok(value) => return Ok(value),
-            Err(status) if retryable(&status) && attempt + 1 < attempts => continue,
-            Err(status) => {
-                if status.code() == tonic::Code::ResourceExhausted {
-                    arm_write_pressure_backoff(breaker);
+            Err(status) => match ladder.next_delay(&status, retryable) {
+                Some(delay) => tokio::time::sleep(delay).await,
+                None => {
+                    if status.code() == tonic::Code::ResourceExhausted {
+                        arm_write_pressure_backoff(breaker);
+                    }
+                    return Err(status);
                 }
-                return Err(status);
-            }
+            },
         }
     }
-    Err(tonic::Status::unknown("retry attempts exhausted"))
 }
 
 pub(crate) fn hex(bytes: &[u8]) -> String {
@@ -425,10 +499,107 @@ pub(crate) fn secure_endpoint(
         .map_err(|_| "could not configure secure cache transport".to_owned())
 }
 
+/// The connection a `Remote` sends on, replaced when kura answers that the
+/// replica behind it is draining. An HTTP/2 connection stays on one replica,
+/// and a draining replica refuses every request until it exits, so a retry on
+/// the connection that carried the refusal can only be refused again.
+struct ChannelSlot {
+    endpoint: Endpoint,
+    current: Mutex<(u64, Channel)>,
+}
+
+impl ChannelSlot {
+    fn new(endpoint: Endpoint) -> Self {
+        let channel = Self::connect(&endpoint);
+        Self {
+            endpoint,
+            current: Mutex::new((0, channel)),
+        }
+    }
+
+    fn connect(endpoint: &Endpoint) -> Channel {
+        // connect_lazy wires the hyper connection pool and the h2 keepalive
+        // timers to the *current* Tokio runtime. This runs from a proxy handler
+        // thread (outside the runtime), so without entering the runtime here the
+        // first RPC panics with "there is no reactor running" on a detached
+        // connection task; the panic is swallowed at the FFI boundary and every
+        // resolve silently degrades to a local miss (0% remote cache).
+        let _runtime_guard = runtime().enter();
+        endpoint.connect_lazy()
+    }
+
+    fn current(&self) -> (u64, Channel) {
+        self.current.lock().unwrap().clone()
+    }
+
+    /// Replaces the channel of `generation`. Every request the draining replica
+    /// refused on it asks, and only the first opens a new connection.
+    fn reconnect(&self, generation: u64) {
+        let mut current = self.current.lock().unwrap();
+        if current.0 == generation {
+            *current = (generation + 1, Self::connect(&self.endpoint));
+        }
+    }
+}
+
+/// The gRPC transport of a `Remote`: each call goes out on the slot's current
+/// channel, and a draining refusal moves the slot to a new connection, so the
+/// retry the call's ladder makes reaches a replica that is still serving.
+pub(crate) struct RemoteChannel {
+    slot: Arc<ChannelSlot>,
+    ready: Option<(u64, Channel)>,
+}
+
+impl Clone for RemoteChannel {
+    fn clone(&self) -> Self {
+        Self {
+            slot: self.slot.clone(),
+            ready: None,
+        }
+    }
+}
+
+impl tonic::codegen::Service<tonic::codegen::http::Request<tonic::body::Body>> for RemoteChannel {
+    type Response = tonic::codegen::http::Response<tonic::body::Body>;
+    type Error = tonic::transport::Error;
+    type Future = std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>,
+    >;
+
+    fn poll_ready(
+        &mut self,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        let slot = &self.slot;
+        let (_, channel) = self.ready.get_or_insert_with(|| slot.current());
+        channel.poll_ready(cx)
+    }
+
+    fn call(&mut self, request: tonic::codegen::http::Request<tonic::body::Body>) -> Self::Future {
+        let (generation, mut channel) = self
+            .ready
+            .take()
+            .expect("RemoteChannel::call without poll_ready");
+        let slot = self.slot.clone();
+        let response = channel.call(request);
+        Box::pin(async move {
+            let response = response.await?;
+            // kura refuses before it handles the request, so the refusal is a
+            // trailers-only response whose status rides in the headers.
+            if tonic::Status::from_header_map(response.headers())
+                .is_some_and(|status| draining(&status))
+            {
+                slot.reconnect(generation);
+            }
+            Ok(response)
+        })
+    }
+}
+
 pub struct Remote {
     config: RemoteConfig,
     tokens: Arc<TokenProvider>,
-    channel: OnceLock<Result<Channel, String>>,
+    channel: OnceLock<Result<RemoteChannel, String>>,
     chunking: std::sync::Mutex<Option<(Instant, bool)>>,
     chunking_disabled_until_ms: AtomicU64,
     uploaded_blob_bytes: AtomicU64,
@@ -455,6 +626,8 @@ pub struct Remote {
     // flat because publishing is healthy from one that is flat because almost
     // nothing was published.
     shed_writes: AtomicU64,
+    // Shared with the background probe, which outlives the call that starts it.
+    lookups: Arc<LookupBreaker>,
 }
 
 const CAPABILITIES_PATH: &str = "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities";
@@ -791,6 +964,112 @@ fn transport_caused(status: &tonic::Status) -> bool {
     false
 }
 
+/// Whether the cache activation gateway answered without forwarding because the
+/// instance was still not serving at the end of its activation wait. Re-asking
+/// waits that whole window again, so a lookup must not retry it. A kura node's
+/// own UNAVAILABLE ("server is draining") stays retryable: the retry reaches the
+/// other replica.
+fn activation_pending(status: &tonic::Status) -> bool {
+    status.code() == tonic::Code::Unavailable
+        && status
+            .metadata()
+            .get(ACTIVATION_HEADER)
+            .and_then(|value| value.to_str().ok())
+            == Some(ACTIVATION_PENDING)
+}
+
+fn lookup_retryable(status: &tonic::Status) -> bool {
+    retryable(status) && !activation_pending(status)
+}
+
+enum LookupAdmission {
+    Ask,
+    Skip,
+    SkipAndProbe,
+}
+
+/// Fail-fast gate for the lookups a build waits on: action-cache resolves and
+/// the blob reads behind materialization and demand fetches. Uploads are not
+/// gated; a publication is durable and retried by the next sweep.
+///
+/// A lookup that ends UNAVAILABLE, after its own retries, opens it. While open,
+/// lookups answer at once without a request. Once the window elapses the first
+/// lookup to notice starts one probe in the background and still skips, so no
+/// build thread ever waits on a remote that may still be down. Any answer the
+/// server itself sends, on a probe or on a lookup that was already in flight,
+/// closes it.
+#[derive(Default)]
+struct LookupBreaker {
+    // Epoch-ms until which lookups are skipped. 0 means closed; a past nonzero
+    // value means the window elapsed and no probe has been started for it.
+    unavailable_until_ms: AtomicU64,
+    skipped: AtomicU64,
+}
+
+impl LookupBreaker {
+    fn admit(&self) -> LookupAdmission {
+        let mut current = self.unavailable_until_ms.load(Ordering::Relaxed);
+        loop {
+            if current == 0 {
+                return LookupAdmission::Ask;
+            }
+            let now = now_ms();
+            if current > now {
+                self.skipped.fetch_add(1, Ordering::Relaxed);
+                return LookupAdmission::Skip;
+            }
+            // Re-armed before probing, so the lookups that arrive while the
+            // probe is in flight keep skipping and exactly one caller probes.
+            match self.unavailable_until_ms.compare_exchange_weak(
+                current,
+                now + LOOKUP_UNAVAILABLE_BACKOFF_MS,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => {
+                    self.skipped.fetch_add(1, Ordering::Relaxed);
+                    return LookupAdmission::SkipAndProbe;
+                }
+                Err(observed) => current = observed,
+            }
+        }
+    }
+
+    fn is_open(&self) -> bool {
+        self.unavailable_until_ms.load(Ordering::Relaxed) != 0
+    }
+
+    fn record(&self, outcome: Result<(), &tonic::Status>) {
+        match outcome {
+            Err(status) if status.code() == tonic::Code::Unavailable => {
+                let previous = self
+                    .unavailable_until_ms
+                    .fetch_max(now_ms() + LOOKUP_UNAVAILABLE_BACKOFF_MS, Ordering::Relaxed);
+                if previous == 0 {
+                    crate::log_line(&format!(
+                        "lookups: remote answered UNAVAILABLE ({status}); answering lookups \
+                         as misses without asking, probing every {}s",
+                        LOOKUP_UNAVAILABLE_BACKOFF_MS / 1000
+                    ));
+                }
+            }
+            // A failure of the local transport or the client's own timeout is no
+            // answer, so it says nothing about whether the server is back.
+            Err(status) if std::error::Error::source(status).is_some() => {}
+            _ => {
+                if self.unavailable_until_ms.load(Ordering::Relaxed) != 0
+                    && self.unavailable_until_ms.swap(0, Ordering::Relaxed) != 0
+                {
+                    crate::log_line(&format!(
+                        "lookups: remote answering again; {} lookup(s) were skipped",
+                        self.skipped.load(Ordering::Relaxed)
+                    ));
+                }
+            }
+        }
+    }
+}
+
 type AuthValue = tonic::metadata::MetadataValue<tonic::metadata::Ascii>;
 
 /// Wraps a message in a `tonic::Request`, attaching the bearer when present.
@@ -822,6 +1101,7 @@ impl Remote {
             pressure_backoff_until_ms: AtomicU64::new(0),
             write_pressure_backoff_until_ms: AtomicU64::new(0),
             shed_writes: AtomicU64::new(0),
+            lookups: Arc::default(),
         })
     }
 
@@ -842,6 +1122,40 @@ impl Remote {
     /// be on the node, so its absence says nothing about what the node stores.
     pub fn declining_reads(&self) -> bool {
         now_ms() < self.pressure_backoff_until_ms.load(Ordering::Relaxed)
+    }
+
+    /// Whether this lookup should be answered as a miss without asking, because
+    /// the remote's last answer was UNAVAILABLE. Counts the skip, and starts the
+    /// background probe when the window has elapsed.
+    pub fn skip_lookup(&self) -> bool {
+        match self.lookups.admit() {
+            LookupAdmission::Ask => false,
+            LookupAdmission::Skip => true,
+            LookupAdmission::SkipAndProbe => {
+                self.probe_lookups();
+                true
+            }
+        }
+    }
+
+    /// Lookups answered without asking because the remote was not answering.
+    pub fn skipped_lookups(&self) -> u64 {
+        self.lookups.skipped.load(Ordering::Relaxed)
+    }
+
+    fn probe_lookups(&self) {
+        let Ok(mut client) = self.ac_client() else {
+            return;
+        };
+        let request = self.authed(reapi::GetActionResultRequest {
+            instance_name: self.config.instance.clone(),
+            action_digest: Some(action_digest(LOOKUP_PROBE_KEY)),
+            ..Default::default()
+        });
+        let lookups = self.lookups.clone();
+        runtime().spawn(async move {
+            lookups.record(client.get_action_result(request).await.as_ref().map(|_| ()));
+        });
     }
 
     /// Counts a publication skipped because `shedding_writes` was true.
@@ -925,17 +1239,9 @@ impl Remote {
         request
     }
 
-    fn channel(&self) -> Result<Channel, String> {
+    fn channel(&self) -> Result<RemoteChannel, String> {
         self.channel
             .get_or_init(|| {
-                // connect_lazy wires the hyper connection pool and the h2
-                // keepalive timers to the *current* Tokio runtime. This runs from
-                // a proxy handler thread (outside the runtime), so without
-                // entering the runtime here the first RPC panics with "there is
-                // no reactor running" on a detached connection task; the panic is
-                // swallowed at the FFI boundary and every resolve silently
-                // degrades to a local miss (0% remote cache).
-                let _runtime_guard = runtime().enter();
                 let mut endpoint = Endpoint::from_shared(self.config.grpc_url.clone())
                     .map_err(|e| format!("bad grpc url: {e}"))?
                     .connect_timeout(Duration::from_secs(5))
@@ -965,17 +1271,20 @@ impl Remote {
                 // cached as a permanent Err that poisons every later RPC. The
                 // only errors cached here are deterministic endpoint/TLS config
                 // errors, which will never succeed on retry anyway.
-                Ok(endpoint.connect_lazy())
+                Ok(RemoteChannel {
+                    slot: Arc::new(ChannelSlot::new(endpoint)),
+                    ready: None,
+                })
             })
             .clone()
     }
 
-    fn cas_client(&self) -> Result<ContentAddressableStorageClient<Channel>, String> {
+    fn cas_client(&self) -> Result<ContentAddressableStorageClient<RemoteChannel>, String> {
         Ok(ContentAddressableStorageClient::new(self.channel()?)
             .max_decoding_message_size(256 << 20))
     }
 
-    fn ac_client(&self) -> Result<ActionCacheClient<Channel>, String> {
+    fn ac_client(&self) -> Result<ActionCacheClient<RemoteChannel>, String> {
         // Kura's wildcard inlining packs blob contents greedily up to its
         // response budget, whose ceiling is exactly 64MB
         // (MAX_REAPI_RESPONSE_BUDGET_BYTES); the budget counts content bytes,
@@ -1014,6 +1323,9 @@ impl Remote {
         key: &[u8],
         inline_outputs: bool,
     ) -> Result<Option<Vec<ManifestEntry>>, String> {
+        if self.skip_lookup() {
+            return Err(format!("get_action: {LOOKUP_SKIPPED}"));
+        }
         let started = Instant::now();
         let result = (|| {
             let mut client = self.ac_client()?;
@@ -1037,9 +1349,11 @@ impl Remote {
                 },
                 ..Default::default()
             };
-            let response = retry_call(|| {
-                runtime().block_on(client.get_action_result(self.authed(request.clone())))
-            });
+            let response = retry_call_if(
+                || runtime().block_on(client.get_action_result(self.authed(request.clone()))),
+                lookup_retryable,
+            );
+            self.lookups.record(response.as_ref().map(|_| ()));
             match response {
                 Ok(response) => {
                     let manifest = response
@@ -1140,6 +1454,9 @@ impl Remote {
         blobs: &[reapi::Digest],
     ) -> Result<std::collections::HashMap<String, Vec<u8>>, String> {
         let started = Instant::now();
+        if self.skip_lookup() {
+            return Err(format!("batch_read: {LOOKUP_SKIPPED}"));
+        }
         let result =
             batch_read_retrying(&self.pressure_backoff_until_ms, blobs, false, |pending| {
                 self.batch_read_with_chunks(pending)
@@ -1157,6 +1474,9 @@ impl Remote {
         blobs: &[reapi::Digest],
     ) -> Result<std::collections::HashMap<String, Vec<u8>>, String> {
         let started = Instant::now();
+        if self.skip_lookup() {
+            return Err(format!("batch_read: {LOOKUP_SKIPPED}"));
+        }
         let result = batch_read_retrying(&self.pressure_backoff_until_ms, blobs, true, |pending| {
             self.batch_read_with_chunks(pending)
         });
@@ -1194,6 +1514,12 @@ impl Remote {
             return self.batch_read_verified(blobs);
         }
         let (large, mut whole): (Vec<_>, Vec<_>) = blobs.iter().cloned().partition(chunk_eligible);
+        // A split the activation gateway refused comes back as a per-blob
+        // decline, which `batch_read_retrying` re-requests. Those passes must
+        // not ask a remote that is not answering again.
+        if self.lookups.is_open() {
+            return Err(format!("batch_read: {LOOKUP_SKIPPED}"));
+        }
         let client = self
             .cas_client()?
             .max_decoding_message_size(2 * 1024 * 1024);
@@ -1229,6 +1555,17 @@ impl Remote {
                 .collect::<Vec<_>>()
                 .await
         });
+        // kura declines a split under pressure with UNAVAILABLE while serving the
+        // rest of the read, so only the activation gateway's answer says the
+        // remote is not serving.
+        if let Some(pending) = splits.iter().find_map(|(_, result)| {
+            result
+                .as_ref()
+                .err()
+                .filter(|status| activation_pending(status))
+        }) {
+            self.lookups.record(Err(pending));
+        }
         let mut recipes = Vec::new();
         let mut outcomes = Vec::new();
         for (blob, result) in splits {
@@ -1412,6 +1749,9 @@ impl Remote {
         if blobs.is_empty() {
             return Ok(Vec::new());
         }
+        if self.lookups.is_open() {
+            return Err(format!("batch_read: {LOOKUP_SKIPPED}"));
+        }
         let client = self.cas_client()?;
         let instance = self.config.instance.clone();
         let auth = self.authorization();
@@ -1427,29 +1767,35 @@ impl Remote {
                     ..Default::default()
                 };
                 join_set.spawn(async move {
-                    retry_call_async(|| {
-                        let mut client = client.clone();
-                        let request = request.clone();
-                        let auth = auth.clone();
-                        async move {
-                            client
-                                .batch_read_blobs(authed_request(request, auth.as_ref()))
-                                .await
-                        }
-                    })
+                    retry_call_async_if(
+                        || {
+                            let mut client = client.clone();
+                            let request = request.clone();
+                            let auth = auth.clone();
+                            async move {
+                                client
+                                    .batch_read_blobs(authed_request(request, auth.as_ref()))
+                                    .await
+                            }
+                        },
+                        lookup_retryable,
+                    )
                     .await
                     .map(|response| response.into_inner().responses)
-                    .map_err(|status| format!("batch_read: {status}"))
                 });
             }
             let mut all = Vec::new();
             while let Some(joined) = join_set.join_next().await {
                 match joined {
                     Ok(Ok(responses)) => all.extend(responses),
-                    Ok(Err(message)) => return Err(message),
+                    Ok(Err(status)) => {
+                        self.lookups.record(Err(&status));
+                        return Err(format!("batch_read: {status}"));
+                    }
                     Err(join_error) => return Err(format!("batch_read join: {join_error}")),
                 }
             }
+            self.lookups.record(Ok(()));
             Ok(all)
         })?;
         Ok(responses
@@ -1651,7 +1997,7 @@ impl Remote {
         (0..REACHABILITY_ATTEMPTS).any(|_| self.answers_capabilities(channel.clone()))
     }
 
-    fn answers_capabilities(&self, mut channel: Channel) -> bool {
+    fn answers_capabilities(&self, mut channel: RemoteChannel) -> bool {
         use prost::Message as _;
         use tonic::codegen::{http, Service};
 
@@ -2222,6 +2568,63 @@ mod tests {
         assert!(!retryable(&tonic::Status::out_of_range(
             "message length too large"
         )));
+    }
+
+    #[test]
+    fn the_ordinary_ladder_is_three_attempts_with_one_backoff() {
+        let mut ladder = super::RetryLadder::new(super::ATTEMPTS);
+        let unavailable = tonic::Status::unavailable("connection refused");
+        assert_eq!(
+            ladder.next_delay(&unavailable, retryable),
+            Some(std::time::Duration::ZERO)
+        );
+        assert_eq!(
+            ladder.next_delay(&unavailable, retryable),
+            Some(super::RETRY_BACKOFF)
+        );
+        assert_eq!(ladder.next_delay(&unavailable, retryable), None);
+    }
+
+    #[test]
+    fn a_draining_refusal_is_retried_for_the_drain_window_only() {
+        let mut ladder = super::RetryLadder::new(super::ATTEMPTS);
+        let refusal = tonic::Status::unavailable(super::DRAINING_MESSAGE);
+        let delays: Vec<_> = (0..6)
+            .map(|_| ladder.next_delay(&refusal, |_| false))
+            .collect();
+        assert_eq!(
+            delays,
+            [0, 250, 500, 1_000, 1_000, 1_000]
+                .map(|ms| Some(std::time::Duration::from_millis(ms)))
+                .to_vec(),
+            "immediately on the new connection, then backing off"
+        );
+        // Refusals do not use up the ordinary attempts.
+        assert!(ladder
+            .next_delay(&tonic::Status::unavailable("reset"), retryable)
+            .is_some());
+
+        ladder.draining_since = Some(std::time::Instant::now() - super::DRAIN_RETRY_WINDOW);
+        assert_eq!(ladder.next_delay(&refusal, retryable), None);
+    }
+
+    #[test]
+    fn the_activation_gateways_answer_is_never_a_drain_refusal() {
+        let mut status = tonic::Status::unavailable(super::DRAINING_MESSAGE);
+        status.metadata_mut().insert(
+            super::ACTIVATION_HEADER,
+            super::ACTIVATION_PENDING.parse().unwrap(),
+        );
+        assert!(!super::draining(&status));
+        let mut ladder = super::RetryLadder::new(super::ATTEMPTS);
+        assert_eq!(ladder.next_delay(&status, super::lookup_retryable), None);
+    }
+
+    #[test]
+    fn a_fail_fast_write_does_not_wait_out_a_drain() {
+        let mut ladder = super::RetryLadder::new(1);
+        let refusal = tonic::Status::unavailable(super::DRAINING_MESSAGE);
+        assert_eq!(ladder.next_delay(&refusal, retryable), None);
     }
 
     #[test]

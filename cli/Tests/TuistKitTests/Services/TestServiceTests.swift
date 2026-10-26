@@ -91,7 +91,6 @@ final class TestServiceTests: TuistUnitTestCase {
         shardService = .init()
         xcActivityLogController = .init()
         uploadBuildRunService = .init()
-
         given(xcActivityLogController)
             .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
             .willReturn(nil)
@@ -4445,6 +4444,76 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_run_recordsTheCallersSkipsWithoutTheSkippedQuarantinedTests() async throws {
+        try await withMockedDependencies {
+            // Given
+            givenGenerator()
+            given(buildGraphInspector)
+                .workspaceSchemes(graphTraverser: .any)
+                .willReturn([Scheme.test(name: "ProjectScheme")])
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willProduce { path, _ in
+                    (path, .test(), MapperEnvironment())
+                }
+
+            let resultBundlePath = try temporaryPath().appending(component: "test.xcresult")
+            try await fileSystem.makeDirectory(at: resultBundlePath)
+
+            configLoader.reset()
+            given(configLoader)
+                .loadConfig(path: .any)
+                .willReturn(
+                    .test(
+                        project: .testGeneratedProject(),
+                        fullHandle: "tuist/tuist",
+                        url: URL(string: "https://example.com")!
+                    )
+                )
+
+            testCaseListService.reset()
+            given(testCaseListService)
+                .listAllTestCases(fullHandle: .any, serverURL: .any, state: .value(.muted))
+                .willReturn([])
+            given(testCaseListService)
+                .listAllTestCases(fullHandle: .any, serverURL: .any, state: .value(.skipped))
+                .willReturn([try TestIdentifier(target: "AppTests", class: "FlakyTests", method: "testFlaky()")])
+
+            xcResultService.reset()
+            given(xcResultService)
+                .coveredFilePaths(path: .any)
+                .willReturn(nil)
+            given(xcResultService)
+                .parse(path: .any, rootDirectory: .any)
+                .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 0, testModules: []))
+            given(xcResultService)
+                .parseTestStatuses(path: .any)
+                .willReturn(TestResultStatuses(testCases: []))
+
+            // When
+            try await testRun(
+                path: try temporaryPath(),
+                resultBundlePath: resultBundlePath,
+                skipTestTargets: [try TestIdentifier(string: "AppTests/SlowTests")]
+            )
+
+            // Then
+            verify(uploadResultBundleService)
+                .uploadTestSummary(
+                    testSummary: .any,
+                    resultBundlePath: .any,
+                    projectDerivedDataDirectory: .any,
+                    config: .any,
+                    shardPlanId: .any,
+                    shardIndex: .any,
+                    onlyTestIdentifiers: .value([]),
+                    skipTestIdentifiers: .value(["AppTests/SlowTests"]),
+                    stressNewTests: .any
+                )
+                .called(1)
+        }
+    }
+
     func test_run_passes_skipped_quarantined_tests_as_skip_testing() async throws {
         // Given
         givenGenerator()
@@ -6438,6 +6507,166 @@ final class TestServiceTests: TuistUnitTestCase {
                 scheme: .any
             )
             .called(1)
+    }
+
+    func test_run_shard_records_coverage_evidence_and_exports_coverage_right_after_the_run() async throws {
+        for runFails in [false, true] {
+            // Given
+            let path = try temporaryPath()
+            try givenShardWithFailingMutedTest(path: path, onlyMutedTestsFailed: runFails)
+            let derivedDataPath = path.appending(component: "ShardDerivedData")
+            let resultBundlePath = path.appending(component: "Shard.xcresult")
+            let session = TestCoverageEvidenceSession(
+                directory: path.appending(component: "evidence"),
+                environment: ["TEST_RUNNER_TEST_COVERAGE_ATTRIBUTION_DIR": "/evidence"]
+            )
+            let testCoverageEvidenceService = MockTestCoverageEvidenceServicing()
+            let coverageExportService = MockCoverageExportServicing()
+            given(testCoverageEvidenceService)
+                .prepare(platform: .any, config: .any)
+                .willReturn(session)
+            given(testCoverageEvidenceService)
+                .record(session: .any, resultBundlePath: .any, derivedDataDirectory: .any)
+                .willReturn(nil)
+            given(coverageExportService)
+                .export(resultBundlePath: .any, derivedDataDirectory: .any, config: .any, runStartedAt: .any)
+                .willReturn(nil)
+            subject = subjectCollectingCoverage(
+                testCoverageEvidenceService: testCoverageEvidenceService,
+                coverageExportService: coverageExportService
+            )
+            xcodebuildController.reset()
+            let environmentDuringRun = LockedValue<[String: String]>([:])
+            given(xcodebuildController)
+                .run(arguments: .any)
+                .willProduce { _ in
+                    environmentDuringRun.mutate { $0 = XcodeBuildEnvironment.additionalVariables }
+                    if runFails { throw ShardTestError.failed }
+                }
+
+            // When
+            try await AlertController.$current.withValue(AlertController()) {
+                try await testRun(
+                    runId: "run-\(runFails)",
+                    path: path,
+                    platform: "macos",
+                    action: .testWithoutBuilding,
+                    resultBundlePath: resultBundlePath,
+                    derivedDataPath: derivedDataPath.pathString,
+                    shardIndex: 0,
+                    mode: .remote
+                )
+            }
+
+            // Then
+            XCTAssertEqual(environmentDuringRun.value, session.environment)
+            verify(testCoverageEvidenceService)
+                .prepare(platform: .value(.macOS), config: .any)
+                .called(1)
+            verify(testCoverageEvidenceService)
+                .record(
+                    session: .value(session),
+                    resultBundlePath: .value(resultBundlePath),
+                    derivedDataDirectory: .value(derivedDataPath)
+                )
+                .called(1)
+            verify(coverageExportService)
+                .export(
+                    resultBundlePath: .value(resultBundlePath),
+                    derivedDataDirectory: .value(derivedDataPath),
+                    config: .any,
+                    runStartedAt: .any
+                )
+                .called(1)
+        }
+    }
+
+    func test_run_testWithoutBuilding_fromBundle_collects_coverage_under_the_passthrough_derived_data() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try JSONEncoder().encode(SelectiveTestingGraph(testTargetHashes: ["AppTests": "abc123"]))
+            .write(to: testProductsPath.appending(component: SelectiveTestingGraph.fileName).url)
+        try givenFailingMutedTest(path: path, onlyMutedTestsFailed: false)
+        let resultBundlePath = path.appending(component: "Shard.xcresult")
+        let derivedDataPath = path.appending(component: "DerivedData")
+        let session = TestCoverageEvidenceSession(directory: path.appending(component: "evidence"), environment: [:])
+        let testCoverageEvidenceService = MockTestCoverageEvidenceServicing()
+        let coverageExportService = MockCoverageExportServicing()
+        given(testCoverageEvidenceService)
+            .prepare(platform: .any, config: .any)
+            .willReturn(session)
+        given(testCoverageEvidenceService)
+            .record(session: .any, resultBundlePath: .any, derivedDataDirectory: .any)
+            .willReturn(nil)
+        given(coverageExportService)
+            .export(resultBundlePath: .any, derivedDataDirectory: .any, config: .any, runStartedAt: .any)
+            .willReturn(nil)
+        subject = subjectCollectingCoverage(
+            testCoverageEvidenceService: testCoverageEvidenceService,
+            coverageExportService: coverageExportService
+        )
+        xcodebuildController.reset()
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn(())
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                path: path,
+                action: .testWithoutBuilding,
+                resultBundlePath: resultBundlePath,
+                passthroughXcodeBuildArguments: [
+                    "-testProductsPath", testProductsPath.pathString,
+                    "-destination", "platform=iOS Simulator,id=device-id",
+                    "-derivedDataPath", derivedDataPath.pathString,
+                ],
+                mode: .remote
+            )
+        }
+
+        // Then
+        verify(testCoverageEvidenceService)
+            .prepare(platform: .value(.iOSSimulator), config: .any)
+            .called(1)
+        verify(testCoverageEvidenceService)
+            .record(
+                session: .value(session),
+                resultBundlePath: .value(resultBundlePath),
+                derivedDataDirectory: .value(derivedDataPath)
+            )
+            .called(1)
+        verify(coverageExportService)
+            .export(
+                resultBundlePath: .value(resultBundlePath),
+                derivedDataDirectory: .value(derivedDataPath),
+                config: .any,
+                runStartedAt: .any
+            )
+            .called(1)
+    }
+
+    private func subjectCollectingCoverage(
+        testCoverageEvidenceService: TestCoverageEvidenceServicing,
+        coverageExportService: CoverageExportServicing
+    ) -> TestService {
+        TestService(
+            cacheStorageFactory: cacheStorageFactory,
+            xcodebuildController: xcodebuildController,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            configLoader: configLoader,
+            xcResultService: xcResultService,
+            uploadResultBundleService: uploadResultBundleService,
+            testCoverageEvidenceService: testCoverageEvidenceService,
+            coverageExportService: coverageExportService,
+            serverEnvironmentService: serverEnvironmentService,
+            testQuarantineService: testQuarantineService,
+            testCaseListService: testCaseListService,
+            shardService: shardService,
+            uploadBuildRunService: uploadBuildRunService
+        )
     }
 
     private enum ShardTestError: Error, Equatable {
@@ -8920,5 +9149,26 @@ struct TestServiceCoverageEnabledTests {
         ]
 
         #expect(TestService.plainRepositoryBinaries(items, graph: graph) == ["Plain"])
+    }
+}
+
+private final class LockedValue<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: Value
+
+    init(_ storage: Value) {
+        self.storage = storage
+    }
+
+    var value: Value {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+
+    func mutate(_ transform: (inout Value) -> Void) {
+        lock.lock()
+        defer { lock.unlock() }
+        transform(&storage)
     }
 }

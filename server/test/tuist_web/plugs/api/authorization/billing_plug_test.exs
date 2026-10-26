@@ -17,10 +17,7 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
   setup context do
     %{account: account} =
       user =
-      AccountsFixtures.user_fixture(
-        current_month_remote_cache_hits_count: Map.get(context, :current_month_remote_cache_hits_count, 0),
-        preload: [:account]
-      )
+      AccountsFixtures.user_fixture(preload: [:account])
 
     account
     |> Ecto.Changeset.change(current_month_cache_requests: Map.get(context, :current_month_cache_requests, 0))
@@ -150,21 +147,6 @@ defmodule TuistWeb.API.Authorization.BillingPlugTest do
              The account '#{account.name}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'. You can upgrade your plan at #{url(~p"/#{account.name}/billing/upgrade")}.
              """
            }
-  end
-
-  @tag current_month_remote_cache_hits_count: 10_000
-  test "returns the same connection when the plan is air and only remote cache hits are high",
-       %{conn: conn, project: project} do
-    plug_opts = BillingPlug.init([])
-
-    conn =
-      assign(
-        %{conn | query_params: Map.put(conn.query_params, "cache_category", "builds")},
-        :selected_project,
-        project
-      )
-
-    assert BillingPlug.call(conn, plug_opts) == conn
   end
 
   @tag current_month_cache_requests: 5_000_000

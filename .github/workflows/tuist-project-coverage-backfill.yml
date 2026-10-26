@@ -29,8 +29,6 @@ env:
   TUIST_ENABLE_CACHING: true
   MISE_GITHUB_ATTESTATIONS: 0
   MISE_GITHUB_SLSA: 0
-  # Collects per-test evidence from the linked TestCoverageAttribution package.
-  TUIST_COVERAGE_EVIDENCE: "1"
 
 # A group per commit, so dispatching the same commit twice runs it once.
 concurrency:

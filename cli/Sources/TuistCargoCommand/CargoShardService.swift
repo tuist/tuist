@@ -171,12 +171,21 @@ struct CargoShardService {
         else {
             throw CargoReportError(message: "The nextest shard archive is not available.")
         }
-        let (file, response) = try await URLSession.tuistDefault.download(from: url)
+        let archive = temporary.appendingPathComponent("tests.tar.zst")
+        try await Self.downloadArchive(from: url, to: archive)
+        return Shard(id: shard.shard_plan_id, modules: shard.modules, archive: archive)
+    }
+
+    static func downloadArchive(
+        from url: URL,
+        to archive: URL,
+        transfer: RetryingURLTransfer = RetryingURLTransfer(urlSession: .tuistDefault)
+    ) async throws {
+        let (file, response) = try await transfer.download(URLRequest(url: url))
         guard let response = response as? HTTPURLResponse, (200 ..< 300).contains(response.statusCode) else {
+            try? FileManager.default.removeItem(at: file)
             throw CargoReportError(message: "Downloading the nextest shard archive failed.")
         }
-        let archive = temporary.appendingPathComponent("tests.tar.zst")
         try FileManager.default.moveItem(at: file, to: archive)
-        return Shard(id: shard.shard_plan_id, modules: shard.modules, archive: archive)
     }
 }

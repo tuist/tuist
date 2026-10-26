@@ -481,6 +481,8 @@ jobs:
         run: aube install
       - name: Test database setup scripts
         run: bash ../.github/scripts/server-db.test.sh
+      - name: Test ClickHouse startup
+        run: bash ../.github/scripts/server-clickhouse.test.sh
       - name: Check Elixir format
         run: mix format --check-formatted
       - name: Test frontend interactions

@@ -362,8 +362,12 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   checkout's `.git` that already holds data (such as `.git/lfs`) with a notice
   instead of refusing it as non-empty; with no path left it attaches nothing and
   reports `cache-hit=false`.
-- When the host granted a checkout (mounted, `cold`, `capacity`, `timeout`) the
-  hook records `/home/runner/.tuist-checkout.json`. After the runner exits,
+- When the host granted a checkout (mounted, `cold`, `capacity`) the hook
+  records `/home/runner/.tuist-checkout.json`; the agent takes an export only
+  from a pod it remembered a grant for and refuses any other with 409. A
+  `timeout` is mostly the server still waiting for GitHub to report the job
+  (425), before any grant, so it records nothing, like `busy`, `denied` and
+  `error`. After the runner exits,
   outside GitHub's job time, `run-job.sh` runs `--checkout-export`: it packs what
   the job's checkout added in `/home/runner/work/_tuist_checkout_export`
   (hard-linking LFS objects where it can) and streams it as a tar to the agent's

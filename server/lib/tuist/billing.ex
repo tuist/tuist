@@ -1201,7 +1201,6 @@ defmodule Tuist.Billing do
     account
     |> Account.free_tier_reset_changeset(%{
       free_tier_reset_at: DateTime.utc_now(),
-      current_month_remote_cache_hits_count: 0,
       current_month_cache_egress_megabytes: 0,
       current_month_cache_requests: 0
     })

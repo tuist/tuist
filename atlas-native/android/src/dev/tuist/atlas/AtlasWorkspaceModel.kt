@@ -7,7 +7,7 @@ class AtlasWorkspaceModel(
 ) {
     val sections =
         sections.filter { section ->
-            section.screen in listOf("tasks", "accounts", "invoices", "time-off", "people") &&
+            section.screen in listOf("tasks", "accounts", "invoices", "time-off", "people", "automation") &&
                 groups.any { it.id == section.group && it.placement == "workspace" }
         }
     val groups =

@@ -27,6 +27,7 @@ defmodule Tuist.RunnersTest do
   alias Tuist.Runners.VolumeAffinities
   alias Tuist.Runners.VolumeHeads
   alias Tuist.Runners.VolumeMasterOrphans
+  alias Tuist.Runners.Workers.AbortVolumeMasterUploadWorker
   alias Tuist.Runners.Workers.PruneVolumeMasterOrphanWorker
   alias Tuist.Runners.Workers.PruneVolumeMasterWorker
   alias Tuist.Runners.Workers.SiteSpilloverWorker
@@ -521,7 +522,7 @@ defmodule Tuist.RunnersTest do
       refute "shape-linux-4vcpu-16gb" in labels
     end
 
-    test "stamps the account and untrusted labels on a macOS Pod once the dispatch commits" do
+    test "stamps only the account label on a macOS Pod once the dispatch commits" do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")
       test_pid = self()
@@ -539,7 +540,7 @@ defmodule Tuist.RunnersTest do
       assert result.cache_signing_grant == "signed-grant-token"
       refute Map.has_key?(result, :volume_head)
       assert_receive {:patched, %{"tuist.dev/runner-account" => ^account_label} = labels}
-      assert labels == %{"tuist.dev/runner-account" => account_label, "tuist.dev/runner-cache-untrusted" => "true"}
+      assert labels == %{"tuist.dev/runner-account" => account_label}
     end
 
     test "includes the minted cache signing grant in the dispatch result" do
@@ -579,7 +580,8 @@ defmodule Tuist.RunnersTest do
       assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       assert result.cache_signing_grant == nil
       refute Map.has_key?(result, :volume_head)
-      assert_receive {:patched, %{"tuist.dev/runner-account" => _, "tuist.dev/runner-cache-untrusted" => "true"}}
+      assert_receive {:patched, %{"tuist.dev/runner-account" => _} = labels}
+      refute Map.has_key?(labels, "tuist.dev/runner-cache-untrusted")
     end
 
     test "treats a job as untrusted (cold) when the workflow-run lookup fails, fail-closed" do
@@ -1556,6 +1558,98 @@ defmodule Tuist.RunnersTest do
     test "errors when the account does not exist" do
       digest = String.duplicate("c", 40)
       assert :error = Runners.volume_master_upload_url(-1, @volume, digest)
+    end
+  end
+
+  describe "volume master multipart uploads" do
+    setup do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      content = String.duplicate("b", 64)
+      key = "runner-volume-masters/#{account.id}/#{@volume}/#{digest}-#{content}.image"
+      stub(Tuist.Storage, :supports_signed_upload_headers?, fn _actor -> true end)
+      %{account: account, digest: digest, content: content, key: key}
+    end
+
+    test "starts an upload of the content-addressed object, tracks it and schedules its abort", %{
+      account: account,
+      digest: digest,
+      content: content,
+      key: key
+    } do
+      expect(Tuist.Storage, :multipart_start, fn ^key, actor ->
+        assert actor.id == account.id
+        {:ok, "upload-1"}
+      end)
+
+      assert {:ok, "upload-1"} = Runners.start_volume_master_upload(account.id, @volume, digest, content)
+      assert VolumeMasterOrphans.exists?(account.id, "#{digest}-#{content}", @volume)
+
+      assert_enqueued(
+        worker: AbortVolumeMasterUploadWorker,
+        args: %{account_id: account.id, object_key: key, upload_id: "upload-1"}
+      )
+    end
+
+    test "leaves storage without part ETags to single uploads", %{account: account, digest: digest, content: content} do
+      stub(Tuist.Storage, :supports_signed_upload_headers?, fn _actor -> false end)
+      reject(&Tuist.Storage.multipart_start/2)
+
+      assert :unsupported = Runners.start_volume_master_upload(account.id, @volume, digest, content)
+    end
+
+    test "signs a public link per part, bound to the part's MD5", %{
+      account: account,
+      digest: digest,
+      content: content,
+      key: key
+    } do
+      md5 = Base.encode64(:crypto.hash(:md5, "part"))
+
+      stub(Tuist.Storage, :multipart_generate_url, fn ^key, "upload-1", part, _actor, opts ->
+        assert opts[:expires_in] == 3600
+        assert opts[:signed_headers] == [{"content-md5", md5}]
+        "https://bucket.fly.storage.tigris.dev/part-#{part}?X-Amz-Signature=abc"
+      end)
+
+      assert {:ok, [%{part_number: 2, url: "https://bucket.fly.storage.tigris.dev/part-2" <> _}, %{part_number: 3}]} =
+               Runners.volume_master_part_urls(account.id, @volume, digest, content, "upload-1", [{2, md5}, {3, md5}])
+
+      stub(Tuist.Storage, :multipart_generate_url, fn _, _, _, _, _ -> "http://169.254.169.254/part" end)
+      assert :error = Runners.volume_master_part_urls(account.id, @volume, digest, content, "upload-1", [{1, md5}])
+      assert :error = Runners.volume_master_part_urls(account.id, @volume, "../etc", content, "upload-1", [{1, md5}])
+    end
+
+    test "a completion succeeds once the object is readable, also when its answer was lost", %{
+      account: account,
+      digest: digest,
+      content: content,
+      key: key
+    } do
+      parts = [{1, ~s("etag-1")}]
+      expect(Tuist.Storage, :multipart_complete_upload, fn ^key, "upload-1", ^parts, _actor -> :ok end)
+      # Storage answers before the object is readable.
+      expect(Tuist.Storage, :object_exists?, 2, fn ^key, _actor -> false end)
+      expect(Tuist.Storage, :object_exists?, fn ^key, _actor -> true end)
+
+      assert :ok = Runners.complete_volume_master_upload(account.id, @volume, digest, content, "upload-1", parts)
+
+      expect(Tuist.Storage, :multipart_complete_upload, fn _, _, _, _ -> :ok end)
+      expect(Tuist.Storage, :object_exists?, 20, fn ^key, _actor -> false end)
+      assert :error = Runners.complete_volume_master_upload(account.id, @volume, digest, content, "upload-1", parts)
+
+      stub(Tuist.Storage, :multipart_complete_upload, fn _, _, _, _ -> {:error, :multipart_upload_not_found} end)
+      expect(Tuist.Storage, :object_exists?, fn ^key, _actor -> true end)
+      assert :ok = Runners.complete_volume_master_upload(account.id, @volume, digest, content, "upload-1", parts)
+
+      stub(Tuist.Storage, :multipart_complete_upload, fn _, _, _, _ -> {:error, :timeout} end)
+      assert :error = Runners.complete_volume_master_upload(account.id, @volume, digest, content, "upload-1", parts)
+    end
+
+    test "aborts the upload", %{account: account, digest: digest, content: content, key: key} do
+      expect(Tuist.Storage, :multipart_abort, fn ^key, "upload-1", _actor -> :ok end)
+      assert :ok = Runners.abort_volume_master_upload(account.id, @volume, digest, content, "upload-1")
+      assert :error = Runners.abort_volume_master_upload(account.id, @volume, digest, content, "")
     end
   end
 

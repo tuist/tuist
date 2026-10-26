@@ -1,0 +1,987 @@
+<Layouts.app flash={@flash}>
+  <section id="automation-page" data-part="automation-page">
+    <.button
+      :if={@resource}
+      navigate={"/automation/#{@section}"}
+      variant="secondary"
+      size="medium"
+      label={title(@section)}
+      data-part="back-button"
+    >
+      <:icon_left><.arrow_left /></:icon_left>
+    </.button>
+
+    <div data-part="header">
+      <div data-part="text">
+        <h1 data-part="title">{@page_title}</h1>
+        <p :if={page_description(@section, @resource)} data-part="description">
+          {page_description(@section, @resource)}
+        </p>
+        <div :if={@resource} data-part="summary">
+          <.badge
+            :if={@live_action == :workflow}
+            label={
+              if @resource.published_revision_id,
+                do: gettext("Published"),
+                else: gettext("Not published")
+            }
+            color={if @resource.published_revision_id, do: "success", else: "neutral"}
+            style="light-fill"
+          />
+          <.status_badge
+            :if={@live_action == :execution}
+            id="execution-status"
+            label={status_label(@resource.status)}
+            status={status_kind(@resource.status)}
+          />
+        </div>
+      </div>
+      <div :if={@can_write} data-part="header-actions">
+        <.modal
+          :if={creatable?(@section)}
+          id="automation-editor-modal"
+          data-part="automation-modal"
+          title={if @resource, do: gettext("Edit workflow"), else: create_label(@section)}
+          description={editor_description(@section, @resource)}
+          header_type="icon"
+          header_size="large"
+          on_dismiss="close_editor"
+          on_open_change="editor_open_changed"
+        >
+          <:header_icon><.icon name={section_icon(@section)} /></:header_icon>
+          <:trigger :let={modal_attrs}>
+            <.button
+              id="open-automation-editor"
+              label={if @resource, do: gettext("Edit workflow"), else: create_label(@section)}
+              variant={if @resource, do: "secondary", else: "primary"}
+              size="medium"
+              phx-click="open_editor"
+              {modal_attrs}
+            >
+              <:icon_left><.icon name={if @resource, do: "pencil", else: "plus"} /></:icon_left>
+            </.button>
+          </:trigger>
+          <div data-part="automation-modal-content">
+            <.form
+              for={@form}
+              id="automation-form"
+              phx-change="change"
+              phx-submit="save"
+              data-part="automation-form"
+            >
+              <.alert
+                :if={@form_error}
+                status="error"
+                type="secondary"
+                size="small"
+                title={@form_error}
+              />
+              <.text_input
+                field={@form[:name]}
+                label={gettext("Name")}
+                required
+                show_required
+                show_suffix={false}
+              />
+              <.text_area
+                :if={@section in ["workflows", "behaviors"]}
+                field={@form[:description]}
+                label={gettext("Description")}
+                rows={2}
+                max_length={2000}
+              />
+              <div :if={@section == "workflows"} data-part="labeled-select">
+                <.label label={gettext("Definition language")} required />
+                <.select
+                  id="automation-language"
+                  field={@form[:language]}
+                  label={gettext("Definition language")}
+                >
+                  <:item value="json" label={gettext("JSON")} />
+                  <:item
+                    value="javascript"
+                    label={gettext("JavaScript returning a plan (Linux)")}
+                  />
+                </.select>
+              </div>
+              <.code_editor
+                :if={@section == "workflows"}
+                field={@form[:source]}
+                label={gettext("Workflow definition")}
+                language={@form[:language].value}
+              />
+              <div :if={@section == "behaviors"} data-part="labeled-select">
+                <.label label={gettext("Behavior type")} required />
+                <.select
+                  id="automation-behavior-type"
+                  field={@form[:type]}
+                  label={gettext("Behavior type")}
+                >
+                  <:item
+                    :for={type <- @types}
+                    value={type.reference}
+                    label={"#{type.name} (v#{type.version})"}
+                  />
+                </.select>
+              </div>
+              <.text_area
+                :if={@section == "behaviors"}
+                field={@form[:configuration]}
+                label={gettext("Configuration (JSON object)")}
+                rows={6}
+                max_length={65_536}
+                show_character_count={false}
+                data-part="source-input"
+              />
+              <.text_input
+                :if={@section in ["schedules", "webhooks"]}
+                field={@form[:workflow_id]}
+                label={gettext("Published workflow ID")}
+                hint={gettext("Copy the workflow ID from its details page.")}
+                required
+                show_required
+                show_suffix={false}
+              />
+              <.text_input
+                :if={@section == "schedules"}
+                field={@form[:cron]}
+                label={gettext("Cron expression (UTC)")}
+                required
+                show_required
+                show_suffix={false}
+              />
+              <.text_area
+                :if={@section == "schedules"}
+                field={@form[:input]}
+                label={gettext("Scheduled inputs (JSON object)")}
+                rows={3}
+                max_length={65_536}
+                show_character_count={false}
+                data-part="source-input"
+              />
+              <.alert
+                :if={@section in ["schedules", "webhooks"]}
+                status="information"
+                type="secondary"
+                size="small"
+                title={
+                  gettext("Runs as you, pinned to the workflow’s current published revision.")
+                }
+              />
+            </.form>
+          </div>
+          <:footer>
+            <.modal_footer>
+              <:action>
+                <.button
+                  label={gettext("Cancel")}
+                  variant="secondary"
+                  size="small"
+                  phx-click="close_editor"
+                />
+              </:action>
+              <:action>
+                <.button
+                  id="save-automation"
+                  label={save_label(@section, @resource)}
+                  size="small"
+                  type="submit"
+                  form="automation-form"
+                  phx-disable-with={gettext("Saving...")}
+                />
+              </:action>
+            </.modal_footer>
+          </:footer>
+        </.modal>
+
+        <.modal
+          :if={@live_action == :workflow && @resource.published_revision_id}
+          id="run-workflow-modal"
+          data-part="automation-modal"
+          title={gettext("Run workflow")}
+          description={gettext("Provide the inputs for a new execution of the current version.")}
+          header_type="icon"
+          header_size="large"
+          on_dismiss="close_run"
+          on_open_change="run_open_changed"
+        >
+          <:header_icon><.player_play /></:header_icon>
+          <:trigger :let={modal_attrs}>
+            <.button
+              id="open-run-workflow"
+              label={gettext("Run workflow")}
+              size="medium"
+              phx-click="open_run"
+              {modal_attrs}
+            >
+              <:icon_left><.player_play /></:icon_left>
+            </.button>
+          </:trigger>
+          <div data-part="automation-modal-content">
+            <.form
+              for={to_form(%{"input" => "{}"}, as: :run)}
+              id="run-workflow-form"
+              phx-submit="run"
+              data-part="automation-form"
+            >
+              <.alert
+                :if={@run_error}
+                status="error"
+                type="secondary"
+                size="small"
+                title={@run_error}
+              />
+              <.text_area
+                name="run[input]"
+                value="{}"
+                label={gettext("Run inputs (JSON object)")}
+                rows={6}
+                max_length={65_536}
+                show_character_count={false}
+                data-part="source-input"
+              />
+            </.form>
+          </div>
+          <:footer>
+            <.modal_footer>
+              <:action>
+                <.button
+                  label={gettext("Cancel")}
+                  variant="secondary"
+                  size="small"
+                  phx-click="close_run"
+                />
+              </:action>
+              <:action>
+                <.button
+                  label={gettext("Run workflow")}
+                  size="small"
+                  type="submit"
+                  form="run-workflow-form"
+                  phx-disable-with={gettext("Starting...")}
+                />
+              </:action>
+            </.modal_footer>
+          </:footer>
+        </.modal>
+        <div
+          :if={@live_action == :execution && @resource.initiated_by_id == @current_user.id}
+          data-part="execution-actions"
+        >
+          <.button
+            :if={@resource.status == "failed"}
+            id="retry-execution"
+            label={gettext("Retry failed step")}
+            size="medium"
+            phx-click="control"
+            phx-value-action="retry"
+          />
+          <.button
+            :if={@resource.status in ["queued", "running", "waiting_approval"]}
+            id="cancel-execution"
+            label={gettext("Cancel execution")}
+            variant="destructive"
+            size="medium"
+            phx-click="control"
+            phx-value-action="cancel"
+          />
+        </div>
+      </div>
+    </div>
+
+    <.execution_overview
+      :if={analytics_enabled?(@live_action)}
+      analytics={@execution_analytics}
+      metric={@analytics_metric}
+      days={@analytics_days}
+      end_date={@analytics_end_date}
+      preset={@analytics_preset}
+    />
+
+    <.card
+      :if={@secret}
+      title={gettext("Save your webhook credential")}
+      icon="webhook"
+      id="webhook-credential"
+    >
+      <.card_section>
+        <.alert
+          status="warning"
+          type="secondary"
+          size="small"
+          title={
+            gettext(
+              "Shown only now. Send it as an Authorization: Bearer header, with a unique X-Delivery-ID header."
+            )
+          }
+        />
+        <pre data-part="code">{@secret}</pre>
+      </.card_section>
+    </.card>
+
+    <.card
+      :if={@live_action == :workflow}
+      title={gettext("Details")}
+      icon="schema"
+      id="workflow-detail"
+    >
+      <.card_section>
+        <dl data-part="metadata-grid">
+          <div data-part="metadata">
+            <dt>{gettext("Workflow ID")}</dt>
+            <dd data-part="identifier">{@resource.id}</dd>
+          </div>
+          <div data-part="metadata">
+            <dt>{gettext("Definition language")}</dt>
+            <dd>{language_label(@definition.language)}</dd>
+          </div>
+          <div data-part="metadata">
+            <dt>{gettext("Version")}</dt>
+            <dd>
+              {if @resource.published_revision,
+                do: "v#{@resource.published_revision.number}",
+                else: gettext("Not published")}
+            </dd>
+          </div>
+          <div data-part="metadata">
+            <dt>{gettext("Updated")}</dt>
+            <dd><.time time={@resource.updated_at} show_time /></dd>
+          </div>
+        </dl>
+      </.card_section>
+    </.card>
+    <.card
+      :if={@live_action == :workflow}
+      id="workflow-definition"
+      title={gettext("Workflow definition")}
+      icon="devices_code"
+    >
+      <.card_section>
+        <.code_block source={display_source(@definition)} language={@definition.language} />
+      </.card_section>
+    </.card>
+
+    <.alert
+      :if={@live_action == :execution && @resource.last_error}
+      status="error"
+      type="secondary"
+      size="small"
+      title={@resource.last_error}
+    />
+    <.card
+      :if={@live_action == :execution}
+      title={gettext("Details")}
+      icon="history"
+      id="execution-detail"
+    >
+      <.card_section>
+        <dl data-part="metadata-grid">
+          <div data-part="metadata">
+            <dt>{gettext("Workflow")}</dt>
+            <dd>
+              <.link navigate={~p"/automation/workflows/#{@resource.revision.workflow_id}"}>
+                {@resource.revision.workflow.name}
+              </.link>
+            </dd>
+          </div>
+          <div data-part="metadata">
+            <dt>{gettext("Revision")}</dt>
+            <dd>v{@resource.revision.number}</dd>
+          </div>
+          <div data-part="metadata">
+            <dt>{gettext("Trigger")}</dt>
+            <dd>{trigger_label(@resource.trigger)}</dd>
+          </div>
+          <div data-part="metadata">
+            <dt>{gettext("Started by")}</dt>
+            <dd>{@resource.initiated_by.name || @resource.initiated_by.email}</dd>
+          </div>
+          <div data-part="metadata">
+            <dt>{gettext("Created")}</dt>
+            <dd><.time time={@resource.inserted_at} show_time /></dd>
+          </div>
+          <div data-part="metadata">
+            <dt>{gettext("Completed")}</dt>
+            <dd>
+              <.time :if={@resource.completed_at} time={@resource.completed_at} show_time />
+              <span :if={!@resource.completed_at}>
+                —
+              </span>
+            </dd>
+          </div>
+        </dl>
+      </.card_section>
+    </.card>
+    <.execution_observability
+      :if={@live_action == :execution}
+      run={@resource}
+      events={@execution_events}
+      events_meta={@events_meta}
+      events_error={@events_error}
+    />
+    <.card :if={@live_action == :execution} title={gettext("Step attempts")} icon="history">
+      <.card_section>
+        <.table
+          id="execution-attempts"
+          rows={@resource.attempts}
+          row_expandable={fn _ -> true end}
+        >
+          <:col :let={attempt} label={gettext("Step")}>
+            <.text_cell label={attempt.step_id} />
+          </:col>
+          <:col :let={attempt} label={gettext("Status")}>
+            <.status_badge_cell
+              label={status_label(attempt.status)}
+              status={status_kind(attempt.status)}
+            />
+          </:col>
+          <:col :let={attempt} label={gettext("Executor")}>
+            <.badge_cell label={attempt.executor} color="neutral" style="light-fill" />
+          </:col>
+          <:col :let={attempt} label={gettext("Recorded")}>
+            <.time_cell time={attempt.inserted_at} show_time />
+          </:col>
+          <:expanded_content :let={attempt}>
+            <div data-part="attempt-content">
+              <.alert
+                :if={attempt.error}
+                status="error"
+                type="secondary"
+                size="small"
+                title={attempt.error}
+              />
+              <dl data-part="metadata-grid">
+                <div data-part="metadata">
+                  <dt>{gettext("Started")}</dt>
+                  <dd>
+                    {if attempt.started_at,
+                      do: DateTime.to_iso8601(attempt.started_at),
+                      else: gettext("Not recorded")}
+                  </dd>
+                </div>
+                <div data-part="metadata">
+                  <dt>{gettext("Completed")}</dt>
+                  <dd>
+                    {if attempt.completed_at,
+                      do: DateTime.to_iso8601(attempt.completed_at),
+                      else: "—"}
+                  </dd>
+                </div>
+                <div data-part="metadata">
+                  <dt>{gettext("Elapsed")}</dt>
+                  <dd>{duration_label(attempt.duration_ms)}</dd>
+                </div>
+                <div data-part="metadata">
+                  <dt>{gettext("Worker time")}</dt>
+                  <dd>{duration_label(attempt.execution_duration_ms)}</dd>
+                </div>
+                <div data-part="metadata">
+                  <dt>{gettext("Approval wait")}</dt>
+                  <dd>{duration_label(attempt.wait_duration_ms)}</dd>
+                </div>
+                <div data-part="metadata">
+                  <dt>{gettext("Span ID")}</dt>
+                  <dd data-part="identifier">{attempt.span_id || gettext("Not recorded")}</dd>
+                </div>
+              </dl>
+              <div :if={attempt.diagnostic} data-part="payload">
+                <.code_block source={pretty(attempt.diagnostic)} />
+              </div>
+              <dl data-part="payload-grid">
+                <div data-part="payload">
+                  <dt>{gettext("Inputs")}</dt>
+                  <dd><.code_block source={pretty(attempt.input)} /></dd>
+                </div>
+                <div data-part="payload">
+                  <dt>{gettext("Outputs")}</dt>
+                  <dd><.code_block source={pretty(attempt.output)} /></dd>
+                </div>
+              </dl>
+            </div>
+          </:expanded_content>
+          <:empty_state>
+            <.table_empty_state
+              icon="history"
+              title={gettext("No step attempts yet")}
+              subtitle={gettext("Step results will appear as this execution progresses.")}
+            />
+          </:empty_state>
+        </.table>
+      </.card_section>
+    </.card>
+    <div :if={@live_action == :execution} data-part="payload-grid">
+      <.card title={gettext("Inputs")} icon="devices_code">
+        <.card_section><.code_block source={pretty(@resource.input)} /></.card_section>
+      </.card>
+      <.card title={gettext("Outputs")} icon="devices_code">
+        <.card_section><.code_block source={pretty(@resource.outputs)} /></.card_section>
+      </.card>
+    </div>
+
+    <.card :if={!@resource} title={title(@section)} icon={section_icon(@section)}>
+      <.card_section data-part="records-section">
+        <.toolbar
+          id={if @section == "behaviors", do: "behavior-configurations", else: @section}
+          section={@section}
+          state={@records_table}
+          params={@query_params}
+        />
+        <.table :if={@empty} id="automation-empty" rows={[]}>
+          <:col :for={label <- empty_columns(@section)} label={label} />
+          <:empty_state>
+            <.table_empty_state
+              icon={section_icon(@section)}
+              title={
+                if Table.filtered?(@records_table),
+                  do:
+                    if(@section == "executions",
+                      do: gettext("No matching executions"),
+                      else: gettext("No matching records")
+                    ),
+                  else: gettext("No records yet.")
+              }
+              subtitle={
+                if Table.filtered?(@records_table),
+                  do: gettext("Try a different search or filter."),
+                  else: description(@section)
+              }
+            />
+          </:empty_state>
+        </.table>
+        <.table
+          :if={!@empty}
+          id="automation-items"
+          rows={@streams.items}
+          row_navigate={row_navigate(@section)}
+          row_expandable={if @section == "behaviors", do: fn _ -> true end}
+        >
+          <:col
+            :let={{_, item}}
+            label={if @section == "executions", do: gettext("Workflow"), else: gettext("Name")}
+            patch={
+              Table.sort_path(
+                @section,
+                @query_params,
+                @records_table,
+                if(@section == "executions", do: "workflow", else: "name")
+              )
+            }
+            sort_order={
+              @records_table.sort_by == if(@section == "executions", do: "workflow", else: "name") &&
+                @records_table.sort_order
+            }
+          >
+            <.text_and_description_cell
+              label={record_name(@section, item)}
+              description={record_description(@section, item)}
+            />
+          </:col>
+          <:col
+            :let={{_, item}}
+            :if={@section == "workflows"}
+            label={gettext("Status")}
+            patch={Table.sort_path(@section, @query_params, @records_table, "status")}
+            sort_order={@records_table.sort_by == "status" && @records_table.sort_order}
+          >
+            <.badge_cell
+              label={
+                if item.published_revision_id,
+                  do: gettext("Published"),
+                  else: gettext("Not published")
+              }
+              color={if item.published_revision_id, do: "success", else: "neutral"}
+              style="light-fill"
+            />
+          </:col>
+          <:col
+            :let={{_, item}}
+            :if={@section == "workflows"}
+            label={gettext("Language")}
+            patch={Table.sort_path(@section, @query_params, @records_table, "language")}
+            sort_order={@records_table.sort_by == "language" && @records_table.sort_order}
+          >
+            <.text_cell label={language_label(workflow_definition(item).language)} />
+          </:col>
+          <:col
+            :let={{_, item}}
+            :if={@section == "behaviors"}
+            label={gettext("Behavior type")}
+            patch={Table.sort_path(@section, @query_params, @records_table, "type")}
+            sort_order={@records_table.sort_by == "type" && @records_table.sort_order}
+          >
+            <.text_cell label={item.type} />
+          </:col>
+          <:col
+            :let={{_, item}}
+            :if={@section in ["executions", "approvals"]}
+            label={gettext("Status")}
+            patch={Table.sort_path(@section, @query_params, @records_table, "status")}
+            sort_order={@records_table.sort_by == "status" && @records_table.sort_order}
+          >
+            <.status_badge_cell
+              label={status_label(item.status)}
+              status={status_kind(item.status)}
+            />
+          </:col>
+          <:col
+            :let={{_, item}}
+            :if={@section == "executions"}
+            label={gettext("Trigger")}
+            patch={Table.sort_path(@section, @query_params, @table, "trigger")}
+            sort_order={@table.sort_by == "trigger" && @table.sort_order}
+          >
+            <.text_cell label={trigger_label(item.trigger)} />
+          </:col>
+          <:col
+            :let={{_, item}}
+            :if={@section in ["schedules", "webhooks"]}
+            label={gettext("Workflow")}
+            patch={Table.sort_path(@section, @query_params, @records_table, "workflow")}
+            sort_order={@records_table.sort_by == "workflow" && @records_table.sort_order}
+          >
+            <.text_cell label={item.revision.workflow.name} sublabel={"v#{item.revision.number}"} />
+          </:col>
+          <:col
+            :let={{_, item}}
+            :if={@section in ["schedules", "webhooks"]}
+            label={gettext("Status")}
+            patch={Table.sort_path(@section, @query_params, @records_table, "status")}
+            sort_order={@records_table.sort_by == "status" && @records_table.sort_order}
+          >
+            <.badge_cell
+              label={if item.enabled, do: gettext("Enabled"), else: gettext("Paused")}
+              color={if item.enabled, do: "success", else: "neutral"}
+              style="light-fill"
+            />
+          </:col>
+          <:col
+            :let={{_, item}}
+            :if={@section == "schedules"}
+            label={gettext("Schedule")}
+            patch={Table.sort_path(@section, @query_params, @records_table, "cron")}
+            sort_order={@records_table.sort_by == "cron" && @records_table.sort_order}
+          >
+            <.text_cell label={item.cron} sublabel="UTC" />
+          </:col>
+          <:col
+            :let={{_, item}}
+            :if={@section == "schedules"}
+            label={gettext("Next run")}
+            patch={Table.sort_path(@section, @query_params, @records_table, "next_run")}
+            sort_order={@records_table.sort_by == "next_run" && @records_table.sort_order}
+          >
+            <.time_cell :if={item.next_run_at} time={item.next_run_at} show_time />
+            <.text_cell :if={is_nil(item.next_run_at)} label={gettext("Not scheduled")} />
+          </:col>
+          <:col
+            :let={{_, item}}
+            :if={@section == "webhooks"}
+            label={gettext("Endpoint")}
+            patch={Table.sort_path(@section, @query_params, @records_table, "endpoint")}
+            sort_order={@records_table.sort_by == "endpoint" && @records_table.sort_order}
+          >
+            <.text_cell
+              label={"/api/automation/hooks/#{item.id}"}
+              title={"/api/automation/hooks/#{item.id}"}
+            />
+          </:col>
+          <:col
+            :let={{_, item}}
+            :if={@section == "approvals"}
+            label={gettext("Reviewer")}
+            patch={Table.sort_path(@section, @query_params, @records_table, "reviewer")}
+            sort_order={@records_table.sort_by == "reviewer" && @records_table.sort_order}
+          >
+            <.text_cell label={item.reviewer.name || item.reviewer.email} />
+          </:col>
+          <:col
+            :let={{_, item}}
+            :if={@section not in ["schedules", "webhooks"]}
+            label={gettext("Created")}
+            patch={Table.sort_path(@section, @query_params, @records_table, "created")}
+            sort_order={@records_table.sort_by == "created" && @records_table.sort_order}
+          >
+            <.time_cell time={item.inserted_at} show_time />
+          </:col>
+          <:col
+            :let={{_, item}}
+            :if={@section in ["schedules", "webhooks", "approvals"]}
+            label={gettext("Actions")}
+          >
+            <.button_cell>
+              <:button :if={@section == "approvals"}>
+                <.button
+                  id={"review-#{item.id}"}
+                  label={gettext("Review")}
+                  variant="secondary"
+                  size="small"
+                  phx-click="review"
+                  phx-value-id={item.id}
+                />
+              </:button>
+              <:button :if={
+                @section in ["schedules", "webhooks"] && @can_write &&
+                  item.execution_user_id == @current_user.id
+              }>
+                <.button
+                  label={if item.enabled, do: gettext("Pause"), else: gettext("Enable")}
+                  variant="secondary"
+                  size="small"
+                  phx-click="toggle"
+                  phx-value-id={item.id}
+                  phx-value-enabled={to_string(!item.enabled)}
+                />
+              </:button>
+            </.button_cell>
+          </:col>
+          <:expanded_content :let={{_, item}}>
+            <div data-part="attempt-content">
+              <.code_block source={pretty(item.configuration)} />
+            </div>
+          </:expanded_content>
+        </.table>
+        <nav :if={@total_pages > 1} data-part="pagination" aria-label={gettext("Pagination")}>
+          <.button
+            id="automation-previous"
+            label={gettext("Prev")}
+            variant="secondary"
+            disabled={@page <= 1}
+            patch={@page > 1 && pagination_path(@section, @page - 1, @query_params)}
+          >
+            <:icon_left><.chevron_left /></:icon_left>
+          </.button>
+          <.button
+            id="automation-next"
+            label={gettext("Next")}
+            variant="secondary"
+            disabled={@page >= @total_pages}
+            patch={@page < @total_pages && pagination_path(@section, @page + 1, @query_params)}
+          >
+            <:icon_right><.chevron_right /></:icon_right>
+          </.button>
+        </nav>
+      </.card_section>
+    </.card>
+
+    <.card
+      :if={@section == "behaviors"}
+      title={gettext("Behavior types")}
+      icon="devices_code"
+      id="behavior-types"
+    >
+      <.card_section data-part="records-section">
+        <.toolbar id="behavior-types" section={@section} state={@table} params={@query_params} />
+        <.table
+          id="behavior-types-table"
+          rows={@visible_types}
+          row_key={fn type -> "type-#{type.name}-#{type.version}" end}
+        >
+          <:col
+            :let={type}
+            label={gettext("Type")}
+            patch={Table.sort_path(@section, @query_params, @table, "name")}
+            sort_order={@table.sort_by == "name" && @table.sort_order}
+          >
+            <.text_and_description_cell label={type.reference} description={type.description} />
+          </:col>
+          <:col
+            :let={type}
+            label={gettext("Domain")}
+            patch={Table.sort_path(@section, @query_params, @table, "domain")}
+            sort_order={@table.sort_by == "domain" && @table.sort_order}
+          >
+            <.text_cell label={type.domain} />
+          </:col>
+          <:col
+            :let={type}
+            label={gettext("Effect")}
+            patch={Table.sort_path(@section, @query_params, @table, "effect")}
+            sort_order={@table.sort_by == "effect" && @table.sort_order}
+          >
+            <.badge_cell label={effect_label(type.effect)} color="neutral" style="light-fill" />
+          </:col>
+          <:col
+            :let={type}
+            label={gettext("Version")}
+            patch={Table.sort_path(@section, @query_params, @table, "version")}
+            sort_order={@table.sort_by == "version" && @table.sort_order}
+          >
+            <.text_cell label={"v#{type.version}"} />
+          </:col>
+          <:col
+            :let={type}
+            label={gettext("Permissions")}
+            patch={Table.sort_path(@section, @query_params, @table, "permissions")}
+            sort_order={@table.sort_by == "permissions" && @table.sort_order}
+          >
+            <.text_cell label={
+              if(type.permissions == [],
+                do: gettext("Authenticated teammate"),
+                else: Enum.join(type.permissions, ", ")
+              )
+            } />
+          </:col>
+          <:col
+            :let={type}
+            label={gettext("Approval")}
+            patch={Table.sort_path(@section, @query_params, @table, "approval")}
+            sort_order={@table.sort_by == "approval" && @table.sort_order}
+          >
+            <.text_cell label={if(type.requires_approval, do: gettext("Required"), else: "—")} />
+          </:col>
+          <:col :let={type} label="">
+            <.button_cell>
+              <:button>
+                <.button
+                  variant="secondary"
+                  size="small"
+                  label={gettext("View contract")}
+                  phx-click="inspect_type"
+                  phx-value-reference={type.reference}
+                />
+              </:button>
+            </.button_cell>
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="devices_code"
+              title={gettext("No matching behavior types")}
+              subtitle={gettext("Try a different search or filter.")}
+            />
+          </:empty_state>
+        </.table>
+      </.card_section>
+    </.card>
+
+    <.modal
+      :if={@section == "behaviors"}
+      id="behavior-contract-modal"
+      data-part="automation-modal"
+      title={gettext("Behavior contract")}
+      description={gettext("Published workflows pin this operation version and its contracts.")}
+      on_dismiss="close_type_contract"
+      on_open_change="type_contract_open_changed"
+    >
+      <:trigger></:trigger>
+      <div :if={@selected_type} data-part="automation-modal-content" id="behavior-contract">
+        <.code_block source={Jason.encode!(@selected_type, pretty: true)} language="json" />
+        <div :if={@selected_type.requires_approval}>
+          <p>
+            {gettext(
+              "Add a prior approval with this payload, replacing target_step and input with the exact action being reviewed."
+            )}
+          </p>
+          <.code_block
+            language="json"
+            source={
+              Jason.encode!(
+                %{
+                  behavior: @selected_type.name,
+                  version: @selected_type.version,
+                  step_id: "target_step",
+                  input: %{}
+                },
+                pretty: true
+              )
+            }
+          />
+        </div>
+      </div>
+      <:footer>
+        <.modal_footer>
+          <:action>
+            <.button label={gettext("Close")} variant="secondary" phx-click="close_type_contract" />
+          </:action>
+        </.modal_footer>
+      </:footer>
+    </.modal>
+
+    <.modal
+      :if={@section == "approvals"}
+      id="approval-review-modal"
+      data-part="automation-modal"
+      title={gettext("Review approval")}
+      description={gettext("Review the exact payload before a workflow continues.")}
+      header_type="icon"
+      header_size="large"
+      on_dismiss="close_review"
+      on_open_change="review_open_changed"
+    >
+      <:header_icon><.circle_check /></:header_icon>
+      <:trigger></:trigger>
+      <div :if={@reviewing_approval} data-part="automation-modal-content" id="approval-payload">
+        <.alert
+          :if={@review_error}
+          status="error"
+          type="secondary"
+          size="small"
+          title={@review_error}
+        />
+        <dl data-part="approval-context">
+          <div>
+            <dt>{gettext("Workflow")}</dt>
+            <dd>
+              <.link navigate={
+                ~p"/automation/workflows/#{@reviewing_approval.run.revision.workflow_id}"
+              }>
+                {@reviewing_approval.run.revision.workflow.name}
+              </.link>
+            </dd>
+          </div>
+          <div>
+            <dt>{gettext("Step")}</dt>
+            <dd>{@reviewing_approval.step_id}</dd>
+          </div>
+          <div>
+            <dt>{gettext("Execution")}</dt>
+            <dd>
+              <.link navigate={~p"/automation/executions/#{@reviewing_approval.run_id}"}>
+                {String.slice(@reviewing_approval.run_id, 0, 8)}
+              </.link>
+            </dd>
+          </div>
+        </dl>
+        <.code_block source={pretty(@reviewing_approval.payload)} />
+      </div>
+      <:footer>
+        <.modal_footer>
+          <:action>
+            <.button
+              label={gettext("Close")}
+              variant="secondary"
+              size="small"
+              phx-click="close_review"
+            />
+          </:action>
+          <:action :if={
+            @reviewing_approval && @can_write && @reviewing_approval.status == "pending" &&
+              @reviewing_approval.reviewer_id == @current_user.id
+          }>
+            <.button
+              id={"reject-#{@reviewing_approval.id}"}
+              label={gettext("Reject")}
+              variant="destructive"
+              size="small"
+              phx-click="decide"
+              phx-value-id={@reviewing_approval.id}
+              phx-value-decision="rejected"
+            />
+          </:action>
+          <:action :if={
+            @reviewing_approval && @can_write && @reviewing_approval.status == "pending" &&
+              @reviewing_approval.reviewer_id == @current_user.id
+          }>
+            <.button
+              id={"approve-#{@reviewing_approval.id}"}
+              label={gettext("Approve exact payload")}
+              size="small"
+              phx-click="decide"
+              phx-value-id={@reviewing_approval.id}
+              phx-value-decision="approved"
+            />
+          </:action>
+        </.modal_footer>
+      </:footer>
+    </.modal>
+  </section>
+</Layouts.app>

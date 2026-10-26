@@ -68,6 +68,11 @@ func (r *RackLinuxHostReconciler) reconcileTPM(ctx context.Context, host *infrav
 		r.Recorder.Eventf(host, corev1.EventTypeWarning, "TPMNotRead", "Could not read %s's TPM over SSH: %v", host.Spec.Hostname, err)
 		return
 	}
+	if !checkCodeMatches(host, base64.StdEncoding.EncodeToString(ek)) {
+		conditions.MarkFalse(host, TPMPinnedCondition, "TPMCheckCodeMismatch", clusterv1.ConditionSeverityWarning,
+			"the running host's TPM %s does not have spec.tpmCheckCode %s from the vendor's acceptance report", rackseed.Fingerprint(ek), host.Spec.TPMCheckCode)
+		return
+	}
 	host.Status.TPM = &infrav1.RackLinuxHostTPM{
 		EK:          base64.StdEncoding.EncodeToString(ek),
 		Fingerprint: rackseed.Fingerprint(ek),
@@ -126,4 +131,23 @@ func (r *RackLinuxHostReconciler) readHostEKOverSSH(ctx context.Context, host *i
 		return nil, err
 	}
 	return parseRSAEK(string(out))
+}
+
+// checkCodeMatches reports whether an endorsement key (base64 PKIX DER) has
+// the host's spec.tpmCheckCode, which a host without one never refuses.
+func checkCodeMatches(host *infrav1.RackLinuxHost, ek string) bool {
+	if host.Spec.TPMCheckCode == "" {
+		return true
+	}
+	der, err := parseRSAEK(ek)
+	return err == nil && rackseed.CheckCode(der) == rackseed.NormalizeCheckCode(host.Spec.TPMCheckCode)
+}
+
+// ekShown is an endorsement key (base64 PKIX DER) as a person compares it.
+func ekShown(ek string) string {
+	der, err := parseRSAEK(ek)
+	if err != nil {
+		return "none"
+	}
+	return rackseed.Fingerprint(der) + " (check code " + rackseed.CheckCode(der) + ")"
 }

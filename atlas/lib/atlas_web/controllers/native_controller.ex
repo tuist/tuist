@@ -5,10 +5,11 @@ defmodule AtlasWeb.NativeController do
   alias Atlas.Audit
   alias Atlas.Finance.Invoices
   alias Atlas.Native
+  alias Atlas.Push
   alias Atlas.Tasks
   alias Atlas.Users
 
-  plug :authorize when action != :profile
+  plug :authorize when action not in [:profile, :update_profile]
 
   def action(conn, _opts) do
     Audit.with_context(Audit.context_from_conn(conn, "api"), fn ->
@@ -20,11 +21,23 @@ defmodule AtlasWeb.NativeController do
   end
 
   def profile(conn, _params) do
-    user = conn.assigns.current_user
+    render_profile(conn, conn.assigns.current_user)
+  end
 
+  def update_profile(conn, %{"description" => description} = params) when map_size(params) == 1 do
+    case Users.update_my_profile(conn.assigns.current_user, description) do
+      {:ok, user} -> render_profile(conn, user)
+      error -> respond(conn, error)
+    end
+  end
+
+  def update_profile(conn, _params), do: error(conn, :unprocessable_entity, "invalid_params")
+
+  defp render_profile(conn, user) do
     json(conn, %{
       server_version: to_string(Application.spec(:atlas, :vsn)),
-      user: %{name: user.name || "", email: user.email}
+      user: %{name: user.name || "", email: user.email, description: user.description},
+      push_notifications: Push.capabilities()
     })
   end
 

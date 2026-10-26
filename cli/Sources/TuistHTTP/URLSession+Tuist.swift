@@ -75,6 +75,24 @@ private func environmentInt(_ key: String, default defaultValue: Int) -> Int {
     return parsed
 }
 
+/// Below the 15-second idle timeout the server applies to keep-alive connections, so the client
+/// closes an idle connection before the server can close it under a request being written.
+let tuistIdleConnectionTimeout: TimeInterval = 10
+
+#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
+    private let idleConnectionTimeoutKey = "_connectionCachePurgeTimeout"
+
+    private func setIdleConnectionTimeout(_ timeout: TimeInterval, on configuration: URLSessionConfiguration) {
+        guard configuration.responds(to: NSSelectorFromString("set\(idleConnectionTimeoutKey):")) else { return }
+        configuration.setValue(timeout, forKey: idleConnectionTimeoutKey)
+    }
+
+    func idleConnectionTimeout(of configuration: URLSessionConfiguration) -> TimeInterval? {
+        guard configuration.responds(to: NSSelectorFromString(idleConnectionTimeoutKey)) else { return nil }
+        return configuration.value(forKey: idleConnectionTimeoutKey) as? TimeInterval
+    }
+#endif
+
 public func tuistURLSessionConfiguration(useEnvironmentProxy: Bool? = nil) -> URLSessionConfiguration {
     tuistURLSessionConfigurationResolved(useEnvironmentProxy: resolvedUseEnvironmentProxy(useEnvironmentProxy))
 }
@@ -88,6 +106,7 @@ private func tuistURLSessionConfigurationResolved(useEnvironmentProxy: Bool) -> 
         configuration.allowsCellularAccess = true
         configuration.allowsConstrainedNetworkAccess = true
         configuration.allowsExpensiveNetworkAccess = true
+        setIdleConnectionTimeout(tuistIdleConnectionTimeout, on: configuration)
     #endif
     #if os(macOS)
         if useEnvironmentProxy,

@@ -3,7 +3,7 @@ defmodule TuistEx.HTTP do
 
   alias TuistEx.CertificateTrust
 
-  def request(method, url, body \\ nil, headers \\ []) do
+  def request(method, url, body \\ nil, headers \\ [], timeouts \\ []) do
     start()
 
     headers =
@@ -21,7 +21,7 @@ defmodule TuistEx.HTTP do
         {String.to_charlist(url), headers}
       end
 
-    options = options(url, 15_000)
+    options = options(url, Keyword.get(timeouts, :timeout, 15_000), Keyword.get(timeouts, :connect_timeout, 10_000))
 
     case :httpc.request(method, request, options, body_format: :binary) do
       {:ok, {{_, status, _}, _, response}} ->
@@ -84,8 +84,8 @@ defmodule TuistEx.HTTP do
     {:ok, _} = Application.ensure_all_started([:inets, :ssl])
   end
 
-  defp options(url, timeout) do
-    options = [timeout: timeout, connect_timeout: 10_000, autoredirect: false]
+  defp options(url, timeout, connect_timeout \\ 10_000) do
+    options = [timeout: timeout, connect_timeout: connect_timeout, autoredirect: false]
 
     if URI.parse(url).scheme == "https" do
       Keyword.put(options, :ssl, CertificateTrust.ssl_options())

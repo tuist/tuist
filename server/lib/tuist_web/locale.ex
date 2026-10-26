@@ -11,6 +11,8 @@ defmodule TuistWeb.Locale do
 
   def supported_locales, do: SharedLocale.supported_locales()
 
+  def language_tag(locale), do: String.replace(locale, "_", "-")
+
   def on_mount(:assign_locale, _params, session, socket) do
     user_locale = user_preferred_locale(socket)
 
@@ -31,13 +33,27 @@ defmodule TuistWeb.Locale do
   def locale_from_accept_language(header) when is_binary(header) do
     header
     |> String.split(",")
-    |> Enum.map(fn locale ->
-      locale
-      |> String.split(";")
-      |> List.first()
-      |> String.trim()
-    end)
-    |> Enum.find_value(&normalize_locale/1)
+    |> Enum.map(&language_preference/1)
+    |> Enum.filter(fn {locale, quality} -> not is_nil(locale) and quality > 0 end)
+    |> Enum.sort_by(&elem(&1, 1), :desc)
+    |> Enum.find_value(&elem(&1, 0))
+  end
+
+  defp language_preference(value) do
+    case String.split(value, ";", parts: 2) do
+      [locale] ->
+        {normalize_locale(locale), 1.0}
+
+      [locale, weight] ->
+        case Regex.run(~r/^q=(0(?:\.\d{0,3})?|1(?:\.0{0,3})?)$/i, String.trim(weight)) do
+          [_, quality] ->
+            {quality, _rest} = Float.parse(quality)
+            {normalize_locale(locale), quality}
+
+          nil ->
+            {nil, 0.0}
+        end
+    end
   end
 
   def normalize_locale(nil), do: nil

@@ -108,14 +108,35 @@ struct XCActivityLogParserTests {
     @Test func buildSteps_classifiesModernSwiftCompilation() async throws {
         let result = try await parseFixture("clean-build")
         #expect(result.build_steps.contains { $0.category == "swiftCompilation" && $0.target == "App" })
-        #expect(result.build_steps.contains { $0.category == "swiftCompilation" && $0.title.hasPrefix("Emit Swift module") })
+        #expect(result.build_steps.contains { $0.category == "swiftCompilation" && $0.title.hasPrefix("Emitting module for ") })
         #expect(result.build_steps.contains { $0.category == "scriptExecution" })
         #expect(!result.build_steps.contains { $0.title.hasPrefix("Build target ") })
     }
 
+    @Test func buildSteps_emitsSwiftJobsWithTheirOwnInterval() async throws {
+        let result = try await parseFixture("xcode_27_local_cache_misses")
+        let job = try #require(result.build_steps.first { $0.title == "Compiling Alpha.swift, Bravo.swift, Charlie.swift" })
+        #expect(job.category == "swiftCompilation")
+        #expect(job.duration_ms > 5)
+        #expect(job.log.contains("Local cache found for key:"))
+        #expect(job.log.contains("Alpha.swift"))
+        #expect(!result.build_steps.contains { $0.title == "Compile Alpha.swift" })
+    }
+
+    @Test func buildSteps_foldsSwiftJobChildDiagnostics() async throws {
+        let result = try await parseFixture("xcode_27_failed_build")
+        let job = try #require(result.build_steps.first { $0.title == "Emitting module for SmartBlocksStream" })
+        #expect(job.log.contains("is deprecated"))
+    }
+
+    @Test func buildSteps_marksSwiftJobsWithFailingChildrenAsFailed() async throws {
+        let result = try await parseFixture("failed-build")
+        #expect(result.build_steps.contains { $0.title.hasPrefix("Compiling ") && $0.status == "failure" })
+    }
+
     @Test func buildSteps_retainsRecordedStepCommands() async throws {
         let result = try await parseFixture("xcode_26_cas_clean_build")
-        let step = try #require(result.build_steps.first { $0.log.hasPrefix("EmitSwiftModule normal") })
+        let step = try #require(result.build_steps.first { $0.log.contains("\nEmitSwiftModule normal") })
         #expect(step.log.contains("EmitSwiftModule normal"))
         #expect(step.log.contains("cd "))
         #expect(!step.log_truncated)
@@ -140,6 +161,24 @@ struct XCActivityLogParserTests {
         let interval = BuildStepData.interval(start: 10.5, end: 12, buildStart: 10, buildEnd: 20)
         #expect(interval?.0 == 500)
         #expect(interval?.1 == 1500)
+    }
+
+    @Test func buildSteps_logDeduplicatesNonASCIIText() {
+        let path = "/Users/José/Projects/🙂App/カフェ.swift"
+        let log = BuildStepLog.render(
+            signature: "Compile App",
+            command: "",
+            output: "警告: \(path)\nok",
+            messages: ["警告: \(path)", "注意 🚀 naïve", "©", "Cafe\u{301}"],
+            limit: 1000
+        )
+        #expect(log.text == "Compile App\n警告: \(path)\nok\n注意 🚀 naïve\n©\nCafe\u{301}")
+        #expect(!log.truncated)
+
+        // Byte matching never splits a character: "©" (C2 A9) shares its last
+        // byte with "é" (C3 A9), and canonically equivalent spellings stay distinct.
+        let distinct = BuildStepLog.render(signature: "Café", command: "", output: "", messages: ["©", "Cafe\u{301}"], limit: 1000)
+        #expect(distinct.text == "Café\n©\nCafe\u{301}")
     }
 
     @Test func buildSteps_logNormalizesAndDeduplicatesBeforeTruncation() {
@@ -392,6 +431,50 @@ struct XCActivityLogParserTests {
             "clang miss": ["Compile CCacheMiss.c (arm64)"],
         ])
         #expect(result.cacheable_tasks.allSatisfy { $0.read_duration == nil && $0.write_duration == nil })
+    }
+
+    // MARK: - Remote Cache With Batch-Mode Swift Jobs
+    //
+    // `xcode_27_remote_batch_jobs` builds three Swift targets against local Kura through the CAS
+    // plugin with `-driver-batch-count 2`. Bravo was compiled into this build's local CAS by an
+    // earlier build, Charlie only by another machine (remote hits), and Alpha was edited. Each
+    // batch job names one key per primary file in its `materialize key [...]` / `query key [...]`
+    // steps and uploads each key separately, but Xcode counts the job once.
+
+    @Test func remoteBatchJobs_countsEveryTaskXcodeReports() async throws {
+        let result = try await parseFixture("xcode_27_remote_batch_jobs")
+        let summary = try xcodeCacheSummary(inFixture: "xcode_27_remote_batch_jobs")
+
+        #expect(result.cacheable_tasks.count == summary.cacheable)
+        #expect(result.cacheable_tasks.filter { $0.status != "miss" }.count == summary.hits)
+        #expect(Set(result.cacheable_tasks.map(\.key)).count == result.cacheable_tasks.count)
+    }
+
+    @Test func remoteBatchJobs_classifiesEachJobOnce() async throws {
+        let result = try await parseFixture("xcode_27_remote_batch_jobs")
+        let statuses = Dictionary(grouping: result.cacheable_tasks) { "\($0.type) \($0.status)" }
+            .mapValues { Set($0.compactMap(\.description)) }
+
+        #expect(statuses == [
+            "swift hit_local": [
+                "Compiling Clang module SwiftShims",
+                "Compiling Clang module _SwiftConcurrencyShims",
+                "Emitting module for Bravo",
+                "Compiling BravoFour.swift, BravoOne.swift",
+                "Compiling BravoThree.swift, BravoTwo.swift",
+            ],
+            "swift hit_remote": [
+                "Emitting module for Charlie",
+                "Compiling CharlieFour.swift, CharlieOne.swift",
+                "Compiling CharlieThree.swift, CharlieTwo.swift",
+            ],
+            "swift miss": [
+                "Emitting module for Alpha",
+                "Compiling AlphaFive.swift, AlphaFour.swift, AlphaOne.swift",
+                "Compiling AlphaSix.swift, AlphaThree.swift, AlphaTwo.swift",
+            ],
+        ])
+        #expect(result.cacheable_tasks.filter { $0.status == "miss" }.allSatisfy { !$0.cas_output_node_ids.isEmpty })
     }
 
     private func xcodeCacheSummary(inFixture name: String) throws -> (hits: Int, cacheable: Int) {

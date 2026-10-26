@@ -236,8 +236,13 @@ var ErrExecutionPending = errors.New("runner job not yet reported by GitHub")
 type RemoteError struct {
 	Operation  string
 	StatusCode int
+	// Code is the object store's error code, when its response named one.
+	Code string
 }
 
 func (e *RemoteError) Error() string {
+	if e.Code != "" {
+		return fmt.Sprintf("image %s status %d %s", e.Operation, e.StatusCode, e.Code)
+	}
 	return fmt.Sprintf("image %s status %d", e.Operation, e.StatusCode)
 }
