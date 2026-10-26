@@ -27,9 +27,12 @@ defmodule Tuist.Runners.DockerCache do
 
   @doc """
   The account's Docker data roots, most recently used first, with what reusing
-  each did during `period`. A cleared one is left out until a job uses it again.
+  each did during `period`: those with a saved version or jobs in the period. A
+  cleared one is left out until a job uses it again.
   """
-  def repositories(account_id, {_start, _finish} = period), do: repositories(account_id, nil, period)
+  def repositories(account_id, {_start, _finish} = period) do
+    account_id |> repositories(nil, period) |> Enum.filter(&(&1.last_saved_at || &1.uses > 0))
+  end
 
   @doc "One repository's Docker data root and its images, or nil."
   def repository(account_id, volume_id, period) do

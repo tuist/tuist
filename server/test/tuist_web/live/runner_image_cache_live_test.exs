@@ -167,8 +167,12 @@ defmodule TuistWeb.RunnerImageCacheLiveTest do
         steps: %{reused: busy, cold: busy, points: [quiet, busy]}
       })
 
-    assert [%{data: [["2026-10-24T00:00:00Z", 6_100]]}] =
-             RunnerImageCacheLive.chart_series(analytics, "initialize", "p99")
+    assert [
+             %{name: "Average", data: [["2026-10-24T00:00:00Z", 3_200]]},
+             %{name: "p99", data: [["2026-10-24T00:00:00Z", 6_100]]},
+             %{name: "p90", data: [["2026-10-24T00:00:00Z", 4_400]]},
+             %{name: "p50", data: [["2026-10-24T00:00:00Z", 3_100]]}
+           ] = RunnerImageCacheLive.chart_series(analytics, "initialize", "p99")
 
     assert [%{data: [["2026-10-24T00:00:00Z", 75.0]]}] = RunnerImageCacheLive.chart_series(analytics, "hit_rate", "avg")
     assert [%{data: [_, _]}] = RunnerImageCacheLive.chart_series(analytics, "uses", "avg")

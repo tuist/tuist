@@ -459,7 +459,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.html.heex:594
 #: lib/tuist_web/live/runner_jobs_live.html.heex:602
 #: lib/tuist_web/live/runner_jobs_live.html.heex:623
-#: lib/tuist_web/live/runner_volumes_live.ex:572
+#: lib/tuist_web/live/runner_volumes_live.ex:574
 #: lib/tuist_web/live/runner_workflow_live.ex:303
 #: lib/tuist_web/live/runner_workflow_live.ex:304
 #: lib/tuist_web/live/runner_workflow_live.ex:311
@@ -569,12 +569,12 @@ msgstr ""
 msgid "since last month"
 msgstr ""
 
-#: lib/tuist_web/live/runner_image_cache_live.ex:367
+#: lib/tuist_web/live/runner_image_cache_live.ex:425
 #: lib/tuist_web/live/runner_jobs_live.ex:256
 #: lib/tuist_web/live/runner_volumes_live.ex:303
 #: lib/tuist_web/live/runner_volumes_live.ex:313
 #: lib/tuist_web/live/runner_volumes_live.ex:323
-#: lib/tuist_web/live/runner_volumes_live.ex:538
+#: lib/tuist_web/live/runner_volumes_live.ex:540
 #: lib/tuist_web/live/runner_workflows_live.ex:282
 #: lib/tuist_web/live/runners_live.ex:409
 #, elixir-autogen, elixir-format
@@ -1482,17 +1482,17 @@ msgstr ""
 msgid "Could not update volume. Please retry."
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.ex:598
+#: lib/tuist_web/live/runner_volumes_live.ex:600
 #, elixir-autogen, elixir-format
 msgid "Deleted"
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.ex:597
+#: lib/tuist_web/live/runner_volumes_live.ex:599
 #, elixir-autogen, elixir-format
 msgid "Deletion pending"
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.ex:600
+#: lib/tuist_web/live/runner_volumes_live.ex:602
 #, elixir-autogen, elixir-format
 msgid "Empty"
 msgstr ""
@@ -1514,7 +1514,7 @@ msgstr ""
 msgid "No recorded uses"
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.ex:599
+#: lib/tuist_web/live/runner_volumes_live.ex:601
 #, elixir-autogen, elixir-format
 msgid "Ready"
 msgstr ""
@@ -1588,7 +1588,7 @@ msgstr ""
 msgid "Search volumes or repositories"
 msgstr ""
 
-#: lib/tuist_web/live/runner_volumes_live.ex:576
+#: lib/tuist_web/live/runner_volumes_live.ex:578
 #, elixir-autogen, elixir-format
 msgid "Summed across saved snapshots and job copies, including copies awaiting deletion. Shared data may be counted more than once; these are not unique physical bytes or a billing amount."
 msgstr ""
@@ -1620,6 +1620,7 @@ msgstr ""
 
 #: lib/tuist_web/live/runner_image_cache_live.ex:156
 #: lib/tuist_web/live/runner_image_cache_live.ex:251
+#: lib/tuist_web/live/runner_image_cache_live.ex:364
 #: lib/tuist_web/live/runner_image_cache_live.html.heex:255
 #: lib/tuist_web/live/runner_volumes_live.ex:342
 #: lib/tuist_web/live/runner_volumes_live.html.heex:418
@@ -1627,7 +1628,7 @@ msgstr ""
 msgid "Hit rate"
 msgstr ""
 
-#: lib/tuist_web/live/runner_image_cache_live.ex:321
+#: lib/tuist_web/live/runner_image_cache_live.ex:323
 #: lib/tuist_web/live/runner_volumes_live.html.heex:153
 #: lib/tuist_web/live/runner_volumes_live.html.heex:465
 #, elixir-autogen, elixir-format
@@ -1687,13 +1688,13 @@ msgstr ""
 msgid "Percentage of volume mounts that reused saved data during the selected period."
 msgstr ""
 
-#: lib/tuist_web/live/runner_image_cache_live.ex:370
+#: lib/tuist_web/live/runner_image_cache_live.ex:428
 #: lib/tuist_web/live/runner_volumes_live.ex:307
 #, elixir-autogen, elixir-format
 msgid "No data"
 msgstr ""
 
-#: lib/tuist_web/live/runner_image_cache_live.ex:373
+#: lib/tuist_web/live/runner_image_cache_live.ex:431
 #: lib/tuist_web/live/runner_volumes_live.ex:310
 #, elixir-autogen, elixir-format
 msgid "No previous data"
@@ -1989,7 +1990,7 @@ msgstr ""
 msgid "Jobs that started with their repository's image cache during the selected period."
 msgstr ""
 
-#: lib/tuist_web/live/runner_image_cache_live.ex:352
+#: lib/tuist_web/live/runner_image_cache_live.ex:386
 #, elixir-autogen, elixir-format
 msgid "Avg. Initialize containers"
 msgstr ""
@@ -1999,17 +2000,22 @@ msgstr ""
 msgid "Initialize containers step of jobs that started from saved images. For jobs that pulled every layer, the same statistic was %{cold}."
 msgstr ""
 
-#: lib/tuist_web/live/runner_image_cache_live.ex:349
+#: lib/tuist_web/live/runner_image_cache_live.ex:383
 #, elixir-autogen, elixir-format
 msgid "p50 Initialize containers"
 msgstr ""
 
-#: lib/tuist_web/live/runner_image_cache_live.ex:350
+#: lib/tuist_web/live/runner_image_cache_live.ex:384
 #, elixir-autogen, elixir-format
 msgid "p90 Initialize containers"
 msgstr ""
 
-#: lib/tuist_web/live/runner_image_cache_live.ex:351
+#: lib/tuist_web/live/runner_image_cache_live.ex:385
 #, elixir-autogen, elixir-format
 msgid "p99 Initialize containers"
+msgstr ""
+
+#: lib/tuist_web/live/runner_image_cache_live.ex:344
+#, elixir-autogen, elixir-format
+msgid "Average"
 msgstr ""

@@ -73,8 +73,8 @@ defmodule Tuist.Runners.DockerCacheTest do
     volume_use(saved, %{attached_at: ~U[2026-10-24 11:00:00.000000Z], warm: true})
     volume_use(saved, %{attached_at: ~U[2026-10-01 11:00:00.000000Z], warm: true})
 
-    assert [%{repository: "org/android"} = android, %{repository: "org/web"}] =
-             DockerCache.repositories(account.id, @period)
+    # org/web has nothing saved and no jobs in the period, so it is not listed.
+    assert [%{repository: "org/android"} = android] = DockerCache.repositories(account.id, @period)
 
     assert android.image_count == 1
     assert android.saved_bytes == 6_000_000_000
@@ -103,6 +103,15 @@ defmodule Tuist.Runners.DockerCacheTest do
 
     assert %{uses: 2, hit_rate: 50.0} = DockerCache.analytics(account.id, nil, @period).activity
     assert [%{uses: 2, hits: 1}] = DockerCache.repositories(account.id, @period)
+  end
+
+  test "lists a repository with nothing saved once its jobs ran in the period" do
+    account = AccountsFixtures.account_fixture()
+    unsaved = volume(account, "org/web")
+    volume_use(unsaved, %{attached_at: ~U[2026-10-24 11:00:00.000000Z], warm: false})
+
+    assert [%{repository: "org/web", image_count: 0, uses: 1, hit_rate: +0.0}] =
+             DockerCache.repositories(account.id, @period)
   end
 
   test "leaves a cleared data root out until a job uses it again" do

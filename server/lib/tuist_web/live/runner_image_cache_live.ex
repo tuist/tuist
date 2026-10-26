@@ -335,14 +335,24 @@ defmodule TuistWeb.RunnerImageCacheLive do
   # Hit rate and Initialize containers plot only the hours or days that had
   # jobs, one point each, so quiet stretches leave no gaps; job counts keep
   # every bar.
-  def chart_series(analytics, "initialize", percentile) do
-    data =
-      for point <- analytics.steps.points,
-          value = RunnersLive.percentile_value(point, percentile),
-          not is_nil(value),
-          do: [DateTime.to_iso8601(point.at), value]
+  # Initialize containers draws every statistic; the widget's dropdown only
+  # picks the one its figure shows.
+  def chart_series(analytics, "initialize", _percentile) do
+    points = Enum.reject(analytics.steps.points, &is_nil(&1.avg))
 
-    line_series(initialize_title(percentile), RunnersLive.legend_color_for_percentile(percentile), data)
+    for {name, statistic} <- [
+          {dgettext("dashboard_runners", "Average"), "avg"},
+          {"p99", "p99"},
+          {"p90", "p90"},
+          {"p50", "p50"}
+        ],
+        [series] =
+          line_series(
+            name,
+            RunnersLive.legend_color_for_percentile(statistic),
+            Enum.map(points, &[DateTime.to_iso8601(&1.at), RunnersLive.percentile_value(&1, statistic)])
+          ),
+        do: series
   end
 
   def chart_series(analytics, "hit_rate", _percentile) do
@@ -377,13 +387,17 @@ defmodule TuistWeb.RunnerImageCacheLive do
 
   def chart_options("uses", period, _series), do: RunnerVolumesLive.detail_chart_options("uses", period)
 
-  def chart_options(metric, {start, finish}, [%{data: data}]) do
+  def chart_options(metric, {start, finish}, [%{data: data} | _]) do
     format = if metric == "hit_rate", do: "{value}%", else: "fn:formatMilliseconds"
     hourly = DateTime.diff(finish, start) <= 2 * 86_400
     times = Enum.map(data, &hd/1)
 
     %{
-      grid: %{left: "0.4%", right: "24px", height: "88%", top: "5%"},
+      grid:
+        if(metric == "initialize",
+          do: %{left: "0.4%", right: "24px", height: "78%", top: "8%"},
+          else: %{left: "0.4%", right: "24px", height: "88%", top: "5%"}
+        ),
       xAxis: %{
         boundaryGap: false,
         type: "category",
@@ -399,7 +413,7 @@ defmodule TuistWeb.RunnerImageCacheLive do
         splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
         axisLabel: %{color: "var:noora-surface-label-secondary", formatter: format}
       },
-      legend: %{show: false},
+      legend: if(metric == "initialize", do: RunnersLive.duration_chart_options(times, nil).legend, else: %{show: false}),
       tooltip: %{valueFormat: format, dateFormat: if(hourly, do: "hour", else: "day")}
     }
   end
