@@ -1,5 +1,6 @@
-# Runs the management cluster's admission webhook servers with two replicas,
-# spread across control-plane nodes when there is more than one. Every
+# Runs the management cluster's admission webhook servers with two replicas
+# (caph: one, see below), spread across control-plane nodes when there is more
+# than one. Every
 # webhook here has failurePolicy: Fail, so a single replica blocks writes to
 # its resources while it restarts (rollouts, the weekly
 # capi-webhook-cert-reloader restart, clusterctl upgrades). The controllers
@@ -41,7 +42,10 @@ metadata:
   name: caph-controller-manager
   namespace: caph-system
 spec:
-  replicas: 2
+  # One replica until a second control-plane node joins: caph requests 100m
+  # CPU, and a second replica left tuist-mgmt with no room to schedule the
+  # surge Pod of any rolling update (CPU requests at 99%).
+  replicas: 1
   template:
     spec:
       affinity:
