@@ -180,6 +180,9 @@ excluded jobs queue; never relax isolation to make them run. Production needs
 concurrent ordinary capacity. The staging RISE-S fixtures have been moved to
 the Gravelines cache host with verified archives retained; the runbook records
 the preserved older fixture's pre-existing fenced state and backup location.
+Canary's RISE-M replacement passed ordinary Kata runner/cache acceptance on
+2026-10-26; the old RISE-S has left the cluster. This hardware cutover did not
+enroll the replacement in vRack or qualify the account-gated private path.
 Do not create a second logical region on the public pool: storage
 reservations are accounted by region. Preserve macOS private-cache behavior.
 

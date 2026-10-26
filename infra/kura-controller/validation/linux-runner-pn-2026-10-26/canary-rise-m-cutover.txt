@@ -1,0 +1,58 @@
+Canary RISE-M replacement, 2026-10-26 (timestamps UTC)
+
+Scope: replace canary's one ordinary Linux runner host. This is not a vRack
+performance measurement or qualification of the account-gated feature refactor.
+
+Reviewed configuration: https://github.com/tuist/tuist/pull/14796
+Merged SHA: 748af7987b475dede70c641d591a667caa36778a
+Deployment: https://github.com/tuist/tuist/actions/runs/40407698646
+The canary deployment job succeeded before the host was cordoned/deleted.
+Live template: offer=rise-m, replicas=1, strategy=OnDelete, vRackID absent.
+
+Old OVH service: ns3269803.ip-37-187-149.eu
+Old Machine/Node: tuist-tuist-ovh-fleet-runners-linux-gnbmk-vgxbq
+Before deletion: no node-local PVs; non-runner Pods were DaemonSets only.
+Cordoned the Node and let the runner controller reap idle Pods. Waited until
+there were zero nonterminal runner Pods; did not force-delete claimed jobs.
+22:13:44 Machine deletion requested through the human-elevated canary identity.
+22:13:52 Provider reported ReleasedToPool and submitted the normal reinstall.
+After cutover: old Machine, OVHDedicatedMachine and Node all absent.
+The OVH monthly contract has not been cancelled by the agent.
+
+Replacement OVH service: ns3127017.ip-51-68-34.eu
+Replacement Machine/Node: tuist-tuist-ovh-fleet-runners-linux-gnbmk-jgl25
+Provider ID: ovh://gra2/ns3127017.ip-51-68-34.eu
+IP: 51.68.34.106
+Hardware: Ryzen 9 9900X (12 cores/24 threads), 64 GB RAM, 2 x 512 GB NVMe.
+Private/public bandwidth: 1 Gbps each (OVH inventory).
+Preparation: Ubuntu 24.04.5; fleet SSH and passwordless sudo verified before
+marking tuist-runners-ovh-canary-rise-m. AMD-V and /dev/kvm available.
+22:14:15 Adopted
+22:14:51 Bootstrapped
+22:15:11 NodeReady=True
+22:15:33 KataRuntimeReady=True
+22:15:53 ContainerdQuotaLifted=True
+22:16:39 Three Kata runner pollers running on the replacement Node.
+Post-bootstrap checks: /data XFS mounted prjquota; xfs_quota reported project
+accounting ON and enforcement ON. kubelet/containerd active. Root, boot and
+data RAID1 arrays each [UU]. No MemoryPressure, DiskPressure or PIDPressure.
+MachineDeployment: desired=1, ready=1, available=1.
+
+Fresh acceptance: https://github.com/tuist/tuist/actions/runs/40411336722
+Linux job: https://github.com/tuist/tuist/actions/runs/40411336722/job/121882539963
+GitHub runner: tuist-tuist-runner-pool-linux-2vcpu-8gb-runner-b1cf503d-bed78b32
+Pod: tuist-tuist-runner-pool-linux-2vcpu-8gb-runner-b1cf503d
+Pod placement captured before dispatch: replacement Node above; kata-qemu.
+Job started 22:18:07, completed 22:18:19, conclusion success.
+Guest kernel: Linux 6.18.15
+RLIMIT_NOFILE: soft=1048576, hard=1048576 (acceptance minimum 65536).
+OIDC: canary.tuist.dev minted the job's token successfully.
+Dispatch endpoint: http://kura-tuist-ca-east-1.kura.svc.cluster.local:4000
+GET /up: 200.
+Authenticated CAS write/read: byte-identical 1 MiB, reported 1 second.
+
+Limits: the cache is still Canadian; this is ordinary-path acceptance, not
+nearby regional-cache or vRack validation. No account flag was enabled and
+no vRackID was set. The reported one-second round trip is a smoke result,
+not a latency benchmark. macOS probes in the same workflow are independent
+of this Linux-host replacement and are not claimed by this record.

@@ -229,7 +229,8 @@ Cluster formation requires a stable shared cookie Secret, a fixed distribution l
   shape-equivalent isolated pools. `runnersFleetLinux.vrack.enabled` only renders
   pools/mappings with zero warm floors and a disjoint host `fleetSelector`.
   Shared managed values prepare them in all three environments; self-hosted
-  defaults stay off. Canary's current runner lacks vRack, so prepared pools
+  defaults stay off. Canary's RISE-M replacement passed ordinary-runner
+  acceptance on 2026-10-26 but remains unenrolled in vRack, so prepared pools
   alone do not qualify it for account enrollment. The preparation switch
   must never set vRack on ordinary fleet templates. Keep resource sizing and the
   cache-volume DaemonSet's coverage of both cohorts aligned. Validate with

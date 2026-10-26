@@ -237,24 +237,33 @@ remove installed routes safely. Existing public Kura instances keep serving.
 The [cluster access rules](../AGENTS.md#cluster-access-for-agents) require a human
 to initiate and approve production JIT elevation.
 
-Canary's current SYS-1 cache is in Canada and its Gravelines RISE-S runner lacks
-vRack. Its pool definitions and account gate match staging and production, but
-leave the flag off until compatible, isolated capacity is qualified in canary.
-An enabled flag with no eligible hosts would leave jobs queued. The replacement
-plan is one user-ordered RISE-M in Gravelines (64 GB RAM, 2 × 512 GB NVMe,
-1 Gbps private bandwidth), then retire the RISE-S after draining its workloads.
-OVH delivered `ns3127017.ip-51-68-34.eu` (Gravelines `gra2`, IP
-`51.68.34.106`); its hardware and private bandwidth were verified through the
-API. Ubuntu preparation with the canary fleet key was started with
-`PREP_SKIP_MARK=1`, so it cannot be adopted during preparation. Confirm install
-completion and SSH/storage health before setting the canary adoption marker.
-The desired fleet now selects `rise-m` with one replica; deploying that
-OnDelete template does not replace the live RISE-S automatically. Keep the
-existing runner until the new box is ready, then drain and replace it through
-the normal canary deployment and human-elevated fleet operation. The old
-service is `ns3269803.ip-37-187-149.eu`; no node-local PVs were found on it at
-the preparation inventory, but recheck workloads and volumes before removal.
-No second runner or dedicated cache-host order is required for that plan.
+Canary's current SYS-1 cache is in Canada. Its runner was replaced on
+2026-10-26 with the user-ordered Gravelines RISE-M `ns3127017.ip-51-68-34.eu`
+(`gra2`, IP `51.68.34.106`, 64 GB RAM, 2 × 512 GB NVMe, 1 Gbps private/public).
+The minimal template change [#14796](https://github.com/tuist/tuist/pull/14796)
+deployed through the normal main pipeline before the human-elevated cutover;
+the fleet remains one replica with OnDelete. After verifying no local PVs,
+cordoning the old Node, and waiting for every runner to finish or be reaped,
+the old Machine was deleted through CAPI. Its provider released
+`ns3269803.ip-37-187-149.eu` and submitted the normal clean reinstall. Its
+Machine, OVHDedicatedMachine and Node are gone; OVH billing cancellation is
+still a separate user action.
+
+The replacement Node `tuist-tuist-ovh-fleet-runners-linux-gnbmk-jgl25` reached
+NodeReady and KataRuntimeReady, with XFS project-quota accounting/enforcement
+enabled and healthy RAID1 root, boot and data arrays. Three Kata runners warmed.
+A fresh [Linux acceptance job](https://github.com/tuist/tuist/actions/runs/40411336722/job/121882539963)
+ran on that Node and passed dispatch, file limits, OIDC authentication and a
+byte-matching 1 MiB CAS write/read through the existing Canadian Kura endpoint.
+The [cutover record](validation/linux-runner-pn-2026-10-26/canary-rise-m-cutover.txt)
+binds the GitHub runner identity to the replacement Node and records the limits.
+
+This qualified the ordinary runner path only. The final account-gated feature
+refactor has not been deployed or live-qualified by this hardware replacement.
+The new host has no `vRackID`; leave `runner_linux_vrack` off until its isolated
+cohort and private transport are qualified. An enabled flag with no eligible
+hosts would leave jobs queued. No second runner or dedicated cache-host order
+is required for the single-host sequential qualification plan.
 Do not bridge environments to simulate the topology. Configuration parity is
 not live transport validation: each environment still needs enrolled/excluded-
 account runs and path verification, sequentially with a single runner host.
