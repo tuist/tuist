@@ -80,11 +80,7 @@
           ]
         },
         "egress": {
-          "prefix": "95.130.119.16/28",
-          "nodes": [
-            "ber1-runner-b01",
-            "ber1-runner-b02"
-          ]
+          "prefix": "95.130.119.16/28"
         }
       }
     },
