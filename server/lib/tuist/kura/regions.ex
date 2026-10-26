@@ -1019,7 +1019,8 @@ defmodule Tuist.Kura.Regions do
             Map.merge(config, %{
               storage_class: "kura-lvm-nvme",
               disk_resource: "tuist.dev/kura-disk",
-              encrypted_volumes: true
+              encrypted_volumes: true,
+              replicas: max(Map.get(config, :replicas, 2), 2)
             })
       }
     else
