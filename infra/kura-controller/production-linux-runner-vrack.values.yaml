@@ -1,11 +1,10 @@
-# Preparation overlay for reusing existing production EU-West Kura instances.
-# Adds no hosts, cache instances, or storage. Not in default production values.
-# Linux jobs already prefer the account's existing EU-West Service.
-# Requires the updated CAPI provider and qualified reciprocal private routes.
-# Enrollment is per host, not an account feature flag.
-# Existing runner Machines need explicit, one-at-a-time vRack enrollment after
-# their jobs drain; OnDelete does not copy a changed template onto them.
-ovhFleets:
-  runners-linux:
-    machine:
-      vRackID: pn-2024093
+# Prepare isolated runner shape pools for the account flag runner_linux_vrack.
+# No hosts or cache instances are ordered; production defaults do not load this.
+# Before enabling the flag, partition existing idle hosts into disjoint CAPI
+# node pools and enroll only the vRack cohort Machines in pn-2024093.
+# Never set vRackID on the ordinary fleet template: unflagged jobs must keep
+# using unenrolled hosts. Template changes do not migrate existing Machines.
+runnersFleetLinux:
+  vrack:
+    enabled: true
+    nodePool: runners-linux-vrack

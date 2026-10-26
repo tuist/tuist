@@ -5,6 +5,15 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Observability
   alias Tuist.Projects.Project
 
+  @doc "Default-off account opt-in to Linux runner pools isolated on vRack-enrolled hosts."
+  def runner_linux_vrack_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :runner_linux_vrack,
+      account,
+      flag_enabled?(:runner_linux_vrack, account, flags)
+    )
+  end
+
   @doc "Default-off immutable shard creation gate; coverage-enabled accounts remain on legacy plans."
   def immutable_shard_reports_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(

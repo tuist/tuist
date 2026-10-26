@@ -3,7 +3,8 @@
 Linux runners use each account's existing regional Kura instance and internal
 Service. This change lets compatible OVH runner hosts reach those instances
 over the environment's vRack. It adds no Linux-specific cache region,
-provisioning lifecycle, readiness probe, or account feature flag. Existing
+provisioning lifecycle or readiness probe. The default-off account flag
+`runner_linux_vrack` selects isolated runner pools on enrolled hosts. Existing
 macOS private-cache behavior is unchanged. Additional cache-host orders are
 on hold.
 
@@ -27,11 +28,49 @@ without a private NIC stay unenrolled. The Helm fleet template now exposes this
 field. Existing OnDelete Machines require explicit enrollment; changing their
 template does not update their specs.
 
-This is a host-level opt-in. Eligible OVH traffic from every account on an
-enrolled host takes the private routes. No account feature flag controls the
-underlay. Qualify a controlled host before admitting normal jobs, then roll out
-one host at a time. Do not represent the former dedicated-cache flag as a
-network kill switch.
+### Account feature flag
+
+`runner_linux_vrack` defaults off in **every environment**, including staging
+and canary, and is registered in the audited Ops flag catalog. Enable only the
+Tuist account actor initially; do not create a global or percentage enrollment.
+This is a new flag, deliberately independent of the retired experiment's flag.
+
+The flag is evaluated when resolving a new Linux job's target pool. With the
+flag off, dispatch keeps the ordinary pool. With it on and a Helm-declared
+mapping present, dispatch uses the corresponding `-vrack-` pool with identical
+CPU/memory/image. The same path is used by GitHub, GitLab and Buildkite profile
+dispatch. Explicit legacy pools without a mapped counterpart remain unchanged;
+internal vRack labels cannot be selected directly to bypass the account gate.
+macOS routing is unchanged. No endpoint is removed from unflagged runs: both
+cohorts retain the ordinary regional Kura Service.
+
+`runnersFleetLinux.vrack.enabled` prepares the pools and server mapping; it
+never enables any account. It defaults false and the production preparation
+overlay is optional. The new pools have a zero warm floor and a different
+`fleetSelector` (`runners-linux-vrack`). The existing cache-volume agent covers
+both cohorts. Capacity accounting uses the existing controller's per-fleet
+selection, with the same per-job resource reservation in both cohorts.
+
+**Host separation is a prerequisite.** Ordinary pools must contain only
+unenrolled hosts; vRack pools must contain only enrolled, qualified hosts.
+Host routes affect every job on that host. Do not enroll an ordinary fleet or
+merely gate the cache URL: that would expose unflagged runs too. Move drained
+hosts through a reviewed CAPI ownership/label transition preserving their
+physical identity. Cordon first, let the controller reap idle pollers and let
+claimed jobs finish; require zero nonterminal runner Pods before changing
+cohort labels or routes. Cordon alone does not stop an already-running poller.
+The MachineDeployment/MachineSet, Machine and live Node
+must agree on cohort membership across reconciliation. A one-off Node relabel
+that CAPI can overwrite is not isolation. Do not delete/reinstall a live
+Machine as a shortcut. Keep enough healthy ordinary capacity for other accounts.
+
+To roll back account exposure, disable the flag for the Tuist actor and verify
+new jobs select ordinary pools. No active job is migrated and no cache is
+deleted; already-queued jobs may still use their recorded vRack pool. Keep the
+cohort, mapping and routes until those jobs finish. Flag propagation uses the
+existing bounded FunWithFlags cache/pubsub behavior, not instantaneous global
+invalidation. Inspect effective flags and actual dispatched fleet names when
+validating disablement. A global false alone does not override actor enables.
 
 ## Staging migration required before deploying this revision
 
@@ -69,7 +108,12 @@ transition using the previously deployed server before deploying the refactor:
    address that same instance. The Canadian fleet remains available as the
    controlled remote baseline. Remove the obsolete stored flag after no old
    server replica depends on it.
-5. Run fresh regional-cache smoke/benchmark jobs below. Keep the RISE-S runner
+5. Before enrollment, separate the existing vRack-enrolled RISE-M from ordinary
+   runner scheduling as described above. The ordinary fleet template intentionally
+   has no vRack ID, so future ordinary hosts stay unenrolled. Require usable
+   ordinary capacity before enabling the Tuist actor flag. Run fresh regional
+   smoke jobs for both the enrolled account and an excluded account, verifying
+   their actual runner Nodes and network paths. Keep the RISE-S runner
    cordoned until its unrelated retained fixtures are resolved; this refactor
    does not retire it. Preserve the prepared RISE-M runner and its existing
    `pn-2023588` enrollment.
@@ -151,21 +195,28 @@ region-specific storage reservation accounting would give it a second budget.
 2. Record the production account's existing EU-West Service, instance ID,
    backend Node, public-client health and cache performance before enrollment.
 3. Obtain human production write elevation, cordon one selected runner, and let
-   its jobs finish without eviction. Enroll only that idle Machine into
-   `pn-2024093`, using the environment's existing `172.30.243.0/24` allocation.
+   its jobs finish without eviction. Move it into the managed isolated CAPI
+   cohort, with persistent matching Machine/Node labels, before enrolling that
+   idle Machine into `pn-2024093`, using the environment's existing `172.30.243.0/24` allocation.
    Wait for KataRuntimeReady, PrivateNetworkReady and reciprocal-route
    convergence. Keep it cordoned if qualification fails.
-4. Run controlled jobs on that host, comparing the same instance with the
+4. Enable `runner_linux_vrack` only for the Tuist account. Run controlled jobs
+   on that host plus excluded-account jobs on ordinary unenrolled hosts,
+   comparing the same cache instance with the
    baseline and an unenrolled control. Require matching restored outputs,
    verified private transport, no public-client regression and adequate shared
-   cache headroom before admitting normal jobs. Enroll remaining hosts serially.
+   cache headroom before expanding account enrollment or cohort capacity.
+   Preserve healthy ordinary hosts for accounts that remain off.
 
 The optional [production overlay](production-linux-runner-vrack.values.yaml)
-sets only runner-template `vRackID`. It is outside default production values
-and adds no hosts, cache instances, replicas or volumes. Production remains
-unchanged until the normal deployment and explicit Machine enrollment.
+prepares isolated shape pools and their dispatch mapping. It adds no physical
+hosts, cache instances or storage. It does not set vRack on the ordinary fleet
+template and does not enroll accounts. Production defaults leave it disabled.
+Enable the account flag only after the selected cohort's private route has
+been qualified; leave all other accounts off.
 
-Rollback starts by stopping new jobs on the affected host and allowing current
+After disabling the account flag and verifying new dispatch, network
+rollback starts by stopping new jobs on the affected host and allowing current
 jobs to finish. Restore the reviewed previous network state while preserving
 reservations/peer guards until convergence; clearing `vRackID` alone does not
 remove installed routes safely. Existing public Kura instances keep serving.

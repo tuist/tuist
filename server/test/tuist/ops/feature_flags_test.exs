@@ -19,6 +19,18 @@ defmodule Tuist.Ops.FeatureFlagsTest do
     :ok
   end
 
+  test "Linux vRack flag is default off and can enroll just one account" do
+    account = AccountsFixtures.user_fixture().account
+    other = AccountsFixtures.user_fixture().account
+    stub(Environment, :env, fn -> :stag end)
+    gate(:runner_linux_vrack, :actor, "account:#{account.id}", true)
+
+    assert {:ok, included} = FeatureFlags.evaluate(%{"account_id" => account.id})
+    assert enabled?(included, "runner_linux_vrack")
+    assert {:ok, excluded} = FeatureFlags.evaluate(%{"account_id" => other.id})
+    refute enabled?(excluded, "runner_linux_vrack")
+  end
+
   test "account inspection respects actor exclusions and never enumerates projects" do
     excluded = AccountsFixtures.user_fixture().account
     included = AccountsFixtures.user_fixture().account
@@ -31,7 +43,7 @@ defmodule Tuist.Ops.FeatureFlagsTest do
     assert {:ok, result} = FeatureFlags.evaluate(%{"account_id" => excluded.id})
     assert result.resource == %{account_id: excluded.id, project_id: nil}
     assert result.environment == "prod"
-    assert length(result.evaluations) == 16
+    assert length(result.evaluations) == 17
     refute Enum.any?(result.evaluations, &(&1.actor_type == "project"))
     refute enabled?(result, "runners")
     refute enabled?(result, "runner_site_cache")
@@ -70,7 +82,7 @@ defmodule Tuist.Ops.FeatureFlagsTest do
 
     assert {:ok, result} = FeatureFlags.evaluate(%{"project_id" => project.id})
     assert result.resource == %{account_id: project.account_id, project_id: project.id}
-    assert length(result.evaluations) == 17
+    assert length(result.evaluations) == 18
     assert enabled?(result, "build_entities")
     assert enabled?(result, "runner_site_cache")
     assert Enum.find(result.evaluations, &(&1.name == "runner_site_cache")).actor_id == project.account_id
