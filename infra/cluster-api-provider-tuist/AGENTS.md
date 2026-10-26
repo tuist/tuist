@@ -641,7 +641,8 @@ mode behind it:
   the standard device, is what reaches a box that was off for longer.
 - **Its VMs reach the rack's cache gateways.** The VM egress firewall drops
   every private destination (see "VM egress guard"), and a rack's Kura
-  gateway sits on the machines segment. `rackFleet.vmCacheGatewayCIDRs` renders
+  gateway sits on the machines segment. `rackFleet.vmCacheGatewayCIDRs`, with
+  each `rackFleet.sites.<site>.vmCacheGatewayCIDRs` after it, renders
   `--rackhost-vm-cache-gateway-cidrs`, which `rackFleetConfig` overlays as
   `VMCacheGatewayCIDRs`: a pf pass to each CIDR on TCP 443 ahead of the drop.
   The traffic leaves on the host's default route, so the VM NAT's general leg
@@ -707,7 +708,8 @@ load-bearing in the grant as well as in `RackHost.spec.address`, from which the
 edges render the host's DHCP reservation and its route.
 
 **Put each edge's own address on the machines segment in
-`rackFleet.sshIngressAllowCIDRs`** (a host can override it with its own). An edge
+`rackFleet.sshIngressAllowCIDRs`** (`rackFleet.sites.<site>.sshIngressAllowCIDRs`
+for a host at another site; a host can override either with its own). An edge
 forwards with SNAT from its own address there, so those are the sources every
 dial through this path arrives from, and the host's SSH ingress guard drops
 anything else. Both, because the tailnet can route a dial through either. The
