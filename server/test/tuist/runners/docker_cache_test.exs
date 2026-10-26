@@ -73,9 +73,9 @@ defmodule Tuist.Runners.DockerCacheTest do
     volume_use(saved, %{attached_at: ~U[2026-10-24 11:00:00.000000Z], warm: true})
     volume_use(saved, %{attached_at: ~U[2026-10-01 11:00:00.000000Z], warm: true})
 
-    overview = DockerCache.overview(account.id, @period)
+    assert [%{repository: "org/android"} = android, %{repository: "org/web"}] =
+             DockerCache.repositories(account.id, @period)
 
-    assert [%{repository: "org/android"} = android, %{repository: "org/web"}] = overview.repositories
     assert android.status == :ready
     assert android.image_count == 1
     assert android.saved_bytes == 6_000_000_000
@@ -83,10 +83,10 @@ defmodule Tuist.Runners.DockerCacheTest do
     assert android.last_saved_at == ~U[2026-10-24 09:00:00.000000Z]
     assert {android.uses, android.hits, android.hit_rate} == {2, 1, 50.0}
     assert [%{reference: "ghcr.io/org/build:jdk-21", other_references: ["ghcr.io/org/build:latest"]}] = android.images
-    assert overview.saved_repositories == 1
-    assert overview.images == 1
-    assert overview.activity.uses == 2
-    assert overview.activity.hit_rate == 50.0
+    analytics = DockerCache.analytics(account.id, nil, @period)
+    assert analytics.activity.uses == 2
+    assert analytics.activity.hit_rate == 50.0
+    assert %{reused_ms: nil, cold_ms: nil, points: [_ | _]} = analytics.steps
 
     assert %{status: :waiting, images: []} = DockerCache.repository(account.id, waiting.id, @period)
   end
@@ -102,14 +102,14 @@ defmodule Tuist.Runners.DockerCacheTest do
       docker_images: %{"images" => [], "build_cache_bytes" => 0, "reset" => true}
     })
 
-    assert %{uses: 2, hits: 1} = DockerCache.overview(account.id, @period).activity
-    assert [%{uses: 2, hits: 1}] = DockerCache.overview(account.id, @period).repositories
+    assert %{uses: 2, hit_rate: 50.0} = DockerCache.analytics(account.id, nil, @period).activity
+    assert [%{uses: 2, hits: 1}] = DockerCache.repositories(account.id, @period)
   end
 
   test "never reads another account's data root" do
     account = AccountsFixtures.account_fixture()
     other = volume(AccountsFixtures.account_fixture(), "other/repo")
-    assert DockerCache.overview(account.id, @period).repositories == []
+    assert DockerCache.repositories(account.id, @period) == []
     assert is_nil(DockerCache.repository(account.id, other.id, @period))
   end
 end

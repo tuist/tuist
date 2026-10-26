@@ -64,18 +64,19 @@ defmodule Tuist.Runners.JobSteps do
   end
 
   @doc """
-  The median duration, in milliseconds, of the step named `name` across the
-  account's `workflow_job_ids`, or nil when none ran it.
+  The duration, in milliseconds, of the step named `name` in each of the
+  account's `workflow_job_ids` that ran it, by workflow job ID.
   """
-  def median_duration_ms(_account_id, [], _name), do: nil
+  def durations_ms(_account_id, [], _name), do: %{}
 
-  def median_duration_ms(account_id, workflow_job_ids, name) when is_list(workflow_job_ids) do
+  def durations_ms(account_id, workflow_job_ids, name) when is_list(workflow_job_ids) do
     durations =
       from(s in JobStep,
         where: s.account_id == ^account_id and s.workflow_job_id in ^workflow_job_ids,
         group_by: [s.workflow_job_id, s.number],
         having: fragment("argMax(?, ?)", s.name, s.inserted_at) == ^name,
         select: %{
+          workflow_job_id: s.workflow_job_id,
           duration:
             fragment(
               "dateDiff('millisecond', argMax(?, ?), argMax(?, ?))",
@@ -87,11 +88,11 @@ defmodule Tuist.Runners.JobSteps do
         }
       )
 
-    ClickHouseRepo.one(
-      from(d in subquery(durations),
-        where: not is_nil(d.duration) and d.duration >= 0,
-        select: fragment("if(count() = 0, NULL, toInt64(quantile(0.5)(?)))", d.duration)
-      )
+    from(d in subquery(durations),
+      where: not is_nil(d.duration) and d.duration >= 0,
+      select: {d.workflow_job_id, d.duration}
     )
+    |> ClickHouseRepo.all()
+    |> Map.new()
   end
 end

@@ -6,13 +6,30 @@ defmodule TuistWeb.RunnerDockerCacheLiveTest do
   alias Phoenix.LiveView.AsyncResult
   alias TuistWeb.RunnerDockerCacheLive
 
-  @activity %{uses: 4, hits: 3, hit_rate: 75.0, hit_step_ms: 3_200, miss_step_ms: 47_000}
+  @period {~U[2026-10-18 00:00:00Z], ~U[2026-10-25 00:00:00Z]}
+
+  defp analytics(attrs \\ %{}) do
+    Map.merge(
+      %{
+        activity: %{uses: 4, hit_rate: 75.0, points: [%{at: ~U[2026-10-24 00:00:00Z], uses: 4, hit_rate: 75.0}]},
+        steps: %{
+          reused_ms: 3_200,
+          cold_ms: 47_000,
+          points: [%{at: ~U[2026-10-24 00:00:00Z], reused_ms: 3_200, cold_ms: 47_000}]
+        }
+      },
+      attrs
+    )
+  end
 
   defp repository(attrs \\ %{}) do
     Map.merge(
       %{
         id: Ecto.UUID.generate(),
         repository: "org/android",
+        provider: "github",
+        platform: "linux",
+        architecture: "amd64",
         status: :ready,
         images: [
           %{
@@ -30,8 +47,7 @@ defmodule TuistWeb.RunnerDockerCacheLiveTest do
         last_used_at: ~U[2026-10-24 10:00:00Z],
         uses: 4,
         hits: 3,
-        hit_rate: 75.0,
-        activity: @activity
+        hit_rate: 75.0
       },
       attrs
     )
@@ -41,27 +57,27 @@ defmodule TuistWeb.RunnerDockerCacheLiveTest do
     Map.merge(
       %{
         selected_account: %{id: 1, name: "org"},
-        selected_id: nil,
+        selected: nil,
         enabled: true,
-        can_manage: true,
+        metric: "hit_rate",
         analytics_preset: "last-7-days",
-        analytics_period: {~U[2026-10-18 00:00:00Z], ~U[2026-10-25 00:00:00Z]},
-        params: %{}
+        analytics_period: @period,
+        params: %{},
+        search: "",
+        sort_by: "last_used",
+        sort_order: "desc",
+        page: 1
       },
       attrs
     )
   end
 
-  test "the overview shows what reusing data roots saved and every repository" do
-    overview = %{
-      repositories: [repository()],
-      saved_repositories: 1,
-      images: 1,
-      saved_bytes: 6_000_000_000,
-      activity: @activity
-    }
+  defp data(repositories, attrs \\ %{}) do
+    AsyncResult.ok(Map.merge(%{repositories: repositories, analytics: analytics(), previous: analytics()}, attrs))
+  end
 
-    html = render_component(&RunnerDockerCacheLive.render/1, assigns(%{overview: AsyncResult.ok(overview)}))
+  test "the overview shows how jobs reused saved images and every repository" do
+    html = render_component(&RunnerDockerCacheLive.render/1, assigns(%{data: data([repository()])}))
 
     assert html =~ "Docker cache"
     assert html =~ "75.0%"
@@ -70,37 +86,51 @@ defmodule TuistWeb.RunnerDockerCacheLiveTest do
     assert html =~ "org/android"
     assert html =~ "Saved"
     assert html =~ "/org/runners/docker-cache/"
-    assert html =~ "not billed"
+    assert html =~ "docker-repository-search"
   end
 
-  test "the overview explains how a repository starts using the cache" do
-    overview = %{
-      repositories: [],
-      saved_repositories: 0,
-      images: 0,
-      saved_bytes: 0,
-      activity: %{@activity | hit_rate: nil, hit_step_ms: nil, miss_step_ms: nil}
-    }
+  test "the Initialize containers chart compares jobs from saved images with cold ones" do
+    html = render_component(&RunnerDockerCacheLive.render/1, assigns(%{data: data([repository()]), metric: "initialize"}))
 
+    assert html =~ "Cold"
+    assert html =~ "formatMilliseconds"
+  end
+
+  test "the overview filters repositories by the search" do
+    rows = [repository(), repository(%{repository: "org/web"})]
+    html = render_component(&RunnerDockerCacheLive.render/1, assigns(%{data: data(rows), search: "web"}))
+
+    assert html =~ "org/web"
+    refute html =~ "org/android"
+  end
+
+  test "the overview says when the cache is not enabled and no repository uses it" do
     html =
-      render_component(&RunnerDockerCacheLive.render/1, assigns(%{overview: AsyncResult.ok(overview), enabled: false}))
+      render_component(
+        &RunnerDockerCacheLive.render/1,
+        assigns(%{
+          data: data([], %{analytics: analytics(%{steps: %{reused_ms: nil, cold_ms: nil, points: []}})}),
+          enabled: false
+        })
+      )
 
-    assert html =~ "No repository uses the Docker cache yet"
-    assert html =~ "Not enabled"
+    assert html =~ "No repositories found"
+    assert html =~ "not enabled"
   end
 
   test "a repository's page lists the images its data root keeps" do
     selected = repository()
-    html = render_component(&RunnerDockerCacheLive.render/1, assigns(%{selected_id: selected.id, repository: selected}))
+    html = render_component(&RunnerDockerCacheLive.render/1, assigns(%{selected: selected, data: data([])}))
 
     assert html =~ "ghcr.io/org/build:jdk-21"
     assert html =~ "ghcr.io/org/build:latest"
     assert html =~ "/org/runners/volumes/#{selected.id}"
+    assert html =~ "Docker cache details"
   end
 
   test "a repository waiting for its first save says so" do
     selected = repository(%{status: :waiting, images: [], image_count: 0, saved_bytes: nil, last_saved_at: nil})
-    html = render_component(&RunnerDockerCacheLive.render/1, assigns(%{selected_id: selected.id, repository: selected}))
+    html = render_component(&RunnerDockerCacheLive.render/1, assigns(%{selected: selected, data: data([])}))
 
     assert html =~ "Waiting for a save"
     assert html =~ "No images saved yet"

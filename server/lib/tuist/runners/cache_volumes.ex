@@ -1724,7 +1724,13 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def usage_analytics(account_id, period), do: usage_analytics(account_id, nil, period)
 
-  def usage_analytics(account_id, volume_id, {start, finish}) do
+  @doc """
+  Mounts in `period` per hour or day, and how many reused saved data: the
+  account's, one volume's, or with `key:` only volumes with that key. A Docker
+  data root its guest formatted empty because it could not mount the saved one
+  counts as a miss.
+  """
+  def usage_analytics(account_id, volume_id, {start, finish}, opts \\ []) do
     {bucket, seconds} = if DateTime.diff(finish, start) <= 2 * 86_400, do: {"hour", 3600}, else: {"day", 86_400}
 
     mounts =
@@ -1735,11 +1741,13 @@ defmodule Tuist.Runners.CacheVolumes do
         where: u.attached_at >= ^start and u.attached_at <= ^finish,
         select: %{
           at: type(fragment("date_trunc(?, ? AT TIME ZONE 'UTC')", ^bucket, u.attached_at), :utc_datetime),
-          warm: u.warm
+          warm: u.warm,
+          reset: fragment("coalesce((?->>'reset')::boolean, false)", u.docker_images)
         }
       )
 
     mounts = if volume_id, do: where(mounts, [u, v], v.id == ^volume_id), else: mounts
+    mounts = if opts[:key], do: where(mounts, [u, v], v.key == ^opts[:key]), else: mounts
 
     rows =
       Repo.all(
@@ -1748,7 +1756,7 @@ defmodule Tuist.Runners.CacheVolumes do
           select: %{
             at: u.at,
             uses: count(),
-            hits: filter(count(), u.warm == true),
+            hits: filter(count(), u.warm == true and not u.reset),
             known: count(u.warm)
           }
         )

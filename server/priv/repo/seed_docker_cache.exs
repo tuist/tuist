@@ -203,12 +203,12 @@ for {seed, index} <- Enum.with_index(repositories) do
   end
 end
 
-base_url = "http://localhost:8080/tuist/runners"
+base_url = "/tuist/runners"
 
 IO.puts("""
 
 Seeded Docker cache data for the `tuist` organization.
-Log in as tuistrocks@tuist.dev / tuistrocks, then open:
+Log in to your dev server as tuistrocks@tuist.dev / tuistrocks, then open:
   #{base_url}/docker-cache
   #{base_url}/docker-cache/#{Repo.one!(from(v in Volume, where: v.account_id == ^account_id and v.key == "docker" and v.scope_id == "900001", select: v.id))}
   #{base_url}/volumes
