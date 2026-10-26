@@ -427,7 +427,7 @@ extension TestCoverageEvidenceService {
             resultBundlePath: resultBundlePath,
             derivedDataDirectory: derivedDataDirectory,
             xcResultService: xcResultService
-        ) else { return [:] }
+        )?.targets else { return [:] }
         let images = CoverageExportService.products(of: coverageTargets).filter { $0.kind == .image }.map(\.path)
         let bundles = coverageTargets.filter(\.isTest).compactMap { target -> TestTargetProcessCoverage.Bundle? in
             guard let image = target.buildProductPath, let module = Self.testModule(ofImage: image) else { return nil }
