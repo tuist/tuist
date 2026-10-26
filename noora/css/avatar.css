@@ -267,6 +267,11 @@
     display: block;
   }
 
+  /* Once the image loads, it replaces the initials. */
+  & [data-part="image"][data-state="visible"] ~ [data-part="initials"] {
+    display: none;
+  }
+
   & [data-part="fallback"][data-state="hidden"] {
     display: none;
   }
