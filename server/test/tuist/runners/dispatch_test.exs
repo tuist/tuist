@@ -6,6 +6,7 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Accounts
   alias Tuist.FeatureFlags
   alias Tuist.Kubernetes.Client
+  alias Tuist.Kura
   alias Tuist.Repo
   alias Tuist.Runners.Allowance
   alias Tuist.Runners.Catalog
@@ -999,6 +1000,119 @@ defmodule Tuist.Runners.DispatchTest do
 
       assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
       assert pool_name == "#{prefix}-ber1-26-6"
+    end
+  end
+
+  describe "resolve_dispatch_target/2 — two sites" do
+    setup do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      prefix = Tuist.Environment.runners_macos_pool_name_prefix()
+
+      for {name, xcode} <- [{"macos", "26.6"}, {"next-xcode", "27.0"}] do
+        Repo.insert!(%Profile{
+          account_id: account.id,
+          name: name,
+          platform: :macos,
+          xcode_version: xcode,
+          vcpus: Catalog.default_shape(:macos).vcpus,
+          memory_gb: Catalog.default_shape(:macos).memory_gb
+        })
+      end
+
+      # Both sites rack 26.6; only larch racks 27.0.
+      stub(Tuist.Environment, :runners_site_pools, fn ->
+        %{
+          "#{prefix}-ber1-26-6" => %{site: "ber1", platform: :macos},
+          "#{prefix}-larch-26-6" => %{site: "larch", platform: :macos},
+          "#{prefix}-larch-27-0" => %{site: "larch", platform: :macos}
+        }
+      end)
+
+      stub(FeatureFlags, :runner_site_enabled?, fn _ -> true end)
+      stub(Kura, :runner_cache_sites, fn _account_id -> MapSet.new() end)
+
+      %{account: account, prefix: prefix}
+    end
+
+    defp queue_site_job(account, workflow_job_id, fleet) do
+      :ok =
+        WorkflowJobs.upsert_queued(%{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          fleet_name: fleet,
+          platform: "macos",
+          vcpus: 6,
+          memory_gb: 14,
+          repository: "tuist/tuist",
+          requested_dispatch_label: "tuist-macos",
+          enqueued_at: DateTime.utc_now()
+        })
+    end
+
+    test "with both sites up and idle, the first by name takes the job", %{account: account, prefix: prefix} do
+      stub(Sites, :available?, fn _site_pool -> true end)
+
+      assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
+      assert pool_name == "#{prefix}-ber1-26-6"
+    end
+
+    test "with both sites up, the site holding the account's runner cache takes the job", %{
+      account: account,
+      prefix: prefix
+    } do
+      stub(Sites, :available?, fn _site_pool -> true end)
+      stub(Kura, :runner_cache_sites, fn _account_id -> MapSet.new(["larch"]) end)
+
+      assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
+      assert pool_name == "#{prefix}-larch-26-6"
+    end
+
+    test "with both sites up, the one with fewer queued jobs takes the job, cache or not", %{
+      account: account,
+      prefix: prefix
+    } do
+      stub(Sites, :available?, fn _site_pool -> true end)
+      stub(Kura, :runner_cache_sites, fn _account_id -> MapSet.new(["ber1"]) end)
+      queue_site_job(account, 930_001, "#{prefix}-ber1-26-6")
+
+      assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
+      assert pool_name == "#{prefix}-larch-26-6"
+    end
+
+    test "with one site down, the other takes the job", %{account: account, prefix: prefix} do
+      down = "#{prefix}-ber1-26-6"
+      stub(Sites, :available?, fn site_pool -> site_pool != down end)
+      stub(Kura, :runner_cache_sites, fn _account_id -> MapSet.new(["ber1"]) end)
+
+      assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
+      assert pool_name == "#{prefix}-larch-26-6"
+    end
+
+    test "with both sites down, the rented fleet takes the job", %{account: account, prefix: prefix} do
+      stub(Sites, :available?, fn _site_pool -> false end)
+
+      assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
+      assert pool_name == "#{prefix}-26-6"
+    end
+
+    test "with both sites down and no rented fleet, the job waits at the account's cache site", %{
+      account: account,
+      prefix: prefix
+    } do
+      stub(Tuist.Environment, :runners_rented_macos_fleet?, fn -> false end)
+      stub(Sites, :available?, fn _site_pool -> false end)
+      stub(Kura, :runner_cache_sites, fn _account_id -> MapSet.new(["larch"]) end)
+
+      assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-macos"])
+      assert pool_name == "#{prefix}-larch-26-6"
+    end
+
+    test "a profile racked at one site only goes there", %{account: account, prefix: prefix} do
+      expect(Sites, :available?, fn site_pool -> site_pool == "#{prefix}-larch-27-0" end)
+      reject(&Kura.runner_cache_sites/1)
+
+      assert {:ok, %{pool_name: pool_name}} = Dispatch.resolve_dispatch_target(account, ["tuist-next-xcode"])
+      assert pool_name == "#{prefix}-larch-27-0"
     end
   end
 

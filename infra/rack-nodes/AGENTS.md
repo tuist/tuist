@@ -1175,8 +1175,27 @@ Xcode and shape, and `SiteSpilloverWorker` moves its queued ones there every
 minute. A cluster the server cannot read leaves the rack up. An env that
 rents no macOS fleet (staging, canary) has no backup, so neither happens there.
 
-The flag also gives the account a node in `ber1-runners`, as
-`runner_site_cache` does. With the
+With a second site racking the same Xcode and shape (larch beside ber1),
+the sites back each other up before the rented fleet does:
+
+- **Dispatch** (`Tuist.Runners.Dispatch`, `Catalog.site_pool_names/1`) takes
+  the sites whose pool is up. The one with the fewest queued jobs in that pool
+  wins, so a busy site hands the next job to an idle one. On a tie, the site
+  whose runner cache already holds an active node for the account wins
+  (`Tuist.Kura.runner_cache_sites/1`), then the first by name. With every
+  site down, the job goes to the rented pool, or, in an env without one, waits
+  at the account's cache site.
+- **Spillover** moves a down site pool's queued jobs to the same pool at the
+  first other site that is up (`Catalog.sibling_site_pool_names/1`), and only
+  then to the rented pool. It does so in an env that rents no macOS fleet
+  too, so production's site jobs fail over between sites.
+
+An Xcode or shape racked at one site behaves as with one site. Each site's
+account cache is its own region (`<site>-runners`), and the account mesh
+replicates between them.
+
+The flag also gives the account a node in the site's runner-cache region
+(`ber1-runners`, `larch-runners`), as `runner_site_cache` does. With the
 flag off for everyone, the rack's pools idle at their floors and nothing a
 customer runs lands on them.
 

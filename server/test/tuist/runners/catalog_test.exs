@@ -170,6 +170,25 @@ defmodule Tuist.Runners.CatalogTest do
       assert Catalog.rented_pool_name("tuist-runner-pool-ber1") == nil
       assert Catalog.rented_pool_name("#{prefix}-26-6") == nil
     end
+
+    test "site_pool_names/1 lists every site's pool for the profile, by site name", %{prefix: prefix} do
+      assert Catalog.site_pool_names(%{platform: :macos, xcode_version: "26.6"}) ==
+               ["#{prefix}-ams1-26-6", "#{prefix}-ber1-26-6"]
+
+      assert Catalog.site_pool_names(%{platform: :macos, xcode_version: "26.5"}) == []
+      assert Catalog.site_pool_names(%{platform: :linux, vcpus: 4, memory_gb: 16}) == []
+    end
+
+    test "sibling_site_pool_names/1 names the same Xcode and shape at the other sites", %{
+      prefix: prefix,
+      shape_key: shape_key
+    } do
+      assert Catalog.sibling_site_pool_names("#{prefix}-ber1-26-6") == ["#{prefix}-ams1-26-6"]
+      assert Catalog.sibling_site_pool_names("#{prefix}-ams1-26-6") == ["#{prefix}-ber1-26-6"]
+      assert Catalog.sibling_site_pool_names("#{prefix}-ber1-26-6-#{shape_key}") == []
+      assert Catalog.sibling_site_pool_names("tuist-runner-pool-ber1") == []
+      assert Catalog.sibling_site_pool_names("#{prefix}-26-6") == []
+    end
   end
 
   describe "resources_for_fleet/1" do
