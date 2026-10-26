@@ -672,7 +672,15 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 writtenGraphDirectories.insert(testProductsPath)
 
                 await RunMetadataStorage.current.writeMetadata(to: testProductsPath)
-                await coverageBuildSourcesService.write(to: testProductsPath, config: config)
+                await coverageBuildSourcesService.write(
+                    to: testProductsPath,
+                    derivedDataDirectory: await projectDerivedDataDirectory(
+                        derivedDataPath: derivedDataPath,
+                        passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+                        workspacePath: graphTraverser.workspace.xcWorkspacePath
+                    ),
+                    config: config
+                )
 
                 if isSharding,
                    let fullHandle = config.fullHandle
@@ -1374,6 +1382,23 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         arguments += passthroughXcodeBuildArguments
         return arguments
+    }
+
+    /// The derived data xcodebuild builds into: `--derived-data-path`, else `-derivedDataPath`
+    /// after `--`, else the workspace's default one.
+    private func projectDerivedDataDirectory(
+        derivedDataPath: AbsolutePath?,
+        passthroughXcodeBuildArguments: [String],
+        workspacePath: AbsolutePath
+    ) async -> AbsolutePath? {
+        if let derivedDataPath { return derivedDataPath }
+        if let passthroughDerivedDataPath = try? await xcodeBuildAgumentParser
+            .parse(passthroughXcodeBuildArguments)
+            .derivedDataPath
+        {
+            return passthroughDerivedDataPath
+        }
+        return try? await derivedDataLocator.locate(for: workspacePath)
     }
 
     private func resolveTestProductsPath(
@@ -2372,19 +2397,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
-        let passthroughDerivedDataPath = try? await xcodeBuildAgumentParser
-            .parse(passthroughXcodeBuildArguments)
-            .derivedDataPath
-        let projectDerivedDataDirectory: AbsolutePath?
-        if let derivedDataPath {
-            projectDerivedDataDirectory = derivedDataPath
-        } else if let passthroughDerivedDataPath {
-            projectDerivedDataDirectory = passthroughDerivedDataPath
-        } else {
-            projectDerivedDataDirectory = try? await derivedDataLocator.locate(
-                for: graphTraverser.workspace.xcWorkspacePath
-            )
-        }
+        let projectDerivedDataDirectory = await projectDerivedDataDirectory(
+            derivedDataPath: derivedDataPath,
+            passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+            workspacePath: graphTraverser.workspace.xcWorkspacePath
+        )
 
         let buildArguments = buildGraphInspector.buildArguments(
             project: buildableTarget.project,
