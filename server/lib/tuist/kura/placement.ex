@@ -133,6 +133,7 @@ defmodule Tuist.Kura.Placement do
   @served_policy %{
     relocate: %{window_days: 14, majority_share: 0.6, min_active_days: 5, min_hits_per_day: 1_000},
     retire: %{window_days: 28, max_share: 0.03, max_hits_per_gib_day: 25, min_reported_days: 21},
+    retire_zero_hits: %{window_days: 10},
     expand: %{
       window_days: 14,
       min_active_days: 7,
@@ -152,7 +153,11 @@ defmodule Tuist.Kura.Placement do
   rollups it can use.
   """
   def served_window_days(served_policy \\ @served_policy) do
-    max(served_policy.relocate.window_days, served_policy.retire.window_days)
+    Enum.max([
+      served_policy.relocate.window_days,
+      served_policy.retire.window_days,
+      served_policy.retire_zero_hits.window_days + 1
+    ])
   end
 
   @doc """
@@ -215,6 +220,7 @@ defmodule Tuist.Kura.Placement do
       relocate_to_origin_hits(context, plan_policy, served, served_policy) ||
       relocate(context, plan_policy, runs, served, served_policy) ||
       expand(context, plan_policy, runs, served, served_policy) ||
+      retire_zero_hits(context, served, served_policy) ||
       retire_idle(context, served, served_policy) ||
       retire(context, plan_policy, runs, served, served_policy) ||
       :none
@@ -615,6 +621,40 @@ defmodule Tuist.Kura.Placement do
       nil -> false
       given_up_on -> Date.diff(context.today, given_up_on) < rung.reopen_after_days
     end
+  end
+
+  # Zero hits can retire a secondary sooner, but only after every complete
+  # day reported. Today's partial row may veto retirement, never establish it.
+  defp retire_zero_hits(_context, nil, _served_policy), do: nil
+
+  defp retire_zero_hits(context, served, served_policy) do
+    days = served_policy.retire_zero_hits.window_days
+    window = Date.range(Date.add(context.today, -days), Date.add(context.today, -1))
+    totals = totals_in(served.hits, window)
+    today_hits = totals_in(served.hits, Date.range(context.today, context.today))
+    serving = context.serving -- context.retiring
+
+    Enum.find_value(serving, fn region ->
+      held_since = Map.get(context.held_since, region)
+      reported = MapSet.new(Map.get(served.reported, region, []))
+
+      if region != context.primary and match?(%Date{}, held_since) and
+           Date.diff(context.today, held_since) >= days and
+           Enum.all?(window, &MapSet.member?(reported, &1)) and
+           Map.get(totals, region, 0) == 0 and Map.get(today_hits, region, 0) == 0 and
+           Enum.any?(serving, &(&1 != region and Map.get(totals, &1, 0) > 0)) do
+        evidence =
+          "zero_hits"
+          |> served_evidence(days, 0, totals |> Map.values() |> Enum.sum(), 0)
+          |> Map.merge(%{
+            "reserved_gib" => Map.get(served.reserved_gib, region, 0),
+            "reported_days" => days,
+            "hits_per_active_day" => 0.0
+          })
+
+        {:retire, region, evidence}
+      end
+    end)
   end
 
   # A secondary retires once what it served stops paying for what it reserves.
