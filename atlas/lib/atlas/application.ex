@@ -34,7 +34,6 @@ defmodule Atlas.Application do
     HTTP.configure_req_defaults()
 
     :ok = Application.ensure_started(:logger)
-    if !Demo.enabled?(), do: Task.start(fn -> SelfMonitor.install() end)
 
     opts = [strategy: :one_for_one, name: Atlas.Supervisor]
     Supervisor.start_link(children(), opts)
@@ -106,7 +105,8 @@ defmodule Atlas.Application do
         DropAlerter,
         IssueCoalescer,
         IssueAccountCoalescer,
-        KeyTouches
+        KeyTouches,
+        Supervisor.child_spec({Task, &SelfMonitor.install/0}, id: SelfMonitor)
       ]
     else
       []

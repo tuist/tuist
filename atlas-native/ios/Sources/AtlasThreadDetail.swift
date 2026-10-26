@@ -7,7 +7,7 @@ struct AtlasThreadDetail: View {
     let thread: AtlasThread
     let selfId: String?
     @State private var addressAgent = false
-    @State private var scrolling = AtlasThreadScrollState()
+    @StateObject private var scrolling = AtlasThreadScrollState()
     @State private var latestScrollRequest = 0
     @State private var visibleMessageID: String?
     @State private var jumpingToPrompt = false
@@ -26,14 +26,12 @@ struct AtlasThreadDetail: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.atlasPresence) private var presence
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.atlasTheme) private var theme
-    @Environment(\.colorScheme) private var scheme
 
     private var assistantName: String { model.assistant?.name ?? "Pip" }
     private var current: AtlasThread { model.selected ?? thread }
     private var showsWelcome: Bool {
         current.kind == "private" && model.selected?.id == thread.id && model.messages.isEmpty
-            && !openingHistory && !model.loadingHistory && model.errorMessage == nil
+            && current.status != "archived" && !openingHistory && !model.loadingHistory && model.errorMessage == nil
             && !["queued", "running", "compacting"].contains(current.agentStatus ?? "")
     }
 
@@ -42,14 +40,14 @@ struct AtlasThreadDetail: View {
             ScrollViewReader { scroll in
                 ScrollView {
                     VStack(spacing: 14) {
-                        if model.hasOlder {
+                        if model.hasOlder, !model.messages.isEmpty {
                             Button(model.loadingHistory || pagingHistory ? "Loading earlier messages…" : "Load earlier messages") {
                                 Task { await loadEarlier() }
                             }
                                 .disabled(model.loadingHistory || pagingHistory).frame(minHeight: 44)
                                 .accessibilityIdentifier("thread-earlier")
                         }
-                        if current.kind == "private" {
+                        if current.kind == "private", !model.messages.isEmpty || showsWelcome {
                             Label("Private · Only you and \(assistantName)", systemImage: "lock")
                                 .font(.caption).foregroundStyle(.secondary).padding(.vertical, 12)
                             if showsWelcome {
@@ -58,14 +56,13 @@ struct AtlasThreadDetail: View {
                                 }
                             }
                         }
-                        AtlasThreadTimeline(messages: model.messages, selfId: selfId, openAttachment: openAttachment) { id, event in
+                        AtlasThreadTimeline(timeline: model.timeline, selfId: selfId, openAttachment: openAttachment) { id, event in
                             await model.componentAction(messageId: id, event: event)
                         }
                         if let activity = model.activityMessage {
                             AtlasThreadActivity(message: activity,
                                                 typing: model.selected?.agentStatus == "running" && model.activeToolName == nil)
                         }
-                        if model.loadingHistory { ProgressView("Loading history") }
                         if let error = model.errorMessage {
                             Text(error).font(.callout).foregroundStyle(.red)
                             Button("Retry") { Task { await model.history() } }.frame(minHeight: 44)
@@ -76,11 +73,13 @@ struct AtlasThreadDetail: View {
                     .frame(maxWidth: 720)
                     .frame(maxWidth: .infinity, minHeight: geometry.size.height, alignment: showsWelcome ? .top : .bottom)
                     .background {
-                        GeometryReader { content in
-                            Color.clear.preference(key: AtlasThreadScrollPreference.self, value: AtlasThreadScrollMetrics(
-                                height: content.size.height,
-                                bottom: content.frame(in: .global).maxY - geometry.frame(in: .global).minY,
-                                viewport: geometry.size.height))
+                        if #unavailable(iOS 18.0) {
+                            GeometryReader { content in
+                                Color.clear.preference(key: AtlasThreadScrollPreference.self, value: AtlasThreadScrollMetrics(
+                                    height: content.size.height,
+                                    bottom: content.frame(in: .global).maxY - geometry.frame(in: .global).minY,
+                                    viewport: geometry.size.height))
+                            }
                         }
                     }
                 }
@@ -115,9 +114,12 @@ struct AtlasThreadDetail: View {
                 .onChange(of: geometry.size.height) { _, _ in
                     if scrolling.following, !showsWelcome { latestScrollRequest += 1 }
                 }
+                .onChange(of: scrolling.following) { _, following in
+                    if following { visibleMessageID = nil }
+                }
                 .overlay(alignment: .bottomTrailing) {
                     AtlasThreadNavigation(messages: model.messages, shared: current.kind != "private",
-                                          hasOlder: model.hasOlder, loading: model.loadingHistory,
+                                          hasOlder: model.hasOlder && !model.messages.isEmpty, loading: model.loadingHistory,
                                           showsLatest: !scrolling.following && !showsWelcome && !model.messages.isEmpty,
                                           older: { await loadEarlier() }, jump: { id in
                         scrolling.following = id == "thread-latest"
@@ -127,18 +129,35 @@ struct AtlasThreadDetail: View {
                         } completion: {
                             scrolling.following = id == "thread-latest"
                             jumpingToPrompt = false
+                            if scrolling.following { latestScrollRequest += 1 }
                         }
                     })
                     .padding()
                 }
                 .overlay {
-                    if openingHistory && model.messages.isEmpty {
+                    if (openingHistory || model.loadingHistory) && model.messages.isEmpty {
                         ProgressView("Loading conversation…").accessibilityIdentifier("thread-history-loading")
                     }
                 }
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) { composer }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if current.status == "archived" {
+                HStack {
+                    Label("Archived conversation", systemImage: "archivebox").font(.subheadline).foregroundStyle(.secondary)
+                    Spacer()
+                    if let selfId, current.ownerId == selfId {
+                        Button { Task { await model.archive(current, archived: false) } } label: {
+                            Text("Restore").frame(minWidth: 44, minHeight: 44)
+                        }
+                        .disabled(model.saving).accessibilityIdentifier("thread-restore")
+                    }
+                }
+                .padding(.horizontal).padding(.bottom, 8).background(.bar)
+            } else {
+                composer
+            }
+        }
         .navigationTitle(current.kind == "private" ? assistantName : current.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -247,14 +266,10 @@ extension AtlasThreadDetail {
             }, send: {
                 if current.kind == "private", !model.draftMentions.isEmpty { confirmingShare = true } else { send() }
             })
-            .disabled(model.selected?.id != thread.id)
+            .disabled(model.selected?.id != thread.id || openingHistory || (model.loadingHistory && model.messages.isEmpty))
         }
         .frame(maxWidth: 688).padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 10)
         .frame(maxWidth: .infinity)
-        .background {
-            (theme.map { Color(atlasHex: $0.palette(scheme).background) } ?? Color(uiColor: .systemBackground))
-                .ignoresSafeArea(edges: .bottom)
-        }
     }
 
     private func send() {
@@ -290,7 +305,7 @@ private struct AtlasThreadScrollPreference: PreferenceKey {
 
 private struct AtlasThreadScrollObserver: ViewModifier {
     let update: (AtlasThreadScrollMetrics) -> Void
-    let interaction: (Bool) -> Void
+    let interaction: (Bool?) -> Void
 
     func body(content: Content) -> some View {
         if #available(iOS 18.0, *) {
@@ -310,6 +325,9 @@ private struct AtlasThreadScrollObserver: ViewModifier {
             content.onPreferenceChange(AtlasThreadScrollPreference.self) { metrics in
                 if let metrics { update(metrics) }
             }
+            .simultaneousGesture(DragGesture(minimumDistance: 1)
+                .onChanged { _ in interaction(true) }
+                .onEnded { _ in interaction(nil) })
         }
     }
 }

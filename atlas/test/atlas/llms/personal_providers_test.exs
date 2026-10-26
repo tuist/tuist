@@ -113,7 +113,15 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
   test "errors and incomplete streams never expose provider bodies or accept a partial reply" do
     for provider <- ["chatgpt", "claude"], status <- [400, 401, 402, 403, 429, 503] do
       expect(Req, :post, fn _opts -> {:ok, %{status: status, body: "secret provider payload"}} end)
-      assert {:error, ^status} = PersonalProviders.complete(provider, chatgpt_token(), params())
+
+      log =
+        capture_log([level: :error], fn ->
+          assert {:error, ^status} = PersonalProviders.complete(provider, chatgpt_token(), params())
+        end)
+
+      assert log =~ "Orbit personal provider failed: provider=#{provider} category=http_error status=#{status}"
+      refute log =~ "secret provider payload"
+      refute log =~ chatgpt_token()
     end
 
     expect(Req, :post, fn _opts ->
@@ -161,7 +169,14 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
       {:error, %Mint.TransportError{reason: :timeout}, acc}
     end)
 
-    assert {:error, 504} = PersonalProviders.complete("claude", "setup-token", params())
+    log =
+      capture_log([level: :error], fn ->
+        assert {:error, 504} = PersonalProviders.complete("claude", "setup-token", params())
+      end)
+
+    assert log =~ "Orbit personal provider failed: provider=claude category=timeout status=504"
+    refute log =~ "setup-token"
+    refute log =~ "Mint.TransportError"
   end
 
   for {provider, terminal} <- [{"chatgpt", :full}, {"chatgpt", :metadata_only}, {"claude", :full}] do
@@ -296,7 +311,7 @@ defmodule Atlas.LLMs.PersonalProvidersTest do
       end)
 
       log =
-        capture_log(fn ->
+        capture_log([level: :error], fn ->
           assert {:error, ^status} = PersonalProviders.complete("chatgpt", chatgpt_token(), params())
         end)
 

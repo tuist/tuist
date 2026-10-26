@@ -25,6 +25,7 @@ defmodule Atlas.Orbit do
   alias Atlas.Orbit.Participant
   alias Atlas.Orbit.Rendering
   alias Atlas.Orbit.Run
+  alias Atlas.Orbit.Runs
   alias Atlas.Orbit.Thread
   alias Atlas.Orbit.Workers.RunThread
   alias Atlas.Push
@@ -76,7 +77,7 @@ defmodule Atlas.Orbit do
 
   ## Reads
 
-  def list_for_user(%User{} = user, page \\ 1, kind \\ nil) do
+  def list_for_user(%User{} = user, page \\ 1, kind \\ nil, status \\ nil) do
     scopes = Atlas.Users.scopes_for(user)
 
     query =
@@ -91,17 +92,24 @@ defmodule Atlas.Orbit do
           )
 
     query = if kind in ["private", "shared"], do: where(query, [thread], thread.kind == ^kind), else: query
+    query = if status in ["active", "archived"], do: where(query, [thread], thread.status == ^status), else: query
     total_count = Repo.aggregate(query, :count)
     total_pages = max(1, ceil(total_count / @thread_page_size))
     page = page |> max(1) |> min(total_pages)
 
+    query =
+      if status in ["active", "archived"] do
+        order_by(query, [thread], desc: thread.updated_at, desc: thread.id)
+      else
+        order_by(query, [thread],
+          asc: fragment("CASE WHEN ? = 'private' THEN 0 ELSE 1 END", thread.kind),
+          desc: thread.updated_at,
+          desc: thread.id
+        )
+      end
+
     items =
       query
-      |> order_by([thread],
-        asc: fragment("CASE WHEN ? = 'private' THEN 0 ELSE 1 END", thread.kind),
-        desc: thread.updated_at,
-        desc: thread.id
-      )
       |> limit(^@thread_page_size)
       |> offset(^((page - 1) * @thread_page_size))
       |> preload_participants()
@@ -141,6 +149,47 @@ defmodule Atlas.Orbit do
   end
 
   def fetch(_user, _id), do: {:error, :not_found}
+
+  @doc "Owners may archive or restore readable threads. Archiving cancels active runs; restoring starts no run."
+  def set_status(%User{} = user, %Thread{id: id}, status) when status in ["active", "archived"] do
+    Repo.transaction(fn ->
+      thread = Repo.one(from thread in Thread, where: thread.id == ^id, lock: "FOR UPDATE")
+
+      if not Access.can_read?(thread, user), do: Repo.rollback(:not_found)
+      if thread.owner_id != user.id, do: Repo.rollback(:forbidden)
+
+      if thread.status == status do
+        preload_thread(thread)
+      else
+        changeset =
+          thread
+          |> Ecto.Changeset.change(status: status, last_seq: thread.last_seq + 1)
+          |> Ecto.Changeset.unique_constraint([:source_type, :source_id],
+            name: :orbit_threads_active_signal_source_index
+          )
+
+        thread =
+          case Repo.update(changeset) do
+            {:ok, thread} -> thread
+            {:error, reason} -> Repo.rollback(reason)
+          end
+
+        if status == "archived", do: Runs.archive!(thread)
+        Audit.record("thread.status_changed", thread_audit(thread, user, %{"status" => status}))
+        thread |> Repo.reload!() |> preload_thread()
+      end
+    end)
+    |> case do
+      {:ok, thread} ->
+        notify_changed(thread.id)
+        {:ok, thread}
+
+      error ->
+        error
+    end
+  end
+
+  def set_status(_user, _thread, _status), do: {:error, {:invalid_field, :status}}
 
   @doc "Name-only mention choices; only owners may discover people outside the current audience."
   def mention_people(%User{} = user, %Thread{id: id}, query \\ "") do

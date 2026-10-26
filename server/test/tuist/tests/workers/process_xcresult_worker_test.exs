@@ -410,6 +410,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       test_run_id = Ecto.UUID.generate()
       expect_local_parse(parsed_data())
 
+      stub(OpenTelemetry.Tracer, :set_attribute, fn _key, _value -> :ok end)
       expect(OpenTelemetry.Tracer, :set_attribute, fn "test_run_id", ^test_run_id -> :ok end)
       expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
 

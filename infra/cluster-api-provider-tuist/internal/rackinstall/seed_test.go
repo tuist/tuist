@@ -66,7 +66,7 @@ type autoinstall struct {
 		}
 		Network struct {
 			Ethernets map[string]struct {
-				Match map[string]string
+				Match map[string]any
 				DHCP4 bool `json:"dhcp4"`
 			}
 		}
@@ -100,8 +100,8 @@ func TestUserDataInstallsTheHostWithTheFleetKey(t *testing.T) {
 	if a.SSH.AllowPW || len(a.SSH.AuthorizedKeys) != 2 || a.Storage.Layout.Name != "direct" {
 		t.Fatalf("ssh %+v storage %+v", a.SSH, a.Storage)
 	}
-	if len(a.Network.Ethernets) != 1 || a.Network.Ethernets["uplinks"].Match["driver"] != "i40e" || !a.Network.Ethernets["uplinks"].DHCP4 {
-		t.Fatalf("network %+v; only the SFP+ uplinks may be configured", a.Network)
+	if len(a.Network.Ethernets) != 1 || fmt.Sprint(a.Network.Ethernets["uplinks"].Match["driver"]) != "[i40e bnxt_en]" || !a.Network.Ethernets["uplinks"].DHCP4 {
+		t.Fatalf("network %+v; only the uplinks, the MS-01's X710 and the RS501A's N225P, may be configured", a.Network)
 	}
 	late := strings.Join(a.LateCommands, "\n")
 	for _, want := range []string{

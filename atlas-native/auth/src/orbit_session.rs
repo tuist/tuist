@@ -60,6 +60,8 @@ pub(crate) enum Command {
     Load {
         #[serde(default)]
         kind: Option<String>,
+        #[serde(default)]
+        status: Option<StatusFilter>,
     },
     LoadMore,
     Private,
@@ -73,6 +75,10 @@ pub(crate) enum Command {
     },
     Leave {
         id: String,
+    },
+    Archive {
+        id: String,
+        archived: bool,
     },
     History {
         older: bool,
@@ -118,9 +124,27 @@ pub(crate) enum Command {
     },
 }
 
+#[derive(Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum StatusFilter {
+    #[default]
+    Active,
+    Archived,
+}
+
+impl StatusFilter {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Active => "active",
+            Self::Archived => "archived",
+        }
+    }
+}
+
 #[derive(Default, Serialize)]
 struct Snapshot {
     sequence: u64,
+    status_filter: StatusFilter,
     assistant: Option<Assistant>,
     threads: Vec<Thread>,
     // An untrusted navigation target, not thread metadata or permission to mutate.
@@ -413,8 +437,8 @@ fn publish(model: &Model, state: &mut State) {
 
 fn perform(model: &Arc<Model>, command: Command) -> Result<()> {
     match command {
-        Command::Load { kind } => {
-            set_list_kind(model, kind)?;
+        Command::Load { kind, status } => {
+            set_list_filters(model, kind, status)?;
             load(model, false)
         }
         Command::LoadMore => load(model, true),
@@ -429,6 +453,7 @@ fn perform(model: &Arc<Model>, command: Command) -> Result<()> {
             select(model, None, Some(id))?;
             start_live(model)
         }
+        Command::Archive { id, archived } => archive_using(model, id, archived, &Network),
         Command::History { older } => history(model, older),
         Command::People { id, query } => people_using(model, id, query, &Network),
         Command::Send {
@@ -518,6 +543,7 @@ fn create_using(model: &Arc<Model>, command: Command, network: &impl Transport) 
         .then(|| orbit::Action::List {
             page: 1,
             kind: state.list_kind.clone(),
+            status: Some(state.snapshot.status_filter.as_str().into()),
         });
         state.snapshot.loading = true;
         state.snapshot.error = None;
@@ -596,7 +622,7 @@ fn create_using(model: &Arc<Model>, command: Command, network: &impl Transport) 
                 }
                 let id = value.thread.id.clone();
                 if state.access_generation == access_generation {
-                    merge_thread(&mut state.snapshot.threads, value.thread);
+                    merge_list_thread(&mut state, value.thread);
                 }
                 if current {
                     state.snapshot.error = None;
@@ -629,7 +655,11 @@ fn create_using(model: &Arc<Model>, command: Command, network: &impl Transport) 
     Ok(())
 }
 
-fn set_list_kind(model: &Arc<Model>, kind: Option<String>) -> Result<()> {
+fn set_list_filters(
+    model: &Arc<Model>,
+    kind: Option<String>,
+    status: Option<StatusFilter>,
+) -> Result<()> {
     if kind
         .as_deref()
         .is_some_and(|kind| !matches!(kind, "private" | "shared"))
@@ -637,13 +667,16 @@ fn set_list_kind(model: &Arc<Model>, kind: Option<String>) -> Result<()> {
         return Err(invalid());
     }
     let mut state = model.state.lock().map_err(|_| invalid())?;
-    if state.list_kind != kind {
+    let status = status.unwrap_or(state.snapshot.status_filter);
+    if state.list_kind != kind || state.snapshot.status_filter != status {
         clear_candidates(&mut state);
         state.list_kind = kind;
+        state.snapshot.status_filter = status;
         state.list_page = 0;
         state.access_generation += 1;
         state.snapshot.threads.clear();
         state.snapshot.has_more = false;
+        publish(model, &mut state);
     }
     Ok(())
 }
@@ -653,7 +686,7 @@ fn load(model: &Arc<Model>, more: bool) -> Result<()> {
 }
 
 fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Result<()> {
-    let (session, page, kind, access_generation) = {
+    let (session, page, kind, status, access_generation) = {
         let mut state = model.state.lock().map_err(|_| invalid())?;
         if state.closed {
             return Ok(());
@@ -668,11 +701,15 @@ fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Resul
             state.session.clone(),
             if more { state.list_page + 1 } else { 1 },
             state.list_kind.clone(),
+            Some(state.snapshot.status_filter.as_str().into()),
             state.access_generation,
         )
     };
-    let result =
-        orbit::request_using::<Overview>(network, session, orbit::Action::List { page, kind });
+    let result = orbit::request_using::<Overview>(
+        network,
+        session,
+        orbit::Action::List { page, kind, status },
+    );
     let mut state = model.state.lock().map_err(|_| invalid())?;
     state.snapshot.loading = false;
     if state.closed {
@@ -695,7 +732,7 @@ fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Resul
                 state.snapshot.threads.clear();
             }
             for item in value.threads.items {
-                merge_thread(&mut state.snapshot.threads, item);
+                merge_list_thread(&mut state, item);
             }
             state.list_page = value.threads.page;
             state.snapshot.has_more = state.list_page < value.threads.total_pages;
@@ -722,15 +759,120 @@ fn load_using(model: &Arc<Model>, more: bool, network: &impl Transport) -> Resul
     Ok(())
 }
 
-fn merge_thread(items: &mut Vec<Thread>, incoming: Thread) {
+fn merge_list_thread(state: &mut State, incoming: Thread) {
+    let items = &mut state.snapshot.threads;
     items.retain(|item| item.id != incoming.id);
+    if incoming.status != state.snapshot.status_filter.as_str() {
+        return;
+    }
     items.push(incoming);
     items.sort_by(|a, b| {
-        (b.kind == "private")
-            .cmp(&(a.kind == "private"))
-            .then_with(|| b.updated_at.cmp(&a.updated_at))
-            .then_with(|| a.id.cmp(&b.id))
+        b.updated_at
+            .cmp(&a.updated_at)
+            .then_with(|| b.id.cmp(&a.id))
     });
+}
+
+fn archive_using(
+    model: &Arc<Model>,
+    id: String,
+    archived: bool,
+    network: &impl Transport,
+) -> Result<()> {
+    crate::time_off::validate_id(&id)?;
+    let (session, generation, access_generation, lifecycle) = {
+        let mut state = model.state.lock().map_err(|_| invalid())?;
+        if state.closed || !state.active || state.snapshot.needs_session {
+            return Ok(());
+        }
+        if state.snapshot.saving || state.snapshot.attachment_busy {
+            return Err(error(
+                "busy",
+                "Wait for the current thread request to finish.",
+            ));
+        }
+        if !state.snapshot.threads.iter().any(|item| item.id == id)
+            && state
+                .snapshot
+                .selected
+                .as_ref()
+                .is_none_or(|item| item.id != id)
+        {
+            return Err(invalid());
+        }
+        state.snapshot.saving = true;
+        state.snapshot.error = None;
+        publish(model, &mut state);
+        (
+            state.session.clone(),
+            state.generation,
+            state.access_generation,
+            state.lifecycle,
+        )
+    };
+    let status = if archived { "archived" } else { "active" };
+    let result = orbit::request_using::<Created>(
+        network,
+        session,
+        orbit::Action::Archive {
+            id: id.clone(),
+            archived,
+        },
+    )
+    .and_then(|value| {
+        if value.thread.id == id && value.thread.status == status {
+            Ok(value.thread)
+        } else {
+            Err(invalid())
+        }
+    });
+    let mut state = model.state.lock().map_err(|_| invalid())?;
+    state.snapshot.saving = false;
+    if state.closed || state.access_generation != access_generation || state.lifecycle != lifecycle
+    {
+        if !state.closed {
+            publish(model, &mut state);
+        }
+        return Ok(());
+    }
+    let mut refresh_list = false;
+    match result {
+        Ok(thread) => {
+            // A list or protected-history read begun before this mutation must not undo it.
+            state.access_generation += 1;
+            merge_list_thread(&mut state, thread.clone());
+            refresh_list = state.list_page > 0;
+            if refresh_list {
+                state.list_page = 0;
+                state.snapshot.has_more = true;
+            }
+            if state.generation == generation && state.snapshot.selection_id.as_deref() == Some(&id)
+            {
+                state.generation += 1;
+                state.snapshot.history_loading = false;
+                state.history_pending = false;
+                state.snapshot.selected = Some(thread);
+                clear_candidates(&mut state);
+            }
+            state.snapshot.error = None;
+        }
+        Err(failure) if state.generation == generation => {
+            // An optional mutation failure is not evidence that a protected read lost access.
+            if matches!(failure.kind, "unavailable" | "unsupported") {
+                state.snapshot.error = Some("Archiving is unavailable. Refresh the conversation or update Atlas, then try again.".into());
+            } else {
+                note_failure(&mut state, failure);
+            }
+        }
+        Err(_) => {}
+    }
+    publish(model, &mut state);
+    drop(state);
+    // Removing a row shifts server offsets; reconcile page one before continuing pagination.
+    if refresh_list {
+        load_using(model, false, network)?;
+    }
+    Ok(())
 }
 
 fn select(model: &Arc<Model>, id: Option<String>, expected: Option<String>) -> Result<()> {
@@ -1003,7 +1145,7 @@ fn reconcile_history(state: &mut State, value: History, generation: u64, older: 
     {
         return false;
     }
-    merge_thread(&mut state.snapshot.threads, value.thread.clone());
+    merge_list_thread(state, value.thread.clone());
     state.snapshot.selected = Some(value.thread);
     let disconnected_page = !older
         && !state.snapshot.messages.is_empty()

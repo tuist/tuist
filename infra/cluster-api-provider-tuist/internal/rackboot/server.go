@@ -73,6 +73,15 @@ type Config struct {
 	// come up before downloading the ISO from the internet.
 	PeerInterface string
 	PeerWait      time.Duration
+
+	// Internet makes this the boot server machines reach over the internet
+	// rather than on a site's provisioning segment, the first box of a site
+	// before the site has one: it serves seeds and takes announcements, on
+	// Listen, and nothing to netboot. No machine there is a neighbor, so only a
+	// host whose TPM is pinned gets its seed, sealed to it, and only a machine
+	// declared with its TPM's check code may announce itself.
+	Internet bool
+	Listen   string
 }
 
 func (c Config) httpBase() string {
@@ -118,6 +127,16 @@ type Server struct {
 // NewServer returns a boot server that serves nothing until the ISO is
 // prepared and the boot Secret is read.
 func NewServer(cfg Config, c client.Client, api client.Reader, log logr.Logger) *Server {
+	if cfg.Internet {
+		return &Server{
+			cfg: cfg, client: c, api: api, log: log,
+			Neighbors: func(net.IP) (string, bool) { return "", false },
+			Holds:     func() bool { return false },
+			PeerNet:   func() *net.IPNet { return nil },
+			Now:       time.Now,
+			acked:     map[string]bool{},
+		}
+	}
 	return &Server{
 		cfg:       cfg,
 		client:    c,
@@ -234,6 +253,12 @@ func (s *Server) TFTPRead(filename string, rf io.ReaderFrom) error {
 // the installer from the ISO, and the stick's announcements.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	if s.cfg.Internet {
+		mux.HandleFunc("POST /hosts/{mac}/seed", s.serveSeedRequest)
+		mux.HandleFunc("GET /tools/rack-node", s.serveNodeBinary)
+		mux.HandleFunc("POST /cgi-bin/announce", s.serveAnnounce)
+		return mux
+	}
 	mux.HandleFunc("GET /hosts/{script}", s.serveScript)
 	mux.HandleFunc("GET /hosts/{mac}/{file}", s.serveSeed)
 	mux.HandleFunc("GET /ubuntu/{file}", s.serveUbuntu)
@@ -492,6 +517,18 @@ func (s *Server) serveAnnounce(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+	if s.cfg.Internet {
+		if reason, err := s.mayAnnounce(r.Context(), a); err != nil || reason != "" {
+			if err != nil {
+				s.log.Error(err, "check an announcement from the internet", "uuid", a.UUID)
+				http.Error(w, "cannot check the announcement", http.StatusServiceUnavailable)
+				return
+			}
+			s.log.Info("refused an announcement from the internet", "uuid", a.UUID, "from", r.RemoteAddr, "reason", reason)
+			http.Error(w, reason, http.StatusForbidden)
+			return
+		}
 	}
 	host, _, _ := net.SplitHostPort(r.RemoteAddr)
 	s.candMu.Lock()

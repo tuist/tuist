@@ -25,10 +25,10 @@ defmodule AtlasWeb.NativeOrbitController do
   end
 
   def index(conn, params) do
-    case {page(params), Map.get(params, "kind")} do
-      {{:ok, page}, kind} when kind in [nil, "private", "shared"] ->
+    case {page(params), Map.get(params, "kind"), Map.get(params, "status", "active")} do
+      {{:ok, page}, kind, status} when kind in [nil, "private", "shared"] and status in ["active", "archived"] ->
         user = conn.assigns.current_user
-        {items, meta} = Orbit.list_for_user(user, page, kind)
+        {items, meta} = Orbit.list_for_user(user, page, kind, status)
 
         json(conn, %{
           assistant: %{name: Orbit.agent_name(), configured: Orbit.agent_configured?(user), can_create_private: true},
@@ -63,6 +63,17 @@ defmodule AtlasWeb.NativeOrbitController do
   def create(conn, params) do
     case Orbit.create_shared(conn.assigns.current_user, Map.take(params, ["title", "participant_ids"])) do
       {:ok, thread} -> conn |> put_status(:created) |> json(%{thread: thread(thread)})
+      {:error, reason} -> respond_error(conn, reason)
+    end
+  end
+
+  def update(conn, %{"id" => id} = params) do
+    user = conn.assigns.current_user
+
+    with {:ok, thread} <- Orbit.fetch(user, id),
+         {:ok, thread} <- Orbit.set_status(user, thread, Map.get(params, "status")) do
+      json(conn, %{thread: thread(thread)})
+    else
       {:error, reason} -> respond_error(conn, reason)
     end
   end

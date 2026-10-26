@@ -36,6 +36,16 @@ runs the mixed-version latency expression through promtool.
   probe. How warm runners give way to queued jobs is in
   `../runners-controller/AGENTS.md` ("Fleet-capacity awareness").
 
+- RunnerPool names (`<release>-runner-pool-macos-[<site>-]<xcode-dashes>[-<shape>]`)
+  are identifiers: they are `fleet_name` in Postgres and ClickHouse, the
+  dispatch key, and what alerts and dashboards select on. Customers see the
+  GitHub runner name instead, which the server mints per job as
+  `tuist-macos-<guest macOS>-xcode-<xcode>-<shape>-<hex>` from the pool's
+  `tuist.dev/xcode-version` label and the version the guest reports. Change
+  that name in `server/lib/tuist/runners.ex`, not by renaming pools, and keep
+  the label on every catalog pool. Pools without it (the explicit `pools`
+  entries) keep their Pod name as the runner name.
+
 - `server.config.originAppKey.enabled` adds the registered Origin App ID and Ed25519 private PEM to the managed server-config ExternalSecret. Trim only the App ID, never the private PEM or log key material. It defaults off and is enabled in production, canary, and staging after each environment's own `ORIGIN_APP/app_id` and `ORIGIN_APP/private_key` fields exist in its `tuist-k8s-<env>` vault. The App ID field is configurable with `appIdField`. Each environment uses an independent app and signing key.
 
 - Production enables the Kura authority controller independently of instance

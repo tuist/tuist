@@ -1,56 +1,22 @@
 import SwiftUI
 
 struct AtlasThreadTimeline: View {
-    let messages: [AtlasThreadMessage]
+    let timeline: AtlasThreadTimelineData
     let selfId: String?
     let openAttachment: (AtlasThreadAttachment) -> Void
     let action: (String, String) async -> Bool
 
-    private struct Group: Identifiable {
-        let id: String
-        var messages: [AtlasThreadMessage]
-        var tools: Bool { messages.count > 1 && messages.allSatisfy { $0.kind == "tool" } }
-    }
-
-    private var children: [String: [AtlasThreadMessage]] {
-        let parents = Set(messages.filter { $0.kind == "tool" && $0.parentMessageId == nil }.map(\.id))
-        return messages.reduce(into: [:]) { result, message in
-            if message.kind == "tool", let parent = message.parentMessageId, parents.contains(parent) {
-                result[parent, default: []].append(message)
-            }
-        }
-    }
-
-    private var groups: [Group] {
-        var result: [Group] = []
-        let children = self.children
-        let nested = Set(children.values.flatMap { $0.map(\.id) })
-        for message in messages where !nested.contains(message.id) {
-            let last = result.last?.messages.last
-            if message.kind == "tool", message.component?.type != "account_card",
-               last?.kind == "tool", last?.component?.type != "account_card",
-               children[message.id] == nil, last.map({ children[$0.id] == nil }) == true,
-               sameDay(message.insertedAt, last?.insertedAt) {
-                result[result.count - 1].messages.append(message)
-            } else {
-                result.append(Group(id: message.id, messages: [message]))
-            }
-        }
-        return result
-    }
-
     var body: some View {
         LazyVStack(spacing: 14) {
-            ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
+            ForEach(timeline.groups) { group in
                 VStack(spacing: 14) {
                     if let first = group.messages.first {
-                        if index == 0 || !sameDay(first.insertedAt, groups[index - 1].messages.last?.insertedAt),
-                           let date = ISO8601DateFormatter().date(from: first.insertedAt) {
+                        if let date = group.date {
                             Text(date, format: .dateTime.month(.abbreviated).day().year())
                                 .font(.caption.weight(.medium)).foregroundStyle(.secondary).padding(.vertical, 8)
                         }
-                        if let nested = children[first.id] {
-                            AtlasToolActivity(messages: nested, selfId: selfId, parent: first, action: action)
+                        if !group.children.isEmpty {
+                            AtlasToolActivity(messages: group.children, selfId: selfId, parent: first, action: action)
                         } else if group.tools {
                             AtlasToolActivity(messages: group.messages, selfId: selfId, action: action)
                         } else {
@@ -64,12 +30,6 @@ struct AtlasThreadTimeline: View {
             }
         }
         .scrollTargetLayout()
-    }
-
-    private func sameDay(_ current: String, _ previous: String?) -> Bool {
-        guard let previous, let date = ISO8601DateFormatter().date(from: current),
-              let prior = ISO8601DateFormatter().date(from: previous) else { return false }
-        return Calendar.current.isDate(date, inSameDayAs: prior)
     }
 }
 
