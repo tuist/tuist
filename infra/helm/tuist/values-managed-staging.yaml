@@ -75,7 +75,7 @@ egressTreeAgent:
 kuraVolumesCSI:
   # Exercise the independent rack release on prepared Paris hardware and a
   # temporary offline node. Removed after the rehearsal.
-  rackPools: [kura-scw-fr-par, rack-storage-offline-rehearsal]
+  rackPools: [kura-scw-fr-par]
   enabled: true
   # First LVM validation: the Paris cache host is reinstalled through CAPI.
   lvmRegions: [scw-fr-par-runners]
