@@ -61,8 +61,10 @@ type RackSwitchReconciler struct {
 	PicOS              *picos.Engine
 	PicOSAdminPassword func() (string, error)
 	Credentials        func() (converge.Credentials, error)
-	ResyncInterval     time.Duration
-	Now                func() time.Time
+	// Egress is how PicOS switches are dialled; empty dials their addresses.
+	Egress         Egress
+	ResyncInterval time.Duration
+	Now            func() time.Time
 
 	mu       sync.Mutex
 	attempts map[types.NamespacedName]*converge.Attempt
@@ -78,6 +80,11 @@ func (r *RackSwitchReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 	before := rs.DeepCopy()
+
+	if !rs.DeletionTimestamp.IsZero() {
+		r.setAttempt(req.NamespacedName, nil)
+		return ctrl.Result{}, r.releaseEgress(ctx, &rs)
+	}
 
 	if rs.Spec.ManagedBy != v1alpha1.ManagedByController {
 		r.setAttempt(req.NamespacedName, nil)

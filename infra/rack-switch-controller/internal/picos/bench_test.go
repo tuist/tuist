@@ -121,12 +121,12 @@ func TestBenchConverge(t *testing.T) {
 			{Port: 31, TaggedVLANs: []int{10, 4000}},
 		},
 	}}}
-	report, err := e.Converge(ctx, rs, c.Pin, true)
+	report, err := e.Converge(ctx, rs, rs.Spec.ManagementAddress, c.Pin, true)
 	t.Logf("wrote %d lines: %v", len(report.Changes), report.Changes)
 	if err != nil {
 		t.Fatal(err)
 	}
-	report, err = e.Converge(ctx, rs, c.Pin, false)
+	report, err = e.Converge(ctx, rs, rs.Spec.ManagementAddress, c.Pin, false)
 	if err != nil || len(report.Drift) > 0 {
 		t.Fatalf("after converging: drift %v, err %v", report.Drift, err)
 	}
@@ -134,12 +134,12 @@ func TestBenchConverge(t *testing.T) {
 	os.WriteFile(os.Getenv("PICOS_BENCH_OUT"), data, 0o644)
 
 	rs.Spec.Config = &v1alpha1.SwitchConfig{}
-	report, err = e.Converge(ctx, rs, c.Pin, true)
+	report, err = e.Converge(ctx, rs, rs.Spec.ManagementAddress, c.Pin, true)
 	t.Logf("cleanup wrote %d lines: %v", len(report.Changes), report.Changes)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report, err = e.Converge(ctx, rs, c.Pin, false); err != nil || len(report.Drift) > 0 {
+	if report, err = e.Converge(ctx, rs, rs.Spec.ManagementAddress, c.Pin, false); err != nil || len(report.Drift) > 0 {
 		t.Fatalf("after cleanup: drift %v, err %v", report.Drift, err)
 	}
 }

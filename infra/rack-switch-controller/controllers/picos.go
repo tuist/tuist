@@ -27,6 +27,11 @@ func (r *RackSwitchReconciler) reconcilePicOS(ctx context.Context, rs *v1alpha1.
 		r.failed(rs, "NoManagementAddress", errors.New("spec.managementAddress is empty"))
 		return ctrl.Result{}, nil
 	}
+	host, err := r.picosHost(ctx, rs)
+	if err != nil {
+		r.failed(rs, "EgressUnavailable", err)
+		return ctrl.Result{}, err
+	}
 	blocker, err := r.blockedBy(ctx, rs)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -49,7 +54,7 @@ func (r *RackSwitchReconciler) reconcilePicOS(ctx context.Context, rs *v1alpha1.
 			r.failed(rs, "CredentialsUnavailable", err)
 			return ctrl.Result{}, err
 		}
-		hostKey, err := r.PicOS.Adopt(ctx, rs.Spec.ManagementAddress, password)
+		hostKey, err := r.PicOS.Adopt(ctx, host, password)
 		if err != nil {
 			// A switch still in ZTP, or one ZTP has not provisioned yet,
 			// refuses the controller's key; that is a wait, not a fault.
@@ -75,7 +80,7 @@ func (r *RackSwitchReconciler) reconcilePicOS(ctx context.Context, rs *v1alpha1.
 
 	needsApply := justAdopted || st.ObservedRevision != rs.Spec.ConfigRevision || st.ObservedGeneration != rs.Generation
 	apply := needsApply && blocker == nil
-	report, err := r.PicOS.Converge(ctx, rs, st.HostKey, apply)
+	report, err := r.PicOS.Converge(ctx, rs, host, st.HostKey, apply)
 	if len(report.Changes) > 0 {
 		r.Recorder.Eventf(rs, corev1.EventTypeNormal, "Wrote", "%s", truncate(strings.Join(report.Changes, "; ")))
 	}
