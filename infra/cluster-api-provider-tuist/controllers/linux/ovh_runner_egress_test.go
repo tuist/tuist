@@ -329,6 +329,45 @@ func TestRunnerEgressRefusesExistingPrivateNetwork(t *testing.T) {
 	}
 }
 
+func TestRunnerEgressPreservesSharedPrivateNetwork(t *testing.T) {
+	h := newRunnerEgressHarness(t)
+	h.machine.Spec.VRackID = "pn-123"
+	h.node.Annotations = map[string]string{privateNetworkAnnotation: "pn-123", privateNetworkRevision: "cache-revision"}
+	if err := h.r.Update(context.Background(), h.node); err != nil {
+		t.Fatal(err)
+	}
+	private := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "private-network-reservations", Namespace: "staging"}, Data: map[string]string{"reservations.json": `{"network":"pn-123","cidr":"172.30.241.0/24","addresses":{"server-a":"172.30.241.4"}}`}}
+	if err := h.r.Create(context.Background(), private); err != nil {
+		t.Fatal(err)
+	}
+	if !privateNetworkOVHMachine(h.machine) {
+		t.Fatal("shared-vRack runner lost private-network enrollment")
+	}
+	if err := h.reconcile(); err != nil {
+		t.Fatal(err)
+	}
+	h.config(t, false)
+	// The first pass withdraws the policy; the next confirms removal and cleans up.
+	_ = h.reconcile()
+	if err := h.reconcile(); err != nil {
+		t.Fatal(err)
+	}
+	node := &corev1.Node{}
+	if err := h.r.Get(context.Background(), client.ObjectKeyFromObject(h.node), node); err != nil {
+		t.Fatal(err)
+	}
+	if node.Annotations[privateNetworkAnnotation] != "pn-123" || node.Annotations[privateNetworkRevision] != "cache-revision" || node.Annotations[runnerEgressAddress] != "" {
+		t.Fatalf("egress rollback changed private-network identity: %v", node.Annotations)
+	}
+	after := &corev1.ConfigMap{}
+	if err := h.r.Get(context.Background(), client.ObjectKeyFromObject(private), after); err != nil {
+		t.Fatal(err)
+	}
+	if after.Data["reservations.json"] != private.Data["reservations.json"] {
+		t.Fatal("egress rollback changed the retained private reservation")
+	}
+}
+
 func TestRunnerEgressDeletionWaitsBeforeDroppingCredentials(t *testing.T) {
 	h := newRunnerEgressHarness(t)
 	if err := h.reconcile(); err != nil {
