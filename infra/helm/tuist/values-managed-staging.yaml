@@ -74,6 +74,8 @@ egressTreeAgent:
 # the Kura controller's `sha-` build.
 kuraVolumesCSI:
   enabled: true
+  # First LVM validation: the Paris cache host is reinstalled through CAPI.
+  lvmRegions: [scw-fr-par-runners]
 
 registry:
   publicHost: registry-staging.tuist.dev
