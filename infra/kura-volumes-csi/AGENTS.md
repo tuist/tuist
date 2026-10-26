@@ -1,7 +1,7 @@
 # kura-volumes-csi
 
 CSI driver `kura-volumes.tuist.dev` behind the `kura-encrypted-nvme`
-StorageClass. Every Kura data PVC gets its own LUKS2 container, backed by a
+StorageClass and the plain-XFS `kura-lvm-nvme` class. Encrypted PVCs get their own LUKS2 container, backed by a
 logical volume in the node's `--volume-group` when the node has one, and
 otherwise by a preallocated file on the node's `/data` filesystem. The passphrase lives
 only on the Tuist server and is fetched on every stage, so a volume can only
@@ -114,3 +114,14 @@ Host commands and the mount table sit behind `Runner`, `MountTable` and
 `Host`; the driver tests assert exact command sequences with fakes. The key
 client test seals with an independent server-side implementation against an
 `httptest` TLS server.
+
+## Plain LVM and scheduling
+
+`kura-lvm-nvme` selects `encryption: none`, which requires the VG and refuses
+LUKS headers; the encrypted class retains its existing immutable parameters.
+The driver advertises `tuist.dev/kura-disk` as VG size minus non-Kura LVs,
+including the 128 GiB `data` LV. It advertises total reservable capacity, not
+free extents: kube-scheduler subtracts pod reservations. The server additionally
+accounts for retained volumes. The driver removes capacity on nodes without the
+VG and does not silently use files for plain volumes. First-boot conversion,
+regional opt-in and rollback sequencing are in [LVM rollout](lvm-rollout.md).

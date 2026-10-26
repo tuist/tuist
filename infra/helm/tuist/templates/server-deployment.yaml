@@ -468,6 +468,10 @@ spec:
               value: {{ .Values.cache.s3.bucket | quote }}
             - name: TUIST_CACHE_XCODE_S3_BUCKET_NAME
               value: {{ .Values.cache.s3.xcodeCacheBucket | quote }}
+            {{- with .Values.kuraVolumesCSI.lvmRegions }}
+            - name: TUIST_KURA_LVM_REGIONS
+              value: {{ join "," . | quote }}
+            {{- end }}
             {{- with .Values.server.kuraEndpointUrls }}
             - name: TUIST_KURA_ENDPOINTS
               value: {{ join "," . | quote }}

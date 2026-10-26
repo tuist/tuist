@@ -494,6 +494,14 @@ defmodule Tuist.Environment do
     not dev?() or truthy?(System.get_env("TUIST_DEV_USE_REMOTE_STORAGE", "0"))
   end
 
+  def kura_lvm_region_ids do
+    "TUIST_KURA_LVM_REGIONS"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
   def kura_available_region_ids do
     "TUIST_KURA_AVAILABLE_REGIONS"
     |> System.get_env("")

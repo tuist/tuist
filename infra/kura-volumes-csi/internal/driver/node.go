@@ -37,6 +37,10 @@ func (d *Driver) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRe
 	if err := validateCapability(req.GetVolumeCapability()); err != nil {
 		return nil, err
 	}
+	mode, err := encryptionMode(req.GetVolumeContext())
+	if err != nil {
+		return nil, err
+	}
 	unlock, err := d.lockVolume(ctx, v)
 	if err != nil {
 		return nil, err
@@ -62,6 +66,12 @@ func (d *Driver) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRe
 		return &csi.NodeStageVolumeResponse{}, nil
 	}
 
+	if mode == encryptionNone {
+		if !isLV {
+			return nil, status.Errorf(codes.FailedPrecondition, "unencrypted volume %s is not a logical volume", v.id)
+		}
+		return &csi.NodeStageVolumeResponse{}, d.stagePlain(ctx, v, staging)
+	}
 	var device string
 	if isLV {
 		device, err = d.activateLV(ctx, v)
@@ -319,4 +329,46 @@ func (d *Driver) NodeGetVolumeStats(_ context.Context, req *csi.NodeGetVolumeSta
 		{Unit: csi.VolumeUsage_BYTES, Total: stats.TotalBytes, Available: stats.AvailableBytes, Used: stats.UsedBytes},
 		{Unit: csi.VolumeUsage_INODES, Total: stats.TotalInodes, Available: stats.AvailableInodes, Used: stats.UsedInodes},
 	}}, nil
+}
+
+// stagePlain mounts an unencrypted logical volume, formatting it first while
+// it is marked unformatted. A LUKS header on it means the volume was created
+// encrypted, and it is left alone rather than mounted or overwritten.
+func (d *Driver) stagePlain(ctx context.Context, v volume, staging string) error {
+	device, err := d.activateLV(ctx, v)
+	if err != nil {
+		return err
+	}
+	unformatted, err := fileExists(v.marker)
+	if err != nil {
+		return status.Errorf(codes.Internal, "stat unformatted marker: %v", err)
+	}
+	if unformatted {
+		if _, err := d.run(ctx, nil, "mkfs.xfs", "-q", "-K", "-f", device); err != nil {
+			return err
+		}
+		if err := os.Remove(v.marker); err != nil {
+			return status.Errorf(codes.Internal, "remove unformatted marker: %v", err)
+		}
+		if err := syncDir(d.stateDir); err != nil {
+			return status.Errorf(codes.Internal, "sync state dir: %v", err)
+		}
+		d.logger.Info("formatted volume", "volume_id", v.id, "encryption", encryptionNone)
+	} else {
+		luks, err := d.isLUKS(ctx, device)
+		if err != nil {
+			return err
+		}
+		if luks {
+			return status.Errorf(codes.FailedPrecondition, "volume %s is LUKS2 but its class is unencrypted; refusing to mount it", v.id)
+		}
+	}
+	if err := os.MkdirAll(staging, 0o750); err != nil {
+		return status.Errorf(codes.Internal, "create staging path: %v", err)
+	}
+	if _, err := d.run(ctx, nil, "mount", "-t", "xfs", "-o", "nodev,nosuid,noatime", device, staging); err != nil {
+		return err
+	}
+	d.logger.Info("staged volume", "volume_id", v.id, "device", device, "encryption", encryptionNone)
+	return nil
 }

@@ -1011,8 +1011,27 @@ defmodule Tuist.Kura.Regions do
   def exists?(_), do: false
 
   defp managed_regions do
-    Enum.map(@managed_region_specs, &managed_region/1) ++
-      Enum.map(@private_region_specs, &private_region/1)
+    Enum.map(
+      Enum.map(@managed_region_specs, &managed_region/1) ++ Enum.map(@private_region_specs, &private_region/1),
+      &configure_lvm/1
+    )
+  end
+
+  @doc "The node resource used to admit data volumes in this region."
+  def disk_resource(%__MODULE__{provisioner_config: config}) do
+    config[:disk_resource] || "ephemeral-storage"
+  end
+
+  defp configure_lvm(%__MODULE__{provisioner_config: config} = region) do
+    if region.id in Tuist.Environment.kura_lvm_region_ids() and
+         config[:storage_class] == "scw-local-nvme" and config[:encrypted_volumes] != false do
+      %{
+        region
+        | provisioner_config: Map.merge(config, %{storage_class: "kura-lvm-nvme", disk_resource: "tuist.dev/kura-disk"})
+      }
+    else
+      region
+    end
   end
 
   defp managed_region(spec) do

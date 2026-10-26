@@ -56,7 +56,7 @@ func pvPinnedToHostname(pv *corev1.PersistentVolume, hostname string) bool {
 	}
 	for _, term := range pv.Spec.NodeAffinity.Required.NodeSelectorTerms {
 		for _, expr := range term.MatchExpressions {
-			if expr.Key != corev1.LabelHostname || expr.Operator != corev1.NodeSelectorOpIn {
+			if (expr.Key != corev1.LabelHostname && expr.Key != "topology.kura-volumes.tuist.dev/node") || expr.Operator != corev1.NodeSelectorOpIn {
 				continue
 			}
 			for _, v := range expr.Values {

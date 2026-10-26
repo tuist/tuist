@@ -34,7 +34,7 @@ func (r *KuraInstanceReconciler) reconcileStatefulSetDuringResize(ctx context.Co
 	if err := r.applyStatefulSet(ctx, instance, true); err != nil {
 		return err
 	}
-	if err := r.replacePodsStrandedOnCPU(ctx, instance); err != nil {
+	if err := r.replacePodsStrandedOnResources(ctx, instance); err != nil {
 		return err
 	}
 	// A waiting resize never reaches the status write at the end of a full
@@ -128,11 +128,11 @@ func (r *KuraInstanceReconciler) releaseResizeRolloutHold(ctx context.Context, i
 	return nil
 }
 
-// replacePodsStrandedOnCPU recreates a replica the scheduler rejected for CPU
+// replacePodsStrandedOnResources recreates a replica rejected for CPU or disk
 // once the held template asks for less. Under OnDelete nothing else replaces
 // it, and a pod created before the schedule cap keeps its old reservation.
 // Only an unscheduled pod is deleted, so nothing that serves is disturbed.
-func (r *KuraInstanceReconciler) replacePodsStrandedOnCPU(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+func (r *KuraInstanceReconciler) replacePodsStrandedOnResources(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	sts := &appsv1.StatefulSet{}
 	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -154,11 +154,16 @@ func (r *KuraInstanceReconciler) replacePodsStrandedOnCPU(ctx context.Context, i
 	}
 	for i := range pods.Items {
 		pod := &pods.Items[i]
-		if pod.DeletionTimestamp != nil || pod.Spec.NodeName != "" || podReady(pod) || !podUnschedulableForCPU(pod) {
+		if pod.DeletionTimestamp != nil || pod.Spec.NodeName != "" || podReady(pod) {
 			continue
 		}
 		requested := podCPURequestMilli(pod)
-		if requested <= templateMilli {
+		cpuReduced := podUnschedulableForCPU(pod) && requested > templateMilli
+		disk := diskResource(instance)
+		oldDisk := kuraDiskRequest(pod.Spec, disk)
+		newDisk := kuraDiskRequest(sts.Spec.Template.Spec, disk)
+		diskReduced := podUnschedulableForDisk(pod, disk) && !newDisk.IsZero() && oldDisk.Cmp(newDisk) > 0
+		if !cpuReduced && !diskReduced {
 			continue
 		}
 		// Do not delete a pod that the scheduler bound after the observation.
@@ -169,7 +174,7 @@ func (r *KuraInstanceReconciler) replacePodsStrandedOnCPU(ctx context.Context, i
 		if err != nil {
 			return err
 		}
-		log.FromContext(ctx).Info("replacing Kura pod unschedulable for CPU during a data volume resize", "pod", pod.Name, "fromMilli", requested, "toMilli", templateMilli)
+		log.FromContext(ctx).Info("replacing Kura pod unschedulable for resources during a data volume resize", "pod", pod.Name, "fromMilli", requested, "toMilli", templateMilli, "diskResource", disk, "fromDisk", oldDisk.String(), "toDisk", newDisk.String())
 	}
 	return nil
 }
@@ -193,7 +198,7 @@ func rolloutPausedByOperator(sts *appsv1.StatefulSet) bool {
 
 // holdNewStatefulSetForResize puts a StatefulSet that is about to be created
 // on the resize's hold. The re-template recreates the StatefulSet with a pod
-// template whose ephemeral-storage request already follows the grown claim, and
+// template whose disk request already follows the grown claim, and
 // the API's default RollingUpdate would replace the highest ordinal at that
 // request before a later pass could hold it, keeping the pod's old volume and
 // with it the box that volume is pinned to.

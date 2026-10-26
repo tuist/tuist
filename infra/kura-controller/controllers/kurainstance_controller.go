@@ -3550,7 +3550,7 @@ func podKuraImage(pod *corev1.Pod) string {
 //
 // A replica that is not serving is rebuilt before any that is. It may be stuck
 // on exactly the volume being replaced: a pod recreated at the grown
-// ephemeral-storage request stays pinned by its old local PV to a box that may
+// disk request stays pinned by its old local PV to a box that may
 // not fit it, and only a new volume unpins it. Waiting for it to serve before
 // rebuilding its sibling deadlocked a two-replica resize (an eu-east
 // instance, 2026-10-06).
@@ -3607,7 +3607,7 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 	// dependents, so the instance goes on serving the volumes it already has
 	// while the object is replaced under it; the next pass recreates it from the
 	// current spec and adopts them back. The pod template can change too, since
-	// the ephemeral-storage request follows the claim, so the StatefulSet is
+	// the disk request follows the claim, so the StatefulSet is
 	// recreated already on the resize's hold: on the default RollingUpdate it
 	// would replace the highest ordinal at the grown request on its old volume,
 	// pinned to a box that may not fit it.
@@ -4599,27 +4599,15 @@ func defaultResources(instance *kurav1alpha1.KuraInstance, binPackCeiling bool) 
 		r.Requests[memoryCeilingResource] = q
 		r.Limits[memoryCeilingResource] = q
 	}
-	// Disk: reserve the instance's declared storage as an ephemeral-storage
-	// request so the scheduler bin-packs cache pods against the node's disk.
-	// The data volume is a local-path PV -- a directory on the node's
-	// ephemeral-storage filesystem -- so the claim's size is a label and
-	// nothing in Kubernetes stops a region filling its box; a full box crosses
-	// kubelet's eviction line and takes down every tenant on it, not just the
-	// one that filled it. A request is what the scheduler admits against, so
-	// this is the admission control that claim never provided.
-	//
-	// Deliberately a request with no limit. A limit is enforced against the
-	// pod's writable layer, logs and emptyDir, none of which is where the cache
-	// lives, so it would evict on the wrong signal while leaving the real
-	// consumption unbounded. Kura bounds its own ring with
-	// KURA_CAS_CAPACITY_BYTES; this reserves the room that ring will need.
-	//
-	// Unlike the two extended resources below, ephemeral-storage is built in
-	// and every node already advertises it, so there is no pool to roll first.
-	// Each replica requests one claim's worth, so co-located replicas reserve
-	// their sum without the controller having to reason about placement.
+	// LVM capacity is independent of kubelet's filesystem. Extended resources
+	// require equal requests and limits; legacy disk requests have no limit
+	// because ephemeral-storage eviction measures logs, layers and emptyDir.
 	if storage := storageQuantity(instance); !storage.IsZero() {
-		r.Requests[corev1.ResourceEphemeralStorage] = storage
+		disk := diskResource(instance)
+		r.Requests[disk] = storage
+		if disk == kuraDiskResource {
+			r.Limits[disk] = storage
+		}
 	}
 	// Egress floor: reserve the region's guaranteed Mbps as the
 	// tuist.dev/egress-mbps extended resource (request == limit; extended

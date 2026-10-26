@@ -38,6 +38,10 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 	if req.GetVolumeContentSource() != nil {
 		return nil, status.Error(codes.InvalidArgument, "volume content sources are not supported")
 	}
+	mode, err := encryptionMode(req.GetParameters())
+	if err != nil {
+		return nil, err
+	}
 	capacity, err := capacityBytes(req.GetCapacityRange())
 	if err != nil {
 		return nil, err
@@ -55,6 +59,7 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 	response := &csi.CreateVolumeResponse{Volume: &csi.Volume{
 		VolumeId:           v.id,
 		CapacityBytes:      capacity,
+		VolumeContext:      map[string]string{encryptionParameter: mode},
 		AccessibleTopology: []*csi.Topology{d.topology()},
 	}}
 
@@ -92,8 +97,13 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 		if err := d.createLV(ctx, v, capacity); err != nil {
 			return nil, err
 		}
-		d.logger.Info("created volume", "volume_id", v.id, "capacity_bytes", capacity, "backing", "lvm")
+		d.logger.Info("created volume", "volume_id", v.id, "capacity_bytes", capacity, "backing", "lvm", "encryption", mode)
 		return response, nil
+	}
+	// A plain volume has no backing file to fall back to: a file on /data is
+	// what the local-path class already provides, without this driver.
+	if mode == encryptionNone {
+		return nil, status.Errorf(codes.ResourceExhausted, "node %s has no volume group %q for an unencrypted volume", d.nodeID, d.volumeGroup)
 	}
 
 	if err := removeIfExists(v.temp); err != nil {

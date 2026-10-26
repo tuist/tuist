@@ -3,7 +3,7 @@ defmodule Tuist.Kura.Capacity do
   How full a Kura region is, read from the cluster.
 
   Admission is not decided here. Every cache pod requests its claim's worth of
-  `ephemeral-storage`, so the scheduler bin-packs instances against each node's
+  the region's disk resource (`ephemeral-storage` or `tuist.dev/kura-disk`), so the scheduler bin-packs instances against each node's
   disk and simply declines to place one that does not fit. That is exact, per
   node, and cannot drift from what the cluster actually holds -- which a
   forecast built from a quota table in this repo did, by a factor of about
@@ -100,7 +100,8 @@ defmodule Tuist.Kura.Capacity do
   @memory_ceiling "tuist.dev/memory-ceiling-mib"
   @egress "tuist.dev/egress-mbps"
   @pods "pods"
-  @scheduled_resources [@cpu, @memory, @ephemeral_storage, @memory_ceiling, @egress, @pods]
+  @kura_disk "tuist.dev/kura-disk"
+  @scheduled_resources [@cpu, @memory, @ephemeral_storage, @kura_disk, @memory_ceiling, @egress, @pods]
 
   @doc """
   Bytes of the region's disk one instance reserves, across every replica.
@@ -186,7 +187,7 @@ defmodule Tuist.Kura.Capacity do
          {:ok, %{"items" => items}} <- Client.list_nodes(selector) do
       items
       |> Enum.filter(&ready?/1)
-      |> Enum.map(&allocatable_bytes/1)
+      |> Enum.map(&allocatable_bytes(&1, Regions.disk_resource(region)))
       |> Enum.sum()
       |> to_gib()
     else
@@ -412,15 +413,9 @@ defmodule Tuist.Kura.Capacity do
 
   defp ready?(_node), do: false
 
-  # `ephemeral-storage` is the filesystem kubelet manages, which on every
-  # region in this fleet is the one the cache ring lives on: the bare-metal
-  # boxes whose data disk is separate bind-mount `/var/lib/kubelet` onto it,
-  # and the rest keep both on `/`.
-  defp allocatable_bytes(%{"status" => %{"allocatable" => %{"ephemeral-storage" => quantity}}}) do
-    parse_quantity(quantity) || 0
+  defp allocatable_bytes(node, disk) do
+    parse_quantity(get_in(node, ["status", "allocatable", disk])) || 0
   end
-
-  defp allocatable_bytes(_node), do: 0
 
   defp parse_quantity(quantity, scale \\ 1), do: Quantity.parse(quantity, scale)
 
@@ -428,7 +423,7 @@ defmodule Tuist.Kura.Capacity do
   Gibibytes of the region's disk its pods have reserved, or `nil` when the
   cluster cannot be read.
 
-  Read from the pods' own `ephemeral-storage` requests rather than derived
+  Read from the pods' own region-specific disk requests rather than derived
   from this repo's rows: it is the number the scheduler places against, it
   already accounts for replicas and for anything else sharing the region's
   nodes, and it cannot disagree with the cluster the way a parallel model can.
@@ -445,11 +440,12 @@ defmodule Tuist.Kura.Capacity do
   end
 
   defp measure_reserved_gib(region_id) do
-    with {:ok, pods} <- Client.list_pods(@namespace, region_selector(region_id)),
+    with {:ok, region} <- Regions.fetch(region_id),
+         {:ok, pods} <- Client.list_pods(@namespace, region_selector(region_id)),
          retained when is_map(retained) <- retained_volume_bytes_by_node(region_id) do
       pods
       |> Enum.reject(&terminal?/1)
-      |> Enum.map(&requested_bytes/1)
+      |> Enum.map(&pod_requested(&1, Regions.disk_resource(region)))
       |> Enum.concat(Map.values(retained))
       |> Enum.sum()
       |> div(@gib)
@@ -479,11 +475,15 @@ defmodule Tuist.Kura.Capacity do
   end
 
   defp measure_reserved_gib_by_instance(region_id) do
-    with {:ok, pods} <- Client.list_pods(@namespace, region_selector(region_id)),
+    with {:ok, region} <- Regions.fetch(region_id),
+         {:ok, pods} <- Client.list_pods(@namespace, region_selector(region_id)),
          {:ok, volumes} <- retained_volumes(region_id) do
       pods
       |> Enum.reject(&terminal?/1)
-      |> Enum.group_by(&get_in(&1, ["metadata", "labels", "app.kubernetes.io/instance"]), &requested_bytes/1)
+      |> Enum.group_by(
+        &get_in(&1, ["metadata", "labels", "app.kubernetes.io/instance"]),
+        &pod_requested(&1, Regions.disk_resource(region))
+      )
       |> Map.new(fn {instance, bytes} -> {instance, div(Enum.sum(bytes), @gib)} end)
       |> Map.merge(Map.new(volumes, fn volume -> {"persistentvolume/" <> volume.name, div(volume.bytes, @gib)} end))
     else
@@ -595,19 +595,6 @@ defmodule Tuist.Kura.Capacity do
   defp terminal?(%{"status" => %{"phase" => phase}}), do: phase in ["Succeeded", "Failed"]
   defp terminal?(_pod), do: false
 
-  defp requested_bytes(%{"spec" => %{"containers" => containers}}) when is_list(containers) do
-    Enum.reduce(containers, 0, fn container, total ->
-      total + container_requested_bytes(container)
-    end)
-  end
-
-  defp requested_bytes(_pod), do: 0
-
-  defp container_requested_bytes(%{"resources" => %{"requests" => %{"ephemeral-storage" => quantity}}}),
-    do: parse_quantity(quantity) || 0
-
-  defp container_requested_bytes(_container), do: 0
-
   @doc """
   Whether every replica of `server` can be placed on a node of its region:
   `true`, `false`, or `nil` when the cluster cannot say.
@@ -669,31 +656,31 @@ defmodule Tuist.Kura.Capacity do
          claim when claim > 0 <- claim_gib(region, server) * @gib,
          %{nodes: [_ | _] = nodes, accounts_off_pool: %MapSet{} = off_pool} <- node_headroom(region),
          false <- MapSet.member?(off_pool, handle) do
-      fits?(nodes, handle, claim, replicas(region))
+      fits?(nodes, handle, claim, replicas(region), Regions.disk_resource(region))
     else
       _ -> nil
     end
   end
 
-  defp fits?(nodes, handle, claim, replicas) do
+  defp fits?(nodes, handle, claim, replicas, disk) do
     case placed_replicas(nodes, handle) do
       [] ->
         nodes |> Enum.map(&div(max(disk_available(&1), 0), claim)) |> Enum.sum() >= replicas
 
       placed ->
         with %{} = volumes <- data_volume_bytes(placed) do
-          grows?(nodes, handle, placed, volumes, claim, replicas)
+          grows?(nodes, handle, placed, volumes, claim, replicas, disk)
         end
     end
   end
 
-  defp grows?(nodes, handle, [%{requests: requests} | _] = placed, volumes, claim, replicas) do
-    request = Map.put(requests, @ephemeral_storage, claim)
+  defp grows?(nodes, handle, [%{requests: requests} | _] = placed, volumes, claim, replicas, disk) do
+    request = requests |> Map.put(@ephemeral_storage, 0) |> Map.put(disk, claim)
     unplaced = List.duplicate(%{node: nil, requests: %{}}, max(replicas - length(placed), 0))
 
     {kept, rebuilt} =
       placed
-      |> Enum.filter(&(Map.fetch!(&1.requests, @ephemeral_storage) < claim))
+      |> Enum.filter(&(Map.fetch!(&1.requests, disk) < claim))
       |> Enum.split_with(&(Map.get(volumes, &1.volume, 0) >= claim))
 
     (Enum.map(unplaced ++ rebuilt, &{:rebuilt, &1}) ++ Enum.map(kept, &{:kept, &1}))
@@ -792,8 +779,8 @@ defmodule Tuist.Kura.Capacity do
     end
   end
 
-  defp disk_available(%{allocatable: allocatable, reserved: reserved}) do
-    Map.fetch!(allocatable, @ephemeral_storage) - Map.fetch!(reserved, @ephemeral_storage)
+  defp disk_available(%{allocatable: allocatable, reserved: reserved, disk_resource: disk}) do
+    Map.fetch!(allocatable, disk) - Map.fetch!(reserved, disk)
   end
 
   # The handle the controller labels the instance's pods with. Read off the
@@ -992,7 +979,7 @@ defmodule Tuist.Kura.Capacity do
     %{
       @cpu => @pod_cpu_millicores,
       @memory => memory.floor_mib * @mib,
-      @ephemeral_storage => claim_bytes(region, plan),
+      Regions.disk_resource(region) => claim_bytes(region, plan),
       @memory_ceiling => if(ceiling_bin_packed?(region, pool), do: memory.ceiling_mib, else: 0),
       @egress => egress_floor_mbps(region, plan),
       @pods => 1
@@ -1044,7 +1031,7 @@ defmodule Tuist.Kura.Capacity do
          {:ok, %{"items" => items}} <- Client.list_nodes(selector, timeout: @read_timeout),
          {[_ | _] = nodes, off_pool} <- Enum.split_with(items, &schedulable?/1),
          retained when is_map(retained) <- retained_volume_bytes_by_node(region_id),
-         headroom = Enum.map(nodes, &measure_node(&1, region_id, retained)),
+         headroom = Enum.map(nodes, &measure_node(&1, region, retained)),
          false <- Enum.any?(headroom, &is_nil/1) do
       %{
         nodes: headroom,
@@ -1078,15 +1065,18 @@ defmodule Tuist.Kura.Capacity do
   defp ceiling_budget_advertised?(_node), do: false
 
   # A retained volume holds its node's disk the way a pod's request does, so it
-  # is charged to the node's ephemeral storage alongside them.
-  defp measure_node(node, region_id, retained) do
+  # is charged to the region's disk resource alongside them.
+  defp measure_node(node, %Regions{id: region_id} = region, retained) do
+    disk = Regions.disk_resource(region)
+
     with name when is_binary(name) and name != "" <- node_name(node),
          allocatable when is_map(allocatable) <- node_allocatable(node),
          {:ok, pods} <- Client.list_pods_on_node(name, timeout: @read_timeout) do
       %{
         name: name,
         allocatable: allocatable,
-        reserved: pods |> pods_requested() |> Map.update!(@ephemeral_storage, &(&1 + Map.get(retained, name, 0))),
+        disk_resource: disk,
+        reserved: pods |> pods_requested() |> Map.update!(disk, &(&1 + Map.get(retained, name, 0))),
         kura_replicas: kura_replicas(pods, region_id)
       }
     else

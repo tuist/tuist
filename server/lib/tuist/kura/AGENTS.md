@@ -64,3 +64,12 @@
 - Usage events carry the `origin` Kura read off the cache token that authorized them (managed nodes only; self-hosted reports are stripped). `Origins.refresh_hits/1` rolls public-region hits per account-origin-day into `kura_origin_rollups.hit_count` on the claim-sizing refresh, replacing the column rather than adding to it, so it never disturbs the additive run and resolution counts. For flagged accounts where at least half the window's hits carry an origin, origin hits (mapped through `OriginMap`) replace runs for expansion and for moving the primary to a region the account does not hold; expansion needs a tenth of the attributed hits or four times the retirement rate against the region's projected reservation. Private runner-cache hits never count.
 
 - Rollout convergence leaves out servers whose `KuraInstance` reports `status.imageHold` (a positively fenced instance's runtime pin or manual replacement, or a replica recovery's hold): the controller never converges them alone, so they would hold every wave open until the deadline paused the fleet. `RolloutServer.held_reason` records the hold from each tick's health read; an unreadable read keeps the previous verdict. A held server is never evidence: the canary wave must converge one server of its own, and a rollout whose scope is all held does not complete. Completing a rollout cancels held servers' open deployments so the next rollout can mint one. A server whose hold clears rejoins convergence and the gate. Unannotated operator `OnDelete` is not a hold and still pauses the rollout.
+
+- `TUIST_KURA_LVM_REGIONS` selects rented regions whose nodes have been prepared
+  for LVM. It renders `kura-lvm-nvme` for ordinary accounts, retains
+  `kura-encrypted-nvme` for flagged accounts, and sets `diskResource` to
+  `tuist.dev/kura-disk` for both. Rack regions remain excluded. The storage
+  revision includes this choice in both the desired revision and manifest.
+  Capacity totals, reservations, retained volumes and placement simulation all
+  use the region's disk resource; they must never substitute `/data` free space
+  for missing LVM capacity. See `infra/kura-volumes-csi/lvm-rollout.md`.

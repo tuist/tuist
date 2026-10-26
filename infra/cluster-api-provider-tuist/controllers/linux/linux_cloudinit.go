@@ -363,7 +363,7 @@ func bootstrapBody(k8sMinor, sudo, sudoE string, writeFile func(producer, path s
 %[12]s%[2]ssystemctl daemon-reexec || true
 export DEBIAN_FRONTEND=noninteractive
 %[3]sapt-get update
-%[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd xfsprogs
+%[3]sapt-get install -y apt-transport-https ca-certificates curl gpg containerd xfsprogs lvm2
 %[2]smkdir -p /etc/containerd /etc/containerd/certs.d/docker.io
 %[4]s
 %[6]s
@@ -635,7 +635,7 @@ set -euxo pipefail
 # Turn project quotas on for /data before anything mounts off it: XFS only takes
 # quota accounting at mount time, and the bind below would pin the filesystem
 # busy. Aborts the join on a box whose /data cannot carry per-account quotas.
-%[11]s
+%[14]s%[11]s
 # Bring up the kubelet root's /data bind-mount BEFORE writing its config below, so
 # a box with a separate /data disk doesn't shadow config.yaml + kubeconfig once
 # the mount lands (which left the kubelet crash-looping on a missing config).
@@ -661,6 +661,7 @@ set -euxo pipefail
 		dataProjectQuotaSetup(sudo, writeFile),
 		joinedGuard(sudo, opts.NodeName),
 		joinedMarker(sudo, opts.NodeName),
+		kuraLVMSetup(sudo, hostsKuraCacheVolumes(opts.Taints)),
 	)
 }
 

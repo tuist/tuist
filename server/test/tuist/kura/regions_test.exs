@@ -7,6 +7,15 @@ defmodule Tuist.Kura.RegionsTest do
 
   setup :set_mimic_from_context
 
+  test "LVM is enabled per region and excludes rack storage" do
+    stub(Tuist.Environment, :kura_lvm_region_ids, fn -> ["scw-fr-par-runners", "ber1-runners"] end)
+    assert Regions.get("scw-fr-par-runners").provisioner_config.storage_class == "kura-lvm-nvme"
+    assert Regions.disk_resource(Regions.get("scw-fr-par-runners")) == "tuist.dev/kura-disk"
+    assert Regions.disk_resource(Regions.get("us-east")) == "ephemeral-storage"
+    assert Regions.get("ber1-runners").provisioner_config.storage_class == "scw-local-nvme"
+    assert Regions.disk_resource(Regions.get("ber1-runners")) == "ephemeral-storage"
+  end
+
   describe "all/0" do
     test "exposes concrete managed regions backed by KubernetesController" do
       ids = Enum.map(Regions.all(), & &1.id)

@@ -224,3 +224,10 @@ confirmed collection, or rotate it after a definite AlreadyExists response.
 ## Shared cold activation
 
 The controller image also packages the stateless `cmd/cache-activation` gateway, deployed separately with no Kubernetes credentials or volumes. See [`internal/activation/AGENTS.md`](internal/activation/AGENTS.md) for its security and streaming boundaries and [`activation.md`](activation.md) for the disabled-by-default rollout.
+
+- LVM regions set `spec.diskResource: tuist.dev/kura-disk`; reserve the claim
+  with equal requests and limits on that extended resource, never on
+  `ephemeral-storage`. Legacy regions keep request-only ephemeral admission.
+  Pending-pod shrink recovery and resize holds must compare the selected disk
+  resource and preserve operator pauses. `kura-lvm-nvme` is node-local just
+  like the encrypted class. See [LVM rollout](../kura-volumes-csi/lvm-rollout.md).

@@ -375,11 +375,13 @@ egressTreeAgent:
       memory: 128Mi
 
 kuraVolumesCSI:
+  # Opt in only after the region's nodes advertise tuist.dev/kura-disk.
+  lvmRegions: []
   # The kura-volumes.tuist.dev CSI driver and the kura-encrypted-nvme
   # StorageClass (templates/kura-volumes-csi.yaml). The node plugin runs on the
   # Kura cache pools (tuist.kuraCachePools). Deploying it changes nothing on its
-  # own: an account's Kura instances move to the class only under the
-  # :kura_encrypted_volumes feature flag.
+  # own: accounts move under :kura_encrypted_volumes, or their entire region
+  # moves to LVM through lvmRegions after its nodes are prepared.
   enabled: false
   # Pinned by the deploy workflows to the Kura controller's `sha-` build.
   # Empty is a render-time failure, as for egressTreeAgent.image.tag.
