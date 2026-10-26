@@ -203,8 +203,8 @@ func TestUserDataGivesAStorageNodeAQuotaedDataFilesystem(t *testing.T) {
 	if size := mounts["/"]["partition"].(map[string]any)["size"]; size != "64G" {
 		t.Errorf("/ is %v, want it capped at 64G", size)
 	}
-	if size := mounts["/data"]["partition"].(map[string]any)["size"]; fmt.Sprint(size) != "-1" {
-		t.Errorf("/data is %v, want the rest of the disk", size)
+	if size := mounts["/data"]["partition"].(map[string]any)["size"]; fmt.Sprint(size) != "128G" {
+		t.Errorf("/data is %v, want the 128G system LV", size)
 	}
 	late := strings.Join(seed.Autoinstall.LateCommands, "\n")
 	for _, bind := range []string{
@@ -568,6 +568,47 @@ func TestUserDataRefusesAnEdgeNetworkItCannotBuild(t *testing.T) {
 		mutate(&s)
 		if _, err := UserData(s); err == nil {
 			t.Errorf("%s: rendered", name)
+		}
+	}
+}
+
+func TestStorageInstallReservesSystemLVAndLeavesKuraExtentsFree(t *testing.T) {
+	for _, resident := range []bool{false, true} {
+		var config struct {
+			Storage struct{ Config []map[string]any }
+		}
+		if err := yaml.Unmarshal([]byte(storageLayout("storage", resident)), &config); err != nil {
+			t.Fatal(err)
+		}
+		byID := map[string]map[string]any{}
+		for _, action := range config.Storage.Config {
+			byID[fmt.Sprint(action["id"])] = action
+		}
+		if byID["kura-vg"]["type"] != "lvm_volgroup" || byID["kura-vg"]["name"] != "kura-volumes" {
+			t.Fatalf("missing VG: %v", byID)
+		}
+		if byID["data-lv"]["volgroup"] != "kura-vg" || byID["data-lv"]["size"] != "128G" || byID["data-fs"]["volume"] != "data-lv" {
+			t.Fatalf("wrong system LV: %v", byID)
+		}
+		if fmt.Sprint(byID["data"]["size"]) != "-1" {
+			t.Fatal("PV must span remaining data partition")
+		}
+		lvs := 0
+		for _, action := range byID {
+			if action["type"] == "lvm_partition" {
+				lvs++
+			}
+		}
+		if lvs != 1 {
+			t.Fatal("installer must leave tenant extents unallocated")
+		}
+		if resident && (byID["installer"]["preserve"] != true || byID["data"]["device"] != "disk1") {
+			t.Fatal("resident installer must survive on separate boot disk")
+		}
+	}
+	for _, role := range []string{"edge", "services"} {
+		if strings.Contains(storageLayout(role, true), "kura-volumes") {
+			t.Fatal("non-storage node gained VG")
 		}
 	}
 }

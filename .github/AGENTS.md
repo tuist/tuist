@@ -589,3 +589,7 @@ relevant main changes through the `install-action` release component after tests
 pass. Bootstrap the distribution repository and release credential first.
 Recover an unrecorded distribution from its original SOURCE_COMMIT before
 publishing newer source; never replace an immutable version.
+
+Kura CSI's rack plugin is deployed by the independent, unwaited rack-nodes
+release with the same pinned CSI image as the main release. Its offline chart
+regression needs Helm; the CSI workflow installs it before running Go tests.

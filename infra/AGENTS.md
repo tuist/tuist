@@ -342,3 +342,6 @@ The previous "Tailscale ACL audit log" trail no longer applies — the ACL is no
   backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
 
 - Shared runner-cache lifecycle: [`runner-cache/AGENTS.md`](runner-cache/AGENTS.md).
+
+The independent rack node workloads, including the Kura CSI plugin, are documented
+in [`helm/rack-nodes/AGENTS.md`](helm/rack-nodes/AGENTS.md).

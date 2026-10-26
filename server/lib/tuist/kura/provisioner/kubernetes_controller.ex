@@ -1089,7 +1089,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp encrypted_volumes?(%Regions{provisioner_config: %{storage_class: storage_class} = config}, account)
        when storage_class in [@node_local_nvme_storage_class, "kura-lvm-nvme"] do
-    Map.get(config, :encrypted_volumes, true) and FeatureFlags.kura_encrypted_volumes_enabled?(account)
+    Map.get(config, :encrypted_volumes, true) and
+      (storage_class == "kura-lvm-nvme" or FeatureFlags.kura_encrypted_volumes_enabled?(account))
   end
 
   defp encrypted_volumes?(_region, _account), do: false
