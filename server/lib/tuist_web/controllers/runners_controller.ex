@@ -6,7 +6,7 @@ defmodule TuistWeb.RunnersController do
   Authentication: the Pod presents its projected ServiceAccount
   token as a `Bearer` token. The endpoint validates the token via
   the Kubernetes TokenReview API, recovers the SA's namespace +
-  name, then asks `Tuist.Runners.dispatch_for_sa/2` to claim a
+  name, then asks `Tuist.Runners.dispatch_for_sa/3` to claim a
   pending Burst and mint a JIT.
 
   Trust chain: the runners-controller is the only writer of SAs
@@ -24,7 +24,7 @@ defmodule TuistWeb.RunnersController do
 
   require Logger
 
-  def dispatch(conn, _params) do
+  def dispatch(conn, params) do
     with {:ok, token} <- bearer_token(conn),
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
          {:ok,
@@ -35,7 +35,7 @@ defmodule TuistWeb.RunnersController do
             fleet_on_cluster_network: on_cluster_network,
             fleet_platform: fleet_platform
           } = dispatched} <-
-           Runners.dispatch_for_sa(ns, sa_name) do
+           Runners.dispatch_for_sa(ns, sa_name, guest(params)) do
       response =
         credential
         |> dispatch_response(
@@ -252,4 +252,13 @@ defmodule TuistWeb.RunnersController do
       _ -> {:error, :missing_bearer}
     end
   end
+
+  # The guest's `sw_vers -productVersion`, which the macOS poll script sends
+  # so the runner can be named after it. Anything that is not a dotted
+  # version is dropped rather than put in a name customers read.
+  defp guest(%{"os_version" => os_version}) when is_binary(os_version) do
+    if os_version =~ ~r/\A\d{1,3}(\.\d{1,3}){0,2}\z/, do: %{os_version: os_version}, else: %{}
+  end
+
+  defp guest(_params), do: %{}
 end

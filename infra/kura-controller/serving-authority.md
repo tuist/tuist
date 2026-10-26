@@ -129,7 +129,15 @@ required to retry. Source expiry still requires positive fencing.
 Only a fresh completion report matching the exact intent, source epoch and both
 identities starts `Quiescing` with its original 300-second deadline. Preparation
 is not a retained-data receipt: live writes and eviction can change either corpus,
-so every existing barrier and revocation check still runs. Older destinations
+so every existing barrier and revocation check still runs. A destination that
+holds a strictly newer version of a retained record, such as a cross-region
+write the gateway standby applied while the frozen source refused it, passes
+verification for that record; readers after cutover get the newer write.
+A preparing destination also verifies retained content against the serving
+source after its repair walk, stopping 30 seconds before the intent deadline.
+The barrier then checks only metadata for record versions verified this way
+and verifies the rest, mostly writes accepted after preparation, in full. A
+same-version content mismatch fails preparation without pausing the primary. Older destinations
 retain the direct-quiescence path. Upgrade all controller replicas and the clean
 standby before requesting this flow; the source may remain on the earlier runtime.
 

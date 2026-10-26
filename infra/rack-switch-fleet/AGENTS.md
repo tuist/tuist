@@ -1203,9 +1203,9 @@ addresses and the gateways.
   address of the block across its connections. The upstream routes the
   announced prefix to the WAN address, and the replies are untranslated by
   conntrack before routing, so the edges hold no address of the block.
-  `egress.nodes` limits it to the named minis, for moving them over one env
-  at a time: `ber1-runner-b01` (staging's lent mini) first, then
-  `ber1-runner-b02` (canary's), then the key dropped so every mini moves.
+  BER1 sets no `egress.nodes`, so every mini moves. The key limits it to the
+  named minis, for moving a site over one env at a time (staging's lent
+  mini, then canary's, then all).
   The storage nodes never move: their cluster addresses are the WAN address,
   forwarded to them by the edges, and their egress has to match. `render`
   refuses a block outside the announced prefixes and a node that is not a
