@@ -55,14 +55,6 @@
           </span>
         </div>
         <div data-part="metadata">
-          <div data-part="title">{dgettext("dashboard_runners", "Status")}</div><.badge
-            label={status_label(@selected.status)}
-            color={status_color(@selected.status)}
-            style="light-fill"
-            size="large"
-          />
-        </div>
-        <div data-part="metadata">
           <div data-part="title">{dgettext("dashboard_runners", "Platform")}</div><.badge
             label={"#{TuistWeb.RunnersLive.platform_label(@selected.platform)} · #{@selected.architecture}"}
             color="neutral"
@@ -240,13 +232,6 @@
             sort_order={@sort_by == "repository" && @sort_order}
           >
             <.text_cell label={repository.repository} />
-          </:col>
-          <:col :let={repository} label={dgettext("dashboard_runners", "Status")}>
-            <.badge_cell
-              label={status_label(repository.status)}
-              color={status_color(repository.status)}
-              style="light-fill"
-            />
           </:col>
           <:col
             :let={repository}

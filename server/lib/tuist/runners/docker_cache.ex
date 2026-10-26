@@ -27,7 +27,7 @@ defmodule Tuist.Runners.DockerCache do
 
   @doc """
   The account's Docker data roots, most recently used first, with what reusing
-  each did during `period`.
+  each did during `period`. A cleared one is left out until a job uses it again.
   """
   def repositories(account_id, {_start, _finish} = period), do: repositories(account_id, nil, period)
 
@@ -57,7 +57,7 @@ defmodule Tuist.Runners.DockerCache do
       from(v in Volume,
         left_join: head in Usage,
         on: head.id == v.head_id,
-        where: v.account_id == ^account_id and v.key == ^CacheVolumes.docker_key(),
+        where: v.account_id == ^account_id and v.key == ^CacheVolumes.docker_key() and is_nil(v.deleted_at),
         order_by: [desc_nulls_last: v.last_used_at, asc: v.repository],
         select: {v, head}
       )
@@ -76,7 +76,6 @@ defmodule Tuist.Runners.DockerCache do
         provider: volume.provider,
         platform: volume.platform,
         architecture: volume.architecture,
-        status: status(volume, head),
         images: images,
         image_count: length(images),
         saved_bytes: head && head.size_bytes,
@@ -89,10 +88,6 @@ defmodule Tuist.Runners.DockerCache do
       }
     end)
   end
-
-  defp status(%Volume{deleted_at: %DateTime{}}, _head), do: :cleared
-  defp status(_volume, %Usage{}), do: :ready
-  defp status(_volume, nil), do: :waiting
 
   defp images(%Usage{docker_images: %{"images" => images}}) when is_list(images) do
     Enum.map(images, fn image ->

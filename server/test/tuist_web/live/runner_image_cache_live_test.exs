@@ -30,7 +30,6 @@ defmodule TuistWeb.RunnerImageCacheLiveTest do
         provider: "github",
         platform: "linux",
         architecture: "amd64",
-        status: :ready,
         images: [
           %{
             id: "sha256:" <> String.duplicate("a", 64),
@@ -84,15 +83,14 @@ defmodule TuistWeb.RunnerImageCacheLiveTest do
     assert html =~ "3.2 s"
     assert html =~ "47.0 s"
     assert html =~ "org/android"
-    assert html =~ "Saved"
     assert html =~ "/org/runners/images/"
     assert html =~ "image-repository-search"
   end
 
-  test "the Initialize containers chart compares jobs from saved images with cold ones" do
+  test "the Initialize containers chart follows jobs that started from saved images" do
     html = render_component(&RunnerImageCacheLive.render/1, assigns(%{data: data([repository()]), metric: "initialize"}))
 
-    assert html =~ "Cold"
+    assert html =~ "Initialize containers"
     assert html =~ "formatMilliseconds"
   end
 
@@ -128,11 +126,10 @@ defmodule TuistWeb.RunnerImageCacheLiveTest do
     assert html =~ "Image cache details"
   end
 
-  test "a repository waiting for its first save says so" do
-    selected = repository(%{status: :waiting, images: [], image_count: 0, saved_bytes: nil, last_saved_at: nil})
+  test "a repository with nothing saved yet says so" do
+    selected = repository(%{images: [], image_count: 0, saved_bytes: nil, last_saved_at: nil})
     html = render_component(&RunnerImageCacheLive.render/1, assigns(%{selected: selected, data: data([])}))
 
-    assert html =~ "Waiting for a save"
     assert html =~ "No images saved yet"
   end
 end

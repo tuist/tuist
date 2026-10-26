@@ -275,7 +275,7 @@ defmodule TuistWeb.RunnerImageCacheLive do
       <.widget
         id={"#{@id}-uses"}
         legend_color={metric_color("uses")}
-        title={dgettext("dashboard_runners", "Job runs")}
+        title={dgettext("dashboard_runners", "Jobs")}
         value={RunnerVolumesLive.count(@data.analytics.activity.uses)}
         trend_value={uses_change.value}
         trend_value_label={uses_change.value_label}
@@ -284,7 +284,7 @@ defmodule TuistWeb.RunnerImageCacheLive do
         description={
           dgettext(
             "dashboard_runners",
-            "Number of job runs that mounted an image cache during the selected period."
+            "Jobs that started with their repository's image cache during the selected period."
           )
         }
         selected={@metric == "uses"}
@@ -312,25 +312,21 @@ defmodule TuistWeb.RunnerImageCacheLive do
   def metric_color("initialize"), do: "secondary"
   def metric_color(metric), do: RunnerVolumesLive.metric_color(metric)
 
-  def chart_data?(analytics, "initialize"),
-    do: not is_nil(analytics.steps.reused_ms) or not is_nil(analytics.steps.cold_ms)
+  def chart_data?(analytics, "initialize"), do: not is_nil(analytics.steps.reused_ms)
 
   def chart_data?(analytics, metric), do: RunnerVolumesLive.detail_chart_data?(analytics, metric)
 
   def chart_series(analytics, "initialize") do
-    for {field, label, color} <- [
-          {:reused_ms, dgettext("dashboard_runners", "Saved images"), "var:noora-chart-" <> metric_color("initialize")},
-          {:cold_ms, dgettext("dashboard_runners", "Cold"), "var:noora-chart-quaternary"}
-        ] do
+    [
       %{
-        name: label,
+        name: dgettext("dashboard_runners", "Initialize containers"),
         type: "line",
-        color: color,
+        color: "var:noora-chart-" <> metric_color("initialize"),
         showSymbol: true,
         connectNulls: false,
-        data: Enum.map(analytics.steps.points, &[DateTime.to_iso8601(&1.at), Map.fetch!(&1, field)])
+        data: Enum.map(analytics.steps.points, &[DateTime.to_iso8601(&1.at), &1.reused_ms])
       }
-    end
+    ]
   end
 
   def chart_series(analytics, metric), do: RunnerVolumesLive.detail_chart_series(analytics, metric)
@@ -359,12 +355,4 @@ defmodule TuistWeb.RunnerImageCacheLive do
   def duration(nil), do: "—"
   def duration(ms) when ms < 60_000, do: "#{Float.round(ms / 1000, 1)} s"
   def duration(ms), do: "#{div(ms, 60_000)} min #{rem(div(ms, 1000), 60)} s"
-
-  def status_label(:ready), do: dgettext("dashboard_runners", "Saved")
-  def status_label(:waiting), do: dgettext("dashboard_runners", "Waiting for a save")
-  def status_label(:cleared), do: dgettext("dashboard_runners", "Cleared")
-
-  def status_color(:ready), do: "success"
-  def status_color(:waiting), do: "information"
-  def status_color(:cleared), do: "neutral"
 end
