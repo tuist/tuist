@@ -41,7 +41,15 @@ Coverage relies on the <.localized_link href="/guides/features/test-insights/eli
 
 ### Sharded runs {#sharded-runs}
 
-When you <.localized_link href="/guides/features/test-sharding/elixir">shard your tests</.localized_link>, run each shard with `--cover`. A shard reports only its own coverage and doesn't check the threshold, since it runs part of the suite. Tuist merges the shards of a run into one figure.
+When you <.localized_link href="/guides/features/test-sharding/elixir">shard your tests</.localized_link>, run each shard with `--cover`:
+
+```sh
+MIX_ENV=test TUIST_SHARD_INDEX=0 mix tuist.test --cover
+```
+
+On a fresh runner, use the bootstrap command from the sharding guide's <.localized_link href="/guides/features/test-sharding/elixir#test-phase">test phase</.localized_link>, which keeps Mix from compiling every dependency before the shard downloads its build, and add `--cover` to it.
+
+A shard reports only its own coverage and doesn't check the threshold, since it runs part of the suite. Tuist merges the shards of a run into one figure.
 
 Each shard adds the coverage counters to the build it downloads. To do it once instead, pass `--cover` to the build phase too:
 
