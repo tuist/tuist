@@ -1,21 +1,44 @@
 # Management node Talos patches and Hetzner resources
 
-The management cluster is a single Talos node (`tuist-mgmt`) in Hetzner Cloud
-project `tuist-mgmt`. Both of its layers are reconciled on merge to main by
-`.github/workflows/mgmt-cluster-apply.yml`, which prints the planned changes
-before applying them.
+The management cluster runs on Talos control-plane nodes in Hetzner Cloud
+project `tuist-mgmt`, listed under `nodes` in `hetzner.yaml`. Both of its layers
+are reconciled on merge to main by `.github/workflows/mgmt-cluster-apply.yml`,
+which prints the planned changes before applying them.
 
-- `hetzner.yaml` declares the Hetzner resources around it: the private network
-  (each node attached at its `privateIP`), and the `tuist-mgmt-api` load
-  balancer in front of the Kubernetes API with a primary IPv4 of the same name,
-  so its address survives a load balancer recreate. The `hetzner` job applies
-  it with
+- `hetzner.yaml` declares the nodes' servers and the Hetzner resources around
+  them: the private network (each node attached at its `privateIP`), a spread
+  placement group, and the `tuist-mgmt-api` load balancer in front of the
+  Kubernetes API with a primary IPv4 of the same name, so its address survives a
+  load balancer recreate. The `hetzner` job applies it with
   `infra/mise/tasks/mgmt/reconcile-hetzner.sh`. The token lives in the
   `tuist-k8s-mgmt-hetzner` vault, which only that job's `mgmt-hetzner`
   environment can read.
 - `patches/` holds Talos machine config patches for every control-plane node.
-  The `talos` job applies them with `infra/mise/tasks/mgmt/reconcile-talos.sh`,
-  after the `hetzner` job has succeeded.
+  The `talos` job joins new nodes and applies the patches with
+  `infra/mise/tasks/mgmt/reconcile-talos.sh`, after the `hetzner` job has
+  succeeded.
+
+## Adding a control-plane node
+
+Add the node to `nodes` in `hetzner.yaml` with the next free private IP. On
+merge:
+
+1. The `hetzner` job creates the server from the Talos snapshot in `server`,
+   powered off, attaches it to the network at its private IP, and powers it on.
+   It gets no user data, so Talos waits in maintenance mode.
+2. The `talos` job checks that every etcd member votes, then runs a Job that
+   copies an existing node's machine config to the new node over the private
+   network. The config holds the cluster's private keys, so it is never passed
+   as Hetzner user data (readable by every pod on the node) and never leaves the
+   cluster. The node joins etcd as a learner and registers with Kubernetes.
+3. The job waits until the node is Ready with stable control-plane pods and is a
+   voting etcd member, then joins the next node, then applies `patches/` to all
+   of them.
+
+Add nodes in pairs, so etcd keeps an odd number of members: two members need
+both to keep quorum, which tolerates no more failures than one. Removing a node
+from `nodes` only removes its load balancer target. Take it out of etcd and
+Kubernetes by hand first (`talosctl reset` over the tailnet).
 
 ## How the patches are applied
 

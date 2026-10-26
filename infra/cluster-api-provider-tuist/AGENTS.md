@@ -913,7 +913,9 @@ adopting it reads the RackPDU past the manager's cache, whose copy can lag
 the status the last pass wrote. A RackPDU switched to `managedBy: standalone`
 is `Ready=False`, reason `Standalone`, and the controller logs its session out
 of the card (so a person can log in with the account, and the card's one
-session for it is free) and stops contacting it. A logout that cannot reach the card is a
+session for it is free) and stops contacting it. Like a standalone RackATS, it
+exports no metrics, so a planned PDU at a site that is not racked yet does not
+read as one that cannot be observed. A logout that cannot reach the card is a
 `LogoutFailed` event; the card then ends the session at its idle timeout.
 
 **Conditions**: `Adopted`, `Converged`, `Ready`, `CertificateChanged`,
