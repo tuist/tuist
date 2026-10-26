@@ -109,6 +109,9 @@ jobs:
 
   talos:
     name: Talos patches
+    # Patches can depend on Hetzner resources (a node's private network
+    # interface), so they apply only after that job succeeded.
+    needs: hetzner
     if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
     # Applies infra/k8s/mgmt/talos/patches/ to every control-plane node
     # through a Job inside the mgmt cluster, which calls the Talos API with
