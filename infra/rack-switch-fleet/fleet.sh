@@ -67,18 +67,23 @@ cmd_render() {
   local FLEET_SITE_CHECKED=""
   fleet_check_site "$(site_file)" 2>/dev/null && FLEET_SITE_CHECKED="$(site_file)"
   for device in $(devices "$name"); do
-    target="$(config_path "$device")"
-    mkdir -p "$(dirname "$target")"
-    fleet_render "$(site_file)" "$device" > "$rendered"
+    # A PicOS switch has no configuration text: the rack switch controller
+    # writes it from its RackSwitch object alone.
+    target=""
+    if [ "$(fleet_device_os "$(site_file)" "$device")" != picos ]; then
+      target="$(config_path "$device")"
+      mkdir -p "$(dirname "$target")"
+      fleet_render "$(site_file)" "$device" > "$rendered"
+    fi
     # The RackSwitch object is derived from the same site definition, so the
     # cluster's view of a switch cannot drift from the configuration rendered
     # for it. Its configRevision is the digest of exactly this file.
     local object_target
     object_target="$(k8s_path "$device")"
     mkdir -p "$(dirname "$object_target")"
-    fleet_render_k8s "$(site_file)" "$device" "$rendered" > "$object"
+    fleet_render_k8s "$(site_file)" "$device" ${target:+"$rendered"} > "$object"
     if (( check )); then
-      if ! diff -q "$rendered" "$target" >/dev/null 2>&1; then
+      if [ -n "$target" ] && ! diff -q "$rendered" "$target" >/dev/null 2>&1; then
         echo "stale: ${target#"$FLEET_ROOT"/}" >&2
         stale=1
       fi
@@ -86,10 +91,13 @@ cmd_render() {
         echo "stale: ${object_target#"$FLEET_ROOT"/}" >&2
         stale=1
       fi
-    else
+    elif [ -n "$target" ]; then
       cp "$rendered" "$target"
       cp "$object" "$object_target"
       echo "rendered ${target#"$FLEET_ROOT"/} and ${object_target#"$FLEET_ROOT"/}"
+    else
+      cp "$object" "$object_target"
+      echo "rendered ${object_target#"$FLEET_ROOT"/}"
     fi
   done
   rm -f "$rendered" "$object"
@@ -205,11 +213,19 @@ render_edge() {
   local node
   while IFS=$'\t' read -r node _; do files+=("keepalived-$node.conf"); done < <(fleet_edge_members "$(site_file)")
   jq -e '.management.edge.wan.bgp' "$(site_file)" >/dev/null 2>&1 && files+=(bird.conf)
-  for file in "$dir"/keepalived-*.conf "$dir/bird.conf"; do
+  # A PicOS ToR provisioned from an edge: the bootstrap, and each such edge's
+  # dnsmasq configuration behind one script.
+  local -a ztp_nodes=()
+  mapfile -t ztp_nodes < <(fleet_edge_tor_links "$(site_file)" | cut -f1)
+  if (( ${#ztp_nodes[@]} > 0 )); then
+    files+=(ztp.sh picos-bootstrap.sh)
+    for node in "${ztp_nodes[@]}"; do files+=("ztp-$node.conf"); done
+  fi
+  for file in "$dir"/keepalived-*.conf "$dir/bird.conf" "$dir"/ztp-*.conf "$dir/ztp.sh" "$dir/picos-bootstrap.sh"; do
     [ -e "$file" ] || continue
     case " ${files[*]} " in *" $(basename "$file") "*) continue;; esac
     if (( check )); then
-      echo "stale: ${file#"$FLEET_ROOT"/} belongs to an edge or a WAN announcement the site no longer has" >&2
+      echo "stale: ${file#"$FLEET_ROOT"/} belongs to an edge, a WAN announcement or a ToR link the site no longer has" >&2
       status=1
     else
       rm -f "$file"
@@ -224,6 +240,11 @@ render_edge() {
       dnsmasq-machines.conf) fleet_edge_machines_dhcp "$(site_file)" > "$rendered";;
       tailnet-routes.sh) fleet_edge_routes "$(site_file)" > "$rendered";;
       bird.conf) fleet_edge_bgp "$(site_file)" > "$rendered";;
+      ztp.sh) fleet_edge_ztp_run "$(site_file)" > "$rendered";;
+      picos-bootstrap.sh) fleet_picos_bootstrap "$(site_file)" > "$rendered";;
+      ztp-*.conf)
+        node="${file#ztp-}"
+        fleet_edge_ztp_dhcp "$(site_file)" "${node%.conf}" > "$rendered";;
       keepalived-*.conf)
         node="${file#keepalived-}"
         fleet_edge_keepalived "$(site_file)" "${node%.conf}" > "$rendered";;

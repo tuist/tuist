@@ -14,5 +14,13 @@
     "port_groups": [
       { "prefix": "gigabitEthernet", "unit": "1/0", "first": 1, "last": 52 }
     ]
+  },
+  "s5860-24xmg": {
+    "product": "FS S5860-24XMG",
+    "os": "picos",
+    "verified": true,
+    "port_groups": [
+      { "prefix": "te", "unit": "1/1", "first": 1, "last": 32 }
+    ]
   }
 }
