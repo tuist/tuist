@@ -1413,7 +1413,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["eu-west", "scw-fr-par-runners", "ber1-runners"]
+        ["eu-west", "scw-fr-par-runners", "ber1-runners", "larch-runners"]
       end)
 
       stub(Provisioner, :external_endpoint, fn %Server{region: region} ->
@@ -1442,6 +1442,15 @@ defmodule Tuist.KuraTest do
 
     test "a fleet at a site without a cache gets none rather than another site's", %{account: account} do
       assert Kura.runner_cache_endpoint_url(account, :macos, "ams1") == nil
+      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == nil
+    end
+
+    test "a fleet at the larch site gets the account's node in larch-runners once it is active", %{account: account} do
+      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "larch-runners", image_tag: "0.5.2"})
+      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == nil
+
+      {:ok, _active} = Kura.activate_server(server, "0.5.2")
+      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == "https://tuist-larch-runners.kura.tuist.dev"
     end
   end
 
