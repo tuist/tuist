@@ -98,6 +98,10 @@ type RackLinuxMachineReconciler struct {
 	// own, such as a host's kubelet proxy.
 	EgressProxyTags string
 
+	// AMTProducts are the hardware models, by SMBIOS vendor and product, whose
+	// boot NIC is shared with Intel AMT (--rack-linux-amt-products).
+	AMTProducts []string
+
 	ConvergeInterval time.Duration
 
 	// NodeBinary is the rack-node binary (linux/amd64) a converge runs on the
@@ -392,6 +396,10 @@ func (r *RackLinuxMachineReconciler) convergeOptions(ctx context.Context, host *
 			return rackConvergeOptions{}, "", err
 		}
 	}
+	managementMAC := ""
+	if sharesBootNICWithAMT(host, r.AMTProducts) {
+		managementMAC = host.Status.BootMAC
+	}
 	return rackConvergeOptions{
 		NodeName:       host.Spec.Hostname,
 		Role:           host.Spec.Role,
@@ -406,7 +414,7 @@ func (r *RackLinuxMachineReconciler) convergeOptions(ctx context.Context, host *
 		ClusterDNS:     clusterDNS,
 		NodeLabels:     host.Spec.Node.Labels,
 		NodeTaints:     host.Spec.Node.Taints,
-		ManagementMAC:  host.Status.BootMAC,
+		ManagementMAC:  managementMAC,
 		APIServerURL:   server,
 		KubernetesAPI:  server,
 		// Best effort, like the cluster DNS: without it the node keeps no
