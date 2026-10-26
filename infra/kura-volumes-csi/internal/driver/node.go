@@ -43,11 +43,15 @@ func (d *Driver) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRe
 	}
 	defer unlock()
 
+	_, isLV, err := d.lvSize(ctx, v)
+	if err != nil {
+		return nil, err
+	}
 	info, err := imageInfo(v)
 	if err != nil {
 		return nil, err
 	}
-	if info == nil {
+	if info == nil && !isLV {
 		return nil, status.Errorf(codes.NotFound, "volume %s does not exist on node %s", v.id, d.nodeID)
 	}
 	mounted, err := d.volumeMounted(staging, v)
@@ -58,7 +62,12 @@ func (d *Driver) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRe
 		return &csi.NodeStageVolumeResponse{}, nil
 	}
 
-	loop, err := d.attachLoop(ctx, v)
+	var device string
+	if isLV {
+		device, err = d.activateLV(ctx, v)
+	} else {
+		device, err = d.attachLoop(ctx, v)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -70,11 +79,11 @@ func (d *Driver) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRe
 	if err != nil {
 		return nil, err
 	}
-	if active && backing != loop {
-		return nil, status.Errorf(codes.FailedPrecondition, "%s is open on %s, expected %s", v.mapper, backing, loop)
+	if active && !d.sameDevice(backing, device) {
+		return nil, status.Errorf(codes.FailedPrecondition, "%s is open on %s, expected %s", v.mapper, backing, device)
 	}
 	if !active {
-		if err := d.openLUKS(ctx, v, loop, unformatted); err != nil {
+		if err := d.openLUKS(ctx, v, device, unformatted); err != nil {
 			return nil, err
 		}
 	}
@@ -99,15 +108,15 @@ func (d *Driver) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRe
 	if _, err := d.run(ctx, nil, "mount", "-t", "xfs", "-o", "nodev,nosuid,noatime", v.mapperPath(), staging); err != nil {
 		return nil, err
 	}
-	d.logger.Info("staged volume", "volume_id", v.id, "loop_device", loop)
+	d.logger.Info("staged volume", "volume_id", v.id, "device", device)
 	return &csi.NodeStageVolumeResponse{}, nil
 }
 
 // openLUKS opens the volume's LUKS2 container, creating it first when the
 // volume has never been formatted. A device that is neither LUKS nor marked
 // unformatted holds data this driver does not recognise and is never touched.
-func (d *Driver) openLUKS(ctx context.Context, v volume, loop string, unformatted bool) error {
-	luks, err := d.isLUKS(ctx, loop)
+func (d *Driver) openLUKS(ctx context.Context, v volume, device string, unformatted bool) error {
+	luks, err := d.isLUKS(ctx, device)
 	if err != nil {
 		return err
 	}
@@ -137,14 +146,14 @@ func (d *Driver) openLUKS(ctx context.Context, v volume, loop string, unformatte
 		if _, err := d.run(ctx, key, "cryptsetup", "luksFormat", "--type", "luks2",
 			"--cipher", "aes-xts-plain64", "--key-size", "512",
 			"--pbkdf", "pbkdf2", "--pbkdf-force-iterations", "1000",
-			"--batch-mode", "--key-file=-", loop); err != nil {
+			"--batch-mode", "--key-file=-", device); err != nil {
 			return err
 		}
 	}
 	// dm-crypt's default workqueues spread the cipher across CPUs. Bypassing
 	// them (--perf-no_*_workqueue) pins a volume's crypto to one core and
 	// measured a 70% drop in sequential throughput for 6us at queue depth 1.
-	if _, err := d.run(ctx, key, "cryptsetup", "open", "--type", "luks2", "--key-file=-", loop, v.mapper); err != nil {
+	if _, err := d.run(ctx, key, "cryptsetup", "open", "--type", "luks2", "--key-file=-", device, v.mapper); err != nil {
 		return err
 	}
 	if luks && stored == 0 {

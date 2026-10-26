@@ -58,6 +58,16 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 		AccessibleTopology: []*csi.Topology{d.topology()},
 	}}
 
+	// LVM rounds a volume up to whole extents, so an existing one only has to
+	// hold the request.
+	if size, ok, err := d.lvSize(ctx, v); err != nil {
+		return nil, err
+	} else if ok {
+		if size < capacity {
+			return nil, status.Errorf(codes.AlreadyExists, "volume %s exists with %d bytes, requested %d", v.id, size, capacity)
+		}
+		return response, nil
+	}
 	info, err := imageInfo(v)
 	if err != nil {
 		return nil, err
@@ -66,6 +76,23 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 		if info.Size() != capacity {
 			return nil, status.Errorf(codes.AlreadyExists, "volume %s exists with %d bytes, requested %d", v.id, info.Size(), capacity)
 		}
+		return response, nil
+	}
+
+	free, hasVolumeGroup, err := d.volumeGroupFree(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if hasVolumeGroup {
+		// The volume group belongs to Kura volumes alone, so no reserve is held
+		// back from it.
+		if free < capacity {
+			return nil, status.Errorf(codes.ResourceExhausted, "volume group %s on node %s has %d bytes free, volume needs %d", d.volumeGroup, d.nodeID, free, capacity)
+		}
+		if err := d.createLV(ctx, v, capacity); err != nil {
+			return nil, err
+		}
+		d.logger.Info("created volume", "volume_id", v.id, "capacity_bytes", capacity, "backing", "lvm")
 		return response, nil
 	}
 
@@ -83,7 +110,7 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 		_ = os.Remove(v.temp)
 		return nil, err
 	}
-	d.logger.Info("created volume", "volume_id", v.id, "capacity_bytes", capacity)
+	d.logger.Info("created volume", "volume_id", v.id, "capacity_bytes", capacity, "backing", "file")
 	return response, nil
 }
 
@@ -174,6 +201,22 @@ func (d *Driver) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest)
 	}
 	defer unlock()
 
+	lvSize, isLV, err := d.lvSize(ctx, v)
+	if err != nil {
+		return nil, err
+	}
+	if isLV {
+		active, _, err := d.mapperBacking(ctx, v)
+		if err != nil {
+			return nil, err
+		}
+		if active {
+			return nil, status.Errorf(codes.FailedPrecondition, "volume %s is still open as %s", v.id, v.mapper)
+		}
+		if err := d.removeLV(ctx, v, lvSize); err != nil {
+			return nil, err
+		}
+	}
 	info, err := imageInfo(v)
 	if err != nil {
 		return nil, err
@@ -214,7 +257,7 @@ func (d *Driver) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest)
 	if err := syncDir(d.stateDir); err != nil {
 		return nil, status.Errorf(codes.Internal, "sync state dir: %v", err)
 	}
-	d.logger.Info("deleted volume", "volume_id", v.id, "existed", info != nil)
+	d.logger.Info("deleted volume", "volume_id", v.id, "existed", info != nil || isLV)
 	return &csi.DeleteVolumeResponse{}, nil
 }
 
@@ -230,19 +273,23 @@ func wipeHeader(path string) error {
 	if err != nil {
 		return err
 	}
-	remaining := min(info.Size(), headerWipeBytes)
-	zeros := make([]byte, mib)
-	for remaining > 0 {
-		n := min(remaining, int64(len(zeros)))
-		if _, err := f.Write(zeros[:n]); err != nil {
-			return err
-		}
-		remaining -= n
-	}
-	if err := f.Sync(); err != nil {
+	if err := zeroPrefix(f, min(info.Size(), headerWipeBytes)); err != nil {
 		return err
 	}
 	return f.Close()
+}
+
+// zeroPrefix overwrites the first n bytes of f with zeros and syncs them.
+func zeroPrefix(f *os.File, n int64) error {
+	zeros := make([]byte, mib)
+	for n > 0 {
+		chunk := min(n, int64(len(zeros)))
+		if _, err := f.Write(zeros[:chunk]); err != nil {
+			return err
+		}
+		n -= chunk
+	}
+	return f.Sync()
 }
 
 func (d *Driver) ValidateVolumeCapabilities(ctx context.Context, req *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) {
@@ -254,7 +301,11 @@ func (d *Driver) ValidateVolumeCapabilities(ctx context.Context, req *csi.Valida
 	if err != nil {
 		return nil, err
 	}
-	if info == nil {
+	_, isLV, err := d.lvSize(ctx, v)
+	if err != nil {
+		return nil, err
+	}
+	if info == nil && !isLV {
 		return nil, status.Errorf(codes.NotFound, "volume %s does not exist on node %s", v.id, d.nodeID)
 	}
 	if err := validateCapabilities(req.GetVolumeCapabilities()); err != nil {

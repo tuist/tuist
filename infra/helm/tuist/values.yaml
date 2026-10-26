@@ -389,6 +389,11 @@ kuraVolumesCSI:
     pullPolicy: IfNotPresent
   # Where the node plugin fetches volume keys. Defaults to server.appUrl.
   keyServiceUrl: ""
+  # The LVM volume group a node provisions for Kura volumes. A node that has
+  # it gets new volumes as logical volumes; one without it keeps backing files
+  # under /data/kura-volumes, whose double journal flush makes small synced
+  # writes about twice as slow. Empty disables LVM everywhere.
+  volumeGroup: kura-volumes
   nodeDriverRegistrar:
     image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.14.0
   provisioner:

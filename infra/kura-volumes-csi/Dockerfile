@@ -27,8 +27,9 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 FROM ubuntu:${UBUNTU_VERSION}
 
 # ca-certificates: the key fetch verifies the server's public TLS certificate.
+# lvm2: volumes live in the node's volume group when it has one.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates cryptsetup-bin xfsprogs util-linux mount \
+    && apt-get install -y --no-install-recommends ca-certificates cryptsetup-bin lvm2 xfsprogs util-linux mount \
     && rm -rf /var/lib/apt/lists/* \
     && test -s /etc/ssl/certs/ca-certificates.crt
 
