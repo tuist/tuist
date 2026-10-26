@@ -1,13 +1,20 @@
-# Joins the management VM to a Tailscale tailnet as a regular tailnet
-# node so operators reach talosd on :50000 via a stable tailnet IP /
-# MagicDNS name (`tuist-mgmt`) instead of a hand-maintained
-# operator-IP allowlist on the Hetzner firewall.
+# Joins each management control-plane node to the Tailscale tailnet as a
+# regular tailnet node, so operators reach talosd on :50000 via a stable
+# tailnet IP / MagicDNS name (the node name, e.g. `tuist-mgmt`) instead of a
+# hand-maintained operator-IP allowlist on the Hetzner firewall.
 #
-# Architecture: tailscaled runs in a Deployment with hostNetwork=true
-# on the single mgmt control-plane node. The WireGuard interface lives
-# on the host, so inbound tailnet traffic is routed by the host kernel
-# to whatever's listening on :50000 (talosd). No subnet routing
-# needed — there's exactly one host to reach.
+# Architecture: tailscaled runs in a DaemonSet with hostNetwork=true, one
+# Pod per control-plane node. The WireGuard interface lives on the host, so
+# inbound tailnet traffic is routed by the host kernel to whatever's
+# listening on :50000 (talosd). Each node has its own tailnet identity: the
+# device name is the node name, and its state lives in the Secret
+# `tailscale-state-<node name>`. etcd and the kubelet do not use the tailnet;
+# they are pinned to the Hetzner private network
+# (infra/k8s/mgmt/talos/patches/40-private-addressing.yaml).
+#
+# Namespace: mgmt-tailscale holds only Tailscale's Secrets, so the Role can
+# grant access to every Secret in it. The per-node state Secret names are
+# not known in advance, and RBAC cannot match a name prefix.
 #
 # Authentication: OAuth client credentials, NOT a regular auth key.
 # OAuth clients don't have the 90-day rotation cap that auth keys do
@@ -26,7 +33,7 @@
 # Tenant bootstrap (one-time, ever):
 #   1. Create / use the tuist.dev Tailscale tenant.
 #   2. In the ACL editor (Access Controls → Edit file), add a tag
-#      definition for the mgmt VM. The owner restricts who can mint
+#      definition for the mgmt VMs. The owner restricts who can mint
 #      keys for this tag — keep it to admins only:
 #        "tagOwners": {
 #          "tag:tuist-mgmt": ["autogroup:admin"]
@@ -44,77 +51,78 @@
 #   4. Store the secret in 1Password as
 #      `tailscale-mgmt-oauth-client-secret`.
 #   5. On the mgmt cluster:
-#        kubectl -n mgmt-system create secret generic tailscale-oauth \
+#        kubectl apply -f infra/k8s/mgmt/tailscale.yaml
+#        kubectl -n mgmt-tailscale create secret generic tailscale-oauth \
 #          --from-literal=TS_AUTHKEY="tskey-client-PASTE?ephemeral=false&preauthorized=true"
 #      `ephemeral=false&preauthorized=true` keep the device long-lived
 #      and skip manual approval. Don't add `&tag=` here — containerboot
 #      rejects it as an unknown attribute. The tag is set instead by
 #      `--advertise-tags=tag:tuist-mgmt` in TS_EXTRA_ARGS below, which
 #      OAuth flow requires regardless.
-#   6. `kubectl apply -f infra/k8s/mgmt/tailscale.yaml`.
-#   7. Wait for the pod to come up, confirm the device shows up in
-#      the Tailscale admin console as `tuist-mgmt` with `tag:tuist-mgmt`.
-#   8. In the admin console: Machines → tuist-mgmt → ⋯ → Disable key
-#      expiry. Default node-key expiry is 180 days; disabling it on
-#      this single long-lived device keeps the running mgmt pod from
-#      silently breaking on a forgotten rotation.
-#   9. Test from an operator machine: `talosctl --endpoints tuist-mgmt
+#   6. Wait for the Pods to come up, confirm each node shows up in the
+#      Tailscale admin console under its node name with `tag:tuist-mgmt`.
+#   7. For each new device, Machines → <node name> → ⋯ → Disable key
+#      expiry if it shows one. A node key that expires silently cuts
+#      that node off the tailnet.
+#   8. Test from an operator machine: `talosctl --endpoints tuist-mgmt
 #      --nodes tuist-mgmt version` returns the expected Talos version.
-#  10. Drop the `:50000` allowlist rule from the `tuist-mgmt` Hetzner
-#      firewall. Re-test talosctl. `:6443` stays public + cert auth
-#      (CI workflows reach it via KUBECONFIG_MGMT).
 #
 # Rotation: the OAuth client itself doesn't expire. Revoke it via the
 # admin console if compromised; create a replacement, update the
-# `tailscale-oauth` Secret, restart the Deployment.
+# `tailscale-oauth` Secret in mgmt-tailscale, restart the DaemonSet.
 #
 # Failure mode: if Tailscale's coordination server is unreachable,
 # already-paired peers keep working over their last-known direct path
-# or DERP relay. If tailscaled crashes here, operators briefly lose
-# `:50000` access until it restarts (a few seconds). `:6443` is
-# unaffected — that's still the public Hetzner IP + cert auth, so the
-# cluster keeps reconciling and CI keeps deploying.
+# or DERP relay. If tailscaled crashes on a node, operators briefly lose
+# `:50000` access to that node until it restarts (a few seconds). `:6443`
+# is unaffected — that's still public + cert auth, so the cluster keeps
+# reconciling and CI keeps deploying.
 #
-# Expects:
-#   - mgmt-system namespace (created by etcd-snapshot.yaml).
-#   - Secret `tailscale-oauth` (TS_AUTHKEY field, OAuth client secret
-#     prefixed with `tskey-client-`), pre-created per the bootstrap
-#     steps above.
+# Expects Secret `tailscale-oauth` in mgmt-tailscale (TS_AUTHKEY field, OAuth
+# client secret prefixed with `tskey-client-`), created per the bootstrap
+# steps above.
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mgmt-tailscale
+  labels:
+    # hostNetwork and NET_ADMIN, see the DaemonSet below.
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
 
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: tailscale
-  namespace: mgmt-system
+  namespace: mgmt-tailscale
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: tailscale
-  namespace: mgmt-system
+  namespace: mgmt-tailscale
 rules:
-  # tailscaled persists its node key + machine state in the Secret
-  # named by TS_KUBE_SECRET. Scoped tightly to that single object.
+  # tailscaled persists its node key + machine state in the Secret named by
+  # TS_KUBE_SECRET, one per node.
   - apiGroups: [""]
     resources: ["secrets"]
-    resourceNames: ["tailscale-state"]
-    verbs: ["get", "update", "patch"]
-  - apiGroups: [""]
-    resources: ["secrets"]
-    verbs: ["create"]
+    verbs: ["get", "update", "patch", "create"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: tailscale
-  namespace: mgmt-system
+  namespace: mgmt-tailscale
 subjects:
   - kind: ServiceAccount
     name: tailscale
-    namespace: mgmt-system
+    namespace: mgmt-tailscale
 roleRef:
   kind: Role
   name: tailscale
@@ -122,18 +130,20 @@ roleRef:
 
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: DaemonSet
 metadata:
   name: tailscale
-  namespace: mgmt-system
+  namespace: mgmt-tailscale
   labels:
     app: tailscale
 spec:
-  replicas: 1
-  strategy:
-    # One mgmt node, one tailscaled. RollingUpdate would briefly run
-    # two pods racing for the same TS_KUBE_SECRET / device identity.
-    type: Recreate
+  updateStrategy:
+    # Replaces one node's Pod at a time, removing the old Pod before the new
+    # one starts, so two tailscaled never share a node's identity.
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 0
   selector:
     matchLabels:
       app: tailscale
@@ -159,15 +169,19 @@ spec:
           image: ghcr.io/tailscale/tailscale:v1.84.0
           imagePullPolicy: IfNotPresent
           env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
             - name: TS_AUTHKEY
               valueFrom:
                 secretKeyRef:
                   name: tailscale-oauth
                   key: TS_AUTHKEY
             - name: TS_HOSTNAME
-              value: tuist-mgmt
+              value: $(NODE_NAME)
             - name: TS_KUBE_SECRET
-              value: tailscale-state
+              value: tailscale-state-$(NODE_NAME)
             - name: TS_USERSPACE
               # false = kernel WireGuard. Talos ships with the
               # wireguard module loaded; if a future Talos release

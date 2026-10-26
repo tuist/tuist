@@ -105,7 +105,7 @@ Cluster API CRs and cluster-scoped manifests for the self-hosted CAPI + caph sta
   Before running it, delete every DNS record pointing at the cluster's load
   balancers, since the run frees their IPs.
 - `clusters/README.md` — reconciliation ownership (Flux vs `mgmt-cluster-apply.yml`), ClusterClass authoring + caph-upstream porting notes.
-- `mgmt/cluster-autoscaler.yaml`, `mgmt/etcd-snapshot.yaml`, `mgmt/tailscale.yaml` — mgmt-cluster workloads (Cluster API node autoscaling for managed Kura/app clusters, hourly etcd snapshot to Tigris, tailnet-only operator access).
+- `mgmt/cluster-autoscaler.yaml`, `mgmt/etcd-snapshot.yaml`, `mgmt/tailscale.yaml` — mgmt-cluster workloads (Cluster API node autoscaling for managed Kura/app clusters, hourly etcd snapshot to Tigris, tailnet-only operator access). `tailscale.yaml` is a DaemonSet in its own `mgmt-tailscale` namespace, one tailnet device per control-plane node named after it; `infra/mise/tasks/mgmt/migrate-tailscale.sh` moved the old single-node Deployment over, keeping `tuist-mgmt`'s identity.
 - `mgmt/external-secrets.yaml` + `mgmt/flux-git-externalsecret.yaml` — ESO on the mgmt cluster (Flux bootstrap prerequisite): the `onepassword` `ClusterSecretStore` for the `tuist-k8s-mgmt` vault, and Flux's git (GitHub App) credential synced from it.
 - `mgmt/flux-diff-rbac.yaml` — least-privilege `flux-diff` SA/Role for the `flux diff` PR job (`.github/workflows/flux-diff.yml`); dry-run write on `clusters` only.
 - `mgmt/reconciliation-checks.yaml` — CronJob (+ scrape-target Pushgateway) that reports orphan Hetzner servers and stale (removed-from-git) Clusters as metrics; alerts via Pillar 2.
