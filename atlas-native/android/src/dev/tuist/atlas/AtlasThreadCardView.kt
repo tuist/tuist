@@ -159,7 +159,8 @@ class AtlasThreadCardView(
             "text" to (palette?.optString("text") ?: if (dark) "#FFFFFF" else "#171717"),
             "secondary" to (palette?.optString("secondary_text") ?: if (dark) "#B4B4B4" else "#595959"),
             "surface" to (palette?.optString("surface") ?: if (dark) "#242424" else "#FFFFFF"),
-            "accent" to (palette?.optString("accent") ?: if (dark) "#82B1FF" else "#0057B8"),
+            "accent" to (palette?.optString("tint") ?: if (dark) "#82B1FF" else "#0057B8"),
+            "border" to (palette?.optString("border") ?: if (dark) "#454545" else "#D6D6D6"),
         )
     }
 

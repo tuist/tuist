@@ -464,10 +464,18 @@ defmodule TuistWeb.TestRunLive do
         refreshed_run = Map.put(refreshed_run, :project, project)
         params = URI.decode_query(uri.query || "")
 
+        [test_metrics, failures_count] =
+          Tuist.Tasks.parallel_tasks([
+            fn -> Tests.Analytics.get_test_run_metrics(refreshed_run) end,
+            fn -> Tests.get_test_run_failures_count(refreshed_run) end
+          ])
+
         socket
         |> assign(:run, refreshed_run)
         |> assign(:ci_run_url, ci_run_url)
         |> assign(:ci_context, ci_context)
+        |> assign(:test_metrics, test_metrics)
+        |> assign(:failures_count, failures_count)
         |> assign_initial_analytics_state()
         |> assign_initial_test_cases_state()
         |> assign_initial_failures_state()
@@ -881,7 +889,7 @@ defmodule TuistWeb.TestRunLive do
       order_directions: [ensure_allowed_sort_order(params["test-cases-sort-order"])]
     }
 
-    cached_run_query(run.id, :test_cases, flop_params, fn ->
+    cached_run_query(run, :test_cases, flop_params, fn ->
       Tests.list_test_case_runs(flop_params, test_run: run)
     end)
   end
@@ -898,7 +906,7 @@ defmodule TuistWeb.TestRunLive do
       order_directions: [ensure_allowed_sort_order(params["test-suites-sort-order"])]
     }
 
-    cached_run_query(run.id, :test_suites, flop_params, fn ->
+    cached_run_query(run, :test_suites, flop_params, fn ->
       Tests.list_test_suite_runs(flop_params)
     end)
   end
@@ -917,7 +925,7 @@ defmodule TuistWeb.TestRunLive do
       order_directions: [ensure_allowed_sort_order(params["test-modules-sort-order"])]
     }
 
-    cached_run_query(run.id, :test_modules, flop_params, fn ->
+    cached_run_query(run, :test_modules, flop_params, fn ->
       Tests.list_test_module_runs(flop_params)
     end)
   end
@@ -944,10 +952,13 @@ defmodule TuistWeb.TestRunLive do
   #
   # `locking: false` skips de-duplicating concurrent misses of one key,
   # which the path did not have before caching was added anyway.
-  defp cached_run_query(run_id, tab, flop_params, func) do
+  # Scope cached rows to the latest report timestamp so a later shard or retry
+  # cannot reuse an earlier partial result while retaining scraper protection.
+  defp cached_run_query(run, tab, flop_params, func) do
     cache_key = [
       :test_run_flop,
-      run_id,
+      run.id,
+      run.inserted_at,
       tab,
       :sha256 |> :crypto.hash(:erlang.term_to_binary(flop_params)) |> Base.url_encode64(padding: false)
     ]

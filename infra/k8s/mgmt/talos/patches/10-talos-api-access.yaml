@@ -1,0 +1,12 @@
+# Lets the Talos ServiceAccount in namespace mgmt-talos
+# (infra/k8s/mgmt/talos-patcher.yaml) call the Talos API, which is how
+# mgmt-cluster-apply.yml applies the patches in this directory. Applied by
+# hand once per cluster before CI can take over. See ../README.md.
+machine:
+  features:
+    kubernetesTalosAPIAccess:
+      enabled: true
+      allowedRoles:
+        - os:admin
+      allowedKubernetesNamespaces:
+        - mgmt-talos

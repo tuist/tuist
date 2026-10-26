@@ -80,11 +80,7 @@
           ]
         },
         "egress": {
-          "prefix": "95.130.119.16/28",
-          "nodes": [
-            "ber1-runner-b01",
-            "ber1-runner-b02"
-          ]
+          "prefix": "95.130.119.16/28"
         }
       }
     },
@@ -466,7 +462,7 @@
       "role": "power",
       "hardware": "evmafc20a",
       "status": "installed",
-      "note": "Eaton Rack PDU G4 on chain A. Carries the minis cabled to ToR A and the RS485 sensor chain on its SENSOR port.",
+      "note": "Eaton Rack PDU G4 on chain A, serial G315V03024 (the rack's first PDU, chain B until 2026-10-23). Carries the minis cabled to ToR A and the RS485 sensor chain on its SENSOR port.",
       "links": [
         {
           "switch": "ber1-mgmt",
@@ -477,14 +473,15 @@
         }
       ],
       "ats": "ber1-ats-2",
-      "mgmt_address": "192.168.0.17"
+      "mgmt_address": "192.168.0.16",
+      "mac": "00:20:85:b8:0e:3e"
     },
     {
       "name": "ber1-pdu-b",
       "role": "power",
       "hardware": "evmafc20a",
       "status": "installed",
-      "note": "Eaton Rack PDU G4 on chain B. Carries ber1-tor-b, ber1-edge-b, ber1-store-b and the minis cabled to ToR B, so a mini and its ToR always lose power together.",
+      "note": "Eaton Rack PDU G4 on chain B, serial HJ40V37004 (part EVMAFC20A). Carries ber1-tor-b, ber1-edge-b, ber1-store-b and the minis cabled to ToR B, so a mini and its ToR always lose power together.",
       "links": [
         {
           "switch": "ber1-mgmt",
@@ -495,8 +492,8 @@
         }
       ],
       "ats": "ber1-ats-3",
-      "mgmt_address": "192.168.0.16",
-      "mac": "00:20:85:b8:0e:3e"
+      "mgmt_address": "192.168.0.17",
+      "mac": "00:20:85:b8:58:7c"
     },
     {
       "name": "ber1-env-inlet",

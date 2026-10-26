@@ -21,7 +21,7 @@ defmodule Atlas.OrbitTest do
   end
 
   describe "private threads" do
-    test "each person gets exactly one, created on first use" do
+    test "legacy first use creates once and subsequent calls reuse the latest conversation" do
       user = user_fixture()
 
       assert {:ok, thread, :created} = Orbit.ensure_private(user)
@@ -30,6 +30,60 @@ defmodule Atlas.OrbitTest do
       assert thread.kind == "private"
       assert Enum.map(thread.participants, & &1.user_id) == [user.id]
       assert Repo.aggregate(from(c in Thread, where: c.owner_id == ^user.id), :count) == 1
+    end
+
+    test "new conversations have independent histories and owner-scoped replay identities" do
+      user = user_fixture()
+      other = user_fixture(Atlas.Authorization.executive_scopes())
+      request_id = Ecto.UUID.generate()
+      assert {:ok, first, :created} = Orbit.create_private(user, %{"request_id" => request_id})
+      assert {:ok, replay, :existing} = Orbit.create_private(user, %{"request_id" => request_id})
+      assert replay.id == first.id
+      assert {:ok, second, :created} = Orbit.create_private(user, %{"request_id" => Ecto.UUID.generate()})
+      assert first.id != second.id
+      assert first.title == "New conversation"
+      assert Enum.map(second.participants, & &1.user_id) == [user.id]
+
+      assert {:ok, own, :created} = Orbit.create_private(other, %{"request_id" => request_id})
+      assert own.id != first.id
+      assert {:error, :not_found} = Orbit.fetch(other, first.id)
+      assert {:error, :not_found} = Orbit.fetch(other, second.id)
+      assert {:error, :forbidden} = Orbit.add_participant(user, second, other.id)
+
+      attrs = message_attrs("First\n  question")
+      assert {:ok, _, :created} = Orbit.post_message(user, first, attrs)
+      assert {:ok, _, :existing} = Orbit.post_message(user, first, attrs)
+      assert {:ok, _, :created} = Orbit.post_message(user, first, message_attrs("Follow-up"))
+      assert {:ok, _, :created} = Orbit.post_message(user, second, message_attrs("Separate question"))
+      assert {:ok, first} = Orbit.fetch(user, first.id)
+      assert {:ok, second} = Orbit.fetch(user, second.id)
+      assert first.title == "First question"
+      assert second.title == "Separate question"
+
+      assert first |> Orbit.list_messages() |> elem(0) |> Enum.filter(&(&1.kind == "human")) |> Enum.map(& &1.body) ==
+               ["First\n  question", "Follow-up"]
+
+      assert second |> Orbit.list_messages() |> elem(0) |> Enum.filter(&(&1.kind == "human")) |> Enum.map(& &1.body) ==
+               ["Separate question"]
+
+      assert {:ok, latest, :existing} = Orbit.ensure_private(user)
+      assert latest.id == second.id
+      assert {:ok, replay, :existing} = Orbit.create_private(user, %{"request_id" => request_id})
+      assert replay.id == first.id
+    end
+
+    test "private creation requires a UUID and first prompt titles are codepoint bounded" do
+      user = user_fixture()
+
+      for value <- [nil, "bad", [], %{}] do
+        assert {:error, {:invalid_field, :request_id}} = Orbit.create_private(user, %{"request_id" => value})
+      end
+
+      {:ok, thread, :created} = Orbit.create_private(user, %{"request_id" => Ecto.UUID.generate()})
+      body = "a" <> String.duplicate("\u0301", 300)
+      assert {:ok, _, :created} = Orbit.post_message(user, thread, message_attrs(body))
+      assert {:ok, fetched} = Orbit.fetch(user, thread.id)
+      assert length(String.codepoints(fetched.title)) == 200
     end
 
     test "nobody else can read a private thread, including administrators" do
@@ -156,7 +210,7 @@ defmodule Atlas.OrbitTest do
       assert [%Message{kind: "human"}, %Message{kind: "system", body: body}] =
                thread |> Orbit.list_messages() |> elem(0)
 
-      assert body =~ "not configured"
+      assert body =~ "Connect an AI account"
     end
 
     test "shared threads can post without addressing the assistant" do

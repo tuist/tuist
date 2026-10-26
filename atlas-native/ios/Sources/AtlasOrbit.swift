@@ -1,93 +1,18 @@
+import Combine
 import Foundation
 import SwiftUI
-
-struct AtlasThreadPerson: Decodable, Identifiable {
-    let id: String
-    let name: String
-}
-
-struct AtlasThread: Decodable, Identifiable, Hashable {
-    let id: String
-    let title: String
-    let kind: String
-    let status: String
-    let summary: String
-    let origin: String
-    let ownerId: String?
-    let participants: [AtlasThreadPerson]
-    let updatedAt: String
-
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
-    func hash(into hasher: inout Hasher) { hasher.combine(id) }
-}
-
-struct AtlasThreadComponent: Codable {
-    struct Table: Codable {
-        let title: String
-        let columns: [String]
-        let rows: [[String]]
-    }
-    struct Action: Codable {
-        let id: String
-        let label: String
-    }
-    let type: String
-    let version: Int
-    let data: Table
-    let actions: [Action]
-    let fallback: String
-}
-
-struct AtlasThreadMessage: Decodable, Identifiable {
-    let id: String
-    let kind: String
-    let body: String
-    let authorId: String?
-    let authorName: String
-    let insertedAt: String
-    let toolName: String?
-    let toolStatus: String?
-    let toolInput: String
-    let toolOutput: String
-    let component: AtlasThreadComponent?
-}
-
-struct AtlasOrbitAssistant: Decodable {
-    let name: String
-    let configured: Bool
-}
 
 /// UI adapter only. Rust owns the feature state, networking, pagination,
 /// reconciliation, drafts, idempotency keys and live thread lifecycle.
 @MainActor
 final class AtlasOrbit: ObservableObject {
-    struct Viewer: Decodable, Identifiable {
-        let id: String
-        let name: String
-        let typing: Bool
-    }
-    struct Snapshot: Decodable {
-        let sequence: UInt64
-        let assistant: AtlasOrbitAssistant?
-        let threads: [AtlasThread]
-        let selected: AtlasThread?
-        let messages: [AtlasThreadMessage]
-        let people: [Viewer]
-        let draft: String
-        let loading: Bool
-        let historyLoading: Bool
-        let saving: Bool
-        let hasMore: Bool
-        let hasOlder: Bool
-        let error: String?
-        let liveMessage: String?
-        let needsSession: Bool
-    }
     private struct Opened: Decodable { let connection: String }
 
     @Published private var state: Snapshot?
     @Published private var adapterError: String?
     @Published private var submitting = false
+    @Published private var attaching = false
+    private(set) var timeline = AtlasThreadTimelineData(messages: [])
     @Published var draft = "" {
         didSet { if !applyingDraft { writeDraft() } }
     }
@@ -96,14 +21,39 @@ final class AtlasOrbit: ObservableObject {
     var selected: AtlasThread? { state?.selected }
     var messages: [AtlasThreadMessage] { state?.messages ?? [] }
     var viewers: [Viewer] { state?.people ?? [] }
+    var draftAttachments: [AtlasThreadAttachment] { state?.draftAttachments ?? [] }
+    var draftMentions: [AtlasThreadPerson] { state?.draftMentions ?? [] }
+    var mentionCandidates: [AtlasThreadPerson] { state?.mentionCandidates ?? [] }
+    var mentionError: String? { state?.mentionError }
+    var attachmentBusy: Bool { attaching || state?.attachmentBusy == true }
+    var pendingUploadName: String? { state?.uploadPending == true ? state?.uploadFilename : nil }
     var loading: Bool { state?.loading ?? false }
     var loadingHistory: Bool { state?.historyLoading ?? false }
     var saving: Bool { submitting || (state?.saving ?? false) }
     var creating: Bool { loading }
     var hasMore: Bool { state?.hasMore ?? false }
     var hasOlder: Bool { state?.hasOlder ?? false }
+    var statusFilter: String { state?.statusFilter ?? "active" }
     var errorMessage: String? { adapterError ?? state?.error }
     var liveMessage: String? { state?.liveMessage }
+    var activeToolName: String? {
+        guard selected?.agentStatus == "running" else { return nil }
+        let name = messages.last { $0.kind == "tool" && $0.toolStatus == "running" }?.toolName?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return name?.isEmpty == false ? name : nil
+    }
+    var activityMessage: String? {
+        guard liveMessage == nil else { return nil }
+        let name = assistant?.name ?? "Pip"
+        switch selected?.agentStatus {
+        case "queued": return "\(name) is getting ready…"
+        case "running":
+            if let tool = activeToolName { return "Using \(tool.replacingOccurrences(of: "_", with: " "))…" }
+            return "Typing…"
+        case "compacting": return "Compacting context…"
+        default: return nil
+        }
+    }
 
     private let request: ([String: Any]) async throws -> Data
     private let localRequest: ([String: Any]) async throws -> Data
@@ -115,6 +65,8 @@ final class AtlasOrbit: ObservableObject {
     private var active = false
     private var applyingDraft = false
     private var pendingDrafts = 0
+    private var selectionRevision = UUID()
+    let workChanges = PassthroughSubject<Void, Never>()
 
     init(request: @escaping ([String: Any]) async throws -> Data,
          localRequest: @escaping ([String: Any]) async throws -> Data) {
@@ -130,7 +82,11 @@ final class AtlasOrbit: ObservableObject {
         }
     }
 
-    func load(more: Bool = false) async { await perform(["action": more ? "load_more" : "load"]) }
+    func load(more: Bool = false, status: String? = nil) async {
+        var command: [String: Any] = ["action": more ? "load_more" : "load"]
+        if let status { command["status"] = status }
+        await perform(command)
+    }
 
     func privateThread() async -> AtlasThread? {
         guard await perform(["action": "private"]) else { return nil }
@@ -143,7 +99,17 @@ final class AtlasOrbit: ObservableObject {
     }
 
     func open(_ thread: AtlasThread) async {
-        if selected?.id != thread.id { await perform(["action": "select", "id": thread.id]) }
+        if selected?.id != thread.id {
+            selectionRevision = UUID()
+            await perform(["action": "select", "id": thread.id])
+        }
+    }
+
+    func open(id: String) async -> AtlasThread? {
+        selectionRevision = UUID()
+        guard await perform(["action": "select", "id": id]), !Task.isCancelled,
+              let selected, selected.id == id else { return nil }
+        return selected
     }
 
     func leave(id: String) {
@@ -155,13 +121,47 @@ final class AtlasOrbit: ObservableObject {
 
     func history(older: Bool = false) async { await perform(["action": "history", "older": older]) }
 
+    func searchPeople(query: String) async {
+        guard let id = selected?.id else { return }
+        await draftTask?.value
+        guard selected?.id == id else { return }
+        await perform(["action": "people", "id": id, "query": query])
+    }
+
+    func mention(_ person: AtlasThreadPerson) async {
+        guard let connection, let id = selected?.id else { return }
+        await draftTask?.value
+        do {
+            let snapshot: Snapshot = try decode(await localRequest([
+                "action": "mention", "connection": connection, "id": id, "user_id": person.id
+            ]))
+            apply(snapshot)
+        } catch is CancellationError { return } catch {
+            adapterError = error.localizedDescription
+        }
+    }
+
     func send(addressAgent: Bool) async {
-        guard !submitting, let id = selected?.id else { return }
+        guard !saving, !attachmentBusy, let id = selected?.id else { return }
         submitting = true
         defer { submitting = false }
         let body = draft
+        let mentions = draftMentions.map(\.id)
         await draftTask?.value
-        await perform(["action": "send", "id": id, "body": body, "address_agent": addressAgent])
+        await perform(["action": "send", "id": id, "body": body, "address_agent": addressAgent, "mention_ids": mentions])
+    }
+
+    func upload(filename: String, contentType: String, data: Data) async {
+        await updateAttachment(["action": "upload_attachment", "filename": filename,
+                                "content_type": contentType, "data": data.base64EncodedString()])
+    }
+
+    func resolveUpload(retry: Bool) async {
+        await updateAttachment(["action": retry ? "retry_upload" : "discard_upload"])
+    }
+
+    func removeAttachment(_ attachment: AtlasThreadAttachment) async {
+        await updateAttachment(["action": "delete_attachment", "attachment_id": attachment.id])
     }
 
     func componentAction(messageId: String, event: String) async -> Bool {
@@ -265,18 +265,78 @@ final class AtlasOrbit: ObservableObject {
     }
 
     private func apply(_ snapshot: Snapshot) {
-        guard snapshot.sequence >= (state?.sequence ?? 0) else { return }
+        if let state, snapshot.sequence <= state.sequence { return }
+        let previousWork = workFingerprint(state)
+        if state?.messages != snapshot.messages { timeline = AtlasThreadTimelineData(messages: snapshot.messages) }
         state = snapshot
-        if pendingDrafts == 0 {
+        if previousWork != workFingerprint(snapshot) { workChanges.send() }
+        if pendingDrafts == 0, draft != snapshot.draft {
             applyingDraft = true
             draft = snapshot.draft
             applyingDraft = false
         }
     }
 
+}
+
+extension AtlasOrbit {
     private func decode<T: Decodable>(_ data: Data) throws -> T {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         return try decoder.decode(T.self, from: data)
     }
+
+    private func workFingerprint(_ snapshot: Snapshot?) -> [String] {
+        guard let snapshot else { return [] }
+        var parts = snapshot.threads.map { "\($0.id):\($0.agentStatus ?? "idle"):\($0.status)" }
+        if let selected = snapshot.selected { parts.append("\(selected.id):\(selected.agentStatus ?? "idle")") }
+        parts += snapshot.messages.filter { $0.kind == "tool" }.map { "\($0.id):\($0.toolStatus ?? "")" }
+        return parts
+    }
+
+    func archive(_ thread: AtlasThread, archived: Bool) async {
+        guard !saving else { return }
+        submitting = true
+        defer { submitting = false }
+        await perform(["action": "archive", "id": thread.id, "archived": archived])
+    }
+
+    func newPrivateThread() async -> AtlasThread? {
+        selectionRevision = UUID()
+        let intent = selectionRevision
+        guard await perform(["action": "create_private"]), !Task.isCancelled, intent == selectionRevision else { return nil }
+        return selected
+    }
+
+    private struct Download: Decodable {
+        let threadId: String
+        let attachment: AtlasAttachmentBytes
+    }
+
+    private func updateAttachment(_ command: [String: Any]) async {
+        guard !saving, !attachmentBusy, let id = selected?.id else { return }
+        attaching = true
+        defer { attaching = false }
+        await perform(command.merging(["id": id]) { _, current in current })
+    }
+
+    func download(_ attachment: AtlasThreadAttachment) async -> Data? {
+        guard let id = selected?.id else { return nil }
+        do {
+            let handle = try await ensureConnection()
+            let response: Download = try decode(await request([
+                "action": "request", "connection": handle,
+                "command": ["action": "download_attachment", "id": id, "attachment_id": attachment.id]
+            ]))
+            try Task.checkCancellation()
+            guard selected?.id == id, response.threadId == id,
+                  let data = Data(base64Encoded: response.attachment.data), data.count == attachment.byteSize else { return nil }
+            return data
+        } catch is CancellationError { return nil } catch {
+            adapterError = error.localizedDescription
+            return nil
+        }
+    }
 }
+
+private struct AtlasAttachmentBytes: Decodable { let data: String }

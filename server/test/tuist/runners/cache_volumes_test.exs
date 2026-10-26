@@ -1098,6 +1098,54 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert volume(account).last_used_at == mounted
   end
 
+  test "sweep retires copies their hosts stopped reporting, but never the saved head", %{job: job, account: account} do
+    now = DateTime.utc_now()
+    {:ok, superseded} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+    complete(job)
+    publish_report("node", superseded.id)
+
+    next_job = %{job | workflow_job_id: System.unique_integer([:positive])}
+    {:ok, head} = CacheVolumes.allocate_for_job(next_job, identity(), attrs("head", "other"))
+    CacheVolumes.report("other", head.id, report("active", false))
+    complete(next_job)
+    publish_report("other", head.id)
+    assert volume(account).head_id == head.id
+
+    running_job = %{job | workflow_job_id: System.unique_integer([:positive])}
+    {:ok, running} = CacheVolumes.allocate_for_job(running_job, identity(), attrs("running", "gone"))
+    CacheVolumes.report("gone", running.id, report("active", false))
+
+    stale = DateTime.add(now, -2 * 86_400)
+
+    for id <- [superseded.id, head.id, running.id] do
+      Repo.update!(Ecto.Changeset.change(Repo.get!(Usage, id), last_reported_at: stale))
+    end
+
+    assert {:ok, 2} = CacheVolumes.retire_unreported(now)
+    assert Repo.get!(Usage, superseded.id).deleted_at == now
+    assert %{deleted_at: ^now, finished_at: ^now, status: "discarded"} = Repo.get!(Usage, running.id)
+    assert is_nil(Repo.get!(Usage, head.id).deleted_at)
+    assert volume(account).head_id == head.id
+    volume_id = Repo.get!(Usage, head.id).volume_id
+    assert %{retained_copies: 1, retained_bytes: 1024} = CacheVolumes.statistics([volume_id])[volume_id]
+    assert {:ok, 0} = CacheVolumes.retire_unreported(now)
+
+    assert {:ok, %{action: "delete"}} = CacheVolumes.report("node", superseded.id, report("sealed"))
+
+    assert {:ok, %{action: "forget"}} =
+             CacheVolumes.report("node", superseded.id, %{report("sealed") | "state" => "deleted"})
+  end
+
+  test "sweep keeps copies their hosts reported within the last day", %{job: job} do
+    now = DateTime.utc_now()
+    {:ok, copy} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+    CacheVolumes.report("node", copy.id, report("active", false))
+    Repo.update!(Ecto.Changeset.change(Repo.get!(Usage, copy.id), last_reported_at: DateTime.add(now, -86_399)))
+
+    assert {:ok, 0} = CacheVolumes.retire_unreported(now)
+    assert is_nil(Repo.get!(Usage, copy.id).deleted_at)
+  end
+
   test "sweep evicts at seven days and preserves volumes mounted within the window", %{job: job, account: account} do
     now = DateTime.utc_now()
     threshold = DateTime.add(now, -7 * 86_400)

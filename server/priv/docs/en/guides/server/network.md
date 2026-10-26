@@ -17,7 +17,7 @@ Allowlist the Tuist IP range and the server addresses below. If your workflows r
 
 ### Tuist IP range {#tuist-ip-range}
 
-Tuist operates its own network under [AS218377](https://stat.ripe.net/AS218377), registered to Tuist GmbH in the RIPE Database. Traffic from Tuist, including Tuist Runners, is moving to the following ranges. Add them to your allowlist now so the move requires no changes on your side.
+Tuist operates its own network under [AS218377](https://stat.ripe.net/AS218377), registered to Tuist GmbH in the RIPE Database. macOS jobs on Tuist Runners hosted in Tuist's own racks already reach the internet from this range, and the rest of Tuist's traffic is moving to it. Add it to your allowlist so the move requires no changes on your side.
 
 | IP version | CIDR notation |
 |---|---|
@@ -49,6 +49,8 @@ Jobs that run on <.localized_link href="/guides/features/runners">Tuist Runners<
 
 #### macOS {#tuist-runners-macos}
 
+macOS jobs on Tuist's own racks reach the internet from the [Tuist IP range](#tuist-ip-range). Jobs on other macOS hosts use the following addresses.
+
 | IP address | CIDR notation |
 |---|---|
 | 62.210.150.71 | `62.210.150.71/32` |
@@ -63,7 +65,6 @@ Jobs that run on <.localized_link href="/guides/features/runners">Tuist Runners<
 | 62.210.194.125 | `62.210.194.125/32` |
 | 62.210.194.173 | `62.210.194.173/32` |
 | 62.210.195.116 | `62.210.195.116/32` |
-| 149.6.170.31 | `149.6.170.31/32` |
 
 #### Linux {#tuist-runners-linux}
 
@@ -91,9 +92,10 @@ active Floating IP is outside that allowlist). When reserving additional
 Floating IPs in the tuist-workloads project, add their /32s to BOTH places
 *before* they are ever used as egress.
 
-The macOS runner table includes the rack's single WAN address, which is
-`management.edge.wan.address` in infra/rack-switch-fleet/sites/ber1.json.
-Update both when a rack's upstream address changes or a new rack site is added.
+The rack's Mac minis leave from `management.edge.wan.egress.prefix` in
+infra/rack-switch-fleet/sites/ber1.json, inside the Tuist IP range, so the
+macOS table lists only the rented hosts. A new rack site has to egress from
+the range too, or its address has to be added to the table.
 
 The Tuist IP range is registered to ORG-TG278-RIPE (LIR de.tuist) and announced
 from AS218377. Only list a prefix here once it is registered to Tuist GmbH in

@@ -13,7 +13,7 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
 
 - `/home/runner/actions-runner/` — GitHub Actions runner binary
   (no registration baked in; we register at runtime via the JIT
-  config minted by `Tuist.Runners.dispatch_for_sa/2`).
+  config minted by `Tuist.Runners.dispatch_for_sa/3`).
 - `/usr/local/bin/dispatch-poll.sh` — the poll loop, run by the
   `poller` container. POSTs to the dispatch endpoint with the
   projected SA token as Bearer; on 204 it sleeps; on a claim it
@@ -340,13 +340,21 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   checkout's `.git` that already holds data (such as `.git/lfs`) with a notice
   instead of refusing it as non-empty; with no path left it attaches nothing and
   reports `cache-hit=false`.
-- When the host granted a checkout (mounted, `cold`, `capacity`, `timeout`) the
-  hook records `/home/runner/.tuist-checkout.json`. After the runner exits,
+- When the host granted a checkout (mounted, `cold`, `capacity`) the hook
+  records `/home/runner/.tuist-checkout.json`; the agent takes an export only
+  from a pod it remembered a grant for and refuses any other with 409. A
+  `timeout` is mostly the server still waiting for GitHub to report the job
+  (425), before any grant, so it records nothing, like `busy`, `denied` and
+  `error`. After the runner exits,
   outside GitHub's job time, `run-job.sh` runs `--checkout-export`: it packs what
   the job's checkout added in `/home/runner/work/_tuist_checkout_export`
   (hard-linking LFS objects where it can) and streams it as a tar to the agent's
   `/checkout-export` (3 minutes; a cold export carries the whole repository).
   The runner never gets a writable host directory.
+- The export runs git as the runner user with `safe.directory=*`: a container
+  job's actions/checkout runs as the container's root, so the workspace's
+  `.git` belongs to root and git would refuse it as dubious ownership, leaving
+  the lineage cold forever (`skipped (no commit checked out)`).
 - The export (shared with macOS, `checkout_export.go`) packs the job commit and
   the trees and blobs of its tree that the mounted master's tip tree lacks, and
   names the job commit as its only shallow boundary. It never asks git to walk

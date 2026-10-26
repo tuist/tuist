@@ -311,6 +311,14 @@ fn internal_routes() -> Router<SharedState> {
         .route(ROUTE_INTERNAL_STATUS, get(internal_status))
         .route("/_internal/handover/verify", post(crate::handover::verify))
         .route(
+            "/_internal/handover/descriptors",
+            post(crate::handover::descriptors),
+        )
+        .route(
+            "/_internal/handover/verify-descriptors",
+            post(crate::handover::verify_descriptors),
+        )
+        .route(
             ROUTE_INTERNAL_BACKFILL_ENTRIES,
             get(internal_backfill_entries),
         )

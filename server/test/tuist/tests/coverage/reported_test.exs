@@ -159,16 +159,19 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
               %{
                 paths: ["Sources/Math.swift", "Sources/Text.swift"],
                 scopes:
-                  [
-                    %{
-                      kind: "test",
-                      module: "AppTests",
-                      suite: "MathTests",
-                      name: "testAdd()",
-                      files: [0],
-                      lines: [[1, 2]]
-                    }
-                  ] ++
+                  if(Keyword.get(opts, :test_scope, true),
+                    do: [
+                      %{
+                        kind: "test",
+                        module: "AppTests",
+                        suite: "MathTests",
+                        name: "testAdd()",
+                        files: [0],
+                        lines: [[1, 2]]
+                      }
+                    ],
+                    else: []
+                  ) ++
                     if(target_scope?, do: [target], else: []),
                 overlapped_tests: Keyword.get(opts, :overlapped_tests, [])
               },
@@ -192,8 +195,23 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     project: project,
     account: account
   } do
-    assert reasons(missing_evidence_runs(project, account, "collected", false)) == [:not_linked]
+    assert reasons(missing_evidence_runs(project, account, "collected", false, test_scope: false)) == [:not_linked]
     assert [%{coverage_evidence_status: "collected"}] = Commits.runs(project.id, "base")
+  end
+
+  test "a target with only its process's evidence doesn't link the package", %{project: project, account: account} do
+    assert reasons(missing_evidence_runs(project, account, "collected", true, test_scope: false)) == [:not_linked]
+  end
+
+  test "a test whose target recorded only overlapping tests has no attribution because of the overlap", %{
+    project: project,
+    account: account
+  } do
+    overlapped = [%{module: "AppTests", suite: "TextTests", name: "testTrim()"}]
+
+    assert reasons(
+             missing_evidence_runs(project, account, "collected", true, test_scope: false, overlapped_tests: overlapped)
+           ) == [:overlapped]
   end
 
   test "a test of a target that recorded evidence has no attribution of its own", %{project: project, account: account} do
@@ -1057,7 +1075,6 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
   end
 
   test "records a target whose run skipped tests of other targets", %{project: project, account: account} do
-    # Quarantine skips a test of another target on every run.
     recorded_source(project, account, [], %{skip_test_identifiers: ["AppTests/MathTests/testFlaky()"]})
     skipped_head(project, account, [{"TextKitTests", :local, "text"}])
 
@@ -1684,6 +1701,31 @@ defmodule Tuist.Tests.Coverage.ReportedTest do
     })
 
     assert %{kind: "measured", skipped_tests_count: 0} = Reported.compute(project, "head")
+  end
+
+  # The client reports only the caller's skips: a quarantined test it skipped
+  # is outside the suite, so a run that skipped only it is a full run.
+  test "a commit whose only skipped test is a quarantined one is measured", %{project: project, account: account} do
+    base_run(project, account)
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      test_modules: modules([test_case("testAdd()", "MathTests")])
+    })
+
+    assert %{kind: "measured", skipped_tests_count: 0, carried_tests_count: 0} = Reported.compute(project, "head")
+  end
+
+  test "a caller's skip beside a quarantined test carries only the caller's", %{project: project, account: account} do
+    base_run(project, account)
+
+    CoverageFixtures.run_with_coverage(project, account, head_files(), %{
+      git_commit_sha: "head",
+      test_modules: modules([]),
+      skip_test_identifiers: ["AppTests/TextTests/testTrim()"]
+    })
+
+    assert %{kind: "reported", skipped_tests_count: 1, carried_tests_count: 1} = Reported.compute(project, "head")
   end
 
   test "a target selective testing skipped that no ancestor run executed is a gap", %{

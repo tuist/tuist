@@ -297,7 +297,9 @@ struct REAPICacheClientTests {
             #expect(try await !client.containsActionResult(for: digest))
             let result = REAPI.ActionResult.with { $0.outputFiles = [.with { $0.path = "output"; $0.digest = digest }] }
             try await client.storeActionResult(result, for: digest)
-            #expect(try await client.actionResult(for: digest) == result)
+            let found = try await client.actionResult(for: digest)
+
+            #expect(found == result)
             #expect(try await client.containsActionResult(for: digest))
             #expect(await state.lookupKinds.suffix(4) == [nil, "presence", nil, "presence"])
             await state.corrupt(digest)
@@ -1754,6 +1756,153 @@ struct REAPICacheClientTests {
         }
     }
 
+    /// Runs `body` against a cache that refuses every call the way a draining Kura replica does, for
+    /// `drain` from the first call, before any handler runs.
+    private func withDrainingCache(
+        for drain: Duration,
+        activationPending: Bool = false,
+        services: (WireCache) -> [any RegistrableRPCService],
+        _ body: (REAPICacheClient, WireCache, DrainGate) async throws -> Void
+    ) async throws {
+        let state = WireCache()
+        let gate = DrainGate(duration: drain, activationPending: activationPending)
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: services(state), interceptors: [gate])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let address = try await transport.listeningAddress
+            let client = try await REAPICacheClient(
+                endpoint: .init(host: "127.0.0.1", explicitPort: #require(address.ipv4?.port), isTLS: false),
+                accountHandle: "account", instanceName: "project"
+            ) { "token" }
+            try await body(client, state, gate)
+        }
+    }
+
+    /// Endpoint and ingress propagation take seconds, longer than the ordinary three attempts last.
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func ridesOutADrainingReplicaWhileUploading(stream: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let body = Self.blob(stream ? 3 * 1024 * 1024 : 1024)
+        let digest = REAPI.digest(body)
+        let source = directory.appending(component: "upload").url
+        try body.write(to: source)
+
+        try await withDrainingCache(
+            for: .milliseconds(1500),
+            services: { [WireCAS(state: $0), WireBytes(state: $0)] }
+        ) { client, state, gate in
+            try await client.uploadBlobs([digest: source])
+
+            #expect(await state.blobs[digest] == body)
+            #expect(gate.refusals > 3)
+        }
+    }
+
+    @Test func ridesOutADrainingReplicaWhileLookingUpAnAction() async throws {
+        try await withDrainingCache(
+            for: .milliseconds(1500),
+            services: { [WireActions(state: $0)] }
+        ) { client, state, gate in
+            let digest = REAPI.digest(Data("action".utf8))
+            let result = REAPI.ActionResult.with { $0.exitCode = 0 }
+            await state.put(result, digest: digest)
+
+            let found = try await client.actionResult(for: digest)
+
+            #expect(found == result)
+            #expect(gate.refusals > 3)
+        }
+    }
+
+    @Test(.inTemporaryDirectory) func ridesOutADrainingReplicaWhileReadingABlob() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let body = Self.blob(3 * 1024 * 1024)
+        let digest = REAPI.digest(body)
+        let destination = directory.appending(component: "download").url
+
+        try await withDrainingCache(
+            for: .milliseconds(1500),
+            services: { [WireCAS(state: $0), WireBytes(state: $0)] }
+        ) { client, state, gate in
+            await state.put(body, digest: digest)
+
+            try await client.downloadBlob(digest, to: destination)
+
+            #expect(try Data(contentsOf: destination) == body)
+            #expect(gate.refusals > 3)
+        }
+    }
+
+    /// A client that never reaches a serving replica fails instead of stalling for the rest of the drain.
+    @Test func givesUpOnADrainThatOutlastsTheRetryWindow() async throws {
+        try await withDrainingCache(
+            for: .seconds(60),
+            services: { [WireActions(state: $0)] }
+        ) { client, _, _ in
+            let started = ContinuousClock.now
+
+            let error = await #expect(throws: RPCError.self) {
+                try await client.actionResult(for: REAPI.digest(Data("action".utf8)))
+            }
+
+            #expect(error?.message == "server is draining")
+            let elapsed = ContinuousClock.now - started
+            #expect(elapsed >= REAPIDrainRetryLadder.window - .milliseconds(100))
+            #expect(elapsed < REAPIDrainRetryLadder.window + .seconds(2))
+        }
+    }
+
+    /// The activation gateway answers while it wakes a cache; waiting on it is its own budget's job.
+    @Test func keepsTheOrdinaryAttemptsForAnActivationGatewayAnswer() async throws {
+        try await withDrainingCache(
+            for: .seconds(60),
+            activationPending: true,
+            services: { [WireActions(state: $0)] }
+        ) { client, _, gate in
+            await #expect(throws: RPCError.self) {
+                try await client.actionResult(for: REAPI.digest(Data("action".utf8)))
+            }
+
+            #expect(gate.refusals == 3)
+        }
+    }
+
+    @Test func drainRetriesStartAtOnceThenBackOffToAOneSecondCap() {
+        var ladder = REAPIDrainRetryLadder()
+        let now = ContinuousClock.now
+
+        let delays = (0 ..< 5).map { _ in ladder.nextDelay(now: now) }
+
+        #expect(delays == [.zero, .milliseconds(250), .milliseconds(500), .seconds(1), .seconds(1)])
+    }
+
+    @Test func drainRetriesNeverWaitPastTheWindow() {
+        var ladder = REAPIDrainRetryLadder()
+        let start = ContinuousClock.now
+        for _ in 0 ..< 3 {
+            _ = ladder.nextDelay(now: start)
+        }
+
+        #expect(ladder.nextDelay(now: start + .milliseconds(4900)) == .milliseconds(100))
+        #expect(ladder.nextDelay(now: start + REAPIDrainRetryLadder.window) == nil)
+    }
+
+    @Test func onlyKurasDrainRefusalIsADrainRefusal() {
+        var pending = Metadata()
+        pending.addString("pending", forKey: "x-tuist-cache-activation")
+
+        #expect(REAPIDrainRetryLadder.isDrainRefusal(RPCError(code: .unavailable, message: "server is draining")))
+        #expect(!REAPIDrainRetryLadder.isDrainRefusal(RPCError(code: .unavailable, message: "connection refused")))
+        #expect(!REAPIDrainRetryLadder.isDrainRefusal(RPCError(code: .resourceExhausted, message: "server is draining")))
+        #expect(!REAPIDrainRetryLadder.isDrainRefusal(
+            RPCError(code: .unavailable, message: "server is draining", metadata: pending)
+        ))
+    }
+
     private static let caPEM = """
     -----BEGIN CERTIFICATE-----
     MIIC1jCCAb6gAwIBAgIJAJlwwm+UwR8bMA0GCSqGSIb3DQEBCwUAMBgxFjAUBgNV
@@ -2229,5 +2378,38 @@ private struct NoBinaryFallback: CacheStoring {
     func store(_: [CacheStorableItem: [AbsolutePath]], cacheCategory _: RemoteCacheCategory) async throws -> [CacheStorableItem] {
         Issue.record("Binary store reached the selective-test delegate")
         return []
+    }
+}
+
+/// Refuses every call for `duration` from the first one, before its handler runs, the way a draining
+/// Kura replica's authorization step does.
+private final class DrainGate: ServerInterceptor, Sendable {
+    private let duration: Duration
+    private let activationPending: Bool
+    private let state = Mutex<(started: ContinuousClock.Instant?, refusals: Int)>((nil, 0))
+
+    var refusals: Int { state.withLock { $0.refusals } }
+
+    init(duration: Duration, activationPending: Bool) {
+        self.duration = duration
+        self.activationPending = activationPending
+    }
+
+    func intercept<Input: Sendable, Output: Sendable>(
+        request: StreamingServerRequest<Input>,
+        context: ServerContext,
+        next: @Sendable (StreamingServerRequest<Input>, ServerContext) async throws -> StreamingServerResponse<Output>
+    ) async throws -> StreamingServerResponse<Output> {
+        let refuses = state.withLock { state in
+            let started = state.started ?? .now
+            state.started = started
+            guard ContinuousClock.now - started < duration else { return false }
+            state.refusals += 1
+            return true
+        }
+        guard refuses else { return try await next(request, context) }
+        var metadata = Metadata()
+        if activationPending { metadata.addString("pending", forKey: "x-tuist-cache-activation") }
+        throw RPCError(code: .unavailable, message: "server is draining", metadata: metadata)
     }
 }

@@ -1,5 +1,5 @@
-# Talos machine config patch for the management node (not a Kubernetes
-# manifest; mgmt-cluster-apply.yml does not apply it). See README.md.
+# Talos machine config patch for every management control-plane node.
+# See ../README.md.
 #
 # Talos's userspace OOM controller skips any cgroup with a memory limit, so
 # these limits keep it from picking the control-plane static pods. Requests

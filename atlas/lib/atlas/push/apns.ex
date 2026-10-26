@@ -27,15 +27,18 @@ defmodule Atlas.Push.APNs do
   def deliver(%{token: token, environment: environment}, payload, opts) when is_map_key(@hosts, environment) do
     with {:ok, apns} <- Config.apns_for(environment),
          {:ok, provider_token} <- Credentials.apns_token(apns) do
+      live_activity? = Keyword.get(opts, :live_activity, false)
+      topic = if live_activity?, do: Config.apns_topic() <> ".push-type.liveactivity", else: Config.apns_topic()
+
       request =
         Keyword.merge(
           [
             json: payload,
             headers: [
               {"authorization", "bearer " <> provider_token},
-              {"apns-topic", Config.apns_topic()},
-              {"apns-push-type", "alert"},
-              {"apns-priority", "10"},
+              {"apns-topic", topic},
+              {"apns-push-type", if(live_activity?, do: "liveactivity", else: "alert")},
+              {"apns-priority", if(live_activity?, do: "5", else: "10")},
               {"apns-expiration", Integer.to_string(DateTime.to_unix(Keyword.fetch!(opts, :expires_at)))},
               {"apns-collapse-id", Keyword.fetch!(opts, :collapse_id)}
             ],

@@ -52,6 +52,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   30-second client timeout. Propagate cancellation through downloads, expansion,
   commands and shared-master/admission waits. Incomplete restores cannot publish;
   reclaim their journals only after the existing writer fences pass.
+- `ExecutionWaits` gives each runner Pod one 25-second wait (`ExecutionWait`) for
+  GitHub to report its job, shared by its checkout and every volume; both the
+  Linux and macOS agents use it.
 - Every agent request to the server (`authorize`, `checkout`, `report`, `image`)
   goes through `DoServer`: up to four attempts on a connection failure or a
   502/503/504, jittered backoff from 250 ms to 2 s, never past the request
@@ -61,6 +64,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   use already published. A new endpoint must stay idempotent before it uses
   `DoServer`. Never retry the object-storage PUT this way; the Store retries
   publication. Retries log `cache server request retried` and `recovered`.
+  Agents build their server clients with `NewServerClient`, which closes a
+  connection idle for `ServerIdleTimeout` (10 s), below Bandit's 15 s keep-alive
+  timeout, so a request never goes out on a connection the server is closing.
 - Emit bounded operation/source/result metrics without keys, paths or signed URLs.
   Linux exposes them on port 9091; macOS uses tart-kubelet's metrics registry.
   The Linux agent's phase log line carries a failure's `error` text, URLs replaced.
@@ -73,6 +79,13 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   account or repository names or a customer-chosen key: `Identity.ManagedKey`
   is set by the agent from the request through `ManagedKey`, which keeps only
   Tuist's managed keys.
+- Every branch deletion is one `delete` observation from the Store (`Store.Observe`,
+  which each agent wires to its phase log and metrics) with the slot's subject.
+  Its source is why: `server` (the report answered `delete`: the job did not
+  succeed, the use was discarded or the volume cleared), `poisoned` or
+  `withheld` (from `Seal`), `abandoned` (an allocation whose Pod ended before
+  attaching) or `pending` (a deletion that waited for its loop device; the
+  earlier pass reports `release_pending`). Attach never reports a delete.
 - Every master removal logs `cache master evicted` (`LocalImages.Log`) or
   `checkout master evicted` (`Checkouts.Log`) with `scope`, `generation` or
   `checkout_generation`, `bytes` (allocated; blocks shared with clones stay in

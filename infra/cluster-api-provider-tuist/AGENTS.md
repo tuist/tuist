@@ -913,7 +913,9 @@ adopting it reads the RackPDU past the manager's cache, whose copy can lag
 the status the last pass wrote. A RackPDU switched to `managedBy: standalone`
 is `Ready=False`, reason `Standalone`, and the controller logs its session out
 of the card (so a person can log in with the account, and the card's one
-session for it is free) and stops contacting it. A logout that cannot reach the card is a
+session for it is free) and stops contacting it. Like a standalone RackATS, it
+exports no metrics, so a planned PDU at a site that is not racked yet does not
+read as one that cannot be observed. A logout that cannot reach the card is a
 `LogoutFailed` event; the card then ends the session at its idle timeout.
 
 **Conditions**: `Adopted`, `Converged`, `Ready`, `CertificateChanged`,
@@ -1702,7 +1704,11 @@ belongs to the box, whose AMT keeps the password.
 (`rack_linux_converge.go`, `internal/racknode`, `cmd/rack-node`). The machine
 reconciler renders a `RackNodeConfig`, the host's files (kubelet unit and
 configuration, CA, local CNI, containerd's registry mirror, sysctl, modules,
-the management port's networkd file, `/etc/tuist/kubernetes-api`, the
+the management port's networkd file (on a host with AMT only: one that names
+its AMT, is a model in `--rack-linux-amt-products`, or whose AMT the operator
+has read; it keeps the boot NIC AMT shares up with `ARP=no` and no address, and
+a host with a BMC of its own, whose boot NIC is the host's, gets none),
+`/etc/tuist/kubernetes-api`, the
 translation of the kubernetes Service to the API server in
 `/etc/tuist/kubernetes-service.nft`, an edge's host networking below), the
 directories it needs, the exact kubelet release the control plane runs and the
@@ -2249,19 +2255,21 @@ infra/cluster-api-provider-tuist/
 │       └── kata_virtiofs.go         # virtiofsd file budget (fs.nr_open + Kata config.d drop-in)
 ├── internal/
 │   ├── power/        # PDU / smart-plug drivers, eaton and shelly (the rack's remote reboot), the Eaton ATS reads; eatontest fakes a PDU card and an ATS card
+│   ├── redfish/      # a rack x86 server's BMC over Redfish (AMI MegaRAC on the ASUS RS501A): inventory, BIOS baseline, accounts, virtual CD, boot override, power; redfishtest fakes that BMC
 │   ├── rackcard/     # a rack power card's passwords, derived from the root key
 │   ├── scaleway/     # Scaleway SDK wrapper
-│   ├── rackinstall/  # a rack host's autoinstall seed, iPXE script and install stick
-│   ├── rackboot/     # the rack boot server: TFTP/HTTP netboot, seeds, announcements
+│   ├── rackinstall/  # a rack host's autoinstall seed, iPXE script, install stick, and the preinstall image's deploy and resident seeds
+│   ├── rackboot/     # the rack boot server: TFTP/HTTP netboot, seeds, announcements; with Internet, only sealed seeds and declared hosts' announcements
 │   ├── racknode/     # makes a rack Linux host the node its RackNodeConfig describes
 │   ├── rackseed/     # a rack host's seed, sealed to its pinned TPM; rackseedtest is a TPM in software
 │   ├── tailnet/      # Tailscale API: devices and join keys
 │   ├── credentials/  # fleet SSH keys + per-machine kubelet identities
 │   └── bootstrap/    # SSH-driven kubelet/tart-cri install
 ├── cmd/manager/    # controller-manager entry point
-├── cmd/rack-boot/  # the rack boot server, run on a rack's edge nodes
+├── cmd/rack-boot/  # the rack boot server, run on a rack's edge nodes; --internet runs it on the cloud for preinstalled boxes
+├── cmd/rack-bmc/   # adopts and drives a rack x86 server through its BMC (inventory, check/apply the BIOS, BMC and IPMI baseline, rotate, cd, boot-once, power)
 ├── cmd/rack-node/  # applies a rack node's configuration, reads its TPM, asks for its seed
-├── cmd/rack-seed/  # renders a seed for rack:write-install-usb
+├── cmd/rack-seed/  # renders a seed for rack:write-install-usb, or with -preinstall the preinstall image's
 ├── cmd/rack-card-password/  # derives a rack power card's password for rack:card-password
 ├── config/
 │   └── rbac/       # ClusterRole for the manager

@@ -671,24 +671,24 @@ STUB
     [[ "$output" == *"stale: "*"/sites/ber1/bird.conf"* ]]
 }
 
-@test "the Mac minis the site's egress names go out from its block of the site's own prefix, and everything else from the WAN address" {
+@test "the site's Mac minis go out from its block of the site's own prefix, and everything else from the WAN address" {
     source "$FLEET_ROOT/lib/edge.sh"
     run fleet_edge_path "$SITE_FILE"
     [ "$status" -eq 0 ]
-    snat='    oifname "wan0" ip saddr { 10.10.0.101, 10.10.0.102 } snat ip to 95.130.119.16-95.130.119.31 persistent'
+    snat='    oifname "wan0" ip saddr { 10.10.0.101, 10.10.0.102, 10.10.0.103, 10.10.0.104, 10.10.0.105, 10.10.0.106, 10.10.0.107, 10.10.0.108, 10.10.0.109, 10.10.0.110, 10.10.0.111, 10.10.0.112, 10.10.0.113, 10.10.0.114, 10.10.0.115, 10.10.0.116 } snat ip to 95.130.119.16-95.130.119.31 persistent'
     machines='    oifname != { "tailscale0", "machines0", "enp87s0" } ip saddr 10.10.0.0/24 masquerade'
-    # the named minis first, so their translation wins over the segment's
+    # the minis first, so their translation wins over the segment's
     [[ "$output" == *"$snat"$'\n'"$machines"* ]]
-    # the management segment and the standby keep the WAN address
-    [[ "$output" == *'oifname "wan0" ip saddr { 10.255.255.0/29, 192.168.0.0/24 } masquerade'* ]]
-    # without nodes every Mac mini moves, and the storage node, in the
-    # cluster under the WAN address, does not
-    jq '.management.edge.wan.egress |= del(.nodes)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/allminis.json"
-    run fleet_edge_path "$BATS_TEST_TMPDIR/allminis.json"
-    [ "$status" -eq 0 ]
-    [[ "$output" == *'ip saddr { 10.10.0.101, 10.10.0.102, 10.10.0.103, 10.10.0.104, 10.10.0.105, 10.10.0.106, 10.10.0.107, 10.10.0.108, 10.10.0.109, 10.10.0.110, 10.10.0.111, 10.10.0.112, 10.10.0.113, 10.10.0.114, 10.10.0.115, 10.10.0.116 } snat ip to 95.130.119.16-95.130.119.31 persistent'* ]]
+    # the storage node, in the cluster under the WAN address, does not move
     [[ "$output" != *"10.10.0.11 "* ]]
     [[ "$output" != *"10.10.0.11,"* ]]
+    # the management segment and the standby keep the WAN address
+    [[ "$output" == *'oifname "wan0" ip saddr { 10.255.255.0/29, 192.168.0.0/24 } masquerade'* ]]
+    # nodes limits it to the named minis
+    jq '.management.edge.wan.egress.nodes = ["ber1-runner-b01", "ber1-runner-b02"]' "$SITE_FILE" > "$BATS_TEST_TMPDIR/someminis.json"
+    run fleet_edge_path "$BATS_TEST_TMPDIR/someminis.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'    oifname "wan0" ip saddr { 10.10.0.101, 10.10.0.102 } snat ip to 95.130.119.16-95.130.119.31 persistent'$'\n'"$machines"* ]]
     # without an egress the machines all go out from the WAN address
     jq '.management.edge.wan |= del(.egress)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/noegress.json"
     run fleet_edge_path "$BATS_TEST_TMPDIR/noegress.json"
@@ -842,7 +842,7 @@ STUB
     [ "$status" -eq 0 ]
     [[ "$output" != *'ip saddr 192.168.50.0/24 masquerade'* ]]
     [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.12,192.168.0.11,192.168.0.13,192.168.50.0/24 } masquerade
-    iifname "tailscale0" oifname "enp87s0" ip daddr { 192.168.0.14,192.168.0.18,192.168.0.15,192.168.0.17,192.168.0.16 } masquerade
+    iifname "tailscale0" oifname "enp87s0" ip daddr { 192.168.0.14,192.168.0.18,192.168.0.15,192.168.0.16,192.168.0.17 } masquerade
     oifname != { "tailscale0", "machines0", "enp87s0" } ip saddr 10.10.0.0/24 masquerade
   }'* ]]
 }
@@ -1271,13 +1271,13 @@ STUB
     source "$FLEET_ROOT/lib/edge.sh"
     run fleet_edge_power "$SITE_FILE"
     [ "$status" -eq 0 ]
-    [ "$output" = $'192.168.0.14\n192.168.0.18\n192.168.0.15\n192.168.0.17\n192.168.0.16' ]
+    [ "$output" = $'192.168.0.14\n192.168.0.18\n192.168.0.15\n192.168.0.16\n192.168.0.17' ]
     script="$BATS_TEST_TMPDIR/routes.sh"
     fleet_edge_routes "$SITE_FILE" > "$script"
     # the master: the machines, and a /32 per installed power device on ber1-mgmt
     FAKE_EDGE_ADDRESS=192.168.0.10/24 run routes_advertised "$script"
     [ "$status" -eq 0 ]
-    [ "$output" = "10.10.0.101/32,10.10.0.102/32,10.10.0.103/32,10.10.0.104/32,10.10.0.105/32,10.10.0.106/32,10.10.0.107/32,10.10.0.108/32,10.10.0.109/32,10.10.0.110/32,10.10.0.111/32,10.10.0.112/32,10.10.0.113/32,10.10.0.114/32,10.10.0.115/32,10.10.0.116/32,192.168.0.14/32,192.168.0.18/32,192.168.0.15/32,192.168.0.17/32,192.168.0.16/32" ]
+    [ "$output" = "10.10.0.101/32,10.10.0.102/32,10.10.0.103/32,10.10.0.104/32,10.10.0.105/32,10.10.0.106/32,10.10.0.107/32,10.10.0.108/32,10.10.0.109/32,10.10.0.110/32,10.10.0.111/32,10.10.0.112/32,10.10.0.113/32,10.10.0.114/32,10.10.0.115/32,10.10.0.116/32,192.168.0.14/32,192.168.0.18/32,192.168.0.15/32,192.168.0.16/32,192.168.0.17/32" ]
     # the standby has no route to them, so it advertises the machines alone
     run routes_advertised "$script"
     [ "$status" -eq 0 ]
@@ -1289,7 +1289,7 @@ STUB
     jq '(.nodes[] | select(.name == "ber1-pdu-a")) |= (.status = "planned")
         | (.nodes[] | select(.name == "ber1-ats-1") | .links[0].switch) = "ber1-tor-a"' "$SITE_FILE" > "$BATS_TEST_TMPDIR/power.json"
     run fleet_edge_power "$BATS_TEST_TMPDIR/power.json"
-    [ "$output" = $'192.168.0.18\n192.168.0.15\n192.168.0.16' ]
+    [ "$output" = $'192.168.0.18\n192.168.0.15\n192.168.0.17' ]
 }
 
 @test "the tailnet reaches a power device through the master's switch port, translated to the edge address" {
@@ -1302,8 +1302,8 @@ STUB
     [ "$status" -eq 0 ]
     # the PDU's gateway is not an edge, so a reply to a tailnet address would
     # never come back: it is translated to the edge address, on-link for it
-    [[ "$output" == *'iifname "tailscale0" oifname "enp87s0" ip daddr { 192.168.0.14,192.168.0.18,192.168.0.15,192.168.0.17,192.168.0.16 } masquerade'* ]]
-    [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.14,192.168.0.18,192.168.0.15,192.168.0.17,192.168.0.16 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu'* ]]
+    [[ "$output" == *'iifname "tailscale0" oifname "enp87s0" ip daddr { 192.168.0.14,192.168.0.18,192.168.0.15,192.168.0.16,192.168.0.17 } masquerade'* ]]
+    [[ "$output" == *'oifname "tailscale0" ip saddr { 192.168.0.14,192.168.0.18,192.168.0.15,192.168.0.16,192.168.0.17 } tcp flags & (syn | rst) == syn tcp option maxseg size set rt mtu'* ]]
     # without power devices there is no rule naming an empty set, which nft refuses
     jq '(.nodes[] | select(.role == "power")) |= del(.mgmt_address)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nopower.json"
     run fleet_edge_path "$BATS_TEST_TMPDIR/nopower.json"

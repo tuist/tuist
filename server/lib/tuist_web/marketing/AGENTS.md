@@ -4,6 +4,7 @@ This area owns marketing controllers and components for the public site.
 
 ## Responsibilities
 - Keep individual changelog entries, including their localized URLs, in the marketing sitemap. Shared canonical URLs must not retain tracking or filtering parameters.
+- Only `GET`/`HEAD /` negotiates marketing language: an explicit `tuist_locale` cookie wins over weighted `Accept-Language`, with English as the fallback. Use temporary redirects and mark both redirected and English root responses `private, no-store`; deep links keep their URL's language and existing caching. Footer switcher links use `set_locale` to remember explicit choices (including English), then redirect to the clean URL; exclude those links from speculative prefetch. Do not infer an explicit preference from merely visiting a localized page. Emit BCP 47 language tags (hyphens, not Gettext underscores), query-free reciprocal HTML language alternates and an English `x-default`. Markdown representation links are separate from language alternates.
 - Browser newsletter issue documents include the shared analytics component; their email versions must omit scripts.
 - Render marketing pages and UI components.
 - Problem and comparison guides are Markdown-only at `/marketing-markdown/solutions/<slug>` and `/marketing-markdown/compare[/<provider>]`. Do not add standalone browser routes, footer links, or sitemap entries for them. Their discovery belongs in the Markdown homepage and `/llms.txt`; keep existing browser pages and legacy redirects intact.

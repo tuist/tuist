@@ -18,6 +18,8 @@ rackLinuxFleet:
   site: ""
   boot:
     enabled: false
+    internet:
+      enabled: false
 
 macosFleet:
   image:

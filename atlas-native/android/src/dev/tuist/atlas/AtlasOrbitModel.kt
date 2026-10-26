@@ -44,9 +44,18 @@ class AtlasOrbitModel(
         val toolInput: String,
         val toolOutput: String,
         val component: String? = null,
+        val attachments: List<Attachment> = emptyList(),
+        val parentMessageId: String? = null,
     ) {
         val isTool get() = kind == "tool" || toolName != null
     }
+
+    data class Attachment(
+        val id: String,
+        val filename: String,
+        val contentType: String,
+        val byteSize: Long,
+    )
 
     data class Viewer(
         val id: String,
@@ -70,6 +79,12 @@ class AtlasOrbitModel(
         val error: String? = null,
         val liveMessage: String? = null,
         val needsSession: Boolean = false,
+        val selectionId: String? = null,
+        val hasDrafts: Boolean = false,
+        val draftAttachments: List<Attachment> = emptyList(),
+        val attachmentBusy: Boolean = false,
+        val uploadPending: Boolean = false,
+        val uploadFilename: String? = null,
     ) {
         val privateThread get() = threads.firstOrNull { it.isPrivate }
         val shared get() = threads.filter { !it.isPrivate }
@@ -93,6 +108,12 @@ class AtlasOrbitModel(
         private set
     var revealedEvidence = emptySet<String>()
         private set
+    var expandedToolGroups = emptySet<String>()
+        private set
+    var pickingFor: String? = null
+        private set
+    private var attachmentSubmitting = false
+    private var viewEpoch = 0L
 
     // Local draft writes still in flight; the view must not overwrite what the person is typing with an older echo.
     var draftsInFlight = 0
@@ -106,12 +127,19 @@ class AtlasOrbitModel(
     private var renewing = false
     private var renewed = false
     private val queued = mutableListOf<JSONObject>()
+    private var pendingSelection: String? = null
 
     // Covers the gap between tapping Send and Rust reporting `saving`, so a double tap sends once.
     private var submitting = false
     val sending get() = submitting || snapshot.saving
+    val attachmentBusy get() = attachmentSubmitting || snapshot.attachmentBusy || pickingFor != null
 
-    val canBack get() = createDraft != null || snapshot.selected != null
+    val selectionId get() = pendingSelection ?: snapshot.selectionId ?: snapshot.selected?.id
+    val selecting get() = pendingSelection != null
+    val canBack get() = createDraft != null || selectionId != null
+    val hasProtectedWork get() =
+        createDraft != null || sending || attachmentBusy || draftsInFlight > 0 || snapshot.hasDrafts ||
+            snapshot.draft.isNotBlank()
 
     fun open() {
         if (closed || opening || connection != null) return
@@ -140,6 +168,7 @@ class AtlasOrbitModel(
     fun setActive(value: Boolean) {
         if (active == value || closed) return
         active = value
+        if (!value) viewEpoch += 1
         val handle = connection
         if (handle == null) {
             if (value) open()
@@ -157,8 +186,12 @@ class AtlasOrbitModel(
     fun close() {
         if (closed) return
         closed = true
+        viewEpoch += 1
+        pickingFor = null
+        AtlasOrbitAttachments.clear()
         listener = null
         queued.clear()
+        pendingSelection = null
         connection?.let(::close)
         connection = null
         snapshot = Snapshot()
@@ -171,24 +204,42 @@ class AtlasOrbitModel(
     fun openPrivate() = command(JSONObject().put("action", "private"))
 
     fun select(id: String) {
+        viewEpoch += 1
+        AtlasOrbitAttachments.clear()
+        pendingSelection = id
+        queued.removeAll { it.optString("action") == "select" }
         expandedTools = emptySet()
         revealedEvidence = emptySet()
+        expandedToolGroups = emptySet()
         command(JSONObject().put("action", "select").put("id", id))
+        listener?.invoke()
     }
 
     fun leave() {
-        val id = snapshot.selected?.id ?: return
+        val id = selectionId ?: return
+        viewEpoch += 1
+        AtlasOrbitAttachments.clear()
+        if (connection == null) {
+            queued.removeAll { it.optString("action") == "select" }
+            pendingSelection = null
+            listener?.invoke()
+            return
+        }
         command(JSONObject().put("action", "leave").put("id", id))
+    }
+
+    fun showList() {
+        if (selectionId != null) leave()
     }
 
     fun loadOlder() = command(JSONObject().put("action", "history").put("older", true))
 
-    fun refresh() = command(JSONObject().put("action", if (snapshot.selected == null) "load" else "refresh"))
+    fun refresh() = command(JSONObject().put("action", if (selectionId == null) "load" else "refresh"))
 
     fun back(): Boolean {
         when {
             createDraft != null -> discardCreate()
-            snapshot.selected != null -> leave()
+            selectionId != null -> leave()
             else -> return false
         }
         return true
@@ -228,15 +279,139 @@ class AtlasOrbitModel(
         id: String,
         body: String,
     ) {
-        if (sending || body.isBlank()) return
+        if (sending || attachmentBusy || snapshot.uploadPending || (body.isBlank() && snapshot.draftAttachments.isEmpty())) return
         submitting = true
         command(
             JSONObject()
                 .put("action", "send")
                 .put("id", id)
                 .put("body", body)
+                .put("attachment_ids", JSONArray(snapshot.draftAttachments.map { it.id }))
                 .put("address_agent", askAssistant(id)),
         )
+        listener?.invoke()
+    }
+
+    fun beginPick(): String? {
+        val id = snapshot.selected?.takeUnless { it.archived }?.id ?: return null
+        if (!authorized(id) || attachmentBusy || sending || snapshot.uploadPending || snapshot.draftAttachments.size >= 4) return null
+        pickingFor = id
+        listener?.invoke()
+        return id
+    }
+
+    fun finishPick(
+        id: String,
+        result: Result<AtlasOrbitAttachments.Picked>?,
+    ) {
+        if (pickingFor != id) return
+        pickingFor = null
+        if (!authorized(id)) return
+        val file = result?.getOrNull()
+        if (file == null) {
+            failure = result?.exceptionOrNull()?.message
+            listener?.invoke()
+            return
+        }
+        attachmentCommand(
+            JSONObject()
+                .put("action", "upload_attachment")
+                .put("id", id)
+                .put("filename", file.filename)
+                .put("content_type", file.contentType)
+                .put("data", file.data),
+        )
+    }
+
+    fun retryUpload() {
+        val id = snapshot.selected?.id ?: return
+        if (snapshot.uploadPending) attachmentCommand(JSONObject().put("action", "retry_upload").put("id", id))
+    }
+
+    fun discardUpload() {
+        val id = snapshot.selected?.id ?: return
+        attachmentCommand(JSONObject().put("action", "discard_upload").put("id", id))
+    }
+
+    fun removeAttachment(attachmentId: String) {
+        val id = snapshot.selected?.id ?: return
+        attachmentCommand(JSONObject().put("action", "delete_attachment").put("id", id).put("attachment_id", attachmentId))
+    }
+
+    private fun attachmentCommand(value: JSONObject) {
+        if (attachmentBusy || sending || !authorized(value.getString("id"))) return
+        attachmentSubmitting = true
+        command(value)
+        listener?.invoke()
+    }
+
+    fun attachmentEpoch() = viewEpoch
+
+    fun canOpenAttachment(
+        id: String,
+        epoch: Long,
+    ) = active && authorized(id) && viewEpoch == epoch
+
+    private fun authorized(id: String) = !closed && !selecting && selectionId == id && snapshot.selected?.id == id && !snapshot.needsSession
+
+    fun downloadAttachment(
+        attachmentId: String,
+        done: (Result<JSONObject>) -> Unit,
+    ) {
+        val handle = connection ?: return
+        val id = snapshot.selected?.id ?: return
+        val epoch = viewEpoch
+        if (!canOpenAttachment(id, epoch)) return
+        request(
+            JSONObject().put("action", "request").put("connection", handle).put(
+                "command",
+                JSONObject().put("action", "download_attachment").put("id", id).put("attachment_id", attachmentId),
+            ),
+        ) { result ->
+            if (connection != handle || !canOpenAttachment(id, epoch)) return@request
+            done(
+                result.mapCatching { value ->
+                    check(value.getString("thread_id") == id && value.getJSONObject("attachment").getString("id") == attachmentId)
+                    value.getJSONObject("attachment")
+                },
+            )
+        }
+    }
+
+    // Consecutive tools are presentation groups only; the original messages and components are unchanged.
+    fun timeline(): List<List<Message>> {
+        val children = toolParents().keys
+        val groups = mutableListOf<MutableList<Message>>()
+        for (message in snapshot.messages.filter { it.id !in children }) {
+            if (message.isTool && groups.lastOrNull()?.lastOrNull()?.isTool == true) {
+                groups.last().add(message)
+            } else {
+                groups.add(mutableListOf(message))
+            }
+        }
+        return groups
+    }
+
+    private fun toolParents(): Map<String, String> {
+        val messages = snapshot.messages.associateBy { it.id }
+        return snapshot.messages
+            .mapNotNull { child ->
+                val parent = child.parentMessageId?.let(messages::get)
+                if (child.isTool && parent?.isTool == true && parent.parentMessageId == null && parent.id != child.id) {
+                    child.id to parent.id
+                } else {
+                    null
+                }
+            }.toMap()
+    }
+
+    fun childTools(parentId: String): List<Message> {
+        val parents = toolParents()
+        return snapshot.messages.filter { parents[it.id] == parentId }
+    }
+
+    fun toggleToolGroup(id: String) {
+        expandedToolGroups = if (id in expandedToolGroups) expandedToolGroups - id else expandedToolGroups + id
         listener?.invoke()
     }
 
@@ -317,7 +492,9 @@ class AtlasOrbitModel(
         val action = value.getString("action")
         request(JSONObject().put("action", "request").put("connection", handle).put("command", value)) { result ->
             if (action == "send") submitting = false
+            if (action in setOf("upload_attachment", "delete_attachment", "retry_upload", "discard_upload")) attachmentSubmitting = false
             if (closed || connection != handle) return@request
+            if (action == "select" && pendingSelection == value.optString("id")) pendingSelection = null
             result.fold({ value ->
                 apply(value)
                 if (action == "create" && snapshot.error == null && snapshot.selected != null) createDraft = null
@@ -373,6 +550,10 @@ class AtlasOrbitModel(
                 return true
             }
         if (next.sequence <= snapshot.sequence && snapshot.sequence != 0L) return false
+        if (next.selected?.id != snapshot.selected?.id || (next.selected == null && next.error != null)) {
+            viewEpoch += 1
+            AtlasOrbitAttachments.clear()
+        }
         snapshot = next
         if (!next.needsSession) renewed = false
         // Renew once per expiry: the refresh request restores credentials and Rust reconnects live viewing.
@@ -418,6 +599,12 @@ class AtlasOrbitModel(
             value.nullableString("error"),
             value.nullableString("live_message"),
             value.optBoolean("needs_session"),
+            value.nullableString("selection_id"),
+            value.optBoolean("has_drafts"),
+            value.optJSONArray("draft_attachments")?.objects()?.map(::attachment) ?: emptyList(),
+            value.optBoolean("attachment_busy"),
+            value.optBoolean("upload_pending"),
+            value.nullableString("upload_filename"),
         )
 
     private fun thread(value: JSONObject) =
@@ -444,6 +631,19 @@ class AtlasOrbitModel(
             value.optString("tool_input"),
             value.optString("tool_output"),
             value.optJSONObject("component")?.toString(),
+            value.optJSONArray("attachments")?.objects()?.map(::attachment) ?: emptyList(),
+            value
+                .nullableString(
+                    "parent_message_id",
+                )?.takeIf { it.matches(Regex("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")) },
+        )
+
+    private fun attachment(value: JSONObject) =
+        Attachment(
+            value.getString("id"),
+            value.getString("filename"),
+            value.getString("content_type"),
+            value.getLong("byte_size"),
         )
 
     private fun JSONObject.nullableString(key: String) = if (!has(key) || isNull(key)) null else optString(key)

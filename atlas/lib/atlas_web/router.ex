@@ -203,19 +203,33 @@ defmodule AtlasWeb.Router do
     get "/orbit/threads", NativeOrbitController, :index
     post "/orbit/threads", NativeOrbitController, :create
     post "/orbit/threads/private", NativeOrbitController, :private
+    patch "/orbit/threads/:id", NativeOrbitController, :update
+    get "/orbit/threads/:id/people", NativeOrbitController, :people
     get "/orbit/threads/:id/messages", NativeOrbitController, :messages
     post "/orbit/threads/:id/messages", NativeOrbitController, :post_message
+    post "/orbit/threads/:id/attachments", NativeOrbitController, :upload_attachment
+    get "/orbit/threads/:id/attachments/:attachment_id", NativeOrbitController, :download_attachment
+    delete "/orbit/threads/:id/attachments/:attachment_id", NativeOrbitController, :delete_attachment
     post "/orbit/threads/:id/participants", NativeOrbitController, :add_participant
     delete "/orbit/threads/:id/participants/:user_id", NativeOrbitController, :remove_participant
     post "/orbit/threads/:id/runs/:run_id/cancel", NativeOrbitController, :cancel_run
 
     get "/profile", NativeController, :profile
+    patch "/profile", NativeController, :update_profile
     get "/:resource", NativeController, :index
     post "/:resource", NativeController, :create
     get "/:resource/:id", NativeController, :show
     patch "/:resource/:id", NativeController, :update
     delete "/:resource/:id", NativeController, :delete
     post "/:resource/:id/complete", NativeController, :complete
+  end
+
+  scope "/api/me", AtlasWeb do
+    pipe_through :native
+
+    get "/orbit-live-activity", OrbitLiveActivityController, :show
+    put "/orbit-live-activity/:registration_id", OrbitLiveActivityController, :update
+    delete "/orbit-live-activity/:registration_id", OrbitLiveActivityController, :delete
   end
 
   scope "/api", AtlasWeb do

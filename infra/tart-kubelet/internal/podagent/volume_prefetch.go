@@ -152,9 +152,7 @@ func (s *ServerPrefetch) CacheMasters(ctx context.Context) ([]PrefetchMaster, er
 	return body.Masters, nil
 }
 
-var prefetchHTTPClient = &http.Client{
-	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-}
+var prefetchHTTPClient = cachevolumes.NewServerClient(0)
 
 // hostToken returns a RunnerHostAudience token for this host's own
 // ServiceAccount, minting a new one shortly before the last expires.

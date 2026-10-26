@@ -13,6 +13,8 @@ defmodule AtlasWeb.NativeLinks do
   never claimed. `/commercial/finance` maps to native invoices for the explicit
   header action only. The web finance dashboard is not equivalent to native invoice
   bookkeeping, so universal and app links never claim it.
+  Orbit is native-only: its `/open/orbit[/<uuid>]` links fall back to the
+  dashboard, and no nonexistent `/orbit` web pages are claimed.
   """
 
   alias AtlasWeb.NativeLinks.Config
@@ -34,9 +36,10 @@ defmodule AtlasWeb.NativeLinks do
     %{screen: "invoices", page: "/commercial/finance", claimed?: false, record_page: nil},
     %{screen: "time-off", page: "/people/time-off", claimed?: true, record_page: nil},
     %{screen: "people", page: "/people", claimed?: true, record_page: nil},
-    %{screen: "profile", page: "/settings", claimed?: true, record_page: nil}
+    %{screen: "profile", page: "/settings", claimed?: true, record_page: nil},
+    %{screen: "orbit", page: nil, claimed?: false, record_page: nil}
   ]
-  @record_screens ~w(tasks accounts invoices)
+  @record_screens ~w(tasks accounts invoices orbit)
 
   def screens, do: Enum.map(@destinations, & &1.screen)
 
@@ -90,7 +93,7 @@ defmodule AtlasWeb.NativeLinks do
 
     case {destination.record_page, id} do
       {record_page, id} when is_binary(record_page) and is_binary(id) -> "#{record_page}/#{id}"
-      _ -> destination.page
+      _ -> destination.page || "/"
     end
   end
 

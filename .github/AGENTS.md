@@ -78,10 +78,10 @@ and all jobs skip draft pull requests. Rust auth dependencies are resolved durin
 Once graph loading, so SwiftLint jobs install Rust as well as SwiftLint/Once.
 The composite materializes locked third-party sources before graph validation;
 core test jobs run both navigation and authentication suites.
-The separate native iOS UI job builds the isolated Once fixture runner, exercises
-CRUD/navigation, including `AtlasNavigationUITests` object links, with `xcodebuild test-without-building`, and exports xcresult
-screenshots plus a simulator recording as `atlas-native-ui-evidence`. Fixtures
-make no live account-management requests and never enter production source globs.
+Native iOS UI suites and isolated fixture apps remain local opt-in tools; CI does
+not run them or gate preview publication on them. Rust, CLI and iOS unit tests
+remain in the separate test jobs. Fixtures make no live account-management
+requests and never enter production source globs.
 Mobile artifacts are debug Android APKs, arm64 iOS simulator bundles and arm64
 iOS device bundles. The protected main-branch publication job re-signs a device
 bundle using the existing Tuist distribution certificate and Atlas-specific
@@ -96,8 +96,13 @@ iOS device signing so a profile capability update cannot block them. iOS signing
 requires an Associated Domains-enabled profile and requests only the hosted app
 link domain. Its provisioning guard accepts Apple's scalar wildcard authorization
 as well as domain arrays, without copying a wildcard into the app signature. Credential-free Android signing, associated-domain and APNs capability,
-keychain-lifecycle and launcher-packaging tests also gate publication. Android
-builds verify locked Firebase dependencies, explicitly merged SDK manifests, and
+keychain-lifecycle and launcher-packaging tests also gate publication through
+`test-distribution`, which runs on macOS because the iOS capability guards require
+PlistBuddy and plutil. That job also checks Live Activity extension embedding,
+separate profile/device/certificate authorization and inside-out signing without
+credentials. The device signing copy requires its own Live Activity ad-hoc profile;
+ordinary simulator/device builds never provision one. Android builds verify locked Firebase dependencies,
+explicitly merged SDK manifests, and
 library R IDs against the final APK. Portable importer integrity/resource tests
 run without provider credentials; device signing requires a Push-enabled profile.
 PR/fork builds never receive distribution secrets. These are not
@@ -141,7 +146,9 @@ caching for those same paths; keep Go test result reuse disabled with `-count=1`
 
 `tuist-ex.yml` runs separate compilation, documentation, test, formatting,
 and package jobs. Compilation covers the minimum and current supported Elixir
-versions. The workflow is reused by `tuist-ex-release.yml` before publication.
+versions; the minimum-version job also runs the cache suite, including a real
+cold remote round trip, to catch Mix/OTP artifact-layout differences. The workflow
+is reused by `tuist-ex-release.yml` before publication.
 Releases run only from `main`, serialize publishing, and use the shared
 `release:check` registry with the `tuist-ex@` tag prefix. The existing
 `HEX_API_KEY` secret used by Noora must be able to publish `tuist_ex`.
@@ -345,13 +352,19 @@ CLI and the app (cli.yml and app.yml keep builds, lint and the Linux suite). On
 a pull request the unit and app tests run selectively, acceptance as before, and
 `coverage-complete` runs `tuist coverage complete` once the unit and app tests
 finished, whatever their result (not on drafts or forks). On a push to main the
-`cache` job warms the binary cache first, then the unit and app tests run in full
+`cache` job warms the binary cache first, uploading the compilation-cache plugin's `cas.log`
+and the CLI session logs when it fails, then the unit and app tests run in full
 (`--no-selective-testing`) and `coverage-complete`
-follows when both passed. The unit and app tests record per-test evidence on both,
-since their targets link TestCoverageAttribution and every run that uploads
-coverage collects it: the server carries skipped tests only from runs that
-recorded evidence, main's full runs for every selective run and a pull request's
-own runs for its later pushes. Every merge runs on its own (no queue); a new push to a
+follows when both passed. The unit and app tests record per-target evidence on both,
+which the CLI reads from Xcode's raw profiles (the targets don't link
+TestCoverageAttribution, so there is no per-test evidence): the server carries
+targets selective testing skipped only from runs that recorded evidence, main's
+full runs for every selective run and a pull request's own runs for its later
+pushes. Targets are carried only whole: a skipped target no run recorded
+under the same hash (or whose source run fails the server's checks) has no
+per-test fallback, and neither do tests skipped by identifier
+(`--skip-test-targets`, `-skip-testing`), so both stay gaps (`not_linked`).
+Quarantined tests are outside the figure either way. Every merge runs on its own (no queue); a new push to a
 pull request cancels its run in progress, so a superseded commit is never
 signalled. The default checkout is enough: every job of a run reports the same
 commit, on a pull request the run's merge commit (`GITHUB_SHA`; the depth-1
@@ -397,6 +410,10 @@ Keep fetched dependencies layer-cached, retain only the four local projects,
 and make attachment/preparation/export failures fall back without failing the
 image build. Historical deployment SHAs without the helper stay registry-only.
 Mix owns Elixir/OTP invalidation; native outputs never enter this snapshot.
+
+The manual Elixir benchmark also has a two-value `compilation` choice: `default` preserves the runner's compiler configuration, while opt-in `deterministic` sets `ERL_COMPILER_OPTIONS=[deterministic]` before setup and SDK bootstrap for every sample. Label summaries, artifacts, per-sample results and environment metadata with the mode and exact compiler options; never compare modes as if they were the same workload or weaken keys to hide upstream byte differences. Keep seeded-app coverage guards unchanged. Deterministic compiler output is an explicitly documented user configuration, not an SDK default or a general reproducibility guarantee.
+
+The same workflow's manual `benchmark: elixir-remote` mode runs the actual locked server dependency graph on `tuist-linux-large`, without a Mix snapshot volume. Its Python/Elixir drivers seed the normal REAPI cache with a run-ID/attempt input namespace, then alternate disabled and remote-only clean builds. Keep the namespace identical across samples but different across reruns; do not let an already-populated production cache silently replace the cold seed. Reset pristine dependency sources and all build/local artifact state for every sample, include SDK bootstrap and server compilation, preserve the lock and interrupted results, and require actual remote writes/hits rather than accepting fail-open compilation. After generic dependency setup, restore the committed lock and use `server-elixir-cache-reconcile.exs` to fetch its exact SCM revisions without another dependency resolution; verify the lock before measuring. OIDC permission belongs only to the manually dispatched same-repository benchmark job. Record partial coverage as degraded and reject any seeded dependency that fails to restore after collecting comparisons, including key drift, bypasses and missing observations. Parse partition-prefixed compiler output. Preserve started/interrupted samples and terminate only the driver's isolated child process group on timeout/cancellation, within a total budget measured from the job's first step and below its timeout. Native download caches remain shared; configured dependency workers do not parallelize selected cache misses/bypasses. Upload raw JSON/logs, never credentials or the cache directory; endpoint metadata is origin-only. Validate the driver with `python3 .github/scripts/server-elixir-cache-benchmark.test.py` and actionlint.
 
 The production snapshot is executable build input. It uses the existing
 same-repository writer trust model, as does the registry build cache: a permitted

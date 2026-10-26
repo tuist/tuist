@@ -2,6 +2,7 @@ package dev.tuist.gradle
 
 import dev.tuist.gradle.api.AuthenticationApi
 import dev.tuist.gradle.api.model.RefreshTokenBody
+import okhttp3.Request
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.AfterEach
@@ -137,5 +138,40 @@ class TuistHttpClientsTest {
 
         val request = server.takeRequest()
         assertNull(request.getHeader(FeatureFlagsHeaders.HEADER_NAME))
+    }
+
+    @Test
+    fun `OkHttp reuses an idle connection within the keep-alive and opens a new one after it`() {
+        val client = TuistHttpClients(useEnvironmentProxy = false).okHttp
+        val get = {
+            server.enqueue(MockResponse().setBody("ok"))
+            client.newCall(Request.Builder().url(server.url("/")).build()).execute().use { it.body?.string() }
+            server.takeRequest().sequenceNumber
+        }
+
+        assertEquals(0, get())
+        Thread.sleep(1_000)
+        assertEquals(1, get(), "a connection idle for 1 s must be reused")
+        Thread.sleep(11_000)
+        assertEquals(0, client.connectionPool.idleConnectionCount(), "a connection idle past 10 s must be evicted")
+        assertEquals(0, get(), "a connection idle past 10 s must not be reused")
+    }
+
+    @Test
+    fun `HttpURLConnection does not reuse a connection idle past 5 s when the server sends no Keep-Alive timeout`() {
+        val httpClients = TuistHttpClients(useEnvironmentProxy = false)
+        val get = {
+            server.enqueue(MockResponse().setBody("ok"))
+            val connection = httpClients.openConnection(server.url("/").toUri())
+            connection.inputStream.use { it.readBytes() }
+            assertNull(connection.getHeaderField("Keep-Alive"))
+            server.takeRequest().sequenceNumber
+        }
+
+        assertEquals(0, get())
+        Thread.sleep(1_000)
+        assertEquals(1, get(), "a connection idle for 1 s must be reused")
+        Thread.sleep(6_000)
+        assertEquals(0, get(), "a connection idle for 6 s must not be reused")
     }
 }

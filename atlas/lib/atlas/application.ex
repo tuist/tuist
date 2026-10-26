@@ -19,6 +19,7 @@ defmodule Atlas.Application do
   alias Atlas.HTTP
   alias Atlas.Integrations.GitHubAppBootstrap
   alias Atlas.Orbit.Checkpoints
+  alias Atlas.Orbit.Progress
   alias Atlas.Presence.Notifier
   alias Atlas.Push.Credentials
   alias Guardian.DB.Sweeper
@@ -28,11 +29,11 @@ defmodule Atlas.Application do
     attach_sentry_logger()
     TelemetryHandler.attach()
     Checkpoints.attach()
+    Progress.attach()
     Atlas.Automations.TelemetryHandler.attach()
     HTTP.configure_req_defaults()
 
     :ok = Application.ensure_started(:logger)
-    if !Demo.enabled?(), do: Task.start(fn -> SelfMonitor.install() end)
 
     opts = [strategy: :one_for_one, name: Atlas.Supervisor]
     Supervisor.start_link(children(), opts)
@@ -104,7 +105,8 @@ defmodule Atlas.Application do
         DropAlerter,
         IssueCoalescer,
         IssueAccountCoalescer,
-        KeyTouches
+        KeyTouches,
+        Supervisor.child_spec({Task, &SelfMonitor.install/0}, id: SelfMonitor)
       ]
     else
       []

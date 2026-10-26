@@ -1,6 +1,11 @@
 {
   "domain_policies": [
     {
+      "domain": "feature_flags",
+      "policy": "Production feature-flag control requires a dedicated external-effect workflow adapter with durable request identity and ambiguous-outcome reconciliation; MCP grants do not enroll workflow behaviors.",
+      "execution_mode": "excluded"
+    },
+    {
       "domain": "time_off_approvals",
       "policy": "Employee leave and manager-review ownership remain outside workflow behaviors until explicit scoped adapters and approval conformance are available.",
       "execution_mode": "excluded"
@@ -79,6 +84,11 @@
     }
   ],
   "excluded_tools": {
+    "list_tuist_feature_flags": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
+    "get_tuist_feature_flag": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
+    "evaluate_tuist_feature_flags": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
+    "update_tuist_feature_flag": "Production mutations need an external-effect workflow adapter with durable idempotency and ambiguous-outcome reconciliation before workflow enrollment.",
+    "get_error_event_contexts": "Sensitive event context requires engineering read and production-systems access; keep published error workflow contracts unchanged until an explicit adapter is versioned.",
     "save_automation_workflow": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "check_out_air_gapped_license": "Credential or permission lifecycle is deliberately not a generic workflow capability.",
     "publish_automation_workflow": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
@@ -162,6 +172,8 @@
     "extend_license": "Use the secret-free metadata behavior; this MCP result contains a credential or signed bearer URL.",
     "add_email_audience_subscriber": "External delivery/outbox requires its own idempotency, approval and ambiguous-outcome conformance tests before workflow enablement.",
     "send_test_push_notification": "Personal device consent and push-test delivery are not workflow capabilities; notification delivery requires an explicit durable adapter.",
+    "get_my_profile": "Personal self-description is private caller context, not a workflow capability; it must not be copied into shared execution inputs or outputs.",
+    "update_my_profile": "Personal self-description requires an explicit caller request, not automated workflow inference or mutation of personal preferences.",
     "list_automation_types": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "list_llm_provider_connections": "Personal provider credentials and device-login lifecycle are not workflow capabilities.",
     "update_automation_workflow": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",

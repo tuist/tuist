@@ -46,6 +46,8 @@ defmodule Tuist do
       Ops.ClickHouse,
       # Read-only database inspection backing the /ops/db LiveView.
       Ops.Database,
+      Ops.FeatureFlags,
+      Observability,
       # App
       # -----
       # This module contains Tuist features that are not expected to have inter-dependencies
@@ -143,6 +145,7 @@ defmodule Tuist do
       Builds.Build,
       Builds.CASOutput,
       Builds.Analytics,
+      Builds.Metadata,
       Builds.Steps,
       Builds.RecordedSteps,
       Builds.Workers.ProcessBuildWorker,

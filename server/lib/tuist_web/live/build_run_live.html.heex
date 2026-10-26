@@ -227,7 +227,7 @@
         <.card_section data-part="build-details-section">
           <div data-part="metadata-grid">
             <div :if={not is_nil(@command_event)} data-part="metadata-row">
-              <div data-part="metadata">
+              <div data-part="metadata" data-field="command">
                 <div data-part="title">{dgettext("dashboard_builds", "Command")}</div>
                 <span data-part="command-label">
                   {"tuist " <> @command_event.command_arguments}
@@ -235,13 +235,6 @@
               </div>
             </div>
             <div data-part="metadata-row">
-              <div data-part="metadata">
-                <div data-part="title">{dgettext("dashboard_builds", "Mac device")}</div>
-                <span data-part="label">
-                  <.device_laptop />
-                  {Tuist.Apple.devices()[@run.model_identifier]}
-                </span>
-              </div>
               <div data-part="metadata">
                 <div data-part="title">{dgettext("dashboard_builds", "Configuration")}</div>
                 <span data-part="label">
@@ -326,50 +319,21 @@
                   )}
                 </span>
               </div>
-              <div data-part="metadata">
-                <div data-part="title">{dgettext("dashboard_builds", "Xcode version")}</div>
-                <span data-part="label">
-                  {@run.xcode_version}
-                </span>
-              </div>
-              <div data-part="metadata">
-                <div data-part="title">{dgettext("dashboard_builds", "macOS version")}</div>
-                <span data-part="label">
-                  <.device_laptop />
-                  {@run.macos_version}
-                </span>
-              </div>
             </div>
           </div>
           <TuistWeb.Components.BuildHealth.category_detail category={@failure_category} />
-          <div :if={map_size(@run.custom_values) > 0} data-part="custom-metadata-section">
-            <span data-part="custom-metadata-label">
-              {dgettext("dashboard_builds", "Custom metadata")}
-            </span>
-            <.table
-              id="custom-metadata-table"
-              rows={Map.to_list(@run.custom_values)}
-              row_key={fn {key, _value} -> key end}
-            >
-              <:col :let={{key, _value}} label={dgettext("dashboard_builds", "Key")}>
-                <.text_cell label={key} />
-              </:col>
-              <:col :let={{_key, value}} label={dgettext("dashboard_builds", "Value")}>
-                <a
-                  :if={url?(value)}
-                  href={value}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  data-part="custom-metadata-link"
-                >
-                  {value}
-                </a>
-                <.text_cell :if={not url?(value)} label={value} />
-              </:col>
-            </.table>
-          </div>
+          <TuistWeb.Components.BuildMetadata.build_metadata values={@run.custom_values || %{}} />
         </.card_section>
       </.card>
+      <TuistWeb.Components.BuildMetadata.environment_metadata
+        values={@run.custom_values || %{}}
+        fields={[
+          {dgettext("dashboard_builds", "Xcode version"), @run.xcode_version},
+          {dgettext("dashboard_builds", "macOS version"), @run.macos_version},
+          {dgettext("dashboard_builds", "Mac device"),
+           Tuist.Apple.devices()[@run.model_identifier] || @run.model_identifier}
+        ]}
+      />
       <.ci_context_card
         :if={@ci_context}
         context={@ci_context}

@@ -173,7 +173,7 @@ defmodule TuistWeb.AppLayoutComponents do
         <.sidebar_item
           :if={
             Project.xcode_project?(@selected_project) or Project.mix_project?(@selected_project) or
-              Project.cargo_project?(@selected_project)
+              Project.cargo_project?(@selected_project) or Project.once_project?(@selected_project)
           }
           label={dgettext("dashboard", "Shards")}
           icon="stack_2"

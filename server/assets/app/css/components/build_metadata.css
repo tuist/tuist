@@ -1,0 +1,68 @@
+[data-part="build-details-section"] > [data-part="metadata-grid"],
+#build-environment-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--noora-spacing-9) var(--noora-spacing-7);
+
+  & > [data-part="metadata-row"] {
+    display: contents;
+  }
+
+  & [data-part="metadata"] {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  & [data-field="command"] {
+    grid-column: 1 / -1;
+  }
+
+  @media (max-width: 900px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (max-width: 600px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+#build-environment {
+  & > [data-part="root"] > [data-part="header"] {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  & > [data-part="root"][data-state="closed"] > [data-part="header"] {
+    padding-bottom: var(--noora-spacing-4);
+  }
+
+  & [data-part="content"][hidden] {
+    display: none;
+  }
+
+  & [data-part="trigger"][aria-expanded="true"] svg {
+    transform: rotate(180deg);
+  }
+}
+
+#build-environment-grid {
+  margin: 0;
+
+  & > [data-part="metadata"] {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="label"] {
+      margin: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+  }
+}

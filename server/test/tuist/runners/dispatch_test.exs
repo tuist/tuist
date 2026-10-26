@@ -1107,6 +1107,23 @@ defmodule Tuist.Runners.DispatchTest do
       assert {:ok, %{runner_labels: []}} = Dispatch.pool_summary_by_name("macos-pool")
     end
 
+    test "returns the catalog Xcode version the pool is labelled with, or nil without one" do
+      stub(Client, :get_runner_pool, fn
+        _ns, "catalog-pool" ->
+          {:ok,
+           %{
+             "metadata" => %{"name" => "catalog-pool", "labels" => %{"tuist.dev/xcode-version" => "27.2-beta"}},
+             "spec" => %{"dispatchLabel" => "shape-macos-27-2-beta"}
+           }}
+
+        _ns, "explicit-pool" ->
+          {:ok, %{"metadata" => %{"name" => "explicit-pool"}, "spec" => %{"dispatchLabel" => "tuist-ber1-smoke"}}}
+      end)
+
+      assert {:ok, %{xcode_version: "27.2-beta"}} = Dispatch.pool_summary_by_name("catalog-pool")
+      assert {:ok, %{xcode_version: nil}} = Dispatch.pool_summary_by_name("explicit-pool")
+    end
+
     test "returns [] when runnerLabels is empty" do
       stub(Client, :get_runner_pool, fn _ns, "macos-pool" ->
         {:ok,

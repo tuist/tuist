@@ -18,8 +18,9 @@ import XCResultParser
 /// from the binary cache, or that was compiled with a coverage prefix map, is missing from it.
 /// `llvm-cov export` reads the coverage mapping of every instrumented image with the run's merged
 /// profile, which covers both. What the bundle's report still provides is the list of products
-/// the action built (the images to export) and which target compiled each file; the lines, their
-/// counts and the functions come from `llvm-cov`.
+/// the action built (the images to export) and which target compiled each file, except the files
+/// it dropped for their mapped paths, which go to the target whose product holds them; the lines,
+/// their counts and the functions come from `llvm-cov`.
 ///
 /// The export runs right after the test action, while the derived data still holds this run's
 /// profile (a stress pass over the same derived data replaces it), and goes into the result bundle
@@ -66,11 +67,13 @@ public struct CoverageExportService: CoverageExportServicing {
               (try? await fileSystem.exists(resultBundlePath)) == true
         else { return nil }
         do {
-            guard let targets = try await coverageTargets(
+            guard let listed = try await Self.coverageTargets(
                 resultBundlePath: resultBundlePath,
-                derivedDataDirectory: derivedDataDirectory
+                derivedDataDirectory: derivedDataDirectory,
+                xcResultService: xcResultService
             )
             else { return nil }
+            let targets = listed.targets
             guard let profile = try await profilePath(derivedDataDirectory: derivedDataDirectory, newerThan: runStartedAt)
             else {
                 Logger.current
@@ -83,7 +86,7 @@ public struct CoverageExportService: CoverageExportServicing {
                 return nil
             }
             let output = resultBundlePath.appending(component: CoverageExport.fileName)
-            let prefixMaps = CompilationPrefixMaps(derivedDataDirectory: derivedDataDirectory)
+            let prefixMaps = await CompilationPrefixMaps.ofRun(derivedDataDirectory: derivedDataDirectory)
             let targetNames = products.map { CompilationPrefixMaps.targetName(ofProduct: $0.path) }
             try await fileSystem.runInTemporaryDirectory(prefix: "tuist-coverage-export") { directory in
                 async let reports = export(
@@ -95,9 +98,15 @@ public struct CoverageExportService: CoverageExportServicing {
                 )
                 let spans = await Self.spans(of: products)
                 let exported = try await reports
+                let attributed = listed.fromReport
+                    ? Self.targets(
+                        targets,
+                        addingMappedFiles: try Self.mappedFiles(of: products, reports: exported, prefixMaps: prefixMaps)
+                    )
+                    : targets
                 try await CoverageExport.write(
                     reports: products.map { exported[$0.path]! },
-                    attribution: CoverageExport.Attribution(targets: targets.map { target in
+                    attribution: CoverageExport.Attribution(targets: attributed.map { target in
                         XcodeCoverageTarget(
                             name: target.name,
                             buildProductPath: target.buildProductPath,
@@ -151,18 +160,18 @@ public struct CoverageExportService: CoverageExportServicing {
 
     /// The run's targets, from the build's graph when the build recorded them (`tuist test`,
     /// including the targets the binary cache replaced, which the bundle's report never lists),
-    /// else from the bundle's report.
-    private func coverageTargets(
+    /// else from the bundle's report (`fromReport`).
+    static func coverageTargets(
         resultBundlePath: AbsolutePath,
-        derivedDataDirectory: AbsolutePath?
-    ) async throws -> [XcodeCoverageTarget]? {
+        derivedDataDirectory: AbsolutePath?,
+        xcResultService: XCResultServicing
+    ) async throws -> (targets: [XcodeCoverageTarget], fromReport: Bool)? {
         if let sources = await RunMetadataStorage.current.coverageBuildSources, !sources.targets.isEmpty {
-            var roots: [AbsolutePath] = []
-            if let derivedDataDirectory { roots.append(derivedDataDirectory.appending(components: "Build", "Products")) }
-            if let testProductsPath = await RunMetadataStorage.current.testProductsPath { roots.append(testProductsPath) }
-            return Self.targets(sources, productRoots: roots)
+            let testProductsPath = await RunMetadataStorage.current.testProductsPath
+            let roots = Self.productRoots(derivedDataDirectory: derivedDataDirectory, testProductsPath: testProductsPath)
+            return (Self.targets(sources, productRoots: roots), false)
         }
-        return try await xcResultService.coverageTargets(path: resultBundlePath)
+        return try await xcResultService.coverageTargets(path: resultBundlePath).map { ($0, true) }
     }
 
     /// The build's targets with the products the run used: for a target built from source, its
@@ -206,24 +215,6 @@ public struct CoverageExportService: CoverageExportServicing {
                 file.hasPrefix("/") ? [file] : sources.rootDirectories.map { "\($0)/\(file)" }
             }
             return XcodeCoverageTarget(name: target.name, buildProductPath: product, files: files, isTest: target.isTest)
-        }
-    }
-
-    /// The platform a products directory is for, from its name: `Debug` is macOS,
-    /// `Debug-iphonesimulator` the iOS simulator, `Release-appletvos` tvOS devices.
-    static func platform(ofProductsDirectory name: String) -> (name: String, simulator: Bool) {
-        guard let dash = name.lastIndex(of: "-") else { return ("macos", false) }
-        let suffix = String(name[name.index(after: dash)...])
-        let simulator = suffix.hasSuffix("simulator")
-        let base = simulator ? String(suffix.dropLast("simulator".count)) : suffix
-            .hasSuffix("os") ? String(suffix.dropLast(2)) : suffix
-        switch base {
-        case "iphone": return ("ios", simulator)
-        case "appletv": return ("tvos", simulator)
-        case "watch": return ("watchos", simulator)
-        case "xr": return ("xros", simulator)
-        case "macosx", "mac": return ("macos", false)
-        default: return (base, simulator)
         }
     }
 
@@ -288,12 +279,7 @@ public struct CoverageExportService: CoverageExportServicing {
         var products: [Product] = []
         var seen: Set<String> = []
         for path in targets.compactMap(\.buildProductPath) {
-            let resolved = (try? FileManager.default.destinationOfSymbolicLink(atPath: path))
-                .map {
-                    ($0 as NSString).isAbsolutePath ? $0 : ((path as NSString).deletingLastPathComponent as NSString)
-                        .appendingPathComponent($0)
-                }
-                ?? path
+            let resolved = resolvedProductPath(path)
             guard seen.insert(resolved).inserted, let kind = Self.kind(of: resolved) else { continue }
             products.append(Product(path: resolved, kind: kind))
         }
@@ -460,6 +446,111 @@ public struct CoverageExportService: CoverageExportServicing {
     }
 }
 
+extension CoverageExportService {
+    /// A product's path with a symbolic link to it followed, as ``Product/path`` has it.
+    static func resolvedProductPath(_ path: String) -> String {
+        (try? FileManager.default.destinationOfSymbolicLink(atPath: path))
+            .map {
+                ($0 as NSString).isAbsolutePath ? $0 : ((path as NSString).deletingLastPathComponent as NSString)
+                    .appendingPathComponent($0)
+            }
+            ?? path
+    }
+
+    /// The files each product's report (`reports`, by product path) lists under an alias, mapped
+    /// back through the product's target's map. A run without prefix maps recorded no alias, so
+    /// its reports are not read again.
+    static func mappedFiles(
+        of products: [Product],
+        reports: [String: AbsolutePath],
+        prefixMaps: CompilationPrefixMaps
+    ) throws -> [String: [String]] {
+        guard !prefixMaps.mapsByTarget.isEmpty else { return [:] }
+        var mappedFiles: [String: [String]] = [:]
+        for product in products {
+            guard let report = reports[product.path] else { continue }
+            let target = CompilationPrefixMaps.targetName(ofProduct: product.path)
+            mappedFiles[product.path] = try CoverageExport.aliasedPaths(in: report).map { prefixMaps.remap($0, target: target) }
+        }
+        return mappedFiles
+    }
+
+    /// Xcode keeps a file in a target's coverage report only when the path the compiler recorded
+    /// is one of the target's sources as the project lists them, so the report lists a file
+    /// recorded under Xcode's prefix mapping (`/^src/…`, `/^root/…`) in no target. Each target
+    /// gets those files back from its product's export (`mappedFiles`, by product path), already
+    /// mapped back. A file that several products hold stays with the ones whose files are not a
+    /// strict superset of another holder's: the static library, not the image that links it.
+    static func targets(
+        _ targets: [XcodeCoverageTarget],
+        addingMappedFiles mappedFiles: [String: [String]]
+    ) -> [XcodeCoverageTarget] {
+        let held = targets.map { target in
+            target.buildProductPath.flatMap { mappedFiles[resolvedProductPath($0)] } ?? []
+        }
+        let sets = held.map(Set.init)
+        var holders: [String: [Int]] = [:]
+        for (index, files) in sets.enumerated() {
+            for file in files {
+                holders[file, default: []].append(index)
+            }
+        }
+        var contains: [[Int]: Bool] = [:]
+        func holdsAnotherHolder(_ index: Int, of file: String) -> Bool {
+            holders[file, default: []].contains { other in
+                guard other != index, sets[other].count < sets[index].count else { return false }
+                if let known = contains[[index, other]] { return known }
+                let result = sets[other].isSubset(of: sets[index])
+                contains[[index, other]] = result
+                return result
+            }
+        }
+        return targets.enumerated().map { index, target in
+            let added = held[index].filter { !holdsAnotherHolder(index, of: $0) }
+            guard !added.isEmpty else { return target }
+            return XcodeCoverageTarget(
+                name: target.name,
+                buildProductPath: target.buildProductPath,
+                files: target.files + added,
+                isTest: target.isTest
+            )
+        }
+    }
+
+    /// The platform a products directory is for, from its name: `Debug` is macOS,
+    /// `Debug-iphonesimulator` the iOS simulator, `Release-appletvos` tvOS devices.
+    static func platform(ofProductsDirectory name: String) -> (name: String, simulator: Bool) {
+        guard let dash = name.lastIndex(of: "-") else { return ("macos", false) }
+        let suffix = String(name[name.index(after: dash)...])
+        let simulator = suffix.hasSuffix("simulator")
+        let base = simulator ? String(suffix.dropLast("simulator".count)) : suffix
+            .hasSuffix("os") ? String(suffix.dropLast(2)) : suffix
+        switch base {
+        case "iphone": return ("ios", simulator)
+        case "appletv": return ("tvos", simulator)
+        case "watch": return ("watchos", simulator)
+        case "xr": return ("xros", simulator)
+        case "macosx", "mac": return ("macos", false)
+        default: return (base, simulator)
+        }
+    }
+
+    /// Where the run's products can be: the derived data's products directory, and an
+    /// `.xctestproducts` bundle the run tests without building, which keeps each configuration's
+    /// products in `Binaries/<n>/<configuration>`.
+    static func productRoots(derivedDataDirectory: AbsolutePath?, testProductsPath: AbsolutePath?) -> [AbsolutePath] {
+        var roots: [AbsolutePath] = []
+        if let derivedDataDirectory { roots.append(derivedDataDirectory.appending(components: "Build", "Products")) }
+        if let testProductsPath {
+            let binaries = testProductsPath.appending(component: "Binaries")
+            let indices = (try? FileManager.default.contentsOfDirectory(atPath: binaries.pathString)) ?? []
+            roots.append(testProductsPath)
+            roots.append(contentsOf: indices.sorted().map { binaries.appending(component: $0) })
+        }
+        return roots
+    }
+}
+
 enum CoverageExportError: LocalizedError {
     case cannotWrite(AbsolutePath)
 
@@ -607,6 +698,17 @@ public enum CoverageExport {
                 try body(finished)
             }
         }
+    }
+
+    /// The files an LCOV report lists under a path the compiler recorded with Xcode's prefix
+    /// mapping (`/^src/…`).
+    static func aliasedPaths(in report: AbsolutePath) throws -> [String] {
+        var paths: [String] = []
+        try forEachLine(of: report) { line in
+            guard line.hasPrefix("SF:/^") else { return }
+            paths.append(String(line.dropFirst(3)))
+        }
+        return paths
     }
 
     /// The function names an LCOV report lists.
@@ -792,7 +894,9 @@ public enum CoverageExport {
 /// target's intermediates (`Build/Intermediates.noindex/<project>.build/<configuration>/
 /// <target>.build/`) maps the aliases the compiler recorded (`/^src`, `/^root`, `/^built`, …)
 /// back to the directories of this build. A coverage build maps only when the project opted in
-/// (`coverage.prefixMapping`), since `xccov` drops mapped files.
+/// (`coverage.prefixMapping`), since `xccov` drops mapped files. A run that tests products built
+/// in another job has no intermediates and falls back to the maps the build wrote into the
+/// `.xctestproducts` bundle (``CoverageBuildSources/prefixMaps``).
 struct CompilationPrefixMaps {
     /// Each target's entries, longest alias first, so the most specific one wins.
     private(set) var mapsByTarget: [String: [(alias: String, path: String)]] = [:]
@@ -803,11 +907,26 @@ struct CompilationPrefixMaps {
         }
     }
 
-    init(derivedDataDirectory: AbsolutePath?) {
-        guard let derivedDataDirectory else {
-            self.init(mapsByTarget: [:])
-            return
-        }
+    /// The derived data's maps, and for a target it has none for (every target, in a test job
+    /// that did not build), the one the build recorded in the `.xctestproducts` bundle the run
+    /// tests from.
+    init(derivedDataDirectory: AbsolutePath?, buildSources: CoverageBuildSources? = nil) {
+        var maps = Self.maps(derivedDataDirectory: derivedDataDirectory)
+        maps.merge(buildSources?.prefixMaps ?? [:]) { derived, _ in derived }
+        self.init(mapsByTarget: maps)
+    }
+
+    /// The maps of the run in progress, with those of the `.xctestproducts` bundle it restored.
+    static func ofRun(derivedDataDirectory: AbsolutePath?) async -> CompilationPrefixMaps {
+        CompilationPrefixMaps(
+            derivedDataDirectory: derivedDataDirectory,
+            buildSources: await RunMetadataStorage.current.coverageBuildSources
+        )
+    }
+
+    /// Each target's `compilation-prefix-map.json` under the derived data's intermediates.
+    static func maps(derivedDataDirectory: AbsolutePath?) -> [String: [String: String]] {
+        guard let derivedDataDirectory else { return [:] }
         let intermediates = derivedDataDirectory.appending(components: "Build", "Intermediates.noindex")
         var maps: [String: [String: String]] = [:]
         for project in (try? FileManager.default.contentsOfDirectory(atPath: intermediates.pathString)) ?? []
@@ -827,7 +946,7 @@ struct CompilationPrefixMaps {
                 }
             }
         }
-        self.init(mapsByTarget: maps)
+        return maps
     }
 
     /// The name of the target a product was built from: the product's file name without its

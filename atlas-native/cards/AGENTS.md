@@ -6,8 +6,11 @@ durable tool message. The client never interprets tool output to invent cards,
 advance a run, or persist its own thread state.
 
 `App.tsx` is a bundled, reviewed NSH 0.2.0 rendering implementation, not server
-code. It receives only the Rust-validated `result_table` v1 payload and local
-appearance colors through `atlas.thread-card`. The bridge's only commands
+code. It receives only Rust-validated `result_table` and `account_card` v1 payloads
+and local appearance colors through `atlas.thread-card`. Account cards require the
+exact Field/Value shape; only the server projects allowlisted fields from an
+existing redacted `get_account` result. Both hosts pass selected-theme text,
+secondary text, surface, border and tint tokens, with native high-contrast fallback. The bridge's only commands
 are measured height and an action ID. Rust checks action IDs against the current
 message and selected thread before a native view reveals existing source
 evidence. Future mutations require a server-authorized, persisted action endpoint;
@@ -42,7 +45,8 @@ checksum-pinned SDK integrations live in `../modules/nsh.star`.
 - Unsupported/malformed versions are discarded by Rust without losing original
   tool output. NSH load/runtime/size failures use the server's text fallback.
   Android API 26–27 retains text without instantiating the API-28 NSH runtime.
-- A runtime exists only while its expanded card view exists. Remove its storage
+- iOS account cards are visible inline in the timeline; result tables remain inside expandable tool evidence. The source action reveals the existing evidence without refetching or running a tool.
+- A runtime exists only while its card view exists. Remove its storage
   and destroy/detach the runtime when the view leaves. Do not retain user data in
   a JS VM across users, selected servers or access revocation.
 

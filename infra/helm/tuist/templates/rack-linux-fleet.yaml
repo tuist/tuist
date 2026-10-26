@@ -86,6 +86,9 @@ spec:
   {{- with $host.bootMAC }}
   bootMAC: {{ lower . | quote }}
   {{- end }}
+  {{- with $host.tpmCheckCode }}
+  tpmCheckCode: {{ . | quote }}
+  {{- end }}
   {{- if or $nodeLabels $roleConfig.nodeTaints }}
   node:
     {{- with $nodeLabels }}

@@ -154,6 +154,9 @@ type Store struct {
 	MaxSlots int
 	// MaxVolumeBytes is the largest volume this host accepts.
 	MaxVolumeBytes int64
+	// Observe reports every branch deletion as a "delete" phase whose source
+	// is why the branch was discarded.
+	Observe Observer
 }
 
 func Open(path string, backend Backend) (*Store, error) {
@@ -431,7 +434,7 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 	}
 	// An incomplete allocation can never become a published snapshot.
 	if slot.State == "allocated" && done {
-		if err = s.discard(&slot); err != nil {
+		if err = s.discard(&slot, DiscardAbandoned); err != nil {
 			return err
 		}
 		if err = s.save(slot); err != nil || slot.State != "deleted" {
@@ -461,7 +464,11 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 		sealed := slot
 		sealed.PublishCold = action == "publish"
 		if err = s.backend.Seal(sealed, s.activePath(slot)); errors.Is(err, ErrPoisoned) || errors.Is(err, ErrWithheld) {
-			if err = s.discard(&slot); err != nil {
+			reason := DiscardWithheld
+			if errors.Is(err, ErrPoisoned) {
+				reason = DiscardPoisoned
+			}
+			if err = s.discard(&slot, reason); err != nil {
 				return err
 			}
 		} else if errors.Is(err, ErrReleasePending) {
@@ -472,7 +479,7 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 			slot.State = "sealed"
 		}
 	case "delete":
-		if err = s.discard(&slot); err != nil {
+		if err = s.discard(&slot, DiscardServer); err != nil {
 			return err
 		}
 	case "forget":
@@ -495,11 +502,30 @@ func (s *Store) reconcileSlot(slot Slot, gone func(string, string) (bool, error)
 	return s.save(slot)
 }
 
+// Discard reasons, the source of a "delete" observation.
+const (
+	// DiscardServer is the server's delete decision: the job did not succeed,
+	// its use was discarded, or its volume was cleared.
+	DiscardServer = "server"
+	// DiscardAbandoned is an allocation whose Pod ended before it attached.
+	DiscardAbandoned = "abandoned"
+	DiscardPoisoned  = "poisoned"
+	DiscardWithheld  = "withheld"
+	// DiscardPending retries a deletion that waited for its loop device.
+	DiscardPending = "pending"
+)
+
 // discard deletes the slot's branch. While another mount still holds its loop
 // device the slot keeps its state, marked for a later pass to delete.
-func (s *Store) discard(slot *Slot) error {
+func (s *Store) discard(slot *Slot, reason string) error {
+	if slot.Discard {
+		reason = DiscardPending
+	}
 	slot.Discard = true
-	if err := s.backend.Delete(*slot, s.activePath(*slot)); errors.Is(err, ErrReleasePending) {
+	done := s.Observe.For(*slot).Start("delete", reason)
+	err := s.backend.Delete(*slot, s.activePath(*slot))
+	done(err)
+	if errors.Is(err, ErrReleasePending) {
 		return nil
 	} else if err != nil {
 		return err
