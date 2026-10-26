@@ -217,7 +217,7 @@ hostname, VLANs (not VLAN 1), each port's description, VLAN membership
 (`family ethernet-switching`) and LAG membership, LAGs (`aggregate-ethernet`)
 with LACP, and each LAG member's LACP rate. A LAG's VLANs are its first member
 port's, written on the `aeN` interface. Everything else, the management port,
-users, NETCONF and the port speeds ZTP set, is left alone.
+users, NETCONF and port speeds, is left alone.
 
 What PicOS does that the code is shaped around:
 

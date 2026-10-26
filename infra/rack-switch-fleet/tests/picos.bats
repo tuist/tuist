@@ -142,3 +142,12 @@ edge_sh() { bash -c "source '$FLEET_ROOT/lib/config.sh'; source '$FLEET_ROOT/lib
     [ "$status" -eq 0 ]
     [ -z "$output" ]
 }
+
+# SFP28 runs at its 25G default, which rack 2's DACs need: the bootstrap
+# pins no port speed.
+@test "the bootstrap sets no port speed" {
+    site="$(site_with_picos_tor)"
+    run edge_sh "fleet_picos_bootstrap '$site'"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *" speed "* ]]
+}
