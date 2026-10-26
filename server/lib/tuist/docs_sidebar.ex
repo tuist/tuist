@@ -337,7 +337,6 @@ defmodule Tuist.Docs.Sidebar do
               },
               %Item{label: "Gradle", slug: "/en/guides/features/test-sharding/gradle", icon: "brand_gradle"},
               %Item{label: "Elixir", slug: "/en/guides/features/test-sharding/elixir", icon: "brand_elixir"},
-              %Item{label: "Once", slug: "/en/guides/features/test-sharding/once", icon: "stack_2"},
               %Item{label: "Rust", slug: "/en/guides/features/test-sharding/rust", icon: "brand_rust"}
             ]
           }
