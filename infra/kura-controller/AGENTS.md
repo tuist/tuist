@@ -168,8 +168,8 @@ no Linux runner-specific cache region. The default-off account flag
 `runner_linux_vrack` selects isolated runner pools on enrolled hosts. See
 [linux-runner-private-cache.md](linux-runner-private-cache.md) for the required
 staging experiment cleanup before deployment, physical-path qualification and
-production rollout. Additional cache-host orders are on hold. The optional
-`production-linux-runner-vrack.values.yaml` prepares disjoint runner pools;
+production rollout. Additional cache-host orders are on hold. Shared managed
+values prepare disjoint runner pools in staging, canary and production;
 no account or Machine is enrolled automatically. `spec.vRackID` opts in a whole
 host; ordinary hosts must remain unenrolled. Preserve cohort membership in
 CAPI as well as live Node labels before enabling only the Tuist actor flag.

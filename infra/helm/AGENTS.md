@@ -227,7 +227,10 @@ Cluster formation requires a stable shared cookie Secret, a fixed distribution l
 
 - Linux vRack rollout uses default-off account flag `runner_linux_vrack` to select
   shape-equivalent isolated pools. `runnersFleetLinux.vrack.enabled` only renders
-  pools/mappings with zero warm floors and a disjoint host `fleetSelector`; it
+  pools/mappings with zero warm floors and a disjoint host `fleetSelector`.
+  Shared managed values prepare them in all three environments; self-hosted
+  defaults stay off. Canary's current runner lacks vRack, so prepared pools
+  alone do not qualify it for account enrollment. The preparation switch
   must never set vRack on ordinary fleet templates. Keep resource sizing and the
   cache-volume DaemonSet's coverage of both cohorts aligned. Validate with
   `infra/mise/tasks/helm/linux-vrack.sh`. Host cohort membership must persist

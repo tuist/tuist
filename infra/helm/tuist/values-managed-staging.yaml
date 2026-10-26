@@ -919,9 +919,6 @@ runnersController:
 # virtio-fs.
 runnersFleetLinux:
   enabled: true
-  vrack:
-    enabled: true
-    nodePool: runners-linux-vrack
   # Follow the controller's matching agent release, as production does.
   cacheVolumes:
     enabled: true

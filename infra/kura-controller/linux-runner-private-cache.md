@@ -45,8 +45,10 @@ macOS routing is unchanged. No endpoint is removed from unflagged runs: both
 cohorts retain the ordinary regional Kura Service.
 
 `runnersFleetLinux.vrack.enabled` prepares the pools and server mapping; it
-never enables any account. It defaults false and the production preparation
-overlay is optional. The new pools have a zero warm floor and a different
+never enables any account. Shared managed values enable this preparation in
+staging, canary and production through their normal deployments; self-hosted
+installs default off. No environment-specific preparation overlay is needed.
+The new pools have a zero warm floor and a different
 `fleetSelector` (`runners-linux-vrack`). The existing cache-volume agent covers
 both cohorts. Capacity accounting uses the existing controller's per-fleet
 selection, with the same per-job resource reservation in both cohorts.
@@ -208,10 +210,10 @@ region-specific storage reservation accounting would give it a second budget.
    cache headroom before expanding account enrollment or cohort capacity.
    Preserve healthy ordinary hosts for accounts that remain off.
 
-The optional [production overlay](production-linux-runner-vrack.values.yaml)
-prepares isolated shape pools and their dispatch mapping. It adds no physical
-hosts, cache instances or storage. It does not set vRack on the ordinary fleet
-template and does not enroll accounts. Production defaults leave it disabled.
+The shared managed configuration prepares isolated shape pools and their
+dispatch mapping in all three environments. It adds no physical hosts, cache
+instances or storage. It does not set vRack on the ordinary fleet template
+and does not enroll accounts. The account flag remains off by default.
 Enable the account flag only after the selected cohort's private route has
 been qualified; leave all other accounts off.
 
@@ -224,5 +226,9 @@ The [cluster access rules](../AGENTS.md#cluster-access-for-agents) require a hum
 to initiate and approve production JIT elevation.
 
 Canary's current SYS-1 cache is in Canada and its Gravelines RISE-S runner lacks
-vRack. Preserve that configuration while evaluating compatible spare capacity;
-no new order is planned. Do not bridge environments to simulate the topology.
+vRack. Its pool definitions and account gate match staging and production, but
+leave the flag off until compatible, isolated capacity is qualified in canary.
+An enabled flag with no eligible hosts would leave jobs queued. Evaluate spare
+capacity first; no new order is planned. Do not bridge environments to simulate
+the topology. Configuration parity is not live transport validation: each
+environment still needs enrolled/excluded-account runs and path verification.
