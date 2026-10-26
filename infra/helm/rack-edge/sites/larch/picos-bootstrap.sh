@@ -101,7 +101,8 @@ fi
 wan_vlan='4001 wan'
 wan_paths='649d99d9810e 27 29,30'
 # The management port's MAC is the one the edge's DHCP answered, so it is the
-# one the site records.
+# one the site records. ZTP's own switch_mac is the system MAC, one above it
+# (64:9d:99:d9:81:0f against eth0's :0e on the bench unit).
 mac="$(tr -d ':-' <<<"$(cat /sys/class/net/eth0/address 2>/dev/null || echo "${switch_mac:-}")" | tr 'A-F' 'a-f')"
 if [ -n "$wan_paths" ]; then
   read -r vlan_id vlan_name <<<"$wan_vlan"

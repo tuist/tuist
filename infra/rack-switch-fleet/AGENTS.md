@@ -1807,7 +1807,13 @@ rack-edge chart:
   controller reaches the switch over that same WAN, so without it the first
   edge of a site would lose its way out the moment its rack-edge pod moved the
   WAN onto the VLAN. The switch matches itself by its management port's MAC,
-  the one the edge's DHCP answered; a failure of that commit is only logged.
+  the one the edge's DHCP answered, not ZTP's `switch_mac`, which is the system
+  MAC one above it; a failure of that commit is only logged. On 2026-10-26 the
+  bench unit (larch-r1-tor-a) fetched larch's bootstrap from a factory reset
+  and logged `WAN path: te-1/1/27 untagged and te-1/1/{29,30} tagged on VLAN
+  4001` three minutes later, with VLAN 4001 named `wan`, te-1/1/27 on
+  `native-vlan-id 4001`, 29 and 30 trunks with `members 4001`, and NETCONF on
+  and ZTP off as before.
 - `ztp-<edge>.conf`: dnsmasq on that edge's link, answering DHCP for the ToR's
   MAC alone, with options 66 (the edge), 67 (`picos-bootstrap.sh`) and 7 (the
   edge, for ZTP's syslog), and serving the chart's site files over TFTP.
