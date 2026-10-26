@@ -67,8 +67,8 @@ defmodule Tuist.Billing.UsagePricingTest do
 
       breakdown = UsagePricing.period_breakdown(account, {@period_start, @period_end})
 
-      assert breakdown.cache.egress.gross == Money.new(3_500, :USD)
-      assert breakdown.cache.egress.included_credit == Money.new(3_500, :USD)
+      assert breakdown.cache.egress.gross == Money.new(1_000, :USD)
+      assert breakdown.cache.egress.included_credit == Money.new(1_000, :USD)
       assert breakdown.cache.egress.charge == Money.new(0, :USD)
       assert breakdown.cache.requests.gross == Money.new(1_000, :USD)
       assert breakdown.cache.requests.charge == Money.new(0, :USD)
@@ -85,12 +85,12 @@ defmodule Tuist.Billing.UsagePricingTest do
 
       breakdown = UsagePricing.period_breakdown(account, {@period_start, @period_end})
 
-      # 10 GB at $0.35
+      # 10 GB at $0.10
       assert breakdown.cache.egress.billable == 10_000_000_000
-      assert breakdown.cache.egress.charge == Money.new(350, :USD)
+      assert breakdown.cache.egress.charge == Money.new(100, :USD)
       # 250,000 requests at $0.01 per 1,000
       assert breakdown.cache.requests.charge == Money.new(250, :USD)
-      assert breakdown.cache.charge == Money.new(600, :USD)
+      assert breakdown.cache.charge == Money.new(350, :USD)
       # 3 million passing test cases at $2 per million
       assert breakdown.tests.billable == 3_000_000
       assert breakdown.tests.charge == Money.new(600, :USD)
@@ -109,10 +109,10 @@ defmodule Tuist.Billing.UsagePricingTest do
 
       assert egress.quantity == 140_000_000_000
       assert egress.metered == 110_000_000_000
-      assert egress.gross == Money.new(4_900, :USD)
-      assert egress.runner_credit == Money.new(1_050, :USD)
-      assert egress.included_credit == Money.new(3_500, :USD)
-      assert egress.charge == Money.new(350, :USD)
+      assert egress.gross == Money.new(1_400, :USD)
+      assert egress.runner_credit == Money.new(300, :USD)
+      assert egress.included_credit == Money.new(1_000, :USD)
+      assert egress.charge == Money.new(100, :USD)
       assert breakdown.cache.requests.metered == 1_100_000
       assert breakdown.cache.requests.charge == Money.new(100, :USD)
     end
@@ -194,12 +194,12 @@ defmodule Tuist.Billing.UsagePricingTest do
              ]
 
       assert breakdown.cache.charge_days == [
-               %{date: ~D[2026-05-10], meter: :egress, dollars: 3.5},
+               %{date: ~D[2026-05-10], meter: :egress, dollars: 1.0},
                %{date: ~D[2026-05-10], meter: :requests, dollars: 0.01}
              ]
 
       assert %{bytes: bytes, requests: requests, dollars: dollars} = hd(breakdown.cache.projected_days)
-      assert {round(bytes), round(requests), Float.round(dollars, 4)} == {909_090_909, 91, 0.3191}
+      assert {round(bytes), round(requests), Float.round(dollars, 4)} == {909_090_909, 91, 0.0918}
       assert breakdown.usage_through == ~D[2026-05-11]
       assert breakdown.cache.egress.projected == 31_000_000_000
       assert [%{date: ~D[2026-05-12]} | _] = breakdown.cache.projected_days

@@ -461,7 +461,7 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       html = conn |> get("/pricing") |> html_response(200)
 
       assert html =~ "Cache egress"
-      assert html =~ "+ $0.35 per additional GB"
+      assert html =~ "+ $0.10 per additional GB"
       assert html =~ "Cache requests"
       assert html =~ "+ $0.01 per additional 1,000"
       assert html =~ "Test Insights"
