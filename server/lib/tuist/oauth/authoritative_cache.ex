@@ -14,9 +14,11 @@ defmodule Tuist.OAuth.AuthoritativeCache do
   stop every no-invalidation consumer, then clear or replace every retained cache
   participant and prevent old participants from rejoining before readers start.
 
-  Upstream code redemption and refresh rotation are not made atomic. Immutable
-  bcrypt proofs, bounded authentication subjects and already-issued Guardian JWT
-  revocation semantics are unchanged.
+  This backend alone does not make upstream redemption/rotation atomic.
+  `Tuist.OAuth.Exchange` serializes the HTTP credential exchanges once every
+  grant-serving replica runs that wrapper; older issuers do not share its lock
+  protocol. Immutable bcrypt proofs, bounded authentication subjects and
+  already-issued Guardian JWT revocation semantics are unchanged.
   """
 
   def get(_key), do: nil

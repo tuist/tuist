@@ -94,6 +94,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   @ambiguous_forbidden_hosts ["github.com"]
 
   @impl Oban.Worker
+  def timeout(_job), do: to_timeout(minute: 20)
+
+  @impl Oban.Worker
   def perform(%Oban.Job{
         args: %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "tag" => tag} = args
       }) do
@@ -108,7 +111,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
         end
 
       {:error, :already_locked} ->
-        :ok
+        {:snooze, 60}
     end
   end
 
@@ -167,19 +170,10 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
-  # Briefly deletes a dead process's files from inside its single
-  # `Briefly.Entry` server, and every `Briefly.create/1` from a new job process
-  # makes a 5s call to that same server. Removing a cloned or extracted package
-  # tree there stalls it long enough for concurrent release jobs to crash on the
-  # call timeout, so the tree is removed here, in the job's own process.
   defp sync_release(scope, name, full_handle, tag, version, token, opts) do
-    {:ok, tmp_dir} = Briefly.create(directory: true)
-
-    try do
+    Tuist.Registry.Temporary.with_directory(fn tmp_dir ->
       sync_release_in(tmp_dir, scope, name, full_handle, tag, version, token, opts)
-    after
-      File.rm_rf(tmp_dir)
-    end
+    end)
   end
 
   defp sync_release_in(tmp_dir, scope, name, full_handle, tag, version, token, opts) do
@@ -189,10 +183,11 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
          :ok <- fetch_source_archive(full_handle, tag, token, tmp_dir, archive_path),
          {:ok, checksum} <- checksum_for_file(archive_path),
          :ok <- ensure_checksum_change_allowed(scope, name, version, checksum, opts),
-         :ok <- upload_source_archive(scope, name, version, archive_path, checksum),
+         {:ok, checksum, manifest_payloads} <-
+           persist_or_adopt_archive(scope, name, version, archive_path, checksum, manifest_payloads, opts),
          :ok <- verify_stored_archive(scope, name, version, checksum),
-         {:ok, manifests} <- upload_manifests(scope, name, version, manifest_payloads) do
-      update_metadata_with_release(scope, name, full_handle, version, checksum, manifests)
+         {:ok, manifests} <- upload_manifests(scope, name, version, manifest_payloads, opts) do
+      update_metadata_with_release(scope, name, full_handle, version, checksum, manifests, opts)
     else
       {:error, {:checksum_change_refused, details} = reason} ->
         Logger.warning(
@@ -299,7 +294,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     clone_dest = Path.join(tmp_dir, "#{repo_name}-#{String.replace(tag, "/", "-")}")
 
     GitAuthentication.with_github_token(tmp_dir, token, fn git_credentials ->
-      case System.cmd(
+      case bounded_command(
              "git",
              GitAuthentication.config_args(git_credentials) ++
                [
@@ -339,7 +334,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     repo_name = full_handle |> String.split("/") |> List.last()
     clone_dest = Path.join(tmp_dir, "#{repo_name}-#{String.replace(tag, "/", "-")}")
 
-    case System.cmd(
+    case bounded_command(
            "git",
            GitAuthentication.config_args(nil) ++
              [
@@ -457,7 +452,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   end
 
   defp update_submodule(repository_directory, submodule_path, git_credentials) do
-    case System.cmd(
+    case bounded_command(
            "git",
            GitAuthentication.config_args(git_credentials) ++
              [
@@ -476,6 +471,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
          ) do
       {_, 0} ->
         :ok
+
+      {output, :timeout} ->
+        {:throttled, :timeout, String.trim(output)}
 
       {output, status} ->
         output =
@@ -567,7 +565,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   # means a path may be taken verbatim, since trimming would corrupt the paths
   # git emits with leading or trailing whitespace.
   defp submodule_paths(repository_directory, path_prefix) do
-    case System.cmd("git", ["-C", repository_directory, "ls-files", "--stage", "-z"], stderr_to_stdout: true) do
+    case bounded_command("git", ["-C", repository_directory, "ls-files", "--stage", "-z"], stderr_to_stdout: true) do
       {output, 0} ->
         paths =
           output
@@ -610,7 +608,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
       # `-y` stores the symlinks that `resolve_symlinks/1` deliberately preserved
       # (those inside code-signed bundles) as symlinks instead of following them
       # and inlining their target, which would otherwise break the signature.
-      case System.cmd("zip", ["-r", "-y", archive_path, base_name], cd: parent_dir) do
+      case bounded_command("zip", ["-r", "-y", archive_path, base_name], cd: parent_dir) do
         {_, 0} -> :ok
         {output, status} -> {:error, {:zip_failed, status, output}}
       end
@@ -618,7 +616,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   end
 
   defp resolve_symlinks(directory) do
-    case System.cmd("find", [directory, "-type", "l"], stderr_to_stdout: true) do
+    case bounded_command("find", [directory, "-type", "l"], stderr_to_stdout: true) do
       {output, 0} ->
         symlink_paths =
           output
@@ -744,7 +742,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   end
 
   defp unzip_archive(archive_path, extract_dir) do
-    case System.cmd("unzip", [archive_path, "-d", extract_dir], stderr_to_stdout: true) do
+    case bounded_command("unzip", [archive_path, "-d", extract_dir], stderr_to_stdout: true) do
       {_, 0} -> :ok
       {output, status} -> {:error, {:unzip_resolve_symlinks_failed, status, output}}
     end
@@ -856,7 +854,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   # large package carries tens of thousands of entries and none of them are
   # needed once counted.
   defp inspect_archive(archive_path) do
-    case System.cmd("unzip", ["-Z", archive_path], stderr_to_stdout: true) do
+    case bounded_command("unzip", ["-Z", archive_path], stderr_to_stdout: true) do
       {output, 0} ->
         {:ok,
          output
@@ -932,11 +930,64 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
-  defp upload_source_archive(scope, name, version, archive_path, checksum) do
-    S3.upload_file(source_archive_key(scope, name, version), archive_path,
-      content_type: "application/zip",
-      meta: [{"sha256", checksum}]
-    )
+  defp persist_or_adopt_archive(scope, name, version, archive_path, checksum, manifests, opts) do
+    case upload_source_archive(scope, name, version, archive_path, checksum, opts) do
+      :ok -> {:ok, checksum, manifests}
+      {:error, {:immutable_archive_conflict, _}} -> adopt_stored_archive(scope, name, version, archive_path, opts)
+      error -> error
+    end
+  end
+
+  defp adopt_stored_archive(scope, name, version, path, opts) do
+    key = source_archive_key(scope, name, version)
+    path = path <> ".stored"
+    extract = Path.join(Path.dirname(path), "adopted-archive")
+
+    with {:ok, headers} <- S3.head_object(key),
+         :ok <- S3.download_file(key, path),
+         {:ok, stored} <- checksum_for_file(path),
+         true <- stored == headers["x-amz-meta-sha256"],
+         :ok <- ensure_checksum_change_allowed(scope, name, version, stored, opts),
+         :ok <- verify_archive_directories(path),
+         :ok <- ensure_extract_directory(extract),
+         :ok <- unzip_archive(path, extract),
+         {:ok, root} <- extract_archive_root_directory(extract),
+         {:ok, manifests} <- manifests_from_archive(root) do
+      {:ok, stored, manifests}
+    else
+      false -> {:error, :orphan_archive_checksum_mismatch}
+      error -> error
+    end
+  end
+
+  defp manifests_from_archive(root) do
+    with {:ok, entries} <- File.ls(root) do
+      manifests =
+        entries
+        |> Enum.filter(&manifest_path?/1)
+        |> Enum.map(fn filename ->
+          %{
+            content: File.read!(Path.join(root, filename)),
+            filename: filename,
+            path: filename,
+            swift_version: AlternateManifest.swift_version_from_filename(filename)
+          }
+        end)
+
+      if Enum.any?(manifests, &(&1.filename == "Package.swift")),
+        do: {:ok, manifests},
+        else: {:error, :orphan_archive_missing_manifest}
+    end
+  end
+
+  defp upload_source_archive(scope, name, version, archive_path, checksum, opts) do
+    upload_opts = [content_type: "application/zip", meta: [{"sha256", checksum}]]
+
+    if opts.allow_checksum_change? do
+      S3.upload_file(source_archive_key(scope, name, version), archive_path, upload_opts)
+    else
+      S3.upload_file_once(source_archive_key(scope, name, version), archive_path, upload_opts)
+    end
   end
 
   # The archive upload runs through the multipart path, whose sub-operations do
@@ -1010,7 +1061,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
-  defp upload_manifests(scope, name, version, manifest_payloads) do
+  defp upload_manifests(scope, name, version, manifest_payloads, opts) do
     {manifests, failures} =
       Enum.reduce(manifest_payloads, {[], []}, fn %{
                                                     content: content,
@@ -1019,7 +1070,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
                                                     swift_version: swift_version
                                                   },
                                                   {manifests, failures} ->
-        case upload_manifest(scope, name, version, filename, content) do
+        case upload_manifest(scope, name, version, filename, content, opts) do
           :ok ->
             manifest = %{
               "swift_version" => swift_version,
@@ -1042,26 +1093,19 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
-  defp update_metadata_with_release(scope, name, full_handle, version, checksum, manifests) do
+  defp update_metadata_with_release(scope, name, full_handle, version, checksum, manifests, opts) do
     lock_key = {:package, scope, name}
 
     case acquire_metadata_lock(lock_key) do
       {:ok, :acquired} ->
         try do
-          with {:ok, metadata} <- get_or_create_metadata(scope, name, full_handle) do
-            updated_metadata =
-              build_updated_metadata(
-                metadata,
-                scope,
-                name,
-                full_handle,
-                version,
-                checksum,
-                manifests
-              )
+          Metadata.update_package(scope, name, initial_metadata(scope, name, full_handle), fn metadata ->
+            current_opts = %{opts | published_checksum: published_checksum(Map.get(metadata, "releases", %{}), version)}
 
-            Metadata.put_package(scope, name, updated_metadata)
-          end
+            with :ok <- ensure_checksum_change_allowed(scope, name, version, checksum, current_opts) do
+              {:ok, build_updated_metadata(metadata, scope, name, full_handle, version, checksum, manifests)}
+            end
+          end)
         after
           Lock.release(lock_key)
         end
@@ -1228,19 +1272,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     case Lock.try_acquire(lock_key, @metadata_lock_ttl_seconds) do
       {:ok, :acquired} ->
         try do
-          with {:ok, metadata} <- get_or_create_metadata(scope, name, full_handle) do
-            updated_metadata =
-              build_updated_metadata_with_skipped_release(
-                metadata,
-                scope,
-                name,
-                full_handle,
-                version,
-                reason
-              )
-
-            Metadata.put_package(scope, name, updated_metadata)
-          end
+          Metadata.update_package(scope, name, initial_metadata(scope, name, full_handle), fn metadata ->
+            {:ok, build_updated_metadata_with_skipped_release(metadata, scope, name, full_handle, version, reason)}
+          end)
         after
           Lock.release(lock_key)
         end
@@ -1254,23 +1288,8 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     end
   end
 
-  defp get_or_create_metadata(scope, name, full_handle) do
-    case Metadata.get_package(scope, name, fresh: true) do
-      {:ok, metadata} ->
-        {:ok, metadata}
-
-      {:error, :not_found} ->
-        {:ok,
-         %{
-           "scope" => scope,
-           "name" => name,
-           "repository_full_handle" => full_handle,
-           "releases" => %{}
-         }}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
+  defp initial_metadata(scope, name, full_handle) do
+    %{"scope" => scope, "name" => name, "repository_full_handle" => full_handle, "releases" => %{}}
   end
 
   defp build_updated_metadata(metadata, scope, name, full_handle, version, checksum, manifests) do
@@ -1315,18 +1334,26 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     )
   end
 
-  defp upload_manifest(scope, name, version, filename, content) do
+  defp upload_manifest(scope, name, version, filename, content, opts) do
     key =
       KeyNormalizer.package_object_key(%{scope: scope, name: name},
         version: version,
         path: filename
       )
 
-    S3.upload_content(key, content, content_type: "text/x-swift")
+    if opts.allow_checksum_change? do
+      S3.upload_content(key, content, content_type: "text/x-swift")
+    else
+      S3.upload_content_once(key, content, content_type: "text/x-swift")
+    end
   end
 
   defp manifest_path?(path) when is_binary(path), do: AlternateManifest.registry_manifest_path?(path)
   defp manifest_path?(_), do: false
+
+  defp bounded_command(command, args, opts) do
+    Tuist.Registry.Command.run(command, args, opts)
+  end
 
   defp checksum_for_file(path) do
     hash =

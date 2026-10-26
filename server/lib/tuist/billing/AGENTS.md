@@ -19,6 +19,12 @@ This context owns billing, plan management, and Stripe integration.
 - Configuration belongs in `server/config`.
 - Schema changes and migrations live in `server/priv`.
 
+## Subscription webhook ordering
+
+Subscription webhook snapshots can arrive out of order. `reconcile_subscription/1` takes a per-subscription PostgreSQL transaction advisory lock BEFORE retrieving authoritative Stripe state and applying it. An unlocked retrieve followed by a write is not sufficient. Provider failure rolls back and requests retry; a mismatched customer is ignored without mutation. Usage-based pricing applies to every account; do not restore the removed pricing flags, Pro holds, or switch protocol when changing reconciliation.
+
+The guarantee is subscription-snapshot ordering among replicas using this path. Old payload-based webhook writers do not participate and must be drained for that guarantee to cover all writers. The Stripe request holds a pool connection, so qualify renewal bursts against the web pool rather than assuming horizontal replicas provide unlimited capacity.
+
 ## Guardrails
 - Billing data is customer data; update `server/data-export.md` for schema or usage changes.
 - Kura reports a download it serves twice: as a usage rollup, and to `/webhooks/cache`, which writes a CAS event. `UsageMeters` counts CAS events only from the endpoints registered in `cache_endpoints`, which is the path with no rollup. Widening that filter bills every Kura-served Xcode download twice.

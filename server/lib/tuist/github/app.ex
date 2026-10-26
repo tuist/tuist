@@ -54,7 +54,8 @@ defmodule Tuist.GitHub.App do
            [__MODULE__, "installation_token", identity, api_url, installation_id],
            [
              cache: get_cache(opts),
-             ttl: Keyword.get(opts, :ttl, ttl)
+             ttl: Keyword.get(opts, :ttl, ttl),
+             cache_errors: false
            ],
            fn -> refresh_installation_token(installation_id, api_url, creds, expires_in: ttl) end
          ) do
@@ -82,7 +83,7 @@ defmodule Tuist.GitHub.App do
 
     KeyValueStore.get_or_update(
       [__MODULE__, "installation_id_for_repo", owner, repo],
-      [cache: get_cache(opts), ttl: ttl],
+      [cache: get_cache(opts), ttl: ttl, cache_errors: false],
       fn ->
         refresh_installation_id_for_repo(owner, repo, expires_in: to_timeout(minute: 10))
       end
@@ -105,7 +106,7 @@ defmodule Tuist.GitHub.App do
 
     KeyValueStore.get_or_update(
       [__MODULE__, "installation_id_for_org", owner],
-      [cache: get_cache(opts), ttl: ttl],
+      [cache: get_cache(opts), ttl: ttl, cache_errors: false],
       fn ->
         refresh_installation_id_for_org(owner, expires_in: to_timeout(minute: 10))
       end

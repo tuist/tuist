@@ -18,6 +18,11 @@ import Config
 #
 # See `Tuist.Environment.mode/0` for the full list.
 alias Tuist.Oban.RuntimeConfig
+alias Tuist.Runners.Catalog
+
+if replicas = System.get_env("TUIST_RATE_LIMIT_FALLBACK_REPLICAS") do
+  config :tuist, :rate_limit_fallback_replicas, Tuist.Environment.parse_rate_limit_fallback_replicas(replicas)
+end
 
 # Runner Profiles shape catalog. Helm injects the same
 # `runnersFleetLinux.shapes` list it renders the shape-keyed RunnerPool
@@ -30,8 +35,6 @@ alias Tuist.Oban.RuntimeConfig
 # back to the default would run a catalog that doesn't match the pools
 # that actually exist — reintroducing the drift this injection removes.
 # A boot failure here is caught in the canary stage before production.
-alias Tuist.Runners.Catalog
-
 config :tuist, :network_trusted_report_publishing, System.get_env("TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING") == "true"
 config :tuist, :runner_linux_cache_volumes, System.get_env("TUIST_RUNNER_LINUX_CACHE_VOLUMES") == "true"
 config :tuist, :runner_macos_cache_volumes, System.get_env("TUIST_RUNNER_MACOS_CACHE_VOLUMES") == "true"
@@ -670,6 +673,7 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 base_queues = [
   runner_gitlab: 10,
   default: 10,
+  once_test_reports: 2,
   alert_evaluations: 1,
   vcs_comments: 20,
   webhooks: 20,

@@ -49,7 +49,7 @@ defmodule Tuist.Registry.Swift.PromExPlugin do
           [:tuist, :registry, :swift, :sync, :package_skipped, :total],
           event_name: SyncWorker.package_skipped_event_name(),
           measurement: :packages,
-          description: "Catalog packages a sync pass passed over without reading their tags.",
+          description: "Catalog packages deferred or skipped due to sync failures or lease contention.",
           tags: [:reason],
           tag_values: &tag_values/1
         ),

@@ -10,7 +10,52 @@ defmodule Tuist.OIDCTest do
     :ok
   end
 
+  defp use_real_cache do
+    cache = String.to_atom("jwks_test_#{System.unique_integer([:positive])}")
+    start_supervised!({Cachex, [cache, []]})
+
+    stub(KeyValueStore, :get_or_update, fn key, opts, fun ->
+      assert opts[:locking]
+
+      Mimic.call_original(KeyValueStore, :get_or_update, [
+        key,
+        opts |> Keyword.put(:cache, cache) |> Keyword.put(:locking, false),
+        fun
+      ])
+    end)
+
+    stub(KeyValueStore, :put, fn key, value, opts ->
+      Mimic.call_original(KeyValueStore, :put, [key, value, Keyword.put(opts, :cache, cache)])
+    end)
+  end
+
   describe "claims/1" do
+    test "JWKS failure is not retained after the provider recovers" do
+      use_real_cache()
+      {token, jwks} = generate_test_token_and_jwks()
+      expect(Req, :get, fn _, _ -> {:error, :timeout} end)
+      assert {:error, :jwks_fetch_failed, _} = OIDC.claims(token)
+      expect(Req, :get, fn _, _ -> {:ok, %{status: 200, body: jwks}} end)
+      assert {:ok, _} = OIDC.claims(token)
+      assert {:ok, _} = OIDC.claims(token)
+    end
+
+    test "an unknown key refreshes once and accepts the rotated key" do
+      use_real_cache()
+      {token, jwks} = generate_test_token_and_jwks()
+      expect(Req, :get, fn _, _ -> {:ok, %{status: 200, body: %{"keys" => []}}} end)
+      expect(Req, :get, fn _, _ -> {:ok, %{status: 200, body: jwks}} end)
+      assert {:ok, _} = OIDC.claims(token)
+      assert {:ok, _} = OIDC.claims(token)
+    end
+
+    test "unknown keys cannot trigger an unbounded refresh wave" do
+      use_real_cache()
+      {token, _} = generate_test_token_and_jwks()
+      expect(Req, :get, 2, fn _, _ -> {:ok, %{status: 200, body: %{"keys" => []}}} end)
+      for _ <- 1..20, do: assert({:error, :invalid_signature} = OIDC.claims(token))
+    end
+
     test "successfully verifies a valid GitHub Actions OIDC token" do
       {token, jwks} = generate_test_token_and_jwks()
 

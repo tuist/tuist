@@ -28,6 +28,7 @@ defmodule Tuist.Tests do
   alias Tuist.Environment
   alias Tuist.GitHistory
   alias Tuist.Ingestion.Batch
+  alias Tuist.Ingestion.Capture
   alias Tuist.IngestRepo
   alias Tuist.KeyValueStore
   alias Tuist.MCP.Events.Publisher
@@ -603,22 +604,30 @@ defmodule Tuist.Tests do
           Coverage.Evidence.test_states(test.project_id, Map.get(attrs, :coverage_evidence))
         )
 
-      run_test_followups(test, test_case_runs, shard_plan)
-
-      if test.status == "failure" and test.submission_auth != "network_trusted",
-        do:
-          Publisher.publish(
-            "test_run.failed",
-            %{
-              "project_id" => test.project_id,
-              "test_run_id" => test.id,
-              "is_ci" => test.is_ci,
-              "git_branch" => test.git_branch || ""
-            },
-            test.id
-          )
+      if !Capture.active?() do
+        finish_test_publication(test, test_case_runs, shard_plan)
+      end
 
       {:ok, %{test | test_case_runs: test_case_runs}}
+    end
+  end
+
+  def finish_test_publication(test), do: finish_test_publication(test, test.test_case_runs, nil)
+
+  defp finish_test_publication(test, test_case_runs, shard_plan) do
+    run_test_followups(test, test_case_runs, shard_plan)
+
+    if test.status == "failure" and test.submission_auth != "network_trusted" do
+      Publisher.publish(
+        "test_run.failed",
+        %{
+          "project_id" => test.project_id,
+          "test_run_id" => test.id,
+          "is_ci" => test.is_ci,
+          "git_branch" => test.git_branch || ""
+        },
+        test.id
+      )
     end
   end
 
@@ -2762,10 +2771,20 @@ defmodule Tuist.Tests do
     if test.submission_auth != "network_trusted" do
       first_run_test_case_runs = filter_first_run_test_case_runs(test_case_runs, new_test_case_ids)
       create_first_run_events(first_run_test_case_runs)
-      dispatch_test_case_created_webhooks(test.project_id, test_cases_created, first_run_test_case_runs)
+
+      Capture.defer_or_run({:test_case_created, test.project_id, test_cases_created, first_run_test_case_runs}, fn ->
+        dispatch_test_case_created_webhooks(test.project_id, test_cases_created, first_run_test_case_runs)
+      end)
     end
 
     {test_case_ids_with_flaky_run, test_case_runs}
+  end
+
+  @doc false
+  def finish_captured_effects(effects) do
+    Enum.each(effects, fn {:test_case_created, project_id, created, runs} ->
+      dispatch_test_case_created_webhooks(project_id, created, runs)
+    end)
   end
 
   defp build_argument_records(arguments, test_case_run_id) do

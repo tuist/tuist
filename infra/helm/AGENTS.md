@@ -162,6 +162,7 @@ runs the mixed-version latency expression through promtool.
   per-instance ConfigMap-read role, sticky runtime/controller rollback floor and
   quarantined-volume reaper exclusion belong together; see
   [`../kura-controller/serving-authority.md`](../kura-controller/serving-authority.md).
+- Rate-limit rollout envelopes honor Kubernetes defaults when strategy or rolling-update keys are explicitly null: RollingUpdate with 25% surge, rounded up. Helm partial-map overrides retain chart defaults; explicit numeric zero surge must not be replaced through Sprig's empty-value defaulting. Keep null/default/zero/Recreate and invalid-value checks in `tuist/test-rate-limit-envelope.sh`.
 - Parent infra context: `infra/AGENTS.md`
 - Noora Storybook chart: `infra/helm/noora-storybook/AGENTS.md`
 - Slack chart: `infra/helm/slack/AGENTS.md`
@@ -211,6 +212,12 @@ runs the mixed-version latency expression through promtool.
   and keep runner acquisition on 8090 under its existing pod selector.
 
 - `tuist.kuraActivation` is a disabled-by-default, stateless wildcard fallback. Enable exactly one global owner; the matching platform `cacheDNS.activationIngressClass` opt-in reads `nginx-grpc` ingress status for Route53 wildcard DNS. Both activation protocols must use the same dedicated ingress/load balancer; main nginx sends an HTTP/2-forbidden Connection header. The production overlay enables the gateway on the general worker pool; other environments keep it off. Production alone enables wildcard DNS sourcing after pinned production transport validation; other environments remain off. Regional latency records and their withdrawal barriers stay controller-owned. See `../kura-controller/activation.md` before rollout.
+
+## Rate-limit outage envelope
+
+The server deployment injects `TUIST_RATE_LIMIT_FALLBACK_REPLICAS` from `max(5, 2 * max(replicaCount, HPA maximum) + rollout surge)`. Percentage surge rounds up; an explicit `server.rateLimitFallbackReplicas` may increase, not undercut, this allowance. This budgets one terminating generation, not arbitrarily repeated rollouts/restarts or an exact partition-proof quota. Production's current maximum five plus surge one yields eleven, deliberately reducing per-node outage admission while leaving healthy shared admission unchanged. Non-Helm deployments and larger overlap must set an appropriate allowance. `test-rate-limit-envelope.sh` uses Bash and Helm to check the offline rendering and rejection cases without printing/saving rendered secrets.
+
+Database capacity is a separate qualification: the current direct web pool is fifteen connections per pod, or seventy-five at five steady replicas before workers, surge and terminating pods. Budget all simultaneously serving pools and the Stripe/Once worker occupancy; these arithmetic bounds are not measurements of exhaustion or safe capacity. A transaction pooler cannot replace connection-scoped advisory-lock users without an explicit migration.
 
 ## Replica-safety rollout
 

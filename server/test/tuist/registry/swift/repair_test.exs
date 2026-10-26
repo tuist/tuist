@@ -20,6 +20,12 @@ defmodule Tuist.Registry.Swift.RepairTest do
     stub(Lock, :try_acquire, fn _key, _ttl -> {:ok, :acquired} end)
     stub(Lock, :release, fn _key -> :ok end)
 
+    stub(Metadata, :update_package, fn scope, name, _initial, amend ->
+      with {:ok, current} <- Metadata.get_package(scope, name),
+           {:ok, updated} <- amend.(current),
+           do: Metadata.put_package(scope, name, updated)
+    end)
+
     :ok
   end
 

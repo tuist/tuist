@@ -492,21 +492,21 @@ defmodule Tuist.Registry.Swift.Repair do
   end
 
   defp put_restored_checksum(target, checksum) do
-    with {:ok, metadata} <- Metadata.get_package(target.scope, target.name),
-         :ok <- ensure_release_in_catalog(target, metadata) do
-      releases = Map.get(metadata, "releases", %{})
-      release = Map.get(releases, target.version, %{})
+    result =
+      Metadata.update_package(target.scope, target.name, %{}, fn metadata ->
+        with :ok <- ensure_release_in_catalog(target, metadata) do
+          releases = Map.get(metadata, "releases", %{})
+          release = Map.get(releases, target.version, %{})
 
-      updated =
-        metadata
-        |> Map.put("releases", Map.put(releases, target.version, Map.put(release, "checksum", checksum)))
-        |> Map.put("updated_at", DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601())
+          {:ok,
+           metadata
+           |> Map.put("releases", Map.put(releases, target.version, Map.put(release, "checksum", checksum)))
+           |> Map.put("updated_at", DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_iso8601())}
+        end
+      end)
 
-      case Metadata.put_package(target.scope, target.name, updated) do
-        :ok -> :ok
-        {:error, reason} -> {:error, {:catalog_write_failed, reason}}
-      end
-    else
+    case result do
+      :ok -> :ok
       {:error, reason} -> {:error, {:catalog_write_failed, reason}}
     end
   end

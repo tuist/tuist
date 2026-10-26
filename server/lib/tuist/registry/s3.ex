@@ -37,6 +37,27 @@ defmodule Tuist.Registry.S3 do
     end
   end
 
+  def download_file(key, path) do
+    config = ExAws.Config.new(:s3, Registry.registry_s3_config())
+    headers = [{"X-Tigris-Consistent", "true"}]
+
+    with {:ok, url} <-
+           ExAws.S3.presigned_url(config, :get, Registry.registry_bucket(), key, expires_in: 120, headers: headers),
+         {:ok, %{status: 200}} <-
+           Req.get(url,
+             headers: headers,
+             into: File.stream!(path),
+             receive_timeout: 120_000,
+             connect_options: [timeout: 10_000],
+             retry: false,
+             redirect: false
+           ) do
+      :ok
+    else
+      _ -> {:error, :archive_download_unavailable}
+    end
+  end
+
   def head_object(key) when is_binary(key) do
     bucket = Registry.registry_bucket()
 
@@ -86,6 +107,68 @@ defmodule Tuist.Registry.S3 do
       {:error, reason} ->
         :telemetry.execute([:tuist_registry, :s3, :upload], %{duration: duration}, %{result: :error})
         {:error, reason}
+    end
+  end
+
+  @doc """
+  Create an immutable archive with a conditional, streamed single PUT.
+  Multipart upload options do not fence completion in the upstream client.
+  """
+  def upload_file_once(key, path, opts \\ []) do
+    headers =
+      [
+        {"if-none-match", "*"},
+        {"content-type", Keyword.get(opts, :content_type, "application/octet-stream")},
+        {"content-length", to_string(File.stat!(path).size)},
+        {"X-Tigris-Consistent", "true"}
+      ] ++ Enum.map(Keyword.get(opts, :meta, []), fn {name, value} -> {"x-amz-meta-#{name}", value} end)
+
+    config = ExAws.Config.new(:s3, Registry.registry_s3_config())
+
+    with {:ok, url} <-
+           ExAws.S3.presigned_url(config, :put, Registry.registry_bucket(), key, expires_in: 120, headers: headers) do
+      case Req.put(url,
+             body: File.stream!(path, 5 * 1_024 * 1_024),
+             headers: headers,
+             receive_timeout: 120_000,
+             connect_options: [timeout: 10_000],
+             retry: false,
+             redirect: false
+           ) do
+        {:ok, %{status: status}} when status in 200..299 ->
+          :ok
+
+        {:ok, %{status: 412}} ->
+          verify_existing_checksum(key, opts |> Keyword.get(:meta, []) |> List.keyfind("sha256", 0))
+
+        {:ok, %{status: status}} ->
+          {:error, {:http_error, status}}
+
+        {:error, _} ->
+          {:error, :archive_upload_unavailable}
+      end
+    end
+  end
+
+  defp verify_existing_checksum(key, {"sha256", checksum}) do
+    case head_object(key) do
+      {:ok, %{"x-amz-meta-sha256" => ^checksum}} -> :ok
+      _ -> {:error, {:immutable_archive_conflict, key}}
+    end
+  end
+
+  defp verify_existing_checksum(key, _), do: {:error, {:immutable_archive_conflict, key}}
+
+  def upload_content_once(key, content, opts \\ []) do
+    case upload_content(key, content, Keyword.put(opts, :if_none_match, "*")) do
+      {:error, {:http_error, 412, _}} ->
+        case get_object(key) do
+          {:ok, ^content} -> :ok
+          _ -> {:error, {:immutable_content_conflict, key}}
+        end
+
+      result ->
+        result
     end
   end
 
@@ -217,6 +300,8 @@ defmodule Tuist.Registry.S3 do
       end
     end)
   end
+
+  def etag_from_headers(headers) when is_list(headers), do: headers |> normalize_headers() |> etag_from_headers()
 
   def etag_from_headers(headers) when is_map(headers) do
     headers

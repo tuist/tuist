@@ -815,6 +815,11 @@ server:
     existingSecretKeys:
       key: server-license-key
       certificateBase64: server-license-certificate-base64
+  # 0 derives a conservative outage allowance divisor from HPA/replicas,
+  # surge (integer or percentage), and one terminating generation. An explicit
+  # override may increase, never undercut, that envelope. This is not a strict
+  # partition/restart-proof global quota or a database capacity guarantee.
+  rateLimitFallbackReplicas: 0
   database:
     ssl: false
   storage:

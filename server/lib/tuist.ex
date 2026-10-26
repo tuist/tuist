@@ -292,6 +292,7 @@ defmodule Tuist do
       UUIDv7,
       OAuth.Apple,
       OAuth.Google,
+      OAuth.Exchange,
       OAuth.Introspection,
       OAuth2.SSOClient,
       OAuth2.SSRFGuard,

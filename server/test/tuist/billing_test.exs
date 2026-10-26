@@ -238,6 +238,58 @@ defmodule Tuist.BillingTest do
     end
   end
 
+  describe "subscription webhook reconciliation" do
+    test "a stale webhook cannot overwrite the authoritative active subscription" do
+      AccountsFixtures.user_fixture(customer_id: "customer_id")
+      active = pro_subscription_payload("active")
+
+      expect(Stripe.Subscription, :retrieve, fn "sub_lapsing" ->
+        assert Repo.in_transaction?()
+        {:ok, active}
+      end)
+
+      assert :ok =
+               TuistWeb.Webhooks.BillingController.handle_event(%Stripe.Event{
+                 type: "customer.subscription.updated",
+                 data: %{object: pro_subscription_payload("unpaid")}
+               })
+
+      assert Repo.get_by!(Billing.Subscription, subscription_id: active.id).status == "active"
+      assert all_enqueued(worker: SubscriptionUnpaidNotificationWorker) == []
+    end
+
+    test "reconciliation does not restore removed usage-pricing gates" do
+      AccountsFixtures.user_fixture(customer_id: "customer_id")
+      reject(&FunWithFlags.disable/2)
+      reject(&FunWithFlags.enable/2)
+
+      expect(Stripe.Subscription, :retrieve, fn _ ->
+        assert Repo.in_transaction?()
+        {:ok, pro_subscription_payload("active")}
+      end)
+
+      assert :ok = Billing.reconcile_subscription(pro_subscription_payload("active"))
+      assert Repo.get_by!(Billing.Subscription, subscription_id: "sub_lapsing").status == "active"
+    end
+
+    test "a mismatched provider customer does not mutate local subscriptions" do
+      expect(Stripe.Subscription, :retrieve, fn _ ->
+        {:ok, Map.put(pro_subscription_payload("active"), :customer, "other")}
+      end)
+
+      assert :ok = Billing.reconcile_subscription(pro_subscription_payload("active"))
+      assert Repo.get_by(Billing.Subscription, subscription_id: "sub_lapsing") == nil
+    end
+
+    test "a provider failure leaves local state unchanged and requests webhook retry" do
+      AccountsFixtures.user_fixture(customer_id: "customer_id")
+      Billing.on_subscription_change(pro_subscription_payload("active"))
+      expect(Stripe.Subscription, :retrieve, fn _ -> {:error, :unavailable} end)
+      assert_raise MatchError, fn -> Billing.reconcile_subscription(pro_subscription_payload("unpaid")) end
+      assert Repo.get_by!(Billing.Subscription, subscription_id: "sub_lapsing").status == "active"
+    end
+  end
+
   describe "on_subscription_change/1" do
     test "when an account for the given customer doesn't exist" do
       # When

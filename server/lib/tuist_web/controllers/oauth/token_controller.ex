@@ -5,13 +5,10 @@ defmodule TuistWeb.Oauth.TokenController do
   use TuistWeb, :controller
 
   alias Boruta.Oauth.Error
-  alias Boruta.Oauth.RefreshTokenRequest
-  alias Boruta.Oauth.Request
   alias Boruta.Oauth.RevokeApplication
   alias Boruta.Oauth.TokenApplication
   alias Boruta.Oauth.TokenResponse
   alias Tuist.Accounts
-  alias Tuist.Authentication.RefreshReplays
   alias Tuist.Environment
 
   defmodule CapturedTokenResponse do
@@ -78,38 +75,8 @@ defmodule TuistWeb.Oauth.TokenController do
     oauth_error(conn, "invalid_request", "claim_token is required.")
   end
 
-  # A client whose refresh response was lost retries with the refresh token it
-  # already spent. Within the replay window it gets the first response back
-  # instead of `invalid_grant`, but only when it presents the same client
-  # credentials and scope as the exchange that spent the token.
-  def token(%Plug.Conn{} = conn, %{"grant_type" => "refresh_token"}) do
-    case Request.token_request(conn) do
-      {:ok, %RefreshTokenRequest{refresh_token: refresh_token} = request}
-      when is_binary(refresh_token) and refresh_token != "" ->
-        exchange = fn -> oauth_module().token(conn, CapturedTokenResponse) end
-
-        case RefreshReplays.exchange("oauth", refresh_token, refresh_credential(request), exchange) do
-          {:ok, token_data} -> oauth_json(conn, token_data)
-          {:error, %Error{} = error} -> token_error(conn, error)
-        end
-
-      _ ->
-        oauth_module().token(conn, __MODULE__)
-    end
-  end
-
   def token(%Plug.Conn{} = conn, _params) do
-    oauth_module().token(conn, __MODULE__)
-  end
-
-  defp refresh_credential(%RefreshTokenRequest{} = request) do
-    client_authentication = request.client_authentication || %{}
-
-    Enum.map_join(
-      [request.client_id, client_authentication[:type], client_authentication[:value], request.scope],
-      <<0>>,
-      &to_string/1
-    )
+    Tuist.OAuth.Exchange.token(conn, __MODULE__)
   end
 
   # Protocol agent credentials are public-client tokens with no client secret to

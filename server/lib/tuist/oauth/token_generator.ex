@@ -74,7 +74,7 @@ defmodule Tuist.OAuth.TokenGenerator do
         issued_by: user
       }
 
-      claims = Map.merge(claims, Cache.embedded_cache_claims(cache_subject, recent: 5))
+      claims = Map.merge(claims, Cache.embedded_cache_claims(cache_subject, recent: 5, recent_by: :updated_at))
 
       {:ok, jwt_token, _claims} =
         Tuist.Guardian.encode_and_sign(user.account, claims,

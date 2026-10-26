@@ -1735,6 +1735,13 @@ defmodule Tuist.Environment do
     Application.get_env(:tuist, :rate_limit_fallback_replicas, 5)
   end
 
+  def parse_rate_limit_fallback_replicas(value) do
+    case Integer.parse(value) do
+      {replicas, ""} when replicas >= 5 -> replicas
+      _ -> raise ArgumentError, "TUIST_RATE_LIMIT_FALLBACK_REPLICAS must be an integer of at least 5"
+    end
+  end
+
   @doc """
   Returns the bucket size for the dashboard route rate limiter.
 

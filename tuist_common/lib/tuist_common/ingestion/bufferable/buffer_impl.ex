@@ -43,6 +43,16 @@ defmodule TuistCommon.Ingestion.Bufferable.BufferImpl do
       end
 
       def insert(row) do
+        if capture = Process.get({@otp_app, :ingestion_capture}) do
+          %{fields: fields} = opts()
+          capture.(@parent, [write_through_row(row, fields)])
+          {:ok, row}
+        else
+          insert_uncaptured(row)
+        end
+      end
+
+      defp insert_uncaptured(row) do
         if write_through_repo?() do
           %{fields: fields} = opts()
           @repo.insert_all(@parent, [write_through_row(row, fields)])
@@ -63,6 +73,16 @@ defmodule TuistCommon.Ingestion.Bufferable.BufferImpl do
       def insert_all([]), do: {0, nil}
 
       def insert_all(rows) do
+        if capture = Process.get({@otp_app, :ingestion_capture}) do
+          %{fields: fields} = opts()
+          capture.(@parent, Enum.map(rows, &write_through_row(&1, fields)))
+          {length(rows), nil}
+        else
+          insert_all_uncaptured(rows)
+        end
+      end
+
+      defp insert_all_uncaptured(rows) do
         if write_through_repo?() do
           %{fields: fields} = opts()
           rows = Enum.map(rows, &write_through_row(&1, fields))
@@ -84,7 +104,7 @@ defmodule TuistCommon.Ingestion.Bufferable.BufferImpl do
       end
 
       def flush do
-        if write_through_repo?() do
+        if Process.get({@otp_app, :ingestion_capture}) || write_through_repo?() do
           :ok
         else
           Buffer.flush(__MODULE__)
