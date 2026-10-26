@@ -76,7 +76,7 @@ private-network guide above.
 | `RackHostLease` | A rack host another env lends this cluster, in the borrowing cluster and named after the host. The lending operator writes the spec (the phase it asks for, the host's address, pinned host key and sizing, the key it authorized, its answer to a site request); this cluster's operator writes the status (its key, its Node, the drift bookkeeping for the runtime it pushes, the power cycle or macOS update it asks the lender for). See "A host lent to another env". |
 | `RackPDU` | One switched PDU in a rack we operate, rendered from the site definition in `infra/rack-switch-fleet`: model, the MAC its address is reserved against, address, chain, `managedBy`, the outlets' startup state. Its controller adopts the card and owns its credentials, certificate pin and egress Service. Status carries every outlet's state and meter reading. See "RackPDU" below. |
 | `RackATS` | One automatic transfer switch (EATS16N) in a rack we operate, rendered from the site definition: model, MAC, address, `managedBy`, `preferredSource`. Its controller adopts the card like a RackPDU's, keeps the preferred source, and every minute records which source powers the load and each source's state in status, metrics and events. See "RackATS" below. |
-| `RackSite` | A rack site as a whole, rendered from its site definition and named after the site: its contracted power as dated steps. Its controller keeps the step in effect in status and in `capt_racksite_contracted_power_watts`. See "RackSite" below. |
+| `RackSite` | A rack site as a whole, rendered from its site definition and named after the site: its contracted power as dated steps and its power budget. Its controller keeps the step in effect in status and in `capt_racksite_contracted_power_watts`, and taints the Mac minis of a chain or site over budget so they start no new runner VM. See "RackSite" below. |
 | `RackLinuxMachine` | One rack Linux node, created by the operator with its CAPI Machine under its host's name: the host it is, the name it joined under, its converge state. |
 | `RackLinuxHost` | One x86 Linux machine we own, named after its SMBIOS UUID: its hostname, role, site, the tailnet tags its install joins it with, its node labels and taints, whether it is powered on (`online`), the reinstall it asks for (`reinstallGeneration`), its AMT and, for an edge, its way out on its first boot (`edge`). Status carries its provisioning state, boot MAC, hardware, current tailnet device, a published install, power and AMT's state. |
 | `RackLinuxCandidate` | A machine whose install stick found no install published for it, from what it announced to a rack boot server: SMBIOS UUID (its name), serial, product, NICs, its TPM's endorsement key, the `bootMAC` to declare (its i226-LM), the edge that heard it, the host that declares it, if any, and the last announcement that conflicted with the first. The boot servers write it and the operator marks it. |
@@ -1262,10 +1262,11 @@ web UI, a zero-touch gap.
 
 A `RackSite` is what belongs to a rack site rather than to one device in it.
 `infra/rack-switch-fleet` renders one per site into `k8s/<site>/<site>.yaml`,
-named after the site. Today it carries only `spec.contractedPower`: the power
+named after the site. It carries `spec.contractedPower`: the power
 the colocation contract allows, as `{from, watts}` steps from the site
 definition's `contracted_power`. Each step applies from its day, 00:00 UTC,
-until the next step's. The last step stays in effect.
+until the next step's. The last step stays in effect. It also carries
+`spec.powerBudget` from `power_budget` (below).
 
 The controller (`controllers/macos/racksite_controller.go`) sets
 `status.contractedPowerWatts`, `contractedPowerSince` and
@@ -1276,6 +1277,68 @@ steps, or when a step cannot be read (`status.message` says why; the CRD
 already refuses a `from` that is not a date and `watts` below 1).
 "Rack power draw near its contracted limit" in
 `infra/helm/k8s-monitoring/alerts.md` divides each site's PDU draw by it.
+
+#### Power-aware admission
+
+A transfer switch puts its whole chain on one feed, so a chain that overloads
+feed A's breaker moves to feed B in 8 ms and trips that one too. The chain,
+its ToR and its side's internet port then stay dark until the colocation
+resets both breakers. Sizing every chain for every mini at Apple's maximum
+would cost half the rack's minis. Instead `spec.powerBudget` keeps the draw
+under the breaker by holding back new work: a Mac mini whose chain, or whose
+whole site, is over budget starts no new runner VM. Running jobs finish, so
+the cost is some queueing at the margin.
+
+- **`chainAmps`** is the output current at which a chain stops taking work:
+  13 A at BER1, under its 16 A breaker, with room for the dual-PSU gear a feed
+  loss moves onto the same circuit. A chain is a transfer switch with the PDUs
+  whose `spec.chain` names it, or a PDU that hangs off none. Its minis are the
+  RackHosts whose `spec.power.pdu` is one of those PDUs.
+- **`otherWatts`** is what the site draws outside its transfer switches, which
+  nothing meters, such as dual-PSU gear on the colocation's own strips. The
+  switches together may draw the contracted step in effect less it:
+  `status.powerBudgetWatts`. It is derived rather than stated per step, so a
+  contract change is one edit to `contracted_power`. BER1's is 0, because
+  everything there hangs off a switch, including the critical gear on
+  `ber1-ats-1`. A site whose dual-PSU gear sits on the colocation's strips sets
+  that gear's peak draw here.
+
+Every minute, the reconciler reads each chain's draw from its switch's output
+(`status.outputs`, which covers everything the switch powers), observed within
+the last five minutes. If the switch has no reading, it falls back to the sum
+of its PDUs' outlet meters, read within the last 30. A chain at or over
+`chainAmps` is held, and so is the whole site at or over its budget. A hold is
+released once the draw is under 95% of the limit, and no sooner than ten
+minutes after it began. Without that margin and minimum hold, retiring a held
+mini's idle runners would lower the draw just enough to release it and start
+them again.
+
+A held mini's Node carries the NoSchedule taint `tuist.dev/power-budget`, with
+the value `chain` or `site`. Runner Pods don't tolerate it, so no new VM lands
+there. The runners-controller treats such a Node like a cordoned one: it counts
+no capacity there (`nodeFilterReason`), and it retires the idle runners already
+on it (`reapIdlePodsOnCordonedNodes`). A warm runner would otherwise take the
+next job and draw more, and nothing would ever start a VM, since pools keep
+warm runners up. The autoscaler replaces them on Nodes that are not held. A
+taint rather than a cordon, because a cordon means someone is about to take the
+box away: `nodeIsServing` treats a cordoned host as one power actions need no
+force for, and a lease's cordon is the lease's own.
+
+Admission fails open. A chain with minis but no recent reading holds nothing
+and lifts a hold it had, and so does the site while any switch has no reading.
+`PowerAdmission` is then `Unknown` (`ReadingsStale`). A meter that stops
+answering must not take capacity away; "Rack power draw near its contracted
+limit" still alerts on the draw. Removing `powerBudget`, or the RackSite,
+lifts every hold. A host lent to another env registers its Node in that env's
+cluster, so it is counted on its chain and never tainted.
+
+The status carries `powerBudgetWatts`, `meteredWatts`, `siteHeld` and its
+`siteHeldSince`, `chains[]` (`currentAmps`, `watts`, `hosts`, `held`,
+`heldSince`) and the `PowerAdmission` condition: `True`, `False` with
+`ChainOverBudget` or `SiteOverBudget`, or `Unknown`. The metrics are
+`capt_racksite_power_budget_watts`, `capt_racksite_metered_power_watts`,
+`capt_racksite_chain_current_amps`, `capt_racksite_chain_held` and
+`capt_racksite_site_held`.
 
 ### Rack card passwords
 
@@ -2261,6 +2324,7 @@ infra/cluster-api-provider-tuist/
 │   │   ├── rackats_card.go          # the atsCard seam and its Eaton (Network-M2/M3 REST) implementation
 │   │   ├── rackats_metrics.go       # capt_rackats_* series
 │   │   ├── racksite_controller.go   # RackSite: the contracted power step in effect
+│   │   ├── racksite_power.go        # power-aware admission: chain and site budgets, the tuist.dev/power-budget taint
 │   │   ├── rackhost_machine.go      # each host's Machine: create, adopt, park, remediate
 │   │   ├── rack_lend.go             # lending a host (RackHost lendTo): offer, drain, hand over, return
 │   │   ├── rackhostlease_controller.go  # borrowing a host: accept, take over, drift, release

@@ -21,6 +21,13 @@ independent workqueues:
   fingerprint for a runner that "lost communication" (0 = clean,
   137+OOMKilled = host OOM, 137+Error = guest OOM / in-VM kill, signal
   15 = SIGTERM, other = crash), captured before the Pod is gone.
+  A rack Mac mini whose power chain or site is over budget carries the
+  `tuist.dev/power-budget` NoSchedule taint (set by the CAPI provider's
+  RackSite controller, "Power-aware admission" in its AGENTS.md). Such a
+  Node counts as no capacity (`nodeFilterReason`: `power_budget`), and its
+  idle Pods are retired like a cordoned Node's
+  (`reapIdlePodsOnCordonedNodes`), so only the jobs already running there
+  keep drawing.
 
 - **`AutoscalerReconciler`** — on a 5-second cadence, calls the
   server's `/api/internal/runners/desired_replicas` endpoint and
