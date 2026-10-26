@@ -237,3 +237,8 @@ Cluster formation requires a stable shared cookie Secret, a fixed distribution l
   through CAPI reconciliation before actor enrollment; a Node-only relabel is
   insufficient. Flag withdrawal preserves recorded jobs, mappings and routes
   until those jobs finish.
+  Staging and canary target one RISE-M each. Their ordinary/vRack qualification
+  therefore runs sequentially across drained host transitions; excluded jobs
+  queue while ordinary capacity is absent. A RISE-S-to-RISE-M template update
+  under OnDelete does not replace the live host: prepare the new box first,
+  then explicitly drain and retire the old Machine.

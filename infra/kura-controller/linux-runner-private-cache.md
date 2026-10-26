@@ -243,6 +243,17 @@ leave the flag off until compatible, isolated capacity is qualified in canary.
 An enabled flag with no eligible hosts would leave jobs queued. The replacement
 plan is one user-ordered RISE-M in Gravelines (64 GB RAM, 2 × 512 GB NVMe,
 1 Gbps private bandwidth), then retire the RISE-S after draining its workloads.
+OVH delivered `ns3127017.ip-51-68-34.eu` (Gravelines `gra2`, IP
+`51.68.34.106`); its hardware and private bandwidth were verified through the
+API. Ubuntu preparation with the canary fleet key was started with
+`PREP_SKIP_MARK=1`, so it cannot be adopted during preparation. Confirm install
+completion and SSH/storage health before setting the canary adoption marker.
+The desired fleet now selects `rise-m` with one replica; deploying that
+OnDelete template does not replace the live RISE-S automatically. Keep the
+existing runner until the new box is ready, then drain and replace it through
+the normal canary deployment and human-elevated fleet operation. The old
+service is `ns3269803.ip-37-187-149.eu`; no node-local PVs were found on it at
+the preparation inventory, but recheck workloads and volumes before removal.
 No second runner or dedicated cache-host order is required for that plan.
 Do not bridge environments to simulate the topology. Configuration parity is
 not live transport validation: each environment still needs enrolled/excluded-
