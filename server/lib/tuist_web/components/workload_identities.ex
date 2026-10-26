@@ -18,9 +18,10 @@ defmodule TuistWeb.Components.WorkloadIdentities do
 
   def initialize(socket) do
     account = authorize_account_update!(socket)
+    policies = Accounts.list_oidc_trust_policies(account)
 
     socket
-    |> assign(oidc_trust_policies: Accounts.list_oidc_trust_policies(account), oidc_configuration_visible: false)
+    |> assign(oidc_trust_policies: policies, oidc_configuration_visible: policies != [])
     |> assign_empty_form()
   end
 
