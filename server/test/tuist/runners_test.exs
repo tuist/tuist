@@ -306,9 +306,9 @@ defmodule Tuist.RunnersTest do
         job_name: "build",
         head_branch: "main",
         head_sha: "deadbeef",
-        platform: "linux",
-        vcpus: 4,
-        memory_gb: 16,
+        platform: Keyword.get(opts, :platform, "linux"),
+        vcpus: Keyword.get(opts, :vcpus, 4),
+        memory_gb: Keyword.get(opts, :memory_gb, 16),
         requested_dispatch_label: requested_dispatch_label,
         enqueued_at: DateTime.utc_now()
       }
@@ -321,6 +321,14 @@ defmodule Tuist.RunnersTest do
     defp stub_dispatch_path(account, candidate, test_pid, opts \\ []) do
       pod_name = Keyword.get(opts, :pod_name, "pod-1")
       workflow_job_id = candidate.workflow_job_id
+      resources = Keyword.get(opts, :resources, %{platform: :linux, vcpus: 4, memory_gb: 16})
+      runner_name_prefix = Keyword.get(opts, :runner_name_prefix, String.slice(pod_name, 0, 55))
+
+      pool_summary =
+        Keyword.get(opts, :pool_summary, %{
+          dispatch_label: "shape-linux-4vcpu-16gb",
+          runner_labels: ["self-hosted", "Linux", "X64"]
+        })
 
       node_name = Keyword.get(opts, :node_name)
       image = "ghcr.io/tuist/tuist-runner@sha256:current"
@@ -353,16 +361,14 @@ defmodule Tuist.RunnersTest do
         {:ok, [candidate]}
       end)
 
-      expect(Claims, :attempt, fn ^workflow_job_id, _account_id, "fleet-a", ^pod_name, resources ->
-        assert resources == %{platform: :linux, vcpus: 4, memory_gb: 16}
+      expect(Claims, :attempt, fn ^workflow_job_id, _account_id, "fleet-a", ^pod_name, claimed_resources ->
+        assert claimed_resources == resources
         {:ok, %{claimed_at: DateTime.utc_now()}}
       end)
 
       expect(Jobs, :record_claimed, fn ^candidate, ^pod_name, _claimed_at -> :ok end)
 
-      expect(Dispatch, :pool_summary_by_name, fn "fleet-a" ->
-        {:ok, %{dispatch_label: "shape-linux-4vcpu-16gb", runner_labels: ["self-hosted", "Linux", "X64"]}}
-      end)
+      expect(Dispatch, :pool_summary_by_name, fn "fleet-a" -> {:ok, pool_summary} end)
 
       stub(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:ok, %{}} end)
 
@@ -385,13 +391,13 @@ defmodule Tuist.RunnersTest do
       end)
 
       expect(Claims, :mark_running, fn ^workflow_job_id, runner_name, _claimed_at ->
-        assert String.starts_with?(runner_name, String.slice(pod_name, 0, 55))
+        assert String.starts_with?(runner_name, runner_name_prefix)
         assert byte_size(runner_name) <= 64
         :ok
       end)
 
       expect(Jobs, :record_running, fn ^workflow_job_id, runner_name ->
-        assert String.starts_with?(runner_name, String.slice(pod_name, 0, 55))
+        assert String.starts_with?(runner_name, runner_name_prefix)
         assert byte_size(runner_name) <= 64
         :ok
       end)
@@ -796,6 +802,66 @@ defmodule Tuist.RunnersTest do
       assert byte_size(runner_name) == 64
       assert runner_name =~ ~r/-[0-9a-f]{8}$/
       assert runner_name != pod_name
+    end
+
+    test "names a catalog macOS runner after the guest's macOS version, the pool's Xcode version and the shape" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default", platform: "macos", vcpus: 6, memory_gb: 14)
+      pod_name = "tuist-tuist-runner-pool-macos-ber1-27-0-runner-aea5f25e"
+
+      stub_dispatch_path(account, candidate, self(),
+        pod_name: pod_name,
+        resources: %{platform: :macos, vcpus: 6, memory_gb: 14},
+        runner_name_prefix: "tuist-macos-26.6-xcode-27.0-6vcpu-14gb-",
+        pool_summary: %{
+          dispatch_label: "shape-macos-ber1-27-0",
+          runner_labels: ["self-hosted", "macOS", "ARM64"],
+          xcode_version: "27.0"
+        }
+      )
+
+      assert {:ok, %{runner_name: runner_name}} =
+               Runners.dispatch_for_sa("tuist-runners", pod_name, %{os_version: "26.6"})
+
+      assert_receive {:jit_runner_name, ^runner_name}
+      assert runner_name =~ ~r/\Atuist-macos-26\.6-xcode-27\.0-6vcpu-14gb-[0-9a-f]{12}\z/
+    end
+
+    test "leaves the macOS version out of the name when the guest reports none" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default", platform: "macos", vcpus: 12, memory_gb: 28)
+
+      stub_dispatch_path(account, candidate, self(),
+        resources: %{platform: :macos, vcpus: 12, memory_gb: 28},
+        runner_name_prefix: "tuist-macos-xcode-27.2-beta-12vcpu-28gb-",
+        pool_summary: %{
+          dispatch_label: "shape-macos-27-2-beta-12vcpu-28gb",
+          runner_labels: ["self-hosted", "macOS", "ARM64"],
+          xcode_version: "27.2-beta"
+        }
+      )
+
+      assert {:ok, %{runner_name: runner_name}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert runner_name =~ ~r/\Atuist-macos-xcode-27\.2-beta-12vcpu-28gb-[0-9a-f]{12}\z/
+    end
+
+    test "keeps the Pod name for a macOS pool that runs no catalog Xcode" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default", platform: "macos", vcpus: 6, memory_gb: 14)
+
+      stub_dispatch_path(account, candidate, self(),
+        resources: %{platform: :macos, vcpus: 6, memory_gb: 14},
+        pool_summary: %{
+          dispatch_label: "tuist-ber1-smoke",
+          runner_labels: ["self-hosted", "macOS", "ARM64"],
+          xcode_version: nil
+        }
+      )
+
+      assert {:ok, %{runner_name: runner_name}} =
+               Runners.dispatch_for_sa("tuist-runners", "pod-1", %{os_version: "26.6"})
+
+      assert runner_name =~ ~r/\Apod-1-[0-9a-f]{8}\z/
     end
 
     test "falls back to the pool dispatchLabel when the candidate has no requested label (legacy row)" do

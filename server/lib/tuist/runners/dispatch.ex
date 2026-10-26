@@ -707,7 +707,7 @@ defmodule Tuist.Runners.Dispatch do
   chart is misconfigured — `runnersFleet.enabled` true with no
   pools rendered).
 
-  Exposed so `Tuist.Runners.dispatch_for_sa/2` can resolve the
+  Exposed so `Tuist.Runners.dispatch_for_sa/3` can resolve the
   Pod's dispatch label at JIT-mint time (the SA's pool label
   gives the pool name; this function maps name → label).
   """
@@ -896,7 +896,7 @@ defmodule Tuist.Runners.Dispatch do
   """
   def cache_name, do: :tuist
 
-  defp pool_summary(%{"metadata" => %{"name" => name}, "spec" => %{"dispatchLabel" => label} = spec})
+  defp pool_summary(%{"metadata" => %{"name" => name} = metadata, "spec" => %{"dispatchLabel" => label} = spec})
        when is_binary(name) and is_binary(label) and label != "" do
     platform = extract_pool_platform(spec)
     default_shape = Catalog.default_shape(platform) || %{vcpus: 1, memory_gb: 1}
@@ -907,11 +907,20 @@ defmodule Tuist.Runners.Dispatch do
       runner_labels: extract_runner_labels(spec),
       platform: platform,
       vcpus: extract_pool_vcpus(spec, default_shape.vcpus),
-      memory_gb: extract_pool_memory_gb(spec, default_shape.memory_gb)
+      memory_gb: extract_pool_memory_gb(spec, default_shape.memory_gb),
+      xcode_version: extract_pool_xcode_version(metadata)
     }
   end
 
   defp pool_summary(_), do: nil
+
+  # The chart labels every pool that runs a catalog Xcode image with that
+  # Xcode's catalog version (`27.0`, `27.2-beta`). Pools on a hand-picked
+  # image have no label and answer `nil`.
+  defp extract_pool_xcode_version(%{"labels" => %{"tuist.dev/xcode-version" => version}})
+       when is_binary(version) and version != "", do: version
+
+  defp extract_pool_xcode_version(_metadata), do: nil
 
   # `runnerLabels` is required on every RunnerPool CR (the chart
   # renders it from `pools[].runnerLabels`, defaulting per-OS in

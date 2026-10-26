@@ -115,7 +115,7 @@ defmodule TuistWeb.RunnersControllerTest do
         {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
       end)
 
-      stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1" ->
+      stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1", %{} ->
         {:ok,
          %{
            credential: %{kind: :github, jit: "JITCONFIG"},
@@ -142,6 +142,38 @@ defmodule TuistWeb.RunnersControllerTest do
       assert detail =~ "/#{account.name}/runners/by-runner/pod-1"
     end
 
+    test "passes the guest's reported macOS version on and drops one that is not a version", %{conn: conn} do
+      test_pid = self()
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1", guest ->
+        send(test_pid, {:guest, guest})
+        {:error, :no_work_yet}
+      end)
+
+      dispatch = fn body ->
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/internal/runners/dispatch", JSON.encode!(body))
+        |> response(204)
+      end
+
+      dispatch.(%{os_version: "26.6"})
+      assert_receive {:guest, %{os_version: "26.6"}}
+
+      dispatch.(%{os_version: "26.6\"-evil"})
+      assert_receive {:guest, guest}
+      assert guest == %{}
+
+      dispatch.(%{})
+      assert_receive {:guest, guest}
+      assert guest == %{}
+    end
+
     test "returns a Buildkite acquisition token instead of a JIT config", %{conn: conn} do
       account = account_fixture()
 
@@ -149,7 +181,7 @@ defmodule TuistWeb.RunnersControllerTest do
         {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
       end)
 
-      stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1" ->
+      stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1", %{} ->
         {:ok,
          %{
            credential: %{
@@ -216,7 +248,7 @@ defmodule TuistWeb.RunnersControllerTest do
       end)
 
       dispatch = fn fleet_on_cluster_network, fleet_platform ->
-        stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1" ->
+        stub(Runners, :dispatch_for_sa, fn "tuist-runners", "pod-1", %{} ->
           {:ok,
            %{
              credential: %{kind: :github, jit: "JITCONFIG"},
@@ -269,7 +301,7 @@ defmodule TuistWeb.RunnersControllerTest do
       }
 
       # Cluster-networked fleet (Linux): the in-cluster URL is handed out.
-      stub(Runners, :dispatch_for_sa, fn _, _ ->
+      stub(Runners, :dispatch_for_sa, fn _, _, _ ->
         {:ok, Map.put(base, :fleet_on_cluster_network, true)}
       end)
 
@@ -284,7 +316,7 @@ defmodule TuistWeb.RunnersControllerTest do
       # Off-cluster fleet (e.g. macOS Tart on vmnet): URL withheld so the
       # client falls back to default cache resolution instead of getting
       # an unreachable hard override.
-      stub(Runners, :dispatch_for_sa, fn _, _ ->
+      stub(Runners, :dispatch_for_sa, fn _, _, _ ->
         {:ok, Map.put(base, :fleet_on_cluster_network, false)}
       end)
 
@@ -308,7 +340,7 @@ defmodule TuistWeb.RunnersControllerTest do
         "https://acme-ber1-runners.kura.tuist.dev"
       end)
 
-      stub(Runners, :dispatch_for_sa, fn _, _ ->
+      stub(Runners, :dispatch_for_sa, fn _, _, _ ->
         {:ok,
          %{
            credential: %{kind: :github, jit: "JITCONFIG"},
@@ -356,7 +388,7 @@ defmodule TuistWeb.RunnersControllerTest do
       }
 
       dispatch = fn account, platform, credential ->
-        stub(Runners, :dispatch_for_sa, fn _, _ ->
+        stub(Runners, :dispatch_for_sa, fn _, _, _ ->
           {:ok,
            %{
              credential: credential,
