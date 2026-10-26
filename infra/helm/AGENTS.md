@@ -20,7 +20,8 @@ runs the mixed-version latency expression through promtool.
   while the provider withdraws runner policies and host addresses. Reservations
   belong to the controller, never Helm. Managed blocks are delivered and attached;
   staging's public block shares cache vRack `pn-2023588`, preserving its private
-  cache connection. Egress remains disabled pending staging qualification.
+  cache connection. Checked-in activation remains disabled after bounded staging
+  qualification; preserve its recorded reboot and promotion limitations.
   Preserve `node_network_info` for the MAC-based
   bandwidth alerts. See [OVH runner egress](../cluster-api-provider-tuist/docs/ovh-runner-egress.md).
 

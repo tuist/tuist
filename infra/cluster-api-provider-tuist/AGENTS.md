@@ -2,9 +2,13 @@
 
 - OVH runner public egress is opt-in through `capi.ovhRunnerEgress`. Keep
   Machine-UID address reservations until policy withdrawal and confirmed host
-  cleanup, before deleting SSH credentials or requesting reinstall. Never move
-  an existing cache vRack NIC automatically. All environments remain disabled
-  pending staging qualification. Staging shares cache vRack `pn-2023588` with
+  cleanup, before deleting SSH credentials or requesting reinstall. Remove and
+  reload kubelet's egress dependency before stopping the egress service; an
+  explicit stop otherwise propagates through `Requires` and stops kubelet.
+  Never move
+  an existing cache vRack NIC automatically. All checked-in environments remain
+  disabled pending rollout. Staging's bounded public/private qualification passed
+  with a slow-reboot limitation recorded in the runbook. It shares cache vRack `pn-2023588` with
   its public block, preserving the runner's private cache enrollment. The
   confirmed block attachments, deployment prerequisites and rollback steps are in
   [OVH runner egress](docs/ovh-runner-egress.md).
