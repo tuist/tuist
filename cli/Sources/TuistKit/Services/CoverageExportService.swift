@@ -218,24 +218,6 @@ public struct CoverageExportService: CoverageExportServicing {
         }
     }
 
-    /// The platform a products directory is for, from its name: `Debug` is macOS,
-    /// `Debug-iphonesimulator` the iOS simulator, `Release-appletvos` tvOS devices.
-    static func platform(ofProductsDirectory name: String) -> (name: String, simulator: Bool) {
-        guard let dash = name.lastIndex(of: "-") else { return ("macos", false) }
-        let suffix = String(name[name.index(after: dash)...])
-        let simulator = suffix.hasSuffix("simulator")
-        let base = simulator ? String(suffix.dropLast("simulator".count)) : suffix
-            .hasSuffix("os") ? String(suffix.dropLast(2)) : suffix
-        switch base {
-        case "iphone": return ("ios", simulator)
-        case "appletv": return ("tvos", simulator)
-        case "watch": return ("watchos", simulator)
-        case "xr": return ("xros", simulator)
-        case "macosx", "mac": return ("macos", false)
-        default: return (base, simulator)
-        }
-    }
-
     /// A product by name in the products directory, or hosted in one of its apps (`apps`, by
     /// bundle name): Xcode builds a test bundle that runs inside an app into the app's `PlugIns`
     /// (`Contents/PlugIns` on macOS), not next to it.
@@ -302,76 +284,6 @@ public struct CoverageExportService: CoverageExportServicing {
             products.append(Product(path: resolved, kind: kind))
         }
         return products
-    }
-
-    /// A product's path with a symbolic link to it followed, as ``Product/path`` has it.
-    static func resolvedProductPath(_ path: String) -> String {
-        (try? FileManager.default.destinationOfSymbolicLink(atPath: path))
-            .map {
-                ($0 as NSString).isAbsolutePath ? $0 : ((path as NSString).deletingLastPathComponent as NSString)
-                    .appendingPathComponent($0)
-            }
-            ?? path
-    }
-
-    /// The files each product's report (`reports`, by product path) lists under an alias, mapped
-    /// back through the product's target's map. A run without prefix maps recorded no alias, so
-    /// its reports are not read again.
-    static func mappedFiles(
-        of products: [Product],
-        reports: [String: AbsolutePath],
-        prefixMaps: CompilationPrefixMaps
-    ) throws -> [String: [String]] {
-        guard !prefixMaps.mapsByTarget.isEmpty else { return [:] }
-        var mappedFiles: [String: [String]] = [:]
-        for product in products {
-            guard let report = reports[product.path] else { continue }
-            let target = CompilationPrefixMaps.targetName(ofProduct: product.path)
-            mappedFiles[product.path] = try CoverageExport.aliasedPaths(in: report).map { prefixMaps.remap($0, target: target) }
-        }
-        return mappedFiles
-    }
-
-    /// Xcode keeps a file in a target's coverage report only when the path the compiler recorded
-    /// is one of the target's sources as the project lists them, so the report lists a file
-    /// recorded under Xcode's prefix mapping (`/^src/…`, `/^root/…`) in no target. Each target
-    /// gets those files back from its product's export (`mappedFiles`, by product path), already
-    /// mapped back. A file that several products hold stays with the ones whose files are not a
-    /// strict superset of another holder's: the static library, not the image that links it.
-    static func targets(
-        _ targets: [XcodeCoverageTarget],
-        addingMappedFiles mappedFiles: [String: [String]]
-    ) -> [XcodeCoverageTarget] {
-        let held = targets.map { target in
-            target.buildProductPath.flatMap { mappedFiles[resolvedProductPath($0)] } ?? []
-        }
-        let sets = held.map(Set.init)
-        var holders: [String: [Int]] = [:]
-        for (index, files) in sets.enumerated() {
-            for file in files {
-                holders[file, default: []].append(index)
-            }
-        }
-        var contains: [[Int]: Bool] = [:]
-        func holdsAnotherHolder(_ index: Int, of file: String) -> Bool {
-            holders[file, default: []].contains { other in
-                guard other != index, sets[other].count < sets[index].count else { return false }
-                if let known = contains[[index, other]] { return known }
-                let result = sets[other].isSubset(of: sets[index])
-                contains[[index, other]] = result
-                return result
-            }
-        }
-        return targets.enumerated().map { index, target in
-            let added = held[index].filter { !holdsAnotherHolder(index, of: $0) }
-            guard !added.isEmpty else { return target }
-            return XcodeCoverageTarget(
-                name: target.name,
-                buildProductPath: target.buildProductPath,
-                files: target.files + added,
-                isTest: target.isTest
-            )
-        }
     }
 
     /// From the file's magic number: Mach-O (thin or universal) or `ar` archive.
@@ -535,6 +447,94 @@ public struct CoverageExportService: CoverageExportServicing {
 }
 
 extension CoverageExportService {
+    /// A product's path with a symbolic link to it followed, as ``Product/path`` has it.
+    static func resolvedProductPath(_ path: String) -> String {
+        (try? FileManager.default.destinationOfSymbolicLink(atPath: path))
+            .map {
+                ($0 as NSString).isAbsolutePath ? $0 : ((path as NSString).deletingLastPathComponent as NSString)
+                    .appendingPathComponent($0)
+            }
+            ?? path
+    }
+
+    /// The files each product's report (`reports`, by product path) lists under an alias, mapped
+    /// back through the product's target's map. A run without prefix maps recorded no alias, so
+    /// its reports are not read again.
+    static func mappedFiles(
+        of products: [Product],
+        reports: [String: AbsolutePath],
+        prefixMaps: CompilationPrefixMaps
+    ) throws -> [String: [String]] {
+        guard !prefixMaps.mapsByTarget.isEmpty else { return [:] }
+        var mappedFiles: [String: [String]] = [:]
+        for product in products {
+            guard let report = reports[product.path] else { continue }
+            let target = CompilationPrefixMaps.targetName(ofProduct: product.path)
+            mappedFiles[product.path] = try CoverageExport.aliasedPaths(in: report).map { prefixMaps.remap($0, target: target) }
+        }
+        return mappedFiles
+    }
+
+    /// Xcode keeps a file in a target's coverage report only when the path the compiler recorded
+    /// is one of the target's sources as the project lists them, so the report lists a file
+    /// recorded under Xcode's prefix mapping (`/^src/…`, `/^root/…`) in no target. Each target
+    /// gets those files back from its product's export (`mappedFiles`, by product path), already
+    /// mapped back. A file that several products hold stays with the ones whose files are not a
+    /// strict superset of another holder's: the static library, not the image that links it.
+    static func targets(
+        _ targets: [XcodeCoverageTarget],
+        addingMappedFiles mappedFiles: [String: [String]]
+    ) -> [XcodeCoverageTarget] {
+        let held = targets.map { target in
+            target.buildProductPath.flatMap { mappedFiles[resolvedProductPath($0)] } ?? []
+        }
+        let sets = held.map(Set.init)
+        var holders: [String: [Int]] = [:]
+        for (index, files) in sets.enumerated() {
+            for file in files {
+                holders[file, default: []].append(index)
+            }
+        }
+        var contains: [[Int]: Bool] = [:]
+        func holdsAnotherHolder(_ index: Int, of file: String) -> Bool {
+            holders[file, default: []].contains { other in
+                guard other != index, sets[other].count < sets[index].count else { return false }
+                if let known = contains[[index, other]] { return known }
+                let result = sets[other].isSubset(of: sets[index])
+                contains[[index, other]] = result
+                return result
+            }
+        }
+        return targets.enumerated().map { index, target in
+            let added = held[index].filter { !holdsAnotherHolder(index, of: $0) }
+            guard !added.isEmpty else { return target }
+            return XcodeCoverageTarget(
+                name: target.name,
+                buildProductPath: target.buildProductPath,
+                files: target.files + added,
+                isTest: target.isTest
+            )
+        }
+    }
+
+    /// The platform a products directory is for, from its name: `Debug` is macOS,
+    /// `Debug-iphonesimulator` the iOS simulator, `Release-appletvos` tvOS devices.
+    static func platform(ofProductsDirectory name: String) -> (name: String, simulator: Bool) {
+        guard let dash = name.lastIndex(of: "-") else { return ("macos", false) }
+        let suffix = String(name[name.index(after: dash)...])
+        let simulator = suffix.hasSuffix("simulator")
+        let base = simulator ? String(suffix.dropLast("simulator".count)) : suffix
+            .hasSuffix("os") ? String(suffix.dropLast(2)) : suffix
+        switch base {
+        case "iphone": return ("ios", simulator)
+        case "appletv": return ("tvos", simulator)
+        case "watch": return ("watchos", simulator)
+        case "xr": return ("xros", simulator)
+        case "macosx", "mac": return ("macos", false)
+        default: return (base, simulator)
+        }
+    }
+
     /// Where the run's products can be: the derived data's products directory, and an
     /// `.xctestproducts` bundle the run tests without building, which keeps each configuration's
     /// products in `Binaries/<n>/<configuration>`.
