@@ -86,7 +86,7 @@ public struct CoverageExportService: CoverageExportServicing {
                 return nil
             }
             let output = resultBundlePath.appending(component: CoverageExport.fileName)
-            let prefixMaps = CompilationPrefixMaps(derivedDataDirectory: derivedDataDirectory)
+            let prefixMaps = await CompilationPrefixMaps.ofRun(derivedDataDirectory: derivedDataDirectory)
             let targetNames = products.map { CompilationPrefixMaps.targetName(ofProduct: $0.path) }
             try await fileSystem.runInTemporaryDirectory(prefix: "tuist-coverage-export") { directory in
                 async let reports = export(
@@ -879,7 +879,9 @@ public enum CoverageExport {
 /// target's intermediates (`Build/Intermediates.noindex/<project>.build/<configuration>/
 /// <target>.build/`) maps the aliases the compiler recorded (`/^src`, `/^root`, `/^built`, …)
 /// back to the directories of this build. A coverage build maps only when the project opted in
-/// (`coverage.prefixMapping`), since `xccov` drops mapped files.
+/// (`coverage.prefixMapping`), since `xccov` drops mapped files. A run that tests products built
+/// in another job has no intermediates and falls back to the maps the build wrote into the
+/// `.xctestproducts` bundle (``CoverageBuildSources/prefixMaps``).
 struct CompilationPrefixMaps {
     /// Each target's entries, longest alias first, so the most specific one wins.
     private(set) var mapsByTarget: [String: [(alias: String, path: String)]] = [:]
@@ -890,11 +892,26 @@ struct CompilationPrefixMaps {
         }
     }
 
-    init(derivedDataDirectory: AbsolutePath?) {
-        guard let derivedDataDirectory else {
-            self.init(mapsByTarget: [:])
-            return
-        }
+    /// The derived data's maps, and for a target it has none for (every target, in a test job
+    /// that did not build), the one the build recorded in the `.xctestproducts` bundle the run
+    /// tests from.
+    init(derivedDataDirectory: AbsolutePath?, buildSources: CoverageBuildSources? = nil) {
+        var maps = Self.maps(derivedDataDirectory: derivedDataDirectory)
+        maps.merge(buildSources?.prefixMaps ?? [:]) { derived, _ in derived }
+        self.init(mapsByTarget: maps)
+    }
+
+    /// The maps of the run in progress, with those of the `.xctestproducts` bundle it restored.
+    static func ofRun(derivedDataDirectory: AbsolutePath?) async -> CompilationPrefixMaps {
+        CompilationPrefixMaps(
+            derivedDataDirectory: derivedDataDirectory,
+            buildSources: await RunMetadataStorage.current.coverageBuildSources
+        )
+    }
+
+    /// Each target's `compilation-prefix-map.json` under the derived data's intermediates.
+    static func maps(derivedDataDirectory: AbsolutePath?) -> [String: [String: String]] {
+        guard let derivedDataDirectory else { return [:] }
         let intermediates = derivedDataDirectory.appending(components: "Build", "Intermediates.noindex")
         var maps: [String: [String: String]] = [:]
         for project in (try? FileManager.default.contentsOfDirectory(atPath: intermediates.pathString)) ?? []
@@ -914,7 +931,7 @@ struct CompilationPrefixMaps {
                 }
             }
         }
-        self.init(mapsByTarget: maps)
+        return maps
     }
 
     /// The name of the target a product was built from: the product's file name without its
