@@ -3285,7 +3285,7 @@ msgstr ""
 msgid "No data yet"
 msgstr ""
 
-#: lib/tuist_web/live/layout_live.ex:151
+#: lib/tuist_web/live/layout_live.ex:173
 #: lib/tuist_web/live/overview_live.ex:22
 #, elixir-autogen, elixir-format
 msgid "Project dashboard"

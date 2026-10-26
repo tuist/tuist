@@ -1,7 +1,7 @@
 apiVersion: tuist.dev/v1alpha1
 kind: RackSwitch
 metadata:
-  name: larch-r1-tor-a
+  name: larch-tor-b
   labels:
     tuist.dev/site: larch
     tuist.dev/role: tor
@@ -9,15 +9,14 @@ spec:
   site: larch
   role: tor
   model: s5860-24xmg
-  mac: 64:9d:99:d9:81:0e
-  managedBy: controller
-  managementAddress: 192.168.61.2
-  applyOrder: 2
-  applyNote: Carries the live internet port, so a bad change takes the site off the internet. Changed only after the same change has been applied to larch-r1-tor-b and the rack is still up.
+  managedBy: standalone
+  managementAddress: 192.168.61.6
+  applyOrder: 1
+  applyNote: Its port 27 holds the spare internet optic and nothing live (the site has one Cogent port, on larch-tor-a), so a bad change costs half the minis and none of the site's connectivity. Always the first switch changed.
   credentialItem: rack-switch-controller picos admin
-  configRevision: 75d42f5083e6eec2
+  configRevision: cb74d087a1c54771
   config:
-    hostname: larch-r1-tor-a
+    hostname: larch-tor-b
     managementVlan: 20
     managementPrefixLength: 24
     gateway: 192.168.60.10
@@ -35,7 +34,7 @@ spec:
         name: wan
     lags:
       - id: 1
-        name: isl larch-r1-tor-b
+        name: isl larch-tor-a
         ports:
           - 25
           - 26
@@ -148,7 +147,7 @@ spec:
       - port: 22
         description: ""
         spanningTree: true
-        nativeVlan: 1
+        nativeVlan: 20
         taggedVlans: []
       - port: 23
         description: ""
@@ -161,7 +160,7 @@ spec:
         nativeVlan: 20
         taggedVlans: []
       - port: 25
-        description: isl larch-r1-tor-b
+        description: isl larch-tor-a
         spanningTree: true
         nativeVlan: 1
         taggedVlans:
@@ -170,7 +169,7 @@ spec:
           - 4000
           - 4001
       - port: 26
-        description: isl larch-r1-tor-b
+        description: isl larch-tor-a
         spanningTree: true
         nativeVlan: 1
         taggedVlans:
@@ -179,7 +178,7 @@ spec:
           - 4000
           - 4001
       - port: 27
-        description: wan cogent
+        description: wan spare
         spanningTree: false
         nativeVlan: 4001
         taggedVlans: []
@@ -209,7 +208,7 @@ spec:
       - port: 31
         description: ""
         spanningTree: true
-        nativeVlan: 10
+        nativeVlan: 1
         taggedVlans: []
       - port: 32
         description: ""
@@ -217,40 +216,40 @@ spec:
         nativeVlan: 1
         taggedVlans: []
   ports:
+    - port: 22
+      purpose: management
+      peer: larch-store-a
+      detail: storage/bmc
     - port: 23
       purpose: management
-      peer: larch-r1-pdu-b
+      peer: larch-pdu-a
       detail: power/netpack
     - port: 24
       purpose: management
-      peer: larch-r1-ats-b
+      peer: larch-ats-a
       detail: power/netpack
     - port: 25
       purpose: isl
-      peer: larch-r1-tor-b
+      peer: larch-tor-a
       detail: dac
     - port: 26
       purpose: isl
-      peer: larch-r1-tor-b
+      peer: larch-tor-a
       detail: dac
     - port: 27
       purpose: wan
-      peer: Cogent
+      peer: spare
       detail: fibre
     - port: 28
       purpose: management
-      peer: larch-edge-b
+      peer: larch-edge-a
       detail: edge/bmc
     - port: 29
       purpose: data
       peer: larch-edge-a
-      detail: edge/n225p-1
+      detail: edge/n225p-2
     - port: 30
       purpose: data
       peer: larch-edge-b
-      detail: edge/n225p-1
-    - port: 31
-      purpose: data
-      peer: larch-store-a
-      detail: storage/n225p-1
+      detail: edge/n225p-2
   driver: picos

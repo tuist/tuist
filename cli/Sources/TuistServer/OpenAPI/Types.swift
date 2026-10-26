@@ -4797,6 +4797,7 @@ public enum Components {
                 case mix = "mix"
                 case bazel = "bazel"
                 case cargo = "cargo"
+                case once = "once"
             }
             /// The build system used by the test run.
             ///
@@ -9005,6 +9006,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/ShardPlan/reference`.
             public var reference: Swift.String
+            /// The persisted reporting contract: 0 for legacy reports, 1 for immutable attempt-ordered reports.
+            ///
+            /// - Remark: Generated from `#/components/schemas/ShardPlan/reporting_version`.
+            public var reporting_version: Swift.Int?
             /// The number of shards.
             ///
             /// - Remark: Generated from `#/components/schemas/ShardPlan/shard_count`.
@@ -9061,18 +9066,21 @@ public enum Components {
             /// - Parameters:
             ///   - id: The shard plan id.
             ///   - reference: A unique shard plan reference, typically derived from CI environment.
+            ///   - reporting_version: The persisted reporting contract: 0 for legacy reports, 1 for immutable attempt-ordered reports.
             ///   - shard_count: The number of shards.
             ///   - shards: The shard assignments.
             ///   - upload_url: The API URL to start a multipart upload for the shard bundle.
             public init(
                 id: Swift.String,
                 reference: Swift.String,
+                reporting_version: Swift.Int? = nil,
                 shard_count: Swift.Int,
                 shards: Components.Schemas.ShardPlan.shardsPayload,
                 upload_url: Swift.String? = nil
             ) {
                 self.id = id
                 self.reference = reference
+                self.reporting_version = reporting_version
                 self.shard_count = shard_count
                 self.shards = shards
                 self.upload_url = upload_url
@@ -9080,6 +9088,7 @@ public enum Components {
             public enum CodingKeys: String, CodingKey {
                 case id
                 case reference
+                case reporting_version
                 case shard_count
                 case shards
                 case upload_url
@@ -34701,6 +34710,7 @@ public enum Operations {
                         case mix = "mix"
                         case bazel = "bazel"
                         case cargo = "cargo"
+                        case once = "once"
                     }
                     /// The build system used by the test run.
                     ///
