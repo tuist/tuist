@@ -180,6 +180,17 @@ user and key, NETCONF and a random admin password; see
 measured on a bench unit, and `internal/picos/bench_test.go` (build tag
 `bench`) replays it against a real switch.
 
+In a cluster the management address is on the rack's side of an edge, which
+advertises it to the tailnet, and only the Tailscale egress ProxyGroup's
+proxies route there. So with `--tailscale-egress-proxy-group` the controller
+keeps an ExternalName Service per switch, `rackswitch-<name>` in
+`--tailscale-egress-namespace`, annotated `tailscale.com/tailnet-ip` with the
+address and carrying ports 22 and 830, and dials its DNS name instead, the way
+the operator reaches the RackPDU and RackATS cards. A finalizer
+(`tuist.dev/rackswitch-egress`) deletes the Service with the RackSwitch, since
+one in another namespace cannot be owned. Without the flag it dials the
+address, as on a laptop or the bench.
+
 **Adoption** is the first connection, with `status.hostKey` empty: the
 controller accepts the host key the switch presents, sets admin's password to
 `picos-admin-password` with a confirmed commit, and pins the key's SHA-256
@@ -281,6 +292,8 @@ driver when `picos.sshKeyItem` is: a third ExternalSecret then fills
 `picos-admin-password` from `picos.adminPasswordItem`. The key is read once at
 start, so rotating it is a restart; the admin password is read on every
 adoption. A site with PicOS switches only sets no `omada` values at all.
+`picos.egress` (the `tailscale-operator` namespace and the `macmini-egress`
+ProxyGroup by default) sets the egress flags and a Role for Services there.
 
 ## Running it once from a laptop
 

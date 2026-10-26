@@ -53,6 +53,13 @@ picos:
   # The rollback timer of every commit: a change the controller cannot read
   # back over a new connection in this time undoes itself.
   confirmAfter: 5m
+  # The Tailscale egress ProxyGroup a switch's management address is reached
+  # through (infra/helm/tailscale-operator, `macminiEgress`): the controller
+  # keeps an ExternalName Service per switch in its namespace and dials that.
+  # An empty proxyGroup dials the addresses themselves.
+  egress:
+    namespace: tailscale-operator
+    proxyGroup: macmini-egress
 
 credentials:
   secretStoreRef:

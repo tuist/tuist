@@ -77,10 +77,10 @@ func (e *Engine) observe(ctx context.Context, c *Client) ([]Item, error) {
 	return Observed(data)
 }
 
-// Converge compares the switch with rs's config and, when apply is set,
-// writes the difference. pin is the host key the switch must present; empty
-// accepts the first and reports it.
-func (e *Engine) Converge(ctx context.Context, rs *v1alpha1.RackSwitch, pin string, apply bool) (Report, error) {
+// Converge compares the switch at address with rs's config and, when apply is
+// set, writes the difference. pin is the host key the switch must present;
+// empty accepts the first and reports it.
+func (e *Engine) Converge(ctx context.Context, rs *v1alpha1.RackSwitch, address, pin string, apply bool) (Report, error) {
 	if cfg := rs.Spec.Config; cfg != nil && cfg.Hostname != "" && !hostnamePattern.MatchString(cfg.Hostname) {
 		return Report{}, fmt.Errorf("hostname %q is not one PicOS takes", cfg.Hostname)
 	}
@@ -88,7 +88,7 @@ func (e *Engine) Converge(ctx context.Context, rs *v1alpha1.RackSwitch, pin stri
 	if err != nil {
 		return Report{}, err
 	}
-	c := e.client(rs.Spec.ManagementAddress, pin)
+	c := e.client(address, pin)
 	observed, err := e.observe(ctx, c)
 	report := Report{HostKey: c.HostKey()}
 	if err != nil {

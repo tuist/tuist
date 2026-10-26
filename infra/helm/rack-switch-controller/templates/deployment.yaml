@@ -47,6 +47,12 @@ spec:
             {{- if .Values.picos.sshKeyItem }}
             - --picos-user={{ .Values.picos.user }}
             - --picos-confirm-after={{ .Values.picos.confirmAfter }}
+            {{- with .Values.picos.egress }}
+            {{- if .proxyGroup }}
+            - --tailscale-egress-namespace={{ required "picos.egress.namespace is the Tailscale operator's namespace" .namespace }}
+            - --tailscale-egress-proxy-group={{ .proxyGroup }}
+            {{- end }}
+            {{- end }}
             {{- end }}
             - --credentials-dir=/etc/rack-switch-controller
             - --resync-interval={{ .Values.resyncInterval }}

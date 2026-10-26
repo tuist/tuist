@@ -18,11 +18,13 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
@@ -121,6 +123,7 @@ func main() {
 		namespace            string
 		resyncInterval       time.Duration
 		ef                   engineFlags
+		egress               controllers.Egress
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -129,6 +132,10 @@ func main() {
 	flag.StringVar(&namespace, "namespace", "", "Namespace whose RackSwitches the controller reconciles")
 	flag.DurationVar(&resyncInterval, "resync-interval", 10*time.Minute,
 		"How often each switch is read again, which is how drift is noticed")
+	flag.StringVar(&egress.Namespace, "tailscale-egress-namespace", "",
+		"The Tailscale operator's namespace, where the controller keeps an egress Service per PicOS switch")
+	flag.StringVar(&egress.ProxyGroup, "tailscale-egress-proxy-group", "",
+		"The egress ProxyGroup PicOS switches are dialled through; empty dials their addresses")
 	ef.register(flag.CommandLine, "omada-site")
 
 	opts := zap.Options{Development: false}
@@ -172,9 +179,7 @@ func main() {
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "rack-switch-controller.tuist.dev",
-		Cache: cache.Options{
-			DefaultNamespaces: map[string]cache.Config{namespace: {}},
-		},
+		Cache:                  cacheOptions(namespace, egress),
 	})
 	if err != nil {
 		setupLog.Error(err, "create manager")
@@ -188,6 +193,7 @@ func main() {
 		Credentials:        credentials,
 		PicOS:              picosEngine,
 		PicOSAdminPassword: picosPassword,
+		Egress:             egress,
 		ResyncInterval:     resyncInterval,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackSwitch reconciler")
@@ -256,4 +262,16 @@ func (f *engineFlags) picosEngine() (*picos.Engine, func() (string, error), erro
 		Dialer:       picos.Dialer{User: f.picosUser, Signer: signer, Timeout: 30 * time.Second},
 		ConfirmAfter: f.picosConfirmAfter,
 	}, password, nil
+}
+
+// cacheOptions watches the RackSwitches' namespace and, with an egress, the
+// egress Services in the Tailscale operator's.
+func cacheOptions(namespace string, egress controllers.Egress) cache.Options {
+	opts := cache.Options{DefaultNamespaces: map[string]cache.Config{namespace: {}}}
+	if egress.Enabled() {
+		opts.ByObject = map[client.Object]cache.ByObject{
+			&corev1.Service{}: {Namespaces: map[string]cache.Config{egress.Namespace: {}}},
+		}
+	}
+	return opts
 }
