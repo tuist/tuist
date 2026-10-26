@@ -69,13 +69,9 @@ egressTreeAgent:
   nodePools: [kura-ca-east]
 
 # The kura-volumes.tuist.dev CSI driver and kura-encrypted-nvme StorageClass
-# on the Kura cache pools. Inert until the :kura_encrypted_volumes
-# feature flag places an account's instances on the class. The deploy workflows pin kuraVolumesCSI.image.tag to
-# the Kura controller's `sha-` build.
+# on the Kura cache pools. Enrolled LVM regions encrypt every account.
+# The deploy workflows pin kuraVolumesCSI.image.tag to the controller build.
 kuraVolumesCSI:
-  # Exercise the independent rack release on prepared Paris hardware and a
-  # temporary offline node. Removed after the rehearsal.
-  rackPools: [kura-scw-fr-par]
   enabled: true
   # First LVM validation: the Paris cache host is reinstalled through CAPI.
   lvmRegions: [scw-fr-par-runners]
