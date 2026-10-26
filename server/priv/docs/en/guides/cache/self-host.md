@@ -78,7 +78,7 @@ KURA_CONTROL_PLANE_CLIENT_SECRET="$(openssl rand -base64 32)"
 Set those values as `KURA_CONTROL_PLANE_CLIENT_ID` and `KURA_CONTROL_PLANE_CLIENT_SECRET` in the Tuist server environment, then use the same values in the Kura configuration below. Registration heartbeats include `KURA_TENANT_ID`, the account's permanent cache identity, so the server can attach the node to the right account even after an account rename.
 
 > [!WARNING]
-> The client ID must be a UUID, such as `f0e891b5-947b-4a79-ae4b-092b8799be3b`, without a `kura_` prefix. The token introspection endpoint rejects non-UUID IDs with HTTP `400`, even when the ID and secret match on both services. If you followed an older version of this guide that generated `kura_<hex>`, replace the client ID on the Tuist server and every Kura node, then restart both services.
+> The client ID must be a UUID without a `kura_` prefix. Non-UUID IDs cause token introspection to fail with HTTP `400`, even when the credentials match on both services.
 
 If you are connecting to the hosted `tuist.dev` server, or if you want a per-account credential that can be rotated from the UI, open the account's **Cache** page, choose **Generate credential**, and copy the `client_id` plus the one-time `secret`. On the hosted server, generating a self-hosted-node credential requires an Enterprise plan.
 
@@ -362,8 +362,6 @@ Your developers and CI reach the node's `KURA_ADVERTISED_HTTP_URL` (and, for a m
 
 ## Verify {#verify}
 
-### Check node readiness {#verify-readiness}
-
 ```bash
 curl --fail-with-body http://localhost:4000/ready   # 200 once the node has joined and is serving
 curl --fail-with-body http://localhost:4000/up      # liveness + mesh membership
@@ -371,35 +369,7 @@ curl --fail-with-body http://localhost:4000/up      # liveness + mesh membership
 
 A bridged node reports `state: joining` while it pulls the mesh and `state: serving` once it has caught up. Your node also appears under **Registered nodes** on the account's **Cache** page once registration heartbeats start.
 
-Readiness and registration do **not** prove that cache requests can authenticate or that uploads succeed. Check both before enabling cache warming in CI.
-
-### Check control-plane authentication {#verify-authentication}
-
-Run this from the Kura host or container so it uses the same network path to the Tuist server. Set `TUIST_SERVER_URL` to your server's base URL and use the client ID and secret configured on the node:
-
-```bash
-TUIST_SERVER_URL="https://tuist.acme.internal"
-curl --silent --show-error --fail-with-body --include \
-  "${TUIST_SERVER_URL}/oauth2/introspect" \
-  --data-urlencode "client_id=${KURA_CONTROL_PLANE_CLIENT_ID}" \
-  --data-urlencode "client_secret=${KURA_CONTROL_PLANE_CLIENT_SECRET}" \
-  --data-urlencode "token=kura-setup-check"
-```
-
-Expect HTTP `200` with `{"active":false}`. The token is deliberately invalid: this checks the control-plane credential without using a real user token. It does not verify a user's cache permissions or an upload.
-
-- **HTTP `400`:** inspect the response body. If it reports an invalid `client_id` format, generate a UUID and update both services as described above.
-- **HTTP `401` (`invalid_client`):** check that the client ID and secret match the server configuration, or use a valid per-account credential from the **Cache** page.
-- **Connection or TLS errors:** check that the Kura host can reach the server URL and trusts its TLS certificate.
-
-### Check an upload and a remote hit {#verify-cache-traffic}
-
-1. Run `tuist cache` on a project with at least one uncached, cacheable target. Do not use `--local` for this check.
-2. Check the CLI output for stored targets and the Kura logs for successful upload requests. A zero exit status alone does not prove that artifacts reached the remote cache.
-3. From a fresh runner or a machine without those artifacts in its local cache, run `tuist cache` again on the same revision and configuration. Confirm remote cache hits rather than rebuilding those targets.
-
-> [!WARNING]
-> Treat `No targets were stored` as a reason to investigate when you expected new artifacts. It can be legitimate when there is nothing new to cache, but it can also accompany failed uploads. In particular, HTTP `503` with `Authentication backend unavailable` can mean the Tuist introspection request failed, including HTTP `400` caused by a non-UUID client ID. Inspect both Kura and Tuist server logs and repeat the authentication check above; do not count that warm as a successful upload.
+To verify remote caching, run `tuist cache` with uncached, cacheable targets and confirm successful uploads in the Kura logs. A zero exit status alone does not confirm that artifacts were stored.
 
 ## Upgrading {#upgrading}
 

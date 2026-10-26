@@ -272,10 +272,9 @@ You’ll also need a solution to store files (e.g. framework and library binarie
 
 To use self-hosted Kura nodes with a self-hosted Tuist server:
 
-1. Configure `KURA_CONTROL_PLANE_CLIENT_ID` and `KURA_CONTROL_PLANE_CLIENT_SECRET` on the Tuist server. The client ID **must be a UUID**, not a `kura_`-prefixed string; token introspection rejects non-UUID IDs with HTTP `400`. In fully self-hosted setups you can generate the UUID and a random secret yourself using the commands in the <.localized_link href="/guides/cache/self-host#control-plane-client">self-hosted cache guide</.localized_link> and store them in your deployment secrets.
+1. Configure `KURA_CONTROL_PLANE_CLIENT_ID` and `KURA_CONTROL_PLANE_CLIENT_SECRET` on the Tuist server. The client ID **must be a UUID**. Generate the UUID and a random secret using the commands in the <.localized_link href="/guides/cache/self-host#control-plane-client">self-hosted cache guide</.localized_link> and store them in your deployment secrets.
 2. Deploy Kura nodes following the <.localized_link href="/guides/cache/self-host">self-hosted cache guide</.localized_link>, using the same control-plane credential.
 3. Configure each Kura node with `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL`. Registration heartbeats tell the server which ready, client-facing Kura endpoints it can advertise to the CLI.
-4. Follow the cache guide's <.localized_link href="/guides/cache/self-host#verify">verification steps</.localized_link> to check token introspection, a successful upload, and a remote cache hit. A ready node or a successful `tuist cache` exit status alone does not prove that artifacts were uploaded.
 
 ## Configuration {#configuration}
 
