@@ -12,6 +12,7 @@ defmodule Tuist.Repo.Migrations.AddDockerCacheToRunnerProfiles do
 
   def down do
     alter table(:runner_profiles) do
+      # excellent_migrations:safety-assured-for-next-line column_removed
       remove_if_exists :docker_cache, :boolean
     end
   end
