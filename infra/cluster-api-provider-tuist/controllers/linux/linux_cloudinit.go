@@ -661,7 +661,7 @@ set -euxo pipefail
 		dataProjectQuotaSetup(sudo, writeFile),
 		joinedGuard(sudo, opts.NodeName),
 		joinedMarker(sudo, opts.NodeName),
-		kuraLVMSetup(sudo, hostsKuraCacheVolumes(opts.Taints)),
+		kuraLVMSetup(sudo, hostsKuraLVMVolumes(opts.Taints)),
 	)
 }
 

@@ -3351,7 +3351,7 @@ scw apple-silicon server update <id> zone=<zone> name=tuist-pool-...
 
 ## Kura LVM first-boot layout
 
-Fresh rented Linux cache hosts convert their installer's empty XFS `/data` md
+Fresh rented Linux cache hosts (both `tuist.dev/kura-cache` and\n`tuist.dev/runner-cache` taints) convert their installer's empty XFS `/data` md
 filesystem to the `kura-volumes` VG before quota setup and kubelet binds.
 `controllers/linux/kura_lvm_setup.sh` creates a 128 GiB XFS `data` LV with
 `prjquota`; the remaining extents back CSI volumes. It journals the source

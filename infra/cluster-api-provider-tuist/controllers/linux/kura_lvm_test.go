@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
 // Execute the actual conversion against a durable fake block-device state.
@@ -93,10 +95,12 @@ func TestKuraLVMRefusesExistingData(t *testing.T) {
 }
 
 func TestKuraLVMBootstrapOrdering(t *testing.T) {
-	script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "node", Taints: cacheFleetTaints()})
-	guard, lvm, quota := strings.Index(script, "already joined as"), strings.Index(script, "kura_lvm_setup()"), strings.Index(script, dataProjectQuotaPath)
-	if guard < 0 || lvm < guard || quota < lvm {
-		t.Fatal("conversion must follow joined guard and precede quotas/binds")
+	for _, key := range []string{kuraCacheTaintKey, "tuist.dev/runner-cache"} {
+		script := renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "node", Taints: []corev1.Taint{{Key: key, Effect: corev1.TaintEffectNoSchedule}}})
+		guard, lvm, quota := strings.Index(script, "already joined as"), strings.Index(script, "kura_lvm_setup()"), strings.Index(script, dataProjectQuotaPath)
+		if guard < 0 || lvm < guard || quota < lvm {
+			t.Fatal("conversion must follow joined guard and precede quotas/binds")
+		}
 	}
 	if strings.Contains(renderLinuxBootstrapScript(linuxCloudInitOptions{NodeName: "runner"}), "kura_lvm_setup()") {
 		t.Fatal("non-cache host must not convert storage")
