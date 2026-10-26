@@ -20,8 +20,11 @@ mkdirSync(directory, { recursive: true });
 appendFileSync(process.env.GITHUB_OUTPUT, `logs=${directory}\n`);
 let token;
 try {
+  const credentialEnv = { ...process.env };
+  // The shared workflow sets an empty optional token; let the CLI read its OIDC credential.
+  if (!credentialEnv.TUIST_TOKEN) delete credentialEnv.TUIST_TOKEN;
   token = execFileSync('tuist', ['auth', 'token', '--url', process.env.TUIST_URL],
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 30000 }).trim();
+    { encoding: 'utf8', env: credentialEnv, stdio: ['ignore', 'pipe', 'pipe'], timeout: 30000 }).trim();
 } catch {
   throw new Error('Could not resolve the staging job credential');
 }
