@@ -174,11 +174,14 @@ rollout would close the working path too early.
 
 ### Operator rollout and remaining HA work
 
-The 2026-10-26 read-only check confirmed three Ready control-plane nodes,
-public Flannel endpoints and three healthy public API load-balancer targets.
-This change prepares the next rollout; local testing does not change that
-live state. Production mutations remain operator-run as specified in the
-handoff.
+The [2026-10-26 Flannel deployment](https://github.com/tuist/tuist/actions/runs/40403476483)
+passed. A subsequent read-only check confirmed three Ready control-plane
+nodes advertising `10.0.1.11`, `10.0.1.12` and `10.0.1.13` for Flannel, caph
+at 2/2 replicas, all six webhook budgets allowing one disruption, no unhealthy
+pods and all seven workload Clusters Available. API targets still use public
+addresses until the follow-up private-target spec is deployed. The temporary
+UDP firewall exceptions have not been removed. Production mutations remain
+operator-run as specified in the handoff.
 
 1. Apply the reviewed Talos changes through the normal main-branch workflow.
    Require private endpoint verification and the complete pod-network gate.
@@ -193,7 +196,8 @@ handoff.
    Inspect the live rules with `hcloud firewall describe tuist-mgmt -o json`
    and use their exact direction, protocol, port and source IPs when calling
    `hcloud firewall delete-rule`. Firewall ownership is not yet declarative.
-3. In a subsequent rollout, set `loadBalancer.usePrivateIP: true`. The
+3. The follow-up spec sets `loadBalancer.usePrivateIP: true`; deploy it only
+   after the preceding private Flannel rollout and network gate pass. The
    reconciler reads fresh target health immediately before removing a target,
    requires a different target healthy on every configured API port, and
    waits up to five minutes for the switched target to recover before moving
@@ -223,6 +227,27 @@ the old DaemonSet arguments (`--ip-masq`, `--kube-subnet-mgr`) and roll it back
 to the working public path before retrying; revert the Talos extra arguments
 too so a later bootstrap does not reintroduce the failed selection. Do not
 remove firewall rules or begin an OS upgrade while the network gate fails.
+
+### Remove the temporary public VXLAN rules
+
+After the private network gate passes, the operator can remove the two exact
+rules verified on 2026-10-26. The management-project credential confines this
+to the intended project; the commands retain TCP 6443 and unrelated rules.
+Inspect the firewall first if its rules have changed since that verification.
+
+```bash
+op signin --account tuist.1password.com &&
+HCLOUD_TOKEN=op://tuist-k8s-mgmt-hetzner/hetzner-tuist-mgmt/credential \
+  CI=1 mise exec -- op run -- bash -eu -c '
+    for port in 8472 4789; do
+      hcloud firewall delete-rule tuist-mgmt --direction in --protocol udp \
+        --port "$port" \
+        --source-ips 178.105.79.109/32,91.99.129.8/32,167.235.133.98/32 \
+        --description "flannel VXLAN between mgmt nodes (temporary)"
+    done
+  '
+KUBECONFIG=~/.kube/tuist-mgmt.yaml CI=1 mise exec -- infra/mise/tasks/mgmt/check-pod-network.sh
+```
 
 ### Validation
 
