@@ -1,10 +1,10 @@
-defmodule TuistWeb.RunnerDockerCacheLiveTest do
+defmodule TuistWeb.RunnerImageCacheLiveTest do
   use ExUnit.Case, async: true
 
   import Phoenix.LiveViewTest
 
   alias Phoenix.LiveView.AsyncResult
-  alias TuistWeb.RunnerDockerCacheLive
+  alias TuistWeb.RunnerImageCacheLive
 
   @period {~U[2026-10-18 00:00:00Z], ~U[2026-10-25 00:00:00Z]}
 
@@ -77,20 +77,20 @@ defmodule TuistWeb.RunnerDockerCacheLiveTest do
   end
 
   test "the overview shows how jobs reused saved images and every repository" do
-    html = render_component(&RunnerDockerCacheLive.render/1, assigns(%{data: data([repository()])}))
+    html = render_component(&RunnerImageCacheLive.render/1, assigns(%{data: data([repository()])}))
 
-    assert html =~ "Docker cache"
+    assert html =~ "Image cache"
     assert html =~ "75.0%"
     assert html =~ "3.2 s"
     assert html =~ "47.0 s"
     assert html =~ "org/android"
     assert html =~ "Saved"
-    assert html =~ "/org/runners/docker-cache/"
-    assert html =~ "docker-repository-search"
+    assert html =~ "/org/runners/images/"
+    assert html =~ "image-repository-search"
   end
 
   test "the Initialize containers chart compares jobs from saved images with cold ones" do
-    html = render_component(&RunnerDockerCacheLive.render/1, assigns(%{data: data([repository()]), metric: "initialize"}))
+    html = render_component(&RunnerImageCacheLive.render/1, assigns(%{data: data([repository()]), metric: "initialize"}))
 
     assert html =~ "Cold"
     assert html =~ "formatMilliseconds"
@@ -98,7 +98,7 @@ defmodule TuistWeb.RunnerDockerCacheLiveTest do
 
   test "the overview filters repositories by the search" do
     rows = [repository(), repository(%{repository: "org/web"})]
-    html = render_component(&RunnerDockerCacheLive.render/1, assigns(%{data: data(rows), search: "web"}))
+    html = render_component(&RunnerImageCacheLive.render/1, assigns(%{data: data(rows), search: "web"}))
 
     assert html =~ "org/web"
     refute html =~ "org/android"
@@ -107,7 +107,7 @@ defmodule TuistWeb.RunnerDockerCacheLiveTest do
   test "the overview says when the cache is not enabled and no repository uses it" do
     html =
       render_component(
-        &RunnerDockerCacheLive.render/1,
+        &RunnerImageCacheLive.render/1,
         assigns(%{
           data: data([], %{analytics: analytics(%{steps: %{reused_ms: nil, cold_ms: nil, points: []}})}),
           enabled: false
@@ -120,17 +120,17 @@ defmodule TuistWeb.RunnerDockerCacheLiveTest do
 
   test "a repository's page lists the images its data root keeps" do
     selected = repository()
-    html = render_component(&RunnerDockerCacheLive.render/1, assigns(%{selected: selected, data: data([])}))
+    html = render_component(&RunnerImageCacheLive.render/1, assigns(%{selected: selected, data: data([])}))
 
     assert html =~ "ghcr.io/org/build:jdk-21"
     assert html =~ "ghcr.io/org/build:latest"
     assert html =~ "/org/runners/volumes/#{selected.id}"
-    assert html =~ "Docker cache details"
+    assert html =~ "Image cache details"
   end
 
   test "a repository waiting for its first save says so" do
     selected = repository(%{status: :waiting, images: [], image_count: 0, saved_bytes: nil, last_saved_at: nil})
-    html = render_component(&RunnerDockerCacheLive.render/1, assigns(%{selected: selected, data: data([])}))
+    html = render_component(&RunnerImageCacheLive.render/1, assigns(%{selected: selected, data: data([])}))
 
     assert html =~ "Waiting for a save"
     assert html =~ "No images saved yet"

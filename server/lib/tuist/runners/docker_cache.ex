@@ -1,6 +1,6 @@
 defmodule Tuist.Runners.DockerCache do
   @moduledoc """
-  Reads behind the dashboard's Docker cache page. Each repository whose Linux
+  Reads behind the dashboard's Image cache page. Each repository whose Linux
   jobs use Docker has one `docker` cache volume (`Tuist.Runners.CacheVolumes`)
   holding its jobs' Docker data root: the images and build cache they pulled
   and built. Its saved head carries the image inventory its job reported.

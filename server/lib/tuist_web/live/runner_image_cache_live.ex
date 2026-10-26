@@ -1,4 +1,4 @@
-defmodule TuistWeb.RunnerDockerCacheLive do
+defmodule TuistWeb.RunnerImageCacheLive do
   @moduledoc false
   use TuistWeb, :live_view
   use Noora
@@ -25,7 +25,7 @@ defmodule TuistWeb.RunnerDockerCacheLive do
 
     {:ok,
      assign(socket,
-       head_title: "#{dgettext("dashboard_runners", "Docker cache")} · #{account.name} · Tuist",
+       head_title: "#{dgettext("dashboard_runners", "Image cache")} · #{account.name} · Tuist",
        enabled: FeatureFlags.runner_docker_cache_enabled?(account),
        metric: "hit_rate"
      )}
@@ -111,11 +111,10 @@ defmodule TuistWeb.RunnerDockerCacheLive do
     end)
   end
 
-  def page_path(%{selected_account: account, selected: nil}, params),
-    do: ~p"/#{account.name}/runners/docker-cache?#{params}"
+  def page_path(%{selected_account: account, selected: nil}, params), do: ~p"/#{account.name}/runners/images?#{params}"
 
   def page_path(%{selected_account: account, selected: selected}, params),
-    do: ~p"/#{account.name}/runners/docker-cache/#{selected.id}?#{params}"
+    do: ~p"/#{account.name}/runners/images/#{selected.id}?#{params}"
 
   # The repositories matching the search, sorted, and whether another page follows.
   def repositories_page(repositories, assigns) do
@@ -177,7 +176,7 @@ defmodule TuistWeb.RunnerDockerCacheLive do
   attr :preset, :string, required: true
   attr :period, :any, required: true
 
-  def docker_date_picker(assigns) do
+  def image_date_picker(assigns) do
     ~H"""
     <.date_picker
       id={@id}
@@ -285,7 +284,7 @@ defmodule TuistWeb.RunnerDockerCacheLive do
         description={
           dgettext(
             "dashboard_runners",
-            "Number of job runs that mounted a Docker cache during the selected period."
+            "Number of job runs that mounted an image cache during the selected period."
           )
         }
         selected={@metric == "uses"}
