@@ -25,11 +25,9 @@ defmodule TuistWeb.Components.WorkloadIdentities do
     |> assign_empty_form()
   end
 
-  def handle_event("toggle_oidc_configuration", %{"checked" => checked}, socket) when is_boolean(checked) do
-    {:noreply, assign(socket, :oidc_configuration_visible, checked)}
+  def handle_event("toggle_oidc_configuration", _params, socket) do
+    {:noreply, update(socket, :oidc_configuration_visible, &(!&1))}
   end
-
-  def handle_event("toggle_oidc_configuration", _params, socket), do: {:noreply, socket}
 
   def handle_event("select_oidc_template", %{"value" => [template]}, socket) when template in ["custom", "fly"] do
     socket = assign(socket, :oidc_template, template)

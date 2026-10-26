@@ -15,8 +15,6 @@ class Toggle extends Component {
   render() {
     const parts = ["root", "root:control", "root:label", "root:hidden-input"];
     for (const part of parts) renderPart(this.el, part, this.api);
-    this.el.querySelector('[data-part="hidden-input"]').checked =
-      this.api.checked;
   }
 }
 
@@ -28,12 +26,6 @@ export default {
 
   updated() {
     this.toggle.render();
-  },
-
-  reconnected() {
-    // Restore the rejoined server state without emitting a user change.
-    this.toggle.destroy();
-    this.mounted();
   },
 
   beforeDestroy() {

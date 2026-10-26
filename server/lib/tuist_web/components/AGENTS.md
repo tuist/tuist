@@ -36,6 +36,7 @@ This area owns shared UI components for LiveView and templates.
 
 ## Boundaries
 
+- The workload configuration switch is a stable native button with `role="switch"`, using Noora's track/thumb styles. LiveView owns its checked/expanded state and form visibility together; do not add a client machine or shared Noora reconnect behavior for this presentation-only control.
 - Domain logic belongs in `server/lib/tuist` contexts.
 - Frontend assets are in `server/assets`.
 
