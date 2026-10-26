@@ -29,6 +29,14 @@ on:
         description: Run only the Gradle container cache check
         type: boolean
         default: false
+      compare_private_cache:
+        description: With gradle_cache, measure colocated PN versus the remote staging cache
+        type: boolean
+        default: false
+      wan_cache_endpoint:
+        description: Explicit public-region Service for the controlled comparison
+        type: string
+        default: http://kura-tuist-ca-east-1.kura.svc.cluster.local:4000
       stable_cache_dns:
         description: With gradle_cache, validate the spec95 public stable endpoint using the temporary staging fixture token
         type: boolean
@@ -207,7 +215,7 @@ jobs:
       contents: read
       id-token: write
     runs-on: ${{ inputs.runner_label }}
-    timeout-minutes: ${{ inputs.stable_cache_dns && 30 || 15 }}
+    timeout-minutes: ${{ inputs.compare_private_cache && 45 || inputs.stable_cache_dns && 30 || 15 }}
     container:
       image: eclipse-temurin:21-jdk-jammy
     defaults:
@@ -220,6 +228,7 @@ jobs:
       MISE_GITHUB_ATTESTATIONS: 0
       MISE_LOCKED: 1
       TUIST_TOKEN: ${{ inputs.stable_cache_dns && secrets.SPEC95_STAGING_CACHE_TOKEN || '' }}
+      BENCH_WAN_ENDPOINT: ${{ inputs.wan_cache_endpoint }}
     steps:
       - name: Validate stable DNS fixture scope
         if: ${{ inputs.stable_cache_dns }}
@@ -250,8 +259,14 @@ jobs:
         if: ${{ !inputs.stable_cache_dns }}
         run: tuist auth login
       - name: Verify a remote upload followed by a remote hit
-        if: ${{ !inputs.stable_cache_dns }}
+        if: ${{ !inputs.stable_cache_dns && !inputs.compare_private_cache }}
         run: bash infra/linux-runner-image/gradle-cache-smoke.sh
+      - name: Compare private and remote Gradle caches
+        if: ${{ inputs.compare_private_cache }}
+        run: |
+          test "$TUIST_URL" = https://staging.tuist.dev
+          test '${{ inputs.stable_cache_dns }}' = false
+          bash infra/linux-runner-image/gradle-pn-benchmark.sh
       - name: Soak the public stable cache endpoint
         if: ${{ inputs.stable_cache_dns }}
         run: bash infra/cache-dns/staging-ci-smoke.sh
@@ -259,5 +274,9 @@ jobs:
         if: always()
         with:
           name: gradle-container-cache-logs
-          path: ${{ runner.temp }}/gradle-cache-smoke/*.log
+          path: |
+            ${{ runner.temp }}/gradle-cache-smoke/*.log
+            ${{ runner.temp }}/gradle-pn-benchmark/*.log
+            ${{ runner.temp }}/gradle-pn-benchmark/*.csv
+            ${{ runner.temp }}/gradle-pn-benchmark/environment.txt
           if-no-files-found: ignore

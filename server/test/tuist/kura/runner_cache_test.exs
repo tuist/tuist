@@ -143,6 +143,20 @@ defmodule Tuist.Kura.RunnerCacheTest do
     )
   end
 
+  test "OVH provisions only accounts with recent Linux jobs" do
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["ovh-gra-runners"] end)
+    linux = account_with_profiles([:linux])
+    idle = account_with_profiles([:linux])
+    macos = account_with_profiles([:macos])
+    claimed_job(linux, "tuist-tuist-runner-pool-linux-4vcpu-16gb", platform: "linux")
+    set_runner_availability([linux.id, idle.id, macos.id])
+
+    assert :ok = RunnerCache.reconcile()
+    assert server_regions(linux) == ["ovh-gra-runners"]
+    assert server_regions(idle) == []
+    assert server_regions(macos) == []
+  end
+
   test "provisions per region by served platform" do
     linux_only = account_with_profiles([:linux])
     macos_too = account_with_profiles([:linux, :macos])
