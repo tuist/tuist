@@ -30,4 +30,3 @@ Ant:           Apache Ant(TM) version 1.10.15 compiled on August 25 2024
 Launcher JVM:  21.0.12.1 (Eclipse Adoptium 21.0.12.1+1-LTS)
 Daemon JVM:    /opt/java/openjdk (no JDK specified, using current Java home)
 OS:            Linux 6.18.15 amd64
-

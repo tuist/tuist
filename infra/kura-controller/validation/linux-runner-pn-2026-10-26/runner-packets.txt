@@ -16,4 +16,3 @@ listening on enp6s0, link-type EN10MB (Ethernet), snapshot length 64 bytes
 0 packets captured
 0 packets received by filter
 0 packets dropped by kernel
-

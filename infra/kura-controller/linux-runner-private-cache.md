@@ -2,7 +2,7 @@
 
 `ovh-gra-runners` is a private, Linux-only region on the
 `kura-ovh-gra-runners` pool. Account caches use the managed two-replica lifecycle,
-local XFS storage, and a 750 Mbps per-account ceiling. The replicas share the
+local XFS storage, and a 750 Mbps egress setting. The replicas share the
 staging cache host, so staging does not demonstrate host redundancy.
 
 Runner dispatch prefers the active private instance's cluster Service and falls

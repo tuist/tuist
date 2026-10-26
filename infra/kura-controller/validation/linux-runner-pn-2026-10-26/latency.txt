@@ -1,5 +1,5 @@
-172.30.241.2 dev enp7s0 src 172.30.241.4 uid 1000 
-    cache 
+172.30.241.2 dev enp7s0 src 172.30.241.4 uid 1000
+    cache
 PING 172.30.241.2 (172.30.241.2) 56(84) bytes of data.
 64 bytes from 172.30.241.2: icmp_seq=1 ttl=64 time=0.574 ms
 64 bytes from 172.30.241.2: icmp_seq=2 ttl=64 time=0.418 ms
@@ -15,8 +15,8 @@ PING 172.30.241.2 (172.30.241.2) 56(84) bytes of data.
 --- 172.30.241.2 ping statistics ---
 10 packets transmitted, 10 received, 0% packet loss, time 1869ms
 rtt min/avg/max/mdev = 0.328/0.425/0.578/0.082 ms
-172.30.241.3 dev enp7s0 src 172.30.241.4 uid 1000 
-    cache 
+172.30.241.3 dev enp7s0 src 172.30.241.4 uid 1000
+    cache
 PING 172.30.241.3 (172.30.241.3) 56(84) bytes of data.
 64 bytes from 172.30.241.3: icmp_seq=1 ttl=64 time=79.5 ms
 64 bytes from 172.30.241.3: icmp_seq=2 ttl=64 time=79.4 ms
