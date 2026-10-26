@@ -1465,18 +1465,18 @@ rackFleet:
         pdu: ber1-pdu-b
         outlet: "8"
     # larch's ten M5 Pro minis (rack r1), five per chain: a01 to a05 on chain A
-    # (larch-r1-tor-a and larch-r1-pdu-a), b01 to b05 on chain B
-    # (larch-r1-tor-b and larch-r1-pdu-b). None is declared until their serials
+    # (larch-tor-a and larch-pdu-a), b01 to b05 on chain B
+    # (larch-tor-b and larch-pdu-b). None is declared until their serials
     # and MACs are read off the box labels. Each takes the larch block in
     # `sites` below for its Node's fleet and SSH ingress. For example:
-    # - name: larch-r1-runner-a01
+    # - name: larch-runner-a01
     #   site: larch
     #   serial: <from the box label>
     #   address: 10.20.0.101
     #   rack: r1
     #   shelf: <tray>
     #   power:
-    #     pdu: larch-r1-pdu-a
+    #     pdu: larch-pdu-a
     #     outlet: "1"
   machine:
     # Two 8 vCPU / 24 GB guests or one 16 vCPU / 48 GB guest (the rack's
