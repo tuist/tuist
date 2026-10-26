@@ -152,4 +152,25 @@ defmodule TuistWeb.RunnerImageCacheLiveTest do
 
     assert html =~ "No images saved yet"
   end
+
+  test "line charts plot only the days that had jobs" do
+    quiet = %{at: ~U[2026-10-23 00:00:00Z], avg: nil, p50: nil, p90: nil, p99: nil}
+    busy = %{at: ~U[2026-10-24 00:00:00Z], avg: 3_200, p50: 3_100, p90: 4_400, p99: 6_100}
+
+    analytics =
+      analytics(%{
+        activity: %{
+          uses: 4,
+          hit_rate: 75.0,
+          points: [%{at: quiet.at, uses: 0, hit_rate: nil}, %{at: busy.at, uses: 4, hit_rate: 75.0}]
+        },
+        steps: %{reused: busy, cold: busy, points: [quiet, busy]}
+      })
+
+    assert [%{data: [["2026-10-24T00:00:00Z", 6_100]]}] =
+             RunnerImageCacheLive.chart_series(analytics, "initialize", "p99")
+
+    assert [%{data: [["2026-10-24T00:00:00Z", 75.0]]}] = RunnerImageCacheLive.chart_series(analytics, "hit_rate", "avg")
+    assert [%{data: [_, _]}] = RunnerImageCacheLive.chart_series(analytics, "uses", "avg")
+  end
 end

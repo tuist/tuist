@@ -308,13 +308,15 @@ defmodule TuistWeb.RunnerImageCacheLive do
       />
     </div>
     <.card_section data-part="storage-chart-section">
+      <% series = chart_series(@data.analytics, @metric, @percentile) %>
       <.chart
         :if={chart_data?(@data.analytics, @metric)}
         id={"#{@id}-chart"}
         type={if @metric == "uses", do: "bar", else: "line"}
-        series={chart_series(@data.analytics, @metric, @percentile)}
-        extra_options={chart_options(@metric, @period)}
+        series={series}
+        extra_options={chart_options(@metric, @period, series)}
         y_axis_min={0}
+        y_axis_max={if @metric == "hit_rate", do: 100}
       />
       <.table_empty_state
         :if={!chart_data?(@data.analytics, @metric)}
@@ -330,35 +332,77 @@ defmodule TuistWeb.RunnerImageCacheLive do
 
   def chart_data?(analytics, metric), do: RunnerVolumesLive.detail_chart_data?(analytics, metric)
 
+  # Hit rate and Initialize containers plot only the hours or days that had
+  # jobs, one point each, so quiet stretches leave no gaps; job counts keep
+  # every bar.
   def chart_series(analytics, "initialize", percentile) do
-    [
-      %{
-        name: initialize_title(percentile),
-        type: "line",
-        color: "var:noora-chart-" <> RunnersLive.legend_color_for_percentile(percentile),
-        showSymbol: true,
-        connectNulls: false,
-        data:
-          Enum.map(analytics.steps.points, &[DateTime.to_iso8601(&1.at), RunnersLive.percentile_value(&1, percentile)])
-      }
-    ]
+    data =
+      for point <- analytics.steps.points,
+          value = RunnersLive.percentile_value(point, percentile),
+          not is_nil(value),
+          do: [DateTime.to_iso8601(point.at), value]
+
+    line_series(initialize_title(percentile), RunnersLive.legend_color_for_percentile(percentile), data)
+  end
+
+  def chart_series(analytics, "hit_rate", _percentile) do
+    data =
+      for point <- analytics.activity.points,
+          not is_nil(point.hit_rate),
+          do: [DateTime.to_iso8601(point.at), point.hit_rate]
+
+    line_series(dgettext("dashboard_runners", "Hit rate"), metric_color("hit_rate"), data)
   end
 
   def chart_series(analytics, metric, _percentile), do: RunnerVolumesLive.detail_chart_series(analytics, metric)
+
+  defp line_series(name, color, data) do
+    [
+      %{
+        name: name,
+        type: "line",
+        color: "var:noora-chart-" <> color,
+        data: data,
+        smooth: 0.1,
+        symbol: "circle",
+        symbolSize: 4
+      }
+    ]
+  end
 
   def initialize_title("p50"), do: dgettext("dashboard_runners", "p50 Initialize containers")
   def initialize_title("p90"), do: dgettext("dashboard_runners", "p90 Initialize containers")
   def initialize_title("p99"), do: dgettext("dashboard_runners", "p99 Initialize containers")
   def initialize_title(_), do: dgettext("dashboard_runners", "Avg. Initialize containers")
 
-  def chart_options("initialize", period) do
-    "volumes"
-    |> RunnerVolumesLive.storage_chart_options(period)
-    |> put_in([:yAxis, :axisLabel, :formatter], "fn:formatMilliseconds")
-    |> put_in([:tooltip, :valueFormat], "fn:formatMilliseconds")
-  end
+  def chart_options("uses", period, _series), do: RunnerVolumesLive.detail_chart_options("uses", period)
 
-  def chart_options(metric, period), do: RunnerVolumesLive.detail_chart_options(metric, period)
+  def chart_options(metric, {start, finish}, [%{data: data}]) do
+    format = if metric == "hit_rate", do: "{value}%", else: "fn:formatMilliseconds"
+    hourly = DateTime.diff(finish, start) <= 2 * 86_400
+    times = Enum.map(data, &hd/1)
+
+    %{
+      grid: %{left: "0.4%", right: "24px", height: "88%", top: "5%"},
+      xAxis: %{
+        boundaryGap: false,
+        type: "category",
+        axisLabel: %{
+          color: "var:noora-surface-label-secondary",
+          formatter: if(hourly, do: "fn:toLocaleDateHour", else: "fn:toLocaleDate"),
+          customValues: Enum.uniq([List.first(times), List.last(times)]),
+          padding: [10, 0, 0, 0]
+        }
+      },
+      yAxis: %{
+        splitNumber: 4,
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary", formatter: format}
+      },
+      legend: %{show: false},
+      tooltip: %{valueFormat: format, dateFormat: if(hourly, do: "hour", else: "day")}
+    }
+  end
 
   def duration_trend(current, previous) when is_integer(current) and is_integer(previous) and previous > 0,
     do: %{

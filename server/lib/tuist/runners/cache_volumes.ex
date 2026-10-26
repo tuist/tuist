@@ -1200,13 +1200,6 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
-  defp rebase_viable?(volume, usage, generation) do
-    completion = Repo.get_by(JobCompletion, workflow_job_id: usage.workflow_job_id, account_id: volume.account_id)
-
-    not retired_image?(volume, usage) and usage.can_publish and usage.status not in ["published", "discarded"] and
-      generation > usage.base_generation and not is_nil(completion) and completion.conclusion == "success"
-  end
-
   # A host that gives up on a multipart upload discards its parts. Nothing about
   # the use matters: the upload names an object only this use could publish.
   defp image_action(volume, _usage, %{
@@ -1264,6 +1257,13 @@ defmodule Tuist.Runners.CacheVolumes do
   end
 
   defp image_action(_, _, _), do: Repo.rollback(:invalid_request)
+
+  defp rebase_viable?(volume, usage, generation) do
+    completion = Repo.get_by(JobCompletion, workflow_job_id: usage.workflow_job_id, account_id: volume.account_id)
+
+    not retired_image?(volume, usage) and usage.can_publish and usage.status not in ["published", "discarded"] and
+      generation > usage.base_generation and not is_nil(completion) and completion.conclusion == "success"
+  end
 
   # The host builds a checkout master from exports it verified itself, so the job's
   # outcome and the use's state after the job do not matter: the use only names
