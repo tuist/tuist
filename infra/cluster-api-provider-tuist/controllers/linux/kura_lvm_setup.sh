@@ -4,7 +4,9 @@ kura_lvm_setup() (
   set -euo pipefail
   local device="${1:-}" marker=/var/lib/tuist/kura-lvm-device
   local vg=kura-volumes lv=/dev/kura-volumes/data
+  local inspection_mount=false
   fail() { echo "kura-lvm: $*" >&2; exit 1; }
+  trap 'if [ "$inspection_mount" = true ]; then umount /data; fi' EXIT
 
   # A failed join can already have started workloads before writing joined-node.
   # Never use that marker alone as permission to destroy a filesystem.
@@ -22,7 +24,22 @@ kura_lvm_setup() (
       device="$(cat "$marker")"
     else
       if [ -z "$device" ]; then
-        mountpoint -q /data || fail "no fresh /data mount"
+        if ! mountpoint -q /data; then
+          # Scaleway creates the requested XFS md filesystem but can omit its
+          # mount and fstab entry. Inspect only a single unmounted candidate;
+          # never infer a data disk from its size or format a raw device here.
+          local candidates=() candidate
+          while read -r candidate; do
+            [ -n "$candidate" ] || continue
+            [ -z "$(lsblk -nro MOUNTPOINTS "$candidate" | tr -d '[:space:]')" ] || continue
+            candidates+=("$candidate")
+          done < <(lsblk -rpno NAME,FSTYPE | awk '$1 ~ /^\/dev\/md/ && $2 == "xfs" { print $1 }' | sort -u)
+          [ "${#candidates[@]}" = 1 ] || fail "expected exactly one unmounted XFS md data filesystem"
+          mkdir -p /data
+          [ -z "$(find /data -mindepth 1 -maxdepth 1 -print -quit)" ] || fail "unmounted /data is not empty"
+          mount -t xfs -o ro,norecovery "${candidates[0]}" /data
+          inspection_mount=true
+        fi
         [ "$(findmnt -no FSTYPE /data)" = xfs ] || fail "/data is not XFS"
         device="$(readlink -f "$(findmnt -no SOURCE /data)")"
         case "$device" in /dev/md*) ;; *) fail "/data is not on md" ;; esac
@@ -40,6 +57,7 @@ kura_lvm_setup() (
     if mountpoint -q /data; then
       [ "$(readlink -f "$(findmnt -no SOURCE /data)")" = "$device" ] || fail "unexpected /data source"
       umount /data
+      inspection_mount=false
     fi
     [ -z "$(lsblk -nro MOUNTPOINTS "$device" | tr -d '[:space:]')" ] || fail "device still mounted"
     if ! pvs "$device" >/dev/null 2>&1; then
