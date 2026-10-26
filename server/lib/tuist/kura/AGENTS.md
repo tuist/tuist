@@ -5,6 +5,9 @@
   The default-off per-account `kura_linux_runner_cache` flag gates both
   provisioning and dispatch in every environment; disabling uses the existing
   in-flight-aware drain. Register the flag in the audited Ops catalog.
+  Cluster-DNS private Services need a successful `/ready` probe on activation
+  and during reconciliation. Dispatch requires `last_ready_at` within 120 seconds;
+  zero ready Service backends must fall back to WAN without probing on dispatch.
   Enable the region per environment only after physical path qualification; staging
   evidence and rollback are in
   [the Linux runner runbook](../../../../../infra/kura-controller/linux-runner-private-cache.md).

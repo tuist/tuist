@@ -1200,11 +1200,27 @@ defmodule Tuist.Kura do
         Provisioner.external_endpoint(server)
       else
         case Provisioner.public_url(account, server) do
-          url when is_binary(url) -> {:ok, %{url: url, observed_at: now_truncated()}}
+          url when is_binary(url) -> probe_private_service(url)
           {:error, reason} -> {:error, reason}
           other -> {:error, other}
         end
       end
+    end
+  end
+
+  # A Service can exist with zero ready backends. Probe on reconciliation,
+  # never on runner dispatch, and heartbeat only a successful serving check.
+  defp probe_private_service(url) do
+    ready_url = URI.to_string(%{URI.parse(url) | path: "/ready", query: nil, fragment: nil})
+
+    case Req.get(ready_url,
+           receive_timeout: 2_000,
+           connect_options: [timeout: 2_000],
+           retry: false,
+           redirect: false
+         ) do
+      {:ok, %Req.Response{status: 200}} -> {:ok, %{url: url, observed_at: now_truncated()}}
+      _ -> {:error, :private_endpoint_not_ready}
     end
   end
 
@@ -1213,13 +1229,17 @@ defmodule Tuist.Kura do
 
   Gateway regions publish a stable hostname only after the controller observes
   the entrance ready. The controller's observation time is persisted unchanged.
+  Cluster-DNS private regions probe their Service's `/ready` with bounded
+  timeouts and no retries or redirects, outside the dispatch request path.
   While the endpoint is unready, the last URL is retained; after the freshness window, new jobs
   fall back to the public cache. Running jobs keep the URL they already received.
   """
   def refresh_private_server_url(%Server{status: :active, region: region_id} = server) do
     with {:ok, region} <- Regions.fetch(region_id),
-         true <- Regions.observed_private_endpoint?(region) do
-      case Provisioner.external_endpoint(server) do
+         true <- Regions.private?(region) do
+      account = Repo.preload(server, :account).account
+
+      case private_server_url(account, server) do
         {:ok, %{url: url, observed_at: observed_at}} ->
           mark_private_endpoint_ready(server, url, observed_at)
 
@@ -1298,7 +1318,7 @@ defmodule Tuist.Kura do
     end)
   end
 
-  # Staleness window for a private gateway's controller observation
+  # Staleness window for a private endpoint's serving observation
   # (`last_ready_at`). Larger than the reconciler's 30s tick so one slow
   # tick can't flap dispatch; small enough that a `/ready`-503 node
   # degrades to the public cache within a couple of minutes instead of
@@ -1355,13 +1375,8 @@ defmodule Tuist.Kura do
     if private_region_ids == [] do
       nil
     else
-      # An observed private endpoint serves only while its heartbeat is
-      # fresh: a `/ready`-503 node lets `last_ready_at` go stale and we
-      # fail over to the public cache instead of routing builds at a dead
-      # endpoint. Cluster-DNS private servers carry no heartbeat (their
-      # in-cluster Service drops a not-ready pod from its endpoints), so
-      # they serve whenever active.
-      observed_endpoint_region_ids = observed_endpoint_region_ids(private_region_ids)
+      # Every private endpoint needs a fresh serving observation. A Service
+      # removing unhealthy pods does not help when no ready backend remains.
       ready_cutoff = DateTime.add(now_truncated(), -@runner_cache_ready_staleness_seconds, :second)
 
       # "At most one active private node per account" is a reconciler
@@ -1372,11 +1387,11 @@ defmodule Tuist.Kura do
       # valid caches, so either URL works.
       Server
       |> where([s], s.account_id == ^account_id and s.status == :active and s.region in ^private_region_ids)
+      |> where([s], not is_nil(s.last_ready_at) and s.last_ready_at >= ^ready_cutoff)
       |> order_by([s], asc: s.region)
       |> limit(2)
       |> select([s], %{url: s.url, region: s.region, last_ready_at: s.last_ready_at})
       |> Repo.all()
-      |> Enum.filter(&private_cache_serving?(&1, observed_endpoint_region_ids, ready_cutoff))
       |> Enum.map(& &1.url)
       |> route_private_cache_url(account_id)
     end
@@ -1423,23 +1438,6 @@ defmodule Tuist.Kura do
     case Provisioner.internal_url(account, server) do
       url when is_binary(url) and url != "" -> url
       _ -> nil
-    end
-  end
-
-  defp observed_endpoint_region_ids(private_region_ids) do
-    Enum.filter(private_region_ids, fn id ->
-      case Regions.fetch(id) do
-        {:ok, region} -> Regions.observed_private_endpoint?(region)
-        _ -> false
-      end
-    end)
-  end
-
-  defp private_cache_serving?(%{region: region, last_ready_at: last_ready_at}, observed_endpoint_region_ids, ready_cutoff) do
-    if region in observed_endpoint_region_ids do
-      not is_nil(last_ready_at) and DateTime.compare(last_ready_at, ready_cutoff) != :lt
-    else
-      true
     end
   end
 
