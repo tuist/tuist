@@ -5,15 +5,17 @@ project `tuist-mgmt`. Both of its layers are reconciled on merge to main by
 `.github/workflows/mgmt-cluster-apply.yml`, which prints the planned changes
 before applying them.
 
-- `hetzner.yaml` declares the Hetzner resources around it: the private network,
-  and the `tuist-mgmt-api` load balancer in front of the Kubernetes API with a
-  primary IPv4 of the same name, so its address survives a load balancer
-  recreate. The `hetzner` job applies it with
+- `hetzner.yaml` declares the Hetzner resources around it: the private network
+  (each node attached at its `privateIP`), and the `tuist-mgmt-api` load
+  balancer in front of the Kubernetes API with a primary IPv4 of the same name,
+  so its address survives a load balancer recreate. The `hetzner` job applies
+  it with
   `infra/mise/tasks/mgmt/reconcile-hetzner.sh`. The token lives in the
   `tuist-k8s-mgmt-hetzner` vault, which only that job's `mgmt-hetzner`
   environment can read.
 - `patches/` holds Talos machine config patches for every control-plane node.
-  The `talos` job applies them with `infra/mise/tasks/mgmt/reconcile-talos.sh`.
+  The `talos` job applies them with `infra/mise/tasks/mgmt/reconcile-talos.sh`,
+  after the `hetzner` job has succeeded.
 
 ## How the patches are applied
 

@@ -4,17 +4,18 @@
 
 # Needs HCLOUD_TOKEN for project tuist-mgmt.
 #
-# Reconciles: the network and its subnet, a primary IPv4 named after the
-# load balancer (so the endpoint address survives a load balancer
-# recreate), the load balancer's type, network attachment, TCP services
-# and server targets, and delete protection on the network, primary IP and
-# load balancer.
+# Reconciles: the network and its subnet, each node's attachment to the
+# network at its declared private IP, a primary IPv4 named after the load
+# balancer (so the endpoint address survives a load balancer recreate), the
+# load balancer's type, network attachment, TCP services and server targets,
+# and delete protection on the network, primary IP and load balancer.
 #
 # The only thing it removes is a load balancer target whose server is not
 # listed under `nodes`. It refuses to leave the load balancer without a
 # target: a target is never pruned or re-added if it is the last one.
-# Settings Hetzner cannot change in place (a network's IP range, a load
-# balancer's location or public IP) fail the run instead of being recreated.
+# Settings Hetzner cannot change in place (a network's IP range, a node's
+# private IP, a load balancer's location or public IP) fail the run instead
+# of being recreated.
 
 set -euo pipefail
 
@@ -43,7 +44,7 @@ yq -e '
   (.loadBalancer.type | tag == "!!str") and
   (.loadBalancer.usePrivateIP | tag == "!!bool") and
   (.loadBalancer.ports | (tag == "!!seq" and length > 0 and all_c(tag == "!!int"))) and
-  (.nodes | (tag == "!!seq" and length > 0 and all_c(tag == "!!str")))
+  (.nodes | (tag == "!!seq" and length > 0 and all_c((.name | tag == "!!str") and (.privateIP | tag == "!!str"))))
 ' "$SPEC" >/dev/null || fail "$SPEC is missing a field or has one of the wrong type"
 
 spec() { yq -r "$1" "$SPEC"; }
@@ -63,7 +64,8 @@ lb_name="$(spec .loadBalancer.name)"
 lb_type="$(spec .loadBalancer.type)"
 use_private_ip="$(spec .loadBalancer.usePrivateIP)"
 read -r -a lb_ports <<<"$(spec '.loadBalancer.ports | join(" ")')"
-read -r -a nodes <<<"$(spec '.nodes | join(" ")')"
+read -r -a nodes <<<"$(spec '[.nodes[].name] | join(" ")')"
+read -r -a node_ips <<<"$(spec '[.nodes[].privateIP] | join(" ")')"
 
 network_zone="$(hcloud location describe "$location" -o json | jq -r .network_zone)"
 
@@ -85,6 +87,19 @@ if [[ -z "$network" ]] || ! jq -e --arg r "$subnet_range" 'any(.subnets[]; .ip_r
   change network add-subnet "$network_name" --type cloud --network-zone "$network_zone" --ip-range "$subnet_range"
 fi
 network_id="$(jq -r '.id // empty' <<<"${network:-null}")"
+
+echo "==> Servers"
+for i in "${!nodes[@]}"; do
+  node="${nodes[$i]}"
+  node_ip="${node_ips[$i]}"
+  attached_ip="$(hcloud server describe "$node" -o json |
+    jq -r --argjson id "${network_id:-0}" '.private_net[]? | select(.network == $id) | .ip')"
+  if [[ -z "$attached_ip" ]]; then
+    change server attach-to-network "$node" --network "$network_name" --ip "$node_ip"
+  elif [[ "$attached_ip" != "$node_ip" ]]; then
+    fail "server $node is attached to network $network_name as $attached_ip, the spec says $node_ip; Hetzner cannot change it in place"
+  fi
+done
 
 echo "==> Primary IPv4 $lb_name"
 primary_ip="$(hcloud primary-ip list -o json | jq --arg n "$lb_name" '.[] | select(.name == $n and .type == "ipv4")')"

@@ -16,6 +16,9 @@ loadBalancer:
   # Targets are reached on their public IP until the nodes carry a
   # configured private network interface.
   usePrivateIP: false
-# Servers the load balancer sends traffic to.
+# Control-plane servers: attached to the network at privateIP (fixed once
+# attached) and targeted by the load balancer. The load balancer holds
+# 10.0.1.1.
 nodes:
-  - tuist-mgmt
+  - name: tuist-mgmt
+    privateIP: 10.0.1.11

@@ -112,6 +112,9 @@ jobs:
 
   talos:
     name: Talos patches
+    # Patches can depend on Hetzner resources (a node's private network
+    # interface), so they apply only after that job succeeded.
+    needs: hetzner
     if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
     # Applies infra/k8s/mgmt/talos/patches/ to every control-plane node
     # through a Job inside the mgmt cluster, which calls the Talos API with
@@ -164,7 +167,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked helm kubectl"
+          install_args: "--locked helm kubectl jq"
           cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load mgmt kubeconfig from 1Password
@@ -350,6 +353,10 @@ jobs:
           kubectl apply -f infra/k8s/mgmt/cluster-autoscaler.yaml
           kubectl apply -f infra/k8s/mgmt/etcd-snapshot.yaml
           kubectl apply -f infra/k8s/mgmt/capi-webhook-cert-reloader.yaml
+          # Moves tailscaled from the old single-node Deployment to the
+          # per-node DaemonSet, keeping tuist-mgmt's tailnet identity.
+          # A no-op once done.
+          infra/mise/tasks/mgmt/migrate-tailscale.sh
           kubectl apply -f infra/k8s/mgmt/tailscale.yaml
 
           # These regional clusters were retired, but kubectl apply does not

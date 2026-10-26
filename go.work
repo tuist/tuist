@@ -32,6 +32,7 @@ use (
 	./infra/macos-log-shipper
 	./infra/mdm/enroller
 	./infra/rack-switch-controller
+	./infra/rack-switch-fleet/edge/tor-console
 	./infra/runner-cache
 	./infra/runner-image
 	./infra/runners-controller

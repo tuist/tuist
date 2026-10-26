@@ -84,6 +84,16 @@ observer-cost and phase accounting; never filter runs by convergence outcome.
   A strictly newer destination version of a retained record (a cross-region
   write the held source refused) satisfies verification; an older or missing
   version is still a hole.
+  After its repair walk, a preparing destination pulls the serving source's
+  content descriptors (`/_internal/handover/descriptors`, named destination of
+  the current Serving intent only) and records the versions whose bytes match
+  in its bounded verified set. A same-version mismatch fails preparation; any
+  other walk failure stops it and keeps what was verified. Inside the barrier,
+  when begin advertises verified records, the source sends metadata-only
+  descriptors (`/_internal/handover/verify-descriptors`) and verifies in full
+  only the records the destination names. A version's bytes never change, and a
+  manifest exists only while its body does, so metadata proves held content.
+  Keep the full-verification fallback for peers that do not negotiate this.
   Before named repair, a complete source-index walk may reclaim sealed,
   unpinned destination-only segments when bodies are missing. Track segment
   identities rather than buffering the corpus; preserve every segment containing
