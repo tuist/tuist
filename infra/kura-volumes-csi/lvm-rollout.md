@@ -18,7 +18,8 @@ are prior measurements, not validation of this rollout.
    changes in a new deployment branch. Do not force-push a shared deploy branch.
 2. Build the updated CAPI provider and deploy the additive CRD, CSI driver,
    Kura controller and server. Keep `kuraVolumesCSI.lvmRegions` empty until the
-   selected region is ready to switch. The Paris node pool is `kura-scw-fr-par`;\n   its server region ID is `scw-fr-par-runners`. Verify that the CSI driver and its
+   selected region is ready to switch. The Paris node pool is `kura-scw-fr-par`;
+   its server region ID is `scw-fr-par-runners`. Verify that the CSI driver and its
    service account/RBAC remain installed across rollback.
 3. For the initial staging `scw-fr-par` conversion, confirm the single host's
    Machine and Kura workloads. There is no evacuation destination at one fleet
@@ -26,7 +27,11 @@ are prior measurements, not validation of this rollout.
    Delete the **Machine**, allowing CAPI to reinstall and return the rented
    server to its pool; do not delete the server at the provider or delete the
    Kubernetes Node to force replacement.
-4. First boot converts only an empty, separate XFS `/data` on md. The source
+4. First boot converts only an empty, separate XFS `/data` on md. Scaleway can
+   create that filesystem without mounting it or adding it to `fstab`. If
+   `/data` is not mounted, bootstrap requires exactly one unmounted XFS md
+   candidate and mounts it read-only to inspect its contents; ambiguity or
+   existing data aborts the join before any wipe. The source
    is journaled before wiping. Retries resume PV/VG/LV creation and preserve
    an already formatted data LV. A joined host or populated filesystem is
    refused. Vultr instead supplies the detached non-ESP RAID leg to the same
