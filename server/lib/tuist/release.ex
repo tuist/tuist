@@ -7,6 +7,7 @@ defmodule Tuist.Release do
   alias Tuist.ClickHouseCapabilities
   alias Tuist.Environment
   alias Tuist.IngestRepo
+  alias Tuist.Runners.CacheVolumes
   alias Tuist.Tests.Coverage
 
   require Logger
@@ -168,6 +169,58 @@ defmodule Tuist.Release do
       Logger.info("Coverage sources of project #{project_id} recorded")
     else
       Logger.info("Coverage sources of #{Coverage.TestSources.backfill_all()} projects recorded")
+    end
+  end
+
+  @doc """
+  Clears an account's runner cache volume, the same clear as
+  **Runners → Volumes**:
+
+      bin/tuist eval 'Tuist.Release.clear_runner_cache_volume(<account id>, "<volume id>")'
+
+  Clearing schedules the deletion of the volume's saved master as an Oban job,
+  and an `eval` node runs no Oban, so this starts an instance that only inserts
+  jobs; the server's nodes run them. Raises when the account has no such volume.
+  """
+  def clear_runner_cache_volume(account_id, volume_id) do
+    Application.load(@app)
+
+    {:ok, result, _apps} =
+      Ecto.Migrator.with_repo(Tuist.Repo, fn _repo ->
+        with_insert_only_oban(fn -> CacheVolumes.delete(account_id, volume_id) end)
+      end)
+
+    case result do
+      {:ok, volume} ->
+        Logger.info(
+          "Cleared runner cache volume #{volume.id} (#{volume.key}) of account #{account_id}, now at generation #{volume.generation}"
+        )
+
+        {:ok, volume}
+
+      {:error, :not_found} ->
+        raise "Account #{account_id} has no runner cache volume #{inspect(volume_id)}"
+    end
+  end
+
+  defp with_insert_only_oban(fun) do
+    {:ok, _} = Application.ensure_all_started(:oban)
+
+    if Oban.whereis(Oban) do
+      fun.()
+    else
+      config =
+        @app
+        |> Application.fetch_env!(Oban)
+        |> Keyword.merge(queues: false, plugins: false, peer: false)
+
+      {:ok, pid} = Oban.start_link(config)
+
+      try do
+        fun.()
+      after
+        Supervisor.stop(pid)
+      end
     end
   end
 
