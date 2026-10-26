@@ -37,6 +37,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"*/5 * * * *", Tuist.Tests.Workers.SweepPendingTestCaseRunFlakyCorrectionsWorker},
     {"@daily", DeleteExpiredTestIngestionRecordsWorker},
     {"* * * * *", Tuist.Automations.Workers.AutomationScheduler},
+    {"@hourly", Tuist.Automations.Workers.PruneExecutionWorker},
     {"@daily", Tuist.Runners.Workers.PruneArchivedLogsWorker},
     {"10 5 * * *", Tuist.Tests.Coverage.Workers.RetentionWorker},
     {"*/5 * * * *", CacheVolumeCleanupWorker, args: %{"action" => "evict"}},

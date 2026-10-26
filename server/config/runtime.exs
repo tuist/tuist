@@ -671,6 +671,8 @@ base_queues = [
   runner_gitlab: 10,
   default: 10,
   alert_evaluations: 1,
+  automation_transitions: 5,
+  automation_deliveries: 5,
   vcs_comments: 20,
   webhooks: 20,
   mcp_events: 5,

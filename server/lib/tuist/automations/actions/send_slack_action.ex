@@ -10,6 +10,29 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
 
   require Logger
 
+  @doc false
+  def deliver_once(automation, snapshot, action) do
+    project = automation.project_id |> Projects.get_project_by_id() |> Repo.preload(account: :slack_installation)
+    blocks = build_blocks(automation, interpolate(action["message"], automation, project, snapshot))
+
+    case action do
+      %{"webhook_url_encrypted" => encrypted} when is_binary(encrypted) and encrypted != "" ->
+        case Slack.decrypt_webhook_url(encrypted) do
+          {:ok, url} -> Client.deliver_once({:webhook, url}, blocks)
+          _ -> {:discard, :invalid_webhook}
+        end
+
+      %{"channel" => channel} ->
+        case project.account.slack_installation do
+          %Installation{access_token: token} -> Client.deliver_once({:channel, token, channel}, blocks)
+          _ -> {:discard, :missing_credentials}
+        end
+
+      _ ->
+        {:discard, :missing_destination}
+    end
+  end
+
   def execute(automation, %{type: :test_case, id: test_case_id}, action) do
     with {:ok, test_case} <- Tests.get_test_case_by_id(test_case_id),
          project = Projects.get_project_by_id(automation.project_id),

@@ -114,6 +114,9 @@ defmodule Tuist.Automations.Alerts.Alert do
     field :baseline_generation, :integer, default: 0
     field :event_generation, :integer
     field :last_scoped_evaluation_inserted_at, :utc_datetime
+    field :durable_execution, :boolean, default: false
+    field :execution_revision, :integer, default: 0
+    field :evaluation_at, :utc_datetime_usec, virtual: true
 
     belongs_to :project, Project, type: :integer
 

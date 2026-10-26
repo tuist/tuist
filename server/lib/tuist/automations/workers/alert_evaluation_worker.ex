@@ -7,6 +7,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
+  alias Tuist.Automations.Execution
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
   alias Tuist.ClickHouseRepo
   alias Tuist.Projects
@@ -42,7 +43,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
           trigger_window_supported?(alert)
       end)
 
-    evaluate_recent_test_case_runs_and_execute(alerts, job)
+    {durable, legacy} = Enum.split_with(alerts, & &1.durable_execution)
+    Enum.each(durable, &Execution.schedule(&1, job.args))
+    evaluate_recent_test_case_runs_and_execute(legacy, job)
   end
 
   def perform(%Oban.Job{args: %{"alert_id" => alert_id} = args} = job) do
@@ -55,6 +58,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
           not trigger_window_supported?(alert) ->
             :ok
 
+          alert.durable_execution ->
+            Execution.schedule(alert, args)
+
           evaluate_recent_test_case_runs?(args) ->
             evaluate_recent_test_case_runs_and_execute(alert, job)
 
@@ -65,6 +71,41 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       {:error, :not_found} ->
         :ok
     end
+  end
+
+  @doc false
+  def plan_transitions(alert, test_case_ids, active_events) do
+    %{triggered: triggered_ids} = evaluate_monitor(alert, test_case_ids)
+    triggered_ids = reject_unvalidated_test_cases(alert, triggered_ids)
+    active_ids = MapSet.new(active_events, & &1.test_case_id)
+
+    triggers =
+      triggered_ids
+      |> Enum.reject(&MapSet.member?(active_ids, &1))
+      |> filter_by_current_state(alert, alert.trigger_config)
+      |> Enum.map(&%{test_case_id: &1, status: "triggered", actions: alert.trigger_actions})
+
+    candidates =
+      active_events
+      |> Enum.reject(&(&1.test_case_id in triggered_ids))
+      |> reject_unevaluated_this_tick(test_case_ids)
+      |> reject_unmeasurable_test_cases(alert)
+
+    {recovered, actionable} =
+      if alert.recovery_enabled do
+        elapsed = filter_recovered_candidates(alert, candidates, alert.recovery_config || %{})
+        {elapsed, MapSet.new(filter_by_current_state(elapsed, alert, alert.recovery_config), & &1.test_case_id)}
+      else
+        {candidates, MapSet.new()}
+      end
+
+    recoveries =
+      Enum.map(recovered, fn event ->
+        actions = if MapSet.member?(actionable, event.test_case_id), do: alert.recovery_actions, else: []
+        %{test_case_id: event.test_case_id, status: "recovered", actions: actions}
+      end)
+
+    triggers ++ recoveries
   end
 
   defp trigger_window_supported?(alert) do
@@ -392,9 +433,10 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     end)
   end
 
-  defp filter_recovered_candidates(_alert, candidates, recovery_config) do
+  defp filter_recovered_candidates(alert, candidates, recovery_config) do
     seconds = parse_window(recovery_config["window"] || "14d")
-    cutoff = NaiveDateTime.add(NaiveDateTime.utc_now(), -seconds, :second)
+    now = if alert.evaluation_at, do: DateTime.to_naive(alert.evaluation_at), else: NaiveDateTime.utc_now()
+    cutoff = NaiveDateTime.add(now, -seconds, :second)
 
     Enum.filter(candidates, fn event ->
       NaiveDateTime.before?(event.triggered_at, cutoff)

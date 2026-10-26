@@ -3,6 +3,7 @@
 This context owns Slack app installations and reporting workflows.
 
 ## Responsibilities
+- `Client.deliver_once/2` is the durable automation transport: explicit connect/pool/receive bounds, no Req retries or redirects, and distinct rate-limit, permanent-rejection and transient-failure results. The automation delivery worker persists progress and coordinates channel cooldowns across replicas. Keep legacy reporting transports compatible.
 - Store and manage Slack installation records for accounts.
 - Generate Slack report payloads from analytics and bundle metrics.
 - Deliver scheduled Slack notifications via background workers.

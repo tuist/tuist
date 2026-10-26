@@ -29,7 +29,8 @@ defmodule Tuist.Automations.ActionExecutor do
     end
   end
 
-  defp partition_actions(actions, %{type: :test_case}) do
+  @doc false
+  def partition_actions(actions, %{type: :test_case}) do
     actions
     |> Enum.reduce({%{}, []}, fn action, {attrs, others} ->
       case test_case_attr_change(action) do
@@ -40,7 +41,7 @@ defmodule Tuist.Automations.ActionExecutor do
     |> then(fn {attrs, others} -> {attrs, Enum.reverse(others)} end)
   end
 
-  defp partition_actions(actions, _entity), do: {%{}, actions}
+  def partition_actions(actions, _entity), do: {%{}, actions}
 
   defp test_case_attr_change(%{"type" => "add_label", "label" => "flaky"}), do: {:is_flaky, true}
   defp test_case_attr_change(%{"type" => "remove_label", "label" => "flaky"}), do: {:is_flaky, false}

@@ -1676,6 +1676,50 @@ defmodule Tuist.Tests do
     end
   end
 
+  @doc false
+  def prepare_automation_update(test_case_id, project_id, attrs) do
+    with {:ok, test_case} <- get_test_case_by_id(test_case_id),
+         true <- test_case.project_id == project_id do
+      events = determine_test_case_events(test_case, attrs)
+
+      snapshot =
+        test_case
+        |> Map.merge(attrs)
+        |> Map.take([:id, :project_id, :name, :suite_name, :module_name, :state, :is_flaky, :last_status, :last_ran_at])
+        |> JSON.encode!()
+        |> JSON.decode!()
+
+      {:ok, snapshot, Enum.map(events, &Atom.to_string/1)}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  @doc false
+  def write_automation_events(events, transition_id) do
+    # These are already durably prepared rows. Bypass the process-local buffer;
+    # replay must reuse both the identity and timestamp so it cannot supersede a
+    # newer manual edit or create a new event in the state projection.
+    if events != [] do
+      IngestRepo.insert_all(TestCaseEvent, events,
+        settings: [insert_deduplication_token: "automation-transition:#{transition_id}"]
+      )
+    end
+
+    :ok
+  end
+
+  @doc false
+  def broadcast_automation_update(test_case_id, event_types) do
+    # Fan-out may run after another edit; refresh subscribers with current state,
+    # never the older snapshot saved for notification delivery.
+    with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
+      broadcast_test_case_update(test_case, event_types)
+    end
+
+    :ok
+  end
+
   # Webhooks subscribe at the account-account level and fire on every state
   # transition — both user-initiated and automation-driven — so receivers
   # (e.g. a Jira ingest) see the full audit trail. Failures are swallowed

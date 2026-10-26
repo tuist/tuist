@@ -26,12 +26,13 @@ defmodule Tuist.Automations.Workers.AutomationScheduler do
         # before re-scheduling, regardless of how quickly the previous run
         # finished.
         {:ok, _job} =
-          %{alert_id: alert.id}
+          alert
+          |> evaluation_args()
           |> AlertEvaluationWorker.new(
             unique: [
               keys: [:alert_id],
               period: Alert.cadence_seconds(alert.cadence),
-              states: [:available, :scheduled, :executing, :completed]
+              states: [:available, :scheduled, :executing, :retryable, :completed]
             ]
           )
           |> Oban.insert()
@@ -44,8 +45,15 @@ defmodule Tuist.Automations.Workers.AutomationScheduler do
   defp scheduled_alert?(alert) do
     cond do
       Alert.event_driven?(alert) -> false
+      alert.durable_execution -> true
       Alert.scoped_evaluation?(alert) -> false
       true -> true
     end
   end
+
+  defp evaluation_args(%Alert{durable_execution: true} = alert) do
+    %{alert_id: alert.id, evaluate_recent_test_case_runs: Alert.scoped_evaluation?(alert)}
+  end
+
+  defp evaluation_args(alert), do: %{alert_id: alert.id}
 end
