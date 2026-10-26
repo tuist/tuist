@@ -1214,6 +1214,39 @@ A Tart guest cannot be newer than its host. Every catalog image is a macOS 26
 guest and the rack's hosts run macOS 27, so every Xcode runs there; a catalog
 entry on a newer guest needs the hosts updated first.
 
+### More than one site
+
+One rack fleet holds every site's minis: one operator, one set of credentials
+and one CAPI fleet, whose Machines are `<rackFleet.name>-<host>` at every site.
+`rackFleet.site` (ber1) is the default site, and every other site is a key of
+`rackFleet.sites` (larch). A host at such a site sets `site: <site>` and takes
+that site's block:
+
+- **Its Node's fleet.** The host's Node carries `tuist.dev/fleet:
+  <rackFleet.name>-<site>` (`RackHost.spec.nodeFleet`, overridable as the
+  site's `nodeFleet`), not the default site's fleet. Runner pools select Nodes
+  by that label alone, so without it ber1's pools would place runners on larch
+  minis. The Machine keeps the operator's fleet, its name and its credentials,
+  as for any `nodeFleet`. A lent host (`lendTo`) keeps the borrower's fleet.
+- **Its SSH ingress** is the site's `sshIngressAllowCIDRs`, the site's own
+  edges. It never falls back to the default site's, and the chart refuses a
+  host at a site whose block has none.
+- **Its pools.** The site's `runners` is a runner catalog of its own, with the
+  same keys as `rackFleet.runners`. It renders
+  `<release>-runner-pool-macos-<site>-<xcode>` pools that select the site's
+  fleet, so each site's pools share only that site's guest slots, and
+  `TUIST_RUNNERS_SITE_POOLS` lists them as `<pool>=<site>:macos` after the
+  default site's.
+- **Its VMs' cache gateways** (`vmCacheGatewayCIDRs`) join the operator's
+  fleet-wide `--rackhost-vm-cache-gateway-cidrs`: the pf pass is the same on
+  every rack host, and a host has no route to another site's gateway.
+
+A host naming a site that is neither `rackFleet.site` nor a key of
+`rackFleet.sites` fails the render. Keep a site's `runners` disabled until
+its minis are declared and its uplink is up. The rack fleet's
+MachineHealthCheck still spans every site, so while one site is dark its
+`unhealthyRange` also holds back remediation of a single mini at the other.
+
 ### Lending a host to another env
 
 A rack host can run another env's runners while it stays production's.

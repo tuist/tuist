@@ -219,7 +219,18 @@ the catalog at a site instead (`tuist.runnersFleetRentsMacOS`).
 {{- end }}
 {{- $rackPools := include "tuist.rackCatalogPools" . | fromJsonArray }}
 {{- if $rackPools }}
-{{- $rackRunners := .Values.rackFleet.runners }}
+{{- /*
+One placement per rack site whose runners are enabled, `rackFleet.site` first:
+each selects its own site's fleet (`tuist.rackSites`), so the
+runners-controller apportions each site's guest slots among that site's pools
+alone.
+*/}}
+{{- range $rackSite := include "tuist.rackSites" . | fromJsonArray }}
+{{- $rackRunners := $.Values.rackFleet.runners | default dict }}
+{{- if ne $rackSite.site $.Values.rackFleet.site }}
+{{- $rackRunners = dig $rackSite.site "runners" (dict) $.Values.rackFleet.sites }}
+{{- end }}
+{{- if dig "enabled" false $rackRunners }}
 {{- $rackShapeOverrides := $rackRunners.shapes | default dict }}
 {{- /*
 A non-default shape runs on the rack only where `rackFleet.runners.shapes`
@@ -241,7 +252,9 @@ recorded, billed and counted against concurrency limits at the shape the
 profile names, while its Pods are sized to the guest. A guest smaller than its
 shape fails the render, since a job would get less than its profile names.
 */}}
-{{- $placements = append $placements (dict "fleet" (include "tuist.rackFleetName" .) "site" .Values.rackFleet.site "overrides" ($rackRunners.xcodeOverrides | default dict) "autoscaling" $rackRunners.autoscaling "rollout" $rackRunners.rollout "shapes" $rackShapes "guestShapes" ($rackRunners.guestShapes | default dict) "stacked" ($rackRunners.stackedImages | default false)) }}
+{{- $placements = append $placements (dict "fleet" $rackSite.fleet "site" $rackSite.site "overrides" ($rackRunners.xcodeOverrides | default dict) "autoscaling" $rackRunners.autoscaling "rollout" $rackRunners.rollout "shapes" $rackShapes "guestShapes" ($rackRunners.guestShapes | default dict) "stacked" ($rackRunners.stackedImages | default false)) }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- range $xcode := $xcodeVersions }}
 {{- $xcodeVersion := required "runnersFleet.xcodeVersions[].xcodeVersion required" $xcode.xcodeVersion | toString }}
