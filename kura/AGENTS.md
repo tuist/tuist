@@ -81,6 +81,9 @@ observer-cost and phase accounting; never filter runs by convergence outcome.
   the recency selection cutoff at listing and dispatch: an old missing record
   is still required by the barrier. Keep normal ring rotation and disk admission;
   final verification must reject any retained holes caused by rotation.
+  A strictly newer destination version of a retained record (a cross-region
+  write the held source refused) satisfies verification; an older or missing
+  version is still a hole.
   Before named repair, a complete source-index walk may reclaim sealed,
   unpinned destination-only segments when bodies are missing. Track segment
   identities rather than buffering the corpus; preserve every segment containing

@@ -295,7 +295,32 @@ Alloy's pod-log collection. Use
 `/var/log/xcresult-processor/{stdout,stderr,diagnostics}.log`. Note the
 circularity: if the failure is that the VM never joined the tailnet,
 there is no tailnet address to ssh to, and the host's own
-`tart` CLI is the only way in.
+`tart exec <vm> ...` (the Tart guest agent) is the only way in.
+
+## Guest access and macOS sshd
+
+The base image's `admin` account keeps its well-known `admin` password,
+which Packer logs in with during the build. The last provisioner writes
+`/etc/ssh/sshd_config.d/000-tuist-no-password.conf`
+(`PasswordAuthentication no`, `KbdInteractiveAuthentication no`) and fails
+the build unless `sshd -T` reports both as `no`. The shipped image's macOS
+sshd therefore refuses every login: no account has an `authorized_keys`.
+sshd keeps the first value it reads for a keyword, so the file has to sort
+ahead of macOS's own `100-macos.conf`.
+
+Remote Login itself stays on, because nothing needs it off and nothing
+uses it:
+
+- Admins use Tailscale SSH (`tailscale ssh admin@<vm-tailnet-ip>`), which
+  `tailscaled` serves itself (`--ssh=true` in `tailscale-up.sh`) without
+  macOS sshd or the account password.
+- tart-kubelet reaches the guest through `tart exec` (its guest disk
+  check), which goes through the Tart guest agent, not SSH.
+
+Keep the sshd provisioner last. sshd reads its config for each new
+connection, so a provisioner after it that needs a fresh password login
+would fail. If `--ssh=true` is ever dropped, the cluster tags' `tcp:22`
+grant would reach this sshd, which accepts no logins.
 
 ## Releasing this image
 

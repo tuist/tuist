@@ -459,6 +459,12 @@ async fn verify_record(state: &SharedState, expected: &Record) -> Result<(), Str
                     .as_ref()
                     .map(manifest_version_ms)
             };
+            // A newer version the destination applied (a cross-region write
+            // the frozen source refused, say) supersedes the retained one:
+            // readers after cutover get the newer write, as the repair kept it.
+            if version.is_some_and(|version| version > expected.version) {
+                return Ok(());
+            }
             return Err(format!(
                 "retained record missing or version differs: expected_version={} actual_version={version:?}",
                 expected.version
@@ -1055,6 +1061,65 @@ mod tests {
                 "{stop}"
             );
             server.abort();
+        }
+    }
+
+    #[tokio::test]
+    async fn a_newer_destination_version_supersedes_the_retained_record() {
+        let source = test_context(|_| {}).await;
+        source
+            .state
+            .store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "inline",
+                "text/plain",
+                b"retained",
+                2000,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        let expected = record(
+            &source.state,
+            BackfillRecordKind::InlineArtifact,
+            &source
+                .state
+                .store
+                .backfill_index_page_ascending(0, None, 10, u64::MAX, None)
+                .unwrap()
+                .entries[0]
+                .record_id,
+            2000,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        for (version, accepted) in [(3000, true), (1000, false)] {
+            let target = test_context(|_| {}).await;
+            target
+                .state
+                .store
+                .apply_replicated_inline_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "ios",
+                    "inline",
+                    "text/plain",
+                    b"another region's write",
+                    version,
+                    None,
+                    None,
+                )
+                .await
+                .unwrap();
+            let result = verify_record(&target.state, &expected).await;
+            assert_eq!(
+                result.is_ok(),
+                accepted,
+                "destination version {version}: {result:?}"
+            );
         }
     }
 
@@ -1693,7 +1758,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn repair_preserves_newer_destination_version_and_verification_refuses_it() {
+    async fn repair_preserves_newer_destination_version_and_verification_accepts_it() {
         let source = test_context(|_| {}).await;
         let target = test_context(|_| {}).await;
         for (ctx, version, body) in [
@@ -1745,8 +1810,7 @@ mod tests {
                 .version_ms,
             2000
         );
-        let error = verify_record(&target.state, &expected).await.unwrap_err();
-        assert!(error.contains("actual_version=Some(2000)"), "{error}");
+        verify_record(&target.state, &expected).await.unwrap();
         assert!(
             target
                 .state

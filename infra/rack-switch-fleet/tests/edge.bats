@@ -671,24 +671,24 @@ STUB
     [[ "$output" == *"stale: "*"/sites/ber1/bird.conf"* ]]
 }
 
-@test "the Mac minis the site's egress names go out from its block of the site's own prefix, and everything else from the WAN address" {
+@test "the site's Mac minis go out from its block of the site's own prefix, and everything else from the WAN address" {
     source "$FLEET_ROOT/lib/edge.sh"
     run fleet_edge_path "$SITE_FILE"
     [ "$status" -eq 0 ]
-    snat='    oifname "wan0" ip saddr { 10.10.0.101, 10.10.0.102 } snat ip to 95.130.119.16-95.130.119.31 persistent'
+    snat='    oifname "wan0" ip saddr { 10.10.0.101, 10.10.0.102, 10.10.0.103, 10.10.0.104, 10.10.0.105, 10.10.0.106, 10.10.0.107, 10.10.0.108, 10.10.0.109, 10.10.0.110, 10.10.0.111, 10.10.0.112, 10.10.0.113, 10.10.0.114, 10.10.0.115, 10.10.0.116 } snat ip to 95.130.119.16-95.130.119.31 persistent'
     machines='    oifname != { "tailscale0", "machines0", "enp87s0" } ip saddr 10.10.0.0/24 masquerade'
-    # the named minis first, so their translation wins over the segment's
+    # the minis first, so their translation wins over the segment's
     [[ "$output" == *"$snat"$'\n'"$machines"* ]]
-    # the management segment and the standby keep the WAN address
-    [[ "$output" == *'oifname "wan0" ip saddr { 10.255.255.0/29, 192.168.0.0/24 } masquerade'* ]]
-    # without nodes every Mac mini moves, and the storage node, in the
-    # cluster under the WAN address, does not
-    jq '.management.edge.wan.egress |= del(.nodes)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/allminis.json"
-    run fleet_edge_path "$BATS_TEST_TMPDIR/allminis.json"
-    [ "$status" -eq 0 ]
-    [[ "$output" == *'ip saddr { 10.10.0.101, 10.10.0.102, 10.10.0.103, 10.10.0.104, 10.10.0.105, 10.10.0.106, 10.10.0.107, 10.10.0.108, 10.10.0.109, 10.10.0.110, 10.10.0.111, 10.10.0.112, 10.10.0.113, 10.10.0.114, 10.10.0.115, 10.10.0.116 } snat ip to 95.130.119.16-95.130.119.31 persistent'* ]]
+    # the storage node, in the cluster under the WAN address, does not move
     [[ "$output" != *"10.10.0.11 "* ]]
     [[ "$output" != *"10.10.0.11,"* ]]
+    # the management segment and the standby keep the WAN address
+    [[ "$output" == *'oifname "wan0" ip saddr { 10.255.255.0/29, 192.168.0.0/24 } masquerade'* ]]
+    # nodes limits it to the named minis
+    jq '.management.edge.wan.egress.nodes = ["ber1-runner-b01", "ber1-runner-b02"]' "$SITE_FILE" > "$BATS_TEST_TMPDIR/someminis.json"
+    run fleet_edge_path "$BATS_TEST_TMPDIR/someminis.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'    oifname "wan0" ip saddr { 10.10.0.101, 10.10.0.102 } snat ip to 95.130.119.16-95.130.119.31 persistent'$'\n'"$machines"* ]]
     # without an egress the machines all go out from the WAN address
     jq '.management.edge.wan |= del(.egress)' "$SITE_FILE" > "$BATS_TEST_TMPDIR/noegress.json"
     run fleet_edge_path "$BATS_TEST_TMPDIR/noegress.json"

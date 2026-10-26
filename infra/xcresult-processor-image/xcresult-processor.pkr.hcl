@@ -241,4 +241,25 @@ build {
       "echo 'admin' | sudo -S chown admin:staff /var/log/xcresult-processor"
     ]
   }
+
+  # Turn off password logins to macOS sshd, which otherwise ships accepting
+  # the base image's well-known admin/admin from the host's VM network, and
+  # from the tailnet if tailscale-up.sh ever stops passing --ssh. Remote
+  # Login stays on: nothing logs in through sshd (tart-kubelet uses the Tart
+  # guest agent, admins use Tailscale SSH), and launchd spawns sshd per
+  # connection, so Packer's open session survives this and the shutdown that
+  # follows. sshd keeps the first value it reads for a keyword, so the file
+  # sorts ahead of macOS's own 100-macos.conf. This must stay the last
+  # provisioner: later ones would need a fresh password login.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "printf 'PasswordAuthentication no\\nKbdInteractiveAuthentication no\\n' > /tmp/000-tuist-no-password.conf",
+      "echo 'admin' | sudo -S install -m 0644 -o root -g wheel /tmp/000-tuist-no-password.conf /etc/ssh/sshd_config.d/000-tuist-no-password.conf",
+      "rm -f /tmp/000-tuist-no-password.conf",
+      "effective=\"$(echo 'admin' | sudo -S /usr/sbin/sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication) ')\"",
+      "echo \"$effective\"",
+      "[ \"$(echo \"$effective\" | grep -c ' no$')\" = 2 ] || (echo 'sshd still accepts passwords' >&2 && exit 1)"
+    ]
+  }
 }
