@@ -15,6 +15,8 @@ defmodule TuistWeb.Noora.Pages.Borders do
           |> Tokens.section()
           |> Enum.reject(&String.starts_with?(&1.value, "light-dark("))
           |> Enum.uniq_by(& &1.name)
+          # Left out for now.
+          |> Enum.reject(&(&1.name == "--noora-border-section"))
       )
 
     ~H"""

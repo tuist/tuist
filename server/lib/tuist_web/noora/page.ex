@@ -77,6 +77,10 @@ defmodule TuistWeb.Noora.Page do
     * `:layout` - how the preview arranges its children: `:row` (default)
       wraps them horizontally and centers them, `:column` stacks them at full
       width, `:start` wraps them from the start edge.
+    * `:toast` - renders the example as a toast: the preview shows a "Show
+      toast" button that pops the rendered output into the bottom corner of
+      the page, where it dismisses itself after a few seconds. Pass
+      `:preserve` instead of `true` for a toast that stays until dismissed.
   """
   defmacro example(title, opts \\ [], do: block) do
     source = source!(block, __CALLER__)
@@ -89,6 +93,7 @@ defmodule TuistWeb.Noora.Page do
         title: unquote(title),
         description: unquote(Keyword.get(opts, :description)),
         layout: unquote(Keyword.get(opts, :layout, :row)),
+        toast: unquote(Keyword.get(opts, :toast, false)),
         source: unquote(source),
         highlighted_source: TuistWeb.Noora.Code.highlight(unquote(source)),
         function: unquote(function)

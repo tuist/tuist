@@ -104,6 +104,139 @@ defmodule TuistWeb.Noora.Components do
           {render_slot(@inner_block)}
         </main>
       </div>
+      <%!-- Toasts shown by toast examples stack here:
+      the newest in front with older ones peeking behind, expanding into a
+      list on hover. --%>
+      <ol
+        id="noora-docs-toaster"
+        data-part="toaster"
+        phx-hook=".NooraDocsToaster"
+        phx-update="ignore"
+        aria-label="Notifications"
+        aria-live="polite"
+      >
+      </ol>
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".NooraDocsToaster">
+        const DURATION_MS = 4000
+        const EXIT_MS = 400
+        const GAP = 12
+        const PEEK = 14
+        const VISIBLE = 3
+
+        export default {
+          mounted() {
+            this.toasts = []
+            this.expanded = false
+
+            this.onTrigger = (event) => {
+              const trigger = event.target.closest('[data-part="toast-trigger"]')
+              if (!trigger) return
+              const template = trigger.parentElement.querySelector('template[data-part="toast-template"]')
+              if (template) this.add(template.content.cloneNode(true), template.hasAttribute("data-preserve"))
+            }
+            this.onDismiss = (event) => {
+              const dismiss = event.target.closest('[data-part="dismiss-icon"]')
+              if (!dismiss) return
+              event.preventDefault()
+              event.stopPropagation()
+              const toast = this.toasts.find((t) => t.el === dismiss.closest('[data-part="toast-item"]'))
+              if (toast) this.remove(toast)
+            }
+            this.onEnter = () => this.setExpanded(true)
+            this.onLeave = () => this.setExpanded(false)
+
+            document.addEventListener("click", this.onTrigger)
+            this.el.addEventListener("click", this.onDismiss, true)
+            this.el.addEventListener("mouseenter", this.onEnter)
+            this.el.addEventListener("mouseleave", this.onLeave)
+          },
+
+          destroyed() {
+            document.removeEventListener("click", this.onTrigger)
+            for (const toast of this.toasts) clearTimeout(toast.timer)
+          },
+
+          // A preserved toast never times out; only its dismiss button closes it.
+          add(content, preserve) {
+            const el = document.createElement("li")
+            el.dataset.part = "toast-item"
+            el.append(content)
+            // Copies of one example would share ids, and the alert's own
+            // dismiss command targets the original; the toaster owns both.
+            for (const node of el.querySelectorAll("[id]")) node.removeAttribute("id")
+            for (const node of el.querySelectorAll("[phx-click]")) node.removeAttribute("phx-click")
+            this.el.append(el)
+
+            const toast = { el, preserve, height: el.firstElementChild.offsetHeight, remaining: DURATION_MS }
+            this.toasts.unshift(toast)
+            this.layout()
+            el.offsetHeight
+            requestAnimationFrame(() => el.setAttribute("data-mounted", ""))
+            if (!this.expanded) this.start(toast)
+          },
+
+          active() {
+            return this.toasts.filter((t) => !t.removed)
+          },
+
+          layout() {
+            const toasts = this.active()
+            const front = toasts[0]
+            let offset = 0
+            toasts.forEach((toast, index) => {
+              const lift = this.expanded ? offset : index * PEEK
+              const scale = this.expanded ? 1 : 1 - index * 0.05
+              const height = this.expanded || index === 0 ? toast.height : front.height
+              toast.el.style.setProperty("--lift", `${lift}px`)
+              toast.el.style.setProperty("--scale", scale)
+              toast.el.style.setProperty("--toast-height", `${height}px`)
+              toast.el.style.setProperty("--depth", this.expanded ? 0 : index)
+              toast.el.style.zIndex = toasts.length - index
+              toast.el.toggleAttribute("data-front", index === 0)
+              toast.el.toggleAttribute("data-overflow", index >= VISIBLE)
+              offset += toast.height + GAP
+            })
+            const stacked = front ? front.height + Math.min(toasts.length - 1, VISIBLE - 1) * PEEK : 0
+            this.el.style.height = `${this.expanded ? Math.max(offset - GAP, 0) : stacked}px`
+          },
+
+          setExpanded(expanded) {
+            if (expanded && this.active().length === 0) return
+            this.expanded = expanded
+            this.el.toggleAttribute("data-expanded", expanded)
+            for (const toast of this.active()) expanded ? this.pause(toast) : this.start(toast)
+            this.layout()
+          },
+
+          start(toast) {
+            if (toast.preserve) return
+            clearTimeout(toast.timer)
+            toast.started = Date.now()
+            toast.timer = setTimeout(() => this.remove(toast), Math.max(toast.remaining, 0))
+          },
+
+          pause(toast) {
+            clearTimeout(toast.timer)
+            if (toast.started) toast.remaining -= Date.now() - toast.started
+          },
+
+          remove(toast) {
+            if (toast.removed) return
+            toast.removed = true
+            clearTimeout(toast.timer)
+            toast.el.setAttribute("data-removed", "")
+            if (this.active().length === 0) {
+              this.expanded = false
+              this.el.removeAttribute("data-expanded")
+            }
+            this.layout()
+            setTimeout(() => {
+              toast.el.remove()
+              this.toasts = this.toasts.filter((t) => t !== toast)
+            }, EXIT_MS)
+          }
+        }
+      </script>
       <script :type={Phoenix.LiveView.ColocatedHook} name=".NooraDocsSearch">
         export default {
           mounted() {
@@ -207,8 +340,17 @@ defmodule TuistWeb.Noora.Components do
         <.rich_text text={@example.description} />
       </p>
       <div data-part="frame">
-        <div data-part="preview" data-layout={@example.layout}>
+        <div :if={!@example.toast} data-part="preview" data-layout={@example.layout}>
           {apply(@page, @example.function, [%{__changed__: nil}])}
+        </div>
+        <%!-- A toast example shows a trigger. Its rendered output waits in a
+        template that the docs toaster (.NooraDocsToaster in docs_shell)
+        clones into the page's bottom corner on each press. --%>
+        <div :if={@example.toast} data-part="preview" data-layout="row">
+          <.button label="Show toast" variant="secondary" data-part="toast-trigger" />
+          <template data-part="toast-template" data-preserve={@example.toast == :preserve}>
+            {apply(@page, @example.function, [%{__changed__: nil}])}
+          </template>
         </div>
         <%!-- The example's source: a code window whose bar holds the
         disclosure toggle in place of the language label, so it keeps the
