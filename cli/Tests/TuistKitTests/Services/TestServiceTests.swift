@@ -6648,6 +6648,151 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_run_shard_collects_coverage_under_a_run_scoped_derived_data_when_none_is_passed() async throws {
+        for uploadsCoverage in [true, false] {
+            try await withMockedEnvironment {
+                Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+                Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = uploadsCoverage ? "1" : "0"
+                // Given
+                let path = try temporaryPath()
+                try givenShardWithFailingMutedTest(path: path, onlyMutedTestsFailed: false)
+                let runDerivedDataPath = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
+                    .appending(components: "run-\(uploadsCoverage)", "DerivedData")
+                let (testCoverageEvidenceService, coverageExportService) = givenCoverageCollection(path: path)
+                let arguments = givenXcodebuildWritingDerivedData()
+
+                // When
+                try await AlertController.$current.withValue(AlertController()) {
+                    try await testRun(
+                        runId: "run-\(uploadsCoverage)",
+                        path: path,
+                        platform: "macos",
+                        action: .testWithoutBuilding,
+                        resultBundlePath: path.appending(component: "Shard.xcresult"),
+                        shardIndex: 0,
+                        mode: .remote
+                    )
+                }
+
+                // Then
+                try await assertCollectedCoverage(
+                    under: uploadsCoverage ? runDerivedDataPath : nil,
+                    arguments: arguments.value,
+                    testCoverageEvidenceService: testCoverageEvidenceService,
+                    coverageExportService: coverageExportService
+                )
+            }
+        }
+    }
+
+    func test_run_testWithoutBuilding_fromBundle_collects_coverage_under_a_run_scoped_derived_data_when_none_is_passed(
+    ) async throws {
+        try await withMockedEnvironment {
+            Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+            Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = "1"
+            // Given
+            let path = try temporaryPath()
+            let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+            try await fileSystem.makeDirectory(at: testProductsPath)
+            try JSONEncoder().encode(SelectiveTestingGraph(testTargetHashes: ["AppTests": "abc123"]))
+                .write(to: testProductsPath.appending(component: SelectiveTestingGraph.fileName).url)
+            try givenFailingMutedTest(path: path, onlyMutedTestsFailed: false)
+            let runDerivedDataPath = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
+                .appending(components: "bundle-run", "DerivedData")
+            let (testCoverageEvidenceService, coverageExportService) = givenCoverageCollection(path: path)
+            let arguments = givenXcodebuildWritingDerivedData()
+
+            // When
+            try await AlertController.$current.withValue(AlertController()) {
+                try await testRun(
+                    runId: "bundle-run",
+                    path: path,
+                    action: .testWithoutBuilding,
+                    resultBundlePath: path.appending(component: "Shard.xcresult"),
+                    passthroughXcodeBuildArguments: [
+                        "-testProductsPath", testProductsPath.pathString,
+                        "-destination", "platform=iOS Simulator,id=device-id",
+                    ],
+                    mode: .remote
+                )
+            }
+
+            // Then
+            try await assertCollectedCoverage(
+                under: runDerivedDataPath,
+                arguments: arguments.value,
+                testCoverageEvidenceService: testCoverageEvidenceService,
+                coverageExportService: coverageExportService
+            )
+        }
+    }
+
+    private func givenCoverageCollection(
+        path: AbsolutePath
+    ) -> (MockTestCoverageEvidenceServicing, MockCoverageExportServicing) {
+        let testCoverageEvidenceService = MockTestCoverageEvidenceServicing()
+        let coverageExportService = MockCoverageExportServicing()
+        given(testCoverageEvidenceService)
+            .prepare(platform: .any, config: .any)
+            .willReturn(TestCoverageEvidenceSession(directory: path.appending(component: "evidence"), environment: [:]))
+        given(testCoverageEvidenceService)
+            .record(session: .any, resultBundlePath: .any, derivedDataDirectory: .any)
+            .willReturn(nil)
+        given(coverageExportService)
+            .export(resultBundlePath: .any, derivedDataDirectory: .any, config: .any, runStartedAt: .any)
+            .willReturn(nil)
+        subject = subjectCollectingCoverage(
+            testCoverageEvidenceService: testCoverageEvidenceService,
+            coverageExportService: coverageExportService
+        )
+        return (testCoverageEvidenceService, coverageExportService)
+    }
+
+    /// Stubs xcodebuild to write the profile where it would, so the test sees what is left behind.
+    private func givenXcodebuildWritingDerivedData() -> LockedValue<[String]> {
+        let arguments = LockedValue<[String]>([])
+        xcodebuildController.reset()
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willProduce { runArguments in
+                arguments.mutate { $0 = runArguments }
+                if let index = runArguments.firstIndex(of: "-derivedDataPath") {
+                    try FileManager.default.createDirectory(
+                        atPath: "\(runArguments[index + 1])/Build/ProfileData",
+                        withIntermediateDirectories: true
+                    )
+                }
+            }
+        return arguments
+    }
+
+    private func assertCollectedCoverage(
+        under derivedDataPath: AbsolutePath?,
+        arguments: [String],
+        testCoverageEvidenceService: MockTestCoverageEvidenceServicing,
+        coverageExportService: MockCoverageExportServicing,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let passedDerivedDataPath = arguments.firstIndex(of: "-derivedDataPath").map { arguments[$0 + 1] }
+        XCTAssertEqual(passedDerivedDataPath, derivedDataPath?.pathString, file: file, line: line)
+        verify(testCoverageEvidenceService)
+            .record(session: .any, resultBundlePath: .any, derivedDataDirectory: .value(derivedDataPath))
+            .called(1)
+        verify(coverageExportService)
+            .export(
+                resultBundlePath: .any,
+                derivedDataDirectory: .value(derivedDataPath),
+                config: .any,
+                runStartedAt: .any
+            )
+            .called(1)
+        if let derivedDataPath {
+            let exists = try await fileSystem.exists(derivedDataPath)
+            XCTAssertFalse(exists, "The run-scoped derived data is left behind", file: file, line: line)
+        }
+    }
+
     private func subjectCollectingCoverage(
         testCoverageEvidenceService: TestCoverageEvidenceServicing,
         coverageExportService: CoverageExportServicing
