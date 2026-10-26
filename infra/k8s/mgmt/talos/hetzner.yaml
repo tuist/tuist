@@ -36,3 +36,7 @@ server:
 nodes:
   - name: tuist-mgmt
     privateIP: 10.0.1.11
+  - name: tuist-mgmt-2
+    privateIP: 10.0.1.12
+  - name: tuist-mgmt-3
+    privateIP: 10.0.1.13
