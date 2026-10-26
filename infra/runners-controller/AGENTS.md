@@ -1312,8 +1312,10 @@ its repository's Docker cache volume: the dind sidecar runs dockerd under the
 `tuist-cache-volume dind` supervisor with `--max-concurrent-downloads=8`, and the
 runner gets `TUIST_DOCKER_CACHE=1`. It needs cache volumes. With the field off the
 sidecar's command is byte for byte what it was (`TestDockerCacheOffKeepsTheSidecarCommand`):
-any change to it replaces every Pod of every pool, so enable it pool by pool. The
-agent serves `/docker` and `/docker-seen`; see [Docker cache volumes](cache-volumes.md#docker-cache-volumes).
+any change to it replaces every Pod of the pools it covers. Staging and production
+enable it on every Linux pool and keep it as the off switch, while the per-account
+`:runner_docker_cache` flag decides who gets a cache (canary has no cache volumes).
+The agent serves `/docker`, `/docker-seen` and `/docker-merge`; see [Docker cache volumes](cache-volumes.md#docker-cache-volumes).
 
 Managed production enables custom volumes on normal deployment. The agent image
 ships the bounded filesystem provisioning script, invoked by an opt-in privileged
