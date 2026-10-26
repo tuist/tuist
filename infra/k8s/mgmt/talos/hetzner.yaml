@@ -15,8 +15,9 @@ loadBalancer:
   type: lb11
   # Kubernetes API, TCP passthrough with a TCP health check.
   ports: [6443]
-  # Targets are reached on their public IP until the nodes carry a
-  # configured private network interface.
+  # Keep the existing path during the Flannel migration. Switch this to true
+  # in a subsequent rollout after the private pod-network gate passes. The
+  # reconciler checks sibling health before removal and waits after a switch.
   usePrivateIP: false
 # How a node listed below is created when its server does not exist yet.
 # The server boots the Talos snapshot without user data, so it waits in

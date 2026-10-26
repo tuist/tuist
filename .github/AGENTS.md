@@ -4,6 +4,14 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
+`mgmt-cluster-tests.yml` checks the management health gates, disruption budgets
+and reconciliation shell scripts without credentials on PRs and main.
+`mgmt-cluster-apply.yml` synchronizes Flannel arguments and verifies private
+endpoints plus cross-node pod traffic after Talos patches; webhook PDBs apply
+after the replicas and External Secrets release. Keep public firewall removal
+and the private API-target switch after that network rollout, as documented in
+`infra/k8s/mgmt/talos/README.md`.
+
 Helm CI also watches hosted dashboard changes. Monitoring cost-control tests
 start the production Alloy image to compile log selectors, exercise rendered
 remote-write rules against a local Prometheus receiver, and check all migrated

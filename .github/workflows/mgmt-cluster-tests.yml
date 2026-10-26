@@ -1,0 +1,34 @@
+name: Mgmt Cluster Tests
+
+on:
+  pull_request:
+    paths:
+      - 'infra/mise/tasks/mgmt/**'
+      - 'infra/k8s/mgmt/talos/**'
+      - 'infra/k8s/mgmt/controller-*.yaml'
+      - '.github/workflows/mgmt-cluster-*.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/mise/tasks/mgmt/**'
+      - 'infra/k8s/mgmt/talos/**'
+      - 'infra/k8s/mgmt/controller-*.yaml'
+      - '.github/workflows/mgmt-cluster-*.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked node jq yq shellcheck actionlint"
+          cache: "false"
+      - run: infra/mise/tasks/mgmt/test-health.sh
+      - run: node --test infra/mise/tasks/mgmt/test-hetzner.cjs
+      - run: shellcheck infra/mise/tasks/mgmt/{test-health,check-pod-network,reconcile-flannel,reconcile-talos,reconcile-hetzner}.sh
+      - run: actionlint .github/workflows/mgmt-cluster-{apply,tests}.yml
