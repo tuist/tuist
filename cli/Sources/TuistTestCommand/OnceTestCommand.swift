@@ -120,8 +120,9 @@ struct OnceTestRunCommand: AsyncParsableCommand {
         else {
             throw ValidationError("Pass a UInt32 --shard-index or set TUIST_SHARD_INDEX.")
         }
-        let attempt = shardAttempt ?? environment["TUIST_SHARD_ATTEMPT"].flatMap(Int.init)
-            ?? CIController().ciInfo()?.attemptNumber.flatMap(Int.init) ?? 1
+        let environmentAttempt = environment["TUIST_SHARD_ATTEMPT"].flatMap { Int($0) }
+        let ciAttempt = CIController().ciInfo()?.attemptNumber.flatMap { Int($0) }
+        let attempt = shardAttempt ?? environmentAttempt ?? ciAttempt ?? 1
         guard (1 ... Int(UInt32.max)).contains(attempt), jobs > 0 else {
             throw ValidationError("--shard-attempt must be a positive UInt32 and --jobs must be positive.")
         }

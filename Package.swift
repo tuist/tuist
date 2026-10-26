@@ -1264,6 +1264,7 @@ var targets: [Target] = [
             "TuistServer",
             "TuistEnvironmentTesting",
             "TuistNooraTesting",
+            argumentParserDependency,
             mockableDependency,
         ],
         path: "cli/Tests/TuistTestCommandTests"
