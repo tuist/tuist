@@ -1,0 +1,12 @@
+# Preparation overlay for reusing existing production EU-West Kura instances.
+# Adds no hosts, cache instances, or storage. Not in default production values.
+# Keep ovh-gra-runners unavailable and kura_linux_runner_cache off: Linux jobs
+# already prefer the account's EU-West Service when no private instance is used.
+# Requires the updated CAPI provider and qualified reciprocal private routes.
+# The account flag does not toggle this host-level network opt-in.
+# Existing runner Machines need explicit, one-at-a-time vRack enrollment after
+# their jobs drain; OnDelete does not copy a changed template onto them.
+ovhFleets:
+  runners-linux:
+    machine:
+      vRackID: pn-2024093

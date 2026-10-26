@@ -2,7 +2,7 @@
   "observedAt": "2026-10-26",
   "catalogSource": "https://api.us.ovhcloud.com/1.0/order/catalog/public/baremetalServers?ovhSubsidiary=US",
   "availabilitySource": "https://api.us.ovhcloud.com/1.0/dedicated/server/datacenter/availabilities?planCode=26adv01-v7-eu",
-  "status": "proposal only; no cart or order",
+  "status": "superseded: additional host orders on hold; reuse existing production EU-West cache instances first; no cart or order",
   "quantity": 2,
   "planCode": "26adv01-v7-eu",
   "invoiceName": "ADVANCE-1 | AMD EPYC 4245P",

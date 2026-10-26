@@ -1,5 +1,11 @@
 # Linux runner cache in OVH Gravelines
 
+**Current production decision:** reuse existing EU-West Kura instances on the
+six Gravelines cache hosts. Additional cache-host orders for canary and
+production are on hold. The dedicated private region below remains the staging
+experiment; production reuse does not require enabling it. See the production
+reuse plan at the end of this document.
+
 `ovh-gra-runners` is a private, Linux-only region on the
 `kura-ovh-gra-runners` pool. Account caches use the managed two-replica lifecycle,
 local XFS storage, and a 750 Mbps egress setting. The replicas share the
@@ -52,8 +58,9 @@ instances. Keep the region available while it drains. Removing the region from
 available regions also stops hand-out, but stops its reconciliation too and
 therefore is not the normal cleanup path. Preserve in-flight jobs and instances.
 Do not clear the runner's vRack enrollment or recycle reservations while the
-host still owns private routes. Production activation requires its own capacity
-and path qualification; this change does not enable the region there.
+host still owns private routes. This rollback applies to the dedicated private
+cache instance, not to the vRack underlay. Production will qualify its existing
+EU-West cache capacity and path while leaving the private region disabled.
 
 ## Account rollout and validation gates
 
@@ -80,7 +87,7 @@ last 600 seconds and storage failures can retain stale values. Verify actual
 endpoint selection on every serving replica rather than treating a successful
 flag write as proof of exposure.
 
-Before production enrollment:
+Before any future enrollment in the dedicated private-cache region:
 
 1. Deploy the flag-bearing server revision to staging and enable only the Tuist
    test account. Keep another account excluded and verify it gets WAN without
@@ -101,8 +108,8 @@ Before production enrollment:
    speeds. Two replicas on the same staging cache host do not prove host
    redundancy; production placement and host-loss behavior need qualification.
 
-Production sequence: deploy code with the flag absent, provision and qualify
-capacity, make the region available, then enroll Tuist's account. Start with
+If dedicated private-cache instances are needed later: deploy code with the
+flag absent, qualify capacity, make the region available, then enroll Tuist's account. Start with
 one internal account, then a few explicit customer accounts, then broaden.
 A proposed minimum observation window per expansion is 24 hours and 50 finished
 jobs, whichever takes longer, against a recorded WAN baseline. Require correct
@@ -396,80 +403,120 @@ account's live job also remain untested; local tests cover those state paths.
 These four overlapping jobs establish functional concurrency, not saturation,
 production capacity, Android application performance or cache-host redundancy.
 
-## Production preparation — 2026-10-26
+## Production reuse plan — 2026-10-26
+
+The additional cache-host order is on hold. Reuse the account's existing
+EU-West instance and Service on the six existing Gravelines cache hosts. This
+retains the existing cache contents, storage reservations, tenant authorization
+and public client endpoint. Runner jobs continue executing on the separate
+runner hosts. No additional account-region instance, replica or volume is
+created for this approach.
 
 The read-only [OVH inventory](validation/linux-runner-pn-2026-10-26/production-network-inventory.json)
-confirms ten existing RISE-L Linux runner hosts in Gravelines, each with a
-**1 Gbps private contract**, 1 Gbps public contract and no OLA support. None of
-those ten live `OVHDedicatedMachine` objects is enrolled through `spec.vRackID`
-yet. The six existing public-cache ADVANCE hosts have **25 Gbps private / 3 Gbps
-public** contracts and report private networking ready. They remain in the
-public region's historical `kura-dedibox` pool; assigning that capacity to a
-second independently accounted region is not part of this rollout.
+confirms ten existing RISE-L runner hosts in Gravelines, each with a 1 Gbps
+private/public contract and no OLA support. Their live Machines do not yet have
+`spec.vRackID`. Six existing public-cache ADVANCE hosts have 25 Gbps private /
+3 Gbps public contracts and private networking ready. Preserve their historical
+`kura-dedibox` pool, existing instances and local volumes.
 
-The initial preparation assumes reuse of the existing runner fleet. Their
-1 Gbps host-wide limit remains the throughput ceiling shared by concurrent
-jobs. Faster cache NICs do not raise that ceiling. The proposed cache hosts
-are additional private-region capacity, not replacements for the runners.
+A read-only check after this decision found all six cache hosts Ready, at
+1–3% CPU and 14–32% memory utilization. This point-in-time sample does not
+establish peak headroom, disk occupancy, sustained throughput or host-loss
+capacity. Existing storage reservations were approximately 390–792 GiB per
+host in the earlier inventory. Reuse avoids duplicating those per-account
+allocations; qualify disk, CPU, memory and network pressure under real builds
+before broadening the runner rollout.
 
-A [catalog quote](validation/linux-runner-pn-2026-10-26/production-capacity-quote.json)
-for **two ADVANCE-1 hosts** (`26adv01-v7-eu`, AMD EPYC 4245P,
-32 GB DDR5 On-Die ECC, 2×960 GB datacenter NVMe with software RAID) is
-**$408/month total plus $408 setup**, before tax, on a month-to-month term.
-The included network contracts are 25 Gbps private and 3 Gbps public per host.
-The OVH US [bare-metal catalog](https://api.us.ovhcloud.com/1.0/order/catalog/public/baremetalServers?ovhSubsidiary=US)
-and [availability endpoint](https://api.us.ovhcloud.com/1.0/dedicated/server/datacenter/availabilities?planCode=26adv01-v7-eu)
-reported 72-hour Gravelines availability for that configuration on October 26.
-This is a non-binding catalog quote, not reserved stock or an order. No paid
-order or production provisioning mutation has been made. Recheck the exact
-cart total and availability before purchase.
+### Routing and rollout controls
 
-The optional [production overlay](production-linux-runner-private-cache.values.yaml)
-prepares a two-host `kura-ovh-gra-runners` fleet using adoption prefix
-`tuist-kura-ovh-production-gra-runners` and enrolls the runner template in
-`pn-2024093` (`172.30.243.0/24`). It is deliberately outside the default managed
-production values. Rendering with managed-common, managed-production and CI
-values succeeds and produces two cache Machines plus the runner vRack field.
-Its initial 3 Gbps aggregate shaping budget and the region's 750 Mbps
-per-instance egress setting are conservative software limits, not measurements
-of a 25 Gbps path. Two physical hosts provide pool capacity; the current
-preferred co-location policy does not promise that each account's two replicas
-occupy different hosts or survive a host loss without recovery.
+`Kura.runner_cache_endpoint_url/3` already falls back to the account's active
+managed EU-West instance's internal Service for Linux, ahead of other public
+regions. The same cache process serves both public clients and the runner's
+internal URL. When an account has no active EU-West instance, the existing
+selection falls back to another active managed region, or returns no override.
+Do not claim that every account is Gravelines-local without checking its
+selected endpoint and backing pods.
 
-Apply in this order, keeping `kura_linux_runner_cache` absent/off throughout:
+Keep `ovh-gra-runners` unavailable and `kura_linux_runner_cache` absent/off in
+production. That flag governs the separate private-cache region; it does not
+gate the existing EU-West fallback or switch a host's vRack routes. For reuse,
+`OVHDedicatedMachine.spec.vRackID` is the explicit infrastructure opt-in and
+rollout proceeds by host. An enrolled host's eligible OVH traffic uses private
+routes for all accounts on that host. Account-specific public/private underlay
+switching is not implemented. The first validation cohort must therefore be
+scheduled on a controlled host, rather than assumed isolated by the account
+flag.
 
-1. Finish the staging gates, review and merge the draft PR. Production deployment
-   requires `refs/heads/main`; do not route a draft through an alternate workflow
-   ref to bypass that guard. Promote the reviewed server and compatible provider
-   through the normal deployment path. Provider build
-   [40343993520](https://github.com/tuist/tuist/actions/runs/40343993520) passed
-   from `61cf6144094`, including the main-branch BMC hardening; its image tag is
-   `61cf6144`. Keep unrelated runtime/controller versions at the reviewed pins.
-2. Approve/order the two cache hosts, install and verify mirrored system storage
-   and local XFS cache storage, then apply the optional overlay. Verify the
-   adopted service IDs, pool labels, taints, private address reservations and
-   Ready/PrivateNetworkReady conditions before exposing the region.
-3. Obtain human production write elevation covering vRack enrollment and
-   runner draining. Check the live template against the reviewed values. Cordon
-   one runner, let its jobs finish, patch only that idle Machine's `spec.vRackID`
-   to `pn-2024093`, verify KataRuntimeReady and PrivateNetworkReady, and uncordon
-   it after qualification. Repeat one at a time. `OnDelete` does not propagate a
-   template field onto existing Machines; do not delete hosts to force it.
-4. Qualify reciprocal full-MTU private paths and fail-closed public route guards,
-   then capture both private and public NICs during a checksum-verified cache
-   transfer. Record contracted and negotiated link rates separately. Measure
-   actual throughput and concurrent-job headroom before changing software caps.
-5. Make the region available only after all eligible runner hosts are qualified,
-   leaving the account flag off. Enroll only the internal account after explicit
-   rollout approval and retain a WAN control cohort.
+The optional [runner enrollment overlay](production-linux-runner-vrack.values.yaml)
+sets only the existing runner template's `vRackID: pn-2024093`; the environment
+already configures `172.30.243.0/24`. It adds no cache fleet and changes no
+replica counts, cache placement or available regions. It is outside default
+production values. Existing OnDelete Machines still need explicit enrollment;
+a template change does not update their specs.
 
-Production's existing public cache is already in Gravelines. The staging
-comparison against Canada measures a transatlantic baseline, so its 1.6–2.3×
-Gradle improvements are **not a production forecast**. Production qualification
-must compare PN with its actual nearby public-region baseline on the same
-runner and account before broadening enrollment.
+Do not point a new private logical region at the public pool as a shortcut.
+Region admission sums allocatable storage from the selected nodes but counts
+pod reservations by logical region. Sharing a pool that way would require an
+accounting review; reusing the existing instance avoids that second admission
+budget entirely.
 
-The production identity currently lacks Machine patch access (`auth can-i`
-returns `no`); no production deployment,
-flag enrollment, runner network mutation or purchase was performed. Human JIT
-access is required by [the cluster access rules](../AGENTS.md#cluster-access-for-agents).
+### Execution and qualification
+
+1. Review/merge the provider change and deploy a compatible provider through
+   the normal main-branch pipeline. Production currently runs provider 0.87.0;
+   staging validated `61cf6144` from
+   [40343993520](https://github.com/tuist/tuist/actions/runs/40343993520).
+   Reuse needs explicit runner vRack support, not a new Kura region. Preserve
+   unrelated runtime/controller versions. The PR remains draft and the
+   production source guard must not be bypassed.
+2. Before changing routes, record a representative account's selected EU-West
+   Service, backing cache pod/node, physical path, metadata p50/p95, Gradle
+   upload/restore durations and restored checksums. Confirm that runner traffic
+   already uses this instance and quantify cache/disk/network headroom.
+3. Obtain human production write elevation scoped to one-host vRack
+   qualification. Verify the intended live Machine against the reviewed
+   template. Cordon the selected runner and let jobs finish without eviction.
+   Patch only that idle Machine's `spec.vRackID` to `pn-2024093`. Wait for
+   KataRuntimeReady, PrivateNetworkReady, reservation and reciprocal-route
+   convergence on all affected peers. Keep the host cordoned if any check fails.
+4. Verify full-MTU private reachability and public fallback guards. Use controlled
+   runner jobs on the enrolled host, capture both public and private NICs, and
+   confirm the same EU-West cache instance receives checksum-verified uploads
+   and restores over vRack. The smoke must inspect the real injected endpoint;
+   an endpoint override alone is not automatic-dispatch evidence.
+5. Compare the same workload/account with the pre-enrollment baseline and an
+   unenrolled runner control. Include repeated metadata probes, cold uploads,
+   remote restores and concurrent Gradle compilation; monitor p95, errors,
+   queueing, CPU, memory, disk and link pressure. The runner's shared 1 Gbps
+   private ceiling remains. Require no correctness or public-cache regression
+   before admitting normal jobs, then enroll the remaining hosts one at a time.
+
+Production's public cache is already in Gravelines. The staging comparison
+against Canada measures a transatlantic baseline; its 1.6–2.3× Gradle improvement
+is not a production forecast. Measure the change in physical path to the same
+nearby cache before claiming a gain. No additional OVH rental is required by
+this plan; capacity expansion remains contingent on actual measurements.
+
+### Rollback and canary
+
+Stop admitting jobs to an affected runner and let existing jobs finish. Network
+rollback is separate from the private-cache account flag. Preserve address
+reservations and peer routes until a reviewed restoration of the previous
+network configuration has converged. Clearing `vRackID` alone does not safely
+remove installed routes; do not present it as an instant rollback. Existing
+public Kura instances and their contents remain in service.
+
+Canary has a SYS-1 cache in Canada and a RISE-S runner in Gravelines without
+vRack support. It cannot rehearse the same local private path with its current
+hardware. Keep its current configuration and defer purchases while evaluating
+existing compatible spare capacity. Do not bridge canary to production's cache
+instances or join a production host to another environment as a workaround.
+The staged provider/Gradle evidence remains available from staging's already
+prepared compatible hosts.
+
+The previous [capacity quote](validation/linux-runner-pn-2026-10-26/production-capacity-quote.json)
+is retained only as historical evidence and is marked superseded. No order was
+placed. No production server/cache/provider deployment or network mutation was
+performed for this revision. Production Machine patch access remains unavailable;
+[the cluster access rules](../AGENTS.md#cluster-access-for-agents) require a
+human to initiate and approve the scoped JIT elevation.

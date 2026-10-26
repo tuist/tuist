@@ -165,9 +165,13 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
 
 The Linux `ovh-gra-runners` rollout is account-gated and documented in
 [linux-runner-private-cache.md](linux-runner-private-cache.md), including live
-staging evidence and outstanding outage/production qualification. The optional
-`production-linux-runner-private-cache.values.yaml` is preparation only: do not
-include it in default production values before its hosts are approved and ready.
+staging evidence and outstanding outage/production qualification. Production
+will first reuse existing EU-West instances on the Gravelines cache pool; no
+additional cache-host order is approved. The optional
+`production-linux-runner-vrack.values.yaml` prepares only runner enrollment.
+Keep the separate private region unavailable and its account flag off there.
+That flag does not toggle the host-level vRack path or the existing EU-West
+fallback. Do not share one physical pool between independently accounted regions.
 Existing OnDelete runner Machines require explicit idle vRack enrollment;
 changing their fleet template does not enroll them.
 
