@@ -98,15 +98,12 @@ public struct CoverageExportService: CoverageExportServicing {
                 )
                 let spans = await Self.spans(of: products)
                 let exported = try await reports
-                var attributed = targets
-                if listed.fromReport {
-                    var mappedFiles: [String: [String]] = [:]
-                    for (index, product) in products.enumerated() {
-                        mappedFiles[product.path] = try CoverageExport.aliasedPaths(in: exported[product.path]!)
-                            .map { prefixMaps.remap($0, target: targetNames[index]) }
-                    }
-                    attributed = Self.targets(targets, addingMappedFiles: mappedFiles)
-                }
+                let attributed = listed.fromReport
+                    ? Self.targets(
+                        targets,
+                        addingMappedFiles: try Self.mappedFiles(of: products, reports: exported, prefixMaps: prefixMaps)
+                    )
+                    : targets
                 try await CoverageExport.write(
                     reports: products.map { exported[$0.path]! },
                     attribution: CoverageExport.Attribution(targets: attributed.map { target in
@@ -315,6 +312,24 @@ public struct CoverageExportService: CoverageExportServicing {
                     .appendingPathComponent($0)
             }
             ?? path
+    }
+
+    /// The files each product's report (`reports`, by product path) lists under an alias, mapped
+    /// back through the product's target's map. A run without prefix maps recorded no alias, so
+    /// its reports are not read again.
+    static func mappedFiles(
+        of products: [Product],
+        reports: [String: AbsolutePath],
+        prefixMaps: CompilationPrefixMaps
+    ) throws -> [String: [String]] {
+        guard !prefixMaps.mapsByTarget.isEmpty else { return [:] }
+        var mappedFiles: [String: [String]] = [:]
+        for product in products {
+            guard let report = reports[product.path] else { continue }
+            let target = CompilationPrefixMaps.targetName(ofProduct: product.path)
+            mappedFiles[product.path] = try CoverageExport.aliasedPaths(in: report).map { prefixMaps.remap($0, target: target) }
+        }
+        return mappedFiles
     }
 
     /// Xcode keeps a file in a target's coverage report only when the path the compiler recorded

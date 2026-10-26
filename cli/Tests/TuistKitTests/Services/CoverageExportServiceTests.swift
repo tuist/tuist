@@ -543,6 +543,51 @@ struct CoverageExportServiceTests {
         #expect(filled.map(\.isTest) == targets.map(\.isTest))
     }
 
+    @Test(.inTemporaryDirectory) func readsEachProductsMappedFilesThroughItsTargetsMap() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let products = [
+            CoverageExportService.Product(path: "/p/Lib.framework/Versions/A/Lib", kind: .image),
+            CoverageExportService.Product(path: "/p/LibTests.xctest/Contents/MacOS/LibTests", kind: .image),
+        ]
+        let reports = [
+            products[0].path: try write("SF:/^src/Sources/A.swift\nDA:1,1\nend_of_record\n", named: "0.lcov"),
+            products[1].path: try write(
+                "SF:/^src/Tests/ATests.swift\nDA:1,1\nend_of_record\nSF:/elsewhere/B.swift\nDA:1,1\nend_of_record\n",
+                named: "1.lcov"
+            ),
+        ]
+        let prefixMaps = CompilationPrefixMaps(mapsByTarget: [
+            "Lib": ["/^src": "/checkout/Lib"],
+            "LibTests": ["/^src": "/checkout/Lib"],
+        ])
+
+        #expect(try CoverageExportService.mappedFiles(of: products, reports: reports, prefixMaps: prefixMaps) == [
+            products[0].path: ["/checkout/Lib/Sources/A.swift"],
+            products[1].path: ["/checkout/Lib/Tests/ATests.swift"],
+        ])
+        // A run without prefix maps recorded no alias: its reports are not read again.
+        try FileManager.default.removeItem(atPath: directory.appending(component: "0.lcov").pathString)
+        #expect(try CoverageExportService.mappedFiles(
+            of: products,
+            reports: reports,
+            prefixMaps: CompilationPrefixMaps(mapsByTarget: [:])
+        ) == [:])
+    }
+
+    @Test(.inTemporaryDirectory) func findsTheMappedFilesOfAProductReportedThroughALink() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let binary = directory.appending(components: "Lib.framework", "Versions", "A", "Lib")
+        try FileManager.default.createDirectory(atPath: binary.parentDirectory.pathString, withIntermediateDirectories: true)
+        try Data().write(to: URL(fileURLWithPath: binary.pathString))
+        let link = directory.appending(components: "Lib.framework", "Lib")
+        try FileManager.default.createSymbolicLink(atPath: link.pathString, withDestinationPath: "Versions/A/Lib")
+        let targets = [XcodeCoverageTarget(name: "Lib.framework", buildProductPath: link.pathString, files: [])]
+
+        let filled = CoverageExportService.targets(targets, addingMappedFiles: [binary.pathString: ["/checkout/A.swift"]])
+
+        #expect(filled.map(\.files) == [["/checkout/A.swift"]])
+    }
+
     @Test func leavesTheReportsTargetsAsTheyAreWithoutMappedFiles() {
         let targets = [
             XcodeCoverageTarget(
