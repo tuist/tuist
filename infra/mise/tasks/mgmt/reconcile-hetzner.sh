@@ -91,6 +91,36 @@ network_zone="$(hcloud location describe "$location" -o json | jq -r .network_zo
 find_network() { hcloud network list -o json | jq --arg n "$network_name" '.[] | select(.name == $n)'; }
 find_lb() { hcloud load-balancer list -o json | jq --arg n "$lb_name" '.[] | select(.name == $n)'; }
 
+# Re-read health immediately before removal. A count of targets says nothing
+# about whether any remaining target can actually serve API requests.
+require_healthy_other_target() {
+  local removed_id="$1" live
+  live="$(find_lb)"
+  jq -L "$REPO_ROOT/infra/mise/tasks/mgmt" -e --argjson id "$removed_id" \
+    --argjson ports "$(spec '.loadBalancer.ports' | yq -o=json)" '
+      include "health";
+      any(.targets[]?; .server.id != $id and healthy_lb_target($ports))
+    ' <<<"$live" >/dev/null || fail "refusing to remove target $removed_id: no other server target is healthy on every API port"
+}
+
+wait_for_healthy_target() {
+  local id="$1" deadline=$((SECONDS + 300)) live
+  if ! $apply; then
+    echo "would wait for target $id to be healthy on every API port before another removal"
+    return
+  fi
+  while true; do
+    live="$(find_lb)"
+    if jq -L "$REPO_ROOT/infra/mise/tasks/mgmt" -e --argjson id "$id" \
+      --argjson ports "$(spec '.loadBalancer.ports' | yq -o=json)" '
+        include "health";
+        any(.targets[]?; .server.id == $id and healthy_lb_target($ports))
+      ' <<<"$live" >/dev/null; then return; fi
+    (( SECONDS < deadline )) || fail "target $id did not become healthy within 5 minutes; other targets were left in place"
+    sleep 5
+  done
+}
+
 echo "==> Network $network_name"
 network="$(find_network)"
 if [[ -z "$network" ]]; then
@@ -214,11 +244,14 @@ for i in "${!nodes[@]}"; do
     fail "server $node is not attached to network $network_name, so the load balancer cannot reach its private IP"
   fi
 
+  switched=false
   if [[ -n "$target" && "$(jq -r .use_private_ip <<<"$target")" != "$use_private_ip" ]]; then
     if (( target_count <= 1 )); then
       fail "switching $node to use_private_ip=$use_private_ip means removing the load balancer's only target; add another node first"
     fi
+    require_healthy_other_target "$server_id"
     change load-balancer remove-target "$lb_name" --server "$node"
+    switched=true
     target=""
     target_count=$((target_count - 1))
   fi
@@ -226,6 +259,7 @@ for i in "${!nodes[@]}"; do
     change load-balancer add-target "$lb_name" --server "$node" --use-private-ip="$use_private_ip"
     target_count=$((target_count + 1))
   fi
+  if $switched; then wait_for_healthy_target "$server_id"; fi
 done
 
 if [[ -n "$lb" ]]; then
@@ -235,6 +269,7 @@ if [[ -n "$lb" ]]; then
     if (( target_count <= 1 )); then
       fail "refusing to remove target server $stale_id: it would leave the load balancer without targets"
     fi
+    require_healthy_other_target "$stale_id"
     change load-balancer remove-target "$lb_name" --server "$stale_id"
     target_count=$((target_count - 1))
   done
