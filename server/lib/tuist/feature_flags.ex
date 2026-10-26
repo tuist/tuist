@@ -14,15 +14,6 @@ defmodule Tuist.FeatureFlags do
     )
   end
 
-  @doc "Default-off account opt-in to the OVH Linux runner cache in every environment."
-  def kura_linux_runner_cache_enabled?(account, flags \\ nil) do
-    Observability.feature_flag_evaluated(
-      :kura_linux_runner_cache,
-      account,
-      flag_enabled?(:kura_linux_runner_cache, account, flags)
-    )
-  end
-
   @doc "Default-off account opt-in to managed positive-fence serving authority."
   def kura_positive_fence_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(
@@ -64,8 +55,8 @@ defmodule Tuist.FeatureFlags do
   staging default to enabled.
 
   This is also the source of truth for co-located private Kura cache
-  infrastructure. The OVH Linux cache additionally requires the default-off
-  `:kura_linux_runner_cache` account rollout flag.
+  infrastructure, so enabling runners provides the cache without a second
+  operator-managed switch.
   """
   def runners_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(

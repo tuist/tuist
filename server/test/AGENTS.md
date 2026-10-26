@@ -75,9 +75,6 @@ This directory contains ExUnit tests for the Tuist Server.
 - Shared Swift/Elixir report identities: `cli/Tests/Fixtures/JUnitIdentity/AGENTS.md`.
 
 - Kura private gateway coverage belongs in the region and Kubernetes provisioner suites, with dispatch/activation coverage in `tuist/kura_test.exs`. Cover stale generations, expired observations, incomplete gateway readiness, environment hostname isolation, two replicas and retained legacy NodePorts.
-- Linux cluster-DNS runner cache coverage must include failed initial readiness,
-  HTTP/transport outages retaining the old heartbeat, stale/missing heartbeat
-  WAN fallback, and successful recovery on the same active instance.
 
 - Private endpoint regressions should prove that old `lastReconciledAt` does not invalidate a fresh endpoint check, while repeatedly reading the same `endpointLastCheckedAt` cannot renew `last_ready_at`. Revision digest tests should cover order-independent CIDRs and reuse the module's canonical text hashing.
 
@@ -143,5 +140,4 @@ This directory contains ExUnit tests for the Tuist Server.
 - Mimic creates original-module copies lazily on the first stub, expect or reject. Before any mock is installed, call the real module directly for sanity checks; use `Mimic.call_original/3` only after mocking is initialized, such as inside a counting expectation. Run these regressions alone as well as in suites to catch order dependencies.
 - Cold activation coverage must continue past regional readiness, synchronize stable intent without a minute tick, reject stale generations, stop for ineligible instances, and retain a bounded polling budget across snoozes and transient API failures.
 
-- Linux private-cache rollout regressions cover default-off behavior in every environment, actor isolation and global opt-outs, dispatch fallback with an existing active PN cache, admission requiring recent Linux jobs, and flag withdrawal/re-enrollment while jobs retain a draining endpoint.
 - Zero-hit secondary retirement tests cover ten complete reported UTC days, the exact instance-age boundary, unknown age, missing/duplicate reports, hits anywhere in the window or today, a surviving region with hits, primary exclusion, the rollout gate, and unchanged 28-day low-traffic retirement.

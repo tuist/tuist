@@ -163,17 +163,15 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
 
 ## Private runner entrance
 
-The Linux `ovh-gra-runners` rollout is account-gated and documented in
-[linux-runner-private-cache.md](linux-runner-private-cache.md), including live
-staging evidence and outstanding outage/production qualification. Production
-will first reuse existing EU-West instances on the Gravelines cache pool; no
-additional cache-host order is approved. The optional
+Linux runners reuse existing regional Kura instances over OVH vRack; there is
+no Linux runner-specific cache region or account flag. See
+[linux-runner-private-cache.md](linux-runner-private-cache.md) for the required
+staging experiment cleanup before deployment, physical-path qualification and
+production rollout. Additional cache-host orders are on hold. The optional
 `production-linux-runner-vrack.values.yaml` prepares only runner enrollment.
-Keep the separate private region unavailable and its account flag off there.
-That flag does not toggle the host-level vRack path or the existing EU-West
-fallback. Do not share one physical pool between independently accounted regions.
-Existing OnDelete runner Machines require explicit idle vRack enrollment;
-changing their fleet template does not enroll them.
+`spec.vRackID` opts in a whole host; OnDelete templates do not enroll existing
+Machines. Do not create a second logical region on the public pool: storage
+reservations are accounted by region. Preserve macOS private-cache behavior.
 
 Runner instances share the managed StatefulSet rollout, preferred co-location, disruption budget, primary routing, mesh and drain. Kubernetes defaults new sets to RollingUpdate; leave a live operator-set update strategy intact. Primary selection prefers full ring visibility but falls back to a fresh Ready/serving writer when no fully joined member remains, so a restarting sibling cannot pin traffic to a dead pod.
 

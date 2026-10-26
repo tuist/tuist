@@ -3,16 +3,18 @@ set -euo pipefail
 
 : "${RUNNER_TEMP:?}" "${SMOKE_PROJECT:?}" "${TUIST_CACHE_ENDPOINT:?}" "${BENCH_WAN_ENDPOINT:?}"
 case "$TUIST_CACHE_ENDPOINT" in
-  http://kura-*-ovh-gra-runners.kura.svc.cluster.local:4000) ;;
-  *) echo 'Expected dispatch to select the OVH private Kura instance' >&2; exit 1 ;;
+  http://kura-*-eu-west-1.kura.svc.cluster.local:4000|http://kura-*-eu-west-1-m.kura.svc.cluster.local:4000) ;;
+  *) echo 'Expected dispatch to select the existing EU-West Kura instance' >&2; exit 1 ;;
 esac
 case "$BENCH_WAN_ENDPOINT" in
   http://kura-*.kura.svc.cluster.local:4000) ;;
   *) echo 'Expected an explicitly selected staging public-region Service' >&2; exit 1 ;;
 esac
+test "$TUIST_CACHE_ENDPOINT" != "$BENCH_WAN_ENDPOINT"
+# Keep pn/wan CSV labels compatible with recorded data; prove the underlay separately.
 pn_endpoint="$TUIST_CACHE_ENDPOINT"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-fixture="$RUNNER_TEMP/gradle-pn-benchmark"
+fixture="$RUNNER_TEMP/gradle-regional-benchmark"
 mkdir -p "$fixture"
 printf 'logs=%s\n' "$fixture" >> "${GITHUB_OUTPUT:?}"
 cd "$fixture"
@@ -20,7 +22,7 @@ export GRADLE_USER_HOME="$fixture/gradle-home"
 printf 'project = "%s"\n' "$SMOKE_PROJECT" > tuist.toml
 cat > settings.gradle <<'GRADLE'
 plugins { id 'dev.tuist' version '0.10.0' }
-rootProject.name = 'pn-kura-gradle-benchmark'
+rootProject.name = 'regional-kura-gradle-benchmark'
 buildCache { local { enabled = false } }
 GRADLE
 cat > build.gradle <<'GRADLE'

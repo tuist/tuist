@@ -75,7 +75,7 @@ runs the mixed-version latency expression through promtool.
   OVH Kata runner hosts participate only with an explicit matching
   `ovhFleets.<fleet>.machine.vRackID`; legacy hosts without private NICs must
   remain unenrolled. See `../kura-controller/linux-runner-private-cache.md`
-  for the staging Linux private-cache qualification and rollback.
+  for regional-cache reuse, the required staging migration, and rollback.
 
 - Production public EU-West runs on three `ovhFleets.eu-west` nodes. Managed
   Dedibox support is removed after all Machine release finalizers completed
@@ -85,7 +85,10 @@ runs the mixed-version latency expression through promtool.
   explicit post-deployment cleanup. Follow [the cleanup runbook](../kura-controller/eu-west-ovh-migration.md#post-retirement-cleanup).
   Production EU-West ingress discovers OVH gateway Node addresses automatically.
   Preserve the `kura-dedibox` selector and `scw-local-nvme` StorageClass because
-  OVH uses both. Public staging/canary validation uses OVH `ca-east`; retain the
+  OVH uses both. Staging reuses its prepared Gravelines host as ordinary EU-West
+  capacity after retiring the private Linux experiment; its platform overlay
+  enables the same public EU-West gateway as production. Staging also retains
+  OVH `ca-east` for remote comparisons; canary uses `ca-east`. Retain the
   separate Scaleway Elastic Metal Mac runner cache (`kuraFleet`) and Mac fleets.
 - Stable cache DNS infrastructure is enabled in managed staging, canary, and production. Canary advertises and hands out stable endpoints once ready; staging and production require the `kura_stable_hostname` account/global feature flag, absent by default, with no server environment rollout toggles or account allowlist. Keep environment owner IDs and vault credentials separate. Certificate readiness is an operator bootstrap check, not a routine deployment gate; see `../cache-dns/README.md`.
 - `pomerium/templates/access-tiers.yaml` extends the shared `view` tier with `get`/`list`/`watch` on `dnsendpoints.externaldns.k8s.io` in all namespaces. Keep DNS inspection in this read tier, scoped to that resource; DNS mutation and Secret access are not part of this grant. The Pomerium deployment workflow applies this chart to staging, canary, and production on merge.

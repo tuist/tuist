@@ -220,9 +220,9 @@ must upload on the first build and hit remotely after deleting outputs,
 with local caching disabled. Run this against the candidate image
 before promoting it, then against the production runner profile.
 
-With `compare_private_cache` enabled, the same staging workflow runs
-`gradle-pn-benchmark.sh`. It requires dispatch to inject the OVH private
-endpoint and compares it with an explicitly selected remote-region Service.
+With `compare_regional_cache` enabled, the same staging workflow runs
+`gradle-regional-benchmark.sh`. It requires dispatch to inject the existing EU-West
+Service (including a moved -m instance) and compares it with an explicitly selected remote-region Service.
 Five alternating cold/restore pairs at each payload size use unique keys,
 disabled local caching and checksum verification. Keep the raw CSV/log artifact;
 `summarize-gradle-pn-benchmark.mjs` validates and summarizes it. Record the actual
@@ -234,6 +234,9 @@ reads over persistent and fresh HTTP/1.1 connections. Ten warm-ups precede 100
 alternating samples per endpoint/case; status, metadata, body and connection
 reuse checks are mandatory. Credentials stay in memory and outside artifacts.
 Use `summarize-kura-request-latency.mjs` for the raw CSV's median/p95 table.
+
+The pn/wan CSV labels are retained for historical comparisons; they do not prove
+private transport. New results must identify the ordinary regional instance.
 
 Staging drills can set `hold_seconds` (0–900) to pause the synthetic smoke after
 upload, with a `cold-complete` marker in its temporary fixture, before restoring

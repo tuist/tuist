@@ -9,7 +9,7 @@ defmodule Tuist.Kura.RunnerCache do
     * an account with at least one Runner Profile whose platform the
       region serves (`Regions.runner_platforms`) AND
       `Tuist.FeatureFlags.runners_enabled?/1` returning true AND whose jobs run
-      beside the region AND passes its rollout gate should have one Kura server in
+      beside the region should have exactly one non-destroyed Kura server in
       that region, and
     * any other account should have none there.
 
@@ -30,9 +30,7 @@ defmodule Tuist.Kura.RunnerCache do
   The reconciler evaluates the same runner-availability function as dispatch,
   making co-located caching an automatic part of the runner product. A global
   runner rule therefore provisions caches for every eligible account, while an
-  account whose runner access is removed has its cache torn down. OVH Linux
-  additionally requires the default-off account flag `kura_linux_runner_cache`
-  for both admission and dispatch in every environment.
+  account whose runner access is removed has its cache torn down.
 
   Each private region admits new accounts only while fewer than ten servers are
   unsettled. Failed and destroying servers keep admission closed until they
@@ -196,12 +194,6 @@ defmodule Tuist.Kura.RunnerCache do
     Enum.filter(Regions.available(), &Regions.private?/1)
   end
 
-  @doc "Whether the account is enrolled in the region's private-cache rollout."
-  def rollout_enabled?(%Regions{id: "ovh-gra-runners"}, %Account{} = account),
-    do: FeatureFlags.kura_linux_runner_cache_enabled?(account)
-
-  def rollout_enabled?(%Regions{}, %Account{}), do: true
-
   # A site's region serves only the pools racked there, so it holds nodes for
   # the accounts whose jobs run there (`runner_site`) or that the site cache
   # flag enables, and of those only the ones whose cache traffic comes from the
@@ -211,8 +203,6 @@ defmodule Tuist.Kura.RunnerCache do
   # site serves the rented fleet, so it holds nodes for the accounts with
   # recent jobs there.
   defp admitted_account_ids(%Regions{} = region, account_ids) do
-    account_ids = MapSet.filter(account_ids, &rollout_enabled?(region, %Account{id: &1}))
-
     case Regions.site(region) do
       nil ->
         {:ok, MapSet.intersection(account_ids, rented_job_account_ids(region))}

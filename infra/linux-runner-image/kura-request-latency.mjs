@@ -7,8 +7,9 @@ import { performance } from 'node:perf_hooks';
 import { summarize } from './summarize-kura-request-latency.mjs';
 
 assert.equal(process.env.TUIST_URL, 'https://staging.tuist.dev');
+// pn/wan are historical CSV labels; packet captures establish the actual underlay.
 const endpoints = { pn: process.env.TUIST_CACHE_ENDPOINT, wan: process.env.BENCH_WAN_ENDPOINT };
-assert.match(endpoints.pn, /^http:\/\/kura-[a-z0-9-]+-ovh-gra-runners\.kura\.svc\.cluster\.local:4000$/);
+assert.match(endpoints.pn, /^http:\/\/kura-[a-z0-9-]+-eu-west-1(?:-m)?\.kura\.svc\.cluster\.local:4000$/);
 assert.match(endpoints.wan, /^http:\/\/kura-[a-z0-9-]+\.kura\.svc\.cluster\.local:4000$/);
 assert.notEqual(endpoints.pn, endpoints.wan);
 const project = process.env.SMOKE_PROJECT?.split('/');

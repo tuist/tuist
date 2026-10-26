@@ -2,7 +2,7 @@
 set -euo pipefail
 
 test "${TUIST_URL:?}" = https://staging.tuist.dev
-[[ "${TUIST_CACHE_ENDPOINT:?}" == http://kura-*-ovh-gra-runners.kura.svc.cluster.local:4000 ]]
+[[ "${TUIST_CACHE_ENDPOINT:?}" =~ ^http://kura-[a-z0-9-]+-eu-west-1(-m)?\.kura\.svc\.cluster\.local:4000$ ]]
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fixture="${RUNNER_TEMP:?}/gradle-real-cache-smoke"
 mkdir -p "$fixture"
@@ -16,7 +16,7 @@ printf 'project = "%s"\n' "${SMOKE_PROJECT:?}" > tuist.toml
 cat >> build.gradle.kts <<'GRADLE'
 
 tasks.matching { it.name == "compileKotlin" || it.name == "compileTestKotlin" }.configureEach {
-    inputs.property("pnSmokeNonce", providers.environmentVariable("SMOKE_NONCE"))
+    inputs.property("regionalSmokeNonce", providers.environmentVariable("SMOKE_NONCE"))
 }
 GRADLE
 cat > gradle.properties <<'PROPERTIES'

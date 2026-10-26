@@ -29,16 +29,16 @@ on:
         description: Run only the Gradle container cache check
         type: boolean
         default: false
-      compare_private_cache:
-        description: With gradle_cache, measure colocated PN versus the remote staging cache
+      compare_regional_cache:
+        description: With gradle_cache, compare the existing EU-West cache with a remote region
         type: boolean
         default: false
       measure_request_latency:
-        description: With gradle_cache, measure PN/WAN HTTP health, metadata, and tiny-read latency
+        description: With gradle_cache, measure regional HTTP health, metadata, and tiny-read latency
         type: boolean
         default: false
       hold_seconds:
-        description: With gradle_cache, pause after upload for a bounded rollback/restart drill (0-900)
+        description: With gradle_cache, pause after upload for a bounded cache restart drill (0-900)
         type: string
         default: '0'
       compile_project:
@@ -227,7 +227,7 @@ jobs:
       contents: read
       id-token: write
     runs-on: ${{ inputs.runner_label }}
-    timeout-minutes: ${{ (inputs.compare_private_cache || inputs.compile_project || inputs.hold_seconds != '0') && 45 || inputs.stable_cache_dns && 30 || 15 }}
+    timeout-minutes: ${{ (inputs.compare_regional_cache || inputs.compile_project || inputs.hold_seconds != '0') && 45 || inputs.stable_cache_dns && 30 || 15 }}
     container:
       image: eclipse-temurin:21-jdk-jammy
     defaults:
@@ -272,12 +272,12 @@ jobs:
         if: ${{ !inputs.stable_cache_dns }}
         run: tuist auth login
       - name: Verify a remote upload followed by a remote hit
-        if: ${{ !inputs.stable_cache_dns && !inputs.compare_private_cache && !inputs.measure_request_latency && !inputs.compile_project }}
+        if: ${{ !inputs.stable_cache_dns && !inputs.compare_regional_cache && !inputs.measure_request_latency && !inputs.compile_project }}
         run: bash infra/linux-runner-image/gradle-cache-smoke.sh
       - name: Compile and restore the real Gradle plugin
         if: ${{ inputs.compile_project }}
         run: bash infra/linux-runner-image/gradle-real-cache-smoke.sh
-      - name: Measure private and remote request latency
+      - name: Measure local-region and remote request latency
         id: latency
         if: ${{ inputs.measure_request_latency }}
         run: |
@@ -286,13 +286,13 @@ jobs:
           node_bin=/__e/node24/bin/node
           test -x "$node_bin" || node_bin=/__e/node20/bin/node
           "$node_bin" infra/linux-runner-image/kura-request-latency.mjs
-      - name: Compare private and remote Gradle caches
+      - name: Compare existing regional Gradle caches
         id: benchmark
-        if: ${{ inputs.compare_private_cache }}
+        if: ${{ inputs.compare_regional_cache }}
         run: |
           test "$TUIST_URL" = https://staging.tuist.dev
           test '${{ inputs.stable_cache_dns }}' = false
-          bash infra/linux-runner-image/gradle-pn-benchmark.sh
+          bash infra/linux-runner-image/gradle-regional-benchmark.sh
       - name: Soak the public stable cache endpoint
         if: ${{ inputs.stable_cache_dns }}
         run: bash infra/cache-dns/staging-ci-smoke.sh
@@ -304,9 +304,9 @@ jobs:
             ${{ runner.temp }}/gradle-cache-smoke/*.log
           if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
-        if: ${{ always() && inputs.compare_private_cache && steps.benchmark.outputs.logs != '' }}
+        if: ${{ always() && inputs.compare_regional_cache && steps.benchmark.outputs.logs != '' }}
         with:
-          name: gradle-pn-benchmark-logs
+          name: gradle-regional-benchmark-logs
           path: |
             ${{ steps.benchmark.outputs.logs }}/*.log
             ${{ steps.benchmark.outputs.logs }}/*.csv

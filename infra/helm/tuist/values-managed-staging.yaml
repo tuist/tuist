@@ -150,10 +150,11 @@ server:
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
       value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
     - name: TUIST_KURA_AVAILABLE_REGIONS
-      # Public validation uses the existing OVH ca-east fleet. Retire the
-      # Dedibox EU-West instances before the later fleet-retirement change.
-      # Private caches beside the Mac mini and vRack-capable Linux fleets.
-      value: scw-fr-par-runners,ovh-gra-runners,ca-east
+      # Linux runners reuse ordinary regional instances. Before deploying,
+      # complete the staging migration in linux-runner-private-cache.md:
+      # drain the retired experiment and qualify the existing GRA host as EU-West.
+      # Preserve the independent macOS private cache.
+      value: scw-fr-par-runners,eu-west,ca-east
     # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
     # Staging rollouts run expedited except while progressive mode is
     # being exercised behind the kura_rollout_orchestration flag.
@@ -657,12 +658,15 @@ ovhFleet:
 # OVH_FLEET_SSH and the one `endpoint` the reconciler resolves for every OVH
 # fleet.
 ovhFleets:
-  # Prepared RISE-1 cache in Gravelines beside the vRack-capable runner.
+  # Reuse the prepared RISE-1 as ordinary EU-West capacity. Retain the legacy
+  # fleet key/adoption prefix to preserve its Machine and physical host.
+  # OnDelete requires explicit pool-label migration before EU-West admission;
+  # see infra/kura-controller/linux-runner-private-cache.md.
   gra-runners-cache:
     enabled: true
     replicas: 1
     endpoint: ovh-us
-    nodePool: kura-ovh-gra-runners
+    nodePool: kura-dedibox
     machine:
       adoptDisplayNamePrefix: tuist-kura-ovh-staging-gra-runners
       offer: rise-1
