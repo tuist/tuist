@@ -268,6 +268,7 @@ func main() {
 		log.Fatal(err)
 	}
 	checkouts.InUse, backend.InUse = store.InUse, store.InUse
+	store.Observe = metrics.observe
 	defer store.Close()
 	// Lock survives requests and prevents an overlapping/restarted DaemonSet from
 	// allocating the same directory. Kubernetes rollout uses maxSurge=0 as well.

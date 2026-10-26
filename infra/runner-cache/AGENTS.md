@@ -79,6 +79,13 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   account or repository names or a customer-chosen key: `Identity.ManagedKey`
   is set by the agent from the request through `ManagedKey`, which keeps only
   Tuist's managed keys.
+- Every branch deletion is one `delete` observation from the Store (`Store.Observe`,
+  which each agent wires to its phase log and metrics) with the slot's subject.
+  Its source is why: `server` (the report answered `delete`: the job did not
+  succeed, the use was discarded or the volume cleared), `poisoned` or
+  `withheld` (from `Seal`), `abandoned` (an allocation whose Pod ended before
+  attaching) or `pending` (a deletion that waited for its loop device; the
+  earlier pass reports `release_pending`). Attach never reports a delete.
 - Every master removal logs `cache master evicted` (`LocalImages.Log`) or
   `checkout master evicted` (`Checkouts.Log`) with `scope`, `generation` or
   `checkout_generation`, `bytes` (allocated; blocks shared with clones stay in
