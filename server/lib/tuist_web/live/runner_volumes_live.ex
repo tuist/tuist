@@ -412,7 +412,7 @@ defmodule TuistWeb.RunnerVolumesLive do
   def display_name(%{key: "tuist-xcode"}), do: dgettext("dashboard_runners", "Xcode cache")
   def display_name(%{key: "tuist-module"}), do: dgettext("dashboard_runners", "Module cache")
   def display_name(%{key: "tuist-gradle"}), do: dgettext("dashboard_runners", "Gradle cache")
-  def display_name(%{key: "docker"}), do: dgettext("dashboard_runners", "Docker cache")
+  def display_name(%{key: "docker"}), do: dgettext("dashboard_runners", "Image cache")
   def display_name(%{key: key}), do: key
 
   def volume_name(volume) do
@@ -505,13 +505,15 @@ defmodule TuistWeb.RunnerVolumesLive do
     }
   end
 
-  def storage_period(params) do
+  def storage_period(params, default_days \\ 7) do
+    defaults = [default_preset: "last-#{default_days}-days", default_days: default_days]
+
     params =
       if params["analytics-date-range"] in ["last-24-hours", "last-7-days", "last-30-days", "custom"],
         do: params,
         else: Map.delete(params, "analytics-date-range")
 
-    selection = DatePicker.date_picker_params(params, "analytics", default_preset: "last-7-days", default_days: 7)
+    selection = DatePicker.date_picker_params(params, "analytics", defaults)
     {start, finish} = selection.period
     now = DateTime.truncate(DateTime.utc_now(), :second)
     earliest = DateTime.add(now, -90, :day)
@@ -520,7 +522,7 @@ defmodule TuistWeb.RunnerVolumesLive do
     if DateTime.before?(start, finish) and not DateTime.before?(start, earliest) and not DateTime.after?(finish, now) do
       %{selection | period: {start, finish}}
     else
-      DatePicker.date_picker_params(%{}, "analytics", default_preset: "last-7-days", default_days: 7)
+      DatePicker.date_picker_params(%{}, "analytics", defaults)
     end
   end
 

@@ -1,6 +1,6 @@
 defmodule Tuist.Runners.DockerCache do
   @moduledoc """
-  Reads behind the dashboard's Docker cache page. Each repository whose Linux
+  Reads behind the dashboard's Image cache page. Each repository whose Linux
   jobs use Docker has one `docker` cache volume (`Tuist.Runners.CacheVolumes`)
   holding its jobs' Docker data root: the images and build cache they pulled
   and built. Its saved head carries the image inventory its job reported.
@@ -14,7 +14,7 @@ defmodule Tuist.Runners.DockerCache do
   alias Tuist.Runners.JobSteps
 
   @step "Initialize containers"
-  @sampled_jobs 500
+  @sampled_jobs 2_000
 
   # A use reused saved data when its host restored some and its guest mounted
   # it, rather than formatting a data root it could not mount.
@@ -26,28 +26,30 @@ defmodule Tuist.Runners.DockerCache do
   end
 
   @doc """
-  The account's Docker data roots, most recently used first, and what reusing
-  them did during `period`.
+  The account's Docker data roots, most recently used first, with what reusing
+  each did during `period`. A cleared one is left out until a job uses it again.
   """
-  def overview(account_id, {_start, _finish} = period) do
-    repositories = repositories(account_id, nil, period)
-    uses = uses(account_id, nil, period)
+  def repositories(account_id, {_start, _finish} = period), do: repositories(account_id, nil, period)
 
-    %{
-      repositories: repositories,
-      saved_repositories: Enum.count(repositories, &(&1.status == :ready)),
-      images: repositories |> Enum.map(& &1.image_count) |> Enum.sum(),
-      saved_bytes: repositories |> Enum.map(&(&1.saved_bytes || 0)) |> Enum.sum(),
-      activity: activity(account_id, uses)
-    }
-  end
-
-  @doc "One repository's Docker data root, its images and its activity in `period`."
+  @doc "One repository's Docker data root and its images, or nil."
   def repository(account_id, volume_id, period) do
     case repositories(account_id, volume_id, period) do
-      [repository] -> Map.put(repository, :activity, activity(account_id, uses(account_id, volume_id, period)))
+      [repository] -> repository
       _ -> nil
     end
+  end
+
+  @doc """
+  How the account's Docker data roots, or one, were reused during `period`:
+  mounts and hit rate per hour or day, as for any cache volume, and the
+  Initialize containers step (average, p50, p90 and p99) of the jobs that
+  started from saved images, per hour or day, and of those that started cold.
+  """
+  def analytics(account_id, volume_id, period) do
+    %{
+      activity: CacheVolumes.usage_analytics(account_id, volume_id, period, key: CacheVolumes.docker_key()),
+      steps: steps(account_id, volume_id, period)
+    }
   end
 
   defp repositories(account_id, volume_id, period) do
@@ -55,7 +57,7 @@ defmodule Tuist.Runners.DockerCache do
       from(v in Volume,
         left_join: head in Usage,
         on: head.id == v.head_id,
-        where: v.account_id == ^account_id and v.key == ^CacheVolumes.docker_key(),
+        where: v.account_id == ^account_id and v.key == ^CacheVolumes.docker_key() and is_nil(v.deleted_at),
         order_by: [desc_nulls_last: v.last_used_at, asc: v.repository],
         select: {v, head}
       )
@@ -71,7 +73,9 @@ defmodule Tuist.Runners.DockerCache do
       %{
         id: volume.id,
         repository: volume.repository,
-        status: status(volume, head),
+        provider: volume.provider,
+        platform: volume.platform,
+        architecture: volume.architecture,
         images: images,
         image_count: length(images),
         saved_bytes: head && head.size_bytes,
@@ -84,10 +88,6 @@ defmodule Tuist.Runners.DockerCache do
       }
     end)
   end
-
-  defp status(%Volume{deleted_at: %DateTime{}}, _head), do: :cleared
-  defp status(_volume, %Usage{}), do: :ready
-  defp status(_volume, nil), do: :waiting
 
   defp images(%Usage{docker_images: %{"images" => images}}) when is_list(images) do
     Enum.map(images, fn image ->
@@ -127,9 +127,8 @@ defmodule Tuist.Runners.DockerCache do
     |> Map.new()
   end
 
-  # The jobs that mounted a Docker data root in the period, newest first, with
-  # whether they reused saved data.
-  defp uses(account_id, volume_id, {start, finish}) do
+  # The step medians overall and per bucket, over the period's most recent jobs.
+  defp steps(account_id, volume_id, {start, finish}) do
     query =
       from(u in Usage,
         join: v in Volume,
@@ -137,26 +136,55 @@ defmodule Tuist.Runners.DockerCache do
         where: v.account_id == ^account_id and v.key == ^CacheVolumes.docker_key(),
         where: not is_nil(u.attached_at) and u.attached_at >= ^start and u.attached_at <= ^finish,
         order_by: [desc: u.attached_at],
-        limit: ^(2 * @sampled_jobs),
-        select: {u.workflow_job_id, reused(u)}
+        limit: @sampled_jobs,
+        select: %{job: u.workflow_job_id, at: u.attached_at, reused: reused(u)}
       )
 
     query = if volume_id, do: from([u, v] in query, where: v.id == ^volume_id), else: query
-    Repo.all(query)
-  end
-
-  defp activity(account_id, uses) do
-    hits = for {job, true} <- uses, do: job
-    misses = for {job, warm} <- uses, warm != true, do: job
+    uses = Repo.all(query)
+    durations = JobSteps.durations_ms(account_id, uses |> Enum.map(& &1.job) |> Enum.uniq(), @step)
+    timed = for use <- uses, ms = durations[use.job], do: Map.put(use, :ms, ms)
+    {reused, cold} = Enum.split_with(timed, &(&1.reused == true))
 
     %{
-      uses: length(uses),
-      hits: length(hits),
-      hit_rate: hit_rate(length(hits), length(uses)),
-      hit_step_ms: JobSteps.median_duration_ms(account_id, Enum.take(hits, @sampled_jobs), @step),
-      miss_step_ms: JobSteps.median_duration_ms(account_id, Enum.take(misses, @sampled_jobs), @step)
+      reused: stats(Enum.map(reused, & &1.ms)),
+      cold: stats(Enum.map(cold, & &1.ms)),
+      points: step_points(reused, start, finish)
     }
   end
+
+  defp step_points(timed, start, finish) do
+    seconds = if DateTime.diff(finish, start) <= 2 * 86_400, do: 3600, else: 86_400
+    buckets = Enum.group_by(timed, &(div(DateTime.to_unix(&1.at), seconds) * seconds))
+    first_bucket = div(DateTime.to_unix(start), seconds) * seconds
+    last_bucket = div(DateTime.to_unix(finish), seconds) * seconds
+
+    Enum.map(first_bucket..last_bucket//seconds, fn timestamp ->
+      at = DateTime.from_unix!(timestamp)
+
+      buckets
+      |> Map.get(timestamp, [])
+      |> Enum.map(& &1.ms)
+      |> stats()
+      |> Map.put(:at, if(DateTime.before?(at, start), do: start, else: at))
+    end)
+  end
+
+  defp stats([]), do: %{avg: nil, p50: nil, p90: nil, p99: nil}
+
+  defp stats(values) do
+    sorted = Enum.sort(values)
+
+    %{
+      avg: round(Enum.sum(sorted) / length(sorted)),
+      p50: percentile(sorted, 0.5),
+      p90: percentile(sorted, 0.9),
+      p99: percentile(sorted, 0.99)
+    }
+  end
+
+  # Nearest-rank percentile of sorted values.
+  defp percentile(sorted, p), do: Enum.at(sorted, max(ceil(p * length(sorted)) - 1, 0))
 
   defp hit_rate(_hits, 0), do: nil
   defp hit_rate(hits, uses), do: Float.round(100 * hits / uses, 1)

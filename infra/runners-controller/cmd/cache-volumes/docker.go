@@ -135,3 +135,69 @@ func (a *agent) dockerInventory(slot cachevolumes.Slot) map[string]any {
 	}
 	return map[string]any{"images": images, "build_cache_bytes": report.BuildCacheBytes, "reset": report.Reset}
 }
+
+// dockerMergeBudget bounds offering a finished job the saved head, which may
+// download it. It runs after the job, so it delays only the pod's end.
+const dockerMergeBudget = 5 * time.Minute
+
+// serveDockerMerge offers a finished job's guest the lineage's saved head when
+// another job saved one since this job's data root was mounted, so the guest
+// merges its images with it and the host publishes the union instead of
+// withholding a superseded data root. Any other answer leaves the guest to
+// tear down as before.
+func (a *agent) serveDockerMerge(w http.ResponseWriter, r *http.Request) {
+	var input dockerRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&input); err != nil {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), dockerMergeBudget)
+	defer cancel()
+	if !a.runnerPod(ctx, r, input.PodName, input.PodUID) {
+		http.Error(w, "unavailable", http.StatusForbidden)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	none := map[string]any{"merge": false}
+	slot, ok := a.dockerSlot(input.PodUID)
+	if !ok || a.dockerHeads == nil || a.exposeDockerHead == nil {
+		_ = json.NewEncoder(w).Encode(none)
+		return
+	}
+	if a.dockerMerges != nil {
+		select {
+		case a.dockerMerges <- struct{}{}:
+			defer func() { <-a.dockerMerges }()
+		default:
+			_ = json.NewEncoder(w).Encode(none)
+			return
+		}
+	}
+	head, err := a.dockerHeads(slot)
+	if err != nil || head.BaseGeneration <= slot.BaseGeneration {
+		_ = json.NewEncoder(w).Encode(none)
+		return
+	}
+	done := a.observe.For(slot).Start("docker_merge_offer", "none")
+	err = a.exposeDockerHead(ctx, slot, filepath.Join(a.root, "pods", slot.PodUID, slot.Scope), head)
+	done(err)
+	if err != nil {
+		_ = json.NewEncoder(w).Encode(none)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{"merge": true, "source": slot.Scope + "/" + cachevolumes.DockerMergeImageName, "generation": head.BaseGeneration})
+}
+
+// dockerSlot is the pod's Docker data root while its job may still publish it.
+func (a *agent) dockerSlot(podUID string) (cachevolumes.Slot, bool) {
+	slots, err := a.store.Snapshot()
+	if err != nil {
+		return cachevolumes.Slot{}, false
+	}
+	for _, slot := range slots {
+		if slot.PodUID == podUID && slot.Kind == cachevolumes.KindDocker && slot.State == "active" && slot.CanPublish {
+			return slot, true
+		}
+	}
+	return cachevolumes.Slot{}, false
+}

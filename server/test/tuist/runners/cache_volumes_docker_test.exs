@@ -11,8 +11,10 @@ defmodule Tuist.Runners.CacheVolumesDockerTest do
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.CacheVolumes.Usage
   alias Tuist.Runners.CacheVolumes.Volume
+  alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.Profile
   alias Tuist.Runners.RunnerSession
+  alias Tuist.Runners.VolumeHeads
   alias Tuist.Runners.WorkflowJob
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -255,6 +257,59 @@ defmodule Tuist.Runners.CacheVolumesDockerTest do
       inventory = %{"images" => [], "build_cache_bytes" => 0}
       assert {:ok, _} = CacheVolumes.report("linux-node", custom.id, report(%{"docker" => inventory}))
       assert is_nil(Repo.get!(Usage, custom.id).docker_images)
+    end
+  end
+
+  describe "rebasing a merged data root" do
+    setup %{params: params} do
+      :ok = CacheVolumes.mark_docker_seen(params)
+      {:ok, docker} = CacheVolumes.allocate_docker(params)
+      volume = Repo.get!(Volume, Repo.get!(Usage, docker.id).volume_id)
+      content = String.duplicate("c", 64)
+
+      {:ok, _} =
+        VolumeHeads.bump_head(
+          volume.account_id,
+          "other-node",
+          String.duplicate("b", 40),
+          0,
+          CacheVolumes.storage_name(volume), content_digest: content)
+
+      %{docker: docker, content: content}
+    end
+
+    defp rebase(id, generation, content) do
+      CacheVolumes.image("linux-node", id, %{
+        "operation" => "rebase",
+        "generation" => generation,
+        "image_digest" => String.duplicate("b", 40),
+        "content_digest" => content
+      })
+    end
+
+    defp complete(job, conclusion \\ "success") do
+      Repo.insert!(%JobCompletion{
+        workflow_job_id: job.workflow_job_id,
+        account_id: job.account_id,
+        conclusion: conclusion,
+        completed_at: DateTime.truncate(DateTime.utc_now(), :second)
+      })
+    end
+
+    test "moves a successful job's use onto the head another job saved", %{docker: docker, content: content, job: job} do
+      complete(job)
+
+      assert {:ok, %{generation: 1}} = rebase(docker.id, 1, content)
+      assert %{base_generation: 1} = Repo.get!(Usage, docker.id)
+    end
+
+    test "refuses anything but the current head of a successful job", %{docker: docker, content: content, job: job} do
+      assert {:error, :conflict} = rebase(docker.id, 1, content)
+
+      complete(job)
+      assert {:error, :conflict} = rebase(docker.id, 2, content)
+      assert {:error, :conflict} = rebase(docker.id, 1, String.duplicate("d", 64))
+      assert %{base_generation: 0} = Repo.get!(Usage, docker.id)
     end
   end
 end

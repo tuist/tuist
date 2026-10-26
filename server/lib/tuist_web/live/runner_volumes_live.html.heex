@@ -19,9 +19,9 @@
         variant="secondary"
         size="medium"
         label={dgettext("dashboard_runners", "Images")}
-        navigate={~p"/#{@selected_account.name}/runners/docker-cache/#{@selected.id}"}
+        navigate={~p"/#{@selected_account.name}/runners/images/#{@selected.id}"}
       >
-        <:icon_left><.brand_docker /></:icon_left>
+        <:icon_left><.package /></:icon_left>
       </.button>
     </div>
     <div :if={@can_manage} data-part="actions">

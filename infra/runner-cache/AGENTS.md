@@ -304,3 +304,13 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   (`kindMaxVolumeBytes`, `HTTPTransfer.maxBytes`), and admission expects its saved
   bytes plus `DockerGrowthBytes`. Empty images are formatted with
   `dockerFormatArgs` so the guest's kernel has no background zeroing to do.
+- A Docker branch whose lineage another job saved since it was mounted is merged,
+  not lost: `ExposeDockerHead` clones that head (downloading it when this host
+  lacks it) next to the branch as `.merge`, records it in `.merge.json` and links
+  it into the pod's directory as `head.img`; the guest loads the images only one
+  side keeps into the other. A report naming `merged_generation` and
+  `merged_into` (`sealDockerMerge`) must name the head this host offered; a
+  merge into `head` renames the clone over the branch after the same inode and
+  superblock checks, then the use is rebased on the server (`Rebaser`, the
+  `rebase` image operation; a conflict is `ErrSuperseded`) and published as any
+  branch. Without a merge a branch whose HEAD moved stays `ErrSuperseded`.

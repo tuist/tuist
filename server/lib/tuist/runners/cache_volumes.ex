@@ -1175,6 +1175,38 @@ defmodule Tuist.Runners.CacheVolumes do
     end
   end
 
+  # A finished Docker job's guest merged its data root with the head another job
+  # saved since it was mounted, so the use takes that head as its base and its
+  # publication fast-forwards it. Only a successful job's use that may still
+  # publish moves, and only onto the lineage's current head.
+  defp image_action(%Volume{key: @docker_key} = volume, usage, %{
+         "operation" => "rebase",
+         "generation" => generation,
+         "image_digest" => digest,
+         "content_digest" => content
+       })
+       when is_integer(generation) and generation > 0 do
+    if not valid_image_digests?(digest, content), do: Repo.rollback(:invalid_digest)
+
+    if not rebase_viable?(volume, usage, generation), do: Repo.rollback(:conflict)
+
+    case VolumeHeads.get_head(volume.account_id, storage_name(volume)) do
+      %{generation: ^generation, content_digest: ^content} ->
+        Repo.update!(Ecto.Changeset.change(usage, base_generation: generation, parent_id: volume.head_id))
+        %{generation: generation}
+
+      _ ->
+        Repo.rollback(:conflict)
+    end
+  end
+
+  defp rebase_viable?(volume, usage, generation) do
+    completion = Repo.get_by(JobCompletion, workflow_job_id: usage.workflow_job_id, account_id: volume.account_id)
+
+    not retired_image?(volume, usage) and usage.can_publish and usage.status not in ["published", "discarded"] and
+      generation > usage.base_generation and not is_nil(completion) and completion.conclusion == "success"
+  end
+
   # A host that gives up on a multipart upload discards its parts. Nothing about
   # the use matters: the upload names an object only this use could publish.
   defp image_action(volume, _usage, %{
@@ -1724,7 +1756,13 @@ defmodule Tuist.Runners.CacheVolumes do
 
   def usage_analytics(account_id, period), do: usage_analytics(account_id, nil, period)
 
-  def usage_analytics(account_id, volume_id, {start, finish}) do
+  @doc """
+  Mounts in `period` per hour or day, and how many reused saved data: the
+  account's, one volume's, or with `key:` only volumes with that key. A Docker
+  data root its guest formatted empty because it could not mount the saved one
+  counts as a miss.
+  """
+  def usage_analytics(account_id, volume_id, {start, finish}, opts \\ []) do
     {bucket, seconds} = if DateTime.diff(finish, start) <= 2 * 86_400, do: {"hour", 3600}, else: {"day", 86_400}
 
     mounts =
@@ -1735,11 +1773,13 @@ defmodule Tuist.Runners.CacheVolumes do
         where: u.attached_at >= ^start and u.attached_at <= ^finish,
         select: %{
           at: type(fragment("date_trunc(?, ? AT TIME ZONE 'UTC')", ^bucket, u.attached_at), :utc_datetime),
-          warm: u.warm
+          warm: u.warm,
+          reset: fragment("coalesce((?->>'reset')::boolean, false)", u.docker_images)
         }
       )
 
     mounts = if volume_id, do: where(mounts, [u, v], v.id == ^volume_id), else: mounts
+    mounts = if opts[:key], do: where(mounts, [u, v], v.key == ^opts[:key]), else: mounts
 
     rows =
       Repo.all(
@@ -1748,7 +1788,7 @@ defmodule Tuist.Runners.CacheVolumes do
           select: %{
             at: u.at,
             uses: count(),
-            hits: filter(count(), u.warm == true),
+            hits: filter(count(), u.warm == true and not u.reset),
             known: count(u.warm)
           }
         )

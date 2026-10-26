@@ -368,3 +368,17 @@ func TestMountBrokerWithoutSupervisorRefusesDockerRequests(t *testing.T) {
 		t.Fatal("a broker without a supervisor accepted a docker request")
 	}
 }
+
+func TestParseDockerMessageAcceptsAMergeOnlyOnTeardown(t *testing.T) {
+	for message, want := range map[string]bool{
+		`{"docker":"teardown","merge":"scope/head.img","generation":4}`: true,
+		`{"docker":"teardown"}`: true,
+		`{"docker":"switch","source":"scope/docker.img","merge":"scope/head.img","generation":4}`: false,
+		`{"docker":"teardown","merge":"scope/head.img"}`:                                          false,
+		`{"docker":"teardown","generation":4}`:                                                    false,
+	} {
+		if _, ok := parseDockerMessage([]byte(message)); ok != want {
+			t.Errorf("%s parsed %t", message, ok)
+		}
+	}
+}

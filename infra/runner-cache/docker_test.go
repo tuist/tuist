@@ -287,3 +287,169 @@ func TestDockerSealSkipsADataRootAnotherJobSuperseded(t *testing.T) {
 		t.Fatalf("seal = %v, uploads %d", err, remote.uploads)
 	}
 }
+
+type dockerMergeTransfer struct {
+	*testTransfer
+	rebased  []int64
+	conflict bool
+}
+
+func (t *dockerMergeTransfer) Rebase(slot Slot) error {
+	if t.conflict {
+		return ErrConflict
+	}
+	t.rebased = append(t.rebased, slot.BaseGeneration)
+	return nil
+}
+
+func savedDockerHead(generation int64) Identity {
+	return Identity{BaseGeneration: generation, ImageDigest: strings.Repeat("b", 40), ContentDigest: strings.Repeat("c", 64)}
+}
+
+// writeDockerHeadMaster saves a head of the slot's lineage on this host.
+func writeDockerHeadMaster(t *testing.T, b *LocalImages, slot Slot, head Identity) {
+	t.Helper()
+	saved := slot
+	saved.BaseGeneration, saved.ImageDigest, saved.ContentDigest = head.BaseGeneration, head.ImageDigest, head.ContentDigest
+	if err := os.MkdirAll(filepath.Dir(b.master(saved)), 0700); err != nil {
+		t.Fatal(err)
+	}
+	writeSuperblock(t, b.master(saved), 1, 0, 0)
+}
+
+func mergingDocker(t *testing.T, head Identity) (*LocalImages, *dockerMergeTransfer, Slot, string) {
+	t.Helper()
+	b, remote := newLocal(t)
+	remote.generation = head.BaseGeneration + 1
+	transfer := &dockerMergeTransfer{testTransfer: remote}
+	b.Transfer = transfer
+	slot := dockerSlot(first)
+	path := attachDocker(t, b, slot)
+	writeSuperblock(t, b.image(slot), 1, 0, 0)
+	writeDockerHeadMaster(t, b, slot, head)
+	if err := b.ExposeDockerHead(context.Background(), slot, path, head); err != nil {
+		t.Fatal(err)
+	}
+	return b, transfer, slot, path
+}
+
+func TestDockerExposesACloneOfTheSavedHeadToMergeWith(t *testing.T) {
+	head := savedDockerHead(3)
+	b, _, slot, path := mergingDocker(t, head)
+	link := filepath.Join(path, DockerMergeImageName)
+	saved := slot
+	saved.BaseGeneration, saved.ImageDigest, saved.ContentDigest = head.BaseGeneration, head.ImageDigest, head.ContentDigest
+	if !sameFile(b.image(slot)+".merge", link) || sameFile(b.master(saved), link) {
+		t.Fatal("the guest was not given its own clone of the saved head")
+	}
+	if err := b.ExposeDockerHead(context.Background(), slot, path, head); err != nil || !sameFile(b.image(slot)+".merge", link) {
+		t.Fatalf("offering the same head again: %v", err)
+	}
+}
+
+func TestDockerDownloadsTheSavedHeadToMergeWith(t *testing.T) {
+	b, remote := newLocal(t)
+	slot := dockerSlot(first)
+	path := attachDocker(t, b, slot)
+	source := filepath.Join(t.TempDir(), "head.img")
+	writeSuperblock(t, source, 1, 0, 0)
+	remote.source = source
+	if err := b.ExposeDockerHead(context.Background(), slot, path, savedDockerHead(3)); err != nil {
+		t.Fatal(err)
+	}
+	if remote.downloads != 1 || !sameFile(b.image(slot)+".merge", filepath.Join(path, DockerMergeImageName)) {
+		t.Fatalf("downloads = %d", remote.downloads)
+	}
+}
+
+func TestDockerSealPublishesAMergeRebasedOntoTheSavedHead(t *testing.T) {
+	for _, into := range []string{"head", "branch"} {
+		t.Run(into, func(t *testing.T) {
+			b, transfer, slot, path := mergingDocker(t, savedDockerHead(3))
+			merged := b.image(slot)
+			if into == "head" {
+				merged += ".merge"
+			}
+			writeSuperblock(t, merged, 1, 0, 0)
+			if f, err := os.OpenFile(merged, os.O_APPEND|os.O_WRONLY, 0); err == nil {
+				_, _ = f.WriteString("merged root")
+				f.Close()
+			}
+			writeDockerReport(t, path, DockerReport{Clean: true, Changed: true, MergedGeneration: 3, MergedInto: into})
+			if err := b.Seal(slot, path); err != nil {
+				t.Fatal(err)
+			}
+			if transfer.uploads != 1 || len(transfer.rebased) != 1 || transfer.rebased[0] != 3 {
+				t.Fatalf("uploads %d, rebased %v", transfer.uploads, transfer.rebased)
+			}
+			data, err := os.ReadFile(b.image(slot))
+			if err != nil || !strings.HasSuffix(string(data), "merged root") {
+				t.Fatalf("published the wrong data root: %v", err)
+			}
+		})
+	}
+}
+
+func TestDockerSealWithholdsAMergeTheHostCannotTrust(t *testing.T) {
+	for name, test := range map[string]struct {
+		report  DockerReport
+		prepare func(t *testing.T, b *LocalImages, transfer *dockerMergeTransfer, slot Slot, path string)
+		want    error
+	}{
+		"merged with a head the host did not offer": {
+			report: DockerReport{Clean: true, Changed: true, MergedGeneration: 4, MergedInto: "branch"},
+			want:   ErrWithheld,
+		},
+		"the head moved again": {
+			report: DockerReport{Clean: true, Changed: true, MergedGeneration: 3, MergedInto: "branch"},
+			prepare: func(_ *testing.T, _ *LocalImages, transfer *dockerMergeTransfer, _ Slot, _ string) {
+				transfer.conflict = true
+			},
+			want: ErrSuperseded,
+		},
+		"head clone replaced in the pod directory": {
+			report: DockerReport{Clean: true, Changed: true, MergedGeneration: 3, MergedInto: "head"},
+			prepare: func(t *testing.T, _ *LocalImages, _ *dockerMergeTransfer, _ Slot, path string) {
+				link := filepath.Join(path, DockerMergeImageName)
+				if err := os.Remove(link); err != nil {
+					t.Fatal(err)
+				}
+				writeSuperblock(t, link, 1, 0, 0)
+			},
+			want: ErrPoisoned,
+		},
+		"head clone not unmounted cleanly": {
+			report: DockerReport{Clean: true, Changed: true, MergedGeneration: 3, MergedInto: "head"},
+			prepare: func(t *testing.T, b *LocalImages, _ *dockerMergeTransfer, slot Slot, _ string) {
+				writeSuperblock(t, b.image(slot)+".merge", 1, 0x4, 0)
+			},
+			want: ErrPoisoned,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			b, transfer, slot, path := mergingDocker(t, savedDockerHead(3))
+			if test.prepare != nil {
+				test.prepare(t, b, transfer, slot, path)
+			}
+			writeDockerReport(t, path, test.report)
+			if err := b.Seal(slot, path); !errors.Is(err, test.want) {
+				t.Fatalf("seal = %v, want %v", err, test.want)
+			}
+			if transfer.uploads != 0 {
+				t.Fatal("published a merge the host could not trust")
+			}
+		})
+	}
+}
+
+func TestDockerDeleteRemovesTheOfferedHead(t *testing.T) {
+	b, _, slot, path := mergingDocker(t, savedDockerHead(3))
+	if err := b.Delete(slot, path); err != nil {
+		t.Fatal(err)
+	}
+	for _, leftover := range []string{".merge", ".merge.json"} {
+		if _, err := os.Stat(b.image(slot) + leftover); !os.IsNotExist(err) {
+			t.Fatalf("%s survived deletion", leftover)
+		}
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -149,6 +150,7 @@ func TestDockerTeardown(t *testing.T) {
 			sent, seen := false, false
 			result := dockerTeardown(statePath,
 				func(message dockerMessage) (string, error) { sent = message.Docker == "teardown"; return "ok", nil },
+				func() dockerMergeOffer { return dockerMergeOffer{} },
 				test.images,
 				func() error { seen = true; return nil })
 			if result != test.want || sent != test.sent || seen != test.seen {
@@ -269,5 +271,90 @@ func TestPlanDockerTeardownKeepsAPulledImageNewToTheLedger(t *testing.T) {
 	}
 	if len(plan.Remove) != 1 || plan.Remove[0] != loaded.ID {
 		t.Fatalf("removed %v", plan.Remove)
+	}
+}
+
+func TestDockerTeardownHandsTheOfferedHeadToTheSupervisor(t *testing.T) {
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	if err := writeDockerState(statePath, dockerHookState{Mounted: true}); err != nil {
+		t.Fatal(err)
+	}
+	source := dockerTestScope + "/" + dockerMergeImageName
+	for name, test := range map[string]struct {
+		offer dockerMergeOffer
+		want  dockerMessage
+	}{
+		"a head another job saved": {
+			offer: dockerMergeOffer{Merge: true, Source: source, Generation: 4},
+			want:  dockerMessage{Docker: "teardown", Merge: source, Generation: 4},
+		},
+		"no head to merge": {
+			want: dockerMessage{Docker: "teardown"},
+		},
+		"a source outside the cache directory": {
+			offer: dockerMergeOffer{Merge: true, Source: "../" + dockerMergeImageName, Generation: 4},
+			want:  dockerMessage{Docker: "teardown"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var sent dockerMessage
+			dockerTeardown(statePath,
+				func(message dockerMessage) (string, error) { sent = message; return "ok", nil },
+				func() dockerMergeOffer { return test.offer },
+				func() ([]string, error) { return nil, nil },
+				func() error { return nil })
+			if sent != test.want {
+				t.Fatalf("sent %+v", sent)
+			}
+		})
+	}
+}
+
+func TestPlanDockerMergeMovesTheSmallerSide(t *testing.T) {
+	flutter := dockerImage{ID: dockerID("a"), Size: 6_000_000_000}
+	postgres := dockerImage{ID: dockerID("b"), Size: 450_000_000}
+	alpine := dockerImage{ID: dockerID("c"), Size: 8_000_000}
+	for name, test := range map[string]struct {
+		branch, head []dockerImage
+		want         dockerMergePlan
+	}{
+		"a small new image goes into the saved head": {
+			branch: []dockerImage{postgres, alpine},
+			head:   []dockerImage{postgres, flutter},
+			want:   dockerMergePlan{Into: "head", Move: []string{alpine.ID}},
+		},
+		"the saved head's small images come into a large data root": {
+			branch: []dockerImage{postgres, flutter},
+			head:   []dockerImage{postgres, alpine},
+			want:   dockerMergePlan{Into: "branch", Move: []string{alpine.ID}},
+		},
+		"nothing the head lacks": {
+			branch: []dockerImage{postgres},
+			head:   []dockerImage{postgres, flutter},
+			want:   dockerMergePlan{},
+		},
+		"an empty head": {
+			branch: []dockerImage{alpine},
+			want:   dockerMergePlan{Into: "branch"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := planDockerMerge(test.branch, test.head); !reflect.DeepEqual(got, test.want) {
+				t.Fatalf("plan %+v", got)
+			}
+		})
+	}
+}
+
+func TestMergeDockerLedgersKeepsTheMovedImagesHistory(t *testing.T) {
+	used := time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)
+	into := dockerLedger{dockerID("a"): {LastUsedAt: used, Pulled: true}}
+	from := dockerLedger{dockerID("b"): {LastUsedAt: used.Add(time.Hour), Pulled: true}, dockerID("c"): {LastUsedAt: used}}
+	merged := mergeDockerLedgers(into, from, []string{dockerID("b")})
+	if len(merged) != 2 || !merged[dockerID("b")].Pulled || !merged[dockerID("a")].Pulled {
+		t.Fatalf("merged %v", merged)
+	}
+	if _, ok := into[dockerID("b")]; ok {
+		t.Fatal("merging changed the ledger it started from")
 	}
 }

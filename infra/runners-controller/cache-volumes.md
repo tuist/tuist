@@ -499,6 +499,11 @@ The agent:
   guest's clean-unmount report, the same inode at the pod's link and an ext4
   superblock with no journal to recover and no errors, and withholds an unchanged
   data root or one above 30 GB.
+- answers `POST /docker-merge` from the live runner pod after its job: when the
+  lineage's HEAD moved past the job's base it offers that HEAD's clone as
+  `<scope>/head.img` (`ExposeDockerHead`, up to five minutes with a download, two
+  at a time), so the guest merges the job's images with it before publishing;
+  otherwise it answers no merge.
 
 Staging enables it on every Linux pool (`values-managed-staging.yaml`). The
 server gates it per account with `:runner_docker_cache` on canary and

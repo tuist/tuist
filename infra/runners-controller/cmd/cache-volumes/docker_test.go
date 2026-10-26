@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -157,5 +158,45 @@ func TestDockerReportCarriesTheFinishedInventory(t *testing.T) {
 	inventory, ok := server.reports[1]["docker"].(map[string]any)
 	if !ok || inventory["build_cache_bytes"] != float64(7) || inventory["reset"] != true || len(inventory["images"].([]any)) != 1 {
 		t.Fatalf("reported %v", server.reports[1])
+	}
+}
+
+func TestDockerMergeOffersTheHeadAnotherJobSaved(t *testing.T) {
+	a, _ := dockerAgent(t, http.StatusOK)
+	requestDocker(t, a, "/docker", "10.0.0.5")
+	head := cachevolumes.Identity{BaseGeneration: 2, ImageDigest: strings.Repeat("b", 40), ContentDigest: strings.Repeat("c", 64)}
+	var exposed []string
+	a.dockerHeads = func(cachevolumes.Slot) (cachevolumes.Identity, error) { return head, nil }
+	a.exposeDockerHead = func(_ context.Context, slot cachevolumes.Slot, path string, offered cachevolumes.Identity) error {
+		if offered != head || slot.ID != dockerUse {
+			t.Fatalf("offered %v for %v", offered, slot.ID)
+		}
+		exposed = append(exposed, path)
+		return nil
+	}
+	code, response := requestDocker(t, a, "/docker-merge", "10.0.0.5")
+	if code != http.StatusOK || response["merge"] != true || response["generation"] != float64(2) || response["source"] != strings.Repeat("e", 64)+"/"+cachevolumes.DockerMergeImageName {
+		t.Fatalf("%d %v", code, response)
+	}
+	if len(exposed) != 1 || exposed[0] != filepath.Join(a.root, "pods", "uid", strings.Repeat("e", 64)) {
+		t.Fatalf("exposed %v", exposed)
+	}
+}
+
+func TestDockerMergeOffersNothingWhenNoOtherJobSaved(t *testing.T) {
+	a, _ := dockerAgent(t, http.StatusOK)
+	requestDocker(t, a, "/docker", "10.0.0.5")
+	a.dockerHeads = func(slot cachevolumes.Slot) (cachevolumes.Identity, error) {
+		return cachevolumes.Identity{BaseGeneration: slot.BaseGeneration}, nil
+	}
+	a.exposeDockerHead = func(context.Context, cachevolumes.Slot, string, cachevolumes.Identity) error {
+		t.Fatal("offered the head the job started from")
+		return nil
+	}
+	if code, response := requestDocker(t, a, "/docker-merge", "10.0.0.5"); code != http.StatusOK || response["merge"] != false {
+		t.Fatalf("%d %v", code, response)
+	}
+	if code, _ := requestDocker(t, a, "/docker-merge", "10.0.0.9"); code != http.StatusForbidden {
+		t.Fatalf("another pod's request answered %d", code)
 	}
 }

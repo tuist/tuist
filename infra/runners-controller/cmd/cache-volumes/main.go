@@ -49,7 +49,12 @@ type agent struct {
 	exports                                chan struct{}
 	checkoutRequests                       chan struct{}
 	dockerRequests                         chan struct{}
-	executionWaits                         cachevolumes.ExecutionWaits
+	// dockerMerges bounds concurrent offers of a saved head to finished jobs;
+	// dockerHeads and exposeDockerHead read the lineage's head and clone it.
+	dockerMerges     chan struct{}
+	dockerHeads      func(cachevolumes.Slot) (cachevolumes.Identity, error)
+	exposeDockerHead func(context.Context, cachevolumes.Slot, string, cachevolumes.Identity) error
+	executionWaits   cachevolumes.ExecutionWaits
 	// maxVolumeBytes is the largest volume this host accepts.
 	maxVolumeBytes int64
 	// log receives server request retries; nil is slog.Default.
@@ -78,6 +83,9 @@ func (a *agent) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	case r.Method == "POST" && r.URL.Path == "/docker-seen":
 		a.serveDockerSeen(w, r)
+		return
+	case r.Method == "POST" && r.URL.Path == "/docker-merge":
+		a.serveDockerMerge(w, r)
 		return
 	case r.Method != "POST" || r.URL.Path != "/acquire":
 		http.NotFound(w, r)
@@ -291,7 +299,7 @@ func main() {
 	}
 	store.MaxSlots = *maxSlots
 	store.MaxVolumeBytes = maxBytes
-	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), dockerRequests: make(chan struct{}, 4), prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, local: backend.HasMaster, observe: metrics.observe}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client, log: metrics.logger}
+	a := &agent{maxVolumeBytes: maxBytes, checkouts: checkouts, space: space, exports: make(chan struct{}, 2), checkoutRequests: make(chan struct{}, 4), dockerRequests: make(chan struct{}, 4), dockerMerges: make(chan struct{}, 2), dockerHeads: transfer.Head, exposeDockerHead: backend.ExposeDockerHead, prefetch: &prefetcher{slots: make(chan struct{}, 1), restore: backend.Prefetch, local: backend.HasMaster, observe: metrics.observe}, observe: metrics.observe, tokenPath: *tokenPath, requests: make(chan struct{}, 4), store: store, root: *root, kube: kube, namespace: *namespace, node: *node, kubelet: *kubelet, authorizeURL: *url, http: client, log: metrics.logger}
 	runtimeConn, err := grpc.NewClient(*runtimeEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatal(err)
