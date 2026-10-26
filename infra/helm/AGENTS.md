@@ -21,6 +21,11 @@ Helm-installed resource; publishing it is a separate rollout step.
 
 ## Conventions
 
+- Canary's Linux runner fleet selects one RISE-M in Gravelines. Prepare its OS
+  and fleet SSH key before adoption. The fleet uses OnDelete, so deploying the
+  offer change preserves the old RISE-S until an explicit drained replacement.
+  Do not enroll the ordinary runner template into vRack as part of this swap.
+
 - Xcode 27.1 RC retirement requires the additive stable chart already deployed
   and a published versioned runner image containing stable. Keep 26.6 as the
   default. Follow the prerequisites, rollback floor and required
