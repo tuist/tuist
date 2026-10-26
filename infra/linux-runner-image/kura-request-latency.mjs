@@ -39,7 +39,7 @@ const paths = Object.fromEntries(Object.keys(endpoints).map(mode => {
 const agents = Object.fromEntries(Object.keys(endpoints).map(mode =>
   [mode, new http.Agent({ keepAlive: true, maxSockets: 1, maxFreeSockets: 1 })]));
 const csv = `${directory}/requests.csv`;
-writeFileSync(csv, 'connection,operation,mode,sample,status,reused_socket,ttfb_ms,total_ms,body_bytes\n');
+writeFileSync(csv, 'connection,operation,mode,sample,status,reused_socket,ttfb_ms,total_ms,body_bytes,lookup_ms,connect_ms\n');
 writeFileSync(`${directory}/environment.json`, JSON.stringify({
   endpoints, runner: process.env.RUNNER_NAME, run: process.env.GITHUB_RUN_ID,
   revision: process.env.GITHUB_SHA, node: process.version, samples: 100,
@@ -50,6 +50,8 @@ writeFileSync(`${directory}/environment.json`, JSON.stringify({
 
 function request(mode, connection, method, path, body) {
   const start = performance.now();
+  let lookup = null;
+  let connect = null;
   return new Promise((resolve, reject) => {
     const headers = path === '/up' ? {} : { Authorization: `Bearer ${token}` };
     if (body) {
@@ -66,7 +68,12 @@ function request(mode, connection, method, path, body) {
       res.on('error', reject);
       res.on('end', () => resolve({ status: res.statusCode, headers: res.headers,
         reused: req.reusedSocket, ttfb, total: performance.now() - start,
-        body: Buffer.concat(chunks) }));
+        body: Buffer.concat(chunks), lookup, connect }));
+    });
+    req.on('socket', socket => {
+      if (!socket.connecting) return;
+      socket.once('lookup', () => { lookup = performance.now() - start; });
+      socket.once('connect', () => { connect = performance.now() - start; });
     });
     req.on('error', () => reject(new Error(`${mode} ${method} request failed`)));
     req.end(body);
@@ -99,7 +106,8 @@ try {
           if (sample <= 0) continue;
           assert.equal(r.reused, connection === 'persistent', 'Unexpected connection reuse');
           appendFileSync(csv, [connection, probe.name, mode, sample, r.status,
-            r.reused, r.ttfb.toFixed(6), r.total.toFixed(6), r.body.length].join(',') + '\n');
+            r.reused, r.ttfb.toFixed(6), r.total.toFixed(6), r.body.length,
+            r.lookup?.toFixed(6) ?? '', r.connect?.toFixed(6) ?? ''].join(',') + '\n');
         }
       }
       console.log(`Completed ${connection}/${probe.name}: 100 validated requests per endpoint`);

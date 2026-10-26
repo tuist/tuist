@@ -4,20 +4,22 @@ import { pathToFileURL } from 'node:url';
 
 export function summarize(path) {
   const [header, ...lines] = readFileSync(path, 'utf8').trim().split('\n');
-  assert.equal(header, 'connection,operation,mode,sample,status,reused_socket,ttfb_ms,total_ms,body_bytes');
+  assert.equal(header, 'connection,operation,mode,sample,status,reused_socket,ttfb_ms,total_ms,body_bytes,lookup_ms,connect_ms');
   assert.equal(lines.length, 1600);
   const operations = ['health', 'metadata_hit', 'metadata_miss', 'read_1k'];
   const rows = lines.map(line => {
-    const [connection, operation, mode, sample, status, reused, ttfb, total, bytes] = line.split(',');
+    const [connection, operation, mode, sample, status, reused, ttfb, total, bytes, lookup, connect] = line.split(',');
     assert(['persistent', 'fresh'].includes(connection) && operations.includes(operation));
     assert(['pn', 'wan'].includes(mode));
     assert(Number.isInteger(Number(sample)) && Number(sample) >= 1 && Number(sample) <= 100);
     assert.equal(Number(status), operation === 'metadata_miss' ? 404 : 200);
     assert.equal(reused, String(connection === 'persistent'));
-    assert(Number(ttfb) > 0 && Number(total) >= Number(ttfb));
+    assert(Number.isFinite(Number(total)) && Number(ttfb) > 0 && Number(total) >= Number(ttfb));
+    if (connection === 'persistent') assert(lookup === '' && connect === '');
+    else assert(Number(lookup) > 0 && Number(connect) >= Number(lookup) && Number(ttfb) >= Number(connect));
     if (operation.startsWith('metadata')) assert.equal(Number(bytes), 0);
     if (operation === 'read_1k') assert.equal(Number(bytes), 1024);
-    return { connection, operation, mode, sample, ttfb: Number(ttfb), total: Number(total) };
+    return { connection, operation, mode, sample, ttfb: Number(ttfb), total: Number(total), lookup: Number(lookup), connect: Number(connect) };
   });
   assert.equal(new Set(rows.map(r => [r.connection, r.operation, r.mode, r.sample].join('/'))).size, 1600);
   const table = [
@@ -32,6 +34,16 @@ export function summarize(path) {
       return `${((values[49] + values[50]) / 2).toFixed(3)} / ${values[94].toFixed(3)} ms`;
     });
     table.push(`| ${connection} | ${operation} | ${columns.join(' | ')} |`);
+  }
+  table.push('', '| Fresh-connection phase | WAN median | PN median |', '| --- | --- | --- |');
+  for (const phase of ['lookup', 'tcp', 'response']) {
+    const columns = ['wan', 'pn'].map(mode => {
+      const values = rows.filter(r => r.connection === 'fresh' && r.mode === mode)
+        .map(r => phase === 'lookup' ? r.lookup : phase === 'tcp' ? r.connect - r.lookup : r.total - r.connect)
+        .sort((a, b) => a - b);
+      return ((values[199] + values[200]) / 2).toFixed(3) + ' ms';
+    });
+    table.push('| ' + phase + ' | ' + columns.join(' | ') + ' |');
   }
   return table.join('\n');
 }
