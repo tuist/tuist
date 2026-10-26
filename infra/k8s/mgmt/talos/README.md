@@ -20,8 +20,9 @@ which prints the planned changes before applying them.
 
 ## Adding a control-plane node
 
-Add the node to `nodes` in `hetzner.yaml` with the next free private IP. On
-merge:
+Add the node to `nodes` in `hetzner.yaml` with the next free private IP, and a
+`location` if it should not be in the top-level one (any location in the
+network's eu-central zone works). On merge:
 
 1. The `hetzner` job creates the server from the Talos snapshot in `server`,
    powered off, attaches it to the network at its private IP, and powers it on.

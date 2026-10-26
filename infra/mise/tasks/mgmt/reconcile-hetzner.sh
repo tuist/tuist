@@ -57,7 +57,7 @@ yq -e '
   (.server.image | tag == "!!str") and
   (.server.firewall | tag == "!!str") and
   (.server.placementGroup | tag == "!!str") and
-  (.nodes | (tag == "!!seq" and length > 0 and all_c((.name | tag == "!!str") and (.privateIP | tag == "!!str"))))
+  (.nodes | (tag == "!!seq" and length > 0 and all_c((.name | tag == "!!str") and (.privateIP | tag == "!!str") and ((.location // "") | tag == "!!str"))))
 ' "$SPEC" >/dev/null || fail "$SPEC is missing a field or has one of the wrong type"
 
 spec() { yq -r "$1" "$SPEC"; }
@@ -83,6 +83,8 @@ firewall_name="$(spec .server.firewall)"
 placement_group_name="$(spec .server.placementGroup)"
 read -r -a nodes <<<"$(spec '[.nodes[].name] | join(" ")')"
 read -r -a node_ips <<<"$(spec '[.nodes[].privateIP] | join(" ")')"
+# shellcheck disable=SC2016 # $s is a yq variable.
+read -r -a node_locations <<<"$(spec '. as $s | [.nodes[] | .location // $s.location] | join(" ")')"
 
 network_zone="$(hcloud location describe "$location" -o json | jq -r .network_zone)"
 
@@ -123,11 +125,12 @@ servers=()
 for i in "${!nodes[@]}"; do
   node="${nodes[$i]}"
   node_ip="${node_ips[$i]}"
+  node_location="${node_locations[$i]}"
   server="$(hcloud server list -o json | jq --arg n "$node" '.[] | select(.name == $n)')"
 
   if [[ -z "$server" ]]; then
     [[ -n "$image_id" ]] || fail "creating server $node needs exactly one snapshot described $server_image"
-    change server create --name "$node" --type "$server_type" --image "$image_id" --location "$location" \
+    change server create --name "$node" --type "$server_type" --image "$image_id" --location "$node_location" \
       --firewall "$firewall_name" --placement-group "$placement_group_name" \
       --label "$LABEL" --label purpose=mgmt-cluster --start-after-create=false
     change server attach-to-network "$node" --network "$network_name" --ip "$node_ip"
@@ -138,6 +141,9 @@ for i in "${!nodes[@]}"; do
     continue
   fi
 
+  if [[ "$(jq -r .location.name <<<"$server")" != "$node_location" ]]; then
+    fail "server $node is in $(jq -r .location.name <<<"$server"), the spec says $node_location; Hetzner cannot move it"
+  fi
   attached_ip="$(jq -r --argjson id "${network_id:-0}" '.private_net[]? | select(.network == $id) | .ip' <<<"$server")"
   if [[ -z "$attached_ip" ]]; then
     change server attach-to-network "$node" --network "$network_name" --ip "$node_ip"
@@ -146,9 +152,6 @@ for i in "${!nodes[@]}"; do
   fi
   if [[ "$(jq -r '.protection.delete and .protection.rebuild' <<<"$server")" != "true" ]]; then
     change server enable-protection "$node" delete rebuild
-  fi
-  if [[ "$(jq -r '.placement_group.name // ""' <<<"$server")" != "$placement_group_name" ]]; then
-    echo "note: server $node is not in placement group $placement_group_name; Hetzner adds a server only while it is powered off"
   fi
   servers+=("$(hcloud server describe "$node" -o json)")
 done
