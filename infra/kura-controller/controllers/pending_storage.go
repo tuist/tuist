@@ -41,7 +41,7 @@ func (r *KuraInstanceReconciler) replacePendingPodsForStorageDecrease(ctx contex
 	for _, container := range sts.Spec.Template.Spec.Containers {
 		if container.Name == "kura" {
 			kuraContainers++
-			request := container.Resources.Requests[corev1.ResourceEphemeralStorage]
+			request := container.Resources.Requests[diskResource(instance)]
 			templateMatches = request.Cmp(desired) == 0
 		}
 	}
@@ -58,7 +58,7 @@ func (r *KuraInstanceReconciler) replacePendingPodsForStorageDecrease(ctx contex
 			continue
 		}
 		for _, container := range pod.Spec.Containers {
-			request := container.Resources.Requests[corev1.ResourceEphemeralStorage]
+			request := container.Resources.Requests[diskResource(instance)]
 			if container.Name != "kura" || request.Cmp(desired) <= 0 {
 				continue
 			}

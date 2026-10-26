@@ -489,12 +489,39 @@ func TestReplacePodsStrandedOnCPU(t *testing.T) {
 			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(f.instance, f.statefulSet(onDelete(), tc.template, tc.annotations), pod).Build()
 			r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
 
-			if err := r.replacePodsStrandedOnCPU(ctx, f.instance); err != nil {
+			if err := r.replacePodsStrandedOnResources(ctx, f.instance); err != nil {
 				t.Fatal(err)
 			}
 			if deleted := !objectExists(t, c, &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: pod.Name, Namespace: pod.Namespace}}); deleted != tc.wantDeleted {
 				t.Fatalf("deleted = %v, want %v", deleted, tc.wantDeleted)
 			}
 		})
+	}
+}
+
+func TestResizeHoldReplacesPodStrandedOnDisk(t *testing.T) {
+	for _, disk := range []corev1.ResourceName{corev1.ResourceEphemeralStorage, kuraDiskResource} {
+		for _, operatorPause := range []bool{false, true} {
+			f := newResizeHoldFixture(100)
+			if disk == kuraDiskResource {
+				f.instance.Spec.DiskResource = string(disk)
+			}
+			annotations := resizeHeld()
+			if operatorPause {
+				annotations = nil
+			}
+			sts := f.statefulSet(onDelete(), "100m", annotations)
+			sts.Spec.Template.Spec.Containers[0].Resources.Requests[disk] = resource.MustParse("32Gi")
+			pod := f.unscheduledPod(1, "100m", "Insufficient "+string(disk))
+			pod.Spec.Containers[0].Resources.Requests[disk] = resource.MustParse("64Gi")
+			c := fake.NewClientBuilder().WithScheme(meshTestScheme(t)).WithObjects(sts, pod).Build()
+			r := &KuraInstanceReconciler{Client: c}
+			if err := r.replacePodsStrandedOnResources(context.Background(), f.instance); err != nil {
+				t.Fatal(err)
+			}
+			if exists := objectExists(t, c, pod); exists != operatorPause {
+				t.Fatalf("disk=%s operatorPause=%v: pod exists=%v", disk, operatorPause, exists)
+			}
+		}
 	}
 }

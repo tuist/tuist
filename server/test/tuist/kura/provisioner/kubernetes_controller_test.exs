@@ -2140,6 +2140,25 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute revision(region) =~ "+encrypted-volumes-v1"
     end
 
+    test "LVM regions use the disk resource for plain and encrypted accounts with matching revisions" do
+      legacy = region_with_storage_class("scw-local-nvme")
+
+      region = %{
+        legacy
+        | provisioner_config:
+            Map.merge(legacy.provisioner_config, %{storage_class: "kura-lvm-nvme", disk_resource: "tuist.dev/kura-disk"})
+      }
+
+      for encrypted <- [false, true] do
+        stub(Tuist.FeatureFlags, :kura_encrypted_volumes_enabled?, fn _ -> encrypted end)
+        manifest = render(region)
+        assert manifest["spec"]["storageClassName"] == if(encrypted, do: "kura-encrypted-nvme", else: "kura-lvm-nvme")
+        assert manifest["spec"]["diskResource"] == "tuist.dev/kura-disk"
+        assert revision(region) == revision(legacy) <> "+lvm-volumes-v1"
+        assert KubernetesController.manifest_revision(%Server{account: %{name: "tuist"}}, region) == revision(region)
+      end
+    end
+
     test "keeps the BER1 rack on the node-local NVMe class" do
       assert %Regions{provisioner_config: %{encrypted_volumes: false}} = Regions.get("ber1-runners")
     end

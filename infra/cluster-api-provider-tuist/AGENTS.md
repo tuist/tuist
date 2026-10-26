@@ -3348,3 +3348,18 @@ scw apple-silicon server update <id> zone=<zone> name=tuist-pool-...
 
 - macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
   backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+
+## Kura LVM first-boot layout
+
+Fresh rented Linux cache hosts convert their installer's empty XFS `/data` md
+filesystem to the `kura-volumes` VG before quota setup and kubelet binds.
+`controllers/linux/kura_lvm_setup.sh` creates a 128 GiB XFS `data` LV with
+`prjquota`; the remaining extents back CSI volumes. It journals the source
+before wiping, resumes interrupted PV/VG/LV creation, and refuses a populated
+filesystem or an already-joined legacy host. Existing nodes require a reinstall.
+The Vultr conversion uses the same function for its detached non-ESP RAID leg;
+the root still loses its mirror, and conversion gates require the VG. Existing
+successful Vultr conversion records are not invalidated by this change.
+Rack bootstrap does not use this path. Machine deletion also reaps claims pinned
+by `topology.kura-volumes.tuist.dev/node`. See
+[LVM rollout](../kura-volumes-csi/lvm-rollout.md) for sequencing and rollback.

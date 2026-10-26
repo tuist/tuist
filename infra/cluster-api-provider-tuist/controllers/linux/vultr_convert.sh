@@ -29,7 +29,8 @@ fi
 # An existing /data is not proof of a good /data: one that is ext4, or mounted
 # without project quotas, would leave every cache volume unbounded. So skip the
 # conversion but always fall through to the gates below, which decide.
-if mountpoint -q /data; then
+if mountpoint -q /data || vgs kura-volumes >/dev/null 2>&1 || [ -f /var/lib/tuist/kura-lvm-device ]; then
+  kura_lvm_setup
   log "/data already mounted from $(findmnt -no SOURCE /data) ($(findmnt -no FSTYPE /data)); skipping the conversion"
 else
 
@@ -107,30 +108,15 @@ else
     mdadm --grow "$root_dev" --raid-devices=1 --force
   fi
 
-  wipefs -a "$data_leg"
-  # crc + project quotas: the quota program refuses anything that is not xfs with
-  # prjquota, and the ceiling it assigns comes straight from the PVC.
-  mkfs.xfs -f -m crc=1 "$data_leg"
-
-  mkdir -p /data
-  uuid="$(blkid -s UUID -o value "$data_leg")"
-  sed -i '\| /data |d' /etc/fstab
-  # nofail so a failed data disk cannot block boot -- placing /data off the ESP
-  # disk is only worth something if the box still comes up without it. The quota
-  # program then reports the volume as unbounded and kura_volume_quota_enforced
-  # goes to 0, which is the intended loud no-op rather than an unschedulable node.
-  # Pass 0 for the same reason: fsck must not hold boot on this filesystem.
-  echo "UUID=$uuid /data xfs defaults,prjquota,nofail,x-systemd.device-timeout=30s 0 0" >> /etc/fstab
-  systemctl daemon-reload
-  mount /data
-
-  # The array changed shape, so persist it or the next boot assembles the old one.
-  mdadm --detail --scan > /etc/mdadm/mdadm.conf
-  update-initramfs -u >/dev/null 2>&1
+  kura_lvm_setup "$data_leg"
 
   log "done"
 
 fi
+# Also persist the array after resuming a conversion interrupted after detach.
+mdadm --detail --scan > /etc/mdadm/mdadm.conf
+update-initramfs -u >/dev/null 2>&1
+
 # Verify rather than assume. These are exactly the conditions
 # tuist.kuraVolumeQuotaProgram checks, so a box that passes here is one the
 # self-join will accept, and a non-zero exit is the signal the caller acts on.
@@ -143,9 +129,10 @@ case ",$(findmnt -no OPTIONS /data 2>/dev/null)," in
   *,prjquota,*|*,pquota,*) ;;
   *) gate "/data has project quotas" FAIL; fail=1 ;;
 esac
+lvs kura-volumes/data >/dev/null 2>&1 || { gate "kura-volumes/data exists" FAIL; fail=1; }
 [ "$fail" -eq 0 ] || { log "converted layout does not satisfy the self-join gates"; exit 1; }
 
 # Machine-readable tail the reconciler parses into status.converted.
-echo "prep-vultr: RESULT device=$(findmnt -no SOURCE /data) fstype=$(findmnt -no FSTYPE /data) quota=true size=$(df -h /data | awk 'NR==2{print $2}')"
-log "all four gates pass"
+echo "prep-vultr: RESULT device=$(findmnt -no SOURCE /data) fstype=$(findmnt -no FSTYPE /data) quota=true vg=kura-volumes size=$(df -h /data | awk 'NR==2{print $2}')"
+log "all five gates pass"
 
