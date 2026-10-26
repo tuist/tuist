@@ -505,7 +505,7 @@ RJ45 ports at the back, LAN port 1 the middle one, LAN port 2 the right one.
 go build -o rack-bmc ./cmd/rack-bmc        # in infra/cluster-api-provider-tuist
 export RACK_BMC_PASSWORD=...               # the BMC's admin password
 ./rack-bmc -bmc https://<bmc> inventory    # serial, SMBIOS UUID, MACs, versions, TPM, Secure Boot
-./rack-bmc -bmc https://<bmc> check        # the BIOS against the baseline; exits 3 on drift
+./rack-bmc -bmc https://<bmc> check        # the BIOS, BMC and IPMI against the baseline; exits 3 on drift
 ./rack-bmc -bmc https://<bmc> power off && ./rack-bmc -bmc https://<bmc> apply && ./rack-bmc -bmc https://<bmc> power on
 ./rack-bmc -bmc https://<bmc> rotate Administrator <new-password-file
 ```
@@ -515,6 +515,26 @@ The baseline (`redfish.Baseline`): Restore AC Power Loss Power On
 (`NWSK000`, `NWSK001`, `NWSK006`), TPM on (`TCG001`), console redirection on
 COM2 for serial-over-LAN (`TER002`), and Secure Boot on with the factory keys,
 whose db holds Microsoft's UEFI CA 2011 and 2023, so Ubuntu's shim boots.
+
+The BMC's own baseline (`redfish.BMCBaseline`, and IPMI in `cmd/rack-bmc`):
+- **SSDP off.**
+- **The NC-SI sideband off** (`eth1`, which takes a DHCP lease of its own
+  through the host's LAN port 2), so the BMC is reachable only on its
+  management port.
+- **IPMI over LAN on cipher suite 17 alone** (HMAC-SHA256, AES-128); the BMC
+  ships taking the SHA-1, MD5 and unencrypted suites too.
+- **Serial-over-LAN forcing encryption and authentication.**
+
+The BMC and IPMI settings apply at once, with the host running. Redfish has
+no setting for the IPMI ones, so `rack-bmc` sets them through `ipmitool`
+(`-I lanplus -C 17`), which has to be installed. A BMC firmware update
+resets them, and the rotated logins and the network, unless the
+UpdateService's `PreserveConfiguration` flags, all off as shipped, are set
+first, so `check` again after one. SNMP is not in the baseline: this BMC keeps it on,
+and its version switches are read-only over Redfish, but with no community
+and no account enabled for SNMP, v1 and v2c answer nothing. IPMI 1.5
+(`-I lan`, MD5) cannot log in with a password longer than 16 bytes, which a
+rotated one is.
 
 What the BMC does differently from the standard:
 

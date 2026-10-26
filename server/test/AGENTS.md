@@ -141,3 +141,4 @@ This directory contains ExUnit tests for the Tuist Server.
 - Cold activation coverage must continue past regional readiness, synchronize stable intent without a minute tick, reject stale generations, stop for ineligible instances, and retain a bounded polling budget across snoozes and transient API failures.
 
 - Linux private-cache rollout regressions cover default-off behavior in every environment, actor isolation and global opt-outs, dispatch fallback with an existing active PN cache, admission requiring recent Linux jobs, and flag withdrawal/re-enrollment while jobs retain a draining endpoint.
+- Zero-hit secondary retirement tests cover ten complete reported UTC days, the exact instance-age boundary, unknown age, missing/duplicate reports, hits anywhere in the window or today, a surviving region with hits, primary exclusion, the rollout gate, and unchanged 28-day low-traffic retirement.
