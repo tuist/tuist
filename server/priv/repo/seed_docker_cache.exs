@@ -211,12 +211,20 @@ for {seed, index} <- Enum.with_index(repositories) do
       )
       |> Repo.update!()
 
-    Repo.insert!(%Measurement{
-      usage_id: head.id,
-      size_bytes: seed.saved_bytes,
-      capacity_bytes: 100 * gb,
-      observed_at: head.finished_at
-    })
+    # Every job's copy reports its size while it runs; the host deletes all but
+    # the saved head's after the job.
+    for use <- uses do
+      Repo.insert!(%Measurement{
+        usage_id: use.id,
+        size_bytes: seed.saved_bytes,
+        capacity_bytes: 100 * gb,
+        observed_at: DateTime.add(use.attached_at, 120, :second)
+      })
+
+      if use.id != head.id do
+        Repo.insert!(%Measurement{usage_id: use.id, deleted: true, observed_at: use.deleted_at})
+      end
+    end
 
     volume |> Ecto.Changeset.change(head_id: head.id) |> Repo.update!()
   end

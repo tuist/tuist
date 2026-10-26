@@ -14,8 +14,9 @@
       <div data-part="volume-icon"><.database /></div>
       <h1>{display_name(@selected)}</h1>
     </div>
-    <div :if={@selected.key == "docker"} data-part="actions">
+    <div data-part="actions">
       <.button
+        :if={@selected.key == "docker"}
         variant="secondary"
         size="medium"
         label={dgettext("dashboard_runners", "Images")}
@@ -23,9 +24,8 @@
       >
         <:icon_left><.package /></:icon_left>
       </.button>
-    </div>
-    <div :if={@can_manage} data-part="actions">
       <.button
+        :if={@can_manage}
         variant="secondary"
         size="medium"
         label={dgettext("dashboard_runners", "Clear volume")}
