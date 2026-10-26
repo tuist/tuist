@@ -326,6 +326,17 @@ defmodule Tuist.Docs.Sidebar do
             ]
           },
           %Item{
+            label: "Coverage",
+            slug: "/en/guides/features/test-insights/code-coverage",
+            items: [
+              %Item{
+                label: "Elixir",
+                slug: "/en/guides/features/test-insights/code-coverage/elixir",
+                icon: "brand_elixir"
+              }
+            ]
+          },
+          %Item{
             label: "Sharding",
             slug: "/en/guides/features/test-sharding",
             items: [

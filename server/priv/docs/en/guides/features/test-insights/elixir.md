@@ -36,7 +36,7 @@ The package collects results from ExUnit, including:
 - The branch and commit, and on continuous integration, the provider and the run
 - On continuous integration, the [Git history](#git-history) of the checkout
 
-Doctests are reported like any other test.
+Doctests are reported like any other test. With `--cover`, the run's line coverage is uploaded too: see <.localized_link href="/guides/features/test-insights/code-coverage/elixir">Elixir code coverage</.localized_link>.
 
 > [!NOTE]
 > The package reports through an ExUnit formatter that it adds next to the ones you already use. If you pass `--formatter` on the command line, Mix replaces the whole list, so the run is not reported and the task warns you about it.
