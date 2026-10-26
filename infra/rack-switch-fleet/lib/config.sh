@@ -557,6 +557,36 @@ fleet_check_site() {
   fleet_check_power "$site_file" || return 1
   fleet_check_lags "$site_file" || return 1
   fleet_check_contracted_power "$site_file" || return 1
+  fleet_check_power_budget "$site_file" || return 1
+}
+
+# The draw at which the site's Mac minis take no new runner VMs: a chain
+# (a transfer switch and its PDUs) at chain_amps, or all the switches together
+# at the contracted power in effect less other_watts, the gear that draws
+# outside them. Optional: a site without it holds nothing back. other_watts
+# below every contracted step, so each step leaves the chains a budget.
+fleet_check_power_budget() {
+  local site_file="$1" bad
+  bad="$(jq -r '
+    if .power_budget == null then empty else
+      .power_budget as $b |
+      [
+        ($b.chain_amps | select(type != "number" or . <= 0) |
+          "chain_amps \(tojson) is not a current in amperes above 0")
+      ] + [
+        ($b.other_watts // 0) | select(type != "number" or . < 0 or . != floor) |
+          "other_watts \(tojson) is not a whole number of watts, 0 or more"
+      ] + [
+        (.contracted_power // [])[] | select((($b.other_watts // 0) | type) == "number" and .watts <= ($b.other_watts // 0)) |
+          "other_watts \($b.other_watts) leaves the chains nothing of the \(.watts) W contracted from \(.from)"
+      ] | .[]
+    end
+  ' "$site_file")" || return 1
+  if [ -n "$bad" ]; then
+    echo "error: power_budget is wrong:" >&2
+    printf '  %s\n' "$bad" >&2
+    return 1
+  fi
 }
 
 # The colocation contract's power, as steps that each apply from a day (UTC)
@@ -1033,18 +1063,23 @@ fleet_render_power() {
 }
 
 # The site as a RackSite object, whose controller exports the contracted power
-# in effect as capt_racksite_contracted_power_watts.
+# in effect as capt_racksite_contracted_power_watts and holds the site's minis
+# to its power budget.
 fleet_render_site() {
   local site_file="$1"
   fleet_check_contracted_power "$site_file" || return 1
+  fleet_check_power_budget "$site_file" || return 1
   jq -r '
     {
       apiVersion: "infrastructure.cluster.x-k8s.io/v1alpha1",
       kind: "RackSite",
       metadata: { name: .site, labels: { "tuist.dev/site": .site } },
-      spec: (if .contracted_power then { contractedPower: [.contracted_power[] | { from, watts }] } else {} end)
+      spec: ((if .contracted_power then { contractedPower: [.contracted_power[] | { from, watts }] } else {} end)
+        + (if .power_budget then { powerBudget: ({ chainAmps: (.power_budget.chain_amps | tostring) }
+            + (if (.power_budget.other_watts // 0) > 0 then { otherWatts: .power_budget.other_watts } else {} end)) } else {} end))
     }
-  ' "$site_file" | yq -P -p=json '(select(.spec | has("contractedPower")) | .spec.contractedPower[].from) style="double"' -
+  ' "$site_file" | yq -P -p=json '(select(.spec | has("contractedPower")) | .spec.contractedPower[].from) style="double" |
+    (select(.spec | has("powerBudget")) | .spec.powerBudget.chainAmps) style="double"' -
 }
 
 # Which terminal line is this connection, from `show users` output. The firmware

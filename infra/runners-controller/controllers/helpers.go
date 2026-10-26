@@ -9,7 +9,28 @@ const (
 	nodeFilteredDiskPressure   = "disk_pressure"
 	nodeFilteredPIDPressure    = "pid_pressure"
 	nodeFilteredPrewarming     = "prewarming"
+	nodeFilteredPowerBudget    = "power_budget"
 )
+
+// powerBudgetTaintKey is the taint cluster-api-provider-tuist's RackSite
+// controller holds a rack Mac mini under while its power chain, or its whole
+// site, is over budget. Runner Pods do not tolerate it, so the host is no
+// capacity, and the idle runners already on it are retired
+// (`reapIdlePodsOnCordonedNodes`) so that only running jobs keep drawing.
+//
+// CONTRACT: must match cluster-api-provider-tuist's
+// `macos.PowerBudgetTaintKey`.
+const powerBudgetTaintKey = "tuist.dev/power-budget"
+
+// hasPowerBudgetTaint reports whether the node is held by its power budget.
+func hasPowerBudgetTaint(node *corev1.Node) bool {
+	for _, taint := range node.Spec.Taints {
+		if taint.Key == powerBudgetTaintKey {
+			return true
+		}
+	}
+	return false
+}
 
 // prewarmTaintKey is the taint tart-kubelet holds a joining macOS host under
 // while it pulls its fleet's runner images. Runner Pods do not tolerate it, so
@@ -26,6 +47,7 @@ var nodeFilterReasons = []string{
 	nodeFilteredDiskPressure,
 	nodeFilteredPIDPressure,
 	nodeFilteredPrewarming,
+	nodeFilteredPowerBudget,
 }
 
 // corev1LocalRef is the obvious shorthand. We refer to the pool by
@@ -47,6 +69,9 @@ func nodeFilterReason(node *corev1.Node) string {
 		if taint.Key == prewarmTaintKey {
 			return nodeFilteredPrewarming
 		}
+	}
+	if hasPowerBudgetTaint(node) {
+		return nodeFilteredPowerBudget
 	}
 
 	ready := false
