@@ -18,9 +18,12 @@ now = DateTime.utc_now()
 gb = 1_000_000_000
 
 image = fn id, references, size, hours_ago ->
+  digest = "sha256:" <> String.duplicate(id <> "0", 32)
+  name = references |> hd() |> String.replace(~r/:[^:\/]+$/, "")
+
   %{
     "id" => "sha256:" <> String.duplicate(id, 64),
-    "references" => references,
+    "references" => references ++ [name <> "@" <> digest],
     "size_bytes" => size,
     "last_used_at" => now |> DateTime.add(-hours_ago, :hour) |> DateTime.truncate(:second) |> DateTime.to_iso8601()
   }
@@ -37,7 +40,12 @@ repositories = [
     saved_bytes: trunc(6.8 * gb),
     build_cache_bytes: trunc(2.1 * gb),
     images: [
-      image.("a", ["ghcr.io/acme/android-build:jdk-21-android-36", "ghcr.io/acme/android-build:latest"], trunc(4.9 * gb), 1),
+      image.(
+        "a",
+        ["ghcr.io/acme/android-build:jdk-21-android-36", "ghcr.io/acme/android-build:latest"],
+        trunc(4.9 * gb),
+        1
+      ),
       image.("b", ["postgres:16"], 451_304_147, 1),
       image.("c", ["redis:7-alpine"], 41_211_520, 30)
     ]
@@ -64,7 +72,12 @@ repositories = [
 seeded_ids = Enum.map(repositories, &to_string(&1.repository_id))
 
 seeded_volumes =
-  Repo.all(from(v in Volume, where: v.account_id == ^account_id and v.key == "docker" and v.scope_id in ^seeded_ids, select: v.id))
+  Repo.all(
+    from(v in Volume,
+      where: v.account_id == ^account_id and v.key == "docker" and v.scope_id in ^seeded_ids,
+      select: v.id
+    )
+  )
 
 seeded_jobs =
   Repo.all(from(u in Usage, where: u.volume_id in ^seeded_volumes, select: u.workflow_job_id))
@@ -198,7 +211,13 @@ for {seed, index} <- Enum.with_index(repositories) do
       )
       |> Repo.update!()
 
-    Repo.insert!(%Measurement{usage_id: head.id, size_bytes: seed.saved_bytes, capacity_bytes: 100 * gb, observed_at: head.finished_at})
+    Repo.insert!(%Measurement{
+      usage_id: head.id,
+      size_bytes: seed.saved_bytes,
+      capacity_bytes: 100 * gb,
+      observed_at: head.finished_at
+    })
+
     volume |> Ecto.Changeset.change(head_id: head.id) |> Repo.update!()
   end
 end

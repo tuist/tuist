@@ -98,8 +98,8 @@ defmodule Tuist.Runners.DockerCache do
 
       %{
         id: image["id"],
-        reference: List.first(references) || String.slice(image["id"] || "", 0, 19),
-        other_references: Enum.drop(references, 1),
+        repository: references |> List.first() |> repository_name(),
+        digest: Enum.find_value(references, &digest_of/1) || image["id"],
         size_bytes: image["size_bytes"],
         last_used_at: parse_time(image["last_used_at"])
       }
@@ -107,6 +107,20 @@ defmodule Tuist.Runners.DockerCache do
   end
 
   defp images(_head), do: []
+
+  # An image is one pulled digest, whatever tags jobs used for it: it shows as
+  # its repository and that digest.
+  defp repository_name(nil), do: nil
+
+  defp repository_name(reference),
+    do: reference |> String.split("@", parts: 2) |> hd() |> String.replace(~r/:[^:\/]+$/, "")
+
+  defp digest_of(reference) do
+    case String.split(reference, "@", parts: 2) do
+      [_, "sha256:" <> _ = digest] -> digest
+      _ -> nil
+    end
+  end
 
   defp parse_time(value) when is_binary(value) do
     case DateTime.from_iso8601(value) do
