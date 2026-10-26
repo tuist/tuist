@@ -2092,6 +2092,12 @@ kubectl get node <host> -o jsonpath='{.status.addresses}'
 
 ## Host macOS updates
 
+The [macOS TCP clock runbook](macos-tcp-clock.md) records the October 26, 2026
+long-uptime Tahoe incident, the safe binary installer, and the required drained
+OS maintenance wave. Releasing an operator fixes the installer; it does not
+upgrade the host kernel. Fleet provisioning OS families do not enforce a minimum
+point release on already-adopted machines.
+
 Host macOS updates are operator-run waves, one drained host at a time. They are
 never automatic and not driven by MDM: NanoMDM cannot enforce update policy.
 `bootstrap.Run` and the drift loop (`installSoftwareUpdatePolicy`, part of
