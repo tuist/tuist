@@ -15,6 +15,8 @@
 //!   makes cross-process upload dedup server-side) -> UpdateActionResult
 //!   LAST, so a reader can never observe an entry whose graph is incomplete.
 
+use std::cell::RefCell;
+use std::io;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -2269,8 +2271,24 @@ pub fn decode_frame(frame: &[u8]) -> Option<Node> {
     })
 }
 
-pub fn compress_frame(frame: &[u8]) -> Vec<u8> {
-    zstd::stream::encode_all(frame, 1).unwrap_or_default()
+pub fn compress_frame(mut frame: &[u8]) -> Vec<u8> {
+    thread_local! {
+        static CONTEXT: RefCell<zstd::zstd_safe::CCtx<'static>> =
+            RefCell::new(zstd::zstd_safe::CCtx::create());
+    }
+    CONTEXT.with(|context| {
+        let mut context = context.borrow_mut();
+        if context.init(1).is_err() {
+            return Vec::new();
+        }
+        // Preserve encode_all's streaming bytes: compressed content determines
+        // the remote digest, so bulk compression would change blob identities.
+        let mut encoder = zstd::stream::write::Encoder::with_context(Vec::new(), &mut context);
+        if io::copy(&mut frame, &mut encoder).is_err() {
+            return Vec::new();
+        }
+        encoder.finish().unwrap_or_default()
+    })
 }
 
 /// Small compressed outputs cannot reuse transfer chunks. Keep their original

@@ -24,6 +24,34 @@ fn corpus() -> Vec<u8> {
 }
 
 #[test]
+fn compression_preserves_blob_identity_across_frames() {
+    let mut seed = 0x7c98_1043_6ab2_51efu64;
+    for size in [
+        131_073, 0, 4093, 131_071, 262_159, 131_072, 128, 1_048_577, 0,
+    ] {
+        let frame: Vec<_> = (0..size)
+            .map(|offset| {
+                seed ^= seed << 13;
+                seed ^= seed >> 7;
+                seed ^= seed << 17;
+                if offset % 128 < 96 {
+                    (offset % 47) as u8
+                } else {
+                    seed as u8
+                }
+            })
+            .collect();
+        let expected = zstd::stream::encode_all(frame.as_slice(), 1).unwrap();
+        let compressed = compress_frame(&frame);
+        assert_eq!(compressed, expected, "blob identity changed at size {size}");
+        assert_eq!(
+            zstd::stream::decode_all(compressed.as_slice()).unwrap(),
+            frame
+        );
+    }
+}
+
+#[test]
 fn highly_compressible_outputs_keep_the_whole_encoding_and_memo_choice() {
     let frame = encode_frame(&[], &vec![b'x'; 4 * 1024 * 1024]);
     let (encoded, chunked) = compress_frame_for_transfer(&frame, true);

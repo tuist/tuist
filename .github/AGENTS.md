@@ -438,6 +438,8 @@ The macOS CLI unit-test job installs the stable Rust toolchain pinned by `cas-pl
 
 Cargo compilation caching is implemented in Swift inside `tuist`. Do not package a separate Cargo cache executable or import an external cache engine. The existing Xcode CAS plugin and proxy remain separate Rust artifacts.
 
+`cas-plugin.yml` dogfoods `tuist/cas-plugin` through the component's pinned Tuist CLI and mise build/test tasks. Trusted jobs authenticate with GitHub OIDC (`id-token: write`); the hosted project must remain linked to `tuist/tuist`. Fork pull requests use plain Cargo without Tuist credentials or OIDC permission. Check hosted build/test reports and actual cache transfer counters separately from job success; Cargo's experimental cache does not cover the entire build graph.
+
 ## CLI Linux builds
 
 The Linux release ships a static musl binary built with the Swift Static Linux SDK. The PR `Linux Build` job in `cli.yml` compiles against the same SDK, installed through `mise/utilities/install_static_linux_sdk.sh` (shared with `mise/tasks/cli/bundle-linux.sh`), so it catches code that only builds against glibc. Its `.build` cache key uses the `linux-cli-musl-` prefix to stay separate from the glibc cache used by `Linux Unit Tests`, which keeps running on glibc.
