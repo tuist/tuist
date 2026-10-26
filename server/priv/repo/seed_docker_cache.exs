@@ -211,8 +211,12 @@ for {seed, index} <- Enum.with_index(repositories) do
       )
       |> Repo.update!()
 
-    # Every job's copy reports its size while it runs; the host deletes all but
-    # the saved head's after the job.
+    # Every job's copy reports its size while it runs. A default-branch job's
+    # copy is the saved version until the next one replaces it; the host deletes
+    # every other copy after its job.
+    writers = Enum.filter(uses, & &1.writer_default_branch)
+    replaced = writers |> Enum.zip(Enum.drop(writers, 1)) |> Map.new(fn {saved, next} -> {saved.id, next.finished_at} end)
+
     for use <- uses do
       Repo.insert!(%Measurement{
         usage_id: use.id,
@@ -221,8 +225,10 @@ for {seed, index} <- Enum.with_index(repositories) do
         observed_at: DateTime.add(use.attached_at, 120, :second)
       })
 
-      if use.id != head.id do
-        Repo.insert!(%Measurement{usage_id: use.id, deleted: true, observed_at: use.deleted_at})
+      deleted_at = if use.writer_default_branch, do: replaced[use.id], else: use.deleted_at
+
+      if deleted_at do
+        Repo.insert!(%Measurement{usage_id: use.id, deleted: true, observed_at: deleted_at})
       end
     end
 
