@@ -719,7 +719,11 @@ func rackEdgeNetwork(e *infrav1.RackLinuxHostEdge) *rackinstall.EdgeNetwork {
 	if e == nil {
 		return nil
 	}
-	return &rackinstall.EdgeNetwork{Uplinks: e.Uplinks, VLAN: int(e.VRRP.VLAN), Address: e.VRRP.Address, Peer: e.VRRP.Peer}
+	n := &rackinstall.EdgeNetwork{Uplinks: e.Uplinks, VLAN: int(e.VRRP.VLAN), Address: e.VRRP.Address, Peer: e.VRRP.Peer}
+	if e.WAN != nil {
+		n.WAN = &rackinstall.StaticWAN{Address: e.WAN.Address, Gateway: e.WAN.Gateway, VLAN: int(e.WAN.VLAN)}
+	}
+	return n
 }
 
 // internetServes reports whether the internet boot server can hand the host

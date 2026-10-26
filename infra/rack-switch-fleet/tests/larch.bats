@@ -189,3 +189,32 @@ larch_ready() {
     [[ "$output" == *'ethtool -G "$uplink" rx 4096 tx 4096'* ]]
     [[ "$output" != *' ring='* ]]
 }
+
+@test "each PicOS ToR with a recorded MAC and a live WAN port sets up its WAN path from zero-touch provisioning" {
+    run edge_sh "fleet_picos_wan_paths '$LARCH'"
+    [ "$status" -eq 0 ]
+    # tor-a holds the carrier on 27 and both edges' legs on 29 and 30; tor-b's
+    # MAC is not recorded yet
+    [ "$output" = "649d99d9810e 27 29,30" ]
+    run edge_sh "fleet_picos_bootstrap '$LARCH'"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"wan_vlan='4001 wan'"* ]]
+    [[ "$output" == *"wan_paths='649d99d9810e 27 29,30'"* ]]
+    [[ "$output" != *"@WAN_"* ]]
+
+    # tor-b's WAN port is a planned spare, so even with its MAC it sets up none
+    site="$(larch_ready)"
+    run edge_sh "fleet_picos_wan_paths '$site'"
+    [ "$output" = "649d99d9810e 27 29,30" ]
+    jq '(.devices[] | select(.name == "larch-r1-tor-b") | .ports["27"]) |= del(.status)' "$site" > "$site.new" && mv "$site.new" "$site"
+    run edge_sh "fleet_picos_wan_paths '$site'"
+    [ "$output" = $'649d99d981fe 27 29,30\n649d99d9810e 27 29,30' ]
+
+    # a site whose edges carry no WAN sets up none
+    site="$(larch_with 'del(.management.edge.wan) | .vlans |= map(select(.id != 4001))')"
+    run edge_sh "fleet_picos_wan_paths '$site'"
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
+    run edge_sh "fleet_picos_bootstrap '$site'"
+    [[ "$output" == *"wan_paths=''"* ]]
+}

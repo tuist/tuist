@@ -1168,6 +1168,16 @@ addresses and the gateways.
   WAN lists no edges there, and its edges' installs keep DHCP on their
   uplinks. It needs the other edge up as master: reinstall one edge at a
   time.
+- **The first edge of a site goes out on its own.** With no other edge to go
+  out through, it takes the site's static WAN itself: once the WAN's address
+  is in the site, each edge in `rack-sites/<site>.yaml` also carries `wan`
+  (VLAN, address, gateway), which the install turns into a first-boot WAN
+  service ("The first edge of a site" in
+  [`infra/cluster-api-provider-tuist`](../cluster-api-provider-tuist/AGENTS.md)).
+  It holds the WAN only while no rack-edge pod runs on the node and nobody
+  else answers for the address, and records what it holds in
+  `/run/rack-edge/first-wan`. `mgmt-path.sh` gives that up before keepalived
+  starts, so from the pod's first start the WAN is keepalived's alone.
 - **Closed from outside.** `tuist_rack_wan` lets in replies to what the rack
   started, ICMP and ICMPv6 (neighbour discovery included) and tailscaled's UDP
   41641 for direct tailnet paths, and drops everything else arriving on
@@ -1787,9 +1797,17 @@ rack-edge chart:
 - `picos-bootstrap.sh`, from `picos/bootstrap.sh.tmpl`: what a factory switch
   runs from ZTP. It adds `credentials.username` as a super-user with the
   controller's key, gives admin and that user random passwords generated on
-  the switch, sets NTP, enables NETCONF, puts the SFP28 group at 10G, turns ZTP
-  off, and logs `rack-ztp` lines that `show log` lists. It carries no secret;
-  the controller sets admin's real password when it adopts the switch.
+  the switch, sets NTP, enables NETCONF, turns ZTP off, and logs `rack-ztp`
+  lines that `show log` lists. It carries no secret; the controller sets
+  admin's real password when it adopts the switch. For a ToR whose MAC the site
+  records with a live WAN port, a third commit sets up its WAN path
+  (`fleet_picos_wan_paths`): the carrier's port untagged on the WAN VLAN and
+  every port an edge's data link lands on tagged with it, as the controller
+  configures them. A factory switch passes the carrier untagged, and the
+  controller reaches the switch over that same WAN, so without it the first
+  edge of a site would lose its way out the moment its rack-edge pod moved the
+  WAN onto the VLAN. The switch matches itself by its management port's MAC,
+  the one the edge's DHCP answered; a failure of that commit is only logged.
 - `ztp-<edge>.conf`: dnsmasq on that edge's link, answering DHCP for the ToR's
   MAC alone, with options 66 (the edge), 67 (`picos-bootstrap.sh`) and 7 (the
   edge, for ZTP's syslog), and serving the chart's site files over TFTP.
