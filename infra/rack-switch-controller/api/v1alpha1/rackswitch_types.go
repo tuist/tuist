@@ -116,6 +116,12 @@ type PortConfig struct {
 	// VLANs carried tagged.
 	// +optional
 	TaggedVLANs []int `json:"taggedVlans,omitempty"`
+	// Speed in Mb/s, for a port whose module or cable does not run at the
+	// port's default. Unset leaves the default. The PicOS driver writes it;
+	// the Omada driver ignores it.
+	// +kubebuilder:validation:Enum=1000;10000;25000
+	// +optional
+	Speed int `json:"speed,omitempty"`
 }
 
 // SwitchConfig is the desired configuration of a switch the controller

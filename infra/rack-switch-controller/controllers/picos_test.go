@@ -256,3 +256,66 @@ func TestPicOSConfirmsAnEarlierWrite(t *testing.T) {
 		t.Fatalf("status = %+v", rs.Status)
 	}
 }
+
+// slowGroup is the SFP28 group as an S5860's ZTP bootstrap leaves it, at 10G.
+var slowGroup = []string{
+	"set interface gigabit-ethernet te-1/1/29 speed 10000",
+	"set interface gigabit-ethernet te-1/1/30 speed 10000",
+	"set interface gigabit-ethernet te-1/1/31 speed 10000",
+	"set interface gigabit-ethernet te-1/1/32 speed 10000",
+}
+
+// A spec that names no speeds takes the SFP28 group back to its 25G default,
+// all four ports in one commit, which is the only one the switch takes.
+func TestPicOSPutsTheSFP28GroupBackAtItsDefault(t *testing.T) {
+	h, sw := picosHarness(t, picosSwitch("ber2-tor-a", &v1alpha1.SwitchConfig{Hostname: "ber2-tor-a"}))
+	sw.Load(slowGroup...)
+
+	h.reconcile("ber2-tor-a")
+
+	if rs := h.get("ber2-tor-a"); rs.Status.Drift != v1alpha1.DriftNone {
+		t.Fatalf("status = %+v", rs.Status)
+	}
+	for _, l := range sw.Lines() {
+		if strings.Contains(l, " speed ") {
+			t.Fatalf("a speed the spec does not name stayed: %v", sw.Lines())
+		}
+	}
+}
+
+func TestPicOSWritesTheSpeedsTheSpecNames(t *testing.T) {
+	cfg := &v1alpha1.SwitchConfig{Hostname: "ber2-tor-a"}
+	for port := 29; port <= 32; port++ {
+		cfg.Ports = append(cfg.Ports, v1alpha1.PortConfig{Port: port, Speed: 10000})
+	}
+	h, sw := picosHarness(t, picosSwitch("ber2-tor-a", cfg))
+
+	h.reconcile("ber2-tor-a")
+
+	var speeds []string
+	for _, l := range sw.Lines() {
+		if strings.Contains(l, " speed ") {
+			speeds = append(speeds, l)
+		}
+	}
+	if !reflect.DeepEqual(speeds, slowGroup) {
+		t.Fatalf("speeds %v, want %v", speeds, slowGroup)
+	}
+}
+
+// The switch refuses an SFP28 group at two speeds, and the refusal surfaces.
+func TestPicOSReportsASpeedTheGroupRefuses(t *testing.T) {
+	cfg := &v1alpha1.SwitchConfig{Hostname: "ber2-tor-a", Ports: []v1alpha1.PortConfig{{Port: 32, Speed: 1000}}}
+	h, sw := picosHarness(t, picosSwitch("ber2-tor-a", cfg))
+
+	if _, err := h.r.Reconcile(t.Context(), request("ber2-tor-a")); err == nil {
+		t.Fatal("expected the refused commit to surface as an error")
+	}
+	rs := h.get("ber2-tor-a")
+	if c := condition(rs, v1alpha1.ConditionConverged); c.Reason != "ConvergeFailed" || !strings.Contains(c.Message, "25G or 10G/1G") {
+		t.Fatalf("Converged = %+v", c)
+	}
+	if got := sw.Lines(); len(got) != 0 {
+		t.Fatalf("a refused commit changed the switch: %v", got)
+	}
+}

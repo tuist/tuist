@@ -32,6 +32,7 @@ type runningConfig struct {
 		Name        string             `xml:"name"`
 		Description string             `xml:"description"`
 		LAG         string             `xml:"ether-options>_802.3ad"`
+		Speed       string             `xml:"speed"`
 		Switching   *ethernetSwitching `xml:"family>ethernet-switching"`
 	} `xml:"interface>gigabit-ethernet"`
 	LAGs []struct {
@@ -71,6 +72,9 @@ func Observed(data []byte) ([]Item, error) {
 		}
 		if p.LAG != "" {
 			items = append(items, Item{Path: ge + " ether-options 802.3ad", Value: p.LAG})
+		}
+		if p.Speed != "" {
+			items = append(items, Item{Path: ge + " speed", Value: p.Speed})
 		}
 		items = append(items, switching(ge, p.Switching)...)
 	}
@@ -129,7 +133,8 @@ func switching(iface string, s *ethernetSwitching) []Item {
 }
 
 // Owned says whether the controller may delete a path: everything it renders
-// for ports, LAGs, VLANs and the hostname, and nothing else.
+// for ports, LAGs, VLANs and the hostname, and nothing else. A port's speed is
+// owned, so one the spec no longer names goes back to the default.
 func Owned(path string) bool {
 	for _, prefix := range []string{"system hostname", "vlans vlan-id ", "interface aggregate-ethernet ", "protocols lacp interface "} {
 		if strings.HasPrefix(path, prefix) {
@@ -141,6 +146,9 @@ func Owned(path string) bool {
 			if strings.Contains(path, leaf) {
 				return true
 			}
+		}
+		if strings.HasSuffix(path, " speed") {
+			return true
 		}
 	}
 	return false

@@ -103,6 +103,9 @@ func Desired(cfg *v1alpha1.SwitchConfig) ([]Item, error) {
 		if p.Description != "" {
 			items = append(items, Item{Path: ge + " description", Value: quote(p.Description)})
 		}
+		if p.Speed > 0 {
+			items = append(items, Item{Path: ge + " speed", Value: strconv.Itoa(p.Speed)})
+		}
 		if _, ok := member[p.Port]; ok {
 			continue
 		}
