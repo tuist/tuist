@@ -1,6 +1,12 @@
 [advisories]
 ignore = [
-  # jsonwebtoken is only used with HMAC JWT verification in Kura.
-  # The rsa advisory does not apply because we do not accept RSA algorithms.
+  # jsonwebtoken verifies Kura's JWTs with HMAC or ES256, never RSA, so the
+  # rsa advisory does not apply.
   "RUSTSEC-2023-0071",
+  # crypto-bigint 0.5 reaches Kura only through jsonwebtoken's ES256 support.
+  # Kura verifies ES256 tokens against public keys and never signs with a
+  # private key outside tests, so no secret flows through the operations whose
+  # timing varies. The fixed 0.7 line needs an elliptic-curve release that
+  # jsonwebtoken does not use yet.
+  "RUSTSEC-2026-0387",
 ]

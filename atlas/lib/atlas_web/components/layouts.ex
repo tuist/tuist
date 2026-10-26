@@ -13,6 +13,18 @@ defmodule AtlasWeb.Layouts do
 
   embed_templates "layouts/*"
 
+  attr :flash, :map, required: true
+  slot :inner_block, required: true
+
+  def app(assigns) do
+    ~H"""
+    <div data-part="app-content">
+      <.flash_group flash={@flash} />
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
   attr :flash, :map, required: true, doc: "the map of flash messages"
   attr :id, :string, default: "flash-group", doc: "the optional id of flash container"
 

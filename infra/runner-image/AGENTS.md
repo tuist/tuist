@@ -198,7 +198,10 @@ added to catch that failed on `admin`'s unwritable cache instead.
   tart-kubelet's env mount (`/Volumes/My Shared Files/env/tuist.env`)
   into `/etc/tuist.env`.
 - `/opt/tuist/dispatch-poll.sh` — polls
-  `TUIST_RUNNER_DISPATCH_URL?pod_uid=…&token=…`. While 204 it
+  `TUIST_RUNNER_DISPATCH_URL?pod_uid=…&token=…`. Each request carries the
+  guest's `sw_vers -productVersion` as `os_version`, which the server
+  puts in a macOS runner's name (`tuist-macos-26.6-xcode-27.0-6vcpu-14gb-<hex>`,
+  see `runner_name_prefix/4` in `server/lib/tuist/runners.ex`). While 204 it
   sleeps; on 200 it runs the agent the response selects: `./run.sh
   --jitconfig $JIT` for a GitHub job, or `buildkite-agent start` with
   `BUILDKITE_AGENT_ACQUIRE_JOB` set for a Buildkite one. The Buildkite
@@ -241,8 +244,11 @@ added to catch that failed on `admin`'s unwritable cache instead.
   `runner-caches_test.sh`. After the attach the helper reads the volume's
   capacity (`df` on the path, which links into the mounted image) and rewrites
   `TUIST_CACHE_MAX_BYTES` in `module.env` or `COMPILATION_CACHE_LIMIT_SIZE` in
-  the xcconfig to the capacity less max(2 GB, 20%), at most half of it: 24 GB at
-  the default 30 GB, 16 GB at 20 GB. A path left as a local directory (the
+  the xcconfig. The module cache's limit is the capacity less max(2 GB, 20%), at
+  most half of it: 16 GB at the default 20 GB. The compilation cache's is half
+  that space, 12 GB at the default 30 GB, because `COMPILATION_CACHE_LIMIT_SIZE`
+  bounds one generation and the store keeps two (the primary and its upstream).
+  A path left as a local directory (the
   volume was unavailable) keeps the staged limits of a default-sized volume. The
   teardown prune bounds the store at the limit the xcconfig gave the compiler
   (`managed_xcode_cache_limit`), so both follow the capacity the job set with
@@ -254,7 +260,10 @@ added to catch that failed on `admin`'s unwritable cache instead.
   Only a job that **succeeded** saves its cache volumes. The gate is
   `JOB_PASSED` (zero exit AND a job result of `succeeded`), not the runner's
   exit status. `run.sh` folds every Listener code except a restart into 0, and
-  the GitLab executor exits 0 for job outcomes by design.
+  the GitLab executor exits 0 for job outcomes by design. A job whose result is
+  `failed` still detaches its volumes (`cache_volumes_detached`): the server
+  discards a failed job's volumes, and the detach reports how full each one
+  got, so a copy that ran out of space clears its saved snapshot.
   GitHub's verdict is the Listener's `_diag/Runner_*.log` line `finish job
   request for job <id> with result: <Result>`, matched only at a `JobDispatcher`
   trace header, because a later line echoes the job's display name. The Listener
@@ -321,16 +330,24 @@ added to catch that failed on `admin`'s unwritable cache instead.
   256 MiB, is under an even share gets that need, and the stores that need more
   split the rest. Teardown is the only place that can count the lanes, since
   `COMPILATION_CACHE_LIMIT_SIZE` is staged before any of them exist.
-  The staged environment exports `TUIST_COMPILATION_CACHE_CAS_PATH`, because
-  `tuist cache` passes `COMPILATION_CACHE_CAS_PATH` on the xcodebuild COMMAND
-  LINE and a command-line build setting BEATS `XCODE_XCCONFIG_FILE`. It exports
-  `TUIST_CAS_DRAINED_STORE` too: on CI the CAS plugin otherwise makes every
-  cache put wait for its upload, because off a runner the store goes away with
-  the job, and `drain_cas_publications` does that wait at teardown for spools
-  under this directory, after the job has reported its result. The plugin
-  uploads in the background only when its own store is inside that path, so a
-  job whose xcconfig or command line moves `COMPILATION_CACHE_CAS_PATH`
-  elsewhere keeps waiting.
+  Xcode ranks `XCODE_XCCONFIG_FILE` above `-xcconfig` and both above
+  command-line build settings (`xcodebuild -showBuildSettings` and the
+  compiler's `-cas-path` on Xcode 26.0.1 and 27.0; read the target's section,
+  not the "Build settings from command line" header that echoes the
+  arguments). So while the runner's xcconfig is in effect, a
+  `COMPILATION_CACHE_CAS_PATH=...` argument does NOT move the store, including
+  the one `tuist cache` passes. The staged environment still exports
+  `TUIST_COMPILATION_CACHE_CAS_PATH`: it is what `tuist cache` names, which
+  only takes effect for a step that replaces `XCODE_XCCONFIG_FILE` with a file
+  that does not set the path, and it is where scripts read the store's
+  location. It exports `TUIST_CAS_DRAINED_STORE` too: on CI the CAS plugin
+  otherwise makes every cache put wait for its upload, because off a runner the
+  store goes away with the job, and `drain_cas_publications` does that wait at
+  teardown for spools under this directory, after the job has reported its
+  result. The plugin compares the store the compiler actually opened, so it
+  uploads in the background only when that store is inside this path; a job
+  whose own xcconfig moves `COMPILATION_CACHE_CAS_PATH` elsewhere, or that
+  drops `XCODE_XCCONFIG_FILE` and names another path, keeps waiting.
   The drain exists because the store's objects are uploaded to the remote cache
   asynchronously, through the CAS plugin's spool, while the associations naming
   them are written into the store immediately. Saving the volume ahead of those
@@ -356,9 +373,11 @@ added to catch that failed on `admin`'s unwritable cache instead.
   cache stays the project's opt-in, and this only says *where* an
   already-caching build keeps its store. `XCODE_XCCONFIG_FILE` is an OVERRIDES
   layer (swift-build's `environmentConfigPath`), so it FORCES the CAS path over
-  project/target-defined settings. The escape hatch is a workflow's own
-  xcconfig, which `tuist-runner-cache` `#include`s LAST, so anything it sets
-  explicitly (the CAS path included) still wins.
+  project and target settings, `-xcconfig` and the command line alike. The
+  escape hatches are a workflow's own xcconfig, which `tuist-runner-cache`
+  `#include`s LAST, so anything it sets explicitly (the CAS path included)
+  still wins, and running xcodebuild without `XCODE_XCCONFIG_FILE`, as
+  `.github/scripts/runners-acceptance/xcode-cache.sh` does.
 - `/opt/tuist/metrics-poll.sh` — the machine-metrics sampler.
   `dispatch-poll.sh` forks it into the background right before it
   starts `./run.sh`, so it samples whole-VM CPU/memory/network/disk
@@ -470,7 +489,15 @@ CI:
      (`runnersFleet.runnerImageDigests`). Pools name the digest, so a
      carried profile's pools, warm Pods and host goldens stay as they
      were. A profile tag that cannot be resolved fails the deploy.
-  5. `deploy` dispatches `server-production-deployment.yml`, which
+  5. `announce` writes each profile's standalone and stacked digest into
+     the `tuist-upcoming-runner-images` ConfigMap of canary and
+     production, so their macOS hosts pull the images their pools move
+     to, and waits until they hold them (see "stages" in
+     `infra/tart-kubelet/AGENTS.md`). Every deploy holds a pool on its
+     current image until then, for up to an hour; dispatch the release
+     with `skip_staging` to move the pools at once. A failure in
+     `announce` does not hold the deploy.
+  6. `deploy` dispatches `server-production-deployment.yml`, which
      rolls the fleet through canary.
 
   `macos-xcode-image.yml` dispatches the workflow after publishing a

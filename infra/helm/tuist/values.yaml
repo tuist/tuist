@@ -2012,6 +2012,9 @@ rackLinuxFleet:
   #     site: ber1               # default: rackLinuxFleet.site
   #     tailnetTags: [tag:tuist-rack-edge]   # default: its role's, else rackLinuxFleet.tailnetTags
   #     bootMAC: 38:05:25:38:b5:b5   # default: the management port it announced
+  #     tpmCheckCode: 1a2b-3c4d-5e6f-7a8b  # a preinstalled box's, from its vendor's acceptance report;
+  #                             # pins its TPM to that key alone, and lets it
+  #                             # announce itself to the internet boot server
   #     rack: r1
   #     positionU: 10
   #     online: true             # false powers it off through AMT
@@ -2040,6 +2043,11 @@ rackLinuxFleet:
   # must match the DHCP domain the site's edge hands out
   # (management.edge.domain). Activated AMT gets a static address from
   # `addressRange` unless the host sets amt.address.
+  # Hardware models, by SMBIOS vendor and product as a machine announces them,
+  # that a vendor ships with the preinstall image's installer partition on the
+  # boot drive (infra/rack-nodes/AGENTS.md); their installs keep it.
+  preinstall:
+    products: []       # e.g. ["ASUSTeK COMPUTER INC. RS501A-E12-RS12U"]
   amt:
     provisioningExternalSecret:
       enabled: false
@@ -2074,6 +2082,25 @@ rackLinuxFleet:
         memory: 32Mi
       limits:
         memory: 512Mi
+    # The boot server a preinstalled box (the preinstall image of
+    # infra/rack-nodes) reaches over the internet before its site has one:
+    # rack-boot --internet on cloud nodes, behind the ingress. It hands a seed
+    # only to a host's pinned TPM, and takes announcements only from hosts
+    # declared with tpmCheckCode. The operator then publishes the first edge
+    # of a site an install once its TPM is pinned.
+    internet:
+      enabled: false
+      host: ""          # e.g. rack-boot.tuist.dev
+      className: nginx
+      tlsSecretName: ""
+      annotations: {}
+      nodeSelector: {}
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 128Mi
 
 macosFleet:
   enabled: false

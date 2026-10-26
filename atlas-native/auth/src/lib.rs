@@ -1,7 +1,15 @@
 mod accounts;
+mod api;
 mod bridge;
 mod business;
+pub mod form;
+mod orbit;
+mod orbit_activity;
+mod orbit_components;
+mod orbit_live;
+mod orbit_session;
 mod presence;
+mod push;
 mod themes;
 mod time_off;
 mod transport;
@@ -33,7 +41,7 @@ pub struct PendingLogin {
     created_at: u64,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Session {
     registration: Registration,
     access_token: String,

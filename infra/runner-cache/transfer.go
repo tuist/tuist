@@ -27,7 +27,7 @@ type HTTPTransfer struct {
 	ObjectClient *http.Client
 	MaxBytes     int64
 	Token        func(context.Context) (string, error)
-	// Log records upload attempts that are retried; nil is slog.Default.
+	// Log records retried server requests and uploads; nil is slog.Default.
 	Log *slog.Logger
 
 	// Zero values use the package defaults; injectable so tests don't wait real minutes.
@@ -99,7 +99,7 @@ func (t *HTTPTransfer) requestWith(ctx context.Context, slot Slot, operation, di
 	}
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
 	req.Header.Set("Content-Type", "application/json")
-	response, err := t.Client.Do(req)
+	response, err := DoServer(t.Client, req, t.Log)
 	if err != nil {
 		return transferResponse{}, fmt.Errorf("image metadata request failed: %w", transferError(err))
 	}
@@ -182,6 +182,10 @@ func (t *HTTPTransfer) fetch(ctx context.Context, url, archive string) error {
 	if offset > 0 {
 		req.Header.Set("Range", "bytes="+strconv.FormatInt(offset, 10)+"-")
 	}
+	stall := t.stall()
+	// The watchdog also covers a server that accepts the request but never answers.
+	watchdog := time.AfterFunc(stall, func() { cancel(errDownloadStalled) })
+	defer watchdog.Stop()
 	response, err := t.objectClient().Do(req)
 	if err != nil {
 		if cause := context.Cause(ctx); errors.Is(cause, errDownloadStalled) {
@@ -227,9 +231,7 @@ func (t *HTTPTransfer) fetch(ctx context.Context, url, archive string) error {
 	if _, err = file.Seek(offset, io.SeekStart); err != nil {
 		return err
 	}
-	stall := t.stall()
-	watchdog := time.AfterFunc(stall, func() { cancel(errDownloadStalled) })
-	defer watchdog.Stop()
+	watchdog.Reset(stall)
 	body := &progressReader{r: response.Body, progress: func() { watchdog.Reset(stall) }}
 	written, err := io.Copy(file, io.LimitReader(body, limit+1-offset))
 	if err != nil {

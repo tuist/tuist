@@ -35,6 +35,9 @@ func run(args []string, stdin io.Reader) error {
 	keyFile := fs.String("tailnet-key-file", "", "file holding the single-use tailnet join key")
 	keyID := fs.String("tailnet-key-id", "", "the join key's ID")
 	stickServer := fs.String("stick-server", "", "render the seed of a stick that installs any host, which asks the boot server at this address for the install published for the machine, instead of one host's")
+	preinstall := fs.Bool("preinstall", false, "render the preinstall image's seeds, the deploy seed under deploy/ and the resident installer's under resident/, instead of one host's")
+	servers := fs.String("servers", "", "with -preinstall: the boot servers the resident installer asks, in order, comma-separated")
+	wansFile := fs.String("wans-file", "", "with -preinstall: the sites' static WANs, one \"site address/prefix gateway vlan\" per line")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -43,6 +46,9 @@ func run(args []string, stdin io.Reader) error {
 	}
 	if *stickServer != "" {
 		return writeStickSeed(*out, *stickServer)
+	}
+	if *preinstall {
+		return writePreinstallSeeds(*out, *servers, *wansFile)
 	}
 
 	password, err := io.ReadAll(io.LimitReader(stdin, 4096))
@@ -134,4 +140,54 @@ func readLines(path string) ([]string, error) {
 		}
 	}
 	return lines, scanner.Err()
+}
+
+func writePreinstallSeeds(out, servers, wansFile string) error {
+	var serverList []string
+	for _, s := range strings.Split(servers, ",") {
+		if s = strings.TrimSpace(s); s != "" {
+			serverList = append(serverList, s)
+		}
+	}
+	var wans []rackinstall.StaticWAN
+	if wansFile != "" {
+		lines, err := readLines(wansFile)
+		if err != nil {
+			return fmt.Errorf("read the static WANs: %w", err)
+		}
+		for _, line := range lines {
+			var w rackinstall.StaticWAN
+			if _, err := fmt.Sscanf(line, "%s %s %s %d", &w.Site, &w.Address, &w.Gateway, &w.VLAN); err != nil {
+				return fmt.Errorf("static WAN %q: %w", line, err)
+			}
+			wans = append(wans, w)
+		}
+	}
+	resident, err := rackinstall.ResidentUserData(serverList, wans)
+	if err != nil {
+		return err
+	}
+	for dir, files := range map[string]map[string]string{
+		"deploy": {
+			"user-data":   rackinstall.PreinstallDeployUserData(),
+			"meta-data":   "instance-id: tuist-preinstall-deploy\n",
+			"vendor-data": "",
+		},
+		"resident": {
+			"user-data":      resident,
+			"meta-data":      "instance-id: tuist-resident-installer\n",
+			"vendor-data":    "",
+			"network-config": rackinstall.StickNetworkConfig(),
+		},
+	} {
+		if err := os.MkdirAll(filepath.Join(out, dir), 0o755); err != nil {
+			return err
+		}
+		for name, content := range files {
+			if err := os.WriteFile(filepath.Join(out, dir, name), []byte(content), 0o644); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

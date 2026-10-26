@@ -61,6 +61,37 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert Enum.at(run_urls, 1) =~ run_two.id
     end
 
+    test "defaults to a page size of 20", %{conn: conn, user: user, project: project} do
+      response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs")
+        |> json_response(:ok)
+
+      assert response["pagination_metadata"]["page_size"] == 20
+    end
+
+    test "accepts a page size of 1000 and returns more than 100 runs", %{conn: conn, user: user, project: project} do
+      runs =
+        Enum.map(1..101, fn _ ->
+          CommandEventsFixtures.command_event_fixture(project_id: project.id)
+        end)
+
+      response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1000")
+        |> json_response(:ok)
+
+      assert response["pagination_metadata"]["page_size"] == 1000
+      assert response["pagination_metadata"]["has_next_page"] == false
+      assert MapSet.new(response["runs"], & &1["id"]) == MapSet.new(runs, & &1.id)
+    end
+
+    test "rejects page sizes above 1000", %{conn: conn, user: user, project: project} do
+      conn
+      |> get("/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1001")
+      |> json_response(:bad_request)
+    end
+
     test "paginates forward with cursors", %{conn: conn, user: user, project: project} do
       # Given
       date = ~U[2026-09-01 10:00:00.000000Z]

@@ -157,7 +157,7 @@ server:
       # Provisioned in the live Stripe account by
       # `Tuist.Billing.UsageMeterProvisioning`.
       usage_meters:
-        cache_egress_megabytes: "price_1UITBVLWue9IBlPSvMpJS1co"
+        cache_egress_megabytes: "price_1UUlF7LWue9IBlPSzrgLAku5"
         cache_requests: "price_1UITBXLWue9IBlPSXlwD8vxP"
         passing_test_cases: "price_1UITBYLWue9IBlPSSp51pqjS"
       # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
@@ -622,9 +622,7 @@ clickhouse:
         memory: 96Gi
     persistence:
       # Each host mirrors its two 7.68 TB disks into 6.92 TiB of `/data`; the
-      # 1.92 TB pair is left out of the array. The dataset was 1.69 TiB in
-      # September and grows about 0.25 TiB a month, so that is over a year of
-      # headroom even at a 70% fill target.
+      # 1.92 TB pair is left out of the array.
       #
       # The local PV is not a quota. The pod can use whatever `/data` has, so
       # this is a statement of intent and the number to watch is the
@@ -1268,9 +1266,10 @@ ovhFleets:
       enabled: true
       item: OVH_FLEET_SSH
 
-# BER1 rack fleet: leased M5 Pro Mac minis (Z1UD001N2: 18-core CPU, 64 GB,
-# 10GbE, 2 TB), three three-up trays on chain B (ber1-tor-b and ber1-pdu-b),
-# behind the rack's two edges. Declared here because the rack
+# BER1 rack fleet: M5 Pro Mac minis (Z1UD001N2: 18-core CPU, 64 GB, 10GbE,
+# 2 TB) in three-up trays behind the rack's two edges, eight on each chain:
+# b01 to b06, b15 and b16 on chain B (ber1-tor-b and ber1-pdu-b), b07 to b14
+# on chain A (ber1-tor-a and ber1-pdu-a). Declared here because the rack
 # is in production (kubernetes.namespace in
 # infra/rack-switch-fleet/sites/ber1.json); no other env may declare it too.
 #
@@ -1325,10 +1324,10 @@ rackFleet:
     prewarm: ["27.1"]
   # Each address is the host's reservation on the machines segment, which the
   # edges' DHCP hands it against the MAC recorded in the site definition, and
-  # which both edges advertise to the tailnet as a /32. Each outlet is on the
-  # RackPDU ber1-pdu-b, which infra/rack-switch-fleet renders from the site
-  # definition and its controller adopts. A host's outlet and its ToR port are
-  # on the same chain, which the site's render checks.
+  # which both edges advertise to the tailnet as a /32. Each outlet is on a
+  # RackPDU, ber1-pdu-a or ber1-pdu-b, which infra/rack-switch-fleet renders
+  # from the site definition and its controller adopts. A host's outlet and its
+  # ToR port are on the same chain, which the site's render checks.
   hosts:
     - name: ber1-runner-b01
       serial: K9YLWQHQM2
@@ -1337,7 +1336,7 @@ rackFleet:
       shelf: tray-b1
       power:
         pdu: ber1-pdu-b
-        outlet: "1"
+        outlet: "13"
       # Lent to staging, whose operator runs its runtime and whose rack pools
       # run its guests (rackFleet.borrow in values-managed-staging.yaml).
       lendTo: staging
@@ -1348,7 +1347,7 @@ rackFleet:
       shelf: tray-b1
       power:
         pdu: ber1-pdu-b
-        outlet: "2"
+        outlet: "14"
       # Lent to canary, whose operator runs its runtime and whose rack pools
       # run its guests, including the deploy cascade's runners acceptance gate
       # (rackFleet.borrow in values-managed-canary.yaml).
@@ -1360,7 +1359,7 @@ rackFleet:
       shelf: tray-b1
       power:
         pdu: ber1-pdu-b
-        outlet: "3"
+        outlet: "15"
     - name: ber1-runner-b04
       serial: H1060N7XQP
       address: 10.10.0.104
@@ -1368,7 +1367,7 @@ rackFleet:
       shelf: tray-b2
       power:
         pdu: ber1-pdu-b
-        outlet: "6"
+        outlet: "10"
     - name: ber1-runner-b05
       serial: G54DV7JHJ7
       address: 10.10.0.105
@@ -1376,7 +1375,7 @@ rackFleet:
       shelf: tray-b2
       power:
         pdu: ber1-pdu-b
-        outlet: "7"
+        outlet: "11"
     - name: ber1-runner-b06
       serial: FWVPQGL2C3
       address: 10.10.0.106
@@ -1384,31 +1383,87 @@ rackFleet:
       shelf: tray-b2
       power:
         pdu: ber1-pdu-b
-        outlet: "8"
+        outlet: "12"
     - name: ber1-runner-b07
       serial: H7YDR4L71F
       address: 10.10.0.107
       rack: prep
       shelf: tray-b3
       power:
-        pdu: ber1-pdu-b
-        outlet: "9"
+        pdu: ber1-pdu-a
+        outlet: "13"
     - name: ber1-runner-b08
       serial: J64HHMX93T
       address: 10.10.0.108
       rack: prep
       shelf: tray-b3
       power:
-        pdu: ber1-pdu-b
-        outlet: "10"
+        pdu: ber1-pdu-a
+        outlet: "14"
     - name: ber1-runner-b09
       serial: C0YKJG7JLH
       address: 10.10.0.109
       rack: prep
       shelf: tray-b3
       power:
-        pdu: ber1-pdu-b
+        pdu: ber1-pdu-a
+        outlet: "15"
+    - name: ber1-runner-b10
+      serial: MVNN9473GC
+      address: 10.10.0.110
+      rack: prep
+      shelf: tray-b4
+      power:
+        pdu: ber1-pdu-a
+        outlet: "10"
+    - name: ber1-runner-b11
+      serial: M2V3QN9M92
+      address: 10.10.0.111
+      rack: prep
+      shelf: tray-b4
+      power:
+        pdu: ber1-pdu-a
         outlet: "11"
+    - name: ber1-runner-b12
+      serial: KMV5QJ0L9Q
+      address: 10.10.0.112
+      rack: prep
+      shelf: tray-b4
+      power:
+        pdu: ber1-pdu-a
+        outlet: "12"
+    - name: ber1-runner-b13
+      serial: KV9M9KJVXC
+      address: 10.10.0.113
+      rack: prep
+      shelf: tray-b5
+      power:
+        pdu: ber1-pdu-a
+        outlet: "7"
+    - name: ber1-runner-b14
+      serial: HHJNHDFN2X
+      address: 10.10.0.114
+      rack: prep
+      shelf: tray-b5
+      power:
+        pdu: ber1-pdu-a
+        outlet: "8"
+    - name: ber1-runner-b15
+      serial: LP230KQTJ1
+      address: 10.10.0.115
+      rack: prep
+      shelf: tray-b5
+      power:
+        pdu: ber1-pdu-b
+        outlet: "7"
+    - name: ber1-runner-b16
+      serial: LWGC6JVT03
+      address: 10.10.0.116
+      rack: prep
+      shelf: tray-b6
+      power:
+        pdu: ber1-pdu-b
+        outlet: "8"
   machine:
     # Two 8 vCPU / 24 GB guests or one 16 vCPU / 48 GB guest (the rack's
     # `guestShapes` below), both dimensions binding at the same count, and 2 of
@@ -1448,14 +1503,29 @@ rackFleet:
   # On the rack those shapes run bigger guests (`guestShapes`): 8 vCPU / 24 GB
   # for the 6 vCPU shape and 16 vCPU / 48 GB for the 12 vCPU shape. Jobs are
   # still recorded, billed and counted against concurrency limits at the shape
-  # the profile names, and one that spills over to the rented fleet runs at
-  # that shape.
+  # the profile names. Production rents no macOS hosts, so a job waits for a
+  # rack slot rather than spilling over.
   #
-  # The budget is the rack's 18 guest slots (9 hosts x 2), which these pools
-  # and the `ber1` smoke pool share through the fleet allocator, apart from
-  # the rented fleet's 14. A 12 vCPU profile's guest takes a whole host, so
-  # that shape's ceiling is the host count. 26.6 keeps one runner warm because
-  # `tuist-macos` resolves there; the rest start cold.
+  # The budget is the rack's 32 guest slots (16 hosts x 2), which these pools
+  # and the `ber1` smoke pool share through the fleet allocator. A 12 vCPU
+  # profile's guest takes a whole host, so that shape's ceiling is the host
+  # count.
+  #
+  # Warm floors follow demand. Only a warm runner claims a job in under 10 s:
+  # a cold one is the scale-up and the boot, 10 to 75 s even with the image on
+  # the host. A floor on an image without jobs holds a slot a burst for
+  # another image then waits for (warm runners give theirs up after 30 s,
+  # infra/runners-controller/AGENTS.md), so the rack's 28 production slots
+  # keep floors only for the images that had a job in most working hours of
+  # the week to 2026-10-22 (07:00 to 18:00 UTC, weekdays): 27.0 in 60 of 60
+  # hours, 26.6 in 50, 26.3 in 36, 26.0.1 in 29. 27.0 keeps two, since its
+  # jobs arrive in fan-outs. The other images had a job in at most 7 of those
+  # hours (26.1.1) or none (27.1, 27.2-beta, 26.4.1), and start cold. The
+  # 12 vCPU shape stays cold: an idle one would hold a whole host.
+  #
+  # Every image's golden fits beside the cache: about 60 GiB each, 9 images
+  # in the 540 GiB allowance above, and a release pulls only the overlay on
+  # hosts that held the previous image (infra/tart-kubelet/AGENTS.md).
   runners:
     enabled: true
     # Every BER1 host runs macOS 27 and Tart 2.41.1.
@@ -1466,19 +1536,34 @@ rackFleet:
     autoscaling:
       enabled: true
       minWarmPoolFloor: 0
-      maxReplicas: 18
+      maxReplicas: 32
     xcodeOverrides:
+      "27.0":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 2
+          maxReplicas: 32
       "26.6":
         autoscaling:
           enabled: true
           minWarmPoolFloor: 1
-          maxReplicas: 18
+          maxReplicas: 32
+      "26.3":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 1
+          maxReplicas: 32
+      "26.0.1":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 1
+          maxReplicas: 32
     shapes:
       12vcpu-28gb:
         autoscaling:
           enabled: true
           minWarmPoolFloor: 0
-          maxReplicas: 9
+          maxReplicas: 16
   sshExternalSecret:
     enabled: true
     item: BER1_FLEET_SSH
@@ -1557,9 +1642,17 @@ rackLinuxFleet:
       amt: {activate: true}
   authorizedKeys:
     - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/Y8pQ/HHZ1BKE+DILq/gE7cd8tSiGHcT8pj5wR2f4W marek@tuist.dev"
+  preinstall:
+    products: ["ASUSTeK COMPUTER INC. RS501A-E12-RS12U"]
   boot:
     enabled: true
     address: 192.168.50.1
+    internet:
+      enabled: true
+      host: rack-boot.tuist.dev
+      tlsSecretName: rack-boot-tls
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-cloudflare
 
 # Mac mini fleet — declarative via CAPI. Production keeps 2 hosts so
 # a single-host Scaleway BMC reboot or macOS upgrade doesn't take all
@@ -1684,7 +1777,12 @@ runnersFleet:
   # no nodeDrainTimeout, so an evicted Pod is not waited on: retire while
   # the target hosts hold no owned (job-running) runner Pod, or a
   # customer job dies with the node.
-  hostCount: 10
+  #
+  # At 0 since 2026-10-26: production's macOS jobs run only on the BER1 rack,
+  # which reaches the internet from the Tuist IP range customers allowlist.
+  # With no rented hosts the chart renders no rented macOS pools and the server
+  # keeps every macOS job at the rack (`tuist.runnersFleetRentsMacOS`).
+  hostCount: 0
   # Pre-ordered pool. Operator orders M2-L hosts in the Scaleway
   # console with names starting with `tuist-pool-` ahead of
   # bringing this block live (Mac mini lead times can stretch
@@ -1741,7 +1839,7 @@ runnersFleet:
   # these. Growing raw concurrency alone is still cheaper on M2-L.
   machineGroups:
     - name: m4
-      hostCount: 3
+      hostCount: 0
       machine:
         type: M4-XL
         zone: fr-par-1
@@ -1929,11 +2027,16 @@ runnersFleet:
   # every pool clamped below the capacity it adds, and its second guest
   # would sit idle.
   #
-  # Floors sum to 1 of the 16-slot budget; the remaining 15 slots are
-  # dynamically apportioned by queue depth across the pools. Older
-  # Xcodes sit cold (floor 0) so an unused runner doesn't tie up a host.
+  # Floors follow demand and sum to 3 of the 16-slot budget; the remaining
+  # 13 slots are dynamically apportioned by queue depth across the pools.
+  # Only a warm runner claims a job in under 10 s. 27.0 keeps two: in the
+  # week to 2026-10-22 it had a job in 46 of the 60 weekday working hours
+  # (07:00 to 18:00 UTC) and claimed only 55% of its 1,112 jobs within 10 s
+  # without a floor. Images with jobs in fewer hours (27.1 in 9, the 12 vCPU
+  # pools, older Xcodes) sit cold so an unused runner doesn't tie up a host.
   #
-  # The default (26.6) carries the warm floor, since `tuist-macos`
+  # The default (26.6) keeps one although it had a job in only 3 of those
+  # hours, since a new account's first job lands there and `tuist-macos`
   # resolves there. That resolution goes through each account's
   # protected `macos` profile, which stores `xcode_version` at account
   # creation — so bumping the catalog default only redirects new
@@ -1955,7 +2058,7 @@ runnersFleet:
     "27.0":
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 0
+        minWarmPoolFloor: 2
         maxReplicas: 16
     "26.6":
       autoscaling:
@@ -2002,7 +2105,7 @@ runnersFleet:
   # It autoscales from zero so it shares the rack's guest slots with the
   # catalog's rack pools through the fleet allocator, which only counts
   # autoscaling pools: a fixed count would hold slots the allocator believes
-  # free. Eighteen is every guest slot in the rack, so a load run still reaches
+  # free. Thirty-two is every guest slot in the rack, so a load run still reaches
   # all of them when nothing else is running.
   #
   # The image is the catalog's 26.6 runner, so it follows runner releases.
@@ -2018,7 +2121,7 @@ runnersFleet:
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
-        maxReplicas: 18
+        maxReplicas: 32
         # Smoke runs are dispatched by hand, so the last hour's peak does not
         # predict the next one.
         holdRecentPeak: false
@@ -2027,23 +2130,6 @@ runnersFleet:
       pod:
         cpuMilli: 8000
         memoryMB: 24576
-    # The rented fleet's probe pool for the Runners Acceptance workflow
-    # (`runs-on: tuist-runners-acceptance`). An account on the `runner_site`
-    # flag has its profiles routed to the rack first, so no profile label lands
-    # on this fleet deterministically. No `site`, so its jobs take the
-    # scw-fr-par-runners cache like the fleet's other jobs. The `macos-` name
-    # prefix is what makes the server treat it as a macOS pool on the cluster
-    # network (`Catalog.fleet_platform/1`). Autoscaled from zero so it shares
-    # the fleet's guest slots through the allocator; one probe job at a time.
-    - name: macos-acceptance
-      platform: macos
-      xcodeVersion: "26.6"
-      dispatchLabel: tuist-runners-acceptance
-      autoscaling:
-        enabled: true
-        minWarmPoolFloor: 0
-        maxReplicas: 1
-        holdRecentPeak: false
 
 # Bare-metal vm-image-builder fleet — bakes the Tart VM images the
 # macosFleet and runnersFleet hosts run. Production is the only env
@@ -2171,9 +2257,17 @@ runnersFleetLinux:
         minWarmPoolFloor: 4
     - { vcpus: 4, memoryGb: 8 }
     - { vcpus: 4, memoryGb: 16 }
-    - { vcpus: 8, memoryGb: 16 }
+    # 8vcpu-16gb and 16vcpu-32gb have jobs in most weekday working hours,
+    # arriving in fan-outs that take two and one runners respectively.
+    - vcpus: 8
+      memoryGb: 16
+      autoscaling:
+        minWarmPoolFloor: 2
     - { vcpus: 8, memoryGb: 32 }
-    - { vcpus: 16, memoryGb: 32 }
+    - vcpus: 16
+      memoryGb: 32
+      autoscaling:
+        minWarmPoolFloor: 1
     # Ceiling shape, production-only: 64 GiB + the kata RuntimeClass's
     # 2.5 GiB podFixed overhead is 66.5 GiB per Pod. That seats 3 to an
     # AX162-R and exactly 1 to the OVH RISE-L this fleet is moving to

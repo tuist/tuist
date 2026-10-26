@@ -331,6 +331,7 @@ defmodule Tuist.Xcode do
     xcode_graph_data = %{
       id: xcode_graph_id,
       name: xcode_graph.name,
+      project_id: project_id,
       command_event_id: command_event_id,
       binary_build_duration: Map.get(xcode_graph, :binary_build_duration),
       inserted_at: inserted_at
@@ -369,7 +370,13 @@ defmodule Tuist.Xcode do
         )
       end)
 
-    {xcode_graph_data, projects_data, targets_data, xcode_graph_id}
+    modules_count =
+      xcode_graph.projects
+      |> Enum.flat_map(fn project -> Enum.map(project["targets"], &{project["name"], &1["name"]}) end)
+      |> Enum.uniq()
+      |> length()
+
+    {Map.put(xcode_graph_data, :modules_count, modules_count), projects_data, targets_data, xcode_graph_id}
   end
 
   def normalize_hit_value(value) when value in ["miss", "local", "remote"], do: String.to_atom(value)

@@ -272,7 +272,7 @@ server:
       # Provisioned in this environment's own Stripe account (test mode) by
       # `Tuist.Billing.UsageMeterProvisioning`.
       usage_meters:
-        cache_egress_megabytes: "price_1UIT1jLlKoN51eczc3MgZRX0"
+        cache_egress_megabytes: "price_1UUl1VLlKoN51eczSmpj5fSo"
         cache_requests: "price_1UIT1lLlKoN51eczkmyTm9on"
         passing_test_cases: "price_1UIT1nLlKoN51eczZGPDCDJ1"
       # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
@@ -1018,9 +1018,17 @@ rackFleet:
       minWarmPoolFloor: 0
       maxReplicas: 2
     # `tuist-staging-macos` resolves to 26.6, which the staging smoke runs
-    # on, so one guest stays warm for it.
+    # on, so one guest stays warm for it. 27.1 (the `macos-27` profile) keeps the
+    # other, so both slots hold a warm runner as every production image does,
+    # and a job for any third image exercises the allocator giving a warm
+    # runner's slot up.
     xcodeOverrides:
       "26.6":
+        autoscaling:
+          enabled: true
+          minWarmPoolFloor: 1
+          maxReplicas: 2
+      "27.1":
         autoscaling:
           enabled: true
           minWarmPoolFloor: 1

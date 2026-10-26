@@ -30,15 +30,28 @@ cache: [dependencies: [:nimble_options, :nimble_parsec]]
 Omitting `cache`, or setting it to `false` or `nil`, disables caching.
 
 Supported dependencies are fetched through Hex or Git and use the standard Mix
-compiler pipeline with pure Elixir sources. Native/custom compilers, custom
-tracers, source symlinks, umbrella roots and chains containing local dependencies
-compile normally. Tuist's own bootstrap dependencies also compile normally.
-Structural eligibility does not prove that arbitrary compilation code is hermetic.
+compiler pipeline with Elixir/Erlang sources, or rebar3's ordinary pure-BEAM
+compilation. Mix dependencies can also reuse artifacts when their upstream
+dependencies use rebar3. Rebar configuration, source/header files and the rebar3
+executable fingerprint participate in keys. Packaged `ebin/*.app` metadata and
+passive Makefiles are supported too. Rebar configuration scripts have already
+been evaluated by Mix before lookup; their source and effective configuration
+enter keys. Application source scripts (`*.app.src.script`) are evaluated later
+by rebar3 and require an audited builder contract, as do build plugins and
+compilation hooks. A missing rebar3 launcher is installed before fingerprinting,
+using Mix's normal installer; cold workers still need access to that installer.
+
+Custom tracers, source symlinks, umbrella roots and chains containing local
+dependencies compile normally. Tuist's own bootstrap dependencies also compile
+normally on cold workers. Structural eligibility does not prove that arbitrary
+compilation code is hermetic.
 
 ## Declare additional inputs
 
-Source trees, locked dependency identities, upstream sources and BEAMs,
-explicit effective application configuration, compiler options, Mix environment
+Source trees, locked dependency identities, upstream sources, BEAMs and resources,
+dependency runtime/optional/application flags, resolved application metadata,
+explicit effective application configuration, compiler options (including lexer
+and parser options), Mix environment
 and target, and toolchain identity are included automatically. Dependency-specific
 `env:` and `system_env:` enter the key and configuration is evaluated under that
 environment. Application defaults enter through source inputs, not VM loading state.
@@ -64,8 +77,116 @@ Standard compiler/runtime variables (`ERL_COMPILER_OPTIONS`, `ELIXIR_ERL_OPTIONS
 `ERL_AFLAGS`, `ERL_FLAGS`, `ERL_ZFLAGS`, `SOURCE_DATE_EPOCH`, `ERL_LIBS`, `MIX_PATH`
 and `MIX_ARCHIVES`) are captured automatically. Toolchain identity includes the
 Elixir build, full OTP version when available, ERTS, compiler bytecode, OS/version,
-architecture, word size and byte order. Inputs are captured before each lookup
-and checked again before publication, including changes from earlier compilations.
+architecture, word size and byte order. The effective context is captured before
+each lookup. Per-dependency input models may be shared for lookup planning within
+one preparation; compilation clears the plan and restoration invalidates the
+installed application's records. Staged installation and publication always check
+fresh inputs without reusing the lookup plan. A lookup miss also captures a fresh
+key before compilation. Changed inputs reject a staged hit rather than installing
+code built for the earlier inputs.
+
+Keys use deterministic term encoding and sorted filesystem traversal. Unordered
+builder declarations and declared input sets are sorted and deduplicated; ordered
+compiler options retain their order. File contents, names, executable bits and
+missing paths matter, not filesystem timestamps. File declarations do not model
+ownership, timestamps or other filesystem metadata; exclude builders that derive
+outputs from those values. Upstream compiler manifests are
+excluded as incremental bookkeeping; code that deliberately reads their contents
+must declare them as additional inputs. Regex configuration uses its source and
+options, never VM-local compiled references. Other opaque runtime values bypass
+caching. Updated key models invalidate older entries without a migration.
+
+Deterministic key encoding is separate from deterministic compiler output. If
+upstream BEAM metadata changes between otherwise identical builds on recent
+Elixir versions, consider setting `ERL_COMPILER_OPTIONS='[deterministic]'` before
+SDK bootstrap, seeding and cache consumption. Merge it with any existing compiler
+options and rebuild dependency outputs once when changing the setting. The SDK
+does not set it automatically; its exact value remains part of the key. Complete
+upstream bytes are still hashed, not normalized or stripped. This is not a
+cross-checkout or arbitrary-builder reproducibility guarantee. The compiler option
+also omits source/options from `module_info(:compile)`, so validate coverage,
+debugging and source-discovery tools before adopting it. Compiler flags do not
+fix unordered compile-time generators. The SDK requires Mint 1.10.2 or later,
+including its security backports. This release sorts the maps used to generate its HTTP/2 frame functions; update older
+Mint lock entries when upgrading the SDK. Other dependencies and compiler passes
+can still produce varying bootstrap BEAMs, even with `deterministic` enabled.
+
+Lexer and parser outputs are treated as derived files only when they are absent
+from the locked Git tree or Hex package file manifest. Shipped `.erl` files and
+opaque directory/submodule contents remain ordinary inputs; regenerated shipped
+files must pass the same post-staging input reconciliation. Generator templates
+from OTP's `parsetools` also enter toolchain identity. Keep dependency source
+checkouts isolated between concurrent builds: generators and native builders may
+write into `deps/`. Nested/custom rebar generator layouts may still need an
+audited `generated` declaration.
+
+## Native and custom builders
+
+For an audited Mix, rebar3 or Make builder, declare a per-dependency contract:
+
+```elixir
+cache: [
+  builders: [
+    bcrypt_elixir: [
+      platform: "build-image@sha256:YOUR_IMMUTABLE_IMAGE_DIGEST",
+      outputs: ["priv/bcrypt_nif.so"],
+      tools: ["cc", "make"],
+      env: ["YOUR_BUILDER_OPTION"]
+    ]
+  ]
+]
+```
+
+`platform` identifies the compatible native build environment. Use an immutable
+image/toolchain identity covering compilers, SDKs, system headers and shared
+libraries, not a reusable label such as `linux`. Elixir/OTP and the usual
+platform checks still apply. This is an explicit audit of the builder, not
+automatic discovery of native inputs or required side effects. Invalid explicit
+builder contracts raise an actionable configuration error instead of silently
+leaving caching disabled.
+
+`outputs` lists required paths relative to the dependency's application build
+directory. List the actual libraries/executables needed at runtime. Missing
+outputs trigger restoration or compilation even if Mix considers the BEAMs
+current; incomplete snapshots are rejected. Declare additional environment
+variables with the builder's `env` and external files/directories with its
+`inputs`, relative to the consuming project. Native keys automatically include
+standard build environment variables such as `PATH`, `CC`, `CXX`, `CFLAGS`,
+`LDFLAGS`, `SDKROOT` and `RUSTFLAGS`, using the dependency's effective `system_env`
+overrides. Resolved Mix project configuration also enters native builder keys;
+opaque function-valued configuration cannot be cached.
+
+Optional `tools` names are resolved on that effective `PATH`; relative tool paths
+are relative to the dependency source directory. The executable bytes and resolved
+paths enter the key, and unavailable declared tools bypass caching. A launcher or
+compiler wrapper fingerprint does not cover its SDKs, subprocesses or system
+libraries: the immutable `platform` and additional `inputs` must cover those.
+`MAKEFLAGS` is retained verbatim because custom builders can read it. Inherited
+GNU make jobserver identifiers can therefore cause safe cache misses between
+runs; use stable build flags in an isolated cache job rather than assuming those
+values are removed from the key.
+
+Some builders generate files under `deps/` instead of only `_build/`. List those
+paths relative to that dependency's source directory in `generated`, for example
+`generated: ["priv/native"]`. Only those generated paths are excluded from source
+inputs. Do not exclude original resources or source files: they must remain
+inputs. Paths are literal, without globs or traversal. The contract, platform,
+additional inputs, environment values and any custom dependency compile command
+all participate in keys. `compile: false` remains an opt-out from compilation.
+
+Audited snapshots materialize source-backed `ebin`, `priv`, `include` and `src`
+resources into the restored application. Native libraries, port executables,
+headers and generated resources therefore survive a cold checkout, without
+modifying its dependency sources. Executable modes and contained relative
+resource symlinks are preserved; escaping, absolute and cyclic links are rejected.
+All upstream application resources enter downstream keys, including ordinary
+`priv` resources and custom output directories, not just native libraries or BEAMs.
+Code that directly reads producer source paths is not relocated; builders with
+mandatory side effects outside the application artifact still need those steps.
+
+Keep custom builders excluded until their inputs and outputs are audited. A
+contract does not remove cold SDK bootstrap compilation, the 64 MiB artifact
+limit, or the need for a compatible build environment.
 
 ## Reuse across checkout paths
 
@@ -215,3 +336,27 @@ compilation. CAS Outputs uses successful Kura-signed transfers, not local copies
 or action-input keys. Throughput is bytes divided by measured time; compressed
 sizes are unavailable. Estimated compilation time avoided is the producer's
 original compile duration, not measured end-to-end build savings.
+
+Independent, ready dependencies are fetched in windows of up to four concurrent
+requests over the same HTTP/2 connection. This bounds decoded bundle buffering to
+four artifacts, each subject to the 64 MiB limit. Key planning, Mix state and
+installation remain serialized. Downstream keys wait for upstream artifacts;
+prefetched bytes are consumed only under their exact input key, with inputs
+rechecked before remote installation. Already-current outputs and local snapshots
+do not cause speculative remote requests. Compilation and uploads remain serial
+for selected cache misses; concurrency is not a promise that every build is faster.
+
+## Can every dependency skip compilation?
+
+A compatible hit can skip a supported dependency's compilation, but `cache: true`
+is fail-open, not a zero-compilation guarantee. Missing/evicted entries,
+unsupported builders and the cold SDK bootstrap can still compile. A high hit
+rate alone does not establish a wall-clock speedup.
+
+For build-once/test-many CI, use
+<.localized_link href="/guides/features/test-sharding/elixir">Elixir test sharding</.localized_link>
+to distribute the exact prepared build rather than expecting every worker to
+reconstruct it from per-dependency cache hits. Reusing a complete build, especially
+one containing native libraries, still requires a compatible platform, toolchain
+and configuration. Arbitrary custom builds cannot safely skip their build steps
+without modeling their external inputs, outputs and required side effects.

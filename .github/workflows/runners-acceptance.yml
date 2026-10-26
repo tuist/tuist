@@ -4,8 +4,9 @@ name: Runners Acceptance
 # way a customer's job runs: a job targets a runner label, dispatch places it
 # on a runner VM or Pod and hands it a cache endpoint, and the job builds with
 # the Xcode compilation cache through that endpoint. Each failure names the
-# layer that broke: Dispatch, Server auth, Kura reachability, Kura auth, Kura
-# data path, Xcode cache setup, Xcode build, Cache hits or Cache volumes.
+# layer that broke: Dispatch, Runner file limits, Server auth, Kura
+# reachability, Kura auth, Kura data path, Xcode cache setup, Xcode build, Cache
+# hits or Cache volumes.
 #
 # The production deploy cascade dispatches this against canary after the
 # canary deploy and gates production on it (server-production-deployment.yml,
@@ -66,11 +67,7 @@ jobs:
         # Canary's macOS jobs run on ber1-runner-b02, which production lends
         # it (`tuist` is on `runner_site` there), and take canary's public
         # cache, since the rack's cache node belongs to production.
-        # Production probes its rented fleet and the rack.
-        # `tuist-runners-acceptance` is a pool on production's rented fleet
-        # (values-managed-production.yaml): the account's profiles prefer the
-        # rack and only spill to the rented fleet, so no profile label lands
-        # there deterministically.
+        # Production probes the rack: it rents no macOS hosts.
         run: |
           set -euo pipefail
           #
@@ -86,7 +83,7 @@ jobs:
               ;;
             production)
               server=https://tuist.dev
-              macos='[{"name":"rented","label":"tuist-runners-acceptance","cache_host":""},{"name":"BER1 rack","label":"tuist-ber1-smoke","cache_host":"tuist-ber1-runners.kura.tuist.dev"}]'
+              macos='[{"name":"BER1 rack","label":"tuist-ber1-smoke","cache_host":"tuist-ber1-runners.kura.tuist.dev"}]'
               linux='[{"name":"default","label":"tuist-linux"}]'
               volume_label=""
               ;;
@@ -272,6 +269,8 @@ jobs:
         with:
           persist-credentials: false
           sparse-checkout: .github/scripts/runners-acceptance
+      - name: File limits
+        run: .github/scripts/runners-acceptance/file-limits.sh
       - name: Kura round trip
         timeout-minutes: 3
         run: .github/scripts/runners-acceptance/kura-roundtrip.sh

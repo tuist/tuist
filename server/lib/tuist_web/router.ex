@@ -250,7 +250,7 @@ defmodule TuistWeb.Router do
     plug :content_security_policy
     plug :google_one_tap_content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
-    plug Localization, :redirect_to_localized_route
+    plug Localization, :negotiate_locale
     plug Localization, :put_locale
     plug TuistWeb.Marketing.Preferences
   end
@@ -266,11 +266,12 @@ defmodule TuistWeb.Router do
     plug :put_root_layout, html: {TuistWeb.Docs.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
-    plug SentryContextPlug
     plug :content_security_policy
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
     plug Localization, :put_locale
     plug :fetch_current_user
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
   end
 
   pipeline :marketing_markdown do
@@ -317,6 +318,8 @@ defmodule TuistWeb.Router do
     # authentication because the elevation belongs to the operator behind the
     # token.
     plug :accept_atlas_identity_header
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
     plug TuistWeb.Plugs.MCPRateLimitPlug
   end
 
@@ -989,6 +992,9 @@ defmodule TuistWeb.Router do
         end
 
         scope "/bazel" do
+          get "/actions", BazelActionsController, :index
+          get "/actions/:action_id", BazelActionsController, :show
+          get "/actions/:action_id/executions", BazelActionsController, :history
           get "/invocations", BazelController, :list_invocations
           get "/invocations/:invocation_id", BazelController, :get_invocation
           get "/invocations/:invocation_id/steps", BazelBuildStepsController, :index
@@ -1071,6 +1077,7 @@ defmodule TuistWeb.Router do
   scope "/api", TuistWeb.API do
     pipe_through [:open_api, :non_authenticated_api]
 
+    get "/metadata/limits", MetadataController, :limits
     get "/auth/device_code/:device_code", AuthController, :device_code
     post "/auth/refresh_token", AuthController, :refresh_token
 
@@ -1118,7 +1125,10 @@ defmodule TuistWeb.Router do
   scope "/api/internal", TuistWeb.Internal do
     pipe_through [:atlas_internal_api]
 
-    get "/atlas/accounts/:account_handle/usage", AtlasUsageController, :usage
+    get "/atlas/flags", AtlasFeatureFlagsController, :index
+    get "/atlas/flags/evaluate", AtlasFeatureFlagsController, :evaluate
+    get "/atlas/flags/:name", AtlasFeatureFlagsController, :show
+    put "/atlas/flags/:name", AtlasFeatureFlagsController, :update
 
     post "/atlas/db/query", AtlasDatabaseController, :query
     get "/atlas/db/tables", AtlasDatabaseController, :tables
@@ -1598,6 +1608,8 @@ defmodule TuistWeb.Router do
       live "/analytics", OverviewLive, :analytics, metadata: @public_project_route_metadata
       live "/bundles", BundlesLive, metadata: @public_project_route_metadata
       live "/bundles/:bundle_id", BundleLive, metadata: @public_project_route_metadata
+      live "/builds/bazel/actions", BuildEntityLive, :bazel_actions, metadata: @public_project_route_metadata
+      live "/builds/bazel/actions/:action_id", BuildEntityLive, :bazel_actions, metadata: @public_project_route_metadata
       live "/builds/gradle/tasks", BuildEntityLive, :gradle_tasks, metadata: @public_project_route_metadata
       live "/builds/gradle/tasks/:task_id", BuildEntityLive, :gradle_tasks, metadata: @public_project_route_metadata
       live "/builds/xcode/modules", BuildEntityLive, :xcode_modules, metadata: @public_project_route_metadata

@@ -52,6 +52,21 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   30-second client timeout. Propagate cancellation through downloads, expansion,
   commands and shared-master/admission waits. Incomplete restores cannot publish;
   reclaim their journals only after the existing writer fences pass.
+- `ExecutionWaits` gives each runner Pod one 25-second wait (`ExecutionWait`) for
+  GitHub to report its job, shared by its checkout and every volume; both the
+  Linux and macOS agents use it.
+- Every agent request to the server (`authorize`, `checkout`, `report`, `image`)
+  goes through `DoServer`: up to four attempts on a connection failure or a
+  502/503/504, jittered backoff from 250 ms to 2 s, never past the request
+  context (an attach keeps its 25 s budget). The server keeps them idempotent:
+  an allocation returns the pod's existing use, a report restates a use, and an
+  `image` request reads a HEAD, signs another URL or returns the generation the
+  use already published. A new endpoint must stay idempotent before it uses
+  `DoServer`. Never retry the object-storage PUT this way; the Store retries
+  publication. Retries log `cache server request retried` and `recovered`.
+  Agents build their server clients with `NewServerClient`, which closes a
+  connection idle for `ServerIdleTimeout` (10 s), below Bandit's 15 s keep-alive
+  timeout, so a request never goes out on a connection the server is closing.
 - Emit bounded operation/source/result metrics without keys, paths or signed URLs.
   Linux exposes them on port 9091; macOS uses tart-kubelet's metrics registry.
   The Linux agent's phase log line carries a failure's `error` text, URLs replaced.
@@ -77,8 +92,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   names the master's `scope` and `generation`.
 - The Linux agent prefetches the assigned master after a warm acquisition that
   found no local copy of it (mounted older, started empty, or timed out; checked
-  with `HasMaster`), one at a time, bounded to two minutes with no queue and the
-  same disk reserve. macOS queues
+  with `HasMaster`), one at a time with no queue and the same disk reserve. Like
+  refreshes, a prefetch has no deadline: its download ends on a stall or after
+  its attempts. macOS queues
   prefetches (see tart-kubelet). Never create a private branch, publish, or extend
   the foreground budget from prefetch.
 - `Attach` never downloads, on either host (`LocalImages.cloneLocal`). It clones
@@ -151,8 +167,9 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   bytes, else twice the capacity.
 - `HTTPTransfer.Download` keeps the archive at `<path>.part` and resumes it with
   `Range` requests: a fresh link per attempt, at most five attempts, an attempt
-  abandoned after two minutes without bytes, `ObjectClient` (else `Client` with
-  its timeout cleared) without a whole-transfer timeout. A context that ends while
+  abandoned after two minutes without bytes (response headers included),
+  `ObjectClient` (else `Client` with its timeout cleared) without a whole-transfer
+  timeout: never bound a transfer by a whole-request deadline. A context that ends while
   bytes arrive returns `ErrDownloadIncomplete` and keeps the partial; a complete
   archive that does not restore is deleted. Callers resume only by passing the
   same path again.
@@ -201,7 +218,7 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   publishes it on the node heartbeat and the Linux agent merges it into its Node
   patch, removing labels of evicted lineages.
 - Linux refreshes a superseded master used in the last day to the new HEAD in
-  the background (one at a time, prefetch admission) before removing it. A job
+  the background (one at a time, prefetch admission, no deadline) before removing it. A job
   attaching that lineage meanwhile clones the stale master. Maintenance and
   admission skip the scope a refresh is downloading. Only a
   master the refresh installed under the scope lock inherits the stale master's

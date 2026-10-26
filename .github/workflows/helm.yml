@@ -34,6 +34,7 @@ on:
       - infra/mise.toml
       - infra/mise.lock
       - infra/mise/tasks/helm/**
+      - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
       - .github/workflows/pentest-deployment.yml
@@ -46,6 +47,7 @@ on:
       - infra/mise.toml
       - infra/mise.lock
       - infra/mise/tasks/helm/**
+      - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
       - .github/workflows/pentest-deployment.yml
@@ -244,6 +246,8 @@ jobs:
       # infra/rack-nodes/AGENTS.md.
       - name: Rack workloads stay out of waited releases
         run: infra/mise/tasks/helm/rack-independence.sh
+      - name: Server pods drain and the edge retries only unsent requests
+        run: infra/mise/tasks/helm/server-rollout.sh
       # The xcresult processor chart renders the tuist chart's processor
       # templates for the tuist release it names, which the loop above cannot
       # express either.

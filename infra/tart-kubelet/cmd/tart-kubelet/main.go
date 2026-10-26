@@ -17,7 +17,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -52,9 +51,6 @@ var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
 )
-
-// deprecatedFlags are accepted and ignored so an older launchd plist still starts the process.
-var deprecatedFlags = []string{"cache-volume-cap-gib", "cache-volume-cas-gib"}
 
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
@@ -156,9 +152,6 @@ func main() {
 	flag.StringVar(&customCacheSA, "custom-cache-service-account", "tuist-runner-cache-volumes", "Trusted cache agent service account")
 	flag.IntVar(&customCacheMaxGB, "custom-cache-max-volume-gb", envIntOr("TART_KUBELET_CUSTOM_CACHE_MAX_VOLUME_GB", 100),
 		"Largest custom cache volume this host accepts, in decimal GB. Sent with every authorization; the server never allocates a larger volume to this host. At least 20.")
-	for _, name := range deprecatedFlags {
-		flag.Int(name, 0, "Deprecated and ignored.")
-	}
 	flag.Var(&imageMirrors, "image-mirror",
 		"<upstream>=<endpoint> (e.g. ghcr.io=http://10.10.0.11:5000): a registry serving the upstream's images under the same "+
 			"repository names, tried in order before the upstream when a golden base is pulled. May be repeated. An http endpoint is "+
@@ -181,11 +174,6 @@ func main() {
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
-	flag.Visit(func(f *flag.Flag) {
-		if slices.Contains(deprecatedFlags, f.Name) {
-			setupLog.Info("ignoring deprecated flag", "flag", f.Name, "value", f.Value.String())
-		}
-	})
 
 	if vncRelayPort < 0 || vncRelayPort > 65535 {
 		setupLog.Error(fmt.Errorf("invalid --vnc-relay-port %d", vncRelayPort), "parse flag")
@@ -451,6 +439,12 @@ func main() {
 		setupLog.Error(err, "setup pod reconciler")
 		os.Exit(1)
 	}
+	if gcCollector != nil {
+		// A host holding a pool's previous runner image pulls the current
+		// one before the GC reaps the previous one, so the release costs
+		// it the overlay rather than the whole image.
+		gcCollector.Goldens = reconciler
+	}
 
 	// Publish which golden base VMs this host holds as
 	// `tuist.dev/golden-<hash>` Node labels so the runners-controller can
@@ -480,10 +474,12 @@ func main() {
 	prewarmGate := nodeagent.NewPrewarmGate()
 	prewarmGate.FreshDisk = hostDisk.Fresh
 	if err := mgr.Add(&podagent.Prewarmer{
-		K8s:     mgr.GetAPIReader(),
-		Goldens: reconciler,
-		Gate:    prewarmGate,
-		Fleet:   nodeLabels["tuist.dev/fleet"],
+		K8s:           mgr.GetAPIReader(),
+		Goldens:       reconciler,
+		Gate:          prewarmGate,
+		Fleet:         nodeLabels["tuist.dev/fleet"],
+		NodeName:      nodeName,
+		StageInterval: time.Minute,
 		DiskFree: func() (float64, error) {
 			st, err := hostdisk.Root("/")
 			if err != nil {

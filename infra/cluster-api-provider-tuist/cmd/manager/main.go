@@ -18,7 +18,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -62,9 +61,6 @@ var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
 )
-
-// deprecatedFlags are accepted and ignored so an older chart's arguments still start the operator.
-var deprecatedFlags = []string{"cache-volume-master-cap-gib", "cache-volume-cas-gib"}
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -287,9 +283,6 @@ func main() {
 	flag.StringVar(&customCacheURL, "custom-cache-url", "", "Opt-in server URL for macOS custom cache volumes")
 	flag.StringVar(&customCacheNamespace, "custom-cache-namespace", "tuist-runners", "Custom cache agent namespace")
 	flag.StringVar(&customCacheSA, "custom-cache-service-account", "tuist-runner-cache-volumes", "Custom cache agent service account")
-	for _, name := range deprecatedFlags {
-		flag.Int(name, 0, "Deprecated and ignored.")
-	}
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 2,
@@ -316,6 +309,17 @@ func main() {
 		"The rack Linux fleet whose Secrets the RackLinuxHost controller publishes installs with: <fleet>-ssh, <fleet>-boot and <fleet>-console.")
 	flag.StringVar(&rackLinuxInstallServerURL, "rack-linux-install-server-url", "",
 		"The rack boot server's HTTP address as a netbooting host reaches it. Empty, or no --rack-linux-fleet-name, publishes no installs.")
+	var rackLinuxInternetBootServerURL string
+	flag.StringVar(&rackLinuxInternetBootServerURL, "rack-linux-internet-boot-server-url", "",
+		"The boot server preinstalled rack hosts reach over the internet before their site has one. Set, the first edge of a site is published an install once its TPM is pinned.")
+	var rackLinuxPreinstalledProducts []string
+	flag.Func("rack-linux-preinstalled-product",
+		"A hardware model, as its SMBIOS vendor and product name, that arrives with the preinstall image's installer partition, "+
+			"which its installs keep. Repeatable.",
+		func(v string) error {
+			rackLinuxPreinstalledProducts = append(rackLinuxPreinstalledProducts, v)
+			return nil
+		})
 	var rackLinuxAMTProvisioningSecretName string
 	flag.StringVar(&rackLinuxAMTProvisioningSecretName, "rack-linux-amt-provisioning-secret-name", "",
 		"Secret in the operator namespace holding the AMT provisioning certificate (pfx, password) the RackLinuxHost controller "+
@@ -496,11 +500,6 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
-	flag.Visit(func(f *flag.Flag) {
-		if slices.Contains(deprecatedFlags, f.Name) {
-			setupLog.Info("ignoring deprecated flag", "flag", f.Name, "value", f.Value.String())
-		}
-	})
 
 	rackHostImageMirrors := parseCommaList(rackHostImageMirrorsRaw)
 	for _, mirror := range rackHostImageMirrors {
@@ -911,7 +910,8 @@ func main() {
 
 	var rackInstall *linux.RackInstall
 	if rackLinuxFleetName != "" && rackLinuxInstallServerURL != "" {
-		rackInstall = &linux.RackInstall{FleetName: rackLinuxFleetName, ServerURL: rackLinuxInstallServerURL, AuthorizedKeys: rackLinuxAuthorizedKeys}
+		rackInstall = &linux.RackInstall{FleetName: rackLinuxFleetName, ServerURL: rackLinuxInstallServerURL, InternetServerURL: rackLinuxInternetBootServerURL,
+			PreinstalledProducts: rackLinuxPreinstalledProducts, AuthorizedKeys: rackLinuxAuthorizedKeys}
 	}
 	var rackAMT *linux.RackAMT
 	if rackLinuxFleetName != "" && rackLinuxAMTProvisioningSecretName != "" {
@@ -965,6 +965,7 @@ func main() {
 		EgressNamespace:     egressNamespace,
 		EgressProxyGroup:    egressProxyGroup,
 		EgressProxyTags:     egressProxyTags,
+		AMTProducts:         rackLinuxAMTProducts,
 		NodeBinary:          rackNodeBinary,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RackLinuxMachineReconciler")

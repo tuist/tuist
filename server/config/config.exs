@@ -149,6 +149,9 @@ config :logger, :console,
     :status,
     :cache_outcome,
     :duration_ms,
+    :auth_user_id,
+    :auth_project_id,
+    :auth_account_id,
     :auth_account_handle,
     # Source of the request. A failed authentication carries no account, so
     # this is the only thing it can be attributed to.
@@ -156,8 +159,15 @@ config :logger, :console,
     # Explicit sign-in outcome. Every outcome redirects, so the response status
     # cannot distinguish a failure from a success.
     :auth_outcome,
+    :selected_account_id,
     :selected_account_handle,
+    :selected_project_id,
     :selected_project_handle,
+    :feature_flags,
+    :feature_flag,
+    :feature_flag_enabled,
+    :feature_flag_actor_type,
+    :feature_flag_actor_id,
     # Operator project-access grant (forensic join key for the audit trail)
     :operator_grant_jti,
     :operator_grant_sub,

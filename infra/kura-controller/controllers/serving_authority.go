@@ -416,6 +416,7 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		grant.Handover = nil
 		grant.ResumeEpoch = 0
 		grant.ExitPromotedFrom = nil
+		grant.ExitResume, grant.HolderExit = nil, nil
 	case "Fencing":
 		promotion := instance.Spec.PrimaryPromotion
 		// Only the exact existing process can resume its own retained writer.
@@ -470,6 +471,7 @@ func (r *ServingAuthorityReconciler) Reconcile(ctx context.Context, req ctrl.Req
 			grant.Epoch++
 			grant.Phase, grant.ExpiresMS, grant.Reason = "Serving", now+15000, "Resumed the same live writer after positive publication fencing"
 			grant.Barrier = nil
+			grant.ExitResume, grant.HolderExit = nil, nil
 			break
 		}
 		if promotion == nil || promotion.PreviousEpoch != grant.Epoch || promotion.PreviousPodUID != grant.Holder.PodUID || promotion.PreviousIncarnation != grant.Holder.Incarnation || promotion.PreviousHost != grant.Holder.Host || promotion.FenceEvidence == "" {

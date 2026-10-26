@@ -19,6 +19,7 @@ import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.TaskAction
 import org.gradle.api.tasks.testing.Test
+import retrofit2.Call
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.UUID
@@ -27,7 +28,8 @@ import java.util.concurrent.TimeUnit
 class TuistTestShardingService(
     private val shardsApi: ShardsApi,
     private val accountHandle: String,
-    private val projectHandle: String
+    private val projectHandle: String,
+    private val retryPolicy: RetryPolicy = RetryPolicy()
 ) {
     private val logger = Logging.getLogger(TuistTestShardingService::class.java)
 
@@ -40,7 +42,8 @@ class TuistTestShardingService(
     ) : this(
         shardsApi = createShardsApi(baseUrl, token, httpClients),
         accountHandle = accountHandle,
-        projectHandle = projectHandle
+        projectHandle = projectHandle,
+        retryPolicy = httpClients.retryPolicy
     )
 
     fun createShardPlan(
@@ -63,20 +66,30 @@ class TuistTestShardingService(
             gradleBuildId = gradleBuildId?.let(UUID::fromString)
         )
 
-        val response = shardsApi.createShardPlan(accountHandle, projectHandle, body).execute()
-        if (!response.isSuccessful) {
-            throw org.gradle.api.GradleException("Shard plan creation failed with HTTP ${response.code()}: ${response.errorBody()?.string() ?: "(no response body)"}")
+        // Replayable: the server serves the latest plan created for a reference, and a replay
+        // creates it from the same request.
+        return execute("Shard plan creation", replaySafe = true) {
+            shardsApi.createShardPlan(accountHandle, projectHandle, body)
         }
-        return response.body() ?: throw org.gradle.api.GradleException("Shard plan creation returned empty response.")
     }
 
-    fun getShard(reference: String, shardIndex: Int): Shard {
-        val response = shardsApi.getShard(accountHandle, projectHandle, reference, shardIndex).execute()
-        if (!response.isSuccessful) {
-            throw org.gradle.api.GradleException("Get shard failed with HTTP ${response.code()}: ${response.errorBody()?.string() ?: "(no response body)"}")
+    fun getShard(reference: String, shardIndex: Int): Shard =
+        execute("Get shard", replaySafe = true) {
+            shardsApi.getShard(accountHandle, projectHandle, reference, shardIndex)
         }
-        return response.body() ?: throw org.gradle.api.GradleException("Get shard returned empty response.")
-    }
+
+    private fun <T> execute(description: String, replaySafe: Boolean, call: () -> Call<T>): T =
+        TuistRetry.run(description, replaySafe, retryPolicy) {
+            val response = call().execute()
+            if (!response.isSuccessful) {
+                throw TuistRetry.statusFailure(response.code(), response.headers()["Retry-After"]) {
+                    org.gradle.api.GradleException(
+                        "$description failed with HTTP ${response.code()}: ${response.errorBody()?.string() ?: "(no response body)"}"
+                    )
+                }
+            }
+            response.body() ?: throw org.gradle.api.GradleException("$description returned empty response.")
+        }
 
     fun deriveReference(): String? {
         System.getenv("GITHUB_RUN_ID")?.let { runId ->
@@ -296,13 +309,12 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
 
     private fun createShardingService(): TuistTestShardingService {
         val httpClients = TuistHttpClients(useEnvironmentProxy = useEnvironmentProxy)
-        val configProvider = DefaultConfigurationProvider(
+        val config = ServerConfigurationProvider(
             project = tuistProject,
             serverUrl = serverUrl,
             projectDir = rootDirectory.get().asFile,
             httpClients = httpClients
-        )
-        val config = configProvider.getConfiguration()
+        ).getConfiguration()
         return TuistTestShardingService(
             baseUrl = serverUrl,
             token = config.token,
@@ -386,18 +398,17 @@ abstract class TuistTestShardingPlugin : Plugin<Project> {
         }
 
         val httpClients = TuistHttpClients(useEnvironmentProxy = config.network.proxy)
-        val configProvider = DefaultConfigurationProvider(
+        val serverConfig = ServerConfigurationProvider(
             project = config.project,
             serverUrl = config.url,
             projectDir = project.rootProject.projectDir,
             httpClients = httpClients
-        )
-        val cacheConfig = configProvider.getConfiguration()
+        ).getConfiguration()
         val shardingService = TuistTestShardingService(
             baseUrl = config.url,
-            token = cacheConfig.token,
-            accountHandle = cacheConfig.accountHandle,
-            projectHandle = cacheConfig.projectHandle,
+            token = serverConfig.token,
+            accountHandle = serverConfig.accountHandle,
+            projectHandle = serverConfig.projectHandle,
             httpClients = httpClients
         )
 

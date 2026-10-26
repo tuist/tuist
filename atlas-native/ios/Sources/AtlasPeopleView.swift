@@ -32,20 +32,43 @@ struct AtlasPeopleView: View {
         }
         .modifier(AtlasThemedContent())
         .navigationTitle("People")
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: "people") } }
+        .toolbar {
+            AtlasPresenceToolbar()
+            ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: "people") }
+        }
         .onAppear { presence.show(resource: "people") }
     }
 }
 
-struct AtlasAlsoHere: View {
+struct AtlasPresenceToolbar: ToolbarContent {
+    @Environment(\.atlasPresence) private var presence
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            if let presence { AtlasAlsoHere(presence: presence) }
+        }
+    }
+}
+
+private struct AtlasAlsoHere: View {
     @ObservedObject var presence: AtlasPresence
 
     var body: some View {
-        let names = presence.people.filter(\.here).map(\.name)
-        if !names.isEmpty {
-            Label("Also here: \(names.joined(separator: ", "))", systemImage: "person.2.fill")
-                .font(.footnote).foregroundStyle(.secondary)
-                .accessibilityIdentifier("also-here")
+        let people = presence.people.filter(\.here)
+        if !people.isEmpty {
+            Menu {
+                Section("Also here") {
+                    ForEach(people) { person in Text(person.name) }
+                }
+            } label: {
+                Label("\(people.count)", systemImage: "person.2.fill")
+                    .labelStyle(.iconOnly)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Also here")
+            .accessibilityValue(people.map(\.name).joined(separator: ", "))
+            .accessibilityIdentifier("also-here")
         }
     }
 }

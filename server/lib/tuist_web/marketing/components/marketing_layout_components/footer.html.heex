@@ -125,6 +125,7 @@
         href: "https://www.linkedin.com/company/tuistio/",
         external: true
       },
+      %{label: "YouTube", href: "https://www.youtube.com/@tuistdev", external: true},
       %{label: dgettext("marketing", "Videos"), href: "https://videos.tuist.dev", external: true}
     ]
   },
@@ -327,8 +328,9 @@ alone on join. The navbar does the same. --%>
                   value={language.code}
                   label={language.native}
                   secondary_text={if language.code != "en", do: language.label}
+                  data-language-switch
                   href={
-                    TuistWeb.Marketing.Localization.localized_href(
+                    TuistWeb.Marketing.Localization.language_switch_href(
                       TuistWeb.Marketing.Localization.current_path(assigns),
                       language.code
                     )

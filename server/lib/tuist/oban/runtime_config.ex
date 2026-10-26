@@ -44,7 +44,8 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@daily", CacheVolumeCleanupWorker},
     {"@daily", Tuist.Accounts.Workers.SSOLoginDomainRecheckWorker},
     {"@daily", PruneExpiredSubscriptionsWorker},
-    {"@hourly", PruneJobKeysWorker}
+    {"@hourly", PruneJobKeysWorker},
+    {"*/5 * * * *", Tuist.IdempotentRequests.Workers.PruneWorker}
   ]
 
   @swift_registry_sync_cron {"*/10 * * * *", SyncWorker}

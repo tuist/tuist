@@ -287,6 +287,12 @@ defmodule Tuist.Environment do
       truthy?(System.get_env("TUIST_HOSTED", "0"))
   end
 
+  # Enable only after every web/ingestion and build-processor replica accepts the expanded limit.
+  # Before a downgrade, disable and drain in-flight reports before rolling back.
+  def expanded_build_metadata_enabled? do
+    truthy?(System.get_env("TUIST_EXPANDED_BUILD_METADATA_ENABLED", "0"))
+  end
+
   def kura_capacity_admission_required? do
     tuist_hosted?() and truthy?(System.get_env("TUIST_KURA_CAPACITY_ADMISSION_ENABLED", "0"))
   end

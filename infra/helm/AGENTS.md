@@ -18,9 +18,33 @@ runs the mixed-version latency expression through promtool.
 
 - Xcode 27.1 RC retirement requires the additive stable chart already deployed
   and a published versioned runner image containing stable. Keep 26.6 as the
-  default and warm floor. Follow the prerequisites, rollback floor and required
+  default. Follow the prerequisites, rollback floor and required
   post-rollout reconciliation in
   [the retirement runbook](../runner-image/xcode-27.1-retirement.md).
+
+- Production sizes warm floors by demand: only a warm runner claims a job in
+  under 10 s, and a pool without one starts every job cold (scale-up plus VM
+  boot, 10 to 75 s), while a floor on an image without jobs holds a slot
+  other images' bursts wait for. Images with a job in most weekday working
+  hours keep one: on the BER1 rack 27.0 keeps two and 26.6, 26.3 and 26.0.1
+  one (`rackFleet.runners.xcodeOverrides`, default 0); on the rented fleet
+  27.0 keeps two and the default image 26.6 one (`runnersFleet.xcodeOverrides`).
+  Re-measure from `tuist.runner_jobs` before changing them.
+  The 12 vCPU shape pools stay at 0, because an idle one holds a whole host.
+  Staging and canary run one lent rack host with two slots: staging warms
+  26.6 and 27.1, and canary keeps its slots free for the runners acceptance
+  probe. How warm runners give way to queued jobs is in
+  `../runners-controller/AGENTS.md` ("Fleet-capacity awareness").
+
+- RunnerPool names (`<release>-runner-pool-macos-[<site>-]<xcode-dashes>[-<shape>]`)
+  are identifiers: they are `fleet_name` in Postgres and ClickHouse, the
+  dispatch key, and what alerts and dashboards select on. Customers see the
+  GitHub runner name instead, which the server mints per job as
+  `tuist-macos-<guest macOS>-xcode-<xcode>-<shape>-<hex>` from the pool's
+  `tuist.dev/xcode-version` label and the version the guest reports. Change
+  that name in `server/lib/tuist/runners.ex`, not by renaming pools, and keep
+  the label on every catalog pool. Pools without it (the explicit `pools`
+  entries) keep their Pod name as the runner name.
 
 - `server.config.originAppKey.enabled` adds the registered Origin App ID and Ed25519 private PEM to the managed server-config ExternalSecret. Trim only the App ID, never the private PEM or log key material. It defaults off and is enabled in production, canary, and staging after each environment's own `ORIGIN_APP/app_id` and `ORIGIN_APP/private_key` fields exist in its `tuist-k8s-<env>` vault. The App ID field is configurable with `appIdField`. Each environment uses an independent app and signing key.
 
@@ -110,8 +134,9 @@ runs the mixed-version latency expression through promtool.
   five-minute evaluation), provisioned separately from Helm; `alerts.md` holds
   the backtests. The warm-rate rule reads the production database as
   `tuist_grafana_ro`, so its columns are in `Tuist.Release`'s Grafana grant
-  allowlist. The Loki rules read host logs because `tuist_runner_cache_volume_operations_total` is aggregated
-  to a plain sum by Adaptive Metrics and cannot be rated. Keep the macOS
+  allowlist. The Loki rules read host logs because `tuist_runner_cache_volume_operations_total` undercounts:
+  its `sum:counter` Adaptive Metrics rule (2026-10-22) makes it rate-able, but
+  both agents create series on first increment, so isolated failures vanish. Keep the macOS
   queries line-filtered and the windows short: that stream carries the runner
   logs and each evaluation scans the whole window.
 - Browser RUM gateway rollout has two phases: deploy gateway-capable server pods first, then enable `server.faro.gateway.enabled` to switch the dedicated collector Ingress backend and remove its rewrite. New rules in `k8s-monitoring/browser-rum-alert-rules.json` stay paused until coverage and per-surface baselines are validated; see `k8s-monitoring/browser-rum.md`.
@@ -195,5 +220,7 @@ The server deployment injects `TUIST_RATE_LIMIT_FALLBACK_REPLICAS` from `max(5, 
 Database capacity is a separate qualification: the current direct web pool is fifteen connections per pod, or seventy-five at five steady replicas before workers, surge and terminating pods. Budget all simultaneously serving pools and the Stripe/Once worker occupancy; these arithmetic bounds are not measurements of exhaustion or safe capacity. A transaction pooler cannot replace connection-scoped advisory-lock users without an explicit migration.
 
 ## Replica-safety rollout
+
+Keep the chart-facing [server scaling guide](tuist/README.md#scaling-the-server) aligned with the cookie, private networking and membership-verification contracts below.
 
 Cluster formation requires a stable shared cookie Secret, a fixed distribution listener, allowed EPMD/distribution ingress, and a headless service. More than one server replica requires clustering. Managed canary runs two replicas so actual membership is exercised before production promotion. Do not promote until the proof-cache and authoritative authentication rollouts are stable and OAuth entity operations no longer depend on replicated invalidations. Boruta's cache and membership supervision still starts; the entity callbacks, not that lifecycle, are disabled. The stable private cookie connects different image versions during rolling upgrades; the first migration from image-baked cookies still creates old/new islands. Qualify PubSub, Oban PG notifications and peer replacement across the actual versions. Offline/GitOps renderers without live Secret lookup must use a separately managed `cookieExistingSecret`; a missing key in an existing generated Secret fails rather than silently rotating it. Managed staging/canary/production configure `server.cluster.externalSecret` with `cookieExistingSecret: tuist-server-cluster-cookie`: the dedicated ESO resource reads `SERVER_CLUSTER_COOKIE/password` from each environment's own 1Password vault, never the shared server-config Secret. It renders only when clustering is enabled, uses `refreshPolicy: OnChange` so source edits alone do not propagate on a timer, and requires an explicit sync during coordinated rotation; self-host defaults require no ESO. Missing/empty source data must not trigger cookie generation. `test-cluster-cookie.py` checks ownership, all three environment overlays, web-only references and invalid configurations in Helm CI. Bootstrap, rebuild and coordinated rotation are documented in [onboarding](../k8s/onboarding.md#5e-durable-server-distribution-cookies). Cookie rotation requires coordinated process replacement. The chart guard rejects previously accepted unclustered multi-web configurations because live PubSub/PG notifications must cross replicas; it is not a runtime replica-count detector. See the [self-host clustering upgrade guidance](../../server/priv/docs/en/guides/server/self-host/server.md#multi-replica-clustering).

@@ -238,7 +238,7 @@ defmodule TuistWeb.Marketing.StructuredMarkup do
       "name" => "Tuist",
       "url" => Tuist.Environment.app_url(),
       "publisher" => get_organization_structured_data(),
-      "inLanguage" => Gettext.get_locale(TuistWeb.Gettext)
+      "inLanguage" => TuistWeb.Locale.language_tag(Gettext.get_locale(TuistWeb.Gettext))
     }
   end
 

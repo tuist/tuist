@@ -111,5 +111,45 @@
     "note": "No Ethernet at all. It hangs off a PDU's SENSOR port over an RJ45 cable carrying RS485 (Modbus), chained probe to probe, and draws its power over that link, so it occupies no switch port and has no management link. Its identity on the bus is a Modbus address, not a NIC.",
     "bus": "rs485",
     "interfaces": {}
+  },
+  "rs501a-e12": {
+    "product": "ASUS RS501A-E12-RS12U/1G",
+    "note": "Rack 2's edge and storage server. Interface names and MACs as the bench unit (TAS0CG000177) reported them on Ubuntu 24.04. Its BMC is adopted over Redfish (infra/rack-nodes).",
+    "interfaces": {
+      "bmc": {
+        "media": "copper",
+        "speed": "1G",
+        "out_of_band": "redfish",
+        "note": "The leftmost of the three RJ45 ports on the back: the BMC's dedicated port."
+      },
+      "lan1": {
+        "media": "copper",
+        "speed": "1G",
+        "controller": "i350",
+        "os_name": "eno1",
+        "note": "The middle RJ45, the first onboard port: cabled to its ToR's management port for the ToR's zero-touch provisioning. The BMC's NC-SI sideband also rides it: a switch on this port learned the BMC's second MAC there."
+      },
+      "lan2": {
+        "media": "copper",
+        "speed": "1G",
+        "controller": "i350",
+        "os_name": "eno2",
+        "note": "The rightmost RJ45."
+      },
+      "n225p-1": {
+        "media": "dac",
+        "speed": "25G",
+        "controller": "bnxt_en",
+        "os_name": "ens17f0np0",
+        "note": "Broadcom N225P port 1. Linked at 10G with FEC off on a 10G SFP+ DAC; 25G needs an SFP28 DAC into the ToR's SFP28 ports. An admin-down port keeps its link, so a bond on it runs fast LACP."
+      },
+      "n225p-2": {
+        "media": "dac",
+        "speed": "25G",
+        "controller": "bnxt_en",
+        "os_name": "ens17f1np1",
+        "note": "Broadcom N225P port 2."
+      }
+    }
   }
 }

@@ -207,12 +207,9 @@ struct AtlasThemedContent: ViewModifier {
     @Environment(\.atlasTheme) private var theme
     @Environment(\.colorScheme) private var scheme
 
-    @ViewBuilder func body(content: Content) -> some View {
-        if let theme {
-            content.scrollContentBackground(.hidden)
-                .background(Color(atlasHex: theme.palette(scheme).background))
-        } else {
-            content
-        }
+    func body(content: Content) -> some View {
+        content
+            .scrollContentBackground(theme == nil ? .automatic : .hidden)
+            .background(theme.map { Color(atlasHex: $0.palette(scheme).background) } ?? .clear)
     }
 }

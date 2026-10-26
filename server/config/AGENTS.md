@@ -18,6 +18,7 @@ The web-only base queues include `once_test_reports: 2`. Keep new Once publicati
   so unused charting and form runtimes stay out of the marketing bundle.
 
 ## Related Context
+- Keep console and Loki structured-metadata allowlists aligned for auth/selected IDs, legacy handles and bounded feature decisions. These high-cardinality fields are structured metadata, never Loki stream labels. Customer billing IDs remain Sentry extras only, not log/trace attributes.
 - Business logic: `server/lib/tuist/AGENTS.md`
 
 - GitLab coordinator polling uses the dedicated `runner_gitlab` queue on web nodes; network waits must not occupy the general `default` queue.

@@ -69,7 +69,7 @@ struct ServerClientAuthenticationMiddleware: ClientMiddleware {
             if config.optionalAuthentication, !reportOperation {
                 return try await next(request, body, baseURL)
             }
-            throw error
+            throw CredentialAcquisitionError(underlyingError: error)
         }
 
         guard let token else {

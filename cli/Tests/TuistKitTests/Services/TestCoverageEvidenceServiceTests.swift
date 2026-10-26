@@ -2,6 +2,7 @@ import FileSystem
 import FileSystemTesting
 import Foundation
 import Testing
+import TuistConfig
 import TuistEnvironment
 import TuistTesting
 import XCResultParser
@@ -72,6 +73,42 @@ struct TestCoverageEvidenceServiceTests {
         ))
     }
 
+    @Test func takesATargetFromItsProcessesWhenTheyWereRead() {
+        let evidence = TestCoverageEvidenceService.reduce(
+            outputs: [output([
+                .init(
+                    kind: .xctest,
+                    overlapped: false,
+                    module: "AppTests",
+                    suite: "MathTests",
+                    name: "testAdd",
+                    counters: [0: [0]]
+                ),
+            ])],
+            filesByFunction: ["/products/App": ["add": ["/src/Math.swift"]]],
+            targets: [
+                "AppTests": ["/src/Math.swift": IndexSet([3, 4]), "/src/Launch.swift": IndexSet([1])],
+                "OtherTests": ["/src/Other.swift": IndexSet(integersIn: 2 ... 5)],
+            ]
+        )
+
+        #expect(evidence == TestCoverageEvidence(
+            paths: ["/src/Launch.swift", "/src/Math.swift", "/src/Other.swift"],
+            scopes: [
+                .init(kind: .target, module: "AppTests", suite: "", name: "", files: [0, 1], lines: [[1, 1], [3, 4]]),
+                .init(kind: .test, module: "AppTests", suite: "MathTests", name: "testAdd()", files: [1]),
+                .init(kind: .target, module: "OtherTests", suite: "", name: "", files: [2], lines: [[2, 5]]),
+            ]
+        ))
+    }
+
+    @Test func namesATestModuleAfterItsBundle() {
+        #expect(TestCoverageEvidenceService
+            .testModule(ofImage: "/p/Debug/CoreTests.xctest/Contents/MacOS/CoreTests") == "CoreTests")
+        #expect(TestCoverageEvidenceService.testModule(ofImage: "/p/App.app/PlugIns/AppTests.xctest/AppTests") == "AppTests")
+        #expect(TestCoverageEvidenceService.testModule(ofImage: "/p/Debug/Core.framework/Core") == nil)
+    }
+
     @Test func namesAnXCTestTestAsTheResultBundleDoes() {
         #expect(TestCoverageEvidenceService.testName(xctestSelector: "testAdd") == "testAdd()")
         #expect(TestCoverageEvidenceService.testName(xctestSelector: "testAddAndReturnError:") == "testAdd()")
@@ -130,11 +167,13 @@ struct TestCoverageEvidenceServiceTests {
         #expect(TestCoverageEvidencePlatform(destination: "id=00008110-000A") == nil)
     }
 
-    @Test(.withMockedEnvironment()) func collectsNothingUnlessAskedToAndFlagged() async {
-        #expect(await TestCoverageEvidenceService().prepare(platform: .macOS) == nil)
+    @Test(.withMockedEnvironment()) func collectsOnlyWhenTheRunUploadsCoverage() async {
+        // Without the `COVERAGE` client flag.
+        #expect(await TestCoverageEvidenceService().prepare(platform: .macOS, config: .test()) == nil)
 
-        Environment.mocked?.variables["TUIST_COVERAGE_EVIDENCE"] = "1"
-        #expect(await TestCoverageEvidenceService().prepare(platform: .macOS) == nil)
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        let noUpload = TuistConfig.Tuist.test(testInsights: TuistConfig.Tuist.TestInsights(coverage: .init(upload: false)))
+        #expect(await TestCoverageEvidenceService().prepare(platform: .macOS, config: noUpload) == nil)
     }
 
     @Test(.inTemporaryDirectory) func saysWhenNoTestProcessRecordedEvidence() async throws {
@@ -176,14 +215,13 @@ struct TestCoverageEvidenceServiceTests {
     }
 
     @Test(.withMockedEnvironment()) func tellsTheTestProcessesWhereToRecord() async throws {
-        Environment.mocked?.variables["TUIST_COVERAGE_EVIDENCE"] = "1"
         Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
 
-        let session = try #require(await TestCoverageEvidenceService().prepare(platform: .iOSSimulator))
+        let session = try #require(await TestCoverageEvidenceService().prepare(platform: .iOSSimulator, config: .test()))
         defer { try? FileManager.default.removeItem(atPath: session.directory.pathString) }
 
         // The test targets link TestCoverageAttribution: nothing is injected into the test hosts.
         #expect(session.environment == ["TEST_RUNNER_TEST_COVERAGE_ATTRIBUTION_DIR": session.directory.pathString])
-        #expect(await TestCoverageEvidenceService().prepare(platform: nil) == nil)
+        #expect(await TestCoverageEvidenceService().prepare(platform: nil, config: .test()) == nil)
     }
 }

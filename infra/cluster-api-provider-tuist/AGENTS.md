@@ -1702,7 +1702,11 @@ belongs to the box, whose AMT keeps the password.
 (`rack_linux_converge.go`, `internal/racknode`, `cmd/rack-node`). The machine
 reconciler renders a `RackNodeConfig`, the host's files (kubelet unit and
 configuration, CA, local CNI, containerd's registry mirror, sysctl, modules,
-the management port's networkd file, `/etc/tuist/kubernetes-api`, the
+the management port's networkd file (on a host with AMT only: one that names
+its AMT, is a model in `--rack-linux-amt-products`, or whose AMT the operator
+has read; it keeps the boot NIC AMT shares up with `ARP=no` and no address, and
+a host with a BMC of its own, whose boot NIC is the host's, gets none),
+`/etc/tuist/kubernetes-api`, the
 translation of the kubernetes Service to the API server in
 `/etc/tuist/kubernetes-service.nft`, an edge's host networking below), the
 directories it needs, the exact kubelet release the control plane runs and the
@@ -2244,22 +2248,26 @@ infra/cluster-api-provider-tuist/
 │       ├── racklinux_candidates.go  # tidies what the rack boot servers list
 │       ├── linux_cloudinit.go       # shared self-join script + kubelet config (Layers 2+3)
 │       ├── kubelet_config_drift.go  # zero-downtime re-push of kubelet config to Ready nodes
-│       └── kata_runtime_drift.go    # detect + repair a node that joined without the kata runtime
+│       ├── kata_runtime_drift.go    # detect + repair a node that joined without the kata runtime
+│       ├── kata_shared_memory.go    # /dev/shm ceiling for Kata guest RAM + the host-config proof
+│       └── kata_virtiofs.go         # virtiofsd file budget (fs.nr_open + Kata config.d drop-in)
 ├── internal/
 │   ├── power/        # PDU / smart-plug drivers, eaton and shelly (the rack's remote reboot), the Eaton ATS reads; eatontest fakes a PDU card and an ATS card
+│   ├── redfish/      # a rack x86 server's BMC over Redfish (AMI MegaRAC on the ASUS RS501A): inventory, BIOS baseline, accounts, virtual CD, boot override, power; redfishtest fakes that BMC
 │   ├── rackcard/     # a rack power card's passwords, derived from the root key
 │   ├── scaleway/     # Scaleway SDK wrapper
-│   ├── rackinstall/  # a rack host's autoinstall seed, iPXE script and install stick
-│   ├── rackboot/     # the rack boot server: TFTP/HTTP netboot, seeds, announcements
+│   ├── rackinstall/  # a rack host's autoinstall seed, iPXE script, install stick, and the preinstall image's deploy and resident seeds
+│   ├── rackboot/     # the rack boot server: TFTP/HTTP netboot, seeds, announcements; with Internet, only sealed seeds and declared hosts' announcements
 │   ├── racknode/     # makes a rack Linux host the node its RackNodeConfig describes
 │   ├── rackseed/     # a rack host's seed, sealed to its pinned TPM; rackseedtest is a TPM in software
 │   ├── tailnet/      # Tailscale API: devices and join keys
 │   ├── credentials/  # fleet SSH keys + per-machine kubelet identities
 │   └── bootstrap/    # SSH-driven kubelet/tart-cri install
 ├── cmd/manager/    # controller-manager entry point
-├── cmd/rack-boot/  # the rack boot server, run on a rack's edge nodes
+├── cmd/rack-boot/  # the rack boot server, run on a rack's edge nodes; --internet runs it on the cloud for preinstalled boxes
+├── cmd/rack-bmc/   # adopts and drives a rack x86 server through its BMC (inventory, check/apply the BIOS baseline, rotate, cd, boot-once, power)
 ├── cmd/rack-node/  # applies a rack node's configuration, reads its TPM, asks for its seed
-├── cmd/rack-seed/  # renders a seed for rack:write-install-usb
+├── cmd/rack-seed/  # renders a seed for rack:write-install-usb, or with -preinstall the preinstall image's
 ├── cmd/rack-card-password/  # derives a rack power card's password for rack:card-password
 ├── config/
 │   └── rbac/       # ClusterRole for the manager
@@ -2381,16 +2389,44 @@ setup in `controllers/linux/kata_shared_memory.go` grows that ceiling to
 `MemTotal`, preserves larger custom ceilings and mount flags, and verifies the
 result. This changes a ceiling; it does not preallocate memory.
 
+virtiofsd also bounds how many files a runner job can keep. It holds one host
+descriptor for every inode the guest has cached, and Kata starts it without
+`--rlimit-nofile`, so its budget is virtiofsd's default of min(1,000,000,
+`fs.nr_open`). Once that is spent it answers the guest with EMFILE, whatever the
+guest process's own rlimit is (job steps get 1048576). Measured 2026-10-22: a
+job creating files on the rootfs failed at ~990k cached inodes while holding 7
+descriptors, and the server `Seed` job peaks at ~888k (831k ClickHouse part
+files), which is why it intermittently failed with ClickHouse
+`Too many open files`. `controllers/linux/kata_virtiofs.go` writes
+`/etc/sysctl.d/90-tuist-kata-virtiofs.conf` (`fs.nr_open = 4194304`), applies
+and verifies it, and only then installs the Kata drop-in
+`/opt/kata/share/defaults/kata-containers/config.d/50-tuist-virtiofs.toml`,
+which repeats Kata's default `virtio_fs_extra_args` and adds
+`--rlimit-nofile=4194304`. The order matters: virtiofsd exits when the value
+exceeds `fs.nr_open`, which would fail every new Kata Pod. virtiofsd reads its
+arguments when a Pod starts, so new Pods pick it up without restarting
+containerd; running Pods keep the old budget until they are replaced. Every
+cached inode also pins host kernel memory outside the Pod's cgroup, which is
+why the budget is four times the default rather than unbounded.
+
+The alternatives were rejected. A pod-template `ulimit` changes nothing, since
+the guest process limit is already high. `--inode-file-handles` would avoid the
+descriptors only for filesystems with decodable file handles, which the
+container rootfs (overlayfs without `nfs_export`) is not, and that rootfs is
+where ClickHouse keeps its data. A stricter `virtio_fs_cache` mode would slow
+every metadata-heavy build.
+
 Bootstrap installs `tuist-kata-shared-memory.service`, ordered before containerd,
-and the Ready-path repair installs and runs the same service on existing OVH
-Kata hosts without restarting containerd, kubelet, or guests. Only a successful
-repair stamps `tuist.dev/kata-shared-memory-config` on the Node with the script
-and unit hash plus `status.nodeInfo.bootID`. A changed configuration or boot
-invalidates that proof; it is not continuous detection of manual mount changes
-within the same boot. Missing proof sets `KataSharedMemoryUnverified`; a failed
-repair sets `KataRuntimeRepairFailed`, leaving the machine Ready and the existing
-runtime label intact. Non-Kata fleets are unaffected. The Hetzner worker template
-in `infra/k8s/clusters/bare-metal.yaml` installs identical files for new workers
+and the virtiofsd files. The Ready-path repair installs and runs both on
+existing OVH Kata hosts without restarting containerd, kubelet, or guests. Only
+a successful repair stamps `tuist.dev/kata-host-config` on the Node with the
+hash of the shared-memory script and unit and the virtiofsd sysctl and drop-in,
+plus `status.nodeInfo.bootID`. A changed configuration or boot invalidates that
+proof; it is not continuous detection of manual changes within the same boot.
+Missing proof sets `KataHostConfigUnverified`; a failed repair sets
+`KataRuntimeRepairFailed`, leaving the machine Ready and the existing runtime
+label intact. Non-Kata fleets are unaffected. The Hetzner worker template in
+`infra/k8s/clusters/bare-metal.yaml` installs identical files for new workers
 (checked by a test); existing Hetzner workers do not use this OVH repair path.
 
 Alerts for this operator are Grafana-managed rules, created in Grafana Cloud

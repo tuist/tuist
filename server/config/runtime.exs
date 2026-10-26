@@ -476,7 +476,8 @@ if Enum.member?([:prod, :stag, :can, :preview, :dev], env) do
         log_protocol_errors: :verbose
       ],
       thousand_island_options: [
-        read_timeout: to_timeout(second: 15)
+        read_timeout: to_timeout(second: 15),
+        shutdown_timeout: to_timeout(second: 15)
       ]
     ]
 

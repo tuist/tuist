@@ -59,6 +59,9 @@ pub struct ServingAuthority {
     pub barrier: Mutex<Option<crate::handover::Receipt>>,
     pub(crate) handover_preparation: tokio::sync::Mutex<()>,
     pub(crate) preparation: Mutex<Option<crate::handover::Preparation>>,
+    // Record versions whose content this destination confirmed against the
+    // source while it still served, for exactly one named intent.
+    pub(crate) verified_content: Mutex<Option<crate::handover::VerifiedContent>>,
     marker: Option<std::path::PathBuf>,
     // The exited holder that left this pod's volume marked. Until its exit
     // resume installs, no other grant may open the volume.
@@ -108,6 +111,7 @@ impl ServingAuthority {
             barrier: Mutex::new(None),
             handover_preparation: tokio::sync::Mutex::new(()),
             preparation: Mutex::new(None),
+            verified_content: Mutex::new(None),
             marker: None,
             inherited: Mutex::new(None),
             exit_attested: std::sync::atomic::AtomicBool::new(false),
@@ -275,12 +279,13 @@ impl ServingAuthority {
             .inherited
             .lock()
             .map_err(|_| "inherited holder poisoned")?;
-        if active.is_none() && (inherited.is_some() || grant.exit_resume.is_some()) {
+        if active.is_none() && inherited.is_some() {
             // A restarted container in the exited holder's own pod takes the
             // writer over only through a grant naming that exact predecessor.
+            // Without an inherited volume the binding authorizes nothing, and a
+            // grant still carrying an earlier one follows the ordinary rules.
             let exit = grant.exit_resume.as_ref();
             if resuming
-                || inherited.is_none()
                 || exit.map(|exit| &exit.holder) != inherited.as_ref()
                 || exit.is_none_or(|exit| {
                     exit.holder.pod_uid != self.identity.pod_uid
@@ -1080,12 +1085,50 @@ mod tests {
     }
 
     #[test]
-    fn an_exit_resume_never_opens_a_volume_this_process_did_not_inherit() {
-        let a = authority();
-        let mut previous = a.identity.clone();
-        previous.incarnation = "exited".into();
-        assert!(a.install(exit_resume(&a, &previous, 1)).is_err());
-        assert!(a.admit().is_err());
+    fn an_exit_resume_never_opens_a_marked_volume_this_process_did_not_inherit() {
+        let dir = tempfile::tempdir().unwrap();
+        let marker = dir.path().join(".kura.primary-unclean");
+        let mut previous = authority();
+        Arc::get_mut(&mut previous).unwrap().marker = Some(marker.clone());
+        previous.install(grant(&previous, 1)).unwrap();
+        let mut other = authority();
+        Arc::get_mut(&mut other).unwrap().marker = Some(marker);
+        assert!(
+            other
+                .install(exit_resume(&other, &previous.identity, 1))
+                .is_err()
+        );
+        assert!(other.admit().is_err());
+    }
+
+    #[test]
+    fn a_live_writer_resumes_through_a_grant_still_naming_an_earlier_exit() {
+        let dir = tempfile::tempdir().unwrap();
+        let marker = dir.path().join(".kura.primary-unclean");
+        let mut exited = authority();
+        Arc::get_mut(&mut exited).unwrap().marker = Some(marker.clone());
+        exited.install(grant(&exited, 8)).unwrap();
+        let writer = restarted(&exited, marker);
+        let resumed = exit_resume(&writer, &exited.identity, 8);
+        writer.install(resumed.clone()).unwrap();
+
+        // A later interruption fences this live writer; the next epoch can still
+        // carry the earlier binding from a controller that kept it.
+        writer.active.lock().unwrap().as_mut().unwrap().deadline = Instant::now();
+        let mut fence = resumed.clone();
+        fence.phase = "Fencing".into();
+        writer.install(fence.clone()).unwrap();
+        writer.install(fence).unwrap();
+        assert_eq!(writer.report()["fenced_epoch"], 9);
+        let mut resume = resumed;
+        resume.epoch = 10;
+        resume.resume_epoch = Some(9);
+        resume.expires_ms = now_ms() + 15000;
+        writer.install(resume).unwrap();
+        assert!(
+            writer.admit().unwrap().is_some(),
+            "a stale exit binding refused the live writer"
+        );
     }
 
     #[test]
