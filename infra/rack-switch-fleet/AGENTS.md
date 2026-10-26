@@ -1754,7 +1754,18 @@ Rack 2's ToRs are FS S5860-24XMG on PicOS (`s5860-24xmg` in `models.json`,
 gives a PicOS switch a RackSwitch object and no configuration text: no
 `configs/<site>/<switch>.cfg`, and a `configRevision` that is the digest of the
 object's `config`. Ports are `te-1/1/1` to `te-1/1/32`: 1 to 24 copper (100M to
-10G), 25 to 28 SFP+, 29 to 32 SFP28 in one speed group that ZTP sets to 10G.
+10G), 25 to 28 SFP+, 29 to 32 SFP28.
+
+### Port speeds
+
+Every port runs at its default, and nothing sets another: auto on copper and
+SFP+ (a 1G copper SFP module links at 1G there with nothing set), 25G on SFP28,
+which rack 2's edge and storage DACs run at. Ports 29 to 32 are one speed
+group: PicOS commits them all at 25G (or unset) or all at 10G or 1G, and
+refuses a mix (measured 2026-10-26), so a 25G leg and a 1G module never share
+the SFP28 ports; 1G modules go in 25 to 28. Neither ZTP nor the controller
+writes a speed, so a 10G DAC in an SFP28 port, as on the bench, needs one set by
+hand on all four.
 
 ### Zero touch, served by the edge
 
