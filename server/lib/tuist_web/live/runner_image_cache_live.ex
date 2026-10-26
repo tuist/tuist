@@ -3,12 +3,15 @@ defmodule TuistWeb.RunnerImageCacheLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Widget
 
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Runners.DockerCache
+  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.RunnersLive
   alias TuistWeb.RunnerVolumesLive
 
   @page_size 20
@@ -27,7 +30,8 @@ defmodule TuistWeb.RunnerImageCacheLive do
      assign(socket,
        head_title: "#{dgettext("dashboard_runners", "Image cache")} · #{account.name} · Tuist",
        enabled: FeatureFlags.runner_docker_cache_enabled?(account),
-       metric: "hit_rate"
+       metric: "hit_rate",
+       initialize_percentile: "avg"
      )}
   end
 
@@ -66,6 +70,10 @@ defmodule TuistWeb.RunnerImageCacheLive do
 
   def handle_event("select_metric", %{"widget" => metric}, socket) when metric in @metrics do
     {:noreply, assign(socket, :metric, metric)}
+  end
+
+  def handle_event("select_initialize_percentile", %{"type" => type}, socket) when type in ["avg", "p50", "p90", "p99"] do
+    {:noreply, assign(socket, :initialize_percentile, type)}
   end
 
   def handle_event(
@@ -219,6 +227,7 @@ defmodule TuistWeb.RunnerImageCacheLive do
   attr :id, :string, required: true
   attr :data, :map, required: true
   attr :metric, :string, required: true
+  attr :percentile, :string, required: true
   attr :period, :any, required: true
 
   def analytics_widgets(assigns) do
@@ -230,7 +239,10 @@ defmodule TuistWeb.RunnerImageCacheLive do
           @data.previous.activity.hit_rate
         ) %>
       <% initialize_change =
-        duration_trend(@data.analytics.steps.reused_ms, @data.previous.steps.reused_ms) %>
+        duration_trend(
+          RunnersLive.percentile_value(@data.analytics.steps.reused, @percentile),
+          RunnersLive.percentile_value(@data.previous.steps.reused, @percentile)
+        ) %>
       <% uses_change =
         RunnerVolumesLive.uses_trend(@data.analytics.activity.uses, @data.previous.activity.uses) %>
       <.widget
@@ -252,11 +264,14 @@ defmodule TuistWeb.RunnerImageCacheLive do
         phx_click="select_metric"
         phx_value_widget="hit_rate"
       />
-      <.widget
+      <.percentile_dropdown_widget
         id={"#{@id}-initialize"}
-        legend_color={metric_color("initialize")}
-        title={dgettext("dashboard_runners", "Initialize containers")}
-        value={duration(@data.analytics.steps.reused_ms)}
+        legend_color={RunnersLive.legend_color_for_percentile(@percentile)}
+        title={initialize_title(@percentile)}
+        value={duration(RunnersLive.percentile_value(@data.analytics.steps.reused, @percentile))}
+        metrics={RunnersLive.percentile_metrics_for(@data.analytics.steps.reused)}
+        selected_type={@percentile}
+        event_name="select_initialize_percentile"
         trend_value={initialize_change.value}
         trend_value_label={initialize_change.value_label}
         trend_label={initialize_change.label}
@@ -264,8 +279,8 @@ defmodule TuistWeb.RunnerImageCacheLive do
         description={
           dgettext(
             "dashboard_runners",
-            "Median Initialize containers step of jobs that started from saved images. Jobs that pulled every layer took %{cold}.",
-            cold: duration(@data.analytics.steps.cold_ms)
+            "Initialize containers step of jobs that started from saved images. For jobs that pulled every layer, the same statistic was %{cold}.",
+            cold: duration(RunnersLive.percentile_value(@data.analytics.steps.cold, @percentile))
           )
         }
         selected={@metric == "initialize"}
@@ -297,7 +312,7 @@ defmodule TuistWeb.RunnerImageCacheLive do
         :if={chart_data?(@data.analytics, @metric)}
         id={"#{@id}-chart"}
         type={if @metric == "uses", do: "bar", else: "line"}
-        series={chart_series(@data.analytics, @metric)}
+        series={chart_series(@data.analytics, @metric, @percentile)}
         extra_options={chart_options(@metric, @period)}
         y_axis_min={0}
       />
@@ -309,27 +324,32 @@ defmodule TuistWeb.RunnerImageCacheLive do
     """
   end
 
-  def metric_color("initialize"), do: "secondary"
   def metric_color(metric), do: RunnerVolumesLive.metric_color(metric)
 
-  def chart_data?(analytics, "initialize"), do: not is_nil(analytics.steps.reused_ms)
+  def chart_data?(analytics, "initialize"), do: not is_nil(analytics.steps.reused.avg)
 
   def chart_data?(analytics, metric), do: RunnerVolumesLive.detail_chart_data?(analytics, metric)
 
-  def chart_series(analytics, "initialize") do
+  def chart_series(analytics, "initialize", percentile) do
     [
       %{
-        name: dgettext("dashboard_runners", "Initialize containers"),
+        name: initialize_title(percentile),
         type: "line",
-        color: "var:noora-chart-" <> metric_color("initialize"),
+        color: "var:noora-chart-" <> RunnersLive.legend_color_for_percentile(percentile),
         showSymbol: true,
         connectNulls: false,
-        data: Enum.map(analytics.steps.points, &[DateTime.to_iso8601(&1.at), &1.reused_ms])
+        data:
+          Enum.map(analytics.steps.points, &[DateTime.to_iso8601(&1.at), RunnersLive.percentile_value(&1, percentile)])
       }
     ]
   end
 
-  def chart_series(analytics, metric), do: RunnerVolumesLive.detail_chart_series(analytics, metric)
+  def chart_series(analytics, metric, _percentile), do: RunnerVolumesLive.detail_chart_series(analytics, metric)
+
+  def initialize_title("p50"), do: dgettext("dashboard_runners", "p50 Initialize containers")
+  def initialize_title("p90"), do: dgettext("dashboard_runners", "p90 Initialize containers")
+  def initialize_title("p99"), do: dgettext("dashboard_runners", "p99 Initialize containers")
+  def initialize_title(_), do: dgettext("dashboard_runners", "Avg. Initialize containers")
 
   def chart_options("initialize", period) do
     "volumes"
@@ -353,6 +373,5 @@ defmodule TuistWeb.RunnerImageCacheLive do
     do: %{value: 0, value_label: dgettext("dashboard_runners", "No previous data"), label: ""}
 
   def duration(nil), do: "—"
-  def duration(ms) when ms < 60_000, do: "#{Float.round(ms / 1000, 1)} s"
-  def duration(ms), do: "#{div(ms, 60_000)} min #{rem(div(ms, 1000), 60)} s"
+  def duration(ms), do: DateFormatter.format_duration_from_milliseconds(ms)
 end

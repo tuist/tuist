@@ -41,9 +41,9 @@ defmodule Tuist.Runners.DockerCache do
 
   @doc """
   How the account's Docker data roots, or one, were reused during `period`:
-  mounts and hit rate per hour or day, as for any cache volume, and the median
-  Initialize containers step of the jobs that reused saved images and of those
-  that started cold.
+  mounts and hit rate per hour or day, as for any cache volume, and the
+  Initialize containers step (average, p50, p90 and p99) of the jobs that
+  started from saved images, per hour or day, and of those that started cold.
   """
   def analytics(account_id, volume_id, period) do
     %{
@@ -144,7 +144,13 @@ defmodule Tuist.Runners.DockerCache do
     uses = Repo.all(query)
     durations = JobSteps.durations_ms(account_id, uses |> Enum.map(& &1.job) |> Enum.uniq(), @step)
     timed = for use <- uses, ms = durations[use.job], do: Map.put(use, :ms, ms)
-    Map.put(medians(timed), :points, step_points(timed, start, finish))
+    {reused, cold} = Enum.split_with(timed, &(&1.reused == true))
+
+    %{
+      reused: stats(Enum.map(reused, & &1.ms)),
+      cold: stats(Enum.map(cold, & &1.ms)),
+      points: step_points(reused, start, finish)
+    }
   end
 
   defp step_points(timed, start, finish) do
@@ -158,24 +164,27 @@ defmodule Tuist.Runners.DockerCache do
 
       buckets
       |> Map.get(timestamp, [])
-      |> medians()
+      |> Enum.map(& &1.ms)
+      |> stats()
       |> Map.put(:at, if(DateTime.before?(at, start), do: start, else: at))
     end)
   end
 
-  defp medians(uses) do
+  defp stats([]), do: %{avg: nil, p50: nil, p90: nil, p99: nil}
+
+  defp stats(values) do
+    sorted = Enum.sort(values)
+
     %{
-      reused_ms: median(for(use <- uses, use.reused == true, do: use.ms)),
-      cold_ms: median(for(use <- uses, use.reused != true, do: use.ms))
+      avg: round(Enum.sum(sorted) / length(sorted)),
+      p50: percentile(sorted, 0.5),
+      p90: percentile(sorted, 0.9),
+      p99: percentile(sorted, 0.99)
     }
   end
 
-  defp median([]), do: nil
-
-  defp median(values) do
-    sorted = Enum.sort(values)
-    Enum.at(sorted, div(length(sorted), 2))
-  end
+  # Nearest-rank percentile of sorted values.
+  defp percentile(sorted, p), do: Enum.at(sorted, max(ceil(p * length(sorted)) - 1, 0))
 
   defp hit_rate(_hits, 0), do: nil
   defp hit_rate(hits, uses), do: Float.round(100 * hits / uses, 1)

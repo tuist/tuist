@@ -4,6 +4,7 @@ defmodule TuistWeb.RunnerImageCacheLiveTest do
   import Phoenix.LiveViewTest
 
   alias Phoenix.LiveView.AsyncResult
+  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.RunnerImageCacheLive
 
   @period {~U[2026-10-18 00:00:00Z], ~U[2026-10-25 00:00:00Z]}
@@ -13,9 +14,9 @@ defmodule TuistWeb.RunnerImageCacheLiveTest do
       %{
         activity: %{uses: 4, hit_rate: 75.0, points: [%{at: ~U[2026-10-24 00:00:00Z], uses: 4, hit_rate: 75.0}]},
         steps: %{
-          reused_ms: 3_200,
-          cold_ms: 47_000,
-          points: [%{at: ~U[2026-10-24 00:00:00Z], reused_ms: 3_200, cold_ms: 47_000}]
+          reused: %{avg: 3_200, p50: 3_100, p90: 4_400, p99: 6_100},
+          cold: %{avg: 47_000, p50: 46_000, p90: 52_000, p99: 58_000},
+          points: [%{at: ~U[2026-10-24 00:00:00Z], avg: 3_200, p50: 3_100, p90: 4_400, p99: 6_100}]
         }
       },
       attrs
@@ -59,6 +60,7 @@ defmodule TuistWeb.RunnerImageCacheLiveTest do
         selected: nil,
         enabled: true,
         metric: "hit_rate",
+        initialize_percentile: "avg",
         analytics_preset: "last-7-days",
         analytics_period: @period,
         params: %{},
@@ -80,8 +82,10 @@ defmodule TuistWeb.RunnerImageCacheLiveTest do
 
     assert html =~ "Image cache"
     assert html =~ "75.0%"
-    assert html =~ "3.2 s"
-    assert html =~ "47.0 s"
+    assert html =~ "Avg. Initialize containers"
+    assert html =~ DateFormatter.format_duration_from_milliseconds(3_200)
+    assert html =~ DateFormatter.format_duration_from_milliseconds(47_000)
+    assert html =~ DateFormatter.format_duration_from_milliseconds(6_100)
     assert html =~ "org/android"
     assert html =~ "/org/runners/images/"
     assert html =~ "image-repository-search"
@@ -107,7 +111,17 @@ defmodule TuistWeb.RunnerImageCacheLiveTest do
       render_component(
         &RunnerImageCacheLive.render/1,
         assigns(%{
-          data: data([], %{analytics: analytics(%{steps: %{reused_ms: nil, cold_ms: nil, points: []}})}),
+          data:
+            data([], %{
+              analytics:
+                analytics(%{
+                  steps: %{
+                    reused: %{avg: nil, p50: nil, p90: nil, p99: nil},
+                    cold: %{avg: nil, p50: nil, p90: nil, p99: nil},
+                    points: []
+                  }
+                })
+            }),
           enabled: false
         })
       )

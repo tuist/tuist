@@ -85,7 +85,7 @@ defmodule Tuist.Runners.DockerCacheTest do
     analytics = DockerCache.analytics(account.id, nil, @period)
     assert analytics.activity.uses == 2
     assert analytics.activity.hit_rate == 50.0
-    assert %{reused_ms: nil, cold_ms: nil, points: [_ | _]} = analytics.steps
+    assert %{reused: %{avg: nil, p99: nil}, cold: %{avg: nil}, points: [_ | _]} = analytics.steps
 
     assert %{images: [], saved_bytes: nil} = DockerCache.repository(account.id, waiting.id, @period)
   end
@@ -109,7 +109,10 @@ defmodule Tuist.Runners.DockerCacheTest do
     account = AccountsFixtures.account_fixture()
 
     cleared =
-      account |> volume("org/android") |> Ecto.Changeset.change(deleted_at: ~U[2026-10-24 12:00:00.000000Z]) |> Repo.update!()
+      account
+      |> volume("org/android")
+      |> Ecto.Changeset.change(deleted_at: ~U[2026-10-24 12:00:00.000000Z])
+      |> Repo.update!()
 
     assert DockerCache.repositories(account.id, @period) == []
     assert is_nil(DockerCache.repository(account.id, cleared.id, @period))
