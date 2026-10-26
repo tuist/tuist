@@ -123,14 +123,13 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     refresh =
       request_object(%{"grant_type" => "refresh_token", "client_id" => client_id, "refresh_token" => refresh_token})
 
-    assert %{"access_token" => replacement, "refresh_token" => replacement_refresh} =
-             build_conn() |> post(~p"/oauth2/token", %{"request" => refresh}) |> json_response(200)
+    response = build_conn() |> post(~p"/oauth2/token", %{"request" => refresh}) |> json_response(200)
+    assert %{"access_token" => replacement, "refresh_token" => replacement_refresh} = response
 
     refute replacement == access_token
     refute replacement_refresh == refresh_token
 
-    assert %{"error" => "invalid_grant"} =
-             build_conn() |> post(~p"/oauth2/token", %{"request" => refresh}) |> json_response(400)
+    assert build_conn() |> post(~p"/oauth2/token", %{"request" => refresh}) |> json_response(200) == response
   end
 
   defp request_object(claims) do

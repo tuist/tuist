@@ -38,7 +38,14 @@ defmodule Tuist.OAuth.ExchangeConcurrencyTest do
           })
         end)
 
-      on_exit(fn -> Sandbox.unboxed_run(Repo, fn -> Repo.delete_all(from(t in Token, where: t.id == ^token.id)) end) end)
+      on_exit(fn ->
+        Sandbox.unboxed_run(Repo, fn ->
+          hash = :crypto.hash(:sha256, value)
+          Repo.delete_all(from(r in "refresh_replays", where: r.kind == "oauth" and r.token_hash == ^hash))
+          Repo.delete_all(from(t in Token, where: t.id == ^token.id))
+        end)
+      end)
+
       parent = self()
 
       run = fn first? ->

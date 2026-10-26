@@ -62,13 +62,19 @@ defmodule Tuist.OAuth.UpstreamExchangeConcurrencyTest do
         assert waiting_on_lock?(second_db, 100)
         send(owner, :release)
         successful = Task.await(first, 10_000)
-        rejected = Task.await(second, 10_000)
+        repeated = Task.await(second, 10_000)
 
         assert successful.status == 200,
                inspect(Map.take(JSON.decode!(successful.resp_body), ["error", "error_description"]))
 
-        assert rejected.status == 400
-        assert %{"error" => "invalid_grant"} = JSON.decode!(rejected.resp_body)
+        if grant == "refresh_token" do
+          assert repeated.status == 200
+          assert JSON.decode!(repeated.resp_body) == JSON.decode!(successful.resp_body)
+        else
+          assert repeated.status == 400
+          assert %{"error" => "invalid_grant"} = JSON.decode!(repeated.resp_body)
+        end
+
         assert %{"access_token" => issued} = JSON.decode!(successful.resp_body)
         assert {:ok, %{"scopes" => ["mcp"]}} = Tuist.Guardian.decode_and_verify(issued)
 
@@ -82,6 +88,7 @@ defmodule Tuist.OAuth.UpstreamExchangeConcurrencyTest do
             assert Repo.aggregate(from(t in Token, where: t.previous_code == ^credential), :count) == 1
           else
             assert current.refresh_token_revoked_at
+            assert is_nil(child.revoked_at)
             assert Repo.aggregate(from(t in Token, where: t.previous_token == ^token.value), :count) == 1
           end
         end)
@@ -126,6 +133,12 @@ defmodule Tuist.OAuth.UpstreamExchangeConcurrencyTest do
             )
           )
 
+          token_hashes =
+            from(t in Token, where: t.client_id == ^client.id and not is_nil(t.refresh_token), select: t.refresh_token)
+            |> Repo.all()
+            |> Enum.map(&:crypto.hash(:sha256, &1))
+
+          Repo.delete_all(from(r in "refresh_replays", where: r.kind == "oauth" and r.token_hash in ^token_hashes))
           Repo.delete_all(from(t in Token, where: t.client_id == ^client.id))
           Repo.delete_all(from(c in Client, where: c.id == ^client.id))
         end)

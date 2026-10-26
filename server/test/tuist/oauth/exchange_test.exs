@@ -90,10 +90,13 @@ defmodule Tuist.OAuth.ExchangeTest do
     params = %{"grant_type" => "refresh_token", "refresh_token" => desired, "client_id" => Ecto.UUID.generate()}
     conn = connection(%{"request" => jwt(params)}, "/oauth2/token?grant_type=authorization_code&code=unrelated-code")
 
-    expect(Repo, :one, fn query ->
-      {_, args} = Repo.to_sql(:all, query)
-      assert desired in args
-      refute "unrelated-code" in args
+    expect(Repo, :one, 2, fn query ->
+      if query.lock do
+        {_, args} = Repo.to_sql(:all, query)
+        assert desired in args
+        refute "unrelated-code" in args
+      end
+
       Mimic.call_original(Repo, :one, [query])
     end)
 
@@ -104,10 +107,13 @@ defmodule Tuist.OAuth.ExchangeTest do
     claims = %{"grant_type" => "refresh_token", "refresh_token" => "claim-token", "client_id" => Ecto.UUID.generate()}
     conn = connection(%{"request" => jwt(claims), "refresh_token" => "body-token"})
 
-    expect(Repo, :one, fn query ->
-      {_, args} = Repo.to_sql(:all, query)
-      assert "body-token" in args
-      refute "claim-token" in args
+    expect(Repo, :one, 2, fn query ->
+      if query.lock do
+        {_, args} = Repo.to_sql(:all, query)
+        assert "body-token" in args
+        refute "claim-token" in args
+      end
+
       Mimic.call_original(Repo, :one, [query])
     end)
 

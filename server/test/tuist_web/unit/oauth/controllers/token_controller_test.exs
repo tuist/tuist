@@ -15,24 +15,27 @@ defmodule TuistWeb.Controllers.Oauth.TokenControllerTest do
   end
 
   describe "token/2" do
-    test "delegates ordinary grants to the serialized exchange", %{conn: conn} do
-      expect(Exchange, :token, 1, fn conn, TokenController ->
-        response = %TokenResponse{
-          token_type: "Bearer",
-          access_token: "access_token",
-          expires_in: 3600
-        }
+    for params <- [%{}, %{"grant_type" => "refresh_token"}] do
+      @tag params: params
+      test "delegates #{inspect(params)} to the serialized exchange", %{conn: conn, params: params} do
+        expect(Exchange, :token, 1, fn conn, TokenController ->
+          response = %TokenResponse{
+            token_type: "Bearer",
+            access_token: "access_token",
+            expires_in: 3600
+          }
 
-        TokenController.token_success(conn, response)
-      end)
+          TokenController.token_success(conn, response)
+        end)
 
-      conn = TokenController.token(conn, %{})
+        conn = TokenController.token(conn, params)
 
-      assert json_response(conn, 200) == %{
-               "token_type" => "Bearer",
-               "access_token" => "access_token",
-               "expires_in" => 3600
-             }
+        assert json_response(conn, 200) == %{
+                 "token_type" => "Bearer",
+                 "access_token" => "access_token",
+                 "expires_in" => 3600
+               }
+      end
     end
   end
 

@@ -8,9 +8,9 @@ defmodule Tuist.OAuth.Exchange do
   External request URIs are rejected before Boruta can fetch them from this
   unauthenticated endpoint. Responses
   are deferred until the transaction commits. The transaction covers validation,
-  replacement creation and revocation. A lost response after commit still
-  consumes the credential; this is not token delivery recovery or revocation
-  of already-issued JWTs. All grant-serving replicas must run this wrapper;
+  replacement creation and revocation. Refresh requests retain the bounded,
+  encrypted response replay used by the token endpoint; this is not unbounded
+  delivery recovery or revocation of already-issued JWTs. All grant-serving replicas must run this wrapper;
   legacy Boruta-only issuers do not participate in its lock protocol.
   """
   import Ecto.Query
@@ -23,7 +23,10 @@ defmodule Tuist.OAuth.Exchange do
   alias Boruta.Oauth.RefreshTokenRequest
   alias Boruta.Oauth.Request
   alias Boruta.Oauth.TokenResponse
+  alias Tuist.Authentication.RefreshReplays
   alias Tuist.Repo
+
+  @response_fields [:token_type, :access_token, :expires_in, :refresh_token, :id_token]
 
   def token(conn, application, opts \\ []) do
     result =
@@ -102,9 +105,13 @@ defmodule Tuist.OAuth.Exchange do
     transaction =
       Repo.transaction(fn ->
         Repo.query!("SET LOCAL lock_timeout = '5s'")
-        Repo.one(from(t in query, select: t.id, lock: "FOR UPDATE"))
 
-        case authorize(request, authorize) do
+        redeem = fn ->
+          Repo.one(from(t in query, select: t.id, lock: "FOR UPDATE"))
+          authorize(request, authorize)
+        end
+
+        case replay_or_redeem(request, redeem) do
           # Boruta intentionally revokes a code's descendant on reuse.
           {:error, %Error{error: :invalid_grant}} = error -> error
           {:error, _} = error -> Repo.rollback(error)
@@ -117,6 +124,36 @@ defmodule Tuist.OAuth.Exchange do
       {:error, result} -> result
     end
   end
+
+  defp replay_or_redeem(%RefreshTokenRequest{refresh_token: token} = request, redeem) when is_binary(token) do
+    authentication = request.client_authentication || %{}
+
+    credential =
+      Enum.map_join(
+        [request.client_id, authentication[:type], authentication[:value], request.scope],
+        <<0>>,
+        &to_string/1
+      )
+
+    result =
+      RefreshReplays.exchange("oauth", token, credential, fn ->
+        case redeem.() do
+          {:success, response} -> {:ok, Map.take(response, @response_fields)}
+          error -> error
+        end
+      end)
+
+    case result do
+      {:ok, data} ->
+        fields = Map.new(@response_fields, fn key -> {key, Map.get(data, key, Map.get(data, to_string(key)))} end)
+        {:success, struct!(TokenResponse, fields)}
+
+      error ->
+        error
+    end
+  end
+
+  defp replay_or_redeem(_request, redeem), do: redeem.()
 
   defp authorize(request, authorize) do
     with {:ok, tokens} <- authorize.(request),
