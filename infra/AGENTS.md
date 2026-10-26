@@ -2,6 +2,13 @@
 
 Deployment assets for the Tuist stack — both the managed cluster we operate and the self-host chart our customers install.
 
+## Certificate policy qualification
+
+[`certificate-trust/`](certificate-trust/AGENTS.md) owns the shared twelve-key
+eMudhra policy, public evidence and isolated offline Go verifier probe. It does
+not change application trust, SDK/image pins or deployed stores. Keep owner
+integrations and rollout separate; no Python tooling or generic publisher.
+
 ## What we are aiming at
 
 Two properties, stated because they decide arguments that would otherwise be

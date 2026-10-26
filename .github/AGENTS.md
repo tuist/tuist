@@ -45,6 +45,15 @@ through Helm, without a separate human kubectl elevation.
 
 Server CI's Format job runs `scripts/server-clickhouse.test.sh` against the real local/CI launcher with stubbed ClickHouse/HTTP commands and child-process-only file limits. Cover low soft limits, already-raised limits, restricted hard ceilings, unsupported raises and the already-running fast path. The launcher raises ClickHouse's soft limit to its available hard limit before spawning it; do not replace this safeguard with seed retries or reduce seed coverage to hide file-descriptor exhaustion.
 
+## Certificate policy qualification
+
+`workflows/certificate-trust.yml` validates the isolated twelve-key public
+policy/evidence and eight Go intermediate controls. It has contents-read
+permissions only, persists no checkout credentials, and makes no network
+requests during the probe. Keep it independent of application/deployment work,
+with no Python, registry login, publishing or trust-store mutation. SDK version
+ordering is not qualification. See `infra/certificate-trust/AGENTS.md`.
+
 ## Server production deployment
 
 `workflows/server-production-deployment.yml` decides whether a push deploys by

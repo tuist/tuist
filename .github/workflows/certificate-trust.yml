@@ -1,0 +1,49 @@
+name: Certificate Trust
+
+on:
+  pull_request:
+    paths:
+      - infra/certificate-trust/**
+      - .github/workflows/certificate-trust.yml
+  push:
+    branches: [main]
+    paths:
+      - infra/certificate-trust/**
+      - .github/workflows/certificate-trust.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: certificate-trust-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  policy:
+    name: Offline policy and Go verifier qualification
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GOWORK: "off"
+      GOTOOLCHAIN: local
+      TRUST_EXPECTED_GO_SDK: go1.26.10
+    defaults:
+      run:
+        working-directory: infra/certificate-trust
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/certificate-trust/go.mod
+          cache: false
+      - name: Check public policy evidence and qualified verifier behavior
+        run: |
+          unset GOROOT
+          go version
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test -count=1 ./...
+          go run .
