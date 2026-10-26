@@ -427,52 +427,18 @@ The number `1` needs to be replaced with your organization ID. This will typical
 
 #### Instance-wide trust for login domains {#operator-trusted-login-domains}
 
-A private instance can trust every Okta, custom OAuth2, and Microsoft Entra configuration's saved **Login email domain** without requiring a DNS TXT record:
+Self-hosted instances can skip DNS verification for Okta, Microsoft Entra ID, and custom OAuth2 login domains by setting:
 
 ```sh
 TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS=true
 ```
 
-| Environment variable | Description | Required | Default |
-| --- | --- | --- | --- |
-| `TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS` | Trust saved custom-provider login domains instance-wide without DNS verification; accepts exactly `true` or `false` | No | `false` |
-
-This is the only trust setting. No administrator allowlist or database lookup is required. Organization administrators configure SSO through the normal settings and API permissions, including providers, endpoints, credentials, login domains, enforcement, enrollment, and default roles.
-
-For Helm, use `server.extraEnv`:
-
-```yaml
-server:
-  extraEnv:
-    - name: TUIST_SSO_TRUST_UNVERIFIED_LOGIN_DOMAINS
-      value: "true"
-```
-
-The switch defaults to `false`; unset it to keep the existing DNS-verification requirement. Empty strings, values other than exactly `true` or `false`, and enabling it on Tuist-hosted deployments fail startup.
+The default is `false`. Emails must still match the saved **Login email domain**, and normal organization-administrator permissions apply. For Helm, set this through `server.extraEnv`.
 
 > [!WARNING]
-> Enable this only when you trust everyone who can create or administer an organization on the instance. Any signed-in user can create an organization and become its administrator. Every configured custom identity provider may assert addresses in its saved login domain and link existing Tuist accounts. Linked identities sign in to the entire user account, including other organizations, not just the organization that configured SSO. Organization administrators can change domains and endpoints without further operator approval. There are no per-domain, organization, issuer, or administrator approvals. A private network alone does not establish this trust; do not enable the switch on an instance shared with untrusted users.
+> Enable this only if you trust everyone who can create or administer an organization. Any signed-in user can create an organization, and its provider can link whole existing Tuist accounts, including access to other organizations. Review existing providers before enabling it.
 
-**Before enabling:** upgrade every replica with trust still `false` and drain all old replicas. Audit every existing SSO configuration, removing or repairing providers, endpoints, and login domains you do not trust. Existing configurations also receive instance trust when it is enabled; the policy does not record who originally configured them. Freeze SSO configuration writes operationally during the audit and rollout so the reviewed configuration does not change. Then enable the switch and restart every replica, draining old replicas before reopening configuration changes.
-
-Operators can list the custom-provider configurations to audit with this read-only PostgreSQL query (`1` is Okta and `3` is custom OAuth2, including Entra):
-
-```sql
-SELECT id, sso_provider, sso_organization_id, sso_login_domain,
-       sso_enforced, sso_automatic_enrollment,
-       oauth2_authorize_url, oauth2_token_url, oauth2_user_info_url
-FROM organizations
-WHERE sso_provider IN (1, 3)
-ORDER BY id;
-```
-
-The settings page shows **Trusted by instance configuration**, not **Verified**. No DNS verification timestamp is created, DNS rechecks cannot revoke instance trust, and Google Workspace retains its independent authenticated Workspace-domain proof. Emails must still match the saved login domain for custom-provider enrollment and email-based identity linking. The administrator must authenticate through the configured provider before enabling enforcement.
-
-Multiple organizations may save the same domain. Existing membership-based routing and organization-specific SSO links continue working. Domain-based discovery prefers the DNS-verified custom-provider organization, otherwise uses the sole matching custom provider. Multiple unverified claimants produce an ambiguity error rather than selecting one arbitrarily; use the organization's SSO link or verify the domain with DNS to resolve it. Google organizations' stale login-domain fields do not participate. DNS verification only breaks discovery ties: it does not revoke another organization's provider's instance trust for enrollment or linking. Unknown-email enforcement checks require SSO if any matching custom-provider organization enforces it.
-
-Changes require restarting **every** replica. Updating a Secret through `extraEnvFrom` does not restart pods automatically. Mixed replicas temporarily apply different policies; drain old replicas before considering a change complete.
-
-**Disabling trust:** set the switch to `false` or remove it, restart every replica, and drain old replicas. Without independent DNS proof, new automatic enrollment, email-based identity linking, and domain-based discovery stop. Members relying only on dynamic enrollment can lose access on their next authorization check. Linked identities, sessions, and stored memberships remain; disabling trust does not undo previous account links. Existing enforcement remains, and organization administrators can rotate secrets or turn policies off. Turning policies on or changing provider, issuer, or domain requires trust again. Normal organization permissions do not change when the switch is disabled.
+Restart every replica when enabling or disabling this setting. See the <.localized_link href="/guides/integrations/authentication/sso#operator-trusted-login-domains">SSO guide</.localized_link> for setup and behavior details.
 
 ### Storage environment configuration {#storage-environment-configuration}
 
