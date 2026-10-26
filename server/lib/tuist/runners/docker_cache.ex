@@ -1,6 +1,7 @@
 defmodule Tuist.Runners.DockerCache do
   @moduledoc """
-  Reads behind the dashboard's Image cache page. Each repository whose Linux
+  Reads behind the dashboard's Image cache page and an image cache volume's
+  Images tab and Initialize containers widget. Each repository whose Linux
   jobs use Docker has one `docker` cache volume (`Tuist.Runners.CacheVolumes`)
   holding its jobs' Docker data root: the images and build cache they pulled
   and built. Its saved head carries the image inventory its job reported.
@@ -144,8 +145,12 @@ defmodule Tuist.Runners.DockerCache do
     |> Map.new()
   end
 
-  # The step medians overall and per bucket, over the period's most recent jobs.
-  defp steps(account_id, volume_id, {start, finish}) do
+  @doc """
+  The Initialize containers step (average, p50, p90 and p99) of the jobs that
+  started from saved images and of those that started cold, over the period's
+  most recent jobs, overall and per hour or day.
+  """
+  def steps(account_id, volume_id, {start, finish}) do
     query =
       from(u in Usage,
         join: v in Volume,

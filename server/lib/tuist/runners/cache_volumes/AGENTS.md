@@ -203,7 +203,7 @@ these schemas persist volume identities and per-job uses.
   follows the profile's writer policy like any custom volume. A report for a
   `docker` use may carry `docker` (`images`, `build_cache_bytes`): the guest-written
   inventory is validated and stored on the use as `docker_images`, describes the
-  volume on the dashboard's Image cache page (`/:account/runners/images`, `Tuist.Runners.DockerCache`) and
+  volume on the dashboard's Image cache page (`/:account/runners/images`) and its volume page's Images tab (`Tuist.Runners.DockerCache`) and
   decides nothing. `reserved_bytes` for `docker` is the saved head plus 20 GB,
   runner-cache's `DockerGrowthBytes`. Docker cache storage is not billed: when
   volume storage becomes a billing meter, exclude the `docker` and `checkout` keys.

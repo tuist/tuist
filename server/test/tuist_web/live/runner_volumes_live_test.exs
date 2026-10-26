@@ -53,6 +53,7 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
       selected_tab: "overview",
       storage_metric: "used_bytes",
       detail_metric: "used_bytes",
+      initialize_percentile: "avg",
       analytics_preset: "last-7-days",
       analytics_period: {~U[2026-09-15 10:00:00Z], ~U[2026-09-22 10:00:00Z]},
       params: %{},
@@ -413,8 +414,8 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     refute jobs =~ ~s(id="volume-size-history")
     assert jobs =~ "Volume details"
     assert :binary.match(jobs, "Volume details") < :binary.match(jobs, "noora-tab-menu-horizontal")
-    assert RunnerVolumesLive.selected_tab("size-history") == "overview"
-    assert RunnerVolumesLive.selected_tab("invalid") == "overview"
+    assert RunnerVolumesLive.selected_tab("size-history", nil) == "overview"
+    assert RunnerVolumesLive.selected_tab("invalid", nil) == "overview"
   end
 
   test "detail widgets compare with the previous period" do
@@ -589,5 +590,49 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert RunnerVolumesLive.display_name(%Volume{key: "tuist-module"}) == "Module cache"
     assert RunnerVolumesLive.display_name(%Volume{key: "tuist-gradle"}) == "Gradle cache"
     assert RunnerVolumesLive.display_name(%Volume{key: "npm"}) == "npm"
+  end
+
+  test "an image cache volume shows how its jobs started containers and the images it keeps" do
+    assigns = assigns(true)
+    volume = %{assigns.selected | key: "docker"}
+
+    steps = %{
+      reused: %{avg: 3_200, p50: 3_100, p90: 4_400, p99: 6_100},
+      cold: %{avg: 47_000, p50: 46_000, p90: 52_000, p99: 58_000},
+      points: []
+    }
+
+    data = %{assigns.data.result | volumes: [volume]}
+    analytics = Map.merge(data.analytics, %{steps: steps, previous_steps: steps})
+
+    overview =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: volume,
+          data: AsyncResult.ok(%{data | analytics: analytics})
+      })
+
+    assert overview =~ "Avg. Initialize containers"
+    assert overview =~ "tab=images"
+    assert overview =~ ~s(href="/org/runners/images")
+
+    images =
+      render_component(&RunnerVolumesLive.render/1, %{
+        assigns
+        | selected: volume,
+          selected_tab: "images",
+          data:
+            AsyncResult.ok(Map.put(data, :images, [%{name: "postgres:16", size_bytes: 451_000_000, last_used_at: nil}]))
+      })
+
+    assert images =~ "postgres:16"
+  end
+
+  test "other volumes have no images tab or container start widget" do
+    html = render_component(&RunnerVolumesLive.render/1, assigns(true))
+
+    refute html =~ "tab=images"
+    refute html =~ "Initialize containers"
+    assert RunnerVolumesLive.selected_tab("images", %{key: "gradle"}) == "overview"
   end
 end

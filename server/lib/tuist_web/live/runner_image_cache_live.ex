@@ -45,7 +45,6 @@ defmodule TuistWeb.RunnerImageCacheLive do
      socket
      |> assign(
        params: Map.drop(params, ["account_handle", "id"]),
-       selected: selected(socket.assigns.selected_account, params["id"], period),
        analytics_preset: preset,
        analytics_period: period,
        search: String.slice(params["search"] || "", 0, 200),
@@ -94,35 +93,29 @@ defmodule TuistWeb.RunnerImageCacheLive do
     {:noreply, push_patch(socket, to: page_path(socket.assigns, params))}
   end
 
-  defp selected(_account, nil, _period), do: nil
-
-  defp selected(account, id, period) do
-    case Ecto.UUID.cast(id) do
-      {:ok, id} -> DockerCache.repository(account.id, id, period) || raise NotFoundError
-      :error -> raise NotFoundError
-    end
-  end
-
   defp load(socket) do
-    %{selected_account: account, selected: selected, analytics_period: period} = socket.assigns
-    volume_id = selected && selected.id
+    %{selected_account: account, analytics_period: period} = socket.assigns
 
     assign_async(socket, :data, fn ->
       {:ok,
        %{
          data: %{
-           repositories: if(is_nil(volume_id), do: DockerCache.repositories(account.id, period), else: []),
-           analytics: DockerCache.analytics(account.id, volume_id, period),
-           previous: DockerCache.analytics(account.id, volume_id, RunnerVolumesLive.previous_period(period))
+           repositories: DockerCache.repositories(account.id, period),
+           analytics: DockerCache.analytics(account.id, nil, period),
+           previous: DockerCache.analytics(account.id, nil, RunnerVolumesLive.previous_period(period))
          }
        }}
     end)
   end
 
-  def page_path(%{selected_account: account, selected: nil}, params), do: ~p"/#{account.name}/runners/images?#{params}"
+  def page_path(%{selected_account: account}, params), do: ~p"/#{account.name}/runners/images?#{params}"
 
-  def page_path(%{selected_account: account, selected: selected}, params),
-    do: ~p"/#{account.name}/runners/images/#{selected.id}?#{params}"
+  # A repository's volume page opens on the period this page shows.
+  def period_params(params, preset) do
+    params
+    |> Map.take(["analytics-date-range", "analytics-start-date", "analytics-end-date"])
+    |> Map.put_new("analytics-date-range", preset)
+  end
 
   # The repositories matching the search, sorted, and whether another page follows.
   def repositories_page(repositories, assigns) do

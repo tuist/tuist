@@ -1,32 +1,6 @@
 <div id="runner-image-cache">
-  <.button
-    :if={@selected}
-    navigate={~p"/#{@selected_account.name}/runners/images"}
-    variant="secondary"
-    size="medium"
-    label={dgettext("dashboard_runners", "Image cache")}
-    data-part="back-button"
-  >
-    <:icon_left><.arrow_left /></:icon_left>
-  </.button>
-  <div :if={@selected} data-part="header">
-    <div data-part="title">
-      <div data-part="volume-icon"><.package /></div>
-      <h1>{@selected.repository}</h1>
-    </div>
-    <div data-part="actions">
-      <.button
-        variant="secondary"
-        size="medium"
-        label={dgettext("dashboard_runners", "Volume")}
-        navigate={~p"/#{@selected_account.name}/runners/volumes/#{@selected.id}"}
-      >
-        <:icon_left><.database /></:icon_left>
-      </.button>
-    </div>
-  </div>
   <.alert
-    :if={!@enabled and is_nil(@selected)}
+    :if={!@enabled}
     id="image-cache-not-enabled"
     status="information"
     type="secondary"
@@ -39,65 +13,11 @@
       )
     }
   />
-  <.card
-    :if={@selected}
-    title={dgettext("dashboard_runners", "Image cache details")}
-    icon="database"
-  >
-    <.card_section>
-      <div data-part="metadata-grid">
-        <div data-part="metadata">
-          <div data-part="title">{dgettext("dashboard_runners", "Repository")}</div>
-          <span data-part="label">
-            <.brand_github :if={@selected.provider in [nil, "github"]} />
-            <.brand_gitlab :if={@selected.provider == "gitlab"} />
-            {@selected.repository}
-          </span>
-        </div>
-        <div data-part="metadata">
-          <div data-part="title">{dgettext("dashboard_runners", "Platform")}</div><.badge
-            label={"#{TuistWeb.RunnersLive.platform_label(@selected.platform)} · #{@selected.architecture}"}
-            color="neutral"
-            style="light-fill"
-            size="large"
-          />
-        </div>
-        <div data-part="metadata">
-          <div data-part="title">{dgettext("dashboard_runners", "Last used")}</div><span
-            data-part="label"
-            title={RunnerVolumesLive.time(@selected.last_used_at)}
-          ><.history />{RunnerVolumesLive.relative_time(@selected.last_used_at)}</span>
-        </div>
-        <div data-part="metadata">
-          <div data-part="title">{dgettext("dashboard_runners", "Saved size")}</div>
-          <span data-part="label">{RunnerVolumesLive.bytes(@selected.saved_bytes)}</span>
-        </div>
-        <div data-part="metadata">
-          <div data-part="title">{dgettext("dashboard_runners", "Build cache")}</div>
-          <span data-part="label">{RunnerVolumesLive.bytes(@selected.build_cache_bytes)}</span>
-        </div>
-        <div data-part="metadata">
-          <div data-part="title">{dgettext("dashboard_runners", "Images")}</div>
-          <span data-part="label">{RunnerVolumesLive.count(@selected.image_count)}</span>
-        </div>
-        <div data-part="metadata">
-          <div data-part="title">{dgettext("dashboard_runners", "Last saved")}</div><span
-            data-part="label"
-            title={RunnerVolumesLive.time(@selected.last_saved_at)}
-          ><.history />{RunnerVolumesLive.relative_time(@selected.last_saved_at)}</span>
-        </div>
-      </div>
-    </.card_section>
-  </.card>
   <.async_result :let={data} assign={@data}>
     <:loading>
       <.card
-        title={
-          if @selected,
-            do: dgettext("dashboard_runners", "Analytics"),
-            else: dgettext("dashboard_runners", "Image cache")
-        }
-        icon={if @selected, do: "chart_arcs", else: "package"}
+        title={dgettext("dashboard_runners", "Image cache")}
+        icon="package"
       >
         <div data-part="widgets">
           <.widget
@@ -122,12 +42,8 @@
       </.card>
     </:failed>
     <.card
-      title={
-        if @selected,
-          do: dgettext("dashboard_runners", "Analytics"),
-          else: dgettext("dashboard_runners", "Image cache")
-      }
-      icon={if @selected, do: "chart_arcs", else: "package"}
+      title={dgettext("dashboard_runners", "Image cache")}
+      icon="package"
       id="image-cache-analytics"
     >
       <:actions>
@@ -145,37 +61,7 @@
         period={@analytics_period}
       />
     </.card>
-    <.card :if={@selected} title={dgettext("dashboard_runners", "Images")} icon="stack_2">
-      <.card_section data-part="table-section">
-        <.table id="image-cache-images-table" rows={@selected.images}>
-          <:col :let={image} label={dgettext("dashboard_runners", "Image")}>
-            <.text_cell label={image.name} />
-          </:col>
-          <:col :let={image} label={dgettext("dashboard_runners", "Size")}>
-            <.text_cell label={RunnerVolumesLive.bytes(image.size_bytes)} />
-          </:col>
-          <:col :let={image} label={dgettext("dashboard_runners", "Last used")}>
-            <.text_cell
-              label={RunnerVolumesLive.relative_time(image.last_used_at)}
-              title={RunnerVolumesLive.time(image.last_used_at)}
-            />
-          </:col>
-          <:empty_state>
-            <.table_empty_state
-              title={dgettext("dashboard_runners", "No images saved yet")}
-              subtitle={
-                dgettext(
-                  "dashboard_runners",
-                  "Images appear after a job that may save this repository's caches finishes and its data root is saved."
-                )
-              }
-            />
-          </:empty_state>
-        </.table>
-      </.card_section>
-    </.card>
     <.card
-      :if={is_nil(@selected)}
       title={dgettext("dashboard_runners", "Repositories")}
       icon="stack_2"
     >
@@ -215,7 +101,7 @@
           rows={repositories}
           row_navigate={
             fn repository ->
-              ~p"/#{@selected_account.name}/runners/images/#{repository.id}"
+              ~p"/#{@selected_account.name}/runners/volumes/#{repository.id}?#{period_params(@params, @analytics_preset)}"
             end
           }
         >

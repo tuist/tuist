@@ -1,10 +1,18 @@
 <div id="runner-volumes">
   <.button
     :if={@selected}
-    navigate={~p"/#{@selected_account.name}/runners/volumes"}
+    navigate={
+      if @selected.key == "docker",
+        do: ~p"/#{@selected_account.name}/runners/images",
+        else: ~p"/#{@selected_account.name}/runners/volumes"
+    }
     variant="secondary"
     size="medium"
-    label={dgettext("dashboard_runners", "Volumes")}
+    label={
+      if @selected.key == "docker",
+        do: dgettext("dashboard_runners", "Image cache"),
+        else: dgettext("dashboard_runners", "Volumes")
+    }
     data-part="back-button"
   >
     <:icon_left><.arrow_left /></:icon_left>
@@ -15,15 +23,6 @@
       <h1>{display_name(@selected)}</h1>
     </div>
     <div data-part="actions">
-      <.button
-        :if={@selected.key == "docker"}
-        variant="secondary"
-        size="medium"
-        label={dgettext("dashboard_runners", "Images")}
-        navigate={~p"/#{@selected_account.name}/runners/images/#{@selected.id}"}
-      >
-        <:icon_left><.package /></:icon_left>
-      </.button>
       <.button
         :if={@can_manage}
         variant="secondary"
@@ -363,10 +362,15 @@
       <.tab_menu_horizontal :if={@selected}>
         <.tab_menu_horizontal_item
           :for={
-            {tab, label} <- [
-              {"overview", dgettext("dashboard_runners", "Overview")},
-              {"jobs", dgettext("dashboard_runners", "Jobs")}
-            ]
+            {tab, label} <-
+              [
+                {"overview", dgettext("dashboard_runners", "Overview")},
+                {"jobs", dgettext("dashboard_runners", "Jobs")}
+              ] ++
+                if(@selected.key == "docker",
+                  do: [{"images", dgettext("dashboard_runners", "Images")}],
+                  else: []
+                )
           }
           label={label}
           selected={@selected_tab == tab}
@@ -431,6 +435,42 @@
             phx_click="select_detail_metric"
             phx_value_widget="hit_rate"
           />
+          <.percentile_dropdown_widget
+            :if={Map.has_key?(data.analytics, :steps)}
+            id="volume-initialize"
+            legend_color={RunnersLive.legend_color_for_percentile(@initialize_percentile)}
+            title={RunnerImageCacheLive.initialize_title(@initialize_percentile)}
+            value={
+              RunnerImageCacheLive.duration(
+                RunnersLive.percentile_value(data.analytics.steps.reused, @initialize_percentile)
+              )
+            }
+            metrics={RunnersLive.percentile_metrics_for(data.analytics.steps.reused)}
+            selected_type={@initialize_percentile}
+            event_name="select_initialize_percentile"
+            trend_value={initialize_trend(data.analytics, @initialize_percentile).value}
+            trend_value_label={
+              initialize_trend(data.analytics, @initialize_percentile).value_label
+            }
+            trend_label={initialize_trend(data.analytics, @initialize_percentile).label}
+            trend_type={:inverse}
+            description={
+              dgettext(
+                "dashboard_runners",
+                "Initialize containers step of jobs that started from saved images. For jobs that pulled every layer, the same statistic was %{cold}.",
+                cold:
+                  RunnerImageCacheLive.duration(
+                    RunnersLive.percentile_value(
+                      data.analytics.steps.cold,
+                      @initialize_percentile
+                    )
+                  )
+              )
+            }
+            selected={@detail_metric == "initialize"}
+            phx_click="select_detail_metric"
+            phx_value_widget="initialize"
+          />
           <.widget
             id="volume-uses"
             legend_color={metric_color("uses")}
@@ -452,12 +492,13 @@
           />
         </div>
         <.card_section data-part="storage-chart-section">
+          <% series = volume_chart_series(data.analytics, @detail_metric, @initialize_percentile) %>
           <.chart
             :if={detail_chart_data?(data.analytics, @detail_metric)}
             id="volume-analytics-chart"
             type={if @detail_metric == "uses", do: "bar", else: "line"}
-            series={detail_chart_series(data.analytics, @detail_metric)}
-            extra_options={detail_chart_options(@detail_metric, @analytics_period)}
+            series={series}
+            extra_options={volume_chart_options(@detail_metric, @analytics_period, series)}
             y_axis_min={0}
           />
           <.table_empty_state
@@ -563,6 +604,39 @@
               <:icon_right><.chevron_right /></:icon_right>
             </.button>
           </nav>
+        </.card_section>
+      </.card>
+      <.card
+        :if={@selected_tab == "images"}
+        title={dgettext("dashboard_runners", "Images")}
+        icon="package"
+      >
+        <.card_section data-part="table-section">
+          <.table id="volume-images" rows={data.images}>
+            <:col :let={image} label={dgettext("dashboard_runners", "Image")}>
+              <.text_cell label={image.name} />
+            </:col>
+            <:col :let={image} label={dgettext("dashboard_runners", "Size")}>
+              <.text_cell label={bytes(image.size_bytes)} />
+            </:col>
+            <:col :let={image} label={dgettext("dashboard_runners", "Last used")}>
+              <.text_cell
+                label={relative_time(image.last_used_at)}
+                title={time(image.last_used_at)}
+              />
+            </:col>
+            <:empty_state>
+              <.table_empty_state
+                title={dgettext("dashboard_runners", "No images saved yet")}
+                subtitle={
+                  dgettext(
+                    "dashboard_runners",
+                    "Images appear after a job that may save this repository's caches finishes and its data root is saved."
+                  )
+                }
+              />
+            </:empty_state>
+          </.table>
         </.card_section>
       </.card>
     </div>

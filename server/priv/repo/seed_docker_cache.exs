@@ -237,7 +237,7 @@ IO.puts("""
 Seeded image cache data for the `tuist` organization.
 Log in to your dev server as tuistrocks@tuist.dev / tuistrocks, then open:
   #{base_url}/images
-  #{base_url}/images/#{Repo.one!(from(v in Volume, where: v.account_id == ^account_id and v.key == "docker" and v.scope_id == "900001", select: v.id))}
+  #{base_url}/volumes/#{Repo.one!(from(v in Volume, where: v.account_id == ^account_id and v.key == "docker" and v.scope_id == "900001", select: v.id))}
   #{base_url}/volumes
   #{base_url}/profiles
 """)

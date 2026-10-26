@@ -3,15 +3,19 @@ defmodule TuistWeb.RunnerVolumesLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Widget
 
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Runners.CacheVolumes
+  alias Tuist.Runners.DockerCache
   alias Tuist.Utilities.ByteFormatter
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Helpers.DatePicker
+  alias TuistWeb.RunnerImageCacheLive
+  alias TuistWeb.RunnersLive
 
   @volume_name_max_length 48
 
@@ -32,6 +36,7 @@ defmodule TuistWeb.RunnerVolumesLive do
        selected_tab: "overview",
        storage_metric: "used_bytes",
        detail_metric: "used_bytes",
+       initialize_percentile: "avg",
        search: "",
        page: 1
      )}
@@ -60,7 +65,7 @@ defmodule TuistWeb.RunnerVolumesLive do
        analytics_preset: preset,
        analytics_period: period,
        selected: selected,
-       selected_tab: selected_tab(params["tab"]),
+       selected_tab: selected_tab(params["tab"], selected),
        search: String.slice(params["search"] || "", 0, 200),
        sort_by: sort_by,
        sort_order: sort_order,
@@ -111,8 +116,12 @@ defmodule TuistWeb.RunnerVolumesLive do
   end
 
   def handle_event("select_detail_metric", %{"widget" => metric}, socket)
-      when metric in ["used_bytes", "hit_rate", "uses"] do
+      when metric in ["used_bytes", "hit_rate", "uses", "initialize"] do
     {:noreply, assign(socket, :detail_metric, metric)}
+  end
+
+  def handle_event("select_initialize_percentile", %{"type" => type}, socket) when type in ["avg", "p50", "p90", "p99"] do
+    {:noreply, assign(socket, :initialize_percentile, type)}
   end
 
   def handle_event("request_delete", %{"id" => id}, socket), do: request_action(socket, id, :delete)
@@ -183,13 +192,17 @@ defmodule TuistWeb.RunnerVolumesLive do
                 "jobs" -> CacheVolumes.history(account.id, selected.id, page)
                 _ -> []
               end,
+            images: if(tab == "images", do: docker_images(account.id, selected.id, period), else: []),
             analytics:
               if tab == "overview" do
-                %{
-                  storage: CacheVolumes.storage_history(account.id, period, selected.id),
-                  activity: CacheVolumes.usage_analytics(account.id, selected.id, period),
-                  previous_activity: CacheVolumes.usage_analytics(account.id, selected.id, previous_period(period))
-                }
+                Map.merge(
+                  %{
+                    storage: CacheVolumes.storage_history(account.id, period, selected.id),
+                    activity: CacheVolumes.usage_analytics(account.id, selected.id, period),
+                    previous_activity: CacheVolumes.usage_analytics(account.id, selected.id, previous_period(period))
+                  },
+                  docker_steps(account.id, selected, period)
+                )
               end
           }
         else
@@ -330,8 +343,28 @@ defmodule TuistWeb.RunnerVolumesLive do
 
   def detail_chart_data?(analytics, "used_bytes"), do: analytics.storage != []
 
+  def detail_chart_data?(analytics, "initialize"),
+    do: is_map_key(analytics, :steps) and not is_nil(analytics.steps.reused.avg)
+
   def detail_chart_data?(analytics, "hit_rate"), do: not is_nil(analytics.activity.hit_rate)
   def detail_chart_data?(_analytics, "uses"), do: true
+
+  def volume_chart_series(analytics, "initialize", percentile),
+    do: RunnerImageCacheLive.chart_series(analytics, "initialize", percentile)
+
+  def volume_chart_series(analytics, metric, _percentile), do: detail_chart_series(analytics, metric)
+
+  def volume_chart_options("initialize", period, series),
+    do: RunnerImageCacheLive.chart_options("initialize", period, series)
+
+  def volume_chart_options(metric, period, _series), do: detail_chart_options(metric, period)
+
+  def initialize_trend(analytics, percentile) do
+    RunnerImageCacheLive.duration_trend(
+      RunnersLive.percentile_value(analytics.steps.reused, percentile),
+      RunnersLive.percentile_value(analytics.previous_steps.reused, percentile)
+    )
+  end
 
   def detail_chart_series(analytics, "used_bytes"), do: storage_chart_series(analytics.storage, "used_bytes")
 
@@ -365,8 +398,27 @@ defmodule TuistWeb.RunnerVolumesLive do
   def detail_chart_options("uses", period), do: storage_chart_options("volumes", period)
   def detail_chart_options(metric, period), do: storage_chart_options(metric, period)
 
-  def selected_tab("jobs"), do: "jobs"
-  def selected_tab(_), do: "overview"
+  def selected_tab("jobs", _volume), do: "jobs"
+  def selected_tab("images", %{key: "docker"}), do: "images"
+  def selected_tab(_tab, _volume), do: "overview"
+
+  # An image cache volume's page also shows how long its jobs took to start
+  # their containers and the images it saved.
+  defp docker_steps(account_id, %{key: "docker", id: id}, period) do
+    %{
+      steps: DockerCache.steps(account_id, id, period),
+      previous_steps: DockerCache.steps(account_id, id, previous_period(period))
+    }
+  end
+
+  defp docker_steps(_account_id, _volume, _period), do: %{}
+
+  defp docker_images(account_id, id, period) do
+    case DockerCache.repository(account_id, id, period) do
+      %{images: images} -> images
+      nil -> []
+    end
+  end
 
   defp page(value) do
     case Integer.parse(value || "1") do

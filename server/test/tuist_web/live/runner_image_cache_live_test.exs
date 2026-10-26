@@ -56,7 +56,6 @@ defmodule TuistWeb.RunnerImageCacheLiveTest do
     Map.merge(
       %{
         selected_account: %{id: 1, name: "org"},
-        selected: nil,
         enabled: true,
         metric: "hit_rate",
         initialize_percentile: "avg",
@@ -86,7 +85,8 @@ defmodule TuistWeb.RunnerImageCacheLiveTest do
     assert html =~ DateFormatter.format_duration_from_milliseconds(47_000)
     assert html =~ DateFormatter.format_duration_from_milliseconds(6_100)
     assert html =~ "org/android"
-    assert html =~ "/org/runners/images/"
+    assert html =~ "/org/runners/volumes/"
+    assert html =~ "analytics-date-range=last-30-days"
     assert html =~ "image-repository-search"
   end
 
@@ -133,23 +133,6 @@ defmodule TuistWeb.RunnerImageCacheLiveTest do
 
     assert html =~ "No repositories found"
     assert html =~ "not enabled"
-  end
-
-  test "a repository's page lists the images its data root keeps" do
-    selected = repository()
-    html = render_component(&RunnerImageCacheLive.render/1, assigns(%{selected: selected, data: data([])}))
-
-    assert html =~ "ghcr.io/org/build:jdk-21"
-    refute html =~ "Digest"
-    assert html =~ "/org/runners/volumes/#{selected.id}"
-    assert html =~ "Image cache details"
-  end
-
-  test "a repository with nothing saved yet says so" do
-    selected = repository(%{images: [], image_count: 0, saved_bytes: nil, last_saved_at: nil})
-    html = render_component(&RunnerImageCacheLive.render/1, assigns(%{selected: selected, data: data([])}))
-
-    assert html =~ "No images saved yet"
   end
 
   test "line charts plot only the days that had jobs" do
