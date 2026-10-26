@@ -328,8 +328,6 @@ var tuistTestCommandDependencies: [Target.Dependency] = [
     swiftToolsSupportDependency,
     fileSystemDependency,
     mockableDependency,
-    "TuistCI",
-    "TuistProcess",
     "TuistConstants",
     "TuistEnvironment",
     "TuistLogging",
@@ -1264,7 +1262,6 @@ var targets: [Target] = [
             "TuistServer",
             "TuistEnvironmentTesting",
             "TuistNooraTesting",
-            argumentParserDependency,
             mockableDependency,
         ],
         path: "cli/Tests/TuistTestCommandTests"

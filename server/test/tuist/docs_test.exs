@@ -17,6 +17,18 @@ defmodule Tuist.DocsTest do
       assert page.body =~ "Install Tuist"
     end
 
+    test "Once sharding uses native planning, execution and Tuist configuration" do
+      guide = Docs.get_page("/en/guides/features/test-sharding/once").markdown
+
+      assert guide =~ "once query test-plan --shards 4"
+      assert guide =~ "once test --shard-plan PLAN_UUID --shard-index 0 --jobs 2"
+      assert guide =~ "[infrastructure.cache]"
+      assert guide =~ "[infrastructures.tuist]"
+      assert guide =~ "once auth login --provider workspace"
+      refute guide =~ "tuist test once"
+      refute guide =~ "--executable"
+    end
+
     test "workload authentication documents account-wide access and shared-provider trust boundaries" do
       guide = Docs.get_page("/en/guides/server/authentication").markdown
       assert guide =~ "only the `ci` scope group and covers all current and future projects"

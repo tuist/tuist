@@ -1499,8 +1499,6 @@ public enum Module: String, CaseIterable {
                 ]
             case .testCommand:
                 [
-                    .target(name: Module.ci.targetName),
-                    .target(name: "TuistProcess"),
                     .target(name: Module.configLoader.targetName),
                     .target(name: Module.constants.targetName),
                     .target(name: Module.environment.targetName),
@@ -1753,7 +1751,6 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.logging.targetName),
                     .target(name: Module.nooraTesting.targetName),
                     .target(name: Module.server.targetName),
-                    .external(name: "ArgumentParser"),
                     .external(name: "Noora"),
                 ]
             case .configLoader:

@@ -25,7 +25,7 @@ defmodule Tuist.OnceEvents.TestReportIngestor do
   @doc """
   Publish `run`'s test results. A no-op for runs that carried no test cases,
   which is every `once build`, or externally grouped runs whose consolidated
-  partition report is submitted by the CLI over REST instead.
+  partition report is submitted by Once's coordinator over REST instead.
   """
   def publish(%Run{test_context: %{"external_group_id" => group_id}}) when is_binary(group_id) and group_id != "",
     do: {:ok, :externally_grouped}
