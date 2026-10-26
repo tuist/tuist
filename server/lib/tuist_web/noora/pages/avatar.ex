@@ -19,7 +19,7 @@ defmodule TuistWeb.Noora.Pages.Avatar do
     <.avatar
       id="avatar-image"
       name="Pedro Piñera"
-      image_href="/marketing/images/previews/pedro-avatar.webp"
+      image_href="/marketing/images/noora/pedro.png"
       image_alt="Pedro Piñera"
     />
     """
@@ -37,7 +37,7 @@ defmodule TuistWeb.Noora.Pages.Avatar do
     """
   end
 
-  example "Colors", description: "Pink is the default. Each color helps tell accounts apart in a list." do
+  example "Colors", description: "Purple is the default. Each color helps tell accounts apart in a list." do
     ~H"""
     <.avatar id="avatar-color-gray" name="Tuist" color="gray" />
     <.avatar id="avatar-color-red" name="Rover Labs" color="red" />
@@ -60,7 +60,7 @@ defmodule TuistWeb.Noora.Pages.Avatar do
     """
   end
 
-  example "Placeholder", description: "With `fallback=\"placeholder\"`, a generic picture replaces the initials." do
+  example "Placeholder", description: "With `fallback=\"placeholder\"`, an animated dither texture replaces the initials." do
     ~H"""
     <.avatar id="avatar-placeholder-small" name="Unknown author" fallback="placeholder" size="small" />
     <.avatar id="avatar-placeholder-medium" name="Unknown author" fallback="placeholder" />
