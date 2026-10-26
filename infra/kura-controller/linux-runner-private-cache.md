@@ -113,6 +113,90 @@ operations, not an Android application's compile-time speedup.
   Baseline cache: `ns543284.ip-144-217-252.net` in Canada.
   The Gravelines pair has 1 Gbps contracted vRack links.
 
+### Direct HTTP request latency
+
+The request probe isolates small HTTP operations from Gradle startup, archive
+handling and bulk transfer. It uses the same injected PN Service and explicit
+Canadian baseline as the Gradle comparison, from a fresh 2-vCPU/8-GiB staging
+Linux runner. Both caches still run `kura:sha-eea9626bab67`.
+
+For each endpoint, request type and connection mode, ten warm-ups precede 100
+recorded samples, alternating endpoint order. The 1,600 measured requests are
+serial and use HTTP/1.1 without TLS. Persistent samples must reuse their socket;
+fresh samples must open a new connection. Timing spans request creation through
+response completion. Median averages the middle two samples; p95 is the
+nearest-rank 95th sample. Raw data also retain time to response headers and
+lookup/connect milestones.
+
+- Health is unauthenticated `GET /up`.
+- Metadata hits are authenticated `HEAD /api/cache/gradle/<key>` requests,
+  checking status 200, ETag, Content-Length and an empty response body.
+- Metadata misses use a separate absent key and require status 404 and no body.
+- Tiny reads request a seeded 1 KiB artifact and compare the full returned bytes.
+
+Each endpoint gets a unique seeded key. The probe resolves the workflow's OIDC
+credential in memory; neither credentials nor authorization headers enter the
+artifacts. These are warmed key/authentication paths, including repeated misses,
+not cold metadata/storage lookups. Persistent connections sample whichever
+replica accepts that connection; fresh connections can select other replicas.
+The Node client timings do not measure Gradle's own connection-pool behavior.
+This is a low-load latency sample, not a concurrency or saturation test, and
+contains no TLS handshake cost. Both physical paths use vRack; the baseline
+still crosses the Atlantic.
+
+[Successful phase-instrumented run](https://github.com/tuist/tuist/actions/runs/40333263154):
+**1,600 measured requests passed**, including all status, metadata, payload and
+connection-reuse checks. The earlier
+[unsegmented run](https://github.com/tuist/tuist/actions/runs/40332566153) also
+passed all 1,600 requests and showed comparable latency (metadata-hit medians
+0.825 ms PN / 79.527 ms WAN). The table uses only the phase-instrumented run;
+it does not pool the two runs.
+
+| Connection | Request | WAN p50 / p95 | PN p50 / p95 |
+| --- | --- | --- | --- |
+| persistent | health | 79.366 / 79.676 ms | 0.837 / 1.293 ms |
+| persistent | metadata_hit | 79.541 / 79.897 ms | 0.854 / 1.439 ms |
+| persistent | metadata_miss | 79.481 / 79.717 ms | 0.870 / 1.373 ms |
+| persistent | read_1k | 79.825 / 80.169 ms | 1.041 / 1.642 ms |
+| fresh | health | 214.956 / 218.423 ms | 58.742 / 60.498 ms |
+| fresh | metadata_hit | 215.267 / 218.679 ms | 58.981 / 60.777 ms |
+| fresh | metadata_miss | 215.252 / 218.465 ms | 58.828 / 60.140 ms |
+| fresh | read_1k | 215.060 / 218.607 ms | 59.098 / 60.619 ms |
+
+| Fresh-connection phase | WAN median | PN median |
+| --- | --- | --- |
+| lookup | 57.169 ms | 57.180 ms |
+| tcp | 78.609 ms | 0.666 ms |
+| response | 79.421 ms | 1.110 ms |
+
+Fresh-connection phases pool the four request types (400 samples per endpoint).
+Lookup is elapsed time from request creation until Node's hostname-lookup event,
+TCP is lookup completion to connect, and response is connect to body completion.
+Phase medians need not sum to the median of a particular request type.
+The roughly 57 ms hostname-lookup phase is shared by both paths and dominates
+fresh PN requests. Its resolver-level cause is not diagnosed here. Reusing a
+connection avoids that phase. With reused connections, PN metadata hits take
+0.854 ms median versus 79.541 ms on WAN (about 93× faster). These findings support investigating runner DNS
+latency separately, not attributing the fresh-request delay to Kura processing.
+
+Raw [requests](validation/linux-runner-pn-2026-10-26/requests.csv) and
+[request environment](validation/linux-runner-pn-2026-10-26/request-environment.json)
+are checked in; the workflow retains them in its `kura-request-latency` artifact.
+Reproduce both tables with:
+
+```sh
+node infra/linux-runner-image/summarize-kura-request-latency.mjs \
+  infra/kura-controller/validation/linux-runner-pn-2026-10-26/requests.csv
+```
+
+For a live rerun, dispatch `linux-runners-staging-smoke.yml` with
+`gradle_cache=true` and `measure_request_latency=true`; leave
+`compare_private_cache` and `stable_cache_dns` disabled.
+The first probe attempt stopped before measuring because the shared workflow's
+empty optional `TUIST_TOKEN` shadowed its valid OIDC credential. The probe now
+omits that empty override when asking the CLI to resolve the credential. That
+failed attempt contributes no samples.
+
 ### Physical path evidence
 
 The runner and both OVH cache Machines reported `PrivateNetworkReady=True`.
