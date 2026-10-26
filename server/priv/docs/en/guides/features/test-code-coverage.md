@@ -1,7 +1,7 @@
 ---
 {
   "title": "Code Coverage",
-  "titleTemplate": ":title · Test Insights · Features · Guides · Tuist",
+  "titleTemplate": ":title · Features · Guides · Tuist",
   "description": "Track the line coverage of every file and commit from your test runs."
 }
 ---
@@ -13,6 +13,6 @@ Code coverage tells you which lines of your code your tests executed. Tuist uplo
   <.home_card
     title="Elixir"
     details="Upload the line coverage of Elixir projects tested with mix test --cover."
-    link="/guides/features/test-insights/code-coverage/elixir"
+    link="/guides/features/test-code-coverage/elixir"
 />
 </.home_cards>

@@ -327,11 +327,11 @@ defmodule Tuist.Docs.Sidebar do
           },
           %Item{
             label: "Coverage",
-            slug: "/en/guides/features/test-insights/code-coverage",
+            slug: "/en/guides/features/test-code-coverage",
             items: [
               %Item{
                 label: "Elixir",
-                slug: "/en/guides/features/test-insights/code-coverage/elixir",
+                slug: "/en/guides/features/test-code-coverage/elixir",
                 icon: "brand_elixir"
               }
             ]

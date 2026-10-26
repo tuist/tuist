@@ -1,7 +1,7 @@
 ---
 {
   "title": "Elixir Code Coverage",
-  "titleTemplate": ":title · Code Coverage · Test Insights · Features · Guides · Tuist",
+  "titleTemplate": ":title · Code Coverage · Features · Guides · Tuist",
   "description": "Upload the line coverage of your Elixir project with mix test --cover and follow it per file, per application and per commit."
 }
 ---
