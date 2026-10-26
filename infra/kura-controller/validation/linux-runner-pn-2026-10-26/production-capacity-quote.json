@@ -1,0 +1,196 @@
+{
+  "observedAt": "2026-10-26",
+  "catalogSource": "https://api.us.ovhcloud.com/1.0/order/catalog/public/baremetalServers?ovhSubsidiary=US",
+  "availabilitySource": "https://api.us.ovhcloud.com/1.0/dedicated/server/datacenter/availabilities?planCode=26adv01-v7-eu",
+  "status": "proposal only; no cart or order",
+  "quantity": 2,
+  "planCode": "26adv01-v7-eu",
+  "invoiceName": "ADVANCE-1 | AMD EPYC 4245P",
+  "pricings": [
+    {
+      "mode": "default",
+      "capacities": [
+        "installation"
+      ],
+      "commitment": 0,
+      "interval": 0,
+      "intervalUnit": "none",
+      "formattedPrice": "$204.00 USD"
+    },
+    {
+      "mode": "default",
+      "capacities": [
+        "renew"
+      ],
+      "commitment": 0,
+      "interval": 1,
+      "intervalUnit": "month",
+      "formattedPrice": "$204.00 USD"
+    }
+  ],
+  "defaults": [
+    {
+      "family": "storage",
+      "planCode": "softraid-2x960nvme-pcie-gen5-26adv01-v7-eu",
+      "invoiceName": "2x SSD NVMe 960GB Datacenter Class Soft RAID",
+      "pricings": [
+        {
+          "mode": "default",
+          "capacities": [
+            "installation"
+          ],
+          "commitment": 0,
+          "interval": 0,
+          "intervalUnit": "none",
+          "formattedPrice": "$0.00 USD"
+        },
+        {
+          "mode": "default",
+          "capacities": [
+            "upgrade"
+          ],
+          "commitment": 0,
+          "interval": 0,
+          "intervalUnit": "none",
+          "formattedPrice": "$0.00 USD"
+        },
+        {
+          "mode": "default",
+          "capacities": [
+            "renew"
+          ],
+          "commitment": 0,
+          "interval": 1,
+          "intervalUnit": "month",
+          "formattedPrice": "$0.00 USD"
+        }
+      ]
+    },
+    {
+      "family": "memory",
+      "planCode": "ram-32g-ddr5-on-die-ecc-5600-26adv01-v7-eu",
+      "invoiceName": "32GB DDR5 On-Die ECC 5600MHz",
+      "pricings": [
+        {
+          "mode": "default",
+          "capacities": [
+            "installation"
+          ],
+          "commitment": 0,
+          "interval": 0,
+          "intervalUnit": "none",
+          "formattedPrice": "$0.00 USD"
+        },
+        {
+          "mode": "default",
+          "capacities": [
+            "upgrade"
+          ],
+          "commitment": 0,
+          "interval": 0,
+          "intervalUnit": "none",
+          "formattedPrice": "$0.00 USD"
+        },
+        {
+          "mode": "default",
+          "capacities": [
+            "renew"
+          ],
+          "commitment": 0,
+          "interval": 1,
+          "intervalUnit": "month",
+          "formattedPrice": "$0.00 USD"
+        }
+      ]
+    },
+    {
+      "family": "bandwidth",
+      "planCode": "bandwidth-3000-adv-gen4-eu",
+      "invoiceName": "3Gbps unmetered and guaranteed public bandwidth",
+      "pricings": [
+        {
+          "mode": "default",
+          "capacities": [
+            "installation"
+          ],
+          "commitment": 0,
+          "interval": 0,
+          "intervalUnit": "none",
+          "formattedPrice": "$0.00 USD"
+        },
+        {
+          "mode": "default",
+          "capacities": [
+            "upgrade"
+          ],
+          "commitment": 0,
+          "interval": 0,
+          "intervalUnit": "none",
+          "formattedPrice": "$0.00 USD"
+        },
+        {
+          "mode": "default",
+          "capacities": [
+            "renew"
+          ],
+          "commitment": 0,
+          "interval": 1,
+          "intervalUnit": "month",
+          "formattedPrice": "$0.00 USD"
+        }
+      ]
+    },
+    {
+      "family": "vrack",
+      "planCode": "vrack-bandwidth-25000-adv-gen4-eu",
+      "invoiceName": "25Gbps guaranteed unmetered private bandwidth",
+      "pricings": [
+        {
+          "mode": "default",
+          "capacities": [
+            "upgrade"
+          ],
+          "commitment": 0,
+          "interval": 0,
+          "intervalUnit": "none",
+          "formattedPrice": "$0.00 USD"
+        },
+        {
+          "mode": "default",
+          "capacities": [
+            "installation"
+          ],
+          "commitment": 0,
+          "interval": 0,
+          "intervalUnit": "none",
+          "formattedPrice": "$0.00 USD"
+        },
+        {
+          "mode": "default",
+          "capacities": [
+            "renew"
+          ],
+          "commitment": 0,
+          "interval": 1,
+          "intervalUnit": "month",
+          "formattedPrice": "$0.00 USD"
+        }
+      ]
+    }
+  ],
+  "availability": [
+    {
+      "fqn": "26adv01-v7-eu.ram-32g-ddr5-on-die-ecc-5600.softraid-2x960nvme-pcie-gen5",
+      "memory": "ram-32g-ddr5-on-die-ecc-5600",
+      "planCode": "26adv01-v7-eu",
+      "server": "26adv01",
+      "storage": "softraid-2x960nvme-pcie-gen5",
+      "datacenters": [
+        {
+          "availability": "72H",
+          "datacenter": "gra"
+        }
+      ]
+    }
+  ]
+}

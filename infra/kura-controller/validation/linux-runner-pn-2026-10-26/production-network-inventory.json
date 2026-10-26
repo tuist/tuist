@@ -1,0 +1,134 @@
+{
+  "observedAt": "2026-10-26",
+  "source": "OVH US GET /dedicated/server/{service}/specifications/network",
+  "hosts": [
+    {
+      "machine": "tuist-tuist-ovh-fleet-eu-west-qvv7x-7zs8w",
+      "service": "ns3242621.ip-79-137-100.eu",
+      "role": "public-cache",
+      "privateMbps": 25000,
+      "publicMbps": 3000,
+      "olaAvailable": true
+    },
+    {
+      "machine": "tuist-tuist-ovh-fleet-eu-west-qvv7x-bbq7m",
+      "service": "ns3263754.ip-51-75-213.eu",
+      "role": "public-cache",
+      "privateMbps": 25000,
+      "publicMbps": 3000,
+      "olaAvailable": true
+    },
+    {
+      "machine": "tuist-tuist-ovh-fleet-eu-west-qvv7x-cwmt8",
+      "service": "ns3263776.ip-51-68-54.eu",
+      "role": "public-cache",
+      "privateMbps": 25000,
+      "publicMbps": 3000,
+      "olaAvailable": true
+    },
+    {
+      "machine": "tuist-tuist-ovh-fleet-eu-west-qvv7x-hc6pk",
+      "service": "ns3262309.ip-51-75-213.eu",
+      "role": "public-cache",
+      "privateMbps": 25000,
+      "publicMbps": 3000,
+      "olaAvailable": true
+    },
+    {
+      "machine": "tuist-tuist-ovh-fleet-eu-west-qvv7x-krz7x",
+      "service": "ns3008615.ip-137-74-108.eu",
+      "role": "public-cache",
+      "privateMbps": 25000,
+      "publicMbps": 3000,
+      "olaAvailable": true
+    },
+    {
+      "machine": "tuist-tuist-ovh-fleet-eu-west-qvv7x-w62mz",
+      "service": "ns3240059.ip-137-74-108.eu",
+      "role": "public-cache",
+      "privateMbps": 25000,
+      "publicMbps": 3000,
+      "olaAvailable": true
+    },
+    {
+      "machine": "tuist-tuist-ovh-fleet-runners-linux-wxhhv-2c6zk",
+      "service": "ns3049612.ip-51-255-75.eu",
+      "role": "runner",
+      "privateMbps": 1000,
+      "publicMbps": 1000,
+      "olaAvailable": false
+    },
+    {
+      "machine": "tuist-tuist-ovh-fleet-runners-linux-wxhhv-2qkj8",
+      "service": "ns3048201.ip-51-255-75.eu",
+      "role": "runner",
+      "privateMbps": 1000,
+      "publicMbps": 1000,
+      "olaAvailable": false
+    },
+    {
+      "machine": "tuist-tuist-ovh-fleet-runners-linux-wxhhv-5m295",
+      "service": "ns3073696.ip-217-182-192.eu",
+      "role": "runner",
+      "privateMbps": 1000,
+      "publicMbps": 1000,
+      "olaAvailable": false
+    },
+    {
+      "machine": "tuist-tuist-ovh-fleet-runners-linux-wxhhv-7s5p8",
+      "service": "ns3048220.ip-51-255-75.eu",
+      "role": "runner",
+      "privateMbps": 1000,
+      "publicMbps": 1000,
+      "olaAvailable": false
+    },
+    {
+      "machine": "tuist-tuist-ovh-fleet-runners-linux-wxhhv-csk76",
+      "service": "ns3073705.ip-217-182-192.eu",
+      "role": "runner",
+      "privateMbps": 1000,
+      "publicMbps": 1000,
+      "olaAvailable": false
+    },
+    {
+      "machine": "tuist-tuist-ovh-fleet-runners-linux-wxhhv-nzg9k",
+      "service": "ns3073710.ip-217-182-192.eu",
+      "role": "runner",
+      "privateMbps": 1000,
+      "publicMbps": 1000,
+      "olaAvailable": false
+    },
+    {
+      "machine": "tuist-tuist-ovh-fleet-runners-linux-wxhhv-sfkd5",
+      "service": "ns3045520.ip-51-255-93.eu",
+      "role": "runner",
+      "privateMbps": 1000,
+      "publicMbps": 1000,
+      "olaAvailable": false
+    },
+    {
+      "machine": "tuist-tuist-ovh-fleet-runners-linux-wxhhv-szsb7",
+      "service": "ns3049365.ip-51-255-75.eu",
+      "role": "runner",
+      "privateMbps": 1000,
+      "publicMbps": 1000,
+      "olaAvailable": false
+    },
+    {
+      "machine": "tuist-tuist-ovh-fleet-runners-linux-wxhhv-tkqp6",
+      "service": "ns3049246.ip-51-255-75.eu",
+      "role": "runner",
+      "privateMbps": 1000,
+      "publicMbps": 1000,
+      "olaAvailable": false
+    },
+    {
+      "machine": "tuist-tuist-ovh-fleet-runners-linux-wxhhv-vbbdv",
+      "service": "ns3074893.ip-217-182-193.eu",
+      "role": "runner",
+      "privateMbps": 1000,
+      "publicMbps": 1000,
+      "olaAvailable": false
+    }
+  ]
+}

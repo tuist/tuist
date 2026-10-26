@@ -163,6 +163,14 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
 
 ## Private runner entrance
 
+The Linux `ovh-gra-runners` rollout is account-gated and documented in
+[linux-runner-private-cache.md](linux-runner-private-cache.md), including live
+staging evidence and outstanding outage/production qualification. The optional
+`production-linux-runner-private-cache.values.yaml` is preparation only: do not
+include it in default production values before its hosts are approved and ready.
+Existing OnDelete runner Machines require explicit idle vRack enrollment;
+changing their fleet template does not enroll them.
+
 Runner instances share the managed StatefulSet rollout, preferred co-location, disruption budget, primary routing, mesh and drain. Kubernetes defaults new sets to RollingUpdate; leave a live operator-set update strategy intact. Primary selection prefers full ring visibility but falls back to a fresh Ready/serving writer when no fully joined member remains, so a restarting sibling cannot pin traffic to a dead pod.
 
 `privateHost` opts a private instance into the existing HTTP/gRPC ingress and certificate path, with a host-network ingress class and valid nonempty `clientCIDRs`. Private gateways retain their per-instance certificate and do not select the shared public wildcard, even if a legacy publicHost remains. Private client DNS prefers the selected primary's node initially, then retains its healthy published gateway. Pod List order cannot move it. Public peer DNS stays public. Private gateway-backed pods carry `tuist.dev/host-network-gateway=true`; the managed Helm CiliumNetworkPolicy admits only cache-port traffic from host/remote-node identities, while nginx enforces external client CIDRs.
