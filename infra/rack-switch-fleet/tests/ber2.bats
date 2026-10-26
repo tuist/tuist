@@ -180,3 +180,13 @@ ber2_ready() {
     run edge_sh "fleet_edge_check_rack_caches '$BER2'"
     [ "$status" -eq 0 ]
 }
+
+@test "an edge whose NICs hold fewer descriptors sizes its rings to them" {
+    run edge_sh "fleet_edge_path '$BER2'"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'ber2-edge-a) vrrp_address=10.255.255.1/29 machines_address=10.20.0.2/24 peer_address=10.255.255.2 ring=2047 uplinks='* ]]
+    [[ "$output" == *'ethtool -G "$uplink" rx "$ring" tx "$ring"'* ]]
+    run edge_sh "fleet_edge_path '$SITE_FILE'"
+    [[ "$output" == *'ethtool -G "$uplink" rx 4096 tx 4096'* ]]
+    [[ "$output" != *' ring='* ]]
+}

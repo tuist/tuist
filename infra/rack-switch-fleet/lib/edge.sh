@@ -553,9 +553,14 @@ SCRIPT
   # The uplinks' rings are 4096 descriptors rather than i40e's 512, which
   # overflow on the WAN's line-rate bursts and drop packets the NIC counts as
   # rx_missed_errors. Setting the counts a ring already has changes nothing.
+  # A NIC whose rings hold fewer gets its most (`ring_max` in node_models.json):
+  # ethtool refuses a count above it, which would stop this script.
   local node address uplink_names vrrp_length machines peer member
   vrrp_length="$(fleet_prefix_length "$vrrp_prefix")"
   mapfile -t members < <(fleet_edge_members "$site_file")
+  local limited ring=""
+  limited="$(jq -r --slurpfile hw "$FLEET_NODE_MODELS" '[.nodes[]? | select(.role == "edge") | . as $n | .links[] |
+    select(.purpose == "data") | $hw[0][$n.hardware // ""].interfaces[.nic].ring_max // empty] | length' "$site_file")"
   cat <<'SCRIPT'
 case "${NODE_NAME:?the pod passes the name of the node it runs on}" in
 SCRIPT
@@ -569,14 +574,30 @@ SCRIPT
     if [ -n "$wan_vlan" ]; then
       peer=" peer_address=$(printf '%s\n' "${members[@]}" | awk -F'\t' -v n="$node" '$1 != n {print $2; exit}')"
     fi
-    printf '  %s) vrrp_address=%s%s%s uplinks="%s" ;;\n' "$node" "$address/$vrrp_length" "$machines" "$peer" "$uplink_names"
+    if (( limited > 0 )); then
+      ring=" ring=$(jq -r --slurpfile hw "$FLEET_NODE_MODELS" --arg n "$node" '.nodes[] | select(.name == $n) | . as $n |
+        [4096, (.links[] | select(.purpose == "data") | $hw[0][$n.hardware // ""].interfaces[.nic].ring_max // empty)] | min' "$site_file")"
+    fi
+    printf '  %s) vrrp_address=%s%s%s%s uplinks="%s" ;;\n' "$node" "$address/$vrrp_length" "$machines" "$peer" "$ring" "$uplink_names"
   done
   cat <<'SCRIPT'
   *) echo "$NODE_NAME is not one of the site's edges" >&2; exit 1 ;;
 esac
+SCRIPT
+  if (( limited > 0 )); then
+    cat <<'SCRIPT'
+for uplink in $uplinks; do
+  ethtool -G "$uplink" rx "$ring" tx "$ring"
+done
+SCRIPT
+  else
+    cat <<'SCRIPT'
 for uplink in $uplinks; do
   ethtool -G "$uplink" rx 4096 tx 4096
 done
+SCRIPT
+  fi
+  cat <<'SCRIPT'
 edge_vlan_bond() {
   bond=$1 vlan=$2 i=0
   ip link show "$bond" >/dev/null 2>&1 || ip link add "$bond" type bond mode active-backup miimon 100

@@ -10,12 +10,12 @@ if [ "$(cat /proc/sys/net/ipv4/ip_forward)" != 1 ]; then
   exit 1
 fi
 case "${NODE_NAME:?the pod passes the name of the node it runs on}" in
-  ber2-edge-a) vrrp_address=10.255.255.1/29 machines_address=10.20.0.2/24 peer_address=10.255.255.2 uplinks="ens17f0np0 ens17f1np1" ;;
-  ber2-edge-b) vrrp_address=10.255.255.2/29 machines_address=10.20.0.3/24 peer_address=10.255.255.1 uplinks="ens17f0np0 ens17f1np1" ;;
+  ber2-edge-a) vrrp_address=10.255.255.1/29 machines_address=10.20.0.2/24 peer_address=10.255.255.2 ring=2047 uplinks="ens17f0np0 ens17f1np1" ;;
+  ber2-edge-b) vrrp_address=10.255.255.2/29 machines_address=10.20.0.3/24 peer_address=10.255.255.1 ring=2047 uplinks="ens17f0np0 ens17f1np1" ;;
   *) echo "$NODE_NAME is not one of the site's edges" >&2; exit 1 ;;
 esac
 for uplink in $uplinks; do
-  ethtool -G "$uplink" rx 4096 tx 4096
+  ethtool -G "$uplink" rx "$ring" tx "$ring"
 done
 edge_vlan_bond() {
   bond=$1 vlan=$2 i=0
