@@ -140,7 +140,7 @@ func TestDockerReportCarriesTheFinishedInventory(t *testing.T) {
 	a, server := dockerAgent(t, http.StatusOK)
 	requestDocker(t, a, "/docker", "10.0.0.5")
 	slots, _ := a.store.Snapshot()
-	report := cachevolumes.DockerReport{Clean: true, Changed: true, BuildCacheBytes: 7, Images: []cachevolumes.DockerImage{{ID: "sha256:" + strings.Repeat("a", 64), References: []string{"postgres:16"}, SizeBytes: 9}}}
+	report := cachevolumes.DockerReport{Clean: true, Changed: true, Reset: true, BuildCacheBytes: 7, Images: []cachevolumes.DockerImage{{ID: "sha256:" + strings.Repeat("a", 64), References: []string{"postgres:16"}, SizeBytes: 9}}}
 	data, _ := json.Marshal(report)
 	if err := os.WriteFile(filepath.Join(a.root, "pods", "uid", slots[0].Scope, cachevolumes.DockerReportName), data, 0600); err != nil {
 		t.Fatal(err)
@@ -155,7 +155,7 @@ func TestDockerReportCarriesTheFinishedInventory(t *testing.T) {
 		t.Fatal("reported an inventory while the job ran")
 	}
 	inventory, ok := server.reports[1]["docker"].(map[string]any)
-	if !ok || inventory["build_cache_bytes"] != float64(7) || len(inventory["images"].([]any)) != 1 {
+	if !ok || inventory["build_cache_bytes"] != float64(7) || inventory["reset"] != true || len(inventory["images"].([]any)) != 1 {
 		t.Fatalf("reported %v", server.reports[1])
 	}
 }

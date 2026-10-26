@@ -51,7 +51,7 @@ func TestDockerJobSwitchesOntoTheGrantedImage(t *testing.T) {
 		func(context.Context) (macResponse, error) {
 			return macResponse{Directory: dockerTestScope, ID: "use", Warm: true}, nil
 		},
-		func(message dockerMessage) error { sent = append(sent, message); return nil })
+		func(message dockerMessage) (string, error) { sent = append(sent, message); return "ok", nil })
 	if result != "reused" {
 		t.Fatalf("result %q", result)
 	}
@@ -81,7 +81,7 @@ func TestDockerJobLeavesTheEphemeralRootWithoutAProvenGrant(t *testing.T) {
 			statePath := filepath.Join(t.TempDir(), "state.json")
 			result := dockerJob(context.Background(), root, statePath,
 				func(context.Context) (macResponse, error) { return test.response, test.err },
-				func(dockerMessage) error { t.Fatal("switched without a proven grant"); return nil })
+				func(dockerMessage) (string, error) { t.Fatal("switched without a proven grant"); return "", nil })
 			if result != test.want {
 				t.Fatalf("result %q, want %q", result, test.want)
 			}
@@ -99,12 +99,28 @@ func TestDockerJobReportsAFailedSwitch(t *testing.T) {
 		func(context.Context) (macResponse, error) {
 			return macResponse{Directory: dockerTestScope, ID: "use"}, nil
 		},
-		func(dockerMessage) error { return errors.New("mount failed") })
+		func(dockerMessage) (string, error) { return "", errors.New("mount failed") })
 	if result != "unavailable (switch failed)" {
 		t.Fatalf("result %q", result)
 	}
 	if _, err := os.Stat(statePath); !os.IsNotExist(err) {
 		t.Fatal("a failed switch left a teardown to do")
+	}
+}
+
+func TestDockerJobReportsADataRootStartedEmptyInsteadOfTheSavedOne(t *testing.T) {
+	root := dockerVolumeDirectory(t, "use")
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	result := dockerJob(context.Background(), root, statePath,
+		func(context.Context) (macResponse, error) {
+			return macResponse{Directory: dockerTestScope, ID: "use", Warm: true}, nil
+		},
+		func(dockerMessage) (string, error) { return dockerReset, nil })
+	if result != "started empty (the saved data root could not be mounted)" {
+		t.Fatalf("result %q", result)
+	}
+	if !readDockerState(t, statePath).Mounted {
+		t.Fatal("hook did not record the mounted data root")
 	}
 }
 
@@ -132,7 +148,7 @@ func TestDockerTeardown(t *testing.T) {
 			}
 			sent, seen := false, false
 			result := dockerTeardown(statePath,
-				func(message dockerMessage) error { sent = message.Docker == "teardown"; return nil },
+				func(message dockerMessage) (string, error) { sent = message.Docker == "teardown"; return "ok", nil },
 				test.images,
 				func() error { seen = true; return nil })
 			if result != test.want || sent != test.sent || seen != test.seen {

@@ -203,6 +203,7 @@ defmodule AtlasWeb.Router do
     get "/orbit/threads", NativeOrbitController, :index
     post "/orbit/threads", NativeOrbitController, :create
     post "/orbit/threads/private", NativeOrbitController, :private
+    patch "/orbit/threads/:id", NativeOrbitController, :update
     get "/orbit/threads/:id/people", NativeOrbitController, :people
     get "/orbit/threads/:id/messages", NativeOrbitController, :messages
     post "/orbit/threads/:id/messages", NativeOrbitController, :post_message
@@ -221,6 +222,14 @@ defmodule AtlasWeb.Router do
     patch "/:resource/:id", NativeController, :update
     delete "/:resource/:id", NativeController, :delete
     post "/:resource/:id/complete", NativeController, :complete
+  end
+
+  scope "/api/me", AtlasWeb do
+    pipe_through :native
+
+    get "/orbit-live-activity", OrbitLiveActivityController, :show
+    put "/orbit-live-activity/:registration_id", OrbitLiveActivityController, :update
+    delete "/orbit-live-activity/:registration_id", OrbitLiveActivityController, :delete
   end
 
   scope "/api", AtlasWeb do

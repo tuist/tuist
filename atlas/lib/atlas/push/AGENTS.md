@@ -157,6 +157,74 @@ and Android registration filtering cover delivery display in that window.
   topic is fixed to `dev.tuist.atlas`. Unconfigured platforms are reported as
   unavailable; normal builds and tests need no credentials.
 
+## Pip Live Activities
+
+`OrbitLiveActivity` is a separate opt-in registry for a locally started aggregate
+ActivityKit activity, not an ordinary notification installation. Its native-only
+HTTP contract is in [controllers](../../atlas_web/controllers/AGENTS.md#pip-live-activity).
+Only the acting user's queued/running, uncancelled work in active readable
+threads is eligible, including every ratcheted scope. At most three entries are
+sent, earliest real start/queue time first (run UUID breaks ties); `active_count`
+counts all eligible runs. Completed steps count durable succeeded/failed tool
+calls, never planned work, cancelled cards or a percentage. Compaction outranks
+running tools. Each entry includes the authorized stored `Thread.title`, with
+whitespace and Unicode control/format characters collapsed to spaces, trimmed
+and bounded to 80 Unicode codepoints; blank titles become `Conversation`.
+This title is an explicit contextual exception to the previous content-free
+contract: Apple receives bounded titles, which can appear on the Lock Screen.
+No author, raw prompt, tool name/input/output or reply is used; no prompt/message
+lookup, inferred summary or new model request supplies the title.
+
+- `orbit_live_activities.id` is the app's registration UUID, **not** Apple's
+  `Activity.id`. Tokens and hashes are redacted; tokens use the existing Cloak
+  vault. Ownership is immutable and bound to both user and native OAuth client.
+  The active refresh-grant fence matches ordinary Push (rotation remains valid),
+  with the native redirect shape rechecked too. One live aggregate per user/client,
+  at most ten per user. A new local activity retires the previous one; it never
+  transfers its token or revives an old ID. Token uniqueness includes pending ends.
+- Lifetime is eight hours from first registration, never extended by PUT.
+  DELETE of an unknown ID creates a tombstone. Retired IDs reject all later PUTs;
+  clients must generate a new UUID. Retirement immediately disallows updates,
+  retaining the encrypted token only for a best-effort **empty** end. End success,
+  permanent rejection, invalid token, five failed attempts or a two-minute end
+  retry window clears token/hash/owner. Tokenless tombstones prune after 180 days
+  through the existing push pruning worker. User deletion clears the owner and
+  reconciliation sends an empty end; audit history keeps its existing retention.
+- Existing id-only Orbit PostgreSQL invalidations wake the push worker only
+  after commit. `Orbit.Notifier` also reconciles 100 registrations every five
+  seconds, oldest checked first with `SKIP LOCKED`, covering lost notifications,
+  cancellation, archive, grant expiry/logout and access loss. Larger registries
+  rotate through bounded batches. It does not start inference, keep a channel
+  alive or run provider requests in the notifier. Registration failure cannot
+  fail ordinary assistant work.
+- Jobs contain **only** registration IDs. Oban incomplete-state uniqueness
+  coalesces bursts across replicas. A registration row/advisory lock serializes
+  token rotation, retirement and sends; every attempt reloads authorization and
+  projects current state, never an invalidation's historical content. Unchanged
+  state is idempotent for 60 seconds, then refreshed to renew its stale date.
+  Changed state in the same Unix second snoozes one second, rather than sending
+  conflicting timestamps. No callback can update a retired activity.
+- Existing APNs credentials, HTTP/2 pools, Req and response classification are
+  reused. The fixed topic is `dev.tuist.atlas.push-type.liveactivity`, push type
+  `liveactivity`, priority `5`, and collapse ID is the registration UUID. APS
+  has integer `timestamp`, `event: update|end`, exact `content-state`, and a
+  two-minute `stale-date`, capped with APNs expiry at the registration lifetime
+  or end retry deadline; end adds immediate `dismissal-date`. Payloads are
+  checked below 4 KiB, including three worst-case Unicode titles. No alert,
+  sound, link or reply preview is included. Titles are recomputed with the same
+  send-time authorization fences, never logged or stored as delivery snapshots.
+  Apple delivery remains best effort; the app must also end locally at sign-out.
+- Last-work completion ends the activity. Live Activity delivery creates no
+  completion alert and never suppresses the existing opted-in `orbit_completed`
+  alert; a registration or provider acceptance is not proof of OS presentation.
+  APNs absence advertises unavailable without requiring credentials in normal
+  builds/tests. No new MCP send/tool surface exists: this is native ActivityKit
+  lifecycle plumbing, not an agent capability or a new source of thread access.
+
+Regressions: `test/atlas/push/orbit_live_activity_test.exs` exercises the public
+worker and lifecycle with mocked provider HTTP; `test/atlas_web/controllers/orbit_live_activity_controller_test.exs`
+checks the native boundary, privacy projection and registration fences.
+
 ## Audit
 
 `push_installation.registered` (creation, token rotation or environment change;

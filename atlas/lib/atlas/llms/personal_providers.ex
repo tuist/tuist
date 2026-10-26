@@ -58,7 +58,7 @@ defmodule Atlas.LLMs.PersonalProviders do
       "category" => Atom.to_string(category)
     })
 
-    Logger.warning("Orbit personal provider failed: provider=#{provider} category=#{category} status=#{status}")
+    Logger.error("Orbit personal provider failed: provider=#{provider} category=#{category} status=#{status}")
     {:error, status}
   end
 

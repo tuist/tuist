@@ -92,7 +92,8 @@ only route out, its provisioning lease.
 
 - A box with an empty disk boots the stick on its own, with the firmware's
   defaults: Secure Boot on and the network stack off.
-- To reinstall a running host, the operator looks for a USB disk whose ISO
+- To reinstall a running host, the operator boots the installer partition of a
+  preinstalled host (below), else looks for a USB disk whose ISO
   carries `nocloud/tuist-install-stick`, gives its EFI partition a boot entry of
   its own (`tuist install stick`, left out of `BootOrder`), sets `BootNext` to
   it and reboots. A host without one netboots instead.
@@ -417,6 +418,159 @@ ssh tuist@<LAN address> sudo tailscale up --hostname=<host> --advertise-tags=<ta
 ```
 
 A tailnet admin opens the login URL it prints.
+
+## The preinstall image
+
+A box a vendor ships straight to a site arrives with its installer on its own
+boot drive, so it needs no stick, the first edge of a site included. The
+vendor boots the preinstall image once on the box:
+
+```
+mise run rack:write-install-usb --preinstall --output tuist_preinstall_<date>.iso [--internet-server https://<host>]
+```
+
+It writes `tuist_preinstall_<date>.iso` and its `.sha256`. The image is
+Ubuntu's live server ISO with Ubuntu's signed boot chain, so it boots with
+Secure Boot on, and carries no credential. Booted once (PXE, HTTP boot,
+virtual media or a stick), its deploy seed:
+
+1. picks the smallest internal disk of at least 100 GB, the M.2 boot drive,
+   never a storage node's data drive, and refuses one that holds anything but
+   an installer partition;
+2. writes partition 1 (4 GiB, ESP type, FAT label `TUISTINST`, GPT name
+   `tuist-installer`) with the ISO's tree, checked against its `md5sum.txt`,
+   and the resident seed in place of its own;
+3. adds a UEFI boot entry `tuist installer`, first in `BootOrder`, with the
+   efibootmgr from the ISO's pool (the live system has its libraries but not
+   the binary), after deleting any entry of that name: the ASUS firmware keeps
+   an entry whose partition is gone, turned into a group of its network
+   entries (`VenHw(99e275e7-…)`). Without the entry the firmware lists no disk
+   option and boots the partition only after every network entry failed;
+4. prints the unit sheet on the screen and the serial console, and to
+   `TUISTINST:/tuist/unit-sheet.txt`: product, serial, SMBIOS UUID, each NIC's
+   MAC, driver and name, the TPM endorsement key's SHA-256, and its check
+   code, the first 16 hex digits in four groups, for the vendor's acceptance
+   report;
+5. powers the box off.
+
+From then on the box boots the resident installer: the `--any-host` stick's
+installer, which casper boots from `TUISTINST` alone
+(`live-media=/dev/disk/by-label/TUISTINST`) with persistence off
+(`nopersistent`: casper otherwise turns the drive's free space into a
+`writable` partition). It asks the env's boot server and then
+`--internet-server` for the install published for one of its NICs. With no
+default route from DHCP, it tries each site's static WAN
+(`management.edge.wan` of `infra/rack-switch-fleet/sites/*.json`) on each
+port with a link, untagged and on the site's VLAN, and keeps the one whose
+address nobody answers for and whose gateway does (`busybox arping`).
+
+**A preinstalled box earns its install with its TPM.** The vendor's acceptance
+report carries the box's SMBIOS UUID and its TPM check code from the unit
+sheet. Declaring the box takes both:
+
+```yaml
+- uuid: 03de3d42-4a8e-9278-ee1a-a0ad9f25c75f
+  hostname: ber2-edge-b
+  role: edge
+  tpmCheckCode: 1a2b-3c4d-5e6f-7a8b
+```
+
+The operator then pins the host's TPM only from an announcement whose key has
+that code (`TPMCheckCodeMismatch` on `HardwarePinned` otherwise), and the
+internet boot server (`rackLinuxFleet.boot.internet`, `rack-boot --internet`
+on cloud nodes behind the ingress) takes announcements only from hosts
+declared with one. Anyone on the internet reaches that server, so it hands out
+nothing but seeds sealed to a pinned TPM, which only that TPM can open, and
+serves nothing to netboot. With it configured, the operator publishes the
+install of an edge whose TPM is pinned even with no other edge of its site to
+serve it: the first edge of a site asks the internet boot server for it.
+Production runs it at `rack-boot.tuist.dev` and lists the RS501A in
+`rackLinuxFleet.preinstall.products`, so a vendor's image for production is
+written with `--internet-server https://rack-boot.tuist.dev`.
+
+casper takes the first live medium it finds. Booting the image on a drive that
+already holds an installer partition can boot that partition's tree instead,
+whose seed is the resident one; the deploy seed refuses to run from it. Wipe
+the drive to deploy again.
+
+## The ASUS RS501A and its BMC
+
+From rack 2 on, edges and storage nodes are ASUS RS501A-E12-RS12U/1G servers
+with an ASMB11-iKVM BMC (AMI MegaRAC on an AST2600), driven over Redfish by
+`rack-bmc` (`infra/cluster-api-provider-tuist/cmd/rack-bmc`, client in
+`internal/redfish`). The BMC's dedicated port is the leftmost of the three
+RJ45 ports at the back, LAN port 1 the middle one, LAN port 2 the right one.
+
+```
+go build -o rack-bmc ./cmd/rack-bmc        # in infra/cluster-api-provider-tuist
+export RACK_BMC_PASSWORD=...               # the BMC's admin password
+./rack-bmc -bmc https://<bmc> inventory    # serial, SMBIOS UUID, MACs, versions, TPM, Secure Boot
+./rack-bmc -bmc https://<bmc> check        # the BIOS against the baseline; exits 3 on drift
+./rack-bmc -bmc https://<bmc> power off && ./rack-bmc -bmc https://<bmc> apply && ./rack-bmc -bmc https://<bmc> power on
+./rack-bmc -bmc https://<bmc> rotate Administrator <new-password-file
+```
+
+The baseline (`redfish.Baseline`): Restore AC Power Loss Power On
+(`AridApmLastState`), Network Stack, IPv4 PXE and IPv4 HTTP boot on
+(`NWSK000`, `NWSK001`, `NWSK006`), TPM on (`TCG001`), console redirection on
+COM2 for serial-over-LAN (`TER002`), and Secure Boot on with the factory keys,
+whose db holds Microsoft's UEFI CA 2011 and 2023, so Ubuntu's shim boots.
+
+What the BMC does differently from the standard:
+
+- BIOS settings go to `Systems/Self/Bios/SD` and the BIOS applies them at its
+  next POST, which takes about three minutes. The BMC answers 503 to a BIOS
+  write, and to a one-time boot, while the host is running or in POST
+  (`ServiceTemporarilyUnavailableDueToHostBooting`): write them with it off.
+- The BIOS lists in its `MAPIDS` attribute which attributes Redfish may set.
+  Secure Boot (`SECB001`) is not one of them, and the BIOS drops it at POST;
+  `rack-bmc` enables it through `Systems/Self/SecureBoot` instead.
+- The attribute registry (`/redfish/v1/Registries/BiosAttributeRegistryS0310.en-US.13.1.0.json`)
+  is served gzip-compressed.
+- Reset takes On, ForceOff, ForceRestart and GracefulShutdown; a power cycle
+  is ForceOff, then On.
+- A one-time boot is `Systems/Self/SD` with `Boot.BootSourceOverrideEnabled: Once` and mode UEFI.
+  A CD boot needs the virtual CD attached for some seconds before power-on,
+  or POST finds no USB CD and falls through to network boot. The BMC accepts
+  `Boot.HttpBootUri` but the firmware ignores it: HTTP boot takes its URL from
+  DHCP alone.
+- With no UEFI entry for a disk, the firmware lists no disk boot option: it
+  tries every network entry (about eight minutes with no DHCP on LAN port 1),
+  then falls back to the first disk's `\EFI\BOOT\BOOTX64.EFI`.
+- Virtual media needs the OEM actions `AMIVirtualMedia.EnableRMedia` and
+  `AMIVirtualMedia.ConfigureCDInstance` before `VirtualMedia/CD1` exists. It
+  reads an HTTPS image only from port 443, with a file name of letters, digits
+  and underscores, and refuses one without a user name and password for the
+  server. It takes a self-signed certificate, but only one that names the
+  server's address: with another name it hangs up after the handshake without
+  a request. It offers `h2` in ALPN, and a server that negotiated HTTP/2 got
+  no HTTP/2 preface from it; one that offers only HTTP/1.1 works. A failed
+  open leaves `CD1` at `Stopped - Unable to Open`, and the BMC makes no
+  further attempt until it restarts.
+- `CertificateService.ReplaceCertificate` on
+  `Managers/Self/NetworkProtocol/HTTPS/Certificates/1` takes the certificate
+  followed by its private key (PKCS#1) in `CertificateString`; the web server
+  serves it within seconds and keeps it across a BMC restart. A certificate
+  alone, even one issued for the BMC's own `GenerateCSR`, answers 204 and
+  shows in the collection, but the web server never serves it and a restart
+  reverts it. `GenerateCSR` also puts the IP addresses in `AlternativeNames`
+  as DNS names. A BMC restart (`Manager.Reset` takes `ForceRestart` only)
+  takes about two and a half minutes and leaves the host running.
+- A PSU that loses AC keeps `Status.State: Present` in `Chassis/Self/Power`,
+  and its `Status.Health` becomes a raw hex code (`0x2849`) rather than
+  Warning or Critical. The SEL records `Power Supply PSUn AC lost`
+  asserted and deasserted, and the PSU's `PowerInputWatts` and
+  `LineInputVoltage` drop to about zero. `PowerControl` `PowerConsumedWatts`
+  lags and reads low; the PSU inputs are the chassis's draw.
+- The BMC's clock follows NTP (`pool.ntp.org`), but `DateTimeLocalOffset`
+  is a fixed offset, `+02:00` from the factory, which DST does not move, and
+  the SEL is stamped in local time. Set it to `+00:00` (PATCH
+  `Managers/Self`).
+- Serial-over-LAN is IPMI over LAN with the same accounts
+  (`ipmitool -I lanplus -H <bmc> -U admin -E sol activate`).
+- Besides `admin` and the factory `Administrator`, the BMC carries a
+  `HostInterfaceAdministrator` account for the in-band Redfish host
+  interface (`usb0`, 169.254.0.17 on the BMC side).
 
 ## Roles
 

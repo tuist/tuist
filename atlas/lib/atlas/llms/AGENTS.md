@@ -24,7 +24,9 @@ output/status from the terminal metadata. Buffer done items, but never accept th
 without successful completion or substitute text/argument deltas for complete items.
 Only allowlisted structured codes/types can select a more specific status;
 never classify message text. Personal-provider failures emit fixed provider/category/status
-diagnostics to Logger and the current OpenTelemetry span, never bodies or credentials.
+diagnostics at Logger's error level and to the current OpenTelemetry span, never bodies
+or credentials. Error severity allows Atlas's native self-monitor to capture them;
+terminal Orbit run failures also log only their fixed category at error level.
 Claude `max_tokens` stops are incomplete, not permission to execute a partial tool call.
 Keep real Condukt + ReqLLM + Req fixture tests across parallel tool continuation; stub
 only Finch's network boundary. Synthetic fixtures do not establish live compatibility.

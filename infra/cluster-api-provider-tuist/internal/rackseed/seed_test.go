@@ -2,6 +2,8 @@ package rackseed_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -182,5 +184,27 @@ func TestAskGetsTheSeedAsItIsForAHostWithoutAPinnedTPM(t *testing.T) {
 	got, err := asker(srv, rackseedtest.New(), &opened).Ask(context.Background(), "38-05-25-38-b5-b5")
 	if err != nil || string(got) != string(seed) || opened != 0 {
 		t.Fatalf("%q %v, TPM opened %d times", got, err, opened)
+	}
+}
+
+// The check code a vendor copies from the unit sheet is the one the deploy
+// step prints: the first 16 hex digits of the key's SHA-256.
+func TestCheckCode(t *testing.T) {
+	ek := []byte("an endorsement key")
+	sum := sha256.Sum256(ek)
+	h := hex.EncodeToString(sum[:])
+	want := h[0:4] + "-" + h[4:8] + "-" + h[8:12] + "-" + h[12:16]
+	if got := rackseed.CheckCode(ek); got != want {
+		t.Fatalf("CheckCode = %s, want %s", got, want)
+	}
+	for _, typed := range []string{want, strings.ToUpper(want), strings.ReplaceAll(want, "-", ""), " " + strings.ReplaceAll(want, "-", " ") + " "} {
+		if got := rackseed.NormalizeCheckCode(typed); got != want {
+			t.Errorf("rackseed.NormalizeCheckCode(%q) = %q, want %q", typed, got, want)
+		}
+	}
+	for _, bad := range []string{"", h[:15], h[:17], "zzzz-zzzz-zzzz-zzzz"} {
+		if got := rackseed.NormalizeCheckCode(bad); got != "" {
+			t.Errorf("rackseed.NormalizeCheckCode(%q) = %q, want none", bad, got)
+		}
 	}
 }

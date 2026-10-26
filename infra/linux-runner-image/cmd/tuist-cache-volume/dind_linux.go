@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -23,27 +24,30 @@ import (
 const dockerDataRoot = "/var/lib/docker"
 const dockerLedgerPath = dockerDataRoot + "/tuist/ledger.json"
 
-// sendDocker sends a request without descriptors to the sidecar's supervisor.
-func sendDocker(socket string, message dockerMessage) error {
+// sendDocker sends a request without descriptors to the sidecar's supervisor
+// and returns its status: ok, or dockerReset for a data root it started empty.
+func sendDocker(socket string, message dockerMessage) (string, error) {
 	data, _ := json.Marshal(message)
 	conn, err := net.DialUnix("unixpacket", nil, &net.UnixAddr{Name: socket, Net: "unixpacket"})
 	if err != nil {
-		return fmt.Errorf("docker cache helper unavailable: %w", err)
+		return "", fmt.Errorf("docker cache helper unavailable: %w", err)
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(2 * time.Minute))
 	if _, err = conn.Write(data); err != nil {
-		return err
+		return "", err
 	}
 	response := make([]byte, 4096)
 	n, err := conn.Read(response)
 	if err != nil {
-		return err
+		return "", err
 	}
-	if string(response[:n]) != "ok" {
-		return errors.New(string(response[:n]))
+	switch reply := string(response[:n]); reply {
+	case "ok", dockerReset:
+		return reply, nil
+	default:
+		return "", errors.New(reply)
 	}
-	return nil
 }
 
 // daemon supervises dockerd in the privileged sidecar: it runs the mount broker,
@@ -60,6 +64,9 @@ type daemon struct {
 	// state is ephemeral, volume, or finished once a volume was torn down.
 	state  string
 	source string
+	// reset is set when the saved data root could not be mounted and the
+	// job's branch was formatted empty instead.
+	reset  bool
 	base   dockerSnapshot
 	ledger dockerLedger
 	run    func(context.Context, string, ...string) ([]byte, error)
@@ -147,16 +154,22 @@ func (d *daemon) ready(ctx context.Context) error {
 	}
 }
 
-func (d *daemon) handle(message dockerMessage) error {
+func (d *daemon) handle(message dockerMessage) (string, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	switch message.Docker {
 	case "switch":
-		return d.switchRoot(message.Source)
+		if err := d.switchRoot(message.Source); err != nil {
+			return "", err
+		}
+		if d.reset {
+			return dockerReset, nil
+		}
+		return "ok", nil
 	case "teardown":
-		return d.teardown()
+		return "ok", d.teardown()
 	}
-	return errors.New("invalid docker request")
+	return "", errors.New("invalid docker request")
 }
 
 // switchRoot moves dockerd onto the volume image at source, relative to the
@@ -180,8 +193,16 @@ func (d *daemon) switchRoot(source string) error {
 	if out, err := d.run(ctx, "umount", dockerDataRoot); err != nil {
 		return d.fallback(ctx, fmt.Errorf("unmount ephemeral data root: %s", strings.TrimSpace(string(out))), false)
 	}
-	if out, err := d.run(ctx, "mount", "-o", "loop", image, dockerDataRoot); err != nil {
-		return d.fallback(ctx, fmt.Errorf("mount docker volume: %s", strings.TrimSpace(string(out))), false)
+	if _, err := d.run(ctx, "mount", "-o", "loop", image, dockerDataRoot); err != nil {
+		// The saved data root is one this kernel refuses. The job starts its own
+		// branch empty instead, and its teardown replaces the saved one.
+		if out, err := d.run(ctx, "mkfs.ext4", append(slices.Clone(dockerFormatArgs), image)...); err != nil {
+			return d.fallback(ctx, fmt.Errorf("format docker volume: %s", strings.TrimSpace(string(out))), false)
+		}
+		if out, err := d.run(ctx, "mount", "-o", "loop", image, dockerDataRoot); err != nil {
+			return d.fallback(ctx, fmt.Errorf("mount docker volume: %s", strings.TrimSpace(string(out))), false)
+		}
+		d.reset = true
 	}
 	if err := d.start(); err != nil {
 		return d.fallback(ctx, err, true)
@@ -219,7 +240,7 @@ func (d *daemon) teardown() error {
 	d.state = "finished"
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	report := dockerTeardownReport{Images: []dockerReportedImage{}}
+	report := dockerTeardownReport{Images: []dockerReportedImage{}, Reset: d.reset}
 	cleanErr := d.clean(ctx, &report)
 	d.stop()
 	unix.Sync()
@@ -293,7 +314,7 @@ func (d *daemon) clean(ctx context.Context, report *dockerTeardownReport) error 
 	}
 	report.Images = dockerReportImages(images, plan.Keep)
 	report.BuildCacheBytes = final.BuildCacheBytes
-	report.Changed = final.differs(d.base) || plan.Stale
+	report.Changed = final.differs(d.base) || plan.Stale || d.reset
 	return nil
 }
 

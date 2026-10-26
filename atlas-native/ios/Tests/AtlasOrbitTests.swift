@@ -18,38 +18,6 @@ extension AtlasOrbitTests {
         let expected = 1_792_845_296.0 + (timestamp.contains(".") ? 0.123456 : 0)
         #expect(abs(date.timeIntervalSince1970 - expected) < 0.001)
     }
-
-    @Test func bottomFollowingSurvivesLayoutCorrectionsButStopsForUserHistoryScrolling() {
-        var state = AtlasThreadScrollState()
-        let update = { (metrics: AtlasThreadScrollMetrics) in state.update(metrics) }
-        state.userScrolling = false
-        #expect(!update(.init(height: 2000, bottom: 600, viewport: 600)))
-        #expect(update(.init(height: 2200, bottom: 840, viewport: 600)))
-        // A later lazy-row correction can change offset without changing the new content height.
-        #expect(update(.init(height: 2200, bottom: 880, viewport: 600)))
-        #expect(state.following)
-        #expect(!update(.init(height: 2200, bottom: 600, viewport: 600)))
-        state.userScrolling = true
-        #expect(!update(.init(height: 2200, bottom: 645, viewport: 600)))
-        state.userScrolling = false
-        #expect(!update(.init(height: 2500, bottom: 945, viewport: 600)))
-        #expect(!state.following)
-        #expect(!update(.init(height: 2500, bottom: 600, viewport: 600)))
-        #expect(state.following)
-        #expect(update(.init(height: 2500, bottom: 760, viewport: 400, inset: 200)))
-        #expect(state.following)
-    }
-
-    @Test func fallbackScrollAccumulatesSlowMovementAndRebasesContentGrowth() {
-        var state = AtlasThreadScrollState()
-        let update = { (metrics: AtlasThreadScrollMetrics) in state.update(metrics) }
-        #expect(!update(.init(height: 2000, bottom: 600, viewport: 600)))
-        #expect(update(.init(height: 2200, bottom: 840, viewport: 600)))
-        #expect(state.following)
-        #expect(!update(.init(height: 2200, bottom: 600, viewport: 600)))
-        for step in 1...50 { _ = state.update(.init(height: 2200, bottom: 600 + CGFloat(step) / 2, viewport: 600)) }
-        #expect(!state.following)
-    }
 }
 
 extension AtlasOrbitTests {
@@ -89,6 +57,49 @@ extension AtlasOrbitTests {
         #expect(await model.newPrivateThread()?.id == id)
         #expect(commands[2]["action"] as? String == "create_private")
         #expect(commands[2].count == 1) // Replay UUID and owner identity belong to Rust/server.
+    }
+
+    @Test func archivingKeepsHistoryAndDraftWhileReconcilingAuthoritativeStatus() async throws {
+        var sequence = 0
+        var status = "active"
+        var filter = "active"
+        let message: [String: Any] = [
+            "id": "history", "kind": "human", "body": "Keep this conversation.", "author_name": "Taylor",
+            "inserted_at": "2026-10-24T12:00:00Z", "tool_input": "", "tool_output": ""
+        ]
+        let model = AtlasOrbit(request: { action in
+            if action["action"] as? String == "open" { return Data("{\"connection\":\"archive-handle\"}".utf8) }
+            let command = try #require(action["command"] as? [String: Any])
+            switch command["action"] as? String {
+            case "load":
+                filter = command["status"] as? String ?? filter
+            case "archive":
+                #expect(command["id"] as? String == id)
+                status = command["archived"] as? Bool == true ? "archived" : "active"
+            default: throw CancellationError()
+            }
+            sequence += 1
+            let thread: [String: Any] = [
+                "id": id, "title": "Keep this conversation", "kind": "private", "status": status,
+                "summary": "", "origin": "manual", "participants": [], "updated_at": "2026-10-24T12:00:00Z"
+            ]
+            return try snapshot(sequence: sequence, selected: true, draft: "An unsent thought", messages: [message], fields: [
+                "selected": thread, "threads": status == filter ? [thread] : [], "status_filter": filter
+            ])
+        }, localRequest: { _ in throw CancellationError() })
+        await model.load()
+        let thread = try #require(model.selected)
+        await model.archive(thread, archived: true)
+        #expect(model.selected?.status == "archived")
+        #expect(model.threads.isEmpty)
+        await model.load(status: "archived")
+        #expect(model.statusFilter == "archived")
+        #expect(model.threads.first?.status == "archived")
+        await model.archive(try #require(model.selected), archived: false)
+        #expect(model.selected?.status == "active")
+        #expect(model.threads.isEmpty)
+        #expect(model.messages.map(\.body) == ["Keep this conversation."])
+        #expect(model.draft == "An unsent thought")
     }
 
     @Test func mentionSelectionUsesRustIdentityAndRetainsTheEditableDraft() async throws {
@@ -241,6 +252,7 @@ extension AtlasOrbitTests {
         status = "running"
         await model.load()
         #expect(model.activityMessage == "Using get account…")
+        #expect(model.timeline.groups.first?.messages.map(\.toolStatus) == ["running", "succeeded"])
         status = "compacting"
         await model.load()
         #expect(model.activityMessage == "Compacting context…")
@@ -251,6 +263,7 @@ extension AtlasOrbitTests {
         messages[0]["tool_status"] = "succeeded"
         await model.load()
         #expect(model.activityMessage == "Typing…")
+        #expect(model.timeline.groups.first?.messages.map(\.toolStatus) == ["succeeded", "succeeded"])
         liveMessage = "Reconnecting…"
         await model.load()
         #expect(model.liveMessage == "Reconnecting…")
@@ -340,6 +353,7 @@ extension AtlasOrbitTests {
         pending?.resume(returning: effect)
         #expect(await action.value == false)
         #expect(model.messages.isEmpty)
+        #expect(model.timeline.groups.isEmpty)
     }
 }
 

@@ -1,6 +1,7 @@
 included:
   - Sources
   - Tests
+  - LiveActivity
 
 disabled_rules:
   - identifier_name

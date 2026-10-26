@@ -44,6 +44,13 @@ const (
 	dockerReferenceLimit   = 16
 )
 
+// dockerReset is the supervisor's status for a data root it formatted empty
+// because the saved one could not be mounted.
+const dockerReset = "reset"
+
+// dockerFormatArgs match the host's for an empty data root.
+var dockerFormatArgs = []string{"-F", "-q", "-m", "0", "-E", "lazy_itable_init=0,lazy_journal_init=0,nodiscard"}
+
 var dockerImageID = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
 var dockerReferencePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._/:@-]{0,254}$`)
 
@@ -61,7 +68,7 @@ type dockerHookState struct {
 
 // dockerJob asks the host for the job's data root and moves dockerd onto it. It
 // never fails the job; the result is the line the hook prints.
-func dockerJob(ctx context.Context, root, statePath string, request func(context.Context) (macResponse, error), send func(dockerMessage) error) string {
+func dockerJob(ctx context.Context, root, statePath string, request func(context.Context) (macResponse, error), send func(dockerMessage) (string, error)) string {
 	response, err := request(ctx)
 	if err != nil {
 		return "unavailable (request)"
@@ -81,11 +88,15 @@ func dockerJob(ctx context.Context, root, statePath string, request func(context
 	if info, err := os.Lstat(filepath.Join(base, dockerImageName)); err != nil || !info.Mode().IsRegular() {
 		return "unavailable (no image)"
 	}
-	if err := send(dockerMessage{Docker: "switch", Source: response.Directory + "/" + dockerImageName}); err != nil {
+	reply, err := send(dockerMessage{Docker: "switch", Source: response.Directory + "/" + dockerImageName})
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Tuist Docker cache: %v\n", err)
 		return "unavailable (switch failed)"
 	}
 	_ = writeDockerState(statePath, dockerHookState{Mounted: true})
+	if reply == dockerReset {
+		return "started empty (the saved data root could not be mounted)"
+	}
 	if response.Warm {
 		return "reused"
 	}
@@ -95,7 +106,7 @@ func dockerJob(ctx context.Context, root, statePath string, request func(context
 // dockerTeardown runs after the job. A mounted data root is cleaned and
 // unmounted by the supervisor; a job that had none reports whether it used
 // Docker, so the repository's next jobs get one.
-func dockerTeardown(statePath string, send func(dockerMessage) error, images func() ([]string, error), seen func() error) string {
+func dockerTeardown(statePath string, send func(dockerMessage) (string, error), images func() ([]string, error), seen func() error) string {
 	data, err := os.ReadFile(statePath)
 	if err != nil {
 		return "skipped"
@@ -105,7 +116,7 @@ func dockerTeardown(statePath string, send func(dockerMessage) error, images fun
 		return "skipped"
 	}
 	if state.Mounted {
-		if err := send(dockerMessage{Docker: "teardown"}); err != nil {
+		if _, err := send(dockerMessage{Docker: "teardown"}); err != nil {
 			return "failed (" + err.Error() + ")"
 		}
 		return "saved for the host to verify"
@@ -302,6 +313,7 @@ func mergeReferences(recent, older []string) []string {
 type dockerTeardownReport struct {
 	Clean           bool                  `json:"clean"`
 	Changed         bool                  `json:"changed"`
+	Reset           bool                  `json:"reset,omitempty"`
 	Images          []dockerReportedImage `json:"images"`
 	BuildCacheBytes int64                 `json:"build_cache_bytes"`
 }
@@ -371,7 +383,7 @@ func dockerLinux() string {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	client := newDockerHTTPClient(20 * time.Second)
-	return dockerJob(ctx, linuxCacheRoot, dockerStatePath, client.request, func(message dockerMessage) error {
+	return dockerJob(ctx, linuxCacheRoot, dockerStatePath, client.request, func(message dockerMessage) (string, error) {
 		return sendDocker(dockerSocket(), message)
 	})
 }
@@ -379,7 +391,7 @@ func dockerLinux() string {
 // dockerTeardownLinux runs after the runner exits, outside the job's time.
 func dockerTeardownLinux() string {
 	client := newDockerHTTPClient(15 * time.Second)
-	return dockerTeardown(dockerStatePath, func(message dockerMessage) error {
+	return dockerTeardown(dockerStatePath, func(message dockerMessage) (string, error) {
 		return sendDocker(dockerSocket(), message)
 	}, dockerImageIDs, func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

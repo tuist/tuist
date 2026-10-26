@@ -172,7 +172,7 @@ func (f stickFakes) command(t *testing.T) *exec.Cmd {
 	if err != nil {
 		t.Skip("no sh")
 	}
-	script := stickScript("http://192.168.50.1:8480", stickPaths{Seed: f.seed, Autoinstall: f.autoinstall, Console: f.console, Sys: f.sys, Node: f.node, Uptime: f.uptime})
+	script := stickScript(stickConfig{Servers: []string{"http://192.168.50.1:8480"}}, stickPaths{Seed: f.seed, Autoinstall: f.autoinstall, Console: f.console, Sys: f.sys, Node: f.node, Uptime: f.uptime, Medium: filepath.Join(filepath.Dir(f.node), "medium")})
 	cmd := exec.Command(sh, "-c", strings.ReplaceAll(script, "/run/tuist-prev", f.prev))
 	cmd.Env = append(os.Environ(), "PATH="+f.bin+":"+os.Getenv("PATH"))
 	return cmd
@@ -274,8 +274,8 @@ func TestStickUserData(t *testing.T) {
 		t.Error("the installer keeps rack-node under /run, which is mounted noexec")
 	}
 	for _, want := range []string{
-		"server='http://192.168.50.1:8480'",
-		`"$server/tools/rack-node"`,
+		"servers='http://192.168.50.1:8480'",
+		`"$s/tools/rack-node"`,
 		`"$node" seed --server "$server" --out /run/tuist-user-data $macs`,
 		"cp /run/tuist-user-data /autoinstall.yaml",
 		`grep -qx "tailnet_key=$id" /run/tuist-prev/etc/tuist-rack-node`,

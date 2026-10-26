@@ -2,6 +2,22 @@
 
 These independent Once targets render the production native Settings views with fixed, in-memory API responses. They make screenshots reproducible without real provider credentials, browser authentication, a public development server, or an Atlas-authorized ChatGPT client.
 
+`--live-activity` renders the shared production ActivityKit view and requests real
+local activities through the preview's separately identified WidgetKit extension.
+Start/update/stale/end controls use fictional conversation titles, generic phases
+and counts; requests use `pushType: nil` and never contact Atlas or APNs.
+`--long-activity-title` exercises title wrapping/truncation without extra inference.
+`AtlasLiveActivityUITests`
+exercises local lifecycle and system presentation plus accessible-text rendering.
+Lock Screen/Dynamic Island screenshots are demo data, not background APNs delivery,
+physical-device signing, inference or the authenticated coordinator's end-to-end proof.
+
+The iOS `--orbit-long-history` fixture supplies 400 messages with consecutive tools and uneven Markdown heights, ending in a very tall reply. Its UI regression checks real final-line visibility on entry and after idle keyboard/multiline-draft changes in light and dark accessibility text. CPU and native scrolling metrics accompany repeated history gestures; simulator numbers are comparative evidence, not physical-device frame-rate claims.
+
+Orbit archive fixtures retain status, filter and history in memory. UI checks exercise native swipe actions, shared confirmation/cancellation, read-only archived history and restore in light and dark accessibility text. `--fail-orbit-archive` injects a failed mutation without removing the conversation. These are presentation/adapter checks; server tests own owner authorization/run cancellation and Rust tests own request, retry and stale-response fences.
+
+`--workspace --social-screenshots` supplies a fictional customer-call brief, mixed private/shared inbox and seven fictional accounts, alongside the existing fake Finance overview. `AtlasWorkspaceUITests.testSocialScreenshotsWithFictionalBusinessData` captures the real production views in light and dark without a live session or inference. Export `atlas-social-*` attachments for sharing; label them as demo data, not real customer records or live assistant results.
+
 - Fixture apps and UI suites are local opt-in tools, not CI jobs or preview-publication gates. The Atlas native workflow still runs production builds, Rust/CLI/iOS unit tests, language-specific linting, and credential-free packaging/provisioning checks.
 - Build from `atlas-native/` with `ONCE_CACHE_PROVIDER=local mise exec -- once build AtlasSettingsIOSPreview` or the Android equivalent `AtlasSettingsAndroidPreview` (with the same Android SDK/NDK environment and compiler `PATH` as the production `build:android` task). Prepare vendored Rust sources serially before direct Once builds.
 - `ONCE_CACHE_PROVIDER=local mise exec -- once test AtlasSettingsUITests` drives the iOS preview through native Settings, secure Claude entry, expanded instructions, and ChatGPT sign-in/cancellation in light, dark, accessibility-sized text, and landscape. It checks 44pt actions, a physical tap outside the help link's text, Save availability during secure editing, device-code accessibility, and a late save after leaving/reopening Claude. Preview-only URL handling presents the destination instead of opening a browser. Full-screen screenshot attachments preserve PNG EXIF orientation (landscape wrappers must respect it). Screenshot attachments include `ios-settings`, `ios-claude`, `ios-claude-help`, `ios-claude-keyboard`, and `ios-chatgpt`, with appearance suffixes. Export attachments outside the repository with `xcrun xcresulttool export attachments` using the result bundle reported in the test log.

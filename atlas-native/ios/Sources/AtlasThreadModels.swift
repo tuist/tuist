@@ -18,22 +18,21 @@ struct AtlasThread: Decodable, Identifiable, Hashable {
     let agentStatus: String?
 
     var updatedDate: Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.date(from: updatedAt) ?? ISO8601DateFormatter().date(from: updatedAt)
+        (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(updatedAt))
+            ?? (try? Date.ISO8601FormatStyle().parse(updatedAt))
     }
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
-struct AtlasThreadComponent: Codable {
-    struct Table: Codable {
+struct AtlasThreadComponent: Codable, Equatable {
+    struct Table: Codable, Equatable {
         let title: String
         let columns: [String]
         let rows: [[String]]
     }
-    struct Action: Codable {
+    struct Action: Codable, Equatable {
         let id: String
         let label: String
     }
@@ -51,7 +50,7 @@ struct AtlasThreadAttachment: Decodable, Identifiable, Equatable {
     let byteSize: Int
 }
 
-struct AtlasThreadMessage: Decodable, Identifiable {
+struct AtlasThreadMessage: Decodable, Identifiable, Equatable {
     let id: String
     let kind: String
     let body: String
@@ -67,6 +66,51 @@ struct AtlasThreadMessage: Decodable, Identifiable {
     let attachments: [AtlasThreadAttachment]?
     let noticeKind: String?
     let mentionedUserIds: [String]?
+
+    var insertedDate: Date? {
+        (try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(insertedAt))
+            ?? (try? Date.ISO8601FormatStyle().parse(insertedAt))
+    }
+}
+
+struct AtlasThreadTimelineData {
+    struct Group: Identifiable {
+        let id: String
+        var messages: [AtlasThreadMessage]
+        let children: [AtlasThreadMessage]
+        let date: Date?
+        var tools: Bool { messages.count > 1 && messages.first?.kind == "tool" }
+    }
+
+    let groups: [Group]
+
+    init(messages: [AtlasThreadMessage]) {
+        let parents = Set(messages.filter { $0.kind == "tool" && $0.parentMessageId == nil }.map(\.id))
+        var children: [String: [AtlasThreadMessage]] = [:]
+        for message in messages where message.kind == "tool" {
+            if let parent = message.parentMessageId, parents.contains(parent) {
+                children[parent, default: []].append(message)
+            }
+        }
+        var groups: [Group] = []
+        var previousDate: Date?
+        for message in messages {
+            if message.kind == "tool", let parent = message.parentMessageId, parents.contains(parent) { continue }
+            let date = message.insertedDate
+            let sameDay = date.flatMap { date in previousDate.map { Calendar.current.isDate(date, inSameDayAs: $0) } } ?? false
+            let last = groups.last?.messages.last
+            if message.kind == "tool", message.component?.type != "account_card",
+               last?.kind == "tool", last?.component?.type != "account_card",
+               children[message.id] == nil, last.map({ children[$0.id] == nil }) == true, sameDay {
+                groups[groups.count - 1].messages.append(message)
+            } else {
+                groups.append(Group(id: message.id, messages: [message], children: children[message.id] ?? [],
+                                    date: sameDay ? nil : date))
+            }
+            previousDate = date
+        }
+        self.groups = groups
+    }
 }
 
 struct AtlasOrbitAssistant: Decodable {
@@ -101,6 +145,7 @@ extension AtlasOrbit {
         let saving: Bool
         let hasMore: Bool
         let hasOlder: Bool
+        let statusFilter: String?
         let error: String?
         let liveMessage: String?
         let needsSession: Bool

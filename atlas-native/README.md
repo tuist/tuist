@@ -92,6 +92,34 @@ can be registered by other apps. Fixture navigation tests do not prove live
 verification. Operator setup lives in the existing
 [deployment guidance](../atlas/deploy/AGENTS.md#native-app-links).
 
+## Orbit Live Activities
+
+iOS shows one aggregate Pip Live Activity on the Lock Screen and Dynamic Island
+while the signed-in person's authorized Orbit work runs. The conversation title
+leads, with its current phase and elapsed time secondary. Multiple conversations
+use a bounded titled list with an overflow count. Titles are cleaned and bounded
+to 80 Unicode codepoints; Apple receives them for updates and they can appear on
+the Lock Screen. No message excerpts, people or tool output are included. Tapping
+reenters the normal origin-bound, authenticated router. A timer is elapsed time,
+not percent completion.
+
+The app starts activities in the foreground, reconciles on work changes and every
+30 seconds while active, and registers ActivityKit tokens for server APNs updates
+after backgrounding. It ends activities on sign-out or no remaining work and marks
+missing updates stale. Older servers keep working without this optional feature.
+Background delivery requires the existing server APNs configuration and a properly
+signed device app; a simulator fixture does not prove remote delivery.
+
+Once builds and embeds a genuine WidgetKit `.appex`. Device distribution also
+requires a separate `dev.tuist.atlas.live-activity` ad-hoc profile authorizing the
+same certificate and registered devices as the host. See
+[distribution guidance](ios/distribution/AGENTS.md). No App Group or extension
+access to Atlas credentials is required.
+
+The separate preview app's `--live-activity` mode requests real local activities
+with fictional state and no APNs token, network or inference. It provides start,
+phase/count update, stale and end controls, reusing the production renderer.
+
 ## Develop
 
 Run all commands from `atlas-native/`. It is a separate Once workspace, so the

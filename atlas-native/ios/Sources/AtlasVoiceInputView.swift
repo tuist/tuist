@@ -14,9 +14,9 @@ struct AtlasThreadComposer: View {
     let cancel: () -> Void
     let send: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.atlasTheme) private var theme
-    @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var recording: Bool { phase != .idle }
     private var canSubmit: Bool {
@@ -24,8 +24,6 @@ struct AtlasThreadComposer: View {
     }
 
     var body: some View {
-        let palette = contrast == .increased ? nil : theme?.palette(scheme)
-        let shape = RoundedRectangle(cornerRadius: 28)
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .bottom, spacing: 4) {
                 if !recording, let addPhotos, let addFiles {
@@ -33,8 +31,11 @@ struct AtlasThreadComposer: View {
                         Button("Photo Library", systemImage: "photo.on.rectangle", action: addPhotos)
                         Button("Choose Files", systemImage: "doc", action: addFiles)
                     } label: {
-                        Image(systemName: "plus").font(.title3).frame(width: 44, height: 44)
+                        Image(systemName: "plus").font(.system(size: 20)).frame(width: 44, height: 44)
+                            .foregroundStyle(.secondary)
+                            .background { Circle().fill(Color(uiColor: .tertiarySystemFill)).padding(4) }
                     }
+                    .buttonStyle(.plain)
                     .disabled(saving).accessibilityLabel("Attach images or files")
                     .accessibilityIdentifier("thread-attach")
                 }
@@ -59,14 +60,18 @@ struct AtlasThreadComposer: View {
                         .accessibilityIdentifier("thread-voice-recording")
                     } else {
                         TextField(placeholder, text: $draft, axis: .vertical)
-                            .lineLimit(1...6).textFieldStyle(.plain).padding(.vertical, 11)
+                            .lineLimit(1...(dynamicTypeSize.isAccessibilitySize ? 3 : 6))
+                            .textFieldStyle(.plain).padding(.vertical, 11)
+                            .padding(.leading, addPhotos != nil && addFiles != nil ? 0 : 12)
                             .accessibilityIdentifier("thread-composer")
                     }
                 }
-                .padding(.leading, recording ? 52 : 12).padding(.trailing, recording ? 8 : 44)
+                .padding(.leading, recording ? 52 : 0).padding(.trailing, recording ? 8 : 44)
                 if recording {
                     Button(action: cancel) {
-                        Image(systemName: "xmark").font(.title3).frame(width: 44, height: 44)
+                        Image(systemName: "xmark").font(.system(size: 20)).frame(width: 44, height: 44)
+                            .foregroundStyle(.secondary)
+                            .background { Circle().fill(Color(uiColor: .tertiarySystemFill)).padding(4) }
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -76,7 +81,11 @@ struct AtlasThreadComposer: View {
                 } else {
                     Button(action: send) {
                         Group {
-                            if saving { ProgressView() } else { Image(systemName: "arrow.up").font(.title3.bold()) }
+                            if saving {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "arrow.up").font(.system(size: 20, weight: .bold))
+                            }
                         }.frame(width: 44, height: 44)
                     }
                     .buttonStyle(AtlasComposerSendStyle())
@@ -92,12 +101,24 @@ struct AtlasThreadComposer: View {
                     .padding(.trailing, recording ? 0 : 48)
             }
             .padding(4)
-            .foregroundStyle(palette.map { Color(atlasHex: $0.text) } ?? Color.primary)
-            .background(palette.map { Color(atlasHex: $0.surface) } ?? Color(uiColor: .systemBackground), in: shape)
-            .overlay { shape.strokeBorder(palette.map { Color(atlasHex: $0.border) } ?? Color(uiColor: .separator), lineWidth: 0.5) }
-            .shadow(color: .black.opacity(scheme == .dark ? 0.12 : 0.06), radius: 12, y: 4)
+            .foregroundStyle(.primary)
+            .background { surface }
         }
         .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder private var surface: some View {
+        let shape = RoundedRectangle(cornerRadius: 28)
+        if reduceTransparency || contrast == .increased {
+            shape.fill(Color(uiColor: .secondarySystemBackground))
+                .overlay { shape.strokeBorder(Color(uiColor: .separator), lineWidth: 1) }
+        } else if #available(iOS 26.0, *) {
+            shape.fill(.clear).glassEffect(.regular, in: shape)
+        } else {
+            shape.fill(.regularMaterial)
+                .overlay { shape.strokeBorder(Color(uiColor: .separator).opacity(0.4), lineWidth: 0.5) }
+                .shadow(color: .black.opacity(0.06), radius: 12, y: 4)
+        }
     }
 }
 

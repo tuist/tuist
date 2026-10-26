@@ -48,7 +48,10 @@ type DockerReport struct {
 	Clean bool `json:"clean"`
 	// Changed reports whether the set of images or build-cache records differs
 	// from the one the job mounted.
-	Changed         bool          `json:"changed"`
+	Changed bool `json:"changed"`
+	// Reset reports a data root the guest formatted empty because the saved
+	// one could not be mounted.
+	Reset           bool          `json:"reset"`
 	Images          []DockerImage `json:"images"`
 	BuildCacheBytes int64         `json:"build_cache_bytes"`
 }

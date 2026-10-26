@@ -59,7 +59,7 @@ func testMountServer(t *testing.T, root string) string {
 	return testDockerMountServer(t, root, nil)
 }
 
-func testDockerMountServer(t *testing.T, root string, docker func(dockerMessage) error) string {
+func testDockerMountServer(t *testing.T, root string, docker func(dockerMessage) (string, error)) string {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "mount-test-")
 	if err != nil {
@@ -87,11 +87,7 @@ func testDockerMountServer(t *testing.T, root string, docker func(dockerMessage)
 			if err != nil {
 				return
 			}
-			if err := mountRequest(conn, source, work, docker); err != nil {
-				conn.Write([]byte(err.Error()))
-			} else {
-				conn.Write([]byte("ok"))
-			}
+			conn.Write([]byte(mountReply(conn, source, work, docker)))
 			conn.Close()
 		}
 	}()
@@ -347,18 +343,18 @@ func TestRealCheckoutBindRefusesAWorkspaceThatIsNotEmpty(t *testing.T) {
 func TestMountBrokerHandsDockerRequestsToTheSupervisor(t *testing.T) {
 	root := t.TempDir()
 	var received []dockerMessage
-	socket := testDockerMountServer(t, root, func(message dockerMessage) error {
+	socket := testDockerMountServer(t, root, func(message dockerMessage) (string, error) {
 		received = append(received, message)
 		if message.Docker == "teardown" {
-			return errors.New("no docker volume mounted")
+			return "", errors.New("no docker volume mounted")
 		}
-		return nil
+		return dockerReset, nil
 	})
 	source := digest("scope") + "/" + dockerImageName
-	if err := sendDocker(socket, dockerMessage{Docker: "switch", Source: source}); err != nil {
-		t.Fatal(err)
+	if reply, err := sendDocker(socket, dockerMessage{Docker: "switch", Source: source}); err != nil || reply != dockerReset {
+		t.Fatalf("switch: %q, %v", reply, err)
 	}
-	if err := sendDocker(socket, dockerMessage{Docker: "teardown"}); err == nil || err.Error() != "no docker volume mounted" {
+	if _, err := sendDocker(socket, dockerMessage{Docker: "teardown"}); err == nil || err.Error() != "no docker volume mounted" {
 		t.Fatalf("teardown: %v", err)
 	}
 	if len(received) != 2 || received[0] != (dockerMessage{Docker: "switch", Source: source}) {
@@ -368,7 +364,7 @@ func TestMountBrokerHandsDockerRequestsToTheSupervisor(t *testing.T) {
 
 func TestMountBrokerWithoutSupervisorRefusesDockerRequests(t *testing.T) {
 	socket := testMountServer(t, t.TempDir())
-	if err := sendDocker(socket, dockerMessage{Docker: "switch", Source: digest("scope") + "/" + dockerImageName}); err == nil {
+	if _, err := sendDocker(socket, dockerMessage{Docker: "switch", Source: digest("scope") + "/" + dockerImageName}); err == nil {
 		t.Fatal("a broker without a supervisor accepted a docker request")
 	}
 }
