@@ -273,7 +273,9 @@ defmodule Tuist.Runners.CacheVolumesDockerTest do
           "other-node",
           String.duplicate("b", 40),
           0,
-          CacheVolumes.storage_name(volume), content_digest: content)
+          CacheVolumes.storage_name(volume),
+          content_digest: content
+        )
 
       %{docker: docker, content: content}
     end
