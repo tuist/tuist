@@ -372,8 +372,10 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   `docker.img` file, and sends the supervisor a `switch` (a JSON object without
   descriptors on the mount socket). The supervisor stops the idle dockerd,
   unmounts the ephemeral data root, loop-mounts the image at `/var/lib/docker`
-  and starts dockerd again; any failure remounts the ephemeral root. It switches
-  at most once per pod. The hook records `/home/runner/.tuist-docker.json`.
+  and starts dockerd again. An image the kernel refuses to mount is formatted
+  empty with the host's format arguments and mounted again, the switch answers
+  `reset` and the teardown reports it, so that job replaces the saved data root;
+  any other failure remounts the ephemeral root. It switches at most once per pod. The hook records `/home/runner/.tuist-docker.json`.
 - After the runner exits, `run-job.sh` runs `--docker-teardown`. With a mounted
   volume the supervisor removes every container, volume and non-default network,
   keeps each image under an internal `tuist-docker-cache:<id>` reference and
@@ -381,7 +383,8 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   is authorized against its registry again; it drops images no job pulled, ran or
   built for 14 days (`tuist/ledger.json` in the data root), trims the build cache
   to 10 GB, stops dockerd, unmounts and writes `docker.json` beside the image
-  (`clean`, `changed`, the inventory). Without a volume, a job the agent answered
+  (`clean`, `changed`, `reset`, the inventory; a reset data root is always
+  `changed`). Without a volume, a job the agent answered
   `unseen` reports `/docker-seen` when the daemon holds any image, so the
   repository's next jobs get one. Neither ever affects the exit code.
 - `planDockerTeardown` decides what survives: a job used an image when one of its

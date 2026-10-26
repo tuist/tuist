@@ -73,7 +73,7 @@ func sendMount(socket string, data []byte, target string) error {
 }
 
 // docker, when set, serves the sidecar supervisor's Docker volume requests.
-func serveMounts(socket, root string, docker func(dockerMessage) error) error {
+func serveMounts(socket, root string, docker func(dockerMessage) (string, error)) error {
 	if os.Geteuid() != 0 {
 		return errors.New("mount helper must run as root inside the job VM")
 	}
@@ -107,17 +107,30 @@ func serveMounts(socket, root string, docker func(dockerMessage) error) error {
 			go func() {
 				defer func() { <-slots; conn.Close() }()
 				_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
-				if err := mountRequest(conn, sourceRoot, work, docker); err != nil {
-					_, _ = conn.Write([]byte(err.Error()))
-				} else {
-					_, _ = conn.Write([]byte("ok"))
-				}
+				_, _ = conn.Write([]byte(mountReply(conn, sourceRoot, work, docker)))
 			}()
 		default:
 			_, _ = conn.Write([]byte("mount helper busy"))
 			conn.Close()
 		}
 	}
+}
+
+// mountReply serves one request and returns the broker's answer: ok, the
+// supervisor's status for a Docker request, or the error.
+func mountReply(conn *net.UnixConn, root, work *os.Root, docker func(dockerMessage) (string, error)) string {
+	reply := "ok"
+	var handle func(dockerMessage) error
+	if docker != nil {
+		handle = func(message dockerMessage) (err error) {
+			reply, err = docker(message)
+			return err
+		}
+	}
+	if err := mountRequest(conn, root, work, handle); err != nil {
+		return err.Error()
+	}
+	return reply
 }
 
 func mountRequest(conn *net.UnixConn, root, work *os.Root, docker func(dockerMessage) error) error {

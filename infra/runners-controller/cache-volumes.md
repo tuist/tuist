@@ -492,7 +492,9 @@ The agent:
   `error` otherwise. A host without the master prefetches it after the job, like a
   custom volume.
 - forwards `POST /docker-seen` from the live runner pod to the server.
-- reports a finished Docker use with the inventory from the guest's `docker.json`.
+- reports a finished Docker use with the inventory from the guest's `docker.json`,
+  including whether the guest formatted it empty because the saved data root
+  would not mount; the server counts such a use as a miss.
   Publication follows the custom-volume rules; before it the host requires the
   guest's clean-unmount report, the same inode at the pod's link and an ext4
   superblock with no journal to recover and no errors, and withholds an unchanged

@@ -7,11 +7,11 @@ import "errors"
 func bindDirectory(socket, source, target string) error {
 	return errors.New("cache volume bind mounts require Linux")
 }
-func serveMounts(socket, root string, docker func(dockerMessage) error) error {
+func serveMounts(socket, root string, docker func(dockerMessage) (string, error)) error {
 	return errors.New("cache volume bind mounts require Linux")
 }
-func sendDocker(socket string, message dockerMessage) error {
-	return errors.New("the Docker cache requires Linux")
+func sendDocker(socket string, message dockerMessage) (string, error) {
+	return "", errors.New("the Docker cache requires Linux")
 }
 func runDind(args []string) error { return errors.New("the Docker cache requires Linux") }
 func mountWorker(bool) error      { return errors.New("cache volume bind mounts require Linux") }

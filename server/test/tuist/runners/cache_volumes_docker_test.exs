@@ -238,6 +238,12 @@ defmodule Tuist.Runners.CacheVolumesDockerTest do
       assert image["last_used_at"] == "2026-10-25T10:00:00Z"
     end
 
+    test "keeps whether the guest formatted the data root empty", %{docker: docker} do
+      inventory = %{"images" => [], "build_cache_bytes" => 0, "reset" => true}
+      assert {:ok, _} = CacheVolumes.report("linux-node", docker.id, report(%{"docker" => inventory}))
+      assert %{"reset" => true} = Repo.get!(Usage, docker.id).docker_images
+    end
+
     test "drops a malformed inventory", %{docker: docker} do
       inventory = %{"images" => [%{"id" => "../escape", "references" => [], "size_bytes" => 1}], "build_cache_bytes" => 0}
       assert {:ok, _} = CacheVolumes.report("linux-node", docker.id, report(%{"docker" => inventory}))

@@ -805,7 +805,7 @@ defmodule Tuist.Runners.CacheVolumes do
     build_cache = docker["build_cache_bytes"]
 
     if Enum.all?(images) and valid_metric?(build_cache) do
-      %{"images" => images, "build_cache_bytes" => build_cache}
+      %{"images" => images, "build_cache_bytes" => build_cache, "reset" => docker["reset"] == true}
     end
   end
 

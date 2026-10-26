@@ -91,6 +91,21 @@ defmodule Tuist.Runners.DockerCacheTest do
     assert %{status: :waiting, images: []} = DockerCache.repository(account.id, waiting.id, @period)
   end
 
+  test "counts a job whose guest could not mount the saved data root as a miss" do
+    account = AccountsFixtures.account_fixture()
+    saved = volume(account, "org/android")
+    volume_use(saved, %{attached_at: ~U[2026-10-24 11:00:00.000000Z], warm: true})
+
+    volume_use(saved, %{
+      attached_at: ~U[2026-10-24 12:00:00.000000Z],
+      warm: true,
+      docker_images: %{"images" => [], "build_cache_bytes" => 0, "reset" => true}
+    })
+
+    assert %{uses: 2, hits: 1} = DockerCache.overview(account.id, @period).activity
+    assert [%{uses: 2, hits: 1}] = DockerCache.overview(account.id, @period).repositories
+  end
+
   test "never reads another account's data root" do
     account = AccountsFixtures.account_fixture()
     other = volume(AccountsFixtures.account_fixture(), "other/repo")

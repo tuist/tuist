@@ -133,5 +133,5 @@ func (a *agent) dockerInventory(slot cachevolumes.Slot) map[string]any {
 	if images == nil {
 		images = []cachevolumes.DockerImage{}
 	}
-	return map[string]any{"images": images, "build_cache_bytes": report.BuildCacheBytes}
+	return map[string]any{"images": images, "build_cache_bytes": report.BuildCacheBytes, "reset": report.Reset}
 }

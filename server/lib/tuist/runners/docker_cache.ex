@@ -16,6 +16,15 @@ defmodule Tuist.Runners.DockerCache do
   @step "Initialize containers"
   @sampled_jobs 500
 
+  # A use reused saved data when its host restored some and its guest mounted
+  # it, rather than formatting a data root it could not mount.
+  defmacrop reused(usage) do
+    quote do
+      unquote(usage).warm == true and
+        fragment("coalesce((?->>'reset')::boolean, false) = false", unquote(usage).docker_images)
+    end
+  end
+
   @doc """
   The account's Docker data roots, most recently used first, and what reusing
   them did during `period`.
@@ -112,7 +121,7 @@ defmodule Tuist.Runners.DockerCache do
       where: u.volume_id in ^volume_ids and not is_nil(u.attached_at),
       where: u.attached_at >= ^start and u.attached_at <= ^finish,
       group_by: u.volume_id,
-      select: {u.volume_id, %{uses: count(u.id), hits: filter(count(u.id), u.warm == true)}}
+      select: {u.volume_id, %{uses: count(u.id), hits: filter(count(u.id), reused(u))}}
     )
     |> Repo.all()
     |> Map.new()
@@ -129,7 +138,7 @@ defmodule Tuist.Runners.DockerCache do
         where: not is_nil(u.attached_at) and u.attached_at >= ^start and u.attached_at <= ^finish,
         order_by: [desc: u.attached_at],
         limit: ^(2 * @sampled_jobs),
-        select: {u.workflow_job_id, u.warm}
+        select: {u.workflow_job_id, reused(u)}
       )
 
     query = if volume_id, do: from([u, v] in query, where: v.id == ^volume_id), else: query
