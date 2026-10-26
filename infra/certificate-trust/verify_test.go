@@ -93,6 +93,16 @@ func TestPositiveFixtureEvidence(t *testing.T) {
 	}
 }
 
+func TestCertificateFixtureWhitespace(t *testing.T) {
+	for _, encoded := range [][]byte{positivePEM, bytes.ReplaceAll(positivePEM, []byte("\n"), []byte("\r\n"))} {
+		data := append([]byte(" \n\t"), encoded...)
+		data = append(data, []byte("\n\t ")...)
+		if certs, err := certificates(data); err != nil || len(certs) != 1 {
+			t.Fatalf("valid whitespace rejected: %v", err)
+		}
+	}
+}
+
 func TestCertificatesRejectMalformedFixtures(t *testing.T) {
 	certs, err := certificates(positivePEM)
 	if err != nil || len(certs) != 1 {
@@ -105,6 +115,11 @@ func TestCertificatesRejectMalformedFixtures(t *testing.T) {
 		"private material": pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: []byte{0}}),
 		"wrong block type": pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: certs[0].RawSubjectPublicKeyInfo}),
 		"trailing garbage": append(bytes.Clone(positivePEM), []byte("invalid")...),
+		"leading garbage":  append([]byte("invalid\n"), positivePEM...),
+		"empty":            nil,
+		"whitespace":       []byte("\n\t "),
+		"nested block":     append([]byte("-----BEGIN CERTIFICATE-----\ninvalid\n"), positivePEM...),
+		"PEM headers":      pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Headers: map[string]string{"Comment": "not a bare certificate"}, Bytes: certs[0].Raw}),
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := certificates(data); err == nil {

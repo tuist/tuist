@@ -1,5 +1,6 @@
-// Run this with every proposed Go SDK, not merely a numerically newer version.
-// It verifies the intermediate-key deny behaviour independently of OS stores.
+// Run this with each proposed SDK; never infer protection from version ordering.
+// It probes eight incident certificates directly and six public TLS chains.
+// The two code-signing keys have no non-leaf witness in this fixture set.
 package main
 
 import (
@@ -33,9 +34,16 @@ var positiveIntermediatePEM []byte
 
 func certificates(data []byte) ([]*x509.Certificate, error) {
 	var result []*x509.Certificate
-	for len(bytes.TrimSpace(data)) > 0 {
-		block, rest := pem.Decode(data)
-		if block == nil || block.Type != "CERTIFICATE" {
+	begin, end := []byte("-----BEGIN CERTIFICATE-----"), []byte("-----END CERTIFICATE-----")
+	for data = bytes.TrimSpace(data); len(data) > 0; data = bytes.TrimSpace(data) {
+		last := bytes.Index(data, end)
+		if !bytes.HasPrefix(data, begin) || last < 0 {
+			return nil, errors.New("invalid public control fixture")
+		}
+		last += len(end)
+		encoded := data[:last]
+		block, rest := pem.Decode(encoded)
+		if block == nil || block.Type != "CERTIFICATE" || len(block.Headers) != 0 || len(rest) != 0 || bytes.Count(encoded, begin) != 1 {
 			return nil, errors.New("invalid public control fixture")
 		}
 		certificate, err := x509.ParseCertificate(block.Bytes)
@@ -43,7 +51,10 @@ func certificates(data []byte) ([]*x509.Certificate, error) {
 			return nil, err
 		}
 		result = append(result, certificate)
-		data = rest
+		data = data[last:]
+	}
+	if len(result) == 0 {
+		return nil, errors.New("empty public control fixture")
 	}
 	return result, nil
 }
@@ -53,8 +64,12 @@ func spki(certificate *x509.Certificate) string {
 }
 
 func check() error {
-	if expected := os.Getenv("TRUST_EXPECTED_GO_SDK"); expected != "" && runtime.Version() != expected {
-		return fmt.Errorf("requested %s but compiled with %s", expected, runtime.Version())
+	expectedSDK := os.Getenv("TRUST_EXPECTED_GO_SDK")
+	if expectedSDK == "" {
+		return errors.New("TRUST_EXPECTED_GO_SDK must explicitly select the SDK being evaluated")
+	}
+	if runtime.Version() != expectedSDK {
+		return fmt.Errorf("requested %s but compiled with %s", expectedSDK, runtime.Version())
 	}
 	var policy struct {
 		Hashes []string `json:"distrusted_spki_sha256"`
@@ -120,6 +135,9 @@ func check() error {
 	if len(expected) != 0 {
 		return errors.New("control fixtures do not cover the complete policy")
 	}
+	if err := checkTLSWitnesses(roots, intermediates); err != nil {
+		return err
+	}
 	positive, err := certificates(positivePEM)
 	if err != nil || len(positive) != 1 {
 		return errors.New("missing positive control")
@@ -140,7 +158,7 @@ func check() error {
 	}); err != nil {
 		return fmt.Errorf("positive control failed: %w", err)
 	}
-	fmt.Printf("Verifier probe passed: %s, %d distrusted intermediate keys, unrelated positive control\n", runtime.Version(), len(intermediates))
+	fmt.Printf("Verifier probe passed: %s, %d direct intermediate controls, 6 public TLS chains, unrelated positive control\n", runtime.Version(), len(intermediates))
 	return nil
 }
 

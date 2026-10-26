@@ -8,10 +8,13 @@ its scope. It is the first extraction from PR #14511, not a deployment tool.
   certificate evidence synchronized. Test signatures and unrelated positives,
   not only JSON shape or certificate names.
 - Qualify an SDK by actual verification behavior. Do not infer protection from
-  release-number ordering. Go 1.26.10 passes these eight intermediate controls;
-  this does not qualify all twelve keys, native delegated paths or applications.
+  release-number ordering or error shapes alone. Re-check the SDK's rejection
+  mapping. Go 1.26.10 passes eight direct intermediate and six non-leaf TLS
+  controls. The two code-signing keys have no non-leaf witnesses here. This
+  does not qualify all twelve keys, native delegated paths or applications.
 - Use the isolated module with GOWORK=off and GOTOOLCHAIN=local. Unset inherited
-  GOROOT when selecting a compiler. Keep TRUST_EXPECTED_GO_SDK and CI aligned.
+  GOROOT when selecting a compiler. TRUST_EXPECTED_GO_SDK is mandatory; keep it
+  and CI aligned. Tests must not mutate their parent process environment.
 - Tests and the executable must remain offline, credential-free and independent
   of the surrounding repository, installed applications and native CA stores.
 - No Python tooling/tests, generic overlay/publisher, trust-store mutation,

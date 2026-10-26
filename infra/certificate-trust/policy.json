@@ -1,7 +1,7 @@
 {
   "id": "emudhra-2026-10-19-v2",
   "key_count": 12,
-  "description": "Root-store containment for CVE-2026-111943. This does not replace patched verification libraries or Apple trust updates.",
+  "description": "Canonical twelve-key eMudhra SPKI policy and public evidence. This is not containment, application enforcement or deployment qualification.",
   "spki_der_base64": {
     "bd153ed7b0434f6886b17bce8bbe84ed340c7132d702a8f4fa318f756ecbd6f3": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvkCd9G7h6naHHE1FRI6+RsiDBp3BKv4YH47kAvrzq11QihYxC5oG0MVwIs1JLVRjzLZuaEYLU+rLTCTAvHJO6vEVrvRUmhIKw3qyM2Di2olV8yJY897cz++DhqKMlE+faPKYkEaEJ8d2v+PMNSyLXgdkZYLASLCokflhn3YgUKiRx2a163hiA1bwihoT6jGjHqCZ/Tj29icyWG8H9Wu4+xQrr7eqzNZjX3OM2gWZqDioyxd4NlGs6Z70eDqNzw/ZQuKYDKsvnw4B3u+fmUnxLd+sdE0bmLVHxeUp0fmQGMdinL6DxyZ7Poolx8DdneY1aBAgnY/Y3tLDhJwNXugvyQIDAQAB",
     "8d417db2dd8bf5e3084d1e3f196d583849d81bdd4c00c70b9d39369e96b8c782": "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEI6UMuC0S9SjzsbLd4gISgJ45X0lNn8klNFl07LsGHOfAcq/ori/hQVSHFKhKsuh8guZbarXcs3XOiwbQhiO/RtWODz8E9Ncckn72pWPC9V+OLk+hGBkCKzIKgmR9FpPR",
@@ -20,7 +20,7 @@
     "https://github.com/golang/go/compare/go1.26.9...go1.26.10",
     "https://github.com/rustls/webpki/releases/tag/v%2F0.103.16",
     "https://emudhra.we-have-a-problem.com/roots.json",
-    "https://emudhra.we-have-a-problem.com/intermediates.json"
+    "https://emudhra.we-have-a-problem.com/impacted-intermediates.json"
   ],
   "distrusted_spki_sha256": [
     "8d417db2dd8bf5e3084d1e3f196d583849d81bdd4c00c70b9d39369e96b8c782",

@@ -1,0 +1,35 @@
+{
+  "collected_at": "2026-10-26T17:00:38.419Z",
+  "certificates": [
+    {
+      "host": "dv-g3b-emudhra.we-have-a-problem.com",
+      "certificate_sha256": "9dcb21b1841d75313b3c888f4bb9cc01f8f51379a76fbaa241ca492b668839e7",
+      "issuer_spki_sha256": "ebed6475c2c2d80fcb199f3fe8dd6e6b3ce60b77eb15d4e42c3dec0c6f5b5105"
+    },
+    {
+      "host": "dv-g3c-emudhra.we-have-a-problem.com",
+      "certificate_sha256": "346cdd962e97189b59aee5526d1ae8fa714bb1a64094dfa67bef768ee93f36b5",
+      "issuer_spki_sha256": "49dd353dc2b919a3770645117d0e60c16115e7d1bc259eefe734b00ea434fe5f"
+    },
+    {
+      "host": "ov-g3b-emudhra.we-have-a-problem.com",
+      "certificate_sha256": "f3c3c15bc7edf2b3ebdc922af112f2a0c414eb509901099ef0488c0942e77efe",
+      "issuer_spki_sha256": "43bffa19d6ef651451f6841e019931e96f6f2eaeff28ab4b6f1ce4576de2717b"
+    },
+    {
+      "host": "ov-g3c-emudhra.we-have-a-problem.com",
+      "certificate_sha256": "4314941cf242a4ea4149aa7e9cdf77a15de2771a79984b809fc04443fea013c8",
+      "issuer_spki_sha256": "63ecefee431d49523bc1136c4e72d0206a477086caf606cd5cf025686c109cf8"
+    },
+    {
+      "host": "ev-g3b-emudhra.we-have-a-problem.com",
+      "certificate_sha256": "66374ae64962c437bd815a2aae546c76e30c2eafac8335192c8e517c15a246ed",
+      "issuer_spki_sha256": "e0254c7fcdc265e2f0f8a428dabb75ab4ae039b4872d62f5ee57f0877d5a8a41"
+    },
+    {
+      "host": "ev-g3c-emudhra.we-have-a-problem.com",
+      "certificate_sha256": "ccd80467f9cac38f115dcb6e4f57e4d74f5efa519814ea934aeb3be53b83a191",
+      "issuer_spki_sha256": "5c0660a2b164910d8ff589c18e14552e9e0ec237dcefe2cb736d41a4811f81a0"
+    }
+  ]
+}
