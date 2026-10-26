@@ -730,6 +730,13 @@ defmodule Tuist.Runners.CacheVolumes do
   def older_copy?(%Usage{mounted_generation: mounted, base_generation: base}),
     do: is_integer(mounted) and is_integer(base) and mounted < base
 
+  @doc """
+  Whether a Docker use's guest could not mount the saved data root and started
+  an empty one instead, which makes the job a miss however warm its host was.
+  """
+  def reset?(%Usage{docker_images: %{"reset" => true}}), do: true
+  def reset?(_usage), do: false
+
   def scope(volume) do
     :sha256 |> :crypto.hash("#{volume.id}:#{volume.generation}") |> Base.encode16(case: :lower)
   end

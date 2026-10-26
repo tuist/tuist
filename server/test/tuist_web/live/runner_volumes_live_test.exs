@@ -634,4 +634,24 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     refute html =~ "Initialize containers"
     assert RunnerVolumesLive.selected_tab("images", %{key: "gradle"}) == "overview"
   end
+
+  test "a job whose saved image cache could not be mounted is a miss" do
+    assigns = assigns(true)
+
+    usage = %Usage{
+      id: Ecto.UUID.generate(),
+      workflow_job_id: 1024,
+      workflow_run_id: 1000,
+      job_name: "Build and test",
+      status: "published",
+      warm: true,
+      docker_images: %{"images" => [], "build_cache_bytes" => 0, "reset" => true}
+    }
+
+    data = %{assigns.data.result | history: [usage]}
+    jobs = render_component(&RunnerVolumesLive.render/1, %{assigns | selected_tab: "jobs", data: AsyncResult.ok(data)})
+
+    assert jobs =~ "Miss"
+    refute jobs =~ "Hit"
+  end
 end

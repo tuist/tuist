@@ -539,6 +539,7 @@
                 label={
                   cond do
                     CacheVolumes.older_copy?(usage) -> dgettext("dashboard_runners", "Older copy")
+                    CacheVolumes.reset?(usage) -> dgettext("dashboard_runners", "Miss")
                     usage.warm == true -> dgettext("dashboard_runners", "Hit")
                     usage.warm == false -> dgettext("dashboard_runners", "Miss")
                     true -> "—"
@@ -547,6 +548,7 @@
                 color={
                   cond do
                     CacheVolumes.older_copy?(usage) -> "warning"
+                    CacheVolumes.reset?(usage) -> "neutral"
                     usage.warm -> "success"
                     true -> "neutral"
                   end
