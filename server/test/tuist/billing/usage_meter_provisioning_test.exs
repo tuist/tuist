@@ -24,12 +24,24 @@ defmodule Tuist.Billing.UsageMeterProvisioningTest do
           {:ok, %{id: "mtr_#{request.params.event_name}"}}
 
         {:get, "/v1/prices"} ->
-          {:ok, %{data: Map.get(existing, :prices, [])}}
+          [lookup_key] = request.params.lookup_keys
+          {:ok, %{data: existing |> Map.get(:prices, %{}) |> Map.get(lookup_key, [])}}
 
         {:post, "/v1/prices"} ->
           {:ok, %{id: "price_#{request.params.lookup_key}"}}
       end
     end)
+  end
+
+  defp price(id, included, rate) do
+    %{
+      id: id,
+      product: "prod_#{id}",
+      tiers: [
+        %{up_to: included, unit_amount: 0, unit_amount_decimal: "0"},
+        %{up_to: nil, unit_amount: nil, unit_amount_decimal: rate}
+      ]
+    }
   end
 
   defp requests do
@@ -58,9 +70,9 @@ defmodule Tuist.Billing.UsageMeterProvisioningTest do
         |> Enum.map(fn {_, _, params} -> {params.lookup_key, params.tiers, params.recurring.meter} end)
 
       assert posted_prices == [
-               # $0.35 per GB is 0.035 cents per reported megabyte
+               # $0.10 per GB is 0.01 cents per reported megabyte
                {"tuist_cache_egress_megabytes",
-                [%{up_to: 100_000, unit_amount: 0}, %{up_to: "inf", unit_amount_decimal: "0.035"}],
+                [%{up_to: 100_000, unit_amount: 0}, %{up_to: "inf", unit_amount_decimal: "0.01"}],
                 "mtr_cache_egress_megabytes"},
                # $0.01 per 1,000 requests
                {"tuist_cache_requests",
@@ -91,12 +103,49 @@ defmodule Tuist.Billing.UsageMeterProvisioningTest do
           %{id: "mtr_requests", event_name: "cache_requests"},
           %{id: "mtr_tests", event_name: "passing_test_cases"}
         ],
-        prices: [%{id: "price_existing"}]
+        prices: %{
+          "tuist_cache_egress_megabytes" => [price("price_egress", 100_000, "0.01")],
+          "tuist_cache_requests" => [price("price_requests", 1_000_000, "0.001")],
+          "tuist_passing_test_cases" => [price("price_tests", 5_000_000, "0.0002")]
+        }
+      })
+
+      assert UsageMeterProvisioning.provision() ==
+               {:ok,
+                %{
+                  "cache_egress_megabytes" => "price_egress",
+                  "cache_requests" => "price_requests",
+                  "passing_test_cases" => "price_tests"
+                }}
+
+      assert Enum.all?(requests(), &match?({:get, _, _}, &1))
+    end
+
+    test "replaces a Price whose rate no longer matches the pricing, taking over its lookup key" do
+      stub_stripe(%{
+        meters: [
+          %{id: "mtr_egress", event_name: "cache_egress_megabytes"},
+          %{id: "mtr_requests", event_name: "cache_requests"},
+          %{id: "mtr_tests", event_name: "passing_test_cases"}
+        ],
+        prices: %{
+          "tuist_cache_egress_megabytes" => [price("price_egress_old", 100_000, "0.035")],
+          "tuist_cache_requests" => [price("price_requests", 1_000_000, "0.001")],
+          "tuist_passing_test_cases" => [price("price_tests", 5_000_000, "0.0002")]
+        }
       })
 
       assert {:ok, price_ids} = UsageMeterProvisioning.provision()
-      assert Map.values(price_ids) == ["price_existing", "price_existing", "price_existing"]
-      assert Enum.all?(requests(), &match?({:get, _, _}, &1))
+      assert price_ids["cache_egress_megabytes"] == "price_tuist_cache_egress_megabytes"
+      assert price_ids["cache_requests"] == "price_requests"
+
+      assert [{:post, "/v1/prices", params}] = Enum.filter(requests(), &match?({:post, _, _}, &1))
+      assert params.lookup_key == "tuist_cache_egress_megabytes"
+      assert params.transfer_lookup_key == true
+      assert params.product == "prod_price_egress_old"
+      refute Map.has_key?(params, :product_data)
+      assert params.recurring.meter == "mtr_egress"
+      assert List.last(params.tiers) == %{up_to: "inf", unit_amount_decimal: "0.01"}
     end
 
     test "refuses live mode unless it is asked for" do

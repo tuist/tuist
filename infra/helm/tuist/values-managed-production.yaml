@@ -157,7 +157,7 @@ server:
       # Provisioned in the live Stripe account by
       # `Tuist.Billing.UsageMeterProvisioning`.
       usage_meters:
-        cache_egress_megabytes: "price_1UITBVLWue9IBlPSvMpJS1co"
+        cache_egress_megabytes: "price_1UUlF7LWue9IBlPSzrgLAku5"
         cache_requests: "price_1UITBXLWue9IBlPSXlwD8vxP"
         passing_test_cases: "price_1UITBYLWue9IBlPSSp51pqjS"
       # Standing prepaid runner minutes: a licensed per-unit Price at $0.06 per
