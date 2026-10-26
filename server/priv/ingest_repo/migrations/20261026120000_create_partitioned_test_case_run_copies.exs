@@ -51,7 +51,7 @@ defmodule Tuist.IngestRepo.Migrations.CreatePartitionedTestCaseRunCopies do
       is_ci Bool,
       is_flaky Bool
       """,
-      engine: "ReplacingMergeTree",
+      engine: Migration.engine("ReplacingMergeTree"),
       partition_by: "toYYYYMMDD(inserted_at)",
       order_by: "project_id, inserted_at, id",
       retention_days: 30,
@@ -72,7 +72,7 @@ defmodule Tuist.IngestRepo.Migrations.CreatePartitionedTestCaseRunCopies do
       is_flaky Bool,
       inserted_at DateTime64(6)
       """,
-      engine: "ReplacingMergeTree(inserted_at)",
+      engine: Migration.engine("ReplacingMergeTree(inserted_at)"),
       partition_by: "toMonday(inserted_at)",
       order_by: "project_id, git_commit_sha, scheme, is_ci, status, id",
       retention_days: 30,
@@ -96,7 +96,7 @@ defmodule Tuist.IngestRepo.Migrations.CreatePartitionedTestCaseRunCopies do
       project_id Int64,
       test_case_id Nullable(UUID)
       """,
-      engine: "ReplacingMergeTree(inserted_at)",
+      engine: Migration.engine("ReplacingMergeTree(inserted_at)"),
       partition_by: "toYYYYMM(inserted_at)",
       order_by: "test_run_id, name, id",
       retention_days: 90,
@@ -120,7 +120,7 @@ defmodule Tuist.IngestRepo.Migrations.CreatePartitionedTestCaseRunCopies do
       ran_at DateTime64(6),
       inserted_at DateTime64(6)
       """,
-      engine: "ReplacingMergeTree(inserted_at)",
+      engine: Migration.engine("ReplacingMergeTree(inserted_at)"),
       partition_by: "toYYYYMM(inserted_at)",
       order_by: "shard_id, name, id",
       retention_days: 90,
@@ -150,7 +150,7 @@ defmodule Tuist.IngestRepo.Migrations.CreatePartitionedTestCaseRunCopies do
       scheme String,
       git_branch String
       """,
-      engine: "ReplacingMergeTree(inserted_at)",
+      engine: Migration.engine("ReplacingMergeTree(inserted_at)"),
       partition_by: "toYYYYMM(inserted_at)",
       order_by: "project_id, ran_at, id",
       retention_days: 90,
@@ -180,7 +180,7 @@ defmodule Tuist.IngestRepo.Migrations.CreatePartitionedTestCaseRunCopies do
     execute """
     CREATE TABLE IF NOT EXISTS #{table} (
     #{columns}
-    ) ENGINE = #{Migration.engine(Keyword.fetch!(opts, :engine))}
+    ) ENGINE = #{Keyword.fetch!(opts, :engine)}
     PARTITION BY #{Keyword.fetch!(opts, :partition_by)}
     ORDER BY (#{Keyword.fetch!(opts, :order_by)})
     TTL toDateTime(inserted_at) + INTERVAL #{Keyword.fetch!(opts, :retention_days)} DAY
