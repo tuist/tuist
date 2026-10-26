@@ -23,8 +23,17 @@ attestations use the existing managed private-network machinery.
 2. Deploy the updated provider before enrolling the runner. Bring up the cache
    fleet and add the RISE-M runner alongside the legacy host. `OnDelete` keeps
    the old Machine until explicit retirement.
+   Apply the template before scaling: an in-place template edit and a scale-up
+   in one Helm upgrade can race, cloning the old offer into a new Machine.
+   If this happens, verify the Machine has no adopted service before aligning
+   its offer and vRack enrollment with the new template.
 3. Wait for Ready, KataRuntimeReady and PrivateNetworkReady. Verify physical
    VXLAN traffic on both private NICs with no matching traffic on public NICs.
+   The runner cache-volume agent also needs its separate bounded filesystem.
+   Staging enables the existing 200 GB provisioning init container. For a host
+   that already accepted jobs before provisioning was enabled, cordon it, let
+   jobs finish, and move only confirmed-unused fallback directories aside
+   before running the guarded provisioner. Uncordon after the agent is ready.
 4. Move staging runner jobs to the new host before enabling `ovh-gra-runners`.
    Drain existing jobs normally. Verify account reconciliation and injected
    endpoint selection using a real GitHub Actions job.

@@ -1,5 +1,11 @@
 # Kura control plane
 
+- `ovh-gra-runners` serves Linux jobs on explicitly vRack-enrolled OVH hosts.
+  It uses cluster DNS and the existing recent-job admission/dispatch fallback.
+  Enable it per environment only after physical path qualification; staging
+  evidence and rollback are in
+  [the Linux runner runbook](../../../../../infra/kura-controller/linux-runner-private-cache.md).
+
 - `Origins` and `Demand` sort bulk upsert rows by their full conflict keys before
   insertion so concurrent overlapping batches acquire locks in a consistent
   order. Keep this ordering at the write boundary, including backfills and

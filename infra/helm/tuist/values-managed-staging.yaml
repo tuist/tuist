@@ -152,8 +152,8 @@ server:
     - name: TUIST_KURA_AVAILABLE_REGIONS
       # Public validation uses the existing OVH ca-east fleet. Retire the
       # Dedibox EU-West instances before the later fleet-retirement change.
-      # Preserve the Scaleway private cache beside the Mac mini fleet.
-      value: scw-fr-par-runners,ca-east
+      # Private caches beside the Mac mini and vRack-capable Linux fleets.
+      value: scw-fr-par-runners,ovh-gra-runners,ca-east
     # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
     # Staging rollouts run expedited except while progressive mode is
     # being exercised behind the kura_rollout_orchestration flag.
@@ -918,6 +918,9 @@ runnersFleetLinux:
   cacheVolumes:
     enabled: true
     hostPath: /var/lib/kubelet/tuist-runner-cache
+    provisioning:
+      enabled: true
+      sizeGB: 200
   # Matches the `node.cluster.x-k8s.io/pool` label stamped on each
   # bare-metal Node by the CAPI MachineDeployment.
   name: runners-linux
