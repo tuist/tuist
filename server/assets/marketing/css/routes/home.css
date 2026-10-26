@@ -687,7 +687,7 @@
             justify-content: center;
             align-items: center;
             box-sizing: border-box;
-            box-shadow: var(--noora-border-light-default);
+            box-shadow: var(--noora-border-small-default);
             border-radius: 8px;
             background: var(--noora-surface-background-primary);
 
@@ -2354,7 +2354,7 @@
       justify-content: center;
       align-items: flex-start;
       gap: var(--noora-spacing-7);
-      box-shadow: var(--noora-light-border-default);
+      box-shadow: var(--noora-border-small-default);
       border-radius: var(--noora-radius-6);
 
       @media (min-width: 1024px) {
@@ -2494,7 +2494,7 @@
         justify-content: center;
         align-items: center;
         box-sizing: border-box;
-        box-shadow: var(--noora-light-border-default);
+        box-shadow: var(--noora-border-small-default);
         border-radius: var(--noora-radius-6);
         padding: var(--noora-spacing-9) var(--noora-spacing-10);
 

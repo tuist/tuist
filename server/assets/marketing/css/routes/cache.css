@@ -446,7 +446,7 @@
 
             & [data-part="panel"] {
               box-sizing: border-box;
-              box-shadow: var(--noora-border-light-default);
+              box-shadow: var(--noora-border-small-default);
               background: var(--noora-surface-background-primary);
               padding: var(--noora-spacing-6) var(--noora-spacing-7);
 
@@ -543,7 +543,7 @@
                 flex-direction: column;
                 gap: var(--noora-spacing-3);
                 box-sizing: border-box;
-                box-shadow: var(--noora-border-light-default);
+                box-shadow: var(--noora-border-small-default);
                 background: var(--noora-surface-background-primary);
                 padding: var(--noora-spacing-5) var(--noora-spacing-6);
                 min-width: 0;
@@ -662,7 +662,7 @@
               transform 0.45s var(--ease-out-cubic),
               box-shadow 0.3s ease;
             box-sizing: border-box;
-            box-shadow: var(--noora-border-light-default);
+            box-shadow: var(--noora-border-small-default);
             background: var(--noora-surface-background-primary);
             padding: var(--noora-spacing-6) var(--noora-spacing-7);
             width: 500px;

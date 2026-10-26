@@ -429,7 +429,7 @@
     gap: var(--noora-spacing-4);
     padding: var(--noora-spacing-5);
     border-radius: var(--noora-radius-4);
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     background: var(--noora-surface-background-primary);
   }
 
@@ -650,7 +650,7 @@
     gap: var(--noora-spacing-4);
     padding: var(--noora-spacing-4);
     border-radius: var(--noora-radius-4);
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     background: var(--noora-surface-background-primary);
   }
 

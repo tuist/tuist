@@ -45,7 +45,7 @@
     align-items: center;
     gap: var(--noora-spacing-6);
     z-index: var(--noora-z-index-4);
-    box-shadow: var(--noora-border-heavy);
+    box-shadow: var(--noora-border-large);
     border-radius: var(--noora-radius-8);
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-4);
@@ -298,7 +298,7 @@
     gap: var(--noora-spacing-5);
     transition: background-color 0.2s ease;
     cursor: pointer;
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border: 0;
     border-radius: var(--noora-radius-6);
     background: var(--noora-surface-background-primary);
@@ -400,7 +400,7 @@
   }
 
   & .otp {
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-6);
     background: var(--noora-surface-background-secondary);
     padding: var(--noora-spacing-8) var(--noora-spacing-6);

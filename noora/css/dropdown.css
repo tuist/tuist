@@ -168,7 +168,7 @@
     gap: var(--noora-spacing-2);
     cursor: pointer;
     outline: unset;
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border: 0;
     border-radius: var(--noora-radius-2);
     background: transparent;
@@ -403,7 +403,7 @@
     padding: var(--noora-spacing-4);
 
     & [data-part="left-icon"] {
-      box-shadow: var(--noora-border-light-default);
+      box-shadow: var(--noora-border-small-default);
       border-radius: var(--noora-radius-4);
       padding: 10px;
     }

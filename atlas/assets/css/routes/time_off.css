@@ -101,7 +101,7 @@
 
   & [data-part="time-off-input"]:focus-visible {
     outline: none;
-    box-shadow: var(--noora-border-light-focus);
+    box-shadow: var(--noora-border-small-focus);
   }
 
   & [data-part="calendar-scroll"] {

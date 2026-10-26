@@ -7,7 +7,7 @@
   /* Seam between the tabs header and the code box (the single code-window
      uses 4px — see code-window.css). */
   gap: 6px;
-  box-shadow: var(--noora-light-border-default);
+  box-shadow: var(--noora-border-small-default);
   border-radius: 8px;
   background: var(--noora-surface-background-primary);
   /* No shell padding: the code box sticks to the component's edges and the

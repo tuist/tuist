@@ -35,7 +35,7 @@
   flex-direction: row;
   align-items: center;
 
-  box-shadow: var(--noora-border-light-default);
+  box-shadow: var(--noora-border-small-default);
   border-radius: var(--noora-radius-3);
   background-color: var(--noora-button-group-background);
   padding: var(--noora-spacing-1);

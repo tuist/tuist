@@ -71,7 +71,7 @@
       width: 28px;
       height: 14px;
       border-radius: var(--noora-radius-2);
-      box-shadow: var(--noora-border-light-default);
+      box-shadow: var(--noora-border-small-default);
       transition:
         background-color 0.15s ease-in-out,
         box-shadow 0.15s ease-in-out;
@@ -83,7 +83,7 @@
       height: 14px;
       border-radius: var(--noora-radius-2);
       background: var(--noora-choice-selector-label);
-      box-shadow: var(--noora-border-light-default);
+      box-shadow: var(--noora-border-small-default);
       transition: inset-inline-start 0.15s ease-in-out;
     }
 
@@ -113,7 +113,7 @@
 
       & [data-part="track"] {
         background: var(--noora-choice-selector-disabled-background);
-        box-shadow: var(--noora-border-light-default);
+        box-shadow: var(--noora-border-small-default);
       }
 
       & [data-part="thumb"] {

@@ -20,12 +20,12 @@
     margin-top: 2px;
 
     &[data-disabled] {
-      box-shadow: var(--noora-border-light-default);
+      box-shadow: var(--noora-border-small-default);
       background: var(--noora-choice-selector-disabled-background);
     }
 
     &[data-focus] {
-      box-shadow: var(--noora-border-light-focus) !important;
+      box-shadow: var(--noora-border-small-focus) !important;
     }
 
     &:not([data-disabled])[data-state="unchecked"][data-hover] {

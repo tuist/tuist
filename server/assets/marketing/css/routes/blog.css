@@ -151,7 +151,7 @@
            corners are rounded. */
         & .noora-dropdown-content {
           position: relative;
-          box-shadow: var(--noora-border-light-default);
+          box-shadow: var(--noora-border-small-default);
           border-radius: var(--noora-radius-4) var(--noora-radius-4) 0 0;
           width: 100%;
           max-height: 60vh;

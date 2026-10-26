@@ -157,7 +157,7 @@
   }
   & [data-part="timeline-chart"],
   & [data-part="metric-track"] {
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-1);
   }
   & [data-part="timeline-chart"] {

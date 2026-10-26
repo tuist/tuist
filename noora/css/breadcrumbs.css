@@ -79,7 +79,7 @@
 
     &:focus-visible {
       outline: none;
-      box-shadow: var(--noora-border-light-focus);
+      box-shadow: var(--noora-border-small-focus);
     }
   }
 
@@ -103,12 +103,12 @@
     &:hover,
     &:active,
     &[data-state="open"] {
-      box-shadow: var(--noora-border-light-default);
+      box-shadow: var(--noora-border-small-default);
       background-color: var(--noora-breadcrumb-background);
     }
 
     &:focus-visible {
-      box-shadow: var(--noora-border-light-focus);
+      box-shadow: var(--noora-border-small-focus);
       background-color: var(--noora-breadcrumb-background);
     }
 

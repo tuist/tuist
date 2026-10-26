@@ -47,7 +47,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-4);
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-10) var(--noora-spacing-4);
@@ -68,7 +68,7 @@
     justify-content: center;
     align-items: center;
     margin-bottom: var(--noora-spacing-8);
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-3);
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-3);
@@ -224,7 +224,7 @@
   position: relative;
   gap: var(--noora-spacing-4);
   cursor: pointer;
-  box-shadow: var(--noora-border-light-default);
+  box-shadow: var(--noora-border-small-default);
   border-radius: var(--noora-radius-4);
   background: var(--noora-surface-background-primary);
   padding: var(--noora-spacing-5);
@@ -232,7 +232,7 @@
 }
 
 [data-part="identity-modal-form"] [data-part="tool-option"]:has([data-part="tool-input"]:focus-visible) {
-  box-shadow: var(--noora-border-light-focus);
+  box-shadow: var(--noora-border-small-focus);
 }
 
 [data-part="identity-modal-form"] [data-part="tool-option"] > [data-part="tool-input"] {
@@ -244,7 +244,7 @@
 [data-part="identity-modal-form"] [data-part="tool-option"] > [data-part="tool-checkbox"] {
   flex: 0 0 auto;
   margin-top: var(--noora-spacing-1);
-  box-shadow: var(--noora-border-light-default);
+  box-shadow: var(--noora-border-small-default);
   background: var(--noora-choice-selector-uncheck-background);
 }
 

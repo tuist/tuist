@@ -5,7 +5,7 @@
   /* Seam between the bar and the code box (the grouped variant uses 6px —
      see code-group.css). */
   gap: 4px;
-  box-shadow: var(--noora-light-border-default);
+  box-shadow: var(--noora-border-small-default);
   border-radius: 8px;
   background: var(--noora-surface-background-primary);
   /* No shell padding: the code box sticks to the component's edges and the
@@ -119,7 +119,7 @@
      clip would let the ring's corner arcs survive and stack into a darker
      curve). */
   clip-path: inset(-8px 0 0 0 round 0 0 8px 8px);
-  box-shadow: var(--noora-light-border-default);
+  box-shadow: var(--noora-border-small-default);
   /* Flush with the shell's edges, so the corners match its 8px radius. */
   border-radius: 8px;
   background: var(--noora-surface-background-tertiary);

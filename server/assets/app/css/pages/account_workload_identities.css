@@ -48,7 +48,7 @@
         position: relative;
         flex-direction: column;
         gap: var(--noora-spacing-5);
-        box-shadow: var(--noora-border-light-default);
+        box-shadow: var(--noora-border-small-default);
         border-radius: var(--noora-radius-4);
         background: var(--noora-surface-background-primary);
         padding: var(--noora-spacing-5);

@@ -34,7 +34,7 @@
   & blockquote {
     margin-inline-start: 0px;
     margin-inline-end: 0px;
-    box-shadow: var(--noora-light-border-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-6);
     background: var(--noora-surface-background-tertiary);
     padding: var(--noora-spacing-7);
@@ -67,7 +67,7 @@
     display: block;
     margin-inline: auto;
     margin: var(--noora-spacing-8) 0;
-    box-shadow: var(--noora-light-border-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-6);
     max-width: 100%;
     height: auto;
@@ -78,7 +78,7 @@
     display: block;
     margin-inline: auto;
     margin: var(--noora-spacing-8) 0;
-    box-shadow: var(--noora-light-border-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-6);
     max-width: 100%;
   }

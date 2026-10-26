@@ -196,7 +196,7 @@ body:has([data-part="support-chat"]) {
   & [data-part="message-body"] {
     background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
     border-radius: var(--noora-radius-4) var(--noora-radius-4) var(--noora-radius-1) var(--noora-radius-4);
-    box-shadow: var(--noora-light-border-default);
+    box-shadow: var(--noora-border-small-default);
     box-sizing: border-box;
     /* Centers content shorter than the 40px min-width; longer text fills the
        bubble and stays left-aligned. */

@@ -89,7 +89,7 @@
   }
 
   & kbd {
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-2);
     padding: 0 var(--noora-spacing-2);
     color: var(--noora-surface-label-secondary);
@@ -183,7 +183,7 @@
       display: flex;
       align-items: center;
       gap: var(--noora-spacing-3);
-      box-shadow: var(--noora-border-light-default);
+      box-shadow: var(--noora-border-small-default);
       border-radius: var(--noora-radius-4);
 
       padding: 0 var(--noora-spacing-3) 0 var(--noora-spacing-4);
@@ -382,7 +382,7 @@
   & .noora-docs-example [data-part="frame"] {
     display: flex;
     flex-direction: column;
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-4);
     background: var(--noora-surface-background-primary);
   }
@@ -492,6 +492,86 @@
     }
   }
 
+  /* Toaster for toast examples. Toasts are
+     absolutely stacked from the bottom; the toaster's hook sets each one's
+     --lift (distance up), --scale, and --toast-height. Collapsed, the newest
+     sits in front and older ones peek above it, smaller and with their
+     content faded, all at the front toast's height; hovering expands the
+     stack into a list. */
+  & [data-part="toaster"] {
+    position: fixed;
+    right: var(--noora-spacing-9);
+    bottom: var(--noora-spacing-9);
+    z-index: var(--noora-z-index-3);
+    margin: 0;
+    padding: 0;
+    width: min(420px, calc(100vw - var(--noora-spacing-9) * 2));
+    list-style: none;
+  }
+
+  & [data-part="toast-item"] {
+    /* Defaults until the toaster hook sets each toast's values inline;
+       --toast-height stays auto so a new toast can be measured. */
+    --lift: 0px;
+    --scale: 1;
+    --depth: 0;
+    --toast-height: auto;
+    --y: calc(var(--lift) * -1);
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    transform: translateY(var(--y)) scale(var(--scale));
+    transform-origin: bottom center;
+    /* Progressive blur: each toast further back in the
+       collapsed stack is blurrier; expanded, all are sharp. */
+    filter: blur(calc(var(--depth) * 0.5px));
+    transition:
+      transform 400ms var(--noora-ease-out-overshoot),
+      opacity 400ms var(--noora-ease-out-overshoot),
+      filter 400ms var(--noora-ease-out-overshoot);
+
+    & > .noora-alert {
+      transition: height 400ms var(--noora-ease-out-overshoot);
+      box-sizing: border-box;
+      height: var(--toast-height);
+      overflow: hidden;
+
+      & > * {
+        transition: opacity 400ms var(--noora-ease-out-overshoot);
+      }
+    }
+
+    /* Enters from below; leaves fading and dropping slightly. */
+    &:not([data-mounted]) {
+      --y: 100%;
+      opacity: 0;
+    }
+
+    &[data-removed] {
+      --y: calc(var(--lift) * -1 + 40%);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    &[data-overflow] {
+      opacity: 0;
+      pointer-events: none;
+    }
+  }
+
+  & [data-part="toaster"]:not([data-expanded]) [data-part="toast-item"]:not([data-front]) > .noora-alert > * {
+    opacity: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    & [data-part="toast-item"],
+    & [data-part="toast-item"] > .noora-alert,
+    & [data-part="toast-item"] > .noora-alert > * {
+      transition: none;
+    }
+  }
+
   & [data-part="guidelines"] {
     display: flex;
     flex-direction: column;
@@ -567,7 +647,7 @@
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-1);
-      box-shadow: var(--noora-border-light-default);
+      box-shadow: var(--noora-border-small-default);
       border-radius: var(--noora-radius-4);
       padding: var(--noora-spacing-5) var(--noora-spacing-6);
       color: var(--noora-surface-label-primary);
@@ -603,7 +683,7 @@
       display: flex;
       flex-direction: column;
       gap: var(--noora-spacing-3);
-      box-shadow: var(--noora-border-light-default);
+      box-shadow: var(--noora-border-small-default);
       border-radius: var(--noora-radius-4);
       padding: var(--noora-spacing-7);
       color: var(--noora-surface-label-primary);
@@ -660,7 +740,7 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     margin: 0;
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-4);
     padding: 0;
     overflow: hidden;
@@ -856,7 +936,7 @@
     gap: var(--noora-spacing-3);
 
     & [data-part="chip"] {
-      box-shadow: var(--noora-border-light-default);
+      box-shadow: var(--noora-border-small-default);
       border-radius: var(--noora-radius-4);
       height: 56px;
     }
@@ -871,7 +951,7 @@
   & [data-part="token-rows"] {
     display: flex;
     flex-direction: column;
-    box-shadow: var(--noora-border-light-default);
+    box-shadow: var(--noora-border-small-default);
     border-radius: var(--noora-radius-4);
     overflow: hidden;
 

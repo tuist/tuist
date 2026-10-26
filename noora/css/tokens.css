@@ -606,17 +606,6 @@
     var(--noora-neutral-light-500),
     var(--noora-neutral-dark-800)
   );
-  --noora-light-border-default:
-    0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
-    0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.08),
-    0px 1px 1px 0px oklch(32% 0.005 247.968 / 0.1);
-
-  --noora-light-border-focus:
-    0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
-    0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.08),
-    0px 1px 3px 0px oklch(32% 0.005 247.968 / 0.1),
-    0px 0px 0px 3px oklch(32% 0.005 247.968 / 0.12);
-
   /* Table */
   --noora-surface-table-header: light-dark(
     var(--noora-neutral-light-200),
@@ -823,40 +812,48 @@
     var(--noora-neutral-dark-800)
   );
 
-  --noora-border-light-default:
+  --noora-border-small-default:
     0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
     0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.08),
     0px 1px 1px 0px oklch(32% 0.005 247.968 / 0.1);
-  --noora-border-light-focus:
+  --noora-border-small-focus:
     0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
     0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.08),
     0px 1px 3px 0px oklch(32% 0.005 247.968 / 0.1),
-    0px 0px 0px 3px oklch(32% 0.005 247.968 / 0.12);
-  --noora-border-light-error:
+    0px 0px 0px 4px oklch(32% 0.005 247.968 / 0.12);
+  --noora-border-small-error:
     0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
     0px 0px 0px 1px var(--noora-red-500),
     0px 1px 3px 0px oklch(32% 0.005 247.968 / 0.1);
-  --noora-border-light-error-focus:
+  --noora-border-small-error-focus:
     0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
     0px 0px 0px 1px var(--noora-red-500),
     0px 1px 3px 0px oklch(32% 0.005 247.968 / 0.1),
-    0px 0px 0px 3px oklch(from var(--noora-red-500) l c h / 0.2);
-  --noora-border-light-warning-focus:
+    0px 0px 0px 4px oklch(from var(--noora-red-500) l c h / 0.2);
+  --noora-border-small-warning:
+    0px 1px 1px 0px oklch(from var(--noora-neutral-dark-1200) l c h / 0.05),
+    0px 0px 0px 1px var(--noora-orange-500),
+    0px 1px 3px 0px oklch(from var(--noora-neutral-light-1100) l c h / 0.1);
+  --noora-border-small-warning-focus:
     0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
     0px 0px 0px 1px var(--noora-orange-400),
     0px 1px 3px 0px oklch(32% 0.005 247.968 / 0.1),
-    0px 0px 0px 3px oklch(from var(--noora-orange-400) l c h / 0.2);
+    0px 0px 0px 4px oklch(from var(--noora-orange-400) l c h / 0.2);
 
   --noora-border-medium:
     0px 8px 6px 0px oklch(from var(--noora-neutral-dark-1200) l c h / 0.02),
     0px 0px 0px 1px oklch(from var(--noora-neutral-light-1100) l c h / 0.08),
     0px 2px 4px 0px oklch(from var(--noora-neutral-light-1100) l c h / 0.04);
   --noora-border-section: 0 0 0 1px oklch(32% 0.005 247.968 / 0.06);
-  --noora-border-heavy:
-    0px 0px 0px 1.5px oklch(32% 0.005 247.968 / 0.1) inset,
-    0px -1.5px 0px 0px oklch(32% 0.005 247.968 / 0.12) inset,
-    0px 4px 8px 0px oklch(32% 0.005 247.968 / 0.08),
-    0px 2px 4px 0px oklch(32% 0.005 247.968 / 0.04);
+  --noora-border-large:
+    0px 4px 8px 0px oklch(from var(--noora-neutral-light-1100) l c h / 0.08),
+    0px 0px 0px 1px oklch(from var(--noora-neutral-light-1100) l c h / 0.08),
+    0px 2px 4px 0px oklch(from var(--noora-neutral-light-1100) l c h / 0.04);
+  --noora-border-xlarge:
+    0px 4px 8px 0px oklch(from var(--noora-neutral-light-1100) l c h / 0.08),
+    0px 0px 0px 1px oklch(from var(--noora-neutral-light-1100) l c h / 0.08),
+    0px 8px 12px 0px oklch(from var(--noora-neutral-light-1100) l c h / 0.06),
+    0px 2px 4px 0px oklch(from var(--noora-neutral-light-1100) l c h / 0.04);
 
   /* Radius */
   --noora-radius-0: 0rem;
@@ -918,19 +915,6 @@
   }
 
   &[data-theme="dark"] {
-    --noora-light-border-default:
-      0px 1px 1px 0px oklch(16.2% 0 0 / 0.3),
-      0px 0px 0px 1px oklch(54.9% 0 0 / 0.45),
-      0px 2px 3px 0px oklch(0% 0 0 / 0.3);
-
-    --noora-light-border-focus:
-      0px 1px 1px 0px oklch(16.2% 0 0 / 0.2),
-      0px 0px 0px 1px oklch(54.9% 0 0 / 0.3),
-      0px 2px 3px 0px oklch(0% 0 0 / 0.3),
-      0px 0px 0px 3px oklch(54.9% 0 0 / 0.4);
-  }
-
-  &[data-theme="dark"] {
     --noora-choice-selector-uncheck-background:
       linear-gradient(
         180deg,
@@ -963,36 +947,45 @@
   }
 
   &[data-theme="dark"] {
-    --noora-border-light-default:
+    --noora-border-small-default:
       0px 1px 1px 0px oklch(16.2% 0 0 / 0.3),
       0px 0px 0px 1px oklch(54.9% 0 0 / 0.45),
       0px 2px 3px 0px oklch(0% 0 0 / 0.3);
-    --noora-border-light-focus:
+    --noora-border-small-focus:
       0px 1px 1px 0px oklch(16.2% 0 0 / 0.2),
       0px 0px 0px 1px oklch(54.9% 0 0 / 0.3),
       0px 2px 3px 0px oklch(0% 0 0 / 0.3),
-      0px 0px 0px 3px oklch(54.9% 0 0 / 0.4);
-    --noora-border-light-error:
+      0px 0px 0px 4px oklch(54.9% 0 0 / 0.4);
+    --noora-border-small-error:
       0px 1px 1px 0px oklch(16.2% 0 0 / 0.2),
       0px 0px 0px 1px var(--noora-red-300), 0px 2px 3px 0px oklch(0% 0 0 / 0.3);
-    --noora-border-light-error-focus:
+    --noora-border-small-error-focus:
       0px 1px 1px 0px oklch(16.2% 0 0 / 0.2),
       0px 0px 0px 1px var(--noora-red-300), 0px 2px 3px 0px oklch(0% 0 0 / 0.3),
-      0px 0px 0px 3px oklch(from var(--noora-red-300) l c h / 0.25);
-    --noora-border-light-warning-focus:
+      0px 0px 0px 4px oklch(from var(--noora-red-300) l c h / 0.25);
+    --noora-border-small-warning:
+      0px 1px 1px 0px oklch(from var(--noora-neutral-dark-1200) l c h / 0.2),
+      0px 0px 0px 1px var(--noora-orange-300),
+      0px 2px 3px 0px oklch(from var(--noora-alpha-black) l c h / 0.3);
+    --noora-border-small-warning-focus:
       0px 1px 1px 0px oklch(16.2% 0 0 / 0.2),
       0px 0px 0px 1px var(--noora-orange-300),
       0px 2px 3px 0px oklch(0% 0 0 / 0.3),
-      0px 0px 0px 3px oklch(from var(--noora-orange-300) l c h / 0.25);
+      0px 0px 0px 4px oklch(from var(--noora-orange-300) l c h / 0.25);
     --noora-border-medium:
       0px 2px 4px 0px oklch(from var(--noora-neutral-dark-1200) l c h / 0.12),
       0px 0px 0px 1px oklch(from var(--noora-neutral-dark-500) l c h / 0.45),
       0px 4px 8px 0px oklch(0% 0 0 / 0.24);
     --noora-border-section: 0 0 0 1px oklch(34.8% 0 0 / 0.55);
-    --noora-border-heavy:
-      0px 1.5px 0px 0px oklch(54.9% 0 0 / 0.3) inset,
-      0px 0px 0px 1.5px oklch(54.9% 0 0 / 0.2) inset,
-      0px 4px 8px 0px oklch(0% 0 0 / 0.16), 0px 2px 4px 0px oklch(0% 0 0 / 0.24);
+    --noora-border-large:
+      0px 4px 8px 0px oklch(from var(--noora-alpha-black) l c h / 0.24),
+      0px 0px 0px 1px oklch(from var(--noora-neutral-dark-500) l c h / 0.45),
+      0px 2px 4px 0px oklch(from var(--noora-alpha-black) l c h / 0.4);
+    --noora-border-xlarge:
+      0px 4px 8px 0px oklch(from var(--noora-alpha-black) l c h / 0.16),
+      0px 0px 0px 1px oklch(from var(--noora-neutral-dark-500) l c h / 0.45),
+      0px 8px 16px 0px oklch(from var(--noora-alpha-black) l c h / 0.5),
+      0px 2px 4px 0px oklch(from var(--noora-alpha-black) l c h / 0.4);
   }
 
   @media screen and (min-width: 768px) {
@@ -1050,6 +1043,8 @@
   --ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
   --ease-out-circ: cubic-bezier(0.075, 0.82, 0.165, 1);
+  /* Ease out with a slight overshoot before settling. Used by toasts. */
+  --noora-ease-out-overshoot: cubic-bezier(0.21, 1.02, 0.73, 1);
 
   --ease-in-out-quad: cubic-bezier(0.455, 0.03, 0.515, 0.955);
   --ease-in-out-cubic: cubic-bezier(0.645, 0.045, 0.355, 1);
