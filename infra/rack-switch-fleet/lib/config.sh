@@ -908,47 +908,6 @@ fleet_config_revision() {
   fleet_render "$site_file" "$name" | shasum -a 256 | cut -c1-16
 }
 
-# The ports of a switch that run at other than their default, as a JSON object
-# of port to Mb/s: a `speed` (1G, 10G or 25G) on the switch's port, or on the
-# node link cabled to it, for the module or cable there. Each has to be one the
-# model's `speeds` allow on that port. In a speed group (the S5860's SFP28
-# ports), the switch commits its ports at 25G, which an unset speed is, or all
-# at 10G or 1G, so a group with a slower port gets every other port of it at
-# 10G, and one that also names 25G is refused. Only a PicOS switch's driver
-# writes speeds, so another switch may name none.
-fleet_port_speeds() {
-  local site_file="$1" device="$2" spec="$3" result
-  result="$(jq -c --argjson d "$device" --argjson spec "$spec" '
-    {"1G": 1000, "10G": 10000, "25G": 25000} as $mbps |
-    ([($d.ports // {}) | to_entries[] | select(.value.speed != null) |
-       {port: (.key | tonumber), speed: .value.speed, what: "\($d.name) port \(.key)"}] +
-     [.nodes[]? as $n | $n.links[] | select(.switch == $d.name and .port != null and .speed != null) |
-       {port, speed, what: "\($n.name)'"'"'s link to \($d.name) port \(.port)"}]) as $named |
-    ($spec.speeds // []) as $ranges |
-    def range_of($p): [$ranges[] | select(.first <= $p and $p <= .last)] | first;
-    [$named[] | . as $s | range_of($s.port) as $r |
-      if ($spec.os // "omada") != "picos" then "\($s.what) names a speed, which only a PicOS switch is written"
-      elif $r == null or ($r.allowed | index($s.speed)) == null
-      then "\($s.what) names speed \($s.speed | tojson), which a \($spec.product) does not run there (\($r.allowed // [] | join(", ")))"
-      else empty end] as $bad |
-    if ($bad | length) > 0 then {error: $bad[0]}
-    else
-      ([$named[] | {key: (.port | tostring), value: $mbps[.speed]}] | from_entries) as $speeds |
-      reduce ($ranges[] | select(.group == true)) as $g ($speeds;
-        [range($g.first; $g.last + 1) | tostring] as $ports |
-        [$ports[] as $p | .[$p] | select(. != null)] as $set |
-        if ($set | any(. < 25000)) and ($set | any(. == 25000))
-        then {error: "\($d.name) ports \($g.first) to \($g.last) are one speed group, which runs at 25G or all at 10G or 1G, not both"}
-        elif ($set | any(. < 25000)) then reduce $ports[] as $p (.; .[$p] //= 10000)
-        else . end)
-    end' "$site_file")" || return 1
-  if [ "$(jq -r '.error // empty' <<<"$result")" != "" ]; then
-    echo "error: $(jq -r '.error' <<<"$result")" >&2
-    return 1
-  fi
-  echo "$result"
-}
-
 # A switch as a RackSwitch object, rendered from the site definition rather than
 # maintained beside it. Spec only: status belongs to whoever observed the
 # switch, and nothing here has. A third argument names a file already holding
@@ -967,11 +926,10 @@ fleet_render_k8s() {
   # The desired configuration, for the reconciler that writes it through the
   # controller: the same site data the configuration text is rendered from, so
   # the two cannot say different things.
-  local spec config speeds
+  local spec config
   spec="$(fleet_model "$(jq -r '.model' <<<"$device")")" || return 1
-  speeds="$(fleet_port_speeds "$site_file" "$device" "$spec")" || return 1
   config="$(fleet_port_settings "$site_file" "$device" "$spec" | jq -R -s \
-      --slurpfile site "$site_file" --argjson d "$device" --argjson speeds "$speeds" '
+      --slurpfile site "$site_file" --argjson d "$device" '
     $site[0] as $s |
     (split("\n") | map(select(length > 0) | split("\u001f")) | map({
       port: (.[2] | tonumber),
@@ -979,7 +937,7 @@ fleet_render_k8s() {
       spanningTree: (.[4] == "true"),
       nativeVlan: ((.[7] // "") | if . == "" then $s.management.vlan else tonumber end),
       taggedVlans: (.[6] | if . == "" then [] else split(",") | map(tonumber) end)
-    } + ((.[2]) as $p | if $speeds[$p] then {speed: $speeds[$p]} else {} end))) as $ports |
+    })) as $ports |
     ([$ports[] | .taggedVlans[], .nativeVlan] | unique) as $carried |
     {
       hostname: $d.name,

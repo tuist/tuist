@@ -225,9 +225,6 @@ func (s *Switch) runCLI(command string) string {
 		case strings.HasPrefix(line, "set ") || strings.HasPrefix(line, "delete "):
 			apply(candidate, passwords, line)
 			written = append(written, line)
-		case (line == "commit" || strings.HasPrefix(line, "commit confirmed ")) && speedGroupRefused(candidate) != "":
-			fmt.Fprintf(&out, "%s\r\nCommit failed.\r\n", speedGroupRefused(candidate))
-			return out.String()
 		case strings.HasPrefix(line, "commit confirmed "):
 			seconds, _ := strconv.Atoi(strings.TrimPrefix(line, "commit confirmed "))
 			if !s.pending {
@@ -244,25 +241,6 @@ func (s *Switch) runCLI(command string) string {
 		s.writes = append(s.writes, written)
 	}
 	return out.String()
-}
-
-// speedGroupRefused is what an S5860 answers a commit that leaves its SFP28
-// ports in different speed classes: they run at 25G, which an unset speed is,
-// or all at 10G or 1G. Empty when the commit is fine.
-func speedGroupRefused(config map[string]string) string {
-	fast, slow := 0, 0
-	for port := 29; port <= 32; port++ {
-		switch config[fmt.Sprintf("interface gigabit-ethernet te-1/1/%d speed", port)] {
-		case "", "25000":
-			fast++
-		default:
-			slow++
-		}
-	}
-	if fast > 0 && slow > 0 {
-		return "all 4 ports te-1/1/29, te-1/1/30, te-1/1/31, te-1/1/32 in one group set either 25G or 10G/1G"
-	}
-	return ""
 }
 
 // list reports a key that is a leaf-list entry: its value is part of it.
@@ -345,8 +323,8 @@ func readMessage(r *bufio.Reader) (string, error) {
 }
 
 type iface struct {
-	description, lag, lacp, portMode, native, speed string
-	members                                         []string
+	description, lag, lacp, portMode, native string
+	members                                  []string
 }
 
 func esc(s string) string {
@@ -395,8 +373,6 @@ func runningXML(config map[string]string) string {
 				i.description = unquote(v)
 			case rest == "ether-options 802.3ad":
 				i.lag = v
-			case rest == "speed":
-				i.speed = v
 			case rest == "aggregated-ether-options lacp enable":
 				i.lacp = v
 			case rest == "family ethernet-switching port-mode":
@@ -425,9 +401,6 @@ func runningXML(config map[string]string) string {
 			fmt.Fprintf(&b, "<ether-options><flow-control>false</flow-control><_802.3ad>%s</_802.3ad></ether-options>", p.lag)
 		}
 		b.WriteString(switchingXML(p))
-		if p.speed != "" {
-			fmt.Fprintf(&b, "<speed>%s</speed>", p.speed)
-		}
 		b.WriteString("</gigabit-ethernet>")
 	}
 	for _, name := range sortedKeys(lags) {

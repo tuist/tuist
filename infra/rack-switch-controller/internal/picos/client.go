@@ -220,16 +220,25 @@ func (c *Client) RunCLI(ctx context.Context, commands []string) (string, error) 
 		return "", ctx.Err()
 	case res := <-done:
 		text, err := strings.ReplaceAll(string(res.out), "\r", ""), res.err
-		for _, refusal := range refusals {
-			if i := strings.Index(text, refusal); i >= 0 {
-				return text, &CLIError{Line: failedLine(text, i), Output: strings.TrimSpace(text[outputStart(text, i):])}
-			}
+		if refused := refusal(text); refused != nil {
+			return text, refused
 		}
 		if err != nil {
 			return text, fmt.Errorf("cli: %w: %s", err, strings.TrimSpace(text))
 		}
 		return text, nil
 	}
+}
+
+// refusal is the line pica_sh did not run in its output, and what it printed
+// about it; nil when it ran every line.
+func refusal(text string) *CLIError {
+	for _, r := range refusals {
+		if i := strings.Index(text, r); i >= 0 {
+			return &CLIError{Line: failedLine(text, i), Output: strings.TrimSpace(text[outputStart(text, i):])}
+		}
+	}
+	return nil
 }
 
 // outputStart is where the output of the line a refusal is about starts: the

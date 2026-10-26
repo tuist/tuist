@@ -29,11 +29,7 @@ func TestObservedReadsALAG(t *testing.T) {
 		"set interface aggregate-ethernet ae1 aggregated-ether-options lacp enable true",
 		`set interface aggregate-ethernet ae1 description "asus-bench"`,
 		"set interface gigabit-ethernet te-1/1/29 ether-options 802.3ad ae1",
-		"set interface gigabit-ethernet te-1/1/29 speed 10000",
-		"set interface gigabit-ethernet te-1/1/30 speed 10000",
-		"set interface gigabit-ethernet te-1/1/31 speed 10000",
 		"set interface gigabit-ethernet te-1/1/32 ether-options 802.3ad ae1",
-		"set interface gigabit-ethernet te-1/1/32 speed 10000",
 		"set protocols lacp interface te-1/1/29 rate fast",
 		"set protocols lacp interface te-1/1/32 rate fast",
 	}
@@ -81,12 +77,8 @@ func TestObservedReadsTrunks(t *testing.T) {
 		"set interface aggregate-ethernet ae2 family ethernet-switching port-mode trunk",
 		"set interface aggregate-ethernet ae2 family ethernet-switching vlan members 10",
 		"set interface aggregate-ethernet ae2 family ethernet-switching vlan members 4000",
-		"set interface gigabit-ethernet te-1/1/29 speed 10000",
 		`set interface gigabit-ethernet te-1/1/30 ether-options 802.3ad ae2`,
-		"set interface gigabit-ethernet te-1/1/30 speed 10000",
 		`set interface gigabit-ethernet te-1/1/31 ether-options 802.3ad ae2`,
-		"set interface gigabit-ethernet te-1/1/31 speed 10000",
-		"set interface gigabit-ethernet te-1/1/32 speed 10000",
 		`set interface gigabit-ethernet te-1/1/5 description "bench access"`,
 		"set interface gigabit-ethernet te-1/1/5 family ethernet-switching native-vlan-id 10",
 		`set interface gigabit-ethernet te-1/1/6 description "bench trunk"`,
@@ -115,27 +107,5 @@ func TestObservedExpandsMemberRanges(t *testing.T) {
 	}
 	if want := []string{"10", "11", "12", "20"}; !reflect.DeepEqual(members, want) {
 		t.Fatalf("members = %v, want %v", members, want)
-	}
-}
-
-// testdata/speeds.xml is the interface subtree of te-1/1/29-32 at 10G, read
-// from the bench S5860: PicOS reports a speed only where one was set.
-func TestObservedReadsPortSpeeds(t *testing.T) {
-	data, err := os.ReadFile("testdata/speeds.xml")
-	if err != nil {
-		t.Fatal(err)
-	}
-	items, err := Observed(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := []string{
-		"set interface gigabit-ethernet te-1/1/29 speed 10000",
-		"set interface gigabit-ethernet te-1/1/30 speed 10000",
-		"set interface gigabit-ethernet te-1/1/31 speed 10000",
-		"set interface gigabit-ethernet te-1/1/32 speed 10000",
-	}
-	if got := lines(items); !reflect.DeepEqual(got, want) {
-		t.Fatalf("Observed:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }

@@ -1758,17 +1758,14 @@ object's `config`. Ports are `te-1/1/1` to `te-1/1/32`: 1 to 24 copper (100M to
 
 ### Port speeds
 
-A port runs at its default unless the site says otherwise: auto on copper and
-SFP+ (a 1G copper SFP module links at 1G there with nothing set), 25G on SFP28.
-A module or cable that needs another speed gets `speed` (`1G`, `10G` or `25G`)
-on the switch's port, or on the node link cabled to it, and the RackSwitch
-carries it in Mb/s; the controller writes it and puts an unnamed one back to
-the default. `models.json` lists the speeds each range of ports runs
-(`speeds`). Ports 29 to 32 are one speed group: PicOS commits them all at 25G
-(or unset) or all at 10G or 1G, and refuses a mix, so a group with a slower
-port renders every other port of it at 10G, and a group naming 25G and a
-slower speed is refused. A 25G edge leg and a 1G module therefore never share
-the SFP28 ports; 1G modules go in 25 to 28. ZTP sets no speed.
+Every port runs at its default, and nothing sets another: auto on copper and
+SFP+ (a 1G copper SFP module links at 1G there with nothing set), 25G on SFP28,
+which rack 2's edge and storage DACs run at. Ports 29 to 32 are one speed
+group: PicOS commits them all at 25G (or unset) or all at 10G or 1G, and
+refuses a mix (measured 2026-10-26), so a 25G leg and a 1G module never share
+the SFP28 ports; 1G modules go in 25 to 28. Neither ZTP nor the controller
+writes a speed, so a 10G DAC in an SFP28 port, as on the bench, needs one set by
+hand on all four.
 
 ### Zero touch, served by the edge
 

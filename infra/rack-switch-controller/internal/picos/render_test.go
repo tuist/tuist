@@ -105,39 +105,3 @@ func TestDifferenceLeavesWhatItDoesNotOwn(t *testing.T) {
 		t.Fatalf("Difference = %v, want %v", got, want)
 	}
 }
-
-// A port's speed is the port's own, LAG member or not; one the spec does not
-// name goes back to PicOS's default.
-func TestDesiredWritesPortSpeeds(t *testing.T) {
-	cfg := &v1alpha1.SwitchConfig{
-		LAGs: []v1alpha1.LAG{{ID: 1, Name: "isl", Ports: []int{25, 26}}},
-		Ports: []v1alpha1.PortConfig{
-			{Port: 25, Speed: 10000},
-			{Port: 26, Speed: 10000},
-			{Port: 28, Speed: 1000},
-		},
-	}
-	got, err := Desired(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var speeds []string
-	for _, l := range lines(got) {
-		if strings.Contains(l, " speed ") {
-			speeds = append(speeds, l)
-		}
-	}
-	want := []string{
-		"set interface gigabit-ethernet te-1/1/25 speed 10000",
-		"set interface gigabit-ethernet te-1/1/26 speed 10000",
-		"set interface gigabit-ethernet te-1/1/28 speed 1000",
-	}
-	if !reflect.DeepEqual(speeds, want) {
-		t.Fatalf("speeds:\n%s\nwant:\n%s", strings.Join(speeds, "\n"), strings.Join(want, "\n"))
-	}
-	observed := []Item{{Path: "interface gigabit-ethernet te-1/1/29 speed", Value: "10000"}}
-	diff := Difference(observed, got, Owned)
-	if diff[0] != "delete interface gigabit-ethernet te-1/1/29 speed" {
-		t.Fatalf("Difference = %v; an unnamed speed stays", diff)
-	}
-}

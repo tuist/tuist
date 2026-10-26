@@ -5,7 +5,6 @@ package picos
 import (
 	"context"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -103,20 +102,6 @@ func TestBenchDump(t *testing.T) {
 	}
 }
 
-// benchGroup is the SFP28 group at the bench's 10G, which its DACs to the
-// ASUS run at, with the VLANs ports 30 and 31 carry in TestBenchConverge.
-func benchGroup(tagged ...int) []v1alpha1.PortConfig {
-	var ports []v1alpha1.PortConfig
-	for port := 29; port <= 32; port++ {
-		p := v1alpha1.PortConfig{Port: port, Speed: 10000}
-		if port == 30 || port == 31 {
-			p.TaggedVLANs = tagged
-		}
-		ports = append(ports, p)
-	}
-	return ports
-}
-
 // TestBenchConverge writes a ToR-like configuration on unused ports, checks
 // it reads back with nothing left to do, and converges an empty spec, which
 // deletes everything the controller owns again.
@@ -132,9 +117,10 @@ func TestBenchConverge(t *testing.T) {
 		Ports: []v1alpha1.PortConfig{
 			{Port: 5, Description: "bench access", NativeVLAN: 10},
 			{Port: 6, Description: "bench trunk", NativeVLAN: 4000, TaggedVLANs: []int{10}},
+			{Port: 30, TaggedVLANs: []int{10, 4000}},
+			{Port: 31, TaggedVLANs: []int{10, 4000}},
 		},
 	}}}
-	rs.Spec.Config.Ports = append(rs.Spec.Config.Ports, benchGroup(10, 4000)...)
 	report, err := e.Converge(ctx, rs, rs.Spec.ManagementAddress, c.Pin, true)
 	t.Logf("wrote %d lines: %v", len(report.Changes), report.Changes)
 	if err != nil {
@@ -147,7 +133,7 @@ func TestBenchConverge(t *testing.T) {
 	data, _ := c.RunningConfig(ctx, Filter)
 	os.WriteFile(os.Getenv("PICOS_BENCH_OUT"), data, 0o644)
 
-	rs.Spec.Config = &v1alpha1.SwitchConfig{Ports: benchGroup()}
+	rs.Spec.Config = &v1alpha1.SwitchConfig{}
 	report, err = e.Converge(ctx, rs, rs.Spec.ManagementAddress, c.Pin, true)
 	t.Logf("cleanup wrote %d lines: %v", len(report.Changes), report.Changes)
 	if err != nil {
@@ -155,35 +141,5 @@ func TestBenchConverge(t *testing.T) {
 	}
 	if report, err = e.Converge(ctx, rs, rs.Spec.ManagementAddress, c.Pin, false); err != nil || len(report.Drift) > 0 {
 		t.Fatalf("after cleanup: drift %v, err %v", report.Drift, err)
-	}
-}
-
-// TestBenchSpeeds takes the SFP28 group from the bench's 10G to its 25G
-// default and back, each in the one commit the switch takes for it.
-func TestBenchSpeeds(t *testing.T) {
-	c := benchClient(t)
-	e := &Engine{Dialer: c.Dialer, ConfirmAfter: 3 * time.Minute}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-	rs := &v1alpha1.RackSwitch{Spec: v1alpha1.RackSwitchSpec{ManagementAddress: c.Address, Config: &v1alpha1.SwitchConfig{}}}
-	for _, ports := range [][]v1alpha1.PortConfig{nil, benchGroup()} {
-		rs.Spec.Config.Ports = ports
-		report, err := e.Converge(ctx, rs, rs.Spec.ManagementAddress, c.Pin, true)
-		t.Logf("wrote %d lines: %v", len(report.Changes), report.Changes)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if report, err = e.Converge(ctx, rs, rs.Spec.ManagementAddress, c.Pin, false); err != nil || len(report.Drift) > 0 {
-			t.Fatalf("drift %v, err %v", report.Drift, err)
-		}
-		out, err := c.RunCLI(ctx, []string{"show interface brief"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, l := range strings.Split(out, "\n") {
-			if strings.HasPrefix(l, "te-1/1/29 ") || strings.HasPrefix(l, "te-1/1/32 ") {
-				t.Log(strings.Join(strings.Fields(l), " "))
-			}
-		}
 	}
 }

@@ -214,14 +214,10 @@ restart in that window forgets it, and the rollback then shows as drift.
 
 What the controller owns, and deletes when the spec stops naming it: the
 hostname, VLANs (not VLAN 1), each port's description, VLAN membership
-(`family ethernet-switching`) and LAG membership, each port's speed (`speed`,
-in Mb/s), LAGs (`aggregate-ethernet`) with LACP, and each LAG member's LACP
-rate. A LAG's VLANs are its first member port's, written on the `aeN`
-interface. A port whose spec names no speed goes back to PicOS's default (25G
-on SFP28, auto elsewhere); the SFP28 ports 29 to 32 are one speed group,
-committed all at 25G or all at 10G or 1G, which a single commit does and the
-switch refuses otherwise, with a reason the controller reports. Everything
-else, the management port, users and NETCONF, is left alone.
+(`family ethernet-switching`) and LAG membership, LAGs (`aggregate-ethernet`)
+with LACP, and each LAG member's LACP rate. A LAG's VLANs are its first member
+port's, written on the `aeN` interface. Everything else, the management port,
+users, NETCONF and port speeds, is left alone.
 
 What PicOS does that the code is shaped around:
 
