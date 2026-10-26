@@ -45,14 +45,15 @@ spec:
       template:
         spec:
           restartPolicy: OnFailure
-          # Pin to the control-plane node (we have one, but be explicit
-          # so a future scale-out doesn't surprise the snapshotter).
+          # Pinned to tuist-mgmt: the snapshotter talosconfig's endpoint is
+          # that node's public IP, which the Hetzner firewall blocks on
+          # :50000 from every other node.
           tolerations:
             - key: node-role.kubernetes.io/control-plane
               operator: Exists
               effect: NoSchedule
           nodeSelector:
-            node-role.kubernetes.io/control-plane: ""
+            kubernetes.io/hostname: tuist-mgmt
           # Talos exposes the API on the host network at :50000.
           hostNetwork: true
           dnsPolicy: ClusterFirstWithHostNet
