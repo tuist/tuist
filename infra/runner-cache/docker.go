@@ -243,7 +243,7 @@ func (b *LocalImages) ExposeDockerHead(ctx context.Context, slot Slot, path stri
 		if err := b.reserve(ctx); err != nil {
 			return err
 		}
-		if err := b.fetchMaster(ctx, saved, func(string, string) error { return nil }); err != nil {
+		if err := b.fetchMaster(ctx, saved, true, func(string, string) error { return nil }); err != nil {
 			return err
 		}
 	}

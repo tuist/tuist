@@ -207,6 +207,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - `prefetch` and refreshes download into
   `staging/<scope>-<generation>-<content digest>.img` and take the scope lock only
   to install (`fetchMaster`), one download per staging name at a time;
+  background callers leave an active fetch alone. A Docker merge sets `wait`
+  to await its installation result or its own context ending. Canceling a
+  waiter does not cancel the download it joined. Only the installing caller
+  runs its installation callback.
   `maintainMaster` asks for the HEAD before taking it. Never hold a scope lock
   across a network call: APFS jobs clone under that lock. With `Replace` set, maintenance keeps a superseded master
   used in the last day while its successor is queued, instead of removing it.
@@ -314,8 +318,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - A Docker branch whose lineage another job saved since it was mounted is merged,
   not lost: `ExposeDockerHead` clones that head (downloading it when this host
   lacks it) next to the branch as `.merge`, records it in `.merge.json` and links
-  it into the pod's directory as `head.img`; the guest loads the images only one
-  side keeps into the other. A report naming `merged_generation` and
+  it into the pod's directory as `head.img`. If a prefetch or refresh is already
+  downloading the head, the offer waits for installation before cloning; it
+  must not treat an in-flight download as an available master. The guest loads
+  the images only one side keeps into the other. A report naming `merged_generation` and
   `merged_into` (`sealDockerMerge`) must name the head this host offered; a
   merge into `head` renames the clone over the branch after the same inode and
   superblock checks, then the use is rebased on the server (`Rebaser`, the
