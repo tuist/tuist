@@ -50,7 +50,8 @@ SITE=larch
    - Deploy ber1's `site_prefixes`.
    - Check Cogent's looking glass for `95.130.119.16/28` behind AS218377.
 3. **Merge in this order:**
-   1. Edge ZTP (#14728).
+   1. Edge ZTP (#14728), and the operator's fix that keeps ARP on the
+      edges' ToR management port (#14748).
    2. The larch site (#14735).
    3. The chart's per-site fleet (#14752).
    4. The server's two-site routing (#14757).
