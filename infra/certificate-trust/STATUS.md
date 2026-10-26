@@ -5,6 +5,14 @@ is not complete fleet remediation. See the
 [warm-rollout runbook](README.md). **Do not merge the aggregate change as one
 fleet rollout.** Main path filters fan out to independent deployment owners.
 
+## Aggregate CI follow-up, 2026-10-26
+
+[CI-REPAIR.md](CI-REPAIR.md) records the newer main merges, genuine test/fixture
+repairs and OTP alternate-path callback fix. A selected Linux shard-build job
+now accepts both native/protected TLS and completes OIDC/shard planning; this is
+not aggregate current-head CI clearance. The large PR remains unmerged. Resource,
+release, installed-process and fleet gates below remain unchanged.
+
 ## Current implementation
 
 - No Python tooling or tests. The 2,053-line Python image-inspection/overlay/

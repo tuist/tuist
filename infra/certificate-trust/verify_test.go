@@ -260,24 +260,32 @@ func TestRustClientPolicyAndFactoryWiring(t *testing.T) {
 		if strings.HasSuffix(path, "_tests.rs") {
 			continue
 		}
-		production := bytes.SplitN(read(t, path), []byte("#[cfg(test)]"), 2)[0]
+		// Scan complete files, including production items after test-only helpers.
+		// This literal inventory is deliberately not a Rust alias/macro parser.
+		production := read(t, path)
 		actual := len(builders.FindAll(production, -1))
 		if actual != len(protected.FindAll(production, -1)) || bytes.Contains(production, []byte("Client::new(")) {
 			t.Fatalf("unprotected Atlas HTTP factory in %s", path)
 		}
 		count += actual
-		for _, forbidden := range []string{"connect_async(", "connect_async_with_config(", "danger_accept_invalid_"} {
-			if bytes.Contains(production, []byte(forbidden)) {
-				t.Fatalf("unprotected Rust TLS path %s in %s", forbidden, path)
-			}
+		if forbidden := unprotectedAtlasTLSCall(production); forbidden != "" {
+			t.Fatalf("unprotected Rust TLS path %s in %s", forbidden, path)
 		}
 	}
 	if count != 1 {
 		t.Fatal("review newly added/removed independent Atlas HTTP factories")
 	}
-	presence := read(t, "../../atlas-native/auth/src/presence.rs")
-	if !bytes.Contains(presence, []byte("Some(tls)")) {
-		t.Fatal("presence must supply the protected TLS connector")
+	for name, required := range map[string][]string{
+		"presence.rs":   {"tokio_tungstenite::connect_async_tls_with_config(request, Some(config), true, Some(tls))"},
+		"api.rs":        {"tungstenite::client_tls_with_config(request, stream, Some(config), Some(tls))", "crate::transport::tls_config()?"},
+		"orbit_live.rs": {"crate::presence::connect_tls(request.clone(), config, tls.clone())", "crate::transport::tls_config()"},
+	} {
+		source := read(t, "../../atlas-native/auth/src/"+name)
+		for _, marker := range required {
+			if bytes.Count(source, []byte(marker)) != 1 {
+				t.Fatalf("review protected Atlas TLS factory %s in %s", marker, name)
+			}
+		}
 	}
 	for _, root := range []string{"../../atlas-native/ios/Sources", "../../atlas-native/android/src"} {
 		err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
@@ -298,6 +306,49 @@ func TestRustClientPolicyAndFactoryWiring(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatal(err)
+		}
+	}
+}
+
+func unprotectedAtlasTLSCall(source []byte) string {
+	for _, allowed := range []string{
+		"tokio_tungstenite::connect_async_tls_with_config(request, Some(config), true, Some(tls))",
+		"tungstenite::client_tls_with_config(request, stream, Some(config), Some(tls))",
+	} {
+		source = bytes.ReplaceAll(source, []byte(allowed), nil)
+	}
+	for _, forbidden := range []string{
+		"connect_async(", "connect_async_with_config(", "connect_async_tls(",
+		"connect_async_tls_with_config(", "tungstenite::connect(", "client_tls(",
+		"client_tls_with_config(", "Connector::NativeTls", "Connector::Plain", "danger_accept_invalid_",
+	} {
+		if bytes.Contains(source, []byte(forbidden)) {
+			return forbidden
+		}
+	}
+	return ""
+}
+
+func TestAtlasTLSInventoryDoesNotHideCallsAfterTestItems(t *testing.T) {
+	prefixes := []string{"", "#[cfg(test)]\nmod tests {}\n", "#[cfg(test)]\n#[path = \"tests.rs\"]\nmod tests;\n"}
+	for _, prefix := range prefixes {
+		for _, call := range []string{
+			"tungstenite::connect(request)", "client_tls(request, stream)",
+			"connect_async_tls(request)", "connect_async_with_config(request, config, true)",
+			"tungstenite::client_tls_with_config(request, stream, Some(config), None)",
+			"tokio_tungstenite::connect_async_tls_with_config(request, Some(config), true, None)",
+		} {
+			if unprotectedAtlasTLSCall([]byte(prefix+call)) == "" {
+				t.Fatalf("missed Atlas factory after test item: %s", call)
+			}
+		}
+	}
+	for _, allowed := range []string{
+		"tokio_tungstenite::connect_async_tls_with_config(request, Some(config), true, Some(tls))",
+		"tungstenite::client_tls_with_config(request, stream, Some(config), Some(tls))",
+	} {
+		if unprotectedAtlasTLSCall([]byte(allowed)) != "" {
+			t.Fatalf("rejected inventoried protected Atlas factory: %s", allowed)
 		}
 	}
 }

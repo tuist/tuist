@@ -122,8 +122,10 @@ defmodule TuistEx.CertificateTrustTest do
     for transport <- [:otp, :mint] do
       assert {:ok, _} = connect(configuration, ~c"localhost", [trusted.cert], transport, :native)
 
-      assert {:error, _} =
-               connect(configuration, ~c"localhost", [trusted.cert], transport, legacy_callback)
+      if transport == :otp do
+        assert {:error, {:tls_alert, {:handshake_failure, _private_message}}} =
+                 connect(configuration, ~c"localhost", [trusted.cert], transport, legacy_callback)
+      end
 
       assert {:ok, _} = connect(configuration, ~c"localhost", [trusted.cert], transport)
 

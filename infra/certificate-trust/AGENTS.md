@@ -4,6 +4,8 @@ This boundary owns the 12-key eMudhra policy, small shell checks, Go verifier
 qualification, public control fixtures, access replacement guards and the
 owner-driven warm rollout runbook. See `README.md`, the dated `STATUS.md`, and
 `CLIENTS.md` for the client-by-client verifier inventory and qualification gaps.
+`CI-REPAIR.md` records aggregate-PR CI repairs and the OTP native path-search
+regression; selected green jobs are not aggregate CI or rollout approval.
 
 - Use the existing Go, shell and Elixir stack. No Python tooling or tests.
 - Do not recreate the removed generic image-overlay/publishing framework.
@@ -16,6 +18,10 @@ owner-driven warm rollout runbook. See `README.md`, the dated `STATUS.md`, and
   proxy replacement gates are in `RUST-CLIENTS.md`: only the proxy performs CAS
   remote TLS, and older pinned CLIs can downgrade it. Preserve each transport's
   original native/bundled roots; do not unify stores merely to share a client.
+  Atlas factory guards scan full Rust files, including code after test-only items,
+  and inventory the protected blocking Automation, async presence and Orbit live
+  connectors. Missing connectors/default constructors must fail; these literal
+  guards still do not prove arbitrary Rust alias, macro or data-flow behavior.
   `GRAFANA-CLIENT.md` records the independent Go backend's full twelve-key callback,
   native-versus-application attribution and exact artifact/runtime limits.
   `SWIFT-CLIENTS.md` records actual Apple production h2/HTTPS CONNECT wire
