@@ -430,9 +430,6 @@ defmodule TuistWeb.RunnerImageCacheLive do
   def duration_trend(_current, _previous),
     do: %{value: 0, value_label: dgettext("dashboard_runners", "No previous data"), label: ""}
 
-  def short_digest("sha256:" <> hex), do: "sha256:" <> String.slice(hex, 0, 12)
-  def short_digest(_), do: "—"
-
   def duration(nil), do: "—"
   def duration(ms), do: DateFormatter.format_duration_from_milliseconds(ms)
 end

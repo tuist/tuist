@@ -34,8 +34,7 @@ defmodule TuistWeb.RunnerImageCacheLiveTest do
         images: [
           %{
             id: "sha256:" <> String.duplicate("a", 64),
-            repository: "ghcr.io/org/build",
-            digest: "sha256:" <> String.duplicate("f", 64),
+            name: "ghcr.io/org/build:jdk-21",
             size_bytes: 5_000_000_000,
             last_used_at: ~U[2026-10-24 08:00:00Z]
           }
@@ -140,9 +139,8 @@ defmodule TuistWeb.RunnerImageCacheLiveTest do
     selected = repository()
     html = render_component(&RunnerImageCacheLive.render/1, assigns(%{selected: selected, data: data([])}))
 
-    assert html =~ "ghcr.io/org/build"
-    assert html =~ "sha256:ffffffffffff"
-    refute html =~ "sha256:fffffffffffff"
+    assert html =~ "ghcr.io/org/build:jdk-21"
+    refute html =~ "Digest"
     assert html =~ "/org/runners/volumes/#{selected.id}"
     assert html =~ "Image cache details"
   end

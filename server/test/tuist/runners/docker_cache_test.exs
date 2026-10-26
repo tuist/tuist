@@ -85,8 +85,7 @@ defmodule Tuist.Runners.DockerCacheTest do
     assert android.build_cache_bytes == 1_000
     assert android.last_saved_at == ~U[2026-10-24 09:00:00.000000Z]
     assert {android.uses, android.hits, android.hit_rate} == {2, 1, 50.0}
-    assert [%{repository: "ghcr.io/org/build", digest: "sha256:" <> digest}] = android.images
-    assert digest == String.duplicate("f", 64)
+    assert [%{name: "ghcr.io/org/build:jdk-21"}] = android.images
     analytics = DockerCache.analytics(account.id, nil, @period)
     assert analytics.activity.uses == 2
     assert analytics.activity.hit_rate == 50.0
@@ -132,7 +131,7 @@ defmodule Tuist.Runners.DockerCacheTest do
     assert is_nil(DockerCache.repository(account.id, cleared.id, @period))
   end
 
-  test "names an image by its repository and digest, or its ID without one" do
+  test "names an image pulled only by digest by its repository and short digest" do
     account = AccountsFixtures.account_fixture()
     saved = volume(account, "org/app")
     id = "sha256:" <> String.duplicate("a", 64)
@@ -142,14 +141,20 @@ defmodule Tuist.Runners.DockerCacheTest do
         status: "published",
         finished_at: ~U[2026-10-24 09:00:00.000000Z],
         docker_images: %{
-          "images" => [%{"id" => id, "references" => ["localhost:5000/team/app:1.2"], "size_bytes" => 1}],
+          "images" => [
+            %{
+              "id" => id,
+              "references" => ["localhost:5000/team/app@sha256:" <> String.duplicate("b", 64)],
+              "size_bytes" => 1
+            }
+          ],
           "build_cache_bytes" => 0
         }
       })
 
     saved |> Ecto.Changeset.change(head_id: head.id) |> Repo.update!()
 
-    assert %{images: [%{repository: "localhost:5000/team/app", digest: ^id}]} =
+    assert %{images: [%{name: "localhost:5000/team/app@sha256:bbbbbbbbbbbb"}]} =
              DockerCache.repository(account.id, saved.id, @period)
   end
 

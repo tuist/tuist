@@ -98,8 +98,7 @@ defmodule Tuist.Runners.DockerCache do
 
       %{
         id: image["id"],
-        repository: references |> List.first() |> repository_name(),
-        digest: Enum.find_value(references, &digest_of/1) || image["id"],
+        name: image_name(references, image["id"]),
         size_bytes: image["size_bytes"],
         last_used_at: parse_time(image["last_used_at"])
       }
@@ -108,19 +107,20 @@ defmodule Tuist.Runners.DockerCache do
 
   defp images(_head), do: []
 
-  # An image is one pulled digest, whatever tags jobs used for it: it shows as
-  # its repository and that digest.
-  defp repository_name(nil), do: nil
+  # An image shows as the first tag a job used for it, as its repository and
+  # short digest when jobs pulled it only by digest, or as its short ID.
+  defp image_name(references, id) do
+    {digests, tags} = Enum.split_with(references, &String.contains?(&1, "@"))
 
-  defp repository_name(reference),
-    do: reference |> String.split("@", parts: 2) |> hd() |> String.replace(~r/:[^:\/]+$/, "")
-
-  defp digest_of(reference) do
-    case String.split(reference, "@", parts: 2) do
-      [_, "sha256:" <> _ = digest] -> digest
-      _ -> nil
+    case {tags, digests} do
+      {[tag | _], _} -> tag
+      {[], [digest | _]} -> digest |> String.split("@sha256:", parts: 2) |> short_reference()
+      _ -> String.slice(id || "", 0, 19)
     end
   end
+
+  defp short_reference([name, hex]), do: name <> "@sha256:" <> String.slice(hex, 0, 12)
+  defp short_reference([reference]), do: reference
 
   defp parse_time(value) when is_binary(value) do
     case DateTime.from_iso8601(value) do

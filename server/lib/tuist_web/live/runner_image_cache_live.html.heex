@@ -149,10 +149,7 @@
       <.card_section data-part="table-section">
         <.table id="image-cache-images-table" rows={@selected.images}>
           <:col :let={image} label={dgettext("dashboard_runners", "Image")}>
-            <.text_cell label={image.repository || "—"} />
-          </:col>
-          <:col :let={image} label={dgettext("dashboard_runners", "Digest")}>
-            <.text_cell label={short_digest(image.digest)} />
+            <.text_cell label={image.name} />
           </:col>
           <:col :let={image} label={dgettext("dashboard_runners", "Size")}>
             <.text_cell label={RunnerVolumesLive.bytes(image.size_bytes)} />
