@@ -53,6 +53,42 @@ agent under the same version. Its release tag requires both images to exist;
 managed production selects that agent version and provisions host cache storage
 through Helm, without a separate human kubectl elevation.
 
+## Certificate trust
+
+`workflows/certificate-trust.yml` runs Go, shell and isolated ExUnit checks with
+read-only permissions. Its explicit `kura_qualification` dispatch also executes
+native Linux Rust fixtures and public/identity-format opt-ins on a fresh Ubuntu
+runner without credentials. Native-store overrides/errors/reloads run only in
+owned child processes; never mutate the parent test environment. It has no
+Python, image manufacturing, registry login,
+publication or deployment. Keep the explicit Go SDK qualification allowlist and
+CI pin aligned; newer release lines alone do not prove the intermediate-key deny.
+`scripts/server-oidc-trust-preflight.exs` explicitly opts into credential-free public native/protected TLS controls before server shard authentication. It reports root counts and fixed outcomes, never credentials, bodies or raw errors. Both controls and protected HTTP must succeed; the native control is not an authentication fallback or a weaker production transport.
+The aggregate mitigation paths trigger many independent main deploy workflows:
+split merges by owner rather than treating this test job as a fleet rollout gate.
+Runner idle-only and Kura health-gated waves can stay warm; cache-volume agents,
+parallel gateway updates and singleton access paths need separate qualification.
+`workflows/kura-runtime-image.yml` has an explicit `qualification_only` dispatch
+branch for native Linux tests, exact release assembly and ABBA resource evidence.
+It is the safe dispatch default; publication requires explicit `false` and its
+own authorization. The job overrides permissions to contents-read, uses only `github.token`, skips
+the publishing job, and never logs into a registry or configures a remote cache.
+Its artifact allowlist excludes generated private test keys and runnable
+binaries/images; only public evidence and artifact hashes/IDs are retained.
+Successful execution is evidence to review, not deployment or budget approval.
+The bounded `resource_repetitions` choice runs one to three full ABBA blocks on
+that same host, retaining every run. Extra repetitions investigate variation,
+not permission to rerun until a flag disappears.
+See `kura/test/e2e/certificate-trust/AGENTS.md`.
+
+Kura and Android SDK image builds require the shared named `certificate-trust`
+Docker context. Keep direct E2E Docker callers and release path detection aligned.
+Management Tailscale image replacements require the manual workflow's separate
+access-path qualification; never bypass its singleton Recreate guard on push.
+Server image builds combine the certificate-trust and optional Mix-cache named
+contexts in one multiline `build-contexts` input; duplicate YAML keys invalidate
+both the manual staging and production workflows.
+
 Server CI's Format job runs `scripts/server-clickhouse.test.sh` against the real local/CI launcher with stubbed ClickHouse/HTTP commands and child-process-only file limits. Cover low soft limits, already-raised limits, restricted hard ceilings, unsupported raises and the already-running fast path. The launcher raises ClickHouse's soft limit to its available hard limit before spawning it; do not replace this safeguard with seed retries or reduce seed coverage to hide file-descriptor exhaustion.
 
 ## Server production deployment
@@ -200,6 +236,14 @@ Kura's clients test shard also runs the portable Xcode lookup fixture lifecycle
 regressions in `kura/spec/e2e/xcode_lookups_lifecycle_spec.sh`. These validate
 cleanup and deletion guards without Xcode or a cache service; actual compiler
 replay remains an opt-in Apple silicon test.
+
+## SwifterPM certificate fixtures
+
+The standalone SwifterPM unit job and the CLI unit/coverage jobs explicitly install
+Homebrew `openssl@3` for loopback-only TLS test servers. Do not rely on incidental
+runner formula dependencies or use LibreSSL's all-interface server instead. This
+is a test-fixture dependency, not client/runtime verifier qualification or a
+production trust-store change.
 
 ## SwifterPM E2E credentials
 

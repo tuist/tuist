@@ -34,29 +34,35 @@ private func resolvedCACertificatePath() -> String? {
     return HTTPSettings.current.caCertificatePath
 }
 
-/// The session delegate to use. When a custom CA bundle resolves and parses, a
-/// trust-augmenting delegate is used so a private CA is honored on top of the system
-/// root store. Otherwise the behavior is unchanged from before: HAR metrics delegate
-/// when available, or no delegate at all.
-private func tuistSessionDelegate(followRedirects: Bool = true) -> (URLSessionDelegate & URLSessionTaskDelegate)? {
+/// Apple sessions always apply the key deny after normal trust evaluation, even
+/// without a custom CA bundle. Additional anchors augment the system roots. Other
+/// platforms keep their metrics behavior and require separate verifier qualification.
+private func tuistSessionDelegate(
+    additionalBlockedSPKIHashes: Set<String>, followRedirects: Bool
+) -> (URLSessionDelegate & URLSessionTaskDelegate)? {
     #if canImport(Security)
-        if let path = resolvedCACertificatePath(),
-           let certificates = CACertificateLoader.load(from: path),
-           !certificates.isEmpty
-        {
-            return TuistURLSessionDelegate(additionalCertificates: certificates, followRedirects: followRedirects)
-        }
-    #endif
-    if !followRedirects { return NoDiscoveryRedirects() }
-    #if canImport(TuistHAR)
-        return URLSessionMetricsDelegate.shared
+        let certificates = resolvedCACertificatePath().flatMap { CACertificateLoader.load(from: $0) } ?? []
+        return TuistURLSessionDelegate(
+            additionalCertificates: certificates,
+            additionalBlockedSPKIHashes: additionalBlockedSPKIHashes,
+            followRedirects: followRedirects
+        )
     #else
-        return nil
+        if !followRedirects { return NoDiscoveryRedirects() }
+        #if canImport(TuistHAR)
+            return URLSessionMetricsDelegate.shared
+        #else
+            return nil
+        #endif
     #endif
 }
 
-private func makeURLSession(configuration: URLSessionConfiguration, followRedirects: Bool = true) -> URLSession {
-    if let delegate = tuistSessionDelegate(followRedirects: followRedirects) {
+private func makeURLSession(
+    configuration: URLSessionConfiguration, additionalBlockedSPKIHashes: Set<String> = [], followRedirects: Bool = true
+) -> URLSession {
+    if let delegate = tuistSessionDelegate(
+        additionalBlockedSPKIHashes: additionalBlockedSPKIHashes, followRedirects: followRedirects
+    ) {
         return URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
     }
     return URLSession(configuration: configuration)
@@ -220,6 +226,23 @@ private final class NoDiscoveryRedirects: NSObject, URLSessionTaskDelegate, Send
 }
 
 extension URLSession {
+    /// Retains native default cache, cookie and timeout behavior for direct callers.
+    /// Apple platforms add the key policy; other platforms require a patched verifier.
+    public static let tuistDefault = makeURLSession(configuration: .default)
+
+    /// Retains caller-supplied cache/timeouts and installs the key policy on Apple.
+    /// Other platforms require independent qualification of the native verifier.
+    public static func tuist(configuration: URLSessionConfiguration) -> URLSession {
+        makeURLSession(configuration: configuration)
+    }
+
+    #if canImport(Security)
+        /// Adds restrictions without allowing removal of the embedded key policy.
+        public static func tuist(configuration: URLSessionConfiguration, additionalBlockedSPKIHashes: Set<String>) -> URLSession {
+            makeURLSession(configuration: configuration, additionalBlockedSPKIHashes: additionalBlockedSPKIHashes)
+        }
+    #endif
+
     public static var tuistDiscovery: URLSession {
         let configuration = tuistURLSessionConfiguration()
         configuration.timeoutIntervalForRequest = 10

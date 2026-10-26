@@ -209,6 +209,8 @@ jobs:
       # increments lose counts. TUIST_COVERAGE_PREFIX_MAPPING keeps Xcode's prefix
       # mapping in coverage builds, so the compilation cache replays across
       # runners; the CLI maps the covered paths back.
+      - name: Install loopback TLS test dependency
+        run: brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
       - name: Run tests
         run: tuist test TuistUnitTests ${SELECTIVE_TESTING:+"$SELECTIVE_TESTING"} -- -retry-tests-on-failure -test-iterations 4
 

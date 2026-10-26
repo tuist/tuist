@@ -1,6 +1,8 @@
 module github.com/tuist/tuist/infra/stable-egress-controller
 
-go 1.25.0
+go 1.26.10
+
+godebug default=go1.25
 
 require (
 	github.com/hetznercloud/hcloud-go/v2 v2.17.0

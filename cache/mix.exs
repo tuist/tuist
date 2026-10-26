@@ -26,6 +26,9 @@ defmodule Cache.MixProject do
 
   defp deps do
     [
+      # Remove the eMudhra roots until certifi publishes https://github.com/certifi/erlang-certifi/pull/56.
+      {:certifi,
+       github: "certifi/erlang-certifi", ref: "f5d808c59ee727ddcfe8abaff7f4ea036950c8e9", depth: 1, override: true},
       {:sentry, "~> 11.0.4"},
       {:hackney, "~> 1.8"},
       # Using fork with client disconnect detection during body read timeouts

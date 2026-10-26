@@ -20,6 +20,9 @@
 //! option reads through to the remote on every lookup.
 
 pub mod analytics;
+pub mod certificate_trust;
+#[cfg(test)]
+mod certificate_trust_tests;
 pub mod endpoint;
 pub mod proxy;
 pub mod proxy_failure;

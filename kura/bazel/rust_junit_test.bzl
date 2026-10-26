@@ -4,7 +4,7 @@ Standard libtest (what `rust_test` runs) does not write JUnit on stable Rust,
 so Bazel falls back to synthesizing a one-case-per-target `test.xml` and
 Tuist Test Insights collapses the whole target to a single row. This macro
 wraps the compiled libtest binary in a small shell adapter that translates
-libtest's text output into the JUnit report Bazel expects at
+libtest's structured JSON events into the JUnit report Bazel expects at
 $XML_OUTPUT_FILE, keeping per-case rows in Tuist without changing test
 source or splitting the target.
 
@@ -19,7 +19,7 @@ Usage:
     )
 
 The macro forwards every rust_test attribute onto the inner binary target.
-See kura/bazel/tools/rust_libtest_junit.sh for the parser.
+See kura/bazel/tools/rust_libtest_junit.rs for the Rust report writer.
 """
 
 load("@rules_rs//rs:rust_test.bzl", "rust_test")
@@ -50,8 +50,9 @@ def rust_junit_test(name, tags = None, size = "medium", **kwargs):
         args = [
             "$(rootpath :" + binary_name + ")",
             name,
+            "$(rootpath //bazel/tools:rust_libtest_junit)",
         ],
-        data = [":" + binary_name],
+        data = [":" + binary_name, "//bazel/tools:rust_libtest_junit"],
         tags = tags,
         size = size,
     )

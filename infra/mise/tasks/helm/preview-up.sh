@@ -81,6 +81,7 @@ else
     docker build \
         --platform "$PLATFORM" \
         -f "$REPO_ROOT/registry/Dockerfile" \
+        --build-context "certificate-trust=$REPO_ROOT/infra/certificate-trust" \
         -t "${REGISTRY_REPO}:${IMAGE_TAG}" \
         "$REPO_ROOT"
     echo "==> Building Kura controller image locally..."
@@ -94,6 +95,7 @@ else
     docker build \
         --platform "$PLATFORM" \
         -t "${KURA_RUNTIME_REPO}:${KURA_IMAGE_TAG}" \
+        --build-context "certificate-trust=$REPO_ROOT/infra/certificate-trust" \
         "$REPO_ROOT/kura"
 fi
 

@@ -8,6 +8,8 @@ import java.net.HttpURLConnection
 import java.net.InetSocketAddress
 import java.net.URI
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.X509TrustManager
 
 /**
  * Single source of truth for the HTTP machinery the Tuist Gradle plugin uses.
@@ -29,8 +31,11 @@ open class TuistHttpClients(
     private val proxyURLProvider: () -> String? = { environmentProxyURL() },
     private val environmentVariables: Map<String, String> = System.getenv(),
     private val pluginVersion: String? = PluginVersion.current,
+    private val trustManagerProvider: () -> X509TrustManager = { CertificateTrust.systemTrustManager() },
     val retryPolicy: RetryPolicy = RetryPolicy()
 ) {
+
+    private val tls by lazy { CertificateTrust.create(trustManagerProvider()) }
 
     val javaProxy: java.net.Proxy? by lazy {
         if (useEnvironmentProxy) environmentProxy() else null
@@ -38,6 +43,7 @@ open class TuistHttpClients(
 
     open val okHttp: OkHttpClient by lazy {
         OkHttpClient.Builder()
+            .sslSocketFactory(tls.socketFactory, tls.trustManager)
             .connectionPool(ConnectionPool(MAX_IDLE_CONNECTIONS, IDLE_CONNECTION_KEEP_ALIVE_SECONDS, TimeUnit.SECONDS))
             .connectTimeout(DEFAULT_CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(DEFAULT_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
@@ -78,6 +84,7 @@ open class TuistHttpClients(
     ): HttpURLConnection {
         val raw = javaProxy?.let { url.toURL().openConnection(it) } ?: url.toURL().openConnection()
         val connection = raw as HttpURLConnection
+        if (connection is HttpsURLConnection) connection.sslSocketFactory = tls.socketFactory
         connection.connectTimeout = connectTimeoutMs
         connection.readTimeout = readTimeoutMs
         FeatureFlagsHeaders.headerValue(environmentVariables)?.let { headerValue ->

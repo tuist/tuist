@@ -1,6 +1,8 @@
 module github.com/tuist/tuist/infra/egress-tree-agent
 
-go 1.25.0
+go 1.26.10
+
+godebug default=go1.25
 
 require (
 	github.com/cilium/ebpf v0.22.0

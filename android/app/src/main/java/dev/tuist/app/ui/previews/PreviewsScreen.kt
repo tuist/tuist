@@ -373,8 +373,8 @@ private fun PreviewRow(preview: Preview, onClick: () -> Unit) {
             }
         }
 
-        val apkBuild = preview.builds.firstOrNull { it.type == AppBuild.Type.apk }
-        if (apkBuild != null && preview.supportedPlatforms.contains(PreviewSupportedPlatform.android)) {
+        val apkBuild = preview.builds.firstOrNull { it.type == AppBuild.Type.APK }
+        if (apkBuild != null && preview.supportedPlatforms.contains(PreviewSupportedPlatform.ANDROID)) {
             Spacer(Modifier.width(NooraSpacing.Spacing4))
             val context = LocalContext.current
             Box(

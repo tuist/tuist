@@ -4,6 +4,7 @@ import Foundation
 #endif
 import Path
 import TuistCI
+import TuistHTTP
 import TuistProcess
 import TuistServer
 
@@ -178,7 +179,7 @@ struct CargoShardService {
     static func downloadArchive(
         from url: URL,
         to archive: URL,
-        transfer: RetryingURLTransfer = RetryingURLTransfer(urlSession: .shared)
+        transfer: RetryingURLTransfer = RetryingURLTransfer(urlSession: .tuistDefault)
     ) async throws {
         let (file, response) = try await transfer.download(URLRequest(url: url))
         guard let response = response as? HTTPURLResponse, (200 ..< 300).contains(response.statusCode) else {

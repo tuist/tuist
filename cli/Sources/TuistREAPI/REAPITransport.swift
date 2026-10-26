@@ -42,19 +42,12 @@ enum REAPITransport {
 
     static func make(
         endpoint: GRPCEndpoint,
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        additionalBlockedSPKIHashes: Set<String> = []
     ) async throws -> HTTP2ClientTransport.Posix {
         let variables = Environment.current.variables
         let ca = variables["TUIST_CA_CERTIFICATE"].flatMap { $0.isEmpty ? nil : $0 } ?? HTTPSettings.current.caCertificatePath
-        var tls = TLSConfiguration.makeClientConfiguration()
-        tls.applicationProtocols = ["h2"]
-        if let ca {
-            let bytes = Array(try await fileSystem.readFile(at: AbsolutePath(validating: URL(fileURLWithPath: ca).path)))
-            let certificates = (try? NIOSSLCertificate.fromPEMBytes(bytes)) ?? []
-            tls.additionalTrustRoots = [.certificates(try certificates.isEmpty
-                    ? [NIOSSLCertificate(bytes: bytes, format: .der)]
-                    : certificates)]
-        }
+        let tls = try await clientTLSConfiguration(ca: ca, fileSystem: fileSystem)
         let context = endpoint.isTLS ? try NIOSSLContext(configuration: tls) : nil
         let proxy = try proxyURL(endpoint: endpoint, variables: variables, enabled: HTTPSettings.current.useEnvironmentProxy)
         var proxyTLS = tls
@@ -65,22 +58,26 @@ enum REAPITransport {
             channel.eventLoop.makeCompletedFuture {
                 if let context {
                     try channel.pipeline.syncOperations.addHandler(
-                        NIOSSLClientHandler(context: context, serverHostname: endpoint.host), position: .first
+                        makeTLSHandler(
+                            context: context, serverHostname: endpoint.host,
+                            additionalBlockedSPKIHashes: additionalBlockedSPKIHashes
+                        ),
+                        position: .first
                     )
                 }
                 if let proxy {
-                    var headers = "CONNECT \(endpoint.authority) HTTP/1.1\r\nHost: \(endpoint.authority)\r\n"
-                    if let user = proxy.user {
-                        let credential = Data("\(user):\(proxy.password ?? "")".utf8).base64EncodedString()
-                        headers += "Proxy-Authorization: Basic \(credential)\r\n"
-                    }
                     try channel.pipeline.syncOperations.addHandler(
-                        REAPIProxyTunnel(request: headers + "\r\n"), position: .first
+                        REAPIProxyTunnel(request: proxyConnectRequest(authority: endpoint.authority, proxy: proxy)),
+                        position: .first
                     )
                 }
                 if let proxyContext, let host = proxy?.host {
                     try channel.pipeline.syncOperations.addHandler(
-                        NIOSSLClientHandler(context: proxyContext, serverHostname: host), position: .first
+                        makeTLSHandler(
+                            context: proxyContext, serverHostname: host,
+                            additionalBlockedSPKIHashes: additionalBlockedSPKIHashes
+                        ),
+                        position: .first
                     )
                 }
             }
@@ -93,6 +90,81 @@ enum REAPITransport {
             transportSecurity: endpoint.isTLS ? .customSecure : .plaintext,
             config: config
         )
+    }
+
+    private static func clientTLSConfiguration(ca: String?, fileSystem: FileSysteming) async throws -> TLSConfiguration {
+        var tls = TLSConfiguration.makeClientConfiguration()
+        tls.applicationProtocols = ["h2"]
+        if let ca {
+            let bytes = Array(try await fileSystem.readFile(at: AbsolutePath(validating: URL(fileURLWithPath: ca).path)))
+            let pem = (try? NIOSSLCertificate.fromPEMBytes(bytes)) ?? []
+            let certificates = try pem.isEmpty ? [NIOSSLCertificate(bytes: bytes, format: .der)] : pem
+            tls.additionalTrustRoots = [.certificates(certificates)]
+        }
+        return tls
+    }
+
+    private static func proxyConnectRequest(authority: String, proxy: URL) -> String {
+        var headers = "CONNECT \(authority) HTTP/1.1\r\nHost: \(authority)\r\n"
+        if let user = proxy.user {
+            let credential = Data("\(user):\(proxy.password ?? "")".utf8).base64EncodedString()
+            headers += "Proxy-Authorization: Basic \(credential)\r\n"
+        }
+        return headers + "\r\n"
+    }
+
+    static func makeTLSHandler(
+        context: NIOSSLContext, serverHostname: String, additionalBlockedSPKIHashes: Set<String> = []
+    ) throws -> NIOSSLClientHandler {
+        guard case .fullVerification = context.configuration.certificateVerification else {
+            throw NIOSSLError.unableToValidateCertificate
+        }
+        #if canImport(Security)
+            if case .default = context.configuration.trustRoots ?? .default {
+                let additionalAnchors = try context.configuration.additionalTrustRoots.flatMap { roots -> [Data] in
+                    guard case let .certificates(certificates) = roots else { throw NIOSSLError.failedToLoadCertificate }
+                    return try certificates.map { Data(try $0.toDERBytes()) }
+                }
+                // Darwin's default-root path uses Security.framework and skips legacy
+                // callbacks. Preserve its normal SSL/hostname policy before the deny.
+                return try NIOSSLClientHandler(
+                    context: context,
+                    serverHostname: serverHostname,
+                    customVerificationCallback: { certificates, promise in
+                        guard let chain = try? certificates.map({ Data(try $0.toDERBytes()) })
+                        else { promise.succeed(.failed); return }
+                        CertificateTrust.evaluateTLS(
+                            certificateChain: chain,
+                            hostname: serverHostname,
+                            additionalAnchors: additionalAnchors,
+                            additionalBlockedSPKIHashes: additionalBlockedSPKIHashes
+                        ) { allowed in
+                            promise.succeed(allowed ? .certificateVerified : .failed)
+                        }
+                    }
+                )
+            }
+        #endif
+        // Explicit roots on Darwin and other platforms use BoringSSL verification.
+        return try NIOSSLClientHandler(
+            context: context,
+            serverHostname: serverHostname,
+            verificationCallback: { result, certificate in
+                verifyCertificate(result, certificate: certificate, additionalBlockedSPKIHashes: additionalBlockedSPKIHashes)
+            }
+        )
+    }
+
+    static func verifyCertificate(
+        _ result: NIOSSLVerificationResult,
+        certificate: NIOSSLCertificate,
+        additionalBlockedSPKIHashes: Set<String> = []
+    ) -> NIOSSLVerificationResult {
+        guard case .certificateVerified = result,
+              let bytes = try? certificate.toDERBytes(),
+              CertificateTrust.isAllowed(derCertificate: Data(bytes), additionalBlockedSPKIHashes: additionalBlockedSPKIHashes)
+        else { return .failed }
+        return .certificateVerified
     }
 
     static func proxyURL(endpoint: GRPCEndpoint, variables: [String: String], enabled: Bool) throws -> URL? {

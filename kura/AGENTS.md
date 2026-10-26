@@ -2,6 +2,45 @@
 
 This node covers the `kura/` workspace, a Rust service for low-latency cache meshes that replicate artifacts and metadata across peer nodes.
 
+## Release image trust
+
+Production and E2E runtime assembly use `Dockerfile.release`, not just
+`Dockerfile`. Both OS bundles and embedded Rust verification libraries must be
+patched. Release assembly requires the named `certificate-trust` build context
+(`../infra/certificate-trust` from this directory) and checks the resulting PEM
+bundle by SPKI before publishing. Keep every build caller and release path
+filter aligned. See `../infra/certificate-trust/README.md` for the progressive
+rollout and instance-pin gates; never use a root-only overlay to claim embedded
+Rust roots are remediated.
+
+## Native TLS key policy
+
+`src/certificate_trust.rs` and its Apple companion independently embed the
+incident key policy. Preserve native/enterprise roots for ordinary clients and
+explicit anchors for peer mTLS; do not reuse Atlas's bundled-root configuration.
+Native Apple validation stays authoritative before full evaluated-chain checks;
+Unix native roots are loaded per build and filtered before ordinary WebPKI
+validation. Keep the provider, identity PEM formats/order/last key, snapshot
+rotation, SNI, protocol versions and ALPN intact when using preconfigured TLS.
+Do not reset the backend or apply ignored reqwest root/identity/ALPN setters
+after the protected builder. All auth/control-plane/origin/Sentry/blocking OTLP/
+Kubernetes/peer factories and inbound peer authentication share this boundary.
+
+`//:certificate_trust_test` runs independent fixture tests without RocksDB; its
+public-network and existing-OpenSSL-3 fixture opt-ins are explicitly ignored by
+default. Linux native-store overrides, malformed/missing files, strict extras,
+anchor denial and fresh reload behavior are tested in an owned child process;
+never mutate shared `SSL_CERT_FILE`/`SSL_CERT_DIR` variables in the parent.
+See [`../infra/certificate-trust/KURA-CLIENTS.md`](../infra/certificate-trust/KURA-CLIENTS.md)
+for commands and evidence limits. The explicit read-only Linux workflow now
+executes the standalone native suite; local macOS passes alone are not Linux
+evidence. Neither unit suite is four-axis stress, release or rollout clearance.
+The build-only Linux release/resource entry point has its own
+[`test/e2e/certificate-trust/AGENTS.md`](test/e2e/certificate-trust/AGENTS.md);
+keep its private fixture keys out of artifacts and review all measured deltas.
+The [resource fixture node](test/e2e/provider-topology/AGENTS.md) owns convergence,
+observer-cost and phase accounting; never filter runs by convergence outcome.
+
 ## Key Boundaries
 - Experimental managed authority: `src/serving_authority.rs` and `src/handover.rs`.
   See [the recovery runbook](../infra/kura-controller/serving-authority.md).
@@ -151,7 +190,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   - `test/e2e/multipart-admission/run.py` launches an isolated native server for the multipart admission ShellSpec.
   - See `ops/AGENTS.md` for Helm, rollout helpers, and observability config boundaries
 - Bazel build system: `MODULE.bazel`, `BUILD.bazel`, `.bazelrc`, `bazel/` (toolchains + vendored deps); the crate graph is resolved from `Cargo.toml`/`Cargo.lock` by rules_rs
-- Rust test targets use `rust_junit_test` from `bazel/rust_junit_test.bzl` instead of `rust_test`. Stable libtest does not write JUnit, so the macro wraps the compiled test binary in `bazel/tools/rust_libtest_junit.sh`, which parses libtest's text output and writes JUnit to `$XML_OUTPUT_FILE`. Without this, Bazel synthesizes a one-case-per-target report and Tuist collapses each target to a single row. Keep this in place when adding new `#[test]` modules; the macro is a drop-in for `rust_test`.
+- Rust test targets use `rust_junit_test` from `bazel/rust_junit_test.bzl` instead of `rust_test`. Stable libtest does not write JUnit, so the macro wraps the compiled test binary in `bazel/tools/rust_libtest_junit.sh`, which invokes the Rust `bazel/tools/rust_libtest_junit.rs` reporter over libtest JSON events and writes JUnit to `$XML_OUTPUT_FILE`, without Python. See [`bazel/tools/AGENTS.md`](bazel/tools/AGENTS.md). Bazel `--test_filter` is not translated by this wrapper; use `--test_arg` for libtest filtering. Without this, Bazel synthesizes a one-case-per-target report and Tuist collapses each target to a single row. Keep this in place when adding new `#[test]` modules; the macro is a drop-in for `rust_test`.
 - License and contribution terms: `LICENSE.md`, `CLA.md`, `cla/`
 
 ## Development
@@ -168,7 +207,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   the closest Kura remote cache (it writes `kura/.bazelrc.tuist`); re-run it after changing physical
   location. Without access, skip it — Bazel builds fine against the local cache.
 - Synchronize inline write races with the test-only `FailpointAction::Pause` and explicit replicated versions; local versions are stamped at staging, so sleeps between request starts cannot guarantee distinct versions.
-- Synchronize cancellation tests with explicit blocking-commit hooks; fixed scheduler-yield counts cannot guarantee that disk work has started or finished on CI.
+- Synchronize cancellation tests with explicit blocking-commit hooks; fixed scheduler-yield counts cannot guarantee that disk work has started or finished on CI. Temporary-body cancellation first waits for the body to reach its pending read with a real staged file/reservation, then waits for both unlink and ledger release. An empty directory alone can precede the reservation drop and is not a cleanup-completion signal.
 - HTTP listener logging tests assert the rendered Display cause chain, not Debug-only protocol-code spellings. Keep the warning level and listener/peer/connection-age assertions alongside the concrete underlying cause.
 - The two-source backfill capacity E2E checks readiness, completion, full-ring retention, and bounded evictions. Exclusive claims and independent fetchers can leave holes in the retained recency band, so do not assert fixed artifact identities; ordered marginal-trade behavior is covered by the backfill Rust unit tests.
 - Consider Kura work incomplete until `mise run clippy` passes (fallback when Bazel is unavailable:

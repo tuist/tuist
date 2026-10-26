@@ -226,6 +226,10 @@ jobs:
       - uses: ./.github/actions/setup-server-mix
         with:
           mise-cache: "false"
+      - name: Verify credential-free native and protected OIDC transport
+        env:
+          TUIST_TRUST_LIVE: "1"
+        run: elixir ../.github/scripts/server-oidc-trust-preflight.exs
       # The _build volume also preserves CLDR downloads. Do not restore an
       # archive cache into a directory inside that volume.
       - name: Prefetch CLDR locale data
@@ -603,6 +607,7 @@ jobs:
           docker buildx build \
             --progress=plain \
             --file "$GITHUB_WORKSPACE/server/Dockerfile" \
+            --build-context "certificate-trust=$GITHUB_WORKSPACE/infra/certificate-trust" \
             --target runner \
             --load \
             --secret id=github_token,env=GITHUB_TOKEN \

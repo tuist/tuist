@@ -22,7 +22,7 @@ cleanup() {
 
 trap cleanup EXIT
 
-docker build -t "${IMAGE_REPOSITORY}:${IMAGE_TAG}" .
+docker build --build-context certificate-trust=../infra/certificate-trust -t "${IMAGE_REPOSITORY}:${IMAGE_TAG}" .
 
 kind create cluster --name "${CLUSTER_NAME}"
 kind load docker-image "${IMAGE_REPOSITORY}:${IMAGE_TAG}" --name "${CLUSTER_NAME}"

@@ -374,7 +374,9 @@ jobs:
           context: .
           file: ./server/Dockerfile
           target: runner
-          build-contexts: ${{ steps.project-cache.outcome == 'success' && steps.project-cache.outputs.context || '' }}
+          build-contexts: |
+            certificate-trust=./infra/certificate-trust
+            ${{ steps.project-cache.outcome == 'success' && steps.project-cache.outputs.context || '' }}
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
@@ -466,6 +468,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
+          build-contexts: certificate-trust=./infra/certificate-trust
           push: true
           tags: ${{ env.REGISTRY }}/${{ matrix.image }}:${{ steps.tag.outputs.image_tag }}
           build-args: ${{ matrix.build-args }}
@@ -580,6 +583,7 @@ jobs:
           # bin/${TARGETARCH}/kura staged above and performs no compilation.
           context: ./kura
           file: ./kura/Dockerfile.release
+          build-contexts: certificate-trust=./infra/certificate-trust
           platforms: linux/amd64
           push: true
           tags: |

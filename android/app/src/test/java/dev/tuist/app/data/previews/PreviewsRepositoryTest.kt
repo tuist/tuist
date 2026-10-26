@@ -42,7 +42,7 @@ class PreviewsRepositoryTest {
                 defaultBranch = "main",
                 token = "",
                 repositoryUrl = "https://github.com/tuist/tuist",
-                visibility = Project.Visibility.`public`,
+                visibility = Project.Visibility.PUBLIC,
                 buildSystem = "xcode",
             ),
         )

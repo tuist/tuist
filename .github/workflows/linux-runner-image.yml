@@ -22,6 +22,9 @@ on:
   pull_request:
     paths:
       - infra/linux-runner-image/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/java-store.sh
+      - infra/certificate-trust/pem-store.sh
       - .github/workflows/linux-runner-image.yml
   workflow_dispatch:
     inputs:
@@ -62,11 +65,12 @@ jobs:
           docker run --rm --privileged \
             -e TUIST_TEST_BIND_MOUNTS=1 \
             -v "$RUNNER_TEMP/cache-volume.test:/cache-volume.test:ro" \
+            -v "$GITHUB_WORKSPACE/infra/certificate-trust/controls:/testdata/certificate-trust:ro" \
             ubuntu:22.04 /cache-volume.test -test.v
   build:
     needs: cache-mounts
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    runs-on: tuist-linux
+    runs-on: tuist-linux-large
     steps:
       - uses: actions/checkout@v4
 
@@ -138,6 +142,7 @@ jobs:
         with:
           context: infra/linux-runner-image
           file: infra/linux-runner-image/Dockerfile
+          build-contexts: certificate-trust=infra/certificate-trust
           # Linux runners run on Hetzner Robot bare-metal x86 boxes
           # at v1. arm64 is a future option (Ampere-based SKUs) and
           # can land as an additive `platforms:` entry.

@@ -68,10 +68,13 @@ on:
       - 'infra/mise/tasks/mgmt/**'
       - 'infra/helm/k8s-monitoring/**'
       - '.github/workflows/mgmt-cluster-apply.yml'
-  # Manual re-runs only apply the declarative state, e.g. to force a
-  # re-deploy without a code change. No incident-recovery operation is
-  # exposed through this workflow.
+  # Access-path replacements need an explicit, qualified manual run.
   workflow_dispatch:
+    inputs:
+      management_access_qualified:
+        description: Separate management access was tested; approve the singleton Tailscale restart
+        type: boolean
+        default: false
 
 # Serialize: don't let two pushes apply concurrently and race.
 concurrency:
@@ -180,6 +183,16 @@ jobs:
           mkdir -p "$(dirname "$KUBECONFIG")"
           op document get "kubeconfig: tuist-mgmt" --vault tuist-k8s-mgmt --output "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
+
+      - name: Guard the singleton management access path
+        env:
+          ACCESS_QUALIFIED: ${{ github.event_name == 'workflow_dispatch' && inputs.management_access_qualified }}
+        run: |
+          flags=()
+          if [[ "$ACCESS_QUALIFIED" == true ]]; then
+            flags+=(--acknowledged)
+          fi
+          bash infra/certificate-trust/guard.sh management-tailscale "${flags[@]}"
       - name: Validate management monitoring credential
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}

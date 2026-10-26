@@ -111,4 +111,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build storybook Docker image
-        run: docker build -f storybook/Dockerfile .
+        run: docker build -f storybook/Dockerfile --build-context certificate-trust=../infra/certificate-trust .

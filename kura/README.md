@@ -246,6 +246,21 @@ When peer mTLS is enabled:
 - 🪪 the certificate configured through `KURA_INTERNAL_TLS_CERT_PATH` should be valid for both server and client auth
 - 🏷️ the certificate SANs must cover the hostname used in `KURA_NODE_URL`
 
+### Outbound certificate distrust
+
+Kura embeds the twelve-key eMudhra incident policy independently of the OS PEM
+bundle. Ordinary clients retain native/enterprise trust, including configured
+extra CAs; peer mTLS retains explicit anchors and hot identity reload. Normal
+hostname, certificate, signature and native context checks remain authoritative,
+with an additional key deny over the constructed path and supplied peers.
+Inbound peer client authentication is restrictive too. Sentry's invalid-certificate
+override is not honored. An otherwise valid redundant blocked cross-sign can be
+rejected: repair the served chain rather than disable TLS or fall back insecurely.
+
+The implementation, opt-in tests and outstanding Linux/resource/release gates
+are documented in [certificate trust qualification](../infra/certificate-trust/KURA-CLIENTS.md).
+Source changes do not patch existing processes or authorize a rollout.
+
 ## ⚙️ Runtime Model And Limits
 
 Kura is designed around explicit resource budgets instead of relying on ambient process limits.

@@ -6,9 +6,9 @@
 # own tailscaled. The rack's boot server runs from the operator's image instead
 # (infra/cluster-api-provider-tuist/cmd/rack-boot).
 ARG ALPINE_VERSION=3.22
-ARG GO_VERSION=1.25
+ARG GO_VERSION=1.26.10
 
-FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS tor-console
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine AS tor-console
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /src
@@ -17,5 +17,6 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags=
 
 FROM alpine:${ALPINE_VERSION}
 
-RUN apk add --no-cache bird2 dnsmasq ethtool iproute2 nftables keepalived tailscale
+RUN apk add --no-cache bird2 dnsmasq ethtool iproute2 nftables keepalived tailscale 'ca-certificates>=20261020-r0' \
+    && update-ca-certificates
 COPY --from=tor-console /out/rack-tor-console /usr/local/bin/rack-tor-console

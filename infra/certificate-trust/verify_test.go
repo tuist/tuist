@@ -1,0 +1,888 @@
+package main
+
+import (
+	"bytes"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
+	"encoding/pem"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"reflect"
+	"regexp"
+	"runtime"
+	"strconv"
+	"strings"
+	"testing"
+)
+
+func command(t *testing.T, wantSuccess bool, name string, args ...string) []byte {
+	t.Helper()
+	cmd := exec.Command(name, args...)
+	output, err := cmd.CombinedOutput()
+	if (err == nil) != wantSuccess {
+		t.Fatalf("%s %v: %v\n%s", name, args, err, output)
+	}
+	return output
+}
+
+func write(t *testing.T, name string, data []byte) {
+	t.Helper()
+	if err := os.WriteFile(name, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func read(t *testing.T, name string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func TestVerifier(t *testing.T) {
+	if err := check(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPolicyEvidenceAndOTPSynchronization(t *testing.T) {
+	var policy struct {
+		Hashes []string          `json:"distrusted_spki_sha256"`
+		DER    map[string]string `json:"spki_der_base64"`
+		Count  int               `json:"key_count"`
+	}
+	if err := json.Unmarshal(policyJSON, &policy); err != nil {
+		t.Fatal(err)
+	}
+	if policy.Count != 12 || len(policy.Hashes) != 12 || len(policy.DER) != 12 {
+		t.Fatal("expected four root keys and eight intermediate keys")
+	}
+	expected := map[string]bool{}
+	for _, hash := range policy.Hashes {
+		der, err := base64.StdEncoding.Strict().DecodeString(policy.DER[hash])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := x509.ParsePKIXPublicKey(der); err != nil {
+			t.Fatal(err)
+		}
+		if fmt.Sprintf("%x", sha256.Sum256(der)) != hash || expected[hash] {
+			t.Fatal("inconsistent or duplicated policy evidence")
+		}
+		expected[hash] = true
+	}
+	for _, path := range []string{
+		"../../cli/Sources/TuistHTTP/CertificateTrust.swift",
+		"../../swifterpm/Sources/swifterpm/CertificateTrust.swift",
+		"../../cas-plugin/src/certificate_trust.rs",
+		"../../kura/src/certificate_trust.rs",
+		"../../atlas-native/auth/src/certificate_trust.rs",
+		"../../atlas-native/ios/Sources/AtlasCertificateTrust.swift",
+		"../../atlas-native/android/src/dev/tuist/atlas/AtlasCertificateTrust.kt",
+		"../../grafana-datasource/pkg/plugin/certificate_trust.go",
+		"../../infra/runner-image/cmd/runner-shell-agent/certificate_trust.go",
+		"../../infra/macos-log-shipper/internal/shipper/certificate_trust.go",
+		"../../infra/linux-runner-image/cmd/runner-shell-agent/certificate_trust.go",
+		"../../infra/linux-runner-image/cmd/tuist-cache-volume/certificate_trust.go",
+		"../../gradle/src/main/kotlin/dev/tuist/gradle/CertificateTrust.kt",
+		"../../android/app/src/main/java/dev/tuist/app/data/network/CertificateTrust.kt",
+	} {
+		module := read(t, path)
+		actual := map[string]bool{}
+		for _, hash := range regexp.MustCompile(`"([a-f0-9]{64})"`).FindAllSubmatch(module, -1) {
+			if actual[string(hash[1])] {
+				t.Fatalf("duplicated client policy key in %s", path)
+			}
+			actual[string(hash[1])] = true
+		}
+		if !reflect.DeepEqual(expected, actual) {
+			t.Fatalf("client deny list differs from policy.json in %s", path)
+		}
+	}
+	for _, path := range []string{
+		"../../server/lib/tuist/application/certificate_trust.ex",
+		"../../tuist_ex/lib/tuist_ex/certificate_trust.ex",
+	} {
+		module := read(t, path)
+		block := regexp.MustCompile(`(?s)@blocked\s+MapSet\.new\(\s*~w\((.*?)\)\s*\)`).FindSubmatch(module)
+		if len(block) != 2 {
+			t.Fatalf("cannot establish OTP deny list in %s", path)
+		}
+		actual := map[string]bool{}
+		for _, hash := range strings.Fields(string(block[1])) {
+			if actual[hash] {
+				t.Fatalf("duplicated OTP key in %s", path)
+			}
+			actual[hash] = true
+		}
+		if !reflect.DeepEqual(expected, actual) {
+			t.Fatalf("OTP deny list differs from policy.json in %s", path)
+		}
+	}
+}
+
+func TestKuraPolicyAndFactoryWiring(t *testing.T) {
+	root := "../../kura/src"
+	rawExpected := map[string]int{
+		"certificate_trust.rs": 1, "peer_tls.rs": 1,
+		"serving_authority.rs": 1, "telemetry.rs": 1,
+	}
+	backendExpected := map[string]int{
+		"certificate_trust.rs": 1, "peer_tls.rs": 1,
+		"serving_authority.rs": 1, "telemetry.rs": 1,
+	}
+	constructors := regexp.MustCompile(`\b(?:Client|ClientBuilder)::(?:new|builder|default)\(`)
+	// Match the named test module, not the first cfg(test) item: auth/tuist.rs
+	// has test keys before its production factory. This is a bounded inventory
+	// guard, not a complete Rust alias/macro parser or handshake qualification.
+	testModule := regexp.MustCompile(`(?m)^#\[cfg\(test\)\]\s*\nmod tests\s*\{`)
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".rs") || strings.HasSuffix(path, "_tests.rs") || entry.Name() == "tests.rs" || entry.Name() == "test_support.rs" {
+			return nil
+		}
+		source := read(t, path)
+		if location := testModule.FindIndex(source); location != nil {
+			// rustfmt puts the module's closing brace at column zero. An
+			// earlier unindented brace in a literal only shortens exclusion
+			// (fails closed). Always retain code after the test module.
+			end := regexp.MustCompile(`(?m)^}\s*$`).FindIndex(source[location[1]:])
+			if end == nil {
+				t.Fatalf("cannot bound Kura test module in %s", path)
+			}
+			source = append(append([]byte{}, source[:location[0]]...), source[location[1]+end[1]:]...)
+		}
+		name, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		if regexp.MustCompile(`\b(?:Client|ClientBuilder)\s+as\s+`).Match(source) {
+			t.Fatalf("review aliased Kura client in %s", path)
+		}
+		if name != "certificate_trust.rs" && bytes.Contains(source, []byte("ClientConfig::builder")) {
+			t.Fatalf("unprotected Rustls client in %s", path)
+		}
+		if actual := len(constructors.FindAll(source, -1)); actual != rawExpected[name] {
+			t.Fatalf("Kura constructor inventory changed in %s: %d", path, actual)
+		}
+		if actual := bytes.Count(source, []byte(".tls_backend_preconfigured(")); actual != backendExpected[name] {
+			t.Fatalf("Kura protected backend inventory changed in %s: %d", path, actual)
+		}
+		for _, forbidden := range []string{"danger_accept_invalid_", "tls_backend_rustls(", "tls_backend_native(", "use_preconfigured_tls(", ".tls_certs_only(", ".tls_certs_merge(", ".add_root_certificate(", ".identity(", ".http1_only(", ".http2_prior_knowledge(", "reqwest::get(", "reqwest::blocking::get(", "ClientTlsConfig", ".tls_config(", "with_native_roots(", "hyper_rustls::", "TlsConnector"} {
+			if forbidden == ".identity(" && rawExpected[name] == 0 && !bytes.Contains(source, []byte("client_builder(")) {
+				continue // Unrelated domain objects also have identity() methods.
+			}
+			if bytes.Contains(source, []byte(forbidden)) {
+				t.Fatalf("Kura TLS bypass/ignored setting %s in %s", forbidden, path)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for path, required := range map[string][]string{
+		"auth/tuist.rs":              {"certificate_trust::client_builder()?", "certificate_trust::failure_category(error)"},
+		"control_plane_http.rs":      {"certificate_trust::client_builder()?"},
+		"enrollment.rs":              {"certificate_trust::client_builder()?"},
+		"registration.rs":            {"certificate_trust::client_builder()"},
+		"reapi/asset/http.rs":        {"certificate_trust::client_builder()", ".no_proxy()", "reqwest::redirect::Policy::none()"},
+		"peer_tls.rs":                {"certificate_trust::config(", "Roots::Explicit(", "Roots::Native(", "certificate_trust::client_auth_verifier(", "self.identity.load_full()"},
+		"telemetry.rs":               {"transport: Some(", "sentry_http_client_builder(options)", "ReqwestHttpTransport::with_client", "certificate_trust::native_config()?"},
+		"certificate_trust_apple.rs": {"set_trust_anchor_certificates_only(false)", "set_trust_ocsp_response", "set_trust_verify_date", "trust.evaluate_with_error()", ".certificate_at_index(index)"},
+	} {
+		source := read(t, filepath.Join(root, path))
+		for _, token := range required {
+			if !bytes.Contains(source, []byte(token)) {
+				t.Fatalf("missing Kura wiring %s in %s", token, path)
+			}
+		}
+	}
+	for _, name := range []string{"issuer-roots.pem", "distrusted-intermediates.pem"} {
+		if !bytes.Equal(read(t, "../../kura/test/certificate-trust/"+name), read(t, "../../infra/linux-runner-image/cmd/tuist-cache-volume/testdata/certificate-trust/"+name)) {
+			t.Fatalf("Kura fixture drift: %s", name)
+		}
+	}
+	var policy struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(policyJSON, &policy); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(read(t, filepath.Join(root, "certificate_trust.rs")), []byte(`pub const POLICY_ID: &str = "`+policy.ID+`";`)) {
+		t.Fatal("Kura policy marker differs")
+	}
+	lock := read(t, "../../kura/Cargo.lock")
+	for name, version := range map[string]string{"reqwest": "0.13.2", "rustls": "0.23.46", "rustls-platform-verifier": "0.6.2", "rustls-native-certs": "0.8.3", "rustls-webpki": "0.103.16", "security-framework": "3.7.0"} {
+		if !bytes.Contains(lock, []byte("name = \""+name+"\"\nversion = \""+version+"\"")) {
+			t.Fatalf("requalify Kura native TLS parity after updating %s", name)
+		}
+	}
+	otlp := regexp.MustCompile(`(?m)^opentelemetry-otlp\s*=.*$`).Find(read(t, "../../kura/Cargo.toml"))
+	if len(otlp) == 0 || bytes.Contains(otlp, []byte(`"tls`)) {
+		t.Fatal("Kura OTLP gRPC TLS requires an explicitly protected channel")
+	}
+}
+
+func TestRustClientPolicyAndFactoryWiring(t *testing.T) {
+	var policy struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(policyJSON, &policy); err != nil {
+		t.Fatal(err)
+	}
+	marker := regexp.MustCompile(`(?m)^pub const POLICY_ID: &str = "([^"]+)";`).FindSubmatch(read(t, "../../cas-plugin/src/certificate_trust.rs"))
+	if policy.ID == "" || len(marker) != 2 || string(marker[1]) != policy.ID {
+		t.Fatal("proxy startup policy marker differs from policy.json")
+	}
+	if !bytes.Equal(read(t, "../../cas-plugin/src/certificate_trust.rs"), read(t, "../../atlas-native/auth/src/certificate_trust.rs")) {
+		t.Fatal("independently embedded Rust verifiers must stay synchronized")
+	}
+	paths, err := filepath.Glob("../../atlas-native/auth/src/*.rs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	builders := regexp.MustCompile(`Client::builder\(\)`)
+	protected := regexp.MustCompile(`Client::builder\(\)\s*\.use_preconfigured_tls\(config\)`)
+	count := 0
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_tests.rs") {
+			continue
+		}
+		// Scan complete files, including production items after test-only helpers.
+		// This literal inventory is deliberately not a Rust alias/macro parser.
+		production := read(t, path)
+		actual := len(builders.FindAll(production, -1))
+		if actual != len(protected.FindAll(production, -1)) || bytes.Contains(production, []byte("Client::new(")) {
+			t.Fatalf("unprotected Atlas HTTP factory in %s", path)
+		}
+		count += actual
+		if forbidden := unprotectedAtlasTLSCall(production); forbidden != "" {
+			t.Fatalf("unprotected Rust TLS path %s in %s", forbidden, path)
+		}
+	}
+	if count != 1 {
+		t.Fatal("review newly added/removed independent Atlas HTTP factories")
+	}
+	for name, required := range map[string][]string{
+		"presence.rs":   {"tokio_tungstenite::connect_async_tls_with_config(request, Some(config), true, Some(tls))"},
+		"api.rs":        {"tungstenite::client_tls_with_config(request, stream, Some(config), Some(tls))", "crate::transport::tls_config()?"},
+		"orbit_live.rs": {"crate::presence::connect_tls(request.clone(), config, tls.clone())", "crate::transport::tls_config()"},
+	} {
+		source := read(t, "../../atlas-native/auth/src/"+name)
+		for _, marker := range required {
+			if bytes.Count(source, []byte(marker)) != 1 {
+				t.Fatalf("review protected Atlas TLS factory %s in %s", marker, name)
+			}
+		}
+	}
+	for _, root := range []string{"../../atlas-native/ios/Sources", "../../atlas-native/android/src"} {
+		err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() || (!strings.HasSuffix(path, ".swift") && !strings.HasSuffix(path, ".kt")) {
+				return nil
+			}
+			if entry.Name() == "AtlasCertificateTrust.swift" || entry.Name() == "AtlasCertificateTrust.kt" {
+				return nil
+			}
+			production := bytes.ReplaceAll(read(t, path), []byte("AtlasCertificateTrust.openConnection("), nil)
+			if regexp.MustCompile(`URLSession\.shared|URLSession\s*\(|AsyncImage\s*\(|\.openConnection\s*\(|OkHttpClient|\bSocket\s*\(|\b(?:WK)?WebView\s*\(|\bNWConnection\s*\(|\b(?:Data|String)\s*\(\s*contentsOf\s*:|\.openStream\s*\(|\.readBytes\s*\(`).Match(production) {
+				t.Fatalf("independent unprotected native transport in %s", path)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func unprotectedAtlasTLSCall(source []byte) string {
+	for _, allowed := range []string{
+		"tokio_tungstenite::connect_async_tls_with_config(request, Some(config), true, Some(tls))",
+		"tungstenite::client_tls_with_config(request, stream, Some(config), Some(tls))",
+	} {
+		source = bytes.ReplaceAll(source, []byte(allowed), nil)
+	}
+	for _, forbidden := range []string{
+		"connect_async(", "connect_async_with_config(", "connect_async_tls(",
+		"connect_async_tls_with_config(", "tungstenite::connect(", "client_tls(",
+		"client_tls_with_config(", "Connector::NativeTls", "Connector::Plain", "danger_accept_invalid_",
+	} {
+		if bytes.Contains(source, []byte(forbidden)) {
+			return forbidden
+		}
+	}
+	return ""
+}
+
+func TestAtlasTLSInventoryDoesNotHideCallsAfterTestItems(t *testing.T) {
+	prefixes := []string{"", "#[cfg(test)]\nmod tests {}\n", "#[cfg(test)]\n#[path = \"tests.rs\"]\nmod tests;\n"}
+	for _, prefix := range prefixes {
+		for _, call := range []string{
+			"tungstenite::connect(request)", "client_tls(request, stream)",
+			"connect_async_tls(request)", "connect_async_with_config(request, config, true)",
+			"tungstenite::client_tls_with_config(request, stream, Some(config), None)",
+			"tokio_tungstenite::connect_async_tls_with_config(request, Some(config), true, None)",
+		} {
+			if unprotectedAtlasTLSCall([]byte(prefix+call)) == "" {
+				t.Fatalf("missed Atlas factory after test item: %s", call)
+			}
+		}
+	}
+	for _, allowed := range []string{
+		"tokio_tungstenite::connect_async_tls_with_config(request, Some(config), true, Some(tls))",
+		"tungstenite::client_tls_with_config(request, stream, Some(config), Some(tls))",
+	} {
+		if unprotectedAtlasTLSCall([]byte(allowed)) != "" {
+			t.Fatalf("rejected inventoried protected Atlas factory: %s", allowed)
+		}
+	}
+}
+
+func TestRunnerShellFactoryWiring(t *testing.T) {
+	mac := "../../infra/runner-image/cmd/runner-shell-agent/"
+	linux := "../../infra/linux-runner-image/cmd/runner-shell-agent/"
+	for _, name := range []string{"main.go", "certificate_trust.go", "certificate_trust_test.go", "certificate_trust_diagnostics_test.go"} {
+		if !bytes.Equal(read(t, mac+name), read(t, linux+name)) {
+			t.Fatalf("runner shell transport copies differ: %s", name)
+		}
+	}
+	for _, name := range []string{"issuer-roots.pem", "distrusted-intermediates.pem"} {
+		for _, directory := range []string{mac, linux} {
+			if !bytes.Equal(read(t, directory+"testdata/certificate-trust/"+name), read(t, "controls/"+name)) {
+				t.Fatalf("runner policy fixture differs: %s", directory+name)
+			}
+		}
+	}
+	source := string(read(t, mac+"main.go"))
+	unsafe, err := runnerLogExposesCredentials(source)
+	if err != nil || unsafe {
+		t.Fatal("runner logging contains credential-bearing URL/body/header arguments", err)
+	}
+	for _, required := range []string{
+		"TLSClientConfig: runnerTLSConfig()", "CheckRedirect: secureRedirect",
+		"return connectWebSocketWithTLS(rawURL, token, runnerTLSConfig())",
+		"config, err := certificateTrustConfig(config, nil)", "TLSClientConfig:  config",
+		"refusing secure session downgrade",
+	} {
+		if !strings.Contains(source, required) {
+			t.Fatalf("missing runner protected factory: %s", required)
+		}
+	}
+	for _, forbidden := range []string{"websocket.DefaultDialer", "http.DefaultClient", "DialTLS:", "DialTLSContext:", "NetDialTLSContext:", "InsecureSkipVerify", "TLSClientConfig: &tls.Config", "polling shell sessions at %s", "connecting shell tunnel for session %d -> %s"} {
+		if strings.Contains(source, forbidden) {
+			t.Fatalf("review unprotected runner transport: %s", forbidden)
+		}
+	}
+	for _, factory := range []string{"&http.Client{", "&http.Transport{", "&websocket.Dialer{"} {
+		if strings.Count(source, factory) != 1 {
+			t.Fatalf("review new independent runner factory: %s", factory)
+		}
+	}
+}
+
+func runnerLogExposesCredentials(source string) (bool, error) {
+	file, err := parser.ParseFile(token.NewFileSet(), "runner.go", source, 0)
+	if err != nil {
+		return false, err
+	}
+	unsafe := false
+	ast.Inspect(file, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		logging := false
+		switch function := call.Fun.(type) {
+		case *ast.Ident:
+			logging = function.Name == "logf" || function.Name == "print" || function.Name == "println"
+		case *ast.SelectorExpr:
+			switch function.Sel.Name {
+			case "Print", "Printf", "Println", "Fprint", "Fprintf", "Fprintln", "Errorf", "Sprintf":
+				logging = true
+			case "New":
+				if packageName, ok := function.X.(*ast.Ident); ok && packageName.Name == "errors" {
+					logging = true
+				}
+			}
+		}
+		if !logging {
+			return true
+		}
+		for _, argument := range call.Args {
+			ast.Inspect(argument, func(value ast.Node) bool {
+				switch expression := value.(type) {
+				case *ast.Ident:
+					if expression.Name == "discovery" || strings.Contains(strings.ToLower(expression.Name), "url") {
+						unsafe = true
+					}
+				case *ast.SelectorExpr:
+					if strings.Contains(strings.ToLower(expression.Sel.Name), "url") || expression.Sel.Name == "Header" || expression.Sel.Name == "Body" {
+						unsafe = true
+					}
+				}
+				return true
+			})
+		}
+		return true
+	})
+	return unsafe, nil
+}
+
+func TestRunnerLogArgumentGuard(t *testing.T) {
+	for _, test := range []struct {
+		expression string
+		unsafe     bool
+	}{
+		{`logf("reworded %s", discovery)`, true},
+		{`logf("reworded %s", webSocketURL)`, true},
+		{`fmt.Printf("reworded %s", rawURL)`, true},
+		{`logf("response %v", response.Body)`, true},
+		{`logf("headers %v", request.Header)`, true},
+		{`logf("URL %v", request.URL.Redacted())`, true},
+		{`logf("session %v", session.WebSocketURL)`, true},
+		{`fmt.Errorf("failed %s", rawURL)`, true},
+		{`fmt.Sprintf("failed %s", session.WebSocketURL)`, true},
+		{`errors.New(rawURL)`, true},
+		{`logf("status %d", response.StatusCode)`, false},
+		{`logf("session %d", session.SessionID)`, false},
+		{`logf("failed: %v", err)`, false},
+	} {
+		unsafe, err := runnerLogExposesCredentials("package main; func f() {" + test.expression + "}")
+		if err != nil || unsafe != test.unsafe {
+			t.Fatal("runner log argument guard mismatch", test.expression, err)
+		}
+	}
+}
+
+func TestCacheVolumeClientFactoryWiring(t *testing.T) {
+	root := "../../infra/linux-runner-image/cmd/tuist-cache-volume"
+	for path, required := range map[string][]string{
+		"main.go":              {"newCacheHTTPClient(30 * time.Second)", "cacheRequestError{err}", "cacheResponseError{err}"},
+		"linux_checkout.go":    {"newCacheHTTPClient(timeout)", "newLinuxCheckoutClient(20 * time.Second)", "newLinuxCheckoutClient(3 * time.Minute)", "cacheRequestError{err}"},
+		"certificate_trust.go": {"certificateTrustTransport(base, additionalBlocked)", "Transport: transport", "return http.ErrUseLastResponse"},
+	} {
+		for _, text := range required {
+			if !bytes.Contains(read(t, filepath.Join(root, path)), []byte(text)) {
+				t.Fatalf("missing protected cache-volume factory in %s: %s", path, text)
+			}
+		}
+	}
+	paths, err := filepath.Glob(filepath.Join(root, "*.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	clients, requests := 0, 0
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		source := read(t, path)
+		clients += bytes.Count(source, []byte("http.Client{"))
+		requests += bytes.Count(source, []byte(".Do(req)"))
+		for _, bypass := range []string{"http.DefaultClient", "http.Get(", "http.Post(", "http.Transport{", "attachWithClient(", "attachWithMounter("} {
+			if bytes.Contains(source, []byte(bypass)) {
+				t.Fatalf("review new cache-volume transport: %s in %s", bypass, path)
+			}
+		}
+		if filepath.Base(path) != "certificate_trust.go" && bytes.Contains(source, []byte("http.DefaultTransport")) {
+			t.Fatalf("default transport bypass in %s", path)
+		}
+		unsafe, err := runnerLogExposesCredentials(string(source))
+		if err != nil || unsafe {
+			t.Fatalf("cache-volume URL/header/body diagnostic in %s: %v", path, err)
+		}
+	}
+	if clients != 1 || requests != 2 {
+		t.Fatal("review new independent cache-volume factories/requests")
+	}
+	for _, fixture := range []string{"issuer-roots.pem", "distrusted-intermediates.pem"} {
+		if !bytes.Equal(read(t, filepath.Join(root, "testdata/certificate-trust", fixture)), read(t, filepath.Join("controls", fixture))) {
+			t.Fatalf("cache-volume fixture differs: %s", fixture)
+		}
+	}
+}
+
+func TestLogShipperClientFactoryWiring(t *testing.T) {
+	root := "../macos-log-shipper"
+	var paths []string
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !entry.IsDir() && strings.HasSuffix(path, ".go") {
+			paths = append(paths, path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	clients, transports, requests := 0, 0, 0
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		source := read(t, path)
+		clients += bytes.Count(source, []byte("http.Client{"))
+		transports += bytes.Count(source, []byte("http.Transport{"))
+		requests += bytes.Count(source, []byte(".Do(req)"))
+		for _, forbidden := range []string{"http.Get(", "http.Post(", "http.NewClient("} {
+			if bytes.Contains(source, []byte(forbidden)) {
+				t.Fatalf("unprotected shipper HTTP helper in %s", path)
+			}
+		}
+		if filepath.Base(path) != "certificate_trust.go" {
+			for _, forbidden := range []string{"http.DefaultClient", "http.DefaultTransport"} {
+				if bytes.Contains(source, []byte(forbidden)) {
+					t.Fatalf("shipper default bypass in %s", path)
+				}
+			}
+		}
+		unsafe, err := runnerLogExposesCredentials(string(source))
+		if err != nil || unsafe {
+			t.Fatalf("shipper URL/header/body diagnostic in %s: %v", path, err)
+		}
+	}
+	if clients != 1 || transports != 1 || requests != 1 {
+		t.Fatal("review newly added shipper factories/requests")
+	}
+	for filename, markers := range map[string][]string{
+		"internal/shipper/dial.go":      {"certificateTrustClient(&http.Client{", "dialContextVia(magicDNSResolver("},
+		"internal/shipper/loki.go":      {"certificateTrustClient(nil, nil)", "client, err := c.httpClient()", "privatePushFailure(err)", "sync.Once", "c.once.Do("},
+		"cmd/tuist-log-shipper/main.go": {"shipper.NewClient(url, 30*time.Second)", "defer client.CloseIdleConnections()"},
+	} {
+		source := read(t, filepath.Join(root, filename))
+		for _, marker := range markers {
+			if !bytes.Contains(source, []byte(marker)) {
+				t.Fatalf("missing shipper factory ownership: %s", marker)
+			}
+		}
+	}
+}
+
+func TestGrafanaClientFactoryWiring(t *testing.T) {
+	client := read(t, "../../grafana-datasource/pkg/plugin/client.go")
+	for _, required := range []string{"certificateTrustTransport(base, nil)", "Transport: transport", "CheckRedirect: secureRedirect"} {
+		if !bytes.Contains(client, []byte(required)) {
+			t.Fatalf("missing protected Grafana factory wiring: %s", required)
+		}
+	}
+	paths, err := filepath.Glob("../../grafana-datasource/pkg/plugin/*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	clients := 0
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		source := read(t, path)
+		clients += bytes.Count(source, []byte("http.Client{"))
+		for _, forbidden := range []string{"http.DefaultClient", "http.Get(", "http.Post(", "http.NewClient("} {
+			if bytes.Contains(source, []byte(forbidden)) {
+				t.Fatalf("unprotected Grafana HTTP helper in %s", path)
+			}
+		}
+	}
+	if clients != 1 {
+		t.Fatal("review new independent Grafana HTTP factories")
+	}
+}
+
+func TestPinnedSDKsRequireQualification(t *testing.T) {
+	// An explicitly qualified allowlist, not an ordering comparison. In particular,
+	// Go 1.27.1 accepts a compromised intermediate. Qualify replacements first.
+	qualified := map[string]bool{"1.26.10": true}
+	expected := os.Getenv("TRUST_EXPECTED_GO_SDK")
+	if expected == "" {
+		expected = runtime.Version()
+	}
+	if len(qualified) != 1 || !qualified[strings.TrimPrefix(expected, "go")] {
+		t.Fatal("the allowlist must match the behaviorally probed CI SDK")
+	}
+	patch := regexp.MustCompile(`^([0-9]+\.[0-9]+\.[0-9]+)(?:$|-)`)
+	mise := regexp.MustCompile(`(?m)^\s*["']?go["']?\s*=\s*["']([^"']+)["']`)
+	arg := regexp.MustCompile(`(?m)^ARG GO_VERSION=(\S+)\s*$`)
+	image := regexp.MustCompile(`(?m)^FROM[^\n]*?golang:([^\s@]+)`)
+	found := 0
+	list := exec.Command("git", "ls-files", "-co", "--exclude-standard", "-z")
+	list.Dir = "../.."
+	files, err := list.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, relative := range strings.Split(string(files), "\x00") {
+		if relative == "" {
+			continue
+		}
+		path := filepath.Join("../..", relative)
+		var pins []string
+		name := strings.ToLower(filepath.Base(path))
+		if name == "go.mod" || name == "go.work" {
+			for _, match := range regexp.MustCompile(`(?m)^(go\s+|toolchain go)(\S+)`).FindAllSubmatch(read(t, path), -1) {
+				// The benchmark keeps its language defaults, not an old SDK.
+				if relative == "kura/test/e2e/grpc-upload-throughput/client/go.mod" && string(match[1]) == "go " && string(match[2]) == "1.25.0" {
+					continue
+				}
+				pins = append(pins, string(match[2]))
+			}
+		} else if strings.HasPrefix(relative, ".github/workflows/") && (strings.HasSuffix(name, ".yml") || strings.HasSuffix(name, ".yaml")) {
+			data := read(t, path)
+			for _, match := range regexp.MustCompile(`(?m)^\s+go-version:\s*['"]?([^'"\s]+)`).FindAllSubmatch(data, -1) {
+				pins = append(pins, string(match[1]))
+			}
+			for _, match := range regexp.MustCompile(`(?m)^\s+go-version-file:\s*['"]?([^'"\s]+)`).FindAllSubmatch(data, -1) {
+				module := read(t, filepath.Join("../..", string(match[1])))
+				directive := regexp.MustCompile(`(?m)^go (\S+)`).FindSubmatch(module)
+				if len(directive) != 2 || !qualified[string(directive[1])] {
+					t.Errorf("unqualified go-version-file in %s", path)
+				}
+			}
+		} else if name == "mise.toml" || name == ".mise.toml" {
+			data := read(t, path)
+			matches := mise.FindAllSubmatch(data, -1)
+			if len(regexp.MustCompile(`(?m)^\s*["']?go["']?\s*=`).FindAll(data, -1)) != len(matches) {
+				t.Errorf("Go SDK needs an explicit patch pin in %s", path)
+			}
+			for _, match := range matches {
+				pin := string(match[1])
+				pins = append(pins, pin)
+				lockPath := filepath.Join(filepath.Dir(path), "mise.lock")
+				lock, err := os.ReadFile(lockPath)
+				if os.IsNotExist(err) {
+					continue
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				section := regexp.MustCompile(`(?ms)^\[\[tools\.go\]\]\s*\n(.*?)(?:^\[\[tools\.|\z)`).FindSubmatch(lock)
+				if len(section) != 2 || !bytes.Contains(section[1], []byte(`version = "`+pin+`"`)) {
+					t.Errorf("Go SDK lock does not match %s in %s", pin, lockPath)
+				}
+				if len(section) == 2 {
+					for _, entry := range regexp.MustCompile(`(?m)^url = "https://dl\.google\.com/go/go([^"/]+)\.(?:linux|darwin|windows)-`).FindAllSubmatch(section[1], -1) {
+						if string(entry[1]) != pin {
+							t.Errorf("Go SDK download does not match %s in %s", pin, lockPath)
+						}
+					}
+				}
+			}
+		} else if strings.HasPrefix(name, "dockerfile") && !strings.HasSuffix(name, "dockerignore") {
+			data := read(t, path)
+			args := arg.FindAllSubmatch(data, -1)
+			for _, match := range args {
+				pin := string(match[1])
+				if filepath.ToSlash(path) == "../../grafana-datasource/.config/Dockerfile" {
+					// The generated harness must not be hand-edited. Its supported
+					// Compose entrypoint overrides the old generator default.
+					compose := read(t, "../../grafana-datasource/docker-compose.yaml")
+					override := regexp.MustCompile(`(?m)^\s+GO_VERSION: ['"]?([0-9]+\.[0-9]+\.[0-9]+)['"]?\s*$`).FindSubmatch(compose)
+					if len(override) != 2 || !bytes.Contains(compose, []byte(".config/docker-compose-base.yaml")) {
+						t.Fatal("generated Grafana harness needs a qualified Compose SDK override")
+					}
+					pin = string(override[1])
+				}
+				pins = append(pins, pin)
+			}
+			for _, match := range image.FindAllSubmatch(data, -1) {
+				if strings.HasPrefix(string(match[1]), "${GO_VERSION}-") && len(args) == 1 {
+					continue
+				}
+				pins = append(pins, string(match[1]))
+			}
+		}
+		for _, pin := range pins {
+			match := patch.FindStringSubmatch(pin)
+			if len(match) != 2 || !qualified[match[1]] {
+				t.Errorf("unqualified/floating Go SDK %q in %s", pin, path)
+			}
+			found++
+		}
+	}
+	if found == 0 {
+		t.Fatal("no SDK pins checked")
+	}
+}
+
+func fixtures(t *testing.T) (good, bad []byte) {
+	t.Helper()
+	roots, err := certificates(issuerPEM)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return positivePEM, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: roots[0].Raw})
+}
+
+func TestPEMChecksAndFiltering(t *testing.T) {
+	good, bad := fixtures(t)
+	work := t.TempDir()
+	source, destination := filepath.Join(work, "source.pem"), filepath.Join(work, "filtered.pem")
+	write(t, source, append(append([]byte{}, bad...), good...))
+	command(t, false, "bash", "pem-store.sh", "check", source)
+	command(t, true, "bash", "pem-store.sh", "filter", source, destination)
+	command(t, true, "bash", "pem-store.sh", "check", destination)
+	if !bytes.Equal(read(t, destination), good) {
+		t.Fatal("filter changed the unrelated positive root")
+	}
+	write(t, source, bad)
+	command(t, false, "bash", "pem-store.sh", "filter", source, destination)
+	if !bytes.Equal(read(t, destination), good) {
+		t.Fatal("failed filter replaced destination")
+	}
+	for _, invalid := range [][]byte{[]byte("not a store"), append(bad, []byte("-----BEGIN PRIVATE KEY-----\nidentity\n-----END PRIVATE KEY-----\n")...), bytes.ReplaceAll(bad, []byte("CERTIFICATE"), []byte("TRUSTED CERTIFICATE"))} {
+		write(t, source, invalid)
+		command(t, false, "bash", "pem-store.sh", "filter", source, destination)
+		if !bytes.Equal(read(t, destination), good) {
+			t.Fatal("failed filter replaced destination")
+		}
+	}
+}
+
+func TestPublicJavaStoreFiltering(t *testing.T) {
+	good, bad := fixtures(t)
+	work := t.TempDir()
+	store := filepath.Join(work, "cacerts")
+	for alias, data := range map[string][]byte{"positive root": good, "blocked root": bad} {
+		file := filepath.Join(work, alias+".pem")
+		write(t, file, data)
+		command(t, true, "keytool", "-importcert", "-noprompt", "-storetype", "JKS", "-keystore", store, "-storepass", "changeit", "-alias", alias, "-file", file)
+	}
+	command(t, false, "bash", "java-store.sh", "check", store)
+	command(t, true, "bash", "java-store.sh", "filter", store)
+	command(t, true, "bash", "java-store.sh", "check", store)
+	command(t, true, "keytool", "-list", "-keystore", store, "-storepass", "changeit", "-alias", "positive root")
+	command(t, false, "keytool", "-list", "-keystore", store, "-storepass", "changeit", "-alias", "blocked root")
+	before := read(t, store)
+	if err := os.Link(store, store+".hardlink"); err != nil {
+		t.Fatal(err)
+	}
+	command(t, false, "bash", "java-store.sh", "filter", store)
+	if !bytes.Equal(before, read(t, store)) || !bytes.Equal(before, read(t, store+".hardlink")) {
+		t.Fatal("hardlinked store was modified")
+	}
+}
+
+func TestPasswordlessPKCS12RemainsReadableWithoutPassword(t *testing.T) {
+	home := os.Getenv("JAVA_HOME")
+	if home == "" {
+		properties := command(t, true, "java", "-XshowSettings:properties", "-version")
+		match := regexp.MustCompile(`(?m)^\s*java.home = (.+)$`).FindSubmatch(properties)
+		if len(match) != 2 {
+			t.Fatal("cannot establish the SDK cacerts path")
+		}
+		home = string(match[1])
+	}
+	work := t.TempDir()
+	source, store := filepath.Join(work, "sdk-cacerts"), filepath.Join(work, "cacerts.p12")
+	write(t, source, read(t, filepath.Join(home, "lib/security/cacerts")))
+	// Exercise the production passwordless PKCS12 contract even on SDKs whose
+	// installed source store still uses JKS. All input certificates are public.
+	command(t, true, "keytool", "-J-Dkeystore.pkcs12.certProtectionAlgorithm=NONE", "-J-Dkeystore.pkcs12.macAlgorithm=NONE", "-importkeystore", "-noprompt", "-srckeystore", source, "-srcstorepass", "changeit", "-destkeystore", store, "-deststoretype", "PKCS12", "-deststorepass", "changeit")
+	_, bad := fixtures(t)
+	file := filepath.Join(work, "blocked.pem")
+	write(t, file, bad)
+	command(t, true, "keytool", "-importcert", "-noprompt", "-keystore", store, "-storepass", "changeit", "-alias", "tuist-blocked-control", "-file", file)
+	all := command(t, true, "keytool", "-list", "-rfc", "-keystore", store, "-storepass", "changeit")
+	var policy struct {
+		Hashes []string `json:"distrusted_spki_sha256"`
+	}
+	if err := json.Unmarshal(policyJSON, &policy); err != nil {
+		t.Fatal(err)
+	}
+	blocked := map[string]bool{}
+	for _, hash := range policy.Hashes {
+		blocked[hash] = true
+	}
+	kept := 0
+	for block, rest := pem.Decode(all); block != nil; block, rest = pem.Decode(rest) {
+		certificate, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !blocked[spki(certificate)] {
+			kept++
+		}
+	}
+	if kept == 0 {
+		t.Fatal("missing unrelated positive SDK anchors")
+	}
+	command(t, true, "bash", "java-store.sh", "filter", store)
+	// No -storepass and nil stdin: the default JSSE load must still see anchors.
+	listing := command(t, true, "keytool", "-J-Duser.language=en", "-J-Duser.country=US", "-list", "-keystore", store)
+	count := regexp.MustCompile(`Your keystore contains ([0-9]+) entr`).FindSubmatch(listing)
+	if len(count) != 2 {
+		t.Fatalf("cannot establish passwordless entry count: %s", listing)
+	}
+	actual, err := strconv.Atoi(string(count[1]))
+	if err != nil || actual != kept || !bytes.Contains(listing, []byte("PKCS12")) {
+		t.Fatalf("passwordless PKCS12 lost anchors: got %d, want %d", actual, kept)
+	}
+}
+
+func TestJavaPrivateIdentityIsNeverRewritten(t *testing.T) {
+	store := filepath.Join(t.TempDir(), "identity.p12")
+	command(t, true, "keytool", "-genkeypair", "-keyalg", "EC", "-groupname", "secp256r1", "-dname", "CN=test", "-validity", "1", "-keystore", store, "-storepass", "changeit", "-keypass", "changeit", "-alias", "client")
+	before := read(t, store)
+	command(t, false, "bash", "java-store.sh", "filter", store)
+	if !bytes.Equal(before, read(t, store)) {
+		t.Fatal("private identity store was changed")
+	}
+}
+
+func TestReplacementGuard(t *testing.T) {
+	if _, err := exec.LookPath("jq"); err != nil {
+		t.Fatal("jq is required for the deployment guard")
+	}
+	work := t.TempDir()
+	kubectl := filepath.Join(work, "kubectl")
+	write(t, kubectl, []byte("#!/bin/sh\nprintf '%s' \"$GUARD_FIXTURE\"\nexit \"${GUARD_EXIT:-0}\"\n"))
+	if err := os.Chmod(kubectl, 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", work+string(os.PathListSeparator)+os.Getenv("PATH"))
+	for _, component := range []string{"management-tailscale", "hccm"} {
+		t.Run(component, func(t *testing.T) {
+			t.Setenv("GUARD_FIXTURE", "")
+			command(t, true, "bash", "guard.sh", component)
+			manifest, pattern := "../../infra/k8s/mgmt/tailscale.yaml", `(?m)^\s+image: (\S+)\s*$`
+			if component == "hccm" {
+				manifest, pattern = "../../infra/k8s/mgmt/bootstrap/hccm-values.yaml", `(?m)^  tag: (\S+)\s*$`
+			}
+			match := regexp.MustCompile(pattern).FindAllSubmatch(read(t, manifest), -1)
+			if len(match) != 1 {
+				t.Fatal("cannot establish desired image")
+			}
+			desired := string(match[0][1])
+			if component == "hccm" {
+				desired = "docker.io/hetznercloud/hcloud-cloud-controller-manager:" + desired
+			}
+			t.Setenv("GUARD_FIXTURE", fmt.Sprintf(`{"spec":{"template":{"spec":{"containers":[{"image":%q}]}}}}`, desired))
+			command(t, true, "bash", "guard.sh", component)
+			t.Setenv("GUARD_FIXTURE", fmt.Sprintf(`{"spec":{"template":{"spec":{"containers":[{"image":%q},{"image":"sidecar"}]}}}}`, desired))
+			command(t, false, "bash", "guard.sh", component)
+			command(t, true, "bash", "guard.sh", component, "--acknowledged")
+			t.Setenv("GUARD_FIXTURE", `{"spec":{"template":{"spec":{"containers":[{"image":"old-image"}]}}}}`)
+			command(t, false, "bash", "guard.sh", component)
+			command(t, true, "bash", "guard.sh", component, "--acknowledged")
+			t.Setenv("GUARD_FIXTURE", `{"invalid":"deployment"}`)
+			command(t, false, "bash", "guard.sh", component, "--acknowledged")
+			t.Setenv("GUARD_EXIT", "1")
+			command(t, false, "bash", "guard.sh", component, "--acknowledged")
+		})
+	}
+}

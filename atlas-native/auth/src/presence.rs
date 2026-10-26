@@ -196,12 +196,39 @@ fn publish(state: &Connection, mut value: Value) {
     }
 }
 
+type Socket =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+
+pub(super) async fn connect_tls(
+    request: tokio_tungstenite::tungstenite::handshake::client::Request,
+    config: WebSocketConfig,
+    tls: tokio_tungstenite::Connector,
+) -> std::result::Result<
+    (
+        Socket,
+        tokio_tungstenite::tungstenite::handshake::client::Response,
+    ),
+    tokio_tungstenite::tungstenite::Error,
+> {
+    tokio_tungstenite::connect_async_tls_with_config(request, Some(config), true, Some(tls)).await
+}
+
 async fn run(
     request: tokio_tungstenite::tungstenite::http::Request<()>,
     expires_at: u64,
     mut control: watch::Receiver<Control>,
     state: Arc<Connection>,
 ) {
+    let tls = match crate::transport::tls_config() {
+        Ok(config) => tokio_tungstenite::Connector::Rustls(Arc::new(config)),
+        Err(_) => {
+            publish(
+                &state,
+                json!({"people":[],"error":"secure_connection_failed"}),
+            );
+            return;
+        }
+    };
     let mut backoff = 1;
     loop {
         if control.borrow().closed {
@@ -218,11 +245,21 @@ async fn run(
             .max_message_size(Some(1024 * 1024))
             .max_frame_size(Some(1024 * 1024));
         let connected = tokio::select! {
-            value = timeout(Duration::from_secs(10), tokio_tungstenite::connect_async_with_config(request.clone(), Some(config), true)) => value,
+            value = timeout(Duration::from_secs(10), connect_tls(request.clone(), config, tls.clone())) => value,
             _ = control.changed() => continue,
         };
         let mut socket = match connected {
             Ok(Ok((socket, _response))) => socket,
+            Ok(Err(ref error))
+                if matches!(error, tokio_tungstenite::tungstenite::Error::Tls(_))
+                    || crate::certificate_trust::tls_failure(error) =>
+            {
+                publish(
+                    &state,
+                    json!({"people":[],"error":"secure_connection_failed"}),
+                );
+                return;
+            }
             _ => {
                 publish(&state, json!({"people":[],"error":"disconnected"}));
                 tokio::select! {

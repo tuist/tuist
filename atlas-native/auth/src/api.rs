@@ -264,18 +264,30 @@ fn watch(session: &Session, id: &str, after_sequence: u64) -> Result<Value> {
     let config = tungstenite::protocol::WebSocketConfig::default()
         .max_message_size(Some(1_048_576))
         .max_frame_size(Some(1_048_576));
-    let (mut socket, _) = tungstenite::client_tls_with_config(request, stream, Some(config), None)
-        .map_err(|failure| match failure {
-            tungstenite::HandshakeError::Failure(tungstenite::Error::Http(response))
-                if matches!(response.status().as_u16(), 401 | 403) =>
-            {
-                error(
-                    "unauthorized",
-                    "Access to this execution is no longer available.",
-                )
-            }
-            _ => network(),
-        })?;
+    let tls = tungstenite::Connector::Rustls(std::sync::Arc::new(crate::transport::tls_config()?));
+    let (mut socket, _) =
+        tungstenite::client_tls_with_config(request, stream, Some(config), Some(tls)).map_err(
+            |failure| match failure {
+                tungstenite::HandshakeError::Failure(ref failure)
+                    if matches!(failure, tungstenite::Error::Tls(_))
+                        || crate::certificate_trust::tls_failure(failure) =>
+                {
+                    error(
+                        "secure_connection_failed",
+                        "Could not establish a secure connection to Atlas.",
+                    )
+                }
+                tungstenite::HandshakeError::Failure(tungstenite::Error::Http(response))
+                    if matches!(response.status().as_u16(), 401 | 403) =>
+                {
+                    error(
+                        "unauthorized",
+                        "Access to this execution is no longer available.",
+                    )
+                }
+                _ => network(),
+            },
+        )?;
     let topic = format!("execution:{id}");
     socket
         .send(Message::Text(

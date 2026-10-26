@@ -19,6 +19,7 @@ defmodule TuistEx.Cache.Reapi do
   alias TuistEx.Cache.Reapi.ToolDetails
   alias TuistEx.Cache.Reapi.UpdateActionResultRequest
   alias TuistEx.Cache.Store
+  alias TuistEx.CertificateTrust
   alias TuistEx.HTTP
 
   @timeout 30_000
@@ -143,14 +144,12 @@ defmodule TuistEx.Cache.Reapi do
 
     options =
       if uri.scheme == "https" do
-        ssl = [
-          verify: :verify_peer,
-          cacerts: :public_key.cacerts_get(),
-          server_name_indication: String.to_charlist(uri.host),
-          customize_hostname_check: [
-            match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
-          ]
-        ]
+        ssl =
+          Keyword.put(
+            CertificateTrust.ssl_options(),
+            :server_name_indication,
+            String.to_charlist(uri.host)
+          )
 
         Keyword.put(options, :cred, GRPC.Credential.new(ssl: ssl))
       else

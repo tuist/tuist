@@ -76,6 +76,12 @@ groups preserve missing/false/zero distinctions. Unsupported unions, arrays, ref
 optional object groups and required empty groups fall back to web. Native validation
 is only usability: the pinned server contract remains authoritative.
 
+## TLS policy
+
+`certificate_trust.rs` is embedded locally and byte-synchronized with the CAS verifier by the shared Go tests. Keep Rustls/WebPKI pins qualified, deny blocked anchors and preserve normal certificate/hostname and handshake-signature verification. HTTP uses the single preconfigured protected client; presence and Orbit live must pass the explicit protected WSS connector; blocking Automation watches supply the same protected Rustls config. New feature modules must not restore library-default WSS roots. A TLS failure publishes only `secure_connection_failed` and stops that reconnect loop; never format credential-bearing requests/errors or retry through another transport. Keep native image loading separate to preserve OS roots.
+
+`certificate_trust_tests.rs` covers real policy DER, ordinary/private-CA controls, production HTTP/WSS accepted-key differentials and opt-in public controls (`TUIST_TRUST_LIVE=1`). Both production and incident-root-added controls require typed policy-specific failures. Declare policy source and PEM fixtures in the relevant Once targets; source tests are not shipped-artifact qualification.
+
 ## Build and test
 
 The root Once graph has independent host, iOS and Android Cargo dependency targets,
@@ -87,7 +93,7 @@ libraries. Do not replace this with a single cached Cargo shell action. Third-pa
 
 Run `ONCE_CACHE_PROVIDER=local mise run test:core` and `mise run lint:rust` from
 `atlas-native/`. Mock transport tests exercise discovery/registration/exchange/
-refresh without network access or environment changes. Swift tests exercise the
+refresh without network access or environment changes. Orbit session fixtures serialize only tests that open handles in the shared eight-slot registry, using a test-worker-lifetime gate. Preserve the production handle limit and keep unrelated transport tests parallel. Swift tests exercise the
 owned-string bridge, Keychain query/accessibility configuration, update/delete
 semantics, and secure-storage failure handling through a process-local adapter.
 Once runs iOS tests in an unhosted XCTest agent without Keychain access;

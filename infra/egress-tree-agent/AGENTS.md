@@ -285,6 +285,10 @@ growth is the signal.
   license. If a future change adds a helper the verifier rejects with a
   GPL-restriction error, that helper needs a license discussion first,
   not a quiet `"GPL"` declaration.
+- The patched Go SDK is copied from its supported Alpine 3.24 image into the
+  existing Alpine 3.22 builder. Keep clang/libbpf and runtime iproute2 on 3.22;
+  `golang:1.26.10-alpine3.22` does not exist. Qualify SDK changes with
+  `infra/certificate-trust/verify-go.go`, not just a numerically higher version.
 - Image: `infra/egress-tree-agent/Dockerfile` (alpine + iproute2; the agent
   shells out to `ip`/`tc`) → `ghcr.io/tuist/egress-tree-agent`.
   `.github/workflows/egress-tree-agent-image.yml` validates PRs and publishes

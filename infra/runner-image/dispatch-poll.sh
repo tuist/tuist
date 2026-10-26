@@ -241,6 +241,13 @@ fi
 # shellcheck disable=SC1091
 source /etc/tuist.env
 
+# Node still embeds the compromised eMudhra roots; use the patched PEM store.
+export NODE_OPTIONS="${NODE_OPTIONS:+${NODE_OPTIONS} }--use-openssl-ca"
+export SSL_CERT_FILE=/etc/ssl/cert.pem
+export SSL_CERT_DIR=/var/empty
+export PIP_CERT="$SSL_CERT_FILE"
+export REQUESTS_CA_BUNDLE="$SSL_CERT_FILE"
+
 : "${TUIST_RUNNER_DISPATCH_URL:?TUIST_RUNNER_DISPATCH_URL not set}"
 
 # The booted OS version, so both uses follow base-image bumps. Every dispatch

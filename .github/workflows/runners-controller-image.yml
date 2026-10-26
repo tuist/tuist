@@ -16,11 +16,15 @@ on:
     paths:
       - infra/runners-controller/**
       - infra/runner-cache/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
       - .github/workflows/runners-controller-image.yml
   pull_request:
     paths:
       - infra/runners-controller/**
       - infra/runner-cache/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
       - .github/workflows/runners-controller-image.yml
   workflow_dispatch: {}
 
@@ -127,6 +131,7 @@ jobs:
         with:
           context: .
           file: infra/runners-controller/Dockerfile
+          build-contexts: certificate-trust=./infra/certificate-trust
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.tags.outputs.tags }}
@@ -138,6 +143,7 @@ jobs:
         with:
           context: .
           file: infra/runners-controller/Dockerfile
+          build-contexts: certificate-trust=./infra/certificate-trust
           target: cache-volumes
           platforms: linux/amd64,linux/arm64
           push: true

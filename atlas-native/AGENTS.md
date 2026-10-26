@@ -11,6 +11,12 @@ and Profile are native on both platforms. Mobile navigation hides browser-only
 catalog entries and empty ancestor groups. Profile uses authenticated APIs on the
 selected server. OAuth tokens are not browser cookies.
 
+## Certificate trust
+
+- Rust auth HTTP and presence WSS share an independently embedded twelve-key deny while retaining their original bundled WebPKI roots. Native favicon loaders retain OS trust instead: `AtlasCertificateTrust.swift` and `.kt` restrict ordinary native validation over the constructed chain, including anchors. Do not route native images through a Rust client with different enterprise/root semantics or add an unprotected retry.
+- Favicon requests are credential-free, HTTPS-only on every redirect, bounded and cancellable. iOS streams/decodes off the main actor through the protected session; Android retains its bounded executor and per-connection native socket factory. Keep both preview targets' explicit sources aligned with production dependencies.
+- `android/tests/AGENTS.md` documents the separately signed actual-APK instrumentation harness. Native policy copies and transport factories are guarded by `../infra/certificate-trust` tests. API 35 emulator, host Apple tests and debug/simulator builds do not qualify older APIs, custom NSC/CT, device/signed releases or external browsers. Preserve reflective trust-manager methods if adding Android minification. See `../infra/certificate-trust/RUST-CLIENTS.md` for current evidence and gates.
+
 ## Horizontal architecture and parallel work
 
 - Keep UI features and their state independent: Orbit, Tasks, Accounts, Finance, Time off, and Profile should be understandable and buildable without routing every operation through one screen or global model. The app shell composes destinations; feature models own their drafts, pagination, errors, and mutations. Share code where contracts genuinely match, not through a universal navigation/state framework.

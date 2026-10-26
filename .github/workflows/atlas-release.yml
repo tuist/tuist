@@ -8,6 +8,8 @@ on:
       - main
     paths:
       - atlas/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
       - infra/helm/atlas/**
       - infra/k8s/atlas/**
       - mise/tasks/release/components.json
@@ -117,6 +119,7 @@ jobs:
           # atlas/ and noora/ (atlas depends on noora via `path: "../noora"`).
           context: .
           file: atlas/Dockerfile
+          build-contexts: certificate-trust=./infra/certificate-trust
           push: true
           platforms: linux/amd64
           build-args: |

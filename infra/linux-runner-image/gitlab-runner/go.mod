@@ -1,6 +1,8 @@
 module github.com/tuist/tuist/infra/linux-runner-image/gitlab-runner
 
-go 1.25.0
+go 1.26.10
+
+godebug default=go1.25
 
 require (
 	github.com/urfave/cli v1.22.17

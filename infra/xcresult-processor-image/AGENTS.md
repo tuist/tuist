@@ -2,6 +2,19 @@
 
 The Tart VM image that hosts the Tuist xcresult processor on macOS.
 
+## Certificate trust
+
+Packer uses the shared SPKI policy in `../certificate-trust/` to filter and check
+curl/Homebrew bundles and install explicit System keychain deny settings. OTP's
+native root export does not honor Apple deny records: Darwin xcresult selects
+`/etc/ssl/cert.pem` in runtime configuration and explicitly reloads/checks the
+effective CA cache at application startup. Packer uses a signed AAA intermediate
+negative and a known ISRG root positive, recording already-denied baselines
+without a differential claim. Qualify actual Apple/OTP behavior in a fresh VM
+before publishing; syntax tests or a settings write are not proof. Existing hosts/guests
+need independent remediation. See the shared warm-rollout runbook, and preserve
+the processor's independent, non-gating release boundary.
+
 ## Architecture
 
 Every Pod the tart-cri runtime (`infra/tart-cri/`) schedules onto the

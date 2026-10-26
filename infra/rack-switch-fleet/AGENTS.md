@@ -1827,6 +1827,12 @@ rack-edge chart:
 
 ### Rebooting a ToR that ZTP missed
 
+The console helper's module and image builder use the qualified Go 1.26.10 SDK,
+with `godebug default=go1.25` preserving its prior runtime defaults. It is built
+with CGO disabled, so the builder's Alpine release is independent of the runtime
+Alpine pin. Keep the runtime's CA-certificate floor and bundle refresh alongside
+the helper's multi-stage build; neither replaces the other.
+
 `rack-tor-console` (`edge/tor-console`, in the rack-edge image) runs on the edge
 that holds the ToR's serial console (the FS USB-to-RJ45 cable, found as
 `/dev/serial/by-id/usb-FTDI_*`, 115200 8N1). It checks the ToR's NETCONF port

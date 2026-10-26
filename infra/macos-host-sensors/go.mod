@@ -1,7 +1,7 @@
 module github.com/tuist/tuist/infra/macos-host-sensors
 
-go 1.25.0
+go 1.26.10
 
-toolchain go1.25.10
+godebug default=go1.25
 
 require github.com/ebitengine/purego v0.11.1

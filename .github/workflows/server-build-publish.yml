@@ -110,6 +110,7 @@ jobs:
         with:
           context: .
           file: ./server/Dockerfile
+          build-contexts: certificate-trust=./infra/certificate-trust
           target: runner
           platforms: linux/amd64
           outputs: type=image,name=ghcr.io/tuist/tuist,push-by-digest=true,name-canonical=true,push=true
@@ -152,6 +153,7 @@ jobs:
         with:
           context: .
           file: ./server/Dockerfile
+          build-contexts: certificate-trust=./infra/certificate-trust
           target: runner
           platforms: linux/arm64
           outputs: type=image,name=ghcr.io/tuist/tuist,push-by-digest=true,name-canonical=true,push=true

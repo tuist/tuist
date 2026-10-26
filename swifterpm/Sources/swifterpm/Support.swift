@@ -213,11 +213,11 @@ enum HTTPClient {
     private static let resourceTimeout: TimeInterval = 600
     private static let maxAttempts = 3
 
-    private static let session: URLSession = {
+    static let session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = idleTimeout
         configuration.timeoutIntervalForResource = resourceTimeout
-        return URLSession(configuration: configuration)
+        return CertificateTrust.makeSession(configuration: configuration)
     }()
 
     static func defaultHeaders(for url: URL) async throws -> [String: String] {
@@ -280,7 +280,7 @@ enum HTTPClient {
     /// Retries transient transport failures (timeouts, dropped or half-open
     /// connections) and transient HTTP statuses on a fresh connection with
     /// linear backoff.
-    private static func withRetry<T>(
+    static func withRetry<T>(
         _ operation: @Sendable () async throws -> T
     ) async throws -> T {
         var attempt = 1
@@ -288,10 +288,10 @@ enum HTTPClient {
             do {
                 return try await operation()
             } catch let error as URLError where attempt < maxAttempts && isRetryable(error) {
-                try? await Task.sleep(nanoseconds: backoff(attempt: attempt, retryAfter: nil))
+                try await Task.sleep(nanoseconds: backoff(attempt: attempt, retryAfter: nil))
                 attempt += 1
             } catch let error as StatusError where attempt < maxAttempts && error.isRetryable {
-                try? await Task.sleep(
+                try await Task.sleep(
                     nanoseconds: backoff(attempt: attempt, retryAfter: error.retryAfter))
                 attempt += 1
             }
@@ -305,10 +305,39 @@ enum HTTPClient {
     private static func isRetryable(_ error: URLError) -> Bool {
         switch error.code {
         case .timedOut, .networkConnectionLost, .cannotConnectToHost, .dnsLookupFailed,
-             .cannotFindHost, .secureConnectionFailed:
+             .cannotFindHost:
             return true
         default:
             return false
+        }
+    }
+
+    /// Provider optimizations may fall back for ordinary failures, never TLS or cancellation.
+    static func optionalResult<T>(_ operation: () async throws -> T) async throws -> T? {
+        do {
+            return try await operation()
+        } catch {
+            try requireFallbackAllowed(after: error)
+            return nil
+        }
+    }
+
+    static func requireFallbackAllowed(after error: any Error) throws {
+        if error is CancellationError { throw error }
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .cancelled, .userCancelledAuthentication, .secureConnectionFailed,
+                 .serverCertificateHasBadDate, .serverCertificateUntrusted,
+                 .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid,
+                 .clientCertificateRejected, .clientCertificateRequired,
+                 .appTransportSecurityRequiresSecureConnection:
+                throw error
+            default:
+                break
+            }
+        }
+        if let underlying = (error as NSError).userInfo[NSUnderlyingErrorKey] as? any Error {
+            try requireFallbackAllowed(after: underlying)
         }
     }
 
