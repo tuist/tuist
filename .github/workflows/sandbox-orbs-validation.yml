@@ -110,7 +110,7 @@ jobs:
         ports:
           - 8123:8123
         options: >-
-          --health-cmd 'clickhouse-client --query "SELECT 1"'
+          --health-cmd "clickhouse-client --query 'SELECT 1'"
           --health-interval 10s --health-timeout 5s --health-retries 12
     steps:
       - uses: actions/checkout@v4
