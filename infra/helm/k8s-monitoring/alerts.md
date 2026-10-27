@@ -430,7 +430,7 @@ makes healthy and blind look identical.
 
 This is the heartbeat for every rule above that reads a CAPI custom resource:
 they are all evaluated in Grafana Cloud against series produced by
-kube-state-metrics on the single-node management cluster, so if that cluster,
+kube-state-metrics on the management cluster, so if that cluster,
 its Alloy collector, or its remote-write path dies, all of them simply go quiet,
 which is indistinguishable from healthy.
 
@@ -754,10 +754,27 @@ sum by (container) (
 - Severity: warning
 - Summary: `{{ $labels.container }} restarted on the management cluster`
 
-On the single-node management cluster, a kube-apiserver restart takes the CAPI
-API and its admission webhooks down for a minute or more. Check
-`talosctl logs machined | grep OOM` first. A Talos OOM kill shows up in
-Kubernetes only as a `SandboxChanged` event and exit code 137.
+The management cluster has three control-plane nodes. Restarts during a planned
+Talos upgrade or drained reboot can trigger this warning without a cluster-wide
+outage. Check the other API targets, etcd quorum and the two replicas of each
+admission webhook. This query sums across nodes and looks back 15 minutes; it
+does not identify the affected node or measure API availability. With no further
+restarts it clears as the samples age out of that window.
+
+For unexpected or repeated restarts, identify the pod and node with
+`kubectl -n kube-system get pods -o wide`, inspect its termination reason and
+`kubectl -n kube-system logs <pod> --previous`, and read that node's Talos logs:
+`talosctl --endpoints <healthy-member-tailnet-IP> --nodes <affected-private-IP>
+logs machined | grep OOM`. Exit code 137 or `SandboxChanged` alone is not proof
+of an OOM kill. During the 2026-10-27 maintenance, scheduler/controller-manager
+startup retries also followed local API TLS timeouts. Require 90 seconds of
+stable Ready control-plane pods before continuing a rolling upgrade.
+
+The annotation text applied and read back on 2026-10-27 is recorded in
+[management-control-plane-restarted-annotations.json](management-control-plane-restarted-annotations.json)
+for live rule `bg1vvvy1w0ohsc`. Updating that wording must preserve its query,
+threshold, labels, evaluation group, no-data/error behavior and notification routing.
+See the [management runbook](../../k8s/mgmt/talos/README.md) for access and gates.
 
 ### Node exporter coverage incomplete
 
