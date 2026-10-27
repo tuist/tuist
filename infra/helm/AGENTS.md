@@ -138,6 +138,9 @@ Helm-installed resource; publishing it is a separate rollout step.
 - Grafana-managed alert queries and their operational rationale live in
   `k8s-monitoring/alerts.md`. Keep that runbook aligned with live rule changes;
   browser LCP p99 also requires distinct affected sessions, not just total samples.
+  The Kura admission buffer reduction to 10% requires the two live headroom
+  fallback queries and the admission annotation to follow the server rollout;
+  the exported headroom gauge already follows the deployed policy.
   ClickHouse read-failure and latency rules aggregate Cloud and shadow physical
   repos; expanding telemetry coverage can surface previously invisible failures
   without any threshold change.
