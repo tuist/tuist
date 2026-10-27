@@ -647,13 +647,15 @@ impl AuthorityConfig {
         authority.attest_incarnation(std::path::Path::new(TERMINATION_LOG));
         let ca = std::fs::read("/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
             .map_err(|e| e.to_string())?;
-        let certificate = reqwest::Certificate::from_pem(&ca).map_err(|e| e.to_string())?;
+        reqwest::Certificate::from_pem(&ca).map_err(|e| e.to_string())?;
         let config = self.clone();
         let worker = authority.clone();
         std::thread::Builder::new().name("serving-authority".into()).spawn(move || {
             let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("authority runtime");
             runtime.block_on(async move {
-                let client = reqwest::Client::builder().add_root_certificate(certificate).https_only(true).no_proxy().redirect(reqwest::redirect::Policy::none()).timeout(Duration::from_secs(1)).build().expect("authority client");
+                let roots = crate::certificate_trust::certificates(&ca).expect("authority CA certificates");
+                let tls = crate::certificate_trust::config(crate::certificate_trust::Roots::Native(roots), None, Vec::new()).expect("authority TLS configuration");
+                let client = reqwest::Client::builder().tls_backend_preconfigured(tls).https_only(true).no_proxy().redirect(reqwest::redirect::Policy::none()).timeout(Duration::from_secs(1)).build().expect("authority client");
                 let url = format!("https://kubernetes.default.svc/api/v1/namespaces/{}/configmaps/{}-serving", config.namespace, config.instance);
                 loop {
                     let result = async {
