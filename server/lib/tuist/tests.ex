@@ -4151,16 +4151,23 @@ defmodule Tuist.Tests do
 
     {:ok, _jobs} =
       Repo.transaction(fn ->
-        {_count, inserted_corrections} =
-          Repo.insert_all(TestCaseRunFlakyCorrection, corrections,
-            on_conflict: :nothing,
-            conflict_target: [:test_case_run_id],
-            returning: [
-              :test_case_run_id,
-              :project_id,
-              :git_commit_sha
-            ]
-          )
+        inserted_corrections =
+          corrections
+          |> Enum.chunk_every(@flaky_correction_batch_size)
+          |> Enum.flat_map(fn batch ->
+            {_count, inserted} =
+              Repo.insert_all(TestCaseRunFlakyCorrection, batch,
+                on_conflict: :nothing,
+                conflict_target: [:test_case_run_id],
+                returning: [
+                  :test_case_run_id,
+                  :project_id,
+                  :git_commit_sha
+                ]
+              )
+
+            inserted
+          end)
 
         enqueue_flaky_correction_jobs(inserted_corrections)
       end)
