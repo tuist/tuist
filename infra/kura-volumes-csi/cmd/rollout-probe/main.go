@@ -2,19 +2,24 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/net/http2"
 )
 
 type object struct {
@@ -31,6 +36,7 @@ type report struct {
 	Errors     []string  `json:"errors,omitempty"`
 	ReadChecks int       `json:"read_checks"`
 	Writes     int       `json:"writes"`
+	HTTP2      bool      `json:"http2"`
 }
 
 func main() {
@@ -45,6 +51,7 @@ func main() {
 	duration := flag.Duration("duration", 45*time.Minute, "maximum soak")
 	stop := flag.String("stop", "/tmp/stop", "stop file")
 	count := flag.Int("objects", 512, "seed object count")
+	h2c := flag.Bool("http2", false, "require HTTP/2 cleartext on an isolated http fixture endpoint")
 	flag.Parse()
 	var journalFile *os.File
 	if *journal != "" {
@@ -58,8 +65,10 @@ func main() {
 	}
 	token, err := os.ReadFile(*tokenFile)
 	must(err)
-	client := &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{MaxIdleConnsPerHost: 8}}
-	r := report{Started: time.Now().UTC()}
+	transport, err := probeTransport(*base, *h2c)
+	must(err)
+	client := &http.Client{Timeout: 10 * time.Second, Transport: transport}
+	r := report{Started: time.Now().UTC(), HTTP2: *h2c}
 	var mu sync.Mutex
 	request := func(method string, o object) bool {
 		uri := strings.TrimRight(*base, "/") + "/api/cache/gradle/" + o.Key + "?account_handle=" + url.QueryEscape(*account)
@@ -84,6 +93,8 @@ func main() {
 			resp.Body.Close()
 			if e != nil {
 				msg = e.Error()
+			} else if *h2c && resp.ProtoMajor != 2 {
+				msg = "HTTP/2 required but not negotiated"
 			} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 				msg = fmt.Sprintf("HTTP %d %.160s", resp.StatusCode, data)
 			} else if method == "GET" && !matches(data, o) {
@@ -218,6 +229,22 @@ func main() {
 	if r.Failures > 0 {
 		os.Exit(1)
 	}
+}
+
+func probeTransport(base string, h2c bool) (http.RoundTripper, error) {
+	if !h2c {
+		return &http.Transport{MaxIdleConnsPerHost: 8}, nil
+	}
+	endpoint, err := url.Parse(base)
+	if err != nil || endpoint.Scheme != "http" || endpoint.Host == "" || endpoint.User != nil {
+		return nil, fmt.Errorf("HTTP/2 cleartext requires an explicit http fixture URL without credentials")
+	}
+	return &http2.Transport{
+		AllowHTTP: true,
+		DialTLSContext: func(ctx context.Context, network, address string, _ *tls.Config) (net.Conn, error) {
+			return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, address)
+		},
+	}, nil
 }
 
 func matches(data []byte, o object) bool {

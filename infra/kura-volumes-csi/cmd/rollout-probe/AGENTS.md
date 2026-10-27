@@ -22,3 +22,8 @@ key, size and hash of each successful write (at most 20,000). After the soak,
 and rejects a truncated, oversized or incomplete journal. Set N from the soak
 report's successful-write count. This complements the pre-seeded corpus check;
 it does not infer durability from a successful PUT or replication cursor.
+
+`-http2` requires h2c on an explicitly authorized `http` fixture endpoint and
+records the protocol in the report. Every response must actually use HTTP/2;
+HTTPS cannot be silently downgraded. This exercises the runtime's HTTP/2
+connection lifecycle, not public ingress TLS or REAPI gRPC semantics.
