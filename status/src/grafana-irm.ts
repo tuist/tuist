@@ -87,6 +87,18 @@ interface QueryKeyUpdatesResponse {
   cursor?: { hasMore: boolean; nextValue: string };
 }
 
+interface QueryOrgStatusesResponse {
+  error?: string;
+  configurations?: {
+    statuses?: {
+      statusID: string;
+      slug?: string;
+      name?: string;
+      category?: string;
+    }[];
+  }[];
+}
+
 interface GetFieldsResponse {
   error?: string;
   fields?: RawField[];
@@ -295,12 +307,16 @@ async function queryKeyUpdates(opts: ClientOpts, incidentID: string, limit = 100
   return out;
 }
 
-function incidentUpdates(raw: RawIncident, keyUpdates: RawKeyUpdate[]): IncidentUpdate[] {
+function incidentUpdates(
+  raw: RawIncident,
+  keyUpdates: RawKeyUpdate[],
+  statuses: Map<string, IncidentStatus>,
+): IncidentUpdate[] {
   const updates = keyUpdates
     .filter((update) => update.content?.trim())
     .map((update) => ({
       at: update.createdTime ?? update.modifiedTime ?? raw.modifiedTime ?? raw.createdTime ?? new Date().toISOString(),
-      status: statusFrom(update.title ?? raw.status),
+      status: statuses.get(update.statusID ?? "") ?? statusFrom(update.title),
       title: update.title?.trim() || undefined,
       body: update.content!.trim(),
     }));
@@ -313,6 +329,17 @@ async function hydrateIncidents(
   componentLabelKey: string,
   knownIds: Set<string>,
 ): Promise<Incident[]> {
+  if (rawIncidents.length === 0) return [];
+  const res = await rpc<QueryOrgStatusesResponse>(opts, "StatusService.QueryOrgStatuses", {});
+  const statuses = new Map<string, IncidentStatus>();
+  for (const config of res.configurations ?? []) {
+    for (const status of config.statuses ?? []) {
+      statuses.set(
+        status.statusID,
+        statusFrom(status.category === "resolved" ? "resolved" : status.slug || status.name || status.category),
+      );
+    }
+  }
   const incidents = new Array<Incident>(rawIncidents.length);
   let nextIndex = 0;
 
@@ -321,7 +348,7 @@ async function hydrateIncidents(
       const index = nextIndex++;
       const raw = rawIncidents[index]!;
       const keyUpdates = await queryKeyUpdates(opts, raw.incidentID);
-      incidents[index] = toIncident(raw, componentLabelKey, knownIds, incidentUpdates(raw, keyUpdates));
+      incidents[index] = toIncident(raw, componentLabelKey, knownIds, incidentUpdates(raw, keyUpdates, statuses));
     }
   }
 

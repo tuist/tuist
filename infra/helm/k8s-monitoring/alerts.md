@@ -430,7 +430,7 @@ makes healthy and blind look identical.
 
 This is the heartbeat for every rule above that reads a CAPI custom resource:
 they are all evaluated in Grafana Cloud against series produced by
-kube-state-metrics on the single-node management cluster, so if that cluster,
+kube-state-metrics on the management cluster, so if that cluster,
 its Alloy collector, or its remote-write path dies, all of them simply go quiet,
 which is indistinguishable from healthy.
 
@@ -754,10 +754,27 @@ sum by (container) (
 - Severity: warning
 - Summary: `{{ $labels.container }} restarted on the management cluster`
 
-On the single-node management cluster, a kube-apiserver restart takes the CAPI
-API and its admission webhooks down for a minute or more. Check
-`talosctl logs machined | grep OOM` first. A Talos OOM kill shows up in
-Kubernetes only as a `SandboxChanged` event and exit code 137.
+The management cluster has three control-plane nodes. Restarts during a planned
+Talos upgrade or drained reboot can trigger this warning without a cluster-wide
+outage. Check the other API targets, etcd quorum and the two replicas of each
+admission webhook. This query sums across nodes and looks back 15 minutes; it
+does not identify the affected node or measure API availability. With no further
+restarts it clears as the samples age out of that window.
+
+For unexpected or repeated restarts, identify the pod and node with
+`kubectl -n kube-system get pods -o wide`, inspect its termination reason and
+`kubectl -n kube-system logs <pod> --previous`, and read that node's Talos logs:
+`talosctl --endpoints <healthy-member-tailnet-IP> --nodes <affected-private-IP>
+logs machined | grep OOM`. Exit code 137 or `SandboxChanged` alone is not proof
+of an OOM kill. During the 2026-10-27 maintenance, scheduler/controller-manager
+startup retries also followed local API TLS timeouts. Require 90 seconds of
+stable Ready control-plane pods before continuing a rolling upgrade.
+
+The annotation text applied and read back on 2026-10-27 is recorded in
+[management-control-plane-restarted-annotations.json](management-control-plane-restarted-annotations.json)
+for live rule `bg1vvvy1w0ohsc`. Updating that wording must preserve its query,
+threshold, labels, evaluation group, no-data/error behavior and notification routing.
+See the [management runbook](../../k8s/mgmt/talos/README.md) for access and gates.
 
 ### Node exporter coverage incomplete
 
@@ -1477,7 +1494,7 @@ ring evicts down inside it.
 
 **This row is not the admission check, and the region fills up before it
 fires.** `Tuist.Kura.Admission` refuses a new instance, a cold return or a
-claim growth once the region's reservations reach 85% of its allocatable disk
+claim growth once the region's reservations reach 90% of its allocatable disk
 (`Tuist.Kura.Capacity` `@pressure_fraction`), summed over the region rather
 than per node, and it counts rows the cluster has not scheduled yet. A region
 therefore stops admitting while this row still reads one or more. That case is
@@ -1537,7 +1554,7 @@ max by (cluster, region) (
 )
 or
 (
-  floor(0.85 * max by (cluster, region) (tuist_kura_capacity_allocatable_gibibytes{cluster="tuist-production"}))
+  floor(0.90 * max by (cluster, region) (tuist_kura_capacity_allocatable_gibibytes{cluster="tuist-production"}))
   - max by (cluster, region) (tuist_kura_capacity_reserved_gibibytes{cluster="tuist-production"})
 )
 ```
@@ -1555,7 +1572,7 @@ or
   {{ $values.A.Value | printf "%.0f" }} GiB more in {{ $labels.cluster }},
   less than one enterprise instance; free reservations or add a node`
 - Description: `Tuist.Kura.Admission refuses any instance whose reservation
-  (claim x 2 replicas) does not fit under 85% of the region's allocatable disk,
+  (claim x 2 replicas) does not fit under 90% of the region's allocatable disk,
   less what its instances reserve, each at the larger of what its pods request
   and what its kura_servers row reserves. Below 32 GiB it refuses a new enterprise instance (16Gi x 2) and
   every enterprise claim growth; below 16 GiB, every new or returning instance
@@ -1570,7 +1587,7 @@ The admission check, as opposed to the scheduler check in **Kura region cannot
 place another instance**. `Tuist.Kura.Admission.admit?/2` places an instance
 only if `reserved + candidate <= pressure_line`:
 
-- `pressure_line` is `trunc(0.85 x allocatable)`, over the Ready nodes of the
+- `pressure_line` is `trunc(0.90 x allocatable)`, over the Ready nodes of the
   region's pool (`Tuist.Kura.Capacity.pressure_line_gib/1`),
 - `reserved` sums every instance in the region once, at the larger of its
   `observed` and `desired` reservation, matched by instance name
@@ -1599,6 +1616,18 @@ from. It overstates headroom only while rows are waiting for pods.
 
 32 GiB is one enterprise instance at its starting claim. Change it with
 `@enterprise_storage_claim` in `Tuist.Kura.Regions`.
+
+**Admission buffer rollout (2026-10-27):** the code reduces the additional
+reserve from 15% to 10% of allocatable. On managed hosts, Kubernetes already
+excludes approximately 10% of filesystem capacity, so the combined reserve is
+about 19%, still above the configured 15% imagefs eviction threshold. This is
+not permission to overcommit claims. Singapore's 745 GiB allocatable yields a
+670 GiB line instead of 633 GiB. The exported admission gauge follows the
+deployed server automatically. After server rollout, update the live fallback
+queries in this rule and the headroom forecast rule to the 0.90 expressions
+documented here, and update this rule's description. These documentation edits
+do not publish Grafana changes. During a mixed server rollout, `max` can report
+the new line while an old replica still refuses under the old one.
 
 The private runner-cache regions (`scw-fr-par-runners`, `ber1-runners`) report
 the gauge too. Before they did, the plugin polled it over the same public-only
@@ -5013,7 +5042,7 @@ not ride along with the rule: the region reads differently the moment it is
 enforced (one of the two us-east boxes is already over the line, so us-east
 would immediately stop accepting placements there), and per-box headroom is a
 stronger statement than the region-level pressure fraction
-(`@pressure_fraction 0.85`, currently applied to disk), so the two need to agree
+(`@pressure_fraction 0.90`, currently applied to disk), so the two need to agree
 on which is authoritative.
 
 ### Kura instance provisioned but not serving
@@ -5224,7 +5253,7 @@ with the pod and volume events in the `kura` namespace.
     )
     or
     (
-      floor(0.85 * max by (cluster, region) (tuist_kura_capacity_allocatable_gibibytes{cluster="tuist-production"}))
+      floor(0.90 * max by (cluster, region) (tuist_kura_capacity_allocatable_gibibytes{cluster="tuist-production"}))
       - max by (cluster, region) (tuist_kura_capacity_reserved_gibibytes{cluster="tuist-production"})
     )
   )

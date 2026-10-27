@@ -60,6 +60,13 @@ omitting it preserves generic browser login, including self-hosted providers.
 
 ## Native API and forms
 
+`moodboard.rs` implements only bearer POST `/api/native/moodboard/suggestions` and
+PUT `/api/native/moodboard/captures/<UUID>`. Validate sources, reviewed fields and IDs
+before networking; strip response extras and never echo provider/server bodies.
+Optional endpoint failures do not revoke OAuth. The host persists the immutable first
+save payload/UUID for uncertain retries; the extension has no Rust/auth/network dependency.
+Keep the source in all three production Once lists and tests in the host test glob.
+
 `api.rs` owns an allowlisted Automation request enum, same-origin bearer HTTP and
 bounded TLS Phoenix subscriptions. Credentials travel in the WebSocket subprotocol,
 never query parameters. Each watch returns on a changed durable sequence or a bounded

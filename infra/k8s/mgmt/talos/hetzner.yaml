@@ -17,7 +17,7 @@ loadBalancer:
   ports: [6443]
   # Reached over the private network after the Flannel migration. The
   # reconciler checks sibling health before removal and waits after each
-  # switch. Retain public TCP 6443 until every private target is healthy.
+  # switch. Public node TCP 6443 was removed after verification on 2026-10-26.
   usePrivateIP: true
 # How a node listed below is created when its server does not exist yet.
 # The server boots the Talos snapshot without user data, so it waits in
@@ -27,8 +27,8 @@ loadBalancer:
 server:
   type: ccx13
   # Description of the Talos snapshot, uploaded with hcloud-upload-image.
-  image: talos-v1.13.0
-  # Allows only the Kubernetes API from the internet.
+  image: talos-v1.13.11
+  # No public ingress rules; API clients reach the public load balancer.
   firewall: tuist-mgmt
   # Spread placement group new servers are created in: Hetzner runs them on
   # different hosts, which matters for nodes sharing a location.

@@ -3,6 +3,7 @@ mod api;
 mod bridge;
 mod business;
 pub mod form;
+mod moodboard;
 mod orbit;
 mod orbit_activity;
 mod orbit_components;

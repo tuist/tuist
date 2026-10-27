@@ -6,10 +6,12 @@ modules=$(cd "$root/../../modules" && pwd)
 plist=/usr/libexec/PlistBuddy
 [[ -x "$plist" ]] || { echo 'These fixtures require macOS plist tools' >&2; exit 1; }
 source "$root/live-activity.sh"
+source "$root/share.sh"
 work=$(mktemp -d "${TMPDIR:-/tmp}/atlas live activity.XXXXXX")
 trap 'rm -rf "$work"' EXIT
 app="$work/Atlas.app"
 activity="$app/PlugIns/AtlasLiveActivity.appex"
+share="$app/PlugIns/AtlasShare.appex"
 profile="$work/profile.plist"
 host_profile="$work/host-profile.plist"
 entitlements="$work/activity-entitlements.plist"
@@ -40,6 +42,7 @@ fixture_profile() {
 <key>aps-environment</key><string>production</string>
 <key>keychain-access-groups</key><array><string>U6LC622NKF.*</string></array>
 <key>com.apple.developer.associated-domains</key><array><string>applinks:atlas.tuist.dev</string></array>
+<key>com.apple.security.application-groups</key><array><string>group.dev.tuist.atlas.share</string></array>
 </dict>
 <key>ProvisionedDevices</key><array><string>device-one</string><string>device-two</string></array>
 <key>ExpirationDate</key><date>${1:-$future}</date>
@@ -66,6 +69,10 @@ PLIST
     printf '#!/bin/sh\nexit 0\n' > "$activity/AtlasLiveActivity"
     chmod +x "$activity/AtlasLiveActivity"
     printf 'fixture signature\n' > "$activity/_CodeSignature/CodeResources"
+    mkdir -p "$share"
+    cp "$root/../Share/Info.plist" "$share/Info.plist"
+    printf '#!/bin/sh\nexit 0\n' > "$share/AtlasShare"
+    chmod +x "$share/AtlasShare"
 }
 
 mkdir -p "$work/bin"
@@ -113,6 +120,7 @@ case ${0##*/} in
         case $2 in
             'op://tuist/Atlas App Ad Hoc/Atlas_App_Ad_Hoc.mobileprovision') cp "$FIXTURE_HOST_PROFILE" "$4" ;;
             'op://tuist/Atlas Live Activity Ad Hoc/Atlas_Live_Activity_Ad_Hoc.mobileprovision') cp "$FIXTURE_ACTIVITY_PROFILE" "$4" ;;
+            'op://tuist/Atlas Share Ad Hoc/Atlas_Share_Ad_Hoc.mobileprovision') cp "$FIXTURE_SHARE_PROFILE" "$4" ;;
             *) echo 'Unexpected private credential read' >&2; exit 1 ;;
         esac ;;
     security)
@@ -230,7 +238,7 @@ pass 'failed embedding preserves installed extension and cleans temporary files'
 
 bundle_root="$work/isolated bundle"
 mkdir -p "$bundle_root/ios/distribution" "$bundle_root/.once/out/AtlasIOSDevice"
-for script in bundle keychain associated-domains push live-activity; do cp "$root/$script.sh" "$bundle_root/ios/distribution/"; done
+for script in bundle keychain associated-domains push live-activity share; do cp "$root/$script.sh" "$bundle_root/ios/distribution/"; done
 ditto "$app" "$bundle_root/.once/out/AtlasIOSDevice/Atlas.app"
 rmdir "$bundle_root/.once/out/AtlasIOSDevice/Atlas.app/PlugIns/Sibling.bundle"
 "$plist" -c 'Set :CFBundleIdentifier wrong' "$bundle_root/.once/out/AtlasIOSDevice/Atlas.app/PlugIns/AtlasLiveActivity.appex/Info.plist"
@@ -250,4 +258,73 @@ printf '%s\n' 'op://tuist/Atlas App Ad Hoc/Atlas_App_Ad_Hoc.mobileprovision' \
 diff -u "$work/expected-op.log" "$FIXTURE_OP_CALLS"
 pass 'invalid extension profile never retrieves private signing material'
 
-echo "All $passed Live Activity packaging fixtures passed."
+fixture_bundle
+validate_share_bundle "$app"
+pass 'Share bundle identity and principal class'
+"$plist" -c 'Set :NSExtension:NSExtensionPointIdentifier com.apple.widgetkit-extension' "$share/Info.plist"
+deny 'Share rejects wrong extension point' validate_share_bundle "$app"
+fixture_bundle
+fixture_profile
+"$plist" -c 'Set :Entitlements:application-identifier U6LC622NKF.dev.tuist.atlas.share' "$profile"
+validate_live_activity_profile "$profile" "$host_profile" "$identity" dev.tuist.atlas.share
+prepare_live_activity_distribution "$app" "$profile" "$work/share-entitlements.plist" AtlasShare
+configure_share_group "$profile" "$work/share-entitlements.plist"
+[[ $(plutil -extract application-identifier raw "$work/share-entitlements.plist") = U6LC622NKF.dev.tuist.atlas.share ]]
+[[ $("$plist" -c 'Print :com.apple.security.application-groups:0' "$work/share-entitlements.plist") = group.dev.tuist.atlas.share ]]
+for key in aps-environment keychain-access-groups com.apple.developer.associated-domains; do
+    if "$plist" -c "Print :$key" "$work/share-entitlements.plist" >/dev/null 2>&1; then fail "Share inherited $key"; fi
+done
+pass 'Share distribution identity and group without host credentials'
+"$plist" -c 'Set :Entitlements:com.apple.security.application-groups:0 group.other' "$profile"
+deny 'wrong Share group' configure_share_group "$profile" "$work/share-entitlements.plist"
+"$plist" -c 'Delete :Entitlements:com.apple.security.application-groups' "$profile"
+deny 'missing Share group' configure_share_group "$profile" "$work/share-entitlements.plist"
+"$plist" -c 'Add :Entitlements:com.apple.security.application-groups string group.dev.tuist.atlas.share' "$profile"
+deny 'scalar Share group' configure_share_group "$profile" "$work/share-entitlements.plist"
+
+: > "$FIXTURE_CALLS"
+sign_live_activity_distribution "$app" fixture-identity "$work/keychain" "$work/host-entitlements.plist" \
+    "$entitlements" "$work/share-entitlements.plist"
+{
+    printf 'scan\t%s\t%s\t%s\n' "$app/Atlas" "$activity/AtlasLiveActivity" "$share/AtlasShare"
+    printf 'sign\t%s\t%s\n' "$activity" "$entitlements"
+    printf 'verify\t%s\t\n' "$activity"
+    printf 'sign\t%s\t%s\n' "$share" "$work/share-entitlements.plist"
+    printf 'verify\t%s\t\n' "$share"
+    printf 'sign\t%s\t%s\n' "$app" "$work/host-entitlements.plist"
+    printf 'verify\t%s\t\n' "$app"
+} > "$work/expected-signing.log"
+diff -u "$work/expected-signing.log" "$FIXTURE_CALLS"
+pass 'all executables scanned and both extensions signed before host'
+
+fixture_profile
+"$plist" -c 'Add :Entitlements:com.apple.security.application-groups:1 string group.unrelated' "$profile"
+plutil -extract Entitlements xml1 -o "$work/host-entitlements.plist" "$profile"
+configure_share_group "$profile" "$work/host-entitlements.plist"
+[[ $("$plist" -c 'Print :com.apple.security.application-groups:0' "$work/host-entitlements.plist") = group.dev.tuist.atlas.share ]]
+if "$plist" -c 'Print :com.apple.security.application-groups:1' "$work/host-entitlements.plist" >/dev/null 2>&1; then
+    fail 'Unrelated App Group was retained'
+fi
+pass 'host group authorization narrows the exact dotted entitlement key'
+
+isolated_share="$bundle_root/.once/out/AtlasIOSDevice/Atlas.app/PlugIns/AtlasShare.appex"
+"$plist" -c 'Set :CFBundleIdentifier wrong' "$isolated_share/Info.plist"
+: > "$FIXTURE_OP_CALLS"
+deny 'Share bundle validation precedes all credential reads' bash "$bundle_root/ios/distribution/bundle.sh"
+[[ ! -s "$FIXTURE_OP_CALLS" ]] || fail 'Read credentials before Share bundle validation'
+"$plist" -c 'Set :CFBundleIdentifier dev.tuist.atlas.share' "$isolated_share/Info.plist"
+
+fixture_profile
+cp "$profile" "$work/share-profile.plist"
+"$plist" -c 'Set :Entitlements:application-identifier U6LC622NKF.dev.tuist.atlas.share' \
+    -c 'Set :Entitlements:com.apple.security.application-groups:0 group.other' "$work/share-profile.plist"
+export FIXTURE_SHARE_PROFILE="$work/share-profile.plist"
+: > "$FIXTURE_OP_CALLS"
+deny 'Share group validation precedes private certificate reads' bash "$bundle_root/ios/distribution/bundle.sh"
+printf '%s\n' 'op://tuist/Atlas App Ad Hoc/Atlas_App_Ad_Hoc.mobileprovision' \
+    'op://tuist/Atlas Live Activity Ad Hoc/Atlas_Live_Activity_Ad_Hoc.mobileprovision' \
+    'op://tuist/Atlas Share Ad Hoc/Atlas_Share_Ad_Hoc.mobileprovision' > "$work/expected-op.log"
+diff -u "$work/expected-op.log" "$FIXTURE_OP_CALLS"
+pass 'invalid Share profile never retrieves private signing material'
+
+echo "All $passed extension packaging fixtures passed."

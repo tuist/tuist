@@ -618,11 +618,6 @@
                     "dashboard_account",
                     "When enabled, users from the verified login email domain can join this organization automatically. Other users need an invitation."
                   )}
-                <% @organization.sso_legacy_email_domain_fallback && @sso_automatic_enrollment -> %>
-                  {dgettext(
-                    "dashboard_account",
-                    "This existing configuration allows any email address reported by the provider to join automatically. Add and verify a login email domain to restrict enrollment."
-                  )}
                 <% @sso_automatic_enrollment -> %>
                   {dgettext(
                     "dashboard_account",
@@ -690,7 +685,6 @@
             <span data-part="description">
               <%= if oauth2_form_provider?(@selected_provider) and
                        is_nil(@organization.sso_login_domain_verified_at) and
-                       not @organization.sso_legacy_email_domain_fallback and
                        not @sso_enforced do %>
                 {dgettext(
                   "dashboard_account",

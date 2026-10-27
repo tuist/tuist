@@ -1,114 +1,29 @@
-# hetzner-robot-controller
+# Hetzner Robot Controller
 
-Small operator that fills the gap between [caph](https://github.com/syself/cluster-api-provider-hetzner)
-(the upstream CAPI provider for Hetzner) and the Tuist operator
-workflow for adopting Hetzner Robot bare-metal hosts. caph is
-the CAPI provider — it claims `HetznerBareMetalHost` CRs and
-drives them through rescue/installimage/kubeadm-join. This
-controller does the two things caph deliberately doesn't:
+Reflects Robot inventory into `HetznerBareMetalHost` CRs and fills disk hints/provider IDs. caph owns rescue, installimage, and kubeadm join; do not duplicate that lifecycle here.
 
-1. **Reflects Robot inventory into CRs.** caph adopts existing
-   hosts; it doesn't discover them. Operator orders a box in the
-   Robot panel under the `tuist-bm-*` naming convention; the
-   controller polls Robot every 60s and creates a matching
-   `HetznerBareMetalHost` CR. Cancellations delete the CR.
+- Touch only CRs labeled `app.kubernetes.io/managed-by=hetzner-robot-controller`; leave hand-authored/unmanaged CRs alone.
+- Never reap an inventory-missing CR while `spec.consumerRef.name` is set: caph still owns the binding. Operator recovery must drain/unbind the MachineDeployment before inventory cleanup.
+- Keep shared-account environment isolation: derive partitions from Cluster `bareMetalCluster` topology variables, match operator `tuist-bm-<env>-…` and caph-rewritten `bm-<clusterCRName>-…` names, longest-prefix first. Stamp `tuist.dev/cluster` and preserve matching host selectors; only fall back to the legacy name-prefix gate when no partition is configured.
+- Never overwrite operator-selected disk hints; single-disk hosts require explicit hints. Automatic selection uses the highest-capacity same-size disk group with at least two distinct WWNs, not the first two disks. Keep `statefulRaidLevel` aligned: RAID 1 for two disks, RAID 10 for four.
+- Keep inventory polling leader-elected. Provider-ID repair targets the bound workload Node, not arbitrary hosts.
+- Deployment/RBAC integration: [management manifest](../k8s/mgmt/hetzner-robot-controller.yaml). Operator procedures belong in [onboarding](../k8s/onboarding.md); parent agent access rules still apply.
 
-2. **Auto-fills disk WWNs.** caph requires
-   `spec.rootDeviceHints` populated before installimage can run,
-   but caph itself discovers WWNs during the rescue boot and
-   only writes them to `spec.status.hardwareDetails` (a deliberate
-   safety — `spec` is operator intent). The controller watches
-   for hosts where `hardwareDetails` is populated but
-   `rootDeviceHints` is empty, and patches the WWNs of one disk
-   group into `spec.rootDeviceHints.raid.wwn`: the same-size group
-   holding the most capacity. installimage hands the set to mdadm,
-   which sizes every member to the smallest, so an array spanning
-   a box's two 1.92 TB disks and its two 7.68 TB ones installs as
-   3.84 TB usable out of 19.2 TB of flash, and the layout is fixed
-   at install. Capacity rather than disk count decides, and a
-   group too small to mirror is skipped. The RAID level is not
-   chosen here at all; it comes from the `statefulRaidLevel`
-   ClusterClass variable, which has to agree with the selection: 1
-   for a two-disk selection, 10 for a four-disk one.
+## Disk selection
+
+caph requires `spec.rootDeviceHints` populated before installimage can run,
+but discovers WWNs during rescue and only writes `spec.status.hardwareDetails`:
+`spec` is operator intent. Fill empty hints with the highest-capacity same-size
+group, not every disk: mdadm sizes every member to the smallest, so mixing two
+1.92 TB disks with two 7.68 TB disks wastes most of the flash, and the layout
+is fixed at install. Skip groups too small to mirror. The RAID level comes
+from the `statefulRaidLevel` ClusterClass variable, not this controller; it
+must match the selection (1 for two disks, 10 for four).
 
 Net: the operator's bring-up workflow becomes "order in Robot
 panel with `tuist-bm-staging-N` naming → bump replicas." No
 hand-authored CRs, no WWN-copying, no `kubectl create secret`
 ceremony per host.
-
-## Architecture
-
-```
-Robot webservice (https://robot.hetzner.com/api)
-        │
-        │ ServerGetList()
-        │ poll every 60s
-        ▼
-┌──────────────────────────────────────────────┐
-│ hetzner-robot-controller-manager             │
-│ (mgmt cluster, org-tuist namespace)          │
-│                                              │
-│   ┌─────────────────────────────────────┐   │
-│   │ InventorySyncer (Runnable)          │   │
-│   │  - leader-elected (singleton)       │   │
-│   │  - filters by `tuist-bm-` prefix    │   │
-│   │  - creates CRs for new servers      │   │
-│   │  - deletes CRs for cancelled boxes  │   │
-│   │    (refuses if caph has claimed)    │   │
-│   └─────────────────────────────────────┘   │
-│                                              │
-│   ┌─────────────────────────────────────┐   │
-│   │ WWNFillReconciler (event-driven)    │   │
-│   │  - watches HetznerBareMetalHost     │   │
-│   │  - filters managed-by label         │   │
-│   │  - when hardwareDetails has WWNs    │   │
-│   │    and rootDeviceHints is empty:    │   │
-│   │    patch rootDeviceHints.raid.wwn   │   │
-│   └─────────────────────────────────────┘   │
-│   ┌─────────────────────────────────────┐   │
-│   │ NodeProviderIDFillReconciler        │   │
-│   │  - watches HetznerBareMetalHost     │   │
-│   │  - filters managed-by label         │   │
-│   │  - when state=provisioned + a       │   │
-│   │    consumerRef HBMM exists:         │   │
-│   │    look up workload kubeconfig,     │   │
-│   │    patch Node.spec.providerID to    │   │
-│   │    hcloud://bm-<server-number>      │   │
-│   └─────────────────────────────────────┘   │
-└────────────────────┬─────────────────────────┘
-                     │ creates / patches CRs (mgmt)
-                     │ patches Nodes (workload)
-                     ▼
-       HetznerBareMetalHost CRs (caph claims these)
-       + workload-cluster Nodes (providerID set)
-```
-
-## Module layout
-
-```
-infra/hetzner-robot-controller/
-├── AGENTS.md             # (this file)
-├── Dockerfile
-├── cliff.toml
-├── CHANGELOG.md
-├── go.mod
-├── go.sum
-├── cmd/manager/main.go   # flags, manager setup, controller wiring
-├── controllers/
-│   ├── hostdiscovery.go      # InventorySyncer Runnable
-│   ├── hostdiscovery_test.go
-│   ├── wwnfill.go            # WWNFillReconciler
-│   ├── wwnfill_test.go
-│   ├── nodeproviderfill.go   # NodeProviderIDFillReconciler
-│   └── nodeproviderfill_test.go
-├── internal/robot/
-│   └── client.go             # hrobot-go SDK wrapper + FakeClient
-└── config/rbac/role.yaml     # ClusterRole the chart binds
-```
-
-The mgmt-cluster Deployment manifest lives at
-[`infra/k8s/mgmt/hetzner-robot-controller.yaml`](../k8s/mgmt/hetzner-robot-controller.yaml)
-and is applied by `mgmt-cluster-apply.yml`.
 
 ## Configuration
 
@@ -128,41 +43,23 @@ Robot account spans every Robot host across staging, canary and
 production), so both 1Password items live in the mgmt cluster's own
 vault (`tuist-k8s-mgmt`).
 
-The mgmt cluster runs no external-secrets-operator, so the operator
-creates the two Secrets manually once per mgmt cluster bring-up:
+These fleet Secrets remain operator-managed; the management deployment's
+Secret references are authoritative. The mgmt cluster now has ESO for Flux
+bootstrap, but that does not automatically migrate the Robot credentials.
+Bootstrap and emergency access are human operator
+references, not permission for agents to read Secrets or bypass parent access
+rules. Provision `HETZNER_WEBSERVICE` credentials into the shared
+`org-tuist/hetzner` Secret (`hetzner-robot-user` and `hetzner-robot-password`),
+not a separate controller-only copy. The
+[bare-metal templates](../k8s/clusters/bare-metal.yaml) also require
+`org-tuist/hetzner-bare-metal-ssh-key` from `HETZNER_BARE_METAL_SSH_KEY`, with
+`sshkey-name`, `ssh-publickey` and `ssh-privatekey`. Keep caph and this
+controller's credential wiring aligned; remove temporary credential files
+after any human-run bootstrap.
 
-```bash
-# Robot webservice credentials: caph drives the Robot API with these
-op read "op://tuist-k8s-mgmt/HETZNER_WEBSERVICE/username" > /tmp/robot-user
-op read "op://tuist-k8s-mgmt/HETZNER_WEBSERVICE/password" > /tmp/robot-pass
-kubectl --kubeconfig "$MGMT_KUBECONFIG" -n org-tuist create secret generic \
-  hetzner-robot-credentials \
-  --from-file=hetznerRobotUser=/tmp/robot-user \
-  --from-file=hetznerRobotPassword=/tmp/robot-pass
-# caph reads Robot keys from the SAME Secret as the hcloud token
-# (the one named in HetznerClusterTemplate.hetznerSecretRef, today
-# `hetzner`). Merge the keys in:
-ROBOT_USER_B64=$(base64 -w0 < /tmp/robot-user)
-ROBOT_PASS_B64=$(base64 -w0 < /tmp/robot-pass)
-kubectl --kubeconfig "$MGMT_KUBECONFIG" -n org-tuist patch secret hetzner \
-  --type=merge -p "{\"data\":{\"hetznerRobotUser\":\"${ROBOT_USER_B64}\",\"hetznerRobotPassword\":\"${ROBOT_PASS_B64}\"}}"
-shred -u /tmp/robot-user /tmp/robot-pass
-
-# SSH key: caph SSHes into rescue mode with this
-op read "op://tuist-k8s-mgmt/HETZNER_BARE_METAL_SSH_KEY/public-key-name" > /tmp/sshname
-op read "op://tuist-k8s-mgmt/HETZNER_BARE_METAL_SSH_KEY/public-key"      > /tmp/sshpub
-op read "op://tuist-k8s-mgmt/HETZNER_BARE_METAL_SSH_KEY/private-key"     > /tmp/sshpriv
-kubectl --kubeconfig "$MGMT_KUBECONFIG" -n org-tuist create secret generic \
-  hetzner-bare-metal-ssh-key \
-  --from-file=sshkey-name=/tmp/sshname \
-  --from-file=ssh-publickey=/tmp/sshpub \
-  --from-file=ssh-privatekey=/tmp/sshpriv
-shred -u /tmp/sshname /tmp/sshpub /tmp/sshpriv
-```
-
-Once ESO lands on the mgmt cluster, both Secrets can move to
-`ExternalSecret` resources next to the `infra/k8s/clusters/bare-metal*.yaml`
-templates and this manual step goes away.
+An explicit migration to `ExternalSecret` resources next to the
+`infra/k8s/clusters/bare-metal*.yaml` templates can replace this manual step;
+preserve the shared-account credential scope and verify the live Secret keys.
 
 ### Emergency SSH access
 
@@ -266,10 +163,7 @@ controller drift.
 
 ## Tests
 
-```bash
-cd infra/hetzner-robot-controller
-go test ./...
-```
+Run `go test ./...` here.
 
 Coverage:
 - `InventorySyncer.sync`: creates missing, skips prefix mismatch,

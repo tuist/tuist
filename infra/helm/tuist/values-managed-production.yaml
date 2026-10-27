@@ -1240,6 +1240,8 @@ ovhFleets:
     nodePool: runners-linux
     machine:
       adoptDisplayNamePrefix: tuist-runners-ovh-production
+      # Backfill existing OnDelete hosts during drained network enrollment.
+      vRackID: pn-2024093
       # Case-insensitive substring of the box's commercialRange, which the
       # catalog bills as "RISE-L | AMD RYZEN 9 9950X". The range token alone
       # matches without depending on how the CPU suffix is spelled on the server

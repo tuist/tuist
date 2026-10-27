@@ -12,6 +12,13 @@ after the replicas and External Secrets release. Keep public firewall removal
 and the private API-target switch after that network rollout, as documented in
 `infra/k8s/mgmt/talos/README.md`.
 
+Management backup changes must pass `test-ha-followups.cjs`. After the Talos
+API-access patch, the apply workflow deploys the backup-only Talos ServiceAccount
+and verifies a real snapshot upload from every control-plane node. It never
+deletes the old static credential automatically; the operator verification task
+can do so only after all uploads succeed. Keep failure paths and Secret cleanup
+guards covered without credentials.
+
 Helm CI also watches hosted dashboard changes. Monitoring cost-control tests
 start the production Alloy image to compile log selectors, exercise rendered
 remote-write rules against a local Prometheus receiver, and check all migrated
