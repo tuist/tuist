@@ -77,6 +77,7 @@ var tuistCargoCommandDependencies: [Target.Dependency] = [
     "TuistCAS",
     tuistCargoCacheDependency,
     "TuistREAPI",
+    "TuistHTTP",
     .product(name: "Crypto", package: "apple.swift-crypto"),
     processDependency,
     pathDependency,
@@ -166,6 +167,7 @@ var tuistServerDependencies: [Target.Dependency] = [
     .product(name: "Crypto", package: "apple.swift-crypto"),
 ]
 var tuistHTTPDependencies: [Target.Dependency] = [
+    .product(name: "Crypto", package: "apple.swift-crypto"),
     "TuistConstants",
     "TuistEnvironment",
     "TuistLogging",
@@ -882,6 +884,7 @@ var targets: [Target] = [
     .target(
         name: "TuistOIDC",
         dependencies: [
+            "TuistHTTP",
             "TuistConstants",
             "TuistEnvironment",
             "TuistLogging",
@@ -1145,6 +1148,11 @@ var targets: [Target] = [
         name: "TuistHTTPTests",
         dependencies: [
             "TuistHTTP",
+            "TuistTestSupport",
+            .product(name: "NIOCore", package: "apple.swift-nio"),
+            .product(name: "NIOPosix", package: "apple.swift-nio"),
+            .product(name: "NIOSSL", package: "apple.swift-nio-ssl"),
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
             "TuistEnvironment",
             "TuistEnvironmentTesting",
             fileSystemDependency,
