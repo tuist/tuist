@@ -127,7 +127,7 @@ operations; retain them until an administrator removes them.
 - API tokens, SCIM-scoped account tokens, and project tokens (existence, scopes, names, timestamps, and last-used metadata; token values, token hashes, and generated token secret previews are excluded)
 - Agent registration audit records (`agent_registrations`, `agent_registration_events`, `agent_auth_jtis`, and `agent_auth_credentials` tables): registration type/status, requested credential type, verified email address, claim attempt id, claim and user-code expiry timestamps, last claim-poll timestamp, registration / claim request / completion Internet Protocol address metadata, claimed user relationship, linked account-token id or access-token identifier, Identity Assertion Authorization Grant issuer/subject/audience/client metadata, replay-protection token identifiers, each issued access token's identifier, expiry, and revocation timestamp, append-only state-change events (`created`, `assertion_issued`, `token_issued`, `token_revoked`, `claim_requested`, `user_code_minted`, `claim_confirmed`, `claim_resent`, `otp_failed`, `claimed`, `expired`, `revoked`), event Internet Protocol address metadata, event metadata, and timestamps. The claim token hash, claim-attempt token hash, user-code hash, issued application programming interface key value, signed identity assertion, and signed access token are excluded from exports as authentication secrets.
 - Custom cache endpoint configurations (`account_cache_endpoints` table): account-specific custom cache endpoints and the internal peer (mTLS) addresses of enrolled self-hosted Kura nodes (rows with `technology = :kura_self_hosted_peer`, written at enrollment from each node's `KURA_NODE_URL`). These peer addresses are customer infrastructure hostnames used only for mesh peering and are never returned to the CLI as cache endpoints. Self-hosted peer rows whose node stops sending mesh heartbeats carry a `deactivated_at` timestamp (the peer is withheld from the mesh but kept; the node's recovery re-enrollment reactivates it) and are deleted once deactivated past the peer-certificate lifetime (30 days). Tuist-managed regional Kura endpoints are not stored here: they are derived from `kura_servers` when a client asks where to send cache traffic, so the instance row is the only record of them.
-- Organization single sign-on configuration metadata, including the configured provider, provider URL, full OAuth2 endpoint URLs, login email domain, domain verification timestamp, the timestamp the daily re-check last found the verification record, automatic-enrollment policy, the role automatic enrollment grants (`user` or `viewer`). The retired `organizations.sso_legacy_email_domain_fallback` column remains in PostgreSQL solely for compatibility with older releases during deployment; current code does not use it. It is still exportable via a direct organization-row query until a later migration removes it. Previously implicit SSO memberships are materialized in the existing `roles` and `users_roles` tables when compatibility mode is removed, preserving their enrollment role without changing explicit memberships. The domain verification challenge token is excluded as authentication material.
+- Organization single sign-on configuration metadata, including the configured provider, provider URL, full OAuth2 endpoint URLs, login email domain, domain verification timestamp, the timestamp the daily re-check last found the verification record, automatic-enrollment policy, the role automatic enrollment grants (`user` or `viewer`). The retired legacy-domain compatibility marker has been removed and is no longer stored or exported. Previously implicit SSO memberships are materialized in the existing `roles` and `users_roles` tables when compatibility mode is removed, preserving their enrollment role without changing explicit memberships. The domain verification challenge token is excluded as authentication material.
 - Kura server records (`kura_servers` table): per-account Kura server configuration including region, image tag, public URL, status (including `drain_pending` and `archived`, the demand-driven lifecycle states for an instance whose cache is being reclaimed after a full inactivity window and one whose cache has been reclaimed), the warm-handoff move state (`move_phase`, `target_node`) recording whether the server is a steady-state instance or a transient move source/target and which box a move target is pinned to, the claim the instance is built at (`storage_claim_size`, the filesystem quota each replica holds, resolved from the account's plan or its claim override), and the observed-state projection (`observed_image_tag`, `last_observed_at`, `last_ready_at`, `peer_roles`) recording which image the backing cluster reports running, when it was last observed, when its private endpoint was last observed ready, and the replication role of each of the instance's pods (a Tuist-internal in-cluster peer URL per pod plus whether it is the region's replication gateway — cluster-internal addresses of Tuist's own infrastructure, not customer data), and `public_host_drift_observed_at`, when the reconciler first saw the region template render a public host different from the stored URL (a Tuist infrastructure timestamp, not customer data), and `drain_started_at`, when the server last entered `drain_pending` (a Tuist infrastructure timestamp, not customer data)
 - Private runner Kura instances participate in the same account disk-sizing records, proposals and regional storage rollups as public managed instances. Previously unpinned live runner instances adopt the account-sized claim or plan default at enrollment, capped at the historical 50Gi; later resizing uses the existing measured policy and audit trail. These records remain exportable by account, with the same retention as the records below.
 - Kura sized claims (`kura_placer_claims` table): the disk claim automatic sizing chose for an account, which takes precedence over the plan constant in resolution order. One row per account holding the claim and its timestamps; the update timestamp marks the last resize, after which sizing evaluates only newer telemetry. Configuration derived from aggregate telemetry, retained until the account is deleted.
@@ -391,17 +391,32 @@ retention duration.
 
 Hosted production marketing, documentation and dashboard pages send pageviews to
 Glossia for the `tuist.dev` project. The browser sends the full page address and
-referrer, browser languages, timezone, screen width and a per-tab session
-identifier stored in session storage. Page addresses can include organization
-and project names or query parameters. No Tuist user identifiers, account
-identifiers or authentication tokens are explicitly attached.
+referrer, browser languages, actual page language, advertised translation
+languages, timezone, screen width and a per-tab session identifier stored in
+session storage. Selecting a language in the marketing footer or desktop/mobile
+documentation picker also sends a `language_selection` event and stores that
+explicit choice in same-origin, per-tab session storage. Later events include
+the choice until another selection replaces it or the tab closes; visits and
+automatic redirects alone do not establish a choice. Page addresses can include
+organization and project names or query parameters. No Tuist user identifiers,
+account identifiers or authentication tokens are explicitly attached.
 
 Glossia stores events in its `analytics_events` ClickHouse table, deriving
 country and a daily-rotated visitor hash from the request's network address and
-browser identification header. Page addresses are reduced to hostname and path
-for storage, while the referrer is retained. The raw network address and browser
-header are not stored in the event row. Retention follows Glossia's configured retention;
-the inspected event-table migration does not define an automatic expiry.
+browser identification header. The `selected_locale` column stores the explicit
+choice separately from `browser_language` and `served_locale`. Page addresses are
+reduced to hostname and path for storage, while the referrer is retained. The raw
+network address and browser header are not stored in the event row. Retention
+follows Glossia's configured retention; the inspected event-table migration does
+not define an automatic expiry.
+
+For new events, a valid explicit choice takes precedence over browser preferences
+when Glossia checks availability against project target languages, advertised
+translations and the actual page language. A choice is not proof that navigation
+succeeded or that a translation exists: choosing an unavailable language still
+reports a gap. Missing or invalid choices fall back to browser preferences.
+Historical events retain their stored gap decisions without recomputation.
+
 These external records are outside the standard Tuist export archive. For a
 transparency request, retrieve matching events from the Glossia `tuist.dev`
 project using available page, time and session context; they are not an
@@ -593,6 +608,17 @@ The archive contains everything needed to understand the account's complete data
   visibility; they are not a billing ledger or measurements of unique physical
   allocation. Observation time is report receipt time, not the exact time data
   was written, and changes before reporting cannot be reconstructed.
+- **Saved cache size history** (`runner_cache_volume_saved_sizes`, PostgreSQL):
+  volume foreign key, nullable saved-head size in bytes and observation timestamp.
+  Publication, changed head measurements, clear, expiry and head deletion record
+  changes atomically with the volume lifecycle. No saved head is zero; an
+  unmeasured head is null. Identical sizes are deduplicated. Existing volumes are
+  seeded with their current size at migration time; earlier history is unknown.
+  Hourly dashboard samples carry the last observation forward, independently of
+  retained job copies. Cleanup retains 90 days plus the last earlier observation
+  for each volume as a baseline, and rows cascade with volume/account deletion.
+  Export by joining `volume_id` to `runner_cache_volumes.id` and filtering its
+  `account_id`. These are logical saved-cache sizes, not physical disk usage.
 - **Removed built-in volume records**: records of the former built-in macOS cache
   volume (`tuist-cache` and `repo-<16 hex>`), with their uses and measurements,
   HEAD and orphan rows, and the `runner_volume_affinities` table were deleted when

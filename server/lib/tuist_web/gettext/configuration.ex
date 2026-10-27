@@ -13,6 +13,7 @@ defmodule TuistWeb.Gettext.Configuration do
       use Gettext.Backend,
         otp_app: :tuist,
         allowed_locales: allowed_locales,
+        plural_forms: TuistWeb.Gettext.Plural,
         split_module_by: [:locale, :domain]
     end
   end

@@ -103,6 +103,7 @@ func newHarness(t *testing.T) *harness {
 		Store: store, Launcher: launcher, Network: net, Slots: slots, Agent: agent, JailBase: jailBase,
 		JailerEnabled: true, UIDBase: 10000, DNS: []string{"10.128.0.10"}, FirecrackerVersion: "v1.16.1",
 		WorkspaceGB: 10, BootTimeout: 5 * time.Second, Events: events.add,
+		CloneFile: fakevm.CopyFile,
 	}
 	m := New(Config{
 		JailBase: jailBase, FirecrackerBin: "/fc", JailerBin: "/jailer", JailerEnabled: true, UIDBase: 10000,
@@ -110,6 +111,7 @@ func newHarness(t *testing.T) *harness {
 	}, Deps{
 		Store: store, Builder: builder, Launcher: launcher, Network: net, Slots: slots, Agent: agent,
 		Metrics: NewMetrics(nil), Events: events.add,
+		CloneFile: fakevm.CopyFile,
 	})
 	return &harness{m: m, launcher: launcher, net: net, slots: slots, events: events, dataDir: dataDir, jailBase: jailBase, tmplDir: tmplDir}
 }

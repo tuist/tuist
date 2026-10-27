@@ -124,6 +124,7 @@ func newBuilder(t *testing.T, dataDir string, launcher *fakevm.Launcher, net *fa
 		Network:            net,
 		Slots:              network.NewSlots(16),
 		Agent:              func(path string) vsock.Agent { return vsock.NewUDSClient(path, firecracker.AgentPort) },
+		CloneFile:          fakevm.CopyFile,
 		JailBase:           filepath.Join(dataDir, "jail"),
 		FirecrackerBin:     "/usr/local/bin/firecracker",
 		JailerBin:          "/usr/local/bin/jailer",

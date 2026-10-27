@@ -85,7 +85,7 @@ defmodule Tuist.Application.RuntimeChildrenTest do
 
   describe "readiness_server/1" do
     test ":xcresult_processor serves Tuist.Readiness.Plug on the readiness port" do
-      assert [{Plug.Cowboy, opts}] = RuntimeChildren.readiness_server(:xcresult_processor)
+      assert [{Tuist.XcresultDrain, []}, {Plug.Cowboy, opts}] = RuntimeChildren.readiness_server(:xcresult_processor)
       assert Keyword.fetch!(opts, :plug) == Tuist.Readiness.Plug
       assert opts |> Keyword.fetch!(:options) |> Keyword.fetch!(:port) == Tuist.Readiness.port()
     end

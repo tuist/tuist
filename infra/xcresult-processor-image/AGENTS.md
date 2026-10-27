@@ -300,3 +300,12 @@ changes do not release the image: the processor runs the release its deploy
 pins, built from the same commit as the server, so it cannot run older code
 than the schema it reads. To smoke-test image contents without cutting a
 version, dispatch `xcresult-processor-image.yml` for a throwaway `:<sha>` build.
+
+## Graceful termination
+
+Current processor Pods opt into the tart-kubelet `xcresult-v1` drain protocol.
+The per-VM `status` share carries a Pod-UID request and acknowledgement; the
+server release pauses its local queue and finishes work before VM teardown.
+Legacy unannotated Pods need an idle/drained first migration. No public control
+endpoint or Erlang distribution is added. See the
+[maintenance rollout](../cluster-api-provider-tuist/scaleway-os-maintenance.md).

@@ -1,9 +1,11 @@
 package vm
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/tuist/tuist/infra/sandboxd/internal/firecracker"
@@ -111,21 +113,6 @@ func TestFileHelpers(t *testing.T) {
 	if err := HardLink(src, link); err != nil {
 		t.Fatalf("hard link should replace: %v", err)
 	}
-	clone := filepath.Join(dir, "clone")
-	if err := Reflink(src, clone); err != nil {
-		t.Fatal(err)
-	}
-	data, _ := os.ReadFile(clone)
-	if string(data) != "content" {
-		t.Fatalf("clone content %q", data)
-	}
-	if err := os.WriteFile(clone, []byte("changed"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	data, _ = os.ReadFile(src)
-	if string(data) != "content" {
-		t.Fatal("writing the clone changed the source")
-	}
 	sparse := filepath.Join(dir, "sparse")
 	if err := Sparse(sparse, 10<<30); err != nil {
 		t.Fatal(err)
@@ -148,6 +135,47 @@ func TestFileHelpers(t *testing.T) {
 	}
 	if got := LogTail(filepath.Join(dir, "missing"), 4); got != "" {
 		t.Fatalf("missing log tail %q", got)
+	}
+}
+
+func TestReflink(t *testing.T) {
+	dir := t.TempDir()
+	src, dst := filepath.Join(dir, "src"), filepath.Join(dir, "clone")
+	if err := os.WriteFile(src, []byte("content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Reflink(src, dst); err != nil {
+		// Linux CI can use ext4 or tmpfs. Verify that the real helper refuses
+		// an unsupported filesystem instead of silently copying a VM disk.
+		if !errors.Is(err, syscall.EOPNOTSUPP) && !errors.Is(err, syscall.ENOTTY) {
+			t.Fatal(err)
+		}
+		if data, readErr := os.ReadFile(dst); readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+			t.Fatal(readErr)
+		} else if len(data) != 0 {
+			t.Fatal("unsupported reflink copied data")
+		}
+		t.Log("verified unsupported filesystem fails without copying")
+	} else {
+		data, err := os.ReadFile(dst)
+		if err != nil || string(data) != "content" {
+			t.Fatalf("clone content %q: %v", data, err)
+		}
+		if err := os.WriteFile(dst, []byte("changed"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		// Replacing an existing clone must also work.
+		if err := Reflink(src, dst); err != nil {
+			t.Fatal(err)
+		}
+		data, err = os.ReadFile(dst)
+		if err != nil || string(data) != "content" {
+			t.Fatalf("replacement clone content %q: %v", data, err)
+		}
+	}
+	data, err := os.ReadFile(src)
+	if err != nil || string(data) != "content" {
+		t.Fatalf("clone modified the source: %q: %v", data, err)
 	}
 }
 

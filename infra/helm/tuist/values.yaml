@@ -529,6 +529,7 @@ server:
   appUrl: http://tuist.local
   logLevel: info
   hosted: false
+  ssoRequireLoginDomainVerification: false
   # Cloudflare Turnstile protects self-service browser registration on hosted
   # deployments. When `enabled` is true, TUIST_TURNSTILE_ENABLED is set on the
   # deployment and the site/secret keys are synced from the TURNSTILE 1Password
@@ -1509,6 +1510,12 @@ capi:
     # Upgrade existing runtimes before qualifying an additional region.
     regions: {}
   ovhPrivateNetwork:
+    enabled: false
+    vrackID: ""
+    cidr: ""
+  # Disable first and wait for RunnerEgressReady to disappear before changing
+  # the block, removing this config, or rolling back to an older provider image.
+  ovhRunnerEgress:
     enabled: false
     vrackID: ""
     cidr: ""
@@ -3033,6 +3040,19 @@ runnersFleetLinux:
     maxConcurrentPerNode: 6
     # Starts after the scheduler binds the Pod to a node. 0 disables.
     startTimeoutSeconds: 300
+  # Hardware-accelerated nested guests (x86_64 Android emulators) for pools
+  # that set `nestedVirtualization: true`. Enabling this deploys the
+  # kvm-device-plugin DaemonSet onto the hosts the CAPI provider has
+  # labelled `tuist.dev/kata-kvm=true`; it changes nothing for other pools.
+  # A nested pool's Pods boot the provider-installed KVM guest kernel and
+  # request `devices.tuist.dev/kvm`, which adds /dev/kvm to the runner
+  # container. See infra/runners-controller/AGENTS.md "Nested
+  # virtualization".
+  nestedVirtualization:
+    enabled: false
+    # Internal rollout/rollback switch. Requires enabled above. Applies to
+    # every Linux pool; pools may explicitly override nestedVirtualization.
+    defaultEnabled: false
   # Value of the `node.cluster.x-k8s.io/pool=` label CAPI's
   # label-sync propagates from the runner MachineDeployment to
   # each runner Node. Must match the
@@ -3056,7 +3076,7 @@ runnersFleetLinux:
     # Example entry:
     # - name: ubuntu-22-04
     #   replicas: 0          # static target; ignored when autoscaling is enabled.
-    #   runnerImage: ""      # Required. Digest-pinned in production.
+    #   runnerImage: ""      # Defaults to shapeRunnerImage. Digest-pinned in production.
     #   dispatchLabel: ""    # Required. The label customers put in `runs-on`.
     #   runnerLabels:
     #     - self-hosted
@@ -3070,6 +3090,10 @@ runnersFleetLinux:
     #   # the kata-qemu microVM is the safety boundary that keeps
     #   # the privileged sidecar off the bare-metal host kernel.
     #   runtimeClass: kata-qemu
+    #   # Optional. Gives the runner container /dev/kvm for nested guests
+    #   # such as Android emulators. Needs kata-qemu and
+    #   # `runnersFleetLinux.nestedVirtualization.enabled`.
+    #   nestedVirtualization: false
     #   provisioning:
     #     maxConcurrentPerNode: 6
     #     startTimeoutSeconds: 300

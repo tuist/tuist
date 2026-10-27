@@ -605,6 +605,67 @@ func TestBuild_MacOSPodHasNoKataXattrAnnotation(t *testing.T) {
 	}
 }
 
+func TestBuild_NestedVirtualizationBootsKVMKernelAndRequestsTheDevice(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.NestedVirtualization = true
+	pod := build(t, pool)
+
+	if got := pod.Annotations["io.katacontainers.config.hypervisor.kernel"]; got != KVMGuestKernelPath {
+		t.Errorf("kernel annotation = %q, want %q", got, KVMGuestKernelPath)
+	}
+	if got := pod.Annotations["io.katacontainers.config.hypervisor.kernel_params"]; got != "psi=1" {
+		t.Errorf("kernel_params annotation = %q, want psi=1 kept alongside the kernel override", got)
+	}
+	if got := pod.Spec.NodeSelector[KVMNodeLabel]; got != "true" {
+		t.Errorf("nodeSelector %s = %q, want \"true\"", KVMNodeLabel, got)
+	}
+
+	runner := containerByName(t, pod, "runner")
+	for name, list := range map[string]corev1.ResourceList{"requests": runner.Resources.Requests, "limits": runner.Resources.Limits} {
+		quantity, ok := list[KVMResourceName]
+		if !ok || quantity.Value() != 1 {
+			t.Errorf("runner %s %s = %v, want 1", name, KVMResourceName, list[KVMResourceName])
+		}
+	}
+	if runner.SecurityContext != nil && runner.SecurityContext.Privileged != nil && *runner.SecurityContext.Privileged {
+		t.Error("runner container is privileged; /dev/kvm must arrive through the device plugin, not privilege")
+	}
+	for _, c := range pod.Spec.InitContainers {
+		if _, ok := c.Resources.Limits[KVMResourceName]; ok {
+			t.Errorf("init container %q requests %s; only the runner runs customer guests", c.Name, KVMResourceName)
+		}
+	}
+}
+
+func TestBuild_WithoutNestedVirtualizationHasNoKVM(t *testing.T) {
+	pod := build(t, basePool("linux"))
+
+	if _, ok := pod.Annotations["io.katacontainers.config.hypervisor.kernel"]; ok {
+		t.Error("kernel annotation set on a pool that did not opt in")
+	}
+	if _, ok := pod.Spec.NodeSelector[KVMNodeLabel]; ok {
+		t.Errorf("nodeSelector carries %s on a pool that did not opt in", KVMNodeLabel)
+	}
+	if _, ok := containerByName(t, pod, "runner").Resources.Limits[KVMResourceName]; ok {
+		t.Errorf("runner requests %s on a pool that did not opt in", KVMResourceName)
+	}
+}
+
+func TestBuild_NestedVirtualizationOutsideKataFailsClosed(t *testing.T) {
+	linux := basePool("linux")
+	linux.Spec.NestedVirtualization = true
+	linux.Spec.RuntimeClass = ""
+	if _, err := Build(linux, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "", "", "", ""); err == nil {
+		t.Error("Build accepted nested virtualization on a runc Linux pool; want refusal")
+	}
+
+	macos := basePool("darwin")
+	macos.Spec.NestedVirtualization = true
+	if _, err := Build(macos, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", ""); err == nil {
+		t.Error("Build accepted nested virtualization on a macOS pool; want refusal")
+	}
+}
+
 func TestBuild_LinuxPodEnablesPSIViaKataAnnotation(t *testing.T) {
 	// The vitals probe reads /proc/pressure/* for CPU/memory pressure,
 	// but the kata guest kernel boots with PSI off unless psi=1 is on

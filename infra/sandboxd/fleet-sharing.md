@@ -1,8 +1,11 @@
 # Sharing Linux runner hosts with agent sandboxes
 
 Status: CI-first admission and zero additional warm sandbox memory are
-implemented. Live rollout still requires the staging coordination and validation
-below. The controller and server must ship together before enabling accounts.
+implemented. Managed overlays deploy the daemons; account flags control access
+in canary and production. The controller and server must ship together before
+enabling accounts. Prior staging validation covered real sessions, pause/resume
+and elastic memory; the newer allocation protocol still needs live verification
+during the initial Tuist-account rollout.
 
 ## Invariants
 
@@ -130,7 +133,7 @@ but does not create idle CPU and can remove runner seats. Measure CI CPU content
 before selecting CPU weights, caps or elastic requests. Memory accounting alone
 is not proof that sandboxes have no effect on running CI latency.
 
-## Validation and rollout gates
+## Validation and rollout
 
 The controller exports `tuist_runners_sandbox_memory_bytes{node,kind}` for charged,
 grant and free bytes, `tuist_runners_sandbox_grant_timestamp_seconds`, and a separate
@@ -156,5 +159,9 @@ metrics are present, then enable the Tuist account first.
 Rollback first stops accepting new sandbox work through the account flag. Let
 active turns finish and shrink allocations before removing daemons; deleting a
 daemon is not a substitute for reclaim. Preserve node-local files needed for
-paused sessions. Canary and production chart values remain disabled until the
-rollout is agreed and matching releases have passed staging validation.
+paused sessions. Canary and production chart values enable the daemons with
+their pinned images and 1 GiB floor per node. The account flag controls API and
+poller access, not the daemon's baseline resources or template prebuilds. Keep
+the global flag off and enable only the Tuist account initially, after matching
+releases are deployed and grants are confirmed. The generic chart default stays
+disabled so self-hosted installs do not deploy privileged daemons implicitly.
