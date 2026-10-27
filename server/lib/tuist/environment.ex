@@ -2014,17 +2014,9 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX", "tuist-runner-pool-linux")
   end
 
-  @doc "Standard Linux pool to isolated vRack pool mapping, rendered by Helm. Missing or malformed config disables routing."
-  def runners_linux_vrack_pools(environment \\ System.get_env()) do
-    case JSON.decode(Map.get(environment, "TUIST_RUNNERS_LINUX_VRACK_POOLS", "{}")) do
-      {:ok, pools} when is_map(pools) ->
-        Map.filter(pools, fn {source, target} ->
-          is_binary(source) and source != "" and is_binary(target) and target != "" and source != target
-        end)
-
-      _ ->
-        %{}
-    end
+  @doc "Whether managed Linux jobs have an ordinary cache relay outside the private network."
+  def runners_linux_cache_relay_enabled? do
+    System.get_env("TUIST_RUNNERS_LINUX_CACHE_RELAY") == "true"
   end
 
   @doc """

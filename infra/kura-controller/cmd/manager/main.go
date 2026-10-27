@@ -44,6 +44,7 @@ func main() {
 	var stableDrain time.Duration
 	var otlpTracesEndpoint string
 	var deploymentEnvironment string
+	var runnerCacheRelay bool
 	var privateReplication bool
 	var servingAuthority bool
 	var connectivityDiagnosticsInstances string
@@ -58,6 +59,7 @@ func main() {
 	flag.StringVar(&otlpTracesEndpoint, "otlp-traces-endpoint", "", "Default OTLP traces endpoint injected into managed Kura pods when they do not set one explicitly")
 	flag.StringVar(&deploymentEnvironment, "deployment-environment", "production", "Deployment environment injected into managed Kura pods for OpenTelemetry and Sentry")
 	flag.BoolVar(&servingAuthority, "serving-authority", false, "Enable opt-in positively fenced serving grants; never enables timeout promotion")
+	flag.BoolVar(&runnerCacheRelay, "runner-cache-relay", false, "Prepare ordinary Linux cache aliases through the WAN relay")
 	flag.BoolVar(&privateReplication, "private-replication", false, "Derive OVH peer topology from converged private host routes")
 	flag.StringVar(&connectivityDiagnosticsInstances, "connectivity-diagnostics-instances", "", "Comma-separated exact KuraInstance names enabling built-in connectivity telemetry in watch-namespace")
 
@@ -136,6 +138,7 @@ func main() {
 		PublicTLSSecretName:              publicTLSSecretName,
 		OTLPTracesEndpoint:               otlpTracesEndpoint,
 		Environment:                      deploymentEnvironment,
+		RunnerCacheRelay:                 runnerCacheRelay,
 		PrivateReplication:               privateReplication,
 		MetricsClient:                    metricsClient,
 		NodeLocalRuntimeStatusClient:     nodeLocalStatusClient,

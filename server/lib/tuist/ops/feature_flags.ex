@@ -21,7 +21,8 @@ defmodule Tuist.Ops.FeatureFlags do
   alias Tuist.Repo
 
   @catalog [
-    {:runner_linux_vrack, "account", "Default-off Linux dispatch to isolated vRack host pools; reuses regional Kura."},
+    {:runner_linux_vrack, "account",
+     "Default-off direct private cache path for Linux jobs; ordinary jobs use the WAN relay on the same runner pool."},
     {:immutable_shard_reports, "account", "Opt-in immutable shard plans; coverage-enabled accounts remain excluded."},
     {:kura_positive_fence, "account",
      "Opt-in managed positive-fence serving authority. Activation is sticky; disabling cannot restore legacy serving."},

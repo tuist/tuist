@@ -143,4 +143,4 @@ This directory contains ExUnit tests for the Tuist Server.
 
 - Zero-hit secondary retirement tests cover ten complete reported UTC days, the exact instance-age boundary, unknown age, missing/duplicate reports, hits anywhere in the window or today, a surviving region with hits, primary exclusion, the rollout gate, and unchanged 28-day low-traffic retirement.
 
-- Linux vRack flag tests cover every environment's default-off behavior, account isolation and opt-out, profile/legacy routing, direct-label bypass rejection, missing pool configuration, and unchanged alternate-pool resource accounting. Helm regression tests assert disjoint selectors and unchanged ordinary capacity.
+- Linux cache-path tests cover default-off behavior, account isolation, direct versus relay URLs for the same existing instance, and unchanged profile/legacy pool selection. Helm checks preserve one runner cohort and keep relay replicas outside private-network hosts.

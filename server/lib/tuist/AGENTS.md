@@ -208,9 +208,9 @@ Stage core test-ingestion rows (including test cases, failures, repetitions and 
 
 Tasks propagate only this allowlist and the OTel span, not arbitrary Logger/Sentry request data or baggage. New task processes keep attribution through crash reporting, with an explicit empty `:sentry` logger override preventing the SDK's live `$callers` fallback from overwriting the child's tenant or copying parent request data. Preserve `$callers` for sandbox/mock ownership; `with_snapshot/2` restores the caller's logger override after success or failure. `with_context/2` restores a reused caller's context; do not wrap an entire Oban perform in it, because restoration happens before Oban reports an exception. Oban start resets attribution and opens a job span. Build/xcresult and Bazel profile/test processors bind their already-loaded project with `set_selection/1`; Stripe meter snapshots bind the account resolved from the customer. They retain attribution through exception reporters. Other workers must bind their own authoritative resource explicitly; never infer tenancy from an argument named `account_id`.
 
-- `runner_linux_vrack` is default off in every environment. Dispatch evaluates
-  the account flag when selecting a Linux pool, mapping to an isolated,
-  shape-equivalent host cohort declared by Helm. Both cohorts reuse ordinary
-  Kura instances; do not gate away the internal endpoint from excluded jobs.
-  Preserve billing/admission resources for the alternate fleet names and reject
-  direct legacy matching of internal cohort pools. macOS routing is independent.
+- `runner_linux_vrack` is default off in every environment. At claim, the Kura
+  endpoint resolver chooses the existing instance's direct Service for enrolled
+  accounts and its WAN relay alias for other managed Linux jobs. Pool selection
+  and capacity accounting are independent of this flag. The relay runs outside
+  OVH private routing; missing routes fail closed, never fall back to direct.
+  macOS routing is unchanged.

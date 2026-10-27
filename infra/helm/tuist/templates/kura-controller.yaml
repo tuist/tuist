@@ -399,6 +399,9 @@ spec:
             - --otlp-traces-endpoint={{ .Values.kuraController.telemetry.otlpTracesEndpoint }}
             {{- end }}
             - --deployment-environment={{ .Values.kuraController.telemetry.deploymentEnvironment | default "production" }}
+            {{- if .Values.kuraController.runnerCacheRelay.enabled }}
+            - --runner-cache-relay=true
+            {{- end }}
             {{- if .Values.kuraController.privateReplication.enabled }}
             - --private-replication=true
             {{- end }}

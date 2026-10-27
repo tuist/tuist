@@ -163,34 +163,18 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
 
 ## Private runner entrance
 
-Linux runners reuse existing regional Kura instances over OVH vRack; there is
-no Linux runner-specific cache region. The default-off account flag
-`runner_linux_vrack` selects isolated runner pools on enrolled hosts. See
-[linux-runner-private-cache.md](linux-runner-private-cache.md) for the required
-staging experiment cleanup before deployment, physical-path qualification and
-production rollout. Historical measurements and validation results are recorded
-in PR #14766; reusable probes publish new outputs as workflow artifacts.
-Additional cache-host orders are on hold. Shared managed
-values prepare disjoint runner pools in staging, canary and production;
-no account or Machine is enrolled automatically. `spec.vRackID` opts in a whole
-host; ordinary hosts must remain unenrolled. Preserve cohort membership in
-CAPI as well as live Node labels before enabling only the Tuist actor flag.
-Drain all ordinary pollers and claimed jobs before changing cohort membership.
-Staging and canary target one RISE-M each: qualify ordinary and vRack paths
-sequentially across drained cohort/network transitions. With no ordinary host,
-excluded jobs queue; never relax isolation to make them run. Production needs
-concurrent ordinary capacity. The staging RISE-S fixtures have been moved to
-the Gravelines cache host with verified archives retained; the runbook records
-the preserved older fixture's pre-existing fenced state and backup location.
-Canary's RISE-M replacement passed ordinary Kata runner/cache acceptance on
-2026-10-26; the old RISE-S has left the cluster. This hardware cutover did not
-enroll the replacement in vRack or qualify the account-gated private path.
-Canary can be qualified before the staging migration. Its maintenance overlay
-targets the isolated cohort, but deployment requires draining the host first
-and explicit enrollment of the existing OnDelete Machine. The Canadian cache
-qualifies transport and isolation, not Gravelines-local latency.
-Do not create a second logical region on the public pool: storage
-reservations are accounted by region. Preserve macOS private-cache behavior.
+Linux runners reuse existing regional Kura instances on one `runners-linux`
+host pool. The default-off `runner_linux_vrack` account flag selects the direct
+internal cache URL at claim; ordinary jobs use an owner-bound Service alias
+through a shared WAN relay on non-private Hetzner general nodes. No separate
+runner cohort, cache instance or capacity is allocated. See
+[linux-runner-private-cache.md](linux-runner-private-cache.md) for relay-first
+rollout, canary qualification and the separate staging migration prerequisites.
+The relay's implementation contract is in
+[internal/runnerrelay/AGENTS.md](internal/runnerrelay/AGENTS.md).
+Preserve macOS private-cache behavior, existing primary selection and move
+identities. Keep raw validation outputs in workflow artifacts. Additional cache
+host orders remain on hold; the staging fixture backups must be retained.
 
 Runner instances share the managed StatefulSet rollout, preferred co-location, disruption budget, primary routing, mesh and drain. Kubernetes defaults new sets to RollingUpdate; leave a live operator-set update strategy intact. Primary selection prefers full ring visibility but falls back to a fresh Ready/serving writer when no fully joined member remains, so a restarting sibling cannot pin traffic to a dead pod.
 

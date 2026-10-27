@@ -1506,6 +1506,66 @@ defmodule Tuist.KuraTest do
     end
   end
 
+  describe "Linux cache path selection on shared runners" do
+    setup do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-west", "ca-east"] end)
+      stub(Tuist.Environment, :runners_linux_cache_relay_enabled?, fn -> true end)
+      account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      %{account: account}
+    end
+
+    test "flag off uses the WAN alias and flag on uses the same existing instance", %{account: account} do
+      server = activate_public_server!(account, "eu-west")
+      direct = Provisioner.internal_url(account, server)
+      service = direct |> URI.parse() |> Map.fetch!(:host) |> String.split(".") |> hd()
+      digest = :sha256 |> :crypto.hash(service) |> Base.encode16(case: :lower) |> binary_part(0, 32)
+      relay = "http://wan-#{digest}.kura.svc.cluster.local:4000"
+
+      assert Kura.runner_cache_endpoint_url(account, :linux) == relay
+      FunWithFlags.enable(:runner_linux_vrack, for_actor: account)
+      assert Kura.runner_cache_endpoint_url(account, :linux) == direct
+      FunWithFlags.disable(:runner_linux_vrack, for_actor: account)
+      assert Kura.runner_cache_endpoint_url(account, :linux) == relay
+      assert Repo.aggregate(Server, :count, :id) == 1
+    end
+
+    test "another account's enrollment cannot select the direct path", %{account: account} do
+      activate_public_server!(account, "ca-east")
+      other = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      FunWithFlags.enable(:runner_linux_vrack, for_actor: other)
+      assert String.starts_with?(Kura.runner_cache_endpoint_url(account, :linux), "http://wan-")
+    end
+
+    test "missing instances do not manufacture a relay endpoint", %{account: account} do
+      assert Kura.runner_cache_endpoint_url(account, :linux) == nil
+    end
+
+    test "the relay alias follows the exact moved service and shared naming contract", %{account: account} do
+      activate_public_server!(account, "ca-east")
+      stub(Provisioner, :internal_url, fn _, _ -> "http://kura-tuist-ca-east-1.kura.svc.cluster.local:4000" end)
+
+      assert Kura.runner_cache_endpoint_url(account, :linux) ==
+               "http://wan-209b81c1dc71dade7a30ee4287f72145.kura.svc.cluster.local:4000"
+
+      stub(Provisioner, :internal_url, fn _, _ -> "http://kura-tuist-ca-east-1-m.kura.svc.cluster.local:4000" end)
+      moved = Kura.runner_cache_endpoint_url(account, :linux)
+      refute moved == "http://wan-209b81c1dc71dade7a30ee4287f72145.kura.svc.cluster.local:4000"
+      assert String.starts_with?(moved, "http://wan-")
+    end
+
+    test "invalid managed URLs fail instead of omitting the override", %{account: account} do
+      activate_public_server!(account, "ca-east")
+
+      for url <- ["https://example.com", "http://service.other.svc.cluster.local:4000"] do
+        stub(Provisioner, :internal_url, fn _, _ -> url end)
+
+        assert_raise RuntimeError, fn -> Kura.runner_cache_endpoint_url(account, :linux) end
+      end
+    end
+  end
+
   describe "runner_cache_endpoint_url/2 public in-cluster fallback" do
     setup do
       stub(Tuist.Environment, :dev?, fn -> false end)

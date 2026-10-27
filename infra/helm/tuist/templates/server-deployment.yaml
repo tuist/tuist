@@ -302,16 +302,8 @@ spec:
             # Pod actually polls, regardless of the helm release name.
             - name: TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX
               value: {{ include "tuist.componentName" (dict "root" . "component" "runner-pool-linux") | quote }}
-            {{- if .Values.runnersFleetLinux.vrack.enabled }}
-            {{- $vrackPools := dict }}
-            {{- $linuxPrefix := include "tuist.componentName" (dict "root" . "component" "runner-pool-linux") }}
-            {{- range .Values.runnersFleetLinux.shapes }}
-            {{- $shapeKey := printf "%dvcpu-%dgb" (int .vcpus) (int .memoryGb) }}
-            {{- $_ := set $vrackPools (printf "%s-%s" $linuxPrefix $shapeKey) (printf "%s-vrack-%s" $linuxPrefix $shapeKey) }}
-            {{- end }}
-            - name: TUIST_RUNNERS_LINUX_VRACK_POOLS
-              value: {{ $vrackPools | toJson | quote }}
-            {{- end }}
+            - name: TUIST_RUNNERS_LINUX_CACHE_RELAY
+              value: {{ .Values.kuraController.runnerCacheRelay.enabled | quote }}
             {{- with .Values.runnersFleetLinux.pools }}
             # Operator-defined pools predate persisted runner resources.
             # Inject their pod sizing so new replicas can account for queued

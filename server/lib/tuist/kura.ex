@@ -25,6 +25,7 @@ defmodule Tuist.Kura do
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.DNS
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.Kura.AccountPolicies
   alias Tuist.Kura.AccountRegionLifecycle
   alias Tuist.Kura.Admission
@@ -1306,7 +1307,7 @@ defmodule Tuist.Kura do
   @runner_cache_ready_staleness_seconds Regions.private_endpoint_staleness_seconds()
 
   @doc """
-  In-cluster Kura URL a runner-as-a-service build on a fleet of the
+  Kura URL a runner-as-a-service build on a fleet of the
   given platform should use, or `nil` when nothing serves it. A runner
   claiming at a rack site (`Tuist.Runners.Sites.claim_site/2`) takes only that
   site's private regions; any other runner takes only private regions with no
@@ -1320,6 +1321,10 @@ defmodule Tuist.Kura do
   classifies as `remote-node` and the runner egress policy's `ipBlock`
   rules never match. Auth is identical in both tiers (same Guardian
   JWT, same authorization, same `tenantID`).
+
+  On managed Linux, the account flag chooses this instance's direct Service
+  or its WAN relay alias on nodes outside private routing. This changes neither
+  pool selection nor cache identity. The relay preserves artifact authorization.
 
   Whether the fleet can reach in-cluster URLs at all is the caller's
   gate (`Catalog.fleet_on_cluster_network?/1`).
@@ -1410,26 +1415,43 @@ defmodule Tuist.Kura do
     end
   end
 
-  # Tier 2, interim until the Linux fleets get a node-local private
-  # region (tier 1). eu-west is hardcoded: every runner fleet is
-  # colocated with it today, so it's the instance the CLI's latency
-  # race would pick from a runner — and both URL forms route through
-  # the same pinned per-instance Service, so same pod. Without an
-  # eu-west instance the race is moot (every public form is
-  # unreachable from a runner), so the first candidate wins: a
-  # cross-region cache beats none. No readiness heartbeat needed — the
-  # in-cluster Service already drops not-ready pods. Linux-only because
-  # only cluster-CNI pods resolve Service DNS; macOS Tart VMs can't,
-  # and their public resolution works anyway.
+  # Linux selects an existing public-region instance, preferring EU-West. Its
+  # direct Service and ordinary WAN relay both follow the same primary, including
+  # instance moves. macOS keeps its existing private gateway/public resolution.
   defp public_in_cluster_runner_cache_url(%Account{} = account, :linux) do
     servers = managed_cli_endpoint_servers(account)
 
     server = Enum.find(servers, &(&1.region == "eu-west")) || List.first(servers)
 
-    in_cluster_url(server, account)
+    server |> in_cluster_url(account) |> linux_runner_cache_path(account)
   end
 
   defp public_in_cluster_runner_cache_url(%Account{}, _platform), do: nil
+
+  defp linux_runner_cache_path(nil, _account), do: nil
+
+  defp linux_runner_cache_path(url, account) do
+    if Environment.runners_linux_cache_relay_enabled?() and not FeatureFlags.runner_linux_vrack_enabled?(account) do
+      case URI.parse(url) do
+        %URI{scheme: "http", host: host, port: 4000, userinfo: nil} = uri when is_binary(host) ->
+          case String.split(host, ".", parts: 2) do
+            [service, "kura.svc.cluster.local"] ->
+              alias_name =
+                "wan-" <> (:sha256 |> :crypto.hash(service) |> Base.encode16(case: :lower) |> binary_part(0, 32))
+
+              URI.to_string(%{uri | host: alias_name <> ".kura.svc.cluster.local"})
+
+            _ ->
+              raise "Managed Linux cache endpoint is outside the relay namespace"
+          end
+
+        _ ->
+          raise "Managed Linux cache endpoint cannot use the WAN relay"
+      end
+    else
+      url
+    end
+  end
 
   # The same instances the CLI resolves, on the same predicate, so selection
   # cannot drift from it. Registered self-hosted nodes are deliberately not

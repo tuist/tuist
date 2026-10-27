@@ -40,3 +40,11 @@ The design and the alternatives considered are in [`sites.md`](sites.md).
   `claims_test.exs`, `runners_test.exs` and `kura/runner_cache_test.exs`. The
   Node-site cache is global and keyed by Node name, so tests use unique Node
   names.
+
+## Linux cache paths
+
+Linux profiles and legacy labels keep the shared runner pool regardless of the
+`runner_linux_vrack` flag. The claim endpoint resolves the account's cache URL:
+ordinary managed jobs use the WAN relay; enrolled jobs use the same instance's
+direct Service. Keep this independent of profile sizing, fleet accounting and
+macOS site selection. Old internal cohort labels remain hidden during rollout.
