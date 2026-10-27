@@ -1,6 +1,6 @@
 # Kura Controller
 
-This module contains the Kubernetes controller that reconciles Kura account endpoint custom resources.
+Owns `KuraInstance` / `KuraGateway` product workload lifecycle, not CAPI node lifecycle. Run `go test ./...` here; align API changes with [chart CRDs](../helm/tuist/crds/).
 
 ## Scope
 - Opt-in phase-one serving/recovery: [serving-authority.md](serving-authority.md).
@@ -49,10 +49,6 @@ This module contains the Kubernetes controller that reconciles Kura account endp
   Disabled by default; no RBAC, token-mount, or JIT policy changes. See
   [`connectivity-diagnostics.md`](connectivity-diagnostics.md) for bounds and rollout:
   the environment change rolls selected instances under their existing strategy.
-
-- API group: `kura.tuist.dev`
-- Primary resource: `KuraInstance`
-- Controller output: Kubernetes workload resources for one account-region Kura deployment. The customer plane is fronted by a shared regional ingress (deployed via Helm), not a per-account gateway.
 
 ## Account renames
 

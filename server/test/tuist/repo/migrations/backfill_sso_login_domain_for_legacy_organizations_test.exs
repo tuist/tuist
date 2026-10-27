@@ -8,6 +8,7 @@ Code.require_file(
 defmodule Tuist.Repo.Migrations.BackfillSsoLoginDomainForLegacyOrganizationsTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
+  alias Ecto.Adapters.SQL
   alias Tuist.Accounts
   alias Tuist.Repo
   alias Tuist.Repo.Migrations.BackfillSsoLoginDomainForLegacyOrganizations
@@ -30,7 +31,11 @@ defmodule Tuist.Repo.Migrations.BackfillSsoLoginDomainForLegacyOrganizationsTest
 
     backfilled = reload(organization)
     assert is_nil(backfilled.sso_login_domain_verified_at)
-    assert backfilled.sso_legacy_email_domain_fallback
+
+    assert %{rows: [[true]]} =
+             SQL.query!(Repo, "SELECT sso_legacy_email_domain_fallback FROM organizations WHERE id = $1", [
+               backfilled.id
+             ])
   end
 
   test "answers nothing for a membership split across domains" do

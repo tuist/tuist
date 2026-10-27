@@ -45,6 +45,14 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Archives store only non-zero data extents (`SEEK_DATA`/`SEEK_HOLE`) in zstd so
   save and restore cost scales with data, not the logical image size. Restore
   must keep accepting legacy full-image gzip masters until they age out.
+- Archive downloads, compression and both restoration formats flush every 16 MiB
+  written, in addition to their final sync. Dirty filesystem pages count toward
+  the Linux agent's 512 MiB memory limit: a production merge download was OOM-killed
+  with about 439 MiB dirty or in writeback and only 55 MiB anonymous memory.
+  Preserve this per-stream writeback bound, including across sparse extents;
+  never let `io.Copy` use a file's `ReadFrom` to bypass it. A resumed download
+  syncs its existing prefix before adding bytes. Write or sync errors stop the
+  stream and must prevent publication; this does not bound other processes' I/O.
 - Reconcile generation/digest master sidecars against HEAD and evict stale or
   idle masters. Preserve os.Root cleanup and no-follow Linux mount operations.
 

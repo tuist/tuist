@@ -1,6 +1,8 @@
 # Tuist (Business Logic)
 
-This directory contains the core business logic and domain modules for the server.
+- Keep domain rules in contexts here; HTTP handling, controllers, and LiveView belong in `server/lib/tuist_web`.
+- Put environment/runtime configuration in `server/config`, not domain modules.
+- Keep schemas here and migrations in `server/priv/repo/migrations` (PostgreSQL) or `server/priv/ingest_repo/migrations` (ClickHouse).
 
 ## Responsibilities
 - Shared string-valued build metadata semantics and compatibility limits live in `Tuist.Builds.Metadata`, exported by the `Tuist` boundary for web components and capability discovery; see [builds/AGENTS.md](builds/AGENTS.md) and [build metadata](../../docs/build-metadata.md). Unknown keys remain accepted; runtime observations never establish trusted identity.
@@ -82,50 +84,18 @@ This directory contains the core business logic and domain modules for the serve
   extraction errors still bubble up as `{:error, reason}` so Oban retries
   them and the final attempt marks the build as `failed_processing`.
 
-## Related Context (Downlinks)
+## Subsystem contracts
 
-
-- Accounts: `server/lib/tuist/accounts/AGENTS.md`
-- Alerts: `server/lib/tuist/alerts/AGENTS.md`
-- Api: `server/lib/tuist/api/AGENTS.md`
-- Mix builds and dependency-cache observations: [mix/AGENTS.md](mix/AGENTS.md).
-- App Builds: `server/lib/tuist/app_builds/AGENTS.md`
-- Authentication: `server/lib/tuist/authentication/AGENTS.md`
-- Authorization: `server/lib/tuist/authorization/AGENTS.md`
-- Aws: `server/lib/tuist/aws/AGENTS.md`
-- Bazel: `server/lib/tuist/bazel/AGENTS.md`
-- Billing: `server/lib/tuist/billing/AGENTS.md`
-- Bundles: `server/lib/tuist/bundles/AGENTS.md`
-- Cache: `server/lib/tuist/cache/AGENTS.md`
-- Cache Action Items: `server/lib/tuist/cache_action_items/AGENTS.md`
-- Command Events: `server/lib/tuist/command_events/AGENTS.md`
-- Ecto: `server/lib/tuist/ecto/AGENTS.md`
-- Github: `server/lib/tuist/github/AGENTS.md`
-- Http: `server/lib/tuist/http/AGENTS.md`
-- Idempotent Requests (report creation retries): `server/lib/tuist/idempotent_requests/AGENTS.md`
-- Ingestion: `server/lib/tuist/ingestion/AGENTS.md`
-- Key Value Store: `server/lib/tuist/key_value_store/AGENTS.md`
-- Kura: `server/lib/tuist/kura/AGENTS.md`
-- Kubernetes: `server/lib/tuist/kubernetes/AGENTS.md`
-- Marketing: `server/lib/tuist/marketing/AGENTS.md`
-- MCP: `server/lib/tuist/mcp/AGENTS.md`
-- Namespace: `server/lib/tuist/namespace/AGENTS.md`
-- Oauth: `server/lib/tuist/oauth/AGENTS.md`
-- Ops: `server/lib/tuist/ops/AGENTS.md`
-- Projects: `server/lib/tuist/projects/AGENTS.md`
-- Prom Ex: `server/lib/tuist/prom_ex/AGENTS.md`. Shared rate-limiter outage counters live in `Tuist.PromEx.RateLimit`; the web policy uses `Environment.rate_limit_fallback_replicas/0` for a mockable replica allowance without mutating global test configuration.
-- Registry (Swift Package Registry writer): `server/lib/tuist/registry/AGENTS.md`
-- Remote Execution API Cache: `server/lib/tuist/reapi_cache/AGENTS.md`
-- Repo: `server/lib/tuist/repo/AGENTS.md`
-- Result Bundle: `server/lib/tuist/result_bundle/AGENTS.md`
-- Runs: `server/lib/tuist/runs/AGENTS.md`
-- Slack: `server/lib/tuist/slack/AGENTS.md`
-- Storage: `server/lib/tuist/storage/AGENTS.md`
-- Telemetry: `server/lib/tuist/telemetry/AGENTS.md`
-- Utilities: `server/lib/tuist/utilities/AGENTS.md`
-- Vault: `server/lib/tuist/vault/AGENTS.md`
-- Vcs: `server/lib/tuist/vcs/AGENTS.md`
-- Xcode: `server/lib/tuist/xcode/AGENTS.md`
+- `runner_linux_vrack` is default off in every environment. Dispatch evaluates
+  the account flag when selecting a Linux pool, mapping to an isolated,
+  shape-equivalent host cohort declared by Helm. Both cohorts reuse ordinary
+  Kura instances; do not gate away the internal endpoint from excluded jobs.
+  Preserve billing/admission resources for the alternate fleet names and reject
+  direct legacy matching of internal cohort pools. macOS routing is independent.
+- Build/test ingestion retries and immutable facts: [idempotent_requests/AGENTS.md](idempotent_requests/AGENTS.md), [shards/AGENTS.md](shards/AGENTS.md).
+- Native build ingestion: [bazel/AGENTS.md](bazel/AGENTS.md), [cargo/AGENTS.md](cargo/AGENTS.md), [gradle/AGENTS.md](gradle/AGENTS.md), [mix/AGENTS.md](mix/AGENTS.md), [once_events/AGENTS.md](once_events/AGENTS.md).
+- Cache services: [kura/AGENTS.md](kura/AGENTS.md), [reapi_cache/AGENTS.md](reapi_cache/AGENTS.md), [registry/AGENTS.md](registry/AGENTS.md).
+- Shared rate-limiter outage counters live in `Tuist.PromEx.RateLimit`; the web policy uses `Environment.rate_limit_fallback_replicas/0` for a mockable replica allowance without mutating global test configuration.
 
 ## Related Context
 
@@ -207,10 +177,3 @@ Stage core test-ingestion rows (including test cases, failures, repetitions and 
 `Tuist.Observability` owns allowlisted process-local auth/selection IDs and legacy handles, projected to Logger, OTel and Sentry. Authentication describes the caller; only a loaded selected resource establishes the target. Flag actors and Oban args never select tenants. `FeatureFlags` and the Kura identity, QA billing and runner reconciliation gates emit `[:tuist, :feature_flag, :evaluation]` for actual effective helper outcomes, without extra flag reads, and retain at most 32 matching target/global decisions. Sentry uses `feature_flag.<effective_feature>` string-boolean tags and a bounded `extra.feature_flags` list of `{flag, enabled, actor_type, actor_id}` maps. Kill-switch helpers report the effective feature (`turnstile`, `public_page_challenge`, `kura_rollout_orchestration`), not the inverted raw switch. Feature helpers accept an optional preloaded map for bounded operator evaluation; their default arities retain cached reads and all existing short-circuits, and `runners_enabled?/2` still accepts a single preloaded `FunWithFlags.Flag`. Keep snapshot evaluation in the same helper bodies rather than duplicating feature semantics in ops.
 
 Tasks propagate only this allowlist and the OTel span, not arbitrary Logger/Sentry request data or baggage. New task processes keep attribution through crash reporting, with an explicit empty `:sentry` logger override preventing the SDK's live `$callers` fallback from overwriting the child's tenant or copying parent request data. Preserve `$callers` for sandbox/mock ownership; `with_snapshot/2` restores the caller's logger override after success or failure. `with_context/2` restores a reused caller's context; do not wrap an entire Oban perform in it, because restoration happens before Oban reports an exception. Oban start resets attribution and opens a job span. Build/xcresult and Bazel profile/test processors bind their already-loaded project with `set_selection/1`; Stripe meter snapshots bind the account resolved from the customer. They retain attribution through exception reporters. Other workers must bind their own authoritative resource explicitly; never infer tenancy from an argument named `account_id`.
-
-- `runner_linux_vrack` is default off in every environment. Dispatch evaluates
-  the account flag when selecting a Linux pool, mapping to an isolated,
-  shape-equivalent host cohort declared by Helm. Both cohorts reuse ordinary
-  Kura instances; do not gate away the internal endpoint from excluded jobs.
-  Preserve billing/admission resources for the alternate fleet names and reject
-  direct legacy matching of internal cohort pools. macOS routing is independent.

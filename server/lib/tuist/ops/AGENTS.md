@@ -1,6 +1,4 @@
-# Ops (Context)
-
-This context owns ops reporting workers and the internal feature-flag control API.
+# Ops
 
 ## Responsibilities
 - Schedule Slack reports for daily/hourly business metrics.
@@ -16,19 +14,10 @@ This context owns ops reporting workers and the internal feature-flag control AP
 - Control reads return persisted rules, not a promise of every replica's current decision. PubSub invalidation is best effort and evaluation cache TTL is 600 seconds; storage failures can retain stale cache values. Correlate observed evaluations with target account/project and release, never infer exposure from today's configuration. No automatic health scheduler or correlation-based rollback policy is installed by these tools. A monitored ramp requires explicit baseline/window/minimum exposure and rollback criteria before an agent writes; an error sample alone is not an error rate or causal proof.
 
 ## Boundaries
-- HTTP/API and UI code live in `server/lib/tuist_web`.
-- Configuration belongs in `server/config`.
-- Schema changes and migrations live in `server/priv`.
 - Internal ClickHouse inspection uses its own repository and dedicated read-only credentials.
 - `Tuist.Release.migrate` reconciles the dedicated ClickHouse user, role, grants, password, and limits before managed rollouts.
 
 ## Guardrails
-- If changes add or modify stored customer data, update `server/data-export.md`.
 - Preserve the ClickHouse query limits and keep external table functions, cluster table functions, and unrestricted system metadata inaccessible.
-
-## Related Context
-- Parent business logic: `server/lib/tuist/AGENTS.md`
-- Web layer: `server/lib/tuist_web/AGENTS.md`
-- Migrations: `server/priv/AGENTS.md`
 
 - `runner_linux_vrack` is an account-scoped, default-off dispatch flag. Initial rollout enrolls only Tuist after host cohort isolation; disabling affects new dispatch and does not remove routes or terminate recorded jobs.
