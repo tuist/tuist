@@ -8,12 +8,12 @@ struct CargoCacheInputs {
     let sources: [URL]
     let externs: [URL]
 
-    static func discover(
+    static func resolveExterns(
         arguments: [String], environment: [String: String], directory: AbsolutePath,
-        inputHasher: CargoInputHasher, process: CargoProcess
-    ) async throws -> CargoCacheInputs {
+        inputHasher: CargoInputHasher
+    ) throws -> [URL] {
         let base = URL(fileURLWithPath: directory.pathString)
-        let externs = try values("--extern", in: arguments).map { value in
+        return try values("--extern", in: arguments).map { value in
             let parts = value.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
             guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else {
                 throw CargoCacheInvocation.CacheError.unsupported
@@ -23,6 +23,13 @@ struct CargoCacheInputs {
             try validateDependency(file, digest: digest, environment: environment)
             return file
         }
+    }
+
+    static func discover(
+        arguments: [String], environment: [String: String], directory: AbsolutePath,
+        externs: [URL], process: CargoProcess
+    ) async throws -> CargoCacheInputs {
+        let base = URL(fileURLWithPath: directory.pathString)
         return try await FileSystem().runInTemporaryDirectory(prefix: "tuist-cargo-inputs") { temporary in
             let root = URL(fileURLWithPath: temporary.pathString)
             let depInfo = root.appendingPathComponent("inputs.d")
@@ -47,8 +54,13 @@ struct CargoCacheInputs {
                 URL(fileURLWithPath: $0, relativeTo: base).standardizedFileURL
             }
             guard !sources.isEmpty, sources.count <= 10000 else { throw CargoCacheInvocation.CacheError.unsupported }
+            let uniqueSources = Set(sources).sorted { $0.path < $1.path }
+            for file in uniqueSources {
+                guard try file.resourceValues(forKeys: [.fileSizeKey]).fileSize.map({ $0 <= 2_000_000 }) == true
+                else { throw CargoCacheInvocation.CacheError.unsupported }
+            }
             return CargoCacheInputs(
-                sources: Set(sources).sorted { $0.path < $1.path },
+                sources: uniqueSources,
                 externs: Set(externs).sorted { $0.path < $1.path }
             )
         }

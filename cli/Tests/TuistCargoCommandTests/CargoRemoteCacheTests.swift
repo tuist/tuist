@@ -9,6 +9,34 @@ import Testing
 
 struct CargoRemoteCacheTests {
     @Test(.inTemporaryDirectory, arguments: [false, true])
+    func metadataRetriesSurviveTheRelayWatchdog(drain: Bool) async throws {
+        let root = URL(fileURLWithPath: try #require(FileSystem.temporaryTestDirectory).pathString)
+        let token = root.appendingPathComponent("token")
+        try Data("token".utf8).write(to: token)
+        let expected = REAPI.ActionResult.with { $0.stdoutRaw = Data("cached after retry".utf8) }
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(transport: transport, services: [
+            CargoWireCapabilities(compression: false), CargoWireActions(result: expected, drain: drain),
+        ])
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let port = try #require(try await transport.listeningAddress.ipv4?.port)
+            let remote = try #require(await CargoCompilerObserver.remote([
+                "TUIST_CARGO_CACHE_REMOTE_URL": "http://127.0.0.1:\(port)",
+                "TUIST_CARGO_CACHE_NAMESPACE": "account/project", "TUIST_CARGO_CACHE_TOKEN_FILE": token.path,
+            ]))
+            try await withBroker(remote: remote) { cache, root in
+                #expect(try await cache.actionResult(for: REAPI.emptyBlob) == expected)
+                #expect(try await cache.containsActionResult(for: REAPI.digest(Data("presence".utf8))))
+                try await Self.waitUntil { (try? Self.pendingFiles(root.appendingPathComponent("broker")).isEmpty) == true }
+            }
+        }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: [false, true])
     func waitsForConnectionPreparationWithoutSpendingTheMetadataDeadline(cancel: Bool) async throws {
         let root = try directory()
         let broker = root.appendingPathComponent("broker")
@@ -60,6 +88,78 @@ struct CargoRemoteCacheTests {
             let destination = root.appendingPathComponent("restored")
             try await remote.downloadBlob(REAPI.digest(data), to: destination)
             #expect(try Data(contentsOf: destination) == data)
+        }
+    }
+
+    @Test(.inTemporaryDirectory, arguments: ["retained", "corrupt", "evicted", "unwritable", "denied", "unavailable"])
+    func reusesVerifiedChunksAcrossArtifactVersionsAndClientRestarts(mode: String) async throws {
+        let root = URL(fileURLWithPath: try #require(FileSystem.temporaryTestDirectory).pathString)
+        let token = root.appendingPathComponent("token")
+        try Data("token".utf8).write(to: token)
+        let cache = root.appendingPathComponent("cache")
+        let blobs = cache.appendingPathComponent("blobs")
+        let parts = (1 ... 4).map { Data(repeating: UInt8($0), count: 1024 * 1024) }
+        let original = parts[0] + parts[1] + parts[0] + parts[2]
+        let edited = parts[0] + parts[3] + parts[0] + parts[2]
+        let wire = CargoChunkWireCAS(
+            recipes: [
+                REAPI.digest(original): [parts[0], parts[1], parts[0], parts[2]],
+                REAPI.digest(edited): [parts[0], parts[3], parts[0], parts[2]],
+            ],
+            parts: parts
+        )
+        let transport: HTTP2ServerTransport.Posix = .http2NIOPosix(
+            address: .ipv4(host: "127.0.0.1", port: 0), transportSecurity: .plaintext
+        )
+        let server = GRPCServer(
+            transport: transport,
+            services: [CargoWireCapabilities(compression: false, splitting: true), wire]
+        )
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await server.serve() }
+            defer { server.beginGracefulShutdown() }
+            let port = try #require(try await transport.listeningAddress.ipv4?.port)
+            func restore(_ data: Data, rejected: Bool = false) async throws {
+                // Each restore creates a new transport; only the caller-owned disk cache survives.
+                let remote = try #require(await CargoCompilerObserver.remote([
+                    "TUIST_CARGO_CACHE_REMOTE_URL": "http://127.0.0.1:\(port)",
+                    "TUIST_CARGO_CACHE_NAMESPACE": "account/project", "TUIST_CARGO_CACHE_TOKEN_FILE": token.path,
+                    "TUIST_CARGO_CACHE_DIR": cache.path,
+                ]))
+                let destination = root.appendingPathComponent(UUID().uuidString)
+                let digest = REAPI.digest(data)
+                let result = try await remote.downloadBlobs([digest: destination])
+                #expect(result.available == (rejected ? [] : [digest]))
+                #expect(result.remoteFailures == (rejected ? [digest] : []))
+                if rejected {
+                    #expect(!FileManager.default.fileExists(atPath: destination.path))
+                } else {
+                    #expect(try Data(contentsOf: destination) == data)
+                }
+            }
+            try await restore(original)
+            #expect(await wire.downloadedBytes == 3 * 1024 * 1024)
+            if mode == "corrupt" {
+                try Data(repeating: 9, count: parts[0].count).write(to: blobs.appendingPathComponent(REAPI.digest(parts[0]).hash))
+            } else if mode == "evicted" {
+                try FileManager.default.removeItem(at: blobs.appendingPathComponent(REAPI.digest(parts[0]).hash))
+            } else if mode == "unwritable" {
+                try FileManager.default.removeItem(at: blobs)
+                try Data("not a directory".utf8).write(to: blobs)
+            }
+            let before = await wire.downloadedBytes
+            try await restore(edited)
+            let expectedBytes = mode == "unwritable" ? 3 * 1024 * 1024 :
+                ["corrupt", "evicted"].contains(mode) ? 2 * 1024 * 1024 : 1024 * 1024
+            #expect(await wire.downloadedBytes - before == expectedBytes)
+            let after = await wire.downloadedBytes
+            try await restore(edited)
+            #expect(await wire.downloadedBytes - after == (mode == "unwritable" ? 3 * 1024 * 1024 : 0))
+            if ["denied", "unavailable"].contains(mode) {
+                await wire.rejectSplits(with: mode == "denied" ? .permissionDenied : .unavailable)
+                try await restore(edited, rejected: true)
+                #expect(await wire.downloadedBytes == after)
+            }
         }
     }
 
@@ -324,7 +424,7 @@ struct CargoRemoteCacheTests {
         try await withBroker(remote: remote) { cache, root in
             let started = ContinuousClock.now
             await #expect(throws: (any Error).self) { try await cache.actionResult(for: REAPI.emptyBlob) }
-            #expect(started.duration(to: .now) < .seconds(2))
+            #expect(started.duration(to: .now) < .seconds(13))
             try await Self.waitUntil { await remote.cancelledOperations == 1 }
             try await Self.waitUntil { (try? Self.pendingFiles(root.appendingPathComponent("broker")).isEmpty) == true }
         }
@@ -402,6 +502,39 @@ struct CargoRemoteCacheTests {
     }
 }
 
+private actor CargoWireActions: Build_Bazel_Remote_Execution_V2_ActionCache.SimpleServiceProtocol {
+    let result: REAPI.ActionResult
+    let drain: Bool
+    private var attempts: [REAPI.Digest: Int] = [:]
+
+    init(result: REAPI.ActionResult, drain: Bool) {
+        self.result = result
+        self.drain = drain
+    }
+
+    func getActionResult(
+        request: Build_Bazel_Remote_Execution_V2_GetActionResultRequest, context _: ServerContext
+    ) async throws -> REAPI.ActionResult {
+        #expect(request.instanceName == "project")
+        attempts[request.actionDigest, default: 0] += 1
+        let attempt = attempts[request.actionDigest, default: 0]
+        if drain, attempt <= 5 {
+            throw RPCError(code: .unavailable, message: "server is draining")
+        }
+        if !drain, attempt == 1 {
+            // Exceed the real client's per-RPC deadline, not an injected local error.
+            try await Task.sleep(for: .seconds(2))
+        }
+        return result
+    }
+
+    func updateActionResult(
+        request _: Build_Bazel_Remote_Execution_V2_UpdateActionResultRequest, context _: ServerContext
+    ) async throws -> REAPI.ActionResult {
+        throw RPCError(code: .unimplemented, message: "Read only")
+    }
+}
+
 private struct CargoWireCapabilities: Build_Bazel_Remote_Execution_V2_Capabilities.SimpleServiceProtocol {
     let compression: Bool
     var splitting = false
@@ -456,6 +589,64 @@ private actor CargoWireFailure {
         guard remaining > 0 else { return after }
         remaining -= 1
         return code
+    }
+}
+
+private actor CargoChunkWireCAS: Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.SimpleServiceProtocol {
+    let recipes: [REAPI.Digest: [Data]]
+    let parts: [REAPI.Digest: Data]
+    private(set) var downloadedBytes = 0
+    private var splitFailure: RPCError.Code?
+
+    init(recipes: [REAPI.Digest: [Data]], parts: [Data]) {
+        self.recipes = recipes
+        self.parts = Dictionary(uniqueKeysWithValues: parts.map { (REAPI.digest($0), $0) })
+    }
+
+    func rejectSplits(with code: RPCError.Code) {
+        splitFailure = code
+    }
+
+    func batchReadBlobs(
+        request: Build_Bazel_Remote_Execution_V2_BatchReadBlobsRequest, context _: ServerContext
+    ) async throws -> Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse {
+        #expect(request.instanceName == "project")
+        var result = Build_Bazel_Remote_Execution_V2_BatchReadBlobsResponse()
+        for digest in request.digests {
+            let data = parts[digest] ?? Data()
+            let encoded = try REAPICompression.compress(data)
+            downloadedBytes += data.count
+            result.responses.append(.with {
+                $0.digest = digest; $0.data = encoded; $0.compressor = .zstd; $0.status.code = parts[digest] == nil ? 5 : 0
+            })
+        }
+        return result
+    }
+
+    func splitBlob(
+        request: Build_Bazel_Remote_Execution_V2_SplitBlobRequest, context _: ServerContext
+    ) async throws -> Build_Bazel_Remote_Execution_V2_SplitBlobResponse {
+        if let splitFailure { throw RPCError(code: splitFailure, message: "Injected split failure") }
+        guard let parts = recipes[request.blobDigest] else { throw RPCError(code: .notFound, message: "Unknown blob") }
+        return .with { $0.chunkDigests = parts.map(REAPI.digest) }
+    }
+
+    func batchUpdateBlobs(
+        request _: Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsRequest, context _: ServerContext
+    ) async throws -> Build_Bazel_Remote_Execution_V2_BatchUpdateBlobsResponse {
+        throw RPCError(code: .unimplemented, message: "Read only")
+    }
+
+    func findMissingBlobs(
+        request _: Build_Bazel_Remote_Execution_V2_FindMissingBlobsRequest, context _: ServerContext
+    ) async throws -> Build_Bazel_Remote_Execution_V2_FindMissingBlobsResponse {
+        throw RPCError(code: .unimplemented, message: "Read only")
+    }
+
+    func spliceBlob(
+        request _: Build_Bazel_Remote_Execution_V2_SpliceBlobRequest, context _: ServerContext
+    ) async throws -> Build_Bazel_Remote_Execution_V2_SpliceBlobResponse {
+        throw RPCError(code: .unimplemented, message: "Read only")
     }
 }
 

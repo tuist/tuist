@@ -85,6 +85,9 @@ struct CargoCacheInvocation: CargoCacheAction {
         }) else { throw CacheError.unsupported }
         let inputHasher = CargoInputHasher(sessionDirectory: environment["TUIST_CARGO_SESSION"]
             .map { URL(fileURLWithPath: $0) })
+        let externs = try CargoCacheInputs.resolveExterns(
+            arguments: arguments, environment: environment, directory: directory, inputHasher: inputHasher
+        )
         let sysroot = try await process.capture(
             executable, arguments: ["--print", "sysroot"], environment: environment, directory: directory
         ).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -121,7 +124,7 @@ struct CargoCacheInvocation: CargoCacheAction {
         _ = try candidate.inputHasher.sourceDigest(rootSource, validate: validateSource)
         candidate.compilerInputs = try await CargoCacheInputs.discover(
             arguments: arguments, environment: environment, directory: directory,
-            inputHasher: candidate.inputHasher, process: process
+            externs: externs, process: process
         )
         candidate.key = try candidate.fingerprint()
         return candidate
@@ -156,7 +159,34 @@ struct CargoCacheInvocation: CargoCacheAction {
         return REAPI.digest(try JSONEncoder().encode(inputs))
     }
 
+    private static let sourceWords = [
+        "asm", "global_asm", "naked_asm", "link", "link_args", "concat_idents", "macro_metavar_expr_concat", "concat",
+    ].map { Array($0.utf8) }
+
+    /// Non-ASCII bytes conservatively delimit candidates; the regex still decides Unicode boundaries and whitespace.
+    private static func hasSourceWord(_ data: Data) -> Bool {
+        data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) -> Bool in
+            func isWord(_ byte: UInt8) -> Bool {
+                (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || (byte >= 48 && byte <= 57) || byte == 95
+            }
+            var index = 0
+            while index < bytes.count {
+                guard isWord(bytes[index]) else { index += 1; continue }
+                let start = index
+                repeat {
+                    index += 1
+                } while index < bytes.count && isWord(bytes[index])
+                let word = bytes[start ..< index]
+                if sourceWords.contains(where: { $0.count == word.count && word.elementsEqual($0) }) {
+                    return true
+                }
+            }
+            return false
+        }
+    }
+
     private static func validateSource(_ data: Data) throws {
+        guard hasSourceWord(data) else { return }
         if let text = String(data: data, encoding: .utf8), text.range(
             of: "\\b(asm|global_asm|naked_asm|link|link_args|concat_idents|macro_metavar_expr_concat)\\b|\\$\\s*\\{\\s*concat\\b",
             options: .regularExpression

@@ -100,7 +100,10 @@ struct CargoCompilerObserver {
         let client = try await REAPICacheClient(
             endpoint: GRPCEndpoint(host: host, explicitPort: url.port, isTLS: url.scheme == "https" || url.scheme == "grpcs"),
             accountHandle: scope.accountHandle, instanceName: scope.instanceName,
-            metadataTimeout: .seconds(1), connectionCount: connectionCount, environment: environment,
+            metadataTimeout: CargoRemoteCache.metadataTimeout, connectionCount: connectionCount, environment: environment,
+            chunkCacheDirectory: environment["TUIST_CARGO_CACHE_DIR"].map {
+                URL(fileURLWithPath: $0).appendingPathComponent("blobs")
+            },
             token: { try String(contentsOfFile: file, encoding: .utf8) }
         )
         try await client.validateCapabilities()

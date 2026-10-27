@@ -115,7 +115,11 @@ struct CargoCompilationCacheTests {
             "fn library() { asm /* comment */ !(\"nop\"); }",
             "core::arch::global_asm!(\"nop\");",
             "#[unsafe(naked)] pub extern \"C\" fn library() { core::arch::naked_asm!(\"ret\"); }",
+            "#[link(name = \"hidden\")] unsafe extern \"C\" {}",
+            "#![feature(link_args)]",
+            "macro_rules! library { () => { concat_idents!(global_, asm) } }",
             "macro_rules! library { () => { core::arch::${concat(global_, a, sm)}!(\"nop\"); } }",
+            "macro_rules! library { () => { $\u{2003}{\u{2003}concat(global_, a, sm)} } }",
             "#![feature(macro_metavar_expr_concat)]\nmacro_rules! library { () => { ${ /* gap */ concat(global_, a, sm)} } }",
         ] {
             try Data(source.utf8).write(to: fixture.source)
@@ -127,6 +131,8 @@ struct CargoCompilationCacheTests {
             "pub fn library() -> &'static str { concat!(\"tracked\", \" input\") }",
             "pub use core::concat;",
             "pub fn library() -> Vec<u8> { [b\"tracked\", b\" input\"].concat() }",
+            "pub fn blink() {} pub use core::concat;",
+            "pub fn éasmé() {} pub use core::concat;",
         ] {
             try Data(source.utf8).write(to: fixture.source)
             #expect(try await fixture.prepare()?.compilerInputs != nil)
@@ -166,6 +172,10 @@ struct CargoCompilationCacheTests {
         try Data("pub fn generated() {}".utf8).write(to: included)
         #expect(try await fixture.prepare()?.compilerInputs != nil)
         try Data("core::arch::global_asm!(\".include \\\"hidden.s\\\"\");".utf8).write(to: included)
+        await #expect(throws: CargoCacheInvocation.CacheError.self) { try await fixture.prepare() }
+        try Data(repeating: 65, count: 2_000_000).write(to: included)
+        #expect(try await fixture.prepare()?.compilerInputs != nil)
+        try Data(repeating: 65, count: 2_000_001).write(to: included)
         await #expect(throws: CargoCacheInvocation.CacheError.self) { try await fixture.prepare() }
     }
 

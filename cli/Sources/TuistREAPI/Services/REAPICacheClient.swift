@@ -45,6 +45,15 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     private let metadataTimeout: Duration
     private let stats: REAPIStats?
     private let backpressureRetryPolicy: REAPIBackpressureRetryPolicy
+    private let chunkCacheDirectory: URL?
+    private static let maximumRetries = 2
+    private static let readBackoffBudget: Duration = .seconds(1)
+
+    /// An outer watchdog must cover attempts and waits, not just the per-RPC deadline.
+    /// Include the initial refused RPC before the drain window starts and a bounded wait per retry.
+    public static func metadataReadAllowance(timeout: Duration) -> Duration {
+        timeout * (maximumRetries + 2) + readBackoffBudget * maximumRetries + REAPIDrainRetryLadder.window
+    }
 
     public init(
         endpoint: GRPCEndpoint,
@@ -57,6 +66,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         stats: REAPIStats? = nil,
         backpressureRetryPolicy: REAPIBackpressureRetryPolicy? = nil,
         environment: [String: String] = Environment.current.variables,
+        chunkCacheDirectory: URL? = nil,
         token: @escaping @Sendable () async throws -> String
     ) async throws {
         var guards = guards
@@ -101,6 +111,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         self.metadataTimeout = metadataTimeout
         self.stats = stats
         self.backpressureRetryPolicy = backpressureRetryPolicy ?? .init()
+        self.chunkCacheDirectory = chunkCacheDirectory
     }
 
     deinit {
@@ -405,13 +416,13 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                     deadlineAttempts += 1
                     if deadlineAttempts >= 2 { throw error }
                 }
-                guard attempt < 2, Self.isRetryable(error) else { throw error }
+                guard attempt < Self.maximumRetries, Self.isRetryable(error) else { throw error }
                 var delay: Duration = .milliseconds((1 << attempt) * 200 + Int.random(in: 0 ... 100))
                 if let rpcError = error as? RPCError, rpcError.code == .resourceExhausted {
                     if let hinted = REAPIBackpressureRetryPolicy.retryInfoDelay(rpcError) {
                         delay = max(delay, hinted)
                     }
-                    guard delay <= .seconds(1) - backpressureDelay else { throw error }
+                    guard delay <= Self.readBackoffBudget - backpressureDelay else { throw error }
                     backpressureDelay += delay
                 }
                 try await Task.sleep(for: delay)
@@ -1181,8 +1192,13 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
     /// allowance of the ByteStream read the chunks replace, not the tighter one of a batch of small blobs.
     private func readChunks(_ digests: [REAPI.Digest]) async throws -> [REAPI.Digest: Data] {
         var chunks: [REAPI.Digest: Data] = [:]
+        for digest in digests {
+            try Task.checkCancellation()
+            if let data = await cachedChunk(digest) { chunks[digest] = data }
+        }
         try await retry {
             let pending = digests.filter { chunks[$0] == nil }
+            guard !pending.isEmpty else { return }
             let response = try await withClient { client in
                 try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage.Client(wrapping: client).batchReadBlobs(
                     .with {
@@ -1202,7 +1218,10 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                 case .zstd: data = try REAPICompression.decompress(output.data, size: output.digest.sizeBytes)
                 default: continue
                 }
-                if REAPI.digest(data) == output.digest { chunks[output.digest] = data }
+                if REAPI.digest(data) == output.digest {
+                    chunks[output.digest] = data
+                    await retainChunk(data, digest: output.digest)
+                }
             }
             if let error = Self
                 .downloadFailure(codes: response.responses.filter { pending.contains($0.digest) }.map(\.status.code))
@@ -1214,6 +1233,36 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
             throw RPCError(code: .notFound, message: "The cache is missing chunks of the blob")
         }
         return chunks
+    }
+
+    /// This directory belongs to the caller's content cache and shares its scope, retention and byte budget.
+    /// Local bytes are only hints: a fresh remote result/recipe authorizes reuse and every chunk is verified.
+    private func cachedChunk(_ digest: REAPI.Digest) async -> Data? {
+        guard let directory = chunkCacheDirectory, digest.sizeBytes > 0,
+              digest.sizeBytes <= REAPIChunking.maximumChunkBytes else { return nil }
+        let file = directory.appendingPathComponent(digest.hash)
+        guard let properties = try? file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
+              properties.isRegularFile == true, properties.isSymbolicLink != true,
+              properties.fileSize == Int(digest.sizeBytes),
+              let handle = try? FileHandle(forReadingFrom: file) else { return nil }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: Int(digest.sizeBytes) + 1), REAPI.digest(data) == digest else { return nil }
+        if let path = try? AbsolutePath(validating: file.path) {
+            try? await fileSystem.setFileTimes(of: path, lastAccessDate: nil, lastModificationDate: Date())
+        }
+        return data
+    }
+
+    private func retainChunk(_ data: Data, digest: REAPI.Digest) async {
+        guard let directory = chunkCacheDirectory, digest.sizeBytes > 0,
+              digest.sizeBytes <= REAPIChunking.maximumChunkBytes,
+              let path = try? AbsolutePath(validating: directory.path) else { return }
+        do {
+            try await fileSystem.makeDirectory(at: path)
+            try data.write(to: directory.appendingPathComponent(digest.hash), options: .atomic)
+        } catch {
+            // An unwritable or concurrently pruned transfer cache must not discard verified remote bytes.
+        }
     }
 
     /// Reads a blob, resuming from the byte it reached when a read breaks partway. The bytes and the

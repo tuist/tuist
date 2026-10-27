@@ -10,6 +10,7 @@ import TuistREAPI
 
 /// A command-session relay. Admission, artifact validation, and ownership of blob files remain with the compiler.
 struct CargoRemoteCache: REAPICacheStoring, Sendable {
+    static let metadataTimeout: Duration = .seconds(1)
     private let directory: URL
 
     init(directory: URL) {
@@ -434,7 +435,8 @@ private enum CargoCacheIPC {
 
         var allowance: Duration {
             switch operation {
-            case .actionResult, .containsActionResult: return .seconds(1)
+            case .actionResult, .containsActionResult:
+                return REAPICacheClient.metadataReadAllowance(timeout: CargoRemoteCache.metadataTimeout)
             case .storeActionResult: return .seconds(120)
             default:
                 // Cover the backend's three upload attempts and admission backoff, at its default slow-link floor.
