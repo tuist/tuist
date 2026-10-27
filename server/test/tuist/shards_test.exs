@@ -2375,10 +2375,10 @@ defmodule Tuist.ShardsTest do
       assert {:ok, "test-upload-id"} = Shards.start_upload_for_plan(project, account, plan)
     end
 
-    test "starts a multipart upload for a shard plan id without reading the plan" do
+    test "starts a multipart upload after resolving the project-scoped shard plan id" do
       project = ProjectsFixtures.project_fixture()
       account = project.account
-      plan_id = Ecto.UUID.generate()
+      plan_id = ShardsFixtures.shard_plan_fixture(project_id: project.id).id
 
       stub(Tuist.Storage, :multipart_start, fn key, _account ->
         assert key == Shards.bundle_object_key(account, project, plan_id)

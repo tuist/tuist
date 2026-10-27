@@ -22,6 +22,8 @@ defmodule Tuist.Ops.FeatureFlags do
 
   @catalog [
     {:immutable_shard_reports, "account", "Opt-in immutable shard plans; coverage-enabled accounts remain excluded."},
+    {:runner_shard_storage, "account",
+     "Opt-in Linux Mix/Cargo plans to runner-local storage; existing plans keep their store."},
     {:kura_positive_fence, "account",
      "Opt-in managed positive-fence serving authority. Activation is sticky; disabling cannot restore legacy serving."},
     {:kura_placement_served_signal, "account", "Opt-in placement using served-region signals."},
@@ -48,6 +50,7 @@ defmodule Tuist.Ops.FeatureFlags do
 
   @evaluators %{
     immutable_shard_reports: {FeatureFlags, :immutable_shard_reports_enabled?},
+    runner_shard_storage: {FeatureFlags, :runner_shard_storage_enabled?},
     kura_positive_fence: {FeatureFlags, :kura_positive_fence_enabled?},
     kura_placement_served_signal: {FeatureFlags, :kura_placement_served_signal_enabled?},
     kura_stable_hostname: {FeatureFlags, :kura_stable_hostname_enabled?},

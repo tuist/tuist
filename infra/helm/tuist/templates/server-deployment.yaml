@@ -91,6 +91,13 @@ spec:
               containerPort: {{ .Values.server.cluster.distributionPort }}
             {{- end }}
           env:
+            {{- if .Values.server.externalSecrets.shardStorage.item }}
+            - name: TUIST_SHARD_STORAGE_TARGETS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "server-external-secrets") }}
+                  key: shard-storage-targets
+            {{- end }}
             # TUIST_MODE defaults to :web in Tuist.Environment.mode/0 — no
             # need to set it explicitly here. The processor Deployment sets
             # TUIST_MODE=processor; everything else is :web.

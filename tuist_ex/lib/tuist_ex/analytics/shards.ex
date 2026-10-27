@@ -270,19 +270,15 @@ defmodule TuistEx.Analytics.Shards do
   defp upload_parts(archive, reference, upload_id, options) do
     archive
     |> File.stream!(@part_bytes)
-    |> Stream.with_index(1)
-    |> Enum.reduce_while({:ok, []}, fn {chunk, part_number}, {:ok, parts} ->
+    |> TuistEx.Analytics.ShardUpload.upload(fn chunk, part_number ->
       with {:ok, %{"data" => %{"url" => url}}} <-
              HTTP.project_request(
                :post,
                "/tests/shards/upload/generate-url",
                %{reference: reference, upload_id: upload_id, part_number: part_number},
                options
-             ),
-           {:ok, etag} <- RawHTTP.put_binary(url, chunk) do
-        {:cont, {:ok, parts ++ [%{part_number: part_number, etag: etag}]}}
-      else
-        error -> {:halt, error}
+             ) do
+        RawHTTP.put_binary(url, chunk)
       end
     end)
   end

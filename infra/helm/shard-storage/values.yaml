@@ -1,0 +1,28 @@
+enabled: false
+image: dxflrs/garage:v2.5.0
+region: eu-west
+bucket: shards
+storage:
+  className: scw-local-nvme
+  size: 200Gi
+nodeSelector:
+  node.cluster.x-k8s.io/pool: kura-dedibox
+tolerations:
+  - key: tuist.dev/kura-cache
+    operator: Equal
+    value: "true"
+    effect: NoSchedule
+externalSecrets:
+  storeRef:
+    name: onepassword
+    kind: ClusterSecretStore
+  # Fields: rpc-secret, access-key-id, secret-access-key.
+  item: ""
+serverNamespace: tuist
+runnerNamespace: tuist-runners
+# Backstop above the longest default plan retention (30 days). Increase this
+# before increasing TUIST_SHARD_BUNDLE_RETENTION_DAYS beyond 30.
+lifecycle:
+  expirationDays: 31
+  abortMultipartDays: 1
+  image: public.ecr.aws/aws-cli/aws-cli:2.32.0

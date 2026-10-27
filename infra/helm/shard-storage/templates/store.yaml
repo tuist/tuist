@@ -1,0 +1,180 @@
+{{- if .Values.enabled }}
+{{- if ne .Release.Namespace "kura" }}
+{{- fail "shard-storage must be installed in kura so capacity admission counts its reservation" }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}
+data:
+  garage.toml: |
+    metadata_dir = "/storage/meta"
+    data_dir = "/storage/data"
+    db_engine = "sqlite"
+    replication_factor = 1
+    rpc_bind_addr = "127.0.0.1:3901"
+    rpc_public_addr = "127.0.0.1:3901"
+    [s3_api]
+    s3_region = "garage"
+    api_bind_addr = "[::]:3900"
+    [admin]
+    api_bind_addr = "[::]:3903"
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    {{- toYaml .Values.externalSecrets.storeRef | nindent 4 }}
+  target:
+    name: {{ .Release.Name }}
+  data:
+    {{- range $key := list "rpc-secret" "access-key-id" "secret-access-key" }}
+    - secretKey: {{ $key }}
+      remoteRef:
+        key: {{ printf "%s/%s" (required "externalSecrets.item is required" $.Values.externalSecrets.item) $key | quote }}
+    {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: shard-storage
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: s3
+      port: 3900
+      targetPort: s3
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  serviceName: {{ .Release.Name }}
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: shard-storage
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: shard-storage
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        tuist.dev/region: {{ .Values.region | quote }}
+      annotations:
+        checksum/config: {{ printf "%s/%s" .Values.region .Values.bucket | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: garage
+          image: {{ .Values.image | quote }}
+          command: ["/garage"]
+          args: ["server", "--single-node", "--default-bucket"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: GARAGE_RPC_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}
+                  key: rpc-secret
+            - name: GARAGE_DEFAULT_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}
+                  key: access-key-id
+            - name: GARAGE_DEFAULT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}
+                  key: secret-access-key
+            - name: GARAGE_DEFAULT_BUCKET
+              value: {{ .Values.bucket | quote }}
+          ports:
+            - name: s3
+              containerPort: 3900
+            - name: health
+              containerPort: 3903
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: health
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: "500m"
+              memory: 512Mi
+              # Scheduler reservation, matched by the local-path XFS quota.
+              # No ephemeral-storage limit: kubelet cannot meter a PV with it.
+              ephemeral-storage: {{ .Values.storage.size }}
+            limits:
+              memory: 2Gi
+          volumeMounts:
+            - name: storage
+              mountPath: /storage
+            - name: config
+              mountPath: /etc/garage.toml
+              subPath: garage.toml
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Release.Name }}
+  volumeClaimTemplates:
+    - metadata:
+        name: storage
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: {{ .Values.storage.className }}
+        resources:
+          requests:
+            storage: {{ .Values.storage.size }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: shard-storage
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes: [Ingress, Egress]
+  egress: []
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.runnerNamespace }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.serverNamespace }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: shard-storage-lifecycle
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - protocol: TCP
+          port: 3900
+{{- end }}

@@ -535,7 +535,7 @@ defmodule Tuist.RunnersTest do
       test_pid = self()
       stub_dispatch_path(account, candidate, test_pid)
       stub(Catalog, :fleet_platform, fn _ -> :macos end)
-      stub(CacheGrant, :mint, fn _account_id -> "signed-grant-token" end)
+      stub(CacheGrant, :mint, fn _account_id, _opts -> "signed-grant-token" end)
 
       stub(K8sClient, :patch_pod, fn _ns, _pod, patch ->
         send(test_pid, {:patched, get_in(patch, ["metadata", "labels"])})
@@ -555,7 +555,9 @@ defmodule Tuist.RunnersTest do
       candidate = candidate_with_label(account, "tuist-default")
       stub_dispatch_path(account, candidate, self())
 
-      expect(CacheGrant, :mint, fn account_id ->
+      expect(CacheGrant, :mint, fn account_id, opts ->
+        assert Keyword.has_key?(opts, :site)
+        assert Keyword.has_key?(opts, :platform)
         assert account_id == account.id
         "signed-grant-token"
       end)
@@ -564,6 +566,26 @@ defmodule Tuist.RunnersTest do
                Runners.dispatch_for_sa("tuist-runners", "pod-1")
 
       refute Map.has_key?(result, :volume_head)
+    end
+
+    test "signs the storage site of the actual Linux node, ignoring guest claims" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self(), node_name: "linux-storage-node")
+      stub(Catalog, :fleet_platform, fn _ -> :linux end)
+
+      expect(K8sClient, :get_node, fn "linux-storage-node", _ ->
+        {:ok, %{"metadata" => %{"labels" => %{"node.cluster.x-k8s.io/shard-storage-site" => "gra"}}}}
+      end)
+
+      expect(CacheGrant, :mint, fn id, opts ->
+        assert id == account.id
+        assert opts == [site: "gra", platform: :linux]
+        "signed-grant"
+      end)
+
+      assert {:ok, %{cache_signing_grant: "signed-grant"}} =
+               Runners.dispatch_for_sa("tuist-runners", "pod-1", %{site: "attacker"})
     end
 
     test "withholds the cache signing grant from an untrusted fork job" do
@@ -582,7 +604,7 @@ defmodule Tuist.RunnersTest do
         {:ok, %{}}
       end)
 
-      reject(&CacheGrant.mint/1)
+      reject(&CacheGrant.mint/2)
 
       assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       assert result.cache_signing_grant == nil
@@ -597,7 +619,7 @@ defmodule Tuist.RunnersTest do
       stub_dispatch_path(account, candidate, self())
 
       stub(GitHubClient, :get_workflow_run, fn _ -> {:error, "boom"} end)
-      reject(&CacheGrant.mint/1)
+      reject(&CacheGrant.mint/2)
 
       assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       assert result.cache_signing_grant == nil
