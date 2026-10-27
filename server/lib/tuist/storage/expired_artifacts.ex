@@ -166,7 +166,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
     else
       rows =
         TestCaseRunAttachment
-        |> join(:inner, [attachment], test_run in Test, on: attachment.test_run_id == test_run.id)
+        |> join(:inner, [attachment], test_run in ^Test.query(), on: attachment.test_run_id == test_run.id)
         |> where(
           [attachment, test_run],
           not is_nil(attachment.test_run_id) and test_run.project_id in ^project_ids and

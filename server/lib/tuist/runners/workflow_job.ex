@@ -47,6 +47,10 @@ defmodule Tuist.Runners.WorkflowJob do
     field :started_at, :utc_datetime_usec
     field :completed_at, :utc_datetime_usec
     field :pod_name, :string
+    # The rack site of the Node whose runner claimed the job, or nil for a
+    # job no rack runner holds. A rack pool spans every site, so the job's
+    # `fleet_name` does not say where it ran.
+    field :site, :string
     field :runner_name, :string
     field :executed_workflow_job_id, :integer
     field :log_archived_at, :utc_datetime_usec

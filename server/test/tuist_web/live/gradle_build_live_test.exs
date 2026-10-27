@@ -36,7 +36,7 @@ defmodule TuistWeb.GradleBuildLiveTest do
 
     path = "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}"
     {:ok, lv, _} = live(conn, path <> "?tab=timeline")
-    render_async(lv)
+    render_async(lv, 5_000)
     refute has_element?(lv, "a", "Timeline")
     refute has_element?(lv, "#build-timeline")
     assert has_element?(lv, "a[data-selected]", "Overview")
@@ -61,7 +61,7 @@ defmodule TuistWeb.GradleBuildLiveTest do
 
     path = "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}"
     {:ok, lv, _} = live(conn, path <> "?tab=timeline")
-    render_async(lv)
+    render_async(lv, 5_000)
     assert has_element?(lv, "#build-timeline[data-source=gradle]")
     refute has_element?(lv, "[data-part=timeline-coverage]")
     refute render(lv) =~ "no build start timestamp"
@@ -92,7 +92,7 @@ defmodule TuistWeb.GradleBuildLiveTest do
     assert Enum.take(tabs, 2) == ["Overview", "Timeline"]
     refute "Machine Metrics" in tabs
     render_patch(lv, path <> "?tab=machine-metrics")
-    render_async(lv)
+    render_async(lv, 5_000)
     assert has_element?(lv, "#build-timeline")
     assert has_element?(lv, "#build-timeline[data-source=gradle]")
     assert has_element?(lv, "#build-timeline[data-url='#{path}/timeline.json']")
@@ -106,7 +106,7 @@ defmodule TuistWeb.GradleBuildLiveTest do
     assert has_element?(lv, "#build-timeline")
     render_patch(lv, path <> "?tab=overview")
     render_patch(lv, path <> "?tab=timeline")
-    render_async(lv)
+    render_async(lv, 5_000)
     [reopened] = lv |> render() |> Floki.parse_document!() |> Floki.attribute("#build-timeline", "data-version")
     assert String.to_integer(reopened) > String.to_integer(version)
     render_hook(lv, "load-timeline", %{version: String.to_integer(reopened)})
@@ -531,6 +531,93 @@ defmodule TuistWeb.GradleBuildLiveTest do
     assert html =~ ":app:compileKotlin"
     refute html =~ ":app:compileJava"
     refute html =~ ":lib:test"
+  end
+
+  test "lists requested tasks individually in invocation order", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    requested_tasks = [":feature:assembleDebug", "clean", ":app:testDebugUnitTest", "clean"]
+    id = GradleFixtures.build_fixture(project_id: project.id, requested_tasks: requested_tasks)
+
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}")
+
+    entries =
+      view
+      |> element("#requested-tasks[aria-labelledby=requested-tasks-label][role=list]")
+      |> render()
+      |> Floki.parse_fragment!()
+      |> Floki.find("li code")
+      |> Enum.map(&Floki.text/1)
+
+    assert entries == requested_tasks
+    assert has_element?(view, "#requested-tasks-label", "Requested tasks")
+  end
+
+  test "escapes requested task names", %{conn: conn, project: project, organization: organization} do
+    task = ":app:<script>alert('task')</script>"
+    id = GradleFixtures.build_fixture(project_id: project.id, requested_tasks: [task])
+
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}")
+
+    assert has_element?(view, "#requested-tasks li code", task)
+    refute has_element?(view, "#requested-tasks script")
+  end
+
+  test "omits the requested tasks list when no tasks were requested", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    id = GradleFixtures.build_fixture(project_id: project.id, requested_tasks: [])
+
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}")
+
+    refute has_element?(view, "[data-field=requested-tasks]")
+    refute has_element?(view, "#requested-tasks")
+  end
+
+  @tag :build_environment
+  test "build environment is collapsed below Build Details while custom metadata stays inside", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    id =
+      GradleFixtures.build_fixture(
+        project_id: project.id,
+        custom_values: %{"tuist.cpu.available_processors" => "28", "team" => "mobile"}
+      )
+
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}")
+
+    assert has_element?(view, "#gradle-build > #build-environment", "Build environment")
+    assert has_element?(view, "#build-environment-content[hidden]", "Gradle Version")
+    assert has_element?(view, "#build-environment-content[hidden]", "Java Version")
+    refute has_element?(view, "[data-part=build-details]", "Gradle Version")
+    refute has_element?(view, "[data-part=build-details]", "Java Version")
+    assert has_element?(view, "#build-environment button[aria-expanded=false]")
+    assert has_element?(view, "#build-environment-content[hidden]", "Available logical processors")
+    assert has_element?(view, "[data-part=build-details] #custom-metadata-table", "mobile")
+    refute has_element?(view, "[data-part=build-details] #build-environment")
+    refute has_element?(view, "#build-environment #custom-metadata-table")
+  end
+
+  @tag :build_environment
+  test "legacy toolchain versions show the environment without new observations", %{
+    conn: conn,
+    project: project,
+    organization: organization
+  } do
+    id = GradleFixtures.build_fixture(project_id: project.id, custom_values: %{"team" => "mobile"})
+
+    {:ok, view, _} = live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs/#{id}")
+
+    assert has_element?(view, "#build-environment-content[hidden]", "8.5")
+    assert has_element?(view, "#build-environment-content[hidden]", "17.0.1")
+    refute has_element?(view, "[data-part=build-details]", "Gradle Version")
+    assert has_element?(view, "[data-part=build-details] #custom-metadata-table", "mobile")
   end
 
   test "build details distinguish absent, zero and recorded cache savings", %{

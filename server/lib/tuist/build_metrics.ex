@@ -91,12 +91,12 @@ defmodule Tuist.BuildMetrics do
       case system do
         "gradle" ->
           {"gradle_builds", "duration_ms", "coalesce(started_at, inserted_at)", "requested_tasks", workload_sql(),
-           "account_id", "toString(status)", ""}
+           "if(submission_auth = '', account_id, actor_account_id)", "toString(status)", ""}
 
         "xcode" ->
           {"build_runs FINAL", "toInt64(duration)", "inserted_at", "[scheme]",
            "if(custom_values['tuist.workload'] != '', custom_values['tuist.workload'], if(scheme != '', scheme, 'Other'))",
-           "account_id", "status", "AND status IN ('success', 'failure')"}
+           "if(submission_auth = '', account_id, actor_account_id)", "status", "AND status IN ('success', 'failure')"}
 
         "bazel" ->
           {"bazel_invocations FINAL", "duration_ms", "started_at", "target_patterns",
@@ -110,7 +110,7 @@ defmodule Tuist.BuildMetrics do
     """
     SELECT #{if system == "bazel", do: "invocation_id", else: "toString(id)"} AS id, #{duration} AS duration_ms, #{started} AS started_at,
       inserted_at, #{user} AS account_id, #{tasks} AS requested_tasks,
-      #{if system == "bazel", do: "custom_values['tuist.reported_user']", else: "''"} AS reported_user,
+      #{if system == "bazel", do: "custom_values['tuist.reported_user']", else: "claimed_actor_id"} AS reported_user,
       #{workload} AS workload, #{category} AS failure_category, git_branch, is_ci,
       #{status} AS status,
       if(match(custom_values['tuist.cache_time_saved_ms'], '^[0-9]+$')
@@ -486,7 +486,15 @@ defmodule Tuist.BuildMetrics do
             build_system: params.build_system,
             started_at: started_at,
             duration_ms: duration,
-            user: Map.get(accounts, account_id, if(reported_user == "", do: "Unknown", else: reported_user)),
+            user:
+              Map.get(
+                accounts,
+                account_id,
+                if(Tuist.ReportActor.valid_identifier?(reported_user),
+                  do: "Unverified: " <> reported_user,
+                  else: "Unknown"
+                )
+              ),
             requested_tasks: tasks,
             workload: workload,
             failure_category: category,

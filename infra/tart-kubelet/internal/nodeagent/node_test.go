@@ -268,6 +268,37 @@ func TestConfigureNodePrunesAllDynamicLabelsWhenNone(t *testing.T) {
 	}
 }
 
+func TestConfigureNodePrunesCacheMasterLabelsNoProviderAdvertises(t *testing.T) {
+	m := &Maintainer{NodeName: "mac-mini-1"}
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				"tuist.dev/cache-master-42":                           "true",
+				"tuist.dev/cache-master-42.repo-0123456789abcdef":     "true",
+				"tuist.dev/cache-volumes-per-repository":              "true",
+				"tuist.dev/cache-volume-capacity-gib":                 "240",
+				"tuist.dev/cache-volume-aaaaaaaaaaaaaaaaaaaaaaaaaaaa": "true",
+			},
+		},
+	}
+
+	m.configureNode(node, map[string]string{
+		"tuist.dev/cache-volume-capacity-gib":                 "240",
+		"tuist.dev/cache-volume-aaaaaaaaaaaaaaaaaaaaaaaaaaaa": "true",
+	})
+
+	for _, label := range []string{"tuist.dev/cache-master-42", "tuist.dev/cache-master-42.repo-0123456789abcdef", "tuist.dev/cache-volumes-per-repository"} {
+		if _, present := node.Labels[label]; present {
+			t.Errorf("%s survived a heartbeat that no longer advertises it", label)
+		}
+	}
+	for _, label := range []string{"tuist.dev/cache-volume-capacity-gib", "tuist.dev/cache-volume-aaaaaaaaaaaaaaaaaaaaaaaaaaaa"} {
+		if _, present := node.Labels[label]; !present {
+			t.Errorf("%s was pruned while still advertised", label)
+		}
+	}
+}
+
 func TestApplyDiskPressureSetsTrueWithDetail(t *testing.T) {
 	m := &Maintainer{
 		DiskPressure: func(context.Context) (bool, string, error) {
@@ -384,5 +415,57 @@ func TestEvalDynamicLabelsMergesAdvertisements(t *testing.T) {
 	want := map[string]string{"tuist.dev/golden-abc": "true", "tuist.dev/cache-master-42": "true"}
 	if !reflect.DeepEqual(labels, want) {
 		t.Fatalf("merged labels = %v; want %v", labels, want)
+	}
+}
+
+func TestRefreshPublishesTheTartVersion(t *testing.T) {
+	c := newNodeFakeClient()
+	version, versionErr := "2.32.1", error(nil)
+	m := &Maintainer{
+		Client: c, NodeName: "mac-1", Heartbeat: time.Second,
+		RuntimeVersion: func(context.Context) (string, error) { return version, versionErr },
+	}
+	runtime := func() string {
+		t.Helper()
+		node := &corev1.Node{}
+		if err := c.Get(context.Background(), types.NamespacedName{Name: "mac-1"}, node); err != nil {
+			t.Fatal(err)
+		}
+		return node.Status.NodeInfo.ContainerRuntimeVersion
+	}
+
+	if err := m.ensureNode(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := runtime(); got != "tart://2.32.1" {
+		t.Fatalf("runtime = %q, want tart://2.32.1", got)
+	}
+
+	version = "2.41.1"
+	if err := m.refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := runtime(); got != "tart://2.41.1" {
+		t.Fatalf("runtime after an in-place upgrade = %q, want tart://2.41.1", got)
+	}
+
+	versionErr = errors.New("tart: exec format error")
+	if err := m.refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := runtime(); got != "tart://2.41.1" {
+		t.Fatalf("runtime after a failed read = %q, want the last version read", got)
+	}
+}
+
+func TestConfigureNodeKeepsBareRuntimeWithoutAVersion(t *testing.T) {
+	m := &Maintainer{NodeName: "mac-1"}
+	node := &corev1.Node{}
+	m.configureNode(node, nil)
+	if got := node.Status.NodeInfo.ContainerRuntimeVersion; got != "tart" {
+		t.Fatalf("runtime = %q, want tart", got)
 	}
 }

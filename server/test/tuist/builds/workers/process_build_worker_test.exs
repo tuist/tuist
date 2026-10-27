@@ -129,6 +129,29 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
     end
 
+    test "expanded stored metadata survives processor replacement and validation", %{account: account, project: project} do
+      values = Map.new(1..64, &{"future.#{&1}", "value #{&1}"})
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account.id,
+          status: "processing",
+          custom_values: values
+        )
+
+      expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
+      expect(BuildProcessor, :process_build, fn _path, true, consume -> consume.(parsed_data()) end)
+
+      expect(Builds, :create_build, fn attrs ->
+        assert attrs.custom_values == values
+        assert Build.create_changeset(attrs).valid?
+        {:ok, %{id: build.id}}
+      end)
+
+      assert :ok == ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
+    end
+
     test "atomizes machine metrics keys", %{
       account: account,
       project: project,
@@ -368,7 +391,10 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         "is_ci" => true,
         "scheme" => "App",
         "git_branch" => "main",
-        "git_commit_sha" => "abc123"
+        "git_commit_sha" => "abc123",
+        "actor_account_id" => account.id,
+        "claimed_actor_id" => "developer-123",
+        "submission_auth" => "token"
       }
 
       expect(Builds, :get_build, fn ^non_existent_build_id, _opts -> {:error, :not_found} end)
@@ -383,6 +409,9 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
         assert attrs.scheme == "App"
         assert attrs.git_branch == "main"
         assert attrs.git_commit_sha == "abc123"
+        assert attrs.actor_account_id == account.id
+        assert attrs.claimed_actor_id == "developer-123"
+        assert attrs.submission_auth == "token"
         {:ok, %{id: non_existent_build_id}}
       end)
 
@@ -416,6 +445,36 @@ defmodule Tuist.Builds.Workers.ProcessBuildWorkerTest do
 
       assert :ok ==
                ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
+    end
+
+    test "preserves actor fields but strips a loaded actor association", %{
+      account: account,
+      project: project,
+      build: build
+    } do
+      attributed_build = %{
+        build
+        | inserted_at: NaiveDateTime.utc_now(),
+          updated_at: NaiveDateTime.utc_now(),
+          actor_account_id: account.id,
+          claimed_actor_id: "developer-123",
+          submission_auth: "token",
+          actor_account: %Tuist.Accounts.Account{id: account.id}
+      }
+
+      expect(Builds, :get_build, fn _, _ -> {:ok, attributed_build} end)
+      expect(Tuist.Storage, :download_to_file, fn _, _, _ -> {:ok, :done} end)
+      expect(BuildProcessor, :process_build, fn _, _, consume -> consume.(parsed_data()) end)
+
+      expect(Builds, :create_build, fn attrs ->
+        assert attrs.actor_account_id == account.id
+        assert attrs.claimed_actor_id == "developer-123"
+        assert attrs.submission_auth == "token"
+        refute Map.has_key?(attrs, :actor_account)
+        {:ok, %{id: build.id}}
+      end)
+
+      assert :ok = ProcessBuildWorker.perform(oban_job(job_args(build.id, account.id, project.id)))
     end
 
     test "does not carry over stale cacheable task counts from existing build", %{

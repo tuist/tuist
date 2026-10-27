@@ -36,6 +36,35 @@ struct AtlasAuthenticationTests {
         #expect(authentication.server == nil && !authentication.busy)
     }
 
+    @Test func googleLoginKeepsTheNativeCallbackAndPKCE() async throws {
+        let request: [String: Any] = [
+            "operation": "begin",
+            "server": "https://atlas.example",
+            "provider": AtlasLoginProvider.google.rawValue,
+            "registration": [
+                "server": "https://atlas.example/",
+                "authorization_endpoint": "https://atlas.example/oauth2/authorize",
+                "token_endpoint": "https://atlas.example/oauth2/token",
+                "client_id": "test-native-client"
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: request)
+        let input = try #require(String(data: data, encoding: .utf8))
+        let result = try await AtlasAuthBridge.execute(input)
+        let response = try #require(JSONSerialization.jsonObject(with: Data(result.utf8)) as? [String: Any])
+        let login = try #require(response["ok"] as? [String: Any])
+        let address = try #require(login["authorization_url"] as? String)
+        let url = try #require(URLComponents(string: address))
+        let query = Dictionary(uniqueKeysWithValues: (url.queryItems ?? []).map { ($0.name, $0.value) })
+        let pending = try #require(login["pending"] as? [String: Any])
+        #expect(url.host == "atlas.example" && url.path == "/oauth2/authorize")
+        #expect(query["provider"] == "google")
+        #expect(query["redirect_uri"] == "dev.tuist.atlas://oauth-callback")
+        #expect(query["code_challenge_method"] == "S256")
+        #expect(query["state"] == pending["state"] as? String)
+        #expect((pending["verifier"] as? String)?.count == 43)
+    }
+
     @Test func rustBridgeRejectsUnsafeServerWithoutNetwork() async throws {
         let result = try await AtlasAuthBridge.execute("{\"operation\":\"begin\",\"server\":\"http://atlas.example\"}")
         let response = try #require(JSONSerialization.jsonObject(with: Data(result.utf8)) as? [String: Any])

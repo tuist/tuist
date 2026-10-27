@@ -167,8 +167,7 @@
   background-color: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-600));
 }
 
-/* MDEx's html_inline formatter adds an inline background-color on <pre>,
-   override it so the code-window background shows through. */
+/* Keep the snippet surface while Lumis supplies light/dark token colors. */
 [data-part="code-window"] > [data-part="code"] pre {
   margin: 0;
   background: none !important;

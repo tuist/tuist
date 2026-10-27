@@ -391,16 +391,16 @@
             <.dropdown_item
               value="any"
               label={dgettext("dashboard_tests", "Any")}
-              patch={"?#{@uri.query |> Query.drop("commits-status") |> drop_paging()}"}
-              data-selected={@commits_status == ""}
+              patch={"?#{@uri.query |> put_commits_status("any") |> drop_paging()}"}
+              data-selected={@commits_status == "any"}
             >
-              <:right_icon :if={@commits_status == ""}><.check /></:right_icon>
+              <:right_icon :if={@commits_status == "any"}><.check /></:right_icon>
             </.dropdown_item>
             <.dropdown_item
               :for={{value, label} <- commit_statuses()}
               value={value}
               label={label}
-              patch={"?#{@uri.query |> Query.put("commits-status", value) |> drop_paging()}"}
+              patch={"?#{@uri.query |> put_commits_status(value) |> drop_paging()}"}
               data-selected={@commits_status == value}
             >
               <:right_icon :if={@commits_status == value}><.check /></:right_icon>
@@ -457,13 +457,13 @@
           />
         </div>
         <.coverage_empty
-          :if={@commit_rows == [] and (@commits_search != "" or @commits_status != "")}
+          :if={@commit_rows == [] and commits_filtered?(@commits_search, @commits_status)}
           title={dgettext("dashboard_tests", "No commit matches these filters")}
           image="table"
           data-part="empty-commits"
         />
         <.coverage_empty
-          :if={@commit_rows == [] and @commits_search == "" and @commits_status == ""}
+          :if={@commit_rows == [] and not commits_filtered?(@commits_search, @commits_status)}
           title={dgettext("dashboard_tests", "No commit gathered coverage in this period")}
           image="table"
           data-part="empty-commits"

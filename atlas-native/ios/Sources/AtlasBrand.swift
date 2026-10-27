@@ -24,15 +24,16 @@ enum AtlasBrand {
 struct AtlasSignInButton: View {
     let title: String
     var primary = false
+    var image: String?
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 2) {
-                if primary {
-                    Image("AtlasMark")
+                if let image {
+                    Image(image)
                         .resizable()
-                        .renderingMode(.template)
+                        .renderingMode(primary ? .template : .original)
                         .scaledToFit()
                         .frame(width: 20, height: 20)
                         .accessibilityHidden(true)

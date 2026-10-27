@@ -1410,38 +1410,44 @@ public class GraphTraverser: GraphTraversing {
         )
     }
 
-    public func librariesSwiftIncludePaths(path: Path.AbsolutePath, name: String) -> Set<
-        Path.AbsolutePath
-    > {
+    public func librariesSwiftIncludePaths(path: Path.AbsolutePath, name: String) -> Set<SwiftIncludePath> {
         let targetDependency = GraphDependency.target(name: name, path: path)
         let dependencies = graph.dependencies[targetDependency, default: []]
             .union(filterDependencies(from: targetDependency))
         let librarySwiftModuleMapPaths = dependencies.compactMap {
-            dependency -> Path.AbsolutePath? in
-            guard case let GraphDependency.library(_, _, _, _, swiftModuleMapPath) = dependency
+            dependency -> SwiftIncludePath? in
+            guard case let GraphDependency.library(_, _, _, _, swiftModuleMapPath) = dependency,
+                  let swiftModuleMapPath
             else { return nil }
-            return swiftModuleMapPath
+            return SwiftIncludePath(path: swiftModuleMapPath.removingLastComponent())
         }
+        let targetPlatformFilters = target(path: path, name: name).map { Set($0.target.destinations.map(\.platformFilter)) }
+        // Every slice ships a `.swiftmodule` with the same name, so each one is only exposed to its own SDK.
         let xcframeworkLibrarySwiftModulePaths = dependencies.flatMap {
-            dependency -> [Path.AbsolutePath] in
+            dependency -> [SwiftIncludePath] in
             guard case let GraphDependency.xcframework(xcframework) = dependency,
                   xcframework.infoPlist.libraries.contains(where: {
                       ["a", "dylib"].contains($0.path.extension)
                   })
             else { return [] }
 
-            return xcframework.swiftModules.map { swiftModulePath in
-                if swiftModulePath.parentDirectory.extension == "swiftmodule" {
-                    return swiftModulePath.parentDirectory.parentDirectory
+            return xcframework.swiftModules.compactMap { swiftModulePath in
+                let includePath = if swiftModulePath.parentDirectory.extension == "swiftmodule" {
+                    swiftModulePath.parentDirectory.parentDirectory
                 } else {
-                    return swiftModulePath.parentDirectory
+                    swiftModulePath.parentDirectory
                 }
+                let libraryIdentifier = includePath.relative(to: xcframework.path).components.first
+                guard let library = xcframework.infoPlist.libraries.first(where: { $0.identifier == libraryIdentifier })
+                else { return SwiftIncludePath(path: includePath) }
+                // Mac Catalyst and macOS slices share `sdk=macosx*`, so only the one the target builds for is kept.
+                if let targetPlatformFilters, !targetPlatformFilters.contains(library.platformFilter) {
+                    return nil
+                }
+                return SwiftIncludePath(path: includePath, sdkCondition: library.sdkCondition)
             }
         }
-        return Set(
-            librarySwiftModuleMapPaths.map { $0.removingLastComponent() }
-                + xcframeworkLibrarySwiftModulePaths
-        )
+        return Set(librarySwiftModuleMapPaths + xcframeworkLibrarySwiftModulePaths)
     }
 
     public func runPathSearchPaths(path: Path.AbsolutePath, name: String) -> Set<Path.AbsolutePath> {

@@ -17,6 +17,10 @@ type Signals struct {
 	Queued                int32  `json:"queued"`
 	Withheld              int32  `json:"withheld"`
 	P95ConcurrentLastHour int32  `json:"p95_concurrent_last_hour"`
+	// PreferredNodes holds one Node per oldest queued job, in queue order: a
+	// host that holds the custom cache volumes the job is predicted to attach
+	// and has cache disk room for them. A Node repeats once per job it fits.
+	PreferredNodes []string `json:"preferred_nodes,omitempty"`
 }
 
 // CurrentOccupancy returns the server's complete capacity-held signal.

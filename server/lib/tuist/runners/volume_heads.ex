@@ -1,130 +1,55 @@
 defmodule Tuist.Runners.VolumeHeads do
   @moduledoc """
   The cache-volume HEAD: the API over `runner_volume_heads`, one row per
-  (account, volume). A job's volume is its repository's
-  (`volume_name_for_repository/1`), or `tuist-cache` for a job with no
-  repository.
+  (account, custom volume storage name).
 
-  The HEAD is the single cross-host reference version of a volume's warm
-  set. A runner reports it on promote (`bump_head/5`, a fast-forward
-  compare-and-swap), and dispatch hands it back to the next runner (`get_head/2`)
-  so a host that is behind can converge its on-disk master toward it before
-  materializing — turning "whatever this host last ran" into "the account's
-  current warm set".
+  The HEAD is the single cross-host reference version of a custom volume's saved
+  image. A publish advances it with a fast-forward compare-and-swap
+  (`bump_head/6`), and hosts that are behind converge their local master toward
+  it.
 
-  The bump is fast-forward-only: a promote advances the HEAD only when the
+  The bump is fast-forward-only: a publish advances the HEAD only when the
   generation it built on is still the current HEAD. A job that built on a stale
-  base (another host advanced the HEAD meanwhile) is rejected, so a slow or behind
-  host can never clobber a newer warm set — the loser's delta is simply rebuilt by
-  the next job. This is the coordination point of the whole fast-forward
-  last-writer-wins model.
-
-  ## Retiring a HEAD no host can adopt
-
-  Fast-forward-only has one failure mode with no way out of itself: a HEAD whose
-  stored object does not reproduce the `tree_digest` it advertises. Converging
-  hosts verify the object before adopting it and decline — correctly, since that
-  check is what stops a corrupt master propagating fleet-wide — so no host obtains
-  that generation, and every job then promotes from base 0, which the rule above
-  rejects because a HEAD exists. The account can neither adopt the HEAD nor
-  replace it, on any host, for as long as it stands.
-
-  So a promote that loses the rule above may still take over the lineage, on one
-  condition: the promoting host reports the current HEAD's digest as one it
-  downloaded and could not verify. That is evidence about the object, produced by a
-  host that fetched it, and it retires only the exact digest it names — the lineage
-  continues at `generation + 1` rather than resetting, so local masters elsewhere
-  in the fleet stay comparable against one monotonic counter.
-
-  The reporter may be cold OR stale-warm, because both are wedged identically. A
-  host holding generation 5 while a poisoned generation 6 stands proves the
-  mismatch just as well, and its promote is rejected just as permanently: it can
-  never reach generation 6, since adopting it is exactly what the verification
-  refuses. Once no host holds the poisoned generation — the state production was
-  found in — a cold-only escape would leave every surviving stale-warm host stuck.
+  base (another host advanced the HEAD meanwhile) is rejected, so a slow or
+  behind host can never clobber a newer image.
   """
   import Ecto.Query
 
   alias Tuist.Repo
   alias Tuist.Runners.VolumeHead
 
-  require Logger
-
-  @reserved_tuist_cache "tuist-cache"
-
-  @doc "The account-wide volume, used by jobs with no repository."
-  def reserved_tuist_cache, do: @reserved_tuist_cache
-
-  @doc """
-  The cache volume of a job in `repository`: `repo-` and the first 16 hex
-  characters of the SHA-256 of the lowercased name, which is a safe path segment
-  and fits a Node label key. A job with no repository uses `tuist-cache`.
-  """
-  def volume_name_for_repository(repository) when is_binary(repository) and repository != "" do
-    hash = :sha256 |> :crypto.hash(String.downcase(repository)) |> Base.encode16(case: :lower)
-    "repo-" <> binary_part(hash, 0, 16)
-  end
-
-  def volume_name_for_repository(_repository), do: @reserved_tuist_cache
-
-  @doc "Whether `name` is a volume `volume_name_for_repository/1` can return."
-  def valid_volume_name?(@reserved_tuist_cache), do: true
-  def valid_volume_name?(name) when is_binary(name), do: Regex.match?(~r/\Arepo-[0-9a-f]{16}\z/, name)
-  def valid_volume_name?(_name), do: false
-
-  # Storage names are broader than dispatch labels. macOS volume_owner_for_sa
-  # still accepts only built-in names; custom images use the host agent.
+  @doc "Whether `name` is a custom volume storage name (`macos-<scope>` or `linux-<scope>`)."
   def valid_storage_volume_name?("macos-" <> scope), do: Regex.match?(~r/\A[0-9a-f]{64}\z/, scope)
   def valid_storage_volume_name?("linux-" <> scope), do: Regex.match?(~r/\A[0-9a-f]{64}\z/, scope)
-  def valid_storage_volume_name?(name), do: valid_volume_name?(name)
+  def valid_storage_volume_name?(_name), do: false
 
   @doc """
-  Fast-forwards `account_id`'s HEAD to `tree_digest` published from `node_name`,
-  but ONLY when `base_generation` is still the current HEAD generation — a
-  compare-and-swap.
+  Fast-forwards `account_id`'s HEAD of `volume_name` to `tree_digest` published
+  from `node_name`, but ONLY when `base_generation` is still the current HEAD
+  generation.
 
-  `base_generation` is the generation the promoting job's branch was cloned from.
-
-    * base 0 (a cold job, no local master) succeeds when the account has NO HEAD
-      yet, establishing generation 1. If a HEAD already exists, the cold job built
-      on nothing while the fleet moved on, so it is rejected.
+    * base 0 succeeds when the volume has NO HEAD yet, establishing generation 1.
     * base N > 0 succeeds only when the current HEAD is exactly generation N,
-      advancing it to N+1. Any other current generation means another host already
-      advanced past this job's base, so it is rejected.
-
-  Either rejection then falls through to the retirement escape:
-  `opts[:unverifiable_digest]` naming the HEAD that stands right now takes the
-  lineage over instead (see the moduledoc). Both bases reach it, because both get
-  stuck the same way.
+      advancing it to N+1.
 
   Returns `{:ok, new_generation}` on a successful fast-forward, or `:conflict`
-  when the base is stale. Upserts on (account_id, volume_name).
+  when the base is stale.
   """
-  def bump_head(account_id, node_name, tree_digest, base_generation, volume_name \\ @reserved_tuist_cache, opts \\ [])
+  def bump_head(account_id, node_name, tree_digest, base_generation, volume_name, opts \\ [])
 
   def bump_head(account_id, node_name, tree_digest, 0, volume_name, opts)
       when is_integer(account_id) and is_binary(tree_digest) and tree_digest != "" do
-    case establish_first_head(account_id, node_name, tree_digest, volume_name, opts[:content_digest]) do
-      :conflict -> retire_unverifiable_head(account_id, node_name, tree_digest, volume_name, opts)
-      accepted -> accepted
-    end
+    establish_first_head(account_id, node_name, tree_digest, volume_name, opts[:content_digest])
   end
 
   def bump_head(account_id, node_name, tree_digest, base_generation, volume_name, opts)
       when is_integer(account_id) and is_binary(tree_digest) and tree_digest != "" and is_integer(base_generation) and
              base_generation > 0 do
-    case fast_forward_head(account_id, node_name, tree_digest, base_generation, volume_name, opts[:content_digest]) do
-      :conflict -> retire_unverifiable_head(account_id, node_name, tree_digest, volume_name, opts)
-      accepted -> accepted
-    end
+    fast_forward_head(account_id, node_name, tree_digest, base_generation, volume_name, opts[:content_digest])
   end
 
-  # No digest to record (empty/absent) or an invalid base: nothing to publish.
   def bump_head(_account_id, _node_name, _tree_digest, _base_generation, _volume_name, _opts), do: :conflict
 
-  # Cold job: establish generation 1 iff no HEAD exists. A conflict (a HEAD is
-  # already there) means the cold job built on nothing while the fleet moved on,
-  # and must not clobber an existing lineage on its own.
   defp establish_first_head(account_id, node_name, tree_digest, volume_name, content_digest) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
@@ -150,75 +75,8 @@ defmodule Tuist.Runners.VolumeHeads do
     if count == 1, do: {:ok, 1}, else: :conflict
   end
 
-  # Take over a lineage whose object the promoting host proved unverifiable, after
-  # the promote lost the ordinary rule. Reached from BOTH bases: whether the
-  # reporting host holds no master (cold) or one at an older generation
-  # (stale-warm), it is wedged identically — convergence declines the HEAD, so its
-  # base never reaches the HEAD's generation and its promote is rejected forever.
-  # Gating this on the cold base alone would leave every stale-warm host stuck the
-  # moment the generation that poisoned the lineage is held by nobody, which is the
-  # state production was actually found in.
-  #
-  # The WHERE pins BOTH the generation and the digest that was disproved, so this
-  # stays a compare-and-swap: if another host advanced the HEAD (or retired the same
-  # digest first) between the read and the write, it matches nothing and rejects.
-  # The generation advances rather than resetting, so a host still holding an older
-  # master keeps comparing against one monotonic counter.
-  defp retire_unverifiable_head(account_id, node_name, tree_digest, volume_name, opts) do
-    unverifiable_digest = Keyword.get(opts, :unverifiable_digest)
-    head = get_head(account_id, volume_name)
-
-    if retires_head?(head, unverifiable_digest) do
-      %{generation: generation} = head
-      now = DateTime.truncate(DateTime.utc_now(), :second)
-
-      {count, _} =
-        Repo.update_all(
-          from(h in VolumeHead,
-            where:
-              h.account_id == ^account_id and h.volume_name == ^volume_name and
-                h.generation == ^generation and h.tree_digest == ^unverifiable_digest
-          ),
-          set: [
-            generation: generation + 1,
-            tree_digest: tree_digest,
-            content_digest: opts[:content_digest],
-            node_name: node_name,
-            updated_at: now
-          ]
-        )
-
-      if count == 1 do
-        Logger.warning(
-          "runners: retired cache-volume HEAD #{unverifiable_digest} for account #{account_id} " <>
-            "(reported unverifiable by #{node_name}); lineage continues at generation #{generation + 1}"
-        )
-
-        {:ok, generation + 1}
-      else
-        :conflict
-      end
-    else
-      :conflict
-    end
-  end
-
-  # The one rule both the pre-flight and the bump evaluate, kept in a single place
-  # so they cannot drift: a cold promote retires an existing HEAD only when the
-  # promoting host names that exact digest as one it downloaded and could not
-  # verify. Anything else — no HEAD to compare, no report, a report naming a digest
-  # the HEAD has already moved off — does not retire it.
-  defp retires_head?(%{tree_digest: digest}, unverifiable_digest)
-       when is_binary(unverifiable_digest) and unverifiable_digest != "" do
-    digest == unverifiable_digest
-  end
-
-  defp retires_head?(_head, _unverifiable_digest), do: false
-
-  # Warm job: advance the HEAD only if it is still at the base the job built on.
-  # content_digest is always written, nil included: it describes the object this
-  # promote uploaded, so a stale value from the previous HEAD must never survive
-  # a bump that publishes a different object.
+  # content_digest is always written, nil included, so a value from the previous
+  # HEAD never describes a different object.
   defp fast_forward_head(account_id, node_name, tree_digest, base_generation, volume_name, content_digest) do
     now = DateTime.truncate(DateTime.utc_now(), :second)
 
@@ -237,13 +95,9 @@ defmodule Tuist.Runners.VolumeHeads do
   end
 
   @doc """
-  The account's current HEAD as `%{generation, tree_digest, content_digest}`,
-  or `nil` when the account has never promoted a volume (the host materializes
-  cold and its first successful job establishes the HEAD). `content_digest` is
-  nil for a HEAD promoted by a runner image that predates the content hash.
+  The volume's current HEAD as `%{generation, tree_digest, content_digest}`, or
+  `nil` when nothing has been published yet.
   """
-  def get_head(account_id, volume_name \\ @reserved_tuist_cache)
-
   def get_head(account_id, volume_name) when is_integer(account_id) do
     Repo.one(
       from(h in VolumeHead,
@@ -260,36 +114,17 @@ defmodule Tuist.Runners.VolumeHeads do
   end
 
   @doc """
-  Whether a promote built on `base_generation` could still win the fast-forward —
-  the pre-flight the runner makes BEFORE uploading its image.
-
-  Mirrors `bump_head/6`'s acceptance rule: base 0 is viable while the account has
-  no HEAD, base N > 0 only while the HEAD is exactly at N, and either is viable
-  while `opts[:unverifiable_digest]` retires the HEAD that stands right now.
-
-  Mirroring the retirement rule here is load-bearing, not tidiness: this runs
-  BEFORE the upload, so a pre-flight that ignored the report would 409 every
-  promote that could retire a poisoned HEAD and the bump would never see one.
-
-  This is an OPTIMIZATION, not a decision. It is racy by construction (another
-  host can advance the HEAD between this read and the bump), so it may only ever
-  let a caller skip work that `bump_head/6` would reject anyway — the
-  compare-and-swap there stays the sole authority on what becomes HEAD. Anything
-  it cannot evaluate reads as viable, so an odd input never suppresses a promote
-  that would have been accepted.
+  Whether a publish built on `base_generation` could still win the fast-forward,
+  checked before the image upload. Advisory and racy: `bump_head/6` stays the
+  sole authority, and anything this cannot evaluate reads as viable.
   """
-  def fast_forward_viable?(account_id, base_generation, volume_name \\ @reserved_tuist_cache, opts \\ [])
-
-  def fast_forward_viable?(account_id, base_generation, volume_name, opts)
+  def fast_forward_viable?(account_id, base_generation, volume_name)
       when is_integer(account_id) and is_integer(base_generation) and base_generation >= 0 do
     case get_head(account_id, volume_name) do
-      nil ->
-        base_generation == 0
-
-      %{generation: generation} = head ->
-        generation == base_generation or retires_head?(head, Keyword.get(opts, :unverifiable_digest))
+      nil -> base_generation == 0
+      %{generation: generation} -> generation == base_generation
     end
   end
 
-  def fast_forward_viable?(_account_id, _base_generation, _volume_name, _opts), do: true
+  def fast_forward_viable?(_account_id, _base_generation, _volume_name), do: true
 end

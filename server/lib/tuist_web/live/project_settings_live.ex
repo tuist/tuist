@@ -6,6 +6,7 @@ defmodule TuistWeb.ProjectSettingsLive do
   alias Tuist.Authorization
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias TuistWeb.Errors.UnauthorizedError
   alias TuistWeb.Helpers.OpenGraph
 
   @logo_max_size 2 * 1024 * 1024
@@ -13,7 +14,7 @@ defmodule TuistWeb.ProjectSettingsLive do
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_project: selected_project, current_user: current_user}} = socket) do
     if Authorization.authorize(:project_update, current_user, selected_project) != :ok do
-      raise TuistWeb.Errors.UnauthorizedError,
+      raise UnauthorizedError,
             dgettext("dashboard_projects", "You are not authorized to perform this action.")
     end
 

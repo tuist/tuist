@@ -95,6 +95,22 @@ defmodule TuistWeb.MixBuildLiveTest do
     }
   end
 
+  @tag :build_environment
+  test "Elixir and OTP versions belong to the build environment, not invocation details", %{conn: conn, path: path} do
+    {:ok, view, _} = live(conn, path)
+
+    for label <- ["Elixir version", "OTP version"] do
+      assert has_element?(view, "#build-environment-content[hidden]", label)
+      refute has_element?(view, "[data-part=build-details]", label)
+    end
+
+    assert has_element?(view, "#build-environment-content", "1.19.1")
+    assert has_element?(view, "#build-environment-content", "28")
+    assert has_element?(view, "[data-part=build-details]", "Mix environment")
+    assert has_element?(view, "[data-part=build-details]", "mix compile")
+    refute has_element?(view, "[data-part=build-details] #build-environment")
+  end
+
   test "uses the shared project card for public Mix builds", %{conn: conn, project: project, path: path} do
     {:ok, _project} = Projects.update_project(project, %{visibility: :public})
     html = conn |> get(path) |> html_response(:ok)

@@ -45,6 +45,7 @@ defmodule Tuist.Bazel do
           git_branch: Map.get(invocation, :git_branch, ""),
           git_commit_sha: Map.get(invocation, :git_commit_sha, ""),
           is_ci: Map.get(invocation, :is_ci, false),
+          submission_auth: Map.get(invocation, :submission_auth, ""),
           custom_values: Map.get(invocation, :custom_values, %{}),
           bazel_version: Map.get(invocation, :bazel_version, ""),
           cpu_time_ms: Map.get(invocation, :cpu_time_ms, 0),
@@ -78,7 +79,9 @@ defmodule Tuist.Bazel do
     result = IngestRepo.insert_all(Invocation, entries)
 
     invocations
-    |> Enum.filter(&(&1.command == "build" and &1.status == "failure"))
+    |> Enum.filter(
+      &(&1.command == "build" and &1.status == "failure" and Map.get(&1, :submission_auth, "") != "network_trusted")
+    )
     |> Enum.group_by(& &1.project_id)
     |> Enum.each(fn {project_id, failed_invocations} ->
       Publisher.publish_batch(

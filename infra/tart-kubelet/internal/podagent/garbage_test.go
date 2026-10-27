@@ -7,12 +7,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -289,6 +291,8 @@ if [ "$1" = "list" ]; then
 elif [ "$1" = "delete" ]; then
   rm -f "$VMDIR/$2"
   printf '%%s\n' "$2" >> "$DELETES"
+elif [ "$1" = "prune" ] && [ "$2" = "--gc" ]; then
+  printf 'gc\n' >> "$(dirname "$0")/content-gc.txt"
 fi
 `, vmdir, deletes)
 		if err := os.WriteFile(bin, []byte(body), 0o755); err != nil {
@@ -388,6 +392,54 @@ fi
 		}
 	})
 
+	// Stacked goldens share one base in Tart's content store, and `tart
+	// delete` of a local VM leaves the store alone, so a reaped golden frees
+	// space only once the store is collected. Measuring before that would
+	// read every reap as freeing nothing and reap every golden.
+	t.Run("collects shared content before re-measuring", func(t *testing.T) {
+		imgB1, imgB2, imgB3 := "reg/runner@sha256:b11", "reg/runner@sha256:b22", "reg/runner@sha256:b33"
+		gB1, gB2, gB3 := goldenVMName(imgB1), goldenVMName(imgB2), goldenVMName(imgB3)
+		var c *Collector
+		calls := 0
+		hostFree := func() (float64, error) {
+			calls++
+			if calls <= 2 {
+				return 5, nil
+			}
+			if _, err := os.Stat(filepath.Join(filepath.Dir(c.Tart.Binary), "content-gc.txt")); err == nil {
+				return 50, nil
+			}
+			return 5, nil
+		}
+		var read func(t *testing.T) []string
+		c, read = newCollector(t, map[string]string{gB1: "local", gB2: "local", gB3: "local"}, hostFree,
+			func(string) bool { return false },
+			pod("pod-b1", imgB1), pod("pod-b2", imgB2), pod("pod-b3", imgB3))
+		c.RunOnce(context.Background())
+		if got := read(t); len(got) != 1 {
+			t.Fatalf("expected one reap once the reaped golden's content was collected, got %v", got)
+		}
+	})
+
+	t.Run("collects content after reaping a stale golden", func(t *testing.T) {
+		imgC := "reg/runner@sha256:ccc"
+		gC := goldenVMName(imgC)
+		now := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
+		c, read := newCollector(t, map[string]string{gC: "local"},
+			func() (float64, error) { return 50, nil },
+			func(string) bool { return false })
+		c.Now = func() time.Time { return now }
+		c.GoldenRetention = time.Hour
+		c.goldenSeen = map[string]time.Time{gC: now.Add(-2 * time.Hour)}
+		c.RunOnce(context.Background())
+		if got := read(t); !contains(got, gC) {
+			t.Fatalf("stale golden %q not reaped; deletes=%v", gC, got)
+		}
+		if _, err := os.Stat(filepath.Join(filepath.Dir(c.Tart.Binary), "content-gc.txt")); err != nil {
+			t.Fatalf("content store not collected after reaping a golden: %v", err)
+		}
+	})
+
 	t.Run("no-op when above floor", func(t *testing.T) {
 		imgA, imgB, imgC := "reg/runner@sha256:aaa", "reg/runner@sha256:bbb", "reg/runner@sha256:ccc"
 		gA, gB, gC := goldenVMName(imgA), goldenVMName(imgB), goldenVMName(imgC)
@@ -400,4 +452,180 @@ fi
 			t.Fatalf("reaped goldens despite ample free space; deletes=%v", got)
 		}
 	})
+}
+
+// Runner images are released several times a day and every catalog pool
+// names its image by digest in one repository, so a host collected goldens
+// and OCI entries of superseded digests for a day each. These cases pin
+// that an image no pool of the fleet runs and no Pod here references goes
+// on the next pass, while everything a pool or Pod still names stays, and
+// that the old retention behaviour holds whenever the pools are unknown.
+func TestRunOnceReapsImagesNoPoolRuns(t *testing.T) {
+	const node = "mini-1"
+	const fleet = "tuist-tuist-rack-fleet"
+	const repo = "ghcr.io/tuist/tuist-runner"
+	current := repo + "@sha256:current"
+	running := repo + "@sha256:running"
+	superseded := repo + "@sha256:superseded"
+	now := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
+
+	type entry struct {
+		Name   string
+		Source string
+	}
+	newCollector := func(t *testing.T, entries []entry, pools *poolLister, collectorFleet string, objs ...client.Object) (*Collector, func(t *testing.T) []string) {
+		t.Helper()
+		dir := t.TempDir()
+		listing := "["
+		for i, e := range entries {
+			if i > 0 {
+				listing += ","
+			}
+			listing += fmt.Sprintf(`{"Name":"%s","Source":"%s","State":"stopped","CPU":4,"Memory":8192,"Size":68}`, e.Name, e.Source)
+		}
+		listing += "]"
+		deletes := filepath.Join(dir, "deletes.txt")
+		bin := filepath.Join(dir, "faketart")
+		body := fmt.Sprintf("#!/bin/sh\n"+
+			"if [ \"$1\" = \"list\" ]; then\n"+
+			"  printf '%%s' '%s'\n"+
+			"elif [ \"$1\" = \"delete\" ]; then\n"+
+			"  printf '%%s\\n' \"$2\" >> %q\n"+
+			"fi\n", listing, deletes)
+		if err := os.WriteFile(bin, []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		scheme := runtime.NewScheme()
+		if err := corev1.AddToScheme(scheme); err != nil {
+			t.Fatalf("add core scheme: %v", err)
+		}
+		k := fake.NewClientBuilder().WithScheme(scheme).
+			WithObjects(objs...).
+			WithIndex(&corev1.Pod{}, "spec.nodeName", func(o client.Object) []string {
+				return []string{o.(*corev1.Pod).Spec.NodeName}
+			}).Build()
+		c := &Collector{
+			K8s:             &gcReader{Reader: k, pools: pools},
+			Tart:            &tart.Client{Binary: bin},
+			NodeName:        node,
+			Fleet:           collectorFleet,
+			GoldenRetention: 24 * time.Hour,
+			Now:             func() time.Time { return now },
+			HostDiskFree:    func() (float64, error) { return 50, nil },
+			IsRunning:       func(context.Context, string) (bool, error) { return false, nil },
+		}
+		read := func(t *testing.T) []string {
+			t.Helper()
+			b, err := os.ReadFile(deletes)
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			return strings.Fields(string(b))
+		}
+		return c, read
+	}
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "tuist-runners", Name: "runner"},
+		Spec: corev1.PodSpec{
+			NodeName:   node,
+			Containers: []corev1.Container{{Name: "runner", Image: running}},
+		},
+	}
+	catalog := func() *poolLister {
+		return &poolLister{pools: []unstructured.Unstructured{
+			runnerPool("macos-27-0", current, fleet, 0, 0),
+			runnerPool("macos-26-6", running, fleet, 1, 1),
+		}}
+	}
+	entries := []entry{
+		{goldenVMName(current), "local"},
+		{goldenVMName(running), "local"},
+		{goldenVMName(superseded), "local"},
+		{current, "OCI"},
+		{running, "OCI"},
+		{superseded, "OCI"},
+	}
+
+	t.Run("reaps the golden and OCI entry of an image no pool runs", func(t *testing.T) {
+		c, read := newCollector(t, entries, catalog(), fleet, pod)
+		c.RunOnce(context.Background())
+		got := read(t)
+		if want := []string{goldenVMName(superseded), superseded}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("deletes = %v, want only the superseded golden and its OCI entry %v", got, want)
+		}
+	})
+
+	t.Run("keeps every digest of a repository a Pod names by tag", func(t *testing.T) {
+		tagged := &corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "tuist-runners", Name: "tagged"},
+			Spec: corev1.PodSpec{
+				NodeName:   node,
+				Containers: []corev1.Container{{Name: "runner", Image: repo + ":macos-26-6"}},
+			},
+		}
+		c, read := newCollector(t, entries, catalog(), fleet, pod, tagged)
+		c.RunOnce(context.Background())
+		if got := read(t); !reflect.DeepEqual(got, []string{goldenVMName(superseded)}) {
+			t.Fatalf("deletes = %v, want only the superseded golden: a tag-named Pod may run any digest Tart lists", got)
+		}
+	})
+
+	t.Run("keeps the golden and OCI entry of the image a pool moves to next", func(t *testing.T) {
+		staged := repo + "@sha256:staged"
+		pools := &poolLister{pools: []unstructured.Unstructured{
+			catalogPool("macos-27-0", current, "27.0", "stacked", 0, 0),
+			runnerPool("macos-26-6", running, fleet, 1, 1),
+		}}
+		upcoming := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Namespace: "tuist-runners", Name: "tuist-upcoming-runner-images", Labels: map[string]string{upcomingImagesLabel: "true"}},
+			Data:       map[string]string{"27.0.stacked": staged},
+		}
+		withStaged := append([]entry{{goldenVMName(staged), "local"}, {staged, "OCI"}}, entries...)
+		c, read := newCollector(t, withStaged, pools, fleet, pod, upcoming)
+		c.RunOnce(context.Background())
+		if got, want := read(t), []string{goldenVMName(superseded), superseded}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("deletes = %v, want only the superseded golden and its OCI entry %v", got, want)
+		}
+	})
+
+	t.Run("keeps superseded images when the pools cannot be listed", func(t *testing.T) {
+		c, read := newCollector(t, entries, &poolLister{err: errors.New("no matches for kind RunnerPool")}, fleet, pod)
+		c.RunOnce(context.Background())
+		if got := read(t); len(got) != 0 {
+			t.Fatalf("deletes = %v, want none without the pools to compare against", got)
+		}
+	})
+
+	t.Run("keeps superseded images when no pool runs on the fleet", func(t *testing.T) {
+		c, read := newCollector(t, entries, catalog(), "tuist-tuist-builders-fleet", pod)
+		c.RunOnce(context.Background())
+		if got := read(t); len(got) != 0 {
+			t.Fatalf("deletes = %v, want none on a fleet without pools", got)
+		}
+	})
+
+	t.Run("keeps superseded images without a fleet", func(t *testing.T) {
+		c, read := newCollector(t, entries, catalog(), "", pod)
+		c.RunOnce(context.Background())
+		if got := read(t); len(got) != 0 {
+			t.Fatalf("deletes = %v, want none without a fleet", got)
+		}
+	})
+}
+
+// gcReader answers Pod lists from a fake client and RunnerPool lists from a
+// poolLister, which the fake client cannot serve without the CRD's scheme.
+type gcReader struct {
+	client.Reader
+	pools *poolLister
+}
+
+func (r *gcReader) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	if _, ok := list.(*unstructured.UnstructuredList); ok {
+		return r.pools.List(ctx, list, opts...)
+	}
+	return r.Reader.List(ctx, list, opts...)
 }

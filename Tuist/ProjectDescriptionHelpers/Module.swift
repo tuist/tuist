@@ -261,7 +261,6 @@ public enum Module: String, CaseIterable {
                     .external(name: "HTTPTypes"),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "OpenAPIURLSession"),
-                    .external(name: "TestCoverageAttribution"),
                 ],
                 metadata: .metadata(tags: ["domain:generation", "layer:testing", "ee:true"])
             ),
@@ -345,7 +344,7 @@ public enum Module: String, CaseIterable {
                 target(
                     name: unitTestsTargetName,
                     product: .unitTests,
-                    dependencies: unitTestDependencies + [.external(name: "TestCoverageAttribution")],
+                    dependencies: unitTestDependencies,
                     isTestingTarget: false
                 )
             )
@@ -1174,6 +1173,9 @@ public enum Module: String, CaseIterable {
                 ]
             case .cas:
                 [
+                    .external(name: "FileSystem"),
+                    .external(name: "Path"),
+                    .external(name: "SwiftToolsSupport"),
                     .target(name: Module.server.targetName),
                     .target(name: Module.http.targetName),
                     .target(name: Module.environment.targetName),
@@ -1789,6 +1791,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.process.targetName),
                     .target(name: Module.reapi.targetName),
                     .target(name: Module.server.targetName),
+                    .target(name: Module.testSupport.targetName),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
                     .external(name: "ArgumentParser"),
@@ -2073,6 +2076,7 @@ public enum Module: String, CaseIterable {
                 [
                     .target(name: Module.android.targetName),
                     .target(name: Module.appleArchiver.targetName, condition: .when([.macos])),
+                    .target(name: Module.environmentTesting.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.core.targetName),
@@ -2084,6 +2088,8 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.process.targetName, condition: .when([.macos])),
                     .target(name: Module.uniqueIDGenerator.targetName),
                     .target(name: Module.xcodeGraph.targetName),
+                    .target(name: Module.xcResultService.targetName, condition: .when([.macos])),
+                    .target(name: "XCResultParser", condition: .when([.macos])),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
                     .external(name: "FileSystem"),
@@ -2187,6 +2193,9 @@ public enum Module: String, CaseIterable {
                 ]
             case .cas:
                 [
+                    .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
+                    .target(name: Module.process.targetName),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.server.targetName),
                     .target(name: Module.environment.targetName),
@@ -2231,6 +2240,7 @@ public enum Module: String, CaseIterable {
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
                     .external(name: "FileSystem"),
+                    .external(name: "FileSystemTesting"),
                 ]
             }
         dependencies =

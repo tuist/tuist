@@ -5,16 +5,40 @@ import TuistHTTP
 
 public typealias RunnerProfileUpdateResult = Operations.updateRunnerProfile.Output.Ok.Body.jsonPayload
 
+/// Changes to a runner profile. `nil` fields keep their value.
+public struct RunnerProfileChanges: Equatable, Sendable {
+    public var vcpus: Int?
+    public var memoryGB: Int?
+    public var xcodeVersion: String?
+    public var saveCacheFromAllBranches: Bool?
+    public var saveCacheFromDefaultBranch: Bool?
+    public var saveCacheFromBranches: [String]?
+
+    public init(
+        vcpus: Int? = nil,
+        memoryGB: Int? = nil,
+        xcodeVersion: String? = nil,
+        saveCacheFromAllBranches: Bool? = nil,
+        saveCacheFromDefaultBranch: Bool? = nil,
+        saveCacheFromBranches: [String]? = nil
+    ) {
+        self.vcpus = vcpus
+        self.memoryGB = memoryGB
+        self.xcodeVersion = xcodeVersion
+        self.saveCacheFromAllBranches = saveCacheFromAllBranches
+        self.saveCacheFromDefaultBranch = saveCacheFromDefaultBranch
+        self.saveCacheFromBranches = saveCacheFromBranches
+    }
+}
+
 @Mockable
 public protocol UpdateRunnerProfileServicing {
-    /// Sets whether jobs on each repository's default branch save the profile's cache volumes and replaces the
-    /// additional branches that save them.
-    func updateCacheWriterPolicy(
+    /// Changes the profile's machine shape, Xcode version, or which branches save its cache volumes.
+    func updateRunnerProfile(
         accountHandle: String,
         serverURL: URL,
         profileName: String,
-        defaultBranch: Bool,
-        branches: [String]
+        changes: RunnerProfileChanges
     ) async throws -> RunnerProfileUpdateResult
 }
 
@@ -38,18 +62,26 @@ enum UpdateRunnerProfileServiceError: LocalizedError, Equatable {
 public struct UpdateRunnerProfileService: UpdateRunnerProfileServicing {
     public init() {}
 
-    public func updateCacheWriterPolicy(
+    public func updateRunnerProfile(
         accountHandle: String,
         serverURL: URL,
         profileName: String,
-        defaultBranch: Bool,
-        branches: [String]
+        changes: RunnerProfileChanges
     ) async throws -> RunnerProfileUpdateResult {
         let client = Client.authenticated(serverURL: serverURL)
         let response = try await client.updateRunnerProfile(
             .init(
                 path: .init(account_handle: accountHandle, profile_name: profileName),
-                body: .json(.init(cache_writer_branches: branches, cache_writer_default_branch: defaultBranch))
+                body: .json(
+                    .init(
+                        cache_writer_all_branches: changes.saveCacheFromAllBranches,
+                        cache_writer_branches: changes.saveCacheFromBranches,
+                        cache_writer_default_branch: changes.saveCacheFromDefaultBranch,
+                        memory_gb: changes.memoryGB,
+                        vcpus: changes.vcpus,
+                        xcode_version: changes.xcodeVersion
+                    )
+                )
             )
         )
         switch response {

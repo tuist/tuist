@@ -47,12 +47,10 @@ jobs:
           working_directory: registry
       - uses: tuist/cache-volume@v1
         with:
-          key: ci-registry-${{ github.job }}-deps-v2
-          path: registry/deps
-      - uses: tuist/cache-volume@v1
-        with:
-          key: ci-registry-${{ github.job }}-build-v2
-          path: registry/_build
+          key: ci-registry-${{ github.job }}-mix-v1
+          path: |
+            registry/deps
+            registry/_build
       - name: Install dependencies
         run: mise run install
       - name: Check format
@@ -71,12 +69,10 @@ jobs:
           working_directory: registry
       - uses: tuist/cache-volume@v1
         with:
-          key: ci-registry-${{ github.job }}-deps-v2
-          path: registry/deps
-      - uses: tuist/cache-volume@v1
-        with:
-          key: ci-registry-${{ github.job }}-build-v2
-          path: registry/_build
+          key: ci-registry-${{ github.job }}-mix-v1
+          path: |
+            registry/deps
+            registry/_build
       - name: Install dependencies
         run: mise run install
       - name: Run Credo
@@ -95,12 +91,10 @@ jobs:
           working_directory: registry
       - uses: tuist/cache-volume@v1
         with:
-          key: ci-registry-${{ github.job }}-deps-v2
-          path: registry/deps
-      - uses: tuist/cache-volume@v1
-        with:
-          key: ci-registry-${{ github.job }}-build-v2
-          path: registry/_build
+          key: ci-registry-${{ github.job }}-mix-v1
+          path: |
+            registry/deps
+            registry/_build
       - name: Install dependencies
         run: mise run install
       - name: Run tests
@@ -119,12 +113,10 @@ jobs:
           working_directory: registry
       - uses: tuist/cache-volume@v1
         with:
-          key: ci-registry-${{ github.job }}-deps-v2
-          path: registry/deps
-      - uses: tuist/cache-volume@v1
-        with:
-          key: ci-registry-${{ github.job }}-build-v2
-          path: registry/_build
+          key: ci-registry-${{ github.job }}-mix-v1
+          path: |
+            registry/deps
+            registry/_build
       - name: Install dependencies
         run: mise run install
       - name: Compile with MIX_ENV=prod

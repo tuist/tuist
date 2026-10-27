@@ -20,6 +20,7 @@ defmodule TuistWeb.BuildsLiveTest do
   } do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds")
+    render_async(lv, @render_async_timeout)
 
     # Then
     assert has_element?(lv, "span", "No data yet")

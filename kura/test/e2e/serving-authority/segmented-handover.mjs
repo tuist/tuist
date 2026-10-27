@@ -1,10 +1,12 @@
 import fs from "node:fs";
+import http2 from "node:http2";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fixture, handover } from "./fixture.mjs";
+import { request } from "./protocol.mjs";
 
 const [image, output] = process.argv.slice(2);
 assert(image && output, "usage: segmented-handover.mjs IMAGE OUTPUT_DIR");
@@ -13,6 +15,12 @@ assert([512, 2048].includes(count), "record count must be 512 or 2048");
 const fullRing = count === 2048;
 const repairOld = process.env.KURA_E2E_RETAINED_RECENCY === "1";
 const repairChurn = process.env.KURA_E2E_REPAIR_CHURN === "1";
+const prepare = process.env.KURA_E2E_LIVE_PREPARATION === "1";
+const liveChurn = process.env.KURA_E2E_LIVE_WRITE_CHURN === "1";
+assert(
+  !liveChurn || (fullRing && prepare),
+  "live churn requires full-ring preparation",
+);
 assert(
   !repairOld || fullRing,
   "recency repair requires the full-ring workload",
@@ -23,9 +31,50 @@ assert(
 );
 const f = await fixture(image, "active", output);
 const retained = [];
+const preparationSessions = [];
+let preparationChannelsAt = 0;
+const preparationKey = "live-preparation";
+const preparationQuery = "?tenant_id=default&namespace_id=segmented-handover";
+const preparationWrite = (i) =>
+  request(
+    preparationSessions[i],
+    `/api/cache/keyvalue${preparationQuery}`,
+    "PUT",
+    JSON.stringify({
+      cas_id: preparationKey,
+      entries: [{ value: preparationKey }],
+    }),
+  );
 const body = Buffer.alloc(2 * 1024 * 1024, 73);
 const url = (replica, index) =>
   `${f.urls[replica]}/api/cache/cas/retained-${index}?tenant_id=default&namespace_id=segmented-handover`;
+let churn;
+let churnError;
+let churning = true;
+async function writeDuringPreparation() {
+  for (let written = 0; churning; written++) {
+    const index = (written * 17) % count;
+    const bytes = Buffer.alloc(body.length, 73);
+    bytes.writeUInt32BE(index);
+    const response = await fetch(url(0, index), {
+      method: "POST",
+      body: bytes,
+      signal: AbortSignal.timeout(30000),
+    });
+    await response.arrayBuffer();
+    if (response.status === 503) {
+      const authority = (await f.report(0)).serving_authority;
+      assert(
+        ["Quiescing", "Revoking"].includes(authority.observed?.phase),
+        "live writes may stop only when cutover quiesces the source",
+      );
+      return;
+    }
+    assert.equal(response.status, 204);
+    result.liveBodyWrites = written + 1;
+    await sleep(50);
+  }
+}
 const samples = [];
 let collecting = true;
 let collectorError;
@@ -170,11 +219,56 @@ try {
     );
     result.oldRecordMissingBeforeRepair = true;
   }
+  if (prepare) {
+    // Seeding may outlive normal connection aging. Establish the channels for
+    // preparation now; keep the last proven set once Quiescing starts.
+    for (const address of f.urls) {
+      const session = http2.connect(address);
+      session.on("error", () => {});
+      preparationSessions.push(session);
+    }
+    preparationChannelsAt = Date.now();
+    assert.equal((await preparationWrite(0)).status, 204);
+  }
   const startHandover = Date.now();
   result.barrier = await handover(f, {
     deadlineMs: 300000,
+    preparationDeadlineMs: Number(
+      process.env.KURA_E2E_PREPARATION_DEADLINE_MS ?? 1200000,
+    ),
+    prepare: prepare
+      ? async () => {
+          if (liveChurn && !churn)
+            churn = writeDuringPreparation().catch((error) => {
+              churnError = error;
+            });
+          assert.equal(churnError, undefined);
+          if (Date.now() - preparationChannelsAt > 45000) {
+            // The fixture still owns a Serving grant here. Prove these channels
+            // now and retain the last proven set through Quiescing and transfer.
+            for (const session of preparationSessions) session.destroy();
+            preparationSessions.length = 0;
+            for (const address of f.urls) {
+              const session = http2.connect(address);
+              session.on("error", () => {});
+              preparationSessions.push(session);
+            }
+            preparationChannelsAt = Date.now();
+          }
+          for (const replica of [0, 1]) {
+            assert.equal(
+              (await preparationWrite(replica)).status,
+              replica === 0 ? 204 : 503,
+            );
+          }
+          result.preparationWriteChecks =
+            (result.preparationWriteChecks ?? 0) + 1;
+        }
+      : undefined,
     beforePromotion: fullRing
       ? async (barrier) => {
+          if (churn) await churn;
+          assert.equal(churnError, undefined);
           for (let i = 0; i < count; i++) {
             const response = await fetch(url(0, i), {
               signal: AbortSignal.timeout(30000),
@@ -190,7 +284,21 @@ try {
             retained.length > 0 && retained.length < count,
             "full ring must retain a nonempty partial corpus",
           );
-          assert.equal(barrier.records, retained.length + (repairOld ? 1 : 0));
+          assert.equal(
+            barrier.records,
+            retained.length + (repairOld ? 1 : 0) + (prepare ? 1 : 0),
+          );
+          if (prepare) {
+            const read = await request(
+              preparationSessions[0],
+              `/api/cache/keyvalue/${preparationKey}${preparationQuery}`,
+            );
+            assert.equal(read.status, 200);
+            assert.equal(
+              JSON.parse(read.body).entries[0].value,
+              preparationKey,
+            );
+          }
           result.heldRetainedReads = retained.length;
           fs.writeFileSync(
             `${output}/frozen-corpus.json`,
@@ -213,13 +321,32 @@ try {
           return [];
         }
       });
-    result.repairRevisits = events.filter(
-      (event) => event["event.name"] === "kura.handover.repair_revisit",
+    result.repairRevisits = events.filter((event) =>
+      [
+        "kura.handover.repair_revisit",
+        "kura.handover.preparation_revisit",
+      ].includes(event["event.name"]),
     ).length;
-    assert(
-      result.repairRevisits > 0,
-      "fixture must exercise repair eviction and a second walk",
-    );
+    result.repairWalks = events.filter(
+      (event) => event["event.name"] === "kura.handover.reconciled",
+    ).length;
+    result.reclaimedDestinationSegments = events.filter(
+      (event) =>
+        event.message ===
+        "Reclaimed destination-only segment before retained repair",
+    ).length;
+    if (prepare) {
+      assert(result.reclaimedDestinationSegments > 0, "must exercise eviction");
+      assert(
+        result.repairWalks >= 2,
+        "preparation must be followed by final repair",
+      );
+    } else {
+      assert(
+        result.repairRevisits > 0,
+        "fixture must exercise repair eviction and a second walk",
+      );
+    }
   }
   if (repairOld) {
     const response = await fetch(
@@ -246,6 +373,17 @@ try {
     assert(Buffer.from(await response.arrayBuffer()).equals(body));
   }
   result.retainedReads = expected.length;
+  if (prepare) {
+    const read = await request(
+      preparationSessions[1],
+      `/api/cache/keyvalue/${preparationKey}${preparationQuery}`,
+    );
+    assert.equal(read.status, 200);
+    assert.equal(JSON.parse(read.body).entries[0].value, preparationKey);
+    assert.equal((await preparationWrite(0)).status, 503);
+    assert.equal((await preparationWrite(1)).status, 204);
+    result.originalPreparationChannelsVerified = true;
+  }
   await sleep(20000);
   assert.equal(collectorError, undefined, "resource collection failed");
   console.log(
@@ -255,6 +393,9 @@ try {
   result.error = error.message;
   throw error;
 } finally {
+  churning = false;
+  if (churn) await churn;
+  preparationSessions.forEach((session) => session.destroy());
   collecting = false;
   await collector;
   try {

@@ -12,7 +12,12 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  import Ecto.Query
+
+  alias Boruta.Ecto.AccessTokens
+  alias Boruta.Ecto.Codes
   alias Boruta.Ecto.Token
+  alias Tuist.Authentication.RefreshReplays
   alias Tuist.Environment
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -78,7 +83,28 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
     refute third_access_token in [access_token, refreshed_access_token]
   end
 
-  test "rejects a refresh token that has already been used", %{conn: conn} do
+  test "rejects a code revoked in the database after an earlier lookup", %{conn: conn} do
+    client_id = register_client(conn)
+    code = authorize(conn, client_id)
+    assert Codes.get_by(value: code).revoked_at == nil
+
+    Token
+    |> Repo.get_by!(value: code)
+    |> Ecto.Changeset.change(revoked_at: DateTime.utc_now())
+    |> Repo.update!()
+
+    assert %{"error" => "invalid_grant"} =
+             build_conn()
+             |> post(~p"/oauth2/token", %{
+               "grant_type" => "authorization_code",
+               "client_id" => client_id,
+               "redirect_uri" => @redirect_uri,
+               "code" => code
+             })
+             |> json_response(400)
+  end
+
+  test "rejects a refresh token revoked in the database after an earlier lookup", %{conn: conn} do
     client_id = register_client(conn)
     code = authorize(conn, client_id)
 
@@ -92,7 +118,39 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
              })
              |> json_response(200)
 
-    refresh = fn ->
+    assert AccessTokens.get_by(refresh_token: refresh_token).refresh_token_revoked_at == nil
+
+    Token
+    |> Repo.get_by!(refresh_token: refresh_token)
+    |> Ecto.Changeset.change(refresh_token_revoked_at: DateTime.utc_now())
+    |> Repo.update!()
+
+    assert %{"error" => "invalid_grant"} =
+             build_conn()
+             |> post(~p"/oauth2/token", %{
+               "grant_type" => "refresh_token",
+               "client_id" => client_id,
+               "refresh_token" => refresh_token
+             })
+             |> json_response(400)
+  end
+
+  test "replays a used refresh token's response within the window and rejects it after", %{conn: conn} do
+    client_id = register_client(conn)
+    other_client_id = register_client(conn)
+    code = authorize(conn, client_id)
+
+    assert %{"refresh_token" => refresh_token} =
+             build_conn()
+             |> post(~p"/oauth2/token", %{
+               "grant_type" => "authorization_code",
+               "client_id" => client_id,
+               "redirect_uri" => @redirect_uri,
+               "code" => code
+             })
+             |> json_response(200)
+
+    refresh = fn client_id ->
       post(build_conn(), ~p"/oauth2/token", %{
         "grant_type" => "refresh_token",
         "client_id" => client_id,
@@ -100,8 +158,68 @@ defmodule TuistWeb.Oauth.AuthorizationFlowTest do
       })
     end
 
-    assert %{"access_token" => _} = json_response(refresh.(), 200)
-    assert %{"error" => "invalid_grant"} = json_response(refresh.(), 400)
+    first_conn = refresh.(client_id)
+    assert %{"access_token" => _, "refresh_token" => rotated_refresh_token} = first = json_response(first_conn, 200)
+
+    # A client whose response was lost gets the same tokens back, and they work.
+    replay_conn = refresh.(client_id)
+    assert json_response(replay_conn, 200) == first
+    assert get_resp_header(replay_conn, "cache-control") == ["no-store"]
+
+    # Another client presenting the token gets nothing.
+    assert %{"error" => "invalid_grant"} = json_response(refresh.(other_client_id), 400)
+
+    assert %{"access_token" => _} =
+             build_conn()
+             |> post(~p"/oauth2/token", %{
+               "grant_type" => "refresh_token",
+               "client_id" => client_id,
+               "refresh_token" => rotated_refresh_token
+             })
+             |> json_response(200)
+
+    after_window = DateTime.add(DateTime.utc_now(), RefreshReplays.window_seconds() + 1, :second)
+    stub(Tuist.Time, :utc_now, fn -> after_window end)
+
+    assert %{"error" => "invalid_grant"} = json_response(refresh.(client_id), 400)
+  end
+
+  test "concurrent refreshes of the same token return one pair", %{conn: conn} do
+    client_id = register_client(conn)
+    code = authorize(conn, client_id)
+
+    assert %{"refresh_token" => refresh_token} =
+             build_conn()
+             |> post(~p"/oauth2/token", %{
+               "grant_type" => "authorization_code",
+               "client_id" => client_id,
+               "redirect_uri" => @redirect_uri,
+               "code" => code
+             })
+             |> json_response(200)
+
+    responses =
+      1..4
+      |> Enum.map(fn _ ->
+        Task.async(fn ->
+          build_conn()
+          |> post(~p"/oauth2/token", %{
+            "grant_type" => "refresh_token",
+            "client_id" => client_id,
+            "refresh_token" => refresh_token
+          })
+          |> json_response(200)
+        end)
+      end)
+      |> Task.await_many()
+
+    assert [%{"access_token" => _}] = Enum.uniq(responses)
+
+    # The code exchange minted one access token and the refreshes one more.
+    assert Repo.aggregate(
+             from(token in Token, where: token.client_id == ^client_id and token.type == "access_token"),
+             :count
+           ) == 2
   end
 
   test "the Tuist app client refreshes without its client secret", %{conn: conn} do

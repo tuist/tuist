@@ -181,4 +181,48 @@ struct AtlasAIAccountsTests {
         accounts.clearError()
         #expect(accounts.errorMessage == nil)
     }
+
+    @Test func profileEditorRetainsDraftOnFailureAndSendsOnlyDescription() async throws {
+        var fail = true
+        let editor = AtlasProfileEditorModel(description: "") { action in
+            #expect(action["resource"] as? String == "profile" && action["action"] as? String == "update_profile")
+            #expect(Set(action.keys) == ["resource", "action", "description"])
+            if fail { throw AtlasAuthenticationError(kind: "server", message: "Try again") }
+            return Data("""
+            {"server_version":"1.0","user":{"name":"Taylor","email":"taylor@example.org","description":"Role\\nCurious"}}
+            """.utf8)
+        }
+        editor.draft = "Role\nCurious"
+        #expect(editor.dirty && editor.valid)
+        #expect(await editor.save() == nil)
+        #expect(editor.draft == "Role\nCurious" && editor.errorMessage == "Try again" && !editor.saving)
+        fail = false
+        let profile = try #require(await editor.save())
+        #expect(profile.user.description == editor.draft && editor.errorMessage == nil)
+        editor.draft = String(repeating: "🦀", count: 4000)
+        #expect(editor.valid)
+        editor.draft += "a"
+        #expect(!editor.valid)
+        editor.draft = String(repeating: "e\u{301}", count: 2001)
+        #expect(!editor.valid)
+        editor.draft = ""
+        #expect(editor.valid)
+    }
+
+    @Test func profileEditorPreventsDoubleSubmissionAndReadsOlderServerProfiles() async throws {
+        let started = AsyncStream<Void>.makeStream()
+        var finish: CheckedContinuation<Data, Never>?
+        let editor = AtlasProfileEditorModel(description: "Draft") { _ in
+            await withCheckedContinuation { finish = $0; started.continuation.yield(()) }
+        }
+        let save = Task { await editor.save() }
+        for await _ in started.stream { break }
+        #expect(editor.saving)
+        #expect(await editor.save() == nil)
+        finish?.resume(returning: Data("""
+        {"server_version":"1.0","user":{"name":"Taylor","email":"taylor@example.org"}}
+        """.utf8))
+        let profile = try #require(await save.value)
+        #expect(profile.user.description.isEmpty && !editor.saving)
+    }
 }

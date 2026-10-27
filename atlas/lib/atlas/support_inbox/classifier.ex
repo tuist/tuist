@@ -15,10 +15,9 @@ defmodule Atlas.SupportInbox.Classifier do
       call `Atlas.SupportInbox.Agents.ClassifierAgent` and persist
       the decision on the thread so the notifier can route it.
 
-  The returned decision is the source of truth for whether the
-  Slack notification fires and where it goes; the caller passes it
-  into `Atlas.Support.Workers.PostNotification.enqueue/3` as
-  routing metadata.
+  Confident no-action decisions also resolve fresh, untouched threads.
+  The notification worker reads the persisted classification to route
+  the inbound to the filtered Slack channel.
   """
 
   import Ecto.Query, only: [from: 2]
@@ -27,24 +26,25 @@ defmodule Atlas.SupportInbox.Classifier do
   alias Atlas.Repo
   alias Atlas.Support.Message
   alias Atlas.Support.Thread
+  alias Atlas.Support.Workers.PostNotification
   alias Atlas.SupportInbox.Agents.ClassifierAgent
 
   require Logger
 
   @low_confidence_floor 0.7
+  @categories ~w(support invoice vendor_notice shipping publish registration ar spam other)a
+  @urgencies ~w(none low normal high)a
 
   @doc """
-  Classify a freshly ingested inbound and persist the decision on
-  the thread. Always returns `{:ok, decision}` — a failed LLM call
-  collapses to a fallback decision with `source: :fallback` and
-  `action_needed: true` so the notifier still pings `#support`.
-  Callers can rely on this: no `{:error, _}` branch is emitted.
+  Classify a freshly ingested inbound, persist the decision, and queue its
+  notification atomically. A failed LLM call collapses to a fallback decision with
+  `source: :fallback` and `action_needed: true` so the notifier still
+  pings `#support`. Persistence failures return `{:error, reason}`
+  so the worker retries rather than notifying from stale state.
   """
   def classify_and_persist(%Thread{} = thread, %Message{} = message, opts \\ []) do
     with {:ok, decision} <- classify(thread, message, opts) do
-      persist(thread, decision)
-      audit(thread, decision)
-      {:ok, decision}
+      persist(thread, message, decision)
     end
   end
 
@@ -53,10 +53,10 @@ defmodule Atlas.SupportInbox.Classifier do
   job. Prefer `classify_and_persist/3` for real inbound handling.
   """
   def classify(%Thread{} = thread, %Message{} = message, opts \\ []) do
-    if continuing_conversation?(thread, message) do
-      {:ok, continuity_decision()}
-    else
-      run_classifier(thread, message, opts)
+    cond do
+      continuing_conversation?(thread, message) -> {:ok, continuity_decision()}
+      thread.classified_at != nil -> {:ok, stored_decision(thread)}
+      true -> run_classifier(thread, message, opts)
     end
   end
 
@@ -82,6 +82,18 @@ defmodule Atlas.SupportInbox.Classifier do
       reason: "Reply on an existing support thread; skipped classification.",
       source: :continuity,
       low_confidence?: false
+    }
+  end
+
+  defp stored_decision(thread) do
+    %{
+      category: Enum.find(@categories, &(Atom.to_string(&1) == thread.classification)),
+      action_needed: thread.action_needed,
+      urgency: Enum.find(@urgencies, &(Atom.to_string(&1) == thread.urgency)),
+      confidence: thread.classifier_confidence,
+      reason: thread.classifier_reason,
+      source: :persisted,
+      low_confidence?: thread.classifier_confidence < @low_confidence_floor
     }
   end
 
@@ -158,31 +170,96 @@ defmodule Atlas.SupportInbox.Classifier do
     do: "provider returned status #{status}"
 
   defp failure_summary(:llm_not_configured), do: "no model provider is configured"
+  defp failure_summary(:nxdomain), do: "model transport DNS lookup failed"
+  defp failure_summary(:timeout), do: "model request timed out"
+  defp failure_summary(:etimedout), do: "model request timed out"
+  defp failure_summary(:econnrefused), do: "model transport connection was refused"
+  defp failure_summary(:closed), do: "model transport connection closed"
+  defp failure_summary(:no_result_submitted), do: "model did not submit a classification result"
+  defp failure_summary(:invalid_classifier_output), do: "model returned an invalid classification result"
+  defp failure_summary({:missing_field, _field}), do: failure_summary(:invalid_classifier_output)
+  defp failure_summary({:invalid_enum, _field, _value}), do: failure_summary(:invalid_classifier_output)
+  defp failure_summary({:invalid_output, _details}), do: failure_summary(:invalid_classifier_output)
+  defp failure_summary({:error, reason}), do: failure_summary(reason)
+  defp failure_summary({:session_exit, :timeout}), do: failure_summary(:timeout)
+  defp failure_summary(%{cause: cause}) when not is_nil(cause), do: failure_summary(cause)
+  defp failure_summary(%{reason: reason}), do: failure_summary(reason)
   defp failure_summary(_reason), do: "classification failed"
 
-  defp persist(%Thread{} = thread, %{} = decision) do
-    thread
-    |> Thread.classification_changeset(%{
-      classification: Atom.to_string(decision.category),
-      action_needed: decision.action_needed,
-      urgency: Atom.to_string(decision.urgency),
-      classifier_confidence: decision.confidence,
-      classifier_reason: decision.reason,
-      classified_at: DateTime.utc_now() |> DateTime.truncate(:second)
-    })
-    |> Repo.update()
-    |> case do
-      {:ok, _thread} ->
-        :ok
+  defp persist(%Thread{id: thread_id}, %Message{} = message, %{} = decision) do
+    Repo.transaction(fn ->
+      thread = Repo.one!(from(t in Thread, where: t.id == ^thread_id, lock: "FOR UPDATE"))
 
-      {:error, changeset} ->
-        Logger.warning(
-          "SupportInbox failed to persist classification for thread #{thread.id}: " <>
-            inspect(changeset.errors)
-        )
+      # The model runs outside the lock. A reply or note arriving meanwhile
+      # must take precedence over a stale no-action decision.
+      decision = current_decision(thread, message, decision)
 
-        :ok
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      changeset =
+        Thread.classification_changeset(thread, %{
+          classification: Atom.to_string(decision.category),
+          action_needed: decision.action_needed,
+          urgency: Atom.to_string(decision.urgency),
+          classifier_confidence: decision.confidence,
+          classifier_reason: decision.reason,
+          classified_at: if(decision.source == :persisted, do: thread.classified_at, else: now)
+        })
+
+      auto_resolve? = auto_resolve?(thread, decision)
+
+      changeset =
+        if auto_resolve? do
+          changeset
+          |> Ecto.Changeset.put_change(:status, "resolved")
+          |> Ecto.Changeset.put_change(:resolved_at, now)
+        else
+          changeset
+        end
+
+      case Repo.update(changeset) do
+        {:ok, updated_thread} ->
+          audit(updated_thread, decision)
+          if auto_resolve?, do: audit_resolution(updated_thread)
+
+          case PostNotification.enqueue(:inbound_received, thread_id,
+                 message_id: message.id,
+                 notification_id: message.id
+               ) do
+            {:ok, _job} -> decision
+            {:error, reason} -> Repo.rollback(reason)
+          end
+
+        {:error, changeset} ->
+          Repo.rollback(changeset)
+      end
+    end)
+  end
+
+  defp current_decision(thread, message, decision) do
+    cond do
+      continuing_conversation?(thread, message) -> continuity_decision()
+      thread.classified_at != nil -> stored_decision(thread)
+      true -> decision
     end
+  end
+
+  defp auto_resolve?(thread, decision) do
+    decision.source == :classifier and !decision.action_needed and thread.status == "open" and is_nil(thread.owner_id)
+  end
+
+  defp audit_resolution(thread) do
+    Audit.record("support.thread_auto_resolved", %{
+      interface: "worker",
+      target_type: "support_thread",
+      target_id: thread.id,
+      target_label: thread.subject,
+      metadata: %{
+        "dashboard_path" => "/commercial/support/#{thread.id}",
+        "status" => "resolved",
+        "reason" => "Classifier determined no action is needed."
+      }
+    })
   end
 
   defp audit(%Thread{} = thread, %{} = decision) do

@@ -72,6 +72,32 @@ defmodule Atlas.Finance.Invoice do
 
   def statuses, do: @statuses
 
+  def manual_fields do
+    ~w(vendor_name invoice_number invoice_date due_date total_amount_value total_amount_currency status)a
+  end
+
+  def manual_changeset(invoice, attrs) do
+    invoice
+    |> cast(attrs, manual_fields())
+    |> update_change(:vendor_name, &normalize_required_string/1)
+    |> update_change(:invoice_number, &normalize_optional_string/1)
+    |> update_change(:total_amount_currency, &Amounts.normalize_currency/1)
+    |> validate_required([:vendor_name, :invoice_date, :total_amount_value, :total_amount_currency, :status])
+    |> validate_inclusion(:status, @statuses)
+    |> validate_number(:total_amount_value,
+      greater_than_or_equal_to: Decimal.new("-9999999999999.99"),
+      less_than_or_equal_to: Decimal.new("9999999999999.99")
+    )
+    |> validate_change(:total_amount_value, fn field, amount ->
+      if amount |> Decimal.normalize() |> Decimal.scale() > 2,
+        do: [{field, "must have at most two decimal places"}],
+        else: []
+    end)
+    |> validate_format(:total_amount_currency, ~r/^[A-Z]{3}$/)
+    |> validate_length(:vendor_name, max: 255)
+    |> validate_length(:invoice_number, max: 255)
+  end
+
   defp normalize_required_string(value) when is_binary(value), do: String.trim(value)
   defp normalize_required_string(value), do: value
 

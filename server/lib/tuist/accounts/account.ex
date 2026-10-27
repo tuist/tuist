@@ -49,7 +49,6 @@ defmodule Tuist.Accounts.Account do
     field :kura_tenant_id, :string, read_after_writes: true
     field :billing_email, :string
     field :customer_id, :string
-    field :current_month_remote_cache_hits_count, :integer
     field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
     field :current_month_cache_egress_megabytes, :integer
     field :current_month_cache_requests, :integer
@@ -102,7 +101,6 @@ defmodule Tuist.Accounts.Account do
         :user_id,
         :organization_id,
         :customer_id,
-        :current_month_remote_cache_hits_count,
         :current_month_remote_cache_hits_count_updated_at
       ])
 
@@ -131,7 +129,6 @@ defmodule Tuist.Accounts.Account do
   def billing_changeset(account, attrs) do
     cast(account, attrs, [
       :customer_id,
-      :current_month_remote_cache_hits_count,
       :current_month_remote_cache_hits_count_updated_at,
       :current_month_cache_egress_megabytes,
       :current_month_cache_requests
@@ -145,7 +142,6 @@ defmodule Tuist.Accounts.Account do
   def free_tier_reset_changeset(account, attrs) do
     cast(account, attrs, [
       :free_tier_reset_at,
-      :current_month_remote_cache_hits_count,
       :current_month_cache_egress_megabytes,
       :current_month_cache_requests
     ])

@@ -138,11 +138,16 @@ spec:
         # anti-affinity (`topologyKey: kubernetes.io/hostname,
         # podAntiAffinityType: required`) needs one CNPG instance per
         # host, so the pool needs at least as many nodes as instances.
-        # The fourth node is CPU-request headroom for the server's 1-CPU
-        # surge pod beside the controllers pinned here off the processor pool.
+        # The pool is bound by CPU requests, not usage: at four nodes every
+        # node had under one CPU unrequested while real usage peaked at ~60%
+        # of the pool. A rollout then needs a free CPU for the server's 1-CPU
+        # surge pod, and with maxUnavailable=0 that pod stays Pending until
+        # helm rolls the release back on "Progress deadline exceeded". The
+        # fifth node is that headroom. Add a node when new workloads pinned
+        # here take it, rather than lowering the server's request.
         - class: hcloud-worker
           name: md-0
-          replicas: 4
+          replicas: 5
           failureDomain: fsn1
           rollout:
             strategy:

@@ -10,6 +10,7 @@ import Config
 alias Atlas.Accounts.Workers.ScheduleOverviewSummaries
 alias Atlas.Accounts.Workers.ScheduleServiceLevelExtractions
 alias Atlas.Accounts.Workers.ScheduleStripeInvoiceReconciliations
+alias Atlas.Automations.Workers.ScheduleRuns
 alias Atlas.Briefs.Workers.ScheduleBriefs
 alias Atlas.Documents.Workers.EnsureDocumentClassifications
 alias Atlas.Documents.Workers.ExpirePendingUploads
@@ -35,8 +36,10 @@ alias Atlas.OAuth.Clients
 alias Atlas.OAuth.NoCache
 alias Atlas.OAuth.ResourceOwners
 alias Atlas.OAuth.TokenGenerator
+alias Atlas.Orbit.Workers.CleanupAttachments
 alias Atlas.Outreach.Workers.DiscoverCandidates
 alias Atlas.Outreach.Workers.ScheduleRecommendations
+alias Atlas.Push.Workers.Prune, as: PrunePushInstallations
 alias Atlas.SupportInbox.Workers.WeeklyDigest, as: SupportInboxWeeklyDigest
 alias Atlas.TimeOff.SyncPublicHolidays
 alias Atlas.Workers.PruneRateLimits
@@ -54,8 +57,6 @@ llm_receive_timeout = :timer.minutes(5)
 
 # Configure esbuild (the version is required)
 noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
-
-# Configure Cloak encryption vault (dev/test key, overridden in runtime.exs for prod)
 config :atlas, Atlas.ClickHouseRepo, read_only: true
 
 # Default to reading contract templates from the on-disk placeholder stubs
@@ -63,6 +64,10 @@ config :atlas, Atlas.ClickHouseRepo, read_only: true
 # once the shared object storage bucket is configured.
 config :atlas, Atlas.Contracts, source: :disk
 config :atlas, Atlas.Mailer, adapter: Local
+
+# Configure Cloak encryption vault (dev/test key, overridden in runtime.exs for prod)
+# SQL bind values can contain OAuth credentials and workflow payloads.
+config :atlas, Atlas.Repo, log: false
 
 config :atlas, Atlas.Vault,
   ciphers: [
@@ -88,7 +93,7 @@ config :atlas, Oban,
   repo: Atlas.Repo,
   notifier: Oban.Notifiers.Postgres,
   peer: Oban.Peers.Database,
-  queues: [default: 10, briefs: 2, mailing: 5],
+  queues: [default: 10, briefs: 2, mailing: 5, orbit: 4, automation: 2, push: 10, moodboard: 2],
   plugins: [
     {Oban.Plugins.Cron,
      crontab: [
@@ -122,11 +127,15 @@ config :atlas, Oban,
        # Deletes document rows and reserved storage objects for uploads the
        # client never finalized.
        {"*/15 * * * *", ExpirePendingUploads},
+       {"*/15 * * * *", CleanupAttachments},
        {"*/5 * * * *", PruneRateLimits},
+       # Retires push registrations not refreshed for 60 days and deletes old tombstones.
+       {"50 3 * * *", PrunePushInstallations},
        # Reconciles the engineering error summary. The worker no-ops when
        # `Atlas.Engineering.Errors.enabled?/0` is false, so it is safe to
        # schedule in every environment.
        {"* * * * *", ErrorsSummaryWorker},
+       {"* * * * *", ScheduleRuns},
        # Weekly digest of inbound emails the classifier silenced so
        # the team stays aware of what was filtered.
        {"0 9 * * 1", SupportInboxWeeklyDigest}
@@ -243,11 +252,24 @@ config :guardian, Guardian.DB,
 # Configure Elixir's Logger
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id, :domain]
+  metadata: [
+    :request_id,
+    :domain,
+    :search_record_id,
+    :automation_run_id,
+    :automation_step_id,
+    :trace_id,
+    :span_id,
+    :automation_event
+  ]
 
 config :mdex_native, syntax_highlighter: :lumis
 
-config :phoenix, :filter_parameters, ["password", "token", "secret", "key"]
+config :opentelemetry,
+  traces_exporter: :none,
+  resource: [service: [name: "atlas", namespace: "tuist"]]
+
+config :phoenix, :filter_parameters, ["password", "token", "secret", "key", "input", "payload", "outputs", "source"]
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason

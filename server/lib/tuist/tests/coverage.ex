@@ -77,6 +77,9 @@ defmodule Tuist.Tests.Coverage do
   # leave room for whatever else the query binds — above all a second list,
   # like the run ids a per-test lookup is scoped to. The budget is kept under
   # the default so an install that never touched the setting still works.
+  # A list bound with `in ^list` travels as one array field, which ClickHouse
+  # also refuses past `http_max_field_value_size` (128 KiB, URL-encoded), so a
+  # list of paths needs chunking as much as a list of ids does.
   @max_query_parameters 900
 
   @doc """
@@ -227,6 +230,8 @@ defmodule Tuist.Tests.Coverage do
   """
   def publish(test, coverage, shard_index, expected_shards \\ 1)
 
+  def publish(%Test{reporting_version: 1}, _coverage, _shard_index, _expected_shards), do: :skipped
+
   # A run that measured nothing still changes what its commit knows: a scheme
   # selective testing skipped whole reports no coverage, and the commit's
   # reported figure carries that scheme's tests forward only once it can see
@@ -269,6 +274,8 @@ defmodule Tuist.Tests.Coverage do
   `storage_key`, the tool that measured it, and whether the run was `partial`;
   the shard arguments are those of `publish/4`.
   """
+  def enqueue_publish(%Test{reporting_version: 1}, _coverage, _shard_index, _expected_shards), do: :skipped
+
   def enqueue_publish(%Test{} = test, coverage, shard_index, expected_shards) do
     if enabled_for_project?(test.project_id) do
       %{

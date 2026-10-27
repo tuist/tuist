@@ -76,39 +76,39 @@ tuist install --force-resolved-versions
 
 This flag ensures that dependencies are resolved using the exact versions pinned in `Package.resolved`, eliminating issues caused by non-determinism in dependency resolution. This is particularly important on CI where reproducible builds are critical.
 
-#### Dependency installation on continuous-integration runners
+#### Cached dependency installation on GitHub Actions {#dependency-cache-volumes}
 
-Tuist uses [SwifterPM](https://github.com/tuist/swifterpm) for `tuist install`. SwifterPM maintains a local source cache and restores package checkouts from it when possible. On an ephemeral continuous-integration runner, every job starts without that cache, so installation follows the native [Swift Package Manager](https://www.swift.org/package-manager/) path. No additional configuration is needed.
+For generated projects, use [tuist/install](https://github.com/tuist/install) to install the dependencies pinned in `Package.resolved` and cache them between runs. It automatically uses <.localized_link href="/guides/features/runners/cache-volumes">cache volumes</.localized_link> on Tuist Runners and GitHub's cache on other runners.
 
-Package manifests can read process environment variables while declaring dependencies. The package-manifest cache therefore accounts for those variables. Job-specific values can change on every run without changing the declared dependencies, which would otherwise prevent a cache hit.
+```yaml
+name: Generate project
+on:
+  push:
+    branches: [main]
+  pull_request:
 
-Tuist handles this automatically for [GitLab](https://docs.gitlab.com/ci/variables/predefined_variables/), [GitHub Actions](https://docs.github.com/actions/reference/workflows-and-actions/variables), [Bitrise](https://docs.bitrise.io/en/bitrise-ci/references/available-environment-variables/), and [Codemagic](https://docs.codemagic.io/yaml-basic-configuration/environment-variables/). When it recognizes one of those environments, it hides only volatile run metadata, such as GitHub Actions run identifiers, retry counts, and per-step temporary paths, before evaluating `Package.swift` and calculating package-manifest cache keys. Branch, reference, commit, workflow, and other configuration values remain visible. These defaults apply on both ephemeral and persistent runners.
+permissions:
+  contents: read
 
-If a package manifest intentionally uses one of the automatic exclusions to declare dependencies, restore that variable explicitly in `Tuist.swift`:
-
-```swift
-import ProjectDescription
-
-let tuist = Tuist(
-    project: .tuist(
-        installOptions: .options(
-            packageManifestEnvironment: .automatic(
-                including: ["CI_JOB_ID"]
-            )
-        )
-    )
-)
+jobs:
+  generate:
+    runs-on: tuist-macos
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4
+      - uses: tuist/install@v1
+      - run: tuist generate --no-open
 ```
 
-Use `packageManifestEnvironment: .all` to preserve the complete process environment. You can also exclude organization-specific volatile values with `packageManifestEnvironment: .automatic(excluding: ["BUILD_RUN_*"])`. Tuist supplies the resulting environment to the package resolver as well as `Package.swift`, so never exclude credentials or another value needed to fetch a dependency. Entries can be exact names or trailing-wildcard prefixes such as `GITHUB_RUN_*`; included entries take precedence over automatic and custom exclusions.
+For a project in a subdirectory, pass its path relative to the checkout:
 
-#### Faster warm installations on persistent runners
-
-This is an optional optimization for a runner whose local cache survives between jobs. Keep SwifterPM's source cache at `~/.cache/swifterpm`, or at `$XDG_CACHE_HOME/swifterpm` when `XDG_CACHE_HOME` is set. With a warm source cache, pass `--cached-directory-materialization=symlink` to link each worktree to the cached checkouts instead of copying them into `.build`:
-
-```bash
-tuist install --cached-directory-materialization=symlink
+```yaml
+- uses: tuist/install@v1
+  with:
+    path: apps/ios
 ```
+
+See the [action reference](https://github.com/tuist/install#usage) for additional options.
 
 ### Agentic coding and worktrees {#agentic-coding-and-worktrees}
 

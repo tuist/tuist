@@ -926,6 +926,131 @@ defmodule TuistWeb.API.ProjectsControllerTest do
     end
   end
 
+  describe "with an account token" do
+    setup %{user: user} do
+      organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      other_project = ProjectsFixtures.project_fixture(preload: [:account])
+
+      %{account: organization.account, project: project, other_project: other_project}
+    end
+
+    test "reads a project of the token's account with project:admin:read", %{
+      conn: conn,
+      account: account,
+      project: project
+    } do
+      conn =
+        conn |> bearer(account, ["project:admin:read"]) |> get("/api/projects/#{account.name}/#{project.name}")
+
+      assert json_response(conn, :ok)["full_name"] == "#{account.name}/#{project.name}"
+    end
+
+    test "cannot read a project of another account", %{conn: conn, account: account, other_project: other_project} do
+      conn =
+        conn
+        |> bearer(account, ["project:admin:read"])
+        |> get("/api/projects/#{other_project.account.name}/#{other_project.name}")
+
+      assert json_response(conn, :forbidden)
+    end
+
+    test "cannot read a project outside the token's project list", %{conn: conn, account: account, project: project} do
+      restricted_to = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      conn =
+        conn
+        |> bearer(account, ["project:admin:read"], all_projects: false, project_ids: [restricted_to.id])
+        |> get("/api/projects/#{account.name}/#{project.name}")
+
+      assert json_response(conn, :forbidden)
+    end
+
+    test "creates a project in the token's account with project:admin:write", %{conn: conn, account: account} do
+      conn =
+        conn
+        |> bearer(account, ["project:admin:write"])
+        |> post("/api/projects", %{full_handle: "#{account.name}/created-by-token"})
+
+      assert json_response(conn, :ok)["full_name"] == "#{account.name}/created-by-token"
+    end
+
+    test "creates a project in the token's account when no account is given", %{conn: conn, account: account} do
+      conn =
+        conn
+        |> bearer(account, ["project:admin:write"])
+        |> post("/api/projects", %{name: "created-by-token"})
+
+      assert json_response(conn, :ok)["full_name"] == "#{account.name}/created-by-token"
+    end
+
+    test "cannot create a project in another account", %{conn: conn, account: account, other_project: other_project} do
+      conn =
+        conn
+        |> bearer(account, ["project:admin:write"])
+        |> post("/api/projects", %{full_handle: "#{other_project.account.name}/created-by-token"})
+
+      assert json_response(conn, :forbidden)
+    end
+
+    test "cannot create a project when restricted to some projects", %{conn: conn, account: account, project: project} do
+      conn =
+        conn
+        |> bearer(account, ["project:admin:write"], all_projects: false, project_ids: [project.id])
+        |> post("/api/projects", %{full_handle: "#{account.name}/created-by-token"})
+
+      assert json_response(conn, :forbidden)
+    end
+
+    test "updates a project with project:admin:write", %{conn: conn, account: account, project: project} do
+      conn =
+        conn
+        |> bearer(account, ["project:admin:write"])
+        |> put("/api/projects/#{account.name}/#{project.name}", %{default_branch: "trunk"})
+
+      assert json_response(conn, :ok)["default_branch"] == "trunk"
+    end
+
+    test "cannot update a project with project:admin:read", %{conn: conn, account: account, project: project} do
+      conn =
+        conn
+        |> bearer(account, ["project:admin:read"])
+        |> put("/api/projects/#{account.name}/#{project.name}", %{default_branch: "trunk"})
+
+      assert json_response(conn, :forbidden)
+      assert Projects.get_project_by_id(project.id).default_branch == project.default_branch
+    end
+
+    test "deletes a project with project:admin:write", %{conn: conn, account: account, project: project} do
+      conn = conn |> bearer(account, ["project:admin:write"]) |> delete("/api/projects/#{project.id}")
+
+      assert response(conn, :no_content) == ""
+      refute Projects.get_project_by_id(project.id)
+    end
+
+    test "cannot delete a project of another account", %{conn: conn, account: account, other_project: other_project} do
+      conn = conn |> bearer(account, ["project:admin:write"]) |> delete("/api/projects/#{other_project.id}")
+
+      assert json_response(conn, :forbidden)
+      assert Projects.get_project_by_id(other_project.id)
+    end
+  end
+
+  defp bearer(conn, account, scopes, opts \\ []) do
+    {:ok, {_account_token, token}} =
+      Accounts.create_account_token(%{
+        account: account,
+        scopes: scopes,
+        name: "token-#{TuistTestSupport.Utilities.unique_integer()}",
+        all_projects: Keyword.get(opts, :all_projects, true),
+        project_ids: Keyword.get(opts, :project_ids, [])
+      })
+
+    conn
+    |> put_req_header("authorization", "Bearer #{token}")
+    |> put_req_header("content-type", "application/json")
+  end
+
   defp unique_sso_domain do
     "tuist-#{TuistTestSupport.Utilities.unique_integer(6)}.io"
   end

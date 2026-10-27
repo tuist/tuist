@@ -7,6 +7,7 @@ defmodule TuistWeb.DocsLiveTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Accounts
+  alias Tuist.Docs.CLI
   alias TuistWeb.Helpers.OpenGraph
 
   setup do
@@ -228,6 +229,25 @@ defmodule TuistWeb.DocsLiveTest do
       assert has_element?(view, ~s(a[href="/en/docs/guides/features/cache/elixir"]), "Elixir cache")
     end
 
+    test "links and serves the experimental Rust cache guide", %{conn: conn} do
+      {:ok, overview, _} = live(conn, ~p"/en/docs/guides/features/cache")
+      assert has_element?(overview, ~s(a[href="/en/docs/guides/features/cache/rust"]), "Rust cache")
+
+      {:ok, view, html} = live(conn, ~p"/en/docs/guides/features/cache/rust")
+      markdown = html |> Floki.parse_document!() |> Floki.find("#docs-page-markdown") |> Floki.text()
+      assert markdown =~ "tuist cargo build --release"
+      assert markdown =~ "cargo clean"
+      assert markdown =~ "registry leaf libraries"
+      assert markdown =~ "Kura through the Remote Execution API (REAPI)"
+      assert markdown =~ "server-issued cache credentials"
+      assert markdown =~ "absolute paths"
+      refute markdown =~ "Mr. Boxington"
+      refute markdown =~ "protected GitHub"
+      assert has_element?(view, ~s(a[href="/en/docs/guides/get-started/rust-project"]))
+      assert has_element?(view, ~s(a[href="/en/docs/guides/features/cache#restrict-uploads-to-ci"]))
+      assert has_element?(view, ~s(a[href="/en/docs/guides/features/build-insights/rust#cache-measurements"]))
+    end
+
     test "owns the shared Elixir setup in Get started", %{conn: conn} do
       {:ok, view, html} = live(conn, ~p"/en/docs/guides/get-started/elixir-project")
       markdown = html |> Floki.parse_document!() |> Floki.find("#docs-page-markdown") |> Floki.text()
@@ -321,24 +341,72 @@ defmodule TuistWeb.DocsLiveTest do
     end
 
     @tag :locale
-    test "keeps a fallback locale's metadata on the requested locale, not English", %{conn: conn} do
-      # `Docs.get_page/1` serves the English page when a locale has no
-      # translation. The markup must still describe the URL that was requested,
-      # or the page contradicts its own canonical link.
-      {:ok, _live_view, html} = live(conn, "/es/docs/guides/install-tuist")
-      {:ok, document} = Floki.parse_document(html)
+    test "redirects an untranslated article to its English source, preserving the query", %{conn: conn} do
+      assert {:error, {:redirect, %{to: "/en/docs/guides/features/cache/rust?utm_source=google"}}} =
+               live(conn, "/zh_Hans/docs/guides/features/cache/rust?utm_source=google")
+    end
+  end
 
-      assert [canonical] = Floki.attribute(document, "link[rel='canonical']", "href")
-      assert canonical == Tuist.Environment.app_url(path: "/es/docs/guides/install-tuist")
+  describe "documentation language metadata" do
+    @describetag :locale
 
-      assert [markdown_url] = Floki.attribute(document, "link[type='text/markdown']", "href")
-      assert markdown_url == Tuist.Environment.app_url(path: "/es/docs-markdown/guides/install-tuist")
+    test "English-only articles do not advertise fallback pages as translations", %{conn: conn} do
+      document =
+        conn
+        |> get("/en/docs/guides/features/cache/rust?utm_source=google")
+        |> html_response(200)
+        |> Floki.parse_document!()
 
-      tech_article = html |> structured_data() |> Enum.find(&(&1["@type"] == "TechArticle"))
-      assert tech_article["url"] == Tuist.Environment.app_url(path: "/es/docs/guides/install-tuist")
+      alternates = Floki.find(document, "link[hreflang]")
+      assert length(alternates) == 2
 
-      breadcrumbs = html |> structured_data() |> Enum.find(&(&1["@type"] == "BreadcrumbList"))
-      refute Enum.any?(breadcrumbs["itemListElement"], &String.contains?(&1["item"], "/en/"))
+      for language <- ["en", "x-default"] do
+        assert Floki.attribute(alternates, "[hreflang='#{language}']", "href") ==
+                 [Tuist.Environment.app_url(path: "/en/docs/guides/features/cache/rust")]
+      end
+    end
+
+    test "available translations have reciprocal language links without inventing English pages", %{conn: conn} do
+      # Tests load only English source files, so supply a small exact article
+      # inventory through the runtime CLI page provider instead.
+      page = Tuist.Docs.get_page("/en/guides/install-tuist")
+      pages = for locale <- ["es", "zh_Hans"], do: %{page | slug: "/#{locale}/guides/language-metadata"}
+      stub(CLI, :get_pages, fn -> pages end)
+      stub(CLI, :get_page, fn slug -> Enum.find(pages, &(&1.slug == slug)) end)
+
+      for {locale, language} <- [{"es", "es"}, {"zh_Hans", "zh-Hans"}] do
+        path = "/#{locale}/docs/guides/language-metadata"
+        document = conn |> get(path <> "?utm_source=google") |> html_response(200) |> Floki.parse_document!()
+
+        assert Floki.attribute(document, "html", "lang") == [language]
+
+        assert Floki.attribute(document, "link[rel='canonical']", "href") ==
+                 [Tuist.Environment.app_url(path: path)]
+
+        alternates = Floki.find(document, "link[hreflang]")
+        assert length(alternates) == 2
+
+        for {target_language, target_locale} <- [{"es", "es"}, {"zh-Hans", "zh_Hans"}] do
+          assert Floki.attribute(alternates, "[hreflang='#{target_language}']", "href") ==
+                   [Tuist.Environment.app_url(path: "/#{target_locale}/docs/guides/language-metadata")]
+        end
+      end
+    end
+
+    test "overview alternates remain localized and use an English fallback", %{conn: conn} do
+      for {locale, language} <- [{"en", "en"}, {"zh_Hans", "zh-Hans"}, {"zh_Hant", "zh-Hant"}] do
+        document =
+          conn |> get("/#{locale}/docs?utm_source=google") |> html_response(200) |> Floki.parse_document!()
+
+        assert Floki.attribute(document, "html", "lang") == [language]
+        assert length(Floki.find(document, "link[hreflang]")) == 10
+
+        assert Floki.attribute(document, "link[hreflang='zh-Hans']", "href") ==
+                 [Tuist.Environment.app_url(path: "/zh_Hans/docs")]
+
+        assert Floki.attribute(document, "link[hreflang='x-default']", "href") ==
+                 [Tuist.Environment.app_url(path: "/en/docs")]
+      end
     end
   end
 

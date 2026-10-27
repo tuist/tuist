@@ -1,6 +1,9 @@
 # When available, load the tuist-specific configuration
 try-import %workspace%/.bazelrc.tuist
 
+# Keep checksum-pinned Ubuntu toolchain downloads available through Launchpad.
+common --downloader_config=bazel/downloader.cfg
+
 # Report branch and revision to the build event stream so invocations are
 # attributable to a revision in Tuist. The script emits volatile status keys,
 # so a new commit never invalidates a cached action, and it degrades to

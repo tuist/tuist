@@ -74,6 +74,8 @@ defmodule Atlas.Finance.Runway do
       step_days: step_days,
       account_count: length(accounts),
       dates: build_dates(today, history_days, step_days),
+      fx_published_on: exchange_rates.published_on,
+      excluded_currencies: excluded_currencies(accounts, transactions, report_currency, exchange_rates),
       current_balance: sum_account_balances(accounts, report_currency, exchange_rates),
       daily_cash_flow: build_daily_net_flow(cash_transactions, report_currency, exchange_rates),
       daily_net_flow: build_daily_net_flow(runway_transactions, report_currency, exchange_rates),
@@ -220,6 +222,7 @@ defmodule Atlas.Finance.Runway do
         [account.balance_currency, account.available_balance_currency, account.currency]
       end)
       |> Kernel.++(Enum.map(transactions, & &1.amount_currency))
+      |> Kernel.++([report_currency])
       |> Enum.map(&Amounts.normalize_currency/1)
       |> Enum.reject(&is_nil/1)
       |> Enum.uniq()
@@ -229,6 +232,23 @@ defmodule Atlas.Finance.Runway do
       {:ok, exchange_rates} -> Map.put(exchange_rates, :report_currency, report_currency)
       {:error, _reason} -> %{published_on: nil, rates: %{}, report_currency: report_currency}
     end
+  end
+
+  defp excluded_currencies(accounts, transactions, report_currency, exchange_rates) do
+    balances =
+      Enum.map(
+        accounts,
+        &{&1.available_balance_value || &1.balance_value, &1.available_balance_currency || &1.balance_currency}
+      )
+
+    movements = Enum.map(transactions, &{&1.amount_value, &1.amount_currency})
+
+    (balances ++ movements)
+    |> Enum.reject(fn {value, _currency} -> is_nil(value) end)
+    |> Enum.filter(fn {value, currency} -> convert(value, currency, report_currency, exchange_rates) == :skip end)
+    |> Enum.map(fn {_value, currency} -> Amounts.normalize_currency(currency) || "Unknown" end)
+    |> Enum.uniq()
+    |> Enum.sort()
   end
 
   defp sum_account_balances(accounts, report_currency, exchange_rates) do

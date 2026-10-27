@@ -4,14 +4,19 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
 
   alias Tuist.Builds
   alias Tuist.MCP.Components.Tools.GetXcodeBuild
+  alias Tuist.MCP.Components.Tools.GetXcodeBuildStep
   alias Tuist.MCP.Components.Tools.ListXcodeBuildCacheTasks
   alias Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs
   alias Tuist.MCP.Components.Tools.ListXcodeBuildFiles
   alias Tuist.MCP.Components.Tools.ListXcodeBuildIssues
   alias Tuist.MCP.Components.Tools.ListXcodeBuilds
+  alias Tuist.MCP.Components.Tools.ListXcodeBuildSteps
   alias Tuist.MCP.Components.Tools.ListXcodeBuildTargets
   alias Tuist.Projects
   alias Tuist.Storage
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
 
   defp conn_with_subject do
     %Plug.Conn{assigns: %{current_subject: :subject}}
@@ -23,6 +28,44 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
     stub(Builds, :get_build, fn id -> {:ok, %{id: id, project_id: 1}} end)
     stub(Projects, :get_project_by_id, fn 1 -> project end)
     stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
+  end
+
+  test "ID-only Xcode MCP tools refuse a public attacker's duplicate private build UUID", %{conn: conn} do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+    public = ProjectsFixtures.project_fixture(visibility: :public)
+
+    {:ok, victim} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: "Victim",
+        inserted_at: DateTime.utc_now() |> DateTime.add(-120, :day) |> DateTime.to_naive()
+      )
+
+    {:ok, _} = RunsFixtures.build_fixture(id: victim.id, project_id: public.id, scheme: "Attacker")
+    conn = assign(conn, :current_subject, user)
+
+    for tool <- [
+          GetXcodeBuild,
+          ListXcodeBuildSteps,
+          GetXcodeBuildStep,
+          ListXcodeBuildTargets,
+          ListXcodeBuildFiles,
+          ListXcodeBuildIssues,
+          ListXcodeBuildCacheTasks,
+          ListXcodeBuildCASOutputs
+        ],
+        reference <- [victim.id, "https://tuist.dev/#{project.account.name}/#{project.name}/builds/#{victim.id}"] do
+      arguments = %{"build_run_id" => reference}
+      arguments = if tool == GetXcodeBuildStep, do: Map.put(arguments, "step_id", "1"), else: arguments
+      assert %{"isError" => true, "content" => [%{"text" => text}]} = tool.call(conn, arguments)
+
+      assert text == "Build not found: #{victim.id}"
+      refute text =~ "Attacker"
+    end
+
+    assert {:ok, build} = Builds.get_build(victim.id, project_id: project.id)
+    assert build.scheme == "Victim"
   end
 
   describe "list_xcode_builds" do

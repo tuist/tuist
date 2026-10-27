@@ -10,10 +10,16 @@
 /// coverage, whether the scheme, the test plan or `-enableCodeCoverage` asked for it. Builds
 /// without coverage resolve the reference to nothing, so their compiler invocations, and the
 /// compilation cache keys derived from them, stay as they were.
+///
+/// C++ gets the C flags through `OTHER_CPLUSPLUSFLAGS`, whose default is `$(OTHER_CFLAGS)` but
+/// which a target that sets it inherits from its own chain instead, so the setting is extended too.
 enum AtomicCoverageCounters {
+    static let swiftFlags = "-Xllvm -instrprof-atomic-counter-update-all"
+    static let cFlags = "-fprofile-update=atomic"
     private static let flags: [(setting: String, value: String)] = [
-        ("OTHER_SWIFT_FLAGS", "-Xllvm -instrprof-atomic-counter-update-all"),
-        ("OTHER_CFLAGS", "-fprofile-update=atomic"),
+        ("OTHER_SWIFT_FLAGS", swiftFlags),
+        ("OTHER_CFLAGS", cFlags),
+        ("OTHER_CPLUSPLUSFLAGS", cFlags),
     ]
 
     /// `arguments` with the settings added. A setting the caller already overrides is extended

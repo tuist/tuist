@@ -51,6 +51,7 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuilds do
             "type" => "object",
             "properties" => %{
               "id" => %{"type" => "string"},
+              "actor" => Tuist.MCP.Tool.report_actor_schema(),
               "duration_ms" => %{"type" => "integer"},
               "status" => %{"type" => "string"},
               "gradle_version" => %{"type" => "string"},
@@ -133,6 +134,7 @@ defmodule Tuist.MCP.Components.Tools.ListGradleBuilds do
          Enum.map(builds, fn build ->
            %{
              id: build.id,
+             actor: Tuist.ReportActor.actor(build),
              duration_ms: build.duration_ms,
              status: to_string(build.status),
              gradle_version: build.gradle_version,

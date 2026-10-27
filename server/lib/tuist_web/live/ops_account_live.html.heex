@@ -131,6 +131,9 @@
         <:col :let={origin} label={dgettext("dashboard", "Resolutions")}>
           <.text_cell label={format_number(origin.demand_count)} />
         </:col>
+        <:col :let={origin} label={dgettext("dashboard", "Hits")}>
+          <.text_cell label={format_number(origin.hit_count)} />
+        </:col>
         <:col :let={origin} label={dgettext("dashboard", "Last seen")}>
           <.text_cell label={Timex.from_now(origin.last_seen_on)} />
         </:col>
@@ -467,17 +470,27 @@
       <p data-part="free-tier-description">
         {dgettext(
           "dashboard",
-          "An Air account can reach the cache for %{limit} runs a month. Resetting starts the count over from now, so the account is unblocked and has the full allowance again for the rest of the month. It is not an exemption: the reset goes inert on the first of next month, when counting returns to the month boundary.",
-          limit: @free_tier_limit
+          "An Air account can reach the cache until it uses %{egress} of cache egress or %{requests} cache requests a month. Resetting starts the count over from now, so the account is unblocked and has the full allowance again for the rest of the month. It is not an exemption: the reset goes inert on the first of next month, when counting returns to the month boundary.",
+          egress: free_tier_egress_limit_label(),
+          requests: format_number(free_tier_requests_limit())
         )}
       </p>
       <dl data-part="free-tier-usage">
         <div>
-          <dt>{dgettext("dashboard", "Runs this period")}</dt>
-          <dd data-part="free-tier-hits">
-            {dgettext("dashboard", "%{hits} of %{limit}",
-              hits: @free_tier_hits,
-              limit: @free_tier_limit
+          <dt>{dgettext("dashboard", "Cache egress this period")}</dt>
+          <dd data-part="free-tier-egress">
+            {dgettext("dashboard", "%{usage} of %{limit}",
+              usage: free_tier_egress_label(@free_tier_egress_megabytes),
+              limit: free_tier_egress_limit_label()
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>{dgettext("dashboard", "Cache requests this period")}</dt>
+          <dd data-part="free-tier-requests">
+            {dgettext("dashboard", "%{usage} of %{limit}",
+              usage: format_number(@free_tier_requests),
+              limit: format_number(free_tier_requests_limit())
             )}
           </dd>
         </div>

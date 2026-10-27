@@ -45,6 +45,18 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
+  @doc """
+  Whether the user a credential was issued to (an OAuth grant or a claimed agent
+  credential) holds `role` on the object's account. Account tokens have no issuer
+  and can only be minted by an account admin, so their scopes alone decide.
+  """
+  def issuer_role(%AuthenticatedAccount{issued_by: %User{} = user}, object, role), do: user_role(user, object, role)
+  def issuer_role(%AuthenticatedAccount{issued_by: nil}, _object, _role), do: true
+  def issuer_role(_, _, _), do: false
+
+  def covers_all_projects(%AuthenticatedAccount{all_projects: true}, _object), do: true
+  def covers_all_projects(_, _), do: false
+
   # Hands over the account itself when the caller preloaded it (with its
   # organization), so the membership check does not have to read it back. Falls
   # back to the id when either association is missing.

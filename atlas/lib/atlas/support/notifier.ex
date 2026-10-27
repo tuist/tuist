@@ -3,7 +3,9 @@ defmodule Atlas.Support.Notifier do
 
   use AtlasWeb, :verified_routes
 
+  alias Atlas.Audit
   alias Atlas.Slack.API
+  alias Atlas.Support.Config
   alias Atlas.Support.Message
   alias Atlas.Support.Thread
   alias Atlas.Users.User
@@ -25,14 +27,15 @@ defmodule Atlas.Support.Notifier do
         {:ok, nil} ->
           post(thread, event, channel_id, opts)
 
-        {:error, reason} ->
+        {:error, _reason} ->
           Logger.warning(
-            "Could not reconcile support notification #{notification_id} against Slack channel #{channel_id} " <>
-              "(#{inspect(reason)}); posting without reconciliation"
+            "Could not reconcile support notification #{notification_id} against Slack channel #{channel_id}; " <>
+              "posting without reconciliation"
           )
 
           post(thread, event, channel_id, opts)
       end
+      |> maybe_fallback(thread, event, channel_id, opts)
     end
   end
 
@@ -123,24 +126,64 @@ defmodule Atlas.Support.Notifier do
     end
   end
 
+  defp maybe_fallback({:error, reason} = error, thread, event, channel_id, opts) do
+    permanent? = reason in ["channel_not_found", "not_in_channel", "is_archived", "missing_scope", "no_permission"]
+    audit_delivery_failure(thread, event, channel_id, failure_summary(reason))
+
+    with true <- permanent? or Keyword.get(opts, :final_attempt?, false),
+         true <- silenced?(thread, event) and !Keyword.has_key?(opts, :channel_id),
+         {:ok, support_channel_id} when support_channel_id != channel_id <- default_channel_id() do
+      # A broken filtered-channel integration must not swallow inbound mail.
+      # Reuse the notification id so retries can reconcile the fallback post.
+      notify(thread, event, Keyword.put(opts, :channel_id, support_channel_id))
+    else
+      _other -> error
+    end
+  end
+
+  defp maybe_fallback(result, _thread, _event, _channel_id, _opts), do: result
+
+  defp failure_summary(reason)
+       when reason in [
+              "channel_not_found",
+              "not_in_channel",
+              "is_archived",
+              "missing_scope",
+              "no_permission",
+              "ratelimited"
+            ], do: reason
+
+  defp failure_summary(_reason), do: "slack_delivery_failed"
+
+  defp audit_delivery_failure(thread, event, channel_id, reason) do
+    Logger.warning("Support Slack notification failed for channel #{channel_id}: #{reason}")
+
+    Audit.record("support.notification_failed", %{
+      interface: "worker",
+      target_type: "support_thread",
+      target_id: thread.id,
+      target_label: thread.subject,
+      metadata: %{
+        "dashboard_path" => "/commercial/support/#{thread.id}",
+        "event" => event,
+        "slack_channel_id" => channel_id,
+        "reason" => reason
+      }
+    })
+  end
+
   defp default_channel_id do
-    case config(:slack_channel_id) do
-      channel_id when is_binary(channel_id) and channel_id != "" -> {:ok, channel_id}
-      _channel_id -> {:error, :missing_support_slack_channel_id}
+    case Config.slack_channel_id() do
+      nil -> {:error, :missing_support_slack_channel_id}
+      channel_id -> {:ok, channel_id}
     end
   end
 
   defp filtered_channel_id do
-    case config(:slack_filtered_channel_id) do
-      channel_id when is_binary(channel_id) and channel_id != "" -> {:ok, channel_id}
-      _channel_id -> nil
+    case Config.slack_filtered_channel_id() do
+      nil -> nil
+      channel_id -> {:ok, channel_id}
     end
-  end
-
-  defp config(key) do
-    :atlas
-    |> Application.get_env(:support, [])
-    |> Keyword.get(key)
   end
 
   # A silenced email still ends up somewhere — either in the

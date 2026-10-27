@@ -194,6 +194,76 @@ defmodule Tuist.Runners.WorkflowJobsTest do
     end
   end
 
+  describe "take_over_executing/4" do
+    test "moves a row off the stale claim's handle onto the executing Pod" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_040))
+      stale_claimed_at = DateTime.utc_now()
+      :ok = WorkflowJobs.transition_claimed(910_040, "pod-stale", stale_claimed_at)
+      :ok = WorkflowJobs.transition_running(910_040, "runner-stale", stale_claimed_at)
+
+      assert :ok = WorkflowJobs.take_over_executing(910_040, "runner-x", "pod-1", stale_claimed_at)
+
+      row = get_row!(910_040)
+      assert row.status == "running"
+      assert row.pod_name == "pod-1"
+      assert row.runner_name == "runner-x"
+      assert row.executed_workflow_job_id == 910_040
+      assert :noop = WorkflowJobs.requeue_by_handle(910_040, stale_claimed_at)
+    end
+
+    test "leaves a row held under a different handle alone" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_041))
+      :ok = WorkflowJobs.transition_claimed(910_041, "pod-other", DateTime.utc_now())
+
+      assert :noop = WorkflowJobs.take_over_executing(910_041, "runner-x", "pod-1", DateTime.add(DateTime.utc_now(), -60))
+      assert get_row!(910_041).pod_name == "pod-other"
+    end
+
+    test "cannot resurrect a terminal row" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_042))
+      claimed_at = DateTime.utc_now()
+      :ok = WorkflowJobs.transition_claimed(910_042, "pod-stale", claimed_at)
+      :ok = WorkflowJobs.record_completed(attrs(account, 910_042), "success", DateTime.utc_now())
+
+      assert :noop = WorkflowJobs.take_over_executing(910_042, "runner-x", "pod-1", claimed_at)
+      assert get_row!(910_042).status == "completed"
+    end
+  end
+
+  describe "hand_over/3" do
+    test "rebinds the row to the claim it was handed to" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_043))
+      minting_claimed_at = DateTime.utc_now()
+      :ok = WorkflowJobs.transition_claimed(910_043, "pod-1", minting_claimed_at)
+      :ok = WorkflowJobs.transition_running(910_043, "runner-1", minting_claimed_at)
+      idle = %Claim{pod_name: "pod-2", runner_name: "runner-2", claimed_at: DateTime.add(minting_claimed_at, 5)}
+
+      handed_at = DateTime.utc_now()
+      assert :ok = WorkflowJobs.hand_over(910_043, minting_claimed_at, idle)
+
+      row = get_row!(910_043)
+      assert row.status == "running"
+      assert row.pod_name == "pod-2"
+      assert row.runner_name == "runner-2"
+      assert DateTime.compare(row.claimed_at, idle.claimed_at) == :eq
+      assert DateTime.compare(row.started_at, handed_at) != :lt
+      assert :noop = WorkflowJobs.requeue_by_handle(910_043, minting_claimed_at)
+    end
+
+    test "leaves a row that moved on alone" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_044))
+      idle = %Claim{pod_name: "pod-2", runner_name: "runner-2", claimed_at: DateTime.utc_now()}
+
+      assert :noop = WorkflowJobs.hand_over(910_044, DateTime.utc_now(), idle)
+      assert get_row!(910_044).status == "queued"
+    end
+  end
+
   describe "start_executing_queued/1" do
     # The claim carries the whole proof, so the strand is built the way
     # the webhook path leaves it: the claim records the execution, and

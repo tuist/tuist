@@ -30,9 +30,8 @@ defmodule Mix.Tasks.Tuist.Test.Build do
       set it, or `TUIST_SHARD_REFERENCE`, anywhere else
     * `--no-upload` - plan the shards without uploading the build; each shard
       then compiles for itself
-    * `--cover` - instrument the build for native coverage, so shards running
-      `mix tuist.test --cover` count lines without compiling every module for
-      `cover` again; see "Coverage" below
+    * `--cover` - instrument the build for native coverage once, so shards
+      running `mix tuist.test --cover` don't each do it; see "Coverage" below
     * `--url`, `--project` - as in `mix tuist.test`
 
   Every other argument is forwarded to `mix compile`.
@@ -45,13 +44,10 @@ defmodule Mix.Tasks.Tuist.Test.Build do
 
   ## Coverage
 
-  With `--cover`, the project's modules are recompiled once, here, with the
-  runtime's native line counters. A shard running `mix tuist.test --cover`
-  then counts with them, without Mix's coverage tool, which would compile
-  every module again; only the modules Mimic copies are cover compiled, so
-  its swaps keep their counts. Mix's own coverage report is not written for
-  such a shard. A shard on a runtime without the JIT, which cannot count
-  natively, uses Mix's coverage tool as usual.
+  `mix tuist.test --cover` counts lines with the runtime's native line
+  counters, recompiling the modules with them when they don't carry them yet.
+  With `--cover`, the project's modules and consolidated protocols are
+  recompiled once, here, so the shards don't each do it.
 
   ## Output
 
@@ -109,7 +105,8 @@ defmodule Mix.Tasks.Tuist.Test.Build do
     Mix.Task.run("compile", compile_args)
 
     if cover? do
-      {count, skipped} = Coverage.instrument(Mix.Project.compile_path())
+      {count, skipped} =
+        Coverage.instrument([Mix.Project.compile_path(), Mix.Project.consolidation_path()])
 
       Mix.shell().info(
         "Tuist: instrumented #{Shards.count(count, "module")} for native coverage" <>

@@ -961,6 +961,22 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/new/logout/path")
     }
 
+    @Test(.withMockedEnvironment()) func hashCacheCommandUsesEnvVars() throws {
+        setVariable(.hashCachePath, value: "/hash/path")
+        setVariable(.hashCacheConfiguration, value: "Debug")
+
+        let commandWithEnvVars = try HashCacheCommand.parse([])
+        #expect(commandWithEnvVars.path == "/hash/path")
+        #expect(commandWithEnvVars.configuration == "Debug")
+
+        let commandWithArgs = try HashCacheCommand.parse([
+            "--path", "/other/path",
+            "--configuration", "Release",
+        ])
+        #expect(commandWithArgs.path == "/other/path")
+        #expect(commandWithArgs.configuration == "Release")
+    }
+
     @Test(.withMockedEnvironment()) func cacheWarmCommandUsesEnvVars() throws {
         setVariable(.cacheExternalOnly, value: "true")
         setVariable(.cacheProfile, value: "development")

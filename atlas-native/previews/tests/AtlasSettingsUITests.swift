@@ -15,9 +15,8 @@ final class AtlasSettingsUITests: XCTestCase {
     }
 
     func testSettingsAndAccountFormsInLandscape() {
-        XCUIDevice.shared.orientation = .landscapeLeft
         defer { XCUIDevice.shared.orientation = .portrait }
-        exerciseSettings(launch(), suffix: "-landscape")
+        exerciseSettings(launch(orientation: .landscapeLeft), suffix: "-landscape")
     }
 
     func testLateSaveDoesNotDismissANewerForm() {
@@ -36,10 +35,11 @@ final class AtlasSettingsUITests: XCTestCase {
         XCTAssertTrue(app.secureTextFields["claude-token"].exists)
     }
 
-    private func launch(_ arguments: [String] = []) -> XCUIApplication {
+    private func launch(_ arguments: [String] = [], orientation: UIDeviceOrientation = .portrait) -> XCUIApplication {
         let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
         app.launchArguments = arguments
         app.launch()
+        XCUIDevice.shared.orientation = orientation
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
         return app
     }
@@ -53,7 +53,7 @@ final class AtlasSettingsUITests: XCTestCase {
         capture("ios-claude" + suffix, app: app)
         tap(app.buttons["How to get a token"], in: app)
         let install = app.descendants(matching: .any).matching(identifier: "claude-install-link").firstMatch
-        reveal(install, in: app, fullyVisible: true)
+        reveal(install, in: app)
         XCTAssertGreaterThanOrEqual(install.frame.height, 44)
         capture("ios-claude-help" + suffix, app: app)
         let linkFrame = install.frame
@@ -64,8 +64,7 @@ final class AtlasSettingsUITests: XCTestCase {
         XCTAssertTrue(app.alerts["Link preview"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.alerts.staticTexts["https://code.claude.com/docs/en/setup"].exists)
         app.alerts.buttons["Done"].tap()
-        tap(app.buttons["How to get a token"], in: app)
-        tap(app.secureTextFields["claude-token"], in: app)
+        tap(app.secureTextFields["claude-token"], in: app, up: false)
         app.secureTextFields["claude-token"].typeText("preview-only")
         XCTAssertTrue(app.buttons["Save connection"].isEnabled)
         XCTAssertTrue(app.buttons["Save connection"].isHittable)
@@ -84,19 +83,19 @@ final class AtlasSettingsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Sign in with ChatGPT"].waitForExistence(timeout: 5))
     }
 
-    private func tap(_ element: XCUIElement, in app: XCUIApplication) {
-        reveal(element, in: app)
+    private func tap(_ element: XCUIElement, in app: XCUIApplication, up: Bool = true) {
+        reveal(element, in: app, up: up)
         element.tap()
     }
 
-    private func reveal(_ element: XCUIElement, in app: XCUIApplication, fullyVisible: Bool = false) {
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication, up: Bool = true) {
         for _ in 0..<8 {
             let top = app.navigationBars.firstMatch.frame.maxY
             let bottom = app.buttons["Save connection"].exists ? app.buttons["Save connection"].frame.minY - 12 : app.frame.maxY - 32
-            if element.exists && element.isHittable && (!fullyVisible || (element.frame.minY >= top && element.frame.maxY <= bottom)) { return }
-            if element.exists && element.frame.minY < top { app.swipeDown() } else { app.swipeUp() }
+            if element.exists && element.isHittable && element.frame.minY >= top && element.frame.maxY <= bottom { return }
+            app.scrollContent(up: element.exists ? element.frame.minY >= top : up)
         }
-        XCTAssertTrue(element.isHittable)
+        XCTFail("Control did not become visible: \(element.identifier)")
     }
 
     private func capture(_ name: String, app: XCUIApplication) {

@@ -180,6 +180,25 @@ defmodule Tuist.CommandEventsTest do
       assert event.user_id == command_event.user_id
     end
 
+    test "preloads the verified actor independently of legacy publisher attribution" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+
+      event =
+        CommandEventsFixtures.command_event_fixture(
+          actor_account_id: user.account.id,
+          claimed_actor_id: "workstation",
+          submission_auth: "token"
+        )
+
+      assert {:ok, reloaded} = CommandEvents.get_command_event_by_id(event.id)
+      assert reloaded.actor_account.id == user.account.id
+
+      assert %{source: :verified, verified_account_handle: name, claimed_actor_id: "workstation"} =
+               Tuist.ReportActor.actor(reloaded)
+
+      assert name == user.account.name
+    end
+
     test "returns {:error, :not_found} for valid UUID that doesn't exist in database" do
       # Given - a valid UUID that doesn't exist in the database
       non_existent_uuid = UUIDv7.generate()
@@ -1079,73 +1098,6 @@ defmodule Tuist.CommandEventsTest do
       dates = Enum.map(result, & &1.date)
       assert "2024-01-15 03:00:00" in dates
       assert "2024-01-15 08:00:00" in dates
-    end
-  end
-
-  describe "remote_cache_hits_count_for_customer/3" do
-    test "counts only events in the supplied period for the customer's projects" do
-      # Given
-      %{account: %{id: account_id}, id: user_id} =
-        AccountsFixtures.user_fixture(customer_id: "cust_" <> UUIDv7.generate())
-
-      %{account: %{id: other_account_id}, id: other_user_id} =
-        AccountsFixtures.user_fixture(customer_id: "cust_" <> UUIDv7.generate())
-
-      project = ProjectsFixtures.project_fixture(account_id: account_id)
-      other_project = ProjectsFixtures.project_fixture(account_id: other_account_id)
-
-      period_start = ~U[2025-01-01 00:00:00Z]
-      period_end = ~U[2025-01-02 00:00:00Z]
-
-      CommandEventsFixtures.command_event_fixture(
-        name: "generate",
-        project_id: project.id,
-        user_id: user_id,
-        remote_cache_target_hits: ["A"],
-        ran_at: ~U[2025-01-01 10:00:00Z]
-      )
-
-      CommandEventsFixtures.command_event_fixture(
-        name: "test",
-        project_id: project.id,
-        user_id: user_id,
-        remote_test_target_hits: ["B"],
-        ran_at: ~U[2025-01-01 18:00:00Z]
-      )
-
-      # One event for another customer yesterday
-      CommandEventsFixtures.command_event_fixture(
-        name: "generate",
-        project_id: other_project.id,
-        user_id: other_user_id,
-        remote_cache_target_hits: ["C"],
-        ran_at: ~U[2025-01-01 09:00:00Z]
-      )
-
-      # Event outside of yesterday window for our project
-      CommandEventsFixtures.command_event_fixture(
-        name: "generate",
-        project_id: project.id,
-        user_id: user_id,
-        remote_cache_target_hits: ["D"],
-        ran_at: ~U[2024-12-31 23:59:59Z]
-      )
-
-      # An event exactly at the next period boundary belongs to the next period.
-      CommandEventsFixtures.command_event_fixture(
-        name: "generate",
-        project_id: project.id,
-        user_id: user_id,
-        remote_cache_target_hits: ["E"],
-        ran_at: period_end
-      )
-
-      # When
-      customer_id = Repo.get!(Tuist.Accounts.Account, account_id).customer_id
-      count = CommandEvents.remote_cache_hits_count_for_customer(customer_id, period_start, period_end)
-
-      # Then
-      assert count == 2
     end
   end
 

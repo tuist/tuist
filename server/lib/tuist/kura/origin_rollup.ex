@@ -1,6 +1,8 @@
 defmodule Tuist.Kura.OriginRollup do
   @moduledoc """
-  One account's cache traffic from one origin on one UTC day.
+  One account's cache traffic from one origin on one UTC day: the runs that
+  reported from it, the endpoint resolutions it asked for, and the hits public
+  regions served it.
 
   The whole persisted form of the origin signal. Everything finer than this —
   the address, the request, the user — was discarded in the request path that
@@ -18,6 +20,7 @@ defmodule Tuist.Kura.OriginRollup do
     field :date, :date
     field :run_count, :integer, default: 0
     field :demand_count, :integer, default: 0
+    field :hit_count, :integer, default: 0
 
     belongs_to :account, Account
 
@@ -26,7 +29,7 @@ defmodule Tuist.Kura.OriginRollup do
 
   def changeset(rollup, attrs) do
     rollup
-    |> cast(attrs, [:account_id, :origin, :date, :run_count, :demand_count])
+    |> cast(attrs, [:account_id, :origin, :date, :run_count, :demand_count, :hit_count])
     |> validate_required([:account_id, :origin, :date])
     |> foreign_key_constraint(:account_id)
     |> unique_constraint([:account_id, :origin, :date])

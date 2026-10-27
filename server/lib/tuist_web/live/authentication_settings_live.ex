@@ -9,6 +9,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   alias Tuist.Authorization
   alias Tuist.Environment
   alias Tuist.SCIM
+  alias TuistWeb.Components.WorkloadIdentities
 
   # Form-level providers. "entra" is a preset over the generic `:oauth2`
   # provider: it derives Entra's endpoints from a directory (tenant)
@@ -24,15 +25,20 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   @sso_default_roles Accounts.organization_role_names() -- ["admin"]
 
   @impl true
+  def mount(_params, _uri, %{assigns: %{selected_account: %{organization_id: nil} = account}} = socket) do
+    :ok = authorize_account_update!(socket)
+
+    {:ok,
+     socket
+     |> assign(organization: nil, flash_message: nil)
+     |> WorkloadIdentities.initialize()
+     |> assign(:head_title, "#{dgettext("dashboard_account", "Authentication")} · #{account.name} · Tuist")}
+  end
+
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
     if Authorization.authorize(:account_update, current_user, selected_account) != :ok do
       raise UnauthorizedError,
             dgettext("dashboard_account", "You are not authorized to perform this action.")
-    end
-
-    if is_nil(selected_account.organization_id) do
-      raise TuistWeb.Errors.NotFoundError,
-            dgettext("dashboard_account", "Authentication settings are only available for organizations.")
     end
 
     {:ok, organization} = Accounts.get_organization_by_id(selected_account.organization_id)
@@ -53,6 +59,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       |> assign(:scim_tokens, SCIM.list_tokens(organization))
       |> assign(:new_scim_token_plaintext, nil)
       |> assign(:new_scim_token_form, to_form(%{"name" => ""}, as: "scim_token"))
+      |> WorkloadIdentities.initialize()
       |> assign(
         :head_title,
         "#{dgettext("dashboard_account", "Authentication")} · #{selected_account.name} · Tuist"
@@ -60,6 +67,14 @@ defmodule TuistWeb.AuthenticationSettingsLive do
 
     {:ok, socket}
   end
+
+  @impl true
+  def handle_params(_params, _uri, %{assigns: %{live_action: :workload_identities}} = socket) do
+    {:noreply,
+     push_navigate(socket, to: ~p"/#{socket.assigns.selected_account.name}/settings/authentication#oidc-trust-policies")}
+  end
+
+  def handle_params(_params, _uri, socket), do: {:noreply, socket}
 
   ## SSO events ----------------------------------------------------------
 
@@ -77,6 +92,19 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   end
 
   @impl true
+  def handle_event(event, params, socket)
+      when event in [
+             "toggle_oidc_configuration",
+             "select_oidc_template",
+             "change_oidc_trust_policy",
+             "create_oidc_trust_policy",
+             "delete_oidc_trust_policy"
+           ] do
+    WorkloadIdentities.handle_event(event, params, socket)
+  end
+
+  def handle_event(_event, _params, %{assigns: %{organization: nil}} = socket), do: {:noreply, socket}
+
   def handle_event("toggle_sso", _params, socket) do
     sso_enabled = not socket.assigns.sso_enabled
 
@@ -147,18 +175,18 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     verified_domain? =
       verified_login_domain_selected?(provider, socket.assigns.organization, form_params)
 
-    legacy_enforcement? =
-      legacy_sso_enforcement?(provider, socket.assigns.organization)
+    existing_enforcement? =
+      existing_sso_enforcement?(provider, socket.assigns.organization)
 
-    legacy_automatic_enrollment? =
-      legacy_sso_automatic_enrollment?(provider, socket.assigns.organization)
+    existing_automatic_enrollment? =
+      existing_sso_automatic_enrollment?(provider, socket.assigns.organization)
 
     sso_automatic_enrollment =
       automatic_enrollment_for_provider_selection(
         provider,
         socket.assigns.selected_provider,
         verified_domain?,
-        legacy_automatic_enrollment?,
+        existing_automatic_enrollment?,
         socket.assigns.sso_automatic_enrollment
       )
 
@@ -166,7 +194,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       enforcement_for_provider_selection(
         provider,
         verified_domain?,
-        legacy_enforcement?,
+        existing_enforcement?,
         socket.assigns.sso_enforced
       )
 
@@ -200,14 +228,14 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     custom_provider_without_verified_domain? =
       socket.assigns.selected_provider in @oauth2_form_providers and not verified_domain?
 
-    legacy_enforcement? =
-      legacy_sso_enforcement?(
+    existing_enforcement? =
+      existing_sso_enforcement?(
         socket.assigns.selected_provider,
         socket.assigns.organization
       )
 
-    legacy_automatic_enrollment? =
-      legacy_sso_automatic_enrollment?(
+    existing_automatic_enrollment? =
+      existing_sso_automatic_enrollment?(
         socket.assigns.selected_provider,
         socket.assigns.organization
       )
@@ -222,12 +250,12 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       current_form_params: form_params,
       domain_verification_error: domain_verification_error,
       sso_automatic_enrollment:
-        if(custom_provider_without_verified_domain? and not legacy_automatic_enrollment?,
+        if(custom_provider_without_verified_domain? and not existing_automatic_enrollment?,
           do: false,
           else: socket.assigns.sso_automatic_enrollment
         ),
       sso_enforced:
-        if(custom_provider_without_verified_domain? and not legacy_enforcement?,
+        if(custom_provider_without_verified_domain? and not existing_enforcement?,
           do: false,
           else: socket.assigns.sso_enforced
         )
@@ -780,11 +808,8 @@ defmodule TuistWeb.AuthenticationSettingsLive do
   end
 
   defp sso_enforcement_toggle_disabled?(selected_provider, organization, form_params, enforced) do
-    legacy_enforcement? = legacy_sso_enforcement?(selected_provider, organization)
-
     selected_provider in @oauth2_form_providers and
       not verified_login_domain_selected?(selected_provider, organization, form_params) and
-      not legacy_enforcement? and
       not enforced
   end
 
@@ -794,14 +819,12 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       normalize_domain(form_params["sso_login_domain"]) == organization.sso_login_domain
   end
 
-  defp legacy_sso_enforcement?(selected_provider, organization) do
-    organization.sso_legacy_email_domain_fallback and
-      selected_provider == form_provider(organization)
+  defp existing_sso_enforcement?(selected_provider, organization) do
+    organization.sso_enforced and selected_provider == form_provider(organization)
   end
 
-  defp legacy_sso_automatic_enrollment?(selected_provider, organization) do
-    organization.sso_legacy_email_domain_fallback and
-      organization.sso_automatic_enrollment and
+  defp existing_sso_automatic_enrollment?(selected_provider, organization) do
+    organization.sso_automatic_enrollment and
       selected_provider == form_provider(organization)
   end
 
@@ -809,7 +832,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
          "google",
          previous_provider,
          _verified_domain?,
-         _legacy_automatic_enrollment?,
+         _existing_automatic_enrollment?,
          _automatic_enrollment
        )
        when previous_provider != "google", do: true
@@ -821,14 +844,14 @@ defmodule TuistWeb.AuthenticationSettingsLive do
          _provider,
          _previous_provider,
          _verified_domain?,
-         _legacy_automatic_enrollment?,
+         _existing_automatic_enrollment?,
          automatic_enrollment
        ), do: automatic_enrollment
 
   defp enforcement_for_provider_selection(provider, false, false, _enforced) when provider in @oauth2_form_providers,
     do: false
 
-  defp enforcement_for_provider_selection(_provider, _verified_domain?, _legacy_enforcement?, enforced), do: enforced
+  defp enforcement_for_provider_selection(_provider, _verified_domain?, _existing_enforcement?, enforced), do: enforced
 
   # The form provider is not always the stored `sso_provider`: an organization
   # whose `:oauth2` configuration matches the Entra preset exactly is shown as

@@ -32,6 +32,10 @@ const defaultPrewarmTimeout = time.Hour
 // Pod's first VM takes.
 type goldenEnsurer interface {
 	ensureGolden(ctx context.Context, image string) (name string, materialized bool, err error)
+	// heldGoldens names the golden bases on this host's disk.
+	heldGoldens(ctx context.Context) (map[string]struct{}, error)
+	// podsAwaitGolden reports whether a Pod waits on a golden pull.
+	podsAwaitGolden() bool
 }
 
 var _ goldenEnsurer = (*Reconciler)(nil)
@@ -44,8 +48,9 @@ type PrewarmGate interface {
 
 // Prewarmer materialises the golden bases of the runner pools a freshly
 // registered host will serve, before the gate lets Pods onto it. A host that
-// was already registered is left alone: it is serving, and golden node
-// affinity already steers each pool to hosts that hold its image.
+// was already registered is not prewarmed: it is serving, and golden node
+// affinity already steers each pool to hosts that hold its image. Every host
+// then stages, in the background, the images its pools move to (stage.go).
 type Prewarmer struct {
 	K8s     client.Reader
 	Goldens goldenEnsurer
@@ -60,6 +65,17 @@ type Prewarmer struct {
 	// SyncRetry is how often an image the rack's image cache is still
 	// fetching is asked for again. Zero means defaultPrewarmSyncRetry.
 	SyncRetry time.Duration
+	// StageInterval is how often the host looks for images to stage once
+	// the gate is released. Zero disables staging.
+	StageInterval time.Duration
+	// NodeName is this host's Node, whose runner Pods staging waits for.
+	NodeName string
+	// Now is the staging clock. Nil uses time.Now.
+	Now func() time.Time
+
+	// jobsDeferredSince is when staging started waiting for this host's
+	// jobs, zero while it is not waiting.
+	jobsDeferredSince time.Time
 }
 
 // defaultPrewarmSyncRetry matches the requeue a Pod gets while the image
@@ -67,18 +83,25 @@ type Prewarmer struct {
 const defaultPrewarmSyncRetry = 30 * time.Second
 
 // Start conforms to manager.Runnable. It never returns an error: a failed
-// prewarm only costs the first Pod of each image its pull.
+// prewarm or stage only costs the first Pod of each image its pull.
 func (p *Prewarmer) Start(ctx context.Context) error {
-	logger := log.FromContext(ctx).WithName("prewarm")
-
 	held, err := p.Gate.Wait(ctx)
 	if err != nil {
 		return nil
 	}
-	defer p.Gate.Release()
-	if !held || p.Fleet == "" {
+	if held && p.Fleet != "" {
+		p.prewarm(ctx)
+	}
+	p.Gate.Release()
+	if p.Fleet == "" || p.StageInterval <= 0 {
 		return nil
 	}
+	p.stageEvery(ctx, p.StageInterval)
+	return nil
+}
+
+func (p *Prewarmer) prewarm(ctx context.Context) {
+	logger := log.FromContext(ctx).WithName("prewarm")
 
 	timeout := p.Timeout
 	if timeout <= 0 {
@@ -90,7 +113,7 @@ func (p *Prewarmer) Start(ctx context.Context) error {
 	images, err := p.images(ctx)
 	if err != nil {
 		logger.Error(err, "list runner pools; taking Pods without prewarming")
-		return nil
+		return
 	}
 	logger.Info("prewarming runner images before taking Pods", "fleet", p.Fleet, "images", images)
 	for _, image := range images {
@@ -109,32 +132,44 @@ func (p *Prewarmer) Start(ctx context.Context) error {
 		}
 		logger.Info("prewarmed runner image", "image", image, "golden", name, "pulled", materialized, "duration", time.Since(started).String())
 	}
-	return nil
 }
 
 func (p *Prewarmer) images(ctx context.Context) ([]string, error) {
-	list := &unstructured.UnstructuredList{}
-	list.SetGroupVersionKind(runnerPoolListGVK)
-	if err := p.K8s.List(ctx, list); err != nil {
+	pools, err := listRunnerPools(ctx, p.K8s)
+	if err != nil {
 		return nil, err
 	}
-	pools := make([]prewarmPool, 0, len(list.Items))
+	return prewarmImages(pools, p.Fleet), nil
+}
+
+// listRunnerPools reads every RunnerPool as the slice tart-kubelet needs.
+func listRunnerPools(ctx context.Context, k8s client.Reader) ([]runnerPoolSpec, error) {
+	list := &unstructured.UnstructuredList{}
+	list.SetGroupVersionKind(runnerPoolListGVK)
+	if err := k8s.List(ctx, list); err != nil {
+		return nil, err
+	}
+	pools := make([]runnerPoolSpec, 0, len(list.Items))
 	for _, item := range list.Items {
 		raw, err := json.Marshal(item.Object)
 		if err != nil {
 			return nil, fmt.Errorf("encode runner pool %s: %w", item.GetName(), err)
 		}
-		var pool prewarmPool
+		var pool runnerPoolSpec
 		if err := json.Unmarshal(raw, &pool); err != nil {
 			return nil, fmt.Errorf("decode runner pool %s: %w", item.GetName(), err)
 		}
 		pools = append(pools, pool)
 	}
-	return prewarmImages(pools, p.Fleet), nil
+	return pools, nil
 }
 
-// prewarmPool is the slice of a RunnerPool the prewarmer reads.
-type prewarmPool struct {
+// runnerPoolSpec is the slice of a RunnerPool the prewarmer and the GC read.
+type runnerPoolSpec struct {
+	Metadata struct {
+		Name   string            `json:"name"`
+		Labels map[string]string `json:"labels"`
+	} `json:"metadata"`
 	Spec struct {
 		Image         string `json:"image"`
 		OS            string `json:"os"`
@@ -145,9 +180,31 @@ type prewarmPool struct {
 			MinWarmPoolFloor *int32 `json:"minWarmPoolFloor"`
 		} `json:"autoscaling"`
 	} `json:"spec"`
+	Status struct {
+		ObservedImage string `json:"observedImage"`
+		PreviousImage string `json:"previousImage"`
+	} `json:"status"`
 }
 
-func (p prewarmPool) warmFloor() int32 {
+// runsOn reports whether the pool runs macOS VMs on fleet's hosts.
+func (p runnerPoolSpec) runsOn(fleet string) bool {
+	if p.Spec.OS != "" && p.Spec.OS != "darwin" {
+		return false
+	}
+	return p.Spec.FleetSelector == fleet && p.Spec.Image != ""
+}
+
+// previousImage is the image the pool ran before its current one, or empty.
+// Until the runners-controller has seen a new spec.image, the image it last
+// observed is the previous one.
+func (p runnerPoolSpec) previousImage() string {
+	if observed := p.Status.ObservedImage; observed != "" && observed != p.Spec.Image {
+		return observed
+	}
+	return p.Status.PreviousImage
+}
+
+func (p runnerPoolSpec) warmFloor() int32 {
 	a := p.Spec.Autoscaling
 	if a == nil || !a.Enabled || a.MinWarmPoolFloor == nil {
 		return 0
@@ -159,7 +216,7 @@ func (p prewarmPool) warmFloor() int32 {
 // floor or want runners right now (spec.replicas, which the autoscaler sets),
 // warm floors first, then by demand. A pool that wants nothing is skipped: its
 // image may never run here, and a golden is tens of GB.
-func prewarmImages(pools []prewarmPool, fleet string) []string {
+func prewarmImages(pools []runnerPoolSpec, fleet string) []string {
 	type candidate struct {
 		image    string
 		floor    int32
@@ -167,10 +224,7 @@ func prewarmImages(pools []prewarmPool, fleet string) []string {
 	}
 	best := map[string]candidate{}
 	for _, pool := range pools {
-		if pool.Spec.OS != "" && pool.Spec.OS != "darwin" {
-			continue
-		}
-		if pool.Spec.FleetSelector != fleet || pool.Spec.Image == "" {
+		if !pool.runsOn(fleet) {
 			continue
 		}
 		c := candidate{image: pool.Spec.Image, floor: pool.warmFloor(), replicas: pool.Spec.Replicas}

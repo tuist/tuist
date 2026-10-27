@@ -1111,6 +1111,41 @@ defmodule Tuist.Kura.ReconcilerTest do
       assert Repo.get!(Server, server.id).peer_roles == [%{"url" => "https://kura-eu-0.peer:7443", "gateway" => true}]
     end
 
+    test "refreshes the roles of a server whose rollout is still open" do
+      server = mesh_server(peer_roles: [%{"url" => "https://kura-eu-1.peer:7443", "gateway" => true}])
+      {:ok, deployment} = Kura.create_deployment(server, "sha-newimage123")
+      {:ok, _deployment} = Kura.mark_running(deployment)
+
+      expect(Provisioner, :peer_roles, fn %Server{id: id} ->
+        assert id == server.id
+
+        {:ok,
+         [%{url: "https://kura-eu-0.peer:7443", gateway: true}, %{url: "https://kura-eu-1.peer:7443", gateway: false}]}
+      end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert Repo.get!(Server, server.id).peer_roles == [
+               %{"url" => "https://kura-eu-0.peer:7443", "gateway" => true},
+               %{"url" => "https://kura-eu-1.peer:7443", "gateway" => false}
+             ]
+    end
+
+    test "does not read roles for a server that is still provisioning" do
+      {_account, server, _deployment} = create_server()
+
+      server
+      |> Ecto.Changeset.change(region: "eu-west")
+      |> Repo.update!()
+
+      stub(Provisioner, :current_image_tag, fn _ -> {:ok, nil} end)
+      stub(Provisioner, :rollout, fn _, _ -> :ok end)
+
+      reject(&Provisioner.peer_roles/1)
+
+      assert :ok = Reconciler.reconcile()
+    end
+
     test "does not read roles for a region with no peer mesh" do
       {_account, server, deployment} = create_server()
       {:ok, _server} = Kura.activate_server(server, deployment.image_tag)

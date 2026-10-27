@@ -97,6 +97,23 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
       assert response["message"] != nil || response["errors"] != nil
     end
 
+    test "returns bad_request for scopes that can't be created from the dashboard either", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      conn = TuistWeb.Authentication.put_current_user(conn, user)
+
+      for scope <- ["mcp", "account:scim:write"] do
+        response =
+          conn
+          |> put_req_header("content-type", "application/json")
+          |> post("/api/accounts/#{user.account.name}/tokens", %{scopes: [scope], name: "my-token"})
+          |> json_response(:bad_request)
+
+        assert response["message"] != nil || response["errors"] != nil
+      end
+
+      assert {[], _meta} = Accounts.list_account_tokens(user.account)
+    end
+
     test "returns not_found when an account does not exist", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()

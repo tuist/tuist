@@ -10,7 +10,7 @@ Describe 'Local serving-authority qualification'
       node test/e2e/serving-authority/segmented-handover.mjs "$KURA_E2E_AUTHORITY_IMAGE" "$KURA_E2E_AUTHORITY_OUTPUT/retained-recency"
   }
   run_retained_churn_case() {
-    KURA_E2E_SEGMENT_RECORDS=2048 KURA_E2E_REPAIR_CHURN=1 \
+    KURA_E2E_SEGMENT_RECORDS=2048 KURA_E2E_REPAIR_CHURN=1 KURA_E2E_LIVE_PREPARATION=1 \
       node test/e2e/serving-authority/segmented-handover.mjs "$KURA_E2E_AUTHORITY_IMAGE" "$KURA_E2E_AUTHORITY_OUTPUT/retained-churn"
   }
 
@@ -42,7 +42,7 @@ Describe 'Local serving-authority qualification'
     The output should include '"lateWriteAbsent":true'
   End
 
-  It 'revisits records evicted while repairing a divergent full standby'
+  It 'keeps the primary serving while preparing a divergent full standby'
     Skip if 'requires KURA_E2E_AUTHORITY_RESOURCES=1 and a local candidate image' qualification_disabled
     When call run_retained_churn_case
     The status should be success

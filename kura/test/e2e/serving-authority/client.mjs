@@ -123,11 +123,21 @@ try {
       }),
     );
     let after;
-    const deadline = Date.now() + 330_000;
+    let intentObserved = false;
+    const deadline =
+      Date.now() + (target.preparation_supported ? 1_530_000 : 330_000);
     while (Date.now() < deadline) {
       await sleep(1000);
       after = await report(standbyURL);
       if (after.valid && after.epoch > before.epoch) break;
+      assert.notEqual(
+        after.observed?.phase,
+        "Fencing",
+        "handover entered recovery",
+      );
+      if (after.observed?.handover?.id === id) intentObserved = true;
+      if (intentObserved)
+        assert(after.observed?.handover, "handover was aborted");
     }
     assert.equal(after.valid, true);
     assert.equal(after.epoch, before.epoch + 1);

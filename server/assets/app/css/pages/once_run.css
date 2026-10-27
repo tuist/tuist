@@ -471,18 +471,4 @@
       }
     }
   }
-
-  & [data-part="build-details-section"] [data-part="metadata-grid"] [data-part="metadata-row"] {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
-
-    & > [data-part="metadata"] {
-      min-width: 0;
-
-      & > [data-part="label"],
-      & > [data-part="command-label"] {
-        overflow-wrap: anywhere;
-      }
-    }
-  }
 }

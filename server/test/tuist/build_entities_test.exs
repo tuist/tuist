@@ -11,6 +11,7 @@ defmodule Tuist.BuildEntitiesTest do
   alias Tuist.Mix
   alias Tuist.OnceEvents
   alias Tuist.Repo
+  alias Tuist.ReportActor
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.GradleFixtures
@@ -130,6 +131,87 @@ defmodule Tuist.BuildEntitiesTest do
 
     {[entry], _meta} = BuildEntities.list(project.id, :mix, "file", window)
     assert entry.observations == 3
+  end
+
+  test "inventory duration statistics use latest measured samples in the selected cohort", %{
+    project: project,
+    start_at: start_at,
+    window: window
+  } do
+    measured = observation(project, "lib/a.ex", duration_ms: 100, observed_at: at(start_at, 1))
+    cleared = observation(project, "lib/a.ex", duration_ms: 900, observed_at: at(start_at, 1))
+    moved = observation(project, "lib/a.ex", duration_ms: 800, observed_at: at(start_at, 1))
+
+    BuildEntities.record([
+      measured,
+      cleared,
+      moved,
+      observation(project, "lib/a.ex", duration_ms: 300, observed_at: at(start_at, 1)),
+      observation(project, "lib/a.ex", duration_ms: nil, observed_at: at(start_at, 1)),
+      observation(project, "lib/a.ex", duration_ms: 10_000, observed_at: at(start_at, -1)),
+      observation(project, "lib/zero.ex", duration_ms: 0, observed_at: at(start_at, 1)),
+      observation(project, "lib/unmeasured.ex", duration_ms: nil, observed_at: at(start_at, 1))
+    ])
+
+    BuildEntities.record([measured, %{cleared | duration_ms: nil}, %{moved | is_ci: false, git_branch: "feature"}])
+
+    {entries, %{total_count: 3}} =
+      BuildEntities.list(project.id, :mix, "file", window ++ [environment: "ci", branch: "main"])
+
+    by_name = Map.new(entries, &{&1.name, &1})
+
+    assert %{
+             observations: 4,
+             duration_samples: 2,
+             avg_duration_ms: 200,
+             p50_duration_ms: 200,
+             p90_duration_ms: 280,
+             p99_duration_ms: 298
+           } = by_name["lib/a.ex"]
+
+    assert %{duration_samples: 1, p90_duration_ms: 0} = by_name["lib/zero.ex"]
+    assert %{duration_samples: 0, avg_duration_ms: nil, p90_duration_ms: nil} = by_name["lib/unmeasured.ex"]
+
+    {[local], _} = BuildEntities.list(project.id, :mix, "file", window ++ [environment: "local"])
+    assert %{duration_samples: 1, avg_duration_ms: 800} = local
+  end
+
+  test "inventory sorts duration statistics before pagination with missing measurements last", %{
+    project: project,
+    start_at: start_at,
+    window: window
+  } do
+    for {path, duration} <- [{"slow", 300}, {"fast", 10}, {"zero", 0}, {"unknown", nil}] do
+      BuildEntities.record([observation(project, path, duration_ms: duration, observed_at: at(start_at, 1))])
+    end
+
+    for field <- ~w(avg_duration_ms p50_duration_ms p90_duration_ms p99_duration_ms),
+        {order, expected} <- [{"asc", ["zero", "fast", "slow", "unknown"]}, {"desc", ["slow", "fast", "zero", "unknown"]}] do
+      names =
+        Enum.flat_map(1..2, fn page ->
+          {entries, %{total_count: 4}} =
+            BuildEntities.list(
+              project.id,
+              :mix,
+              "file",
+              window ++ [sort_by: field, sort_order: order, page: page, page_size: 2]
+            )
+
+          Enum.map(entries, & &1.name)
+        end)
+
+      assert names == expected
+    end
+
+    {entries, _} =
+      BuildEntities.list(
+        project.id,
+        :mix,
+        "file",
+        window ++ [sort_by: "p90_duration_ms; DROP TABLE build_entities", sort_order: "invalid"]
+      )
+
+    assert length(entries) == 4
   end
 
   test "replacement reads resolve cross-month corrections before cohort filters", %{
@@ -277,6 +359,11 @@ defmodule Tuist.BuildEntitiesTest do
     assert Keyword.fetch!(opts, :timeout) == 35_000
     assert Keyword.fetch!(opts, :settings)[:max_memory_usage] == 512 * 1024 * 1024
     assert Keyword.fetch!(opts, :settings)[:max_bytes_before_external_group_by] == 128 * 1024 * 1024
+
+    assert %QueryLimitError{code: 159} = catch_error(BuildEntities.inventory_analytics(project.id, :mix, "file", window))
+    assert_received {:query_opts, opts}
+    assert Keyword.fetch!(opts, :timeout) == 35_000
+    assert Keyword.fetch!(opts, :settings)[:max_memory_usage] == 512 * 1024 * 1024
   end
 
   test "all observation read paths preserve FINAL and replacement safety settings", %{project: project, window: window} do
@@ -304,6 +391,8 @@ defmodule Tuist.BuildEntitiesTest do
     BuildEntities.get(project.id, :mix, "file", id)
     BuildEntities.history(project.id, :mix, "file", id, window)
     BuildEntities.analytics(project.id, :mix, "file", id, window)
+    BuildEntities.inventory_analytics(project.id, :mix, "file", window)
+    BuildEntities.inventory_duration_scatter(project.id, :mix, "file", window)
     BuildEntities.duration_scatter(project.id, :mix, "file", id, window)
     assert_received :checked_observation_query
   end
@@ -481,6 +570,228 @@ defmodule Tuist.BuildEntitiesTest do
              BuildEntities.list(project.id, :mix, "file", Keyword.put(filters, :search, "missing"))
   end
 
+  test "last execution resolves replacements and excludes newer cache activity across every toolchain", %{
+    project: project,
+    start_at: start_at,
+    window: window
+  } do
+    for {system, kind} <- [gradle: "task", once: "action", bazel: "action", xcode: "module", mix: "file", mix: "module"] do
+      identity = Map.new(Identity.fields(system, kind), &{&1, if(&1 == "action_index", do: "0", else: "sample")})
+
+      base =
+        project
+        |> observation("unused", observed_at: at(start_at, 1), duration_ms: 10)
+        |> Map.merge(%{system: system, kind: kind, identity: identity, name: "Last execution"})
+
+      latest =
+        Map.merge(base, %{
+          parent_id: UUIDv7.generate(),
+          observed_at: at(start_at, 1, 20),
+          status: "failure",
+          duration_ms: if(system == :xcode, do: 20)
+        })
+
+      cached =
+        Map.merge(base, %{
+          parent_id: UUIDv7.generate(),
+          observed_at: at(start_at, 2),
+          status: "success",
+          cache_status: "hit_remote",
+          duration_ms: nil
+        })
+
+      local = Map.merge(base, %{parent_id: UUIDv7.generate(), observed_at: at(start_at, 2, 10), is_ci: false})
+      BuildEntities.record([base, latest, cached, local])
+      opts = window ++ [environment: "ci"]
+      {[entry], _} = BuildEntities.list(project.id, system, kind, opts)
+      assert entry.last_status == "failure"
+      assert DateTime.compare(entry.last_ran_at, latest.observed_at) == :eq
+      BuildEntities.record([%{latest | cache_status: "hit_remote", duration_ms: nil}])
+      {[corrected], _} = BuildEntities.list(project.id, system, kind, opts)
+      assert corrected.last_status == "success"
+      assert DateTime.compare(corrected.last_ran_at, base.observed_at) == :eq
+
+      if system in [:xcode, :mix] do
+        BuildEntities.record([%{latest | status: "unknown", duration_ms: 20}])
+        {[unknown], _} = BuildEntities.list(project.id, system, kind, opts)
+        assert unknown.last_status == "unknown"
+        assert DateTime.compare(unknown.last_ran_at, latest.observed_at) == :eq
+      end
+
+      {[metadata], _} = BuildEntities.list(project.id, system, kind, opts ++ [include_metrics: false])
+      refute Map.has_key?(metadata, :last_status)
+      refute Map.has_key?(metadata, :last_ran_at)
+    end
+  end
+
+  test "last execution sorting precedes pagination and missing evidence is last in both directions", %{
+    project: project,
+    start_at: start_at,
+    window: window
+  } do
+    BuildEntities.record([
+      observation(project, "lib/older.ex", observed_at: at(start_at, 1), status: "unknown"),
+      observation(project, "lib/newer.ex", observed_at: at(start_at, 2), status: "failure", duration_ms: 0),
+      observation(project, "lib/cached.ex",
+        observed_at: at(start_at, 2, 1),
+        status: "success",
+        cache_status: "hit_remote"
+      )
+    ])
+
+    opts = window ++ [sort_by: "last_ran_at", page_size: 1]
+
+    assert {[%{name: "lib/newer.ex", last_status: "failure"}], %{total_count: 3}} =
+             BuildEntities.list(project.id, :mix, "file", opts)
+
+    assert {[%{name: "lib/older.ex", last_status: "unknown", last_ran_at: ran_at}], _} =
+             BuildEntities.list(project.id, :mix, "file", opts ++ [page: 2])
+
+    assert DateTime.compare(ran_at, at(start_at, 1)) == :eq
+
+    for order <- ["asc", "desc"] do
+      assert {[%{name: "lib/cached.ex", last_status: nil, last_ran_at: nil}], _} =
+               BuildEntities.list(project.id, :mix, "file", opts ++ [sort_order: order, page: 3])
+    end
+
+    assert {[%{name: "lib/older.ex"}], _} = BuildEntities.list(project.id, :mix, "file", opts ++ [sort_order: "asc"])
+
+    assert {[%{last_status: "failure"}], %{total_count: 1}} =
+             BuildEntities.list(
+               project.id,
+               :mix,
+               "file",
+               window ++ [filters: [%{field: :status, op: :==, value: "failure"}]]
+             )
+  end
+
+  test "cache-only and skipped activity do not invent an execution timestamp or status", %{
+    project: project,
+    start_at: start_at,
+    window: window
+  } do
+    for {system, kind} <- [gradle: "task", once: "action", bazel: "action", xcode: "module"] do
+      identity = Map.new(Identity.fields(system, kind), &{&1, if(&1 == "action_index", do: "0", else: "cache-only")})
+
+      base =
+        project
+        |> observation("unused", observed_at: at(start_at, 1))
+        |> Map.merge(%{system: system, kind: kind, identity: identity})
+
+      BuildEntities.record([
+        %{base | status: "skipped"},
+        Map.merge(base, %{parent_id: UUIDv7.generate(), cache_status: "hit_remote", status: "success"})
+      ])
+
+      assert {[%{last_status: nil, last_ran_at: nil}], _} = BuildEntities.list(project.id, system, kind, window)
+    end
+  end
+
+  test "inventory table filters match resolved observations before metrics, sorting and pagination", %{
+    project: project,
+    start_at: start_at,
+    window: window
+  } do
+    corrected =
+      observation(project, "lib/corrected.ex",
+        observed_at: at(start_at, 1),
+        git_branch: "feature/old",
+        status: "failure",
+        cache_status: "miss",
+        duration_ms: 99_000
+      )
+
+    BuildEntities.record([
+      corrected,
+      observation(project, "lib/a.ex",
+        observed_at: at(start_at, 1),
+        git_branch: "feature/slow",
+        status: "failure",
+        cache_status: "miss",
+        duration_ms: 900
+      ),
+      observation(project, "lib/a.ex",
+        observed_at: at(start_at, 2),
+        git_branch: "feature/slow",
+        status: "failure",
+        cache_status: "miss",
+        duration_ms: 0
+      ),
+      observation(project, "lib/a.ex", observed_at: at(start_at, 1), duration_ms: 99_000),
+      observation(project, "lib/b.ex",
+        observed_at: at(start_at, 1),
+        git_branch: "feature/fast",
+        status: "failure",
+        cache_status: "miss",
+        duration_ms: 100
+      ),
+      observation(project, "lib/c.ex",
+        observed_at: at(start_at, 1),
+        git_branch: "feature/untimed",
+        status: "failure",
+        cache_status: "miss"
+      ),
+      observation(project, "lib/split.ex",
+        observed_at: at(start_at, 1),
+        git_branch: "feature/split",
+        status: "success",
+        cache_status: "miss"
+      ),
+      observation(project, "lib/split.ex",
+        observed_at: at(start_at, 2),
+        git_branch: "main",
+        status: "failure",
+        cache_status: "miss"
+      ),
+      observation(project, "lib/outside.ex",
+        observed_at: at(start_at, -1),
+        git_branch: "feature/outside",
+        status: "failure",
+        cache_status: "miss"
+      )
+    ])
+
+    BuildEntities.record([%{corrected | status: "success", cache_status: "hit_remote", duration_ms: nil}])
+
+    filters = [
+      %{field: :git_branch, op: :=~, value: "FEATURE/"},
+      %{field: :status, op: :==, value: "failure"},
+      %{field: :cache_status, op: :!=, value: "hit_remote"}
+    ]
+
+    opts = window ++ [filters: filters, sort_by: "avg_duration_ms", page_size: 1]
+
+    assert {[%{name: "lib/a.ex", observations: 2, avg_duration_ms: 450}], %{total_count: 3}} =
+             BuildEntities.list(project.id, :mix, "file", opts)
+
+    assert {[%{name: "lib/b.ex", avg_duration_ms: 100}], %{total_count: 3}} =
+             BuildEntities.list(project.id, :mix, "file", opts ++ [page: 2])
+
+    assert {[%{name: "lib/c.ex", duration_samples: 0, avg_duration_ms: nil}], %{total_count: 3}} =
+             BuildEntities.list(project.id, :mix, "file", opts ++ [page: 3])
+
+    assert {[], %{total_count: 3}} = BuildEntities.list(project.id, :mix, "file", opts ++ [page: 4])
+    assert {[], %{total_count: 0}} = BuildEntities.list(project.id, :mix, "file", opts ++ [search: "corrected"])
+
+    assert {[%{observations: 2} = entry], %{total_count: 3}} =
+             BuildEntities.list(
+               project.id,
+               :mix,
+               "file",
+               Keyword.merge(opts, include_metrics: false, sort_by: "name", sort_order: "asc")
+             )
+
+    refute Map.has_key?(entry, :avg_duration_ms)
+
+    assert {[], %{total_count: 0}} =
+             BuildEntities.list(
+               project.id,
+               :mix,
+               "file",
+               window ++ [filters: [%{field: :git_branch, op: :==, value: "' OR 1=1 --"}]]
+             )
+  end
+
   test "history searches recorded references and filters the latest outcomes before pagination", %{
     project: project,
     start_at: start_at,
@@ -652,6 +963,137 @@ defmodule Tuist.BuildEntitiesTest do
     assert %{observations: 1, avg_duration_ms: 30} = misses.total
   end
 
+  describe "inventory analytics" do
+    test "compares whole cohorts, counts distinct active units, and fills empty days", context do
+      %{project: project, start_at: start_at, window: window} = context
+      other = ProjectsFixtures.project_fixture()
+      FunWithFlags.enable(:build_entities, for_actor: other)
+
+      BuildEntities.record([
+        observation(project, "lib/a.ex", observed_at: at(start_at, 0), duration_ms: 0),
+        observation(project, "lib/a.ex", observed_at: at(start_at, 2), duration_ms: 20),
+        observation(project, "lib/b.ex", observed_at: at(start_at, 2), status: "failure"),
+        observation(project, "lib/b.ex", observed_at: at(start_at, 2, 1), status: "unknown", duration_ms: 40),
+        observation(project, "lib/a.ex", observed_at: at(start_at, -1), duration_ms: 40),
+        observation(project, "lib/c.ex", observed_at: at(start_at, -2), duration_ms: 60, status: "failure"),
+        observation(project, "lib/local.ex", observed_at: at(start_at, 1), duration_ms: 999, is_ci: false),
+        observation(project, "lib/branch.ex", observed_at: at(start_at, 1), duration_ms: 999, git_branch: "other"),
+        observation(project, "ignored", observed_at: at(start_at, 1), kind: "module", identity: %{"module" => "Other"}),
+        observation(other, "lib/tenant.ex", observed_at: at(start_at, 1), duration_ms: 999)
+      ])
+
+      opts = window ++ [environment: "ci", branch: "main"]
+      analytics = BuildEntities.inventory_analytics(project.id, :mix, "file", opts)
+
+      assert %{
+               observations: 4,
+               entities: 2,
+               outcome_samples: 3,
+               failures: 1,
+               duration_samples: 3,
+               avg_duration_ms: 20,
+               p50_duration_ms: 20,
+               p90_duration_ms: 36,
+               p99_duration_ms: 40
+             } = analytics.total
+
+      assert %{observations: 2, entities: 2, failures: 1, avg_duration_ms: 50} = analytics.previous
+      assert Enum.map(analytics.points, &{&1.observations, &1.entities}) == [{1, 1}, {0, 0}, {3, 2}]
+
+      assert BuildEntities.inventory_analytics(
+               project.id,
+               :mix,
+               "file",
+               opts ++ [search: "not-found", page: 2, page_size: 1]
+             ) == analytics
+    end
+
+    test "execution counts exclude cached and non-executed outcomes without requiring a duration", context do
+      %{project: project, start_at: start_at, window: window} = context
+
+      statuses = [
+        {"success", "none", nil},
+        {"success", "miss", 0},
+        {"failure", "none", 25},
+        {"success", "hit", nil},
+        {"success", "hit_local", nil},
+        {"success", "hit_remote", nil},
+        {"skipped", "none", nil},
+        {"up_to_date", "none", nil},
+        {"no_source", "none", nil},
+        {"cancelled", "none", nil},
+        {"unknown", "none", nil}
+      ]
+
+      observations =
+        for {status, cache, duration} <- statuses do
+          observation(project, "lib/work.ex",
+            observed_at: at(start_at, 1),
+            status: status,
+            cache_status: cache,
+            duration_ms: duration
+          )
+        end
+
+      previous = observation(project, "lib/work.ex", observed_at: at(start_at, -1))
+      BuildEntities.record([previous | observations])
+      analytics = BuildEntities.inventory_analytics(project.id, :mix, "file", window)
+      assert %{observations: 11, executions: 3, outcome_samples: 6, duration_samples: 2} = analytics.total
+      assert %{executions: 1} = analytics.previous
+      assert Enum.map(analytics.points, & &1.executions) == [0, 3, 0]
+      corrected = %{hd(observations) | cache_status: "hit_remote"}
+      BuildEntities.record([corrected | tl(observations)])
+
+      assert %{total: %{executions: 2}, previous: %{executions: 1}} =
+               BuildEntities.inventory_analytics(project.id, :mix, "file", window)
+    end
+
+    test "latest replacement rows decide nullable measurements and cohort membership before aggregation", context do
+      %{project: project, start_at: start_at, window: window} = context
+      cleared = observation(project, "lib/cleared.ex", observed_at: at(start_at, 1), duration_ms: 10)
+      moved = observation(project, "lib/moved.ex", observed_at: at(start_at, 1), duration_ms: 20, status: "failure")
+      BuildEntities.record([cleared, moved])
+
+      corrected = [
+        %{cleared | duration_ms: nil, status: "unknown"},
+        %{moved | observed_at: at(start_at, -1), is_ci: false}
+      ]
+
+      BuildEntities.record(corrected)
+      opts = window ++ [environment: "ci"]
+      analytics = BuildEntities.inventory_analytics(project.id, :mix, "file", opts)
+      BuildEntities.record(corrected)
+      assert BuildEntities.inventory_analytics(project.id, :mix, "file", opts) == analytics
+
+      assert %{
+               observations: 1,
+               entities: 1,
+               outcome_samples: 0,
+               failures: 0,
+               duration_samples: 0,
+               avg_duration_ms: nil
+             } = analytics.total
+
+      assert %{observations: 0, entities: 0} = analytics.previous
+      assert Enum.map(analytics.points, & &1.entities) == [0, 1, 0]
+
+      local = BuildEntities.inventory_analytics(project.id, :mix, "file", window ++ [environment: "local"])
+      assert %{observations: 0} = local.total
+      assert %{observations: 1, entities: 1, failures: 1, avg_duration_ms: 20} = local.previous
+    end
+
+    test "empty and unsupported inventories keep counts separate from missing timing", %{project: project, window: window} do
+      analytics = BuildEntities.inventory_analytics(project.id, :mix, "file", window)
+
+      assert %{observations: 0, entities: 0, outcome_samples: 0, duration_samples: 0, avg_duration_ms: nil} =
+               analytics.total
+
+      assert length(analytics.points) == 3
+      assert Enum.all?(analytics.points, &(&1.entities == 0 and is_nil(&1.p90_duration_ms)))
+      assert %{points: []} = BuildEntities.inventory_analytics(project.id, :gradle, "file", window)
+    end
+  end
+
   describe "duration samples" do
     test "count measured observations, so a true zero differs from no measurement", %{
       project: project,
@@ -778,6 +1220,120 @@ defmodule Tuist.BuildEntitiesTest do
     end
   end
 
+  describe "inventory_duration_scatter/4" do
+    test "returns measured cross-entity points with identities, cohort filters and cap-plus-one truncation", context do
+      %{project: project, start_at: start_at, window: window} = context
+
+      rows =
+        for index <- 0..2,
+            do:
+              observation(project, "lib/#{index}.ex",
+                name: "File #{index}",
+                observed_at: at(start_at, 1, index),
+                duration_ms: index,
+                execution_id: "file-#{index}"
+              )
+
+      BuildEntities.record(
+        rows ++
+          [
+            observation(project, "lib/unknown.ex", observed_at: at(start_at, 1, 3)),
+            observation(project, "lib/local.ex", observed_at: at(start_at, 1, 4), duration_ms: 100, is_ci: false),
+            observation(project, "lib/branch.ex", observed_at: at(start_at, 1, 5), duration_ms: 100, git_branch: "other")
+          ]
+      )
+
+      opts = window ++ [environment: "ci", branch: "main", limit: 2]
+
+      assert %{rows: [newest, older], truncated: true, oldest_entry: oldest} =
+               BuildEntities.inventory_duration_scatter(project.id, :mix, "file", opts)
+
+      assert newest.duration_ms == 2 and older.duration_ms == 1
+      assert newest.name == "File 2" and newest.identity == %{"path" => "lib/2.ex"}
+      assert newest.entity_id == file_id(project, "lib/2.ex")
+      assert NaiveDateTime.compare(oldest, DateTime.to_naive(at(start_at, 1, 1))) == :eq
+
+      assert %{rows: [_, _, %{duration_ms: 0}], truncated: false} =
+               BuildEntities.inventory_duration_scatter(project.id, :mix, "file", Keyword.put(opts, :limit, 3))
+
+      assert %{rows: []} = BuildEntities.inventory_duration_scatter(project.id + 1000, :mix, "file", opts)
+      assert %{rows: []} = BuildEntities.inventory_duration_scatter(project.id, :mix, "module", opts)
+      assert %{rows: []} = BuildEntities.inventory_duration_scatter(project.id, :gradle, "file", opts)
+    end
+
+    test "latest rows decide nullable timing and cohort membership before inventory sampling", context do
+      %{project: project, start_at: start_at, window: window} = context
+      cleared = observation(project, "lib/a.ex", observed_at: at(start_at, 1), duration_ms: 10)
+      moved = observation(project, "lib/b.ex", observed_at: at(start_at, 1), duration_ms: 20)
+      BuildEntities.record([cleared, moved])
+      corrected = [%{cleared | duration_ms: nil}, %{moved | git_branch: "other", is_ci: false}]
+      BuildEntities.record(corrected)
+      BuildEntities.record(corrected)
+      assert %{rows: [%{duration_ms: 20}]} = BuildEntities.inventory_duration_scatter(project.id, :mix, "file", window)
+
+      assert %{rows: []} =
+               BuildEntities.inventory_duration_scatter(project.id, :mix, "file", window ++ [environment: "ci"])
+
+      assert %{rows: []} = BuildEntities.inventory_duration_scatter(project.id, :mix, "file", window ++ [branch: "main"])
+    end
+
+    test "Mix sibling modules contribute one file-execution point before applying the cap", context do
+      %{project: project, start_at: start_at, window: window} = context
+      parent_id = UUIDv7.generate()
+
+      rows =
+        for {module, execution, duration} <- [{"A", "file-1", 10}, {"B", "file-1", 10}, {"C", "file-2", 20}] do
+          observation(project, "ignored",
+            kind: "module",
+            name: module,
+            identity: %{"module" => module},
+            parent_id: parent_id,
+            execution_id: execution,
+            observed_at: at(start_at, 1),
+            duration_ms: duration
+          )
+        end
+
+      BuildEntities.record(rows)
+
+      assert %{rows: points, truncated: false} =
+               BuildEntities.inventory_duration_scatter(project.id, :mix, "module", window ++ [limit: 2])
+
+      assert Enum.sort(Enum.map(points, & &1.duration_ms)) == [10, 20]
+
+      BuildEntities.record(
+        Enum.map(rows, &Map.merge(&1, %{parent_id: UUIDv7.generate(), execution_id: "", discriminator: "unknown-file"}))
+      )
+
+      assert %{rows: points, truncated: false} =
+               BuildEntities.inventory_duration_scatter(project.id, :mix, "module", window)
+
+      assert length(points) == 5
+    end
+
+    test "inventory sampling uses bounded kind-scan settings and caps requested limits", %{
+      project: project,
+      window: window
+    } do
+      caller = self()
+
+      stub(ClickHouseRepo, :query, fn sql, params, opts ->
+        send(caller, {:inventory_scatter_query, sql, params, opts})
+        {:error, %Ch.Error{code: 159, message: "Timeout exceeded"}}
+      end)
+
+      assert_raise QueryLimitError, fn ->
+        BuildEntities.inventory_duration_scatter(project.id, :mix, "file", window ++ [limit: 100_000])
+      end
+
+      assert_receive {:inventory_scatter_query, sql, params, opts}
+      assert sql =~ "FINAL"
+      assert params.limit == 10_001
+      assert Keyword.fetch!(opts, :settings)[:max_memory_usage] == 512 * 1024 * 1024
+      assert Keyword.fetch!(opts, :timeout) == 35_000
+    end
+  end
+
   describe "parent_actor_names/4" do
     setup %{project: project} do
       actor = AccountsFixtures.user_fixture(preload: [:account])
@@ -791,6 +1347,72 @@ defmodule Tuist.BuildEntitiesTest do
         organization_account_id: organization.account.id,
         other_project: other_project
       }
+    end
+
+    test "explicit provenance separates verified actors from publishers and opaque claims", %{
+      project: project,
+      actor: publisher
+    } do
+      verified_actor = AccountsFixtures.user_fixture(preload: [:account])
+
+      for {system, kind} <- [{:gradle, "task"}, {:mix, "file"}, {:mix, "module"}, {:xcode, "module"}] do
+        create = fn attrs ->
+          case system do
+            :gradle ->
+              GradleFixtures.build_fixture([project_id: project.id, account_id: publisher.account.id] ++ attrs)
+
+            :mix ->
+              mix_build(project.id, publisher.account.id, Map.new(attrs))
+
+            :xcode ->
+              CommandEventsFixtures.command_event_fixture(
+                [project_id: project.id, name: "generate", user_id: publisher.id] ++ attrs
+              ).id
+          end
+        end
+
+        legacy = create.([])
+        verified = create.(submission_auth: "token", actor_account_id: verified_actor.account.id)
+        unknown = create.(submission_auth: "token")
+        reported = create.(submission_auth: "network_trusted", claimed_actor_id: "reported-person")
+        ids = [legacy, verified, unknown, reported]
+
+        assert BuildEntities.parent_actor_names(project.id, system, kind, ids) ==
+                 %{legacy => publisher.account.name, verified => verified_actor.account.name}
+
+        contexts = BuildEntities.parent_contexts(project.id, system, kind, ids)
+        assert ReportActor.actor(contexts[verified]).source == :verified
+        assert ReportActor.actor(contexts[unknown]).source == :unknown
+        assert ReportActor.actor(contexts[reported]).source == :reported
+        assert ReportActor.actor(contexts[reported]).name == "reported-person"
+        assert contexts[unknown].ran_by_name == nil
+        assert contexts[reported].ran_by_name == nil
+
+        {table, version, publisher_column, publisher_id} =
+          case system do
+            :gradle -> {"gradle_builds", "inserted_at", "account_id", publisher.account.id}
+            :mix -> {"mix_builds", "inserted_at", "account_id", publisher.account.id}
+            :xcode -> {"command_events", "updated_at", "user_id", publisher.id}
+          end
+
+        for id <- [verified, reported] do
+          IngestRepo.query!(
+            """
+            INSERT INTO #{table} (
+              id, project_id, #{publisher_column}, actor_account_id,
+              claimed_actor_id, submission_auth, #{version}
+            )
+            SELECT {id:UUID}, {project_id:Int64}, {publisher_id:Int64}, 0, '', 'token', now() + INTERVAL 1 DAY
+            """,
+            %{id: id, project_id: project.id, publisher_id: publisher_id}
+          )
+        end
+
+        assert BuildEntities.parent_actor_names(project.id, system, kind, [verified, reported]) == %{}
+        cleared = BuildEntities.parent_contexts(project.id, system, kind, [verified, reported])
+        assert ReportActor.actor(cleared[verified]).source == :unknown
+        assert ReportActor.actor(cleared[reported]).source == :unknown
+      end
     end
 
     test "maps Gradle builds to the user account that ran them", context do
@@ -926,6 +1548,29 @@ defmodule Tuist.BuildEntitiesTest do
       %{actor: actor, actor_name: actor.account.name, other_project: ProjectsFixtures.project_fixture(), project: project}
     end
 
+    test "Bazel invocation context accepts string IDs, isolates projects and resolves the latest row", %{
+      project: project,
+      other_project: other
+    } do
+      now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+      for {project_id, command, offset} <- [{project.id, "build", 0}, {project.id, "test", 1}, {other.id, "clean", 2}] do
+        IngestRepo.query!(
+          """
+          INSERT INTO bazel_invocations (id, project_id, invocation_id, command, target_patterns, inserted_at)
+          VALUES (generateUUIDv4(), {project_id:Int64}, 'string-invocation', {command:String}, ['//app:all'], {version:DateTime})
+          """,
+          %{project_id: project_id, command: command, version: NaiveDateTime.add(now, offset, :second)}
+        )
+      end
+
+      assert BuildEntities.parent_contexts(project.id, :bazel, "action", ["string-invocation", "missing"]) == %{
+               "string-invocation" => %{label: "bazel test //app:all", ran_by_name: nil}
+             }
+
+      assert BuildEntities.parent_actor_names(project.id, :bazel, "action", ["string-invocation"]) == %{}
+    end
+
     test "labels Gradle builds with the root project and tags", %{actor: actor} = context do
       %{project: project, actor_name: actor_name} = context
 
@@ -1051,15 +1696,20 @@ defmodule Tuist.BuildEntitiesTest do
     GradleFixtures.build_fixture(project_id: project_id, account_id: account_id)
   end
 
-  defp mix_build(project_id, account_id) do
+  defp mix_build(project_id, account_id, actor_attrs \\ %{}) do
     {:ok, id} =
-      Mix.create_build(%{
-        id: UUIDv7.generate(),
-        project_id: project_id,
-        account_id: account_id,
-        duration_ms: 10,
-        status: "success"
-      })
+      Mix.create_build(
+        Map.merge(
+          %{
+            id: UUIDv7.generate(),
+            project_id: project_id,
+            account_id: account_id,
+            duration_ms: 10,
+            status: "success"
+          },
+          actor_attrs
+        )
+      )
 
     id
   end

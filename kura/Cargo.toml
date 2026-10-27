@@ -35,7 +35,7 @@ rand = "0.9.4"
 rcgen = "0.14.5"
 reqwest = { version = "0.13.2", default-features = false, features = ["blocking", "http2", "json", "query", "rustls", "stream"] }
 rocksdb = { version = "0.24.0", default-features = false, features = ["bindgen-runtime", "lz4"] }
-rustls = "0.23.35"
+rustls = "0.23.46"
 rustls-pemfile = "2.2.0"
 rustix = { version = "1.1.4", features = ["fs", "param"] }
 sentry = { version = "0.47.0", default-features = false, features = ["backtrace", "contexts", "panic", "reqwest", "rustls", "tracing"] }
@@ -53,7 +53,7 @@ tracing = "0.1.41"
 tracing-opentelemetry = "0.33.0"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt", "json"] }
 uuid = { version = "1.18.1", features = ["serde", "v7"] }
-zstd = "0.13"
+zstd = "0.14.3"
 
 # `unprefixed_malloc_on_supported_platforms` builds jemalloc without the `_rjem_` symbol prefix, so
 # the binary's own `malloc`/`free` are jemalloc's and interpose libc's for the whole process. Without

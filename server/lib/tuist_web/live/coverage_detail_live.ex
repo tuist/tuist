@@ -30,6 +30,7 @@ defmodule TuistWeb.CoverageDetailLive do
   @target_sorts ~w(coverage name files)
   @file_sorts ~w(coverage path)
   @page_size 20
+  @default_commits_status "measured"
 
   # A run's coverage joins its commit a few seconds after the run lands
   # (`Tuist.Tests.Coverage.Workers.CommitWorker`), so the page reloads once
@@ -310,7 +311,7 @@ defmodule TuistWeb.CoverageDetailLive do
   # its history.
   defp assign_commits(%{assigns: %{subject: %{kind: :branch}}} = socket, query) do
     {search, status} = commits_filter(query)
-    page = branch_commit_page(socket, query, search: search, status: status)
+    page = branch_commit_page(socket, query, search: search, status: if(status == "any", do: "", else: status))
 
     socket
     |> assign(:commit_rows, Enum.map(page.commits, &Map.put(&1, :id, &1.git_commit_sha)))
@@ -321,10 +322,11 @@ defmodule TuistWeb.CoverageDetailLive do
 
   # The Commits tab's search, by the start of a SHA, and its status: whether
   # the commit's pipeline signalled it finished, and on a branch, which lists
-  # every commit on it, whether any run measured it.
+  # every commit on it, whether any run measured it. The tab lists the
+  # measured commits unless asked for `any`.
   defp commits_filter(query) do
     search = (query["commits-search"] || "") |> String.trim() |> String.downcase()
-    {search, query["commits-status"] || ""}
+    {search, query["commits-status"] || @default_commits_status}
   end
 
   defp assign_commits_filter(socket, search, status),
@@ -333,11 +335,19 @@ defmodule TuistWeb.CoverageDetailLive do
   @doc "The statuses the Commits tab filters a branch's commits by, with their labels."
   def commit_statuses,
     do: [
+      {"measured", dgettext("dashboard_tests", "Measured")},
       {"complete", dgettext("dashboard_tests", "Complete")},
       {"incomplete", dgettext("dashboard_tests", "Incomplete")},
       {"in-progress", dgettext("dashboard_tests", "In Progress")},
       {"not-measured", dgettext("dashboard_tests", "Not measured")}
     ]
+
+  @doc "The Commits tab's query with its status set, the default one dropped from it."
+  def put_commits_status(query, @default_commits_status), do: Query.drop(query, "commits-status")
+  def put_commits_status(query, status), do: Query.put(query, "commits-status", status)
+
+  @doc "Whether the Commits tab is narrowed past what it lists by default."
+  def commits_filtered?(search, status), do: search != "" or status not in ["any", @default_commits_status]
 
   # A commit has a few thousand targets at most, all aggregated in one read,
   # so they are searched, sorted and paged here.

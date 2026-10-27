@@ -12,23 +12,26 @@
 #     provision and on every drift-detected rolling update,
 #   - the tuist-log-shipper binary, which tails the host's logs and
 #     pushes them to the in-cluster Alloy receiver over the tailnet,
-#   - the upstream `tart.app` tarball pinned via TART_VERSION below
-#     (the asset GitHub publishes on each cirruslabs/tart release),
-#     which the operator extracts onto the Mac mini at first bootstrap
-#     under /usr/local/lib/tart.app.
+#   - the upstream `tart.app` tarballs pinned via TART_RELEASES below
+#     (the asset GitHub publishes on each Tart release), which the
+#     operator extracts onto each Mac mini under
+#     /usr/local/lib/tart/<version>.
 # One image, one URL pin in the chart, no separate release artifact.
 
 ARG GO_VERSION=1.26
 ARG ALPINE_VERSION=3.22
 
-# Tart version pinned for reproducibility. Bump deliberately — Tart 2.x
-# minor releases occasionally change VM disk format, and a Mac mini
-# already running VMs can't safely have its hypervisor swapped without
-# Machine replacement. Update path: bump TART_VERSION here, build a new
-# operator image, roll out via Helm. New Mac minis pick up the new
-# version on first bootstrap; existing ones keep their installed Tart
-# until they're replaced.
-ARG TART_VERSION=2.32.1
+# Tart releases the image carries, as <version>:<sha256 of tart.tar.gz>.
+# Every one of them can be installed in place on an existing Mac mini
+# (beside the version its running VMs use) by the host-config drift loop.
+# TART_DEFAULT_VERSION is what a fleet runs unless the chart sets
+# macosFleet.tart.version; a Machine annotated tuist.dev/tart-version runs
+# that release instead. Keep the version the fleet runs today in the list
+# until no environment selects it, so rolling back is a values change.
+# Before adding a release, read its changelog against the "Tart versions"
+# section of infra/tart-kubelet/AGENTS.md.
+ARG TART_RELEASES="2.32.1:8554ab4f7fc12afe52f9b7e3093a935673cbac737a83973d2db7a0683c814529 2.41.1:e680a734febccfce7d4e910c1f7f13fc3b00f19a181c945e2d746de3214c32c2"
+ARG TART_DEFAULT_VERSION=2.32.1
 
 # Tailscale upstream tag to cross-build from. The tailscale-builder
 # stage below clones github.com/tailscale/tailscale at this tag and
@@ -139,17 +142,26 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 FROM --platform=$BUILDPLATFORM alpine:${ALPINE_VERSION} AS tart-fetcher
 
 # Pin Tart at image build time. The asset URL pattern is stable:
-# https://github.com/cirruslabs/tart/releases/download/<version>/tart.tar.gz
+# https://github.com/openai/tart/releases/download/<version>/tart.tar.gz
 # The tarball contains `tart.app/` at top level — we ship it as-is and
-# the macOS-host-bootstrap step extracts it to /usr/local/lib/tart.app
+# the macOS-host-bootstrap step extracts it to /usr/local/lib/tart/<version>
 # on the Mac mini. We don't unpack here because the tarball already
 # matches the wire format the bootstrap step pipes into `tar -xzf -`
-# over SSH.
-ARG TART_VERSION
+# over SSH. Each lands at /out/<version>/tart.tar.gz, the layout the
+# manager's --tart-releases-dir reads.
+ARG TART_RELEASES
+ARG TART_DEFAULT_VERSION
 RUN apk add --no-cache curl
 WORKDIR /out
-RUN curl -fsSL -o tart.tar.gz \
-    "https://github.com/cirruslabs/tart/releases/download/${TART_VERSION}/tart.tar.gz"
+RUN set -eu; \
+    for release in ${TART_RELEASES}; do \
+      version="${release%%:*}"; sha="${release#*:}"; \
+      mkdir -p "${version}"; \
+      curl -fsSL -o "${version}/tart.tar.gz" \
+        "https://github.com/openai/tart/releases/download/${version}/tart.tar.gz"; \
+      echo "${sha}  ${version}/tart.tar.gz" | sha256sum -c -; \
+    done; \
+    test -s "${TART_DEFAULT_VERSION}/tart.tar.gz"
 
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS tailscale-builder
@@ -234,11 +246,15 @@ COPY --from=manager-builder /out/rack-boot /usr/local/bin/rack-boot
 COPY --from=manager-builder /out/rack-node-linux-amd64 /opt/rack-node/rack-node-linux-amd64
 COPY --from=netboot-fetcher /out/ /opt/rack-netboot/
 COPY --from=kubelet-builder /out/tart-kubelet-darwin-arm64 /opt/tart-kubelet/tart-kubelet-darwin-arm64
-COPY --from=tart-fetcher /out/tart.tar.gz /opt/tart/tart.tar.gz
+COPY --from=tart-fetcher /out/ /opt/tart/
 COPY --from=tailscale-builder /out/tailscale-darwin-arm64.tar.gz /opt/tailscale/tailscale-darwin-arm64.tar.gz
 COPY --from=node-exporter-fetcher /out/node_exporter-darwin-arm64 /opt/node-exporter/node_exporter-darwin-arm64
 COPY --from=log-shipper-builder /out/tuist-log-shipper-darwin-arm64 /opt/log-shipper/tuist-log-shipper-darwin-arm64
 COPY --from=host-sensors-builder /out/tuist-host-sensors-darwin-arm64 /opt/host-sensors/tuist-host-sensors-darwin-arm64
+
+# The release a fleet runs unless the chart sets CAPI_TART_VERSION.
+ARG TART_DEFAULT_VERSION
+ENV CAPI_TART_VERSION=${TART_DEFAULT_VERSION}
 
 USER nonroot:nonroot
 

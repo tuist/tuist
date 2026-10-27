@@ -51,6 +51,7 @@ defmodule Tuist.Docs.SidebarTest do
     assert MapSet.new(rust_slugs) ==
              MapSet.new([
                "/en/guides/get-started/rust-project",
+               "/en/guides/features/cache/rust",
                "/en/guides/features/build-insights/rust",
                "/en/guides/features/test-insights/rust",
                "/en/guides/features/test-insights/flaky-tests/rust",

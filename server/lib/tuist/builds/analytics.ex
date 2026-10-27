@@ -3524,6 +3524,7 @@ defmodule Tuist.Builds.Analytics do
         order_by: [desc: b.inserted_at],
         limit: ^limit,
         offset: ^offset,
+        where: b.submission_auth != "network_trusted",
         select: b.duration
       )
 
@@ -3577,6 +3578,7 @@ defmodule Tuist.Builds.Analytics do
         where: b.project_id == ^project_id,
         where: not is_nil(b.cacheable_tasks_count),
         where: b.cacheable_tasks_count > 0,
+        where: b.submission_auth != "network_trusted",
         order_by: [desc: b.inserted_at],
         limit: ^limit,
         offset: ^offset,

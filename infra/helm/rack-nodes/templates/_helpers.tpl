@@ -27,10 +27,11 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end -}}
 
 {{- /*
-The prewarm set's tags, as JSON. Each is the tag the tuist
-chart's `tuist.macosRunnerImage` gives that Xcode's pools:
-`macos-<xcode-dashes>-<runnerImageSemver>` or the Xcode's `imageTag`
-override. An Xcode outside the catalog fails the render rather than
+The prewarm set's tags, as JSON: each Xcode's `imageTag` override, else
+`macos-<xcode-dashes>-<runnerImageSemver>`, the tag whose digest the tuist
+chart's `tuist.macosRunnerImage` names that Xcode's pools by. The cache syncs
+the tag, so its retention keeps the manifest, and serves a host's pull by
+that digest from it. An Xcode outside the catalog fails the render rather than
 prewarming an image no pool runs. Without a semver (a render outside a
 deploy, which resolves it) an Xcode without an override is skipped.
 */ -}}

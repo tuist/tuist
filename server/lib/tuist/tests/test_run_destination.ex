@@ -17,8 +17,10 @@ defmodule Tuist.Tests.TestRunDestination do
     field :os_version, Ch, type: "String"
     field :inserted_at, Ch, type: "DateTime64(6)"
 
-    belongs_to :test_run, Tuist.Tests.Test, foreign_key: :test_run_id, define_field: false
+    belongs_to :test_run, {"test_run_summaries", Tuist.Tests.Test}, foreign_key: :test_run_id, define_field: false
   end
+
+  def query, do: Ecto.Queryable.to_query({"reported_test_run_destinations", __MODULE__})
 
   def create_changeset(destination, attrs) do
     destination

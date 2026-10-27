@@ -3,6 +3,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
   use Mimic
 
   alias Tuist.GitHistory
+  alias Tuist.IngestRepo
   alias Tuist.Tests
   alias Tuist.Tests.StressNewTests
   alias Tuist.Tests.Test
@@ -29,6 +30,7 @@ defmodule Tuist.Tests.StressNewTestsTest do
         git_commit_sha: Keyword.get(opts, :git_commit_sha, "abc123"),
         ran_at: Keyword.get(opts, :ran_at, NaiveDateTime.utc_now()),
         is_ci: Keyword.get(opts, :is_ci, true),
+        submission_auth: Keyword.get(opts, :submission_auth, ""),
         test_modules: [
           %{
             name: "AppTests",
@@ -325,6 +327,38 @@ defmodule Tuist.Tests.StressNewTestsTest do
                StressNewTests.plan(project, [case_attrs("testMerged"), case_attrs("testNew")]).candidates,
                & &1.name
              ) == ["testNew"]
+    end
+
+    test "unsigned reports on landed commits cannot make canonical cases known", %{project: project, account: account} do
+      repository = queue(account)
+      run_on_main(project, account, ["testOld"], git_commit_sha: "main1")
+      run_on_main(project, account, ["testCandidate"], git_branch: "feature", git_commit_sha: "unlanded", is_ci: false)
+
+      unsigned =
+        run_on_main(project, account, ["testCandidate"],
+          git_branch: "gh-readonly-queue/main/pr-1-queued",
+          git_commit_sha: "queued",
+          submission_auth: "network_trusted"
+        )
+
+      GitHistory.record_branch_head(repository, "main", "queued", "main")
+      case_id = hd(unsigned.test_case_runs).test_case_id
+      assert Tests.test_case_ids_landed_on_default_branch(project, "main", [case_id]) == MapSet.new()
+
+      # Older child rows may lack provenance; the persisted parent must still exclude them.
+      IngestRepo.query!(
+        """
+        INSERT INTO test_case_runs (id, project_id, test_case_id, test_run_id, is_ci, ran_at, git_commit_sha)
+        SELECT {id:UUID}, {project_id:Int64}, {case_id:UUID}, {run_id:UUID}, true, now(), 'queued'
+        """,
+        %{id: UUIDv7.generate(), project_id: project.id, case_id: case_id, run_id: unsigned.id}
+      )
+
+      assert Tests.test_case_ids_landed_on_default_branch(project, "main", [case_id]) == MapSet.new()
+
+      assert Enum.map(StressNewTests.plan(project, [case_attrs("testCandidate")]).candidates, & &1.name) == [
+               "testCandidate"
+             ]
     end
 
     test "a test case a merge queue ran stays new when its commit never lands", %{project: project, account: account} do

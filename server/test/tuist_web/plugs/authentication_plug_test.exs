@@ -373,6 +373,57 @@ defmodule TuistWeb.AuthenticationPlugTest do
       assert TuistWeb.Authentication.current_user(got) == nil
     end
 
+    test "loads the granting user for an mcp-scoped OAuth access token on the MCP endpoint" do
+      opts = AuthenticationPlug.init(:load_authenticated_subject)
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      token = "oauth-access-token"
+      authenticated_account = %AuthenticatedAccount{account: user.account, scopes: ["mcp"], issued_by: user}
+
+      expect(Tuist.Authentication, :authenticated_subject, fn ^token -> authenticated_account end)
+
+      conn = :post |> conn("/mcp") |> put_req_header("authorization", "Bearer " <> token)
+
+      got = AuthenticationPlug.call(conn, opts)
+
+      assert got.assigns.current_subject == authenticated_account
+      assert TuistWeb.Authentication.current_user(got).id == user.id
+    end
+
+    test "does not load the granting user for an OAuth access token outside the MCP endpoint" do
+      opts = AuthenticationPlug.init(:load_authenticated_subject)
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      token = "oauth-access-token"
+      authenticated_account = %AuthenticatedAccount{account: user.account, scopes: ["mcp"], issued_by: user}
+
+      expect(Tuist.Authentication, :authenticated_subject, fn ^token -> authenticated_account end)
+
+      conn = :get |> conn("/api/projects") |> put_req_header("authorization", "Bearer " <> token)
+
+      got = AuthenticationPlug.call(conn, opts)
+
+      assert TuistWeb.Authentication.current_user(got) == nil
+    end
+
+    test "does not load the granting user for an OAuth access token without the mcp scope" do
+      opts = AuthenticationPlug.init(:load_authenticated_subject)
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      token = "oauth-access-token"
+
+      authenticated_account = %AuthenticatedAccount{
+        account: user.account,
+        scopes: ["project:tests:write"],
+        issued_by: user
+      }
+
+      expect(Tuist.Authentication, :authenticated_subject, fn ^token -> authenticated_account end)
+
+      conn = :post |> conn("/mcp") |> put_req_header("authorization", "Bearer " <> token)
+
+      got = AuthenticationPlug.call(conn, opts)
+
+      assert TuistWeb.Authentication.current_user(got) == nil
+    end
+
     test "loads the authenticated user" do
       # Given
       opts = AuthenticationPlug.init(:load_authenticated_subject)

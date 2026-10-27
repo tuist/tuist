@@ -1,0 +1,19 @@
+apiVersion: v2
+name: xcresult-processor
+description: >
+  The tuist chart's xcresult processor Deployment and PDB, as a release of
+  their own. The templates, helpers and default values are symlinks into
+  infra/helm/tuist, and `tuistRelease` names the tuist release they belong
+  to, so the objects carry the names and labels that release would render
+  them with.
+
+  Installed by .github/workflows/server-deployment.yml after the tuist
+  release, which leaves them out (`xcresultProcessor.ownRelease`), and never
+  waited on or rolled back: the processor's readinessProbe follows Postgres,
+  ClickHouse and the host's path to its Tart guest, and in the tuist
+  release's `helm upgrade --atomic --wait` a single NotReady processor held
+  and rolled back every server deploy. The deploy reports the processor's
+  rollout on its own instead.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

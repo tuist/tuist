@@ -148,6 +148,34 @@ defmodule Tuist.Runners.CacheVolumes.QueryTest do
              Query.run(:jobs, account.id, %{"volume_id" => use.volume_id, "page_size" => 1, "page" => 2})
   end
 
+  test "says when a job started from an older saved copy", %{account: account, uses: [use | _]} do
+    use
+    |> Ecto.Changeset.change(
+      status: "discarded",
+      warm: true,
+      base_generation: 3,
+      mounted_generation: 2,
+      attached_at: DateTime.utc_now()
+    )
+    |> Repo.update!()
+
+    assert {:ok, %{jobs: [job]}} = Query.run(:jobs, account.id, %{"volume_id" => use.volume_id})
+    assert job.cache_hit
+    assert job.cache_status_description =~ "started from an older saved copy"
+
+    assert_schema(:jobs, %{
+      jobs: [job],
+      pagination_metadata: %{
+        current_page: 1,
+        page_size: 20,
+        total_count: 1,
+        total_pages: 1,
+        has_next_page: false,
+        has_previous_page: false
+      }
+    })
+  end
+
   test "analytics compares known outcomes in equal periods and preserves empty buckets", %{
     account: account,
     uses: [first, second, third]
@@ -214,5 +242,34 @@ defmodule Tuist.Runners.CacheVolumes.QueryTest do
         ] do
       assert {:error, :invalid_parameters} = Query.run(:analytics, account.id, args)
     end
+  end
+
+  test "describes checkout uses by whether the job reused the cached checkout", %{account: account} do
+    job = %{
+      account_id: account.id,
+      workflow_job_id: System.unique_integer([:positive]),
+      workflow_run_id: 654,
+      run_attempt: 1,
+      repository: "org/repo"
+    }
+
+    {:ok, checkout} =
+      CacheVolumes.allocate_for_job(job, %{repository_id: 123, trusted: true, same_repository: true}, %{
+        pod_name: "checkout",
+        pod_uid: "checkout",
+        node_name: "node",
+        key: CacheVolumes.checkout_key(),
+        architecture: "arm64",
+        uid: 501
+      })
+
+    use = Repo.get!(Usage, checkout.id)
+    use |> Ecto.Changeset.change(status: "discarded", warm: true) |> Repo.update!()
+    assert {:ok, %{jobs: [reused]}} = Query.run(:jobs, account.id, %{"volume_id" => use.volume_id})
+    assert reused.cache_status == "reused"
+
+    use |> Ecto.Changeset.change(status: "discarded", warm: false) |> Repo.update!()
+    assert {:ok, %{jobs: [cold]}} = Query.run(:jobs, account.id, %{"volume_id" => use.volume_id})
+    assert cold.cache_status == "cold"
   end
 end

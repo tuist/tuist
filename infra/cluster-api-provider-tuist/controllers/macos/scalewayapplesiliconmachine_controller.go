@@ -92,6 +92,11 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// fleet on 2026-08-18.
 	FleetConfig bootstrap.Config
 
+	// TartReleases are the Tart tarballs the operator image carries, by version.
+	// A Machine pinned to one with TartVersionAnnotation runs it instead of
+	// FleetConfig.TartVersion.
+	TartReleases map[string][]byte
+
 	// DefaultGuestCapacity is the fleet-wide fallback for a Machine
 	// that does not set `spec.guestCapacity` — how many Tart guests a
 	// host is expected to run concurrently. 1 (the operator flag
@@ -639,6 +644,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// Resolved per machine, not read from a fleet-wide field: HostCPU and
 	// HostMemoryMB are overridable per Machine, so the desired hash for an
 	// overridden host is not the fleet's. See desiredHostConfigHash.
+	reportUnavailableTartPin(machine, r.FleetConfig, r.TartReleases, r.Recorder)
 	desiredHostConfigHash := r.desiredHostConfigHash(machine)
 	configDrift := hostConfigDrift(desiredHostConfigHash, machine.Status.HostConfigHash)
 	// Once a CR enters the terminal-failed state (FailureReason set
@@ -985,13 +991,15 @@ func (r *ScalewayAppleSiliconMachineReconciler) dashboardVNCRelayHost(machineNam
 func (r *ScalewayAppleSiliconMachineReconciler) hostSizing(
 	machine *infrav1.ScalewayAppleSiliconMachine,
 ) hostSizing {
-	return hostSizing{
+	sizing := hostSizing{
 		HostCPU:              hostCPUFor(machine, r.FleetConfig.HostCPU),
 		HostMemoryMB:         hostMemoryMBFor(machine, r.FleetConfig.HostMemoryMB),
 		MaxPods:              maxPodsFor(machine, r.FleetConfig.MaxPods),
 		GuestCapacity:        guestCapacityFor(machine, r.DefaultGuestCapacity),
 		RunnerCacheVolumeGiB: runnerCacheVolumeGiBFor(machine, r.FleetConfig.RunnerCacheVolumeGiB),
 	}
+	sizing.TartVersion, sizing.TartTarball = hostTart(machine, r.FleetConfig, r.TartReleases)
+	return sizing
 }
 
 // hostConfig is the config for one Mac mini: the fleet-wide config the manager

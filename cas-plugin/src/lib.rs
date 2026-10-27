@@ -13,14 +13,18 @@
 //! With that option the build system asks every key twice: a local-only lookup
 //! (`globally = false`) on its scheduling thread, then a key query
 //! (`globally = true`) that runs alongside the rest of the build. Only the key
-//! query reaches the remote, so no lookup holds up task scheduling. A CAS
-//! created without the option reads through to the remote on every lookup.
+//! query reaches the remote, so no lookup holds up task scheduling. Inside the
+//! build service a local-only lookup stays local on every handle, including the
+//! ones the Swift driver opens from compiler flags while it plans a module,
+//! which never carry the option. A compiler frontend's CAS created without the
+//! option reads through to the remote on every lookup.
 
 pub mod analytics;
 pub mod endpoint;
 pub mod proxy;
 pub mod proxy_failure;
 pub mod proxy_proto;
+pub mod proxy_upgrade;
 pub mod prefetch;
 pub mod reapi;
 pub mod chunk_cache;
@@ -105,10 +109,48 @@ unsafe fn adopt_upstream_string(up: &Upstream, s: *mut c_char) -> *mut c_char {
     copy
 }
 
+#[track_caller]
 unsafe fn set_error(error: *mut *mut c_char, message: &str) {
+    log_client_error(message);
     if !error.is_null() {
         *error = own_string(message);
     }
+}
+
+/// Every error the plugin produces or forwards is logged first, with the call site
+/// that produced it: a client that cannot convert the error aborts, taking the
+/// message with it (see `object_lookup_failure_as_not_found`).
+#[track_caller]
+fn log_client_error(message: &str) {
+    log_line(&format!(
+        "llcas call failed ({}): {message}",
+        std::panic::Location::caller()
+    ));
+}
+
+/// A failed object load or containment check is answered as not found, with the
+/// error already logged.
+///
+/// LLVM's plugin client wraps every returned error as `inconvertibleErrorCode()`,
+/// and its CAS-backed file system converts lookup errors with `errorToErrorCode`,
+/// which aborts the process on that code. Xcode runs dependency scans inside its
+/// build service, so a failed lookup there takes down the build service and every
+/// task in flight. A not-found load reaches the same callers as an
+/// `invalid_argument` "missing object" error, and an absent object is loaded or
+/// stored again, so either fails only the task that needed the object.
+unsafe fn object_lookup_failure_as_not_found(
+    result: llcas_lookup_result_t,
+    error: *mut *mut c_char,
+) -> llcas_lookup_result_t {
+    if result != LLCAS_LOOKUP_RESULT_ERROR {
+        return result;
+    }
+    if !error.is_null() {
+        llcas_string_dispose(*error);
+        *error = std::ptr::null_mut();
+    }
+    log_line("answered the failed object lookup as not found");
+    LLCAS_LOOKUP_RESULT_NOTFOUND
 }
 
 /// Runs `body`, catching any panic so it can never unwind across an
@@ -131,14 +173,17 @@ unsafe fn ffi_guard<R>(
     })
 }
 
+#[track_caller]
 unsafe fn adopt_error(up: &Upstream, error_in: *mut c_char, error_out: *mut *mut c_char) {
+    let adopted = adopt_upstream_string(up, error_in);
+    if !adopted.is_null() {
+        log_client_error(&CStr::from_ptr(adopted).to_string_lossy());
+    }
     if error_out.is_null() {
-        if !error_in.is_null() {
-            (up.llcas_string_dispose)(error_in);
-        }
+        llcas_string_dispose(adopted);
         return;
     }
-    *error_out = adopt_upstream_string(up, error_in);
+    *error_out = adopted;
 }
 
 /// Like `adopt_error`, but for the paths that must INSPECT the failure rather than
@@ -285,6 +330,22 @@ fn upload_in_background(
     resolved(cas_dir).starts_with(resolved(std::path::Path::new(drained_store)))
 }
 
+/// Whether a local-only lookup (`globally = false`) answers a local miss without
+/// asking the remote.
+///
+/// The build system marks its own handles with `remote-service-path` and runs a
+/// key query (`globally = true`) for every local miss, so their local-only lookups
+/// never need the remote. The Swift driver runs inside the build service too and
+/// opens a handle of its own from the compiler flags, which carry only the
+/// `tuist-*` options. While it plans a module it asks that handle locally whether
+/// every explicit module dependency is already built, before the build system has
+/// materialized any of them, so reading through turned each of those questions into
+/// a serial remote round trip inside "Planning Swift module". Compiler frontends
+/// still read through: they are not the build service.
+fn local_lookups_stay_local(remote_service_path: bool, in_build_service: bool) -> bool {
+    remote_service_path || in_build_service
+}
+
 /// How long a put waits for its upload before leaving it to the proxy.
 const UPLOAD_WAIT_BUDGET: std::time::Duration = std::time::Duration::from_secs(30);
 
@@ -307,10 +368,8 @@ struct CasState {
     upload: bool,
     // See `resolve_upload_in_background`.
     upload_in_background: bool,
-    // Set when the build system passes `remote-service-path`: it then follows
-    // every local miss with a key query of its own (`globally = true`), off its
-    // scheduling thread, so a local-only lookup answers from the local store.
-    build_system_queries_remote: bool,
+    // See `local_lookups_stay_local`.
+    local_lookups_stay_local: bool,
     // (key -> value digest) associations served FROM the remote by this
     // process, so the client's end-of-job re-puts of replayed results skip
     // the publish path entirely (see actioncache_put_remote).
@@ -594,7 +653,10 @@ pub unsafe extern "C" fn llcas_cas_create(
         proxy_instance,
         upload: resolve_upload(state),
         upload_in_background,
-        build_system_queries_remote: option_value(state, "remote-service-path").is_some(),
+        local_lookups_stay_local: local_lookups_stay_local(
+            option_value(state, "remote-service-path").is_some(),
+            proxy_failure::running_in_build_service(),
+        ),
         created_at: std::time::Instant::now(),
         cas_dir,
         published: Mutex::new(std::collections::HashSet::new()),
@@ -1001,7 +1063,7 @@ pub unsafe extern "C" fn llcas_cas_contains_object(
     let mut upstream_error: *mut c_char = std::ptr::null_mut();
     let result = (state.up.llcas_cas_contains_object)(state.cas, id, globally, &mut upstream_error);
     adopt_error(state.up, upstream_error, error);
-    result
+    object_lookup_failure_as_not_found(result, error)
 }
 
 // --- Read-through: object loads -----------------------------------------------
@@ -1090,9 +1152,10 @@ pub unsafe extern "C" fn llcas_cas_load_object(
     error: *mut *mut c_char,
 ) -> llcas_lookup_result_t {
     let state = cas_state(cas);
-    ffi_guard(error, LLCAS_LOOKUP_RESULT_ERROR, "tuist-cas-plugin: panic during load", || {
+    let result = ffi_guard(error, LLCAS_LOOKUP_RESULT_ERROR, "tuist-cas-plugin: panic during load", || {
         load_object_impl(state, id, loaded, error)
-    })
+    });
+    object_lookup_failure_as_not_found(result, error)
 }
 
 #[no_mangle]
@@ -1111,7 +1174,9 @@ pub unsafe extern "C" fn llcas_cas_load_object_async(
     let result = (state.up.llcas_cas_load_object)(state.cas, id, &mut loaded, &mut probe_error);
     if result != LLCAS_LOOKUP_RESULT_NOTFOUND {
         let _ = ours_cancel_token(cancel_tok);
-        let error = adopt_upstream_string(state.up, probe_error);
+        let mut error: *mut c_char = std::ptr::null_mut();
+        adopt_error(state.up, probe_error, &mut error);
+        let result = object_lookup_failure_as_not_found(result, &mut error);
         callback(ctx_cb, result, loaded, error);
         return;
     }
@@ -1133,6 +1198,7 @@ pub unsafe extern "C" fn llcas_cas_load_object_async(
         set_error(&mut error, "tuist-cas-plugin: panic during load");
         LLCAS_LOOKUP_RESULT_ERROR
     });
+    let result = object_lookup_failure_as_not_found(result, &mut error);
     callback(ctx_cb, result, loaded, error);
 }
 
@@ -1202,7 +1268,7 @@ unsafe fn actioncache_get_impl(
     if result != LLCAS_LOOKUP_RESULT_NOTFOUND {
         return result;
     }
-    if !globally && state.build_system_queries_remote {
+    if !globally && state.local_lookups_stay_local {
         return LLCAS_LOOKUP_RESULT_NOTFOUND;
     }
 
@@ -1611,6 +1677,47 @@ mod tests {
         assert!(!is_cache_poisoned("No space left on device"));
         assert!(!is_cache_poisoned("failed to open the action cache"));
         assert!(!is_cache_poisoned("poisoned lock in the object store"));
+    }
+
+    #[test]
+    fn local_only_lookups_stay_local_in_the_build_service_and_on_build_system_handles() {
+        assert!(local_lookups_stay_local(true, true));
+        assert!(
+            local_lookups_stay_local(false, true),
+            "the Swift driver's handle in the build service has no remote-service-path"
+        );
+        assert!(local_lookups_stay_local(true, false));
+        assert!(
+            !local_lookups_stay_local(false, false),
+            "a compiler frontend without the option still reads through"
+        );
+    }
+
+    // tests/client_errors.rs drives the load paths through Apple's plugin. Its
+    // containment check answers an unknown object as not found rather than
+    // failing, so the error branch shared with `llcas_cas_contains_object` is
+    // pinned here.
+    #[test]
+    fn a_failed_object_lookup_is_answered_as_not_found_without_an_error() {
+        unsafe {
+            let mut error = own_string("unaligned file offset at 0x1");
+            assert_eq!(
+                object_lookup_failure_as_not_found(LLCAS_LOOKUP_RESULT_ERROR, &mut error),
+                LLCAS_LOOKUP_RESULT_NOTFOUND
+            );
+            assert!(error.is_null(), "a not-found answer carries no error");
+
+            assert_eq!(
+                object_lookup_failure_as_not_found(LLCAS_LOOKUP_RESULT_ERROR, std::ptr::null_mut()),
+                LLCAS_LOOKUP_RESULT_NOTFOUND
+            );
+
+            let mut untouched: *mut c_char = std::ptr::null_mut();
+            for result in [LLCAS_LOOKUP_RESULT_SUCCESS, LLCAS_LOOKUP_RESULT_NOTFOUND] {
+                assert_eq!(object_lookup_failure_as_not_found(result, &mut untouched), result);
+                assert!(untouched.is_null());
+            }
+        }
     }
 
     /// On CI only a store the runner's teardown drains may upload in the

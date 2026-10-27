@@ -14,6 +14,23 @@ defmodule TuistWeb.CargoBuildsLiveTest do
     %{conn: log_in_user(conn, user), user: user, project: project}
   end
 
+  @tag :build_environment
+  test "Rust version belongs to the collapsed build environment", %{conn: conn, user: user, project: project} do
+    id = build(project, user, custom_metadata: %{values: %{"team" => "mobile"}})
+    path = "/#{user.account.name}/#{project.name}/builds/cargo-builds/#{id}"
+    {:ok, view, _} = live(conn, path)
+
+    assert has_element?(view, "#build-environment-content[hidden]", "Rust version")
+    assert has_element?(view, "#build-environment-content", "rustc 1.97.1")
+    refute has_element?(view, "[data-part=build-details]", "Rust version")
+    assert has_element?(view, "[data-part=build-details]", "cargo build")
+    assert has_element?(view, "[data-part=build-details] #custom-metadata-table", "mobile")
+    refute has_element?(view, "[data-part=build-details] #build-environment")
+
+    render_patch(view, path <> "?tab=warnings")
+    refute has_element?(view, "#build-environment")
+  end
+
   test "splits the Xcode-style Builds home from Build Runs", %{conn: conn, user: user, project: project} do
     build(project, user, command: "check", duration_ms: 90)
     {:ok, home, _} = live(conn, "/#{user.account.name}/#{project.name}/builds")
@@ -311,6 +328,72 @@ defmodule TuistWeb.CargoBuildsLiveTest do
     render_async(view, 5000)
     assert has_element?(view, "[data-part=build-details]")
     refute has_element?(view, "#build-timeline")
+  end
+
+  test "compiler jobs use the shared table empty state when no jobs were recorded", %{
+    conn: conn,
+    user: user,
+    project: project
+  } do
+    id = build(project, user, compilations: [])
+    {:ok, view, _} = live(conn, "/#{user.account.name}/#{project.name}/builds/cargo-builds/#{id}")
+    render_async(view, 5000)
+
+    assert has_element?(view, "#cargo-compilations tbody .noora-table-empty-state", "No compiler jobs found")
+
+    assert has_element?(
+             view,
+             "#cargo-compilations .noora-table-empty-state [data-part=subtitle]",
+             "Fresh Cargo artifacts do not invoke rustc. No compiler work is inferred for them."
+           )
+
+    refute has_element?(view, "[data-part=file-breakdown-card-section] .noora-alert")
+    assert has_element?(view, "#cargo-compilations-search")
+    assert has_element?(view, "#cargo-compilations-sort")
+  end
+
+  test "compiler job searches use the shared empty state and recover when cleared", %{
+    conn: conn,
+    user: user,
+    project: project
+  } do
+    id =
+      build(project, user,
+        compilations: [
+          %{
+            name: "my-crate",
+            source: "src/lib.rs",
+            kind: "lib",
+            dependencies: [],
+            start_offset_ms: 0,
+            duration_ms: 100,
+            status: "success"
+          }
+        ]
+      )
+
+    {:ok, view, _} = live(conn, "/#{user.account.name}/#{project.name}/builds/cargo-builds/#{id}")
+    render_async(view, 5000)
+    refute has_element?(view, "#cargo-compilations .noora-table-empty-state")
+
+    view |> element("#cargo-compilations-search-form") |> render_change(%{search: "no-match"})
+    assert_patch(view)
+    render_async(view, 5000)
+    assert has_element?(view, "#cargo-compilations tbody .noora-table-empty-state", "No compiler jobs found")
+
+    assert has_element?(
+             view,
+             "#cargo-compilations .noora-table-empty-state [data-part=subtitle]",
+             "Try updating your search"
+           )
+
+    refute has_element?(view, "[data-part=file-breakdown-card-section] .noora-alert")
+
+    view |> element("#cargo-compilations-search-form") |> render_change(%{search: ""})
+    assert_patch(view)
+    render_async(view, 5000)
+    assert has_element?(view, "#cargo-compilations tbody", "my-crate")
+    refute has_element?(view, "#cargo-compilations .noora-table-empty-state")
   end
 
   test "detail uses the shared CI badge instead of duplicating an environment label", %{

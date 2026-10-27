@@ -5,6 +5,8 @@ defmodule TuistWeb.PreviewsControllerTest do
   alias Tuist.Accounts
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.Preview
+  alias Tuist.Projects
+  alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -20,6 +22,31 @@ defmodule TuistWeb.PreviewsControllerTest do
   end
 
   describe "POST /api/projects/:account_handle/:project_handle/previews/start" do
+    for build_system <- [:once, :bazel, :mix, :cargo] do
+      @build_system build_system
+      test "accepts previews from #{@build_system}", %{conn: conn, user: user, project: project, account: account} do
+        {:ok, project} = Projects.update_project(project, %{build_system: @build_system})
+        expect(Storage, :multipart_start, fn _object_key, _actor -> {:ok, "upload-id"} end)
+
+        conn =
+          conn
+          |> Authentication.put_current_user(user)
+          |> put_req_header("content-type", "application/json")
+          |> post(~p"/api/projects/#{account.name}/#{project.name}/previews/start",
+            type: "ipa",
+            display_name: "Atlas",
+            supported_platforms: ["ios"],
+            version: "0.1.0",
+            bundle_identifier: "dev.tuist.atlas"
+          )
+
+        response = json_response(conn, :ok)
+        assert response["status"] == "success"
+        assert AppBuilds.has_previews?(project)
+        assert Repo.get!(Project, project.id).build_system == @build_system
+      end
+    end
+
     test "starts multipart upload", %{conn: conn, user: user, project: project, account: account} do
       # Given
       upload_id = "upload-id"

@@ -22,12 +22,15 @@ import XCResultParser
 public enum UploadResultBundleServiceError: Equatable, LocalizedError {
     case missingFullHandle
     case bundleMissingInfoPlist(AbsolutePath)
+    case resultBundleCouldNotBeParsed
 
     public var errorDescription: String? {
         switch self {
         case .missingFullHandle:
             return
                 "The 'Tuist.swift' file is missing a fullHandle. See how to set up a Tuist project at: https://tuist.dev/en/docs/guides/server/accounts-and-projects#projects"
+        case .resultBundleCouldNotBeParsed:
+            return "The result bundle could not be parsed locally for credential-free publishing."
         case let .bundleMissingInfoPlist(path):
             return
                 "The xcresult bundle at \(path.pathString) is missing 'Info.plist' — xcodebuild did not finish populating it (the test action was likely interrupted or failed before producing results). Skipping upload."
@@ -82,6 +85,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
     private let fileSystem: FileSysteming
     private let xcresultToolController: XCResultToolControlling
     private let xcResultService: XCResultServicing
+    private let serverAuthenticationController: ServerAuthenticationControlling
 
     public init(
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
@@ -100,7 +104,8 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         analyticsArtifactUploadService: AnalyticsArtifactUploadServicing = AnalyticsArtifactUploadService(),
         fileSystem: FileSysteming = FileSystem(),
         xcresultToolController: XCResultToolControlling = XCResultToolController(),
-        xcResultService: XCResultServicing = XCResultService()
+        xcResultService: XCResultServicing = XCResultService(),
+        serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController()
     ) {
         self.machineEnvironment = machineEnvironment
         self.createTestService = createTestService
@@ -119,6 +124,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         self.fileSystem = fileSystem
         self.xcresultToolController = xcresultToolController
         self.xcResultService = xcResultService
+        self.serverAuthenticationController = serverAuthenticationController
     }
 
     public func uploadTestSummary(
@@ -137,6 +143,9 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         let gitInfoDirectory = rootDirectory ?? currentWorkingDirectory
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+        let networkPublishing = try await ServerReportPublishingMode.usesNetworkTrust(
+            serverURL: serverURL, authenticationController: serverAuthenticationController
+        )
 
         guard let fullHandle = config.fullHandle else {
             throw UploadResultBundleServiceError.missingFullHandle
@@ -161,7 +170,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         // the bundle's report through the same parser the server runs on a bundle.
         // The execution modes were recorded into the bundle after the summary was parsed.
         var testSummary = testSummary
-        if let resultBundlePath {
+        if !networkPublishing, let resultBundlePath {
             let bundle = URL(fileURLWithPath: resultBundlePath.pathString)
             testSummary = testSummary
                 .applying(executionModes: TestExecutionModes.read(fromResultBundle: bundle))
@@ -169,7 +178,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         var coverage: TestRunCoverage?
         var testRunId: String?
         var manifest: XcodeCoverageManifest?
-        if let resultBundlePath {
+        if !networkPublishing, let resultBundlePath {
             manifest = await coverageManifest(
                 resultBundlePath: resultBundlePath,
                 config: config,
@@ -201,7 +210,7 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
         let gitInfo = try await gitController.gitInfo(workingDirectory: gitInfoDirectory)
         let ciInfo = ciController.ciInfo()
         // Before the run is created: ingestion reads which commits the default branch reached.
-        let gitHistory = await gitHistoryService.publish(
+        let gitHistory = networkPublishing ? nil : await gitHistoryService.publish(
             gitInfo: gitInfo,
             workingDirectory: gitInfoDirectory,
             fullHandle: fullHandle,
@@ -212,11 +221,11 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             serverURL: serverURL,
             id: testRunId,
             testSummary: testSummary,
-            buildRunId: buildRunId,
+            buildRunId: networkPublishing ? nil : buildRunId,
             gitBranch: gitInfo.branch,
             gitCommitSHA: gitInfo.sha,
             gitRef: gitInfo.ref,
-            gitRemoteURLOrigin: gitInfo.remoteURLOrigin,
+            gitRemoteURLOrigin: networkPublishing ? nil : gitInfo.remoteURLOrigin,
             isCI: Environment.current.isCI,
             modelIdentifier: machineEnvironment.modelIdentifier(),
             macOSVersion: machineEnvironment.macOSVersion,
@@ -225,33 +234,33 @@ public struct UploadResultBundleService: UploadResultBundleServicing {
             ciProjectHandle: ciInfo?.projectHandle,
             ciHost: ciInfo?.host,
             ciProvider: ciInfo?.provider,
-            shardPlanId: shardPlanId,
-            shardIndex: shardIndex,
-            onlyTestIdentifiers: onlyTestIdentifiers,
-            skipTestIdentifiers: skipTestIdentifiers,
-            stressNewTests: stressNewTests,
+            shardPlanId: networkPublishing ? nil : shardPlanId,
+            shardIndex: networkPublishing ? nil : shardIndex,
+            onlyTestIdentifiers: networkPublishing ? [] : onlyTestIdentifiers,
+            skipTestIdentifiers: networkPublishing ? [] : skipTestIdentifiers,
+            stressNewTests: networkPublishing ? nil : stressNewTests,
             gitHistory: gitHistory?.payload,
             coverage: coverage,
             // A run collected coverage when its bundle has some Tuist uploads. Without a bundle
             // it can't be told.
-            coverageEnabled: resultBundlePath.map { _ in manifest != nil }
+            coverageEnabled: networkPublishing ? nil : resultBundlePath.map { _ in manifest != nil }
         )
-        await gitHistoryService.upload(
-            gitHistory,
-            workingDirectory: gitInfoDirectory,
-            fullHandle: fullHandle,
-            serverURL: serverURL
-        )
-
-        let testCaseRunsByIdentity = testCaseRunsByIdentity(testCaseRuns: test.test_case_runs)
-
-        await testSummary.testCases.forEach(context: .concurrent) { testCase in
-            await uploadAttachments(
-                for: testCase,
+        if !networkPublishing {
+            await gitHistoryService.upload(
+                gitHistory,
+                workingDirectory: gitInfoDirectory,
                 fullHandle: fullHandle,
-                serverURL: serverURL,
-                testCaseRunsByIdentity: testCaseRunsByIdentity
+                serverURL: serverURL
             )
+            let testCaseRunsByIdentity = testCaseRunsByIdentity(testCaseRuns: test.test_case_runs)
+            await testSummary.testCases.forEach(context: .concurrent) { testCase in
+                await uploadAttachments(
+                    for: testCase,
+                    fullHandle: fullHandle,
+                    serverURL: serverURL,
+                    testCaseRunsByIdentity: testCaseRunsByIdentity
+                )
+            }
         }
 
         await RunMetadataStorage.current.update(testRunId: test.id)
@@ -372,6 +381,18 @@ extension UploadResultBundleService {
         }
 
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+        if try await ServerReportPublishingMode.usesNetworkTrust(
+            serverURL: serverURL, authenticationController: serverAuthenticationController
+        ) {
+            guard let summary = try await xcResultService.parse(
+                path: resolvedResultBundlePath, rootDirectory: try await rootDirectory()
+            ) else { throw UploadResultBundleServiceError.resultBundleCouldNotBeParsed }
+            return try await uploadTestSummary(
+                testSummary: summary, resultBundlePath: resolvedResultBundlePath,
+                projectDerivedDataDirectory: nil, config: config,
+                onlyTestIdentifiers: onlyTestIdentifiers, skipTestIdentifiers: skipTestIdentifiers
+            )
+        }
 
         let rootDirectory = try await rootDirectory()
         let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
@@ -591,10 +612,7 @@ extension UploadResultBundleService {
             // test target skipped because nothing it depends on changed.
             let selectiveTestingSkippedTargets = await RunMetadataStorage.current.selectiveTestingCacheItems.values
                 .contains { $0.values.contains { $0.source != .miss } }
-            let skippedQuarantinedTests = await RunMetadataStorage.current.skippedQuarantinedTestIdentifiers
-            let partial = !onlyTestIdentifiers.isEmpty
-                || skipTestIdentifiers.contains { !skippedQuarantinedTests.contains($0) }
-                || selectiveTestingSkippedTargets
+            let partial = !onlyTestIdentifiers.isEmpty || !skipTestIdentifiers.isEmpty || selectiveTestingSkippedTargets
 
             return XcodeCoverageManifest(
                 rootDirectories: rootSpellings,

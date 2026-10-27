@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 object ServerUrlResolver {
-    private const val DEFAULT_URL = "https://tuist.dev"
+    internal const val DEFAULT_URL = "https://tuist.dev"
 
     fun resolve(extensionUrl: String?, projectDir: File?): String {
         val envUrl = System.getenv("TUIST_URL")

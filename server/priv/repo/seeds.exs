@@ -1811,6 +1811,7 @@ sharded_test_runs
       |> Map.drop([
         :__meta__,
         :ran_by_account,
+        :actor_account,
         :build_run,
         :gradle_build,
         :test_case_runs,

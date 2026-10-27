@@ -21,6 +21,7 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
       "type" => "object",
       "properties" => %{
         "id" => %{"type" => "string"},
+        "actor" => Tuist.MCP.Tool.report_actor_schema(),
         "duration" => %{"type" => "integer"},
         "status" => %{"type" => "string"},
         "category" => %{"type" => ["string", "null"]},
@@ -29,6 +30,14 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
         "xcode_version" => %{"type" => "string"},
         "macos_version" => %{"type" => "string"},
         "model_identifier" => %{"type" => "string"},
+        "custom_metadata" => %{
+          "type" => "object",
+          "properties" => %{
+            "tags" => %{"type" => "array", "items" => %{"type" => "string"}},
+            "values" => %{"type" => "object", "additionalProperties" => %{"type" => "string"}}
+          },
+          "required" => ["tags", "values"]
+        },
         "is_ci" => %{"type" => "boolean"},
         "git_branch" => %{"type" => "string"},
         "git_commit_sha" => %{"type" => "string"},
@@ -105,6 +114,7 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
       {:ok,
        %{
          id: build.id,
+         actor: Tuist.ReportActor.actor(build),
          duration: build.duration,
          status: to_string(build.status),
          category: if(build.category != "", do: build.category),
@@ -113,6 +123,7 @@ defmodule Tuist.MCP.Components.Tools.GetXcodeBuild do
          xcode_version: build.xcode_version,
          macos_version: build.macos_version,
          model_identifier: build.model_identifier,
+         custom_metadata: %{tags: Map.get(build, :custom_tags) || [], values: Map.get(build, :custom_values) || %{}},
          is_ci: build.is_ci,
          git_branch: build.git_branch,
          git_commit_sha: build.git_commit_sha,

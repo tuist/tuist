@@ -241,6 +241,7 @@ defmodule TuistWeb.ModuleCacheLive do
               e.ran_at >= ^start_datetime and
               e.ran_at <= ^end_datetime,
           order_by: [desc: e.ran_at],
+          select: e.id,
           limit: 40
         )
 
@@ -249,11 +250,19 @@ defmodule TuistWeb.ModuleCacheLive do
         |> scope_runs_to_environment(analytics_environment)
         |> scope_runs_to_branch(analytics_branch)
 
+      event_ids = Tuist.ClickHouseRepo.all(base_query)
+
       events =
-        base_query
+        Event
+        |> where(
+          [e],
+          e.project_id == ^project.id and e.id in ^event_ids and e.ran_at >= ^start_datetime and e.ran_at <= ^end_datetime
+        )
+        |> order_by([e], desc: e.ran_at)
         |> Tuist.ClickHouseRepo.all()
         |> Enum.map(&Event.normalize_enums/1)
 
+      events = Tuist.ReportActor.preload(events)
       user_map = CommandEvents.get_user_account_names_for_runs(events)
 
       events =

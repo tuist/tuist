@@ -8,12 +8,19 @@ use url::Url;
 
 pub(crate) enum Body<'a> {
     Get,
+    Public {
+        failure: fn(u16, &[u8]) -> crate::AuthError,
+    },
     Json(Value),
     Form(Vec<(&'a str, &'a str)>),
     Api {
         method: reqwest::Method,
         token: &'a str,
         payload: Option<Value>,
+        failure: fn(u16, &[u8]) -> crate::AuthError,
+    },
+    Attachment {
+        token: &'a str,
         failure: fn(u16, &[u8]) -> crate::AuthError,
     },
 }
@@ -29,8 +36,29 @@ impl Transport for Network {
         let client = client()?;
         let request = match body {
             Body::Get => client.get(url.clone()),
+            Body::Public { failure } => {
+                return response_using(
+                    client
+                        .get(url.clone())
+                        .header("accept", "application/json")
+                        .send(),
+                    failure,
+                );
+            }
             Body::Json(value) => client.post(url.clone()).json(&value),
             Body::Form(parameters) => client.post(url.clone()).form(&parameters),
+            Body::Attachment { token, failure } => {
+                return response_bounded(
+                    client
+                        .get(url.clone())
+                        .bearer_auth(token)
+                        .header("accept", "application/json")
+                        .header("cache-control", "no-store")
+                        .send(),
+                    failure,
+                    crate::orbit::ATTACHMENT_ENVELOPE_BYTES as u64,
+                );
+            }
             Body::Api {
                 method,
                 token,
@@ -54,7 +82,7 @@ impl Transport for Network {
     }
 }
 
-fn client() -> Result<&'static Client> {
+pub(crate) fn client() -> Result<&'static Client> {
     static CLIENT: OnceLock<Client> = OnceLock::new();
     if let Some(client) = CLIENT.get() {
         return Ok(client);
@@ -78,17 +106,24 @@ fn response_using<T: DeserializeOwned>(
     response: reqwest::Result<Response>,
     failure: fn(u16, &[u8]) -> crate::AuthError,
 ) -> Result<T> {
+    response_bounded(response, failure, 1024 * 1024)
+}
+
+fn response_bounded<T: DeserializeOwned>(
+    response: reqwest::Result<Response>,
+    failure: fn(u16, &[u8]) -> crate::AuthError,
+    limit: u64,
+) -> Result<T> {
     use std::io::Read;
-    const MAX_RESPONSE_BYTES: u64 = 1024 * 1024;
     let response = response
         .map_err(|_| error("network", "Could not connect securely to Atlas. Try again."))?;
     let status = response.status();
     let mut bytes = Vec::new();
     response
-        .take(MAX_RESPONSE_BYTES + 1)
+        .take(limit + 1)
         .read_to_end(&mut bytes)
         .map_err(|_| invalid())?;
-    if bytes.len() as u64 > MAX_RESPONSE_BYTES {
+    if bytes.len() as u64 > limit {
         return Err(invalid());
     }
     if !status.is_success() {
@@ -114,5 +149,55 @@ pub(super) fn response_failure(status: u16, bytes: &[u8]) -> crate::AuthError {
             "server",
             "Atlas could not complete the request. Try again later.",
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+
+    #[test]
+    fn only_attachment_downloads_have_a_larger_bounded_response() {
+        for (size, attachment, accepted) in [
+            (1024 * 1024, false, false),
+            (1024 * 1024, true, true),
+            (crate::orbit::ATTACHMENT_ENVELOPE_BYTES, true, false),
+        ] {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let address = listener.local_addr().unwrap();
+            let server = std::thread::spawn(move || {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut request = [0; 4096];
+                assert!(stream.read(&mut request).unwrap() > 0);
+                let payload = format!("\"{}\"", "a".repeat(size));
+                let header = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    payload.len()
+                );
+                let _ = stream.write_all(header.as_bytes());
+                let _ = stream.write_all(payload.as_bytes());
+            });
+            let body = if attachment {
+                Body::Attachment {
+                    token: "test-only",
+                    failure: response_failure,
+                }
+            } else {
+                Body::Api {
+                    method: reqwest::Method::GET,
+                    token: "test-only",
+                    payload: None,
+                    failure: response_failure,
+                }
+            };
+            let result = Network.request::<String>(
+                &Url::parse(&format!("http://{address}/bounded-response")).unwrap(),
+                body,
+            );
+            assert_eq!(result.is_ok(), accepted);
+            server.join().unwrap();
+        }
     }
 }

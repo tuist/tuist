@@ -235,7 +235,7 @@ public protocol GraphTraversing {
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
-    func librariesSwiftIncludePaths(path: AbsolutePath, name: String) -> Set<AbsolutePath>
+    func librariesSwiftIncludePaths(path: AbsolutePath, name: String) -> Set<SwiftIncludePath>
 
     /// Returns all runpath search paths of the given target
     /// Currently applied only to test targets with no host application

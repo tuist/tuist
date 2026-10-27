@@ -8,6 +8,7 @@ defmodule Tuist.Runners.CacheVolumes.Usage do
     field(:generation, :integer)
     field(:parent_id, :binary_id)
     field(:base_generation, :integer, default: 0)
+    field(:mounted_generation, :integer)
     field(:image_digest, :string)
     field(:content_digest, :string)
     field(:published_generation, :integer)
@@ -26,12 +27,14 @@ defmodule Tuist.Runners.CacheVolumes.Usage do
     field(:warm, :boolean)
     field(:size_bytes, :integer)
     field(:capacity_bytes, :integer)
+    field(:volume_bytes, :integer)
     field(:attach_ms, :integer)
+    # The images and build cache a Docker data root kept, as its job reported them.
+    field(:docker_images, :map)
     field(:last_reported_at, :utc_datetime_usec)
     field(:attached_at, :utc_datetime_usec)
     field(:finished_at, :utc_datetime_usec)
     field(:deleted_at, :utc_datetime_usec)
-    field(:superseded_at, :utc_datetime_usec)
     timestamps(type: :utc_datetime)
   end
 end

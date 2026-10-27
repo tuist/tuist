@@ -49,6 +49,42 @@ defmodule Tuist.Tests.IngestionTest do
     assert ClickHouseRepo.exists?(from(a in TestCaseRunAttachment, where: a.test_case_run_id == ^run.id))
   end
 
+  test "unsigned follow-ups notify dashboards without scheduling flaky alerts", %{attrs: attrs} do
+    owner = self()
+
+    stub(Tasks, :run_async, fn fun ->
+      send(owner, {:followups, fun})
+      {:ok, self()}
+    end)
+
+    stub(Automations, :enqueue_flaky_alert_evaluations, fn project_id, ids ->
+      send(owner, {:alerts, project_id, ids})
+      :ok
+    end)
+
+    assert {:ok, signed} = Tests.create_test(attrs)
+    assert_receive {:followups, _signed_followups}, 5_000
+
+    unsigned_attrs =
+      Map.merge(attrs, %{
+        id: UUIDv7.generate(),
+        is_ci: true,
+        account_id: 0,
+        actor_account_id: 0,
+        submission_auth: "network_trusted"
+      })
+
+    assert {:ok, unsigned} = Tests.create_test(unsigned_attrs)
+    assert hd(unsigned.test_case_runs).test_case_id == hd(signed.test_case_runs).test_case_id
+    assert hd(unsigned.test_case_runs).test_case_id
+    assert_receive {:followups, followups}, 5_000
+    followups.()
+
+    assert_receive {:test_created, %{id: id}}, 5_000
+    assert id == unsigned.id
+    refute_receive {:alerts, _, _}
+  end
+
   for schema <- [TestCase, TestCaseFailure, TestCaseRunRepetition, TestCaseRunAttachment] do
     @schema schema
     test "#{inspect(schema)} staging errors still fail ingestion", %{attrs: attrs} do

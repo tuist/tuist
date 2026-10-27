@@ -16,6 +16,7 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   def init(:build), do: :build
   def init(:automation_alert), do: :automation_alert
   def init({:account, :runners}), do: {:account, :runners}
+  def init({:account, :runners, :update}), do: {:account, :runners, :update}
   def init({:account, :account, :update}), do: {:account, :account, :update}
   def init({:project, :project, :update}), do: {:project, :project, :update}
 
@@ -32,6 +33,10 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
 
   def call(conn, {:account, category}) when category in @account_categories do
     authorize_account(conn, category)
+  end
+
+  def call(conn, {:account, :runners, :update}) do
+    authorize_account(conn, :runners, :update)
   end
 
   def call(conn, {:account, :account, action}) when action == :update do

@@ -23,7 +23,13 @@ on:
     paths:
       - infra/runner-image/**
       - .github/workflows/runner-image-release.yml
+      - .github/scripts/runner-image-staging-gate*
   workflow_dispatch:
+    inputs:
+      skip_staging:
+        description: Move runner pools to the new images without waiting for hosts to pull them (an urgent fix)
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -51,6 +57,27 @@ jobs:
         with:
           persist-credentials: false
       - run: bash infra/runner-image/tcc-report_test.sh
+      - run: bash infra/runner-image/runner-caches_test.sh
+
+  test-staging-gate:
+    name: Test the runner image staging gate
+    if: github.repository == 'tuist/tuist'
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      MISE_GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - run: bash .github/scripts/runner-image-staging-gate.test.sh
 
   plan:
     name: Plan runner image release
@@ -67,6 +94,9 @@ jobs:
       build-count: ${{ steps.plan.outputs.build-count }}
       matrix: ${{ steps.plan.outputs.matrix }}
       carry: ${{ steps.plan.outputs.carry }}
+      stacked-build-count: ${{ steps.plan.outputs.stacked-build-count }}
+      stacked-matrix: ${{ steps.plan.outputs.stacked-matrix }}
+      stacked-carry: ${{ steps.plan.outputs.stacked-carry }}
       manifest: ${{ steps.plan.outputs.manifest }}
     steps:
       - uses: actions/checkout@v4
@@ -167,10 +197,93 @@ jobs:
         if: always()
         run: tart delete tuist-runner 2>/dev/null || true
 
+  # The same runner layer as a stacked image: an overlay on the base, which
+  # rack hosts keep once in Tart's content store, so a release on an unchanged
+  # base costs them the overlay instead of the changed half of the disk. Only
+  # macOS 27 can create one, so it builds on the `macos-27` builder.
+  build-stacked:
+    name: Build stacked runner image (Xcode ${{ matrix.xcode }})
+    needs: plan
+    if: needs.plan.outputs.release == 'true' && needs.plan.outputs.stacked-build-count != '0'
+    runs-on: [self-hosted, macos, bare-metal, macos-27]
+    timeout-minutes: 150
+    strategy:
+      fail-fast: true
+      matrix: ${{ fromJSON(needs.plan.outputs.stacked-matrix) }}
+    env:
+      MISE_GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TART_REGISTRY_HOSTNAME: ghcr.io
+      TART_REGISTRY_USERNAME: tuist-bot
+      TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR (crane)
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
+
+      - name: Initialize Packer
+        working-directory: infra/runner-image
+        run: packer init -upgrade runner.pkr.hcl
+
+      - uses: ./.github/actions/reclaim-tart-disk
+
+      - uses: ./.github/actions/build-runner-image-binaries
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build profile
+        id: build
+        working-directory: infra/runner-image
+        env:
+          XCODE: ${{ matrix.xcode }}
+          BASE_IMAGE: ${{ matrix.base }}
+        run: |
+          set -euo pipefail
+          PROFILE="macos-${XCODE//./-}"
+          echo "Building stacked profile ${PROFILE} on base ${BASE_IMAGE}"
+          export PATH="$PWD/stacked-tart:$PATH"
+          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
+            -var "base_image=${BASE_IMAGE}" \
+            -var "output_image=tuist-runner" \
+            -var "stacked=true" \
+            runner.pkr.hcl
+          echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore nvram.bin if missing
+        env:
+          BASE_IMAGE: ${{ matrix.base }}
+        run: |
+          set -euo pipefail
+          BUNDLE="$HOME/.tart/vms/tuist-runner"
+          ls -la "$BUNDLE"
+          if [ ! -f "$BUNDLE/nvram.bin" ]; then
+            echo "nvram.bin missing, restoring from ${BASE_IMAGE}"
+            tart delete nvram-restore 2>/dev/null || true
+            tart clone "$BASE_IMAGE" nvram-restore
+            cp "$HOME/.tart/vms/nvram-restore/nvram.bin" "$BUNDLE/nvram.bin"
+            tart delete nvram-restore
+          fi
+
+      - name: Push profile to GHCR
+        timeout-minutes: 90
+        uses: ./.github/actions/tart-push
+        with:
+          local-name: tuist-runner
+          remote-names: |
+            ghcr.io/tuist/tuist-runner:${{ steps.build.outputs.profile }}-${{ needs.plan.outputs.version }}-stacked
+            ghcr.io/tuist/tuist-runner:${{ steps.build.outputs.profile }}-stacked
+
+      - name: Cleanup
+        if: always()
+        run: tart delete tuist-runner 2>/dev/null || true
+
   carry:
     name: Re-tag unchanged runner images
     needs: plan
-    if: needs.plan.outputs.release == 'true' && needs.plan.outputs.carry != '[]'
+    if: needs.plan.outputs.release == 'true' && (needs.plan.outputs.carry != '[]' || needs.plan.outputs.stacked-carry != '[]')
     runs-on: tuist-linux
     timeout-minutes: 10
     steps:
@@ -183,6 +296,7 @@ jobs:
       - name: Re-tag the previous release's images
         env:
           CARRY: ${{ needs.plan.outputs.carry }}
+          STACKED_CARRY: ${{ needs.plan.outputs.stacked-carry }}
           PREVIOUS: ${{ needs.plan.outputs.previous }}
           VERSION: ${{ needs.plan.outputs.version }}
         run: |
@@ -192,14 +306,19 @@ jobs:
             profile="macos-${xcode//./-}"
             oras tag "ghcr.io/tuist/tuist-runner:${profile}-${PREVIOUS}" "${profile}-${VERSION}"
           done
+          for xcode in $(jq -r '.[]' <<< "$STACKED_CARRY"); do
+            profile="macos-${xcode//./-}"
+            oras tag "ghcr.io/tuist/tuist-runner:${profile}-${PREVIOUS}-stacked" "${profile}-${VERSION}-stacked"
+          done
 
   release:
     name: Release runner image
-    needs: [plan, build, carry]
+    needs: [plan, build, build-stacked, carry]
     if: >-
       always() &&
       needs.plan.outputs.release == 'true' &&
       contains(fromJSON('["success", "skipped"]'), needs.build.result) &&
+      contains(fromJSON('["success", "skipped"]'), needs.build-stacked.result) &&
       contains(fromJSON('["success", "skipped"]'), needs.carry.result)
     runs-on: tuist-linux
     timeout-minutes: 15
@@ -222,11 +341,12 @@ jobs:
           set -euo pipefail
           missing=0
           for xcode in $(jq -r '.[]' infra/runner-image/profiles.json); do
-            image_tag="macos-${xcode//./-}-${VERSION}"
-            if ! .github/scripts/ghcr-image-published.sh tuist/tuist-runner "$image_tag"; then
-              echo "::error::ghcr.io/tuist/tuist-runner:${image_tag} is not published"
-              missing=1
-            fi
+            for image_tag in "macos-${xcode//./-}-${VERSION}" "macos-${xcode//./-}-${VERSION}-stacked"; do
+              if ! .github/scripts/ghcr-image-published.sh tuist/tuist-runner "$image_tag"; then
+                echo "::error::ghcr.io/tuist/tuist-runner:${image_tag} is not published"
+                missing=1
+              fi
+            done
           done
           exit "$missing"
 
@@ -244,7 +364,7 @@ jobs:
             echo "body<<EOF"
             echo "Active runner image tags:"
             jq -r --arg v "$VERSION" --argjson built "$(jq '[.include[].xcode]' <<< "$MATRIX")" \
-              '.[] | "- `ghcr.io/tuist/tuist-runner:macos-\(.xcode | gsub("\\."; "-"))-\($v)` (\(if (.xcode | IN($built[])) then "rebuilt" else "unchanged" end) on `\(.base_digest)`)"' \
+              '.[] | "- `ghcr.io/tuist/tuist-runner:macos-\(.xcode | gsub("\\."; "-"))-\($v)` and `-stacked` (\(if (.xcode | IN($built[])) then "rebuilt" else "unchanged" end) on `\(.base_digest)`)"' \
               build-manifest.json
             echo
             git cliff --include-path "infra/runner-image/**/*" --config infra/runner-image/cliff.toml --repository "." 2>/dev/null -- "${LATEST_VERSION}..HEAD" \
@@ -262,12 +382,129 @@ jobs:
           tag_name: runner-image@${{ needs.plan.outputs.version }}
           files: build-manifest.json
           body: ${{ steps.notes.outputs.body }}
+          # The workflow token cannot tag a commit whose workflow files differ
+          # from main's, which a release that outlasts later merges hits. The
+          # action reads only this input, not GITHUB_TOKEN from env.
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+
+  # Names this release's images to each cluster's macOS hosts, which pull the
+  # next image of each pool they serve in the background
+  # (infra/tart-kubelet/AGENTS.md), and waits until they hold it before the
+  # deploy below is dispatched. Deploys hold each pool on its current image
+  # until then (.github/scripts/runner-image-staging-gate.sh), so the first job
+  # of a new image on a host does not wait 6 to 7 minutes for the pull. Both
+  # give up an hour after the announcement, and `skip_staging` moves the pools
+  # at once. A failure here dispatches the deploy, which moves the pools.
+  announce:
+    name: Announce upcoming runner images (${{ matrix.environment }})
+    needs: [plan, release]
+    if: always() && needs.release.result == 'success'
+    runs-on: tuist-linux
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [canary, production]
+    environment:
+      name: server-k8s-${{ matrix.environment }}
+    env:
+      KUBECONFIG: ${{ github.workspace }}/.kube/config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked kubectl jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - uses: 1password/install-cli-action@v4
+        with:
+          version: 2.31.1
+      - name: Load kubeconfig from 1Password
         env:
-          GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          mkdir -p "$(dirname "$KUBECONFIG")"
+          op document get "kubeconfig: tuist-${{ matrix.environment }}" \
+            --vault "tuist-k8s-${{ matrix.environment }}" --output "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+      - name: Write the upcoming runner images ConfigMap
+        id: announce
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          STAGING: ${{ inputs.skip_staging && 'skip' || 'wait' }}
+        # Keys are `<xcode>.<variant>`, as tart-kubelet looks them up from a
+        # RunnerPool's `tuist.dev/xcode-version` and
+        # `tuist.dev/runner-image-variant` labels; values are the image by the
+        # digest the deploy will resolve for the same tag.
+        run: |
+          set -euo pipefail
+          namespace="$(kubectl get runnerpools.tuist.dev -A -l tuist.dev/runner-image-variant \
+            -o jsonpath='{range .items[*]}{.metadata.namespace}{"\n"}{end}' | head -n1)"
+          if [ -z "$namespace" ]; then
+            echo "No RunnerPool follows the runner image catalog in ${{ matrix.environment }}."
+            exit 0
+          fi
+          args=()
+          digests='{}'
+          stacked_digests='{}'
+          for xcode in $(jq -r '.[]' infra/runner-image/profiles.json); do
+            tag="macos-${xcode//./-}-${VERSION}"
+            standalone="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-runner "$tag")"
+            stacked="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-runner "${tag}-stacked")"
+            args+=(--from-literal "${xcode}.standalone=ghcr.io/tuist/tuist-runner@${standalone}")
+            args+=(--from-literal "${xcode}.stacked=ghcr.io/tuist/tuist-runner@${stacked}")
+            digests="$(jq -c --arg xcode "$xcode" --arg digest "$standalone" '. + {($xcode): $digest}' <<< "$digests")"
+            stacked_digests="$(jq -c --arg xcode "$xcode" --arg digest "$stacked" '. + {($xcode): $digest}' <<< "$stacked_digests")"
+          done
+          kubectl create configmap tuist-upcoming-runner-images --namespace "$namespace" "${args[@]}" \
+            --dry-run=client -o yaml |
+            kubectl label --local -f - tuist.dev/upcoming-runner-images=true -o yaml |
+            kubectl annotate --local -f - \
+              "tuist.dev/runner-image-release=${VERSION}" \
+              "tuist.dev/runner-image-announced-at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              "tuist.dev/runner-image-staging=${STAGING}" -o yaml |
+            kubectl apply --server-side --field-manager=runner-image-release --force-conflicts -f -
+          {
+            echo "digests=$digests"
+            echo "stacked-digests=$stacked_digests"
+          } >> "$GITHUB_OUTPUT"
+      - name: Wait for the hosts to stage the images
+        if: steps.announce.outputs.digests != ''
+        env:
+          DIGESTS: ${{ steps.announce.outputs.digests }}
+          STACKED_DIGESTS: ${{ steps.announce.outputs.stacked-digests }}
+        # The gate a deploy runs: it returns the release's digests once every
+        # host serving a pool holds the pool's new image, the hour since the
+        # announcement has passed, or the release skips staging.
+        run: |
+          set -euo pipefail
+          want="$(jq -cn --argjson digests "$DIGESTS" --argjson stacked "$STACKED_DIGESTS" '{digests: $digests, stacked: $stacked}')"
+          deadline=$(( $(date -u +%s) + 3660 ))
+          while :; do
+            if ! gated="$(.github/scripts/runner-image-staging-gate.sh "$DIGESTS" "$STACKED_DIGESTS")"; then
+              echo "::warning::Could not check which runner images the hosts have staged; deploying."
+              exit 0
+            fi
+            if [ "$gated" = "$want" ]; then
+              echo "The hosts serving every pool hold its new image."
+              exit 0
+            fi
+            if [ "$(date -u +%s)" -ge "$deadline" ]; then
+              echo "::warning::Hosts are still staging runner images after an hour; deploying."
+              exit 0
+            fi
+            sleep 60
+          done
 
   deploy:
     name: Deploy runner image
-    needs: release
+    needs: [release, announce]
+    # The implicit success() also requires release's own skipped needs (the
+    # re-tag job) to have succeeded, which would skip every deploy of a
+    # release that rebuilt all profiles. It waits for `announce`, which waits
+    # for the hosts to stage the images, and runs even if that failed: the
+    # deploy then moves the pools.
+    if: always() && needs.release.result == 'success'
     runs-on: tuist-linux
     timeout-minutes: 5
     permissions:

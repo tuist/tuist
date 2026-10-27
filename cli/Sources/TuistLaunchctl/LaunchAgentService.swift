@@ -70,6 +70,7 @@ public protocol LaunchAgentServicing {
 
 public struct LaunchAgentService: LaunchAgentServicing {
     private let fileSystem: FileSysteming
+    private let executablePath: AbsolutePath?
     private let launchctlController: LaunchctlControlling
     private let bootoutTimeout: Duration
     private let bootoutElapsed: @Sendable () -> Duration
@@ -78,12 +79,14 @@ public struct LaunchAgentService: LaunchAgentServicing {
 
     public init(
         fileSystem: FileSysteming = FileSystem(),
+        executablePath: AbsolutePath? = nil,
         launchctlController: LaunchctlControlling = LaunchctlController(),
         bootoutTimeout: Duration = .seconds(3),
         processLaunchDate: @escaping @Sendable (Int32) -> Date? = { LaunchAgentService.launchDate(ofProcess: $0) },
         clock: some Clock<Duration> = ContinuousClock()
     ) {
         self.fileSystem = fileSystem
+        self.executablePath = executablePath
         self.launchctlController = launchctlController
         self.bootoutTimeout = bootoutTimeout
         let start = clock.now
@@ -313,7 +316,7 @@ public struct LaunchAgentService: LaunchAgentServicing {
     }
 
     private func determineTuistBinaryPath() async throws -> AbsolutePath {
-        guard let currentPath = Environment.current.currentExecutablePath() else {
+        guard let currentPath = executablePath ?? Environment.current.currentExecutablePath() else {
             throw LaunchAgentServiceError.missingExecutablePath
         }
 

@@ -797,11 +797,13 @@ defmodule Tuist.Runners.Buildkite do
     _ -> false
   end
 
-  # Buildkite reports the fork's remote in whatever form the build was
-  # created with, so the same repository can arrive as an SSH remote in
-  # one field and an HTTPS one in the other. Compare on the host and path
-  # rather than the string.
-  defp same_repository?(left, right) do
+  @doc """
+  Whether two Git remotes name the same repository. Buildkite reports a pull
+  request's remote in whatever form the build was created with, so the same
+  repository can arrive as an SSH remote in one field and an HTTPS one in the
+  other. Compares the host and path rather than the string.
+  """
+  def same_repository?(left, right) do
     normalize_remote(left) == normalize_remote(right)
   end
 

@@ -320,6 +320,37 @@ struct CoverageExportServiceTests {
         #expect(targets.map(\.isTest) == [false, true, false, false, false])
     }
 
+    @Test(.inTemporaryDirectory) func findsTheProductsInsideATestProductsBundle() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let testProducts = directory.appending(component: "Lab.xctestproducts")
+        let products = testProducts.appending(components: "Binaries", "0", "Debug")
+        let testBundle = products.appending(component: "CoreTests.xctest")
+        try FileManager.default.createDirectory(
+            atPath: testBundle.appending(components: "Contents", "MacOS").pathString, withIntermediateDirectories: true
+        )
+        try Data("<plist version=\"1.0\"><dict><key>CFBundleExecutable</key><string>CoreTests</string></dict></plist>".utf8)
+            .write(to: URL(fileURLWithPath: testBundle.appending(components: "Contents", "Info.plist").pathString))
+        try Data([0xCF, 0xFA, 0xED, 0xFE])
+            .write(to: URL(fileURLWithPath: testBundle.appending(components: "Contents", "MacOS", "CoreTests").pathString))
+        let sources = CoverageBuildSources(
+            rootDirectories: ["/repo"],
+            files: [:],
+            targets: [CoverageBuildTarget(name: "CoreTests.xctest", isTest: true, files: ["Tests/CoreTests.swift"])]
+        )
+
+        let targets = CoverageExportService.targets(
+            sources,
+            productRoots: CoverageExportService.productRoots(
+                derivedDataDirectory: directory.appending(component: "DerivedData"),
+                testProductsPath: testProducts
+            )
+        )
+
+        #expect(targets.map(\.buildProductPath) == [
+            testBundle.appending(components: "Contents", "MacOS", "CoreTests").pathString,
+        ])
+    }
+
     @Test(.inTemporaryDirectory) func readsTheDebugDylibAndTheHostedTestBundle() throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let products = directory.appending(components: "Build", "Products", "Debug")
@@ -413,6 +444,35 @@ struct CoverageExportServiceTests {
         #expect(CompilationPrefixMaps.targetName(ofProduct: "/p/AppTests.xctest/AppTests") == "AppTests")
     }
 
+    @Test(.inTemporaryDirectory) func mapsAliasesThroughTheMapsTheTestProductsCarry() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let targetDirectory = directory.appending(
+            components: "Build",
+            "Intermediates.noindex",
+            "App.build",
+            "Debug",
+            "Local.build"
+        )
+        try FileManager.default.createDirectory(atPath: targetDirectory.pathString, withIntermediateDirectories: true)
+        try JSONEncoder().encode(["/^src": "/test-job/Local"])
+            .write(to: URL(fileURLWithPath: targetDirectory.appending(component: "compilation-prefix-map.json").pathString))
+        let buildSources = CoverageBuildSources(
+            rootDirectories: ["/build-job"],
+            files: [:],
+            prefixMaps: ["Lib": ["/^src": "/build-job/Lib"], "Local": ["/^src": "/build-job/Local"]]
+        )
+
+        // A test job's derived data has no intermediates: the maps come from the test products.
+        let withoutIntermediates = CompilationPrefixMaps(derivedDataDirectory: nil, buildSources: buildSources)
+        #expect(withoutIntermediates.remap("/^src/A.swift", target: "Lib") == "/build-job/Lib/A.swift")
+
+        // The derived data's map wins for a target it has one for; the test products' maps cover
+        // the rest.
+        let maps = CompilationPrefixMaps(derivedDataDirectory: directory, buildSources: buildSources)
+        #expect(maps.remap("/^src/A.swift", target: "Local") == "/test-job/Local/A.swift")
+        #expect(maps.remap("/^src/A.swift", target: "Lib") == "/build-job/Lib/A.swift")
+    }
+
     @Test(.inTemporaryDirectory) func writesMappedFilesUnderThePathTheyMapBackTo() async throws {
         let report = try write(
             "SF:/^src/Lib/A.swift\nDA:1,1\nend_of_record\nSF:/^src/Lib/A.swift\nDA:1,1\nend_of_record\n",
@@ -435,6 +495,186 @@ struct CoverageExportServiceTests {
         let files = try XcodeCoverageParser.readFiles(at: output)
         #expect(files.map(\.path) == ["/checkout/Lib/A.swift"])
         #expect(files[0].targets == ["Lib.framework"])
+    }
+
+    @Test(.inTemporaryDirectory) func listsOnlyTheFilesRecordedUnderAnAlias() throws {
+        let report = try write(
+            "SF:/^src/Lib/A.swift\nDA:1,1\nend_of_record\nSF:/checkout/Lib/B.swift\nDA:1,1\nend_of_record\n" +
+                "SF:/^root/Lib/C.m\nDA:1,0\nend_of_record\n"
+        )
+
+        #expect(try CoverageExport.aliasedPaths(in: report) == ["/^src/Lib/A.swift", "/^root/Lib/C.m"])
+    }
+
+    @Test func givesEachReportedTargetTheMappedFilesItsProductHolds() {
+        // Under Xcode's prefix mapping the report lists every target without files.
+        let targets = [
+            XcodeCoverageTarget(name: "App.app", buildProductPath: "/p/App.app/Contents/MacOS/App", files: []),
+            XcodeCoverageTarget(name: "libCore.a", buildProductPath: "/p/libCore.a", files: []),
+            XcodeCoverageTarget(name: "Lib.framework", buildProductPath: "/p/Lib.framework/Versions/A/Lib", files: []),
+            XcodeCoverageTarget(name: "Other.framework", buildProductPath: "/p/Other.framework/Versions/A/Other", files: []),
+            XcodeCoverageTarget(
+                name: "LibTests.xctest",
+                buildProductPath: "/p/LibTests.xctest/Contents/MacOS/LibTests",
+                files: []
+            ),
+            XcodeCoverageTarget(name: "Uninstrumented.framework", buildProductPath: nil, files: []),
+        ]
+        let mappedFiles = [
+            // The app links the static library, so its image holds the library's code too.
+            "/p/App.app/Contents/MacOS/App": ["/c/App/App.swift", "/c/Core/Core.swift"],
+            "/p/libCore.a": ["/c/Core/Core.swift"],
+            // A file both frameworks compile stays with both.
+            "/p/Lib.framework/Versions/A/Lib": ["/c/Lib/A.swift", "/c/Shared/S.swift"],
+            "/p/Other.framework/Versions/A/Other": ["/c/Other/O.swift", "/c/Shared/S.swift"],
+            "/p/LibTests.xctest/Contents/MacOS/LibTests": ["/c/LibTests/ATests.swift"],
+        ]
+
+        let filled = CoverageExportService.targets(targets, addingMappedFiles: mappedFiles)
+
+        #expect(filled.map(\.files) == [
+            ["/c/App/App.swift"],
+            ["/c/Core/Core.swift"],
+            ["/c/Lib/A.swift", "/c/Shared/S.swift"],
+            ["/c/Other/O.swift", "/c/Shared/S.swift"],
+            ["/c/LibTests/ATests.swift"],
+            [],
+        ])
+        #expect(filled.map(\.isTest) == targets.map(\.isTest))
+    }
+
+    @Test(.inTemporaryDirectory) func readsEachProductsMappedFilesThroughItsTargetsMap() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let products = [
+            CoverageExportService.Product(path: "/p/Lib.framework/Versions/A/Lib", kind: .image),
+            CoverageExportService.Product(path: "/p/LibTests.xctest/Contents/MacOS/LibTests", kind: .image),
+        ]
+        let reports = [
+            products[0].path: try write("SF:/^src/Sources/A.swift\nDA:1,1\nend_of_record\n", named: "0.lcov"),
+            products[1].path: try write(
+                "SF:/^src/Tests/ATests.swift\nDA:1,1\nend_of_record\nSF:/elsewhere/B.swift\nDA:1,1\nend_of_record\n",
+                named: "1.lcov"
+            ),
+        ]
+        let prefixMaps = CompilationPrefixMaps(mapsByTarget: [
+            "Lib": ["/^src": "/checkout/Lib"],
+            "LibTests": ["/^src": "/checkout/Lib"],
+        ])
+
+        #expect(try CoverageExportService.mappedFiles(of: products, reports: reports, prefixMaps: prefixMaps) == [
+            products[0].path: ["/checkout/Lib/Sources/A.swift"],
+            products[1].path: ["/checkout/Lib/Tests/ATests.swift"],
+        ])
+        // A run without prefix maps recorded no alias: its reports are not read again.
+        try FileManager.default.removeItem(atPath: directory.appending(component: "0.lcov").pathString)
+        #expect(try CoverageExportService.mappedFiles(
+            of: products,
+            reports: reports,
+            prefixMaps: CompilationPrefixMaps(mapsByTarget: [:])
+        ) == [:])
+    }
+
+    @Test(.inTemporaryDirectory) func findsTheMappedFilesOfAProductReportedThroughALink() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let binary = directory.appending(components: "Lib.framework", "Versions", "A", "Lib")
+        try FileManager.default.createDirectory(atPath: binary.parentDirectory.pathString, withIntermediateDirectories: true)
+        try Data().write(to: URL(fileURLWithPath: binary.pathString))
+        let link = directory.appending(components: "Lib.framework", "Lib")
+        try FileManager.default.createSymbolicLink(atPath: link.pathString, withDestinationPath: "Versions/A/Lib")
+        let targets = [XcodeCoverageTarget(name: "Lib.framework", buildProductPath: link.pathString, files: [])]
+
+        let filled = CoverageExportService.targets(targets, addingMappedFiles: [binary.pathString: ["/checkout/A.swift"]])
+
+        #expect(filled.map(\.files) == [["/checkout/A.swift"]])
+    }
+
+    @Test func leavesTheReportsTargetsAsTheyAreWithoutMappedFiles() {
+        let targets = [
+            XcodeCoverageTarget(
+                name: "Lib.framework",
+                buildProductPath: "/p/Lib.framework/Versions/A/Lib",
+                files: ["/c/Lib/A.swift"]
+            ),
+            XcodeCoverageTarget(
+                name: "LibTests.xctest",
+                buildProductPath: "/p/LibTests.xctest/Contents/MacOS/LibTests",
+                files: []
+            ),
+        ]
+
+        #expect(CoverageExportService.targets(targets, addingMappedFiles: [:]) == targets)
+        #expect(CoverageExportService.targets(targets, addingMappedFiles: ["/p/Lib.framework/Versions/A/Lib": []]) == targets)
+    }
+
+    @Test(.inTemporaryDirectory) func attributesAMappedBuildAsAnUnmappedOne() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let lib = "/p/Lib.framework/Versions/A/Lib"
+        let tests = "/p/LibTests.xctest/Contents/MacOS/LibTests"
+        func report(_ root: String, named name: String) throws -> AbsolutePath {
+            try write(
+                "SF:\(root)/Lib/Sources/Greeter.swift\nDA:1,1\nDA:2,0\nend_of_record\n" +
+                    "SF:\(root)/Lib/Sources/Counter.m\nDA:1,1\nend_of_record\n",
+                named: name
+            )
+        }
+        func testsReport(_ root: String, named name: String) throws -> AbsolutePath {
+            try write("SF:\(root)/Lib/Tests/GreeterTests.swift\nDA:1,1\nend_of_record\n", named: name)
+        }
+        func exported(
+            targets: [XcodeCoverageTarget],
+            reports: [AbsolutePath],
+            remap: @escaping (String) -> String,
+            named name: String
+        ) async throws -> [XcodeCoverageFile] {
+            var mappedFiles: [String: [String]] = [:]
+            for (product, report) in zip([lib, tests], reports) {
+                mappedFiles[product] = try CoverageExport.aliasedPaths(in: report).map(remap)
+            }
+            let output = directory.appending(component: name)
+            try await CoverageExport.write(
+                reports: reports,
+                attribution: CoverageExport.Attribution(
+                    targets: CoverageExportService.targets(targets, addingMappedFiles: mappedFiles)
+                ),
+                spans: FunctionSpans(),
+                demangle: { _ in [:] },
+                remap: { path, _ in remap(path) },
+                to: output
+            )
+            return try XcodeCoverageParser.readFiles(at: output)
+        }
+
+        let unmapped = try await exported(
+            targets: [
+                XcodeCoverageTarget(
+                    name: "Lib.framework",
+                    buildProductPath: lib,
+                    files: ["/checkout/Lib/Sources/Greeter.swift", "/checkout/Lib/Sources/Counter.m"]
+                ),
+                XcodeCoverageTarget(
+                    name: "LibTests.xctest",
+                    buildProductPath: tests,
+                    files: ["/checkout/Lib/Tests/GreeterTests.swift"]
+                ),
+            ],
+            reports: [try report("/checkout", named: "0.lcov"), try testsReport("/checkout", named: "1.lcov")],
+            remap: { $0 },
+            named: "unmapped.ndjson"
+        )
+        // xccov drops every file recorded under the alias.
+        let mapped = try await exported(
+            targets: [
+                XcodeCoverageTarget(name: "Lib.framework", buildProductPath: lib, files: []),
+                XcodeCoverageTarget(name: "LibTests.xctest", buildProductPath: tests, files: []),
+            ],
+            reports: [try report("/^src", named: "2.lcov"), try testsReport("/^src", named: "3.lcov")],
+            remap: { $0.replacingOccurrences(of: "/^src", with: "/checkout") },
+            named: "mapped.ndjson"
+        )
+
+        #expect(mapped == unmapped)
+        #expect(mapped.map(\.targets) == [["Lib.framework"], ["Lib.framework"], ["LibTests.xctest"]])
+        #expect(mapped.map(\.isTest) == [false, false, true])
     }
 
     @Test(.inTemporaryDirectory) func readsTheArchitectureOffAThinImageAndKeepsOnlyThisRunsProfile() throws {

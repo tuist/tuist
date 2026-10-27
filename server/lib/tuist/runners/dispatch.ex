@@ -274,13 +274,18 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
+  @doc """
+  Records that GitHub placed `executed_workflow_job_id` on `runner_name`
+  within `account_id`, as reported by a `workflow_job.in_progress` webhook or
+  read back from GitHub's API. Safe to repeat for the same pair.
+  """
   # Binds the runner→job proof onto the live claim (drives metrics
   # attribution while the job runs) and the durable session (the
   # backstop that outlives the pod). The claim and session agree in
   # the common case; when they disagree — or when only one is still
   # present — we surface `:mismatch` so it's never silently the
   # weaker `:matched`.
-  defp record_execution(runner_name, executed_workflow_job_id, account_id) do
+  def record_execution(runner_name, executed_workflow_job_id, account_id) do
     claim_outcome = Claims.record_execution(runner_name, executed_workflow_job_id, account_id)
     session_outcome = RunnerSessions.record_execution(runner_name, executed_workflow_job_id, account_id)
     :ok = WorkflowJobs.record_execution(runner_name, executed_workflow_job_id, account_id)
@@ -288,6 +293,8 @@ defmodule Tuist.Runners.Dispatch do
     claim_outcome
     |> displaced_requeued_jobs()
     |> report_displaced_requeues(runner_name)
+
+    report_displaced_hand_over(claim_outcome, runner_name)
 
     outcome = combine_attribution(claim_attribution(claim_outcome), session_outcome)
 
@@ -342,6 +349,22 @@ defmodule Tuist.Runners.Dispatch do
       )
     end)
   end
+
+  defp report_displaced_hand_over({:mismatch, %{workflow_job_id: workflow_job_id, handed_to: pod_name}}, runner_name) do
+    Logger.info("runners: handed job displaced by the runner shuffle to an idle claim",
+      runner_name: runner_name,
+      workflow_job_id: workflow_job_id,
+      pod: pod_name
+    )
+
+    :telemetry.execute(
+      Telemetry.event_name_recovery(),
+      %{count: 1},
+      %{kind: "displaced_job_handed_over"}
+    )
+  end
+
+  defp report_displaced_hand_over(_claim_outcome, _runner_name), do: :ok
 
   # A real `:matched`/`:mismatch` from either store beats
   # `:unknown_runner`; a `:mismatch` anywhere wins over `:matched`
@@ -611,9 +634,12 @@ defmodule Tuist.Runners.Dispatch do
        `<prefix>macos` (`tuist-linux` / `tuist-macos` on production,
        env-prefixed elsewhere) resolve here too — no separate legacy
        alias path needed. An account on the `runner_site` flag gets the
-       same Xcode and shape racked at a site when one is
-       (`Catalog.site_pool_name/1`) and the site can serve it
-       (`Sites.available?/1`).
+       rack pool for the same Xcode and shape when the rack runs one
+       (`Catalog.site_pool_name/1`) and the rack can serve it
+       (`Sites.available?/1`), or always when the env rents no macOS fleet
+       (`Environment.runners_rented_macos_fleet?/0`). The rack pool spans
+       every site whose runners are on, so the job names no site: the
+       Node of the runner that claims it decides (`Sites.claim_site/2`).
     2. **Legacy pool match** — `spec.dispatchLabel` matched against a
        Helm-rendered `RunnerPool`. Backstop for any out-of-rotation
        pool the operator manually renders via `runnersFleet.pools[]`
@@ -622,7 +648,7 @@ defmodule Tuist.Runners.Dispatch do
   """
   def resolve_dispatch_target(account, requested_labels) when is_list(requested_labels) do
     with {:error, :no_matching_profile} <- resolve_profile(account, requested_labels) do
-      resolve_legacy_pool(requested_labels)
+      resolve_legacy_pool(account, requested_labels)
     end
   end
 
@@ -643,19 +669,23 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  # An account on the `runner_site` flag runs at a site whenever one racks the
-  # profile's pool and can serve it, and on the rented fleet otherwise.
+  defp profile_pool_name(_account, %{platform: :linux} = profile), do: Catalog.pool_name(profile)
+
+  # An account on the `runner_site` flag runs on the rack whenever it runs the
+  # profile's pool and can serve it, and on the rented fleet otherwise. In an
+  # env that rents no macOS fleet the rack is the only home, so its jobs wait
+  # for it while every site is down.
   defp profile_pool_name(account, profile) do
     with true <- FeatureFlags.runner_site_enabled?(account),
          site_pool when is_binary(site_pool) <- Catalog.site_pool_name(profile),
-         true <- Sites.available?(site_pool) do
+         true <- not Environment.runners_rented_macos_fleet?() or Sites.available?(site_pool) do
       site_pool
     else
       _ -> Catalog.pool_name(profile)
     end
   end
 
-  defp resolve_legacy_pool(requested_labels) do
+  defp resolve_legacy_pool(_account, requested_labels) do
     case match_pool(requested_labels) do
       {:ok, %{name: name, dispatch_label: label} = pool} ->
         {:ok,
@@ -681,7 +711,7 @@ defmodule Tuist.Runners.Dispatch do
   chart is misconfigured — `runnersFleet.enabled` true with no
   pools rendered).
 
-  Exposed so `Tuist.Runners.dispatch_for_sa/2` can resolve the
+  Exposed so `Tuist.Runners.dispatch_for_sa/3` can resolve the
   Pod's dispatch label at JIT-mint time (the SA's pool label
   gives the pool name; this function maps name → label).
   """
@@ -694,6 +724,7 @@ defmodule Tuist.Runners.Dispatch do
 
       {:ok, items} ->
         items
+        |> Enum.reject(&(get_in(&1, ["metadata", "labels", "tuist.dev/network-cohort"]) == "vrack"))
         |> Enum.map(&pool_summary/1)
         |> Enum.reject(&is_nil/1)
         |> Enum.filter(fn %{dispatch_label: label} ->
@@ -870,7 +901,7 @@ defmodule Tuist.Runners.Dispatch do
   """
   def cache_name, do: :tuist
 
-  defp pool_summary(%{"metadata" => %{"name" => name}, "spec" => %{"dispatchLabel" => label} = spec})
+  defp pool_summary(%{"metadata" => %{"name" => name} = metadata, "spec" => %{"dispatchLabel" => label} = spec})
        when is_binary(name) and is_binary(label) and label != "" do
     platform = extract_pool_platform(spec)
     default_shape = Catalog.default_shape(platform) || %{vcpus: 1, memory_gb: 1}
@@ -881,11 +912,20 @@ defmodule Tuist.Runners.Dispatch do
       runner_labels: extract_runner_labels(spec),
       platform: platform,
       vcpus: extract_pool_vcpus(spec, default_shape.vcpus),
-      memory_gb: extract_pool_memory_gb(spec, default_shape.memory_gb)
+      memory_gb: extract_pool_memory_gb(spec, default_shape.memory_gb),
+      xcode_version: extract_pool_xcode_version(metadata)
     }
   end
 
   defp pool_summary(_), do: nil
+
+  # The chart labels every pool that runs a catalog Xcode image with that
+  # Xcode's catalog version (`27.0`, `27.2-beta`). Pools on a hand-picked
+  # image have no label and answer `nil`.
+  defp extract_pool_xcode_version(%{"labels" => %{"tuist.dev/xcode-version" => version}})
+       when is_binary(version) and version != "", do: version
+
+  defp extract_pool_xcode_version(_metadata), do: nil
 
   # `runnerLabels` is required on every RunnerPool CR (the chart
   # renders it from `pools[].runnerLabels`, defaulting per-OS in

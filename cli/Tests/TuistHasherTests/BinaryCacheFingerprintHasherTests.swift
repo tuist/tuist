@@ -62,7 +62,7 @@ struct BinaryCacheFingerprintHasherTests {
             )
         }
         let result = try await BinaryCacheFingerprintHasher(contentHasher: cached).fingerprints(
-            graph: graph, targets: [graphTarget], additionalStrings: ["Debug"], targetHashes: exactHashes
+            graph: graph, targets: [graphTarget], additionalStrings: { _ in ["Debug"] }, targetHashes: exactHashes
         )
         #expect(result[graphTarget]?.count == 3)
         #expect(await counting.reads[source] == 1)
@@ -161,7 +161,7 @@ struct BinaryCacheFingerprintHasherTests {
         let result = try await BinaryCacheFingerprintHasher().fingerprints(
             graph: graph,
             targets: targets,
-            additionalStrings: ["Debug", "test-toolchain", "7"]
+            additionalStrings: { _ in ["Debug", "test-toolchain", "7"] }
         )
         return Dictionary(uniqueKeysWithValues: result.map { ($0.key.target.name, $0.value) })
     }

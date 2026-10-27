@@ -259,6 +259,46 @@ impl TuistBackend {
         .await
     }
 
+    pub async fn network_build_event_access(
+        &self,
+        account_handle: &str,
+        project_handle: &str,
+    ) -> Result<Response, String> {
+        let mut url = reqwest::Url::parse(&self.base_url).map_err(|error| error.to_string())?;
+        let host = url
+            .host_str()
+            .unwrap_or_default()
+            .trim_end_matches('.')
+            .to_ascii_lowercase();
+        if matches!(
+            host.as_str(),
+            "tuist.dev" | "tuist.io" | "cloud.tuist.io" | "cloud.tuist.dev"
+        ) || host.ends_with(".tuist.dev")
+            || host.ends_with(".tuist.io")
+        {
+            return Err("network-trusted reporting requires a self-hosted control plane".into());
+        }
+        url.path_segments_mut()
+            .map_err(|()| "invalid control-plane URL".to_owned())?
+            .clear()
+            .extend([
+                "api",
+                "projects",
+                account_handle,
+                project_handle,
+                "bazel",
+                "publishing",
+            ]);
+        self.request(
+            Method::POST,
+            url.path(),
+            "bazel_network_publishing",
+            &[],
+            Some(json!({})),
+        )
+        .await
+    }
+
     async fn request(
         &self,
         method: Method,

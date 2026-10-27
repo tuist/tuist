@@ -672,7 +672,14 @@
     flex-direction: column;
   }
 
-  & [data-part="load-older"] {
+  & [data-part="step-logs-loading"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+  }
+
+  & [data-part="load-older"],
+  & [data-part="step-logs-load-earlier"] {
     align-self: center;
     cursor: pointer;
     margin-bottom: var(--noora-spacing-3);
@@ -721,6 +728,37 @@
       line-height: inherit;
       white-space: pre-wrap;
       word-break: break-word;
+
+      & .log-annotation-label {
+        font-weight: var(--noora-font-weight-bold);
+      }
+    }
+
+    /* `##[error]` / `##[warning]` / `##[notice]` lines: a tinted row
+       with a coloured "Error:" / "Warning:" / "Notice:" label, as in
+       GitHub's log view. */
+    &[data-annotation="error"] {
+      background: var(--noora-badge-light-fill-destructive-background);
+
+      & .log-annotation-label {
+        color: var(--noora-badge-light-fill-destructive-label);
+      }
+    }
+
+    &[data-annotation="warning"] {
+      background: var(--noora-badge-light-fill-warning-background);
+
+      & .log-annotation-label {
+        color: var(--noora-badge-light-fill-warning-label);
+      }
+    }
+
+    &[data-annotation="notice"] {
+      background: var(--noora-badge-light-fill-information-background);
+
+      & .log-annotation-label {
+        color: var(--noora-badge-light-fill-information-label);
+      }
     }
   }
 
@@ -728,6 +766,11 @@
     padding: var(--noora-spacing-4);
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+    & > [data-part="log-empty-link"] {
+      color: var(--noora-link-button-primary-label);
+      text-decoration: underline;
+    }
   }
 
   & [data-part="log-group"] {
@@ -788,6 +831,52 @@
 
     &[open] > [data-part="log-group-summary"] [data-part="log-group-chevron"] {
       transform: rotate(90deg);
+    }
+
+    /* A composite action's step: status icon, name, and duration, like
+       GitHub's nested step header. A skipped step has no body, so its
+       chevron keeps the column but isn't drawn. */
+    & > [data-part="log-group-summary"] [data-part="log-group-chevron"][data-empty="true"] {
+      visibility: hidden;
+    }
+
+    & > [data-part="log-group-summary"] [data-part="log-action-icon"] {
+      display: inline-flex;
+      flex-shrink: 0;
+      align-items: center;
+      margin-right: var(--noora-spacing-3);
+
+      & svg {
+        width: 1em;
+        height: 1em;
+      }
+
+      &[data-status="success"] {
+        color: var(--noora-icon-success-label);
+      }
+
+      &[data-status="failure"] {
+        color: var(--noora-icon-destructive-label);
+      }
+
+      &[data-status="warning"] {
+        color: var(--noora-icon-warning-label);
+      }
+
+      &[data-status="processing"] {
+        color: var(--noora-surface-label-secondary);
+      }
+    }
+
+    & > [data-part="log-group-summary"] [data-part="log-action-name"] {
+      font-weight: var(--noora-font-weight-medium);
+    }
+
+    & > [data-part="log-group-summary"] [data-part="log-action-duration"] {
+      flex-shrink: 0;
+      margin-left: auto;
+      padding-left: var(--noora-spacing-5);
+      color: var(--noora-surface-label-secondary);
     }
 
     /* Indent only the message text of group children, not their

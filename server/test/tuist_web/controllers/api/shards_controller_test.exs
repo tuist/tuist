@@ -18,25 +18,37 @@ defmodule TuistWeb.API.ShardsControllerTest do
   end
 
   describe "POST /api/projects/:account/:project/tests/shards" do
-    test "creates shard plan with valid params", %{conn: conn, user: user, project: project} do
-      conn =
-        conn
-        |> Authentication.put_current_user(user)
-        |> put_req_header("content-type", "application/json")
-        |> post(
-          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
-          %{
-            reference: "github-123-1",
-            modules: ["AppTests", "CoreTests"],
-            shard_max: 2
-          }
-        )
+    for version <- [0, 1] do
+      @tag reporting_version: version
+      test "creates shard plan with reporting version #{version}", %{
+        conn: conn,
+        user: user,
+        project: project,
+        reporting_version: version
+      } do
+        stub(Tuist.FeatureFlags, :immutable_shard_reports_enabled?, fn _account -> version == 1 end)
 
-      response = json_response(conn, :ok)
-      assert response["reference"] == "github-123-1"
-      assert response["shard_count"] == 2
-      assert response["upload_url"] =~ "/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/start"
-      assert is_list(response["shards"])
+        conn =
+          conn
+          |> Authentication.put_current_user(user)
+          |> put_req_header("content-type", "application/json")
+          |> post(
+            ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards",
+            %{
+              reference: "github-123-1",
+              modules: ["AppTests", "CoreTests"],
+              shard_max: 2
+            }
+          )
+
+        response = json_response(conn, :ok)
+        assert response["reference"] == "github-123-1"
+        assert response["shard_count"] == 2
+        assert response["reporting_version"] == version
+        assert {:ok, %{reporting_version: ^version}} = Tuist.Shards.get_shard_plan(response["id"])
+        assert response["upload_url"] =~ "/api/projects/#{project.account.name}/#{project.name}/tests/shards/upload/start"
+        assert is_list(response["shards"])
+      end
     end
 
     test "creates suite-granularity shard plan when the client does not enumerate suites", %{
@@ -179,7 +191,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
 
       stub(Tuist.Shards, :create_shard_plan, fn _project, _params ->
         %{
-          plan: %{id: plan_id, reference: "empty-modules-ref"},
+          plan: %{id: plan_id, reference: "empty-modules-ref", reporting_version: 0},
           shard_count: 1,
           shard_assignments: [%{"index" => 0, "test_targets" => [], "estimated_duration_ms" => 0}]
         }
@@ -209,7 +221,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
         assert params.git_branch == "feature/current"
 
         %{
-          plan: %{id: plan_id, reference: "git-branch-ref"},
+          plan: %{id: plan_id, reference: "git-branch-ref", reporting_version: 0},
           shard_count: 1,
           shard_assignments: [%{"index" => 0, "test_targets" => [], "estimated_duration_ms" => 0}]
         }
@@ -238,7 +250,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
         assert params.concurrent_modules == ["AppTests"]
 
         %{
-          plan: %{id: plan_id, reference: "concurrent-modules-ref"},
+          plan: %{id: plan_id, reference: "concurrent-modules-ref", reporting_version: 0},
           shard_count: 1,
           shard_assignments: [%{"index" => 0, "test_targets" => [], "estimated_duration_ms" => 0}]
         }
@@ -303,7 +315,7 @@ defmodule TuistWeb.API.ShardsControllerTest do
 
       stub(Tuist.Shards, :create_shard_plan, fn _project, _params ->
         %{
-          plan: %{id: plan_id, reference: "id-check-ref"},
+          plan: %{id: plan_id, reference: "id-check-ref", reporting_version: 0},
           shard_count: 2,
           shard_assignments: [
             %{"index" => 0, "test_targets" => ["AppTests"], "estimated_duration_ms" => 1000},

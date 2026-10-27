@@ -42,6 +42,8 @@ pub fn message(socket_path: &str, error: &str) -> String {
     let advice = if error.contains(STORE_STALL_ERROR) {
         "Give tuist-cas-proxy access to that directory (System Settings > Privacy & Security > \
          Full Disk Access), or check endpoint-security software on this Mac."
+    } else if error.contains("proxy protocol version mismatch") {
+        "Fully quit and reopen Xcode to load the current cache plugin."
     } else {
         "Run `tuist setup cache` if the proxy is not running."
     };
@@ -84,7 +86,9 @@ impl ReportClaim {
     }
 }
 
-fn running_in_build_service() -> bool {
+/// Whether this process is Xcode's build service (`SWBBuildService`, or `XCBBuildService`
+/// before it), as opposed to a compiler frontend.
+pub(crate) fn running_in_build_service() -> bool {
     static IN_BUILD_SERVICE: OnceLock<bool> = OnceLock::new();
     *IN_BUILD_SERVICE.get_or_init(|| {
         std::env::current_exe()
@@ -150,6 +154,13 @@ mod tests {
         assert!(message.contains("/Users/me/.local/state/tuist/cas-proxy.sock"));
         assert!(message.contains("proxy connect: refused"));
         assert!(!message.contains('\n'));
+    }
+
+    #[test]
+    fn an_unsupported_loaded_plugin_suggests_restarting_xcode() {
+        let message = message("/proxy.sock", "proxy protocol version mismatch");
+        assert!(message.contains("reopen Xcode"));
+        assert!(!message.contains("tuist setup cache"));
     }
 
     #[test]

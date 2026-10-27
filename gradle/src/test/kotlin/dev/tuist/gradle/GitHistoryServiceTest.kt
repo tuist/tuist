@@ -28,6 +28,7 @@ class GitHistoryServiceTest {
     private val requests = CopyOnWriteArrayList<RecordedRequest>()
     private var settingsResponse: MockResponse = MockResponse().setResponseCode(404)
     private var missing: (List<String>) -> List<String> = { it }
+    private var unavailableUploads = 0
 
     private val observedAt = Instant.parse("2026-10-15T10:00:00.123Z")
     private val apiPath = "/api/projects/test-account/test-project/tests/git-history"
@@ -47,7 +48,8 @@ class GitHistoryServiceTest {
                         }
                         MockResponse().setResponseCode(200).setBody(body.toString())
                     }
-                    "$apiPath/commits" -> MockResponse().setResponseCode(204)
+                    "$apiPath/commits" ->
+                        if (unavailableUploads-- > 0) MockResponse().setResponseCode(503) else MockResponse().setResponseCode(204)
                     else -> MockResponse().setResponseCode(404)
                 }
             }
@@ -109,7 +111,7 @@ class GitHistoryServiceTest {
                     projectHandle = "test-project"
                 )
             },
-            httpClients = TuistHttpClients(useEnvironmentProxy = false),
+            httpClients = TuistHttpClients(useEnvironmentProxy = false, retryPolicy = RetryPolicy(sleeper = {})),
             connectTimeoutMs = 10_000,
             readTimeoutMs = 10_000
         )
@@ -383,6 +385,16 @@ class GitHistoryServiceTest {
 
         val missingRequests = requests.filter { it.path == "$apiPath/commits/missing" }
         assertEquals(listOf(5_000, 1_001), missingRequests.map { json(it).getAsJsonArray("shas").size() })
+    }
+
+    @Test
+    fun `retries an upload the server could not take`() {
+        unavailableUploads = 1
+        val subject = service()
+        val collected = subject.collect(pullRequest, workingDirectory, isCi = true)
+
+        assertTrue(subject.upload(collected))
+        assertEquals(2, requests.count { it.path == "$apiPath/commits" })
     }
 
     @Test

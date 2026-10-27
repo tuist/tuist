@@ -69,8 +69,15 @@ struct AtlasTimeOffView: View {
                 }
             } else if model.busy { ProgressView("Loading holidays…") }
         }
+        .modifier(AtlasThemedContent())
         .navigationTitle(title)
+        .toolbar {
+            AtlasPresenceToolbar()
+            ToolbarItem(placement: .topBarTrailing) { AtlasBrowserButton(screen: "time-off") }
+        }
         .disabled(model.busy)
+        .protectsAtlasNavigation(model.mutating && editor == nil)
+        .toolbar(model.mutating ? .hidden : .visible, for: .tabBar)
         .refreshable { await model.load() }
         .task { await model.load() }
         .sheet(item: $editor) {
@@ -146,6 +153,7 @@ private struct AtlasHolidayForm: View {
                 }.frame(minHeight: 44).disabled(model.busy)
                 if model.busy { ProgressView("Saving holiday…") }
             }
+            .modifier(AtlasThemedContent())
             .environment(\.calendar, AtlasHolidayDates.calendar)
             .navigationTitle(editing == nil ? "Request holiday" : "Edit request")
             .toolbar {
@@ -157,6 +165,7 @@ private struct AtlasHolidayForm: View {
             .onChange(of: first) { _, value in if last < value { last = value } }
             .onAppear { model.errorMessage = nil }
         }
+        .protectsAtlasNavigation()
     }
 
     @ViewBuilder private func dateField(

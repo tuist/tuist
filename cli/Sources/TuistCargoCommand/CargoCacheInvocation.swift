@@ -16,9 +16,14 @@ struct CargoCacheInvocation {
     let key: REAPI.Digest
     let inputHasher: CargoInputHasher
 
+    static let keyVersion = "tuist-swift-cargo-cache-v2"
     static let ignoredEnvironment = Set([
-        "RUSTC_WRAPPER", "CARGO_BUILD_RUSTC_WRAPPER", "CARGO_MAKEFLAGS", "MAKEFLAGS", "MFLAGS",
+        "RUSTC_WRAPPER", "CARGO_BUILD_RUSTC_WRAPPER", "CARGO_MAKEFLAGS", "MAKEFLAGS", "MFLAGS", "CI",
+        "SHLVL", "OLDPWD", "_", "TERM_SESSION_ID", "INVOCATION_ID",
     ])
+    static let ignoredEnvironmentPrefixes = [
+        "TUIST_", "GITHUB_", "GITLAB_", "BUILDKITE_", "CIRCLE_", "CI_", "RUNNER_", "ACTIONS_", "TRAVIS_", "TEAMCITY_",
+    ]
 
     static func prepare(
         _ arguments: [String], environment: [String: String], directory: AbsolutePath, process: CargoProcess
@@ -95,8 +100,8 @@ struct CargoCacheInvocation {
     }
 
     func fingerprint() throws -> REAPI.Digest {
-        var inputs = ["tuist-swift-cargo-cache-v1", directory.pathString]
-        inputs += arguments
+        var inputs = [Self.keyVersion, directory.pathString]
+        inputs += keyArguments
         inputs += environment.sorted { $0.key < $1.key }.filter { !Self.isIgnored($0.key) }.map { "\($0.key)=\($0.value)" }
         var budget = 2_000_000_000
         inputs += try snapshot(package, budget: &budget, inspectSources: true)
@@ -120,6 +125,24 @@ struct CargoCacheInvocation {
             .filter { !files.contains($0) && acceptsOutput($0) }.sorted()
         guard files.count + additional.count <= 128 else { throw CacheError.unsupported }
         return files + additional
+    }
+
+    private var keyArguments: [String] {
+        var result: [String] = []
+        var seen = false
+        var index = 0
+        while index < arguments.count {
+            let parts = arguments[index].split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+            let option = parts.first ?? ""
+            guard option == "--diagnostic-width" else {
+                result.append(arguments[index]); index += 1; continue
+            }
+            let value = parts.count == 2 ? parts[1] : (index + 1 < arguments.count ? arguments[index + 1] : "")
+            guard !seen, !value.hasPrefix("-"), let width = Int(value, radix: 10), width >= 0 else { return arguments }
+            seen = true
+            index += parts.count == 2 ? 1 : 2
+        }
+        return result
     }
 
     func validateDependencies() throws {
@@ -232,7 +255,7 @@ struct CargoCacheInvocation {
     }
 
     private static func isIgnored(_ name: String) -> Bool {
-        name.hasPrefix("TUIST_CARGO_") || ignoredEnvironment.contains(name)
+        ignoredEnvironment.contains(name) || ignoredEnvironmentPrefixes.contains(where: name.hasPrefix)
     }
 
     private static func option(_ name: String, in arguments: [String]) -> String? {

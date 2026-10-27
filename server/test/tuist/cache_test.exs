@@ -5,7 +5,7 @@ defmodule Tuist.CacheTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AuthenticatedAccount
-  alias Tuist.Billing
+  alias Tuist.Billing.UsagePricing
   alias Tuist.Cache
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -110,11 +110,11 @@ defmodule Tuist.CacheTest do
   describe "free tier enforcement" do
     test "grants nothing once an Air account is over the free tier" do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold,
+          current_month_cache_requests: threshold,
           preload: [:account]
         )
 
@@ -135,7 +135,7 @@ defmodule Tuist.CacheTest do
     # to for credentials it cannot verify itself.
     test "issues the same number of queries regardless of how many accounts are over the free tier" do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       queries_for = fn organization_count ->
         user = AccountsFixtures.user_fixture(preload: [:account])
@@ -147,7 +147,7 @@ defmodule Tuist.CacheTest do
 
           Account
           |> Repo.get!(organization.account.id)
-          |> Ecto.Changeset.change(current_month_remote_cache_hits_count: threshold)
+          |> Ecto.Changeset.change(current_month_cache_requests: threshold)
           |> Repo.update!()
         end
 
@@ -167,11 +167,11 @@ defmodule Tuist.CacheTest do
 
     test "keeps granting while the account is under the free tier" do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold - 1,
+          current_month_cache_requests: threshold - 1,
           preload: [:account]
         )
 
@@ -187,11 +187,11 @@ defmodule Tuist.CacheTest do
 
     test "keeps granting a paid account that is over the free tier" do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold * 10,
+          current_month_cache_requests: threshold * 10,
           preload: [:account]
         )
 
@@ -210,11 +210,11 @@ defmodule Tuist.CacheTest do
     # so a blocked account has to disappear from it as well as from the token.
     test "drops a blocked account from the accessible handles" do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold,
+          current_month_cache_requests: threshold,
           preload: [:account]
         )
 
@@ -231,11 +231,11 @@ defmodule Tuist.CacheTest do
     # caller that the fix is paying the open invoice rather than upgrading.
     test "names the blocked accounts whose subscription payment failed" do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold,
+          current_month_cache_requests: threshold,
           preload: [:account]
         )
 
@@ -256,11 +256,11 @@ defmodule Tuist.CacheTest do
 
     test "keeps granting an account whose renewal payment is being retried" do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold * 10,
+          current_month_cache_requests: threshold * 10,
           preload: [:account]
         )
 
@@ -284,11 +284,11 @@ defmodule Tuist.CacheTest do
     # error. This is what lets it say something actionable instead.
     test "names the blocked account so a node can explain the refusal" do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold,
+          current_month_cache_requests: threshold,
           preload: [:account]
         )
 
@@ -305,11 +305,11 @@ defmodule Tuist.CacheTest do
 
     test "names no account while the subject is under the free tier" do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold - 1,
+          current_month_cache_requests: threshold - 1,
           preload: [:account]
         )
 
@@ -321,11 +321,11 @@ defmodule Tuist.CacheTest do
 
     test "mints a token carrying no grants for a blocked account" do
       # Given
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
+      threshold = UsagePricing.included_requests()
 
       user =
         AccountsFixtures.user_fixture(
-          current_month_remote_cache_hits_count: threshold,
+          current_month_cache_requests: threshold,
           preload: [:account]
         )
 

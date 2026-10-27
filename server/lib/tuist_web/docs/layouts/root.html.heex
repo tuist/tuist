@@ -1,5 +1,8 @@
 <!DOCTYPE html>
-<html lang={Gettext.get_locale(TuistWeb.Gettext)} class="[scrollbar-gutter:stable]">
+<html
+  lang={TuistWeb.Locale.language_tag(Gettext.get_locale(TuistWeb.Gettext))}
+  class="[scrollbar-gutter:stable]"
+>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -85,13 +88,15 @@
       href={Tuist.Environment.app_url(path: assigns[:head_markdown_path])}
     />
     <meta property="og:locale" content={@locale} />
+    <% language_alternates = language_alternates(@current_path) %>
     <link
-      :for={lang <- TuistWeb.Marketing.Localization.languages()}
+      :for={alternate <- language_alternates}
       rel="alternate"
-      hreflang={lang.code}
-      href={Tuist.Environment.app_url(path: localized_docs_href(@current_path, lang.code))}
+      hreflang={TuistWeb.Locale.language_tag(alternate.locale)}
+      href={Tuist.Environment.app_url(path: alternate.href)}
     />
     <link
+      :if={Enum.any?(language_alternates, &(&1.locale == "en"))}
       rel="alternate"
       hreflang="x-default"
       href={Tuist.Environment.app_url(path: localized_docs_href(@current_path, "en"))}

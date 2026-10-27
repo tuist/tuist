@@ -886,7 +886,9 @@ defmodule L10n.Translator do
           {:skipped, locale}
         else
           po_filename = Path.basename(pot_relative_path, ".pot") <> ".po"
-          output_path = Path.join([l10n_dir, target["path"], po_filename])
+
+          output_path =
+            Path.join(l10n_dir, target["output_path"] || Path.join(target["path"], po_filename))
 
           try do
             case translate_catalog(
@@ -1513,7 +1515,11 @@ defmodule L10n.MarkdownTranslator do
           {:skipped, locale}
         else
           try do
-            output_path = Path.join([l10n_dir, target["path"], output_relative_path])
+            output_path =
+              Path.join(
+                l10n_dir,
+                target["output_path"] || Path.join(target["path"], output_relative_path)
+              )
 
             with {:ok, translated_content} <-
                    L10n.ProviderGate.call(opts[:provider_gate], fn ->
@@ -1930,13 +1936,19 @@ defmodule L10n.CLI do
       []
     else
       source_files =
-        Enum.flat_map(sources, fn pattern ->
-          Path.join(l10n_dir, pattern) |> Path.wildcard()
+        sources
+        |> normalize_sources()
+        |> Enum.flat_map(fn {pattern, output_template} ->
+          l10n_dir
+          |> Path.join(pattern)
+          |> Path.wildcard()
+          |> Enum.map(&{&1, output_template})
         end)
 
       source_files
       |> Task.async_stream(
-        fn source_path ->
+        fn {source_path, output_template} ->
+          targets = targets_for_source(targets, source_path, output_template)
           source_relative = Path.relative_to(source_path, repo_root)
           source_path_relative_to_l10n_dir = Path.relative_to(source_path, l10n_dir)
           source_content = File.read!(source_path)
@@ -2005,6 +2017,24 @@ defmodule L10n.CLI do
   end
 
   defp normalize_targets(targets, _path_template) when is_list(targets), do: targets
+
+  defp normalize_sources(sources) when is_map(sources), do: Enum.to_list(sources)
+  defp normalize_sources(sources) when is_list(sources), do: Enum.map(sources, &{&1, nil})
+
+  defp targets_for_source(targets, _source_path, nil), do: targets
+
+  defp targets_for_source(targets, source_path, output_template) do
+    basename = source_path |> Path.basename() |> Path.rootname()
+
+    Enum.map(targets, fn target ->
+      output_path =
+        output_template
+        |> String.replace("{locale}", target["locale"])
+        |> String.replace("{basename}", basename)
+
+      Map.put(target, "output_path", output_path)
+    end)
+  end
 
   defp parse_args(argv) do
     {opts, rest, _} =

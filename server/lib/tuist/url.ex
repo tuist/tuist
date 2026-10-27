@@ -109,7 +109,8 @@ defmodule Tuist.URL do
   defp private_ip?({10, _, _, _}), do: true
   defp private_ip?({172, second, _, _}) when second >= 16 and second <= 31, do: true
   defp private_ip?({192, 168, _, _}), do: true
-  defp private_ip?({0, 0, 0, 0}), do: true
+  defp private_ip?({0, _, _, _}), do: true
+  defp private_ip?({first, _, _, _}) when first >= 224, do: true
   defp private_ip?({169, 254, _, _}), do: true
   defp private_ip?({100, second, _, _}) when second >= 64 and second <= 127, do: true
   defp private_ip?({198, second, _, _}) when second >= 18 and second <= 19, do: true
@@ -118,9 +119,20 @@ defmodule Tuist.URL do
   defp private_ip?({0, 0, 0, 0, 0, 0, 0, 1}), do: true
   defp private_ip?({0, 0, 0, 0, 0, 0, 0, 0}), do: true
   defp private_ip?({first, _, _, _, _, _, _, _}) when first >= 0xFC00 and first <= 0xFDFF, do: true
-  defp private_ip?({first, _, _, _, _, _, _, _}) when first >= 0xFE80 and first <= 0xFEBF, do: true
+  defp private_ip?({first, _, _, _, _, _, _, _}) when first >= 0xFE80 and first <= 0xFEFF, do: true
+  defp private_ip?({first, _, _, _, _, _, _, _}) when first >= 0xFF00, do: true
+
+  # Embedded IPv4 must keep its original network classification.
+  defp private_ip?({0, 0, 0, 0, 0, 0xFFFF, high, low}), do: private_embedded_ipv4?(high, low)
+  defp private_ip?({0, 0, 0, 0, 0, 0, high, low}), do: private_embedded_ipv4?(high, low)
+  defp private_ip?({0x64, 0xFF9B, 0, 0, 0, 0, high, low}), do: private_embedded_ipv4?(high, low)
+  defp private_ip?({0x64, 0xFF9B, 1, _, _, _, _, _}), do: true
 
   defp private_ip?(_), do: false
+
+  defp private_embedded_ipv4?(high, low) do
+    private_ip?({div(high, 256), rem(high, 256), div(low, 256), rem(low, 256)})
+  end
 
   defp private_hostname?(host) do
     downcased = String.downcase(host)

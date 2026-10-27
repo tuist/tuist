@@ -7,6 +7,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
 
   alias Tuist.Accounts
   alias Tuist.Billing
+  alias Tuist.Billing.UsagePricing
   alias Tuist.Kura
   alias Tuist.Kura.Capacity
   alias Tuist.Kura.ClaimProposal
@@ -1310,15 +1311,19 @@ defmodule TuistWeb.OpsAccountLiveTest do
   end
 
   describe "free tier" do
-    test "shows the usage against the limit and when it was last reset", %{conn: conn, user: user} do
+    test "shows the usage against the limits and when it was last reset", %{conn: conn, user: user} do
       user.account
-      |> Ecto.Changeset.change(current_month_remote_cache_hits_count: 42)
+      |> Ecto.Changeset.change(
+        current_month_cache_egress_megabytes: 1_500,
+        current_month_cache_requests: 2_500
+      )
       |> Repo.update!()
 
-      {:ok, _lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
+      {:ok, lv, html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
 
       assert html =~ "Free tier"
-      assert html =~ "42 of 200"
+      assert lv |> element("[data-part='free-tier-egress']") |> render() =~ "1.5 GB of 100.0 GB"
+      assert lv |> element("[data-part='free-tier-requests']") |> render() =~ "2,500 of 1M"
       assert html =~ "Never"
     end
 
@@ -1326,10 +1331,8 @@ defmodule TuistWeb.OpsAccountLiveTest do
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
       refute has_element?(lv, "#free-tier-blocked-alert")
 
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
-
       user.account
-      |> Ecto.Changeset.change(current_month_remote_cache_hits_count: threshold)
+      |> Ecto.Changeset.change(current_month_cache_requests: UsagePricing.included_requests())
       |> Repo.update!()
 
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
@@ -1337,10 +1340,8 @@ defmodule TuistWeb.OpsAccountLiveTest do
     end
 
     test "resetting unblocks the account and clears the warning", %{conn: conn, user: user} do
-      threshold = Billing.get_payment_thresholds()[:remote_cache_hits]
-
       user.account
-      |> Ecto.Changeset.change(current_month_remote_cache_hits_count: threshold * 2)
+      |> Ecto.Changeset.change(current_month_cache_requests: UsagePricing.included_requests() * 2)
       |> Repo.update!()
 
       {:ok, lv, _html} = live(conn, ~p"/ops/accounts/#{user.account.id}")
@@ -1352,7 +1353,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
       assert html =~ "starts over from now"
 
       account = Repo.reload!(user.account)
-      assert account.current_month_remote_cache_hits_count == 0
+      assert account.current_month_cache_requests == 0
       assert account.free_tier_reset_at
     end
 

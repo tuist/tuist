@@ -191,7 +191,7 @@ impl Bootstrap {
         // including before the spawned signal task gets its first poll.
         let signal_state = Arc::new(Mutex::new(Weak::new()));
         let (signals, termination) = signals(runtime, signal_state.clone())?;
-        let listener = match TcpListener::bind(address).await {
+        let listener = match crate::accelerated_file_serving::bind_public_listener(address) {
             Ok(listener) => listener,
             Err(error) => {
                 signals.abort();

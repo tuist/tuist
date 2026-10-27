@@ -1,4 +1,4 @@
-{{- if and .Values.xcresultProcessor.enabled .Values.xcresultProcessor.podDisruptionBudget.enabled }}
+{{- if and (include "tuist.rendersXcresultProcessor" .) .Values.xcresultProcessor.podDisruptionBudget.enabled }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:

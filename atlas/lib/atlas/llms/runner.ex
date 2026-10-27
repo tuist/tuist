@@ -10,7 +10,11 @@ defmodule Atlas.LLMs.Runner do
   this module is the only piece of LLM infrastructure they share.
   """
 
+  alias Atlas.Inference
+  alias Atlas.LLMs.Connections
   alias Atlas.LLMs.LocalTransport
+  alias Atlas.LLMs.PersonalTransport
+  alias Atlas.Users.User
 
   @doc """
   Returns the configured LLM as `{:ok, map}` or `{:error, :llm_not_configured}`.
@@ -60,6 +64,73 @@ defmodule Atlas.LLMs.Runner do
     |> maybe_put(:base_url, Map.get(llm, :base_url))
     |> maybe_put(:timeout, operation_timeout(llm))
     |> Keyword.put(:retry, false)
+  end
+
+  @doc """
+  Builds client options that always dispatch in-process to the profile bound
+  to `role`, independent of the global `LLM_MODE`. The transport rejects the
+  request when no enabled profile carries that role; it never substitutes the
+  global inference profile.
+  """
+  def profile_client_opts(role, opts \\ []) when is_atom(role) do
+    [
+      model: ReqLLM.model!(%{id: "atlas-#{role}", provider: :openai}),
+      api_key: "local",
+      base_url: "http://atlas-local",
+      llm_request_options: [req_http_options: [plug: {LocalTransport, role: role}]]
+    ]
+    |> maybe_put(:timeout, Keyword.get(opts, :timeout))
+    |> Keyword.put(:retry, false)
+  end
+
+  @doc "Whether this person has a saved AI account or the explicit Orbit fallback is configured."
+  def orbit_configured?(user) do
+    personal_configured?(user) or Inference.atlas_role_configured?(:orbit)
+  end
+
+  defp personal_configured?(%User{} = user), do: Enum.any?(Connections.list(user), & &1.credential_configured)
+  defp personal_configured?(_user), do: false
+
+  @doc """
+  Personal-account-first Orbit options. Only the acting user's ID enters the
+  session/checkpoint boundary; credentials are resolved afresh on each request.
+  The returned plug must still be wrapped by Orbit.ModelFence.
+  """
+  def orbit_client_opts(%User{id: user_id}, opts \\ []) do
+    profile_client_opts(:orbit, opts)
+    |> Keyword.put(:llm_request_options,
+      req_http_options: [plug: {PersonalTransport, user_id: user_id}]
+    )
+  end
+
+  @doc """
+  Supplies reply events to a consumer while owning the transient agent session.
+
+  ReqLLM's streaming transport uses Finch directly and ignores Req's Plug
+  adapter. Local mode must use the buffered model path so the sentinel URL
+  never reaches the network. Condukt still executes the full model/tool loop;
+  only incremental text and tool-status delivery are unavailable in this mode.
+  """
+  def with_reply_stream(llm, agent_module, prompt, opts, fun) do
+    Condukt.Session.with_transient(agent_module, opts, fn agent ->
+      events =
+        case llm do
+          %{mode: :local} -> buffered_reply_events(agent, prompt, opts)
+          _ -> Condukt.stream(agent, prompt)
+        end
+
+      fun.(events)
+    end)
+  end
+
+  defp buffered_reply_events(agent, prompt, opts) do
+    Stream.flat_map([prompt], fn prompt ->
+      case Condukt.run(agent, prompt, opts) do
+        {:ok, text} when is_binary(text) -> [{:text, text}, :done]
+        {:ok, _other} -> [{:error, :empty_response}]
+        {:error, reason} -> [{:error, reason}]
+      end
+    end)
   end
 
   defp build_model(%{model: model}) do

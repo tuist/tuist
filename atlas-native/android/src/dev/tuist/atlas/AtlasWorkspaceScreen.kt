@@ -108,7 +108,7 @@ class AtlasWorkspaceScreen(
         action: () -> Unit,
     ) {
         val label =
-            SpannableString("$title\n$description").apply {
+            SpannableString(if (description.isEmpty()) title else "$title\n$description").apply {
                 setSpan(StyleSpan(Typeface.BOLD), 0, title.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
         val background = activity.obtainStyledAttributes(intArrayOf(android.R.attr.selectableItemBackground))
@@ -120,8 +120,8 @@ class AtlasWorkspaceScreen(
                 textSize = 16f
                 isAllCaps = false
                 gravity = Gravity.START or Gravity.CENTER_VERTICAL
-                minHeight = dp(64)
-                setPadding(dp(12), dp(16), dp(12), dp(16))
+                minHeight = dp(if (description.isEmpty()) 48 else 64)
+                setPadding(dp(12), dp(12), dp(12), dp(12))
                 setBackgroundResource(resource)
                 setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, 0, 0)
                 compoundDrawablePadding = dp(12)
@@ -142,26 +142,17 @@ class AtlasWorkspaceScreen(
             buildString {
                 if (searching) append("${model.breadcrumb(section)}\n")
                 append(section.description)
-                if (section.screen == "browser") {
-                    append("\nOpens in browser")
-                    if (section.requiredScope.isNotEmpty()) append(" · Access controlled")
-                }
             }
         row(
             section.title,
             subtitle,
-            if (section.screen ==
-                "browser"
-            ) {
-                android.R.drawable.ic_menu_view
-            } else {
-                android.R.drawable.ic_menu_my_calendar
-            },
+            android.R.drawable.ic_menu_agenda,
         ) { selected(section) }
     }
 
     private fun render() {
-        toolbar.title = model.group?.title ?: "Atlas"
+        toolbar.title = model.group?.title ?: "Browse"
+        toolbar.subtitle = serverName
         if (search.query.toString() != model.query) {
             syncing = true
             search.setQuery(model.query, false)
@@ -169,14 +160,8 @@ class AtlasWorkspaceScreen(
         }
         content.removeAllViews()
         if (model.query.isBlank()) {
-            if (model.group == null) {
-                heading(serverName)
-                heading("My work")
-                model.shortcuts.forEach { destination(it) }
-            }
-            heading(model.group?.title ?: "Workspace")
             model.children().forEach { group ->
-                row(group.title, group.description, android.R.drawable.ic_menu_agenda) {
+                row(group.title, "", android.R.drawable.ic_menu_agenda) {
                     model.open(group.id)
                     scroll.scrollTo(0, 0)
                 }
@@ -188,13 +173,6 @@ class AtlasWorkspaceScreen(
             if (matches.isEmpty()) heading("No matching features")
             matches.forEach { destination(it, true) }
         }
-        content.addView(
-            TextView(activity).apply {
-                text = "Browser destinations may require separate sign-in and additional permissions. Access is checked by Atlas."
-                textSize = 14f
-                setPadding(dp(12), dp(20), dp(12), dp(12))
-            },
-        )
         notice?.let { heading(it) }
         navigationChanged()
     }

@@ -57,17 +57,16 @@ jobs:
       packages: write
     env:
       GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-    outputs:
-      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
-          fetch-depth: 0
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
       - uses: ./.github/actions/mise
         with:
-          install_args: "--locked tuist git-cliff 1password-cli jq"
+          install_args: "--locked tuist 1password-cli jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       # Install the Rust toolchain the cas-plugin bundle needs, resolving its
@@ -91,57 +90,10 @@ jobs:
         env:
           TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
         run: mise run --no-deps --skip-tools cli:ee
-      - name: Get release notes
-        id: release-notes
-        working-directory: cli
-        run: |
-          # Use the explicit changelog base when provided (backports pass the
-          # base tag); otherwise fall back to the latest CLI semver tag.
-          LATEST_VERSION="${{ inputs.changelog_from }}"
-          if [ -z "$LATEST_VERSION" ]; then
-            LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "0.0.0")
-          fi
-          INCLUDE_PATHS=(
-            --include-path "cli/**/*"
-            --include-path "cas-plugin/**/*"
-            --include-path "mise/tasks/cli/**/*"
-            --include-path ".github/workflows/cli-release.yml"
-            --include-path ".github/workflows/cli-build-publish.yml"
-            --include-path ".github/workflows/cli-rc.yml"
-            --include-path ".github/workflows/cli-promote.yml"
-            --include-path ".xcode-version-releases"
-            --include-path "Package.swift"
-            --include-path "Package.resolved"
-          )
-          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
-          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../" 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
-
       - name: Stamp the release version
         run: |
           sed -i '' -e "s/^let releaseVersion = \".*\"$/let releaseVersion = \"${{ inputs.version }}\"/" cli/Sources/tuist/ReleaseVersion.swift
           grep -qxF "let releaseVersion = \"${{ inputs.version }}\"" cli/Sources/tuist/ReleaseVersion.swift
-
-      - name: Update CHANGELOG.md
-        working-directory: cli
-        # Use the authoritative version from the caller via --tag instead of
-        # --bump. Full-history --bump can't anchor on CLI tags that landed on
-        # non-cli commits (it filters them out), so it froze the top heading at
-        # an old version while real releases advanced.
-        run: |
-          INCLUDE_PATHS=(
-            --include-path "cli/**/*"
-            --include-path "cas-plugin/**/*"
-            --include-path "mise/tasks/cli/**/*"
-            --include-path ".github/workflows/cli-release.yml"
-            --include-path ".github/workflows/cli-build-publish.yml"
-            --include-path ".github/workflows/cli-rc.yml"
-            --include-path ".github/workflows/cli-promote.yml"
-            --include-path ".xcode-version-releases"
-            --include-path "Package.swift"
-            --include-path "Package.resolved"
-          )
-          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../" --tag "${{ inputs.version }}" -o CHANGELOG.md 2>/dev/null
 
       - name: Bundle CLI
         run: mise run --no-deps --skip-tools cli:bundle
@@ -154,7 +106,6 @@ jobs:
         with:
           name: cli-artifacts
           path: |
-            cli/CHANGELOG.md
             cli/Sources/tuist/ReleaseVersion.swift
             mise.toml
             build/ProjectDescription.xcframework.zip
@@ -184,6 +135,19 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      # The bundler comes from this workflow's revision rather than inputs.ref:
+      # the matrix cross-compiles aarch64 on amd64 hosts, which release lines
+      # cut before the bundler took TUIST_LINUX_ARCH cannot do. Their bundler
+      # builds for the host and the aarch64 leg would package an x86_64 binary.
+      - name: Check out the Linux bundler
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .linux-bundler
+          sparse-checkout: |
+            mise/tasks/cli/bundle-linux.sh
+            mise/utilities/install_static_linux_sdk.sh
+          sparse-checkout-cone-mode: false
 
       - name: Stamp the release version
         run: |
@@ -269,7 +233,7 @@ jobs:
           # redirect handling crash before the CLI starts compiling.
           SWIFTPM_MAX_CONCURRENT_OPERATIONS: 1
       - name: Bundle CLI
-        run: ./mise/tasks/cli/bundle-linux.sh
+        run: MISE_PROJECT_ROOT="$GITHUB_WORKSPACE" ./.linux-bundler/mise/tasks/cli/bundle-linux.sh
         env:
           TUIST_LINUX_ARCH: ${{ matrix.arch }}
 
@@ -373,6 +337,32 @@ jobs:
           install_args: "--locked git-cliff"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Get release notes
+        id: release-notes
+        working-directory: cli
+        run: |
+          # Use the explicit changelog base when provided (backports pass the
+          # base tag); otherwise fall back to the latest CLI semver tag.
+          LATEST_VERSION="${{ inputs.changelog_from }}"
+          if [ -z "$LATEST_VERSION" ]; then
+            LATEST_VERSION=$(git tag -l | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || echo "0.0.0")
+          fi
+          INCLUDE_PATHS=(
+            --include-path "cli/**/*"
+            --include-path "cas-plugin/**/*"
+            --include-path "mise/tasks/cli/**/*"
+            --include-path ".github/workflows/cli-release.yml"
+            --include-path ".github/workflows/cli-build-publish.yml"
+            --include-path ".github/workflows/cli-rc.yml"
+            --include-path ".github/workflows/cli-promote.yml"
+            --include-path ".xcode-version-releases"
+            --include-path "Package.swift"
+            --include-path "Package.resolved"
+          )
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          git cliff "${INCLUDE_PATHS[@]}" --config cliff.toml --repository "../" 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
       - name: Download CLI artifacts
         uses: actions/download-artifact@v4
         with:
@@ -428,7 +418,7 @@ jobs:
           prerelease: ${{ inputs.prerelease }}
           name: CLI ${{ inputs.version }}
           tag_name: ${{ inputs.version }}
-          body: ${{ needs.release-cli.outputs.release-notes }}
+          body: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
           files: |
             build/tuist.zip
             build/tuist-linux-x86_64.tar.gz

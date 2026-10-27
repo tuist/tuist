@@ -51,6 +51,13 @@ defmodule Tuist.Runners.GitLab.Client do
     request(url, :get, "/projects/#{project_id}/repository/branches?#{query}", %{token: token})
   end
 
+  def get_merge_request(url, api_token, project_id, iid)
+      when is_binary(api_token) and api_token != "" and is_integer(project_id) and is_integer(iid) do
+    request(url, :get, "/projects/#{project_id}/merge_requests/#{iid}", %{private_token: api_token})
+  end
+
+  def get_merge_request(_, _, _, _), do: {:error, :unauthorized}
+
   def update_job(url, %{"id" => id, "token" => token}, state, reason) do
     request(url, :put, "/jobs/#{id}", %{token: token, state: state, failure_reason: reason})
   end
@@ -110,11 +117,15 @@ defmodule Tuist.Runners.GitLab.Client do
   defp handle_response({:ok, %{status: status}}, _method), do: {:error, {:http_status, status}}
   defp handle_response({:error, _}, _method), do: {:error, :transport}
 
+  defp request_headers(url, _path, %{private_token: token}), do: [{"private-token", token} | base_headers(url)]
+
   defp request_headers(url, path, body) do
-    headers = [{"host", URI.parse(url).authority}, {"accept-encoding", "identity"}]
+    headers = base_headers(url)
     token_header = if path == "/jobs/request", do: "runner-token", else: "job-token"
     [{token_header, body.token} | headers]
   end
+
+  defp base_headers(url), do: [{"host", URI.parse(url).authority}, {"accept-encoding", "identity"}]
 
   defp trace_headers(nil), do: []
 

@@ -10,6 +10,32 @@ defmodule Tuist.Application.RuntimeChildren do
   default and has to opt in.
   """
 
+  def cluster([]), do: []
+
+  def cluster(topologies) do
+    topologies =
+      Enum.map(topologies, fn {name, options} ->
+        if options[:strategy] == Cluster.Strategy.Kubernetes.DNS do
+          {name, Keyword.put(options, :disconnect, {__MODULE__, :retain_cluster_node, []})}
+        else
+          {name, options}
+        end
+      end)
+
+    [{Cluster.Supervisor, [topologies, [name: Tuist.ClusterSupervisor]]}]
+  end
+
+  @doc """
+  Keeps an established connection when DNS discovery omits a peer.
+
+  libcluster also treats a failed DNS lookup as an empty answer. Explicitly
+  disconnecting those peers can trigger OTP global partition prevention on
+  otherwise healthy nodes. DNS discovers connections; node shutdown and the
+  BEAM failure detector remove them. This does not disable partition prevention
+  or claim that a real network partition cannot disconnect other nodes.
+  """
+  def retain_cluster_node(_node), do: true
+
   @sweeper_interval_ms 60 * 60 * 1000
 
   @doc """

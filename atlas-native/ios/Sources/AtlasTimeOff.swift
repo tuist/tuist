@@ -54,6 +54,7 @@ enum AtlasHolidayDates {
 final class AtlasTimeOff: ObservableObject {
     @Published private(set) var overview: AtlasHolidayOverview?
     @Published private(set) var busy = false
+    @Published private(set) var mutating = false
     @Published var errorMessage: String?
     private let request: ([String: Any]) async throws -> Data
 
@@ -84,8 +85,9 @@ final class AtlasTimeOff: ObservableObject {
     private func mutate(_ action: [String: Any]) async -> Bool {
         guard !busy else { return false }
         busy = true
+        mutating = true
         errorMessage = nil
-        defer { busy = false }
+        defer { busy = false; mutating = false }
         do {
             _ = try await request(action)
         } catch is CancellationError { return false } catch {

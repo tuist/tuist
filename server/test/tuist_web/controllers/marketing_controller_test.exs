@@ -5,7 +5,6 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   alias Plug.CSRFProtection.InvalidCSRFTokenError
   alias Tuist.AppStore
   alias Tuist.Atlas.Email
-  alias Tuist.FeatureFlags
   alias Tuist.GitHub.Releases
   alias Tuist.Marketing.Blog
   alias Tuist.Marketing.CacheGlobe
@@ -148,6 +147,153 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
     end
   end
 
+  describe "marketing languages" do
+    @describetag :locale
+
+    test "deep links select their language regardless of browser or session preferences", %{conn: conn} do
+      for {path, language} <- [{"/about", "en"}, {"/zh_Hans", "zh-Hans"}, {"/ja", "ja"}] do
+        document =
+          conn
+          |> init_test_session(%{locale: "ko"})
+          |> put_req_cookie("tuist_locale", "es")
+          |> put_req_header("accept-language", "zh-TW,ja;q=0.9")
+          |> get(path)
+          |> html_response(200)
+          |> Floki.parse_document!()
+
+        assert Floki.attribute(document, "html", "lang") == [language]
+
+        assert Floki.attribute(document, "link[rel='canonical']", "href") ==
+                 [Tuist.Environment.app_url(path: path)]
+      end
+    end
+
+    test "only the root temporarily redirects, preserving tracking and language preferences", %{conn: conn} do
+      for method <- [:get, :head] do
+        response =
+          conn
+          |> put_req_header("accept-language", "ja;q=0,zh-TW;q=0.9,zh-CN;q=1")
+          |> dispatch(@endpoint, method, "/?utm_source=google")
+
+        assert redirected_to(response, 302) == "/zh_Hans?utm_source=google"
+        assert get_resp_header(response, "cache-control") == ["private, no-store"]
+        refute Map.has_key?(response.resp_cookies, "tuist_locale")
+      end
+    end
+
+    test "unsupported or absent browser languages render an uncached English root", %{conn: conn} do
+      for header <- ["", "fr-FR", "ja;q=0,en;q=1"] do
+        response = conn |> put_req_header("accept-language", header) |> get("/")
+        assert html_response(response, 200) =~ ~s(lang="en")
+        assert get_resp_header(response, "cache-control") == ["private, no-store"]
+      end
+    end
+
+    test "the switcher remembers explicit choices, including English, without redirect loops", %{conn: conn} do
+      document = conn |> get("/?utm_source=google") |> html_response(200) |> Floki.parse_document!()
+      [japanese_link] = Floki.attribute(document, "#footer-locale-dropdown a[data-value='ja']", "href")
+      assert japanese_link == "/ja?set_locale=ja"
+
+      chosen =
+        conn
+        |> put_req_header("accept-language", "zh-CN")
+        |> get(japanese_link <> "&utm_source=google&utm_content[]=first&utm_content[]=second")
+
+      assert %URI{path: "/ja", query: query} = URI.parse(redirected_to(chosen, 302))
+
+      assert query |> URI.query_decoder() |> Enum.to_list() == [
+               {"utm_source", "google"},
+               {"utm_content[]", "first"},
+               {"utm_content[]", "second"}
+             ]
+
+      assert chosen.resp_cookies["tuist_locale"].value == "ja"
+      assert chosen.resp_cookies["tuist_locale"].http_only
+      assert get_resp_header(chosen, "cache-control") == ["private, no-store"]
+
+      returning = chosen |> recycle() |> put_req_header("accept-language", "zh-CN") |> get("/")
+      assert redirected_to(returning, 302) == "/ja"
+
+      document = chosen |> recycle() |> get("/ja") |> html_response(200) |> Floki.parse_document!()
+      [english_link] = Floki.attribute(document, "#footer-locale-dropdown a[data-value='en']", "href")
+      english = chosen |> recycle() |> put_req_header("accept-language", "zh-CN") |> get(english_link)
+      assert redirected_to(english, 302) == "/"
+      assert english.resp_cookies["tuist_locale"].value == "en"
+
+      returning = english |> recycle() |> put_req_header("accept-language", "zh-CN") |> get("/")
+      assert html_response(returning, 200) =~ ~s(lang="en")
+      assert get_resp_header(returning, "cache-control") == ["private, no-store"]
+    end
+
+    test "invalid preferences cannot select a redirect target or overwrite an explicit choice", %{conn: conn} do
+      response =
+        conn
+        |> put_req_cookie("tuist_locale", "//evil.example")
+        |> put_req_header("accept-language", "ja")
+        |> get("/")
+
+      assert redirected_to(response, 302) == "/ja"
+
+      for query <- ["set_locale=//evil.example", "set_locale=ja", "set_locale[]=en"] do
+        response = get(conn, "/es?#{query}")
+        assert html_response(response, 200)
+        refute Map.has_key?(response.resp_cookies, "tuist_locale")
+      end
+    end
+
+    test "translated pages share query-free alternates and an English fallback", %{conn: conn} do
+      languages = [
+        {"en", ""},
+        {"es", "/es"},
+        {"ja", "/ja"},
+        {"ka", "/ka"},
+        {"ko", "/ko"},
+        {"ru", "/ru"},
+        {"yue-Hant", "/yue_Hant"},
+        {"zh-Hans", "/zh_Hans"},
+        {"zh-Hant", "/zh_Hant"}
+      ]
+
+      for page <- ["/", "/about"], {language, prefix} <- languages do
+        path = if page == "/", do: if(prefix == "", do: "/", else: prefix), else: prefix <> page
+        document = conn |> get(path <> "?utm_source=google") |> html_response(200) |> Floki.parse_document!()
+
+        assert Floki.attribute(document, "html", "lang") == [language]
+
+        assert Floki.attribute(document, "link[rel='canonical']", "href") ==
+                 [Tuist.Environment.app_url(path: path)]
+
+        alternates = Floki.find(document, "link[rel='alternate'][hreflang]")
+        assert length(alternates) == length(languages) + 1
+
+        for {target_language, target_prefix} <- languages do
+          target_path =
+            if page == "/",
+              do: if(target_prefix == "", do: "/", else: target_prefix),
+              else: target_prefix <> page
+
+          assert Floki.attribute(alternates, "[hreflang='#{target_language}']", "href") ==
+                   [Tuist.Environment.app_url(path: target_path)]
+        end
+
+        assert Floki.attribute(alternates, "[hreflang='x-default']", "href") ==
+                 [Tuist.Environment.app_url(path: page)]
+
+        assert Floki.find(document, "link[type='text/markdown'][hreflang]") == []
+
+        if page == "/" do
+          website =
+            document
+            |> Floki.find("script[type='application/ld+json']")
+            |> Enum.map(&(&1 |> Floki.text(js: true) |> JSON.decode!()))
+            |> Enum.find(&(&1["@type"] == "WebSite"))
+
+          assert website["inLanguage"] == language
+        end
+      end
+    end
+  end
+
   describe "Markdown-only problem and comparison guides" do
     test "does not register standalone marketing browser routes" do
       for page <- MarketingMarkdown.decision_guides() do
@@ -276,8 +422,8 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
       assert html =~ "/marketing/assets/bundle.css"
     end
 
-    test "anonymous responses stay publicly cacheable", %{conn: conn} do
-      conn = get(conn, "/")
+    test "anonymous deep links stay publicly cacheable", %{conn: conn} do
+      conn = get(conn, "/about")
 
       assert get_resp_header(conn, "cache-control") == ["public, max-age=60, stale-while-revalidate=86400"]
     end
@@ -311,39 +457,17 @@ defmodule TuistWeb.Marketing.MarketingControllerTest do
   end
 
   describe "GET /pricing" do
-    test "shows the remote cache hit pricing without the flag", %{conn: conn} do
-      stub(FeatureFlags, :usage_based_pricing_page_enabled?, fn nil -> false end)
-
-      html = conn |> get("/pricing") |> html_response(200)
-
-      assert html =~ "+ $0.5 per additional unit"
-      refute html =~ "Cache egress"
-      refute html =~ "What counts as cache egress and requests?"
-    end
-
-    test "shows usage-based pricing with the flag", %{conn: conn} do
-      stub(FeatureFlags, :usage_based_pricing_page_enabled?, fn nil -> true end)
-
+    test "shows usage-based pricing", %{conn: conn} do
       html = conn |> get("/pricing") |> html_response(200)
 
       assert html =~ "Cache egress"
-      assert html =~ "+ $0.35 per additional GB"
+      assert html =~ "+ $0.10 per additional GB"
       assert html =~ "Cache requests"
       assert html =~ "+ $0.01 per additional 1,000"
       assert html =~ "Test Insights"
       assert html =~ "+ $2 per additional million"
       assert html =~ "What counts as cache egress and requests?"
       refute html =~ "+ $0.5 per additional unit"
-    end
-
-    test "previews usage-based pricing for a signed-in user it is enabled for", %{conn: conn} do
-      user = AccountsFixtures.user_fixture()
-      user_id = user.id
-      stub(FeatureFlags, :usage_based_pricing_page_enabled?, fn %{id: ^user_id} -> true end)
-
-      html = conn |> log_in_user(user) |> get("/pricing") |> html_response(200)
-
-      assert html =~ "Cache egress"
     end
   end
 

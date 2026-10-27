@@ -87,7 +87,7 @@ type RackAppleSiliconMachineSpec struct {
 	MaxPods int `json:"maxPods,omitempty"`
 
 	// RunnerCacheVolumeGiB is the quota (GiB) of the dedicated APFS volume
-	// bootstrap provisions to hold per-account cache-volume images. Unset
+	// bootstrap provisions to hold the runner cache volumes. Unset
 	// (nil) falls back to the operator's global default; an explicit 0
 	// disables cache volumes on this host entirely.
 	//

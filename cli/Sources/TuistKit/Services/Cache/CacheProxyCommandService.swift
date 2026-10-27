@@ -7,6 +7,7 @@ import Foundation
 import Path
 import TuistCAS
 import TuistCASAnalytics
+import TuistConstants
 import TuistEnvironment
 import TuistLoader
 import TuistLogging
@@ -72,6 +73,12 @@ struct CacheProxyCommandService {
         setenv("TUIST_CAS_REMOTE_GRPC_URL", endpoint?.absoluteString ?? "", 1)
         setenv("TUIST_CAS_SERVER_URL", serverURL.absoluteString, 1)
         setenv("TUIST_CAS_TUIST_BIN", tuistPath.pathString, 1)
+        setenv("TUIST_CAS_TUIST_VERSION", Constants.version, 1)
+        if let plugin = try await resourceLocator.casPlugin() {
+            setenv("TUIST_CAS_BUNDLED_PLUGIN", plugin.pathString, 1)
+        } else {
+            unsetenv("TUIST_CAS_BUNDLED_PLUGIN")
+        }
         // The proxy records per-node transfer analytics into this db, which the
         // build-report upload ships to the server — the same path and schema the
         // Swift CASAnalyticsDatabase defines, so the upload + server pipeline is unchanged.

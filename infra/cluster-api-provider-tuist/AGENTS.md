@@ -1,7 +1,7 @@
-# cluster-api-provider-tuist
+# Cluster API Provider
 
 - OVH cache vRack reconciliation is additive on the Ready path, scoped by the
-  environment ConfigMap and cache taint. Persist address reservations across
+  environment ConfigMap and cache taint, or explicit `spec.vRackID` on Kata runners. Persist address reservations across
   Machine deletion, preserve main-table unreachable guards for existing Machines,
   retire owned guards only after authoritative Machine removal, and advertise
   private topology only after every participant installs the same membership.
@@ -72,10 +72,11 @@ private-network guide above.
 | `ScalewayAppleSiliconMachine` | One Mac mini. Has the Scaleway server type, zone, OS, per-host pod CIDR, fleet name (ties Machines on the same fleet to one shared SSH key), and kubelet version. SSH and bootstrap material are operator-managed — no Secret refs in the spec. |
 | `ScalewayAppleSiliconMachineTemplate` | Template MachineDeployments / MachineSets clone from. |
 | `RackAppleSiliconMachine` | One Mac mini we own as a node: the RackHost it is (`host`), sizing and fleet. Its RackHost keeps it and the Machine that owns it. |
-| `RackHost` | One physical Mac mini in a rack we operate: serial, dial address, the subnet routers that address is dialled through, rack/shelf/U, PDU outlet, node sizing, parked. Status carries its outlet's state and draw. Its controller keeps the host's Machine. Nothing running on the host reads it. |
+| `RackHost` | One physical Mac mini in a rack we operate: serial, dial address, the subnet routers that address is dialled through, rack/shelf/U, PDU outlet, node sizing, parked, the env it is lent to (`lendTo`). Status carries its outlet's state and draw, and how far a lend has got (`lease`). Its controller keeps the host's Machine. Nothing running on the host reads it. |
+| `RackHostLease` | A rack host another env lends this cluster, in the borrowing cluster and named after the host. The lending operator writes the spec (the phase it asks for, the host's address, pinned host key and sizing, the key it authorized, its answer to a site request); this cluster's operator writes the status (its key, its Node, the drift bookkeeping for the runtime it pushes, the power cycle or macOS update it asks the lender for). See "A host lent to another env". |
 | `RackPDU` | One switched PDU in a rack we operate, rendered from the site definition in `infra/rack-switch-fleet`: model, the MAC its address is reserved against, address, chain, `managedBy`, the outlets' startup state. Its controller adopts the card and owns its credentials, certificate pin and egress Service. Status carries every outlet's state and meter reading. See "RackPDU" below. |
 | `RackATS` | One automatic transfer switch (EATS16N) in a rack we operate, rendered from the site definition: model, MAC, address, `managedBy`, `preferredSource`. Its controller adopts the card like a RackPDU's, keeps the preferred source, and every minute records which source powers the load and each source's state in status, metrics and events. See "RackATS" below. |
-| `RackSite` | A rack site as a whole, rendered from its site definition and named after the site: its contracted power as dated steps. Its controller keeps the step in effect in status and in `capt_racksite_contracted_power_watts`. See "RackSite" below. |
+| `RackSite` | A rack site as a whole, rendered from its site definition and named after the site: its contracted power as dated steps and its power budget. Its controller keeps the step in effect in status and in `capt_racksite_contracted_power_watts`, and taints the Mac minis of a chain or site over budget so they start no new runner VM. See "RackSite" below. |
 | `RackLinuxMachine` | One rack Linux node, created by the operator with its CAPI Machine under its host's name: the host it is, the name it joined under, its converge state. |
 | `RackLinuxHost` | One x86 Linux machine we own, named after its SMBIOS UUID: its hostname, role, site, the tailnet tags its install joins it with, its node labels and taints, whether it is powered on (`online`), the reinstall it asks for (`reinstallGeneration`), its AMT and, for an edge, its way out on its first boot (`edge`). Status carries its provisioning state, boot MAC, hardware, current tailnet device, a published install, power and AMT's state. |
 | `RackLinuxCandidate` | A machine whose install stick found no install published for it, from what it announced to a rack boot server: SMBIOS UUID (its name), serial, product, NICs, its TPM's endorsement key, the `bootMAC` to declare (its i226-LM), the edge that heard it, the host that declares it, if any, and the last announcement that conflicted with the first. The boot servers write it and the operator marks it. |
@@ -85,7 +86,7 @@ private-network guide above.
 | `FailoverIP` | One vendor failover/additional IP kept routed to a healthy box of a Kura bare-metal pool, draining off a box whose peer demux is rolling. Cluster-scoped, not a CAPI machine kind. |
 
 API group: `infrastructure.cluster.x-k8s.io/v1alpha1`. Short names:
-`samm`, `sammt`, `sasc`, `rasm`, `rh`, `rpdu`, `rats`, `rsite`, `rlm`, `rlmt`, `rlh`.
+`samm`, `sammt`, `sasc`, `rasm`, `rh`, `rhl`, `rpdu`, `rats`, `rsite`, `rlm`, `rlmt`, `rlh`.
 
 Every kind above is generated from the annotated types in
 [`api/v1alpha1/`](api/v1alpha1/) by
@@ -138,7 +139,7 @@ Beyond first bootstrap, a drift loop re-pushes host config to already-Ready
 hosts when the operator's `bootstrap.HostConfigHash` differs from the
 Machine's `Status.HostConfigHash`. That hash is a fleet-wide fingerprint over
 everything the operator pushes — the rendered install scripts plus the
-embedded binaries (tart-kubelet, tailscale, node_exporter, tuist-log-shipper) — computed once at
+embedded binaries (tart-kubelet, the Tart release, tailscale, node_exporter, tuist-log-shipper) — computed once at
 startup from operator-image + fleet-config inputs with every per-host field
 zeroed. So shipping a new operator image with a changed script, fleet CIDR/tag,
 or re-baked binary rolls to existing hosts on the next reconcile, not only on a
@@ -413,21 +414,160 @@ deletion of Kubernetes Node associated with Machine as it is not allowed`,
 deletes the Node, without a drain: cordon and drain a host's Node before
 parking or retiring the host.
 
-### A host lent to another cluster
+### A host lent to another env
 
-`RackHost.spec.nodeCluster` keeps a host in this operator's inventory while
-its Node registers in another cluster (runbook: "Lending a host to another
-env" in [infra/rack-nodes/AGENTS.md](../rack-nodes/AGENTS.md)). The machine
-controller reads tart-kubelet's kubeconfig from the Secret it names instead of
-minting an identity, and only once it can read it does it revoke the host's
-identity here and delete its Node here (`retireLocalNode`), so a missing Secret
-leaves the host serving this cluster. It skips the missing-Node re-bootstrap,
-points custom cache volumes at `cacheVolumesURL`, and the RackHost controller
-puts `cluster.x-k8s.io/skip-remediation` on the Machine (marked with
-`tuist.dev/lent-skip-remediation`, so returning the host removes only that
-one). `spec.nodeFleet` replaces the Node's `tuist.dev/fleet` label, which the
-other cluster's pools select. Both are per-host, which `HostConfigHash` strips,
-so `desiredHostConfigHash` folds them in, and only for a lent host.
+A rack belongs to one env's operator: production's for BER1. Staging and
+canary run jobs on rack hardware by borrowing hosts, and a lent host is split
+in two (runbook: "Lending a host to another env" in
+[infra/rack-nodes/AGENTS.md](../rack-nodes/AGENTS.md)):
+
+- **The site stays with the lender.** Its RackHost, Machine and
+  RackAppleSiliconMachine, power and PDU outlet, MDM, OS updates, bootstrap
+  from a reinstall, the edges and the host's authorized keys. There is still
+  one controller per site.
+- **The runner runtime is the borrower's.** tart-kubelet and its config, the
+  VM egress firewall, cache volumes, Tailscale, the node identity and the Node.
+  The borrowing operator pushes it with its own fleet config and drift loop,
+  exactly as it does its rented minis, so a staging deploy that changes the
+  runtime reaches a rack host in staging before production.
+
+`RackHost.spec.lendTo` names the borrowing env. The two operators hand the host
+over through a `RackHostLease` the lender writes into the borrowing cluster
+(`rack_lend.go` is the lending side, `rackhostlease_controller.go` the
+borrowing one). The lender records how far it got in `RackHost.status.lease`,
+which outlives the Machine, so a Machine made again while the host is lent
+picks the lend up rather than bootstrapping over it.
+
+**Lending** runs Offered, Draining, Lent:
+
+1. The lender creates the lease (`spec.phase: Offered`) with the host's
+   address, serial, site, SSH user, edges (`sshIngressAllowCIDRs`), the host
+   key it pinned and its sizing. Until the borrower accepts, the host keeps
+   serving the lender, but the lender pushes nothing to it: no drift, and no
+   bootstrap even for a new Machine, since the host may run the borrower's
+   runtime already (lent by hand, or mid-handover). On 2026-10-20 a Machine
+   replaced mid-handover bootstrapped ber1-runner-b01 with production's
+   runtime and took it out of staging's cluster. So a new host is
+   bootstrapped before it is lent.
+2. The borrower accepts a host listed in its `--rack-lease-hosts` by minting a
+   key of its own (`rack-lease-<host>-ssh`) and publishing the public half in
+   `status.sshPublicKey`; any other host it refuses.
+3. The lender cordons its Node and waits for its jobs to finish (a host is
+   never handed over mid-job), revokes the host's identity here, deletes its
+   Node and its per-machine egress Service, and hands the runtime over
+   (`bootstrap.HandOverRuntime`): it moves the host's runtime owner marker to
+   the borrower and authorizes the borrower's key, then sets `spec.phase: Lent`
+   with the key's fingerprint.
+4. The borrower first drains the Node the host had in its cluster under the
+   lender's name, if any (`spec.previousNodeName`: a host lent by hand). It
+   does not wait for warm runners stranded there: polling for a job when that
+   Node's tart-kubelet stopped reporting over ten minutes ago
+   (`strandedRunners`). Their `vm-cleanup` finalizer waits for a tart-kubelet
+   that is gone, and they had no job. It waits for a runner that had claimed
+   one, which may still be running it in its VM, and says so. It then pushes
+   its runtime with `bootstrap.UpdateTartKubelet` as a takeover
+   (`PerHost.TakeOver`): its own node identity, Node name
+   (`<rackFleet.name>-<host>`) and fleet label, its cache volume server,
+   and a fresh tailnet login, which moves the host's device to the
+   borrower's tags. Then it deletes the old Node and lets the stranded
+   runners go, whose VMs the new tart-kubelet's orphan collector reaps.
+   From then on its drift loop keeps the host converged, and
+   `status.state` is Active. The lease's status is one write per
+   reconcile, not the CAPI patch helper's separate one for
+   conditions: a reconcile reading it between the two saw the host taken over
+   with no runtime stamped and pushed it all again.
+
+**Returning** (clearing `lendTo`) runs Returning, Released, Reclaimed. The
+lender sets `spec.phase: Returning`; the borrower cordons its Node, waits for
+its jobs, revokes the identity, deletes the Node and reports Released. Only
+then does the lender take the runtime back: it removes the borrower's key and
+moves the marker home, deletes the tailnet devices the host ran as in both
+envs (each takeover logs it in as a new device, and the old one would keep
+the name its next login wants, leaving it `<name>-1`, which no egress Service
+addresses), marks the Machine not bootstrapped, deletes the lease, and
+bootstrap pushes its own runtime as a takeover. The devices go through the
+rack's tailnet API (`--rack-linux-tailscale-secret-name`); one it cannot
+delete is named in a `TailnetCleanupFailed` event for a person and never holds
+the return. A borrower
+that stops listing the host releases it the same way, and the lender takes it
+back. `tuist.dev/reclaim-runtime=true` on the RackHost takes it back without
+the borrower, for one that is gone; whatever it ran on the host is lost.
+
+**The two never push at once.** The host's runtime owner marker
+(`/etc/tuist/runtime-owner`, `bootstrap.RuntimeOwnerPath`) is the fence: every
+push from either operator claims it first (`--rack-env`, `PerHost.RuntimeOwner`)
+and changes nothing on a host another env owns (`RuntimeOwnerError`, reported as
+`RuntimeOwnedElsewhere`). Only the lender moves it, in the same step that
+authorizes or revokes the borrower's key. A host with no marker is claimed by
+the first push, which is how the fleet gets one. A bootstrap the fence refuses
+(a lent host whose RackHost was made again, so no lend is on record) is never
+escalated to a power cycle or a quarantine, since another env may be running
+jobs on it: set `lendTo` back, or take it back with
+`tuist.dev/reclaim-runtime=true`. While a host is lent the
+lender pushes nothing to it but the lease key and what the borrower asks for
+(below), and keeps the fleet's MachineHealthCheck off its Machine
+(`cluster.x-k8s.io/skip-remediation`, marked `tuist.dev/lent-skip-remediation`).
+
+**Credentials.** One per borrowing env, and no private material ever crosses
+between clusters:
+
+- The lender reaches the borrowing cluster with the borrowing chart's
+  `rack-lender` ServiceAccount, which can do nothing but read and write
+  RackHostLeases in that env's namespace. A person stores its kubeconfig once
+  in the lender's vault; the lender's chart syncs it with the namespace
+  (`rackFleet.borrowers`, as a hook, so no deploy waits on an item nobody has
+  stored yet) and passes `--rack-lease-borrower=<env>=<secret>`. Until it
+  syncs, or while the borrowing cluster cannot take a lease yet (not deployed
+  with the kind), the hosts lent to that env stay as they are. The borrower,
+  in turn, drains nothing before it has reached the host with its key
+  (`bootstrap.Probe`), so a missing grant or route never takes a Node out of
+  service for nothing.
+- The borrower dials with its own per-lease key, of which the lender only
+  ever sees the public half. Rotating it is deleting `rack-lease-<host>-ssh` in
+  the borrowing cluster: the borrower mints a new one and waits, and the lender
+  authorizes it on its next pass (`LeaseKeyRotated`). The lender's MDM fleet
+  key and the account password never leave the lender.
+- The node identity is minted by the borrower in its own cluster, as for any
+  host it bootstraps, so lending takes no kubeconfig from anyone.
+
+**Reaching the host.** The borrower dials the host's machines-segment address
+through its own `rack-<host>` egress Service, through the rack's edges, like
+the lender's first dial (see "The first dial"). That needs the borrowing
+cluster's tcp:22 grant to the minis in `infra/tailscale/acls.json` and its
+ProxyGroup to accept routes (`macminiEgress.proxyGroup.acceptRoutes` in
+`infra/helm/tailscale-operator`). The grant covers every mini, so lending one
+is a field; reaching :22 is not reaching the host, which authorizes only the
+lent host's borrower's key. The edges SNAT every dial, so the borrower's SSH
+ingress guard keeps admitting the lender. Once the host has joined the tailnet
+with the borrower's tags, the borrower reaches tart-kubelet, node_exporter and
+the VNC relay over its per-machine egress Service, and the host ships its logs
+to the borrower's Alloy, as for any of its minis.
+
+**Site requests.** The borrower holds no site credential, so it asks the
+lender for what needs one (`rack_lease_site.go`). A person annotates the
+borrower's RackHostLease with `tuist.dev/power-cycle=<why>` or
+`tuist.dev/os-update=<version>`; the borrower turns it into `status.siteRequest`
+and pushes nothing to the host while it is open. A power cycle is asked for at
+once. An update first drains the borrower's Node (`drained`), then the lender
+runs its own in-place update flow on the host (`osUpdateContext.lent`: no local
+cordon, no local converge, done once the host restarted on the target with its
+console session) and answers in `spec.siteRequestResult`, tied to its update by
+`osUpdateID`. On the answer the borrower pushes its runtime again (the installer
+resets files the host config owns) and puts its Node back in service, unless the
+update failed after it changed the host (`returnToService` unset), which leaves
+the Node cordoned as the lender's own update does. A reinstall is refused on both
+sides: it wipes the borrower's runtime and the lease key, so the host is
+returned, reinstalled, and lent again. The lender also refuses an update a
+person sets on the lent host's Machine (`OSUpdateWhileLent`).
+
+The borrower does nothing else the site owns: no quarantine and no recovery of
+its own. A takeover or a push that fails is retried, and the drift loop's
+terminal-failure rules are the shared ones (`hostagent.go`).
+
+`spec.nodeCluster` and `spec.nodeFleet` are the manual lend this replaced, where
+the lender pushed its own runtime with a kubeconfig the borrowing cluster
+issued. They stay only until ber1-runner-b01 and b02 are off them and go with
+`rackFleet.joiningNodes`. A host with both is left on the manual lend.
 
 ### Where it deliberately diverges from the Scaleway kind
 
@@ -501,7 +641,8 @@ mode behind it:
   the standard device, is what reaches a box that was off for longer.
 - **Its VMs reach the rack's cache gateways.** The VM egress firewall drops
   every private destination (see "VM egress guard"), and a rack's Kura
-  gateway sits on the machines segment. `rackFleet.vmCacheGatewayCIDRs` renders
+  gateway sits on the machines segment. `rackFleet.vmCacheGatewayCIDRs`, with
+  each `rackFleet.sites.<site>.vmCacheGatewayCIDRs` after it, renders
   `--rackhost-vm-cache-gateway-cidrs`, which `rackFleetConfig` overlays as
   `VMCacheGatewayCIDRs`: a pf pass to each CIDR on TCP 443 ahead of the drop.
   The traffic leaves on the host's default route, so the VM NAT's general leg
@@ -567,7 +708,8 @@ load-bearing in the grant as well as in `RackHost.spec.address`, from which the
 edges render the host's DHCP reservation and its route.
 
 **Put each edge's own address on the machines segment in
-`rackFleet.sshIngressAllowCIDRs`** (a host can override it with its own). An edge
+`rackFleet.sshIngressAllowCIDRs`** (`rackFleet.sites.<site>.sshIngressAllowCIDRs`
+for a host at another site; a host can override either with its own). An edge
 forwards with SNAT from its own address there, so those are the sources every
 dial through this path arrives from, and the host's SSH ingress guard drops
 anything else. Both, because the tailnet can route a dial through either. The
@@ -773,7 +915,9 @@ adopting it reads the RackPDU past the manager's cache, whose copy can lag
 the status the last pass wrote. A RackPDU switched to `managedBy: standalone`
 is `Ready=False`, reason `Standalone`, and the controller logs its session out
 of the card (so a person can log in with the account, and the card's one
-session for it is free) and stops contacting it. A logout that cannot reach the card is a
+session for it is free) and stops contacting it. Like a standalone RackATS, it
+exports no metrics, so a planned PDU at a site that is not racked yet does not
+read as one that cannot be observed. A logout that cannot reach the card is a
 `LogoutFailed` event; the card then ends the session at its idle timeout.
 
 **Conditions**: `Adopted`, `Converged`, `Ready`, `CertificateChanged`,
@@ -1118,10 +1262,11 @@ web UI, a zero-touch gap.
 
 A `RackSite` is what belongs to a rack site rather than to one device in it.
 `infra/rack-switch-fleet` renders one per site into `k8s/<site>/<site>.yaml`,
-named after the site. Today it carries only `spec.contractedPower`: the power
+named after the site. It carries `spec.contractedPower`: the power
 the colocation contract allows, as `{from, watts}` steps from the site
 definition's `contracted_power`. Each step applies from its day, 00:00 UTC,
-until the next step's. The last step stays in effect.
+until the next step's. The last step stays in effect. It also carries
+`spec.powerBudget` from `power_budget` (below).
 
 The controller (`controllers/macos/racksite_controller.go`) sets
 `status.contractedPowerWatts`, `contractedPowerSince` and
@@ -1132,6 +1277,68 @@ steps, or when a step cannot be read (`status.message` says why; the CRD
 already refuses a `from` that is not a date and `watts` below 1).
 "Rack power draw near its contracted limit" in
 `infra/helm/k8s-monitoring/alerts.md` divides each site's PDU draw by it.
+
+#### Power-aware admission
+
+A transfer switch puts its whole chain on one feed, so a chain that overloads
+feed A's breaker moves to feed B in 8 ms and trips that one too. The chain,
+its ToR and its side's internet port then stay dark until the colocation
+resets both breakers. Sizing every chain for every mini at Apple's maximum
+would cost half the rack's minis. Instead `spec.powerBudget` keeps the draw
+under the breaker by holding back new work: a Mac mini whose chain, or whose
+whole site, is over budget starts no new runner VM. Running jobs finish, so
+the cost is some queueing at the margin.
+
+- **`chainAmps`** is the output current at which a chain stops taking work:
+  13 A at BER1, under its 16 A breaker, with room for the dual-PSU gear a feed
+  loss moves onto the same circuit. A chain is a transfer switch with the PDUs
+  whose `spec.chain` names it, or a PDU that hangs off none. Its minis are the
+  RackHosts whose `spec.power.pdu` is one of those PDUs.
+- **`otherWatts`** is what the site draws outside its transfer switches, which
+  nothing meters, such as dual-PSU gear on the colocation's own strips. The
+  switches together may draw the contracted step in effect less it:
+  `status.powerBudgetWatts`. It is derived rather than stated per step, so a
+  contract change is one edit to `contracted_power`. BER1's is 0, because
+  everything there hangs off a switch, including the critical gear on
+  `ber1-ats-1`. A site whose dual-PSU gear sits on the colocation's strips sets
+  that gear's peak draw here.
+
+Every minute, the reconciler reads each chain's draw from its switch's output
+(`status.outputs`, which covers everything the switch powers), observed within
+the last five minutes. If the switch has no reading, it falls back to the sum
+of its PDUs' outlet meters, read within the last 30. A chain at or over
+`chainAmps` is held, and so is the whole site at or over its budget. A hold is
+released once the draw is under 95% of the limit, and no sooner than ten
+minutes after it began. Without that margin and minimum hold, retiring a held
+mini's idle runners would lower the draw just enough to release it and start
+them again.
+
+A held mini's Node carries the NoSchedule taint `tuist.dev/power-budget`, with
+the value `chain` or `site`. Runner Pods don't tolerate it, so no new VM lands
+there. The runners-controller treats such a Node like a cordoned one: it counts
+no capacity there (`nodeFilterReason`), and it retires the idle runners already
+on it (`reapIdlePodsOnCordonedNodes`). A warm runner would otherwise take the
+next job and draw more, and nothing would ever start a VM, since pools keep
+warm runners up. The autoscaler replaces them on Nodes that are not held. A
+taint rather than a cordon, because a cordon means someone is about to take the
+box away: `nodeIsServing` treats a cordoned host as one power actions need no
+force for, and a lease's cordon is the lease's own.
+
+Admission fails open. A chain with minis but no recent reading holds nothing
+and lifts a hold it had, and so does the site while any switch has no reading.
+`PowerAdmission` is then `Unknown` (`ReadingsStale`). A meter that stops
+answering must not take capacity away; "Rack power draw near its contracted
+limit" still alerts on the draw. Removing `powerBudget`, or the RackSite,
+lifts every hold. A host lent to another env registers its Node in that env's
+cluster, so it is counted on its chain and never tainted.
+
+The status carries `powerBudgetWatts`, `meteredWatts`, `siteHeld` and its
+`siteHeldSince`, `chains[]` (`currentAmps`, `watts`, `hosts`, `held`,
+`heldSince`) and the `PowerAdmission` condition: `True`, `False` with
+`ChainOverBudget` or `SiteOverBudget`, or `Unknown`. The metrics are
+`capt_racksite_power_budget_watts`, `capt_racksite_metered_power_watts`,
+`capt_racksite_chain_current_amps`, `capt_racksite_chain_held` and
+`capt_racksite_site_held`.
 
 ### Rack card passwords
 
@@ -1562,7 +1769,11 @@ belongs to the box, whose AMT keeps the password.
 (`rack_linux_converge.go`, `internal/racknode`, `cmd/rack-node`). The machine
 reconciler renders a `RackNodeConfig`, the host's files (kubelet unit and
 configuration, CA, local CNI, containerd's registry mirror, sysctl, modules,
-the management port's networkd file, `/etc/tuist/kubernetes-api`, the
+the management port's networkd file (on a host with AMT only: one that names
+its AMT, is a model in `--rack-linux-amt-products`, or whose AMT the operator
+has read; it keeps the boot NIC AMT shares up with `ARP=no` and no address, and
+a host with a BMC of its own, whose boot NIC is the host's, gets none),
+`/etc/tuist/kubernetes-api`, the
 translation of the kubernetes Service to the API server in
 `/etc/tuist/kubernetes-service.nft`, an edge's host networking below), the
 directories it needs, the exact kubelet release the control plane runs and the
@@ -1658,6 +1869,36 @@ and a simulated reboot networkd rebuilt the bond, which it did not without the
 per-uplink files. Not yet run: an install of a real edge at the colo.
 
 This needs the other edge up as master: reinstall the edges one at a time.
+
+**The first edge of a site** has no other edge up. With the WAN's address in
+the site, `spec.edge.wan` carries the site's static WAN (VLAN, address,
+gateway), and the install adds a first-boot WAN service
+(`rackinstall.EdgeFirstWANPath`, `tuist-edge-first-wan.service`) beside the
+netplan, never in it, since netplan would keep the address on the standby
+too. Until a rack-edge static pod's manifest is on the node, every 20 seconds
+it either:
+- checks the gateway on what it holds, and lets go after three missed answers;
+- or takes the WAN: tagged on `wan0`, built the way the pod's `edge_vlan_bond`
+  builds it, then untagged on each uplink with link through a macvlan
+  (`fwan<n>`), which networkd leaves alone. It takes it only when nobody
+  answers for the address (`arping -D`) and the gateway answers, as the
+  resident installer's `static_wan` does, with a default route at metric 50.
+
+A factory ToR passes the carrier untagged, so the edge starts on the untagged
+path. Once zero-touch provisioning puts the WAN on its VLAN (the PicOS
+bootstrap's WAN path), the untagged path stops answering and it moves to
+`wan0`. It records what it holds in `/run/rack-edge/first-wan`, and the pod's
+path script gives that up before keepalived starts. On 2026-10-26 the rendered
+script ran in an Ubuntu 24.04 container against a namespace standing in for
+the ToR:
+- with the carrier untagged, it took the WAN on `fwan1`;
+- with the carrier moved onto VLAN 4001, it gave that up and took it on `wan0`;
+- once a manifest appeared, it exited, and the path script's release left no
+  address;
+- with another host already answering for the address, it took nothing.
+
+Not yet run on a real edge.
+
 Without `spec.edge`, as at a site with no WAN, an edge's install takes DHCP on
 its uplinks. A per-host stick (`cmd/rack-seed`) renders no edge network; an
 edge at the colo is installed from the operator's install, netbooted or
@@ -1753,7 +1994,7 @@ site's other hosts, since AMT is reached through it. `PowerReachable` (and
 `capt_racklinuxhost_power_reachable`) says whether the host could be powered on
 that way now: AMT activated, a link on the management port, and the last read
 through an edge (`status.amt.lastPowerRead`, hourly while the host is on the
-tailnet) answered. AMT reports no address while it sees no link, so the
+tailnet, a minute after a read that failed) answered. AMT reports no address while it sees no link, so the
 operator falls back to the static one it gave it (`status.amt.assignedAddress`).
 Nothing powers on an edge while no edge is up: the edges need the firmware's
 Restore On AC Power Loss (see `infra/rack-nodes/AGENTS.md`). The annotation
@@ -1850,6 +2091,12 @@ kubectl get node <host> -o jsonpath='{.status.addresses}'
 ```
 
 ## Host macOS updates
+
+The [macOS TCP clock runbook](macos-tcp-clock.md) records the October 26, 2026
+long-uptime Tahoe incident, the safe binary installer, and the required drained
+OS maintenance wave. Releasing an operator fixes the installer; it does not
+upgrade the host kernel. Fleet provisioning OS families do not enforce a minimum
+point release on already-adopted machines.
 
 Host macOS updates are operator-run waves, one drained host at a time. They are
 never automatic and not driven by MDM: NanoMDM cannot enforce update policy.
@@ -2017,6 +2264,46 @@ touches that host. A reinstall that failed after the host came back on the
 target is finished with `tuist.dev/os-update=<target>`, which converges and
 uncordons without erasing again.
 
+## Host Tart upgrades
+
+Tart is upgraded and rolled back in place by the host-config drift loop, on
+rented and rack hosts alike, with no drain and no Machine replacement. The image
+carries every release in `TART_RELEASES` (Dockerfile) under
+`/opt/tart/<version>/tart.tar.gz`. A host runs:
+
+1. the release its Machine's `tuist.dev/tart-version` annotation names, else
+2. `macosFleet.tart.version` (`CAPI_TART_VERSION`), else
+3. the image's `TART_DEFAULT_VERSION`.
+
+The resolved version and tarball are part of the host config, so changing any
+of the three drifts exactly the hosts it changes. `installTart` puts the new
+release beside the one running VMs use and switches `/usr/local/bin/tart` (see
+[`macos-host-bootstrap/AGENTS.md`](../macos-host-bootstrap/AGENTS.md)). Those
+VMs finish on the old binary and the new one manages them. An annotation naming
+a release the image does not carry is ignored, with a `TartVersionUnavailable`
+Warning event on the machine.
+
+Roll a release out one host first, then per environment:
+
+```bash
+kubectl annotate samm <machine> tuist.dev/tart-version=2.41.1   # or rasm
+kubectl get nodes -o wide   # CONTAINER-RUNTIME reads tart://2.41.1 once it lands
+```
+
+Then set `macosFleet.tart.version` for staging, canary and production in turn,
+and remove the annotations. Roll back by pointing either back at the previous
+release. Keep the version a fleet runs in `TART_RELEASES` until no environment
+selects it, so a rollback never needs an image build. Before adding a release,
+check its changelog against "Tart versions" in
+[`tart-kubelet/AGENTS.md`](../tart-kubelet/AGENTS.md).
+
+Tart is part of the runner runtime, so a lent rack host runs the borrowing
+env's Tart: its `macosFleet.tart.version`, or a `tuist.dev/tart-version`
+annotation on the `RackHostLease` in the borrowing cluster (see "A host lent to
+another env"). An annotation on the lender's RackAppleSiliconMachine has no
+effect on a lent host, so BER1 runs one Tart only when staging, canary and
+production all select it.
+
 ## Module layout
 
 ```
@@ -2043,7 +2330,13 @@ infra/cluster-api-provider-tuist/
 │   │   ├── rackats_card.go          # the atsCard seam and its Eaton (Network-M2/M3 REST) implementation
 │   │   ├── rackats_metrics.go       # capt_rackats_* series
 │   │   ├── racksite_controller.go   # RackSite: the contracted power step in effect
+│   │   ├── racksite_power.go        # power-aware admission: chain and site budgets, the tuist.dev/power-budget taint
 │   │   ├── rackhost_machine.go      # each host's Machine: create, adopt, park, remediate
+│   │   ├── rack_lend.go             # lending a host (RackHost lendTo): offer, drain, hand over, return
+│   │   ├── rackhostlease_controller.go  # borrowing a host: accept, take over, drift, release
+│   │   ├── rack_lease_clients.go    # the borrowing clusters' clients, from their kubeconfig Secrets
+│   │   ├── rack_lease_drain.go      # a lease's cordon and the jobs it waits for
+│   │   ├── rack_lease_site.go       # site requests: power cycles and macOS updates a borrower asks for
 │   │   └── hostagent.go             # what both macOS kinds share once a host
 │   │                                # is in hand: drift bookkeeping, terminal-
 │   │                                # failure rules, sizing overlay, egress Service
@@ -2059,22 +2352,26 @@ infra/cluster-api-provider-tuist/
 │       ├── racklinux_candidates.go  # tidies what the rack boot servers list
 │       ├── linux_cloudinit.go       # shared self-join script + kubelet config (Layers 2+3)
 │       ├── kubelet_config_drift.go  # zero-downtime re-push of kubelet config to Ready nodes
-│       └── kata_runtime_drift.go    # detect + repair a node that joined without the kata runtime
+│       ├── kata_runtime_drift.go    # detect + repair a node that joined without the kata runtime
+│       ├── kata_shared_memory.go    # /dev/shm ceiling for Kata guest RAM + the host-config proof
+│       └── kata_virtiofs.go         # virtiofsd file budget (fs.nr_open + Kata config.d drop-in)
 ├── internal/
 │   ├── power/        # PDU / smart-plug drivers, eaton and shelly (the rack's remote reboot), the Eaton ATS reads; eatontest fakes a PDU card and an ATS card
+│   ├── redfish/      # a rack x86 server's BMC over Redfish (AMI MegaRAC on the ASUS RS501A): inventory, BIOS baseline, accounts, virtual CD, boot override, power; redfishtest fakes that BMC
 │   ├── rackcard/     # a rack power card's passwords, derived from the root key
 │   ├── scaleway/     # Scaleway SDK wrapper
-│   ├── rackinstall/  # a rack host's autoinstall seed, iPXE script and install stick
-│   ├── rackboot/     # the rack boot server: TFTP/HTTP netboot, seeds, announcements
+│   ├── rackinstall/  # a rack host's autoinstall seed, iPXE script, install stick, and the preinstall image's deploy and resident seeds
+│   ├── rackboot/     # the rack boot server: TFTP/HTTP netboot, seeds, announcements; with Internet, only sealed seeds and declared hosts' announcements
 │   ├── racknode/     # makes a rack Linux host the node its RackNodeConfig describes
 │   ├── rackseed/     # a rack host's seed, sealed to its pinned TPM; rackseedtest is a TPM in software
 │   ├── tailnet/      # Tailscale API: devices and join keys
 │   ├── credentials/  # fleet SSH keys + per-machine kubelet identities
 │   └── bootstrap/    # SSH-driven kubelet/tart-cri install
 ├── cmd/manager/    # controller-manager entry point
-├── cmd/rack-boot/  # the rack boot server, run on a rack's edge nodes
+├── cmd/rack-boot/  # the rack boot server, run on a rack's edge nodes; --internet runs it on the cloud for preinstalled boxes
+├── cmd/rack-bmc/   # adopts and drives a rack x86 server through its BMC (inventory, check/apply the BIOS, BMC and IPMI baseline, rotate, cd, boot-once, power)
 ├── cmd/rack-node/  # applies a rack node's configuration, reads its TPM, asks for its seed
-├── cmd/rack-seed/  # renders a seed for rack:write-install-usb
+├── cmd/rack-seed/  # renders a seed for rack:write-install-usb, or with -preinstall the preinstall image's
 ├── cmd/rack-card-password/  # derives a rack power card's password for rack:card-password
 ├── config/
 │   └── rbac/       # ClusterRole for the manager
@@ -2196,16 +2493,44 @@ setup in `controllers/linux/kata_shared_memory.go` grows that ceiling to
 `MemTotal`, preserves larger custom ceilings and mount flags, and verifies the
 result. This changes a ceiling; it does not preallocate memory.
 
+virtiofsd also bounds how many files a runner job can keep. It holds one host
+descriptor for every inode the guest has cached, and Kata starts it without
+`--rlimit-nofile`, so its budget is virtiofsd's default of min(1,000,000,
+`fs.nr_open`). Once that is spent it answers the guest with EMFILE, whatever the
+guest process's own rlimit is (job steps get 1048576). Measured 2026-10-22: a
+job creating files on the rootfs failed at ~990k cached inodes while holding 7
+descriptors, and the server `Seed` job peaks at ~888k (831k ClickHouse part
+files), which is why it intermittently failed with ClickHouse
+`Too many open files`. `controllers/linux/kata_virtiofs.go` writes
+`/etc/sysctl.d/90-tuist-kata-virtiofs.conf` (`fs.nr_open = 4194304`), applies
+and verifies it, and only then installs the Kata drop-in
+`/opt/kata/share/defaults/kata-containers/config.d/50-tuist-virtiofs.toml`,
+which repeats Kata's default `virtio_fs_extra_args` and adds
+`--rlimit-nofile=4194304`. The order matters: virtiofsd exits when the value
+exceeds `fs.nr_open`, which would fail every new Kata Pod. virtiofsd reads its
+arguments when a Pod starts, so new Pods pick it up without restarting
+containerd; running Pods keep the old budget until they are replaced. Every
+cached inode also pins host kernel memory outside the Pod's cgroup, which is
+why the budget is four times the default rather than unbounded.
+
+The alternatives were rejected. A pod-template `ulimit` changes nothing, since
+the guest process limit is already high. `--inode-file-handles` would avoid the
+descriptors only for filesystems with decodable file handles, which the
+container rootfs (overlayfs without `nfs_export`) is not, and that rootfs is
+where ClickHouse keeps its data. A stricter `virtio_fs_cache` mode would slow
+every metadata-heavy build.
+
 Bootstrap installs `tuist-kata-shared-memory.service`, ordered before containerd,
-and the Ready-path repair installs and runs the same service on existing OVH
-Kata hosts without restarting containerd, kubelet, or guests. Only a successful
-repair stamps `tuist.dev/kata-shared-memory-config` on the Node with the script
-and unit hash plus `status.nodeInfo.bootID`. A changed configuration or boot
-invalidates that proof; it is not continuous detection of manual mount changes
-within the same boot. Missing proof sets `KataSharedMemoryUnverified`; a failed
-repair sets `KataRuntimeRepairFailed`, leaving the machine Ready and the existing
-runtime label intact. Non-Kata fleets are unaffected. The Hetzner worker template
-in `infra/k8s/clusters/bare-metal.yaml` installs identical files for new workers
+and the virtiofsd files. The Ready-path repair installs and runs both on
+existing OVH Kata hosts without restarting containerd, kubelet, or guests. Only
+a successful repair stamps `tuist.dev/kata-host-config` on the Node with the
+hash of the shared-memory script and unit and the virtiofsd sysctl and drop-in,
+plus `status.nodeInfo.bootID`. A changed configuration or boot invalidates that
+proof; it is not continuous detection of manual changes within the same boot.
+Missing proof sets `KataHostConfigUnverified`; a failed repair sets
+`KataRuntimeRepairFailed`, leaving the machine Ready and the existing runtime
+label intact. Non-Kata fleets are unaffected. The Hetzner worker template in
+`infra/k8s/clusters/bare-metal.yaml` installs identical files for new workers
 (checked by a test); existing Hetzner workers do not use this OVH repair path.
 
 Alerts for this operator are Grafana-managed rules, created in Grafana Cloud
@@ -2346,6 +2671,32 @@ string, so the bare number would advertise 5 Mbps for a box reported as
 "5 Gbps"; and every field is nullable, so an absent bandwidth block is an
 ordinary answer that resolves to zero.
 
+## sshd stays reachable on Linux hosts
+
+Every repair the operator makes to a Linux host (kubelet config, private-network
+membership, Kata, containerd quota) arrives over SSH, and kubelet stays Ready
+when sshd is down, so a host without sshd silently stops converging. Ubuntu 24.04
+socket-activates sshd: once ssh.service starts five times within 10s it fails
+with `start-limit-hit`, ssh.socket fails with `service-start-limit-hit`, and
+nothing listens on `:22` until someone runs `systemctl reset-failed`. Package
+upgrades and a temporarily broken `sshd_config` under internet scanner traffic
+both get there.
+
+`internal/sshd` holds `10-tuist-no-start-limit.conf` drop-ins for both units:
+`StartLimitIntervalSec=0` on each, plus `RestartSec=5s` on the service so a
+failing sshd retries every 5s instead of spinning. On the SSH-bootstrapped
+hosts, `sshStartLimitDropIns` (`controllers/linux/linux_cloudinit.go`) writes
+them: the self-join writes them, and the kubelet config re-push writes them and
+runs `systemctl daemon-reload`. Their content is part of
+`desiredKubeletConfigHash`, so changing them rolls to every Ready node. A rack
+Linux host's install writes them into the installed system
+(`internal/rackinstall`), and its converge keeps them in the `units` group,
+which the node agent loads with `systemctl daemon-reload`; they are in the
+converge's hash, so changing them rolls to every rack host. Neither the re-push
+nor the converge restarts sshd, because both run over the session sshd serves.
+A host whose `:22` is already dead cannot receive them. Recover it out of band
+with `systemctl reset-failed ssh.service ssh.socket && systemctl start ssh.socket`.
+
 ## Node memory governance
 
 `kubeletMemoryGovernanceBlock` in `controllers/linux/linux_cloudinit.go` carries
@@ -2473,10 +2824,9 @@ fleet size from there. No `kubectl create secret` calls.
 
 ## Build
 
+Run `go test ./...` and `go build ./...` here. For image changes, the Docker build context is the repository root:
+
 ```bash
-cd infra/cluster-api-provider-tuist
-go test ./...
-go build ./...
 docker build -f Dockerfile -t ghcr.io/tuist/capi-provider-scaleway-applesilicon:dev ../..
 ```
 
@@ -2525,9 +2875,9 @@ the fleet key + a known sudo password) and marked *before* it joins the pool. Th
 
 1. **Pre-order the box** in the provider console (out of band; the controllers
    never order). OVH ADVANCE-1 for EU-West and the US cache regions, ADVANCE-2 for
-   ap-southeast, RISE-L (production) or RISE-S (staging, canary) in Gravelines
+   ap-southeast, RISE-L (production) or RISE-M (staging, canary) in Gravelines
    for the Linux runner pool. The RISE range's
-   EU-datacenter plan codes (`25risel01-v1-eu`, `25rises01-v1-eu`) are orderable
+   EU-datacenter plan codes (for example `25risel01-v1-eu`) are orderable
    on OVHcloud US, so a Gravelines box stays on the one `ovh-us` endpoint every
    OVH fleet shares. Stock per plan and datacenter is public and needs no token:
    `GET https://api.us.ovhcloud.com/1.0/dedicated/server/datacenter/availabilities`.
@@ -2590,6 +2940,20 @@ Release (`reconcileDelete`) drops the Node + identity + TOFU pin and **reinstall
 the box back into the pool**. It stays a monthly contract (release is not a contract
 termination), but the reinstall wipes the OS to a clean, claimable state — any
 node-local volume is lost and the host key rotates, so the next claim re-TOFUs it.
+
+**Release waits for runner jobs.** Cluster API core never drains a Machine in
+these clusters. The `Cluster` has no control plane Machines, so Machine deletion
+skips the drain, and with it every `MachineDrainRule`, and goes straight to the
+infrastructure Machine (the CAPI controller logs `Skipping deletion of Kubernetes
+Node ... cause="no control plane members"`). The OVH, Vultr and Elastic Metal
+releases therefore start by cordoning the box's Node and requeue every 30s, with
+a `WaitingForRunnerJobs` event, while any `tuist.dev/runner=true` Pod in
+`tuist-runners` on it has not finished (`holdReleaseForRunnerJobs` in
+`controllers/linux/runner_jobs.go`). The runners-controller retires idle runner
+Pods on a cordoned Node, so only Pods running a job hold the release, and a
+terminating Pod on an unreachable Node does not. No other Pod is waited on. See
+"Replacing a runner box without killing CI jobs" in
+[runners-controller](../runners-controller/AGENTS.md).
 
 **A failing step waits out its requeue.** The OVH, Vultr and Elastic Metal
 machine kinds ignore their own status writes (`ignoreOwnStatusWrites`), since
@@ -2715,19 +3079,11 @@ what is left to convert.
 
 ### Converting a live cache box
 
-**Do not delete the Machine out from under running cache pods.** It deadlocks,
-and this is pre-existing rather than anything the quota work introduced:
-
-1. CAPI drains the Node before the infrastructure controller runs. Draining
-   evicts a cache pod.
-2. That pod's PVC is still bound to a local-path PV with a
-   `kubernetes.io/hostname` affinity to the box being drained, so the replacement
-   pod has nowhere to schedule and stays Pending.
-3. Each `KuraInstance` has a `PodDisruptionBudget` of `minAvailable: 1`, so with
-   the first replica down the eviction API refuses the second.
-4. `deleteNodeLocalPVCs` (below) is what would free the volume, and it runs
-   AFTER drain in `reconcileDelete`. With `nodeDrainTimeout` unset on these
-   fleets, drain has no deadline, so the Machine sits in Deleting indefinitely.
+**Do not delete the Machine out from under running cache pods.** Nothing drains
+it (see "Release waits for runner jobs" above): the release deletes the Node and
+reaps the box's node-local PVCs at once, so both replicas of every instance on
+the box lose their volume together, with no peer left to backfill from. The
+StatefulSets reprovision cold on whatever box is left in the pool.
 
 **The controller does this for you.** Annotate the outgoing node
 `tuist.dev/kura-evacuate` and the kura-controller runs the sequence below
@@ -2761,25 +3117,12 @@ nothing user-visible happening:
    so the cache content follows even though the volume does not; gate on that
    pod's backfill metrics rather than a timer.
 5. Let the primary role hand over, then repeat 3-4 for the ex-primary.
-6. Delete the old Machine once it holds no cache pods. Drain is trivial now, and
-   release reinstalls it onto the split layout and returns it to the pool.
+6. Delete the old Machine once it holds no cache pods. Release reinstalls it
+   onto the split layout and returns it to the pool.
 
 Releasing an OVH box is not a contract termination, so a region left at two boxes
 keeps paying for both. Decide whether the second box is capacity you want or a
 contract to cancel out of band.
-
-The deadlock itself is now defused declaratively: the `kura-cache-skip`
-`MachineDrainRule` in `infra/k8s/clusters/machinedrainrules.yaml` tells Cluster
-API not to evict cache Pods, so drain completes, the PVC reap runs, and the
-StatefulSets reprovision on whatever box is left in the pool. That is a safety
-net rather than the procedure: it makes the naive path terminate instead of
-hang, but it gives up the cache, since both replicas are co-located and deleting
-their box leaves no peer to backfill from. Use the staged move above to keep a
-region warm.
-
-Setting `nodeDrainTimeout` on these fleets would additionally bound the failure
-if a future Pod shape reintroduces the same shape of stall. Worth doing
-independently of any conversion.
 
 ### Scale up
 ```bash
@@ -2810,7 +3153,7 @@ reflected in `desiredHostConfigHash`:
 | `hostCPU` / `hostMemoryMB` | Node capacity — the actual guest-count control |
 | `maxPods` | Node Pod ceiling. Counts **every** Pod bound to the Node, and a terminal Pod holds its slot until GC — so it is guests x 2, not guests + system Pods. See below |
 | `guestCapacity` | The per-guest host resources: the VNC relay port range and the disk-pressure goldens floor. Declares intent; creates no capacity |
-| `runnerCacheVolumeGiB` | The per-account cache volume's quota, which tracks the SKU's disk |
+| `runnerCacheVolumeGiB` | The runner cache volume's quota, which tracks the SKU's disk |
 
 `maxPods` is sized as guests x 2 + 1 because a Pod stays bound to its
 Node after it finishes: each guest slot can transiently hold its running
@@ -2864,6 +3207,29 @@ once Scaleway flips it back to `Delivered + Ready`. The 24h Apple
 licensing floor stays in operator-owned territory — you keep paying
 for capacity you already pre-ordered until you decide to release it
 via the Scaleway console.
+
+The controller never deletes a Scaleway server. To stop renting a host,
+scale its fleet down (in the env's values, since the chart owns the
+replica count), wait for the Machine's `Released` event, then delete the
+`tuist-pool-<uuid>` server it became, in the env's Scaleway project. A
+host on a `renewed_monthly` commitment cannot be deleted before its
+`deletable_at`, the end of the month it is in, so schedule the deletion
+instead; Scaleway deletes it then, and `schedule-deletion=false` undoes
+it until it does:
+
+```bash
+scw apple-silicon server list zone=fr-par-1 project-id=<env project>
+scw apple-silicon server update <server-id> schedule-deletion=true zone=fr-par-1
+```
+
+A pool host scheduled for deletion is still adoptable until it goes, so
+schedule it only once nothing in that env needs a spare.
+
+Staging and canary rent no runner hosts (`runnersFleet.hostCount: 0`;
+their macOS jobs run on lent BER1 rack hosts, see `infra/rack-nodes/AGENTS.md`),
+and keep one `macosFleet` mini each for the xcresult processor. Their
+pools hold no spare, so replacing that mini means ordering a
+`tuist-pool-` host first.
 
 `spec.os` names a macOS release **family** — `Tahoe`, `Sequoia`,
 `Sonoma` — not a point release. Adoption accepts any pool host in the
@@ -3081,6 +3447,5 @@ pick it up:
 scw apple-silicon server update <id> zone=<zone> name=tuist-pool-...
 ```
 
-- macOS custom volumes retain automatic built-in Tuist/CAS caches. They reuse the
-  shared runner-cache lifecycle with an APFS backend; rollout and compatibility
-  are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+- macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
+  backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.

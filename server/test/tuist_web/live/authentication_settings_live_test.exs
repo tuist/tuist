@@ -84,9 +84,20 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
     assert html =~ "/scim/v2"
   end
 
-  test "raises NotFoundError for personal accounts", %{conn: conn, user: user} do
-    assert_raise TuistWeb.Errors.NotFoundError, fn ->
-      live(conn, ~p"/#{user.account.name}/settings/authentication")
+  test "shows workload identities directly for personal accounts without SSO or SCIM", %{conn: conn, user: user} do
+    {:ok, lv, _html} = live(conn, ~p"/#{user.account.name}/settings/authentication")
+    assert has_element?(lv, "#oidc-trust-policy-form[hidden]")
+    lv |> element("#oidc-configuration-toggle") |> render_click()
+    refute has_element?(lv, "#oidc-trust-policy-form[hidden]")
+    refute has_element?(lv, "#sso-form")
+    refute has_element?(lv, "[data-part=scim-card]")
+    refute has_element?(lv, ".noora-tab-menu-horizontal-item", "Workload identities")
+
+    for event <- ["toggle_sso", "save_sso", "generate_scim_token", "revoke_scim_token"] do
+      render_hook(lv, event, %{})
+      assert has_element?(lv, "#oidc-trust-policy-form")
+      refute has_element?(lv, "#sso-form")
+      refute has_element?(lv, "[data-part=scim-card]")
     end
   end
 
@@ -223,7 +234,6 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
 
       configured_organization
       |> Ecto.Changeset.change(%{
-        sso_legacy_email_domain_fallback: true,
         sso_login_domain: "customer.example",
         sso_login_domain_verification_token: "backfilled-token",
         sso_login_domain_verified_at: nil
@@ -502,7 +512,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       assert updated_organization.sso_login_domain_verification_token
     end
 
-    test "keeps legacy enforcement while an existing organization adds its replacement login domain", %{
+    test "keeps existing policies while an unverified organization adds its login domain", %{
       conn: conn,
       account: account,
       organization: organization,
@@ -522,8 +532,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
         configured_organization
         |> Ecto.Changeset.change(
           sso_enforced: true,
-          sso_automatic_enrollment: true,
-          sso_legacy_email_domain_fallback: true
+          sso_automatic_enrollment: true
         )
         |> Tuist.Repo.update()
 
@@ -536,9 +545,8 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       conn = put_session(conn, :auth_method, :oauth2)
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
 
-      html =
-        lv
-        |> form("#sso-form", %{
+      sso_form =
+        form(lv, "#sso-form", %{
           "sso" => %{
             "oauth2_site" => "https://login.vendor.example",
             "sso_login_domain" => "customer.example",
@@ -549,15 +557,16 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
             "oauth2_user_info_url" => "https://login.vendor.example/userinfo"
           }
         })
-        |> render_submit()
+
+      render_change(sso_form)
+      html = render_submit(sso_form)
 
       assert html =~ "Pending verification"
-      assert html =~ "This existing configuration allows any email address reported by the provider"
+      assert html =~ "Automatic enrollment is paused until the login email domain is verified"
 
       {:ok, updated_organization} = Accounts.get_organization_by_id(organization.id)
       assert updated_organization.sso_enforced
       assert updated_organization.sso_automatic_enrollment
-      assert updated_organization.sso_legacy_email_domain_fallback
       assert updated_organization.sso_login_domain == "customer.example"
       refute updated_organization.sso_login_domain_verified_at
     end

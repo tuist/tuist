@@ -353,7 +353,10 @@ func (r *OVHDedicatedMachineReconciler) reconcileNormal(ctx context.Context, mac
 		machine.Status.Phase = "Ready"
 		conditions.MarkTrue(machine, NodeReadyCondition)
 		networkErr := r.reconcilePrivateNetwork(ctx, machine, node)
-		if networkErr != nil {
+		var pending *privateNetworkPending
+		if errors.As(networkErr, &pending) {
+			logger.V(1).Info("private network waiting for peer routes", "peers", pending.peers)
+		} else if networkErr != nil {
 			logger.Error(networkErr, "private network repair failed; will retry")
 		}
 		if machine.Status.FailureReason == nil {
@@ -444,6 +447,14 @@ func (r *OVHDedicatedMachineReconciler) claimedServiceNames(ctx context.Context,
 func (r *OVHDedicatedMachineReconciler) reconcileDelete(ctx context.Context, machine *infrav1.OVHDedicatedMachine) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	machine.Status.Phase = "Deleting"
+	running, err := holdReleaseForRunnerJobs(ctx, r.Client, machine.Name)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if len(running) > 0 {
+		r.event(machine, "WaitingForRunnerJobs", "%s", releaseHeldMessage(machine.Name, running))
+		return ctrl.Result{RequeueAfter: runnerJobsRecheckInterval}, nil
+	}
 	if err := r.CredentialsManager.DeleteNodeIdentity(ctx, machine.Name); err != nil {
 		r.event(machine, "DeleteIdentityFailed", "delete node identity: %v (will retry)", err)
 		return ctrl.Result{}, err

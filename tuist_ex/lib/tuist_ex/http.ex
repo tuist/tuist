@@ -1,7 +1,7 @@
 defmodule TuistEx.HTTP do
   @moduledoc false
 
-  def request(method, url, body \\ nil, headers \\ []) do
+  def request(method, url, body \\ nil, headers \\ [], timeouts \\ []) do
     start()
 
     headers =
@@ -19,7 +19,11 @@ defmodule TuistEx.HTTP do
         {String.to_charlist(url), headers}
       end
 
-    options = [timeout: 15_000, connect_timeout: 10_000, autoredirect: false]
+    options = [
+      timeout: Keyword.get(timeouts, :timeout, 15_000),
+      connect_timeout: Keyword.get(timeouts, :connect_timeout, 10_000),
+      autoredirect: false
+    ]
 
     options =
       if URI.parse(url).scheme == "https" do

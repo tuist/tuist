@@ -24,7 +24,7 @@ android {
     signingConfigs {
         create("release") {
             val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
-                ?: rootProject.file("release.keystore").takeIf { it.exists() }?.absolutePath
+                ?: file("$rootDir/release.keystore").takeIf { it.exists() }?.absolutePath
             if (keystorePath != null) {
                 storeFile = file(keystorePath)
                 storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: ""
@@ -57,10 +57,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     buildFeatures {
         compose = true
         buildConfig = true
@@ -75,9 +71,16 @@ android {
     sourceSets["main"].java.srcDir("${layout.buildDirectory.get()}/generated/openapi/src/main/kotlin")
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
+
 play {
+    isolatedSingleProject.set(true)
     val serviceAccountJsonPath = System.getenv("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON")
-        ?: rootProject.file("service-account.json").takeIf { it.exists() }?.absolutePath
+        ?: file("$rootDir/service-account.json").takeIf { it.exists() }?.absolutePath
     if (serviceAccountJsonPath != null) {
         serviceAccountCredentials.set(file(serviceAccountJsonPath))
     }
@@ -131,7 +134,7 @@ dependencies {
 
 openApiGenerate {
     generatorName.set("kotlin")
-    inputSpec.set("${rootProject.projectDir}/../cli/Sources/TuistServer/OpenAPI/server.yml")
+    inputSpec.set("$rootDir/../cli/Sources/TuistServer/OpenAPI/server.yml")
     outputDir.set("${layout.buildDirectory.get()}/generated/openapi")
     apiPackage.set("dev.tuist.app.api")
     modelPackage.set("dev.tuist.app.api.model")
@@ -151,6 +154,20 @@ openApiGenerate {
     importMappings.set(mapOf(
         "Int" to "kotlin.Int",
     ))
+}
+
+// With "original" enum naming, an empty-string enum value generates a constant without a name.
+tasks.named("openApiGenerate") {
+    val generatedSources = layout.buildDirectory.dir("generated/openapi/src/main/kotlin")
+    doLast {
+        generatedSources.get().asFile.walkTopDown()
+            .filter { it.extension == "kt" }
+            .forEach { file ->
+                val source = file.readText()
+                val patched = source.replace("@Json(name = \"\") (\"\")", "@Json(name = \"\") EMPTY(\"\")")
+                if (patched != source) file.writeText(patched)
+            }
+    }
 }
 
 tasks.named("preBuild") {

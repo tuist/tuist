@@ -769,52 +769,10 @@ extension [String] {
     }
 }
 
-extension XCFrameworkInfoPlist.Library.Platform {
-    fileprivate var graphPlatform: XcodeGraph.Platform {
-        switch self {
-        case .iOS: return .iOS
-        case .macOS: return .macOS
-        case .tvOS: return .tvOS
-        case .watchOS: return .watchOS
-        case .visionOS: return .visionOS
-        }
-    }
-}
-
 extension XCFrameworkInfoPlist.Library {
-    fileprivate var sdkCondition: String {
-        let graphPlatform = platform.graphPlatform
-        switch platformVariant {
-        case .simulator:
-            if let simulatorSDK = graphPlatform.xcodeSimulatorSDK {
-                return "sdk=\(simulatorSDK)*"
-            }
-            return "sdk=\(graphPlatform.xcodeSdkRoot)*"
-        case .maccatalyst:
-            return "sdk=macosx*"
-        case nil:
-            return "sdk=\(graphPlatform.xcodeSdkRoot)*"
-        }
-    }
-
     fileprivate func applies(to condition: PlatformCondition?) -> Bool {
         guard let condition else { return true }
         return condition.platformFilters.contains(platformFilter)
-    }
-
-    private var platformFilter: PlatformFilter {
-        switch platformVariant {
-        case .maccatalyst:
-            return .catalyst
-        case .simulator, nil:
-            switch platform {
-            case .iOS: return .ios
-            case .macOS: return .macos
-            case .tvOS: return .tvos
-            case .watchOS: return .watchos
-            case .visionOS: return .visionos
-            }
-        }
     }
 }
 
