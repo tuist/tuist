@@ -60,22 +60,25 @@ type Deps struct {
 	Network  network.Interface
 	Slots    *network.Slots
 	Agent    func(vsockPath string) vsock.Agent
-	Metrics  *Metrics
-	Events   func(protocol.Event)
-	Log      *slog.Logger
+	// CloneFile defaults to vm.Reflink; fake-VM tests can copy their tiny fixtures.
+	CloneFile func(src, dst string) error
+	Metrics   *Metrics
+	Events    func(protocol.Event)
+	Log       *slog.Logger
 }
 
 type Manager struct {
-	cfg      Config
-	store    *template.Store
-	builder  *template.Builder
-	launcher vm.Launcher
-	net      network.Interface
-	slots    *network.Slots
-	agent    func(string) vsock.Agent
-	metrics  *Metrics
-	events   func(protocol.Event)
-	log      *slog.Logger
+	cfg       Config
+	store     *template.Store
+	builder   *template.Builder
+	launcher  vm.Launcher
+	net       network.Interface
+	slots     *network.Slots
+	agent     func(string) vsock.Agent
+	cloneFile func(string, string) error
+	metrics   *Metrics
+	events    func(protocol.Event)
+	log       *slog.Logger
 
 	mu        sync.Mutex
 	sandboxes map[string]*Sandbox
@@ -139,9 +142,13 @@ func New(cfg Config, deps Deps) *Manager {
 	if deps.Events == nil {
 		deps.Events = func(protocol.Event) {}
 	}
+	if deps.CloneFile == nil {
+		deps.CloneFile = vm.Reflink
+	}
 	return &Manager{
 		cfg: cfg, store: deps.Store, builder: deps.Builder, launcher: deps.Launcher, net: deps.Network,
 		slots: deps.Slots, agent: deps.Agent, metrics: deps.Metrics, events: deps.Events, log: deps.Log,
+		cloneFile: deps.CloneFile,
 		sandboxes: map[string]*Sandbox{},
 	}
 }
@@ -241,7 +248,7 @@ func (m *Manager) Create(ctx context.Context, args protocol.CreateArgs) (res pro
 		return res, err
 	}
 	rootfs := filepath.Join(root, firecracker.RootfsPath)
-	if err := vm.Reflink(artifacts.Rootfs, rootfs); err != nil {
+	if err := m.cloneFile(artifacts.Rootfs, rootfs); err != nil {
 		return res, err
 	}
 	if err := vm.Chown(rootfs, uid, uid); err != nil {

@@ -31,11 +31,13 @@ const (
 // serialized per (template, shape); concurrent Ensure calls wait for the
 // running build.
 type Builder struct {
-	Store              *Store
-	Launcher           vm.Launcher
-	Network            network.Interface
-	Slots              *network.Slots
-	Agent              func(vsockPath string) vsock.Agent
+	Store    *Store
+	Launcher vm.Launcher
+	Network  network.Interface
+	Slots    *network.Slots
+	Agent    func(vsockPath string) vsock.Agent
+	// CloneFile defaults to vm.Reflink; fake-VM tests can copy their tiny fixtures.
+	CloneFile          func(src, dst string) error
 	JailBase           string
 	FirecrackerBin     string
 	JailerBin          string
@@ -169,7 +171,11 @@ func (b *Builder) build(ctx context.Context, t Template, shape Shape) (err error
 		return err
 	}
 	rootfs := filepath.Join(root, firecracker.RootfsPath)
-	if err := vm.Reflink(t.Rootfs(), rootfs); err != nil {
+	cloneFile := b.CloneFile
+	if cloneFile == nil {
+		cloneFile = vm.Reflink
+	}
+	if err := cloneFile(t.Rootfs(), rootfs); err != nil {
 		return err
 	}
 	if err := vm.Chown(rootfs, uid, uid); err != nil {

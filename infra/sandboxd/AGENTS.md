@@ -460,9 +460,13 @@ inside an error.
 
 ### Development
 
-The module is not in the root `go.work`; run with `GOWORK=off` (or add it
-with `go work use ./infra/sandboxd`). `go test ./...` runs on macOS: the
+The module is in the root `go.work`; use `GOWORK=off` to test its standalone
+dependency graph. `go test ./...` runs on macOS: the
 Linux-only syscalls (FICLONE, wait4, prctl) sit behind build tags with
-stubs, and `internal/fakevm` stands in for Firecracker. Anything that
+stubs, and `internal/fakevm` stands in for Firecracker. Fake-VM fixtures
+inject a small file copy so lifecycle tests also run on Linux filesystems
+without reflinks. Production defaults to strict `vm.Reflink`; its file test
+checks clone isolation on supporting filesystems and rejection without a
+copy fallback on unsupported ones. Anything that
 needs KVM (a real boot, the jailer, tap devices) can only be exercised on
 a node, ideally through `ADMIN_ADDR` on staging.
