@@ -9,7 +9,7 @@ the base runner image includes the SDK but not the emulator's X11/audio librarie
 Keep SDK installation and test execution non-root; sudo is only for apt setup.
 
 Pinned comparison toolchain: Gradle 8.11.1, AGP 8.7.3, Kotlin 2.0.21,
-Macrobenchmark 1.3.3. Both modules use a Pixel 6 API 34 AOSP x86_64 Gradle
+Macrobenchmark 1.3.3 and Java/Kotlin JVM target 17. Both modules use a Pixel 6 API 34 AOSP x86_64 Gradle
 Managed Device, sequentially to keep memory bounded. The app's instrumented
 test checks the guest API and ABI. The separate self-instrumenting test module
 measures 15 cold starts of a profileable, non-debuggable benchmark build.

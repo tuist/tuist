@@ -6,6 +6,10 @@ plugins {
 android {
     namespace 'dev.tuist.kvmsmoke.benchmark'
     compileSdk 34
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
     defaultConfig {
         minSdk 28
         targetSdk 34
@@ -32,6 +36,10 @@ android {
             }
         }
     }
+}
+
+kotlin {
+    jvmToolchain(17)
 }
 
 androidComponents {
