@@ -244,3 +244,5 @@ Cluster formation requires a stable shared cookie Secret, a fixed distribution l
   Canary and production fleet templates declare vRack enrollment; existing
   OnDelete hosts require a drained backfill and transport validation. Check
   shared capacity and enrollment with `helm/linux-vrack.sh`.
+
+- Managed Linux pools inherit KVM through `runnersFleetLinux.nestedVirtualization.defaultEnabled`; false rolls idle runners back without removing host prerequisites. Device allocations follow each Node’s Pod capacity. Validate defaults, rollback revisions and the preparation gate with `bash infra/mise/tasks/helm/nested-kvm.sh`.

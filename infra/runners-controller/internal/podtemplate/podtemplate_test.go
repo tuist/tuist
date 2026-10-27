@@ -1,6 +1,9 @@
 package podtemplate
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -605,6 +608,125 @@ func TestBuild_MacOSPodHasNoKataXattrAnnotation(t *testing.T) {
 	}
 }
 
+func TestBuild_NestedVirtualizationBootsKVMKernelAndRequestsTheDevice(t *testing.T) {
+	pool := basePool("linux")
+	pool.Spec.NestedVirtualization = true
+	pod := build(t, pool)
+
+	if got := pod.Annotations["io.katacontainers.config.hypervisor.kernel"]; got != KVMGuestKernelPath {
+		t.Errorf("kernel annotation = %q, want %q", got, KVMGuestKernelPath)
+	}
+	if got := pod.Annotations["io.katacontainers.config.hypervisor.kernel_params"]; got != "psi=1" {
+		t.Errorf("kernel_params annotation = %q, want psi=1 kept alongside the kernel override", got)
+	}
+	if got := pod.Spec.NodeSelector[KVMNodeLabel]; got != "true" {
+		t.Errorf("nodeSelector %s = %q, want \"true\"", KVMNodeLabel, got)
+	}
+
+	runner := containerByName(t, pod, "runner")
+	for name, list := range map[string]corev1.ResourceList{"requests": runner.Resources.Requests, "limits": runner.Resources.Limits} {
+		quantity, ok := list[KVMResourceName]
+		if !ok || quantity.Value() != 1 {
+			t.Errorf("runner %s %s = %v, want 1", name, KVMResourceName, list[KVMResourceName])
+		}
+	}
+	if runner.SecurityContext != nil && runner.SecurityContext.Privileged != nil && *runner.SecurityContext.Privileged {
+		t.Error("runner container is privileged; /dev/kvm must arrive through the device plugin, not privilege")
+	}
+	for _, c := range pod.Spec.InitContainers {
+		if _, ok := c.Resources.Limits[KVMResourceName]; ok {
+			t.Errorf("init container %q requests %s; the runner's allocation covers the shared Kata guest", c.Name, KVMResourceName)
+		}
+	}
+}
+
+func TestBuild_WithoutNestedVirtualizationHasNoKVM(t *testing.T) {
+	pod := build(t, basePool("linux"))
+
+	if _, ok := pod.Annotations["io.katacontainers.config.hypervisor.kernel"]; ok {
+		t.Error("kernel annotation set on a pool that did not opt in")
+	}
+	if _, ok := pod.Spec.NodeSelector[KVMNodeLabel]; ok {
+		t.Errorf("nodeSelector carries %s on a pool that did not opt in", KVMNodeLabel)
+	}
+	if _, ok := containerByName(t, pod, "runner").Resources.Limits[KVMResourceName]; ok {
+		t.Errorf("runner requests %s on a pool that did not opt in", KVMResourceName)
+	}
+	if strings.Contains(initContainerByName(t, pod, "dind").Args[0], "/dev/kvm") {
+		t.Fatal("Docker creates a KVM device on a pool that did not opt in")
+	}
+}
+
+func TestBuild_DockerKVMSetupPrecedesEveryDaemonMode(t *testing.T) {
+	for _, mode := range []string{"plain", "cache-volumes", "docker-cache"} {
+		for _, failure := range []string{"", "mknod", "chmod"} {
+			t.Run(mode+"/fail="+failure, func(t *testing.T) {
+				pool := basePool("linux")
+				pool.Spec.NestedVirtualization = true
+				if mode != "plain" {
+					pool.Spec.CacheVolumeRoot = "/var/lib/cache"
+					pool.Spec.CacheVolumeURL = "http://agent:8090"
+				}
+				pool.Spec.DockerCache = mode == "docker-cache"
+				pod := build(t, pool)
+				for _, c := range pod.Spec.InitContainers {
+					if quantity := c.Resources.Limits[KVMResourceName]; quantity.Value() != 0 {
+						t.Fatal("Docker must share the guest's KVM without another allocation")
+					}
+				}
+				command := initContainerByName(t, pod, "dind").Args[0]
+				// Execute the generated startup suffix with fake daemon/device
+				// commands: no mounts, real devices or Docker are touched. This
+				// catches shell-list precedence letting dockerd start after a
+				// failed setup, particularly the mount-server background mode.
+				_, command, ok := strings.Cut(command, "mount -o loop /mnt/dind-disk/disk.img /var/lib/docker && ")
+				if !ok || !strings.Contains(command, "/dev/kvm") {
+					t.Fatal("missing KVM setup before Docker startup")
+				}
+				dir := t.TempDir()
+				command = strings.ReplaceAll(command, "/dev/kvm", filepath.Join(dir, "kvm"))
+				command = strings.ReplaceAll(command, externalsPath, dir)
+				command = strings.ReplaceAll(command, workPath, dir)
+				for name, body := range map[string]string{
+					"mknod":              "[ \"$FAIL\" != mknod ] || exit 1\n[ \"$2 $3 $4\" = 'c 10 232' ] || exit 2\ntouch \"$1\"",
+					"chmod":              "[ \"$FAIL\" != chmod ] || exit 1\n[ \"$1\" = 0666 ] || exit 2\ntouch \"$PROOF\"",
+					"dockerd":            "test -e \"$PROOF\" || exit 3\ntouch \"$STARTED\"",
+					"tuist-cache-volume": "[ \"$1\" != mount-server ] || exit 0\ntest -e \"$PROOF\" || exit 3\ntouch \"$STARTED\"",
+				} {
+					if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\nset -e\n"+body+"\n"), 0o755); err != nil {
+						t.Fatal(err)
+					}
+				}
+				cmd := exec.Command("sh", "-ec", command)
+				cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"), "FAIL="+failure, "PROOF="+filepath.Join(dir, "mode-set"), "STARTED="+filepath.Join(dir, "started"))
+				out, err := cmd.CombinedOutput()
+				_, started := os.Stat(filepath.Join(dir, "started"))
+				if failure == "" && (err != nil || started != nil) {
+					t.Fatalf("Docker did not start after KVM setup: %v, %s", err, out)
+				}
+				if failure != "" && (err == nil || !os.IsNotExist(started)) {
+					t.Fatalf("Docker started despite %s failure: %v, %s", failure, err, out)
+				}
+			})
+		}
+	}
+}
+
+func TestBuild_NestedVirtualizationOutsideKataFailsClosed(t *testing.T) {
+	linux := basePool("linux")
+	linux.Spec.NestedVirtualization = true
+	linux.Spec.RuntimeClass = ""
+	if _, err := Build(linux, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", "", "", "", ""); err == nil {
+		t.Error("Build accepted nested virtualization on a runc Linux pool; want refusal")
+	}
+
+	macos := basePool("darwin")
+	macos.Spec.NestedVirtualization = true
+	if _, err := Build(macos, "pod-name", "sa-name", "http://dispatch", "http://internal-dispatch", testDindImage, "", "", ""); err == nil {
+		t.Error("Build accepted nested virtualization on a macOS pool; want refusal")
+	}
+}
+
 func TestBuild_LinuxPodEnablesPSIViaKataAnnotation(t *testing.T) {
 	// The vitals probe reads /proc/pressure/* for CPU/memory pressure,
 	// but the kata guest kernel boots with PSI off unless psi=1 is on
@@ -1079,6 +1201,9 @@ func TestDockerCacheRunsDockerdUnderTheSupervisor(t *testing.T) {
 	}
 	if strings.Contains(command, "mount-server") {
 		t.Fatal("a second mount broker would race the supervisor's socket")
+	}
+	if !strings.Contains(command, "apk add --no-cache e2fsprogs coreutils util-linux") {
+		t.Fatal("BuildKit merges need GNU cp to preserve overlay xattrs")
 	}
 	if !strings.Contains(strings.Join(dind.StartupProbe.Exec.Command, " "), "test -S "+workPath+"/.tuist-cache-mount.sock") {
 		t.Fatal("runner can start before the supervisor's socket")

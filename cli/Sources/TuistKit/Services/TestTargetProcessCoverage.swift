@@ -52,6 +52,7 @@ struct TestTargetProcessCoverage {
         result.processes = profiles.count
         guard !profiles.isEmpty, !bundles.isEmpty else { return result }
         let allImages = Array(Set(images + bundles.map(\.image))).sorted()
+        let architecture = CoverageExportService.architecture(ofImages: allImages)
 
         let references = await concurrentMap(allImages) { image in
             (image, CoverageMapping.functionReferences(imagePath: image) ?? [])
@@ -103,7 +104,11 @@ struct TestTargetProcessCoverage {
                     .map { (module, $0, profile) }
             }
             return await concurrentMap(exports) { export in
-                (export.module, export.image, await lines(image: export.image, profile: export.profile))
+                (
+                    export.module,
+                    export.image,
+                    await lines(image: export.image, profile: export.profile, architecture: architecture)
+                )
             }
         }
         result.exports = reports?.count ?? 0
@@ -147,15 +152,22 @@ struct TestTargetProcessCoverage {
 
     /// The files of an image whose code ran under `profile` and the lines that ran: those with a
     /// function or a line `llvm-cov` counts at least once. Dependency checkouts are left out, as
-    /// the run's coverage leaves them out.
-    private func lines(image: String, profile: AbsolutePath) async -> [String: IndexSet] {
-        let arguments = [
+    /// the run's coverage leaves them out. A universal image, such as a framework from the binary
+    /// cache, is read for the run's `architecture`.
+    private func lines(image: String, profile: AbsolutePath, architecture: String) async -> [String: IndexSet] {
+        guard let report = await run(Self.exportArguments(image: image, profile: profile, architecture: architecture))
+        else { return [:] }
+        return Self.executedLines(lcov: report)
+    }
+
+    /// `llvm-cov` reads a universal image only for a named architecture; `-arch` names the slice a
+    /// thin image already is, so it is passed for every image.
+    static func exportArguments(image: String, profile: AbsolutePath, architecture: String) -> [String] {
+        [
             "/usr/bin/xcrun", "llvm-cov", "export", "-format=lcov", "-skip-branches",
             "-ignore-filename-regex=/(\\.build|DerivedData|SourcePackages|Pods|Carthage)/",
-            "-instr-profile", profile.pathString, image,
+            "-instr-profile", profile.pathString, "-arch", architecture, image,
         ]
-        guard let report = await run(arguments) else { return [:] }
-        return Self.executedLines(lcov: report)
     }
 
     static func executedLines(lcov report: String) -> [String: IndexSet] {

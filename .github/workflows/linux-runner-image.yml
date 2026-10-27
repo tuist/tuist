@@ -22,6 +22,7 @@ on:
   pull_request:
     paths:
       - infra/linux-runner-image/**
+      - .github/actions/setup-docker-builder/**
       - .github/workflows/linux-runner-image.yml
   workflow_dispatch:
     inputs:
@@ -46,7 +47,7 @@ jobs:
   cache-mounts:
     name: Cache volume bind mounts
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -63,6 +64,32 @@ jobs:
             -e TUIST_TEST_BIND_MOUNTS=1 \
             -v "$RUNNER_TEMP/cache-volume.test:/cache-volume.test:ro" \
             ubuntu:22.04 /cache-volume.test -test.v
+      - name: Verify Docker layers and cache mounts across jobs
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -euo pipefail
+          dind_digest=sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac
+          dind_image="public.ecr.aws/docker/library/docker:28-dind@$dind_digest"
+          if ! docker pull "$dind_image"; then
+            # Public ECR can throttle GitHub-hosted egress. Keep the exact
+            # same image digest when falling back to the upstream registry.
+            dind_image="docker.io/library/docker:28-dind@$dind_digest"
+            docker pull "$dind_image"
+          fi
+          docker run --rm --privileged \
+            -e TUIST_TEST_DOCKER_CACHE=1 \
+            -e TMPDIR=/var/lib/docker \
+            -v "$RUNNER_TEMP/cache-volume.test:/cache-volume.test:ro" \
+            --entrypoint sh \
+            "$dind_image" \
+            -c 'apk add --no-cache e2fsprogs coreutils util-linux >/dev/null && /cache-volume.test -test.v -test.run "TestDockerBuildCacheAcrossJobs|TestDockerTrimReclaimsDeletedBlocks" -test.timeout=14m' \
+            2>&1 | tee "$RUNNER_TEMP/docker-build-cache.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: docker-build-cache-evidence
+          path: ${{ runner.temp }}/docker-build-cache.log
   build:
     needs: cache-mounts
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'

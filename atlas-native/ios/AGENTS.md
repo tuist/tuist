@@ -140,7 +140,9 @@ in a changing safe-area inset around the entire TabView. The compact participant
 menu must not cover navigation controls or expose stale names on local-only screens.
 Tab models retain loaded data for the signed-in session; returning to Orbit reuses
 its Rust snapshot, while pull-to-refresh and live invalidations keep it current.
-Do not persist authenticated responses to a shared or disk cache to mask layout bugs.
+Orbit additionally hydrates Rust's explicitly sanitized, credential-lifetime-scoped
+inbox projection before network session restoration; see [Durable read cache](../README.md#durable-read-cache).
+Do not persist arbitrary authenticated responses or use disk caching to mask layout bugs.
 
 Add new Swift sources to explicit Once source lists where needed, particularly the
 unhosted test bundle. Run `once build AtlasIOS`, `once test AtlasIOSTests` and
