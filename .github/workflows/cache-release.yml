@@ -12,6 +12,8 @@ on:
       - main
     paths:
       - cache/**
+      - infra/certificate-trust/policy.json
+      - infra/certificate-trust/pem-store.sh
       - mise/tasks/release/components.json
       - .github/workflows/cache-release.yml
   workflow_dispatch:
