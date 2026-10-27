@@ -1,0 +1,19 @@
+{
+  "hash": "78b1f642bb4ee1fc39f65de85afa01f6c9c2b9d8cdb524d92783a4bb241e3369",
+  "hash_tree": {
+    "context": {
+      "child": {
+        "file": "server/L10N.md",
+        "hash": "f523eedfd3f93bcfbdc268b58781fdcfcbb3053706564594407a4cdb3ea7379f"
+      },
+      "file": "L10N.md",
+      "hash": "5d5910c58a27c289d172b18f0bca28176bf6b6a74bd894e27273f55199cd2816"
+    },
+    "source": {
+      "file": "server/priv/gettext/marketing.pot",
+      "hash": "e95116732b02abd15d1b9658d3a927a0185ab9c4bb15122b1c6fcafdf85293eb"
+    }
+  },
+  "model": "hive:Translator",
+  "translated_at": "2026-10-27T15:23:19.325422Z"
+}
