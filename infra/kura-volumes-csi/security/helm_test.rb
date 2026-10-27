@@ -15,6 +15,7 @@ Dir.mktmpdir('kura-security-chart') do |chart|
   identity=pod['volumes'].find { |v| v['name']=='kura-openbao-identity' }
   raise 'missing bounded OpenBao token' unless identity.dig('projected','sources',0,'serviceAccountToken') == {'audience'=>'openbao.kura.tuist.dev','expirationSeconds'=>3600,'path'=>'token'}
   raise 'missing OpenBao mount' unless pod['containers'][0]['volumeMounts'].any? { |v| v['name']=='kura-openbao-identity' && v['readOnly'] }
+  raise 'OpenBao writes not enabled by default' unless pod['containers'][0]['env'].any? { |v| v['name']=='TUIST_KURA_VOLUME_OPENBAO_WRAP_NEW_SHARES' && v['value']=='true' }
   raise 'exportable root still synced' if out.include?('TUIST_KURA_VOLUME_ROOT_KEYS')
   raise 'missing fail-closed policies' unless docs.count { |d| d['kind']=='ValidatingAdmissionPolicy' && d.dig('spec','failurePolicy')=='Fail' } == 3
   cluster_role=docs.find { |d| d['kind']=='ClusterRole' && d.dig('metadata','name')=='kura-volumes-csi-node' }
@@ -32,6 +33,13 @@ Dir.mktmpdir('kura-security-chart') do |chart|
   ca=pod['containers'][0]['env'].find { |e| e['name']=='TUIST_KURA_VOLUME_OPENBAO_CA_CERT_FILE' }
   raise 'private CA not configured' unless ca['value']=='/var/run/tuist/kura-openbao/ca.crt'
   raise 'stale AWS KMS configuration' if out.include?('KURA_VOLUME_KMS_') || out.include?('sts.amazonaws.com')
+  out,err,status=Open3.capture3(*args,'--set','server.config.kuraVolumeOpenBao.wrapNewShares=false')
+  raise err unless status.success?
+  pod=YAML.load_stream(out).compact.find { |d| d['kind']=='Deployment' }.dig('spec','template','spec')
+  raise 'rollback mode omitted' unless pod['containers'][0]['env'].any? { |v| v['name']=='TUIST_KURA_VOLUME_OPENBAO_WRAP_NEW_SHARES' && v['value']=='false' }
+  raise 'rollback lost OpenBao decrypt identity' unless pod['volumes'].any? { |v| v['name']=='kura-openbao-identity' }
+  _,_,status=Open3.capture3(*args,'--set-string','server.config.kuraVolumeOpenBao.wrapNewShares=false')
+  raise 'accepted ambiguous wrapping mode' if status.success?
   out,err,status=Open3.capture3(*args,'--set','server.config.kuraVolumeOpenBao.enabled=false')
   raise err unless status.success?
   raise 'disabled provider still mounts identity' if out.include?('kura-openbao-identity') || out.include?('TUIST_KURA_VOLUME_OPENBAO_')

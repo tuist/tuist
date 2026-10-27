@@ -14,6 +14,9 @@ volume passphrases and key-service sealing.
 - Rewrap preserves shares byte-for-byte and commits with compare-and-swap only
   after verification. Do not hold DB locks while calling OpenBao. Preserve existing
   versions for volumes and retain source wrappers for backup recovery.
+- Reverse migration sets `kuraVolumeOpenBao.wrapNewShares=false` while keeping
+  OpenBao configured for decrypt. Wait for every web replica to adopt it before
+  rewrapping; disable OpenBao only after inventory and re-stage checks pass.
 - Adding/removing a share or rotating a compromised share requires a separate
   volume/keyslot migration. Rewrap alone does not remediate leaked plaintext.
 - An already-mounted LUKS volume remains accessible after key-service denial.

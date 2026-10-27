@@ -820,6 +820,9 @@ server:
     # consumer of server-config. Retain old roots offline for backup recovery.
     kuraVolumeOpenBao:
       enabled: false
+      # Keep OpenBao decrypt access while rewrapping back to legacy roots.
+      # Disable only after all web replicas use this mode and inventory is clear.
+      wrapNewShares: true
       # HTTPS origin only. Keep stable: stored share IDs pin origin/mount/key.
       address: ""
       keyName: "kura-volume-root"

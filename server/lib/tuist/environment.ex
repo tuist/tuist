@@ -2071,6 +2071,7 @@ defmodule Tuist.Environment do
       auth_mount = Map.get(environment, prefix <> "AUTH_MOUNT", "kubernetes")
       token_file = Map.get(environment, prefix <> "TOKEN_FILE", "/var/run/tuist/kura-openbao/token")
       ca_cert_file = Map.get(environment, prefix <> "CA_CERT_FILE")
+      wrap_new_shares = Map.get(environment, prefix <> "WRAP_NEW_SHARES", "true")
 
       decrypt_names =
         environment
@@ -2084,7 +2085,8 @@ defmodule Tuist.Environment do
            uri.path in [nil, ""] and is_nil(uri.userinfo) and is_nil(uri.query) and is_nil(uri.fragment) and
            Enum.all?(names, &Regex.match?(~r/\A[a-zA-Z0-9][a-zA-Z0-9_-]*\z/, &1)) and
            Path.type(token_file) == :absolute and
-           (is_nil(ca_cert_file) or Path.type(ca_cert_file) == :absolute) do
+           (is_nil(ca_cert_file) or Path.type(ca_cert_file) == :absolute) and
+           wrap_new_shares in ["true", "false"] do
         key_id = "#{address}/v1/#{transit_mount}/keys/#{key_name}"
 
         {:ok,
@@ -2097,6 +2099,7 @@ defmodule Tuist.Environment do
            role: role,
            token_file: token_file,
            ca_cert_file: ca_cert_file,
+           wrap_new_shares: wrap_new_shares == "true",
            decrypt_keys: Map.new([key_name | decrypt_names], &{"#{address}/v1/#{transit_mount}/keys/#{&1}", &1})
          }}
       else
@@ -2111,7 +2114,8 @@ defmodule Tuist.Environment do
 
   @doc """
   Legacy wrapping roots (`TUIST_KURA_VOLUME_ROOT_KEYS`), as `[{id, key}]`.
-  The first wraps new shares only when OpenBao is disabled; all entries decrypt.
+  The first wraps new shares when OpenBao is disabled or explicitly configured
+  for decrypt-only migration; all entries decrypt.
   Prepending a replacement does not rewrap existing shares. Use
   `Tuist.Kura.VolumeKeys.Rotation` before retiring a root, including backups.
 
