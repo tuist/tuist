@@ -795,11 +795,15 @@ jobs:
           tags: |
             ghcr.io/tuist/tuist-linux-runner:${{ needs.check-releases.outputs.linux-runner-image-next-version-number }}
             ghcr.io/tuist/tuist-linux-runner:latest
+          # Only the serialized main release writes this cache. Keep all builder
+          # stages, especially the Android SDK, across ephemeral runners.
+          cache-from: type=registry,ref=ghcr.io/tuist/tuist-linux-runner:buildcache
+          cache-to: type=registry,ref=ghcr.io/tuist/tuist-linux-runner:buildcache,mode=max
 
       # The Linux runner image is pushed with a `:<semver>` tag above.
       # server-deployment.yml resolves that version at deploy time from
       # this run's `linux-runner-image@<semver>` tag and passes
-      # `tuist-linux-runner:<semver>` to the chart via --set.
+      # its resolved manifest digest to the chart via --set.
 
   publish-releases:
     # Publishes the GitHub Releases (which create the component tags via the

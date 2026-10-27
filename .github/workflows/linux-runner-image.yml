@@ -24,6 +24,9 @@ on:
       - infra/linux-runner-image/**
       - .github/actions/setup-docker-builder/**
       - .github/workflows/linux-runner-image.yml
+      - .github/workflows/server-production-deployment.yml
+      - .github/scripts/linux-runner-image-*
+      - .github/scripts/ghcr-manifest-digest*
   workflow_dispatch:
     inputs:
       runner_version:
@@ -86,6 +89,16 @@ jobs:
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test Linux rollout gate and layer comparison
+        run: |
+          bash .github/scripts/linux-runner-image-prepare.test.sh
+          bash .github/scripts/ghcr-manifest-digest.test.sh
+          node --test infra/linux-runner-image/compare-layers.test.mjs
 
       - name: Syntax-check runner scripts
         run: |
@@ -160,11 +173,24 @@ jobs:
           # can land as an additive `platforms:` entry.
           platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
+          outputs: ${{ github.event_name == 'pull_request' && format('type=oci,dest={0}/linux-runner-baseline.tar', runner.temp) || '' }}
           tags: ${{ steps.tags.outputs.tags }}
           # Only forwarded when explicitly set via workflow_dispatch
           # input; empty leaves the Dockerfile's `ARG RUNNER_VERSION`
           # default in place (Renovate-managed).
           build-args: |
             ${{ inputs.runner_version && format('RUNNER_VERSION={0}', inputs.runner_version) || '' }}
-          cache-from: type=gha,scope=linux-runner-image
-          cache-to: type=gha,mode=max,scope=linux-runner-image
+          # Validation can read the release cache, but never overwrite it.
+          cache-from: |
+            type=registry,ref=ghcr.io/tuist/tuist-linux-runner:buildcache
+            type=gha,scope=linux-runner-image
+          cache-to: |
+            type=gha,mode=max,scope=linux-runner-image
+            ${{ github.event_name == 'pull_request' && format('type=local,dest={0}/linux-runner-cache,mode=max', runner.temp) || '' }}
+
+      - name: Verify a script-only release adds at most 10 MiB
+        if: github.event_name == 'pull_request'
+        env:
+          BASELINE: ${{ runner.temp }}/linux-runner-baseline.tar
+          BUILD_CACHE: ${{ runner.temp }}/linux-runner-cache
+        run: bash infra/linux-runner-image/verify-layer-reuse.sh "$BASELINE" "$BUILD_CACHE"

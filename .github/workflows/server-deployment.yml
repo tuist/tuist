@@ -889,17 +889,17 @@ jobs:
     concurrency:
       group: server-deploy-${{ inputs.environment }}-deploy
       cancel-in-progress: false
-    # This ceiling MUST stay above the helm step's own timeout (70m =
-    # helm `--timeout 60m` + ~10m `--atomic` rollback) plus the ~5-10m
+    # This ceiling MUST stay above the helm step's own timeout (80m =
+    # 10m Linux image preparation + helm `--timeout 60m` + ~10m rollback) plus the ~5-10m
     # of setup before it. Otherwise GitHub SIGKILLs helm mid-`--wait`,
     # before its rollback can run, and the release is left wedged in
     # pending-upgrade (the bug that drove the long pending-upgrade ->
     # rollback churn: the ceiling had drifted to 50m, under helm's 60m,
     # when helm was bumped from 30m). It also covers the smoke test and the
-    # xcresult processor rollout report (35m) that follow. 125m keeps helm <
+    # xcresult processor rollout report (35m) that follow. 135m keeps helm <
     # step < job so a stuck deploy fails via helm's own clean path, not this
     # ceiling.
-    timeout-minutes: 125
+    timeout-minutes: 135
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
@@ -1371,15 +1371,15 @@ jobs:
         # `--timeout 60m` is generous on purpose: a complex migration
         # (the pre-upgrade hook runs inside this budget) plus the
         # `--wait` rollout can genuinely take a while, and undershooting
-        # would kill a legitimately-slow deploy mid-migration. The 70m
-        # step timeout is helm's 60m plus a ~10m cushion for the
+        # would kill a legitimately-slow deploy mid-migration. The 80m
+        # step timeout includes 10m for image staging, helm's 60m, and ~10m for the
         # in-process `--atomic` rollback. The job's `timeout-minutes`
         # ceiling sits above this (helm < step < job): that ordering is
         # what makes a stuck deploy hit helm's own timeout first (clean
         # rollback + failure diagnostics) instead of the job ceiling
         # SIGKILLing helm mid-wait and wedging the release in
         # pending-upgrade.
-        timeout-minutes: 70
+        timeout-minutes: 80
         env:
           TARGET_ENVIRONMENT: ${{ inputs.environment }}
           KURA_EXPEDITE: ${{ inputs.kura_expedite }}
@@ -1467,8 +1467,11 @@ jobs:
             linux_runner_image_version="${LINUX_RUNNER_IMAGE_VERSION:-}"
           fi
           if [ -n "$linux_runner_image_version" ]; then
+            # Resolve manual pins too. The pool identity is content, so a new
+            # release tag serving the same manifest cannot churn idle runners.
+            linux_runner_image_digest="$(.github/scripts/ghcr-manifest-digest.sh tuist/tuist-linux-runner "$linux_runner_image_version")"
             add_set "runnersFleetLinux.shapeRunnerImage" \
-              "ghcr.io/tuist/tuist-linux-runner:${linux_runner_image_version}"
+              "ghcr.io/tuist/tuist-linux-runner@${linux_runner_image_digest}"
           fi
 
           helm_values_args=(
@@ -1798,7 +1801,7 @@ jobs:
           # Prepare KVM without switching existing pools until every available
           # Linux host has the kernel and enough device allocations. Uses the
           # same resolved images and values as the final release below.
-          if [ -f .github/scripts/runner-kvm-prepare.sh ]; then
+          if [ -f .github/scripts/runner-kvm-prepare.sh ] || [ -f .github/scripts/linux-runner-image-prepare.sh ]; then
             kvm_render="$(mktemp)"
             helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
               --namespace "$NAMESPACE" \
@@ -1808,7 +1811,15 @@ jobs:
               --set registry.image.tag="$registry_image_tag" \
               --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
               "${image_sets[@]}" | yq -o=json -I=0 'select(.kind != null)' | jq -s . > "$kvm_render"
-            bash .github/scripts/runner-kvm-prepare.sh "$kvm_render" "$HELM_RELEASE_NAME" "$NAMESPACE"
+            if [ -f .github/scripts/runner-kvm-prepare.sh ]; then
+              bash .github/scripts/runner-kvm-prepare.sh "$kvm_render" "$HELM_RELEASE_NAME" "$NAMESPACE"
+            fi
+            # This render is the Linux announcement: pull exactly what this
+            # deployment will use, before Helm switches any RunnerPool. Fail
+            # closed on timeout; existing pools remain on their current image.
+            if [ -f .github/scripts/linux-runner-image-prepare.sh ]; then
+              bash .github/scripts/linux-runner-image-prepare.sh "$kvm_render"
+            fi
             rm -f "$kvm_render"
           fi
 
