@@ -14,6 +14,7 @@ alias Atlas.Automations.Workers.ScheduleRuns
 alias Atlas.Briefs.Workers.ScheduleBriefs
 alias Atlas.Documents.Workers.EnsureDocumentClassifications
 alias Atlas.Documents.Workers.ExpirePendingUploads
+alias Atlas.Engineering.Alerts.Workers.EvaluateSpikes
 alias Atlas.Engineering.Errors.SummaryWorker, as: ErrorsSummaryWorker
 alias Atlas.FeatureUsage.Workers.ScheduleFeatureUsage
 alias Atlas.Finance.Workers.BackfillQontoInvoices
@@ -105,6 +106,7 @@ config :atlas, Oban,
        {"20 4 * * *", EvaluateNudgeSignals},
        {"30 4 * * *", ExpireStaleNudges},
        {"* * * * *", ReconcileNudgeDeliveryOutcomes},
+       {"* * * * *", EvaluateSpikes},
        {"15 3 * * *", ScheduleStripeInvoiceReconciliations},
        {"5 * * * *", SyncNotes, args: %{mode: "incremental"}},
        {"45 3 * * *", SyncNotes, args: %{mode: "backfill"}},
@@ -269,7 +271,17 @@ config :opentelemetry,
   traces_exporter: :none,
   resource: [service: [name: "atlas", namespace: "tuist"]]
 
-config :phoenix, :filter_parameters, ["password", "token", "secret", "key", "input", "payload", "outputs", "source"]
+config :phoenix, :filter_parameters, [
+  "password",
+  "token",
+  "secret",
+  "key",
+  "input",
+  "payload",
+  "outputs",
+  "source",
+  "webhook_url"
+]
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
