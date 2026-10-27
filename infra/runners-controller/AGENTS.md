@@ -1348,14 +1348,34 @@ KVM with nesting on). Three pieces close that:
   cannot open; the CDI spec sets 0666 on the container's node and leaves
   the host's `/dev/kvm` untouched.
 
-Opting in is per pool, with `runnersFleetLinux.nestedVirtualization.enabled`
-deploying the plugin. Pools do not share a dispatch path with profiles
-yet: workflows target an operator pool by its `dispatchLabel`
-(staging: `tuist-staging-linux-kvm`). What a pool gives up: tenant code
-can drive the host's nested-virtualization emulation (VMRUN/VMLAUNCH
-handling in the host's KVM) from its guest kernel, which without the
-flag takes a guest-kernel exploit to reach. Keep host kernels current,
-and keep the flag off pools that do not need it.
+Managed environments enable KVM on every Linux pool through
+`runnersFleetLinux.nestedVirtualization.defaultEnabled`; ordinary Runner
+Profiles need no special capability or dispatch label. The self-hosted default
+stays off. Explicit pool/shape overrides remain available. Turning the default
+off keeps the plugin installed and rolls idle Pods back to the stock kernel;
+claimed/running jobs finish unchanged. The kernel choice participates in the
+existing RuntimeClass revision used by bounded idle rollout.
+
+The device plugin reads only its Node (RBAC permits `get nodes`) and advertises
+one shared allocation per allocatable Pod slot, refreshing every 30 seconds.
+There is no separate KVM concurrency budget; CPU, memory and kubelet Pod
+capacity remain the limits. API refresh errors preserve the last known count;
+initial discovery fails closed. Host `/dev/kvm` health still controls device
+health independently. Exposing the guest device does not create a nested VM;
+only workloads using KVM incur nested execution costs.
+
+The managed deploy runs `.github/scripts/runner-kvm-prepare.sh` before switching
+pools. It stages the resolved provider image and Helm-owned plugin resources,
+waits for rollout, then requires current-boot KVM proof and sufficient healthy
+allocations on every Ready, schedulable host in each affected fleet. Failure
+leaves the additive prerequisites in place and existing pools unchanged. A new
+cluster without runner hosts uses normal bootstrap plus the Pod node selector.
+Turning the default off bypasses preparation, so rollback works during an outage.
+
+The guest KVM interface exercises host nested-virtualization handling; the Kata
+VM remains the isolation boundary. Keep host and guest kernels current. The
+pool flag is a rollout control, not a complete security boundary: the stock
+kernel lacks KVM, but its guest CPU already exposes virtualization extensions.
 
 Verified (2026-10-16): with the stock guest kernel, the injected node
 exists and `open` fails `ENODEV` (the guest device cgroup does not

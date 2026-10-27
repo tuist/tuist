@@ -9,6 +9,43 @@ to the guest kernel's KVM device. Source: infra/runners-controller/cmd/kvm-devic
 {{- $name := include "tuist.componentName" (dict "root" . "component" "kvm-device-plugin") }}
 {{- $namespace := .Values.runnersFleetLinux.namespace | default .Values.runnersFleet.namespace | default "tuist-runners" }}
 {{- $imageTag := required "runnersController.image.tag is required for the kvm device plugin" .Values.runnersController.image.tag }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kvm-device-plugin
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kvm-device-plugin
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kvm-device-plugin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $namespace }}
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -29,7 +66,7 @@ spec:
       labels:
         app.kubernetes.io/component: kvm-device-plugin
     spec:
-      automountServiceAccountToken: false
+      serviceAccountName: {{ $name }}
       priorityClassName: system-node-critical
       nodeSelector:
         kubernetes.io/os: linux
@@ -45,8 +82,11 @@ spec:
           image: "{{ .Values.runnersController.image.repository }}:{{ $imageTag }}"
           imagePullPolicy: {{ .Values.runnersController.image.pullPolicy }}
           command: [/usr/local/bin/kvm-device-plugin]
-          args:
-            - --devices={{ .Values.runnersFleetLinux.nestedVirtualization.devicesPerNode }}
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           securityContext:
             # Root only to write its socket and CDI spec into root-owned host
             # directories; no capabilities and no privilege.

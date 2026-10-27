@@ -2955,9 +2955,9 @@ runnersFleetLinux:
   # virtualization".
   nestedVirtualization:
     enabled: false
-    # KVM is shared, so this only caps how many nested Pods one host
-    # admits at once. Memory runs out first in practice.
-    devicesPerNode: 16
+    # Internal rollout/rollback switch. Requires enabled above. Applies to
+    # every Linux pool; pools may explicitly override nestedVirtualization.
+    defaultEnabled: false
   # Value of the `node.cluster.x-k8s.io/pool=` label CAPI's
   # label-sync propagates from the runner MachineDeployment to
   # each runner Node. Must match the

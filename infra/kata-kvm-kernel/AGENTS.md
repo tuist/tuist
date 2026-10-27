@@ -1,7 +1,8 @@
 # kata-kvm-kernel
 
-Kata's x86_64 guest kernel with KVM built in, for runner pools that set
-`nestedVirtualization` (Android emulators). Stock Kata guest kernels set
+Kata's x86_64 guest kernel with KVM built in, used by ordinary managed Linux
+runner pools by default. `runnersFleetLinux.nestedVirtualization.defaultEnabled`
+is the internal rollback switch; Android emulators need no special profile. Stock Kata guest kernels set
 only `CONFIG_KVM_GUEST` and have no module support, so a Kata guest can
 never expose `/dev/kvm` without this kernel.
 

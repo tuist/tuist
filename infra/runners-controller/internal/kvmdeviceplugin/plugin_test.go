@@ -3,9 +3,11 @@ package kvmdeviceplugin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -202,4 +204,62 @@ func TestPluginRegistersAgainAfterKubeletRestart(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "tuist-kvm.sock")); err != nil {
 		t.Fatalf("plugin socket not served again: %v", err)
 	}
+}
+
+func TestCapacityFollowsPodLimitAndSurvivesAPIOutage(t *testing.T) {
+	dir := shortTempDir(t)
+	kubelet := startFakeKubelet(t, dir)
+	device := filepath.Join(dir, "device")
+	if err := os.Symlink("/dev/null", device); err != nil {
+		t.Fatal(err)
+	}
+	var capacity atomic.Int64
+	capacity.Store(110)
+	plugin := &Plugin{SocketDir: dir, SocketName: "kvm.sock", CDIDir: filepath.Join(dir, "cdi"), DevicePath: device, Devices: 110, PollInterval: 10 * time.Millisecond,
+		DeviceCount: func(context.Context) (int, error) {
+			n := capacity.Load()
+			if n < 0 {
+				return 0, errors.New("API unavailable")
+			}
+			return int(n), nil
+		},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	go func() { _ = plugin.Run(ctx) }()
+	awaitRegistration(t, kubelet)
+	stream, err := dialPlugin(t, plugin.socketPath()).ListAndWatch(ctx, &pluginapi.Empty{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertCapacity := func(count int, health string) {
+		t.Helper()
+		response, err := stream.Recv()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(response.Devices) != count {
+			t.Fatalf("devices = %d, want %d", len(response.Devices), count)
+		}
+		for _, device := range response.Devices {
+			if device.Health != health {
+				t.Fatalf("health = %s, want %s", device.Health, health)
+			}
+		}
+	}
+	assertCapacity(110, pluginapi.Healthy)
+	capacity.Store(220)
+	assertCapacity(220, pluginapi.Healthy)
+	capacity.Store(-1)
+	if err := os.Remove(device); err != nil {
+		t.Fatal(err)
+	}
+	assertCapacity(220, pluginapi.Unhealthy)
+	capacity.Store(0)
+	if err := os.Symlink("/dev/null", device); err != nil {
+		t.Fatal(err)
+	}
+	assertCapacity(220, pluginapi.Healthy)
+	capacity.Store(110)
+	assertCapacity(110, pluginapi.Healthy)
 }

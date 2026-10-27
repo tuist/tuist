@@ -620,3 +620,5 @@ an API 34 x86_64 Gradle Managed Device instrumented test and 15 cold-start
 Macrobenchmark iterations. The pinned fixture and its contract live in
 `infra/kata-kvm-kernel/android-smoke/AGENTS.md`. Retain test results and traces
 on failure too; do not accept a successful build that executed no tests.
+
+Managed server deployment prepares KVM before upgrading runner pools, using the same resolved provider/plugin images as Helm. `scripts/runner-kvm-prepare.sh` updates only the existing provider image and the four Helm-owned plugin resources; it waits for current-boot host proof and allocations covering Pod capacity. A failed gate leaves preparation in place and pools untouched. Rollback skips the gate. Validate with `bash scripts/runner-kvm-prepare.test.sh` from `.github`, or the Helm `nested-kvm` task.

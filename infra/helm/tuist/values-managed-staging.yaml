@@ -942,7 +942,6 @@ runnersFleetLinux:
     - name: kvm-8vcpu-16gb
       dispatchLabel: tuist-staging-linux-kvm
       runtimeClass: kata-qemu
-      nestedVirtualization: true
       pod:
         cpuMilli: 8000
         memoryMB: 16384

@@ -70,13 +70,14 @@ on:
         type: string
         default: tuist/tuist
 
-# Smoke runs a public curl + a few uname-style assertions; never
-# reads or mutates repo state, so GITHUB_TOKEN needs zero scopes.
+# Jobs opt into only the token permissions their checkout or cache needs.
 permissions: {}
 
 jobs:
   smoke:
     if: ${{ !inputs.gradle_cache && !inputs.nested_kvm }}
+    permissions:
+      contents: read
     # Single-label form. `tuist-staging-linux` is the pool's unique
     # dispatch label and is sufficient to pick a runner — no need
     # to also list `self-hosted` (which is advertised on the runner
@@ -84,6 +85,20 @@ jobs:
     runs-on: tuist-staging-linux
     timeout-minutes: 10
     steps:
+      - name: KVM is available without a special runner profile
+        run: |
+          set -euo pipefail
+          test "$(id -u)" != 0
+          test -c /dev/kvm && test -r /dev/kvm && test -w /dev/kvm
+          uname -r
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/runners-controller/go.mod
+          cache: false
+      - name: Build and test ordinary Go code
+        working-directory: infra/runners-controller
+        run: go test ./internal/podtemplate
       - name: Show environment
         run: |
           set -euo pipefail

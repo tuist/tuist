@@ -16,8 +16,8 @@
 // distribution set it.
 //
 // The devices are not exclusive: KVM is shared by every process that
-// opens it, so the advertised count only bounds how many Pods per node
-// may ask for it.
+// opens it. Production advertises the node's allocatable Pod count, so
+// unused KVM availability imposes no additional runner capacity limit.
 package kvmdeviceplugin
 
 import (
@@ -71,8 +71,11 @@ type Plugin struct {
 	CDIDir string
 	// DevicePath is where the host's /dev/kvm is visible to the plugin.
 	DevicePath string
-	// Devices is how many allocatable units the node advertises.
+	// Devices is the initial allocatable count (also used by standalone tests).
 	Devices int
+	// DeviceCount tracks the node's Pod capacity, so KVM cannot limit how
+	// many runner Pods fit. A failed refresh retains the last known capacity.
+	DeviceCount func(context.Context) (int, error)
 	// PollInterval paces the health check and the kubelet-restart watch.
 	PollInterval time.Duration
 	Logf         func(format string, args ...any)
@@ -178,11 +181,15 @@ func (p *Plugin) healthy() bool {
 }
 
 func (p *Plugin) devices() []*pluginapi.Device {
+	return p.devicesWithCount(p.Devices)
+}
+
+func (p *Plugin) devicesWithCount(count int) []*pluginapi.Device {
 	health := pluginapi.Unhealthy
 	if p.healthy() {
 		health = pluginapi.Healthy
 	}
-	devices := make([]*pluginapi.Device, p.Devices)
+	devices := make([]*pluginapi.Device, count)
 	for i := range devices {
 		devices[i] = &pluginapi.Device{ID: fmt.Sprintf("kvm-%d", i), Health: health}
 	}
@@ -195,13 +202,23 @@ func (p *Plugin) GetDevicePluginOptions(context.Context, *pluginapi.Empty) (*plu
 
 func (p *Plugin) ListAndWatch(_ *pluginapi.Empty, stream pluginapi.DevicePlugin_ListAndWatchServer) error {
 	last := p.healthy()
-	if err := stream.Send(&pluginapi.ListAndWatchResponse{Devices: p.devices()}); err != nil {
+	count := p.Devices
+	if err := stream.Send(&pluginapi.ListAndWatchResponse{Devices: p.devicesWithCount(count)}); err != nil {
 		return err
 	}
 	for sleep(stream.Context(), p.PollInterval) {
-		if now := p.healthy(); now != last {
+		next := count
+		if p.DeviceCount != nil {
+			if n, err := p.DeviceCount(stream.Context()); err != nil {
+				p.logf("refresh Pod capacity: %v; retaining %d allocations", err, count)
+			} else if n > 0 {
+				next = n
+			}
+		}
+		if now := p.healthy(); now != last || next != count {
 			last = now
-			if err := stream.Send(&pluginapi.ListAndWatchResponse{Devices: p.devices()}); err != nil {
+			count = next
+			if err := stream.Send(&pluginapi.ListAndWatchResponse{Devices: p.devicesWithCount(count)}); err != nil {
 				return err
 			}
 		}
