@@ -13,7 +13,14 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
   alias TuistWeb.RunnerVolumesLive
 
   defp assigns(can_manage) do
-    volume = %Volume{id: Ecto.UUID.generate(), key: "gradle", repository: "org/repo", architecture: "amd64", uid: 1001}
+    volume = %Volume{
+      id: Ecto.UUID.generate(),
+      head_id: Ecto.UUID.generate(),
+      key: "gradle",
+      repository: "org/repo",
+      architecture: "amd64",
+      uid: 1001
+    }
 
     data = %{
       volumes: [volume],
@@ -23,6 +30,7 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
           hits: 3,
           active: 0,
           retained_bytes: 1024,
+          saved_bytes: 512,
           attach_ms: Decimal.new(12),
           retained_copies: 1
         }
@@ -40,7 +48,6 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
       previous_activity: %{hit_rate: 50.0},
       activity: %{uses: 4, hit_rate: 75.0, points: [%{at: ~U[2026-09-22 10:00:00Z], uses: 4, hit_rate: 75.0}]},
       analytics: %{
-        storage: [%{at: ~U[2026-09-22 10:00:00Z], used_bytes: 1024, capacity_bytes: 4096}],
         activity: %{uses: 4, hit_rate: 75.0, points: [%{at: ~U[2026-09-22 10:00:00Z], uses: 4, hit_rate: 75.0}]},
         previous_activity: %{uses: 4, hit_rate: 75.0, points: []}
       },
@@ -52,7 +59,7 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
       selected: volume,
       selected_tab: "overview",
       storage_metric: "used_bytes",
-      detail_metric: "used_bytes",
+      detail_metric: "hit_rate",
       initialize_percentile: "avg",
       analytics_preset: "last-7-days",
       analytics_period: {~U[2026-09-15 10:00:00Z], ~U[2026-09-22 10:00:00Z]},
@@ -90,7 +97,8 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     refute html =~ "Size history"
     refute html =~ "Last reported"
     refute html =~ "Average attach · 30 days"
-    assert html =~ "not unique physical bytes"
+    assert html =~ "Size of the current saved cache"
+    refute html =~ "not unique physical bytes"
     assert html =~ "request_delete"
   end
 
@@ -331,10 +339,9 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     refute elem(updated.redirected, 2).to =~ "analytics-start-date"
   end
 
-  test "detail charts switch between byte, percentage and mount count series" do
+  test "detail charts switch between percentage and mount count series" do
     analytics = assigns(true).data.result.analytics
     period = assigns(true).analytics_period
-    assert [%{type: "line", data: [[_, 1024]]}] = RunnerVolumesLive.detail_chart_series(analytics, "used_bytes")
     assert [%{type: "line", data: [[_, 75.0]]}] = RunnerVolumesLive.detail_chart_series(analytics, "hit_rate")
     assert [%{type: "bar", data: [[_, 4]]}] = RunnerVolumesLive.detail_chart_series(analytics, "uses")
     assert RunnerVolumesLive.detail_chart_options("hit_rate", period).yAxis.max == 100
@@ -343,9 +350,9 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     empty = %{analytics | activity: %{analytics.activity | hit_rate: nil}}
     refute RunnerVolumesLive.detail_chart_data?(empty, "hit_rate")
 
-    socket = %Socket{assigns: %{__changed__: %{}, detail_metric: "used_bytes"}}
+    socket = %Socket{assigns: %{__changed__: %{}, detail_metric: "hit_rate"}}
 
-    for metric <- ["used_bytes", "hit_rate", "uses"] do
+    for metric <- ["hit_rate", "uses"] do
       assert {:noreply, updated} = RunnerVolumesLive.handle_event("select_detail_metric", %{"widget" => metric}, socket)
       assert updated.assigns.detail_metric == metric
     end
@@ -418,18 +425,34 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert RunnerVolumesLive.selected_tab("invalid", nil) == "overview"
   end
 
+  test "detail used space shows only the current saved cache, including after clearing" do
+    assigns = assigns(true)
+    data = assigns.data.result
+    volume = assigns.selected
+
+    for {head_id, saved_bytes, expected} <- [
+          {volume.head_id, 23_300_000_000, "23.3 GB"},
+          {volume.head_id, nil, "—"},
+          {nil, 23_300_000_000, "0 B"}
+        ] do
+      metrics = Map.merge(data.stats[volume.id], %{saved_bytes: saved_bytes, retained_bytes: 465_800_000_000})
+      refreshed = %{data | volumes: [%{volume | head_id: head_id}], stats: %{volume.id => metrics}}
+      html = render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(refreshed)})
+      document = Floki.parse_document!(html)
+
+      assert document |> Floki.find("#volume-used [data-part=value]") |> Floki.text() == expected
+      assert Floki.find(document, "#volume-used [data-part=trend]") == []
+      assert Floki.find(document, "[phx-click=select_detail_metric][phx-value-widget=used_bytes]") == []
+      assert Floki.find(document, "[phx-value-widget=hit_rate][data-selected]") != []
+    end
+  end
+
   test "detail widgets compare with the previous period" do
     assigns = assigns(true)
     data = assigns.data.result
 
     analytics =
-      Map.merge(data.analytics, %{
-        storage: [
-          %{at: ~U[2026-09-15 10:00:00Z], used_bytes: 512, capacity_bytes: 4096},
-          %{at: ~U[2026-09-22 10:00:00Z], used_bytes: 1024, capacity_bytes: 4096}
-        ],
-        previous_activity: %{uses: 2, hit_rate: 50.0, points: []}
-      })
+      Map.put(data.analytics, :previous_activity, %{uses: 2, hit_rate: 50.0, points: []})
 
     html =
       render_component(&RunnerVolumesLive.render/1, %{assigns | data: AsyncResult.ok(%{data | analytics: analytics})})
@@ -437,8 +460,8 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     document = Floki.parse_document!(html)
     widget = &(document |> Floki.find("##{&1}") |> Floki.text())
 
-    assert widget.("volume-used") =~ "+100.0%"
-    assert widget.("volume-used") =~ "since last period"
+    assert widget.("volume-used") =~ "512 B"
+    refute widget.("volume-used") =~ "since last period"
     assert widget.("volume-hit-rate") =~ "+50.0%"
     assert widget.("volume-uses") =~ "+100.0%"
   end
@@ -459,7 +482,6 @@ defmodule TuistWeb.RunnerVolumesLiveTest do
     assert legend.(inventory, "storage-hit-rate") == ["tertiary"]
 
     analytics = assigns(true).data.result.analytics
-    assert [%{color: "var:noora-chart-secondary"}] = RunnerVolumesLive.detail_chart_series(analytics, "used_bytes")
     assert [%{color: "var:noora-chart-tertiary"}] = RunnerVolumesLive.detail_chart_series(analytics, "hit_rate")
     assert [%{color: "var:noora-chart-p50"}] = RunnerVolumesLive.detail_chart_series(analytics, "uses")
     point = %{at: ~U[2026-09-22 10:00:00Z], volumes: 1, used_bytes: 1024, capacity_bytes: 4096}

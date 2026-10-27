@@ -5,6 +5,10 @@ certificate and Atlas-specific ad-hoc profile from 1Password. Keep this Bash-onl
 use macOS `security`, `plutil`, PlistBuddy and `codesign` rather than a separate
 profile-validation framework.
 
+- `bundle.sh` pins the host and Share provisioning documents by 1Password item ID.
+  Preserve their `.mobileprovision` filenames when replacing document contents;
+  when creating replacement items, update the references and packaging fixtures
+  together. Keep previous items available for rollback.
 - Keep private keys in a temporary keychain and remove credentials on exit.
   `keychain.sh` adds it to the user search list for signing and restores the exact
   original list before deletion, including on failure. `codesign --keychain` alone
@@ -32,7 +36,7 @@ profile-validation framework.
   profile checks run before fetching the private certificate. Do not reuse the
   host profile or its APNs, Associated Domains or Keychain entitlements.
 - Share additionally requires App ID `dev.tuist.atlas.share` and the separate ad-hoc
-  profile at `op://tuist/Atlas Share Ad Hoc/Atlas_Share_Ad_Hoc.mobileprovision`.
+  profile document `Atlas_Share_Ad_Hoc.mobileprovision` referenced in `bundle.sh`.
   Enable/register App Group `group.dev.tuist.atlas.share` on both host and Share IDs,
   regenerate their profiles with the same certificate and host devices, and grant
   the publication identity access to that new profile. This is a separate authorized
