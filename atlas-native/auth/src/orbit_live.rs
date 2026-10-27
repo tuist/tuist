@@ -163,6 +163,16 @@ async fn run(
     mut control: watch::Receiver<Control>,
     state: Arc<Connection>,
 ) {
+    let tls = match crate::transport::tls_config() {
+        Ok(config) => tokio_tungstenite::Connector::Rustls(Arc::new(config)),
+        Err(_) => {
+            publish(
+                &state,
+                json!({"revision":0,"people":[],"error":"secure_connection_failed"}),
+            );
+            return;
+        }
+    };
     let mut backoff = 1;
     loop {
         if control.borrow().closed {
@@ -179,9 +189,19 @@ async fn run(
             .max_message_size(Some(1024 * 1024))
             .max_frame_size(Some(1024 * 1024));
         let connected = tokio::select! {
-            value = timeout(Duration::from_secs(10), tokio_tungstenite::connect_async_with_config(request.clone(), Some(config), true)) => value,
+            value = timeout(Duration::from_secs(10), crate::presence::connect_tls(request.clone(), config, tls.clone())) => value,
             _ = control.changed() => continue,
         };
+        if let Ok(Err(ref failure)) = connected
+            && (matches!(failure, tokio_tungstenite::tungstenite::Error::Tls(_))
+                || crate::certificate_trust::tls_failure(failure))
+        {
+            publish(
+                &state,
+                json!({"revision":0,"people":[],"error":"secure_connection_failed"}),
+            );
+            return;
+        }
         if let Ok(Ok((mut socket, _))) = connected
             && send(&mut socket, json!(["1", "1", topic, "phx_join", {}])).await
         {
