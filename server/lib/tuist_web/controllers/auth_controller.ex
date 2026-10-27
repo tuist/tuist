@@ -385,14 +385,9 @@ defmodule TuistWeb.AuthController do
   # Custom providers let an admin configure arbitrary profile endpoints, and a
   # linked identity signs in to the whole account, so a reported email only
   # identifies an account on a verified domain or one the organization's SCIM
-  # provisioning created. Compatibility mode keeps linking members.
+  # provisioning created.
   defp can_link_existing_user?(_user, provider, _organization) when provider not in [:okta, :oauth2], do: true
   defp can_link_existing_user?(_user, _provider, nil), do: false
-
-  defp can_link_existing_user?(user, _provider, %Organization{sso_legacy_email_domain_fallback: true} = organization) do
-    Accounts.belongs_to_organization?(user, organization) ||
-      Accounts.sso_identity_linking_allowed?(organization, user.email)
-  end
 
   defp can_link_existing_user?(user, _provider, %Organization{} = organization) do
     user.provisioned_by_organization_id == organization.id ||

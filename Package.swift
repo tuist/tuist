@@ -1090,7 +1090,6 @@ var targets: [Target] = [
             argumentParserDependency,
         ],
         path: "cli/Sources/TuistTesting",
-        exclude: ["AGENTS.md"],
         linkerSettings: [.linkedFramework("XCTest", .when(platforms: [.macOS]))]
     ),
     // MARK: Cross-platform test targets
@@ -1343,7 +1342,6 @@ targets.append(contentsOf: [
             pathDependency,
         ],
         path: "cli/Sources/TuistSimulator",
-        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
@@ -1451,8 +1449,7 @@ targets.append(contentsOf: [
             fileSystemDependency,
             "TuistSupport",
         ],
-        path: "cli/Sources/tuistbenchmark",
-        exclude: ["AGENTS.md"]
+        path: "cli/Sources/tuistbenchmark"
     ),
     .executableTarget(
         name: "tuistfixturegenerator",
@@ -1463,8 +1460,7 @@ targets.append(contentsOf: [
             "ProjectDescription",
             "TuistSupport",
         ],
-        path: "cli/Sources/tuistfixturegenerator",
-        exclude: ["AGENTS.md"]
+        path: "cli/Sources/tuistfixturegenerator"
     ),
     .target(
         name: "TuistCore",
@@ -1551,8 +1547,7 @@ targets.append(contentsOf: [
     ),
     .target(
         name: "ProjectAutomation",
-        path: "cli/Sources/ProjectAutomation",
-        exclude: ["AGENTS.md"]
+        path: "cli/Sources/ProjectAutomation"
     ),
     .target(
         name: "TuistExtension",
@@ -1591,7 +1586,6 @@ targets.append(contentsOf: [
             pathDependency,
         ],
         path: "cli/Sources/TuistAcceptanceTesting",
-        exclude: ["AGENTS.md"],
         linkerSettings: [.linkedFramework("XCTest")]
     ),
     .target(
@@ -1688,7 +1682,6 @@ targets.append(contentsOf: [
             pathDependency,
         ],
         path: "cli/Sources/TuistMigration",
-        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
@@ -1805,7 +1798,6 @@ targets.append(contentsOf: [
             .product(name: "XCActivityLogParser", package: "xcactivitylog_nif"),
         ],
         path: "cli/Sources/TuistXCActivityLog",
-        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
@@ -1849,7 +1841,6 @@ targets.append(contentsOf: [
             .product(name: "CASAnalyticsDatabase", package: "xcactivitylog_nif"),
         ],
         path: "cli/Sources/TuistCASAnalytics",
-        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]

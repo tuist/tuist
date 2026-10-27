@@ -4,17 +4,6 @@ defmodule Tuist.Runners.CatalogTest do
 
   alias Tuist.Runners.Catalog
 
-  test "isolated Linux pools keep the ordinary pool's resources and platform" do
-    shape = Catalog.default_shape(:linux)
-    standard = Catalog.pool_name(%{platform: :linux, vcpus: shape.vcpus, memory_gb: shape.memory_gb})
-    isolated = "#{Tuist.Environment.runners_linux_pool_name_prefix()}-vrack-#{shape.vcpus}vcpu-#{shape.memory_gb}gb"
-    stub(Tuist.Environment, :runners_linux_vrack_pools, fn -> %{standard => isolated} end)
-
-    assert Catalog.resources_for_fleet(isolated) == Catalog.resources_for_fleet(standard)
-    assert Catalog.fleet_platform(isolated) == :linux
-    assert Enum.count(Catalog.linux_fleet_resources(), &(&1.fleet_name == isolated)) == 1
-  end
-
   describe "billing_multiplier/3" do
     test "each platform's baseline machine is exactly one compute unit" do
       assert Catalog.billing_multiplier(:linux, 2, 8) == Catalog.compute_unit_basis_points()

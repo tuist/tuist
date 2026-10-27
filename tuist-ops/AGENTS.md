@@ -1,114 +1,35 @@
-# tuist-ops (Elixir/Phoenix)
+# Internal operations
 
-Internal-tooling Phoenix app for Tuist team operations. Lives in the
-production cluster (alongside `server/` and `slack/` — matches the
-"internal Tuist-team tooling lives in the same cluster as customer
-workload" pattern), in its own namespace, with its own Helm release,
-own ESO secrets, and own CNPG Postgres. Decoupled at every layer
-except the cluster itself.
+Standalone Phoenix app for JIT cluster elevation, operator project-access grants,
+and Slack-requested previews. It has its own production namespace, Helm release,
+secrets, and CNPG database, independent of the customer server.
 
-Reached at `https://ops.tuist.dev` (public, Slack-only routes) and
-`http://ops.<tailnet>.ts.net` (on-tailnet, internal callers like
-Pomerium).
+## Boundaries and security
 
-## What lives here
-
-**JIT elevation Slack bot + impersonation policy endpoint** (current):
-- `lib/tuist_ops/jit/` — core business logic
-  - `approvals.ex` — state machine for Request → Elevation
-  - `elevation.ex`, `request.ex` — Ecto schemas
-  - `policy.ex` — role-based self-approve + approver-allowed gates, plus
-    `always_write_env?/1` (staging's write tier is standing access, so
-    it is outside the elevation flow and `/elevate staging` is rejected)
-  - `slack_blocks.ex`, `slack_client.ex` — Slack Block Kit + HTTP client
-  - `tailscale_client.ex` — Tailscale users API (role lookup, cached 30s)
-  - `workers/revert_worker.ex` — Oban job that marks elevation reverted at TTL
-- `/elevate-github <login> [duration] <intent>` — temporary GitHub organization
-  admin (owner) for a staff member's GitHub account, through the same
-  request/approve/revoke flow and policy as the cluster envs. Unlike the cluster
-  elevations, GitHub's role is live state: approval promotes the login via
-  `lib/tuist_ops/github/org_membership.ex` and `RevertWorker` demotes it back to
-  `member` (retrying, then `revert_failed` + a Slack warning), so the revert job
-  is the enforcement. Only active `member`s can be elevated (never existing
-  admins, whose standing role the revert would strip, nor non-members, for whom
-  setting a role sends an invitation). The GitHub App needs the organization
-  "Members" permission with read and write access.
-- `lib/tuist_ops_web/controllers/slack_controller.ex` — Slack slash + interactive endpoints (`/webhooks/slack/*`)
-- `lib/tuist_ops_web/controllers/policy_controller.ex` — impersonation policy endpoint (`/api/v1/policy`)
-
-**Operator project-access (reason-gated access to customer projects)** (current):
-- `lib/tuist_ops/project_access/` — core business logic
-  - `request.ex`, `grant.ex` — Ecto schemas (request lifecycle + minted grant)
-  - `approvals.ex` — state machine: read = self-serve grant; admin = Slack-approved
-  - `policy.ex` — read self-serve / admin-approver gates (reuses `JIT.TailscaleClient`)
-  - `token.ex` — mints the Ed25519 grant the customer `server/` verifies offline
-  - `slack_blocks.ex` — admin-tier approval card (reuses `JIT.SlackClient`)
-- `lib/tuist_ops_web/controllers/grant_controller.ex` — the `/grants/*` reason form,
-  identity from `X-Pomerium-Claim-Email`. **MUST be Pomerium-fronted** (the header is
-  the auth and is spoofable on a raw ingress). Admin-tier approve/deny is handled by
-  the shared `slack_controller.ex` (`pa_approve`/`pa_deny` actions).
-- Audit + deployment runbook: `infra/k8s/operator-project-access-audit.md`.
-
-**Previews (Slack-requested staging sandboxes)** (current):
-- `lib/tuist_ops/previews.ex` — request lifecycle API
-- `lib/tuist_ops/previews/` — Ecto schema, Slack Block Kit,
-  and GitHub Actions workflow-dispatch client
-- `lib/tuist_ops/github/` — GitHub App installation token minting and cache for
-  preview workflow calls and GitHub admin elevations
-- `/preview` with no arguments opens an interactive Slack form for creating or
-  deleting previews
-- `/preview create <slug> [duration] [pr:<number>|sha:<sha>] <reason>` dispatches
-  `.github/workflows/preview-deploy.yml` with `action=deploy`
-- `TuistOps.Previews.Workers.MonitorWorkflowWorker` polls the dispatched
-  workflow run and updates the original Slack card with the live preview URL
-  or the deployment failure
-- `/preview delete <slug> [reason]` and the Slack Delete button dispatch the same
-  workflow with `action=delete`
-- The app records the Slack/audit trail in Postgres; Kubernetes mutation stays
-  in GitHub Actions so tuist-ops does not carry workload-cluster credentials.
-
-**Planned migrations from `server/`** (not yet moved, structure ready to receive):
-- `/ops/db` LiveView (read-only Postgres inspection) — will land as
-  `lib/tuist_ops_web/live/database_live.ex` plus any business-logic
-  modules under `lib/tuist_ops/database/`.
-- Any other `/ops/*` feature added in the future.
-
-When a new ops feature lands, the pattern is:
-- Business logic under `lib/tuist_ops/<feature>/`
-- Web surface under `lib/tuist_ops_web/{controllers,live}/`
-- Tests under `test/<feature>/`
-
-Top-level modules (`Application`, `Repo`, `Environment`, the web
-endpoint and router) stay shared across features.
-
-## Routing convention
-
-Routes are mounted at root, never under `/ops`. The `/ops` prefix
-that exists today at `tuist.dev/ops/db` is the legacy form;
-`ops.tuist.dev` makes the subdomain the prefix and the URL path
-drops to `/db`. So a new feature exposed at `ops.tuist.dev/incidents`
-lives at `lib/tuist_ops_web/live/incidents_live.ex` with router
-entry `live "/incidents"`, NOT `live "/ops/incidents"`. The
-canonical URL form is `ops.tuist.dev/<feature>`; a redirect at
-`tuist.dev/ops/<feature>` → `ops.tuist.dev/<feature>` may live on
-the `server/` side during migration windows.
-
-## Stack
-- Phoenix 1.7 (no LiveView yet — adds when the first `/ops/*` page
-  migrates from `server/`)
-- Postgres via its own CNPG cluster in the production cluster (same operator the main server uses)
-- Oban for the timed revert worker
-
-## Runtime behavior
-- Single instance, deployed only to the production cluster (own Helm
-  release, own namespace, own DB — co-located with the customer
-  workload but isolated at every layer above the cluster).
+- Business logic lives under `lib/tuist_ops/<feature>/`, web surfaces under
+  `lib/tuist_ops_web/`. Mount routes at the subdomain root (`/db`, not `/ops/db`).
+- Pomerium/Google Workspace authenticates human ops access, not the customer's
+  Tuist OIDC provider. `X-Pomerium-Claim-Email` is spoofable on raw ingress:
+  `/grants/*` must remain Pomerium-fronted.
+- Public `ops.tuist.dev` ingress exposes only Slack-signed webhook routes.
+  `/api/v1/policy` and other internal surfaces are tailnet-only.
+- Canary/production cluster access defaults to `view`; staging's write tier is
+  standing access and `/elevate staging` is rejected. Read `infra/AGENTS.md` for the human-only
+  `/elevate` request/approval flow; agents must never request or approve elevation.
+- Keep role decisions in `JIT.Policy`, using tailnet roles from
+  `JIT.TailscaleClient`, not email allowlists.
+- `/elevate-github <login> [duration] <intent>` uses the same human approval flow,
+  but changes live organization membership. Elevate only active `member`s, never
+  existing admins or non-members. `RevertWorker` must demote back to `member`,
+  retry failures, and surface `revert_failed` on Slack; that job enforces expiry.
+  The GitHub App needs organization Members read/write permission.
+- Project-access read grants are self-serve with a reason; admin grants require
+  Slack approval. The customer server verifies signed Ed25519 grants offline.
+  See `infra/k8s/operator-project-access-audit.md` for the audit/deployment runbook.
+- Previews record their audit trail here but mutate Kubernetes through
+  `.github/workflows/preview-deploy.yml`; do not add workload-cluster credentials
+  to this app. Keep workflow outcome reporting on the originating Slack card.
 - Migrations run on boot unless `SKIP_MIGRATIONS=true`.
 
-## Identity boundary
-- Pomerium authenticates humans to ops surfaces via Google Workspace
-  OIDC, NOT via Tuist's customer OIDC IdP. Slack and Tailscale are the
-  only external identity surfaces this app talks to.
-- The `server/` app has zero knowledge of internal cluster access or
-  any other ops tooling that ends up here. Customer-facing failures
-  don't take down ops; ops failures don't take down customer-facing.
+Tool versions live in `mise.toml`; use `mix test` for tests. Deployment is defined
+by `infra/helm/tuist-ops/` and `.github/workflows/tuist-ops-deployment.yml`.

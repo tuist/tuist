@@ -1,6 +1,7 @@
 # Kura
 
-This node covers the `kura/` workspace, a Rust service for low-latency cache meshes that replicate artifacts and metadata across peer nodes.
+Start with [the architecture overview](docs/architecture.md). Keep protocol,
+resource, and rollout constraints below intact when changing the cache mesh.
 
 ## Key Boundaries
 - Experimental managed authority: `src/serving_authority.rs` and `src/handover.rs`.
@@ -74,8 +75,6 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   the final full-corpus verification or authorizes promotion.
   Qualification fixtures and their simulator limits are documented in
   [`test/e2e/serving-authority/AGENTS.md`](test/e2e/serving-authority/AGENTS.md).
-- High-level architecture overview: `docs/architecture.md` — start here when onboarding or reasoning about how subsystems interact
-- Entry points: `src/main.rs`, `src/app.rs`
 - `src/metrics.rs` exports route and transport-only public latency histograms with identical buckets. Cached and dynamic routes must observe each once. Resource qualification guidance lives in `docs/metrics-cost-controls.md`; record measurements in the pull request description. Hosted collector migration is staged in `../infra/helm/k8s-monitoring/README.md`; preserve route counts/sums and chunking diagnostics, and do not thin replication latency further.
 - Startup recovery: `src/startup.rs` owns the bootstrap health listener, progress watchdog and process signals. Keep cache and peer traffic disabled until exclusive store recovery completes; transfer the existing bound socket into the serving listener. Eviction scan pages and commits advance recovery progress, never a timer heartbeat. Keep interruption typed through cleanup so a requested shutdown exits successfully without reporting startup failure; preserve live reverse pointers until their targets are deleted in the same batch.
 - Bazel dependency fetching: [`src/reapi/asset/AGENTS.md`](src/reapi/asset/AGENTS.md), [protocol and rollout](docs/remote-assets.md).
@@ -112,9 +111,7 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   - Optional REAPI wildcard inlining that cannot acquire response memory increments `kura_reapi_inline_fallbacks_total` per omitted file, not the materialization rejection or capacity-shed counters. Explicit inline requests and failed required reads retain rejection accounting. Preserve this distinction when sharing materialization helpers.
   - Artifact upload readers (`src/utils.rs`, staged and inline handlers in `src/http.rs`) keep incoming-body failures separate from storage I/O. Classify typed disconnects as 499, malformed framing as 400, and incoming-body timeouts as 408; unknown body failures and storage faults remain 5xx. The peer backfill body-fetch request (`/_internal/backfill/bodies`), which both push-era and pull catch-up passes run on, classifies the same way. The push receivers kept for pre-pull peers still map every buffered read failure to 413; they go with those peers rather than being widened. Record rejected reads in domain error counters and preserve bounded causes in upload completion extensions; a size rejection is not a rejected read, so it stays out of the write counter. Client failures use a separate warning limiter from server faults. Protocol and cleanup coverage lives in `src/http/upload_tests.rs` and `spec/e2e/upload_errors_spec.sh` (CI clients shard). Public and peer HTTP entry points wrap concrete Hyper Incoming bodies to reject a swallowed reset without END_STREAM; generic body end-stream hints are not sufficient for this check. The HTTP/2 test must exercise Hyper Incoming to guard both the end-stream check and the typed h2 downcast across dependency upgrades. Ingest checksum verification is opt-in per request (the `tuist-checksum-sha256` header on single-request blob PUTs, `checksum_sha256` in the module-complete body), because these lanes' keys are input-derived cache keys, not content hashes; hash while the bytes stream (staging or assembly), never with a second read pass, and refuse a mismatch with 422 before persist (a `checksum_mismatch` write result). A refused multipart complete drops the whole session — a whole-object digest cannot say which part is wrong and the client's retry opens a fresh session, so kept parts would only hold multipart capacity until the TTL. A verified module digest is stored on the manifest (optional everywhere, carried like `origin_region` through replication and backfill) and served back as `tuist-checksum-sha256` on 200/206, always describing the WHOLE object. Requests that declare nothing stay unverified — old clients, old servers, and old rows must interoperate.
 - Optional fixed connectivity telemetry: [`src/connectivity/AGENTS.md`](src/connectivity/AGENTS.md); dedicated thread/runtime, no startup/readiness dependency, ordinary JSON logs.
-- Control-plane mesh membership (enrollment, mesh heartbeat, managed peers sync, recovery re-enrollment): `src/enrollment.rs`, `src/mesh_heartbeat.rs`
 - Mesh and usage HTTP timeout policy: `src/control_plane_http.rs`, used by `src/mesh_heartbeat.rs` and `src/usage.rs` — 3 seconds for connection setup including DNS, within a 5-second total request deadline. `src/telemetry.rs` builds the OTLP span exporter's HTTP client from the same two budgets; that client must stay blocking, because the batch span processor drives exports on a thread with no Tokio reactor. Enrollment, registration, analytics, and authentication configure their clients separately. Keep the initial peer-view serving gate intact.
-- Peer TLS support: `src/peer_tls.rs`
 - Provider/domain-aware peer routing: `src/peer_topology.rs`. Private metadata is
   a deployment attestation of the underlay, never inferred from a provider name.
   Keep all pull body/listing/feed requests on `AppState::peer_request`, canonical
@@ -144,15 +141,12 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
   `canonical_networks` before using canonical mTLS. Same-domain traffic always
   stays private-only. Canonically approved peers are not private donors. Roll
   out policy-capable runtimes before advertising a newly qualified domain.
-- Peer sync bandwidth shaping: `src/bandwidth.rs`
 - Operational assets: `docker-compose.yml`, `ops/`, `test/e2e/`, `spec/e2e/`
   - Account rename coverage uses ShellSpec and `test/e2e/account-rename/control_plane.mjs`, a loopback fixture using the Node.js toolchain pinned in `mise.toml`. Keep new test helpers aligned with existing repository languages; avoid introducing Python.
   - ByteStream admission uses the standard ShellSpec `support.sh` lifecycle and the Compose override in `test/e2e/bytestream-admission/`. The CI bytestream-admission shard runs it against the shared prebuilt Kura image and the existing Go load-client image. Optional resource captures use the same test path.
   - `test/e2e/multipart-admission/run.py` launches an isolated native server for the multipart admission ShellSpec.
   - See `ops/AGENTS.md` for Helm, rollout helpers, and observability config boundaries
-- Bazel build system: `MODULE.bazel`, `BUILD.bazel`, `.bazelrc`, `bazel/` (toolchains + vendored deps); the crate graph is resolved from `Cargo.toml`/`Cargo.lock` by rules_rs
 - Rust test targets use `rust_junit_test` from `bazel/rust_junit_test.bzl` instead of `rust_test`. Stable libtest does not write JUnit, so the macro wraps the compiled test binary in `bazel/tools/rust_libtest_junit.sh`, which parses libtest's text output and writes JUnit to `$XML_OUTPUT_FILE`. Without this, Bazel synthesizes a one-case-per-target report and Tuist collapses each target to a single row. Keep this in place when adding new `#[test]` modules; the macro is a drop-in for `rust_test`.
-- License and contribution terms: `LICENSE.md`, `CLA.md`, `cla/`
 
 ## Development
 - Install tools from `kura/mise.toml` with `mise install` (Rust toolchain + Bazel)

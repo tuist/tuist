@@ -1,19 +1,5 @@
-# TuistGit (CLI Module)
+# TuistGit
 
-This module provides Git-related helpers and repository interactions.
-
-## Responsibilities
-- Execute git operations (clone, checkout, log) and query repo metadata.
-- Provide `GitInfo` with CI-aware fallbacks for refs, branches, and PR IDs.
-
-## Boundaries
-- Keep CLI command wiring in `cli/Sources/TuistKit`.
-- Keep shared low-level utilities in `cli/Sources/TuistSupport`.
-
-## Related Context
-- cli/Sources/TuistSupport/AGENTS.md
-
-## Invariants
 - `GitController` uses the system to execute git commands and tolerates missing repos.
 - CI environment variables are used to infer branch and PR refs when git data is unavailable. On a pull request merge ref (`refs/pull/N/merge`) `gitInfo` reports HEAD^2, the pull request's head, since the merge commit exists only in the checkout, unless `GITHUB_SHA` (GitHub's merge commit) is set and is not HEAD: a workflow that checked out another commit reports HEAD. The Gradle plugin (`ProcessGitInfoProvider.commitSha`) and `tuist_ex` (`Env.git_commit_sha/2`) apply the same rule.
 - Providers that pass build parameters in files rather than the environment are read by `CIBuildParameters` and looked up by name in the same lists as environment variables. For TeamCity that is the `.xml` copy (Java's XML properties format, parsed with `XMLParser` without resolving its DTD) the agent writes next to both the build parameters file (`TEAMCITY_BUILD_PROPERTIES_FILE`) and the configuration parameters file it names, so no `.properties` escaping is handled here.

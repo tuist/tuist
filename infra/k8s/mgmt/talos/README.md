@@ -45,7 +45,7 @@ Kubernetes by hand first (`talosctl reset` over the tailnet).
 
 ## How the patches are applied
 
-The Talos API is reachable only over the tailnet, and CI stays off it. Instead,
+Operators reach the Talos API over the tailnet, and CI stays off it. Instead,
 the script runs `talosctl` in a Job in namespace `mgmt-talos`, using a
 credential Talos mints for the `talos-patcher` ServiceAccount in
 [`../talos-patcher.yaml`](../talos-patcher.yaml) (`patches/10-talos-api-access.yaml`
@@ -86,10 +86,11 @@ cannot repair the node. A broken kube-controller-manager also stops the Jobs
 this script depends on, so fix such a node by hand with `talosctl` over the tailnet
 (Bootstrap below shows how to get the talosconfig), then fix the patch.
 
-A change to the API server (`cluster.apiServer`) restarts it. Every controller
-on the mgmt cluster then loses its leader lease and restarts, so the CAPI
-admission webhooks are unavailable for about three minutes. The kubectl job runs
-after the Talos job for that reason.
+A change to the API server (`cluster.apiServer`) restarts it on that node.
+In the three-member cluster, healthy sibling API targets and webhook replicas
+should preserve availability. Controllers can still retry or restart during the
+transition; the per-node health gate must pass before the next member is patched.
+The kubectl job runs after the Talos job.
 
 ## Bootstrap (once per cluster)
 
@@ -172,82 +173,160 @@ VXLAN firewall rule until the complete migration and network gate pass.
 The `hetzner` job precedes `talos`, so removing that rule there in the same
 rollout would close the working path too early.
 
-### Operator rollout and remaining HA work
+### Verified HA state — 2026-10-27
 
-The [2026-10-26 Flannel deployment](https://github.com/tuist/tuist/actions/runs/40403476483)
-passed. A subsequent read-only check confirmed three Ready control-plane
-nodes advertising `10.0.1.11`, `10.0.1.12` and `10.0.1.13` for Flannel, caph
-at 2/2 replicas, all six webhook budgets allowing one disruption, no unhealthy
-pods and all seven workload Clusters Available. API targets still use public
-addresses until the follow-up private-target spec is deployed. The temporary
-UDP firewall exceptions have not been removed. Production mutations remain
-operator-run as specified in the handoff.
+All three control-plane nodes run Talos **1.13.11**, Kubernetes **1.36.5**
+and etcd **3.6.14**. The final rolling-upgrade checks confirmed three voting
+members with synchronized Raft indexes, private peer/client URLs, Ready nodes,
+90 seconds of stable control-plane pods, all Deployments available, six webhook
+PDBs allowing one disruption, and all seven workload Clusters Available.
+DNS and pod HTTP passed in every direction after each node upgrade.
 
-1. Apply the reviewed Talos changes through the normal main-branch workflow.
-   Require private endpoint verification and the complete pod-network gate.
-   The workload step restores caph to two replicas and applies
-   `../controller-pdbs.yaml`, keeping at least one ready replica of each of the
-   six admission webhooks during voluntary eviction. Check both replicas and
-   `kubectl get pdb -A` before draining anything. Budgets do not protect against
-   node failures or direct Deployment rollouts.
-2. After the network gate passes, remove the temporary **UDP 8472 and UDP
-   4789** ingress rules from firewall `tuist-mgmt`, preserving the TCP API
-   rule and every unrelated rule. Re-run `check-pod-network.sh` afterwards.
-   Inspect the live rules with `hcloud firewall describe tuist-mgmt -o json`
-   and use their exact direction, protocol, port and source IPs when calling
-   `hcloud firewall delete-rule`. Firewall ownership is not yet declarative.
-3. The follow-up spec sets `loadBalancer.usePrivateIP: true`; deploy it only
-   after the preceding private Flannel rollout and network gate pass. The
-   reconciler reads fresh target health immediately before removing a target,
-   requires a different target healthy on every configured API port, and
-   waits up to five minutes for the switched target to recover before moving
-   on. A missing/unknown check is not healthy. If a switch fails, it stops
-   with the other targets in place; repair or revert that target before
-   retrying. After every private target is healthy and API writes through the
-   load balancer work, remove the nodes' public TCP 6443 firewall rule.
-4. Upgrade Talos from 1.13.0 to 1.13.11 one node at a time only after a current
-   etcd snapshot is verified and the webhook budgets/replicas are healthy.
-   Confirm the installed image's architecture and extension schematic before
-   choosing the installer. For each node, wait for Ready, all voting etcd
-   members, stable control-plane pods, private Flannel endpoints, the complete
-   pod-network gate and a healthy load-balancer target before the next node.
-   The upgrade and installer/snapshot selection are deliberately separate
-   from this network migration.
-5. Remove the old Tailscale rollback Secrets only after verifying their exact
-   names and lack of references. Migrate the etcd snapshot credential to the
-   ephemeral Talos ServiceAccount approach separately; it is still pinned to
-   the first node. Check that node's advertised etcd client URL after its
-   rolling restart. The original ten-minute join delay remains unexplained:
-   the current pod timestamps do not identify why earlier pods were replaced.
-   Use the stability-window reset logs on the next join rather than reducing
-   the safety window.
+| Node | Private IP | Talos tailnet endpoint | Location |
+| --- | --- | --- | --- |
+| tuist-mgmt | 10.0.1.11 | 100.92.208.109 | fsn1 |
+| tuist-mgmt-2 | 10.0.1.12 | 100.116.204.45 | nbg1 |
+| tuist-mgmt-3 | 10.0.1.13 | 100.110.48.87 | nbg1 |
 
-If the Flannel migration fails, retain the public VXLAN exception. Restore
-the old DaemonSet arguments (`--ip-masq`, `--kube-subnet-mgr`) and roll it back
-to the working public path before retrying; revert the Talos extra arguments
-too so a later bootstrap does not reintroduce the failed selection. Do not
-remove firewall rules or begin an OS upgrade while the network gate fails.
+Flannel uses these private IPs. All three targets of API load balancer
+`tuist-mgmt-api` are private and healthy; its public endpoint remains
+`https://49.12.66.91:6443`. The public node TCP 6443 and temporary UDP 8472/4789
+firewall rules were removed after verification. The firewall has no public
+ingress rules. Do not restore public VXLAN as a routine troubleshooting step.
 
-### Remove the temporary public VXLAN rules
+This records the completed live migration, not the deployment status of the
+backup and provisioning follow-ups below. Production mutations remain
+operator-run; repository changes deploy after review and merge to main.
 
-After the private network gate passes, the operator can remove the two exact
-rules verified on 2026-10-26. The management-project credential confines this
-to the intended project; the commands retain TCP 6443 and unrelated rules.
-Inspect the firewall first if its rules have changed since that verification.
+### Rolling Talos upgrades and identity recovery
+
+Before each node: verify a fresh etcd snapshot upload, all three voting members,
+healthy private API targets, Ready control-plane pods stable for 90 seconds,
+webhook replicas/PDBs and the pod-network gate. Upgrade exactly one node and
+repeat these checks before continuing. Never bypass a failed health check with
+`--force`.
+
+The verified amd64 installer for the current empty-extension schematic is:
+
+`factory.talos.dev/hcloud-installer/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba:v1.13.11`
+
+Use **hcloud-installer**, retaining the installed architecture and schematic.
+The generic `installer` variant changed node 2 to the metal platform during
+this migration, and it registered as `talos-sif-xr2`. Reapplying the hcloud
+installer restored its platform and original Kubernetes identity. A subsequent
+drained reboot refreshed the old etcd member name; the member ID and data were
+preserved throughout. Never remove that live etcd member to fix a stale name.
+The obsolete Kubernetes Node was removed only after matching its system UUID
+to the restored Ready node and verifying that only pending DaemonSet pods remained.
+
+For this 1.13.0 → 1.13.11 migration we used `upgrade --legacy --preserve
+--drain --drain-timeout=10m --wait --timeout=30m`. The legacy path avoided the
+new upgrader's handling of existing GRUB kernel arguments; do not carry these
+flags into a future major upgrade without reviewing that release's guidance.
+Reach the node through a different healthy member's Talos endpoint (for example,
+node 2's tailnet IP while rebooting node 1). Wait for the expected original
+Kubernetes name, inspect PlatformMetadata/HostnameStatus and etcd membership,
+and uncordon if needed. Never print machine configs or dry-run diffs, even filtered.
+
+An upgrade initially failed because node 1 still advertised its old public
+etcd **client** URL, despite private peer URLs and healthy Raft replication.
+Talos validates every advertised client URL before an upgrade. A controlled
+`reboot --drain --drain-timeout=10m --wait --timeout=20m` refreshed it after
+confirming the resolved EtcdSpec had private addresses. `service etcd restart`
+is not supported by Talos's service API. Do not disable validation or remove an
+etcd member to work around this failure.
+
+The original roughly ten-minute join delay remains unexplained. Observed
+scheduler/controller-manager startup retries during these reboots included local
+API TLS timeouts, but that does not establish the earlier join delay's cause.
+Keep the 90-second stability gate and collect its reset timestamps on future joins.
+
+### Backup credential rollout and verification
+
+`../etcd-snapshot.yaml` now declares a Talos ServiceAccount named
+`mgmt-system/etcd-snapshot`, with only `os:etcd:backup`. Talos issues a six-hour
+certificate and renews it when less than one hour remains. Its generated Secret
+contains a `config` key and uses `talos.default`, the in-cluster API Service.
+The pod passes its own host IP as the target node and can schedule on any
+control-plane member. It uses neither host networking nor a Kubernetes API token.
+
+This is an automatically rotated, short-lived credential, **not** a Secret that
+exists only during each Job. Keeping the native Talos controller responsible for
+rotation avoids giving backup pods Kubernetes permission to create identities or
+read/delete Secrets. The patcher's separate admin credential remains ephemeral.
+The machine allowlist of roles and namespaces is global, not a per-namespace role
+binding: preserve Kubernetes RBAC restrictions on creating Talos ServiceAccounts.
+Deleting a Secret does not revoke an already copied certificate.
+
+The workflow applies the API-access patch to all nodes before applying the new
+ServiceAccount and CronJob. Keep `talos-snapshotter-config` until real uploads
+succeed from every node. After the main-branch deployment succeeds, run:
+
+```bash
+KUBECONFIG=~/.kube/tuist-mgmt.yaml CI=1 mise exec -- \
+  infra/mise/tasks/mgmt/verify-etcd-snapshot.sh --delete-legacy-credential
+```
+
+This copies the deployed Job template, pins one verification Job to each Ready
+control-plane node in turn, and requires both snapshot and Tigris upload to finish.
+It deletes the superseded credential only after all succeed; verification Jobs
+remain for 24 hours. Failure leaves the old Secret intact. For rollback before
+cleanup, restore the old CronJob spec from git; retain the new allowed namespace
+until no new jobs use it. After cleanup, rollback also requires reissuing a backup
+credential; prefer fixing the new path instead of restoring a long-lived key.
+
+Snapshots are highly sensitive cluster data. Recovery is a separate disaster
+operation requiring a cluster recovery plan and a verified downloaded snapshot.
+Talos 1.13 exposes `talosctl bootstrap --recover-from=<snapshot>`; inspect
+`talosctl bootstrap --help` for the deployed version before planning recovery.
+Do not run this on a healthy cluster. The local integration check verifies
+snapshot creation and upload, not a disaster restore.
+
+### Obsolete Tailscale Secrets
+
+Read-only checks on 2026-10-27 found no Tailscale workload or reference in
+`mgmt-system`, and the active DaemonSet in `mgmt-tailscale` was 3/3 Ready.
+The old `mgmt-system/tailscale-oauth` and `tailscale-state` are rollback copies.
+`mgmt-tailscale/tailscale-state-talos-sif-xr2` belongs to the removed temporary
+node identity, not to the restored node 2.
+
+```bash
+KUBECONFIG=~/.kube/tuist-mgmt.yaml CI=1 mise exec -- \
+  infra/mise/tasks/mgmt/cleanup-ha-secrets.sh
+KUBECONFIG=~/.kube/tuist-mgmt.yaml CI=1 mise exec -- \
+  infra/mise/tasks/mgmt/cleanup-ha-secrets.sh --apply
+```
+
+The script rechecks Ready nodes, the complete DaemonSet rollout, active Secret
+names, the missing temporary Node and workload/RBAC references before deleting
+only those three names. It never reads Secret values. Active per-node state and
+OAuth credentials stay in `mgmt-tailscale`. Removing rollback copies means the
+old Deployment cannot be restored merely by reapplying its manifest. This does
+not revoke an abandoned device in Tailscale's control plane.
+
+### Provisioning future nodes
+
+`hetzner.yaml` selects the clean `talos-v1.13.11` snapshot for new servers;
+changing this field does not rebuild or upgrade existing servers. Upload it to
+the **management** Hetzner project before adding a node. Never snapshot a joined
+control-plane node for provisioning: that would copy cluster credentials and etcd
+data into the image. Use the Image Factory's unconfigured hcloud disk image:
 
 ```bash
 op signin --account tuist.1password.com &&
 HCLOUD_TOKEN=op://tuist-k8s-mgmt-hetzner/hetzner-tuist-mgmt/credential \
-  CI=1 mise exec -- op run -- bash -eu -c '
-    for port in 8472 4789; do
-      hcloud firewall delete-rule tuist-mgmt --direction in --protocol udp \
-        --port "$port" \
-        --source-ips 178.105.79.109/32,91.99.129.8/32,167.235.133.98/32 \
-        --description "flannel VXLAN between mgmt nodes (temporary)"
-    done
-  '
-KUBECONFIG=~/.kube/tuist-mgmt.yaml CI=1 mise exec -- infra/mise/tasks/mgmt/check-pod-network.sh
+  CI=1 mise exec -- op run -- "$HOME/.local/bin/hcloud-upload-image" upload \
+    --image-url https://factory.talos.dev/image/376567988ad370138ad8b2698212367b8edcb69b5fd68c80be1f2ec7d603b4ba/v1.13.11/hcloud-amd64.raw.xz \
+    --architecture x86 --compression xz --location nbg1 \
+    --description talos-v1.13.11 \
+    --labels purpose=mgmt-cluster,talos-version=v1.13.11
 ```
+
+This uses the verified local `hcloud-upload-image` 1.3.0 CLI. It creates a temporary
+server, writes the clean disk image in rescue mode, snapshots it and deletes the
+server. Verify exactly one available x86 snapshot with that description afterwards;
+keep the 1.13.0 image until the new image has been verified. The reconciler refuses
+new-server creation if the desired image is missing or ambiguous.
 
 ### Validation
 
@@ -255,8 +334,8 @@ Credential-free checks run in `mgmt-cluster-tests.yml`:
 
 ```bash
 CI=1 mise exec -- infra/mise/tasks/mgmt/test-health.sh
-CI=1 mise exec -- node --test infra/mise/tasks/mgmt/test-hetzner.cjs
-CI=1 mise exec -- shellcheck infra/mise/tasks/mgmt/{test-health,check-pod-network,reconcile-flannel,reconcile-talos,reconcile-hetzner}.sh
+CI=1 mise exec -- node --test infra/mise/tasks/mgmt/test-{hetzner,ha-followups}.cjs
+CI=1 mise exec -- shellcheck infra/mise/tasks/mgmt/{test-health,check-pod-network,reconcile-flannel,reconcile-talos,reconcile-hetzner,cleanup-ha-secrets,verify-etcd-snapshot}.sh
 CI=1 mise exec -- actionlint .github/workflows/mgmt-cluster-{apply,tests}.yml
 ```
 
@@ -278,3 +357,14 @@ passed without changing the DaemonSet generation. All six PDB manifests passed
 server-side dry-run validation against that local Kubernetes API. Docker has no
 Hetzner firewall, so this does not validate live firewall removal, load-balancer
 switching or an OS upgrade.
+
+The 2026-10-27 backup test used a separate local Talos 1.13.11 / Kubernetes
+1.36.5 cluster. It enforced restricted Pod Security, issued a six-hour
+`os:etcd:backup` certificate, created and integrity-checked an etcd snapshot,
+and uploaded its complete contents with the production AWS CLI image to a local
+S3 test endpoint using dummy credentials. Privileged service inspection was
+denied. The operator verification script also completed a real local snapshot
+and upload before deleting a dummy legacy Secret. This validates neither Tigris
+credentials nor multi-node failover; the main-branch per-node verification gate
+covers the live upload path. Always set `KUBECONFIG` to a temporary path before
+`talosctl cluster create`, which otherwise merges into the default kubeconfig.

@@ -6,6 +6,7 @@ on:
       - 'infra/mise/tasks/mgmt/**'
       - 'infra/k8s/mgmt/talos/**'
       - 'infra/k8s/mgmt/controller-*.yaml'
+      - 'infra/k8s/mgmt/etcd-snapshot.yaml'
       - '.github/workflows/mgmt-cluster-*.yml'
   push:
     branches: [main]
@@ -13,6 +14,7 @@ on:
       - 'infra/mise/tasks/mgmt/**'
       - 'infra/k8s/mgmt/talos/**'
       - 'infra/k8s/mgmt/controller-*.yaml'
+      - 'infra/k8s/mgmt/etcd-snapshot.yaml'
       - '.github/workflows/mgmt-cluster-*.yml'
 
 permissions:
@@ -30,7 +32,8 @@ jobs:
           cache: "false"
       - run: infra/mise/tasks/mgmt/test-health.sh
       - run: node --test infra/mise/tasks/mgmt/test-hetzner.cjs
+      - run: node --test infra/mise/tasks/mgmt/test-ha-followups.cjs
       # These linters are not in the repository's mise.lock. Pin their
       # versions explicitly instead of asking --locked to resolve them.
-      - run: CI=1 mise exec shellcheck@0.11.0 -- shellcheck infra/mise/tasks/mgmt/{test-health,check-pod-network,reconcile-flannel,reconcile-talos,reconcile-hetzner}.sh
+      - run: CI=1 mise exec shellcheck@0.11.0 -- shellcheck infra/mise/tasks/mgmt/{test-health,check-pod-network,reconcile-flannel,reconcile-talos,reconcile-hetzner,cleanup-ha-secrets,verify-etcd-snapshot}.sh
       - run: CI=1 mise exec actionlint@1.7.12 -- actionlint .github/workflows/mgmt-cluster-{apply,tests}.yml
