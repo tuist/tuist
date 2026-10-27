@@ -13,8 +13,13 @@ defmodule Tuist.BrowserTelemetry.ReceiptsTest do
     keys = for _ <- 1..3, do: :crypto.strong_rand_bytes(32)
 
     on_exit(fn ->
-      Repo.delete_all(from(r in "browser_telemetry_receipts", where: r.key in ^keys))
-      Sandbox.stop_owner(owner)
+      try do
+        # on_exit runs in a different process from the test.
+        :ok = Sandbox.allow(Repo, owner, self())
+        Repo.delete_all(from(r in "browser_telemetry_receipts", where: r.key in ^keys))
+      after
+        Sandbox.stop_owner(owner)
+      end
     end)
 
     %{keys: keys}
