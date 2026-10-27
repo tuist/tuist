@@ -45,6 +45,14 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Archives store only non-zero data extents (`SEEK_DATA`/`SEEK_HOLE`) in zstd so
   save and restore cost scales with data, not the logical image size. Restore
   must keep accepting legacy full-image gzip masters until they age out.
+- Archive downloads, compression and both restoration formats flush every 16 MiB
+  written, in addition to their final sync. Dirty filesystem pages count toward
+  the Linux agent's 512 MiB memory limit: a production merge download was OOM-killed
+  with about 439 MiB dirty or in writeback and only 55 MiB anonymous memory.
+  Preserve this per-stream writeback bound, including across sparse extents;
+  never let `io.Copy` use a file's `ReadFrom` to bypass it. A resumed download
+  syncs its existing prefix before adding bytes. Write or sync errors stop the
+  stream and must prevent publication; this does not bound other processes' I/O.
 - Reconcile generation/digest master sidecars against HEAD and evict stale or
   idle masters. Preserve os.Root cleanup and no-follow Linux mount operations.
 
@@ -172,6 +180,13 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Linux attach admission is `MinFreeBytes` plus whatever the expected size
   exceeds `SizeGB` by. APFS prefetch needs `Identity.RestoreBytes`: twice the head's used
   bytes, else twice the capacity.
+- Linux pressure eviction rechecks free space every 10 ms for up to 100 ms
+  (`ReclaimWait`) before removing another master. XFS queues inode reclamation
+  after unlink; `statfs` starts that work without waiting, and `syncfs` does not
+  reliably wait for it either. An immediate check can evict every master and
+  still report capacity exhausted. Keep the request deadline, physical-space
+  threshold and error propagation intact; live reflinks may retain the blocks.
+  APFS leaves the wait disabled.
 - `HTTPTransfer.Download` keeps the archive at `<path>.part` and resumes it with
   `Range` requests: a fresh link per attempt, at most five attempts, an attempt
   abandoned after two minutes without bytes (response headers included),
@@ -207,6 +222,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - `prefetch` and refreshes download into
   `staging/<scope>-<generation>-<content digest>.img` and take the scope lock only
   to install (`fetchMaster`), one download per staging name at a time;
+  background callers leave an active fetch alone. A Docker merge sets `wait`
+  to await its installation result or its own context ending. Canceling a
+  waiter does not cancel the download it joined. Only the installing caller
+  runs its installation callback.
   `maintainMaster` asks for the HEAD before taking it. Never hold a scope lock
   across a network call: APFS jobs clone under that lock. With `Replace` set, maintenance keeps a superseded master
   used in the last day while its successor is queued, instead of removing it.
@@ -273,6 +292,17 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   seeded through `LocalImages.Seed`, never formatted, and admitted only while
   free space covers the whole checkout image, since it holds the job's workspace.
   That check never evicts (`reserveSpare`); the usual reserve admission does.
+- Checkout Git commands and their children use one pack/indexing thread, a
+  32 MiB delta-search window, 16 MiB delta and base caches, a 16 MiB large-blob
+  streaming threshold, and 16 MiB pack mappings capped at 64 MiB. Keep these in
+  `gitEnv`, never in the master's `.git/config` that jobs inherit. An automatic
+  repack's Git process can otherwise consume the agent's 512 MiB cgroup budget
+  even with no dirty archive pages. These bound Git's tunable working sets, not
+  all allocations for arbitrary object counts or incoming delta chains; retain
+  strict pack validation and synchronous GC, and validate with real Git.
+  The inheritance test accepts Trace2 config events without `scope` on older
+  Git (including the runner's 2.34), retaining the last value per process/key
+  so repository settings cannot hide missing command overrides.
 - `Checkouts.InUse` (each host passes `Store.InUse`) keeps pressure eviction
   off masters a job holds or is attaching: their blocks are shared, so evicting
   them frees nothing and the attaching job loses its seed.
@@ -293,3 +323,38 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   CheckoutMasterEndToEnd .`; on Linux it runs as root with
   `TUIST_CHECKOUT_E2E_ROOT` on a reflink filesystem (`scripts/test-cache-filesystem.sh`
   in runners-controller provides one).
+- `KindDocker` (`docker.go`) is a repository's Docker data root. Overlay2 needs a
+  filesystem native to the guest kernel, so the guest loop-mounts the branch
+  image itself: `Attach` links the image into the pod's directory as
+  `docker.img` (`exposeDocker`) and never runs losetup or mount; `detach` is a
+  no-op. Never mount a Docker image on the host and never run a filesystem
+  parser on it: a privileged guest writes it at the block level. `Seal`
+  (`sealDocker`) requires the guest's `docker.json` (`ReadDockerReport`, read
+  without following links, bounded and validated) to say it unmounted cleanly,
+  the pod's link to still be the branch (`sameFile`), and the superblock's fixed
+  fields to show no journal to recover and no errors (`ext4Clean`); a report
+  saying unchanged is `ErrUnchanged` (it can only withhold), and a branch whose
+  blocks exceed `DockerPublishBytes` is `ErrFull`. Measurements are the image's
+  allocated bytes and logical size. `Delete` and `Keep` remove the pod directory
+  (guest-written files only) and the image. A Docker identity always has
+  `DockerVolumeBytes`, above the host maximum for other volumes
+  (`kindMaxVolumeBytes`, `HTTPTransfer.maxBytes`), and admission expects its saved
+  bytes plus `DockerGrowthBytes`. Empty images are formatted with
+  `dockerFormatArgs` so the guest's kernel has no background zeroing to do.
+- A Docker branch whose lineage another job saved since it was mounted is merged,
+  not lost: `ExposeDockerHead` clones that head (downloading it when this host
+  lacks it) next to the branch as `.merge`, records it in `.merge.json` and links
+  it into the pod's directory as `head.img`. If a prefetch or refresh is already
+  downloading the head, the offer waits for installation before cloning; it
+  must not treat an in-flight download as an available master. The guest loads
+  the images only one side keeps into the other. A report naming `merged_generation` and
+  `merged_into` (`sealDockerMerge`) must name the head this host offered; a
+  merge into `head` renames the clone over the branch after the same inode and
+  superblock checks, then the use is rebased on the server (`Rebaser`, the
+  `rebase` image operation; a conflict is `ErrSuperseded`) and published as any
+  branch. Without a merge a branch whose HEAD moved stays `ErrSuperseded`.
+
+- Replacement-image tests must keep the original inode allocated (rename it
+  aside before creating the replacement). Unlinking and immediately recreating
+  a file can reuse its inode on Linux, so it does not reliably exercise the
+  different-inode guard.

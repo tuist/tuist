@@ -14,6 +14,7 @@ This module defines the CLI entry point for the `tuist` binary.
 - Cargo delegates to `TuistCargoCommand` before generic flag stripping, configuration loading, command analytics, or authentication. Runtime initialization must interpret only Tuist flags before `cargo`, never Cargo or test-harness flags. Compiler hooks must not publish command events.
 - Dispatch `cargo __compiler` and `cargo __native` before runtime initialization, including logging sessions, maintenance, manifest loading and terminal status reporting. Cargo/build scripts invoke them per compiler process; their only session state belongs to the outer Cargo command.
 - Logging and error presentation remain centralized in `TuistKit` for ordinary commands. Cargo forwards subprocess output and preserves its exit status through ArgumentParser without the generic completion output.
+- Dependency initialization binds a fresh `Environment.current` after processing global flags, even if startup code already read the default environment.
 
 ## Related Context
 - Cargo decoration and nextest integration: `cli/Sources/TuistCargoCommand/AGENTS.md`

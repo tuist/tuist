@@ -117,25 +117,32 @@ defmodule Atlas.Documents.PendingUploadsTest do
 
       {:ok, _object} = Storage.put_object(document.storage_key, "bytes")
 
-      # Use two Tasks against the shared DB sandbox to race the atomic
-      # transition. Whichever loses must see :already_finalized rather than
-      # silently double-enqueueing ProcessDocument.
+      # Hold both callers after reading the pending row, before either claims
+      # it. Otherwise the second caller can legitimately observe "uploaded"
+      # during its initial lookup instead of losing the conditional update.
       parent = self()
-      Ecto.Adapters.SQL.Sandbox.allow(Atlas.Repo, parent, self())
 
-      task1 =
-        Task.async(fn ->
-          Ecto.Adapters.SQL.Sandbox.allow(Atlas.Repo, parent, self())
-          Documents.finalize_pending_upload(document.id)
-        end)
+      verify_body = fn _body ->
+        send(parent, {:ready_to_claim, self()})
 
-      task2 =
-        Task.async(fn ->
-          Ecto.Adapters.SQL.Sandbox.allow(Atlas.Repo, parent, self())
-          Documents.finalize_pending_upload(document.id)
-        end)
+        receive do
+          :claim_upload -> :ok
+        after
+          5000 -> flunk("finalize caller was not released")
+        end
+      end
 
-      results = [Task.await(task1), Task.await(task2)]
+      tasks =
+        for _ <- 1..2 do
+          Task.async(fn ->
+            Ecto.Adapters.SQL.Sandbox.allow(Atlas.Repo, parent, self())
+            Documents.finalize_pending_upload(document.id, verify_body: verify_body)
+          end)
+        end
+
+      for %{pid: pid} <- tasks, do: assert_receive({:ready_to_claim, ^pid}, 5000)
+      Enum.each(tasks, &send(&1.pid, :claim_upload))
+      results = Enum.map(tasks, &Task.await(&1, 10_000))
 
       assert Enum.count(results, &match?({:ok, %Document{}}, &1)) == 1
       assert Enum.count(results, &match?({:error, :already_finalized}, &1)) == 1

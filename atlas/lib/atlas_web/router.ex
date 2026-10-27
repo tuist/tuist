@@ -214,6 +214,9 @@ defmodule AtlasWeb.Router do
     delete "/orbit/threads/:id/participants/:user_id", NativeOrbitController, :remove_participant
     post "/orbit/threads/:id/runs/:run_id/cancel", NativeOrbitController, :cancel_run
 
+    post "/moodboard/suggestions", NativeMoodboardController, :suggest, log: false
+    put "/moodboard/captures/:request_id", NativeMoodboardController, :capture, log: false
+
     get "/profile", NativeController, :profile
     patch "/profile", NativeController, :update_profile
     get "/:resource", NativeController, :index
@@ -226,6 +229,10 @@ defmodule AtlasWeb.Router do
 
   scope "/api/me", AtlasWeb do
     pipe_through :native
+
+    get "/connections", ConnectionController, :index, log: false
+    delete "/connections/:provider", ConnectionController, :delete, log: false
+    post "/connections/:provider/authorize", ConnectionController, :prepare, log: false
 
     get "/orbit-live-activity", OrbitLiveActivityController, :show
     put "/orbit-live-activity/:registration_id", OrbitLiveActivityController, :update
@@ -347,6 +354,9 @@ defmodule AtlasWeb.Router do
   scope "/", AtlasWeb do
     pipe_through [:browser, :require_auth]
 
+    get "/connections/:provider/authorize", ConnectionController, :authorize, log: false
+    get "/connections/:provider/callback", ConnectionController, :callback, log: false
+
     post "/settings/llm-providers/claude", LLMConnectionsController, :save_claude_browser
 
     live_session :authenticated_account,
@@ -354,6 +364,7 @@ defmodule AtlasWeb.Router do
       layout: {AtlasWeb.Layouts, :account} do
       live "/settings", AccountSettingsLive, :index
       live "/settings/llm-providers", LLMProviderSettingsLive, :index
+      live "/settings/connections", ConnectionsLive, :index
     end
 
     live_session :authenticated_dashboard,
@@ -383,6 +394,8 @@ defmodule AtlasWeb.Router do
       live "/outbound/email/inbox", EmailMailboxLive, :inbox
       live "/outbound/email/outbox", EmailMailboxLive, :outbox
       live "/outbound/email/outbox/:id", EmailMailboxLive, :sent_email
+      live "/library/moodboard", MoodboardLive, :index
+      live "/library/moodboard/:id", MoodboardShowLive, :show
       live "/library/notes", NotesLive, :index
       live "/library/notes/new", NotesLive, :new
       live "/library/notes/:id", NotesLive, :show

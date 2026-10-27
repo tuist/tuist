@@ -32,6 +32,30 @@ native destinations only; the shared catalog/CLI also retain browser routes.
 Native OAuth tokens do not create browser cookies. The app is not a WebView
 wrapper and does not provide offline editing.
 
+## Personal account connections
+
+Profile → Connections manages personal GitHub, Slack and Google grants separately
+from AI accounts and Atlas sign-in. Connect/Reconnect opens the server's consent
+flow in the system browser; disconnect requires confirmation. The Atlas browser
+login must belong to the same person as the signed-in native session.
+
+The bearer-authenticated `/api/me/connections` API exposes only connection metadata
+and disconnect. Its native-only authorization endpoint issues a ten-minute signed
+browser handoff bound to the user, provider, native client and random state.
+Providers continue using the server's HTTPS OAuth callbacks. After consent Atlas
+returns to `dev.tuist.atlas://connections-callback` with only state, provider and
+status, never a provider token. This is separate from `oauth-callback` for Atlas
+sign-in. Rust validates the exact destination, pending state, selected origin,
+issuing client and expiration; both apps reload authenticated metadata afterward.
+Android encrypts pending handoffs so browser returns survive process recreation.
+Sign-out/new login clears pending state, and unrelated drafts block callback navigation.
+
+Provider credentials and API enablement are server configuration, not bundled app
+secrets. Older servers show an unavailable-feature explanation without signing the
+person out. Preview-only `--connections` (iOS) and `--ez connections true`
+(Android Settings preview) render fictional connected/disconnected/reconnect states
+without contacting providers or changing accounts.
+
 ## Object navigation
 
 Both clients accept server-bound native object links for Orbit, Tasks, Accounts, Finance,
@@ -236,21 +260,27 @@ Tuist app's existing profile cannot sign Atlas.
 One-time setup in Apple Developer (Tuist GmbH, team `U6LC622NKF`):
 
 1. Register the explicit app identifier `dev.tuist.atlas` and enable its
-   **Associated Domains** capability before generating the profile.
+   **Associated Domains**, **Push Notifications**, and **App Groups** capabilities.
+   Register `dev.tuist.atlas.share` with **App Groups**, and assign
+   `group.dev.tuist.atlas.share` to both identifiers before generating profiles.
 2. Register each team iPhone/iPad's UDID (or select the devices already registered
    for the Tuist app).
-3. Create an **Ad Hoc** profile named **Atlas App Ad Hoc** for that identifier,
-   selecting the existing distribution certificate and those devices.
-4. Store the downloaded profile in the `tuist` 1Password vault as an attachment
-   named `Atlas_App_Ad_Hoc.mobileprovision` on an item named `Atlas App Ad Hoc`.
-5. Ensure the GitHub `OP_SERVICE_ACCOUNT_TOKEN` can read that item and the
+3. Create **Ad Hoc** profiles named **Atlas App Ad Hoc** and **Atlas Share Ad Hoc**
+   for their respective identifiers, selecting the same existing distribution
+   certificate and devices.
+4. Store the profiles as documents in the `tuist` 1Password vault, named
+   `Atlas_App_Ad_Hoc.mobileprovision` and `Atlas_Share_Ad_Hoc.mobileprovision`.
+   `ios/distribution/bundle.sh` references these documents by item ID. Update its
+   references and packaging fixtures when creating replacement items.
+5. Ensure the GitHub `OP_SERVICE_ACCOUNT_TOKEN` can read both items and the
    existing `Distribution Certificate` item (`distribution.p12` and `password`).
    Keep access limited to the protected `atlas-mobile-previews` environment.
 
 Never revoke or replace the Tuist app's certificate just to add Atlas. Regenerate
-Atlas's profile when adding devices or renewing its certificate/profile, and
-replace the attachment. A device not included in the profile cannot install the
-IPA, even if it can access the private preview page.
+the host, Share, and Live Activity profiles together when adding devices or
+renewing their certificate/profiles, and replace the stored documents. A device
+not included in every profile cannot install the IPA, even if it can access the
+private preview page.
 
 Build and package locally on macOS with Xcode and authorized 1Password access:
 

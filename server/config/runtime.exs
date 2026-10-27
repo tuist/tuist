@@ -32,6 +32,13 @@ alias Tuist.Oban.RuntimeConfig
 # A boot failure here is caught in the canary stage before production.
 alias Tuist.Runners.Catalog
 
+if value = System.get_env("TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION") do
+  case Tuist.Accounts.SSOLoginDomainTrust.parse_config(value) do
+    {:ok, enabled} -> config :tuist, :sso_require_login_domain_verification, enabled
+    {:error, reason} -> raise reason
+  end
+end
+
 config :tuist, :network_trusted_report_publishing, System.get_env("TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING") == "true"
 config :tuist, :runner_linux_cache_volumes, System.get_env("TUIST_RUNNER_LINUX_CACHE_VOLUMES") == "true"
 config :tuist, :runner_macos_cache_volumes, System.get_env("TUIST_RUNNER_MACOS_CACHE_VOLUMES") == "true"
@@ -671,6 +678,8 @@ base_queues = [
   runner_gitlab: 10,
   default: 10,
   alert_evaluations: 1,
+  alert_evaluation_batches: 1,
+  automation_notifications: 5,
   vcs_comments: 20,
   webhooks: 20,
   mcp_events: 5,
@@ -696,7 +705,11 @@ oban_queues =
       [process_build_queue, process_bazel_tests_queue]
 
     Tuist.Environment.xcresult_processor_mode?() ->
-      [process_xcresult_queue]
+      # Every queue start, including an Oban-only supervisor restart, is
+      # paused until the local drain monitor confirms no termination request.
+      [
+        {:process_xcresult, limit: Tuist.Environment.process_xcresult_queue_concurrency(), paused: true}
+      ]
 
     Tuist.Environment.swift_registry_sync_mode?() ->
       swift_registry_sync_queues

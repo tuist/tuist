@@ -1,6 +1,4 @@
-# Billing (Context)
-
-This context owns billing, plan management, and Stripe integration.
+# Billing
 
 ## Responsibilities
 - Define plan metadata (Air/Pro/Enterprise).
@@ -14,13 +12,7 @@ This context owns billing, plan management, and Stripe integration.
 - Subscription statuses are mirrored from Stripe as-is. `Billing.live_subscription_statuses/0` (`active`, `trialing`, `past_due`) are the ones an account keeps its plan through: `past_due` is a renewal Stripe is still retrying. `unpaid`, `canceled`, `incomplete`, `incomplete_expired`, and `paused` carry no plan, so the account resolves to Air. An account with an `unpaid` subscription and no live one is `Billing.payment_failed?/1`: when it is over the Air free tier, the API and the cache nodes (`cache_payment_failed` in cache tokens and introspection) refuse it with a payment-failed message instead of the Air upgrade message. `Billing.update_plan/1` changes a live subscription, `past_due` included, in place. Only an account with no live subscription and an `unpaid` one is redirected to the open invoice (or the billing portal) from `Billing.outstanding_payment_url/1`, because a Checkout would create a second subscription beside the one that owes. `/billing/pay` uses the same URL for `past_due` accounts too. Query live subscriptions through `live_subscription_statuses/0` rather than listing statuses. Stripe is configured to retry a failed renewal with Smart Retries and then mark the subscription `unpaid` (not cancel it), leaving the invoice open. Its own failed-payment emails are off: `invoice.payment_failed` on the first attempt of an automatically charged subscription invoice queues `PaymentFailedNotificationWorker` for the account's admins (`PaymentFailedNotifications`). The email promises no date or duration for the plan: that is Stripe's retry window, a dashboard setting that can change and that the API does not expose. When a subscription turns `unpaid` (the transition, detected in `on_subscription_change/1` against the stored status, so a redelivered event sends nothing), `SubscriptionUnpaidNotificationWorker` tells the same admins the account moved to Air and that paying the open invoice restores the plan.
 - Air usage notifications run after the daily account usage refresh, at 80% and 100% of the independent cache egress, cache request, and runner-minute allowances, with egress tracked in megabytes because the notification columns are 32-bit. Rows stored with the `remote_cache_hits` metric are never delivered. Runner usage reads `Tuist.Runners.Billing.compute_milliseconds/3` directly and truncates to baseline minutes, matching dispatch without its cached read. The configured limit comes from `Tuist.Runners.Allowance`, and active runner trials are excluded. Queue the highest reached threshold for all organization admins (or the personal account owner). A durable row per recipient, metric, threshold, and counting-period start records successful delivery to prevent resends after job pruning. Undelivered rows can be requeued when no active delivery job remains; a mid-month free-tier reset starts a new period only for cache usage. Runner notifications always reset on the UTC calendar month. Delivery workers recheck plan, role, period, and usage to suppress obsolete emails, send outside database transactions, and store the usage snapshot actually sent. Delivery is at least once: a crash after provider acceptance but before recording success can still cause a retry.
 
-## Boundaries
-- HTTP/API and UI code live in `server/lib/tuist_web`.
-- Configuration belongs in `server/config`.
-- Schema changes and migrations live in `server/priv`.
-
 ## Guardrails
-- Billing data is customer data; update `server/data-export.md` for schema or usage changes.
 - Kura reports a download it serves twice: as a usage rollup, and to `/webhooks/cache`, which writes a CAS event. `UsageMeters` counts CAS events only from the endpoints registered in `cache_endpoints`, which is the path with no rollup. Widening that filter bills every Kura-served Xcode download twice.
 - Never blank a runner Price id in `stripe.prices.runners` once it has gone live. `configured_runner_price_ids/0` filters empty ids, so a later plan change would stop recognising the existing runner subscription item, delete it, and lose the cycle's accrued usage.
 - The allowances and rates in `Tuist.Billing.UsagePricing` must match the tiers of the Prices under `stripe.prices.usage_meters`. A key there with an empty Price id reports usage without charging it; the Meter must exist in Stripe before its key is added.
@@ -29,8 +21,3 @@ This context owns billing, plan management, and Stripe integration.
 - A runner trial is not a credit grant. It is the absence of a runner subscription item (`Tuist.Runners.Trials`), which is what makes runner usage unbillable open-endedly. Anything that builds subscription items must keep asking `Trials.on_trial?/1`, or a trial account silently starts being billed.
 - The prepaid marker lives on the Stripe invoice *line*, not the invoice, and a grant is funded from the marked line's amount. A prepaid charge shares an invoice with that month's metered usage, so funding from `amount_paid` would convert the whole bill into runner credit.
 - An invoice's `lines` are paginated and the webhook payload carries only the first few. Read them through `Tuist.Billing.Invoices.list_lines/1` rather than off the payload, or a prepaid line further down a busy bill goes unseen.
-
-## Related Context
-- Parent business logic: `server/lib/tuist/AGENTS.md`
-- Web layer: `server/lib/tuist_web/AGENTS.md`
-- Migrations: `server/priv/AGENTS.md`

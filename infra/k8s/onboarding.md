@@ -67,6 +67,91 @@ Every engineer's Google Workspace identity already carries `view`-tier read acce
 
 ---
 
+## Controlled CNPG switchover
+
+Use this path when incident recovery calls for moving the primary to a healthy
+replica. It requests a CNPG-managed switchover; it does not force a promotion or
+repair stalled storage. During the October 27, 2026 incident, promotion failed
+because the elevated role could patch `clusters` but not `clusters/status`.
+No switchover occurred, and service recovered without intervention.
+
+`tuist-edit-cnpg-write` now grants only `patch` on `clusters/status` in
+`postgresql.cnpg.io`, in addition to its existing parent-resource and backup
+permissions. It aggregates into `edit`, bound to `tuist-<env>-write`. Ordinary
+`tuist-admins` and `tuist-eng` remain bound to `view`; canary and production
+receive their write group only during a human-driven JIT elevation. Staging
+keeps standing write membership through either access door. RBAC cannot limit
+this permission to particular status fields or to the promote command.
+
+The locally verified plugin was **1.29.1**, commit
+`a4060c152630c9e8958e17d3d23f26b4eb30b69f`. Its
+[promotion implementation](https://github.com/cloudnative-pg/cloudnative-pg/blob/a4060c152630c9e8958e17d3d23f26b4eb30b69f/internal/cmd/plugin/promote/promote.go)
+gets the Cluster and target Pod, then
+[patches status with optimistic locking](https://github.com/cloudnative-pg/cloudnative-pg/blob/a4060c152630c9e8958e17d3d23f26b4eb30b69f/pkg/resources/status/patch.go).
+It sets the target primary, timestamp, switchover phase/reason and readiness
+condition. It needs no status `update`, Pod write or additional Secret access.
+Existing read permissions cover its GETs. Check `kubectl cnpg version` when
+diagnosing a different plugin version.
+
+1. Confirm the context, namespace, Cluster and candidate with the incident
+   lead. Read the current primary and phase, instance health, replication lag,
+   storage/node health and recent backup state. A Pod existing or being Ready
+   alone does not establish that its WAL replay is caught up. Stop if the
+   candidate is unhealthy, lag is unexplained, or a switchover is already in
+   progress. Review the Cluster through normal read access; detailed SQL/exec
+   diagnostics require the write tier.
+
+   ```bash
+   kubectl --context tuist-k8s-production -n tuist get clusters.postgresql.cnpg.io tuist-tuist-pg -o yaml
+   kubectl --context tuist-k8s-production -n tuist get pods -l cnpg.io/cluster=tuist-tuist-pg -o wide
+   ```
+
+2. On canary/production, have a human request and approve `/elevate <env>`
+   with intent naming the Cluster and controlled switchover. Agents must not
+   invoke `/elevate`, click Approve or retrieve an admin kubeconfig. Proceed
+   only within the authorized window and scope. Staging needs no elevation.
+
+3. Check the **explicit subresource** using the normal identity, without
+   impersonation:
+
+   ```bash
+   kubectl --context tuist-k8s-production -n tuist auth can-i patch clusters.postgresql.cnpg.io --subresource=status
+   ```
+
+   Expected: `no` outside elevation on canary/production, `yes` during that
+   environment's elevation, and `yes` on staging. Do not use
+   `clusters.postgresql.cnpg.io/status`: the slash form can be interpreted as
+   a resource name, checking the parent resource instead. It misleadingly
+   returned `yes` during the incident. If the explicit check says `no`, stop
+   and check deployment/aggregation and the elevation; do not bypass the gateway.
+
+4. After confirming the candidate and replication state, request promotion
+   once. This example selects `tuist-tuist-pg-2`; choose the actual healthy
+   candidate rather than assuming instance 2 is suitable:
+
+   ```bash
+   kubectl cnpg promote --context tuist-k8s-production tuist-tuist-pg 2 -n tuist
+   kubectl --context tuist-k8s-production -n tuist get clusters.postgresql.cnpg.io tuist-tuist-pg -w
+   ```
+
+   Command success means the request was accepted, not that the switchover
+   completed. Confirm `status.currentPrimary` and `status.targetPrimary` both
+   name the selected instance, the Cluster becomes healthy, replication
+   resumes, and application writes/latency recover. If it stalls, inspect
+   operator and instance logs and reassess storage health before another action.
+   Record the candidate, timestamps and outcome in the incident/elevation trail.
+
+5. After the human ends the elevation or its TTL expires, repeat the explicit
+   check: it must return `no` on canary/production. Staging remains `yes`.
+
+The Pomerium deployment workflow applies the chart to all three environments
+on merge. After rollout, verify the explicit check before, during and after an
+authorized window; a permission check does not require performing a switchover.
+Local `bash infra/helm/pomerium/test-access-tiers.sh` checks rendered grants and
+bindings, not live aggregation or policy membership. Reverting the new status
+rule through the same deployment removes this capability without changing
+existing CNPG parent writes; it does not undo a switchover already requested.
+
 ## Prerequisites
 
 - Tailscale on the `tuist.dev` tailnet, with `talosctl` reachable on the mgmt VM at `100.92.208.109:50000` (see [`mgmt/tailscale.yaml`](mgmt/tailscale.yaml) for tailnet onboarding).

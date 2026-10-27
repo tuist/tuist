@@ -28,6 +28,12 @@ type RunnerPoolSpec struct {
 	CacheVolumeRoot string `json:"cacheVolumeRoot,omitempty"`
 	// +optional
 	CacheVolumeURL string `json:"cacheVolumeURL,omitempty"`
+	// DockerCache moves each job's dockerd onto its repository's Docker cache
+	// volume. It needs cache volumes. The dind sidecar then runs a supervisor
+	// that owns dockerd and the mount socket, so turning it on replaces the
+	// pool's Pods.
+	// +optional
+	DockerCache bool `json:"dockerCache,omitempty"`
 
 	// Labels are stamped on the Pods + SAs the controller creates;
 	// not the GitHub Actions runner labels (those come from
@@ -54,6 +60,14 @@ type RunnerPoolSpec struct {
 	// can share a node fleet (bin-pack different images on the
 	// same Mac mini hosts) or split (dedicated capacity per image).
 	FleetSelector string `json:"fleetSelector"`
+
+	// Site, when set, pins the pool's Pods to the rack site's Nodes
+	// (`node.cluster.x-k8s.io/rack-site=<site>`) within its fleet. A rack
+	// fleet spans every site whose runners are on, so a pool that must run
+	// at one site, such as a smoke pool testing that rack, names it. Empty
+	// places the pool anywhere in its fleet.
+	// +optional
+	Site string `json:"site,omitempty"`
 
 	// DispatchLabel is the GitHub Actions runner label customers
 	// put in `runs-on` to target this fleet. The webhook handler
@@ -106,6 +120,21 @@ type RunnerPoolSpec struct {
 	// host.
 	// +optional
 	RuntimeClass string `json:"runtimeClass,omitempty"`
+
+	// NestedVirtualization gives the runner container a usable /dev/kvm,
+	// so a job can run hardware-accelerated guests of its own, such as
+	// x86_64 Android emulators. Linux `kata-qemu` pools only. The Pod
+	// boots the KVM-enabled guest kernel the CAPI provider installs on
+	// every Kata host, lands only on hosts labelled
+	// `tuist.dev/kata-kvm=true` (the provider's proof that the kernel is
+	// installed and the host runs KVM with nesting on), and requests one
+	// `devices.tuist.dev/kvm` from the kvm-device-plugin DaemonSet, which
+	// is what injects the device node into the unprivileged runner
+	// container. The microVM stays the isolation boundary; what the pool
+	// adds is the host's nested-virtualization code path, reachable from
+	// the guest kernel.
+	// +optional
+	NestedVirtualization bool `json:"nestedVirtualization,omitempty"`
 
 	// Provisioning bounds how many Linux Kata sandboxes may be starting at
 	// once across pools that share this pool's FleetSelector, and how long a

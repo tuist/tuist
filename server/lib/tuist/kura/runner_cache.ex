@@ -14,10 +14,12 @@ defmodule Tuist.Kura.RunnerCache do
     * any other account should have none there.
 
   Whose jobs run beside a region depends on the region. A site's region
-  (`Regions.site/1`) takes the accounts dispatch routes to the site or the site
+  (`Regions.site/1`) takes the accounts dispatch routes to the rack or the site
   cache flag enables, once their cache traffic comes from the site: their node
-  there served hits in the last seven days, or a build in one of their site
-  jobs' CI runs hit the remote cache in that window. A region without a site
+  there served hits in the last seven days, or a build in one of the CI runs of
+  their jobs claimed at the site (`runner_workflow_jobs.site`) hit the remote
+  cache in that window. A rack pool spans every site whose runners are on, so
+  the site a job was claimed at, not its pool, says where it ran. A region without a site
   sits beside the rented fleet, and takes the accounts that claimed a job of
   its platforms on a rented pool in the last seven days. Dispatch sends an account's job to the rented fleet
   when it is not on a site, when the site racks no pool for the job, or when
@@ -239,23 +241,21 @@ defmodule Tuist.Kura.RunnerCache do
     |> MapSet.new(& &1.account_id)
   end
 
-  # `{account_id, workflow_run_id}` of the account's jobs claimed on the site's
-  # pools for the region's platforms in the window.
+  # `{account_id, workflow_run_id}` of the account's jobs claimed at the site
+  # for the region's platforms in the window.
   defp site_job_runs(account_ids, region, site, since) do
     platforms = region |> region_platforms() |> Enum.map(&Atom.to_string/1)
 
-    site_pools =
-      for {pool, %{site: ^site}} <- Environment.runners_site_pools(), do: pool
-
-    if MapSet.size(account_ids) == 0 or site_pools == [] do
+    if MapSet.size(account_ids) == 0 or Environment.runners_site_pools() == %{} do
       []
     else
       Repo.all(
         from(j in WorkflowJob,
+          as: :job,
           where: j.account_id in ^MapSet.to_list(account_ids),
           where: j.updated_at >= ^since and j.claimed_at >= ^since,
           where: j.platform in ^platforms,
-          where: j.fleet_name in ^site_pools,
+          where: ^claimed_at_site(site),
           where: j.workflow_run_id > 0,
           distinct: true,
           select: {j.account_id, j.workflow_run_id}
@@ -546,21 +546,26 @@ defmodule Tuist.Kura.RunnerCache do
     )
   end
 
-  # The pools whose jobs dispatch hands the region's endpoint: a site's region
-  # serves the pools racked at the site, a region without a site every other
-  # pool (`Tuist.Kura.runner_cache_endpoint_url/3`).
+  # The jobs a claim handed the region's endpoint to: a site's region serves the
+  # jobs claimed at the site, a region without a site the jobs of every pool not
+  # racked at a site (`Tuist.Kura.runner_cache_endpoint_url/3`).
   defp region_pool_condition(%Regions{} = region) do
-    site_pools = Environment.runners_site_pools()
-
     case Regions.site(region) do
       nil ->
-        pools = Map.keys(site_pools)
+        pools = Map.keys(Environment.runners_site_pools())
         dynamic([job: j], j.fleet_name not in ^pools)
 
       site ->
-        pools = for {pool, %{site: ^site}} <- site_pools, do: pool
-        dynamic([job: j], j.fleet_name in ^pools)
+        claimed_at_site(site)
     end
+  end
+
+  # A rack pool spans every site whose runners are on, so a job's site is the
+  # one its claim recorded from the claiming Node. A row claimed before claims
+  # recorded it counts at its pool's site.
+  defp claimed_at_site(site) do
+    site_pools = for {pool, %{site: ^site}} <- Environment.runners_site_pools(), do: pool
+    dynamic([job: j], j.site == ^site or (is_nil(j.site) and j.fleet_name in ^site_pools))
   end
 
   defp provision(account_id, region_id, image_tag) do

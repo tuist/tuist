@@ -43,6 +43,11 @@ enum Command {
         #[serde(flatten)]
         action: crate::business::Action,
     },
+    Moodboard {
+        session: Session,
+        #[serde(flatten)]
+        action: crate::moodboard::Action,
+    },
     Push {
         session: Session,
         #[serde(flatten)]
@@ -62,6 +67,11 @@ enum Command {
         session: Session,
         #[serde(flatten)]
         action: crate::accounts::Action,
+    },
+    Connections {
+        session: Session,
+        #[serde(flatten)]
+        action: crate::connections::Action,
     },
 }
 
@@ -103,6 +113,9 @@ pub fn execute(input: &str) -> String {
             } => {
                 return crate::business::execute(session, resource, action);
             }
+            Command::Moodboard { session, action } => {
+                return crate::moodboard::execute(session, action);
+            }
             Command::Push { session, action } => {
                 return crate::push::execute(session, action);
             }
@@ -114,6 +127,9 @@ pub fn execute(input: &str) -> String {
             }
             Command::AiAccounts { session, action } => {
                 return crate::accounts::execute(session, action);
+            }
+            Command::Connections { session, action } => {
+                return crate::connections::execute(session, action);
             }
         }
         .map_err(|_| crate::invalid())

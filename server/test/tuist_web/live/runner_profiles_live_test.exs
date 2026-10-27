@@ -294,6 +294,24 @@ defmodule TuistWeb.RunnerProfilesLiveTest do
       refute Profiles.get_by_name(account, "ci-linux").cached_checkouts
     end
 
+    test "a Linux profile turns the Docker cache off, and macOS profiles do not offer it", %{
+      conn: conn,
+      account: account,
+      profile: mac
+    } do
+      {:ok, profile} = Profiles.create(account, %{"name" => "docker-linux", "vcpus" => 4, "memory_gb" => 16})
+      assert profile.docker_cache
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
+
+      refute render_hook(lv, "open_edit_modal", %{"id" => to_string(mac.id)}) =~ "runner-profile-docker-cache-"
+      assert render_hook(lv, "open_edit_modal", %{"id" => to_string(profile.id)}) =~ "runner-profile-docker-cache-true"
+
+      render_hook(lv, "toggle_docker_cache", %{})
+      render_hook(lv, "save_profile", %{})
+      refute Profiles.get_by_name(account, "docker-linux").docker_cache
+      assert Profiles.get_by_name(account, "docker-linux").cached_checkouts
+    end
+
     test "a new Linux profile is created with them on", %{conn: conn, account: account} do
       {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/profiles")
 

@@ -1,0 +1,10 @@
+# Hetzner's private-network gateway selects the private interface regardless
+# of the interface name. Keep the live DaemonSet in sync: Talos only installs
+# its bootstrap manifests once (reconcile-flannel.sh handles existing clusters).
+cluster:
+  network:
+    cni:
+      name: flannel
+      flannel:
+        extraArgs:
+          - --iface-can-reach=10.0.0.1

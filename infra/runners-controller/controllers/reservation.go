@@ -14,6 +14,7 @@ import (
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
+	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
 )
 
 // Node reservation: draining one host to fit a Pod that no host can seat.
@@ -383,6 +384,14 @@ func (r *RunnerPoolReconciler) longerStarvedPool(
 	if mine == nil {
 		return "", nil
 	}
+	daemons, err := r.reservationSandboxDaemons(ctx, pool)
+	if err != nil {
+		return "", err
+	}
+	available := make([]corev1.Node, len(nodes))
+	for i := range nodes {
+		available[i] = *nodeWithoutSandboxes(&nodes[i], daemons)
+	}
 
 	var pools tuistv1.RunnerPoolList
 	if err := r.List(ctx, &pools, client.InNamespace(pool.Namespace)); err != nil {
@@ -409,7 +418,7 @@ func (r *RunnerPoolReconciler) longerStarvedPool(
 		// yielding to it would not be waiting for a turn — it would be
 		// a permanent block, trading the starvation this fix removes
 		// for a worse one it introduced.
-		if !shapeSeatableOnFleet(nodes, podShape{
+		if !shapeSeatableOnFleet(available, podShape{
 			cpuMilli: sibling.Spec.PodCPUMilli,
 			memoryMB: sibling.Spec.PodMemoryMB,
 		}) {
@@ -463,6 +472,10 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 	if shape.cpuMilli <= 0 || shape.memoryMB <= 0 {
 		return nil, false, nil
 	}
+	daemons, err := r.reservationSandboxDaemons(ctx, pool)
+	if err != nil {
+		return nil, false, err
+	}
 
 	siblings, err := r.fleetShapes(ctx, pool)
 	if err != nil {
@@ -480,6 +493,9 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 	kept := map[string]corev1.ResourceList{}
 	for i := range fleetPods.Items {
 		pod := &fleetPods.Items[i]
+		if pod.Namespace == r.SandboxesNamespace && pod.Labels[sandboxdLabel] == "true" {
+			continue // Already subtracted from the node, even if namespaces coincide.
+		}
 		if pod.Spec.NodeName == "" || !pod.DeletionTimestamp.IsZero() {
 			continue
 		}
@@ -507,10 +523,14 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 
 	need := unplacedFootprint(pool, pods)
 	clearsAtOnce := func(node *corev1.Node) bool {
+		available := nodeWithoutSandboxes(node, daemons)
+		if pool.Spec.OS == "linux" {
+			return (owned[node.Name] == 0 || retirable[node.Name] > 0) && fitsBeside(available, kept[node.Name], need)
+		}
 		if owned[node.Name] == 0 {
 			return true
 		}
-		return pool.Spec.OS == "linux" && retirable[node.Name] > 0 && fitsBeside(node, kept[node.Name], need)
+		return false
 	}
 
 	candidates := make([]*corev1.Node, 0, len(nodes))
@@ -522,7 +542,11 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 		if inReservationCooldown(node, now) {
 			continue
 		}
-		seats := nodeSeatsForShape(node, shape)
+		available := nodeWithoutSandboxes(node, daemons)
+		if !fitsBeside(available, nil, need) {
+			continue
+		}
+		seats := nodeSeatsForShape(available, shape)
 		// Seats this reservation could actually end up with. A host
 		// already holding one of this pool's own Pods cannot be cleared
 		// for a second one, and ranking on occupancy alone would make it
@@ -545,7 +569,7 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 		// the reservation clears. Waiting for the seat is the correct
 		// behaviour there, and it is what the allocator's cross-pool
 		// reclaim already arranges.
-		if seats >= maxSeatsOnNode(node, siblings) {
+		if seats >= maxSeatsOnNode(available, siblings) {
 			continue
 		}
 		candidates = append(candidates, node)
@@ -571,6 +595,13 @@ func (r *RunnerPoolReconciler) pickReservationTarget(
 		return candidates[a].Name < candidates[b].Name
 	})
 	return candidates[0], clearsAtOnce(candidates[0]), nil
+}
+
+func (r *RunnerPoolReconciler) reservationSandboxDaemons(ctx context.Context, pool *tuistv1.RunnerPool) ([]sandboxDaemon, error) {
+	if pool.Spec.OS != "linux" {
+		return nil, nil
+	}
+	return listSandboxDaemons(ctx, r.apiReader(), r.SandboxesNamespace)
 }
 
 // isRunnerPod reports whether a Pod belongs to a RunnerPool. The runners
@@ -635,7 +666,8 @@ func addResources(byNode map[string]corev1.ResourceList, node string, add corev1
 }
 
 // fitsBeside reports whether `need` fits in the node's allocatable next to
-// `kept`. Pods outside the runners namespace are not visible here.
+// `kept`. Sandbox allocations have already been subtracted from the node;
+// other Pods outside the runners namespace are not visible here.
 func fitsBeside(node *corev1.Node, kept, need corev1.ResourceList) bool {
 	for _, name := range []corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory} {
 		allocatable, ok := node.Status.Allocatable[name]
@@ -749,6 +781,32 @@ func (r *RunnerPoolReconciler) reserveNode(
 	value string,
 	now time.Time,
 ) error {
+	sandboxAllocationMu.Lock()
+	defer sandboxAllocationMu.Unlock()
+	// Revoke before tainting, using the same serialization as publication.
+	// An in-flight growth finishes under the server's capacity lock first;
+	// subsequent turns cannot claim this host while CI drains it.
+	if r.SandboxesNamespace != "" {
+		var reader client.Reader = r.Client
+		if r.APIReader != nil {
+			reader = r.APIReader
+		}
+		daemons, err := listSandboxDaemons(ctx, reader, r.SandboxesNamespace)
+		if err != nil {
+			return err
+		}
+		for _, daemon := range daemons {
+			if daemon.node != node.Name {
+				continue
+			}
+			if r.SignalsClient == nil {
+				return fmt.Errorf("cannot revoke sandbox allocation without signals client")
+			}
+			if err := r.SignalsClient.PublishSandboxAllocation(ctx, scaling.SandboxAllocation{Node: node.Name, Pod: daemon.name, ObservedAt: time.Now().UTC(), Reclaim: true}); err != nil {
+				return err
+			}
+		}
+	}
 	patched := node.DeepCopy()
 	patched.Spec.Taints = append(patched.Spec.Taints, corev1.Taint{
 		Key:    podtemplate.ReservationTaintKey,
@@ -828,15 +886,23 @@ func (r *RunnerPoolReconciler) fleetNodesFrom(
 func fleetNodeSelector(pool *tuistv1.RunnerPool) client.MatchingLabels {
 	switch pool.Spec.OS {
 	case "linux":
-		return client.MatchingLabels{
+		labels := client.MatchingLabels{
 			fleetNodePoolLabel: pool.Spec.FleetSelector,
 			nodeOSLabel:        "linux",
 		}
+		if pool.Spec.NestedVirtualization {
+			labels[podtemplate.KVMNodeLabel] = "true"
+		}
+		return labels
 	default:
-		return client.MatchingLabels{
+		selector := client.MatchingLabels{
 			macosFleetLabel: pool.Spec.FleetSelector,
 			nodeOSLabel:     macosNodeOSDarwin,
 		}
+		if pool.Spec.Site != "" {
+			selector[podtemplate.RackSiteNodeLabel] = pool.Spec.Site
+		}
+		return selector
 	}
 }
 

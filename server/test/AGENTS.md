@@ -1,8 +1,14 @@
 # Server Tests
 
-This directory contains ExUnit tests for the Tuist Server.
+- Automation batch/notification tests cover bounded dispatch, scoped watermark ordering, current-condition rechecks, ledger-based retries, stale alert cancellation, encrypted queued destinations, and Slack retry/discard results. Existing evaluation unit tests execute the transition step synchronously; exercise the real Oban dispatch boundary in `alert_evaluation_batch_worker_test.exs`.
 
 ## Testing Guidelines
+- `tuist/accounts/sso_login_domain_trust_test.exs` and Authentication settings/API/callback tests cover strict default-off DNS verification policy parsing, explicit opt-in independently of hosted mode, ordinary organization-administrator configuration, preserved UI/API authorization, domain-matched enrollment/linking, deterministic discovery and ambiguity, later requiring DNS, and recheck independence. `config/test.exs` opts into verification for the hosted regression baseline; stub `Environment.sso_require_login_domain_verification?/0` to false for no-DNS cases, never mutate global configuration. Retain query-count assertions under both policies, Google independence, rejected-save rendering, and successful administrator SSO before enforcement. Whole-account cross-organization email linking without DNS is deliberate for trusted instances.
+
+- Browser telemetry receipt tests use independent PostgreSQL connections to
+  verify concurrent overlapping batches, acknowledgment/failure handling and
+  stale-owner recovery. Keep pure identity and gateway error-path tests alongside
+  them. Release metadata tests exercise context restoration in cache workers.
 
 - Feature flag control tests cover workload-only routes, actor exclusions/inheritance, deterministic rollout expansion, stale revisions and idempotent audit writes. Resource evaluation regressions use sandboxed persisted gates without populating the shared cache; cover authoritative project ownership, actual environment/dependency/kill-switch helpers, Kura rename eligibility, isolated observability context and a maximum of four database reads for both cold and repeated account/project requests. Reject FunWithFlags cache reads so per-flag query regressions fail independently of cache warmth. The concurrency regression pauses the real legacy adapter after its percentage read on an independent PostgreSQL connection, verifies Atlas blocks, then checks the legacy gate survives and Atlas rejects the stale revision. Restore persisted rules and remove only the test's change audit on cleanup. Write-input regressions cover int8 overflow, percentage-ratio underflow and shared Slack provenance rejection; simulate both advisory/table lock timeouts at the SQL boundary, verify 503 with unchanged gates/audit, and ensure unexpected database errors are not swallowed.
 - Observability regressions exercise actual Sentry context/event construction, Logger output and OTel attribute writes, actor-scoped effective evaluation events, same-process resets, LiveView callback refresh, safe task/fill propagation, and an actual Oban worker exception after authoritative project loading. Task-crash regressions must run the real Sentry logger handler with a conflicting live caller tenant/cohort and parent-only request data; direct event construction alone misses the SDK's caller fallback. Keep unrelated batch actors and run-actor `account_id` arguments separate from selected tenant ownership; preserve short-circuit flag reads and the preloaded flag overload. No production export, trace sampling or timeout-process attribution is established by these unit tests.
@@ -35,6 +41,7 @@ This directory contains ExUnit tests for the Tuist Server.
 - Portal-template event assertions should parse the rendered HTML and match attributes on the same element; never assume serialized attribute order or adjacency.
 - Prepared builds start in a fresh VM without compiler-loaded modules. Load a module explicitly before inspecting its exports; `function_exported?/3` does not load it.
 - Tests are `async: true` by default; avoid global state and make architectural changes to support concurrency.
+- Correlated-crash regressions cover both cross-run receipt orders, in-report retries, unchanged raw failures, ordinary assertions within a crash burst, excluded automation aggregates and stable immutable report identity. Boundary tests keep small/single-module bursts and unknown or measured failures eligible.
 - Controller tests that exercise resource loaders must return actual `Account`/`Project` structs, including visibility, rather than incomplete maps. Mocked controller-unit requests should disable shared loader caching or use an isolated cache; retain production privacy reloads.
 - Tests run with a clean database.
 - Authenticated attribution coverage in `tuist_web/controllers/api/report_attribution_test.exs` exercises creation-response metadata across native and legacy routes, shared versus individual credentials, forged actor fields, and matching persisted attribution, including same-ID retries by a different authorized user. Unsigned response regressions keep parent/child claims unverified and duplicate headers Unknown. Exercise the actual Mix formatter's older wire shape, absent/future contract versions, rejection of undeclared/nested fields, and native Cargo test responses without broadening the authenticated-only Cargo build endpoint. Claims remain opaque labels, never account lookups or authorization inputs.
@@ -59,16 +66,12 @@ This directory contains ExUnit tests for the Tuist Server.
 - Analytics loading regressions cover partial results, retained successful content during refresh, explicit failures and filter recovery. Distinguish recorded zero values from absent observations. Analytics-backed widget and empty-state assertions must wait for async assigns with `render_async/2`; bundle-size percentage checks include the complete signed value so `0.0%` cannot accidentally match `+100.0%`. Use date ranges whose comparison period is also supported by ClickHouse, and give real asynchronous queries an explicit timeout. When adopting shared analytics cards, update page tests to assert the shared failure state and successful recovery; keep separate coverage for optional-result failures that must leave required content visible.
 - Billing-period fixtures that must be active use boundaries relative to the current time, with margin on either side. Fixed dates eventually expire and exercise the Stripe fallback instead; stale-period tests must construct explicitly closed windows.
 - Audit-event assertions should compare contents without assuming chronological order from second-precision timestamps or UUIDv7 IDs generated in the same millisecond.
-- Never modify System environment variables in tests (shared state).
-- Use mocks/stubs/DI for environment-dependent behavior.
 - Telemetry handlers are global: `:telemetry_test.attach_event_handlers/2` also delivers an event a concurrently running test emitted, tagged with this test's own ref. Use `TuistTestSupport.TelemetryCapture.attach_event_handlers/1`, which forwards only what the attaching process emits.
 
 - Direct `XcodeGraph.Buffer` fixture inserts must provide `project_id` and `modules_count` along with the existing header fields. Use the parent event's project and `nil` for uncounted historical graphs; write-through buffers require every schema column key.
 - Build-entity replacement regressions must assert actual cross-month physical partitions, late older writes, cleared nullable values and time/cohort moves before filters. Native ID-index/materialization tests use unsandboxed ClickHouse owners, not disabled assertions. Keep timing assertions out of normal ExUnit tests.
 
-## Related Context
-
-- Business logic: `server/lib/tuist/AGENTS.md`
+## Cross-subsystem regression contracts
 
 - Recorded timeline coverage includes Gradle clock alignment, all-operation loading, legacy reports, Bazel retained-span limits, opaque IDs, filtered navigation, tab reopening, and API/MCP parent authorization. Shared lifecycle coverage also checks source/project identity, forced refresh, stale and inactive-tab bootstrap requests, and authenticated HTTP metadata downloads for all three build systems.
 
@@ -141,3 +144,9 @@ This directory contains ExUnit tests for the Tuist Server.
 - Cold activation coverage must continue past regional readiness, synchronize stable intent without a minute tick, reject stale generations, stop for ineligible instances, and retain a bounded polling budget across snoozes and transient API failures.
 
 - Zero-hit secondary retirement tests cover ten complete reported UTC days, the exact instance-age boundary, unknown age, missing/duplicate reports, hits anywhere in the window or today, a surviving region with hits, primary exclusion, the rollout gate, and unchanged 28-day low-traffic retirement.
+
+- Linux runner tests preserve shared profile/legacy pool selection across accounts and direct regional Kura endpoint selection. Helm checks preserve one runner cohort with no relay or account-path configuration.
+
+- SSO switch regressions use `existing_sso_configuration` to seed already-enabled policies without writing the removed compatibility column. Historical migration tests recreate the old column only inside serialized sandbox transactions; the drop migration is tested against a connection-local temporary table. Cover member-only discovery, linked sign-in/enforcement, denied unverified enrollment/account creation, signed-in link confirmation, editable saved policies, and materialization of implicit memberships without overwriting explicit roles.
+
+- Saved-cache chart regressions must distinguish the published head from retained job copies, preserve unknown sizes, cover clear/expiry/capacity reset and stale/retried publication, and retain a range baseline after history pruning. Verify account scoping and transaction rollback with PostgreSQL; render the selectable Used space widget and byte chart separately from activity charts.

@@ -1,12 +1,11 @@
-# Controllers (Web Layer)
-
-This area owns Phoenix controllers for HTML and API endpoints.
+# Controllers
 
 ## Origin installation setup
 - `OriginAppSetupController` starts consent with browser-session-bound random state, account/user identity, and a ten-minute setup window. Tuist-initiated setup requires the same signed-in administrator and validates the Cursor-signed receipt before persisting an installation. Origin-initiated receipts must have no state and go through `IntegrationInstallationController`. Reverify the receipt before either automatic attachment to the sole eligible account or explicit organization selection completion; never trust query-supplied installation/account IDs as approval. Installation receipts are filtered from Phoenix request logs. Rejected pending setups log only safe failure categories; successful stateless receipts may replace abandoned Tuist sessions without warning.
 - `IntegrationInstallationController` shares the auth-page organization chooser between Origin and github.com. Pending proof is browser-session/user bound, expires after ten minutes, and is consumed after a successful connection or CSRF-protected cancellation. List only account-update-authorized organizations (plus the user's personal account). Automatically connect when that filtered list has one account; otherwise require CSRF-protected selection. Both paths share authorization rechecks and provider attachment verification. Signed-out callbacks return through login. `GitHubAppSetupController` preserves signed organization state for Tuist/GHES installs; all github.com callbacks first complete browser-bound GitHub App OAuth and verify installation ownership through `GitHub.InstallationAuthorization`, then skip selection if Tuist supplied the organization or only one eligible account exists. Repository access alone is insufficient: require personal-account ownership or active GitHub organization-admin membership (Members read permission). Do not attach an installation based only on its callback ID. The GitHub App needs `/integrations/github/authorize` as an additional OAuth callback URL.
 
 ## Responsibilities
+- Organization SSO updates preserve normal organization authorization, including disabling SSO. Instance-wide login-domain trust adds no administrator allowlist or actor-option restriction; it explicitly trusts all users able to create or administer organizations. Account/project tokens and body-supplied user IDs must not bypass existing authorization.
 - Build/test metadata request schemas and Bazel webhook validation accept 64 total string values, retaining existing per-entry/body limits. Credential-free `GET /api/metadata/limits` advertises only 20 until the receivers-first rollout is complete and explicitly enabled; it must not authenticate clients or accept build data. See `server/docs/build-metadata.md`.
 - `API.OIDCController` exchanges custom workload identities only through account-owned OIDC policies, requiring `account_handle`. Verified policy IDs are reloaded in one account-scoped batch and matched again against their own verified JWKS URL, issuer, audience and exact typed claims before issuance. Custom workload tokens have CI scope and `all_projects: true`, including future projects, and can be exchanged before any projects exist; ordinary ownership checks still prevent access to other accounts. Built-in GitHub Actions/CircleCI/Bitrise providers retain repository authorization and cannot be overridden by custom policies. Never infer a VCS grant from custom workload claims. Missing custom account input is a 400; other custom verification failures share a generic 401. The route uses the existing hosted requester limiter.
 - `WellKnownController.tuist_discovery/2` serves public, cookie-free `GET /.well-known/tuist.json` with the current instance-wide `network_trusted_report_publishing` boolean and `Cache-Control: no-store`. It reveals no account/project data, never enables hosted publishing, and is only client discovery: every report endpoint still enforces the authoritative policy and license.
@@ -33,13 +32,7 @@ This area owns Phoenix controllers for HTML and API endpoints.
 - Delegate business logic to `server/lib/tuist` contexts.
 - Keep the machine-readable auth.md document, discovery metadata, and agent-auth response envelopes synchronized when the protocol surface changes.
 
-## Boundaries
-- Domain logic belongs in `server/lib/tuist` contexts.
-- Frontend assets are in `server/assets`.
-
-## Related Context
-- Web layer overview: `server/lib/tuist_web/AGENTS.md`
-- Business logic: `server/lib/tuist/AGENTS.md`
+## Build, cache and runner endpoint contracts
 
 - Persistent Bazel `/bazel/actions` endpoints reuse the build-entity resource controller for list, detail and executions, including toolchain, project flag and build-read checks. Signed BEP action webhooks accept legacy payloads while optional bounded identity/timing metadata indexes opted-in projects; never derive execution counts from cache RPCs.
 - Gradle build and Bazel invocation step list/detail routes authorize build-read access and scope the parent to the selected project before querying recorded operations. Their contracts expose timestamp origin and Bazel profile coverage; published Bazel action logs are fetched only for details.
@@ -82,3 +75,5 @@ This area owns Phoenix controllers for HTML and API endpoints.
   `tuist-runner-host` audience and derives the node from its ServiceAccount; it
   lists custom volume HEADs only. Workflow tokens and body-supplied node fields
   cannot authorize it.
+
+- Custom SSO callbacks must ignore the retired compatibility flag: membership alone cannot authorize linking by provider-reported email. Preserve linked identities, signed-in member confirmation, and the SCIM provenance exception; providers without DNS or instance-policy domain trust cannot create accounts even through invitations.

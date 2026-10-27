@@ -331,6 +331,7 @@ defmodule Tuist.RunnersTest do
         })
 
       node_name = Keyword.get(opts, :node_name)
+      site = Keyword.get(opts, :site)
       image = "ghcr.io/tuist/tuist-runner@sha256:current"
 
       # check_not_stale fetches the Pod first (to reject committed Pods), so the
@@ -361,7 +362,7 @@ defmodule Tuist.RunnersTest do
         {:ok, [candidate]}
       end)
 
-      expect(Claims, :attempt, fn ^workflow_job_id, _account_id, "fleet-a", ^pod_name, claimed_resources ->
+      expect(Claims, :attempt, fn ^workflow_job_id, _account_id, "fleet-a", ^pod_name, claimed_resources, ^site ->
         assert claimed_resources == resources
         {:ok, %{claimed_at: DateTime.utc_now()}}
       end)
@@ -429,7 +430,7 @@ defmodule Tuist.RunnersTest do
 
       expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [failed_candidate]} end)
 
-      expect(Claims, :attempt, fn workflow_job_id, account_id, "fleet-a", ^pod_name, _resources ->
+      expect(Claims, :attempt, fn workflow_job_id, account_id, "fleet-a", ^pod_name, _resources, nil ->
         assert workflow_job_id == failed_candidate.workflow_job_id
         assert account_id == failed_account.id
         {:ok, %{claimed_at: first_claimed_at}}
@@ -480,7 +481,7 @@ defmodule Tuist.RunnersTest do
           end)
       end
 
-      expect(Claims, :attempt, fn workflow_job_id, account_id, "fleet-a", ^pod_name, _resources ->
+      expect(Claims, :attempt, fn workflow_job_id, account_id, "fleet-a", ^pod_name, _resources, nil ->
         assert workflow_job_id == eligible_candidate.workflow_job_id
         assert account_id == eligible_account.id
         {:ok, %{claimed_at: second_claimed_at}}
@@ -864,6 +865,94 @@ defmodule Tuist.RunnersTest do
       assert runner_name =~ ~r/\Apod-1-[0-9a-f]{8}\z/
     end
 
+    test "a rack runner claims at its Node's site and hands out that site's runner cache" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default", platform: "macos", vcpus: 6, memory_gb: 14)
+      node_name = "larch-runner-#{System.unique_integer([:positive])}"
+      stub(Tuist.Environment, :runners_site_pools, fn -> %{"fleet-a" => %{site: "ber1", platform: :macos}} end)
+
+      expect(K8sClient, :get_node, fn ^node_name, _opts ->
+        {:ok, %{"metadata" => %{"labels" => %{"node.cluster.x-k8s.io/rack-site" => "larch"}}}}
+      end)
+
+      stub_dispatch_path(account, candidate, self(),
+        node_name: node_name,
+        site: "larch",
+        resources: %{platform: :macos, vcpus: 6, memory_gb: 14}
+      )
+
+      assert {:ok, %{fleet_site: "larch"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "a rack runner on a Node without a site label claims at its pool's site" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default", platform: "macos", vcpus: 6, memory_gb: 14)
+      node_name = "ber1-runner-#{System.unique_integer([:positive])}"
+      stub(Tuist.Environment, :runners_site_pools, fn -> %{"fleet-a" => %{site: "ber1", platform: :macos}} end)
+      expect(K8sClient, :get_node, fn ^node_name, _opts -> {:ok, %{"metadata" => %{"labels" => %{}}}} end)
+
+      stub_dispatch_path(account, candidate, self(),
+        node_name: node_name,
+        site: "ber1",
+        resources: %{platform: :macos, vcpus: 6, memory_gb: 14}
+      )
+
+      assert {:ok, %{fleet_site: "ber1"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "a rack runner leaves a young job to the site where its account's runner cache is warm" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default", platform: "macos", vcpus: 6, memory_gb: 14)
+      node_name = "larch-runner-#{System.unique_integer([:positive])}"
+      image = "ghcr.io/tuist/tuist-runner@sha256:current"
+      stub(Tuist.Environment, :runners_site_pools, fn -> %{"fleet-a" => %{site: "ber1", platform: :macos}} end)
+
+      stub(K8sClient, :get_node, fn ^node_name, _opts ->
+        {:ok, %{"metadata" => %{"labels" => %{"node.cluster.x-k8s.io/rack-site" => "larch"}}}}
+      end)
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+        {:ok, pod_with_image("pod-1", image, node_name: node_name)}
+      end)
+
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" -> {:ok, pool_with_image(image)} end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [candidate]} end)
+      expect(Tuist.Kura, :runner_cache_elsewhere, fn [account_id], "larch" -> MapSet.new([account_id]) end)
+      reject(&Claims.attempt/6)
+
+      assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "a rack runner takes a job warm at another site once it has waited out the grace" do
+      account = account_fixture()
+
+      candidate =
+        account
+        |> candidate_with_label("tuist-default", platform: "macos", vcpus: 6, memory_gb: 14)
+        |> Map.put(:enqueued_at, DateTime.add(DateTime.utc_now(), -61, :second))
+
+      node_name = "larch-runner-#{System.unique_integer([:positive])}"
+      stub(Tuist.Environment, :runners_site_pools, fn -> %{"fleet-a" => %{site: "ber1", platform: :macos}} end)
+
+      stub(K8sClient, :get_node, fn ^node_name, _opts ->
+        {:ok, %{"metadata" => %{"labels" => %{"node.cluster.x-k8s.io/rack-site" => "larch"}}}}
+      end)
+
+      expect(Tuist.Kura, :runner_cache_elsewhere, fn [account_id], "larch" -> MapSet.new([account_id]) end)
+
+      stub_dispatch_path(account, candidate, self(),
+        node_name: node_name,
+        site: "larch",
+        resources: %{platform: :macos, vcpus: 6, memory_gb: 14}
+      )
+
+      assert {:ok, %{fleet_site: "larch"}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
     test "falls back to the pool dispatchLabel when the candidate has no requested label (legacy row)" do
       account = account_fixture()
       candidate = candidate_with_label(account, "")
@@ -898,13 +987,13 @@ defmodule Tuist.RunnersTest do
 
       expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [stale_candidate]} end)
 
-      expect(Claims, :attempt, fn 90_001, _account_id, "fleet-a", ^pod_name, _resources ->
+      expect(Claims, :attempt, fn 90_001, _account_id, "fleet-a", ^pod_name, _resources, nil ->
         {:error, :lost_race}
       end)
 
       expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [90_001], _k -> {:ok, [candidate]} end)
 
-      expect(Claims, :attempt, fn 90_002, _account_id, "fleet-a", ^pod_name, _resources ->
+      expect(Claims, :attempt, fn 90_002, _account_id, "fleet-a", ^pod_name, _resources, nil ->
         {:ok, %{claimed_at: DateTime.utc_now()}}
       end)
 
@@ -1024,7 +1113,7 @@ defmodule Tuist.RunnersTest do
 
       expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [capped_candidate]} end)
 
-      expect(Claims, :attempt, fn 91_001, account_id, "fleet-a", ^pod_name, resources ->
+      expect(Claims, :attempt, fn 91_001, account_id, "fleet-a", ^pod_name, resources, nil ->
         assert account_id == capped_account.id
 
         {:error,
@@ -1065,7 +1154,7 @@ defmodule Tuist.RunnersTest do
 
       expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [busy_candidate]} end)
 
-      expect(Claims, :attempt, fn 91_010, account_id, "fleet-a", ^pod_name, _resources ->
+      expect(Claims, :attempt, fn 91_010, account_id, "fleet-a", ^pod_name, _resources, nil ->
         assert account_id == busy_account.id
         {:error, :account_busy}
       end)
@@ -1108,7 +1197,7 @@ defmodule Tuist.RunnersTest do
         {:ok, [candidate]}
       end)
 
-      expect(Claims, :attempt, 17, fn workflow_job_id, account_id, "fleet-a", ^pod_name, resources ->
+      expect(Claims, :attempt, 17, fn workflow_job_id, account_id, "fleet-a", ^pod_name, resources, nil ->
         if MapSet.member?(capped_account_ids, account_id) do
           {:error,
            {:concurrency_limit_reached,
@@ -1973,7 +2062,7 @@ defmodule Tuist.RunnersTest do
       expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" -> {:error, :not_found} end)
       expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [candidate]} end)
 
-      expect(Claims, :attempt, fn _job_id, _account_id, "fleet-a", "pod-1", resources ->
+      expect(Claims, :attempt, fn _job_id, _account_id, "fleet-a", "pod-1", resources, nil ->
         assert resources == %{platform: :macos, vcpus: 4, memory_gb: 16}
         {:ok, %{claimed_at: DateTime.utc_now()}}
       end)
@@ -2035,7 +2124,7 @@ defmodule Tuist.RunnersTest do
       expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" -> {:error, :not_found} end)
       expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [candidate]} end)
 
-      expect(Claims, :attempt, fn _job_id, _account_id, "fleet-a", "pod-1", resources ->
+      expect(Claims, :attempt, fn _job_id, _account_id, "fleet-a", "pod-1", resources, nil ->
         assert resources == %{platform: :macos, vcpus: 4, memory_gb: 16}
         {:ok, %{claimed_at: DateTime.utc_now()}}
       end)
@@ -2101,7 +2190,7 @@ defmodule Tuist.RunnersTest do
       expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" -> {:error, :not_found} end)
       expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [candidate]} end)
 
-      expect(Claims, :attempt, fn _job_id, _account_id, _fleet, _pod, _resources ->
+      expect(Claims, :attempt, fn _job_id, _account_id, _fleet, _pod, _resources, nil ->
         {:ok, %{claimed_at: DateTime.utc_now()}}
       end)
 

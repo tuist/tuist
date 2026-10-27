@@ -233,6 +233,8 @@ rules:
 #   * clusters, poolers, scheduledbackups: update/patch. The real incident
 #     actions: bump `instances`, adjust resources, change a `primaryUpdate`
 #     strategy, annotate to force a reconcile, flip a pooler.
+#   * clusters/status: patch only. `kubectl cnpg promote` requests a
+#     controlled switchover through status, a separate RBAC subresource.
 #   * backups: create. Taking an ad-hoc base backup before a risky change is
 #     an incident-time action that cannot destroy anything. No delete: pruning
 #     the archive is barman's retention job, not an operator's.
@@ -261,6 +263,9 @@ rules:
   - apiGroups: ["postgresql.cnpg.io"]
     resources: ["clusters", "poolers", "scheduledbackups"]
     verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters/status"]
+    verbs: ["patch"]
   - apiGroups: ["postgresql.cnpg.io"]
     resources: ["backups"]
     verbs: ["get", "list", "watch", "create"]

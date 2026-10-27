@@ -688,6 +688,8 @@ struct CoverageExportServiceTests {
         #expect(CoverageExportService.architecture(ofImage: arm64.pathString) == "arm64")
         #expect(CoverageExportService.architecture(ofImage: x86.pathString) == "x86_64")
         #expect(CoverageExportService.architecture(ofImage: universal.pathString) == nil)
+        #expect(CoverageExportService.architecture(ofImages: [universal.pathString, x86.pathString]) == "x86_64")
+        #expect(CoverageExportService.architecture(ofImages: [universal.pathString]) == CoverageExportService.hostArchitecture)
 
         let old = directory.appending(component: "old.profdata")
         let new = directory.appending(component: "new.profdata")

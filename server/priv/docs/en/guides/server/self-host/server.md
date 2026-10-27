@@ -265,15 +265,15 @@ You’ll also need a solution to store files (e.g. framework and library binarie
 >
 > If your goal is primarily to reduce cache latency, you might not need to self-host the whole server. You can deploy self-hosted Kura nodes close to your CI or developer network and connect them to the hosted Tuist server or your self-hosted server.
 >
-> See the <.localized_link href="/guides/features/cache/self-hosting">self-hosted cache guide</.localized_link>.
+> See the <.localized_link href="/guides/cache/self-host">self-hosted cache guide</.localized_link>.
 
 
 ### Self-hosted Kura nodes {#self-hosted-cache-nodes}
 
 To use self-hosted Kura nodes with a self-hosted Tuist server:
 
-1. Configure `KURA_CONTROL_PLANE_CLIENT_ID` and `KURA_CONTROL_PLANE_CLIENT_SECRET` on the Tuist server. In fully self-hosted setups you can generate these values yourself and store them in your deployment secrets.
-2. Deploy Kura nodes following the <.localized_link href="/guides/features/cache/self-hosting">self-hosted cache guide</.localized_link>, using the same control-plane credential.
+1. Configure `KURA_CONTROL_PLANE_CLIENT_ID` and `KURA_CONTROL_PLANE_CLIENT_SECRET` on the Tuist server. The client ID **must be a UUID**. Generate the UUID and a random secret using the commands in the <.localized_link href="/guides/cache/self-host#control-plane-client">self-hosted cache guide</.localized_link> and store them in your deployment secrets.
+2. Deploy Kura nodes following the <.localized_link href="/guides/cache/self-host">self-hosted cache guide</.localized_link>, using the same control-plane credential.
 3. Configure each Kura node with `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL`. Registration heartbeats tell the server which ready, client-facing Kura endpoints it can advertise to the CLI.
 
 ## Configuration {#configuration}

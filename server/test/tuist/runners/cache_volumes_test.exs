@@ -12,6 +12,7 @@ defmodule Tuist.Runners.CacheVolumesTest do
   alias Tuist.Runners.CacheVolumes
   alias Tuist.Runners.CacheVolumes.Measurement
   alias Tuist.Runners.CacheVolumes.Query
+  alias Tuist.Runners.CacheVolumes.SavedSize
   alias Tuist.Runners.CacheVolumes.Usage
   alias Tuist.Runners.CacheVolumes.Volume
   alias Tuist.Runners.Catalog
@@ -39,6 +40,132 @@ defmodule Tuist.Runners.CacheVolumesTest do
         repository: "org/repo"
       }
     }
+  end
+
+  describe "saved cache size history" do
+    test "records only the saved head, deduplicates retries and records clearing", %{job: job, account: account} do
+      now = ~U[2026-10-27 10:00:00.000000Z]
+      stub(DateTime, :utc_now, fn -> now end)
+      {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+      complete(job)
+      publish_report("node", first.id, %{"size_bytes" => 1024})
+      publish_report("node", first.id, %{"size_bytes" => 1024})
+      id = volume(account).id
+
+      sizes = fn ->
+        Repo.all(from(s in SavedSize, where: s.volume_id == ^id, order_by: s.id, select: s.size_bytes))
+      end
+
+      assert sizes.() == [0, nil, 1024]
+
+      {:ok, clone} = CacheVolumes.allocate_for_job(job, identity(), attrs("clone"))
+      CacheVolumes.report("node", clone.id, Map.put(report(), "size_bytes", 8192))
+      assert sizes.() == [0, nil, 1024]
+      assert [%{used_bytes: 1024}] = CacheVolumes.saved_size_history(account.id, id, {now, now})
+
+      later = DateTime.add(now, 3600)
+      stub(DateTime, :utc_now, fn -> later end)
+      assert {:ok, _} = CacheVolumes.delete(account.id, id)
+      assert {:ok, _} = CacheVolumes.delete(account.id, id)
+      CacheVolumes.report("node", first.id, %{"state" => "deleted"})
+      assert sizes.() == [0, nil, 1024, 0]
+      assert Enum.map(CacheVolumes.saved_size_history(account.id, id, {now, later}), & &1.used_bytes) == [1024, 0]
+      assert [] == CacheVolumes.saved_size_history(AccountsFixtures.account_fixture().id, id, {now, later})
+    end
+
+    test "replacement changes the saved size while deleting the old copy does not", %{job: job, account: account} do
+      {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
+      complete(job)
+      publish_report("node", first.id)
+      {:ok, next} = CacheVolumes.allocate_for_job(job, identity(), attrs("next"))
+      CacheVolumes.report("node", next.id, Map.put(report(), "size_bytes", 8192))
+      publish_report("node", next.id, %{"size_bytes" => 8192})
+      CacheVolumes.report("node", first.id, %{"state" => "deleted"})
+      now = DateTime.utc_now()
+      assert [%{used_bytes: 8192}] = CacheVolumes.saved_size_history(account.id, volume(account).id, {now, now})
+    end
+
+    test "rolled-back allocation cannot leave saved-size observations", %{job: job, account: account} do
+      assert {:error, :cancelled} =
+               Repo.transaction(fn ->
+                 {:ok, _} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+                 Repo.rollback(:cancelled)
+               end)
+
+      refute Repo.exists?(
+               from(s in SavedSize, join: v in Volume, on: s.volume_id == v.id, where: v.account_id == ^account.id)
+             )
+    end
+
+    test "a stale publication cannot change saved-size history", %{job: job, account: account} do
+      {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs("first"))
+      {:ok, stale} = CacheVolumes.allocate_for_job(job, identity(), attrs("stale"))
+      complete(job)
+      publish_report("node", first.id)
+      id = volume(account).id
+      before = Repo.all(from(s in SavedSize, where: s.volume_id == ^id))
+      CacheVolumes.report("node", stale.id, Map.put(report(), "size_bytes", 8192))
+      publish_report("node", stale.id, %{"size_bytes" => 8192})
+      assert Repo.all(from(s in SavedSize, where: s.volume_id == ^id)) == before
+    end
+
+    test "expiry and saved-head deletion record zero", %{job: job, account: account} do
+      {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+      complete(job)
+      publish_report("node", first.id)
+      saved = volume(account)
+      later = DateTime.add(DateTime.utc_now(), 8 * 86_400)
+      assert {:ok, 1} = CacheVolumes.expire_inactive(later)
+      assert [%{used_bytes: 0}] = CacheVolumes.saved_size_history(account.id, saved.id, {later, later})
+
+      {:ok, next} = CacheVolumes.allocate_for_job(job, identity(), Map.put(attrs("next"), :key, "second"))
+      publish_report("node", next.id)
+      CacheVolumes.report("node", next.id, %{"state" => "deleted"})
+      now = DateTime.utc_now()
+      id = Repo.get!(Usage, next.id).volume_id
+      assert [%{used_bytes: 0}] = CacheVolumes.saved_size_history(account.id, id, {now, now})
+    end
+
+    test "carries a baseline forward, preserves unknowns, and excludes future data", %{job: job, account: account} do
+      {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+      id = Repo.get!(Usage, first.id).volume_id
+      Repo.delete_all(from(s in SavedSize, where: s.volume_id == ^id))
+      start = ~U[2026-10-20 00:00:00.000000Z]
+
+      for {offset, size} <- [{-3600, 100}, {1800, nil}, {7200, 0}, {10_800, 200}] do
+        Repo.insert!(%SavedSize{volume_id: id, size_bytes: size, observed_at: DateTime.add(start, offset)})
+      end
+
+      finish = DateTime.add(start, 9000)
+      points = CacheVolumes.saved_size_history(account.id, id, {start, finish})
+      assert Enum.map(points, & &1.used_bytes) == [100, nil, 0, 0]
+      assert List.first(points).at == start
+      assert List.last(points).at == finish
+
+      assert CacheVolumes.saved_size_history(account.id, id, {DateTime.add(start, -7200), DateTime.add(start, -3601)}) ==
+               []
+    end
+
+    test "retention preserves the last old observation as the next range baseline", %{job: job, account: account} do
+      {:ok, first} = CacheVolumes.allocate_for_job(job, identity(), attrs())
+      id = Repo.get!(Usage, first.id).volume_id
+      Repo.delete_all(from(s in SavedSize, where: s.volume_id == ^id))
+      now = DateTime.utc_now()
+
+      for {days, size} <- [{100, 100}, {95, 200}, {80, 300}] do
+        Repo.insert!(%SavedSize{volume_id: id, size_bytes: size, observed_at: DateTime.add(now, -days * 86_400)})
+      end
+
+      CacheVolumes.prune_history()
+
+      assert Repo.all(from(s in SavedSize, where: s.volume_id == ^id, order_by: s.observed_at, select: s.size_bytes)) == [
+               200,
+               300
+             ]
+
+      start = DateTime.add(now, -90 * 86_400)
+      assert [%{used_bytes: 200}] = CacheVolumes.saved_size_history(account.id, id, {start, start})
+    end
   end
 
   defp identity, do: %{repository_id: 123, trusted: true, same_repository: true}
@@ -771,6 +898,8 @@ defmodule Tuist.Runners.CacheVolumesTest do
     assert fresh.base_generation == 0
     refute fresh.scope == full.scope
     assert is_nil(volume(account).head_id)
+    now = DateTime.utc_now()
+    assert [%{used_bytes: 0}] = CacheVolumes.saved_size_history(account.id, volume(account).id, {now, now})
     assert {:ok, %{action: "delete"}} = publish_report("node", running.id)
     assert {:ok, %{action: "seal"}} = CacheVolumes.report("node", fresh.id, report())
   end

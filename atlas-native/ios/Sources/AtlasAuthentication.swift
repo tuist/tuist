@@ -1,4 +1,3 @@
-import AtlasAuthFFI
 import AuthenticationServices
 import Foundation
 import SwiftUI
@@ -13,20 +12,6 @@ enum AtlasLoginProvider: String {
     case google
 }
 
-enum AtlasAuthBridge {
-    static func execute(_ input: String) async throws -> String {
-        try await Task.detached(priority: .userInitiated) {
-            try input.withCString { pointer in
-                guard let result = atlas_auth_execute(pointer) else {
-                    throw AtlasAuthenticationError(kind: "internal", message: "Could not complete sign-in.")
-                }
-                defer { atlas_auth_free(result) }
-                return String(cString: result)
-            }
-        }.value
-    }
-}
-
 @MainActor
 final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthenticationPresentationContextProviding {
     @Published private(set) var server: URL?
@@ -37,7 +22,9 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
     private var browser: ASWebAuthenticationSession?
     private var apiWaiters: [CheckedContinuation<Void, Never>] = []
     private var accountModel: AtlasAIAccounts?
+    private var connectionsModel: AtlasConnections?
     private var presenceModel: AtlasPresence?
+    @Published private(set) var sharedItems: AtlasSharedItems?
     private var sessionIdentity = UUID()
     let pushNotifications = AtlasPushNotifications()
     let liveActivity = AtlasOrbitLiveActivity()
@@ -70,6 +57,22 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         return model
     }
 
+    var connectionSettings: AtlasConnections {
+        if let connectionsModel { return connectionsModel }
+        let identity = sessionIdentity
+        let model = AtlasConnections(request: authenticatedRequest(operation: "connections")) { [weak self] url in
+            guard let self, self.server != nil, self.sessionIdentity == identity, self.browser == nil else {
+                throw CancellationError()
+            }
+            defer { self.browser = nil }
+            let callback = try await self.authenticate(url)
+            guard self.sessionIdentity == identity else { throw CancellationError() }
+            return callback
+        }
+        connectionsModel = model
+        return model
+    }
+
     func restore() async {
         guard !busy, server == nil else { return }
         busy = true
@@ -95,6 +98,8 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         defer { busy = false; browser = nil }
         do {
             try AtlasSecureStorage.delete("automation.admission")
+            try AtlasSecureStorage.delete("share.recipient")
+            try? AtlasShareInbox.shared().configure(nil)
             let address = selfHosted ? selfHostedAddress : "https://atlas.tuist.dev"
             var request: [String: Any] = ["operation": "begin", "server": address]
             if let provider { request["provider"] = provider.rawValue }
@@ -138,10 +143,18 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         }
         pushNotifications.prepareForSessionEnd(origin: origin)
         liveActivity.invalidate()
+        if let inbox = try? AtlasShareInbox.shared() { try inbox.configure(nil) }
+        try AtlasSecureStorage.delete("share.recipient")
+        sharedItems?.invalidate()
+        sharedItems = nil
         try AtlasSecureStorage.delete("automation.admission")
         try AtlasSecureStorage.delete("session")
         presenceModel?.setActive(false)
         presenceModel = nil
+        connectionsModel?.invalidate()
+        connectionsModel = nil
+        browser?.cancel()
+        browser = nil
         server = nil
         accountModel = nil
         sessionIdentity = UUID()
@@ -351,6 +364,21 @@ extension AtlasAuthentication {
               let address = registration["server"] as? String, let url = URL(string: address) else { throw invalidResponse() }
         try AtlasSecureStorage.save("session", value: try json(session))
         server = url
+        if sharedItems == nil {
+            do {
+                let nonce = try AtlasSecureStorage.load("share.recipient").flatMap(UUID.init(uuidString:)) ?? UUID()
+                try AtlasSecureStorage.save("share.recipient", value: nonce.uuidString)
+                let recipient = AtlasShareRecipient(id: nonce, server: url)
+                let inbox = try AtlasShareInbox.shared()
+                try inbox.configure(recipient)
+                let model = AtlasSharedItems(inbox: inbox, recipient: recipient,
+                                             request: authenticatedRequest(operation: "moodboard"))
+                sharedItems = model
+                model.reload()
+            } catch {
+                errorMessage = "Sharing is unavailable on this installation. Your Atlas session is still available."
+            }
+        }
     }
 
     private func json(_ value: Any) throws -> String {

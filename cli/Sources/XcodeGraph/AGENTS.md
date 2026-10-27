@@ -1,6 +1,6 @@
-# Embedded XcodeGraph Package
+# Embedded XcodeGraph
 
-This directory embeds `tuist/XcodeGraph` into this repository as a local Swift package dependency.
+Graph models and mapping are embedded in the generated workspace.
 
 ## Scope
 - `Sources/XcodeGraph` - Core graph models. Native package runtime roles preserve explicit dynamic-linkage hints separately from whether the product is embedded; existing enum representations remain unchanged.
@@ -14,13 +14,6 @@ This directory embeds `tuist/XcodeGraph` into this repository as a local Swift p
 ## Scheme Build Actions
 - `BuildAction.buildFor` stores per-target purpose overrides: an absent key enables all five purposes, while an explicit empty set enables none.
 - Mapping duplicate Xcode scheme build entries unions their purposes and retains one target reference in first-occurrence order.
-
-## Integration
-- The root package manifest references this package with `.package(path: "cli/Sources/XcodeGraph")`.
-- Product names exposed to the main package are:
-  - `XcodeGraph`
-  - `XcodeMetadata`
-  - `XcodeGraphMapper`
 
 ## Commands
 From the repository root:

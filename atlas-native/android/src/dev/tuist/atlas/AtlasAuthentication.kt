@@ -143,6 +143,7 @@ class AtlasAuthentication(
         selfHosted: Boolean,
     ) {
         work {
+            storage.delete("connections.pending")
             storage.delete("automation.admission")
             val request = JSONObject().put("operation", "begin").put("server", address)
             storage.load("registration")?.let { request.put("registration", it) }
@@ -184,6 +185,7 @@ class AtlasAuthentication(
                 .onFailure { runCatching { storage.delete(key) } }
         }
         storage.delete("automation.admission")
+        storage.delete("connections.pending")
         storage.delete("session")
         sessionIdentity += 1
         main.post { server = null }
@@ -235,6 +237,78 @@ class AtlasAuthentication(
         action: JSONObject,
         completion: (Result<JSONObject>) -> Unit,
     ) = operation("time_off", action, completion)
+
+    fun connections(
+        action: JSONObject,
+        completion: (Result<JSONObject>) -> Unit,
+    ) {
+        val identity = sessionIdentity
+        val name = action.getString("action")
+
+        fun finish(result: Result<JSONObject>) {
+            main.post {
+                completion(
+                    if (identity == sessionIdentity) result else Result.failure(AuthFailure("sign_in_required", "Sign in to Atlas again.")),
+                )
+            }
+        }
+        worker.execute {
+            try {
+                check(identity == sessionIdentity)
+                val request = JSONObject(action.toString())
+                if (name == "cancel") {
+                    storage.delete("connections.pending")
+                    finish(Result.success(JSONObject()))
+                    return@execute
+                }
+                if (name == "complete") {
+                    val pending =
+                        storage.load("connections.pending")
+                            ?: throw AuthFailure("invalid_callback", "No account connection is waiting. Start again.")
+                    request.put("pending", pending)
+                }
+                main.post {
+                    if (identity != sessionIdentity) {
+                        finish(Result.failure(AuthFailure("sign_in_required", "Sign in to Atlas again.")))
+                        return@post
+                    }
+                    operation("connections", request) { result ->
+                        if (result.isFailure || name !in listOf("begin", "complete")) {
+                            finish(result)
+                        } else {
+                            worker.execute {
+                                val persisted =
+                                    runCatching {
+                                        check(identity == sessionIdentity)
+                                        val response = result.getOrThrow()
+                                        if (name == "begin") {
+                                            storage.save("connections.pending", response.getJSONObject("pending"))
+                                            response.remove("pending")
+                                        } else {
+                                            val saved = storage.load("connections.pending")
+                                            check(saved != null && canonical(saved) == canonical(request.getJSONObject("pending")))
+                                            storage.delete("connections.pending")
+                                        }
+                                        response
+                                    }
+                                finish(
+                                    persisted.fold({ Result.success(it) }, {
+                                        Result.failure(AuthFailure("storage", "Could not save the connection state securely. Try again."))
+                                    }),
+                                )
+                            }
+                        }
+                    }
+                }
+            } catch (failure: Exception) {
+                finish(
+                    Result.failure(
+                        if (failure is AuthFailure) failure else AuthFailure("storage", "Could not access secure connection state."),
+                    ),
+                )
+            }
+        }
+    }
 
     fun push(
         action: JSONObject,

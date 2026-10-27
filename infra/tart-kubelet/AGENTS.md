@@ -361,3 +361,14 @@ What tart-kubelet relies on, checked from 2.32.1 to 2.41.1:
 
 The Node reports the Tart the host runs as its container runtime version
 (`tart://2.41.1`, the CONTAINER-RUNTIME column of `kubectl get nodes -o wide`).
+
+## Processor deletion drain
+
+Pods annotated `tuist.dev/graceful-drain: xcresult-v1` also receive the per-VM
+status share. Before teardown the Pod controller writes the Pod UID to
+`drain-request`, then requeues until a bounded regular `drain-complete` file
+contains that UID. Missing/unsafe files hold the VM and finalizer; an expired
+grace period is not acknowledgement. Explicit zero-grace deletion bypasses this
+gate. Keep the request durable across kubelet recovery, never wait inside the
+single reconcile worker, and never accept another Pod's acknowledgement. See
+[host maintenance](../cluster-api-provider-tuist/scaleway-os-maintenance.md).

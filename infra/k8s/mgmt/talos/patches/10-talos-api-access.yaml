@@ -1,12 +1,14 @@
-# Lets the Talos ServiceAccount in namespace mgmt-talos
-# (infra/k8s/mgmt/talos-patcher.yaml) call the Talos API, which is how
-# mgmt-cluster-apply.yml applies the patches in this directory. Applied by
-# hand once per cluster before CI can take over. See ../README.md.
+# Allows the ephemeral admin patcher in mgmt-talos and the automatically
+# renewed backup-only ServiceAccount in mgmt-system. Kubernetes RBAC controls
+# who may create these Talos ServiceAccounts; this allowlist is cluster-wide,
+# not a per-namespace role binding. See ../README.md.
 machine:
   features:
     kubernetesTalosAPIAccess:
       enabled: true
       allowedRoles:
         - os:admin
+        - os:etcd:backup
       allowedKubernetesNamespaces:
         - mgmt-talos
+        - mgmt-system

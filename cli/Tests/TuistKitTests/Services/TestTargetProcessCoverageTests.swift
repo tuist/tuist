@@ -59,6 +59,28 @@ struct TestTargetProcessCoverageTests {
         ])
     }
 
+    @Test(.inTemporaryDirectory) func exportsAUniversalImageForTheArchitectureOfTheRunsThinImages() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let bundle = directory.appending(components: "CoreTests.xctest", "Contents", "MacOS", "CoreTests")
+        try FileManager.default.createDirectory(atPath: bundle.parentDirectory.pathString, withIntermediateDirectories: true)
+        try Data([0xCF, 0xFA, 0xED, 0xFE, 0x07, 0x00, 0x00, 0x01]).write(to: URL(fileURLWithPath: bundle.pathString))
+        // A framework from the binary cache: an `arm64` and `x86_64` universal image.
+        let cached = directory.appending(components: "Core.framework", "Versions", "A", "Core")
+        try FileManager.default.createDirectory(atPath: cached.parentDirectory.pathString, withIntermediateDirectories: true)
+        try Data([0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x00, 0x00, 0x02]).write(to: URL(fileURLWithPath: cached.pathString))
+        let profile = directory.appending(component: "CoreTests.profdata")
+
+        let architecture = CoverageExportService.architecture(ofImages: [cached.pathString, bundle.pathString])
+        let arguments = TestTargetProcessCoverage.exportArguments(
+            image: cached.pathString,
+            profile: profile,
+            architecture: architecture
+        )
+
+        #expect(architecture == "x86_64")
+        #expect(Array(arguments.suffix(5)) == ["-instr-profile", profile.pathString, "-arch", "x86_64", cached.pathString])
+    }
+
     @Test(.inTemporaryDirectory) func readsOnlyTheRunsOwnRawProfiles() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let old = directory.appending(component: "A-1.profraw")

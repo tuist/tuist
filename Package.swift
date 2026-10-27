@@ -1090,7 +1090,6 @@ var targets: [Target] = [
             argumentParserDependency,
         ],
         path: "cli/Sources/TuistTesting",
-        exclude: ["AGENTS.md"],
         linkerSettings: [.linkedFramework("XCTest", .when(platforms: [.macOS]))]
     ),
     // MARK: Cross-platform test targets
@@ -1343,7 +1342,6 @@ targets.append(contentsOf: [
             pathDependency,
         ],
         path: "cli/Sources/TuistSimulator",
-        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
@@ -1451,8 +1449,7 @@ targets.append(contentsOf: [
             fileSystemDependency,
             "TuistSupport",
         ],
-        path: "cli/Sources/tuistbenchmark",
-        exclude: ["AGENTS.md"]
+        path: "cli/Sources/tuistbenchmark"
     ),
     .executableTarget(
         name: "tuistfixturegenerator",
@@ -1463,8 +1460,7 @@ targets.append(contentsOf: [
             "ProjectDescription",
             "TuistSupport",
         ],
-        path: "cli/Sources/tuistfixturegenerator",
-        exclude: ["AGENTS.md"]
+        path: "cli/Sources/tuistfixturegenerator"
     ),
     .target(
         name: "TuistCore",
@@ -1551,8 +1547,7 @@ targets.append(contentsOf: [
     ),
     .target(
         name: "ProjectAutomation",
-        path: "cli/Sources/ProjectAutomation",
-        exclude: ["AGENTS.md"]
+        path: "cli/Sources/ProjectAutomation"
     ),
     .target(
         name: "TuistExtension",
@@ -1591,7 +1586,6 @@ targets.append(contentsOf: [
             pathDependency,
         ],
         path: "cli/Sources/TuistAcceptanceTesting",
-        exclude: ["AGENTS.md"],
         linkerSettings: [.linkedFramework("XCTest")]
     ),
     .target(
@@ -1688,7 +1682,6 @@ targets.append(contentsOf: [
             pathDependency,
         ],
         path: "cli/Sources/TuistMigration",
-        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
@@ -1801,11 +1794,10 @@ targets.append(contentsOf: [
             fileSystemDependency,
             pathDependency,
             .product(name: "Gzip", package: "1024jp.gzipswift"),
-            .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
+            .product(name: "XCLogParser", package: "XCLogParser"),
             .product(name: "XCActivityLogParser", package: "xcactivitylog_nif"),
         ],
         path: "cli/Sources/TuistXCActivityLog",
-        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
@@ -1849,7 +1841,6 @@ targets.append(contentsOf: [
             .product(name: "CASAnalyticsDatabase", package: "xcactivitylog_nif"),
         ],
         path: "cli/Sources/TuistCASAnalytics",
-        exclude: ["AGENTS.md"],
         swiftSettings: [
             .define("MOCKING", .when(configuration: .debug)),
         ]
@@ -2086,7 +2077,12 @@ let package = Package(
         .package(id: "apple.swift-nio-ssl", from: "2.37.4"),
         .package(id: "facebook.zstd", from: "1.5.0"),
         .package(id: "chrisaljoudi.swift-log-oslog", .upToNextMajor(from: "0.2.2")),
-        .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.49")),
+        // Preserve product lookup when registry replacement changes this revision's package identity.
+        .package(
+            name: "XCLogParser",
+            url: "https://github.com/MobileNativeFoundation/XCLogParser.git",
+            revision: "d0c3c685d3e32606ef04a21cacf7ab0dfbe19362" // 0.2.50
+        ),
         .package(id: "1024jp.gzipswift", .upToNextMajor(from: "5.2.0")),
         .package(path: "server/native/xcactivitylog_nif"),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),

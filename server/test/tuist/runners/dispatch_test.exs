@@ -914,6 +914,34 @@ defmodule Tuist.Runners.DispatchTest do
     end
   end
 
+  describe "Linux jobs share runner capacity" do
+    test "different accounts resolve to the same profile pool" do
+      account = enabled_account()
+      other = enabled_account()
+      {:ok, profile} = Profiles.create(account, %{name: "vrack-test", platform: :linux, vcpus: 2, memory_gb: 8})
+      {:ok, _} = Profiles.create(other, %{name: "vrack-test", platform: :linux, vcpus: 2, memory_gb: 8})
+
+      for actor <- [account, other] do
+        assert {:ok, %{pool_name: name}} = Dispatch.resolve_dispatch_target(actor, ["tuist-vrack-test"])
+        assert name == Catalog.pool_name(profile)
+      end
+    end
+
+    test "legacy labels keep their pool and retired internal labels stay hidden" do
+      account = enabled_account()
+      normal = [name: "linux-shared", label: "linux-legacy"] |> pool_cr() |> put_in(["spec", "os"], "linux")
+
+      retired = %{
+        "metadata" => %{"name" => "linux-vrack", "labels" => %{"tuist.dev/network-cohort" => "vrack"}},
+        "spec" => %{"dispatchLabel" => "linux-internal-vrack", "os" => "linux"}
+      }
+
+      stub(Client, :list_runner_pools, fn _ -> {:ok, [normal, retired]} end)
+      assert {:ok, %{pool_name: "linux-shared"}} = Dispatch.resolve_dispatch_target(account, ["linux-legacy"])
+      assert {:error, :no_matching_pool} = Dispatch.resolve_dispatch_target(account, ["linux-internal-vrack"])
+    end
+  end
+
   describe "resolve_dispatch_target/2 — site routing" do
     setup do
       account = AccountsFixtures.organization_fixture(preload: [:account]).account
