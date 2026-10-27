@@ -34,6 +34,8 @@ defmodule AtlasWeb.ProjectLive.AlertsTest do
     assert [rule] = Alerts.list_rules_for_project(project)
     refute rule.enabled
     assert has_element?(view, "#rules-#{rule.id}")
+    refute has_element?(view, "#rules-#{rule.id} button[phx-click='select_preview']")
+    refute has_element?(view, "#error-alert-preview")
 
     view |> element("#rules-#{rule.id} button[phx-click='edit_rule']") |> render_click()
     assert_push_event(view, "open-modal", %{id: "error-alert-modal"})
@@ -84,7 +86,7 @@ defmodule AtlasWeb.ProjectLive.AlertsTest do
     assert Alerts.list_rules_for_project(project) == []
   end
 
-  test "writers cannot edit, enable or preview another project's rules", %{conn: conn} do
+  test "writers cannot edit or enable another project's rules", %{conn: conn} do
     {conn, _user} = log_in_user(conn, %{scopes: ["engineering:write"]})
     {:ok, project} = Projects.create_project(%{name: "alerts-#{System.unique_integer([:positive])}"})
     {:ok, other} = Projects.create_project(%{name: "other-#{System.unique_integer([:positive])}"})
@@ -105,8 +107,6 @@ defmodule AtlasWeb.ProjectLive.AlertsTest do
     render_click(view, "edit_rule", %{"id" => rule.id})
     assert rule_field_value(view, "name") == ""
     render_click(view, "toggle_rule", %{"id" => rule.id})
-    render_click(view, "select_preview", %{"id" => rule.id})
-    refute has_element?(view, "#error-alert-preview")
     assert {:ok, %{enabled: false}} = Alerts.get_rule(rule.id)
   end
 
