@@ -761,7 +761,12 @@ jobs:
         id: release-notes
         run: |
           LATEST_VERSION=$(git tag -l | grep -E "^linux-runner-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-          INCLUDE_PATHS=( --include-path "infra/linux-runner-image/**/*" )
+          INCLUDE_PATHS=(
+            --include-path "infra/linux-runner-image/**/*"
+            --include-path "infra/certificate-trust/policy.json"
+            --include-path "infra/certificate-trust/pem-store.sh"
+            --include-path "infra/certificate-trust/java-store.sh"
+          )
 
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
           if [ -n "$LATEST_VERSION" ]; then
@@ -787,6 +792,7 @@ jobs:
         with:
           context: infra/linux-runner-image
           file: infra/linux-runner-image/Dockerfile
+          build-contexts: certificate-trust=infra/certificate-trust
           # Linux runners run on Hetzner bare-metal x86 nodes at v1.
           # arm64 is a future option and can land as an additive
           # `platforms:` entry.

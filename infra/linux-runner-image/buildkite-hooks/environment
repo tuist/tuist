@@ -28,6 +28,11 @@ if [ -f "${JOB_ENV}" ]; then
   source "${JOB_ENV}"
 fi
 
+export NODE_OPTIONS="${NODE_OPTIONS:+${NODE_OPTIONS} }--use-openssl-ca"
+export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+export PIP_CERT="$SSL_CERT_FILE"
+export REQUESTS_CA_BUNDLE="$SSL_CERT_FILE"
+
 # Never `exit` from here. The agent sources this hook from a wrapper that
 # dumps the environment afterwards to learn what changed; exiting skips
 # that dump, and an empty dump is read as "the hook early-exited", so
