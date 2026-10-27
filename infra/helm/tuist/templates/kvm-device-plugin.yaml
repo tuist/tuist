@@ -67,6 +67,7 @@ spec:
         app.kubernetes.io/component: kvm-device-plugin
     spec:
       serviceAccountName: {{ $name }}
+      automountServiceAccountToken: true
       priorityClassName: system-node-critical
       nodeSelector:
         kubernetes.io/os: linux
@@ -82,6 +83,9 @@ spec:
           image: "{{ .Values.runnersController.image.repository }}:{{ $imageTag }}"
           imagePullPolicy: {{ .Values.runnersController.image.pullPolicy }}
           command: [/usr/local/bin/kvm-device-plugin]
+          # Explicitly clear the old --devices argument during preparation,
+          # including the first kubectl apply of a Helm-created DaemonSet.
+          args: []
           env:
             - name: NODE_NAME
               valueFrom:
