@@ -16,10 +16,10 @@ defmodule Tuist.Tests.TestCaseRunByCommit do
   schema; the legacy table is dropped in a follow-up migration once the
   rollout is stable.
 
-  `test_execution_id` references the report/shard execution whose destination
-  metadata supplies the platform, OS version and device name comparison.
-  Metadata lookups are restricted to the same project, commit, scheme and CI
-  scope. Null references represent historical rows without execution metadata.
+  `test_run_destination_id` references the destination that produced the result.
+  `test_run_id` bounds destination reads using their existing sort key. Both are
+  filtered through the same project, commit, scheme and CI scope. Null destination
+  references retain legacy behavior unless `is_destination_ambiguous` is true.
 
   Used by `Tuist.Tests.get_existing_ci_runs_for_commit/5` to identify
   historical CI runs for a given commit, scheme and destination; the main table is then
@@ -33,7 +33,9 @@ defmodule Tuist.Tests.TestCaseRunByCommit do
     field :project_id, Ch, type: "Int64"
     field :git_commit_sha, Ch, type: "String"
     field :scheme, Ch, type: "String"
-    field :test_execution_id, Ch, type: "Nullable(UUID)"
+    field :test_run_id, Ecto.UUID
+    field :test_run_destination_id, Ch, type: "Nullable(UUID)"
+    field :is_destination_ambiguous, :boolean, default: false
     field :is_ci, :boolean, default: false
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"
     field :test_case_id, Ch, type: "Nullable(UUID)"

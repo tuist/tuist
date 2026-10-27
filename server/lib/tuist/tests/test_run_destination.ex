@@ -2,8 +2,8 @@ defmodule Tuist.Tests.TestRunDestination do
   @moduledoc """
   A run destination records one device/simulator a test run executed on
   (for example `iPad (A16)` on `iOS Simulator 26.4`). Stored in ClickHouse
-  and associated to a `Tuist.Tests.Test` via `test_run_id`. New reports also
-  reference their producing report/shard execution through `test_execution_id`.
+  and associated to a `Tuist.Tests.Test` via `test_run_id`. Case runs from an
+  attributable report reference this row through `test_run_destination_id`.
   """
   use Ecto.Schema
   use Tuist.Ingestion.Bufferable
@@ -13,7 +13,6 @@ defmodule Tuist.Tests.TestRunDestination do
   @primary_key {:id, Ecto.UUID, autogenerate: false}
   schema "test_run_destinations" do
     field :test_run_id, Ecto.UUID
-    field :test_execution_id, Ch, type: "Nullable(UUID)"
     field :name, Ch, type: "String"
     field :platform, Ch, type: "LowCardinality(String)"
     field :os_version, Ch, type: "String"
@@ -26,7 +25,7 @@ defmodule Tuist.Tests.TestRunDestination do
 
   def create_changeset(destination, attrs) do
     destination
-    |> cast(attrs, [:id, :test_run_id, :test_execution_id, :name, :platform, :os_version, :inserted_at])
+    |> cast(attrs, [:id, :test_run_id, :name, :platform, :os_version, :inserted_at])
     |> validate_required([:id, :test_run_id, :name, :platform, :os_version])
   end
 

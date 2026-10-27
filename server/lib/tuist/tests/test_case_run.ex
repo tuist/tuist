@@ -65,7 +65,8 @@ defmodule Tuist.Tests.TestCaseRun do
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"
     field :is_flaky, :boolean, default: false
     field :is_flakiness_excluded, :boolean, default: false
-    field :test_execution_id, Ch, type: "Nullable(UUID)"
+    field :test_run_destination_id, Ch, type: "Nullable(UUID)"
+    field :is_destination_ambiguous, :boolean, default: false
     field :is_new, :boolean, default: false
     field :is_quarantined, :boolean, default: false
     field :coverage_evidence, Ch, type: "Enum8('none' = 0, 'own' = 1, 'overlapped' = 2)", default: "none"

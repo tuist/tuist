@@ -7,7 +7,7 @@ defmodule Tuist.Tests.FlakinessEnvironmentIngestionTest do
   alias Tuist.Repo
   alias Tuist.Tests
   alias Tuist.Tests.TestCaseRunFlakyCorrection
-  alias Tuist.Tests.TestExecution
+  alias Tuist.Tests.TestRunDestination
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
   alias TuistTestSupport.Fixtures.ShardsFixtures
@@ -48,7 +48,7 @@ defmodule Tuist.Tests.FlakinessEnvironmentIngestionTest do
     assert case_run(failing).is_flaky
   end
 
-  test "a later pass corrects only failures on its destination and preserves their execution reference" do
+  test "a later pass corrects only failures on its destination and preserves their destination reference" do
     project = ProjectsFixtures.project_fixture()
     ios26_failure = ingest(project, "failure", [@ios26])
     ios27_failure = ingest(project, "failure", [@ios27])
@@ -62,11 +62,11 @@ defmodule Tuist.Tests.FlakinessEnvironmentIngestionTest do
     refute case_run(ios26_failure).is_flaky
     refute case_run(passing).is_flaky
     assert case_run(ios27_failure).is_flaky
-    assert Map.get(ios27_run, :test_execution_id)
-    assert case_run(ios27_failure).test_execution_id == ios27_run.test_execution_id
+    assert Map.get(ios27_run, :test_run_destination_id)
+    assert case_run(ios27_failure).test_run_destination_id == ios27_run.test_run_destination_id
   end
 
-  test "case runs across modules share one execution and one copy of destination metadata" do
+  test "case runs across modules share one destination row" do
     project = ProjectsFixtures.project_fixture()
 
     run =
@@ -89,25 +89,19 @@ defmodule Tuist.Tests.FlakinessEnvironmentIngestionTest do
 
     {cases, _} = Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: run.id}]})
     assert length(cases) == 3
-    assert [execution_id] = Enum.uniq(Enum.map(cases, &Map.get(&1, :test_execution_id)))
-    assert execution_id
-
-    assert %{rows: [[1]]} =
-             ClickHouseRepo.query!(
-               "SELECT count() FROM test_executions FINAL WHERE project_id = {project_id:Int64}",
-               %{project_id: project.id}
-             )
+    assert [destination_id] = Enum.uniq(Enum.map(cases, &Map.get(&1, :test_run_destination_id)))
+    assert destination_id
 
     assert %{rows: [["ios_simulator", "26.0", "iPhone 17"]]} =
              ClickHouseRepo.query!(
-               "SELECT platform, os_version, name FROM test_run_destinations WHERE test_execution_id = {id:UUID}",
-               %{id: execution_id}
+               "SELECT platform, os_version, name FROM test_run_destinations WHERE id = {id:UUID}",
+               %{id: destination_id}
              )
   end
 
   for version <- [0, 1] do
     @version version
-    test "version #{version} shards sharing a parent keep separate execution destinations" do
+    test "version #{version} shards sharing a parent keep separate destinations" do
       project = ProjectsFixtures.project_fixture()
       plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2, reporting_version: @version)
       ingest(project, "success", [@ios26], shard_plan_id: plan.id, shard_index: 0)
@@ -115,7 +109,7 @@ defmodule Tuist.Tests.FlakinessEnvironmentIngestionTest do
       {cases, _} = Tests.list_test_case_runs(%{filters: [%{field: :test_run_id, op: :==, value: merged.id}]})
       assert length(cases) == 2
       refute Enum.any?(cases, & &1.is_flaky)
-      assert length(Enum.uniq(Enum.map(cases, &Map.get(&1, :test_execution_id)))) == 2
+      assert length(Enum.uniq(Enum.map(cases, &Map.get(&1, :test_run_destination_id)))) == 2
 
       ingest(project, "success", [@ios27])
       failed = Enum.find(cases, &(&1.status == "failure"))
@@ -140,9 +134,32 @@ defmodule Tuist.Tests.FlakinessEnvironmentIngestionTest do
     assert case_run(failing).is_flaky
   end
 
+  for {label, destinations} <- [
+        {"multiple", [@ios26, @ios27]},
+        {"incomplete", [%{@ios26 | os_version: nil}]}
+      ],
+      statuses <- [["success", "failure"], ["failure", "success"]] do
+    @destinations destinations
+    @statuses statuses
+    test "#{label} destinations never supply missing-metadata evidence with #{hd(statuses)} first" do
+      project = ProjectsFixtures.project_fixture()
+      [first_status, second_status] = @statuses
+      ambiguous = ingest(project, first_status, @destinations)
+      missing = ingest(project, second_status, [])
+
+      refute case_run(ambiguous).is_flaky
+      refute case_run(missing).is_flaky
+      assert case_run(ambiguous).is_destination_ambiguous
+      assert is_nil(case_run(ambiguous).test_run_destination_id)
+      refute case_run(missing).is_destination_ambiguous
+      assert is_nil(case_run(missing).test_run_destination_id)
+      assert Repo.aggregate(TestCaseRunFlakyCorrection, :count) == 0
+    end
+  end
+
   for {label, destinations} <- [{"missing", []}, {"known", [@ios26]}] do
     @destinations destinations
-    test "historical case runs without execution references with #{label} destinations" do
+    test "historical case runs without destination references with #{label} destinations" do
       project = ProjectsFixtures.project_fixture()
       historical_pass(project, nil)
       failing = ingest(project, "failure", @destinations)
@@ -150,7 +167,7 @@ defmodule Tuist.Tests.FlakinessEnvironmentIngestionTest do
       assert case_run(failing).is_flaky == (@destinations == [])
     end
 
-    test "an unavailable execution is not treated as missing metadata with #{label} destinations" do
+    test "an unavailable destination is not treated as missing metadata with #{label} destinations" do
       project = ProjectsFixtures.project_fixture()
       historical_pass(project, Ecto.UUID.generate())
       failing = ingest(project, "failure", @destinations)
@@ -159,15 +176,15 @@ defmodule Tuist.Tests.FlakinessEnvironmentIngestionTest do
     end
   end
 
-  test "execution metadata must be written before case-run evidence" do
+  test "destination metadata must be written before case-run evidence" do
     project = ProjectsFixtures.project_fixture()
 
     stub(IngestRepo, :insert_all, fn
-      TestExecution, _rows -> raise "execution write failed"
+      TestRunDestination, _rows -> raise "destination write failed"
       schema, rows -> Mimic.call_original(IngestRepo, :insert_all, [schema, rows])
     end)
 
-    assert_raise RuntimeError, "execution write failed", fn ->
+    assert_raise RuntimeError, "destination write failed", fn ->
       ingest(project, "success", [@ios26])
     end
 
@@ -178,24 +195,44 @@ defmodule Tuist.Tests.FlakinessEnvironmentIngestionTest do
              )
   end
 
-  test "immutable report replays reuse the execution reference and preserve destination attribution" do
+  test "corrections preserve ambiguous destination attribution" do
+    project = ProjectsFixtures.project_fixture()
+    failing = ingest(project, "failure", [@ios26, @ios27])
+    run = case_run(failing)
+
+    Repo.insert!(%TestCaseRunFlakyCorrection{
+      test_case_run_id: run.id,
+      project_id: project.id,
+      test_case_id: run.test_case_id,
+      git_commit_sha: run.git_commit_sha
+    })
+
+    Tests.apply_test_case_run_flaky_corrections([run.id])
+
+    corrected = case_run(failing)
+    assert corrected.is_flaky
+    assert corrected.is_destination_ambiguous
+    assert is_nil(corrected.test_run_destination_id)
+  end
+
+  test "immutable report replays reuse the destination reference and preserve destination attribution" do
     project = ProjectsFixtures.project_fixture()
     plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 1, reporting_version: 1)
     options = [shard_plan_id: plan.id, shard_index: 0]
     first = ingest(project, "success", [@ios26], options)
-    execution_id = case_run(first).test_execution_id
+    destination_id = case_run(first).test_run_destination_id
     replay = ingest(project, "success", [@ios26], options)
 
-    assert case_run(replay).test_execution_id == execution_id
+    assert case_run(replay).test_run_destination_id == destination_id
 
     assert %{rows: [[1]]} =
              ClickHouseRepo.query!(
-               "SELECT count() FROM test_executions FINAL WHERE project_id = {project_id:Int64}",
-               %{project_id: project.id}
+               "SELECT uniqExact(id) FROM test_run_destinations WHERE test_run_id = {id:UUID}",
+               %{id: replay.id}
              )
 
     {:ok, loaded} = Tests.get_test(replay.id, preload: [:run_destinations])
-    assert [%{platform: "ios_simulator", os_version: "26.0", test_execution_id: ^execution_id}] = loaded.run_destinations
+    assert [%{platform: "ios_simulator", os_version: "26.0", id: ^destination_id}] = loaded.run_destinations
   end
 
   test "incomplete destinations cannot supply evidence to another incomplete report" do
@@ -279,11 +316,11 @@ defmodule Tuist.Tests.FlakinessEnvironmentIngestionTest do
     test
   end
 
-  defp historical_pass(project, execution_id) do
+  defp historical_pass(project, destination_id) do
     RunsFixtures.test_case_run_fixture(
       project_id: project.id,
       test_case_id: Tests.generate_test_case_id(project.id, "testExample", "AppTests", ""),
-      test_execution_id: execution_id,
+      test_run_destination_id: destination_id,
       git_commit_sha: "same-commit",
       scheme: "App",
       is_ci: true,
