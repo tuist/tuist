@@ -220,6 +220,11 @@ must upload on the first build and hit remotely after deleting outputs,
 with local caching disabled. Run this against the candidate image
 before promoting it, then against the production runner profile.
 
+The `compile_project` fixture accepts staging's existing private runner cache
+(`kura-tuist-ovh-gra-runners`) as well as EU-West regional cache endpoints.
+Keep both paths eligible so public-egress qualification can verify a real
+private-cache compile/restore before the regional-cache migration.
+
 With `compare_regional_cache` enabled, the same staging workflow runs
 `gradle-regional-benchmark.sh`. It requires dispatch to inject the existing EU-West
 Service (including a moved -m instance) and compares it with an explicitly selected remote-region Service.
