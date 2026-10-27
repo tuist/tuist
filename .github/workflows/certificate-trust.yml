@@ -3,6 +3,10 @@ name: Certificate Trust
 on:
   pull_request:
     paths:
+      - infra/runner-image/cmd/runner-shell-agent/**
+      - infra/linux-runner-image/cmd/runner-shell-agent/**
+      - infra/runner-image/go.*
+      - infra/linux-runner-image/go.*
       - infra/certificate-trust/**
       - go.work
       - infra/**/go.mod
@@ -11,6 +15,10 @@ on:
   push:
     branches: [main]
     paths:
+      - infra/runner-image/cmd/runner-shell-agent/**
+      - infra/linux-runner-image/cmd/runner-shell-agent/**
+      - infra/runner-image/go.*
+      - infra/linux-runner-image/go.*
       - infra/certificate-trust/**
       - go.work
       - infra/**/go.mod
@@ -48,6 +56,10 @@ jobs:
         with:
           go-version: '1.26.10'
           cache: false
+      - name: Race-test both runner shell discovery and WSS clients
+        run: |
+          go -C ../runner-image test -race -count=1 ./cmd/runner-shell-agent
+          go -C ../linux-runner-image test -race -count=1 ./cmd/runner-shell-agent
       - name: Test policy evidence and public store contracts
         run: go test -count=1 ./...
       - name: Check shell syntax
