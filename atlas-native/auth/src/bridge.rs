@@ -43,6 +43,11 @@ enum Command {
         #[serde(flatten)]
         action: crate::business::Action,
     },
+    Moodboard {
+        session: Session,
+        #[serde(flatten)]
+        action: crate::moodboard::Action,
+    },
     Push {
         session: Session,
         #[serde(flatten)]
@@ -102,6 +107,9 @@ pub fn execute(input: &str) -> String {
                 action,
             } => {
                 return crate::business::execute(session, resource, action);
+            }
+            Command::Moodboard { session, action } => {
+                return crate::moodboard::execute(session, action);
             }
             Command::Push { session, action } => {
                 return crate::push::execute(session, action);

@@ -23,6 +23,8 @@ defmodule Atlas.Moodboard.Resource do
     field :preview_revision, Ecto.UUID
     field :preview_fetched_at, :utc_datetime
     field :tags, {:array, :string}, default: []
+    field :capture_id, Ecto.UUID
+    field :capture_hash, :string, redact: true
     belongs_to :created_by, User
 
     timestamps(type: :utc_datetime)

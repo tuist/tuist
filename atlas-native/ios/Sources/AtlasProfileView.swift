@@ -6,6 +6,7 @@ struct AtlasSettingsView: View {
     var signOut: () -> Void
     var profileRequest: (([String: Any]) async throws -> Data)?
     var notifications: AtlasPushNotifications?
+    var sharedItems: AtlasSharedItems?
     @State private var profile: AtlasNativeProfile?
     @State private var profileError: String?
     @State private var editor: AtlasProfileEditorModel?
@@ -74,6 +75,13 @@ struct AtlasSettingsView: View {
                     Label("Appearance", systemImage: "paintpalette")
                 }
                 .accessibilityIdentifier("profile-appearance")
+            }
+            if let sharedItems {
+                Section {
+                    Button { sharedItems.reload(); sharedItems.presented = true } label: {
+                        Label("Shared items", systemImage: "square.and.arrow.down")
+                    }.accessibilityIdentifier("profile-shared-items")
+                } footer: { Text("Review items shared from other apps before adding them to Moodboard.") }
             }
             if let notifications, profile?.pushNotifications?.ios == true {
                 AtlasPushSettingsView(notifications: notifications)

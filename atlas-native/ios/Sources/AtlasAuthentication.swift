@@ -38,6 +38,7 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
     private var apiWaiters: [CheckedContinuation<Void, Never>] = []
     private var accountModel: AtlasAIAccounts?
     private var presenceModel: AtlasPresence?
+    @Published private(set) var sharedItems: AtlasSharedItems?
     private var sessionIdentity = UUID()
     let pushNotifications = AtlasPushNotifications()
     let liveActivity = AtlasOrbitLiveActivity()
@@ -95,6 +96,8 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         defer { busy = false; browser = nil }
         do {
             try AtlasSecureStorage.delete("automation.admission")
+            try AtlasSecureStorage.delete("share.recipient")
+            try? AtlasShareInbox.shared().configure(nil)
             let address = selfHosted ? selfHostedAddress : "https://atlas.tuist.dev"
             var request: [String: Any] = ["operation": "begin", "server": address]
             if let provider { request["provider"] = provider.rawValue }
@@ -138,6 +141,10 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         }
         pushNotifications.prepareForSessionEnd(origin: origin)
         liveActivity.invalidate()
+        if let inbox = try? AtlasShareInbox.shared() { try inbox.configure(nil) }
+        try AtlasSecureStorage.delete("share.recipient")
+        sharedItems?.invalidate()
+        sharedItems = nil
         try AtlasSecureStorage.delete("automation.admission")
         try AtlasSecureStorage.delete("session")
         presenceModel?.setActive(false)
@@ -351,6 +358,21 @@ extension AtlasAuthentication {
               let address = registration["server"] as? String, let url = URL(string: address) else { throw invalidResponse() }
         try AtlasSecureStorage.save("session", value: try json(session))
         server = url
+        if sharedItems == nil {
+            do {
+                let nonce = try AtlasSecureStorage.load("share.recipient").flatMap(UUID.init(uuidString:)) ?? UUID()
+                try AtlasSecureStorage.save("share.recipient", value: nonce.uuidString)
+                let recipient = AtlasShareRecipient(id: nonce, server: url)
+                let inbox = try AtlasShareInbox.shared()
+                try inbox.configure(recipient)
+                let model = AtlasSharedItems(inbox: inbox, recipient: recipient,
+                                             request: authenticatedRequest(operation: "moodboard"))
+                sharedItems = model
+                model.reload()
+            } catch {
+                errorMessage = "Sharing is unavailable on this installation. Your Atlas session is still available."
+            }
+        }
     }
 
     private func json(_ value: Any) throws -> String {
