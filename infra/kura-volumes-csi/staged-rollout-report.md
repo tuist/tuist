@@ -64,7 +64,7 @@ sample throughout migration. Sampling is not proof against shorter gaps.
 
 ## Traffic and failure observations
 
-The [probe source](rehearsal/probe.go) uses random 16 KiB bodies, checksum-declared
+The [probe source](cmd/rollout-probe/main.go) uses random 16 KiB bodies, checksum-declared
 PUTs and byte-for-byte GET verification. Two workers continuously read the saved
 corpus, write new objects and read those back, with a ten-second request timeout
 and a 200 ms pause per cycle. There is no application retry loop; Go's HTTP
@@ -91,8 +91,8 @@ seeding and the separate saved-corpus verification passes:
 | Unchanged-instance control | 15m | 10,026 | 0 |
 
 The three migration probes total 96,350 requests. Sanitized per-probe reports,
-volume inspection and sampled transitions are retained in
-[the evidence directory](rehearsal/2026-10-26/). No token or corpus payload is
+volume inspection and sampled transitions are preserved in
+[the historical evidence directory](https://github.com/tuist/tuist/tree/54aa40dca3f6b542595272b55b3b0eb38d9b64a2/infra/kura-volumes-csi/rehearsal/2026-10-26). No token or corpus payload is
 included. Results establish the observed migration behavior under this workload;
 they are not a production performance benchmark or a zero-error guarantee.
 

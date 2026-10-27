@@ -142,8 +142,9 @@ now encrypt by default; plain CSI remains available for diagnostics. Rack fresh
 installation uses curtin LVM; old hosts need a planned migration/reinstall.
 
 The [staged rollout report](staged-rollout-report.md) records the live migration,
-release isolation and recovery evidence. Its bounded probe and sanitized results
-live under [rehearsal](rehearsal/AGENTS.md).
+release isolation and recovery evidence, with a pinned link to historical results.
+Keep the reusable [rollout probe](cmd/rollout-probe/AGENTS.md) under `cmd/`;
+generated run output belongs outside the source tree.
 
 ## Key custody and admission
 
