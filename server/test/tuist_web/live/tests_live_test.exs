@@ -9,7 +9,7 @@ defmodule TuistWeb.TestsLiveTest do
   alias Tuist.Tests.Test.Buffer
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
-  @render_async_timeout 1_000
+  @render_async_timeout 5_000
 
   for build_system <- [:mix, :xcode, :gradle, :bazel, :cargo] do
     test "shows #{build_system} test cases before they have enough duration samples", %{

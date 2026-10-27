@@ -34,6 +34,7 @@ on:
       - infra/mise.toml
       - infra/mise.lock
       - infra/mise/tasks/helm/**
+      - .github/scripts/runner-kvm-*
       - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
@@ -47,6 +48,7 @@ on:
       - infra/mise.toml
       - infra/mise.lock
       - infra/mise/tasks/helm/**
+      - .github/scripts/runner-kvm-*
       - server/lib/tuist_web/draining.ex
       - kura/ops/helm/kura/**
       - .github/workflows/helm.yml
@@ -241,6 +243,12 @@ jobs:
       # Check cookie ownership after the full manifest render validation.
       - name: Test cluster cookie ownership and managed environment wiring
         run: python3 infra/helm/tuist/test-cluster-cookie.py
+      - name: Test SSO domain verification deployment policy
+        run: python3 infra/helm/tuist/test-sso-domain-verification.py
+      - name: CNPG promotion stays in the environment write tier
+        run: |
+          mise use -g yq@4.52.5
+          bash infra/helm/pomerium/test-access-tiers.sh
       # A release a deploy waits on must not run pods on a rack node, or a dark
       # rack fails every deploy. See "Deploys and the rack's health" in
       # infra/rack-nodes/AGENTS.md.
@@ -248,6 +256,10 @@ jobs:
         run: infra/mise/tasks/helm/rack-independence.sh
       - name: Server pods drain and the edge retries only unsent requests
         run: infra/mise/tasks/helm/server-rollout.sh
+      - name: Linux vRack rollout keeps runner cohorts isolated
+        run: infra/mise/tasks/helm/linux-vrack.sh
+      - name: KVM defaults and preparation gate
+        run: infra/mise/tasks/helm/nested-kvm.sh
       # The xcresult processor chart renders the tuist chart's processor
       # templates for the tuist release it names, which the loop above cannot
       # express either.

@@ -4,7 +4,10 @@ A Rust `cdylib` implementing the LLVM CAS plugin ABI (`llcas_*`, v0.1) that Xcod
 
 ## Why it exists
 
-Xcode's own remote-caching mode (`COMPILATION_CACHE_REMOTE_SERVICE_PATH`, the gRPC socket its built-in remote mode uses, previously served by the now-removed `tuist cache start` daemon) is net-negative on deep module graphs: the remote choreography inside Apple's closed plugin stalls in 30-50s bursts, taking a 274s no-cache build to 325-445s even with all cache hits served in ~2ms. This plugin bypasses that path entirely: the build system runs in its fast plugin-local mode (no remote service path configured), and all remote traffic happens inside this plugin. Measured on the same fixture: warm remote 113.6s against a 105.5s local-replay floor (~8s over, after the kura serving fixes narrowed an earlier ~145s), and 50.4s vs 87.8s no-cache on a shallow-graph app project, which runs at its 50.1s floor.
+The per-machine proxy owns remote transfers rather than Apple's built-in remote
+client. Keep `COMPILATION_CACHE_REMOTE_SERVICE_PATH` configured: it enables the
+build system's Clang lane. The plugin consumes that option without forwarding it
+to the upstream plugin, so it does not enable Apple's remote client.
 
 ## Architecture
 

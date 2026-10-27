@@ -1,20 +1,7 @@
-# TuistHTTP (CLI Module)
+# TuistHTTP
 
-This module provides HTTP client helpers used by server and cache integrations.
+Shared file transfers, middleware, and authentication helpers for API clients.
 
-## Responsibilities
-- Provide file upload/download client (`FileClient`) with explicit error modeling.
-- Provide middleware and auth helpers for API clients (request IDs, output warnings).
-
-## Boundaries
-- Keep CLI command wiring in `cli/Sources/TuistKit`.
-- Keep shared low-level utilities in `cli/Sources/TuistSupport`.
-
-## Related Context
-- cli/Sources/TuistServer/AGENTS.md
-- cli/Sources/TuistCache/AGENTS.md
-
-## Invariants
 - File transfers treat non-2xx responses as fatal errors.
 - Default URL session uses explicit request/resource timeouts.
 - Every Tuist session closes a connection idle for 10 seconds (Darwin `_connectionCachePurgeTimeout`, set only when the configuration responds to its setter), below the server's 15-second keep-alive idle timeout, so a request is not written on a connection the server is closing. FoundationNetworking (Linux) exposes no idle timeout, so Linux sessions keep libcurl's connection reuse.

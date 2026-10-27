@@ -10,5 +10,7 @@
     <array><string>applinks:atlas.tuist.dev</string></array>
     <key>keychain-access-groups</key>
     <array><string>dev.tuist.atlas</string></array>
+    <key>com.apple.security.application-groups</key>
+    <array><string>group.dev.tuist.atlas.share</string></array>
 </dict>
 </plist>

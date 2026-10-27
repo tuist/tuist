@@ -1,0 +1,5 @@
+{
+  "description": "The management cluster has three control-plane nodes. A restart during a planned Talos upgrade or reboot can trigger this 15-minute restart window without a cluster-wide outage. Confirm the other API targets, etcd quorum and admission webhook replicas remain healthy; the alert should clear once restarts age out of the window.\n\nFor unexpected or repeated restarts, identify the affected pod and node, inspect its previous container logs and termination reason, and check that node's Talos machined logs for OOM events. Exit code 137 or SandboxChanged alone does not prove an OOM kill. During the 2026-10-27 maintenance, scheduler/controller-manager startup retries also followed local API TLS timeouts. See the runbook for node-specific commands and the 90-second stability gate.",
+  "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/helm/k8s-monitoring/alerts.md#management-control-plane-restarted",
+  "summary": "{{ $labels.container }} restarted on the management cluster"
+}

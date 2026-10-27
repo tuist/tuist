@@ -271,6 +271,7 @@ func main() {
 	// A master another host superseded is refreshed in the background when it was
 	// used within the last day, so this host's next job attaches locally.
 	backend.RefreshWithin = 24 * time.Hour
+	backend.ReclaimWait = 100 * time.Millisecond
 	// Checkout masters share the cache filesystem, its reserve and this agent.
 	checkouts := &cachevolumes.Checkouts{Root: filepath.Join(*root, "checkouts"), Images: &cachevolumes.Ext4CheckoutImages{}, Path: checkoutPath, Tools: pinnedGitLFS(gitLFSCommand), Observe: metrics.observe, Log: metrics.logger,
 		// Checkout images are larger than custom ones, so their archives get their own bound.

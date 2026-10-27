@@ -40,3 +40,10 @@ The design and the alternatives considered are in [`sites.md`](sites.md).
   `claims_test.exs`, `runners_test.exs` and `kura/runner_cache_test.exs`. The
   Node-site cache is global and keyed by Node name, so tests use unique Node
   names.
+
+## Linux cache paths
+
+Linux profiles and legacy labels keep one shared runner pool. Every account uses
+the existing regional Kura Service directly; vRack enrollment changes transport
+at the host level. Keep profile sizing, fleet accounting and macOS site selection
+independent. Old internal cohort labels remain hidden during rolling upgrades.
