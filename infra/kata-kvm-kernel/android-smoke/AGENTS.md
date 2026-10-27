@@ -18,3 +18,14 @@ execution path, not physical-device performance.
 
 Preserve the KVM acceleration check, XML test results, benchmark JSON and
 traces. A successful Gradle exit without executed tests is not acceptance.
+
+Verified end to end on 2026-10-27 in
+[run 40478493276](https://github.com/tuist/tuist/actions/runs/40478493276):
+the workflow queued on the operator pool, the automatically proven host supplied
+CDI KVM to UID 1000, and both test suites passed (one test each, no skips).
+The 8-vCPU / 16-GiB runner on a Ryzen 9 9900X measured 15 cold starts with a
+570.1 ms median time to initial display (465.1–659.2 ms). The Android guest
+reported two cores and API 34 x86_64. These numbers belong to this fixture and
+host; do not compare them directly with the earlier 9700X hand-run benchmark.
+The run's `nested-kvm-android-results` artifact contains XML, benchmark JSON
+and all 15 Perfetto traces.

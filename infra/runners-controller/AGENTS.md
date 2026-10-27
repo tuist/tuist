@@ -1378,6 +1378,14 @@ runc Pod running the same workload needs more memory than the Kata one,
 because the emulator's host-side QEMU memory and page cache count against
 the container there.
 
+The normal runner-pool path passed on 2026-10-27 in
+[run 40478493276](https://github.com/tuist/tuist/actions/runs/40478493276), after
+deploying over staging's live Kura rehearsal. The provider automatically set
+`KataKVMReady` and the node label, the device plugin advertised 16 slots, and
+the queued workflow ran as UID 1000 with KVM acceleration. The committed
+[`android-smoke` fixture](../kata-kvm-kernel/android-smoke/AGENTS.md) passed
+both Gradle Managed Device instrumentation and all 15 Macrobenchmark cold starts.
+
 ## Linux cache volumes
 
 Local reflink image clones are implemented in
