@@ -1,4 +1,5 @@
 import Crypto
+import Dispatch
 import Foundation
 #if canImport(Security)
     @preconcurrency import Security
@@ -24,6 +25,44 @@ public enum CertificateTrust {
     #if canImport(Security)
         static func isAllowed(_ certificate: SecCertificate) -> Bool {
             isAllowed(derCertificate: SecCertificateCopyData(certificate) as Data)
+        }
+
+        private static let validationQueue = DispatchQueue(label: "dev.tuist.certificate-trust")
+
+        /// Performs Apple's normal SSL/hostname validation, followed by the key deny,
+        /// without blocking a networking event loop. Additional denies only restrict policy.
+        public static func evaluateTLS(
+            certificateChain: [Data],
+            hostname: String,
+            additionalAnchors: [Data],
+            additionalBlockedSPKIHashes: Set<String> = [],
+            completion: @escaping @Sendable (Bool) -> Void
+        ) {
+            let certificates = certificateChain.compactMap { SecCertificateCreateWithData(nil, $0 as CFData) }
+            let anchors = additionalAnchors.compactMap { SecCertificateCreateWithData(nil, $0 as CFData) }
+            guard !certificates.isEmpty, certificates.count == certificateChain.count,
+                  anchors.count == additionalAnchors.count
+            else { completion(false); return }
+            let policy = SecPolicyCreateSSL(true, hostname as CFString)
+            var trust: SecTrust?
+            guard SecTrustCreateWithCertificates(certificates as CFArray, policy, &trust) == errSecSuccess,
+                  let trust,
+                  TLSValidator.configure(
+                      trust,
+                      addingAdditionalAnchors: anchors,
+                      additionalBlockedSPKIHashes: additionalBlockedSPKIHashes
+                  )
+            else { completion(false); return }
+            // Security requires invocation and completion on the supplied queue.
+            validationQueue.async {
+                let result = SecTrustEvaluateAsyncWithError(trust, validationQueue) { trust, valid, _ in
+                    completion(valid && TLSValidator.isAllowedChain(
+                        trust,
+                        additionalBlockedSPKIHashes: additionalBlockedSPKIHashes
+                    ))
+                }
+                if result != errSecSuccess { completion(false) }
+            }
         }
     #endif
 
