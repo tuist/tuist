@@ -31,7 +31,7 @@ if [ "$usage_linux_vm" = "true" ]; then
         --workdir "/package" \
         --env MISE_PROJECT_ROOT=/package \
         --env TUIST_LINUX_ARCH="$ARCH" \
-        swift:6.2 \
+        swift:6.4.1 \
         ./mise/tasks/cli/bundle-linux.sh
 fi
 
