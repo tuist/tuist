@@ -815,6 +815,14 @@ server:
     # field fails the whole sync.
     kuraVolumeRootKeys:
       enabled: false
+    # KMS and legacy roots coexist only during a verified rewrap migration.
+    # Disable root-key sync AFTER all live shares use KMS and restart every
+    # consumer of server-config. Retain old roots offline for backup recovery.
+    kuraVolumeKMS:
+      enabled: false
+      keyArn: ""
+      roleArn: ""
+      decryptKeyArns: []
     externalSecrets:
       refreshInterval: "1h"
       storeRef:

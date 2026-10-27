@@ -1,0 +1,66 @@
+[
+  {
+    "name": "unbound identity",
+    "result": "denied"
+  },
+  {
+    "name": "create own PV",
+    "result": "allowed"
+  },
+  {
+    "name": "create foreign PV",
+    "result": "denied"
+  },
+  {
+    "name": "delete foreign PV",
+    "result": "denied"
+  },
+  {
+    "name": "change own PV claim ownership",
+    "result": "denied"
+  },
+  {
+    "name": "update own PV finalizer",
+    "result": "allowed"
+  },
+  {
+    "name": "select own node",
+    "result": "allowed"
+  },
+  {
+    "name": "change claim tenant",
+    "result": "denied"
+  },
+  {
+    "name": "select foreign node",
+    "result": "denied"
+  },
+  {
+    "name": "release own selection",
+    "result": "allowed"
+  },
+  {
+    "name": "publish own capacity",
+    "result": "allowed"
+  },
+  {
+    "name": "publish foreign node capacity",
+    "result": "denied"
+  },
+  {
+    "name": "change CPU capacity",
+    "result": "denied"
+  },
+  {
+    "name": "change readiness",
+    "result": "denied"
+  },
+  {
+    "name": "remove own capacity",
+    "result": "allowed"
+  },
+  {
+    "name": "delete own PV",
+    "result": "allowed"
+  }
+]

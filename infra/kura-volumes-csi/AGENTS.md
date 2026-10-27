@@ -140,3 +140,20 @@ checks the shared host/key contract and disjoint pool ownership against the
 rented plugin. `go test ./...` requires Helm for this check. LVM-enrolled regions
 now encrypt by default; plain CSI remains available for diagnostics. Rack fresh
 installation uses curtin LVM; old hosts need a planned migration/reinstall.
+<<<<<<< HEAD
+=======
+
+The [staged rollout report](staged-rollout-report.md) records the live migration,
+release isolation and recovery evidence. Its bounded probe and sanitized results
+live under [rehearsal](rehearsal/AGENTS.md).
+
+## Key custody and admission
+
+[Security runbook and tests](security/AGENTS.md) cover KMS wrapping, resumable
+rewrap and recovery gates. The main chart owns three retained fail-closed
+admission policies restricting the shared CSI identity to its token-bound node,
+immutable PV/PVC ownership and its own disk-capacity field. PVC writes/events
+are namespaced to `kura`. Cluster administrators and privileged host access
+remain trusted. Never claim hosted KMS custody before the live migration gates
+in `security/key-management.md` pass.
+>>>>>>> b6ef7f21db4 (feat(server): harden Kura key custody, rewrap and CSI privileges)

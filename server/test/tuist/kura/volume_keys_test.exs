@@ -5,15 +5,69 @@ defmodule Tuist.Kura.VolumeKeysTest do
   alias Tuist.Environment
   alias Tuist.Kura.VolumeKeys
   alias Tuist.Kura.VolumeKeys.HKDF
+  alias Tuist.Kura.VolumeKeys.Rotation
   alias Tuist.Kura.VolumeKeys.TenantKey
   alias Tuist.Kura.VolumeKeys.TuistRootShareProvider
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
+    stub(Environment, :kura_volume_kms, fn -> :disabled end)
     root_key = :crypto.strong_rand_bytes(32)
     stub(Environment, :kura_volume_root_keys, fn -> [{"root-a", root_key}] end)
     %{account: AccountsFixtures.account_fixture(), root_key: root_key}
+  end
+
+  describe "root rewrap and recovery" do
+    test "rewrap preserves passphrases, survives removal of the old root and retries", %{
+      account: account,
+      root_key: old_root
+    } do
+      {:ok, key} = VolumeKeys.ensure_active_key(account)
+      {:ok, before} = VolumeKeys.volume_passphrase(account, key, "pvc-a")
+      new_root = :crypto.strong_rand_bytes(32)
+      stub(Environment, :kura_volume_root_keys, fn -> [{"root-b", new_root}, {"root-a", old_root}] end)
+
+      assert {:ok, %{processed: 1, done: true}} = Rotation.batch({"tuist_root", "root-b"})
+      assert [%{key_id: "root-b", shares: 1}] = Rotation.inventory()
+      stub(Environment, :kura_volume_root_keys, fn -> [{"root-b", new_root}] end)
+      assert VolumeKeys.volume_passphrase(account, Repo.reload!(key), "pvc-a") == {:ok, before}
+      assert :ok = VolumeKeys.rewrap_key(key.id, {"tuist_root", "root-b"})
+      assert VolumeKeys.volume_passphrase(account, Repo.reload!(key), "pvc-a") == {:ok, before}
+
+      # Restoring a pre-migration DB backup still requires the old root.
+      assert {:error, :unknown_root_key} = VolumeKeys.volume_passphrase(account, key, "pvc-a")
+      stub(Environment, :kura_volume_root_keys, fn -> [{"root-a", old_root}] end)
+      assert VolumeKeys.volume_passphrase(account, key, "pvc-a") == {:ok, before}
+    end
+
+    test "missing source key leaves the stored row unchanged", %{account: account} do
+      {:ok, key} = VolumeKeys.ensure_active_key(account)
+      stub(Environment, :kura_volume_root_keys, fn -> [{"root-b", :crypto.strong_rand_bytes(32)}] end)
+      assert {:error, :unknown_root_key} = VolumeKeys.rewrap_key(key.id, {"tuist_root", "root-b"})
+      assert Repo.reload!(key).shares == key.shares
+    end
+
+    test "pins the intended target and includes retired versions", %{account: account, root_key: old_root} do
+      {:ok, key} = VolumeKeys.ensure_active_key(account)
+      Repo.update_all(from(k in TenantKey, where: k.id == ^key.id), set: [state: :retired])
+      {:ok, active} = VolumeKeys.ensure_active_key(account)
+      new_root = :crypto.strong_rand_bytes(32)
+      stub(Environment, :kura_volume_root_keys, fn -> [{"root-b", new_root}, {"root-a", old_root}] end)
+      assert {:error, :wrapping_target_changed} = Rotation.batch({"tuist_root", "wrong"})
+      assert {:error, :invalid_limit} = Rotation.batch({"tuist_root", "root-b"}, limit: 0)
+      assert {:ok, %{processed: 1, after_id: cursor, done: false}} = Rotation.batch({"tuist_root", "root-b"}, limit: 1)
+      assert {:ok, %{processed: 1}} = Rotation.batch({"tuist_root", "root-b"}, limit: 1, after_id: cursor)
+      assert Enum.all?(Rotation.inventory(), &(&1.key_id == "root-b"))
+      assert Repo.reload!(key).state == :retired
+      assert Repo.reload!(active).state == :active
+    end
+
+    test "invalid KMS configuration never falls back to an exportable root" do
+      stub(Environment, :kura_volume_kms, fn -> {:error, :invalid_kms_configuration} end)
+      refute VolumeKeys.available?()
+      assert {:error, :invalid_kms_configuration} = VolumeKeys.wrapping_target()
+    end
   end
 
   describe "TuistRootShareProvider" do
@@ -27,7 +81,7 @@ defmodule Tuist.Kura.VolumeKeysTest do
       assert TuistRootShareProvider.unwrap(share, "aad") == {:ok, plaintext}
     end
 
-    test "unwraps with a root key that is no longer active, and wraps with the new one", %{root_key: root_key} do
+    test "unwraps with an old root and wraps with the new one", %{root_key: root_key} do
       plaintext = :crypto.strong_rand_bytes(32)
       {:ok, share} = TuistRootShareProvider.wrap(plaintext, "aad")
 
@@ -56,7 +110,8 @@ defmodule Tuist.Kura.VolumeKeysTest do
 
   describe "ensure_active_key/1" do
     test "creates version 1 once and returns it afterwards", %{account: account} do
-      assert {:ok, %TenantKey{version: 1, state: :active, shares: [share]} = key} = VolumeKeys.ensure_active_key(account)
+      result = VolumeKeys.ensure_active_key(account)
+      assert {:ok, %TenantKey{version: 1, state: :active, shares: [share]} = key} = result
       assert %{"provider" => "tuist_root", "key_id" => "root-a"} = share
 
       assert {:ok, %TenantKey{id: id}} = VolumeKeys.ensure_active_key(account)

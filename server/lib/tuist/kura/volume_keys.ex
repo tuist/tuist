@@ -16,11 +16,11 @@ defmodule Tuist.Kura.VolumeKeys do
   so each volume has its own passphrase and producing any of them requires
   every share of the version.
 
-  Today every version has a single `tuist_root` share, wrapped under
-  Tuist's root keys. A customer-held key (AWS KMS, GCP KMS) joins as a new
-  key version whose shares include one wrapped by the customer's key: that
-  version cannot be unwrapped without both Tuist and the customer, and the
-  customer revoking their key makes the volumes built under it unreadable.
+  Each version currently has one Tuist-managed share, wrapped either by the
+  legacy `tuist_root` provider or the configured `aws_kms` provider. Rewrapping
+  changes only its envelope, preserving plaintext and volume passphrases.
+  Future organization-managed KMS shares require a new key version. Revocation
+  prevents future unwraps; it does not close an already-open LUKS mapping.
   Adding a provider is a new `ShareProvider` and an entry in the provider
   table here; the stored shares carry their provider, so the schema does not
   change.
@@ -35,6 +35,7 @@ defmodule Tuist.Kura.VolumeKeys do
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura.Identity
   alias Tuist.Kura.Server
+  alias Tuist.Kura.VolumeKeys.AWSKMSShareProvider
   alias Tuist.Kura.VolumeKeys.HKDF
   alias Tuist.Kura.VolumeKeys.TenantKey
   alias Tuist.Kura.VolumeKeys.TuistRootShareProvider
@@ -42,8 +43,7 @@ defmodule Tuist.Kura.VolumeKeys do
 
   require Logger
 
-  @providers %{"tuist_root" => TuistRootShareProvider}
-  @initial_share_providers [TuistRootShareProvider]
+  @providers %{"tuist_root" => TuistRootShareProvider, "aws_kms" => AWSKMSShareProvider}
   @share_bytes 32
   @passphrase_bytes 32
   @tenant_key_aad_prefix "kura-tenant-key/v1|"
@@ -62,7 +62,69 @@ defmodule Tuist.Kura.VolumeKeys do
   @kubernetes_timeout_ms 5_000
   @volume_id_format ~r/\A[a-z0-9]([-a-z0-9.]{0,251}[a-z0-9])?\z/
 
-  def available?, do: Environment.kura_volume_root_keys() != []
+  def available?, do: match?({:ok, _, _}, wrapping_target())
+
+  @doc "Returns the configured provider and pinned wrapping key identifier, never key material."
+  def wrapping_target do
+    case Environment.kura_volume_kms() do
+      {:ok, %{key_id: key_id}} ->
+        {:ok, "aws_kms", key_id}
+
+      :disabled ->
+        case Environment.kura_volume_root_keys() do
+          [{key_id, _} | _] -> {:ok, "tuist_root", key_id}
+          [] -> {:error, :root_keys_unavailable}
+        end
+
+      {:error, _} = error ->
+        error
+    end
+  end
+
+  @doc """
+  Rewraps one persisted key's Tuist-managed shares without changing plaintext,
+  version, order or volume passphrases. `target` pins the operator's intended
+  destination as `{provider, key_id}`. Remote work runs outside a DB transaction;
+  the final compare-and-swap refuses concurrent changes. Safe to retry after a
+  crash. Active AND retired versions must be processed before retiring a root.
+  """
+  def rewrap_key(id, {provider, key_id} = target) do
+    with {:ok, ^provider, ^key_id} <- wrapping_target(),
+         %TenantKey{} = key <- Repo.get(TenantKey, id),
+         %Account{} = account <- Repo.get(Account, key.account_id),
+         {:ok, shares} <- rewrap_shares(Identity.tenant_id(account), key, target) do
+      {count, _} =
+        Repo.update_all(from(k in TenantKey, where: k.id == ^key.id and k.shares == ^key.shares),
+          set: [shares: shares, updated_at: DateTime.utc_now(:second)]
+        )
+
+      if count == 1, do: :ok, else: {:error, :concurrent_key_change}
+    else
+      nil -> {:error, :key_not_found}
+      {:error, _} = error -> error
+      _ -> {:error, :wrapping_target_changed}
+    end
+  end
+
+  defp rewrap_shares(tenant_id, %TenantKey{version: version, shares: shares}, {name, key_id}) do
+    target = Map.fetch!(@providers, name)
+
+    shares
+    |> Enum.with_index()
+    |> Enum.reduce_while({:ok, []}, fn {share, index}, {:ok, result} ->
+      aad = share_aad(tenant_id, version, index)
+
+      with {:ok, source} <- share_provider(share),
+           {:ok, <<_::256>> = plaintext} <- source.unwrap(share, aad),
+           {:ok, %{"provider" => ^name, "key_id" => ^key_id} = wrapped} <- target.wrap(plaintext, aad),
+           {:ok, ^plaintext} <- target.unwrap(wrapped, aad) do
+        {:cont, {:ok, result ++ [wrapped]}}
+      else
+        {:error, _} = error -> {:halt, error}
+        _ -> {:halt, {:error, :rewrap_verification_failed}}
+      end
+    end)
+  end
 
   @doc """
   Issues the passphrase of `volume_id`, sealed to `client_public_key`, to the
@@ -186,7 +248,13 @@ defmodule Tuist.Kura.VolumeKeys do
   end
 
   defp wrap_shares(tenant_id, version) do
-    @initial_share_providers
+    with {:ok, provider, _key_id} <- wrapping_target() do
+      wrap_shares(tenant_id, version, [Map.fetch!(@providers, provider)])
+    end
+  end
+
+  defp wrap_shares(tenant_id, version, providers) do
+    providers
     |> Enum.with_index()
     |> Enum.reduce_while({:ok, []}, fn {provider, index}, {:ok, shares} ->
       plaintext = :crypto.strong_rand_bytes(@share_bytes)

@@ -145,3 +145,9 @@ This directory contains ExUnit tests for the Tuist Server.
 
 - Linux private-cache rollout regressions cover default-off behavior in every environment, actor isolation and global opt-outs, dispatch fallback with an existing active PN cache, admission requiring recent Linux jobs, and flag withdrawal/re-enrollment while jobs retain a draining endpoint.
 - Zero-hit secondary retirement tests cover ten complete reported UTC days, the exact instance-age boundary, unknown age, missing/duplicate reports, hits anywhere in the window or today, a surviving region with hits, primary exclusion, the rollout gate, and unchanged 28-day low-traffic retirement.
+
+- Kura wrapping-key tests must preserve passphrases through root/KMS rewrap,
+  include retired versions, refuse concurrent overwrite, and cover unavailable
+  keys and recovery from an older key record. KMS HTTP fakes assert exact ARN,
+  context, projected identity and sanitized failures; they are not evidence of
+  live AWS IAM, CloudTrail or database backup restore success.
