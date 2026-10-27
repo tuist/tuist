@@ -126,8 +126,11 @@ Helm-installed resource; publishing it is a separate rollout step.
   runs must preload that image; the smoke values never pull it from a registry.
 - Managed PgBouncer client limits and idle cleanup live in `tuist/values-managed-common.yaml`. Keep the connection lifecycle and rollout validation in [`../cnpg/README.md`](../cnpg/README.md#client-connections-through-tailscale) aligned when changing them.
 - Grafana-managed alert queries and their operational rationale live in
-  `k8s-monitoring/alerts.md`. Keep that runbook aligned with live rule changes;
-  browser LCP p99 also requires distinct affected sessions, not just total samples.
+  `k8s-monitoring/alerts.md`. Keep that runbook aligned with live rule changes.
+  The management restart rule's annotation artifact describes the three-node
+  cluster and planned-maintenance window; wording-only changes must preserve
+  the query, thresholds and notification behavior.
+  Browser LCP p99 also requires distinct affected sessions, not just total samples.
   The Kura admission buffer reduction to 10% requires the two live headroom
   fallback queries and the admission annotation to follow the server rollout;
   the exported headroom gauge already follows the deployed policy.
