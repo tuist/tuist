@@ -594,7 +594,7 @@ defmodule TuistWeb.AuthControllerTest do
           sso_provider: :oauth2,
           sso_organization_id: "https://login.vendor.example",
           sso_automatic_enrollment: true,
-          sso_legacy_email_domain_fallback: true,
+          existing_sso_configuration: true,
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
           oauth2_authorize_url: "https://login.vendor.example/authorize",
@@ -1124,7 +1124,7 @@ defmodule TuistWeb.AuthControllerTest do
       organization =
         custom_provider_organization(
           creator: member,
-          sso_legacy_email_domain_fallback: true,
+          existing_sso_configuration: true,
           sso_automatic_enrollment: true
         )
 
@@ -1220,11 +1220,11 @@ defmodule TuistWeb.AuthControllerTest do
                Tuist.Accounts.get_oauth2_identity(:oauth2, "foreign-identity", "https://login.vendor.example")
     end
 
-    test "requires existing members to sign in before linking despite the retired compatibility flag", %{conn: conn} do
+    test "requires existing members to sign in before linking an unverified provider", %{conn: conn} do
       member = AccountsFixtures.user_fixture(email: "legacy-member@customer.example")
 
       organization =
-        custom_provider_organization(creator: member, sso_legacy_email_domain_fallback: true)
+        custom_provider_organization(creator: member, existing_sso_configuration: true)
 
       stub_sso_userinfo("legacy-member", member.email)
 
@@ -1238,7 +1238,7 @@ defmodule TuistWeb.AuthControllerTest do
 
     test "asks a signed-in member to confirm linking an identity with a different email", %{conn: conn} do
       member = AccountsFixtures.user_fixture(email: "personal@mail.example")
-      organization = custom_provider_organization(creator: member, sso_legacy_email_domain_fallback: true)
+      organization = custom_provider_organization(creator: member, existing_sso_configuration: true)
       stub_sso_userinfo("work-identity", "person@customer.example")
 
       conn =
