@@ -293,3 +293,8 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   CheckoutMasterEndToEnd .`; on Linux it runs as root with
   `TUIST_CHECKOUT_E2E_ROOT` on a reflink filesystem (`scripts/test-cache-filesystem.sh`
   in runners-controller provides one).
+
+- Replacement-image tests must keep the original inode allocated (rename it
+  aside before creating the replacement). Unlinking and immediately recreating
+  a file can reuse its inode on Linux, so it does not reliably exercise the
+  different-inode guard.
