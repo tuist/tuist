@@ -1011,7 +1011,11 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                 if error is CancellationError || Task.isCancelled { throw error }
                 let lost = Set(batch).subtracting(successful)
                 if !lost.isEmpty { self.stats?.recordBatchDownloadFailure(digestsLost: lost.count) }
-                if !Self.isDownloadEndpointFailure(error) { endpointFailures = [] } else if !receivedResponse { endpointFailures = lost }
+                if !Self.isDownloadEndpointFailure(error) {
+                    endpointFailures = []
+                } else if !receivedResponse {
+                    endpointFailures = lost
+                }
             }
             failures.withLock { $0.formUnion(endpointFailures.subtracting(successful)) }
             return successful
