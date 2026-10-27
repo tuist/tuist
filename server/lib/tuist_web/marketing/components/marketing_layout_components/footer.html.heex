@@ -329,6 +329,7 @@ alone on join. The navbar does the same. --%>
                   label={language.native}
                   secondary_text={if language.code != "en", do: language.label}
                   data-language-switch
+                  data-glossia-language={TuistWeb.Locale.language_tag(language.code)}
                   href={
                     TuistWeb.Marketing.Localization.language_switch_href(
                       TuistWeb.Marketing.Localization.current_path(assigns),
@@ -362,7 +363,8 @@ alone on join. The navbar does the same. --%>
         data-mask-viewbox="84 32"
         data-mask-blur="2"
         data-hover="off"
-      ></canvas>
+      >
+      </canvas>
       <%!-- The wordmark silhouette the dither hook rasterizes and blurs into
       its density mask, so the logo's edges dissolve into particles instead
       of being clipped hard. Zero-sized: only its paths are read. --%>

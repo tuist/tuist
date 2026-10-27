@@ -5,6 +5,7 @@ import { LiveSocket } from "phoenix_live_view";
 import { hooks as colocatedHooks } from "phoenix-colocated/tuist";
 import { Hooks } from "./js/hooks.js";
 import { initAnalytics } from "../shared/js/analytics.js";
+import languageDropdown from "../shared/js/hooks/language-dropdown.js";
 import { mountStaticHooks } from "./js/lib/static-hooks.js";
 // Individual Noora hooks rather than the prebuilt `noora` runtime: that
 // runtime pulls in every hook, including the ECharts-backed chart, and was
@@ -30,7 +31,7 @@ const liveSocketFallbackMs = 10000;
 
 const NooraHooks = {
   NooraCollapsible,
-  NooraDropdown,
+  NooraDropdown: languageDropdown(NooraDropdown),
   NooraIconTransition,
   NooraModal,
   NooraPopover,

@@ -375,17 +375,32 @@ retention duration.
 
 Hosted production marketing, documentation and dashboard pages send pageviews to
 Glossia for the `tuist.dev` project. The browser sends the full page address and
-referrer, browser languages, timezone, screen width and a per-tab session
-identifier stored in session storage. Page addresses can include organization
-and project names or query parameters. No Tuist user identifiers, account
-identifiers or authentication tokens are explicitly attached.
+referrer, browser languages, actual page language, advertised translation
+languages, timezone, screen width and a per-tab session identifier stored in
+session storage. Selecting a language in the marketing footer or desktop/mobile
+documentation picker also sends a `language_selection` event and stores that
+explicit choice in same-origin, per-tab session storage. Later events include
+the choice until another selection replaces it or the tab closes; visits and
+automatic redirects alone do not establish a choice. Page addresses can include
+organization and project names or query parameters. No Tuist user identifiers,
+account identifiers or authentication tokens are explicitly attached.
 
 Glossia stores events in its `analytics_events` ClickHouse table, deriving
 country and a daily-rotated visitor hash from the request's network address and
-browser identification header. Page addresses are reduced to hostname and path
-for storage, while the referrer is retained. The raw network address and browser
-header are not stored in the event row. Retention follows Glossia's configured retention;
-the inspected event-table migration does not define an automatic expiry.
+browser identification header. The `selected_locale` column stores the explicit
+choice separately from `browser_language` and `served_locale`. Page addresses are
+reduced to hostname and path for storage, while the referrer is retained. The raw
+network address and browser header are not stored in the event row. Retention
+follows Glossia's configured retention; the inspected event-table migration does
+not define an automatic expiry.
+
+For new events, a valid explicit choice takes precedence over browser preferences
+when Glossia checks availability against project target languages, advertised
+translations and the actual page language. A choice is not proof that navigation
+succeeded or that a translation exists: choosing an unavailable language still
+reports a gap. Missing or invalid choices fall back to browser preferences.
+Historical events retain their stored gap decisions without recomputation.
+
 These external records are outside the standard Tuist export archive. For a
 transparency request, retrieve matching events from the Glossia `tuist.dev`
 project using available page, time and session context; they are not an

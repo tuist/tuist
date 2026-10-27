@@ -405,11 +405,15 @@ defmodule L10n.Catalog do
   """
 
   @nplurals %{
+    "ar" => 6,
     "es" => 2,
     "ja" => 1,
     "ka" => 2,
     "ko" => 1,
+    "pl" => 3,
+    "pt" => 2,
     "ru" => 3,
+    "tr" => 2,
     "yue_Hant" => 1,
     "zh_Hans" => 1,
     "zh_Hant" => 1
@@ -616,12 +620,18 @@ defmodule L10n.Translator do
   @batch_size 40
 
   @plural_forms %{
+    "ar" =>
+      "nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 ? 4 : 5;",
     "es" => "nplurals=2; plural=n != 1;",
     "ja" => "nplurals=1; plural=0;",
     "ka" => "nplurals=2; plural=n != 1;",
     "ko" => "nplurals=1; plural=0;",
+    "pl" =>
+      "nplurals=3; plural=n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;",
+    "pt" => "nplurals=2; plural=n > 1;",
     "ru" =>
       "nplurals=3; plural=n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;",
+    "tr" => "nplurals=2; plural=n != 1;",
     "yue_Hant" => "nplurals=1; plural=0;",
     "zh_Hans" => "nplurals=1; plural=0;",
     "zh_Hant" => "nplurals=1; plural=0;"
@@ -1165,6 +1175,7 @@ defmodule L10n.MarkdownValidator do
   @component_tag_regex ~r/<\/?(\.?localized_link|LocalizedLink|HomeCards|HomeCard|Noora\.[A-Za-z0-9_.]+)(?:\s|>|\/)/
   @html_tag_regex ~r/<\/?(a|details|summary|img)(?:\s|>|\/)/
   @heex_expression_regex ~r/(<%.*?%>|\{@[A-Za-z0-9_]+\})/s
+  @renderer_macro_regex ~r/\{\{[A-Za-z0-9_]+\}\}/
   @script_setup_regex ~r/<script\s+setup>.*?<\/script>/s
 
   @doc """
@@ -1223,6 +1234,12 @@ defmodule L10n.MarkdownValidator do
              "HEEx expressions",
              heex_expressions(source.body),
              heex_expressions(translated.body)
+           ),
+         :ok <-
+           validate_sequence(
+             "renderer macros",
+             regex_values(@renderer_macro_regex, source.body),
+             regex_values(@renderer_macro_regex, translated.body)
            ),
          :ok <-
            validate_sequence(
@@ -1392,6 +1409,7 @@ defmodule L10n.MarkdownTranslator do
     9. Do not translate proper nouns, product names, or technical terms unless the localization context explicitly says otherwise.
     10. Do not use em dashes. Use regular hyphens or rephrase.
     11. Preserve all placeholders that look like `%%L10N_FENCED_CODE_BLOCK_0%%` exactly. They represent fenced code blocks that will be restored after translation.
+    12. Preserve renderer macros such as `{{runner_default_profiles_table}}` exactly, including their order and number of occurrences. The docs renderer expands them into generated content.
 
     #{context_body}
 
