@@ -85,8 +85,8 @@ The normal production cascade deploys canary, then requires Runners Acceptance
 to pass before promotion. Each Linux target runs a native job and an actual
 Docker job container. Native coverage includes non-root/KVM access, executable
 clients and hooks, Android SDK contents and write access, Docker, Go compilation,
-setup-beam, Kura's authenticated round trip, process file limits, and 1.2 million
-rootfs files. The container probe checks workspace/actions/externals mounts,
+setup-beam, Kura's authenticated round trip, and process file limits.
+The container probe checks workspace/actions/externals mounts,
 checkout, the forwarded cache endpoint, and environment-file round trips.
 The gate rejects missing, skipped, or failed Linux probes, and the dispatch
 watchdog bounds pickup for both jobs. The hourly production run uses the same

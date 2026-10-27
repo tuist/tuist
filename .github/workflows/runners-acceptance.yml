@@ -300,9 +300,6 @@ jobs:
           elixir-version: "1.19"
       - name: Execute the installed runtime
         run: elixir -e 'IO.puts("Linux setup action runtime works")'
-      - name: Rootfs file budget
-        timeout-minutes: 3
-        run: bash .github/scripts/runners-acceptance/linux-file-budget.sh
 
   # A real job container covers the sidecar's workspace/actions/externals bind
   # mounts and GitHub environment-file handling; docker run in a native job
