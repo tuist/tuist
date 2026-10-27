@@ -108,6 +108,7 @@ defmodule Tuist.Runners do
   alias Tuist.GitHub.Client, as: GitHubClient
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.Buildkite
+  alias Tuist.Runners.Sites
   alias Tuist.Runners.CacheGrant
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
