@@ -5998,6 +5998,28 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn migration_controls_are_not_public_routes() {
+        let context = test_context(|_| {}).await;
+        for path in [
+            "/_internal/migration/prepare",
+            "/_internal/migration/verify",
+        ] {
+            let response = public_router(context.state.clone())
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri(path)
+                        .header("content-type", "application/json")
+                        .body(Body::from("{}"))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        }
+    }
+
+    #[tokio::test]
     async fn connection_retirement_is_internal_and_incarnation_bound() {
         let context = test_context(|_| {}).await;
         let runtime = &context.state.runtime;

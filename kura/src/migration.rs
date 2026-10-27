@@ -447,7 +447,7 @@ mod tests {
                 .is_err()
         );
         put(&destination.state, "retained", 1000).await;
-        verify(
+        let receipt = verify(
             State(destination.state.clone()),
             Json(VerifyRequest {
                 incarnation: destination
@@ -460,6 +460,7 @@ mod tests {
         )
         .await
         .unwrap();
+        assert_eq!(receipt["verified"], true);
     }
 
     #[tokio::test]
