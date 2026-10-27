@@ -141,18 +141,6 @@ struct TestCoverageEvidenceServiceTests {
         ))
     }
 
-    @Test(.inTemporaryDirectory) func readsAnAppsDebugDylibInsteadOfItsStubExecutable() throws {
-        let directory = try #require(FileSystem.temporaryTestDirectory)
-        let app = directory.appending(component: "App.app")
-        try FileManager.default.createDirectory(atPath: app.pathString, withIntermediateDirectories: true)
-        let executable = app.appending(component: "App").pathString
-        FileManager.default.createFile(atPath: executable, contents: Data())
-
-        #expect(TestCoverageEvidenceService.debugDylib(besideExecutable: executable) == nil)
-        FileManager.default.createFile(atPath: executable + ".debug.dylib", contents: Data())
-        #expect(TestCoverageEvidenceService.debugDylib(besideExecutable: executable) == executable + ".debug.dylib")
-    }
-
     @Test(.inTemporaryDirectory) func readsAnImageFromADeletedSimulatorCloneOffItsBuildProduct() throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let products = directory.appending(components: "Build", "Products", "Debug-iphonesimulator")

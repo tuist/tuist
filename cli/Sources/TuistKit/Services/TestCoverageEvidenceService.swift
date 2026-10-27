@@ -471,11 +471,7 @@ extension TestCoverageEvidenceService {
             derivedDataDirectory: derivedDataDirectory,
             xcResultService: xcResultService
         )?.targets else { return TestTargetProcessCoverage.Result() }
-        // `xccov` names an app by its executable, a stub when Xcode built the app's code into a
-        // debug dylib beside it: the image a UI-tested app's profiles are read against.
-        let images = CoverageExportService.products(of: coverageTargets).filter { $0.kind == .image }.map {
-            Self.debugDylib(besideExecutable: $0.path) ?? $0.path
-        }
+        let images = CoverageExportService.products(of: coverageTargets).filter { $0.kind == .image }.map(\.path)
         let bundles = coverageTargets.filter(\.isTest).compactMap { target -> TestTargetProcessCoverage.Bundle? in
             guard let image = target.buildProductPath, let module = Self.testModule(ofImage: image) else { return nil }
             return TestTargetProcessCoverage.Bundle(module: module, image: image)
@@ -519,12 +515,6 @@ extension TestCoverageEvidenceService {
         let products = derivedDataDirectory.appending(components: "Build", "Products").pathString
         let names = (try? FileManager.default.contentsOfDirectory(atPath: products)) ?? []
         return names.sorted().map { (products as NSString).appendingPathComponent($0) }
-    }
-
-    /// `<name>.debug.dylib` beside an executable `<name>`, when Xcode built one.
-    static func debugDylib(besideExecutable path: String) -> String? {
-        let debugDylib = path + ".debug.dylib"
-        return FileManager.default.fileExists(atPath: debugDylib) ? debugDylib : nil
     }
 
     /// The test module a bundle's executable belongs to: the bundle's name, as XCTest names it
