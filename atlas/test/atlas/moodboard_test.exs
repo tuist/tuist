@@ -121,6 +121,25 @@ defmodule Atlas.MoodboardTest do
     assert %{created_by_id: nil, created_by: nil} = Moodboard.get_resource(teammate, resource.id)
   end
 
+  test "capture retries retain one text resource even after editing and reject changed payloads" do
+    user = insert_user!()
+    other = insert_user!()
+    id = Ecto.UUID.generate()
+    fields = %{"title" => "A principle", "content" => "Make important things obvious", "tags" => ["Design"]}
+    assert {:ok, original} = Moodboard.capture_resource(id, fields, user)
+    assert {:ok, _} = Moodboard.update_resource(original.id, %{title: "Reviewed title"}, user)
+    assert {:ok, replayed} = Moodboard.capture_resource(id, fields, user)
+    assert replayed.id == original.id
+    assert replayed.title == "Reviewed title"
+    assert {:error, :capture_conflict} = Moodboard.capture_resource(id, Map.put(fields, "content", "Different"), user)
+    assert {:ok, independent} = Moodboard.capture_resource(id, fields, other)
+    assert independent.id != original.id
+
+    assert Activity
+           |> Ecto.Query.where(target_id: ^original.id, action: "moodboard_resource.created")
+           |> Repo.aggregate(:count) == 1
+  end
+
   defp attrs(overrides \\ %{}) do
     Map.merge(
       %{title: "Design reference", url: "https://design.example/#{System.unique_integer([:positive])}"},

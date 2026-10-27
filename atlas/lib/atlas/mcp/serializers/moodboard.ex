@@ -151,4 +151,7 @@ defmodule Atlas.MCP.Serializers.Moodboard do
   def error(:not_found), do: "Resource not found."
   def error(:forbidden), do: "Only the contributor can change or remove this resource."
   def error(:authentication_required), do: "Moodboard requires an authenticated user."
+  def error(:capture_conflict), do: "This request ID was already used with different fields."
+  def error(:invalid_capture), do: "Provide a valid capture UUID and Moodboard fields."
+  def error(:rate_limited), do: "Too many suggestions. Retry later or save without suggestions."
 end
