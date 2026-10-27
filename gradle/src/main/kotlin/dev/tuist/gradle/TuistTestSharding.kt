@@ -184,11 +184,10 @@ abstract class TuistShardValueSource : ValueSource<Shard, TuistShardValueSource.
 internal class PublishTuistTestModule : IsolatedAction<Project> {
     override fun execute(project: Project) {
         if (TuistGradleConfig.from(project)?.stressRepetition != null) return
-        val testTaskNames = project.tasks.withType(Test::class.java).names.sorted().joinToString(",")
         val moduleName = testModuleName(project)
         val descriptor = project.tasks.register("tuistTestModule", WriteProperties::class.java) {
             property("module", moduleName)
-            property("testTasks", testTaskNames)
+            property("testTasks", project.tasks.withType(Test::class.java).names.sorted().joinToString(","))
             destinationFile.set(project.layout.buildDirectory.file("tuist/test-module.properties"))
         }
         project.configurations.consumable("tuistTestModule") {
