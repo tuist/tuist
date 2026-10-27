@@ -157,6 +157,7 @@
             :for={lang <- TuistWeb.Marketing.Localization.languages()}
             label={lang.native}
             value={lang.code}
+            data-glossia-language={TuistWeb.Locale.language_tag(lang.code)}
             navigate={localized_docs_href(@current_path, lang.code)}
           />
         </.inline_dropdown>
@@ -318,6 +319,7 @@
             :for={lang <- TuistWeb.Marketing.Localization.languages()}
             label={lang.native}
             value={lang.code}
+            data-glossia-language={TuistWeb.Locale.language_tag(lang.code)}
             navigate={localized_docs_href(@current_path, lang.code)}
           />
         </.inline_dropdown>

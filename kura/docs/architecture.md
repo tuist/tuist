@@ -267,6 +267,21 @@ reactor to drive an asynchronous client, and it is built off-runtime because
 `reqwest::blocking` panics when constructed inside one. A dropped batch is
 telemetry loss only; it never blocks request handling.
 
+HTTP export failures also emit `kura.telemetry.http_export_failed`, with a fixed
+`error.type` (`dns`, `connect`, `tls`, `timeout`, `http_status`, `body`, or `other`),
+connection-phase flag, optional HTTP status and elapsed milliseconds. Diagnostics
+never include URLs, headers, response text or raw error messages. The additional
+warning is limited to once per minute per category per exporter, with a suppressed
+count on the next warning; the SDK's existing export errors remain unchanged.
+Timeout takes precedence over other categories; a connection timeout includes
+DNS/TCP/TLS setup and cannot identify which setup phase stalled. DNS classification
+uses hyper-util's fixed `dns error` cause marker because that error type is private;
+the marker comparison uses a nine-byte stack buffer instead of allocating error
+strings. TLS classification uses typed rustls causes. Body errors include response
+decoding failures, such as a truncated successful response. Unrecognized failures
+stay `other` or `connect` rather than guessing a more specific cause. There are no
+added retries.
+
 Mesh **membership itself** is control-plane state for enrolled nodes: a node that stops sending mesh heartbeats is deactivated (withheld from every peer's view) and its row is purged once its peer certificate can no longer be valid. Heartbeats never create or restore membership — a withheld node is answered `mesh_member: false` and recovers with a **recovery re-enrollment** (backoff-limited), which reactivates or recreates its membership server-side. Nothing local is torn down for it and readiness is not clawed back: the writes missed while out of the mesh were never enqueued for the node (replication targets are computed at write time), and the backfill watermarks are durable, so the next pass re-walks from them and reconciles the gap in the background while the node keeps serving.
 
 Each tick produces a `MembershipUpdate` and feeds it into `ReadinessState` (`src/state.rs`). The state tracks:

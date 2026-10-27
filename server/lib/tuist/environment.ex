@@ -282,6 +282,12 @@ defmodule Tuist.Environment do
     not hosted and enabled == true
   end
 
+  def sso_require_login_domain_verification?(
+        enabled \\ Application.get_env(:tuist, :sso_require_login_domain_verification, false)
+      ) do
+    enabled == true
+  end
+
   def tuist_hosted? do
     truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0")) or
       truthy?(System.get_env("TUIST_HOSTED", "0"))
