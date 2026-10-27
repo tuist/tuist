@@ -145,8 +145,6 @@ defmodule Tuist.Webhooks.Dispatcher do
   end
 
   # Keep all batches atomic; a later failure must not leave a partial fan-out.
-  defp insert_jobs([]), do: :ok
-
   defp insert_jobs(jobs) do
     {:ok, :ok} =
       Repo.transaction(fn ->
