@@ -1522,6 +1522,12 @@ defmodule TuistWeb.AuthControllerTest do
       end
     end
 
+    test "returns not found for a GET to the POST-only Apple callback", %{conn: conn} do
+      assert_raise NotFoundError, fn ->
+        get(conn, "/users/auth/apple/callback")
+      end
+    end
+
     test "logs in existing OAuth user directly", %{conn: conn} do
       # Given: A user with an existing OAuth identity
       user = AccountsFixtures.user_fixture(email: "oauth-user@example.com")
