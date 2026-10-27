@@ -239,6 +239,32 @@ defmodule Tuist.Kura.DemandTest do
   end
 
   describe "upsert_many/1" do
+    test "persists a large cohort and never moves its demand or traffic clocks backwards" do
+      account = air_account()
+      now = DateTime.truncate(DateTime.utc_now(), :second)
+      earlier = DateTime.add(now, -3600, :second)
+
+      rows =
+        for index <- 1..10_001 do
+          %{
+            account_id: account.id,
+            service_region: "region-#{index}",
+            last_cache_demand_at: now,
+            last_cache_traffic_at: earlier
+          }
+        end
+
+      assert {:ok, 10_001} = Demand.upsert_many(Enum.reverse(rows))
+
+      assert {:ok, 10_001} =
+               Demand.upsert_many(Enum.map(rows, &%{&1 | last_cache_demand_at: earlier, last_cache_traffic_at: nil}))
+
+      lifecycles = Repo.all(AccountRegionLifecycle)
+      assert length(lifecycles) == length(rows)
+      assert MapSet.new(lifecycles, & &1.service_region) == MapSet.new(rows, & &1.service_region)
+      assert Enum.all?(lifecycles, &(&1.last_cache_demand_at == now and &1.last_cache_traffic_at == earlier))
+    end
+
     test "inserts rows in account and service region order" do
       first = air_account()
       second = air_account()

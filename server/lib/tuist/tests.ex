@@ -2396,8 +2396,7 @@ defmodule Tuist.Tests do
     failed_test_case_ids = test_case_ids_with_status(test_case_data, "failure")
     passed_test_case_ids = test_case_ids_with_status(test_case_data, "success")
 
-    {passed_on_commit(runs_on_commit, failed_test_case_ids),
-     failures_on_commit(runs_on_commit, MapSet.new(passed_test_case_ids))}
+    {passed_on_commit(runs_on_commit, failed_test_case_ids), failures_on_commit(runs_on_commit, passed_test_case_ids)}
   end
 
   defp test_case_ids_with_status(test_case_data, status) do
@@ -2421,23 +2420,22 @@ defmodule Tuist.Tests do
     |> MapSet.new()
   end
 
-  defp failures_on_commit(runs_on_commit, test_case_id_set) do
-    if MapSet.size(test_case_id_set) == 0 do
-      %{}
-    else
+  defp failures_on_commit(runs_on_commit, test_case_ids) do
+    test_case_ids
+    |> all_by_uuid_chunks(fn ids ->
       from(tcr in runs_on_commit,
         where: tcr.status == "failure",
+        where: tcr.test_case_id in ^ids,
         group_by: [tcr.id, tcr.test_case_id],
+        having: fragment("argMax(?, ?)", tcr.is_flaky, tcr.inserted_at) == false,
         select: %{
           id: tcr.id,
           test_case_id: tcr.test_case_id,
           is_flaky: fragment("argMax(?, ?)", tcr.is_flaky, tcr.inserted_at)
         }
       )
-      |> ClickHouseRepo.all()
-      |> Enum.filter(&MapSet.member?(test_case_id_set, &1.test_case_id))
-      |> Enum.group_by(& &1.test_case_id)
-    end
+    end)
+    |> Enum.group_by(& &1.test_case_id)
   end
 
   # A test case is new until it has run in CI on the default branch, or on a
@@ -4137,7 +4135,8 @@ defmodule Tuist.Tests do
     corrections =
       runs
       |> Enum.uniq_by(& &1.id)
-      |> Enum.map(fn run ->
+      |> Enum.sort_by(& &1.id)
+      |> Stream.map(fn run ->
         %{
           test_case_run_id: run.id,
           project_id: project_id,
@@ -4149,27 +4148,24 @@ defmodule Tuist.Tests do
         }
       end)
 
-    {:ok, _jobs} =
+    {:ok, :ok} =
       Repo.transaction(fn ->
-        inserted_corrections =
-          corrections
-          |> Enum.chunk_every(@flaky_correction_batch_size)
-          |> Enum.flat_map(fn batch ->
-            {_count, inserted} =
-              Repo.insert_all(TestCaseRunFlakyCorrection, batch,
-                on_conflict: :nothing,
-                conflict_target: [:test_case_run_id],
-                returning: [
-                  :test_case_run_id,
-                  :project_id,
-                  :git_commit_sha
-                ]
-              )
+        corrections
+        |> Stream.chunk_every(@flaky_correction_batch_size)
+        |> Enum.each(fn batch ->
+          {_count, inserted} =
+            Repo.insert_all(TestCaseRunFlakyCorrection, batch,
+              on_conflict: :nothing,
+              conflict_target: [:test_case_run_id],
+              returning: [
+                :test_case_run_id,
+                :project_id,
+                :git_commit_sha
+              ]
+            )
 
-            inserted
-          end)
-
-        enqueue_flaky_correction_jobs(inserted_corrections)
+          enqueue_flaky_correction_jobs(inserted)
+        end)
       end)
 
     :ok

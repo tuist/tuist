@@ -5818,6 +5818,47 @@ defmodule Tuist.TestsTest do
              ) == test_case_count
     end
 
+    test "corrects every matching case when a passing cohort exceeds one historical lookup" do
+      project = ProjectsFixtures.project_fixture()
+      commit_sha = "many_passing_cases_#{System.unique_integer([:positive])}"
+
+      run_with_status = fn status, count ->
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: project.account_id,
+          git_commit_sha: commit_sha,
+          scheme: "App",
+          is_ci: true,
+          status: status,
+          test_modules: [
+            %{
+              name: "Tests",
+              status: status,
+              duration: 500,
+              test_cases: for(index <- 1..count, do: %{name: "test#{index}", status: status, duration: 1})
+            }
+          ]
+        )
+      end
+
+      {:ok, failed_test} = run_with_status.("failure", 5_002)
+      {:ok, _successful_test} = run_with_status.("success", 5_001)
+
+      expected_ids =
+        ClickHouseRepo.all(
+          from(tcr in TestCaseRun, where: tcr.test_run_id == ^failed_test.id and tcr.name != "test5002", select: tcr.id)
+        )
+
+      corrections = Repo.all(TestCaseRunFlakyCorrection)
+      assert length(corrections) == 5_001
+      assert MapSet.new(corrections, & &1.test_case_run_id) == MapSet.new(expected_ids)
+
+      jobs = all_enqueued(worker: CorrectTestCaseRunFlakyStateWorker)
+      enqueued_ids = Enum.flat_map(jobs, & &1.args["test_case_run_ids"])
+      assert length(enqueued_ids) == 5_001
+      assert MapSet.new(enqueued_ids) == MapSet.new(expected_ids)
+    end
+
     test "enqueues every historical failure when corrections exceed PostgreSQL's parameter limit" do
       project = ProjectsFixtures.project_fixture()
       commit_sha = "many_corrections_#{System.unique_integer([:positive])}"

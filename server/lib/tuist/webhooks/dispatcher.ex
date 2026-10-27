@@ -7,10 +7,10 @@ defmodule Tuist.Webhooks.Dispatcher do
   Each call site builds the event payload (the `object` snapshot plus any
   additional context) and hands it off here; the dispatcher is responsible
   for adding the envelope metadata (`id`, `type`, `created`) and scheduling
-  delivery. Fan-out goes through a single `Oban.insert_all/1` per dispatch
-  call so one event with N subscribers is a single DB round-trip; the
-  batch is wrapped in try/rescue so a DB-level failure logs and returns
-  `:ok` instead of crashing the upstream write.
+  delivery. Fan-out uses bounded bulk inserts in one transaction per dispatch,
+  so a large subscriber list cannot exceed PostgreSQL's parameter limit.
+  A DB-level failure rolls back the dispatch, logs and returns `:ok` instead
+  of crashing the upstream write.
   """
   alias Tuist.AppBuilds.Preview
   alias Tuist.Projects
@@ -46,7 +46,7 @@ defmodule Tuist.Webhooks.Dispatcher do
       }
 
       endpoints
-      |> Enum.map(&build_job(&1, "test_case.updated", body))
+      |> Stream.map(&build_job(&1, "test_case.updated", body))
       |> insert_jobs()
     else
       _ -> :ok
@@ -67,9 +67,9 @@ defmodule Tuist.Webhooks.Dispatcher do
          [_ | _] = endpoints <-
            Webhooks.list_endpoints_subscribed_to(account_id, "test_case.created") do
       test_cases
-      |> Enum.flat_map(fn test_case ->
+      |> Stream.flat_map(fn test_case ->
         body = %{"object" => test_case_snapshot(test_case)}
-        Enum.map(endpoints, &build_job(&1, "test_case.created", body))
+        Stream.map(endpoints, &build_job(&1, "test_case.created", body))
       end)
       |> insert_jobs()
     else
@@ -103,7 +103,7 @@ defmodule Tuist.Webhooks.Dispatcher do
       body = %{"object" => preview_snapshot(preview)}
 
       endpoints
-      |> Enum.map(&build_job(&1, event_type, body))
+      |> Stream.map(&build_job(&1, event_type, body))
       |> insert_jobs()
     else
       _ -> :ok
@@ -144,18 +144,21 @@ defmodule Tuist.Webhooks.Dispatcher do
     })
   end
 
-  # Single-batch insert so an event with N subscribers is one round-trip
-  # to `oban_jobs` instead of N. A DB-level failure is logged and
-  # swallowed — the upstream domain write shouldn't be torn down by a
-  # webhook bookkeeping problem.
+  # Keep all batches atomic; a later failure must not leave a partial fan-out.
   defp insert_jobs([]), do: :ok
 
   defp insert_jobs(jobs) do
-    _ = Oban.insert_all(jobs)
+    {:ok, :ok} =
+      Repo.transaction(fn ->
+        jobs
+        |> Stream.chunk_every(1_000)
+        |> Enum.each(&Oban.insert_all/1)
+      end)
+
     :ok
   rescue
     error ->
-      Logger.warning("Webhook dispatch failed to enqueue batch of #{length(jobs)} jobs: #{inspect(error)}")
+      Logger.warning("Webhook dispatch failed to enqueue jobs: #{inspect(error)}")
       :ok
   end
 

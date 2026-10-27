@@ -94,6 +94,7 @@ defmodule Tuist.Billing.AirUsageNotifications do
       account
       |> recipients()
       |> Enum.uniq_by(& &1.id)
+      |> Enum.sort_by(& &1.id)
       |> Enum.map(fn user ->
         %{
           account_id: account.id,
@@ -109,10 +110,14 @@ defmodule Tuist.Billing.AirUsageNotifications do
       end)
 
     Repo.transaction(fn ->
-      Repo.insert_all(AirUsageNotification, notifications,
-        on_conflict: :nothing,
-        conflict_target: [:account_id, :user_id, :metric, :period_start, :threshold]
-      )
+      notifications
+      |> Enum.chunk_every(1_000)
+      |> Enum.each(fn batch ->
+        Repo.insert_all(AirUsageNotification, batch,
+          on_conflict: :nothing,
+          conflict_target: [:account_id, :user_id, :metric, :period_start, :threshold]
+        )
+      end)
 
       recipient_ids = Enum.map(notifications, & &1.user_id)
 
@@ -151,8 +156,9 @@ defmodule Tuist.Billing.AirUsageNotifications do
       |> MapSet.new(& &1["notification_id"])
 
     notification_ids
-    |> Enum.reject(&MapSet.member?(active_ids, &1))
-    |> Enum.map(&AirUsageNotificationWorker.new(%{notification_id: &1}))
-    |> Oban.insert_all()
+    |> Stream.reject(&MapSet.member?(active_ids, &1))
+    |> Stream.map(&AirUsageNotificationWorker.new(%{notification_id: &1}))
+    |> Stream.chunk_every(1_000)
+    |> Enum.each(&Oban.insert_all/1)
   end
 end
