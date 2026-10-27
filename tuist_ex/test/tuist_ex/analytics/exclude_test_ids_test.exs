@@ -93,4 +93,31 @@ defmodule TuistEx.Analytics.ExcludeTestIdsTest do
 
     assert output =~ "delegation verified"
   end
+
+  test "leaves ExUnit as it is when its runner no longer asks ExUnit.Filters.eval/4" do
+    output =
+      run_script(~S"""
+      alias TuistEx.Analytics.ExcludeTestIds
+
+      # A runner that filters tests some other way, as a later Elixir might,
+      # first on the code path, where the swap reads the runner's imports.
+      dir = Path.join(System.tmp_dir!(), "tuist-ex-runner-#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      Code.put_compiler_option(:ignore_module_conflict, true)
+      [{ExUnit.Runner, binary}] = Code.compile_string("defmodule ExUnit.Runner, do: def(run(_, _), do: :ok)")
+      File.write!(Path.join(dir, "Elixir.ExUnit.Runner.beam"), binary)
+      true = :code.add_patha(String.to_charlist(dir))
+
+      {:error, :runner_does_not_call_eval} =
+        ExcludeTestIds.install([{CartTest, :"test add/2 rejects nil"}])
+
+      false = ExcludeTestIds.installed?()
+      false = Code.ensure_loaded?(ExUnit.Filters.TuistEx.Original)
+      :ok = ExUnit.Filters.eval([], [], %{module: CartTest, test: :"test add/2 rejects nil"}, [])
+      File.rm_rf!(dir)
+      IO.puts("refusal verified")
+      """)
+
+    assert output =~ "refusal verified"
+  end
 end
