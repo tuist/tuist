@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"embed"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -25,6 +26,11 @@ import (
 	"testing"
 	"time"
 )
+
+// The privileged mount suite runs a precompiled test binary without a checkout.
+//
+//go:embed testdata/certificate-trust/*.pem
+var trustCertificates embed.FS
 
 type trustFixture struct {
 	root, issuer, leaf *x509.Certificate
@@ -120,7 +126,7 @@ func cacheOperations(t *testing.T, endpoint string) map[string]func(*http.Client
 func TestCacheTrustRealTwelveKeys(t *testing.T) {
 	seen := map[string]bool{}
 	for _, path := range []string{"issuer-roots.pem", "distrusted-intermediates.pem"} {
-		data, err := os.ReadFile("testdata/certificate-trust/" + path)
+		data, err := trustCertificates.ReadFile("testdata/certificate-trust/" + path)
 		if err != nil {
 			t.Fatal(err)
 		}
