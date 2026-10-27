@@ -621,3 +621,7 @@ regression needs Helm; the CSI workflow installs it before running Go tests.
 `macos-maintenance.test.sh` exercises the explicit host-maintenance request task
 with a fake kubectl and no credentials. The provider's macOS Go suite runs it;
 keep planning read-only and refuse a new request over active or failed status.
+
+Manual Kura controller image builds from branches publish only immutable SHA
+candidates; only main updates `latest`. This keeps staging storage rehearsals
+from changing the default controller image.
