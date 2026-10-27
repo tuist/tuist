@@ -731,7 +731,7 @@ defmodule TuistWeb.AppLayoutComponents do
           label={Tuist.Environment.server_version_identifier()}
           color="attention"
           style="light-fill"
-          size="large"
+          size="medium"
         >
           <:icon><.git_branch /></:icon>
         </.badge>

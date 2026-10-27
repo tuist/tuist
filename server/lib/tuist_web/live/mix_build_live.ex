@@ -437,7 +437,7 @@ defmodule TuistWeb.MixBuildLive do
               label={format_number(Enum.count(@issues))}
               color={if @type == "error", do: "destructive", else: "warning"}
               style="light-fill"
-              size="large"
+              size="medium"
             />
           </div>
           <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="medium">

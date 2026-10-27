@@ -237,7 +237,7 @@ defmodule TuistWeb.BazelInvocationLive do
                     label={invocation_result_label(@invocation)}
                     color={invocation_result_badge_color(@invocation.status)}
                     style="fill"
-                    size="large"
+                    size="medium"
                   />
                 </div>
                 <div data-part="metadata">

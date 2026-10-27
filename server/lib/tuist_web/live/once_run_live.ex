@@ -321,12 +321,12 @@ defmodule TuistWeb.OnceRunLive do
                     label={run_status_label(@run)}
                     color={run_status_badge_color(@run)}
                     style="fill"
-                    size="large"
+                    size="medium"
                   />
                 </div>
                 <div data-part="metadata">
                   <div data-part="title">{dgettext("dashboard_projects", "Kind")}</div>
-                  <.badge label={kind_label(@run.kind)} color="primary" style="fill" size="large" />
+                  <.badge label={kind_label(@run.kind)} color="primary" style="fill" size="medium" />
                 </div>
                 <div data-part="metadata">
                   <div data-part="title">{dgettext("dashboard_builds", "Build duration")}</div>

@@ -175,7 +175,7 @@ defmodule TuistWeb.CargoBuildLive do
               label={format_number(length(@issues))}
               color={if @severity == "error", do: "destructive", else: "warning"}
               style="light-fill"
-              size="large"
+              size="medium"
             />
           </div>
           <.neutral_button data-part="closed-collapsible-button" variant="secondary" size="medium">

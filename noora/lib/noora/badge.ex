@@ -9,7 +9,7 @@ defmodule Noora.Badge do
 
   @badge_appearances ~w(fill light-fill)
   @badge_colors ~w(neutral destructive warning attention success information focus primary secondary)
-  @badge_sizes ~w(small large)
+  @badge_sizes ~w(small medium large)
 
   def badge_appearances, do: @badge_appearances
   def badge_colors, do: @badge_colors
@@ -42,11 +42,6 @@ defmodule Noora.Badge do
 
   attr(:dot, :boolean, default: false, doc: "Displays a dot before the label when the icon slot is empty.")
 
-  attr(:icon_only, :boolean,
-    default: false,
-    doc: "Hides the label and displays only the icon slot."
-  )
-
   slot(:icon, doc: "The icon to render next to the label. Overrides the `dot` attribute.")
 
   attr(:rest, :global)
@@ -61,7 +56,6 @@ defmodule Noora.Badge do
       data-disabled={@disabled}
       data-dot={@dot}
       data-icon={has_slot_content?(@icon, assigns)}
-      data-icon-only={@icon_only}
       {@rest}
     >
       <%= if @dot || has_slot_content?(@icon, assigns) do %>
@@ -70,11 +64,12 @@ defmodule Noora.Badge do
             {render_slot(@icon)}
           <% else %>
             <.small_dot :if={@size == "small"} />
+            <.medium_dot :if={@size == "medium"} />
             <.large_dot :if={@size == "large"} />
           <% end %>
         </div>
       <% end %>
-      <span :if={!@icon_only}>{@label}</span>
+      <span>{@label}</span>
     </span>
     """
   end
@@ -150,6 +145,16 @@ defmodule Noora.Badge do
     """
   end
 
+  # A 5px dot centered in the medium badge's 14px icon box.
+  defp medium_dot(assigns) do
+    ~H"""
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <rect x="4.5" y="4.5" width="5" height="5" rx="1.11111" fill="currentColor" />
+    </svg>
+    """
+  end
+
+  # A 6px dot centered in a 16px box, for large badges and status badges.
   defp large_dot(assigns) do
     ~H"""
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">

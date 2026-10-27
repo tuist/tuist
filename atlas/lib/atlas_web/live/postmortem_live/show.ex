@@ -227,7 +227,7 @@ defmodule AtlasWeb.PostmortemLive.Show do
                   :for={domain <- @postmortem.domains}
                   navigate={~p"/engineering/domains/#{domain.id}"}
                 >
-                  <.badge label={domain.name} color="neutral" style="light-fill" size="large" />
+                  <.badge label={domain.name} color="neutral" style="light-fill" size="medium" />
                 </.link>
               </div>
               <span :if={@postmortem.domains == []}>{dgettext("postmortems", "Unassigned")}</span>

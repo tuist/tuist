@@ -130,14 +130,14 @@
   --noora-neutral-gray-24: oklch(32% 0.005 247.968 / 0.24);
   --noora-neutral-gray-16: oklch(34.8% 0 0 / 0.16);
 
-  --noora-alpha-red: oklch(54.8% 0.223 27 / 0.18);
-  --noora-alpha-orange: oklch(66.5% 0.181 48 / 0.14);
-  --noora-alpha-yellow: oklch(84.8% 0.173 86 / 0.16);
-  --noora-alpha-green: oklch(54.8% 0.162 147 / 0.14);
-  --noora-alpha-azure: oklch(54.8% 0.13 242 / 0.16);
-  --noora-alpha-blue: oklch(54.8% 0.223 260 / 0.2);
-  --noora-alpha-purple: oklch(54.8% 0.266 287.4 / 0.24);
-  --noora-alpha-pink: oklch(54.8% 0.219 7.5 / 0.22);
+  --noora-alpha-red: oklch(54.8% 0.223 27 / 0.24);
+  --noora-alpha-orange: oklch(66.5% 0.181 48 / 0.24);
+  --noora-alpha-yellow: oklch(84.8% 0.173 86 / 0.24);
+  --noora-alpha-green: oklch(54.8% 0.162 147 / 0.24);
+  --noora-alpha-azure: oklch(54.8% 0.13 242 / 0.24);
+  --noora-alpha-blue: oklch(54.8% 0.223 260 / 0.24);
+  --noora-alpha-purple: oklch(54.8% 0.266 287.4 / 0.32);
+  --noora-alpha-pink: oklch(54.8% 0.219 7.5 / 0.24);
   --noora-alpha-black: oklch(0% 0 0 / 0.8);
 
   /* Semantic colors */
@@ -463,45 +463,49 @@
   );
 
   /* Badge */
-  --noora-badge-fill-label: light-dark(
+  --noora-badge-fill-primary-label: light-dark(
     var(--noora-neutral-light-50),
-    var(--noora-neutral-light-100)
+    var(--noora-neutral-dark-50)
+  );
+  --noora-badge-fill-secondary-label: light-dark(
+    var(--noora-neutral-light-1200),
+    var(--noora-neutral-dark-1200)
   );
   --noora-badge-fill-neutral: light-dark(
-    var(--noora-neutral-light-800),
-    var(--noora-neutral-dark-600)
+    var(--noora-neutral-light-900),
+    var(--noora-neutral-dark-700)
   );
   --noora-badge-fill-destructive: light-dark(
     var(--noora-red-500),
-    var(--noora-red-700)
+    var(--noora-red-500)
   );
   --noora-badge-fill-warning: light-dark(
     var(--noora-orange-500),
-    var(--noora-orange-600)
+    var(--noora-orange-500)
   );
   --noora-badge-fill-attention: light-dark(
-    var(--noora-yellow-600),
-    var(--noora-yellow-600)
+    var(--noora-yellow-500),
+    var(--noora-yellow-500)
   );
   --noora-badge-fill-success: light-dark(
-    var(--noora-green-500),
+    var(--noora-green-600),
     var(--noora-green-600)
   );
   --noora-badge-fill-information: light-dark(
     var(--noora-azure-500),
-    var(--noora-azure-700)
+    var(--noora-azure-600)
   );
   --noora-badge-fill-focus: light-dark(
     var(--noora-blue-500),
-    var(--noora-blue-700)
+    var(--noora-blue-600)
   );
   --noora-badge-fill-primary: light-dark(
     var(--noora-purple-500),
-    var(--noora-purple-700)
+    var(--noora-purple-600)
   );
   --noora-badge-fill-secondary: light-dark(
     var(--noora-pink-500),
-    var(--noora-pink-700)
+    var(--noora-pink-600)
   );
 
   --noora-badge-light-fill-neutral-background: light-dark(
@@ -510,10 +514,10 @@
   );
   --noora-badge-light-fill-neutral-label: light-dark(
     var(--noora-neutral-light-1100),
-    var(--noora-neutral-light-100)
+    var(--noora-neutral-dark-50)
   );
   --noora-badge-light-fill-destructive-background: light-dark(
-    var(--noora-red-50),
+    var(--noora-red-100),
     var(--noora-alpha-red)
   );
   --noora-badge-light-fill-destructive-label: light-dark(
@@ -521,7 +525,7 @@
     var(--noora-red-400)
   );
   --noora-badge-light-fill-warning-background: light-dark(
-    var(--noora-orange-50),
+    var(--noora-orange-100),
     var(--noora-alpha-orange)
   );
   --noora-badge-light-fill-warning-label: light-dark(
@@ -529,7 +533,7 @@
     var(--noora-orange-300)
   );
   --noora-badge-light-fill-attention-background: light-dark(
-    var(--noora-yellow-50),
+    var(--noora-yellow-100),
     var(--noora-alpha-yellow)
   );
   --noora-badge-light-fill-attention-label: light-dark(
@@ -537,7 +541,7 @@
     var(--noora-yellow-400)
   );
   --noora-badge-light-fill-success-background: light-dark(
-    var(--noora-green-50),
+    var(--noora-green-100),
     var(--noora-alpha-green)
   );
   --noora-badge-light-fill-success-label: light-dark(
@@ -545,7 +549,7 @@
     var(--noora-green-400)
   );
   --noora-badge-light-fill-information-background: light-dark(
-    var(--noora-azure-50),
+    var(--noora-azure-100),
     var(--noora-alpha-azure)
   );
   --noora-badge-light-fill-information-label: light-dark(
@@ -553,7 +557,7 @@
     var(--noora-azure-400)
   );
   --noora-badge-light-fill-focus-background: light-dark(
-    var(--noora-blue-50),
+    var(--noora-blue-100),
     var(--noora-alpha-blue)
   );
   --noora-badge-light-fill-focus-label: light-dark(
@@ -561,7 +565,7 @@
     var(--noora-blue-400)
   );
   --noora-badge-light-fill-primary-background: light-dark(
-    var(--noora-purple-50),
+    var(--noora-purple-100),
     var(--noora-alpha-purple)
   );
   --noora-badge-light-fill-primary-label: light-dark(
@@ -569,7 +573,7 @@
     var(--noora-purple-400)
   );
   --noora-badge-light-fill-secondary-background: light-dark(
-    var(--noora-pink-50),
+    var(--noora-pink-100),
     var(--noora-alpha-pink)
   );
   --noora-badge-light-fill-secondary-label: light-dark(
@@ -579,11 +583,11 @@
 
   --noora-badge-disabled-background: light-dark(
     var(--noora-neutral-light-200),
-    var(--noora-neutral-light-1000)
+    var(--noora-neutral-dark-1000)
   );
   --noora-badge-disabled-label: light-dark(
     var(--noora-neutral-light-600),
-    var(--noora-neutral-light-300)
+    var(--noora-neutral-dark-500)
   );
 
   --noora-badge-status-success: var(--noora-green-500);
@@ -1131,14 +1135,14 @@
     --noora-blue-600: oklch(48.5% 0.225 261);
     --noora-blue-700: oklch(41.5% 0.195 262);
 
-    --noora-alpha-red: oklch(54.8% 0.25 27 / 0.18);
-    --noora-alpha-orange: oklch(66.5% 0.205 48 / 0.14);
-    --noora-alpha-yellow: oklch(84.8% 0.195 86 / 0.16);
-    --noora-alpha-green: oklch(54.8% 0.19 147 / 0.14);
-    --noora-alpha-azure: oklch(54.8% 0.169 242 / 0.16);
-    --noora-alpha-blue: oklch(54.8% 0.24 260 / 0.2);
-    --noora-alpha-purple: oklch(54.8% 0.283 287.4 / 0.24);
-    --noora-alpha-pink: oklch(54.8% 0.245 7.5 / 0.22);
+    --noora-alpha-red: oklch(54.8% 0.25 27 / 0.24);
+    --noora-alpha-orange: oklch(66.5% 0.205 48 / 0.24);
+    --noora-alpha-yellow: oklch(84.8% 0.195 86 / 0.24);
+    --noora-alpha-green: oklch(54.8% 0.19 147 / 0.24);
+    --noora-alpha-azure: oklch(54.8% 0.169 242 / 0.24);
+    --noora-alpha-blue: oklch(54.8% 0.24 260 / 0.24);
+    --noora-alpha-purple: oklch(54.8% 0.283 287.4 / 0.32);
+    --noora-alpha-pink: oklch(54.8% 0.245 7.5 / 0.24);
   }
 }
 

@@ -42,14 +42,14 @@
           label={"#{module_label(@selected_project)}: #{@test_case_detail.module_name}"}
           color="primary"
           style="light-fill"
-          size="large"
+          size="medium"
         />
         <.badge
           :if={@test_case_detail.suite_name != ""}
           label={"#{suite_label(@selected_project)}: #{@test_case_detail.suite_name}"}
           color="primary"
           style="light-fill"
-          size="large"
+          size="medium"
         />
       </div>
     </div>
@@ -59,7 +59,7 @@
         label={state_label(@test_case_detail.state || "enabled")}
         color={state_color(@test_case_detail.state || "enabled")}
         style="light-fill"
-        size="large"
+        size="medium"
       >
         <:icon>
           <.icon name={state_icon(@test_case_detail.state || "enabled")} />
@@ -70,7 +70,7 @@
         label={dgettext("dashboard_tests", "Flaky")}
         color="warning"
         style="light-fill"
-        size="large"
+        size="medium"
       >
         <:icon>
           <.icon name="alert_triangle" />
@@ -993,7 +993,7 @@
                   label={dgettext("dashboard_tests", "Flaky")}
                   color="attention"
                   style="light-fill"
-                  size="large"
+                  size="medium"
                 />
               </span>
             </div>

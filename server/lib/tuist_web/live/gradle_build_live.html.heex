@@ -34,14 +34,14 @@
           label={List.first(@build.custom_tags)}
           color="success"
           style="light-fill"
-          size="large"
+          size="medium"
         />
         <.badge
           :for={tag <- Enum.slice(@build.custom_tags || [], 1..-1//1)}
           label={tag}
           color="information"
           style="light-fill"
-          size="large"
+          size="medium"
         />
       </div>
       <.link_button
@@ -120,21 +120,21 @@
                 label={dgettext("dashboard_gradle", "Passed")}
                 color="success"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={@build.status == "failure"}
                 label={dgettext("dashboard_gradle", "Failed")}
                 color="destructive"
                 style="fill"
-                size="large"
+                size="medium"
               />
               <.badge
                 :if={@build.status == "cancelled"}
                 label={dgettext("dashboard_gradle", "Cancelled")}
                 color="warning"
                 style="fill"
-                size="large"
+                size="medium"
               />
             </div>
             <div data-part="metadata">

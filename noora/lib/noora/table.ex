@@ -436,7 +436,7 @@ defmodule Noora.Table do
   def badge_cell(assigns) do
     ~H"""
     <div data-part="cell" data-type="badge" {@rest}>
-      <.badge style={@style} color={@color} size="large" label={@label}>
+      <.badge style={@style} color={@color} size="medium" label={@label}>
         <:icon :if={@icon}>
           <.icon name={@icon} />
         </:icon>
