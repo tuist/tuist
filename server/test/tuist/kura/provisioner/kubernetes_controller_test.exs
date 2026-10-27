@@ -118,6 +118,24 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
   end
 
   describe "manifest/6" do
+    test "shared disk renders a floor independently of the grown ceiling" do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(StableEndpoint, :intent, fn server, region -> StableEndpoint.intent(server, region, []) end)
+      region = Regions.get("us-east")
+      shared = %{region | provisioner_config: Map.put(region.provisioner_config, :shared_disk, true)}
+      account = %Account{id: 1, name: "example", subscriptions: []}
+      server = %Server{account: account, storage_claim_size: "64Gi"}
+      ordinary = KubernetesController.manifest("test", "candidate", account, region, server)
+      manifest = KubernetesController.manifest("test", "candidate", account, shared, server)
+
+      assert manifest["spec"]["storageFloor"] == "8Gi"
+      assert manifest["spec"]["storageSize"] == "64Gi"
+      refute Map.has_key?(ordinary["spec"], "storageFloor")
+
+      assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] !=
+               ordinary["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"]
+    end
+
     test "positive fencing is opt-in and changes the manifest revision" do
       account = %{name: "tuist"}
       before = KubernetesController.manifest("test", "candidate", account, eu_region(), %Server{})

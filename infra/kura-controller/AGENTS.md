@@ -1,5 +1,12 @@
 # Kura Controller
 
+- [Shared disk capacity](shared-disk-capacity.md) is opt-in and disabled in all
+  regions. `storageFloor` separates the PVC/scheduler floor from the account
+  ceiling. `cmd/disk-agent` owns XFS quotas and read-only runtime budgets;
+  see [allocator invariants](internal/diskallocator/AGENTS.md). Never fund an
+  increase with an unobserved shrink. Require qualified-node placement and
+  compatible runtime enforcement before enabling floor-based requests.
+
 This module contains the Kubernetes controller that reconciles Kura account endpoint custom resources.
 
 ## Scope

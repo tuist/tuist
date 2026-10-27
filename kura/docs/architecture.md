@@ -435,3 +435,14 @@ REAPI module-cache traffic uses the same action cache and content-addressed blob
 ## Account identity
 
 The configured tenant remains the permanent storage and peer identity across account renames. A separate atomic snapshot of the current authorization handle, retained aliases and ready endpoint targets is refreshed by enrollment, heartbeat and managed discovery. HTTP and REAPI use current grants while retaining the original key namespace. With the default-off per-account endpoint-migration gate enabled, regional client hostnames follow the current name after DNS/HTTPS activation; historical client names remain covered by DNS, TLS and ingress for 90 days after renaming away from them. Name reservations and analytics attribution survive URL expiry. Only explicitly capable HTTP clients receive non-cacheable 307 redirects, while gRPC uses routing aliases. The control plane reserves historical handles against reuse. See [account renames](account-renames.md) for compatibility, migration audits and rollout gates.
+
+### Optional shared disk budgets
+
+`disk_budget::Controller` consumes a node-owned, read-only, expiring budget for
+one pod UID. The host's XFS project quota is the durable enforcement state;
+a lower target does not release its previous allowance. The supervised segment
+worker updates effective ring/backfill capacity and reclaims through ordinary
+retirement, preserving reader/writer pins and handover holds. Allocation pressure
+uses `disk_pressure` eviction attribution while snapshots retain the configured
+account ceiling. Missing/expired authorization blocks new storage commits and
+continues reads and cleanup. See the [policy, rollout and local XFS test](../../infra/kura-controller/shared-disk-capacity.md).

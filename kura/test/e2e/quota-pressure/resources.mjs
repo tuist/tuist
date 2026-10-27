@@ -6,9 +6,29 @@ const testImage = process.argv[3];
 if (!label || !testImage) throw Error("Usage: node resources.mjs label image");
 const network = "kura-resource-" + process.pid;
 const created = [];
+// Synthetic leases isolate runtime overhead at the same 3 GiB ring capacity.
+// Physical enforcement is exercised separately by the real-XFS harness.
+const sharedDisk = process.env.KURA_RESOURCE_SHARED_DISK === "1";
+const budgetDir = sharedDisk ? fs.mkdtempSync("/tmp/kura-resource-budgets-") : null;
+let generation = Date.now();
+function publishBudgets() {
+  generation++;
+  for (const id of ["a", "b"]) {
+    const file = `${budgetDir}/${id}.json`;
+    fs.writeFileSync(`${file}.tmp`, JSON.stringify({
+      version: 1, volume_id: id, generation, expires_ms: Date.now() + 15000,
+      floor_bytes: 4 * 1024 ** 3, ceiling_bytes: 8 * 1024 ** 3,
+      current_bytes: 8 * 1024 ** 3, target_bytes: 4 * 1024 ** 3, allow_writes: true,
+    }));
+    fs.renameSync(`${file}.tmp`, file);
+  }
+}
+if (sharedDisk) publishBudgets();
+const budgetTimer = sharedDisk ? setInterval(publishBudgets, 1000) : null;
 const dockerCommand = (...args) =>
   execFileSync("docker", args, { encoding: "utf8" });
 process.on("exit", () => {
+  clearInterval(budgetTimer);
   for (const name of created) {
     try {
       dockerCommand("rm", "-f", name);
@@ -17,6 +37,7 @@ process.on("exit", () => {
   try {
     dockerCommand("network", "rm", network);
   } catch {}
+  if (budgetDir) fs.rmSync(budgetDir, { recursive: true, force: true });
 });
 dockerCommand("network", "create", network);
 for (const [suffix, port] of [
@@ -40,6 +61,10 @@ for (const [suffix, port] of [
     KURA_OTEL_SERVICE_NAME: "quota-test",
     KURA_OTEL_DEPLOYMENT_ENVIRONMENT: "local",
   };
+  if (sharedDisk) {
+    env.KURA_DISK_VOLUME_ID = suffix;
+    env.KURA_DISK_BUDGET_FILE = `/run/kura-disk/${suffix}.json`;
+  }
   dockerCommand(
     "run",
     "-d",
@@ -52,6 +77,7 @@ for (const [suffix, port] of [
     "--memory=1536m",
     "--cpus=2",
     ...Object.entries(env).flatMap(([k, v]) => ["-e", k + "=" + v]),
+    ...(budgetDir ? ["-v", `${budgetDir}:/run/kura-disk:ro`] : []),
     testImage,
   );
   created.push(name);
@@ -175,12 +201,13 @@ stats.loadDurationMs = Date.now() - start;
 stats.loadEndSample = sequence;
 await sleep(30000);
 clearInterval(interval);
+clearInterval(budgetTimer);
 await sampling;
 await sample();
 const after = hostStats();
 fs.writeFileSync(
   `${out}/result.json`,
-  JSON.stringify({ stats, before, after, samples: sequence }, null, 2),
+  JSON.stringify({ stats, before, after, samples: sequence, sharedDisk }, null, 2),
 );
 console.log(JSON.stringify(stats));
 if (stats.failures.length) process.exitCode = 1;

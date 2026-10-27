@@ -256,3 +256,9 @@ Cluster formation requires a stable shared cookie Secret, a fixed distribution l
   queue while ordinary capacity is absent. A RISE-S-to-RISE-M template update
   under OnDelete does not replace the live host: prepare the new box first,
   then explicitly drain and retire the old Machine.
+
+The optional `kura-disk-agent` DaemonSet is disabled by default. Enabling it
+requires an explicit compatible image and physical reserve, and only selects
+nodes labelled `tuist.dev/kura-shared-disk=true`. Do not infer qualification
+from a pool name or enable floor-based admission on unqualified nodes. Its
+Kubernetes permissions are read-only; host privileges enforce XFS project quotas.

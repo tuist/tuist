@@ -1,0 +1,133 @@
+{{- if and .Values.kuraController.enabled .Values.kuraController.sharedDisk.enabled }}
+{{- $config := .Values.kuraController.sharedDisk }}
+{{- if not $config.image }}{{ fail "kuraController.sharedDisk.image must pin a compatible disk-agent image" }}{{ end }}
+{{- if le (int64 $config.reserveBytes) 0 }}{{ fail "kuraController.sharedDisk.reserveBytes must protect the filesystem eviction boundary" }}{{ end }}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "kura-disk-agent") }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Values.kuraController.namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}
+rules:
+  - apiGroups: [""]
+    resources: [persistentvolumes]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Values.kuraController.namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Values.kuraController.namespace }}
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Values.kuraController.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Values.kuraController.namespace }}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Values.kuraController.namespace }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ $name }}
+    spec:
+      serviceAccountName: {{ $name }}
+      nodeSelector:
+        kubernetes.io/os: linux
+        tuist.dev/kura-shared-disk: "true"
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: allocator
+          image: {{ $config.image | quote }}
+          args:
+            - --node=$(NODE_NAME)
+            - --namespace={{ .Values.kuraController.namespace }}
+            - --reserve-bytes={{ $config.reserveBytes | int64 }}
+            - --capacity-bytes={{ $config.capacityBytes | int64 }}
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          securityContext:
+            runAsUser: 0
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+              add: [SYS_ADMIN, DAC_OVERRIDE, DAC_READ_SEARCH]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: budgets
+              mountPath: /run/kura-disk
+            - name: locks
+              mountPath: /var/lock
+            - name: devices
+              mountPath: /dev
+              readOnly: true
+      volumes:
+        - name: data
+          hostPath:
+            path: /data
+            type: Directory
+        - name: budgets
+          hostPath:
+            path: /run/kura-disk
+            type: DirectoryOrCreate
+        - name: locks
+          hostPath:
+            path: /var/lock
+            type: Directory
+        - name: devices
+          hostPath:
+            path: /dev
+            type: Directory
+{{- end }}

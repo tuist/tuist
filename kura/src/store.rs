@@ -194,6 +194,8 @@ pub struct Store {
     disk_pressure_requested: AtomicU64,
     disk_pressure_notify: Notify,
     disk_pressure_reclamation: Mutex<PressureReclamation>,
+    shared_disk: Option<crate::disk_budget::Controller>,
+    shared_disk_staging_bytes: u64,
     deferred_capacity_retirements: StdMutex<VecDeque<PressureRetirement>>,
     segment_pins: StdMutex<HashMap<String, Arc<SegmentPin>>>,
     #[cfg(test)]
@@ -1442,7 +1444,11 @@ impl Store {
         let sync_feed = load_sync_feed_state(&db, config.sync_feed_max_rows)?;
         let segment_ring_limits = resolve_segment_ring_limits(
             config.cas_capacity_bytes,
-            total_disk_bytes(&config.data_dir),
+            if config.shared_disk.is_some() {
+                None
+            } else {
+                total_disk_bytes(&config.data_dir)
+            },
         );
         tracing::info!(
             desired_old_segments = segment_ring_limits.desired_old_segments,
@@ -1464,6 +1470,11 @@ impl Store {
             disk_pressure_requested: AtomicU64::new(0),
             disk_pressure_notify: Notify::new(),
             disk_pressure_reclamation: Mutex::new(PressureReclamation::default()),
+            shared_disk: config
+                .shared_disk
+                .clone()
+                .map(crate::disk_budget::Controller::new),
+            shared_disk_staging_bytes: config.tmp_dir_max_bytes,
             deferred_capacity_retirements: StdMutex::new(VecDeque::new()),
             segment_pins: StdMutex::new(HashMap::new()),
             #[cfg(test)]
@@ -1940,6 +1951,7 @@ impl Store {
         spec: PersistArtifactSpec<'_>,
         source: SegmentArtifactSource<'_>,
     ) -> Result<(PersistArtifactOutcome, bool), String> {
+        self.check_shared_disk_writable()?;
         // Read side of the namespace lock, held across this apply's tombstone
         // precheck and its commit. A delete taking the write side therefore
         // cannot commit its snapshot-scanned batch in between and leave this
@@ -3115,6 +3127,7 @@ impl Store {
         spec: PersistArtifactSpec<'_>,
         bytes: &[u8],
     ) -> Result<PersistArtifactOutcome, String> {
+        self.check_shared_disk_writable()?;
         // Read side of the namespace lock, held across this apply's tombstone
         // precheck and its commit. A delete taking the write side therefore
         // cannot commit its snapshot-scanned batch in between and leave this
@@ -4172,7 +4185,127 @@ impl Store {
     }
 
     fn effective_segment_ring_limits(&self) -> SegmentRingLimits {
-        SegmentRingLimits::with_total(self.disk_pressure_segment_limit.load(Ordering::Acquire))
+        SegmentRingLimits::with_total(
+            self.disk_pressure_segment_limit
+                .load(Ordering::Acquire)
+                .min(self.shared_disk_segment_limit()),
+        )
+    }
+
+    fn shared_disk_segment_limit(&self) -> usize {
+        self.shared_disk
+            .as_ref()
+            .map_or(self.segment_ring_limits.total_segments(), |disk| {
+                disk.target_bytes().map_or(
+                    SegmentRingLimits::legacy_floor().total_segments(),
+                    |bytes| {
+                        let ring = bytes
+                            .saturating_sub(self.shared_disk_staging_bytes)
+                            .saturating_sub(MAX_SEGMENT_BYTES)
+                            / 100
+                            * 97;
+                        usize::try_from(ring / MAX_SEGMENT_BYTES)
+                            .unwrap_or(usize::MAX)
+                            .max(SegmentRingLimits::legacy_floor().total_segments())
+                            .min(self.segment_ring_limits.total_segments())
+                    },
+                )
+            })
+    }
+
+    fn check_shared_disk_writable(&self) -> Result<(), String> {
+        if self
+            .shared_disk
+            .as_ref()
+            .is_some_and(|disk| !disk.writable())
+        {
+            return Err(format!(
+                "{DISK_FULL_MARKER}: shared disk authorization is unavailable or expired"
+            ));
+        }
+        Ok(())
+    }
+
+    // Use the ordinary retirement protocol and its writer/reader/authority
+    // barriers. At most one segment per pass keeps reclamation work bounded.
+    async fn reclaim_shared_disk_budget(&self) -> Result<(), String> {
+        let Some(disk) = &self.shared_disk else {
+            return Ok(());
+        };
+        let previous_target = disk.target_bytes();
+        if let Err(error) = disk.refresh().await {
+            tracing::debug!(error, "shared disk budget refresh failed");
+        }
+        if previous_target.is_some_and(|old| disk.target_bytes().is_some_and(|new| new > old)) {
+            // A quota-backed grant can recover a pressure cap learned at the
+            // smaller allocation. Rotation still checks physical headroom.
+            self.disk_pressure_segment_limit
+                .fetch_max(self.shared_disk_segment_limit(), Ordering::AcqRel);
+        }
+        let mut recovery = self.disk_pressure_reclamation.lock().await;
+        self.adopt_deferred_capacity_retirement(&mut recovery);
+        self.finish_segment_retirement(&mut recovery).await?;
+        {
+            let _refresh = self.segment_refresh_lock.lock().await;
+            let _exclusive = self.segment_write_barrier.write().await;
+            let _writer = self.segment_write_lock.lock().await;
+            let snapshot = self.segment_state_snapshot();
+            if snapshot.generations.len() <= SegmentRingLimits::legacy_floor().total_segments() {
+                return Ok(());
+            }
+            if snapshot.generations.len() <= self.shared_disk_segment_limit() {
+                // XFS preallocation and other retained blocks can keep actual
+                // use above the target after the nominal ring fits. Continue
+                // only with physical evidence, and stop if cleanup makes no
+                // progress (for example, an unlinked file held by a reader).
+                let required = disk.reclamation_headroom_bytes();
+                let Some(available) = self.available_segment_disk_bytes() else {
+                    return Ok(());
+                };
+                if required == 0 || available >= required {
+                    return Ok(());
+                }
+                if recovery
+                    .no_progress_at
+                    .is_some_and(|previous| available <= previous)
+                {
+                    return Ok(());
+                }
+                recovery.no_progress_at = None;
+            }
+            let Some(candidate) = snapshot.state.next_evictee().cloned() else {
+                return Ok(());
+            };
+            if self.is_active_segment(&candidate.segment_id)
+                || self.segment_is_pinned(&candidate.segment_id)
+            {
+                return Ok(());
+            }
+            let bytes = try_path_size_bytes(&self.segment_path(&candidate.segment_id)).unwrap_or(0);
+            {
+                let _state = self.segment_state_lock.lock().await;
+                let hold = self
+                    .handover_hold
+                    .lock()
+                    .map_err(|_| "handover hold poisoned")?;
+                if self.handover_enabled && hold.is_some() {
+                    return Ok(());
+                }
+                let mut state = self.segment_state_snapshot().state.clone();
+                state.remove_segment(&candidate.segment_id);
+                self.save_segment_state(&state)?;
+            }
+            recovery.pending = Some(PressureRetirement {
+                segment: candidate,
+                bytes,
+                available_before: self.available_segment_disk_bytes().unwrap_or(0),
+                // Existing sizing excludes pressure evictions. Contention must
+                // not manufacture evidence for repeated entitlement growth.
+                reason: "disk_pressure",
+            });
+            self.disk_pressure_notify.notify_one();
+        }
+        self.finish_segment_retirement(&mut recovery).await
     }
 
     pub(crate) async fn handover_reclaim_candidates(&self) -> Result<HashSet<String>, String> {
@@ -4271,6 +4404,9 @@ impl Store {
             tokio::select! {
                 _ = self.disk_pressure_notify.notified() => {},
                 _ = tokio::time::sleep(Duration::from_secs(1)) => {},
+            }
+            if let Err(error) = self.reclaim_shared_disk_budget().await {
+                tracing::warn!(error, "shared disk budget reclamation failed");
             }
             let requested = self.disk_pressure_requested.load(Ordering::Acquire);
             if requested == 0 {
@@ -4651,7 +4787,13 @@ impl Store {
                 bytes: try_path_size_bytes(&self.segment_path(&segment.segment_id)).unwrap_or(0),
                 segment,
                 available_before: 0,
-                reason: "capacity",
+                reason: if self.shared_disk_segment_limit()
+                    < self.segment_ring_limits.total_segments()
+                {
+                    "disk_pressure"
+                } else {
+                    "capacity"
+                },
             });
         }
         drop(deferred);
@@ -4685,7 +4827,16 @@ impl Store {
         artifact_count: u64,
         bytes: u64,
     ) {
-        self.record_segment_eviction(segment, artifact_count, bytes, "capacity");
+        let reason = if self
+            .shared_disk
+            .as_ref()
+            .is_some_and(|disk| disk.contended())
+        {
+            "disk_pressure"
+        } else {
+            "capacity"
+        };
+        self.record_segment_eviction(segment, artifact_count, bytes, reason);
     }
 
     fn record_segment_eviction(
@@ -6022,6 +6173,7 @@ impl Store {
         origin_region: Option<&str>,
         content_sha256: Option<&str>,
     ) -> Result<BackfillStageOutcome, String> {
+        self.check_shared_disk_writable()?;
         let spec = PersistArtifactSpec {
             producer,
             namespace_id,
@@ -6084,6 +6236,7 @@ impl Store {
         origin_region: Option<&str>,
         content_sha256: Option<&str>,
     ) -> Result<BackfillStageOutcome, String> {
+        self.check_shared_disk_writable()?;
         let spec = PersistArtifactSpec {
             producer,
             namespace_id,
@@ -6942,6 +7095,8 @@ impl Store {
         part_path: &Path,
         size: u64,
     ) -> Result<(), MultipartError> {
+        self.check_shared_disk_writable()
+            .map_err(MultipartError::Other)?;
         if part_number == 0 || part_number as usize > MAX_MULTIPART_PARTS {
             return Err(MultipartError::PartsMismatch);
         }
@@ -12804,6 +12959,7 @@ mod tests {
     {
         let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
         let mut config = Config {
+            shared_disk: None,
             serving_authority: None,
             port: 0,
             internal_port: 7443,
@@ -23203,6 +23359,90 @@ mod tests {
             }
         }
         manifests
+    }
+
+    #[tokio::test]
+    async fn shared_disk_reclaims_to_target_without_restarting_or_losing_pinned_data() {
+        let (dir, _, mut store) = temp_store_with(|config| {
+            config.cas_capacity_bytes = Some(8 * 1024 * 1024 * 1024);
+            config.tmp_dir_max_bytes = 128 * 1024 * 1024;
+        });
+        let manifests = seed_pressure_segments(&store, 12).await;
+        let file = dir.path().join("budget.json");
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+        std::fs::write(
+            &file,
+            serde_json::to_vec(&serde_json::json!({
+                "version": 1, "volume_id": "replica", "generation": 1,
+                "expires_ms": now + 15_000, "floor_bytes": 4u64 << 30,
+                "ceiling_bytes": 8u64 << 30, "current_bytes": 8u64 << 30,
+                "target_bytes": 6u64 << 30, "allow_writes": true
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        store.shared_disk = Some(crate::disk_budget::Controller::new(
+            crate::disk_budget::Config {
+                file: file.clone(),
+                volume_id: "replica".into(),
+            },
+        ));
+        let pin = store.pin_segment(manifests[0].segment_id.as_ref().unwrap());
+        store.reclaim_shared_disk_budget().await.unwrap();
+        assert_eq!(store.segment_state_snapshot().generations.len(), 12);
+        drop(pin);
+        store.handover_enabled = true;
+        *store.handover_hold.lock().unwrap() = Some("handover".into());
+        store.reclaim_shared_disk_budget().await.unwrap();
+        assert_eq!(store.segment_state_snapshot().generations.len(), 12);
+        *store.handover_hold.lock().unwrap() = None;
+        for _ in 0..12 {
+            store.reclaim_shared_disk_budget().await.unwrap();
+        }
+        assert_eq!(store.segment_state_snapshot().generations.len(), 10);
+        store.disk_available_override = Some(Arc::new(|| 0));
+        store.reclaim_shared_disk_budget().await.unwrap();
+        assert_eq!(store.segment_state_snapshot().generations.len(), 9);
+        store.reclaim_shared_disk_budget().await.unwrap();
+        assert_eq!(store.segment_state_snapshot().generations.len(), 9);
+        store.disk_available_override = Some(Arc::new(|| 1 << 30));
+        store.reclaim_shared_disk_budget().await.unwrap();
+        assert_eq!(store.segment_state_snapshot().generations.len(), 8);
+        store
+            .disk_pressure_segment_limit
+            .store(5, Ordering::Release);
+        std::fs::write(
+            &file,
+            serde_json::to_vec(&serde_json::json!({
+                "version": 1, "volume_id": "replica", "generation": 2,
+                "expires_ms": now + 15_000, "floor_bytes": 4u64 << 30,
+                "ceiling_bytes": 8u64 << 30, "current_bytes": 8u64 << 30,
+                "target_bytes": 8u64 << 30, "allow_writes": true
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        store.reclaim_shared_disk_budget().await.unwrap();
+        assert!(store.effective_segment_ring_limits().total_segments() > 5);
+        store.disk_available_override = Some(Arc::new(|| 2 << 30));
+        store.reclaim_shared_disk_budget().await.unwrap();
+        assert_eq!(store.segment_state_snapshot().generations.len(), 8);
+        assert!(
+            store
+                .manifest(&manifests[11].artifact_id)
+                .unwrap()
+                .is_some()
+        );
+        assert!(store.manifest(&manifests[0].artifact_id).unwrap().is_none());
+        assert!(
+            store
+                .take_pending_capacity_evictions()
+                .iter()
+                .all(|event| event.reason == "disk_pressure")
+        );
     }
 
     fn model_pressure_from_unlinked_segments(store: &mut Store, manifests: &[ArtifactManifest]) {
