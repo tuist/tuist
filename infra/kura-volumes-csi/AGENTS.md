@@ -1,5 +1,12 @@
 # kura-volumes-csi
 
+The current implementation below uses thick LVs. The approved target is
+[thin encrypted volumes](thin/design.md), with reusable local qualification in
+[thin/AGENTS.md](thin/AGENTS.md). Physical overcommit is blocked until its
+exhaustion gate passes; the initial fallback reserves complete virtual ceilings.
+Do not present the existing thick staging/performance results or #14825 shared-XFS
+capacity/memory projections as validation of the thin layout.
+
 CSI driver `kura-volumes.tuist.dev` behind the `kura-encrypted-nvme`
 StorageClass and the plain-XFS `kura-lvm-nvme` class. Encrypted PVCs get their own LUKS2 container, backed by a
 logical volume in the node's `--volume-group` when the node has one, and
