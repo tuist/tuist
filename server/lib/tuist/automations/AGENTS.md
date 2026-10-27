@@ -3,7 +3,6 @@
 Metric alerts have two execution paths during rollout. `Alert.durable_execution`
 selects the PostgreSQL-backed pipeline in `Execution`; existing alerts default to
 legacy inline execution. Do not expose that switch through ordinary alert edits.
-See [the rollout and recovery guide](../../../docs/durable-automations.md).
 
 - Evaluation pages contain at most 200 test cases. Reserve transitions, insert
   Oban jobs and advance the page cursor in one PostgreSQL transaction. Cursor
