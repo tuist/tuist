@@ -1,14 +1,7 @@
-# ProjectDescription (CLI Module)
+# ProjectDescription
 
-This module provides manifest-facing types used to describe projects, targets, and settings.
-
-## Responsibilities
-- Define the public manifest DSL: `Project`, `Target`, `Scheme`, actions, settings, and resource definitions.
-- Encode manifest structures as `Codable` so they can be loaded and serialized by `TuistLoader`.
-
-## Boundaries
-- Manifest loading/evaluation lives in `cli/Sources/TuistLoader`.
-- Graph and generation logic lives in `cli/Sources/TuistGenerator`/`TuistCore`.
+Public manifest DSL. Loading belongs to TuistLoader; graph/generation logic belongs
+to feature modules. Keep Codable/Equatable models stable across released manifests.
 
 ## Invariants
 - Manifest types are `Codable`/`Equatable` and designed to be stable across versions.
@@ -18,8 +11,4 @@ This module provides manifest-facing types used to describe projects, targets, a
 
 - `InstallOptions.ManifestEnvironment.automatic` hides GitHub CI metadata and rotating credentials from cached manifest evaluation, preserving platform/toolchain and application inputs. Document that native SwiftPM resolution retains known credentials for fetching and evaluates manifests with them too. `.automatic(including:)` and `.all` restore intentional CI/credential-dependent manifest inputs; explicit exclusions affect native resolution as well.
 
-## Related Context
-
-- cli/Sources/TuistLoader/AGENTS.md
-- cli/Sources/TuistGenerator/AGENTS.md
 - `includeLocalPackageTestTargets` opts local path package tests into generation, including cross-package products available through `Tuist/Package.swift`; remote package tests stay excluded.

@@ -31,7 +31,7 @@ defmodule Atlas.Automations.DomainRegistryTest do
 
   test "shared Moodboard tools stay outside workflow behaviors" do
     for name <-
-          ~w(create_moodboard_resource list_moodboard_resources get_moodboard_resource search_moodboard_resources update_moodboard_resource delete_moodboard_resource add_moodboard_comment delete_moodboard_comment) do
+          ~w(create_moodboard_resource suggest_moodboard_resource list_moodboard_resources get_moodboard_resource search_moodboard_resources update_moodboard_resource delete_moodboard_resource add_moodboard_comment delete_moodboard_comment) do
       assert Map.has_key?(DomainRegistry.exclusions(), name)
       refute Enum.any?(DomainRegistry.entries(), &(&1["source_tool"] == name))
       refute Catalog.valid_type?(name)

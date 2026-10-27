@@ -182,18 +182,7 @@ defmodule Tuist.Runners.Catalog do
         }
       end)
 
-    resources = shape_resources ++ pool_resources
-    vrack_pools = Tuist.Environment.runners_linux_vrack_pools()
-
-    vrack_resources =
-      Enum.flat_map(resources, fn resource ->
-        case Map.get(vrack_pools, resource.fleet_name) do
-          nil -> []
-          name -> [%{resource | fleet_name: name}]
-        end
-      end)
-
-    resources ++ vrack_resources
+    shape_resources ++ pool_resources
   end
 
   @doc """

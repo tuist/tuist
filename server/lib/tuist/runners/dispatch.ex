@@ -669,11 +669,7 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  # vRack routes are host-wide, so account opt-in selects a disjoint Linux host
-  # cohort while both cohorts keep using the same regional Kura instances.
-  defp profile_pool_name(account, %{platform: :linux} = profile) do
-    linux_pool_name(account, Catalog.pool_name(profile))
-  end
+  defp profile_pool_name(_account, %{platform: :linux} = profile), do: Catalog.pool_name(profile)
 
   # An account on the `runner_site` flag runs on the rack whenever it runs the
   # profile's pool and can serve it, and on the rented fleet otherwise. In an
@@ -689,20 +685,12 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  defp linux_pool_name(account, pool_name) do
-    if FeatureFlags.runner_linux_vrack_enabled?(account) do
-      Map.get(Environment.runners_linux_vrack_pools(), pool_name, pool_name)
-    else
-      pool_name
-    end
-  end
-
-  defp resolve_legacy_pool(account, requested_labels) do
+  defp resolve_legacy_pool(_account, requested_labels) do
     case match_pool(requested_labels) do
       {:ok, %{name: name, dispatch_label: label} = pool} ->
         {:ok,
          %{
-           pool_name: if(pool.platform == :linux, do: linux_pool_name(account, name), else: name),
+           pool_name: name,
            requested_dispatch_label: label,
            platform: pool.platform,
            vcpus: pool.vcpus,

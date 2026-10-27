@@ -53,7 +53,7 @@ tracing = "0.1.41"
 tracing-opentelemetry = "0.33.0"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt", "json"] }
 uuid = { version = "1.18.1", features = ["serde", "v7"] }
-zstd = "0.13"
+zstd = "0.14.3"
 
 # `unprefixed_malloc_on_supported_platforms` builds jemalloc without the `_rjem_` symbol prefix, so
 # the binary's own `malloc`/`free` are jemalloc's and interpose libc's for the whole process. Without

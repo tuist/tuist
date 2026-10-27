@@ -92,7 +92,10 @@ case "$expected_sha" in
   ''|*[!0-9a-f]*) echo 'invalid tart-kubelet SHA-256 manifest' >&2; exit 1 ;;
 esac
 [ "${#expected_sha}" -eq 64 ]
-cat <&0 > "$stage/tart-kubelet" &
+# POSIX shells replace background commands' stdin with /dev/null. Preserve
+# the upload stream before launching the writer so the watchdog can bound it.
+exec 3<&0
+cat <&3 > "$stage/tart-kubelet" &
 upload_pid=$!
 wait "$upload_pid"
 upload_pid=

@@ -1,4 +1,4 @@
-# cluster-api-provider-tuist
+# Cluster API Provider
 
 - OVH cache vRack reconciliation is additive on the Ready path, scoped by the
   environment ConfigMap and cache taint, or explicit `spec.vRackID` on Kata runners. Persist address reservations across
@@ -2824,10 +2824,9 @@ fleet size from there. No `kubectl create secret` calls.
 
 ## Build
 
+Run `go test ./...` and `go build ./...` here. For image changes, the Docker build context is the repository root:
+
 ```bash
-cd infra/cluster-api-provider-tuist
-go test ./...
-go build ./...
 docker build -f Dockerfile -t ghcr.io/tuist/capi-provider-scaleway-applesilicon:dev ../..
 ```
 

@@ -1,64 +1,13 @@
-# stable-egress-controller
+# Stable Egress Controller
 
-Keeps the hosted Tuist server's **stable egress source IP** highly available.
+Owns active/standby election for the server's Hetzner Floating IP and gateway label. The host-configurer prepares every candidate; Cilium follows the single active label.
 
-## Purpose
-
-Server pods SNAT their public egress through a single Hetzner Cloud Floating IP
-(a stable address customers allowlist) via a `CiliumEgressGatewayPolicy`. That
-policy routes through one gateway node, and the Floating IP can only be assigned
-to one server at a time — so the gateway is inherently active/standby. This
-controller makes the failover automatic.
-
-It keeps one directly healthy, host-prepared node designated **active** —
-holding the Floating IP (Hetzner Cloud API) and the active gateway label.
-Kubernetes NodeReady does not demote a working active gateway, but readiness and
-schedulability are required before promoting a standby. The controller adopts
-an already-active prepared node without disturbing it. Only after 90 seconds of
-continuous direct health-check failure does it fail over to another prepared
-candidate. It removes the old selector before moving the address, then selects
-the new gateway after the provider assignment succeeds. This replaces the
-manual `hcloud floating-ip
-assign` + relabel runbook
-that caused a multi-hour egress outage on 2026-06-14 when a hand-labelled gateway
-node was replaced.
-
-The grace timestamps are deliberately leader-local. A controller restart or
-leadership handover restarts the grace period, preferring a delayed failover
-over moving the outbound address on stale health evidence.
-
-## Architecture
-
-```
- md-egress pool (≥2 nodes)            this controller (2 replicas, leader-elected)
- each self-labels at kubelet:          watches Nodes ──► checks Cilium directly
-   tuist.dev/stable-egress-                              │
-     candidate=server       host-configurer prepares IP ──┤
-                                and reports Pod Ready      ├─► Hetzner API: assign Floating IP → active node
-                                                          └─► label prepared node tuist.dev/stable-egress-gateway=server
-                                                                         │
- CiliumEgressGatewayPolicy ──selects active label──────────────────────┘
- host-configurer DaemonSet ──selects candidate label──► preconfigures every standby
-```
-
-Why not lean on Cilium: OSS Cilium egress gateway picks a gateway node by
-lexical order with no health-based failover (cilium/cilium#30157; HA is an
-Isovalent Enterprise feature) and has no concept of the Hetzner Floating IP,
-which only moves via the Cloud API. The controller owns election + the IP + the
-label; Cilium follows the active label after the host-configurer has prepared
-the candidate.
-
-## Module layout
-
-- `cmd/manager/main.go` — flags, controller-runtime manager, leader election.
-- `controllers/failover.go` — the reconciler; `selectActive` is the pure
-  election policy (sticky to a healthy current node, else lexically-lowest).
-- `internal/hcloud/` — Hetzner Cloud SDK wrapper implementing `FloatingIPManager`.
-- `config/rbac/role.yaml` — hand-written RBAC (nodes patch + leases + events).
-
-The Deployment + RBAC are rendered by the platform Helm chart
-(`infra/helm/platform/templates/stable-egress-controller.yaml`), gated on
-`ciliumEgressGateway.server.failoverController.enabled`.
+- Adopt a directly healthy, prepared active node, even outside the candidate pool. NodeReady alone must not demote a working gateway. Promote only Ready, schedulable, prepared standbys, deterministically when multiple candidates qualify.
+- Require continuous direct Cilium health-check failure for 90 seconds or missing host preparation for five minutes before failover. Grace timestamps are leader-local: restart/handover restarts the grace rather than acting on stale evidence.
+- Remove the old selector before moving the Floating IP; select the new gateway only after provider assignment succeeds. Clear stale cluster-wide active labels; steady state must not churn the address.
+- Fail closed when the Floating IP is outside the configured egress-IP allowlist. Keep that allowlist aligned with the customer network guide.
+- Preserve leader election for multiple replicas and eligibility-only Node event filtering. Host-configurer Pod changes also trigger reconciliation; kubelet heartbeats must not cause Cloud API polling storms.
+- Deployment/RBAC is gated by `ciliumEgressGateway.server.failoverController.enabled` in [the platform template](../helm/platform/templates/stable-egress-controller.yaml). Release tag resolution belongs to [k8s:install-platform](../mise/tasks/k8s/install-platform.sh) (run with `mise -C infra` from the repository root), not a hard-coded chart tag.
 
 ## Configuration
 
@@ -80,10 +29,7 @@ The Deployment + RBAC are rendered by the platform Helm chart
 
 ## Tests
 
-```bash
-cd infra/stable-egress-controller
-go test ./...
-```
+Run `go test ./...` here.
 
 Covers `selectGateway` (sticky / failover / lexical / none), prepared-candidate
 gating, `providerID` parsing, the egress-IP allowlist guard, the Node event

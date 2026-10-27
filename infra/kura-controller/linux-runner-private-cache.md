@@ -1,256 +1,95 @@
-# Linux runners: reuse regional Kura over OVH vRack
+# Linux runners: direct regional caches on one pool
 
-Linux runners use each account's existing regional Kura instance and internal
-Service. This change lets compatible OVH runner hosts reach those instances
-over the environment's vRack. It adds no Linux-specific cache region,
-provisioning lifecycle or readiness probe. The default-off account flag
-`runner_linux_vrack` selects isolated runner pools on enrolled hosts. Existing
-macOS private-cache behavior is unchanged. Additional cache-host orders are
-on hold.
+Every Linux job shares the existing `runners-linux` host pool and receives its
+account's existing regional Kura Service URL. There is no cache-path account
+flag, alternate runner cohort or WAN relay. Eligible OVH hosts use vRack for
+all accounts after network enrollment. No new cache hosts or cache instances
+are required. macOS private-cache behavior is unchanged.
 
-## Selection and network control
+Linux prefers the existing EU-West instance, falling back to another active
+managed region when EU-West is absent. The selected primary, authorization,
+contents, storage accounting and move identity remain unchanged. Host routes
+also match cache nodes' public IPs, so using a public hostname would not provide
+an account-specific WAN treatment. This rollout intentionally applies to all
+jobs on an enrolled host; account opt-out is no longer part of the design.
 
-`Kura.runner_cache_endpoint_url/3` already selects the account's active managed
-EU-West instance for Linux, falling back to another active managed region when
-EU-West is absent, or no override when no instance is available. The internal
-URL addresses the same instance used by public clients, including its `-m`
-Service after a move. Reuse preserves its storage accounting, contents, tenant
-authorization and public endpoint. It does not create another account cache.
-Do not assume every account has a Gravelines-local cache: verify its selected
-Service and backing pods. Selection is not generalized to arbitrary runner
-geographies by this PR; it retains the existing EU-West preference.
+## Rollout
 
-The provider enrolls Kata runner hosts only when
-`OVHDedicatedMachine.spec.vRackID` is explicitly set and matches the environment's
-private-network ConfigMap. Existing cache hosts remain participants. Enrolled
-runners receive address reservations and reciprocal peer routes; legacy hosts
-without a private NIC stay unenrolled. The Helm fleet template now exposes this
-field. Existing OnDelete Machines require explicit enrollment; changing their
-template does not update their specs.
+Canary's Gravelines RISE-M is `ns3127017.ip-51-68-34.eu`, Machine/Node
+`tuist-tuist-ovh-fleet-runners-linux-gnbmk-jgl25`. It uses the existing Canadian
+`kura-tuist-ca-east-1` cache. Production has ten RISE-L runners and six existing
+EU-West cache hosts. Refresh inventory and load before changing either fleet.
+Canary validates transport and correctness, not Gravelines-local latency.
 
-### Account feature flag
+1. Verify no queued, claimed or running jobs reference retired `-vrack-` pools.
+   Deploy the shared-pool server/chart changes through the reviewed pipeline.
+   Preserve existing pool sizing, cache-agent coverage and Machine identities.
+2. The canary and production runner templates declare `vRackID` values
+   `pn-2024092` and `pn-2024093`. Existing OnDelete hosts require a drained
+   backfill of the same field. Drain one runner at a time, without deleting or
+   reinstalling its Machine or changing its pool. Ensure the cache peers are
+   enrolled in the environment's existing private network as well.
+3. Require private-network readiness, reciprocal-route attestations, full-MTU
+   connectivity and Kata readiness before returning the host to service. Verify
+   the actual route and interface traffic; a direct Service URL alone does not
+   prove PN transport. Retain the existing unreachable guards.
+4. Run the canary Gradle smoke on the enrolled host. Require a fresh upload and
+   remote `FROM-CACHE` restore with matching output and local caching disabled.
+   Check ordinary public-client access and cache health. Then enroll production
+   hosts one at a time and repeat the path/restore validation against the existing
+   Gravelines instances. No account enrollment step is involved.
 
-`runner_linux_vrack` defaults off in **every environment**, including staging
-and canary, and is registered in the audited Ops flag catalog. Enable only the
-Tuist account actor initially; do not create a global or percentage enrollment.
-This is a new flag, deliberately independent of the retired experiment's flag.
+Human canary/production elevation is required for live mutations; see
+[cluster access](../AGENTS.md#cluster-access-for-agents). Host network rollback
+is a drained maintenance operation; clearing `vRackID` alone does not safely
+remove installed routes. Repeating the live rollback drill is excluded at the
+user's request. Removing the obsolete flag from code does not require deleting
+its historical database records during the rolling upgrade.
 
-The flag is evaluated when resolving a new Linux job's target pool. With the
-flag off, dispatch keeps the ordinary pool. With it on and a Helm-declared
-mapping present, dispatch uses the corresponding `-vrack-` pool with identical
-CPU/memory/image. The same path is used by GitHub, GitLab and Buildkite profile
-dispatch. Explicit legacy pools without a mapped counterpart remain unchanged;
-internal vRack labels cannot be selected directly to bypass the account gate.
-macOS routing is unchanged. No endpoint is removed from unflagged runs: both
-cohorts retain the ordinary regional Kura Service.
+## Validation
 
-`runnersFleetLinux.vrack.enabled` prepares the pools and server mapping; it
-never enables any account. Shared managed values enable this preparation in
-staging, canary and production through their normal deployments; self-hosted
-installs default off. No environment-specific preparation overlay is needed.
-The new pools have a zero warm floor and a different
-`fleetSelector` (`runners-linux-vrack`). The existing cache-volume agent covers
-both cohorts. Capacity accounting uses the existing controller's per-fleet
-selection, with the same per-job resource reservation in both cohorts.
+Use `linux-runners-staging-smoke.yml` with `gradle_cache=true`,
+`runner_label=tuist-canary-linux`, `server_url=https://canary.tuist.dev` and
+`project=tuist/tuist` for the canary Gradle upload/restore check. Despite its
+historical name these inputs select canary. Leave other options off: the real
+Kotlin compilation, request latency and regional benchmark helpers still enforce
+staging/EU-West, and the hold/restart drill is staging-only.
 
-**Host separation is a prerequisite.** Ordinary pools must contain only
-unenrolled hosts; vRack pools must contain only enrolled, qualified hosts.
-Host routes affect every job on that host. Do not enroll an ordinary fleet or
-merely gate the cache URL: that would expose unflagged runs too. Move drained
-hosts through a reviewed CAPI ownership/label transition preserving their
-physical identity. Cordon first, let the controller reap idle pollers and let
-claimed jobs finish; require zero nonterminal runner Pods before changing
-cohort labels or routes. Cordon alone does not stop an already-running poller.
-The MachineDeployment/MachineSet, Machine and live Node
-must agree on cohort membership across reconciliation. A one-off Node relabel
-that CAPI can overwrite is not isolation. Do not delete/reinstall a live
-Machine as a shortcut. Keep enough healthy ordinary capacity for other accounts.
+The [ordinary canary baseline](https://github.com/tuist/tuist/actions/runs/40473996831)
+passed before enrollment: a fresh Gradle key was uploaded and restored with
+matching output through the existing Canadian instance. It did not prove private
+transport. Measure metadata/HEAD and object reads on the same instance before
+and after enrollment, including concurrent builds, errors, p95, CPU, memory,
+disk and link pressure. Keep logs and captures in workflow artifacts rather
+than dated repository validation directories.
 
-Staging and canary target **one RISE-M each** to limit cost. One physical host
-cannot serve both isolated cohorts concurrently. Qualify the ordinary path,
-drain all jobs and pollers, then move that host's persistent CAPI membership
-and network configuration to the vRack cohort for enrolled-account tests.
-Restore the ordinary cohort after draining the vRack tests. Excluded-account
-jobs must never fall through to the enrolled host; they will queue while
-ordinary capacity is absent. Schedule these as controlled non-production
-maintenance windows. Production keeps separate capacity for simultaneous
-enrolled and excluded-account validation. The account flag alone does not
-switch a host's cohort or routes.
+Historical measurements in [#14766](https://github.com/tuist/tuist/pull/14766)
+used a dedicated Gravelines instance versus Canada with different egress limits.
+They do not establish the final same-instance production performance.
 
-To roll back account exposure, disable the flag for the Tuist actor and verify
-new jobs select ordinary pools. No active job is migrated and no cache is
-deleted; already-queued jobs may still use their recorded vRack pool. Keep the
-cohort, mapping and routes until those jobs finish. Flag propagation uses the
-existing bounded FunWithFlags cache/pubsub behavior, not instantaneous global
-invalidation. Inspect effective flags and actual dispatched fleet names when
-validating disablement. A global false alone does not override actor enables.
+## Staging migration remains separate
 
-## Staging migration required before deploying this revision
+Staging still needs the old `ovh-gra-runners` experiment retired before this
+release is deployed there. The current request leaves staging alone.
 
-The deployed staging experiment still uses the previous private Linux region.
-Removing its catalog entry before retiring its instances can leave active
-unknown-region rows eligible for public selection. Complete the following
-transition using the previously deployed server before deploying the refactor:
-
-1. Inventory the old `ovh-gra-runners` account rows, KuraInstances, Services,
-   pods and claims, and jobs retaining their URLs. On the old release, remove
-   all enrollments of `kura_linux_runner_cache` and ensure it evaluates false
-   for every affected account. A global false rule alone does not override
-   actor/percentage rules. Confirm new jobs use an ordinary regional Service.
-2. Keep the old region available to reconciliation while its instances drain.
-   Wait for every job retaining its URL to finish and for the normal lifecycle
-   to remove serving instances. The previous implementation has a 15-minute
-   minimum drain and up to six hours of job protection; verify state, rather
-   than assuming a timer alone proves completion. Require zero non-destroyed
-   old-region rows and no old-region serving CRs/pods/Services before proceeding.
-   Do not relabel a live private instance into EU-West or rewrite its region
-   in SQL. Retired local volumes follow the existing storage cleanup process.
-3. Reuse the already prepared Gravelines RISE-1 as ordinary EU-West capacity.
-   Keep its `gra-runners-cache` fleet resource name and OVH adoption prefix to
-   avoid deleting/recreating the Machine or reinstalling the host. The name is
-   historical; its target pool is now the existing `kura-dedibox` EU-West pool.
-   After the old workloads drain, update the owning Machine/pool labels and
-   live Node label consistently with the reviewed OnDelete template; confirm
-   CAPI retains them. Do not delete the Machine to force a label change.
-   Check local storage, egress capacity, EU-West ingress and public DNS/TLS,
-   private membership, reciprocal routes and the controller's capacity view.
-4. Deploy the refactored configuration only after those checks. Staging then
-   advertises `scw-fr-par-runners,eu-west,ca-east`; no Linux private region is
-   available. Let ordinary regional placement/activation create or reuse the
-   test account's EU-West instance. Confirm both public and internal endpoints
-   address that same instance. The Canadian fleet remains available as the
-   controlled remote baseline. Remove the obsolete stored flag after no old
-   server replica depends on it.
-5. Before enrollment, separate the existing vRack-enrolled RISE-M from ordinary
-   runner scheduling as described above. The ordinary fleet template intentionally
-   has no vRack ID, so future ordinary hosts stay unenrolled. Require usable
-   ordinary capacity for concurrent tests, or use the sequential single-host
-   procedure above. Run fresh regional smoke jobs for both the enrolled account
-   and an excluded account, verifying their actual runner Nodes and network
-   paths. The legacy RISE-S fixtures were moved to the existing Gravelines
-   cache host on 2026-10-26; staging now targets one RISE-M. Preserve that
-   prepared runner and account for its existing `pn-2023588` enrollment before
-   allowing ordinary jobs onto it.
-
-This revision prepares configuration and code, not an automatic data migration.
-No live instance, Machine, volume, flag or OVH contract is changed by editing
-these files. Do not deploy over the live experiment without completing the
-transition. The staging cache's two replicas share one host; this is not a
-host-failure availability qualification.
-
-## Qualification with the existing instance
-
-The manual `linux-runners-staging-smoke.yml` workflow uses normal runner dispatch
-and OIDC authentication. Set `gradle_cache=true` and choose the staging profile.
-`compile_project=true` requires an injected EU-West Service, compiles actual
-Gradle-plugin production/test Kotlin sources with fresh inputs, deletes outputs,
-and verifies both tasks restore remotely with identical class checksums.
-
-`compare_regional_cache=true` runs `gradle-regional-benchmark.sh`: five alternating
-cold/restore pairs for each of 1 MiB and 64 MiB, with local caching disabled and
-checksum verification. Dispatch must inject the existing EU-West Service;
-`wan_cache_endpoint` selects the independent remote baseline. A benchmark
-endpoint override is not evidence that dispatch automatically selected it.
-
-`measure_request_latency=true` runs health, authenticated HEAD hit/miss and
-1 KiB GET probes, each with ten warmups and 100 alternating samples per endpoint
-for persistent and fresh HTTP/1.1 connections. Status, metadata, returned bytes
-and socket reuse are checked. Credentials stay outside artifacts. `hold_seconds`
-(0–900) pauses the simple smoke between upload and restore for cache restart
-drills. It does not qualify removing network routes while a job is running.
-
-The CSV labels `pn` and `wan` are retained for comparison with historical data;
-Service names do not prove the physical path. Capture both public and private
-NICs at runner and cache, check full-MTU reachability and reciprocal-route
-attestations, and correlate the actual selected Service with its backend Node.
-For before/after host enrollment, use the same account, instance and workload
-on an unenrolled and an enrolled runner; retain the instance identity in the
-measurement record. Confirm no extra Kura instances/volumes appear. Include
-concurrent builds and monitor errors, p95, queueing, CPU, memory, disk and link
-pressure. Test public-client access throughout because it shares the instance.
-
-## Historical validation
-
-[PR #14766](https://github.com/tuist/tuist/pull/14766) records the Gradle and
-HTTP latency measurements, methodology, workflow links and limitations from
-the earlier dedicated-instance experiment. Those results compare Gravelines
-with Canada over vRack; they do not qualify the final regional-instance reuse,
-account isolation or rollback. Production already has caches in Gravelines.
-Fresh validation after the staging transition remains required. Keep new run
-outputs in workflow artifacts and report their results in the PR.
-
-## Production rollout and rollback
-
-Refresh the production inventory and load before selecting hosts. The
-inventory recorded in PR #14766 found ten RISE-L runners and six existing
-ADVANCE cache hosts in Gravelines; that historical snapshot does not establish
-current capacity or peak/disk/host-loss headroom. Keep the existing regional
-instances and local volumes. Do not create another logical region on the same
-pool: region-specific storage reservation accounting would give it a second
-budget.
-
-1. Complete staging qualification, then review/merge and deploy the provider
-   through the normal main-branch pipeline. Preserve unrelated runtime pins.
-2. Record the production account's existing EU-West Service, instance ID,
-   backend Node, public-client health and cache performance before enrollment.
-3. Obtain human production write elevation, cordon one selected runner, and let
-   its jobs finish without eviction. Move it into the managed isolated CAPI
-   cohort, with persistent matching Machine/Node labels, before enrolling that
-   idle Machine into `pn-2024093`, using the environment's existing `172.30.243.0/24` allocation.
-   Wait for KataRuntimeReady, PrivateNetworkReady and reciprocal-route
-   convergence. Keep it cordoned if qualification fails.
-4. Enable `runner_linux_vrack` only for the Tuist account. Run controlled jobs
-   on that host plus excluded-account jobs on ordinary unenrolled hosts,
-   comparing the same cache instance with the
-   baseline and an unenrolled control. Require matching restored outputs,
-   verified private transport, no public-client regression and adequate shared
-   cache headroom before expanding account enrollment or cohort capacity.
-   Preserve healthy ordinary hosts for accounts that remain off.
-
-The shared managed configuration prepares isolated shape pools and their
-dispatch mapping in all three environments. It adds no physical hosts, cache
-instances or storage. It does not set vRack on the ordinary fleet template
-and does not enroll accounts. The account flag remains off by default.
-Enable the account flag only after the selected cohort's private route has
-been qualified; leave all other accounts off.
-
-After disabling the account flag and verifying new dispatch, network
-rollback starts by stopping new jobs on the affected host and allowing current
-jobs to finish. Restore the reviewed previous network state while preserving
-reservations/peer guards until convergence; clearing `vRackID` alone does not
-remove installed routes safely. Existing public Kura instances keep serving.
-The [cluster access rules](../AGENTS.md#cluster-access-for-agents) require a human
-to initiate and approve production JIT elevation.
-
-Canary's current SYS-1 cache is in Canada. Its runner was replaced on
-2026-10-26 with the user-ordered Gravelines RISE-M `ns3127017.ip-51-68-34.eu`
-(`gra2`, IP `51.68.34.106`, 64 GB RAM, 2 × 512 GB NVMe, 1 Gbps private/public).
-The minimal template change [#14796](https://github.com/tuist/tuist/pull/14796)
-deployed through the normal main pipeline before the human-elevated cutover;
-the fleet remains one replica with OnDelete. After verifying no local PVs,
-cordoning the old Node, and waiting for every runner to finish or be reaped,
-the old Machine was deleted through CAPI. Its provider released
-`ns3269803.ip-37-187-149.eu` and submitted the normal clean reinstall. Its
-Machine, OVHDedicatedMachine and Node are gone. The user subsequently confirmed
-cancellation of its OVH contract.
-
-The replacement Node `tuist-tuist-ovh-fleet-runners-linux-gnbmk-jgl25` reached
-NodeReady and KataRuntimeReady, with XFS project-quota accounting/enforcement
-enabled and healthy RAID1 root, boot and data arrays. Three Kata runners warmed.
-A fresh [Linux acceptance job](https://github.com/tuist/tuist/actions/runs/40411336722/job/121882539963)
-ran on that Node and passed dispatch, file limits, OIDC authentication and a
-byte-matching 1 MiB CAS write/read through the existing Canadian Kura endpoint.
-PR #14766 records the runner identity, host checks and qualification limits.
-
-This qualified the ordinary runner path only. The final account-gated feature
-refactor has not been deployed or live-qualified by this hardware replacement.
-The new host has no `vRackID`; leave `runner_linux_vrack` off until its isolated
-cohort and private transport are qualified. An enabled flag with no eligible
-hosts would leave jobs queued. No second runner or dedicated cache-host order
-is required for the single-host sequential qualification plan.
-Do not bridge environments to simulate the topology. Configuration parity is
-not live transport validation: each environment still needs enrolled/excluded-
-account runs and path verification, sequentially with a single runner host.
+1. On the old server release, inventory old-region rows, KuraInstances,
+   Services, pods and jobs retaining their URLs. Remove every enrollment of
+   `kura_linux_runner_cache`; a global false alone does not override actor or
+   percentage gates. Verify ordinary regional selection for new jobs.
+2. Preserve old-region reconciliation while normal lifecycle drains it. The
+   minimum drain is 15 minutes with job protection up to six hours. Require no
+   non-destroyed old-region rows or serving CRs/pods/Services; a timer alone is
+   not proof. Do not rewrite a live instance's region in SQL.
+3. Reuse `ns3220989.ip-162-19-86.eu` as ordinary EU-West capacity. Preserve the
+   `gra-runners-cache` fleet identity/adoption prefix and update its persistent
+   cache pool to `kura-dedibox` without Machine replacement. This host also holds
+   the migrated RISE-S fixtures and retained recovery archives: do not reinstall
+   it or delete those backups. Verify fixture scheduling, storage, public
+   DNS/TLS, ingress and capacity before deploying the new region catalog.
+4. Staging then advertises `scw-fr-par-runners,eu-west,ca-east`. Verify its
+   existing regional cache before qualifying its already
+   enrolled RISE-M. Remove the obsolete stored flag only once no old server
+   depends on it. The old RISE-S OVH contract was cancelled by the user.
 
 ## Staging fixture preservation, 2026-10-26
 
