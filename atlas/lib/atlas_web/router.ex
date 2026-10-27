@@ -214,6 +214,9 @@ defmodule AtlasWeb.Router do
     delete "/orbit/threads/:id/participants/:user_id", NativeOrbitController, :remove_participant
     post "/orbit/threads/:id/runs/:run_id/cancel", NativeOrbitController, :cancel_run
 
+    post "/moodboard/suggestions", NativeMoodboardController, :suggest, log: false
+    put "/moodboard/captures/:request_id", NativeMoodboardController, :capture, log: false
+
     get "/profile", NativeController, :profile
     patch "/profile", NativeController, :update_profile
     get "/:resource", NativeController, :index
