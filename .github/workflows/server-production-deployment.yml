@@ -1733,7 +1733,7 @@ jobs:
   # no runner picks up without cancelling this run. Runs on a GitHub-hosted
   # runner so a broken Tuist runner fleet cannot keep the gate from reporting.
   runners-acceptance:
-    name: Runners acceptance
+    name: Runners acceptance (macOS + Linux)
     needs: [check-releases, canary]
     if: ${{ always() && needs.canary.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
     runs-on: ubuntu-latest
@@ -1747,7 +1747,7 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
           sparse-checkout: .github/scripts/runners-acceptance
-      - name: Run the runners acceptance probe against canary
+      - name: Require macOS and Linux native/container acceptance on canary
         env:
           GH_TOKEN: ${{ github.token }}
           ENVIRONMENT: canary

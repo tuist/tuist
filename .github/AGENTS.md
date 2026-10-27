@@ -557,6 +557,14 @@ covered only by the production schedule.
   that wait, so the in-run dispatch watchdog fails and cancels the run past the
   pickup bound. That is why the gate dispatches a separate run instead of
   calling the workflow: cancelling it must not cancel the cascade.
+- Each Linux target runs a native probe (image/toolchains, KVM, Docker, Go,
+  setup-beam, file limits, the 1.2-million-file rootfs budget, and Kura) and a
+  real job-container probe (workspace/actions/externals mounts and environment
+  files). Count both in the dispatch watchdog. The cascade gate rejects missing,
+  skipped, or unsuccessful native/container Linux probes even if the workflow
+  conclusion is successful. Validate this contract with
+  `node --test .github/scripts/runners-acceptance/acceptance.test.cjs` after
+  `npm ci --ignore-scripts` at the repository root.
 - Health checks are not enough: a Kura that cannot reach the server's token
   introspection answers `/up` and degrades every lookup into a slow miss. Keep
   the authenticated blob round trip and the rebuild from an empty local CAS,
