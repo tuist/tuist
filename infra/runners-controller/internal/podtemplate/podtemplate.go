@@ -434,6 +434,10 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				// our copy, never customer code.
 				SecurityContext: &corev1.SecurityContext{RunAsUser: ptr(int64(0))},
 			})
+			dindPackages := "e2fsprogs"
+			if pool.Spec.DockerCache {
+				dindPackages += " coreutils"
+			}
 			initContainers = append(initContainers, corev1.Container{
 				Name:  "dind",
 				Image: dindImage,
@@ -467,7 +471,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				Args: []string{
 					"set -e && " +
 						"ulimit -n 1048576 && " +
-						"apk add --no-cache e2fsprogs >/dev/null && " +
+						"apk add --no-cache " + dindPackages + " >/dev/null && " +
 						"mkdir -p /mnt/dind-disk && " +
 						"truncate -s 100G /mnt/dind-disk/disk.img && " +
 						"mkfs.ext4 -q -F /mnt/dind-disk/disk.img && " +

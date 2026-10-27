@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -226,7 +227,11 @@ func (d *daemon) switchRoot(source string) error {
 		return d.fallback(ctx, err, true)
 	}
 	d.state, d.source = "volume", source
-	d.base, _ = d.snapshot(ctx, "")
+	var snapshotErr error
+	d.base, snapshotErr = d.snapshot(ctx, "")
+	if snapshotErr != nil {
+		return d.fallback(ctx, snapshotErr, true)
+	}
 	d.ledger = readDockerLedger(dockerLedgerFile(d.dataRoot))
 	return nil
 }
@@ -234,6 +239,7 @@ func (d *daemon) switchRoot(source string) error {
 // fallback restores the ephemeral data root and reports cause.
 func (d *daemon) fallback(ctx context.Context, cause error, mounted bool) error {
 	d.stop()
+	d.state, d.source = "ephemeral", ""
 	if mounted {
 		_, _ = d.run(ctx, "umount", d.dataRoot)
 	}
@@ -327,6 +333,26 @@ func (d *daemon) merge(ctx context.Context, source string, report *dockerTeardow
 		return "", err
 	}
 	plan := planDockerMerge(branch, head)
+	branchState, err := d.snapshot(ctx, "")
+	if err != nil {
+		return "", err
+	}
+	headState, err := d.snapshot(ctx, dockerMergeHost)
+	if err != nil {
+		return "", err
+	}
+	if branchState.BuildCache != d.base.BuildCache {
+		// The daemon's BuildKit database is indivisible. Keep this job's new
+		// build work and import any images it lacks from the newer head.
+		plan.Into, plan.Move = "branch", nil
+		for _, image := range head {
+			if !containsString(branchState.Images, image.ID) {
+				plan.Move = append(plan.Move, image.ID)
+			}
+		}
+	} else if branchState.buildDiffers(d.base) && plan.Into == "" {
+		plan.Into = "head"
+	}
 	if plan.Into == "" {
 		return "", nil
 	}
@@ -342,6 +368,9 @@ func (d *daemon) merge(ctx context.Context, source string, report *dockerTeardow
 		if err := d.pipe(ctx, dockerArgs(from, append([]string{"save"}, references...)...), dockerArgs(to, "load", "-q")); err != nil {
 			return "", fmt.Errorf("copy images: %w", err)
 		}
+	}
+	if err := d.mergeBuildkitVolumes(ctx, plan.Into, branchState, headState); err != nil {
+		return "", err
 	}
 	ledger := mergeDockerLedgers(readDockerLedger(ledgerPath), readDockerLedger(otherLedgerPath), plan.Move)
 	if err := writeDockerLedger(ledgerPath, ledger); err != nil {
@@ -448,7 +477,10 @@ func (d *daemon) clean(ctx context.Context, report *dockerTeardownReport) error 
 	} else {
 		return fmt.Errorf("list containers: %s", strings.TrimSpace(string(out)))
 	}
-	if out, err := d.run(ctx, "docker", "volume", "prune", "-af"); err != nil {
+	if _, err := d.buildkitVolumes(ctx, "", d.dataRoot); err != nil {
+		return err
+	}
+	if out, err := d.run(ctx, "docker", "volume", "prune", "-af", "--filter", "label!="+buildkitVolumeLabel); err != nil {
 		return fmt.Errorf("remove volumes: %s", strings.TrimSpace(string(out)))
 	}
 	if out, err := d.run(ctx, "docker", "network", "prune", "-f"); err != nil {
@@ -525,6 +557,25 @@ func (d *daemon) snapshot(ctx context.Context, host string) (dockerSnapshot, err
 				snapshot.BuildCacheBytes, _ = parseHumanSize(size)
 			}
 		}
+	}
+	out, err = d.run(ctx, "docker", dockerArgs(host, "system", "df", "-v", "--format", "{{json .BuildCache}}")...)
+	if err != nil {
+		return dockerSnapshot{}, fmt.Errorf("inspect build cache: %w", err)
+	}
+	var records []buildCacheRecord
+	if len(bytes.TrimSpace(out)) > 0 {
+		if err := json.Unmarshal(out, &records); err != nil {
+			return dockerSnapshot{}, fmt.Errorf("decode build cache: %w", err)
+		}
+	}
+	snapshot.BuildCache = buildCacheFingerprint(records)
+	root := d.dataRoot
+	if host == dockerMergeHost {
+		root = d.mergeRoot
+	}
+	snapshot.BuildVolumes, err = d.buildkitSnapshot(ctx, host, root)
+	if err != nil {
+		return dockerSnapshot{}, err
 	}
 	return snapshot, nil
 }

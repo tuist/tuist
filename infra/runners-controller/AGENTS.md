@@ -1333,6 +1333,11 @@ memory tax), and the loop mount is bounded by the
 The entrypoint installs `e2fsprogs` via apk on each boot
 because `docker:*-dind` doesn't ship `mkfs.ext4` by default;
 worth baking into a custom dind image once the shape settles.
+Docker-cache-enabled pools also install GNU `coreutils`: merging retained
+BuildKit volumes requires archive copying with xattrs, hard links and sparse
+files preserved. BusyBox `cp -a` is insufficient for overlay snapshots. Deploy
+this controller change with the runner's BuildKit retention support; an older
+sidecar without GNU cp safely withholds such a merge.
 StartupProbe failureThreshold bumped from 30 → 60 to absorb
 the ~8 s of pre-dockerd setup time.
 

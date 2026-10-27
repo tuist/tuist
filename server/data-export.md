@@ -679,8 +679,17 @@ The archive contains everything needed to understand the account's complete data
   they pulled (including images from private registries, pulled with the job's own
   credentials), their extracted layers, BuildKit's build cache and `tuist/ledger.json` (each
   image's ID, the references jobs used for it and when one last used it). Before it is saved,
-  the job's containers, volumes, networks and every registry tag are removed, so no container
-  configuration, environment variable or container log is kept. Saved data roots are
+  the job's containers, ordinary volumes, networks and every registry tag are removed, so no container
+  configuration, environment variable or container log is kept. The opt-in Docker builder
+  action additionally retains local volumes named `buildx_buildkit_tuist-<key hash>0_state`
+  with the `dev.tuist.cache=buildkit` label. These contain the builder's layer metadata,
+  intermediate build results, source snapshots, and mutable `RUN --mount=type=cache`
+  directories (for example package downloads and compiler outputs). They are stored under
+  `volumes/<name>/_data` inside the same data-root image, are scoped to the repository,
+  and are included when exporting that detached image. The action configures BuildKit
+  garbage collection near 10 GB per builder by default; users may override it. Builder
+  volumes otherwise follow the whole Docker volume's retention, clearing and account
+  deletion, with no separate bucket or metadata table. Saved data roots are
   published to `runner-volume-masters/{account_id}/{storage_name}/` like other volumes and
   follow the same retention, clearing and account deletion. After each job the VM writes
   `docker.json` beside the image (whether it unmounted cleanly, whether it changed, and the
