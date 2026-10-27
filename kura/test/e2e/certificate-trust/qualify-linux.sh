@@ -51,12 +51,18 @@ while IFS= read -r report; do
 done < <(find -L bazel-testlogs -type f -name test.xml)
 # Both binaries use precisely the candidate release assembly and cached base
 # layers. This compares runtime changes, not two unrelated OS/package sets.
+contexts=()
+# Keep this tooling independent before the certificate foundation lands, while
+# giving both images the identical policy context once native TLS is integrated.
+if [[ -d $repo/infra/certificate-trust ]]; then
+  contexts+=(--build-context "certificate-trust=$repo/infra/certificate-trust")
+fi
 for variant in baseline candidate; do
   tree=$repo/kura
   revision=$source
   image=$candidate_image
   if [[ $variant == baseline ]]; then tree=$work/baseline/kura; revision=$base; image=$baseline_image; fi
-  docker build --load --platform linux/amd64 \
+  docker build --load --platform linux/amd64 "${contexts[@]}" \
     --file "$repo/kura/Dockerfile.release" \
     --label "org.opencontainers.image.revision=$revision" \
     --iidfile "$out/$variant-image-id.txt" --tag "$image" "$tree"
