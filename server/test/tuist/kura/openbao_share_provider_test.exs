@@ -147,6 +147,7 @@ defmodule Tuist.Kura.VolumeKeys.OpenBaoShareProviderTest do
           {"AUTH_MOUNT", "%2f"},
           {"DECRYPT_KEY_NAMES", "good,../other"},
           {"TOKEN_FILE", "relative"},
+          {"WRAP_NEW_SHARES", "invalid"},
           {"CA_CERT_FILE", ""}
         ] do
       assert {:error, :invalid_openbao_configuration} =
@@ -205,6 +206,38 @@ defmodule Tuist.Kura.VolumeKeys.OpenBaoShareProviderTest do
     for aad <- ["other|1|0", "tenant|2|0", "tenant|1|1"] do
       assert OpenBaoShareProvider.unwrap(wrapped, aad) == {:error, :key_service_unavailable}
     end
+  end
+
+  test "rollback rewraps persisted OpenBao keys while retaining decrypt access", %{config: config} do
+    stub(KeyServiceHTTP, :post, fake_openbao(:crypto.strong_rand_bytes(32)))
+    account = AccountsFixtures.account_fixture()
+    {:ok, key} = VolumeKeys.ensure_active_key(account)
+    {:ok, passphrase} = VolumeKeys.volume_passphrase(account, key, "pvc-rollback")
+    root = :crypto.strong_rand_bytes(32)
+    stub(Environment, :kura_volume_root_keys, fn -> [{"legacy", root}] end)
+
+    {:ok, rollback} =
+      Environment.kura_volume_openbao(Map.put(@environment, "TUIST_KURA_VOLUME_OPENBAO_WRAP_NEW_SHARES", "false"))
+
+    stub(Environment, :kura_volume_openbao, fn -> {:ok, rollback} end)
+
+    assert VolumeKeys.wrapping_target() == {:ok, "tuist_root", "legacy"}
+    assert VolumeKeys.volume_passphrase(account, key, "pvc-rollback") == {:ok, passphrase}
+    assert {:ok, %{processed: 1, done: true}} = Rotation.batch({"tuist_root", "legacy"})
+    assert [%{"provider" => "tuist_root"}] = Repo.reload!(key).shares
+
+    assert {:ok, %{shares: [%{"provider" => "tuist_root"}]}} =
+             VolumeKeys.ensure_active_key(AccountsFixtures.account_fixture())
+
+    stub(Environment, :kura_volume_root_keys, fn -> [] end)
+    assert VolumeKeys.wrapping_target() == {:error, :root_keys_unavailable}
+    assert VolumeKeys.volume_passphrase(account, key, "pvc-rollback") == {:ok, passphrase}
+    stub(Environment, :kura_volume_root_keys, fn -> [{"legacy", root}] end)
+    stub(Environment, :kura_volume_openbao, fn -> :disabled end)
+    assert VolumeKeys.volume_passphrase(account, Repo.reload!(key), "pvc-rollback") == {:ok, passphrase}
+
+    stub(Environment, :kura_volume_openbao, fn -> {:ok, config} end)
+    assert VolumeKeys.wrapping_target() == {:ok, "openbao", @key}
   end
 
   test "a concurrent change cannot be overwritten by a completed rewrap", %{config: config} do

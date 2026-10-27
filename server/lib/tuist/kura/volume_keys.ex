@@ -67,17 +67,24 @@ defmodule Tuist.Kura.VolumeKeys do
   @doc "Returns the configured provider and pinned wrapping key identifier, never key material."
   def wrapping_target do
     case Environment.kura_volume_openbao() do
+      {:ok, %{wrap_new_shares: false}} ->
+        legacy_wrapping_target()
+
       {:ok, %{key_id: key_id}} ->
         {:ok, "openbao", key_id}
 
       :disabled ->
-        case Environment.kura_volume_root_keys() do
-          [{key_id, _} | _] -> {:ok, "tuist_root", key_id}
-          [] -> {:error, :root_keys_unavailable}
-        end
+        legacy_wrapping_target()
 
       {:error, _} = error ->
         error
+    end
+  end
+
+  defp legacy_wrapping_target do
+    case Environment.kura_volume_root_keys() do
+      [{key_id, _} | _] -> {:ok, "tuist_root", key_id}
+      [] -> {:error, :root_keys_unavailable}
     end
   end
 

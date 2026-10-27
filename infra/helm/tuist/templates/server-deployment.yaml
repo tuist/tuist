@@ -99,6 +99,11 @@ spec:
             {{- end }}
           env:
             {{- if .Values.server.config.kuraVolumeOpenBao.enabled }}
+            {{- if not (kindIs "bool" .Values.server.config.kuraVolumeOpenBao.wrapNewShares) }}
+            {{- fail "kuraVolumeOpenBao.wrapNewShares must be a boolean" }}
+            {{- end }}
+            - name: TUIST_KURA_VOLUME_OPENBAO_WRAP_NEW_SHARES
+              value: {{ .Values.server.config.kuraVolumeOpenBao.wrapNewShares | quote }}
             - name: TUIST_KURA_VOLUME_OPENBAO_ADDRESS
               value: {{ required "kuraVolumeOpenBao.address is required" .Values.server.config.kuraVolumeOpenBao.address | quote }}
             - name: TUIST_KURA_VOLUME_OPENBAO_KEY_NAME

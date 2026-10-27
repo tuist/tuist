@@ -251,8 +251,14 @@ a matching Raft snapshot can recover unwraps. Losing Transit key material and
 its recoverable backups makes the corresponding volumes unrecoverable.
 
 Rollback after any OpenBao share exists must retain OpenBao-capable code and its decrypt
-configuration. To move back to legacy custody, rewrap every row while both
-providers work, verify inventory and recovery, and only then disable OpenBao.
+configuration. Set `server.config.kuraVolumeOpenBao.wrapNewShares=false` while
+leaving `enabled=true` and legacy roots available. This renders
+`TUIST_KURA_VOLUME_OPENBAO_WRAP_NEW_SHARES=false`: new shares use the first legacy
+root, while persisted OpenBao shares can still decrypt. Wait for every web
+replica to adopt this mode, then rewrap to `{"tuist_root", "<root-id>"}` in bounded
+batches. Verify inventory, recovery and re-stage before disabling OpenBao.
+The previous configuration had no independent write selection, so disabling
+OpenBao prematurely would have lost the decrypt path needed by reverse rewrap.
 Already-open mappings can continue through a key-service outage; new/re-staged
 volumes fail closed. Revoking a wrapper does not revoke mounted plaintext.
 
