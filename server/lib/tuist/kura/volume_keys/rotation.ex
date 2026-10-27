@@ -38,7 +38,7 @@ defmodule Tuist.Kura.VolumeKeys.Rotation do
       Enum.reduce_while(ids, {:ok, initial}, fn id, {:ok, progress} ->
         case VolumeKeys.rewrap_key(id, target) do
           :ok -> {:cont, {:ok, %{progress | processed: progress.processed + 1, after_id: id}}}
-          {:error, reason} -> {:halt, {:error, %{reason: reason, key_id: id, progress: progress}}}
+          {:error, reason} -> {:halt, {:error, %{reason: reason, key_id: id, progress: %{progress | done: false}}}}
         end
       end)
     else
