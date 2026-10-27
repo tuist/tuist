@@ -1145,6 +1145,7 @@ defmodule TuistWeb.Router do
     post "/runners/jobs/cache/uploads/complete", RunnerJobCacheController, :complete_upload
     post "/runners/jobs/cache/uploads/abort", RunnerJobCacheController, :abort_upload
     get "/sandboxes/nodes/connect", SandboxNodesController, :connect
+    post "/sandboxes/allocation", SandboxAllocationsController, :update
   end
 
   scope "/api/internal", TuistWeb.Internal do

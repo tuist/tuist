@@ -58,6 +58,10 @@ rules:
   - apiGroups: [node.k8s.io]
     resources: [runtimeclasses]
     verbs: [get, list, watch]
+  # Count all workloads on runner hosts, including other namespaces' DaemonSets.
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

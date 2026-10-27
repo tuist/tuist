@@ -172,6 +172,11 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		IgnoreRecentPeak: !pool.Spec.Autoscaling.HoldRecentPeakOrDefault(),
 	}
 	desired, fleet := r.desiredForPool(ctx, pool, *signals, knobs, logger)
+	if err := r.publishSandboxAllocations(ctx, pool, fleet); err != nil {
+		// CI scaling continues. A failed publication cannot renew the server's
+		// short-lived grant, so sandbox admission fails closed independently.
+		logger.Error(err, "publish sandbox capacity allocation")
+	}
 
 	current := pool.Spec.Replicas
 	now := r.now()

@@ -67,7 +67,7 @@ consumer is Claude Managed Agents `self_hosted` environments.
   stays queued. The chart's floor is 1 GiB, so every node's first sandbox
   grows its carve-out. `Tuist.Sandboxes.Workers.ShrinkCarveOutsWorker` (every
   minute) shrinks carve-outs back toward what their running sandboxes hold,
-  never below the floor and only three minutes after the last growth,
+  never below the floor, retaining an in-flight growth for at most 15 seconds,
   sending the daemon `reclaim` before the resize because the kubelet refuses
   to lower a limit below current usage; it also retries a shrink the kubelet
   has not applied and cancels a deferred growth no longer needed.
@@ -125,6 +125,13 @@ consumer is Claude Managed Agents `self_hosted` environments.
   the grace period with the current epoch, so API-driven sandboxes are
   paused once idle like agent ones; a residency starting meanwhile bumps
   the epoch and the pending job does nothing.
+
+Shared-fleet admission requires a fresh controller allocation on `sandbox_nodes`.
+CI reservation revocation, zero extra warm memory, timestamp ordering and resize
+serialization are specified in [`fleet-sharing.md`](../../../../infra/sandboxd/fleet-sharing.md).
+`ReclaimCapacityWorker` applies pressure after the allocation is committed.
+Shared-node idle pauses have zero grace and enqueue shrink work; active
+residencies and daemon worker/exec guards remain authoritative.
 
 ## Multiple replicas
 

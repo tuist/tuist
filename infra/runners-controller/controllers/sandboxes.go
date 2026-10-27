@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
+	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
 )
 
 // Sandbox daemons (infra/sandboxd) share the Linux fleet's nodes. Each holds
@@ -38,8 +39,9 @@ type sandboxDaemon struct {
 	node string
 	// memory is the largest of the request, allocated resources and applied
 	// container resources, so an incomplete shrink never frees memory early.
-	memory   int64
-	cpuMilli int64
+	memory      int64
+	cpuMilli    int64
+	terminating bool
 	// deferred is how many more bytes a growth the kubelet deferred is
 	// waiting for on the node.
 	deferred int64
@@ -72,6 +74,7 @@ func listSandboxDaemons(ctx context.Context, reader client.Reader, namespace str
 		}
 		asked, allocated := daemonMemory(pod)
 		daemon := sandboxDaemon{name: pod.Name, node: pod.Spec.NodeName, memory: max(asked, allocated)}
+		daemon.terminating = !pod.DeletionTimestamp.IsZero()
 		footprint := podFootprint(pod)
 		daemon.cpuMilli = footprint.Cpu().MilliValue()
 		// A deleting daemon still holds its allocation while it pauses VMs.
@@ -228,7 +231,7 @@ func (r *AutoscalerReconciler) preemptForSandboxGrowth(
 	now time.Time,
 	logger logr.Logger,
 ) (bool, error) {
-	if r.SandboxesNamespace == "" || pool.Spec.OS != "linux" {
+	if r.SandboxesNamespace == "" || pool.Spec.OS != "linux" || ciQueued(fleet) {
 		return false, nil
 	}
 
@@ -239,7 +242,7 @@ func (r *AutoscalerReconciler) preemptForSandboxGrowth(
 	}
 	inFleet := map[string]bool{}
 	for i := range nodes.Items {
-		inFleet[nodes.Items[i].Name] = true
+		inFleet[nodes.Items[i].Name] = !isReserved(&nodes.Items[i]) && !nodes.Items[i].Spec.Unschedulable
 	}
 	deficits := map[string]int64{}
 	daemons, err := r.sandboxDaemons(ctx)
@@ -330,6 +333,7 @@ func (r *AutoscalerReconciler) preemptForSandboxGrowth(
 			return false, fmt.Errorf("mark pod %s for a sandbox growth: %w", pod.Name, err)
 		}
 		r.rememberRetiredForSandboxes(pod, now)
+		metrics.RecordSandboxRetirement(pool.Name)
 	}
 
 	current := pool.Spec.Replicas

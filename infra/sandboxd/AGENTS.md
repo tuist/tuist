@@ -289,11 +289,16 @@ acknowledged by the server's poller; the worker never polls.
   Pod into the room meanwhile. Placements budget against the smaller of the
   reported limit and the size asked for. A minute-by-minute job shrinks a
   carve-out back toward what its running sandboxes hold, never below the
-  floor, three minutes after its last growth: it lowers the size asked for
+  floor, retaining only an in-flight growth for up to 15 seconds: it lowers the size asked for
   under the node lock, sends `reclaim`, then resizes the Pod.
-- A sandbox left running without a residency (created or resumed through
-  the API, or used by an exec) is paused after the same grace period of
-  idleness; a residency starting meanwhile supersedes the pending pause.
+- Shared-fleet admission requires a fresh controller grant. CI pressure queues
+  immediate idle reclaim; new turns cannot consume a reserved host. See
+  [`fleet-sharing.md`](fleet-sharing.md) for grant expiry, allocation ordering,
+  resize serialization and rollout requirements.
+- A sandbox left running without a residency on a shared node is paused with
+  zero additional grace, and its pause queues an immediate shrink. Standalone
+  daemons retain configurable idle grace. A residency starting meanwhile
+  supersedes the pending pause.
 - Sandboxes paused, or errored, for longer than 14 days are deleted by a
   daily job; a session that returns afterwards gets a fresh sandbox.
 - The account API lets an account connect an environment (Anthropic

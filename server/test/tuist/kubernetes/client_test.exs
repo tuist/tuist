@@ -395,7 +395,18 @@ defmodule Tuist.Kubernetes.ClientTest do
       opts = in_cluster_opts(tmp_dir)
 
       expect(Req, :request, fn request_opts ->
+        assert request_opts[:method] == :get
+
+        assert request_opts[:url] ==
+                 "https://kubernetes.default.svc:443/api/v1/namespaces/tuist-sandboxes/pods/sandboxd-abc"
+
+        assert request_opts[:retry] == false
+        {:ok, %Req.Response{status: 200, body: %{"metadata" => %{"resourceVersion" => "42", "uid" => "pod-uid"}}}}
+      end)
+
+      expect(Req, :request, fn request_opts ->
         assert request_opts[:method] == :patch
+        assert request_opts[:retry] == false
 
         assert request_opts[:url] ==
                  "https://kubernetes.default.svc:443/api/v1/namespaces/tuist-sandboxes/pods/sandboxd-abc/resize"
@@ -403,6 +414,7 @@ defmodule Tuist.Kubernetes.ClientTest do
         assert {"content-type", "application/strategic-merge-patch+json"} in request_opts[:headers]
 
         assert JSON.decode!(request_opts[:body]) == %{
+                 "metadata" => %{"resourceVersion" => "42", "uid" => "pod-uid"},
                  "spec" => %{
                    "containers" => [
                      %{

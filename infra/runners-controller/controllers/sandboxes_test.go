@@ -401,6 +401,7 @@ func TestReservationWaitsForJobsWhenSandboxMemoryPreventsEarlyFit(t *testing.T) 
 		sandboxDaemonPod("sandboxd-b", b.Name, 32, 32, false),
 	)
 	r.SandboxesNamespace = "tuist-sandboxes"
+	r.SignalsClient = sandboxAllocationClient(t)
 	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
 		t.Fatal(err)
 	}

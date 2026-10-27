@@ -374,7 +374,10 @@ defmodule Tuist.Sandboxes do
           mem_bytes: data["mem_bytes"]
         )
 
-        update_sandbox(sandbox, %{state: :paused, paused_at: now()})
+        with {:ok, paused} <- update_sandbox(sandbox, %{state: :paused, paused_at: now()}) do
+          if Capacity.shared_node?(node_name), do: Capacity.enqueue_reclaim(node_name, true)
+          {:ok, paused}
+        end
 
       {:error, reason} ->
         {:error, reason}
@@ -429,7 +432,7 @@ defmodule Tuist.Sandboxes do
       |> max(1)
       |> min(@exec_max_timeout_ms)
 
-    case ensure_running(sandbox) do
+    case ensure_exec_capacity(sandbox) do
       {:ok, %Sandbox{node_name: node_name} = sandbox} when is_binary(node_name) ->
         args = %{
           sandbox_id: sandbox.id,
@@ -467,6 +470,14 @@ defmodule Tuist.Sandboxes do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  defp ensure_exec_capacity(sandbox) do
+    with {:ok, running} <- ensure_running(sandbox) do
+      if running.residency_work_id,
+        do: {:ok, running},
+        else: Capacity.admit_turn(running, fn -> {:ok, running} end)
     end
   end
 
@@ -518,13 +529,19 @@ defmodule Tuist.Sandboxes do
 
   # ----- Residencies -----
 
+  defdelegate update_allocation(params), to: Capacity
+
   @doc """
   Records the residency of `work_id` on a running sandbox. The epoch is
   incremented in SQL so a residency ending concurrently (its
   `worker_exited` arrives on the node's socket process) never loses an
   increment.
   """
-  def begin_residency(%Sandbox{id: id}, work_id) when is_binary(work_id) do
+  def begin_residency(%Sandbox{} = sandbox, work_id) when is_binary(work_id) do
+    Capacity.admit_turn(sandbox, fn -> record_residency(sandbox, work_id) end)
+  end
+
+  defp record_residency(%Sandbox{id: id}, work_id) do
     timestamp = now()
 
     query = from(s in Sandbox, where: s.id == ^id and s.state == :running, select: s)
@@ -597,7 +614,7 @@ defmodule Tuist.Sandboxes do
   defp schedule_pause(%Sandbox{} = sandbox) do
     %{sandbox_id: sandbox.id, residency_epoch: sandbox.residency_epoch}
     |> PauseSandboxWorker.new(
-      schedule_in: pause_grace_seconds(sandbox),
+      schedule_in: if(Capacity.shared_node?(sandbox.node_name), do: 0, else: pause_grace_seconds(sandbox)),
       replace: [scheduled: [:args, :scheduled_at], available: [:args, :scheduled_at]]
     )
     |> Oban.insert()

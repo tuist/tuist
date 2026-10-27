@@ -14,6 +14,7 @@ import (
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
+	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
 )
 
 // Node reservation: draining one host to fit a Pod that no host can seat.
@@ -780,6 +781,32 @@ func (r *RunnerPoolReconciler) reserveNode(
 	value string,
 	now time.Time,
 ) error {
+	sandboxAllocationMu.Lock()
+	defer sandboxAllocationMu.Unlock()
+	// Revoke before tainting, using the same serialization as publication.
+	// An in-flight growth finishes under the server's capacity lock first;
+	// subsequent turns cannot claim this host while CI drains it.
+	if r.SandboxesNamespace != "" {
+		var reader client.Reader = r.Client
+		if r.APIReader != nil {
+			reader = r.APIReader
+		}
+		daemons, err := listSandboxDaemons(ctx, reader, r.SandboxesNamespace)
+		if err != nil {
+			return err
+		}
+		for _, daemon := range daemons {
+			if daemon.node != node.Name {
+				continue
+			}
+			if r.SignalsClient == nil {
+				return fmt.Errorf("cannot revoke sandbox allocation without signals client")
+			}
+			if err := r.SignalsClient.PublishSandboxAllocation(ctx, scaling.SandboxAllocation{Node: node.Name, Pod: daemon.name, ObservedAt: time.Now().UTC(), Reclaim: true}); err != nil {
+				return err
+			}
+		}
+	}
 	patched := node.DeepCopy()
 	patched.Spec.Taints = append(patched.Spec.Taints, corev1.Taint{
 		Key:    podtemplate.ReservationTaintKey,

@@ -389,6 +389,10 @@ defmodule Tuist.Sandboxes.CapacityTest do
         template,
         Map.merge(%{capacity: %{memory_bytes: 8 * @gib, cpus: 16}}, Map.put(overrides, :elastic, elastic))
       )
+
+      limit = get_in(overrides, [:capacity, :memory_bytes]) || 8 * @gib
+      insert_row(name, elastic.pod_name, limit, nil)
+      name
     end
 
     defp resident(template, node, memory_mb \\ 4096) do
@@ -446,7 +450,7 @@ defmodule Tuist.Sandboxes.CapacityTest do
 
       # 4 x 4160 MiB + 512 MiB is past the 16 GiB ceiling.
       assert {:error, :no_capacity} = Capacity.place(new_sandbox(template))
-      refute Repo.get(SandboxNode, node)
+      assert Repo.get!(SandboxNode, node).memory_limit_bytes == 8 * @gib
     end
 
     test "leaves a growth the kubelet defers asked for and refuses the placement meanwhile", %{template: template} do
@@ -630,7 +634,16 @@ defmodule Tuist.Sandboxes.CapacityTest do
 
     defp insert_row(node, pod_name, limit, grown_at) do
       %SandboxNode{}
-      |> SandboxNode.changeset(%{name: node, pod_name: pod_name, memory_limit_bytes: limit, grown_at: grown_at})
+      |> SandboxNode.changeset(%{
+        name: node,
+        pod_name: pod_name,
+        memory_limit_bytes: limit,
+        grown_at: grown_at,
+        allocation_observed_at: DateTime.utc_now(),
+        allocation_memory_bytes: 40 * @gib,
+        allocation_free_bytes: 40 * @gib,
+        allocation_reclaim: false
+      })
       |> Repo.insert!(on_conflict: :replace_all, conflict_target: :name)
     end
   end

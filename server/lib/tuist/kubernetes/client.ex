@@ -404,12 +404,31 @@ defmodule Tuist.Kubernetes.Client do
       when is_binary(namespace) and is_binary(name) and is_integer(bytes) and bytes > 0 do
     quantity = Integer.to_string(bytes)
     resources = %{requests: %{memory: quantity}, limits: %{memory: quantity}}
+    path = "/api/v1/namespaces/#{namespace}/pods/#{name}"
 
-    request(:patch, "/api/v1/namespaces/#{namespace}/pods/#{name}/resize",
-      opts: opts,
-      body: JSON.encode!(%{spec: %{containers: [%{name: "sandboxd", resources: resources}]}}),
-      headers: [{"content-type", "application/strategic-merge-patch+json"}]
-    )
+    # Fence delayed requests at the API server too. A timeout can leave a
+    # PATCH in flight after the caller released its database lock; that write
+    # must conflict if a newer resize or Pod replacement has already landed.
+    case request(:get, path, opts: opts, timeout: 5_000) do
+      {:ok, %{"metadata" => %{"resourceVersion" => version, "uid" => uid}}}
+      when is_binary(version) and is_binary(uid) ->
+        request(:patch, path <> "/resize",
+          opts: opts,
+          timeout: 5_000,
+          body:
+            JSON.encode!(%{
+              metadata: %{resourceVersion: version, uid: uid},
+              spec: %{containers: [%{name: "sandboxd", resources: resources}]}
+            }),
+          headers: [{"content-type", "application/strategic-merge-patch+json"}]
+        )
+
+      {:error, reason} ->
+        {:error, reason}
+
+      {:ok, _invalid_pod} ->
+        {:error, :invalid_pod}
+    end
   end
 
   @doc """

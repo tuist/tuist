@@ -2227,7 +2227,8 @@ buildersFleet:
 # running or paused. The kata runner pools keep the rest. Accounts reach
 # sandboxes only through the `sandboxes` feature flag.
 sandboxes:
-  enabled: true
+  # Enable only after the matching controller/server release is validated on staging.
+  enabled: false
   image:
     tag: "sha-3b10e1eddbaf"
   templateImage:

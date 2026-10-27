@@ -1,8 +1,8 @@
 # Sharing Linux runner hosts with agent sandboxes
 
-Status: proposal for the next phase. Only the accounting corrections described
-below are implemented. The admission, reclaim and warm-capacity policies still
-need a decision before implementation or rollout.
+Status: CI-first admission and zero additional warm sandbox memory are
+implemented. Live rollout still requires the staging coordination and validation
+below. The controller and server must ship together before enabling accounts.
 
 ## Invariants
 
@@ -32,10 +32,11 @@ to 1 GiB both count as 40 GiB. The early reservation path also includes sandbox
 memory beside running jobs and checks the waiting Pod's RuntimeClass overhead.
 Draining a host cannot free the sandbox allocation.
 
-These are point-in-time calculations. They do not coordinate a later sandbox
-resize with a runner reservation; Kubernetes remains the final admission gate.
+These calculations remain point-in-time observations. Short-lived grants now
+coordinate sandbox admission with CI reservations; Kubernetes remains the final
+admission gate when other workloads or claims change after a snapshot.
 
-## Recommended policy
+## Admission policy
 
 Keep the 1 GiB daemon floor and start with **zero additional warm sandbox
 memory**. A template already provides a fast VM start, while a GiB withheld from
@@ -43,7 +44,7 @@ CI can remove an entire large runner seat. Do not fund a sandbox p95 buffer unti
 measurements show that resize latency, rather than queued work or disk, is the
 material bottleneck.
 
-Use one fleet allocation decision with this priority order:
+The priority order is:
 
 1. Memory already held by running CI jobs and active sandbox turns, plus daemon
    floors. This is committed capacity, not something the allocator can reclaim.
@@ -51,36 +52,68 @@ Use one fleet allocation decision with this priority order:
    constraints. Work withheld by account concurrency limits is not pressure.
 3. Queued sandbox turns that fit after CI demand is funded. A resumed turn must
    fit its existing node; fleet-wide free bytes alone cannot admit it.
-4. CI warm floors and recent-demand headroom. Any future optional sandbox warm
-   budget competes here, defaults to zero, and yields completely to CI demand.
+4. CI warm floors and recent-demand headroom. There is no extra sandbox warm
+   pool, p95 buffer or post-turn grace on shared nodes.
 
 Keep sandbox demand separate from ordinary `PoolDemand.Load`: that tier currently
 grants real load even past fleet capacity, whereas an unacknowledged sandbox turn
 can stay queued upstream. Treating both as identical pools would lose CI priority
-and admit memory that no node can supply. Export committed and queued sandbox
-bytes per node/shape in the existing internal scaling response; do not manufacture
-RunnerPool objects for daemon memory.
+and admit memory that no node can supply. A future allocator that admits sandboxes
+while CI is still queued needs separate committed and queued sandbox demand;
+do not manufacture RunnerPool objects for daemon memory. The implementation is deliberately
+conservative: **any dispatchable queued CI work in the fleet blocks new sandbox
+turns** until those jobs have claimed runners. It does not attempt to fit sandbox
+turns alongside CI jobs that are still queued, even when aggregate memory appears
+sufficient. This avoids a speculative bin-pack promising a CI shape capacity on
+the wrong host, at the cost of sandbox queue latency under continuous CI demand.
+Account-concurrency-withheld jobs are already excluded by the CI signals API.
 
-When dispatchable CI work is blocked on capacity, immediately pause eligible idle
-sandboxes on useful nodes and bypass the three-minute growth hold. Reclaim page
+When dispatchable CI work is queued, immediately pause eligible idle sandboxes
+across that fleet and bypass the provisioning hold. Reclaim page
 cache and request the shrink, but do not spend the released memory until the
 kubelet confirms it. The daemon's existing worker/exec guards remain authoritative
 if activity races a pause. Busy sandboxes finish their turn normally.
 
-The controller should publish a short-lived per-node allocation and reclaim request
-through an authenticated server endpoint. Store desired allocation and generation
-in the shared database, and act under the existing node capacity lock. The server
-must reject new growth on a CI-reserved node and while its CI allocation is being
-reclaimed. Only the controller assigns capacity between substrates; only the
-server resizes daemons. Expired or missing coordination data stops new growth,
-but never stops existing jobs or turns. A generation check prevents a stale shrink
-or growth from overwriting a newer allocation.
+The lexicographically first enabled pool in each fleet publishes per-node grants
+through `POST /api/internal/sandboxes/allocation`, authenticated as the exact
+runners-controller ServiceAccount. A grant is an admission ceiling, not a request
+to grow a daemon. It carries the daemon Pod name, observation timestamp, maximum
+memory, currently free memory and a reclaim flag. Grants expire after 15 seconds.
+The database stores them on `sandbox_nodes`, under the node advisory lock, and
+rejects older/equal observations. Controller and server clocks must be synchronized;
+observations more than one second in the future are refused. Pod replacement
+invalidates the old grant. A controller restart or signal failure cannot extend
+the last grant. Existing turns continue when grants expire.
 
-Rank growth candidates by available requested memory, then by reclaimable warm
-runner memory, with deterministic ties. Compute this from controller-observed Pod
-requests, including pending resizes and RuntimeClass overhead. Treat the report as
-a hint, not a reservation: verify the allocation under the node lock and retain the
-kubelet deferral/try-next-node path. Exclude nodes reserved for CI.
+The server checks the grant on placement, growth, resume and residency start,
+including new turns on a VM still running. Idle API execs also check admission;
+execs within an existing residency remain allowed. A CI host reservation revokes
+the grant before tainting the node. The two controller reconcilers serialize that
+revoke/taint sequence with fresh node snapshot/publication, so an earlier snapshot
+cannot reopen the reservation. Revoke failure prevents a new reservation.
+Only the server resizes daemons. It holds the node lock during the Kubernetes
+write and rechecks the desired Pod/size, so a delayed write cannot overwrite a
+newer different size. A released deferred growth also retains all charged guests.
+Each resize also reads the Pod's resourceVersion and UID and includes them in the
+PATCH, with transport retries disabled. A request still in flight after a timeout
+must conflict if a newer resize or Pod replacement already landed.
+
+Every accepted observation transactionally queues an idempotent Oban reclaim job.
+Busy sandbox locks are skipped rather than waited on; the next observation retries
+them. Shared-node pauses have zero extra grace and enqueue a shrink immediately.
+There is no three-minute warm hold. Only an in-flight growth can retain its request
+for up to 15 seconds while admission waits for it; a pause or CI reclaim bypasses
+that interval. The minute cron remains a recovery sweep. A failed shrink is
+reported to Oban for retry and remains charged by the controller.
+
+Growth candidates rank by currently free requested memory, then by granted memory,
+with node-name ties. The grant adds eligible idle runner memory to free memory and
+the daemon's existing charge. It counts all namespaces' Pod requests, allocated
+and applied sizes, init containers/sidecars and RuntimeClass overhead. Reserved,
+cordoned, unready or pressured nodes and terminating daemons grant no new capacity.
+These are hints, not reservations: the server verifies the grant under the node
+lock and retains the kubelet deferral/try-next-node path. Runner retirement for
+sandbox growth is disabled when CI is queued or its demand is unknown.
 
 ## Disk and CPU
 
@@ -99,9 +132,13 @@ is not proof that sandboxes have no effect on running CI latency.
 
 ## Validation and rollout gates
 
-Before enabling an account, publish carve-out requested/allocated/used bytes by
-node; resize latency and deferred/failed outcomes; admission refusal reasons;
-reclaim latency; and a separate sandbox-driven runner retirement counter. Alert on
+The controller exports `tuist_runners_sandbox_memory_bytes{node,kind}` for charged,
+grant and free bytes, `tuist_runners_sandbox_grant_timestamp_seconds`, and a separate
+`tuist_runners_sandbox_retired_pods_total{pool}`. Server capacity counters and latency
+histograms use node/operation/outcome labels for admission refusal, growth deferral,
+failure and reclaim. These measure control-plane operations, not end-to-end turns.
+Before enabling an account, also verify requested/allocated/used memory from the
+Kubernetes/cgroup telemetry and build the corresponding dashboards. Alert on
 sustained CI queue age with reclaimable sandbox memory, pending resize age, and
 shared filesystem headroom. Avoid account/session labels on fleet metrics.
 
@@ -119,5 +156,5 @@ metrics are present, then enable the Tuist account first.
 Rollback first stops accepting new sandbox work through the account flag. Let
 active turns finish and shrink allocations before removing daemons; deleting a
 daemon is not a substitute for reclaim. Preserve node-local files needed for
-paused sessions. Do not merge the current enabled canary/production chart values
-as a substitute for an agreed rollout.
+paused sessions. Canary and production chart values remain disabled until the
+rollout is agreed and matching releases have passed staging validation.

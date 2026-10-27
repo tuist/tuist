@@ -158,6 +158,12 @@ Reconciles `RunnerPool` Pods/per-Pod SAs and desired replicas. Run `go test ./..
     read failure cannot freeze scale-up for queued work. Memory is the
     only dimension — Kata pins it per microVM and CPU is oversubscribed.
 
+    Sandbox admission is CI-first with zero additional warm memory. The fleet's
+    first enabled pool publishes short-lived per-node grants; CI reservations
+    revoke before tainting, and queued or unknown CI demand disables sandbox
+    preemption. Keep the server/controller protocol and its ordering guarantees
+    aligned with [`fleet-sharing.md`](../sandboxd/fleet-sharing.md).
+
     Sandbox daemons (`infra/sandboxd`, namespace from
     `TUIST_SANDBOXES_NAMESPACE`, an env var so a controller release that
     predates it ignores the chart setting it) share these nodes. Their
