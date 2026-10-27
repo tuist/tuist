@@ -496,11 +496,12 @@ extension TestCoverageEvidenceService {
         return result
     }
 
-    /// The build product an image was installed from, for an image that no longer exists: a
-    /// parallel test run installs the bundles into simulator clones that Xcode deletes after it.
-    /// The product is found by the image's path from its outermost bundle on.
+    /// The build product an image was installed from, for an image in a simulator clone or one that
+    /// no longer exists: a parallel test run installs the bundles into clones (`XCTestDevices`) that
+    /// Xcode deletes after it, in the background, so a clone's image can vanish between a check and
+    /// the read. The product is found by the image's path from its outermost bundle on.
     static func buildProduct(ofInstalledImage path: String, productsDirectories: [String]) -> String? {
-        guard !FileManager.default.fileExists(atPath: path) else { return nil }
+        guard path.contains("/XCTestDevices/") || !FileManager.default.fileExists(atPath: path) else { return nil }
         let components = path.split(separator: "/")
         guard let bundle = components.firstIndex(where: { $0.hasSuffix(".app") || $0.hasSuffix(".xctest") })
         else { return nil }

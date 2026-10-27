@@ -156,6 +156,14 @@ struct TestCoverageEvidenceServiceTests {
             product)
         #expect(TestCoverageEvidenceService
             .buildProduct(ofInstalledImage: product, productsDirectories: productsDirectories) == nil)
+        // Xcode deletes a clone after the run, but not always before the evidence reads it.
+        try FileManager.default.createDirectory(
+            atPath: (installed as NSString).deletingLastPathComponent,
+            withIntermediateDirectories: true
+        )
+        FileManager.default.createFile(atPath: installed, contents: Data())
+        #expect(TestCoverageEvidenceService.buildProduct(ofInstalledImage: installed, productsDirectories: productsDirectories) ==
+            product)
         #expect(TestCoverageEvidenceService.buildProduct(
             ofInstalledImage: "/gone/libFoo.dylib",
             productsDirectories: productsDirectories
