@@ -173,7 +173,7 @@ Machine deletion/reinstall and address reuse by a replacement were not tested
 on the sole staging runner. Bandwidth alerts remain definitions only. These
 gates, plus canary/production private-vRack alignment, remain before promotion.
 
-### Final staging state
+### Staging state after qualification on 2026-10-26
 
 The final combined provider is `c1e502d4`, published by
 [run 40415854542](https://github.com/tuist/tuist/actions/runs/40415854542).
@@ -194,6 +194,42 @@ it while an allocation exists.
 [Final disabled-state run 40416946444](https://github.com/tuist/tuist/actions/runs/40416946444)
 passed the exact primary-IP assertion and another real private-cache upload and
 remote hit after cleanup on the final combined provider.
+
+### PR deployment recheck on 2026-10-27
+
+Staging had advanced to provider `a59b98c6`, including Kura storage and nested-KVM
+rehearsals. The provider-only integration build `e8dcb75e` preserves that baseline
+and contains the PR's identical egress implementation and regression tests.
+It is not a full deployment of the PR checkout. The guarded
+[build and deployment](https://github.com/tuist/tuist/actions/runs/40492616173)
+passed all CI gates and replaced only the provider and egress configuration/RBAC,
+with egress initially disabled. Application and cache releases were not upgraded.
+
+The first baseline job stopped before compilation because the fixture accepted
+only regional EU-West cache names, while staging still dispatches its existing
+`kura-tuist-ovh-gra-runners` endpoint. The PR now accepts that exact endpoint in
+addition to the regional names, retains the staging URL guard, and reports an
+explicit scope error. Shellcheck and accepted/rejected endpoint checks passed.
+
+- [Corrected baseline](https://github.com/tuist/tuist/actions/runs/40493029798)
+  passed exact primary IP `193.70.46.18`, fresh production/test Kotlin compilation,
+  uploads and remote restores with matching class checksums.
+- [Enabled job](https://github.com/tuist/tuist/actions/runs/40493880351)
+  passed exact public IP `5.39.98.145` and the same real private-cache checks.
+  Both network conditions were True, their revisions matched the current BootID,
+  and the existing KVM readiness condition remained True.
+- [Final disabled-state job](https://github.com/tuist/tuist/actions/runs/40494320217)
+  passed exact primary IP `193.70.46.18` and both Kotlin remote restores with
+  matching checksums after cleanup on provider `e8dcb75e`.
+
+Activation and rollback waited for zero nonterminal runner pods on the cordoned
+host. Cleanup emptied the public reservation map and removed the egress condition
+and Node annotations while private-network readiness and Node readiness remained
+True. The temporary qualification annotation was removed and scheduling resumed.
+No host reboot, Machine replacement or direct host diagnostics were repeated.
+The human Kubernetes identity could not read the cluster-scoped Cilium policy;
+this recheck uses controller convergence and real job results, not a fresh BPF
+map inspection. The earlier recovery-time and promotion limitations still apply.
 
 ## Qualification and rollout
 
