@@ -370,8 +370,9 @@ distinguish the broken case: a healthy two-instance cluster also has only a
 not appear until three instances. `ALLOWED=0` on the primary budget is normal
 at every instance count and is not by itself a fault.
 
-Reading the `Cluster` CR needs JIT elevation (`clusters.postgresql.cnpg.io` is
-forbidden to the normal kubectl identity); the pod count above does not.
+Reading the `Cluster` CR and instance pods is available through the normal
+`view` tier. A manual promotion needs the write tier; follow the
+[controlled switchover runbook](../k8s/onboarding.md#controlled-cnpg-switchover).
 
 ## Backup: Barman Cloud Plugin
 
