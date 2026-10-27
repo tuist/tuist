@@ -98,7 +98,7 @@ struct CoverageUploadServiceTests {
         let bundle = temporaryDirectory.appending(component: "shard-1.xcresult")
         try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
         try """
-        {"path":"/repo/Sources/A.swift","targets":["A"],"is_test":false,"covered_lines":1,"executable_lines":2,"line_numbers":[1,2],"execution_counts":[3,0],"functions":[{"name":"A.run()","line_number":1,"execution_count":3,"covered_lines":1,"executable_lines":2}]}
+        {"path":"/repo/Sources/A.swift","targets":["A"],"is_test":false,"covered_lines":2,"executable_lines":3,"line_numbers":[1,2,3],"execution_counts":[3,0,2],"functions":[{"name":"A.run()","line_number":1,"execution_count":3,"covered_lines":1,"executable_lines":1},{"name":"A.load(_:)","line_number":2,"execution_count":0,"covered_lines":0,"executable_lines":1},{"name":"A.load(_:)","line_number":3,"execution_count":2,"covered_lines":1,"executable_lines":1}]}
         {"path":"/repo/Tests/ATests.swift","targets":["ATests"],"is_test":true,"covered_lines":1,"executable_lines":1,"line_numbers":[],"execution_counts":[],"functions":[]}
 
         """.write(toFile: bundle.appending(component: CoverageExport.fileName).pathString, atomically: true, encoding: .utf8)
@@ -128,12 +128,17 @@ struct CoverageUploadServiceTests {
         SF:Sources/A.swift
         FN:1,A.run()
         FNDA:3,A.run()
-        FNF:1
-        FNH:1
+        FN:2,A.load(_:) (line 2)
+        FNDA:0,A.load(_:) (line 2)
+        FN:3,A.load(_:) (line 3)
+        FNDA:2,A.load(_:) (line 3)
+        FNF:3
+        FNH:2
         DA:1,3
         DA:2,0
-        LF:2
-        LH:1
+        DA:3,2
+        LF:3
+        LH:2
         end_of_record
 
         """)

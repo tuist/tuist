@@ -170,10 +170,15 @@ public struct CoverageUploadService: CoverageUploadServicing {
             try autoreleasepool {
                 let file = try decoder.decode(XcodeCoverageFile.self, from: Data(line.utf8))
                 guard !file.isTest else { return }
+                // LCOV keys a function by name, and overloads demangle to the same one.
+                let overloaded = Set(Dictionary(grouping: file.functions, by: \.name).filter { $0.value.count > 1 }.keys)
                 var section = "SF:\(file.path)\n"
                 for function in file.functions {
-                    section += "FN:\(function.lineNumber),\(function.name)\n"
-                    section += "FNDA:\(function.executionCount),\(function.name)\n"
+                    let name = overloaded.contains(function.name)
+                        ? "\(function.name) (line \(function.lineNumber))"
+                        : function.name
+                    section += "FN:\(function.lineNumber),\(name)\n"
+                    section += "FNDA:\(function.executionCount),\(name)\n"
                 }
                 section += "FNF:\(file.functions.count)\n"
                 section += "FNH:\(file.functions.filter { $0.executionCount > 0 }.count)\n"
