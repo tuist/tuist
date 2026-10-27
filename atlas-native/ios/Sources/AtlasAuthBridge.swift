@@ -1,6 +1,12 @@
 import AtlasAuthFFI
 import Foundation
 
+struct AtlasAuthenticationError: LocalizedError {
+    let kind: String
+    let message: String
+    var errorDescription: String? { message }
+}
+
 enum AtlasAuthBridge {
     static func execute(_ input: String) async throws -> String {
         try await Task.detached(priority: .userInitiated) {

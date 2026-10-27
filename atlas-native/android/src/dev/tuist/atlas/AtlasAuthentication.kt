@@ -92,6 +92,9 @@ class AtlasAuthentication(
     context: Context,
 ) {
     private val storage = AtlasSecureStorage(context.applicationContext)
+    private val readCacheDirectory = java.io.File(context.noBackupFilesDir, "reads").absolutePath
+
+    @Volatile private var localSession: String? = null
     private val worker = Executors.newSingleThreadExecutor()
     private val requests = Executors.newFixedThreadPool(4)
     private val watches = Executors.newFixedThreadPool(2)
@@ -107,6 +110,7 @@ class AtlasAuthentication(
     var listener: (() -> Unit)? = null
     var authorizationURL: String? = null
     private var deferredCallback: String? = null
+    private var deferredSignOut = false
     private var apiRequests = 0
     private var closing = false
 
@@ -134,7 +138,9 @@ class AtlasAuthentication(
     fun restore() {
         work {
             val saved = storage.load("session") ?: return@work
-            accept(command(JSONObject().put("operation", "restore").put("session", saved)))
+            val local = command(JSONObject().put("operation", "bootstrap").put("session", saved))
+            accept(local)
+            accept(command(JSONObject().put("operation", "restore").put("session", local)))
         }
     }
 
@@ -174,11 +180,22 @@ class AtlasAuthentication(
     }
 
     fun signOut() {
+        if (busy) {
+            deferredSignOut = true
+            return
+        }
         work { discardSession() }
     }
 
     private fun discardSession(removeRegistration: Boolean = false) {
-        val origin = runCatching { storage.load("session")?.optJSONObject("registration")?.optString("server") }.getOrNull() ?: server
+        val saved = storage.load("session")
+        val origin = saved?.optJSONObject("registration")?.optString("server") ?: server
+        sessionIdentity += 1
+        localSession = null
+        main.post { server = null }
+        saved?.let {
+            runCatching { command(JSONObject().put("operation", "forget_cache").put("session", it).put("directory", readCacheDirectory)) }
+        }
         origin?.let {
             val key = AtlasPushStorage.key(it)
             runCatching { storage.load(key)?.let { saved -> storage.save(key, saved.put("enabled", false)) } }
@@ -187,8 +204,6 @@ class AtlasAuthentication(
         storage.delete("automation.admission")
         storage.delete("connections.pending")
         storage.delete("session")
-        sessionIdentity += 1
-        main.post { server = null }
         storage.delete("pending")
         if (removeRegistration) storage.delete("registration")
     }
@@ -325,30 +340,50 @@ class AtlasAuthentication(
         completion: (Result<JSONObject>) -> Unit,
     ) = live("presence", action, completion)
 
-    // Rust owns thread state behind one handle. Opening and commands restore credentials first;
-    // draft, active(false), next and close only touch the local handle.
+    // Rust hydrates the local inbox before refresh; protected commands still restore credentials.
     fun orbitSession(
         action: JSONObject,
         completion: (Result<JSONObject>) -> Unit,
     ) = live("orbit_session", action, completion)
 
-    // Opening and requests restore the session through the credential queue; everything else only touches
-    // local Rust handles and runs on its own workers so blocking waits never hold up sign-out.
+    // Local opens and handle operations bypass the credential queue, including a slow startup refresh.
     private fun live(
         name: String,
         action: JSONObject,
         completion: (Result<JSONObject>) -> Unit,
     ) {
-        if (action.optString("action") == "open" || action.optString("action") == "request") {
+        val localOpen = name == "orbit_session" && action.optString("action") == "open"
+        if ((!localOpen && action.optString("action") == "open") || action.optString("action") == "request") {
             operation(name, action, completion)
             return
         }
+        val identity = sessionIdentity
+        val saved = localSession
         apiRequests += 1
         presenceWorker.execute {
-            val result = runCatching { command(JSONObject(action.toString()).put("operation", name)) }
+            val result =
+                runCatching {
+                    val request = JSONObject(action.toString()).put("operation", name)
+                    if (localOpen) {
+                        if (closing || identity != sessionIdentity ||
+                            saved == null
+                        ) {
+                            throw AuthFailure("sign_in_required", "Sign in to Atlas again.")
+                        }
+                        request.put("session", JSONObject(saved)).put("cache_directory", readCacheDirectory)
+                    }
+                    command(request)
+                }
             main.post {
                 apiRequests -= 1
-                completion(result)
+                if (localOpen && identity != sessionIdentity) {
+                    result.getOrNull()?.optString("connection")?.takeIf { it.isNotEmpty() }?.let { handle ->
+                        live(name, JSONObject().put("action", "close").put("connection", handle)) {}
+                    }
+                    completion(Result.failure(AuthFailure("sign_in_required", "Sign in to Atlas again.")))
+                } else {
+                    completion(result)
+                }
                 if (closing && apiRequests == 0) {
                     worker.shutdown()
                     holidayWorker.shutdown()
@@ -527,8 +562,12 @@ class AtlasAuthentication(
 
     private fun accept(session: JSONObject) {
         storage.save("session", session)
+        localSession = session.toString()
         val address = session.getJSONObject("registration").getString("server")
-        main.post { server = address }
+        main.post {
+            server = address
+            listener?.invoke()
+        }
     }
 
     private fun command(request: JSONObject): JSONObject {
@@ -564,6 +603,12 @@ class AtlasAuthentication(
                 busy = false
                 errorMessage = failure
                 listener?.invoke()
+                if (deferredSignOut) {
+                    deferredSignOut = false
+                    deferredCallback = null
+                    signOut()
+                    return@post
+                }
                 deferredCallback?.let { url ->
                     deferredCallback = null
                     callback(url)

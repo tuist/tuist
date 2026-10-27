@@ -60,7 +60,7 @@ resolver_inputs = ["Cargo.toml", "Cargo.lock", "auth/Cargo.toml", "core/Cargo.to
 [[target]]
 name = "AtlasAuthIOS"
 kind = "rust_library"
-srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/api.rs", "auth/src/form.rs", "auth/src/accounts.rs", "auth/src/connections.rs", "auth/src/time_off.rs", "auth/src/business.rs", "auth/src/presence.rs", "auth/src/themes.rs", "auth/src/push.rs", "auth/src/orbit_activity.rs", "auth/src/orbit.rs", "auth/src/orbit_live.rs", "auth/src/orbit_session.rs", "auth/src/orbit_components.rs", "auth/src/moodboard.rs"]
+srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/api.rs", "auth/src/form.rs", "auth/src/accounts.rs", "auth/src/connections.rs", "auth/src/time_off.rs", "auth/src/business.rs", "auth/src/presence.rs", "auth/src/themes.rs", "auth/src/push.rs", "auth/src/orbit_activity.rs", "auth/src/orbit.rs", "auth/src/orbit_live.rs", "auth/src/orbit_session.rs", "auth/src/orbit_components.rs", "auth/src/moodboard.rs", "auth/src/cache.rs", "auth/src/cache_migrations/*.sql"]
 deps = ["./AtlasAuthIOSDependencies"]
 
 [target.attrs]
@@ -74,7 +74,7 @@ crate_type = "staticlib"
 [[target]]
 name = "AtlasAuthIOSDevice"
 kind = "rust_library"
-srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/api.rs", "auth/src/form.rs", "auth/src/accounts.rs", "auth/src/connections.rs", "auth/src/time_off.rs", "auth/src/business.rs", "auth/src/presence.rs", "auth/src/themes.rs", "auth/src/push.rs", "auth/src/orbit_activity.rs", "auth/src/orbit.rs", "auth/src/orbit_live.rs", "auth/src/orbit_session.rs", "auth/src/orbit_components.rs", "auth/src/moodboard.rs"]
+srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/api.rs", "auth/src/form.rs", "auth/src/accounts.rs", "auth/src/connections.rs", "auth/src/time_off.rs", "auth/src/business.rs", "auth/src/presence.rs", "auth/src/themes.rs", "auth/src/push.rs", "auth/src/orbit_activity.rs", "auth/src/orbit.rs", "auth/src/orbit_live.rs", "auth/src/orbit_session.rs", "auth/src/orbit_components.rs", "auth/src/moodboard.rs", "auth/src/cache.rs", "auth/src/cache_migrations/*.sql"]
 deps = ["./AtlasAuthIOSDeviceDependencies"]
 
 [target.attrs]
@@ -88,7 +88,7 @@ crate_type = "staticlib"
 [[target]]
 name = "AtlasAuthAndroid"
 kind = "rust_library"
-srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/api.rs", "auth/src/form.rs", "auth/src/accounts.rs", "auth/src/connections.rs", "auth/src/time_off.rs", "auth/src/business.rs", "auth/src/presence.rs", "auth/src/themes.rs", "auth/src/push.rs", "auth/src/orbit_activity.rs", "auth/src/orbit.rs", "auth/src/orbit_live.rs", "auth/src/orbit_session.rs", "auth/src/orbit_components.rs", "auth/src/moodboard.rs"]
+srcs = ["auth/src/lib.rs", "auth/src/bridge.rs", "auth/src/transport.rs", "auth/src/api.rs", "auth/src/form.rs", "auth/src/accounts.rs", "auth/src/connections.rs", "auth/src/time_off.rs", "auth/src/business.rs", "auth/src/presence.rs", "auth/src/themes.rs", "auth/src/push.rs", "auth/src/orbit_activity.rs", "auth/src/orbit.rs", "auth/src/orbit_live.rs", "auth/src/orbit_session.rs", "auth/src/orbit_components.rs", "auth/src/moodboard.rs", "auth/src/cache.rs", "auth/src/cache_migrations/*.sql"]
 deps = ["./AtlasAuthAndroidDependencies"]
 
 [target.attrs]
@@ -113,7 +113,7 @@ header_dirs = ["auth/include"]
 [[target]]
 name = "AtlasAuthTests"
 kind = "rust_test"
-srcs = ["auth/src/**/*.rs"]
+srcs = ["auth/src/**/*.rs", "auth/src/cache_migrations/*.sql"]
 deps = ["./AtlasAuthDependencies"]
 
 [target.attrs]
@@ -409,7 +409,7 @@ ui_testing = true
 [[target]]
 name = "AtlasSettingsAndroidPreview"
 kind = "android_binary"
-srcs = ["previews/android/**/*.kt", "android/src/dev/tuist/atlas/AtlasConnections*.kt", "android/src/dev/tuist/atlas/AtlasAIAccountsScreen.kt", "android/src/dev/tuist/atlas/AtlasAIAccountsModel.kt", "android/src/dev/tuist/atlas/AtlasAuthentication.kt", "android/src/dev/tuist/atlas/AtlasTimeOffModel.kt", "android/src/dev/tuist/atlas/AtlasTimeOffScreen.kt", "android/src/dev/tuist/atlas/AtlasCore.kt", "android/src/dev/tuist/atlas/AtlasWorkspaceModel.kt", "android/src/dev/tuist/atlas/AtlasWorkspaceScreen.kt", "android/src/dev/tuist/atlas/AtlasBusinessModel.kt", "android/src/dev/tuist/atlas/AtlasBusinessScreen.kt", "android/src/dev/tuist/atlas/AtlasHomeScreen.kt", "android/src/dev/tuist/atlas/AtlasProfileModel.kt", "android/src/dev/tuist/atlas/AtlasPresenceModel.kt", "android/src/dev/tuist/atlas/AtlasPeopleScreen.kt", "android/src/dev/tuist/atlas/AtlasBrowser.kt", "android/src/dev/tuist/atlas/AtlasAppearance.kt", "android/src/dev/tuist/atlas/AtlasOrbitModel.kt", "android/src/dev/tuist/atlas/AtlasOrbitAttachments.kt", "android/src/dev/tuist/atlas/AtlasThreadCardView.kt"]
+srcs = ["previews/android/**/*.kt", "android/src/dev/tuist/atlas/AtlasConnections*.kt", "android/src/dev/tuist/atlas/AtlasAIAccountsScreen.kt", "android/src/dev/tuist/atlas/AtlasAIAccountsModel.kt", "android/src/dev/tuist/atlas/AtlasAuthentication.kt", "android/src/dev/tuist/atlas/AtlasTimeOffModel.kt", "android/src/dev/tuist/atlas/AtlasTimeOffScreen.kt", "android/src/dev/tuist/atlas/AtlasCore.kt", "android/src/dev/tuist/atlas/AtlasWorkspaceModel.kt", "android/src/dev/tuist/atlas/AtlasWorkspaceScreen.kt", "android/src/dev/tuist/atlas/AtlasBusinessModel.kt", "android/src/dev/tuist/atlas/AtlasBusinessScreen.kt", "android/src/dev/tuist/atlas/AtlasHomeScreen.kt", "android/src/dev/tuist/atlas/AtlasProfileModel.kt", "android/src/dev/tuist/atlas/AtlasPresenceModel.kt", "android/src/dev/tuist/atlas/AtlasPeopleScreen.kt", "android/src/dev/tuist/atlas/AtlasBrowser.kt", "android/src/dev/tuist/atlas/AtlasAppearance.kt", "android/src/dev/tuist/atlas/AtlasOrbitModel.kt", "android/src/dev/tuist/atlas/AtlasOrbitAttachments.kt", "android/src/dev/tuist/atlas/AtlasThreadCardView.kt", "android/src/dev/tuist/atlas/AtlasOrbitScreen.kt"]
 deps = ["./AtlasAuthAndroid", "./AtlasCore", "./AtlasNSHAndroid"]
 
 [target.attrs]

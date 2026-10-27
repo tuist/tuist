@@ -85,6 +85,7 @@ class AtlasOrbitModel(
         val attachmentBusy: Boolean = false,
         val uploadPending: Boolean = false,
         val uploadFilename: String? = null,
+        val cached: Boolean = false,
     ) {
         val privateThread get() = threads.firstOrNull { it.isPrivate }
         val shared get() = threads.filter { !it.isPrivate }
@@ -158,6 +159,9 @@ class AtlasOrbitModel(
                 return@request
             }
             connection = handle
+            result.getOrNull()?.optJSONObject("snapshot")?.let {
+                if (apply(it)) listener?.invoke()
+            }
             if (active) command(JSONObject().put("action", "active").put("active", true))
             if (queued.none { it.getString("action") == "load" }) command(JSONObject().put("action", "load"))
             queued.toList().also { queued.clear() }.forEach(::command)
@@ -605,6 +609,7 @@ class AtlasOrbitModel(
             value.optBoolean("attachment_busy"),
             value.optBoolean("upload_pending"),
             value.nullableString("upload_filename"),
+            value.optBoolean("cached"),
         )
 
     private fun thread(value: JSONObject) =
