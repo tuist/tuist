@@ -95,11 +95,13 @@ even after the nominal grace period; it never silently converts a timeout into
 a successful drain. Explicit force deletion with zero grace bypasses the gate
 and can interrupt a job. A guest that has already exited can be cleaned up.
 So can a VM the running tart-kubelet booted whose guest never passed its
-readiness probe (no IP, or every probe failed): `/ready` requires Postgres,
-ClickHouse and an unpaused queue, so it has no work to drain, and a release
-that crashes on boot would otherwise hold its own replacement forever. A VM
-recovered after a tart-kubelet restart has no readiness history and keeps the
-gate. This contract also protects ordinary processor rolling deployments after the
+readiness probe, before any drain request is written: the guest never had an
+IP, or it refuses the connection or answers `/ready` with an error. `/ready`
+requires Postgres, ClickHouse and an unpaused queue, so such a guest has no
+work to drain, and a release that crashes on boot would otherwise hold its own
+replacement forever. A guest the host cannot reach (timeouts, no route), a VM
+with a pending request (draining pauses the queue and fails `/ready`) and a VM
+recovered after a tart-kubelet restart keep the gate. This contract also protects ordinary processor rolling deployments after the
 Pods have adopted it.
 
 ## First rollout and rollback

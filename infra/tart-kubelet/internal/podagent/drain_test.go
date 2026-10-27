@@ -2,7 +2,8 @@ package podagent
 
 import (
 	"context"
-	"errors"
+	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -75,10 +76,24 @@ func TestDrainRejectsSymlinksAndFIFOs(t *testing.T) {
 }
 
 func TestDrainSkipsABootedProcessorThatNeverPassedReadiness(t *testing.T) {
-	r, pod, entry := newBootedProcessor(t)
-	entry.Readiness.record(errors.New("connection refused"))
+	for name, err := range map[string]error{
+		"nothing listening":  fmt.Errorf("dial tcp: %w", syscall.ECONNREFUSED),
+		"dependency failing": fmt.Errorf("%w: 503", errHTTPProbeStatus),
+	} {
+		t.Run(name, func(t *testing.T) {
+			r, pod, entry := newBootedProcessor(t)
+			entry.Readiness.record(err)
 
-	assertDrain(t, r, pod, entry, false)
+			assertDrain(t, r, pod, entry, false)
+		})
+	}
+}
+
+func TestDrainWaitsForABootedProcessorTheHostCannotReach(t *testing.T) {
+	r, pod, entry := newBootedProcessor(t)
+	entry.Readiness.record(fmt.Errorf("dial tcp: %w", syscall.EHOSTUNREACH))
+
+	assertDrain(t, r, pod, entry, true)
 }
 
 func TestDrainSkipsABootedProcessorWhoseGuestNeverHadAnIP(t *testing.T) {
@@ -97,7 +112,7 @@ func TestDrainWaitsForABootedProcessorBeforeItsFirstProbe(t *testing.T) {
 func TestDrainWaitsForABootedProcessorThatWasReady(t *testing.T) {
 	r, pod, entry := newBootedProcessor(t)
 	entry.Readiness.record(nil)
-	entry.Readiness.record(errors.New("connection refused"))
+	entry.Readiness.record(fmt.Errorf("dial tcp: %w", syscall.ECONNREFUSED))
 	if entry.Readiness.Ready() {
 		t.Fatal("expected the failed probe to make the Pod NotReady")
 	}
@@ -111,7 +126,7 @@ func TestDrainWaitsForARecoveredProcessorThatIsNotReady(t *testing.T) {
 	pod.Annotations = map[string]string{gracefulDrainAnnotation: "xcresult-v1"}
 	entry.StatusDir = t.TempDir()
 	entry.Readiness = newReadinessProber(pod.Spec.Containers[0], time.Now(), false, nil)
-	entry.Readiness.record(errors.New("connection refused"))
+	entry.Readiness.record(fmt.Errorf("dial tcp: %w", syscall.ECONNREFUSED))
 
 	assertDrain(t, r, pod, entry, true)
 }
@@ -154,5 +169,33 @@ func assertDrain(t *testing.T, r *Reconciler, pod *corev1.Pod, entry *Entry, wan
 	_, statErr := os.Stat(filepath.Join(entry.StatusDir, "drain-request"))
 	if requested := statErr == nil; requested != wantWaiting {
 		t.Fatalf("drain request written = %v, want %v", requested, wantWaiting)
+	}
+}
+
+func TestDrainKeepsWaitingOnceRequestedEvenIfTheGuestThenFailsReadiness(t *testing.T) {
+	r, pod, entry := newBootedProcessor(t)
+	assertDrain(t, r, pod, entry, true)
+
+	// The guest pauses its queue to drain, which fails /ready.
+	entry.Readiness.record(fmt.Errorf("%w: 503", errHTTPProbeStatus))
+
+	assertDrain(t, r, pod, entry, true)
+}
+
+func TestReadinessProberCountsARefusedConnectionAsTheGuestAnswering(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
+	p := newReadinessProber(corev1.Container{ReadinessProbe: &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{HTTPGet: &corev1.HTTPGetAction{Path: "/ready", Port: intstr.FromInt32(int32(port))}},
+	}}, time.Now(), false, nil)
+
+	p.record(p.check(context.Background(), "127.0.0.1"))
+
+	if !p.NeverReady() {
+		t.Fatal("expected a refused connection to count as the guest answering")
 	}
 }

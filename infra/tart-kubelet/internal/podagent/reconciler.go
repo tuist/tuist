@@ -1602,7 +1602,8 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 		// scrape-target and queue-age rules in
 		// infra/helm/k8s-monitoring/alerts.md still cover it from outside.
 		// A wrong probe holds rollouts and PodDisruptionBudgets, so probes
-		// stay opt-in per PodSpec and never gate deletion.
+		// stay opt-in per PodSpec. A probe that never passed also lets a
+		// drain-annotated Pod skip its drain (see drain.go).
 		ready := r.syncReadinessProbe(pod, entry, ip)
 		readyCondition := corev1.PodCondition{Type: corev1.PodReady, Status: corev1.ConditionTrue}
 		if !ready {

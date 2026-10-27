@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -28,7 +29,7 @@ func (r *Reconciler) drainPod(ctx context.Context, pod *corev1.Pod) (bool, error
 		if _, exited := entry.Run.Exited(); exited {
 			return false, nil
 		}
-		if neverServed(pod, entry) {
+		if !drainRequested(entry.StatusDir) && neverServed(pod, entry) {
 			return false, nil
 		}
 	} else {
@@ -47,7 +48,8 @@ func (r *Reconciler) drainPod(ctx context.Context, pod *corev1.Pod) (bool, error
 }
 
 // neverServed reports whether a VM this agent booted never passed its
-// readinessProbe: it never had an IP, or its probes ran and all failed. The
+// readinessProbe: it never had an IP, or the guest answers and has never
+// passed. The
 // processor's /ready requires Postgres, ClickHouse and an unpaused queue, so
 // such a guest has no work to drain, and a release that cannot start would
 // never acknowledge. A recovered VM's earlier readiness is unknown, so callers
@@ -57,6 +59,17 @@ func neverServed(pod *corev1.Pod, entry *Entry) bool {
 		return false
 	}
 	return entry.Readiness == nil || entry.Readiness.NeverReady()
+}
+
+// drainRequested reports whether a drain request is already in the share. A
+// draining guest pauses its queue, which fails /ready, so once requested a
+// failing probe no longer means the guest never served.
+func drainRequested(dir string) bool {
+	if dir == "" {
+		return false
+	}
+	_, err := os.Lstat(filepath.Join(dir, "drain-request"))
+	return !os.IsNotExist(err)
 }
 
 func requestGuestDrain(dir, uid string) (bool, error) {
