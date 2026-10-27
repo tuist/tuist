@@ -797,7 +797,9 @@ defmodule Tuist.Kura.Capacity do
 
   defp account_handle(%Server{}), do: nil
 
-  defp region_selector(region_id), do: "#{@managed_by_selector},tuist.dev/region=#{region_id}"
+  # Includes independently managed, quota-backed storage (such as shard
+  # artifacts) sharing the region. Its full reservation competes with Kura.
+  defp region_selector(region_id), do: "tuist.dev/region=#{region_id}"
 
   @doc """
   Gibibytes a region's instances may reserve before admission refuses more, or

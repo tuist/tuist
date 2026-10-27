@@ -5,6 +5,15 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Observability
   alias Tuist.Projects.Project
 
+  @doc "Default-off account enrollment in runner-local shard artifact storage."
+  def runner_shard_storage_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :runner_shard_storage,
+      account,
+      flag_enabled?(:runner_shard_storage, account, flags)
+    )
+  end
+
   @doc "Default-off immutable shard creation gate; coverage-enabled accounts remain on legacy plans."
   def immutable_shard_reports_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(

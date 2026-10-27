@@ -905,6 +905,14 @@ defmodule Tuist.Environment do
     get([:operator_email_domain], secrets, default_value: "tuist.dev")
   end
 
+  @doc "Configured immutable shard target IDs; malformed configuration disables enrollment."
+  def shard_storage_targets do
+    case JSON.decode(System.get_env("TUIST_SHARD_STORAGE_TARGETS") || "{}") do
+      {:ok, targets} when is_map(targets) -> targets
+      _ -> %{}
+    end
+  end
+
   @doc """
   PEM-encoded Ed25519 PUBLIC key used to verify operator access grant
   tokens minted by ops.tuist.dev. nil when unset, in which case grant

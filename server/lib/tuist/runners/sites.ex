@@ -57,6 +57,22 @@ defmodule Tuist.Runners.Sites do
     end
   end
 
+  @doc "The operator-enrolled storage site of the actual claiming Linux node."
+  def shard_storage_site(node_name) when is_binary(node_name) and node_name != "" do
+    case Client.get_node(node_name, timeout: @read_timeout) do
+      {:ok, node} ->
+        case get_in(node, ["metadata", "labels", "node.cluster.x-k8s.io/shard-storage-site"]) do
+          site when is_binary(site) and site != "" -> site
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  def shard_storage_site(_), do: nil
+
   def cache_name, do: :tuist
 
   defp fits?(node, spec) do
