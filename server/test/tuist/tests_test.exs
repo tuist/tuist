@@ -9027,7 +9027,7 @@ defmodule Tuist.TestsTest do
             status: if(rem(i, 2) == 0, do: "success", else: "failure"),
             is_flaky: true,
             is_flakiness_excluded: false,
-            flakiness_environment: "",
+            test_execution_id: nil,
             is_new: false,
             is_quarantined: false,
             coverage_evidence: "none",

@@ -16,6 +16,7 @@ defmodule Tuist.Shards.ImmutableReportsTest do
   alias Tuist.Tests.Coverage
   alias Tuist.Tests.Test
   alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestExecution
   alias Tuist.Tests.TestModuleRun
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -399,9 +400,14 @@ defmodule Tuist.Shards.ImmutableReportsTest do
     %{plan: plan} = plan(project, 1)
     modules = [%{name: "Tests", status: "success", test_cases: [%{name: "test_one", status: "success", duration: 10}]}]
 
-    expect(IngestRepo, :insert_all, 2, fn TestReport, rows ->
-      assert IngestRepo.aggregate(from(r in TestCaseRun, where: r.test_run_id == ^plan.id), :count) >= 1
-      Mimic.call_original(IngestRepo, :insert_all, [TestReport, rows])
+    expect(IngestRepo, :insert_all, 4, fn
+      TestExecution, rows ->
+        Mimic.call_original(IngestRepo, :insert_all, [TestExecution, rows])
+
+      TestReport, rows ->
+        assert IngestRepo.aggregate(from(r in TestCaseRun, where: r.test_run_id == ^plan.id), :count) >= 1
+        assert IngestRepo.aggregate(from(e in TestExecution, where: e.test_run_id == ^plan.id), :count) >= 1
+        Mimic.call_original(IngestRepo, :insert_all, [TestReport, rows])
     end)
 
     assert {:ok, first} = report(project, plan, 0, test_modules: modules)
@@ -613,7 +619,12 @@ defmodule Tuist.Shards.ImmutableReportsTest do
   test "unpublished facts are absent from current-run views", %{project: project} do
     %{plan: plan} = plan(project, 1)
     modules = [%{name: "Tests", status: "success", test_cases: [%{name: "test_one", status: "success", duration: 10}]}]
-    expect(IngestRepo, :insert_all, fn TestReport, _ -> raise "report unavailable" end)
+
+    expect(IngestRepo, :insert_all, 2, fn
+      TestExecution, rows -> Mimic.call_original(IngestRepo, :insert_all, [TestExecution, rows])
+      TestReport, _ -> raise "report unavailable"
+    end)
+
     assert_raise RuntimeError, "report unavailable", fn -> report(project, plan, 0, test_modules: modules) end
     assert IngestRepo.aggregate(from(r in TestCaseRun, where: r.test_run_id == ^plan.id), :count) == 1
     assert IngestRepo.aggregate(from(r in TestCaseRun.query(), where: r.test_run_id == ^plan.id), :count) == 0
@@ -623,7 +634,11 @@ defmodule Tuist.Shards.ImmutableReportsTest do
     %{plan: plan} = plan(project, 1)
     modules = [%{name: "Tests", status: "success", test_cases: []}]
     expect(IngestRepo, :query, fn _, _, _ -> {:error, :unavailable} end)
-    reject(IngestRepo, :insert_all, 2)
+
+    expect(IngestRepo, :insert_all, fn TestExecution, rows ->
+      Mimic.call_original(IngestRepo, :insert_all, [TestExecution, rows])
+    end)
+
     assert_raise MatchError, fn -> report(project, plan, 0, test_modules: modules) end
     assert {:error, :not_found} = Tests.get_test(plan.id)
   end

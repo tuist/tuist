@@ -16,10 +16,10 @@ defmodule Tuist.Tests.TestCaseRunByCommit do
   schema; the legacy table is dropped in a follow-up migration once the
   rollout is stable.
 
-  `flakiness_environment` additionally isolates the reported device, platform
-  and OS version. It is filtered within the existing commit/scheme range.
-  Empty values represent legacy or missing destination data; `unattributed`
-  represents reports that cannot supply destination-specific evidence.
+  `test_execution_id` references the report/shard execution whose destination
+  metadata supplies the platform, OS version and device name comparison.
+  Metadata lookups are restricted to the same project, commit, scheme and CI
+  scope. Null references represent historical rows without execution metadata.
 
   Used by `Tuist.Tests.get_existing_ci_runs_for_commit/5` to identify
   historical CI runs for a given commit, scheme and destination; the main table is then
@@ -33,7 +33,7 @@ defmodule Tuist.Tests.TestCaseRunByCommit do
     field :project_id, Ch, type: "Int64"
     field :git_commit_sha, Ch, type: "String"
     field :scheme, Ch, type: "String"
-    field :flakiness_environment, Ch, type: "LowCardinality(String)", default: ""
+    field :test_execution_id, Ch, type: "Nullable(UUID)"
     field :is_ci, :boolean, default: false
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"
     field :test_case_id, Ch, type: "Nullable(UUID)"
