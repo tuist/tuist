@@ -1794,7 +1794,7 @@ targets.append(contentsOf: [
             fileSystemDependency,
             pathDependency,
             .product(name: "Gzip", package: "1024jp.gzipswift"),
-            .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
+            .product(name: "XCLogParser", package: "XCLogParser"),
             .product(name: "XCActivityLogParser", package: "xcactivitylog_nif"),
         ],
         path: "cli/Sources/TuistXCActivityLog",
@@ -2077,7 +2077,10 @@ let package = Package(
         .package(id: "apple.swift-nio-ssl", from: "2.37.4"),
         .package(id: "facebook.zstd", from: "1.5.0"),
         .package(id: "chrisaljoudi.swift-log-oslog", .upToNextMajor(from: "0.2.2")),
-        .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.50")),
+        .package(
+            url: "https://github.com/MobileNativeFoundation/XCLogParser.git",
+            revision: "d0c3c685d3e32606ef04a21cacf7ab0dfbe19362" // 0.2.50
+        ),
         .package(id: "1024jp.gzipswift", .upToNextMajor(from: "5.2.0")),
         .package(path: "server/native/xcactivitylog_nif"),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
