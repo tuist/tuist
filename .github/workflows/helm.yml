@@ -241,6 +241,8 @@ jobs:
       # Check cookie ownership after the full manifest render validation.
       - name: Test cluster cookie ownership and managed environment wiring
         run: python3 infra/helm/tuist/test-cluster-cookie.py
+      - name: Test SSO domain verification deployment policy
+        run: python3 infra/helm/tuist/test-sso-domain-verification.py
       - name: CNPG promotion stays in the environment write tier
         run: |
           mise use -g yq@4.52.5

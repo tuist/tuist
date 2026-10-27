@@ -7,6 +7,8 @@ This context deduplicates report-creation requests that carry a client-supplied 
 - Users: `createTest` (`"test_run"`, keyed by the request id, not the merged shard run id), `createCommandEvent` (`"command_event"`) and Gradle `createBuild` (`"gradle_build"`, authenticated requests only). The recorded result is the response body; for test runs it also carries the processing job arguments so a retry after a failed `ProcessXcresultWorker` insert schedules it again (`update_result/4` then marks it scheduled).
 - Ids that are missing or not UUIDs skip the claim and behave as before.
 - `Workers.PruneWorker` (every five minutes) deletes claims an hour after they were taken, in batches, and prunes expired `Tuist.Authentication.RefreshReplays` entries.
+- The worker also prunes expired browser telemetry receipts in batches of 5,000;
+  reschedule when either report claims or browser receipts fill a pruning batch.
 
 ## Guardrails
 - The ClickHouse writes stay outside any PostgreSQL transaction; the claim is the only coordination.

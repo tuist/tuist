@@ -162,6 +162,8 @@ spec:
               value: {{ required "xcresultProcessor.release.digest is required: the processor image carries no server release" .Values.xcresultProcessor.release.digest | quote }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            - name: TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION
+              value: {{ .Values.server.ssoRequireLoginDomainVerification | ternary "true" "false" | quote }}
             # Tuist.License.assert_valid!/0 runs unconditionally at boot
             # (application.ex), so the xcresult processor needs the license key.
             # It used to come from the encrypted blob; with the blob gone it must

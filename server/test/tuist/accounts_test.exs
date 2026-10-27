@@ -2345,6 +2345,26 @@ defmodule Tuist.AccountsTest do
       assert got
     end
 
+    test "returns nil for malformed UTF-8 without resolving a sanitized handle" do
+      %{account: account} = AccountsFixtures.user_fixture(preload: [:account])
+
+      for bytes <- [<<0xC0>>, <<0x80>>, <<0xC3>>, <<0xED, 0xA0, 0x80>>],
+          handle <- [bytes, bytes <> account.name, account.name <> bytes] do
+        assert is_nil(Accounts.get_account_by_handle(handle))
+      end
+
+      assert Accounts.get_account_by_handle(account.name).id == account.id
+    end
+
+    test "preserves Unicode lookups" do
+      %{account: account} = AccountsFixtures.user_fixture(preload: [:account])
+      handle = "équipe-#{account.name}"
+      account = Repo.update!(Ecto.Changeset.change(account, name: handle))
+
+      assert Accounts.get_account_by_handle(String.upcase(handle)).id == account.id
+      assert is_nil(Accounts.get_account_by_handle("未知"))
+    end
+
     test "returns nil when the handle is a percent wildcard" do
       # Given
       AccountsFixtures.user_fixture(preload: [:account])
@@ -4473,7 +4493,7 @@ defmodule Tuist.AccountsTest do
         AccountsFixtures.organization_fixture(
           sso_provider: :oauth2,
           sso_organization_id: "https://example.com",
-          sso_legacy_email_domain_fallback: true,
+          existing_sso_configuration: true,
           oauth2_client_id: "client-id",
           oauth2_client_secret: "client-secret",
           oauth2_authorize_url: "https://example.com/authorize",
@@ -4506,7 +4526,7 @@ defmodule Tuist.AccountsTest do
       AccountsFixtures.organization_fixture(
         sso_provider: :okta,
         sso_organization_id: "example.okta.com",
-        sso_legacy_email_domain_fallback: true,
+        existing_sso_configuration: true,
         oauth2_client_id: "legacy-client-id",
         oauth2_client_secret: "legacy-client-secret"
       )
@@ -4617,7 +4637,7 @@ defmodule Tuist.AccountsTest do
           sso_provider: :oauth2,
           sso_organization_id: "https://login.vendor.example",
           sso_automatic_enrollment: true,
-          sso_legacy_email_domain_fallback: true,
+          existing_sso_configuration: true,
           oauth2_client_id: "client-id",
           oauth2_client_secret: "client-secret",
           oauth2_authorize_url: "https://login.vendor.example/authorize",
@@ -4636,7 +4656,7 @@ defmodule Tuist.AccountsTest do
           sso_provider: :oauth2,
           sso_organization_id: "https://login.vendor.example",
           sso_automatic_enrollment: true,
-          sso_legacy_email_domain_fallback: true,
+          existing_sso_configuration: true,
           sso_login_domain: "example.com",
           sso_login_domain_verification_token: "verification-token",
           oauth2_client_id: "client-id",
@@ -4675,7 +4695,7 @@ defmodule Tuist.AccountsTest do
         AccountsFixtures.organization_fixture(
           sso_login_domain: "example.com",
           sso_login_domain_verification_token: "verification-token",
-          sso_legacy_email_domain_fallback: true
+          existing_sso_configuration: true
         )
 
       expect(SSOLoginDomainVerification, :verified?, fn "example.com", "verification-token" -> true end)
@@ -6413,7 +6433,7 @@ defmodule Tuist.AccountsTest do
         sso_login_domain: Keyword.get(opts, :sso_login_domain),
         sso_login_domain_verification_token: Keyword.get(opts, :sso_login_domain_verification_token),
         sso_login_domain_verified_at: Keyword.get(opts, :sso_login_domain_verified_at),
-        sso_legacy_email_domain_fallback: Keyword.get(opts, :sso_legacy_email_domain_fallback, false),
+        existing_sso_configuration: Keyword.get(opts, :existing_sso_configuration, false),
         oauth2_client_id: "client-id",
         oauth2_client_secret: "client-secret"
       )
@@ -6468,11 +6488,11 @@ defmodule Tuist.AccountsTest do
       refute Accounts.sso_enforced_for_email?("unknown@example-sso.com")
     end
 
-    test "does not enforce SSO for a nonmember through the retired compatibility flag" do
+    test "does not enforce SSO for a nonmember of an existing unverified organization" do
       _org =
         sso_enforced_organization_fixture(
           sso_organization_id: "example.okta.com",
-          sso_legacy_email_domain_fallback: true
+          existing_sso_configuration: true
         )
 
       refute Accounts.sso_enforced_for_email?("unknown@example.com")

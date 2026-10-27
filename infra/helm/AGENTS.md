@@ -1,5 +1,8 @@
 # Helm Charts
 
+- Browser RUM alert definitions and validation live in `k8s-monitoring/browser-rum.md`.
+  Keep unique-only rules paused until replay classification has a full 24-hour
+  baseline. The liveness zero fallback must share the sum's empty label set.
 - Model dependencies by capability (`objectStorage`), not implementation brand (`minio`); support embedded and external modes where practical.
 - Keep independently released workloads in standalone charts rather than growing the main umbrella chart. Atlas deployment has [its own guidance](atlas/AGENTS.md).
 - Validate with `helm lint` and `helm template` using the chart's CI placeholder values, then production overlays. Cluster installs are not local validation; follow [infra access rules](../AGENTS.md#cluster-access-for-agents).
@@ -16,6 +19,8 @@ in the Mac scrape allow-list. Rule JSON is a Grafana provisioning payload, not a
 Helm-installed resource; publishing it is a separate rollout step.
 
 ## Conventions
+
+- SSO DNS verification is an explicit deployment policy: `server.ssoRequireLoginDomainVerification` defaults false and is enabled in managed-common, preview, and pentest values. Inject `TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION` into every server runtime, including migrations, registry sync, and the separate xcresult processor. `tuist/test-sso-domain-verification.py` checks rendered wiring; never infer the policy from `server.hosted`.
 
 - Canary keeps one RISE-M in Gravelines on the shared `runners-linux` pool.
   Preserve its Machine identity and OnDelete strategy. Drain before explicitly
