@@ -187,9 +187,18 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
+        id: install
         uses: tuist/install@v1
         with:
           cache-key: cli-macos-workspace-cli-unit-tests
+      - name: Diagnose forced dependency resolution failure
+        if: failure() && steps.install.outcome == 'failure'
+        run: |
+          swift --version
+          status=0
+          swift package --cache-path "$PWD/.build/dependency-cache" --disable-sandbox --very-verbose resolve --replace-scm-with-registry --skip-update || status=$?
+          git diff -- Package.resolved
+          exit "$status"
       - name: Install stable Rust for Cargo reporting fixtures
         uses: ./.github/actions/mise
         env:
