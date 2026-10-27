@@ -10,6 +10,30 @@ Code.require_file("translate.exs", __DIR__)
 
 ExUnit.start()
 
+defmodule L10n.MarkdownValidatorTest do
+  use ExUnit.Case, async: true
+
+  test "preserves renderer macros while allowing translated prose" do
+    source =
+      "Default profiles\n{{runner_default_profiles_table}}\nXcode\n{{runner_macos_xcode_versions}}"
+
+    translated =
+      "Perfiles predeterminados\n{{runner_default_profiles_table}}\nXcode\n{{runner_macos_xcode_versions}}"
+
+    assert :ok = L10n.MarkdownValidator.validate(source, translated)
+
+    for candidate <- [
+          String.replace(translated, "runner_default_profiles_table", "perfiles_predeterminados"),
+          String.replace(translated, "{{runner_macos_xcode_versions}}", ""),
+          translated <> "\n{{runner_linux_shapes_table}}",
+          "{{runner_macos_xcode_versions}}\n{{runner_default_profiles_table}}"
+        ] do
+      assert {:error, "renderer macros changed during markdown translation"} =
+               L10n.MarkdownValidator.validate(source, candidate)
+    end
+  end
+end
+
 defmodule L10n.CatalogTest do
   use ExUnit.Case, async: true
 
@@ -188,7 +212,15 @@ defmodule L10n.CatalogTest do
     end
 
     test "sizes plural forms to the locale" do
-      for {locale, count} <- [{"ru", 3}, {"ja", 1}, {"es", 2}] do
+      for {locale, count} <- [
+            {"ar", 6},
+            {"pl", 3},
+            {"pt", 2},
+            {"tr", 2},
+            {"ru", 3},
+            {"ja", 1},
+            {"es", 2}
+          ] do
         merged = Catalog.merge(pot(), %{}, %{}, locale, "nplurals=#{count};")
         plural = Enum.find(merged.messages, &is_map(&1.msgstr))
 
