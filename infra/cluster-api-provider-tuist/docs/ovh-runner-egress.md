@@ -10,19 +10,20 @@ that still requires explicit Machine `spec.vRackID` enrollment.
 
 ## Block inventory
 
-Recorded attachments from 2026-10-26; recheck before activation:
+Recorded attachments from 2026-10-26, with the canary block move confirmed by the
+operator on 2026-10-27; recheck before activation:
 
 | Environment | Attached vRack | Block | Usable host addresses | Gateway |
 | --- | --- | --- | --- | --- |
 | staging | pn-2023588 | 5.39.98.144/29 | 5.39.98.145–5.39.98.149 | 5.39.98.150 |
-| canary | pn-2025491 | 5.196.103.232/29 | 5.196.103.233–5.196.103.237 | 5.196.103.238 |
+| canary | pn-2024092 | 5.196.103.232/29 | 5.196.103.233–5.196.103.237 | 5.196.103.238 |
 | production | pn-2025483 | 5.135.7.160/27 | 5.135.7.161–5.135.7.189 | 5.135.7.190 |
 
 Staging's block was moved onto its existing cache vRack, preserving the runner's
-private NIC and reservation. Canary and production still need their public-block
-attachments aligned with their intended private-cache networks before activation.
-Canary's configured target is `pn-2024092`; its block must be moved there before
-deploying the enabled overlay. Production's intended private-cache vRack is
+private NIC and reservation. Canary's block was likewise moved from `pn-2025491`
+to its existing cache network `pn-2024092`; its runner is explicitly enrolled and
+reports `PrivateNetworkReady=True`. Production still needs its public-block
+attachment aligned with its intended private-cache vRack,
 `pn-2024093`. Never move an enrolled runner's NIC to resolve this mismatch.
 
 The controller accepts canonical public IPv4 /24 through /29 blocks. OVH reserves
