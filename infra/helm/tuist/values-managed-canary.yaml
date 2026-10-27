@@ -643,9 +643,9 @@ ovhFleet:
 # fleet.
 ovhFleets:
   # Dedicated Garage validation host: ns3234030.ip-188-165-77.eu (RISE-1).
-  # Enable only after Ubuntu/RAID/XFS preparation and adoption marking succeed.
+  # Ubuntu 24.04, healthy RAID1/XFS and SSH verified; adoption marker is set.
   shard-storage:
-    enabled: false
+    enabled: true
     replicas: 1
     endpoint: ovh-us
     nodePool: shard-storage

@@ -109,6 +109,15 @@ its Canadian OVH cache node is not a local substitute. Staging's existing
 singleton can continue under its current policy without buying another host.
 A fresh parallel staging store needs its own capacity while old artifacts drain.
 
+Canary uses the dedicated RISE-1 `ns3234030.ip-188-165-77.eu` in Gravelines,
+through `ovhFleets.shard-storage` and the `shard-storage` node pool. Its two
+512 GB NVMe disks are mirrored: 64 GiB root and approximately 411 GiB XFS
+`/data`, with a 200 GiB initial Garage allocation. The adoption marker is
+`tuist-shards-ovh-canary`; the controller owns joining and vRack `pn-2024092`
+configuration. Verify the node's private routes and active XFS project quotas
+after joining, before installing Garage. The canary overlay allows S3 access
+from the server's actual `tuist-canary` namespace.
+
 ### Singleton maintenance and recovery
 
 The StatefulSet uses `OnDelete` in both topologies. A chart/image update does not
