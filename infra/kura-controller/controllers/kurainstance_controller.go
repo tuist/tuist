@@ -2274,6 +2274,21 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(
 			}
 		}
 	}
+
+	for _, pod := range pods {
+		if pod.Annotations[lvmRebuildAnnotation] == "" || pod.Annotations[lvmWriteTargetAnnotation] == "" {
+			continue
+		}
+		var intent lvmWriteTarget
+		if err := json.Unmarshal([]byte(pod.Annotations[lvmWriteTargetAnnotation]), &intent); err != nil {
+			return "", nil, err
+		}
+		if health[intent.Pod] && samples[intent.Pod].ConnectionIncarnation == intent.Target.Incarnation {
+			return intent.Pod, evacuating, nil
+		}
+		// Do not substitute an unverified destination during a storage handoff.
+		return current, evacuating, nil
+	}
 	demoteEvacuatingPods(pods, health, caughtUp, evacuating)
 	return choosePrimaryPod(current, instance.Name, pods, health), evacuating, nil
 }

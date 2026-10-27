@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -585,7 +586,11 @@ func TestLVMResizeRetainsHoldWhileRollingAChangedTemplate(t *testing.T) {
 			old, donor := f.servingPod(0, "600m"), f.servingPod(1, "600m")
 			old.Status.PodIP = "10.0.0.1"
 			old.Labels[appsv1.ControllerRevisionHashLabelKey] = "old"
-			old.Annotations = map[string]string{lvmRebuildAnnotation: "true"}
+			intent, err := json.Marshal(lvmWriteTarget{Pod: donor.Name, UID: string(donor.UID), SourceIncarnation: "current-boot", Target: migrationTarget{URL: renderPodNodeURL(f.instance, donor.Name, f.instance.Namespace), Incarnation: "current-boot"}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			old.Annotations = map[string]string{lvmRebuildAnnotation: "true", lvmWriteTargetAnnotation: string(intent)}
 			donor.Labels[appsv1.ControllerRevisionHashLabelKey] = "new"
 			endpoints := &corev1.Endpoints{ObjectMeta: metav1.ObjectMeta{Name: f.instance.Name, Namespace: f.instance.Namespace}, Subsets: []corev1.EndpointSubset{{Addresses: []corev1.EndpointAddress{{IP: "10.0.0.2", TargetRef: &corev1.ObjectReference{Name: donor.Name}}}}}}
 			c := fake.NewClientBuilder().WithScheme(meshTestScheme(t)).WithObjects(f.instance, sts, old, donor, f.claim(0, "32Gi"), f.claim(1, "32Gi"), endpoints, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: peerTLSSecretName(f.instance), Namespace: f.instance.Namespace}}).Build()

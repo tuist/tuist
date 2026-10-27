@@ -34,7 +34,7 @@ const DESCRIPTOR_BATCH_METADATA_BYTES: usize = 256 * 1024;
 const MAX_VERIFIED_CONTENT: usize = 2_000_000;
 const CONTENT_WALK_DEADLINE_MARGIN_MS: u64 = 30_000;
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Intent {
     pub id: String,
     pub destination: Holder,
@@ -65,7 +65,7 @@ pub struct Receipt {
     pub digest: String,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Record {
     kind: String,
     id: String,
@@ -112,7 +112,7 @@ fn bounded_detail(detail: &str) -> String {
     detail.chars().take(1024).collect()
 }
 
-async fn record(
+pub(crate) async fn record(
     state: &SharedState,
     kind: BackfillRecordKind,
     id: &str,
@@ -464,7 +464,7 @@ async fn prepare_live_destination(
     require_current_preparation(state, &request, preparation.epoch)
 }
 
-async fn verify_record(state: &SharedState, expected: &Record) -> Result<(), String> {
+pub(crate) async fn verify_record(state: &SharedState, expected: &Record) -> Result<(), String> {
     let kind =
         BackfillRecordKind::from_wire_name(&expected.kind).ok_or("unknown retained record kind")?;
     let actual = match record(state, kind, &expected.id, expected.version).await? {

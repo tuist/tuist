@@ -198,7 +198,28 @@ func (c *portForwardRuntimeStatusClient) Retire(ctx context.Context, pod corev1.
 	return retirePublicConnectionsOverStream(ctx, connection, pod, serverName, incarnation, tlsData)
 }
 
+func (c *portForwardRuntimeStatusClient) Prepare(ctx context.Context, pod corev1.Pod, serverName, incarnation string, target migrationTarget, tlsData map[string][]byte) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	endpoint := c.rest.Post().Resource("pods").Namespace(pod.Namespace).Name(pod.Name).SubResource("portforward").URL()
+	connection, err := c.dial(ctx, endpoint)
+	if err != nil {
+		return false, err
+	}
+	defer connection.Close()
+	return peerOperationOverStream(connection, func(r tlsPublicConnectionRetirer) (bool, error) {
+		return r.Prepare(ctx, pod, serverName, incarnation, target, tlsData)
+	})
+}
+
 func retirePublicConnectionsOverStream(ctx context.Context, connection httpstream.Connection, pod corev1.Pod, serverName, incarnation string, tlsData map[string][]byte) (bool, error) {
+	return peerOperationOverStream(connection, func(r tlsPublicConnectionRetirer) (bool, error) {
+		return r.Retire(ctx, pod, serverName, incarnation, tlsData)
+	})
+}
+
+func peerOperationOverStream(connection httpstream.Connection, operation func(tlsPublicConnectionRetirer) (bool, error)) (bool, error) {
+
 	headers := http.Header{}
 	headers.Set(corev1.StreamType, corev1.StreamTypeError)
 	headers.Set(corev1.PortHeader, strconv.Itoa(int(peerPort)))
@@ -230,5 +251,5 @@ func retirePublicConnectionsOverStream(ctx context.Context, connection httpstrea
 		}
 	}()
 	retirer := tlsPublicConnectionRetirer{dialContext: func(context.Context, string, string) (net.Conn, error) { return local, nil }}
-	return retirer.Retire(ctx, pod, serverName, incarnation, tlsData)
+	return operation(retirer)
 }

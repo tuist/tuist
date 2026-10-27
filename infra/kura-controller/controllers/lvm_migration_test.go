@@ -128,8 +128,10 @@ func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 						t.Fatal("deleted before endpoint handoff")
 					}
 				}
-				if _, err := r.reconcileDataStorageResize(context.Background(), f.instance); err != nil {
-					t.Fatal(err)
+				for pass := 0; pass < 3; pass++ {
+					if _, err := r.reconcileDataStorageResize(context.Background(), f.instance); err != nil {
+						t.Fatal(err)
+					}
 				}
 			}
 			for i := 0; i < int(replicas(f.instance)); i++ {

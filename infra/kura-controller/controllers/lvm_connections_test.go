@@ -30,6 +30,9 @@ func (s stubConnectionRetirer) Retire(_ context.Context, _ corev1.Pod, _ string,
 	}
 	return s.ready, s.err
 }
+func (s stubConnectionRetirer) Prepare(_ context.Context, _ corev1.Pod, _ string, _ string, _ migrationTarget, _ map[string][]byte) (bool, error) {
+	return s.ready, s.err
+}
 func TestThinMigrationRequiresConnectionRetirement(t *testing.T) {
 	for _, tc := range []struct {
 		name, incarnation   string

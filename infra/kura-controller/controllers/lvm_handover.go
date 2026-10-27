@@ -24,6 +24,10 @@ func (r *KuraInstanceReconciler) lvmHandoverReady(ctx context.Context, instance 
 		}
 		return false, err
 	}
+	prepared, err := r.lvmWritesPrepared(ctx, instance, pod)
+	if err != nil || !prepared {
+		return false, err
+	}
 	if pod.Annotations[lvmRebuildAnnotation] == "" {
 		before := pod.DeepCopy()
 		if pod.Annotations == nil {
@@ -32,7 +36,7 @@ func (r *KuraInstanceReconciler) lvmHandoverReady(ctx context.Context, instance 
 		pod.Annotations[lvmRebuildAnnotation] = "true"
 		return false, r.Patch(ctx, pod, client.MergeFromWithOptions(before, client.MergeFromWithOptimisticLock{}))
 	}
-	served, err := r.servedByAnotherPod(ctx, instance, name)
+	served, err := r.lvmDestinationServing(ctx, instance, pod)
 	if err != nil || !served {
 		return false, err
 	}

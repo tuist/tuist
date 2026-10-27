@@ -281,3 +281,10 @@ initial catch-up and an empty connection cohort do not prove final writes have
 reached the destination. Zero-error live-write migration remains blocked pending
 a destination-bound completion barrier coordinated with write admission and
 serving ownership. Keep the failed evidence in the CSI thin validation report.
+
+Pending thin write handoff adds a persisted source-process/destination-pod-and-
+process binding before `lvm-rebuild`. The runtime's content preparation receipt
+must precede endpoint demotion; endpoint observation must name that exact pod
+UID. Controller retries must not substitute a restarted or different target.
+This candidate remains unqualified until runtime tests and a no-retry staging
+migration pass, including recovery from interrupted preparation.

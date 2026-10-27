@@ -250,3 +250,12 @@ An empty cohort is also not a data-transfer receipt: staging still observed
 fresh-write GET misses at handoff. Zero-error migration needs destination-bound
 write completion and serving coordination; do not claim asynchronous replication
 is synchronized by closing the donor's connections.
+
+The pending migration acknowledgment path in `src/migration.rs` binds a legacy
+storage move to one destination process. Preparation hashes retained records and
+verifies them on that peer; armed HTTP/gRPC mutation completion checks committed
+feed records against actual destination content. Feed cursors alone never prove
+retention. A fixed preparation deadline, bounded verification batches and a
+single verification worker prevent unbounded work. This is not a serving grant
+or permission to bypass cache capacity. Its implementation is still awaiting
+Linux tests, failure recovery qualification and live staging rehearsal.

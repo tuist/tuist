@@ -75,6 +75,7 @@ impl Drop for PublicConnectionLease {
 }
 
 pub struct RuntimeState {
+    pub migration: crate::migration::MigrationState,
     connection_incarnation: String,
     retiring_connections: AtomicBool,
     public_connections: Mutex<PublicConnections>,
@@ -106,6 +107,7 @@ impl RuntimeState {
     pub fn with_authority(authority: Arc<crate::serving_authority::ServingAuthority>) -> Arc<Self> {
         Arc::new(Self {
             authority,
+            migration: crate::migration::MigrationState::default(),
             connection_incarnation: uuid::Uuid::new_v4().to_string(),
             retiring_connections: AtomicBool::new(false),
             public_connections: Mutex::new(PublicConnections::default()),

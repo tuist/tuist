@@ -313,6 +313,14 @@ fn internal_routes() -> Router<SharedState> {
             "/_internal/connections/retire",
             post(retire_public_connections),
         )
+        .route(
+            "/_internal/migration/prepare",
+            post(crate::migration::prepare),
+        )
+        .route(
+            "/_internal/migration/verify",
+            post(crate::migration::verify),
+        )
         .route("/_internal/handover/verify", post(crate::handover::verify))
         .route(
             "/_internal/handover/descriptors",
@@ -1328,7 +1336,14 @@ async fn reject_draining_public_requests(
             Err(_) => return draining_response(version),
         }
     };
+    let mutation = is_write_method(req.method());
     let mut response = crate::serving_authority::scope(permit.clone(), next.run(req)).await;
+    if mutation
+        && response.status().is_success()
+        && crate::migration::acknowledge(&state).await.is_err()
+    {
+        return draining_response(version);
+    }
     if permit.as_ref().is_some_and(|p| p.check().is_err()) {
         return draining_response(version);
     }

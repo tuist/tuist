@@ -26,45 +26,78 @@ type tlsPublicConnectionRetirer struct {
 	dialContext func(context.Context, string, string) (net.Conn, error)
 }
 
-func (r tlsPublicConnectionRetirer) Retire(ctx context.Context, pod corev1.Pod, serverName, incarnation string, tlsData map[string][]byte) (bool, error) {
+func (r tlsPublicConnectionRetirer) post(ctx context.Context, pod corev1.Pod, serverName, path string, tlsData map[string][]byte, payload, receipt any) error {
 	cert, err := tls.X509KeyPair(tlsData[peerTLSCertFile], tlsData[peerTLSKeyFile])
 	if err != nil {
-		return false, fmt.Errorf("load peer client certificate: %w", err)
+		return fmt.Errorf("load peer client certificate: %w", err)
 	}
 	roots := x509.NewCertPool()
 	if !roots.AppendCertsFromPEM(tlsData[peerTLSCAFile]) {
-		return false, fmt.Errorf("load peer certificate authority")
+		return fmt.Errorf("load peer certificate authority")
 	}
 	transport := &http.Transport{DialContext: r.dialContext, TLSClientConfig: &tls.Config{Certificates: []tls.Certificate{cert}, RootCAs: roots, ServerName: serverName, MinVersion: tls.VersionTLS12}}
 	defer transport.CloseIdleConnections()
-	body, err := json.Marshal(map[string]string{"incarnation": incarnation})
+	body, err := json.Marshal(payload)
 	if err != nil {
-		return false, err
+		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://"+net.JoinHostPort(pod.Status.PodIP, strconv.Itoa(int(peerPort)))+"/_internal/connections/retire", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://"+net.JoinHostPort(pod.Status.PodIP, strconv.Itoa(int(peerPort)))+path, bytes.NewReader(body))
 	if err != nil {
-		return false, err
+		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	response, err := (&http.Client{Transport: transport, Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}).Do(req)
 	if err != nil {
-		return false, err
+		return err
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("connection retirement returned HTTP %d", response.StatusCode)
+		return fmt.Errorf("%s returned HTTP %d", path, response.StatusCode)
 	}
+	return json.NewDecoder(io.LimitReader(response.Body, 4096)).Decode(receipt)
+}
+
+func (r tlsPublicConnectionRetirer) Retire(ctx context.Context, pod corev1.Pod, serverName, incarnation string, tlsData map[string][]byte) (bool, error) {
 	var receipt struct {
 		Incarnation string  `json:"incarnation"`
 		Remaining   *uint64 `json:"remaining_connections"`
 	}
-	if err = json.NewDecoder(io.LimitReader(response.Body, 4096)).Decode(&receipt); err != nil {
+	err := r.post(ctx, pod, serverName, "/_internal/connections/retire", tlsData, map[string]string{"incarnation": incarnation}, &receipt)
+	if err != nil {
 		return false, err
 	}
 	if receipt.Incarnation != incarnation || receipt.Remaining == nil {
 		return false, fmt.Errorf("invalid connection retirement receipt")
 	}
 	return *receipt.Remaining == 0, nil
+}
+
+type migrationTarget struct {
+	URL         string `json:"url"`
+	Incarnation string `json:"incarnation"`
+}
+
+type migrationPreparer interface {
+	Prepare(context.Context, corev1.Pod, string, string, migrationTarget, map[string][]byte) (bool, error)
+}
+
+func (r tlsPublicConnectionRetirer) Prepare(ctx context.Context, pod corev1.Pod, serverName, incarnation string, target migrationTarget, tlsData map[string][]byte) (bool, error) {
+	var receipt struct {
+		Incarnation string          `json:"incarnation"`
+		Target      migrationTarget `json:"target"`
+		Ready       *bool           `json:"ready"`
+	}
+	err := r.post(ctx, pod, serverName, "/_internal/migration/prepare", tlsData, struct {
+		Incarnation string          `json:"incarnation"`
+		Target      migrationTarget `json:"target"`
+	}{incarnation, target}, &receipt)
+	if err != nil {
+		return false, err
+	}
+	if receipt.Incarnation != incarnation || receipt.Target != target || receipt.Ready == nil {
+		return false, fmt.Errorf("invalid migration preparation receipt")
+	}
+	return *receipt.Ready, nil
 }
 
 // Service handoff does not move existing TCP connections. Before deleting a thin
