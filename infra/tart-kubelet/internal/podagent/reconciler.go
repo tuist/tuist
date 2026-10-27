@@ -289,6 +289,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// DeletionTimestamp) unable to do anything about it. We
 		// shipped exactly that bug for several days; the fix is the
 		// ordering you see here.
+		if waiting, err := r.drainPod(ctx, pod); err != nil {
+			logger.Error(err, "guest drain failed; keeping the VM")
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		} else if waiting {
+			return ctrl.Result{RequeueAfter: time.Second}, nil
+		}
 		if err := r.deletePod(ctx, pod); err != nil {
 			logger.Error(err, "delete failed; will retry")
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
@@ -589,6 +595,9 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 		}
 	}
 	statusDir := StatusDirForPod(r.Tart, pod, vmName)
+	if pod.Annotations[gracefulDrainAnnotation] == "xcresult-v1" && statusDir == "" {
+		return fmt.Errorf("cannot start a processor without its graceful-drain share")
+	}
 	if statusDir != "" {
 		sharedDirs = append(sharedDirs, "status:"+statusDir)
 	}

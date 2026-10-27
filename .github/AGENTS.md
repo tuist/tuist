@@ -617,3 +617,7 @@ publishing newer source; never replace an immutable version.
 Kura CSI's rack plugin is deployed by the independent, unwaited rack-nodes
 release with the same pinned CSI image as the main release. Its offline chart
 regression needs Helm; the CSI workflow installs it before running Go tests.
+
+`macos-maintenance.test.sh` exercises the explicit host-maintenance request task
+with a fake kubectl and no credentials. The provider's macOS Go suite runs it;
+keep planning read-only and refuse a new request over active or failed status.
