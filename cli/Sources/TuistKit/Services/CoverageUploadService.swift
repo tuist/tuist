@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Path
 import TuistAlert
+import TuistEnvironment
 import TuistLogging
 import TuistServer
 import TuistXCResultService
@@ -28,6 +29,10 @@ public struct PreparedCoverage: Equatable {
 /// in the coverage's size. The coverage is the `llvm-cov` export the run wrote into its bundle
 /// (`CoverageExport`), or, without one, the bundle's `xccov` report read through the streaming
 /// parser. Failures cost the run its coverage, never the run.
+///
+/// With `TUIST_COVERAGE_OUTPUT_DIRECTORY` set, the tied report is also kept there as
+/// `<result bundle name>.ndjson`, one `XcodeCoverageFile` per line, for teams that merge a sharded
+/// run's coverage themselves.
 @Mockable
 public protocol CoverageUploadServicing {
     /// `testRunId` is the id the run will be created with, for an upload that must be made under
@@ -63,6 +68,7 @@ public struct CoverageUploadService: CoverageUploadServicing {
     }
 
     static let defaultInlineThresholdBytes = 5_000_000
+    static let outputDirectoryVariable = "TUIST_COVERAGE_OUTPUT_DIRECTORY"
 
     public func prepare(
         resultBundlePath: AbsolutePath,
@@ -92,6 +98,7 @@ public struct CoverageUploadService: CoverageUploadServicing {
                     ) else { return nil }
                     summary = parsed
                 }
+                await keep(ndjson, of: resultBundlePath)
 
                 let deflated = directory.appending(component: "coverage.ndjson.deflate")
                 try Self.deflate(ndjson, to: deflated)
@@ -131,6 +138,27 @@ public struct CoverageUploadService: CoverageUploadServicing {
                 .alert("Failed to send the code coverage of \(resultBundlePath.pathString): \(error.localizedDescription)")
             )
             return nil
+        }
+    }
+
+    private func keep(_ ndjson: AbsolutePath, of resultBundlePath: AbsolutePath) async {
+        guard let value = Environment.current.variables[Self.outputDirectoryVariable], !value.isEmpty else { return }
+        do {
+            let directory = try AbsolutePath(
+                validating: value,
+                relativeTo: try await Environment.current.currentWorkingDirectory()
+            )
+            if !(try await fileSystem.exists(directory)) { try await fileSystem.makeDirectory(at: directory) }
+            let destination = directory.appending(component: "\(resultBundlePath.basenameWithoutExt).ndjson")
+            if try await fileSystem.exists(destination) { try await fileSystem.remove(destination) }
+            try await fileSystem.copy(ndjson, to: destination)
+            Logger.current.debug("Kept the code coverage of \(resultBundlePath.pathString) at \(destination.pathString)")
+        } catch {
+            AlertController.current.warning(
+                .alert(
+                    "Failed to keep the code coverage of \(resultBundlePath.pathString) in \(value): \(error.localizedDescription)"
+                )
+            )
         }
     }
 

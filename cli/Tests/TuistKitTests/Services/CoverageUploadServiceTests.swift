@@ -1,8 +1,10 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
 import Testing
+import TuistEnvironment
 import TuistServer
 import TuistTesting
 import TuistXCResultService
@@ -89,6 +91,60 @@ struct CoverageUploadServiceTests {
         #expect(prepared.coverage.files?.first?.gitBlobId == "aaa")
         #expect(!FileManager.default.fileExists(atPath: export.pathString))
         verify(xcResultService).parseCoverage(path: .any, manifest: .any, into: .any).called(0)
+    }
+
+    @Test(
+        .withMockedDependencies(),
+        .withMockedEnvironment(),
+        .inTemporaryDirectory
+    ) func keepsTheTiedCoverageInTheOutputDirectory() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let bundle = temporaryDirectory.appending(component: "shard-1.xcresult")
+        try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
+        try """
+        {"path":"/repo/Sources/A.swift","targets":["A.framework"],"is_test":false,"covered_lines":1,"executable_lines":2,"line_numbers":[1,2],"execution_counts":[1,0],"functions":[]}
+
+        """.write(toFile: bundle.appending(component: CoverageExport.fileName).pathString, atomically: true, encoding: .utf8)
+        let outputDirectory = temporaryDirectory.appending(component: "coverage")
+        Environment.mocked?.variables[CoverageUploadService.outputDirectoryVariable] = outputDirectory.pathString
+        given(settingsService).inlineThresholdBytes(fullHandle: .any, serverURL: .any).willReturn(5_000_000)
+
+        _ = try #require(await subject.prepare(
+            resultBundlePath: bundle,
+            manifest: XcodeCoverageManifest(
+                rootDirectories: ["/repo"],
+                partial: false,
+                files: [XcodeCoverageSourceFile(path: "Sources/A.swift", gitBlobId: "aaa")]
+            ),
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL
+        ))
+
+        let kept = try XcodeCoverageParser.readFiles(at: outputDirectory.appending(component: "shard-1.ndjson"))
+        #expect(kept.map(\.path) == ["Sources/A.swift"])
+        #expect(kept.first?.gitBlobId == "aaa")
+        #expect(kept.first?.executionCounts == [1, 0])
+    }
+
+    @Test(
+        .withMockedDependencies(),
+        .withMockedEnvironment(),
+        .inTemporaryDirectory
+    ) func sendsTheCoverageWhenItCannotBeKept() async throws {
+        stubParser(files: 1)
+        let blocked = try #require(FileSystem.temporaryTestDirectory).appending(component: "not-a-directory")
+        try "".write(toFile: blocked.pathString, atomically: true, encoding: .utf8)
+        Environment.mocked?.variables[CoverageUploadService.outputDirectoryVariable] = blocked.pathString
+        given(settingsService).inlineThresholdBytes(fullHandle: .any, serverURL: .any).willReturn(5_000_000)
+
+        let prepared = try #require(await subject.prepare(
+            resultBundlePath: try AbsolutePath(validating: "/run.xcresult"),
+            manifest: manifest,
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL
+        ))
+
+        #expect(prepared.coverage.files?.count == 1)
     }
 
     @Test(.withMockedDependencies()) func uploadsLargeCoverageUnderTheGivenOrAFreshRunId() async throws {

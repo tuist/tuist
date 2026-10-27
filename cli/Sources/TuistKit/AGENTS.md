@@ -31,6 +31,8 @@ This module houses CLI command definitions, command wiring, and high-level orche
 - When selective testing skips every test, publish a completed empty test run with the selected scheme name, recovering pruned workspace schemes from the initial graph. A build-only sharding run must also publish it when emitting an empty shard matrix, because no test job will follow.
 - Every path that runs an Xcode test action (`tuist test` on a scheme, `tuist test --without-building` on a shard or an `.xctestproducts` bundle, `tuist xcodebuild test`) prepares the coverage evidence before xcodebuild, runs it inside `XcodeBuildEnvironment.$additionalVariables`, and records the evidence and exports the coverage right after it, failed or not, before any stress pass. A new test path that skips this uploads no evidence and only the bundle's `xccov` coverage.
 
+- `TUIST_COVERAGE_OUTPUT_DIRECTORY` makes `CoverageUploadService.prepare` copy the tied coverage NDJSON (the exact file it uploads, before DEFLATE) to `<directory>/<result bundle name>.ndjson`, for customers merging shards themselves. It rides on coverage upload: nothing is written when the run uploads no coverage, or in remote mode without an `llvm-cov` export. A failed copy is a warning.
+
 ## Related Context
 - CLI entry point: `cli/Sources/tuist/AGENTS.md`
 - Core domain models: `cli/Sources/TuistCore/AGENTS.md`
