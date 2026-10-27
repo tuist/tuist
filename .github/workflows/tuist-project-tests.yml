@@ -203,6 +203,8 @@ jobs:
         run: |
           tuist generate TuistProcessSchemeIntegration --no-open
           bash cli/Tests/Fixtures/ProcessSchemeIntegration/test.sh
+      - name: Install loopback TLS test dependency
+        run: brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
       # The scheme leaves its test action's coverage unset, so it follows
       # TUIST_COVERAGE_ENABLED. The CLI makes the coverage counters atomic itself
       # (`AtomicCoverageCounters`): tests run in parallel in one process, and plain

@@ -127,6 +127,8 @@ jobs:
           install_args: rust
           working_directory: cas-plugin
           cache: "false"
+      - name: Install loopback TLS test dependency
+        run: brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
       # Every test runs: selective testing would skip tests. The scheme leaves
       # its test action's coverage unset and follows TUIST_COVERAGE_ENABLED; the
       # CLI makes the coverage counters atomic itself (`AtomicCoverageCounters`),
