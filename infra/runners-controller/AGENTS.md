@@ -1,11 +1,8 @@
-# runners-controller
+# Runners Controller
 
-Kubernetes controller for `RunnerPool` CRDs. Runs in the workload
-cluster, reconciles Pods + per-Pod `ServiceAccount`s that the Tuist
-server's dispatch endpoint authenticates via the TokenReview API.
+Reconciles `RunnerPool` Pods/per-Pod SAs and desired replicas. Run `go test ./...` here; keep API changes aligned with [chart CRDs](../helm/tuist/crds/).
 
-Two reconcilers, both on the same `RunnerPool` resource but with
-independent workqueues:
+## Lifecycle and capacity
 
 - **`RunnerPoolReconciler`** — converges Pods + SAs to match
   `spec.replicas`. Idle Pods (those without the

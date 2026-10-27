@@ -285,6 +285,14 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   seeded through `LocalImages.Seed`, never formatted, and admitted only while
   free space covers the whole checkout image, since it holds the job's workspace.
   That check never evicts (`reserveSpare`); the usual reserve admission does.
+- Checkout Git commands and their children use one pack/indexing thread, a
+  32 MiB delta-search window, 16 MiB delta and base caches, a 16 MiB large-blob
+  streaming threshold, and 16 MiB pack mappings capped at 64 MiB. Keep these in
+  `gitEnv`, never in the master's `.git/config` that jobs inherit. An automatic
+  repack's Git process can otherwise consume the agent's 512 MiB cgroup budget
+  even with no dirty archive pages. These bound Git's tunable working sets, not
+  all allocations for arbitrary object counts or incoming delta chains; retain
+  strict pack validation and synchronous GC, and validate with real Git.
 - `Checkouts.InUse` (each host passes `Store.InUse`) keeps pressure eviction
   off masters a job holds or is attaching: their blocks are shared, so evicting
   them frees nothing and the attaching job loses its seed.

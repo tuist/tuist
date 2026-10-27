@@ -2902,12 +2902,6 @@ runnersFleet:
 #      the operator-provisioned host count can accommodate; Pending
 #      Pods are the signal to provision more hosts).
 runnersFleetLinux:
-  # Render isolated shape pools for account-gated vRack dispatch. These reuse
-  # existing cache instances and require a disjoint set of enrolled runner hosts.
-  # They start with no warm floor; the account flag is separately default off.
-  vrack:
-    enabled: false
-    nodePool: runners-linux-vrack
   # Opt-in; hostPath MUST be a dedicated reflink-capable filesystem separate from kubelet.
   cacheVolumes:
     enabled: false

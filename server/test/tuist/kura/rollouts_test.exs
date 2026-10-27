@@ -127,6 +127,64 @@ defmodule Tuist.Kura.RolloutsTest do
   end
 
   describe "sync/0 in expedited mode" do
+    test "assigns the entire fleet even when assignments exceed one PostgreSQL statement" do
+      now = DateTime.utc_now()
+      naive_now = now |> DateTime.to_naive() |> NaiveDateTime.truncate(:second)
+      prefix = "large-fleet-#{System.unique_integer([:positive])}"
+
+      users =
+        1..11_001
+        |> Enum.map(
+          &%{email: "#{prefix}-#{&1}@example.com", token: "#{prefix}-#{&1}", created_at: naive_now, updated_at: naive_now}
+        )
+        |> Enum.chunk_every(500)
+        |> Enum.flat_map(fn rows ->
+          {_, users} = Repo.insert_all(Tuist.Accounts.User, rows, returning: [:id])
+          users
+        end)
+
+      accounts =
+        users
+        |> Enum.map(
+          &%{
+            name: "#{prefix}-#{&1.id}",
+            billing_email: "#{prefix}@example.com",
+            user_id: &1.id,
+            created_at: naive_now,
+            updated_at: naive_now
+          }
+        )
+        |> Enum.chunk_every(500)
+        |> Enum.flat_map(fn rows ->
+          {_, accounts} = Repo.insert_all(Tuist.Accounts.Account, rows, returning: [:id])
+          accounts
+        end)
+
+      accounts
+      |> Enum.map(
+        &%{
+          account_id: &1.id,
+          region: "local-controller",
+          status: :active,
+          current_image_tag: @baseline_tag,
+          provisioner_node_ref: "#{prefix}-#{&1.id}",
+          inserted_at: now,
+          updated_at: now
+        }
+      )
+      |> Enum.chunk_every(500)
+      |> Enum.each(&Repo.insert_all(Server, &1))
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+      assignments = Repo.all(from(a in RolloutWaveAssignment, where: a.kura_rollout_id == ^rollout.id))
+      assert length(assignments) == length(accounts)
+      assert MapSet.new(assignments, & &1.account_id) == MapSet.new(accounts, & &1.id)
+
+      assert :ok = Rollouts.sync()
+      assert Repo.aggregate(RolloutWaveAssignment, :count) == length(assignments)
+    end
+
     test "mints an expedited rollout, fans out, and completes on convergence" do
       %{server: server} = create_active_server()
 
