@@ -294,6 +294,10 @@ func (b *LocalImages) sealDockerMerge(slot Slot, path string, report DockerRepor
 	if err != nil || merge.Generation != report.MergedGeneration {
 		return errNoDockerMerge
 	}
+	if merge.Generation < slot.BaseGeneration {
+		return ErrSuperseded
+	}
+	rebase := merge.Generation > slot.BaseGeneration
 	image := b.image(slot)
 	switch report.MergedInto {
 	case "head":
@@ -325,7 +329,10 @@ func (b *LocalImages) sealDockerMerge(slot Slot, path string, report DockerRepor
 		return ErrFull
 	}
 	slot.BaseGeneration, slot.ImageDigest, slot.ContentDigest = merge.Generation, merge.ImageDigest, merge.ContentDigest
-	if rebaser, ok := b.Transfer.(Rebaser); ok {
+	// A stale local mount can merge onto the head already pinned by allocation.
+	// No server base change is needed then (the rebase API requires an advance).
+	// Publication still performs its normal preflight and HEAD CAS.
+	if rebaser, ok := b.Transfer.(Rebaser); ok && rebase {
 		if err := rebaser.Rebase(slot); errors.Is(err, ErrConflict) {
 			return ErrSuperseded
 		} else if err != nil {
