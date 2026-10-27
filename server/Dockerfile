@@ -59,7 +59,11 @@ for attempt in $(seq 1 30); do
     sleep 1
 done
 swift package-registry set --allow-insecure-http http://127.0.0.1:8080/api/registry/swift
-swift build -c release --replace-scm-with-registry --product xcactivitylog-parser
+# Resolve in a separate process, as in the CLI Linux jobs. Swift 6.2 otherwise
+# keeps both the seed lockfile's Git identity and its rewritten registry identity
+# in the first build graph.
+swift package resolve --replace-scm-with-registry
+swift build -c release --replace-scm-with-registry --force-resolved-versions --product xcactivitylog-parser
 cp .build/release/xcactivitylog-parser /nif/xcactivitylog-parser
 mkdir -p /nif/swift-libs
 cp -a /usr/lib/swift/linux/lib*.so* /nif/swift-libs/
