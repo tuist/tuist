@@ -485,6 +485,20 @@ fn runtime() -> &'static tokio::runtime::Runtime {
     })
 }
 
+pub(crate) fn secure_endpoint(
+    endpoint: Endpoint,
+    roots: rustls::RootCertStore,
+    additional_blocked: Vec<String>,
+) -> Result<Endpoint, String> {
+    endpoint
+        .tls_config_with_verifier(
+            ClientTlsConfig::new(),
+            crate::certificate_trust::verifier(roots, additional_blocked)
+                .map_err(|_| "no allowed TLS trust anchors".to_owned())?,
+        )
+        .map_err(|_| "could not configure secure cache transport".to_owned())
+}
+
 /// The connection a `Remote` sends on, replaced when kura answers that the
 /// replica behind it is draining. An HTTP/2 connection stays on one replica,
 /// and a draining replica refuses every request until it exits, so a retry on
@@ -636,6 +650,9 @@ impl hyper::body::Body for OneFrame {
 }
 
 fn retryable(status: &tonic::Status) -> bool {
+    if crate::certificate_trust::tls_failure(status) {
+        return false;
+    }
     match status.code() {
         tonic::Code::Unavailable
         | tonic::Code::Unknown
@@ -1244,9 +1261,9 @@ impl Remote {
                 // Public kura endpoints are https (TLS with the system trust
                 // store); private-network endpoints stay plaintext h2c.
                 if self.config.grpc_url.starts_with("https://") {
-                    endpoint = endpoint
-                        .tls_config(ClientTlsConfig::new().with_native_roots())
-                        .map_err(|e| format!("tls config: {e}"))?;
+                    let mut roots = rustls::RootCertStore::empty();
+                    roots.add_parsable_certificates(rustls_native_certs::load_native_certs().certs);
+                    endpoint = secure_endpoint(endpoint, roots, Vec::new())?;
                 }
                 // connect_lazy establishes (and transparently re-establishes)
                 // the connection per request, so a Kura restart or transient
