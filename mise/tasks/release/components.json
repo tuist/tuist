@@ -229,7 +229,7 @@
       "tag_regex": "^runners-controller@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "infra/runners-controller/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": ["infra/runners-controller/**/*", "infra/runner-cache/**/*"]
+      "include_paths": ["infra/runners-controller/**/*", "infra/runner-cache/**/*", "infra/certificate-trust/policy.json", "infra/certificate-trust/pem-store.sh"]
     },
     {
       "name": "hetzner-robot-controller",
