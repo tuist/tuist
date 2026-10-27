@@ -102,6 +102,79 @@ struct TestCoverageEvidenceServiceTests {
         ))
     }
 
+    @Test func addsWhatTheLaunchedAppExecutedToTheTestSuiteAndTargetThatLaunchedIt() {
+        let evidence = TestCoverageEvidenceService.reduce(
+            outputs: [output([
+                .init(
+                    kind: .xctest,
+                    overlapped: false,
+                    module: "AppUITests",
+                    suite: "SearchUITests",
+                    name: "testSearch",
+                    counters: [0: [0]]
+                ),
+            ])],
+            filesByFunction: ["/products/App": ["add": ["/src/SearchUITests.swift"]]],
+            targets: ["AppUITests": ["/src/SearchUITests.swift": IndexSet([3])]],
+            launched: [
+                .init(module: "AppUITests", suite: "SearchUITests", name: "testSearch"): [
+                    "/src/App/Search.swift": IndexSet(integersIn: 10 ... 12),
+                    "/src/App/Shared.swift": IndexSet([1]),
+                ],
+                .init(module: "AppUITests", suite: "SearchUITests", name: ""): ["/src/App/Shared.swift": IndexSet([2])],
+            ]
+        )
+
+        #expect(evidence == TestCoverageEvidence(
+            paths: ["/src/App/Search.swift", "/src/App/Shared.swift", "/src/SearchUITests.swift"],
+            scopes: [
+                .init(
+                    kind: .target, module: "AppUITests", suite: "", name: "", files: [0, 1, 2],
+                    lines: [[10, 12], [1, 2], [3, 3]]
+                ),
+                .init(kind: .suite, module: "AppUITests", suite: "SearchUITests", name: "", files: [1], lines: [[2, 2]]),
+                .init(
+                    kind: .test, module: "AppUITests", suite: "SearchUITests", name: "testSearch()", files: [0, 1, 2],
+                    lines: [[10, 12], [1, 1], []]
+                ),
+            ]
+        ))
+    }
+
+    @Test(.inTemporaryDirectory) func readsAnAppsDebugDylibInsteadOfItsStubExecutable() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let app = directory.appending(component: "App.app")
+        try FileManager.default.createDirectory(atPath: app.pathString, withIntermediateDirectories: true)
+        let executable = app.appending(component: "App").pathString
+        FileManager.default.createFile(atPath: executable, contents: Data())
+
+        #expect(TestCoverageEvidenceService.debugDylib(besideExecutable: executable) == nil)
+        FileManager.default.createFile(atPath: executable + ".debug.dylib", contents: Data())
+        #expect(TestCoverageEvidenceService.debugDylib(besideExecutable: executable) == executable + ".debug.dylib")
+    }
+
+    @Test(.inTemporaryDirectory) func readsAnImageFromADeletedSimulatorCloneOffItsBuildProduct() throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let products = directory.appending(components: "Build", "Products", "Debug-iphonesimulator")
+        let bundle = products.appending(components: "AppUITests-Runner.app", "PlugIns", "AppUITests.xctest")
+        try FileManager.default.createDirectory(atPath: bundle.pathString, withIntermediateDirectories: true)
+        let product = bundle.appending(component: "AppUITests").pathString
+        FileManager.default.createFile(atPath: product, contents: Data())
+        let installed = directory.pathString
+            + "/XCTestDevices/CLONE/data/Containers/Bundle/Application/UUID/AppUITests-Runner.app/PlugIns/AppUITests.xctest/AppUITests"
+
+        let productsDirectories = [directory.appending(components: "Build", "Products", "Debug").pathString, products.pathString]
+        #expect(TestCoverageEvidenceService.buildProduct(ofInstalledImage: installed, productsDirectories: productsDirectories) ==
+            product)
+        #expect(TestCoverageEvidenceService
+            .buildProduct(ofInstalledImage: product, productsDirectories: productsDirectories) == nil)
+        #expect(TestCoverageEvidenceService.buildProduct(
+            ofInstalledImage: "/gone/libFoo.dylib",
+            productsDirectories: productsDirectories
+        ) ==
+            nil)
+    }
+
     @Test func namesATestModuleAfterItsBundle() {
         #expect(TestCoverageEvidenceService
             .testModule(ofImage: "/p/Debug/CoreTests.xctest/Contents/MacOS/CoreTests") == "CoreTests")

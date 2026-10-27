@@ -81,6 +81,16 @@ struct TestTargetProcessCoverageTests {
         #expect(Array(arguments.suffix(5)) == ["-instr-profile", profile.pathString, "-arch", "x86_64", cached.pathString])
     }
 
+    @Test func readsTheProcessOffARawProfilesName() throws {
+        let directory = try AbsolutePath(validating: "/DerivedData/Build/ProfileData/DEVICE")
+
+        #expect(TestTargetProcessCoverage.processIdentifier(
+            ofProfile: directory.appending(component: "6F9619FF-8B86-D011-B42D-00C04FC964FF-41217.profraw")
+        ) == 41217)
+        #expect(TestTargetProcessCoverage
+            .processIdentifier(ofProfile: directory.appending(component: "Coverage.profdata")) == nil)
+    }
+
     @Test(.inTemporaryDirectory) func readsOnlyTheRunsOwnRawProfiles() async throws {
         let directory = try #require(FileSystem.temporaryTestDirectory)
         let old = directory.appending(component: "A-1.profraw")
