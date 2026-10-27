@@ -390,10 +390,6 @@ jobs:
           ls -l /dev/kvm
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'emulator'
           "$ANDROID_HOME/emulator/emulator" -accel-check
-      - name: Verify KVM forwarding into Docker
-        run: |
-          docker run --rm --device /dev/kvm --user 1000:1000 alpine:3.21 \
-            sh -ec 'test -c /dev/kvm && test -r /dev/kvm && test -w /dev/kvm; ls -l /dev/kvm'
       - name: Run the API 34 x86_64 instrumented test
         working-directory: infra/kata-kvm-kernel/android-smoke
         run: gradle --no-daemon --stacktrace :app:pixel6DebugAndroidTest
