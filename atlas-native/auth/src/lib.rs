@@ -2,6 +2,7 @@ mod accounts;
 mod api;
 mod bridge;
 mod business;
+mod connections;
 pub mod form;
 mod moodboard;
 mod orbit;
