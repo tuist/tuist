@@ -17,7 +17,7 @@ This is not a Tart VM or actual macOS installer canary.
 
 `amp_orbs.exs` starts the real HTTP endpoint in test configuration against
 caller-owned loopback databases named `tuist_amp_orbs_*`. It issues a temporary
-account-admin bearer only into the private `AMP_VALIDATION_DIR`, verifies HTTP
+account-admin bearer only into the private `TUIST_ORB_VALIDATION_DIR`, verifies HTTP
 authorization, and observes persisted Orb state. Never upload that directory or
 reuse a service database. The caller owns node authentication, Firecracker,
 provider startup and cleanup; see `infra/amp-orbs/README.md`.

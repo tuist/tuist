@@ -15,7 +15,7 @@ defmodule AmpOrbVerification do
     config = Application.fetch_env!(:tuist, Repo)
     true = config[:hostname] in ["localhost", "127.0.0.1"]
     true = String.starts_with?(config[:database], "tuist_amp_orbs_")
-    directory = System.fetch_env!("AMP_VALIDATION_DIR")
+    directory = System.fetch_env!("TUIST_ORB_VALIDATION_DIR")
     true = File.dir?(directory)
 
     Application.put_env(:tuist, Repo, Keyword.merge(config, pool: DBConnection.ConnectionPool, pool_size: 10))

@@ -3,23 +3,27 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const script = fileURLToPath(new URL('./dispatch.sh', import.meta.url));
 
-async function dispatch(overrides = {}, status = 204) {
+async function dispatch(overrides = {}, status = 204, executable = script) {
   const requests = [];
   const server = createServer(async (request, response) => {
     let body = '';
     for await (const chunk of request) body += chunk;
     requests.push({ path: request.url, auth: request.headers.authorization, body: JSON.parse(body) });
-    response.writeHead(status).end();
+    if (request.url.endsWith('/exec')) {
+      response.writeHead(200, { 'content-type': 'application/json' }).end('{"exit_code":0}');
+    } else {
+      response.writeHead(status).end();
+    }
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   try {
-    const child = spawn('bash', [script], { env: {
+    const child = spawn('bash', [executable], { env: {
       PATH: process.env.PATH,
       TUIST_URL: `http://127.0.0.1:${server.address().port}`,
       TUIST_ACCOUNT: 'test-team', TUIST_TOKEN: 'api-secret',
@@ -51,6 +55,29 @@ test('pause and delete require no per-Orb token or image', async () => {
     const { code, requests } = await dispatch({ ORB_OPERATION: operation, ORB_TOKEN: '', ORB_IMAGE: '' });
     assert.equal(code, 0);
     assert.deepEqual(requests[0].body, { operation });
+  }
+});
+
+test('live observer works without inheriting any provider AMP_* variables', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'tuist-orb-observer-'));
+  const sandbox = '12345678-1234-1234-1234-123456789abc';
+  try {
+    await writeFile(join(directory, 'state.json'), JSON.stringify({
+      sandboxes: [{ id: sandbox, amp_orb_id: 'amp-thread' }],
+    }));
+    const liveScript = fileURLToPath(new URL('./live-dispatch.sh', import.meta.url));
+    const { code, output, requests } = await dispatch({ TUIST_ORB_VALIDATION_DIR: directory }, 204, liveScript);
+    assert.equal(code, 0, output);
+    assert.equal(requests.length, 2);
+    assert.equal(requests[0].body.operation, 'spawn');
+    assert.equal(requests[1].path, `/api/accounts/test-team/sandboxes/${sandbox}/exec`);
+    assert.equal(requests[1].auth, 'Bearer api-secret');
+    assert.equal(requests[1].body.timeout_ms, 15000);
+    assert.deepEqual(JSON.parse(await readFile(join(directory, 'spawns.jsonl'), 'utf8')), {
+      orb: 'amp-thread', sandbox,
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
   }
 });
 

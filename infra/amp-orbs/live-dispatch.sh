@@ -2,17 +2,17 @@
 # Test observer around the unchanged production dispatch adapter. Never log env.
 # shellcheck disable=SC2016
 set -euo pipefail
-: "${AMP_VALIDATION_DIR:?}"
+: "${TUIST_ORB_VALIDATION_DIR:?}"
 directory=$(cd "$(dirname "$0")" && pwd)
 "$directory/dispatch.sh"
 [[ "$ORB_OPERATION" == spawn ]] || exit 0
 
-sandbox=$(jq -er --arg orb "$ORB_ID" '.sandboxes[] | select(.amp_orb_id == $orb) | .id' "$AMP_VALIDATION_DIR/state.json" 2>/dev/null || true)
+sandbox=$(jq -er --arg orb "$ORB_ID" '.sandboxes[] | select(.amp_orb_id == $orb) | .id' "$TUIST_ORB_VALIDATION_DIR/state.json" 2>/dev/null || true)
 # The observer can be one second behind the completed HTTP request.
 for _ in {1..10}; do
   [[ -n "$sandbox" ]] && break
   sleep 1
-  sandbox=$(jq -er --arg orb "$ORB_ID" '.sandboxes[] | select(.amp_orb_id == $orb) | .id' "$AMP_VALIDATION_DIR/state.json" 2>/dev/null || true)
+  sandbox=$(jq -er --arg orb "$ORB_ID" '.sandboxes[] | select(.amp_orb_id == $orb) | .id' "$TUIST_ORB_VALIDATION_DIR/state.json" 2>/dev/null || true)
 done
 [[ "$sandbox" =~ ^[0-9a-f-]{36}$ ]]
 
@@ -37,7 +37,7 @@ else
   [[ $(cat "$state/count") -gt $before ]]
 fi
 echo "Guest file and background process checks passed"'
-request=$(mktemp "$AMP_VALIDATION_DIR/exec.XXXXXX")
+request=$(mktemp "$TUIST_ORB_VALIDATION_DIR/exec.XXXXXX")
 trap 'rm -f "$request"' EXIT
 jq -nc --arg command "$command" '{command:$command,timeout_ms:15000}' > "$request"
 response=$(jq -nr '"header = " + ("Authorization: Bearer " + env.TUIST_TOKEN | @json)' |
@@ -45,5 +45,5 @@ response=$(jq -nr '"header = " + ("Authorization: Bearer " + env.TUIST_TOKEN | @
     -H 'content-type: application/json' --data-binary "@$request" \
     "$TUIST_URL/api/accounts/$TUIST_ACCOUNT/sandboxes/$sandbox/exec")
 jq -e '.exit_code == 0' <<< "$response" >/dev/null
-jq -nc --arg orb "$ORB_ID" --arg sandbox "$sandbox" '{orb:$orb,sandbox:$sandbox}' >> "$AMP_VALIDATION_DIR/spawns.jsonl"
+jq -nc --arg orb "$ORB_ID" --arg sandbox "$sandbox" '{orb:$orb,sandbox:$sandbox}' >> "$TUIST_ORB_VALIDATION_DIR/spawns.jsonl"
 echo 'Tuist dispatch and guest process check passed.'

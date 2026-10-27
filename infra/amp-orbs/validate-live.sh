@@ -9,7 +9,8 @@ test -c /dev/kvm
 root=$(git rev-parse --show-toplevel)
 work=$(mktemp -d "${RUNNER_TEMP:?}/amp-live.XXXXXX")
 chmod 700 "$work"
-export AMP_VALIDATION_DIR="$work"
+# Keep observer configuration out of Amp's reserved AMP_* environment namespace.
+export TUIST_ORB_VALIDATION_DIR="$work"
 export KUBECONFIG="$work/kubeconfig"
 evidence="$RUNNER_TEMP/amp-live-evidence"
 mkdir -p "$evidence" "$work/data"
