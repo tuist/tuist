@@ -345,6 +345,13 @@ jobs:
         with:
           gradle-version: '8.11.1'
           cache-disabled: true
+      - name: Install emulator runtime libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            libx11-6 libxcomposite1 libxcursor1 libxi6 libxtst6 libxrandr2 \
+            libxrender1 libpulse0 libnss3 libxkbcommon-x11-0 libxcb-cursor0 \
+            libasound2 libglu1-mesa
       - name: Verify unprivileged nested KVM acceleration
         run: |
           set -euo pipefail
@@ -352,6 +359,7 @@ jobs:
           test -c /dev/kvm && test -r /dev/kvm && test -w /dev/kvm
           id
           uname -a
+          grep -m1 'model name' /proc/cpuinfo
           ls -l /dev/kvm
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'emulator'
           "$ANDROID_HOME/emulator/emulator" -accel-check
