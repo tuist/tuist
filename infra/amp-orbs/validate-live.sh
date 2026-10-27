@@ -87,7 +87,9 @@ test -f "$work/provider.env"
 # shellcheck disable=SC1091
 source "$work/provider.env"
 
-docker run -d --name "$daemon" --privileged --cgroupns=host --network=host --memory=6g \
+# Host networking otherwise inherits systemd-resolved's 127.0.0.53 stub.
+# sandboxd passes its resolvers to guests, where that loopback is unreachable.
+docker run -d --name "$daemon" --privileged --cgroupns=host --network=host --dns=1.1.1.1 --memory=6g \
   -v "$work/data:/data/sandboxes" -v "$work/node-token:/var/run/secrets/tuist/token:ro" \
   -e SERVER_URL="$TUIST_URL" -e NODE_NAME="$node" -e ADMIN_ADDR=127.0.0.1:9471 \
   -e TEMPLATE_TAG=validation -e DISK_BUDGET_GIB=22 -e BOOT_TIMEOUT=120s \
