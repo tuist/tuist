@@ -1,4 +1,5 @@
-{{- if ne .Release.Namespace "tuist-staging" }}
+{{- /* The deployment's registry preflight renders without --namespace. */}}
+{{- if or (ne .Values.registry.deployEnv "staging") (not (has .Release.Namespace (list "default" "tuist-staging"))) }}
 {{- fail "OpenBao validation RBAC is staging-only" }}
 {{- end }}
 # Disposable OpenBao validation only. Remove through the same deployment
