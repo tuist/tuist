@@ -525,3 +525,47 @@ func TestResizeHoldReplacesPodStrandedOnDisk(t *testing.T) {
 		}
 	}
 }
+
+func TestLVMResizeHoldWaitsForFreshCatchUp(t *testing.T) {
+	for _, tc := range []struct {
+		name, cycle      string
+		missing, invalid bool
+		exhausted        int64
+		release          bool
+	}{
+		{name: "initial backfill pending", cycle: "pending"},
+		{name: "initial backfill running", cycle: "running"},
+		{name: "missing observation", missing: true},
+		{name: "invalid observation", cycle: backfillCycleComplete, invalid: true},
+		{name: "backfill budget exhausted", cycle: backfillCycleComplete, exhausted: 1},
+		{name: "both caught up", cycle: backfillCycleComplete, release: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newResizeHoldFixture(600)
+			f.instance.Spec.DiskResource = string(kuraDiskResource)
+			f.instance.Spec.StorageClassName = thinLocalStorageClass
+			sts := f.statefulSet(onDelete(), "600m", resizeHeld())
+			pods := []*corev1.Pod{f.servingPod(0, "600m"), f.servingPod(1, "600m")}
+			samples := map[string]runtimeStatus{
+				pods[0].Name: {Ready: true, State: "serving", WriterLockOwned: true, BackfillInitialCycle: backfillCycleComplete},
+				pods[1].Name: {Ready: true, State: "serving", WriterLockOwned: true, BackfillInitialCycle: tc.cycle, invalidObservation: tc.invalid, BackfillBudgetExhaustedRealPeers: tc.exhausted},
+			}
+			if tc.missing {
+				delete(samples, pods[1].Name)
+			}
+			c := fake.NewClientBuilder().WithScheme(meshTestScheme(t)).WithObjects(f.instance, sts, pods[0], pods[1]).Build()
+			r := &KuraInstanceReconciler{Client: c, RuntimeStatusClient: fakeRuntimeStatusClient{statuses: samples}}
+			if err := r.releaseResizeRolloutHold(context.Background(), f.instance); err != nil {
+				t.Fatal(err)
+			}
+			got := &appsv1.StatefulSet{}
+			if err := c.Get(context.Background(), client.ObjectKeyFromObject(sts), got); err != nil {
+				t.Fatal(err)
+			}
+			released := got.Spec.UpdateStrategy.Type == appsv1.RollingUpdateStatefulSetStrategyType
+			if released != tc.release {
+				t.Fatalf("released = %v, want %v", released, tc.release)
+			}
+		})
+	}
+}

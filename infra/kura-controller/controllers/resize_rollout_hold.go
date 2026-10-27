@@ -88,8 +88,9 @@ func (r *KuraInstanceReconciler) holdRolloutForResize(ctx context.Context, insta
 }
 
 // releaseResizeRolloutHold restores the rolling update once the resize is over
-// and every replica is ready, so whatever the template changed in the meantime
-// rolls through the ordinary path with a serving standby.
+// and every replica is ready. LVM replacements must also finish initial catch-up:
+// otherwise a queued template change can roll their donor while their new
+// filesystem is still empty, even though Kubernetes already reports Ready.
 func (r *KuraInstanceReconciler) releaseResizeRolloutHold(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	sts := &appsv1.StatefulSet{}
 	if err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, sts); err != nil {
@@ -106,9 +107,19 @@ func (r *KuraInstanceReconciler) releaseResizeRolloutHold(ctx context.Context, i
 	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
 		return err
 	}
+	var samples map[string]runtimeStatus
+	if diskResource(instance) == kuraDiskResource {
+		samples = r.sampleRuntimeStatuses(ctx, instance, pods.Items)
+	}
 	ready := int32(0)
 	for i := range pods.Items {
 		if pods.Items[i].DeletionTimestamp == nil && podReady(&pods.Items[i]) {
+			if diskResource(instance) == kuraDiskResource {
+				status, observed := samples[pods.Items[i].Name]
+				if !observed || status.invalidObservation || !status.Ready || status.BackfillInitialCycle != backfillCycleComplete || status.BackfillBudgetExhaustedRealPeers != 0 {
+					continue
+				}
+			}
 			ready++
 		}
 	}
