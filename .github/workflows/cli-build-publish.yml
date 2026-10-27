@@ -125,7 +125,7 @@ jobs:
     name: Release CLI (Linux ${{ matrix.arch }})
     runs-on: tuist-linux-large
     container:
-      image: swift:6.4.1
+      image: swift:6.4.1-noble
     timeout-minutes: 40
     strategy:
       matrix:

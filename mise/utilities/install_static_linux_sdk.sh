@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Installs the Swift Static Linux SDK and prepares the swift:6.4.1 container to
+# Installs the Swift Static Linux SDK and prepares the swift:6.4.1-noble container to
 # link against it. Shared by the Linux release bundle (mise/tasks/cli/bundle-linux.sh)
 # and the PR "Linux Build" job so both compile against the same musl SDK.
 # Takes an optional target architecture (x86_64 or aarch64, defaulting to the
