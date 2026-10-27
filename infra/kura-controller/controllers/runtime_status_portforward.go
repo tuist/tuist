@@ -42,7 +42,7 @@ type portForwardRuntimeStatusClient struct {
 	timeout time.Duration
 }
 
-func NewPortForwardRuntimeStatusClient(config *rest.Config) (RuntimeStatusClient, error) {
+func NewPortForwardRuntimeStatusClient(config *rest.Config) (*portForwardRuntimeStatusClient, error) {
 	config = rest.CopyConfig(config)
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
@@ -181,4 +181,54 @@ func forwardError(ctx context.Context, forwardErr <-chan error, streamErr error)
 	case <-ctx.Done():
 	}
 	return streamErr
+}
+
+// Retire uses the same kubelet path as node-local status, retaining end-to-end
+// peer mTLS inside the tunnel. This also works when NetworkPolicy allows the
+// controller's public health checks but excludes it from the peer port.
+func (c *portForwardRuntimeStatusClient) Retire(ctx context.Context, pod corev1.Pod, serverName, incarnation string, tlsData map[string][]byte) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	target := c.rest.Post().Resource("pods").Namespace(pod.Namespace).Name(pod.Name).SubResource("portforward").URL()
+	connection, err := c.dial(ctx, target)
+	if err != nil {
+		return false, err
+	}
+	defer connection.Close()
+	return retirePublicConnectionsOverStream(ctx, connection, pod, serverName, incarnation, tlsData)
+}
+
+func retirePublicConnectionsOverStream(ctx context.Context, connection httpstream.Connection, pod corev1.Pod, serverName, incarnation string, tlsData map[string][]byte) (bool, error) {
+	headers := http.Header{}
+	headers.Set(corev1.StreamType, corev1.StreamTypeError)
+	headers.Set(corev1.PortHeader, strconv.Itoa(int(peerPort)))
+	headers.Set(corev1.PortForwardRequestIDHeader, "0")
+	errorStream, err := connection.CreateStream(headers)
+	if err != nil {
+		return false, err
+	}
+	_ = errorStream.Close()
+	defer connection.RemoveStreams(errorStream)
+	headers.Set(corev1.StreamType, corev1.StreamTypeData)
+	stream, err := connection.CreateStream(headers)
+	if err != nil {
+		return false, err
+	}
+	defer connection.RemoveStreams(stream)
+	defer func() { _ = stream.Reset() }()
+	local, tunnel := net.Pipe()
+	defer local.Close()
+	defer tunnel.Close()
+	// net.Pipe supplies real deadlines to TLS/HTTP. Closing the SPDY connection
+	// and both pipe ends bounds all copies, including cancellation mid-handshake.
+	go func() { _, _ = io.Copy(stream, tunnel); _ = stream.Close() }()
+	go func() { _, _ = io.Copy(tunnel, stream); _ = tunnel.Close() }()
+	go func() {
+		message, _ := io.ReadAll(io.LimitReader(errorStream, 4096))
+		if len(message) != 0 {
+			_ = local.Close()
+		}
+	}()
+	retirer := tlsPublicConnectionRetirer{dialContext: func(context.Context, string, string) (net.Conn, error) { return local, nil }}
+	return retirer.Retire(ctx, pod, serverName, incarnation, tlsData)
 }

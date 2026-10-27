@@ -269,3 +269,8 @@ zero before deleting the donor; old runtimes and failed/malformed receipts hold.
 If the template changed under the resize hold, roll stale pods one at a time
 through that same handoff without deleting their claims, then release OnDelete
 only when every pod is caught up and on the current template revision.
+
+Connection retirement uses the controller's existing kubelet port-forward path
+with peer mTLS inside the tunnel, including on cluster-network pods. It must not
+rely on direct reachability of node-local PodIPs or broader peer NetworkPolicy
+permissions. The process incarnation binds a receipt across pod/process races.

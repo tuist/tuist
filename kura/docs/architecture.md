@@ -454,7 +454,8 @@ The configured tenant remains the permanent storage and peer identity across acc
 ### Planned thin-storage connection handoff
 
 After the controller observes Service and peer endpoint handoff, it calls the
-internal mTLS `POST /_internal/connections/retire` with the process incarnation
+internal mTLS `POST /_internal/connections/retire` through its kubelet tunnel,
+with the process incarnation
 reported by `/status/rollout`. The runtime continues serving and replicating,
 but HTTP/1 responses close their connection after the complete response. An
 accept-time lease counts the old connection cohort through response completion;

@@ -22,9 +22,11 @@ type PublicConnectionRetirer interface {
 	Retire(context.Context, corev1.Pod, string, string, map[string][]byte) (bool, error)
 }
 
-type tlsPublicConnectionRetirer struct{}
+type tlsPublicConnectionRetirer struct {
+	dialContext func(context.Context, string, string) (net.Conn, error)
+}
 
-func (tlsPublicConnectionRetirer) Retire(ctx context.Context, pod corev1.Pod, serverName, incarnation string, tlsData map[string][]byte) (bool, error) {
+func (r tlsPublicConnectionRetirer) Retire(ctx context.Context, pod corev1.Pod, serverName, incarnation string, tlsData map[string][]byte) (bool, error) {
 	cert, err := tls.X509KeyPair(tlsData[peerTLSCertFile], tlsData[peerTLSKeyFile])
 	if err != nil {
 		return false, fmt.Errorf("load peer client certificate: %w", err)
@@ -33,7 +35,7 @@ func (tlsPublicConnectionRetirer) Retire(ctx context.Context, pod corev1.Pod, se
 	if !roots.AppendCertsFromPEM(tlsData[peerTLSCAFile]) {
 		return false, fmt.Errorf("load peer certificate authority")
 	}
-	transport := &http.Transport{TLSClientConfig: &tls.Config{Certificates: []tls.Certificate{cert}, RootCAs: roots, ServerName: serverName, MinVersion: tls.VersionTLS12}}
+	transport := &http.Transport{DialContext: r.dialContext, TLSClientConfig: &tls.Config{Certificates: []tls.Certificate{cert}, RootCAs: roots, ServerName: serverName, MinVersion: tls.VersionTLS12}}
 	defer transport.CloseIdleConnections()
 	body, err := json.Marshal(map[string]string{"incarnation": incarnation})
 	if err != nil {
