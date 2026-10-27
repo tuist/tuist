@@ -560,7 +560,8 @@ defmodule Tuist.Docs.Sidebar do
             label: "Git forges",
             items: [
               %Item{label: "GitHub", slug: "/en/guides/integrations/gitforge/github"},
-              %Item{label: "Origin", slug: "/en/guides/integrations/gitforge/origin"}
+              %Item{label: "Origin", slug: "/en/guides/integrations/gitforge/origin"},
+              %Item{label: "Entire", slug: "/en/guides/integrations/gitforge/entire"}
             ]
           }
         ]

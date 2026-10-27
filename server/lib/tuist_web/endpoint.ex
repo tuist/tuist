@@ -77,6 +77,8 @@ defmodule TuistWeb.Endpoint do
   plug Sentry.PlugContext, header_scrubber: {__MODULE__, :scrub_sentry_headers}
   plug TuistWeb.Plugs.CloseConnectionOnErrorPlug
 
+  plug TuistWeb.Plugs.EntireWebhookPlug
+
   plug Stripe.WebhookPlug,
     at: "/webhooks/stripe",
     handler: BillingController,

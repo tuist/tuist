@@ -10,7 +10,7 @@
     font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
   }
 
-  & > :is([data-part="github-card-section"], [data-part="origin-card-section"]) {
+  & > :is([data-part="github-card-section"], [data-part="origin-card-section"], [data-part="entire-card-section"]) {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
@@ -264,7 +264,7 @@
     }
   }
 
-  & :is(#add-connection-modal, #add-origin-connection-modal) {
+  & :is(#add-connection-modal, #add-origin-connection-modal, #entire-connection-modal) {
     & [data-part="content"] {
       & [data-part="create-connection"] {
         display: flex;
@@ -332,7 +332,9 @@
             #repository-dropdown,
             #origin-project-dropdown,
             #origin-repository-dropdown,
-            #origin-installation-dropdown
+            #origin-installation-dropdown,
+            #entire-project-dropdown,
+            #entire-repository-dropdown
           ) {
           width: min(244px, 100%);
 

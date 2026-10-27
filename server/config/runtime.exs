@@ -32,6 +32,13 @@ alias Tuist.Oban.RuntimeConfig
 # A boot failure here is caught in the canary stage before production.
 alias Tuist.Runners.Catalog
 
+config :tuist, Tuist.Entire.Client,
+  slug: System.get_env("TUIST_ENTIRE_PLUGIN_SLUG"),
+  private_key: System.get_env("TUIST_ENTIRE_PLUGIN_PRIVATE_KEY"),
+  key_id: System.get_env("TUIST_ENTIRE_PLUGIN_KEY_ID"),
+  core_url: System.get_env("TUIST_ENTIRE_CORE_URL", "https://eu.auth.entire.io"),
+  delivery_jwks_url: System.get_env("TUIST_ENTIRE_DELIVERY_JWKS_URL")
+
 config :tuist, :network_trusted_report_publishing, System.get_env("TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING") == "true"
 config :tuist, :runner_linux_cache_volumes, System.get_env("TUIST_RUNNER_LINUX_CACHE_VOLUMES") == "true"
 config :tuist, :runner_macos_cache_volumes, System.get_env("TUIST_RUNNER_MACOS_CACHE_VOLUMES") == "true"

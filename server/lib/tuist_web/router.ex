@@ -658,6 +658,8 @@ defmodule TuistWeb.Router do
   scope "/integrations", TuistWeb do
     pipe_through [:open_api, :browser_app, :require_authenticated_user]
 
+    get "/entire/start", EntirePluginController, :start
+    get "/entire/callback", EntirePluginController, :callback
     get "/github/setup", GitHubAppSetupController, :setup
     get "/github/authorize", GitHubAppSetupController, :authorize
     get "/installation", IntegrationInstallationController, :show

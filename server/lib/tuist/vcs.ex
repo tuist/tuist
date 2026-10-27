@@ -513,6 +513,8 @@ defmodule Tuist.VCS do
     flush_interval_seconds = div(Environment.clickhouse_flush_interval_ms(), 1000)
     schedule_in = flush_interval_seconds + 1
 
+    Tuist.EntireTrails.enqueue(args[:project_id] || args["project_id"])
+
     args
     |> RemoteURL.strip_credentials_from_params()
     |> CommentWorker.new(schedule_in: schedule_in)
@@ -622,7 +624,7 @@ defmodule Tuist.VCS do
              installation: installation
            }) do
       vcs_comment_body =
-        get_vcs_comment_body(%{
+        get_run_report(%{
           git_ref: git_ref,
           git_remote_url_origin: Projects.get_repository_url(project),
           preview_url: preview_url,
@@ -720,39 +722,29 @@ defmodule Tuist.VCS do
     end
   end
 
-  defp get_vcs_comment_body(%{
-         git_ref: git_ref,
-         git_remote_url_origin: git_remote_url_origin,
-         preview_url: preview_url,
-         preview_qr_code_url: preview_qr_code_url,
-         test_run_url: test_run_url,
-         build_url: build_url,
-         bundle_url: bundle_url,
-         project: project
-       }) do
-    previews =
-      latest_previews(%{
-        git_ref: git_ref,
-        project: project
-      })
+  @doc """
+  Renders the latest previews, tests, builds, and bundles for a project.
 
-    test_runs =
-      get_latest_test_runs(%{
-        git_ref: git_ref,
-        project: project
-      })
-
-    builds =
-      get_latest_builds(%{
-        git_ref: git_ref,
-        project: project
-      })
-
-    gradle_builds =
-      get_latest_gradle_builds(%{
-        git_ref: git_ref,
-        project: project
-      })
+  When `:git_commit_sha` is provided, results match that exact commit regardless
+  of their Git ref. Otherwise, results match `:git_ref`, including both head and
+  merge refs for a pull request. Returns nil when no results are available.
+  """
+  def get_run_report(
+        %{
+          git_remote_url_origin: git_remote_url_origin,
+          preview_url: preview_url,
+          preview_qr_code_url: preview_qr_code_url,
+          test_run_url: test_run_url,
+          build_url: build_url,
+          bundle_url: bundle_url,
+          project: project
+        } = params
+      ) do
+    query_params = Map.take(params, [:project, :git_ref, :git_commit_sha])
+    previews = latest_previews(query_params)
+    test_runs = get_latest_test_runs(query_params)
+    builds = get_latest_builds(query_params)
+    gradle_builds = get_latest_gradle_builds(query_params)
 
     previews_body =
       get_previews_body(%{
@@ -772,12 +764,12 @@ defmodule Tuist.VCS do
       })
 
     bundles_body =
-      bundles_body(%{
-        project: project,
-        git_ref: git_ref,
-        git_remote_url_origin: git_remote_url_origin,
-        bundle_url: bundle_url
-      })
+      bundles_body(
+        Map.merge(query_params, %{
+          git_remote_url_origin: git_remote_url_origin,
+          bundle_url: bundle_url
+        })
+      )
 
     builds_body =
       get_builds_body(%{
@@ -811,22 +803,15 @@ defmodule Tuist.VCS do
     end
   end
 
-  defp bundles_body(%{
-         project: project,
-         git_ref: git_ref,
-         git_remote_url_origin: git_remote_url_origin,
-         bundle_url: bundle_url
-       }) do
-    git_ref_pattern = get_git_ref_pattern(git_ref)
-
+  defp bundles_body(%{project: project, git_remote_url_origin: git_remote_url_origin, bundle_url: bundle_url} = params) do
     # ClickHouse runs `DISTINCT` before `ORDER BY`, so deduping against
     # `b.name` in the query would pick an arbitrary row per name and
     # report stale bundle sizes. Fetch rows ordered by `inserted_at`
     # first and keep the newest per name in Elixir. Bounded by the
-    # `git_ref` pattern (a single PR or ref) so the scan stays small.
+    # commit or `git_ref` pattern so the scan stays small.
     bundles =
       from(b in Bundle)
-      |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
+      |> filter_run_report_query(params)
       |> order_by([b], desc: b.inserted_at)
       |> ClickHouseRepo.all()
       |> Enum.uniq_by(& &1.name)
@@ -891,6 +876,8 @@ defmodule Tuist.VCS do
 
   defp commit_link(nil, _git_remote_url_origin), do: ""
 
+  defp commit_link(git_commit_sha, nil), do: "`#{String.slice(git_commit_sha, 0, 9)}`"
+
   defp commit_link(git_commit_sha, "https://cursor.com/codebase/" <> _repository),
     do: "`#{String.slice(git_commit_sha, 0, 9)}`"
 
@@ -904,11 +891,22 @@ defmodule Tuist.VCS do
     end
   end
 
-  defp latest_previews(%{git_ref: git_ref, project: project}) do
-    git_ref_pattern = get_git_ref_pattern(git_ref)
+  defp filter_run_report_query(query, %{project: project} = params) do
+    query = where(query, [result], result.project_id == ^project.id)
 
+    case Map.get(params, :git_commit_sha) do
+      nil ->
+        git_ref_pattern = params |> Map.fetch!(:git_ref) |> get_git_ref_pattern()
+        where(query, [result], like(result.git_ref, ^git_ref_pattern))
+
+      git_commit_sha ->
+        where(query, [result], result.git_commit_sha == ^git_commit_sha)
+    end
+  end
+
+  defp latest_previews(params) do
     from(p in Preview)
-    |> where([p], p.project_id == ^project.id and like(p.git_ref, ^git_ref_pattern))
+    |> filter_run_report_query(params)
     |> order_by([p], desc: p.inserted_at)
     |> distinct([p], p.display_name)
     |> Repo.all()
@@ -1331,11 +1329,9 @@ defmodule Tuist.VCS do
     end
   end
 
-  defp get_latest_builds(%{git_ref: git_ref, project: project}) do
-    git_ref_pattern = get_git_ref_pattern(git_ref)
-
+  defp get_latest_builds(params) do
     from(b in Builds.Build)
-    |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
+    |> filter_run_report_query(params)
     |> where([b], b.submission_auth != "network_trusted")
     |> where([b], b.status not in ["processing", "failed_processing"])
     |> order_by([b], desc: b.inserted_at)
@@ -1359,11 +1355,9 @@ defmodule Tuist.VCS do
     |> Map.values()
   end
 
-  defp get_latest_gradle_builds(%{git_ref: git_ref, project: project}) do
-    git_ref_pattern = get_git_ref_pattern(git_ref)
-
+  defp get_latest_gradle_builds(params) do
     from(b in Gradle.Build)
-    |> where([b], b.project_id == ^project.id and like(b.git_ref, ^git_ref_pattern))
+    |> filter_run_report_query(params)
     |> where([b], b.submission_auth != "network_trusted")
     |> order_by([b], desc: b.inserted_at)
     |> ClickHouseRepo.all()
@@ -1386,11 +1380,9 @@ defmodule Tuist.VCS do
     |> Map.values()
   end
 
-  defp get_latest_test_runs(%{git_ref: git_ref, project: project}) do
-    git_ref_pattern = get_git_ref_pattern(git_ref)
-
+  defp get_latest_test_runs(params) do
     from(t in Tests.Test.query())
-    |> where([t], t.project_id == ^project.id and like(t.git_ref, ^git_ref_pattern))
+    |> filter_run_report_query(params)
     |> where([t], t.submission_auth != "network_trusted")
     |> order_by([t], desc: t.inserted_at)
     |> ClickHouseRepo.all()

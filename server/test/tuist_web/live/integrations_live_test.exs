@@ -5,6 +5,9 @@ defmodule TuistWeb.IntegrationsLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Entire.Client, as: Entire
+  alias Tuist.Entire.Installation
+  alias Tuist.EntireTrails
   alias Tuist.Origin.Client, as: OriginClient
   alias Tuist.Origin.Installation, as: OriginInstallation
   alias Tuist.Projects
@@ -497,6 +500,81 @@ defmodule TuistWeb.IntegrationsLiveTest do
       assert origin_element?(lv, ".noora-alert", "No native Origin repositories available")
       refute origin_element?(lv, ".noora-alert", "Could not load Origin repositories")
       assert origin_element?(lv, "button[phx-click=connect-origin-project][disabled]")
+    end
+  end
+
+  describe "Entire Trail insights" do
+    setup %{account: account} do
+      stub(Entire, :configured?, fn -> true end)
+      stub(FunWithFlags, :enabled?, fn flag, _ -> flag == :entire_trails end)
+      installation = Repo.insert!(%Installation{account_id: account.id, remote_id: "ins_live"})
+      %{entire_installation: installation}
+    end
+
+    test "creates and removes a project connection without a GitHub installation", %{
+      conn: conn,
+      account: account,
+      project: project,
+      entire_installation: installation
+    } do
+      stub(Entire, :repositories, fn ^installation ->
+        {:ok, [%{"id" => "repo_live", "full_name" => "tuist/ios"}]}
+      end)
+
+      stub(Entire, :repository, fn ^installation, "repo_live" ->
+        {:ok, %{id: "repo_live", name: "tuist/ios"}}
+      end)
+
+      {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/integrations")
+      assert render_async(lv) =~ "Your access to repositories depends on your Entire and Tuist integration setup."
+      refute has_element?(lv, "a", "Install Entire plugin")
+
+      assert has_element?(
+               lv,
+               ~s([data-part=entire-card-section] a[href="/integrations/entire/start?account_handle=#{account.name}"][target=_blank][rel="noopener noreferrer"]),
+               "Manage integration"
+             )
+
+      render_click(lv, "select-entire-repository", %{
+        "repository" => "#{installation.id}:repo_live"
+      })
+
+      render_click(lv, "create-entire-connection")
+      assert [%{project_id: project_id, repository_id: "repo_live"} = connection] = EntireTrails.connections(account)
+      assert project_id == project.id
+      assert has_element?(lv, "[data-part=connection-card-section]", "tuist/ios")
+      assert has_element?(lv, "[data-part=connection-card-section]", "Connected")
+      assert has_element?(lv, "#entire-connection-actions-#{connection.id}", "Manage")
+      assert has_element?(lv, "#entire-connection-modal")
+
+      render_click(lv, "delete-entire-connection", %{"connection_id" => connection.id})
+      assert EntireTrails.connections(account) == []
+      refute has_element?(lv, "[data-part=connection-card-section]")
+    end
+
+    test "can retry a failed repository load", %{conn: conn, account: account} do
+      stub(Entire, :repositories, fn _ -> {:error, :unavailable} end)
+      {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/integrations")
+      assert render_async(lv) =~ "Could not load Entire repositories."
+
+      stub(Entire, :repositories, fn _ -> {:ok, [%{"id" => "repo_live", "full_name" => "tuist/ios"}]} end)
+      render_click(lv, "retry-entire-repositories")
+      html = render_async(lv)
+      refute html =~ "Could not load Entire repositories."
+      assert has_element?(lv, "#entire-connection-modal")
+      refute has_element?(lv, "a", "Install Entire plugin")
+    end
+
+    test "shows only installation before the plugin is installed", %{
+      conn: conn,
+      account: account,
+      entire_installation: installation
+    } do
+      Repo.delete!(installation)
+      {:ok, lv, _} = live(conn, ~p"/#{account.name}/settings/integrations")
+      render_async(lv)
+      assert has_element?(lv, "a[data-variant=primary]", "Install Entire plugin")
+      refute has_element?(lv, "#entire-connection-modal")
     end
   end
 

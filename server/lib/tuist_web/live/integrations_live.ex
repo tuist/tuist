@@ -5,6 +5,7 @@ defmodule TuistWeb.IntegrationsLive do
 
   alias Tuist.Authorization
   alias Tuist.Billing.Entitlements
+  alias Tuist.EntireTrails
   alias Tuist.FeatureFlags
   alias Tuist.Origin
   alias Tuist.Origin.Client, as: OriginClient
@@ -75,6 +76,7 @@ defmodule TuistWeb.IntegrationsLive do
       |> assign(buildkite_has_changes: false)
       |> assign_buildkite_installation()
       |> assign(gitlab_connections: GitLab.list_connections(selected_account.id), gitlab_error: nil)
+      |> assign_entire_integration(selected_account)
       |> assign(:head_title, "#{dgettext("dashboard_integrations", "Integrations")} · #{selected_account.name} · Tuist")
       |> then(fn socket ->
         if github_installation do
@@ -86,8 +88,56 @@ defmodule TuistWeb.IntegrationsLive do
           assign(socket, github_repositories: %{ok?: true, result: [], loading: false})
         end
       end)
+      |> load_entire_repositories()
 
     {:ok, socket}
+  end
+
+  def handle_event("select-entire-project", %{"project_id" => id}, socket) do
+    {:noreply, assign(socket, entire_project_id: id)}
+  end
+
+  def handle_event("select-entire-repository", %{"repository" => key}, socket) do
+    {:noreply, assign(socket, entire_repository_key: key)}
+  end
+
+  def handle_event("close-entire-connection-modal", _params, socket) do
+    {:noreply, push_event(socket, "close-modal", %{id: "entire-connection-modal"})}
+  end
+
+  def handle_event("retry-entire-repositories", _params, socket) do
+    {:noreply, load_entire_repositories(socket)}
+  end
+
+  def handle_event("create-entire-connection", _params, %{assigns: assigns} = socket) do
+    with :ok <- Authorization.authorize(:account_update, assigns.current_user, assigns.selected_account),
+         project when not is_nil(project) <- entire_selected_project(assigns),
+         repository when not is_nil(repository) <- entire_selected_repository(assigns),
+         {:ok, _} <-
+           EntireTrails.connect(assigns.selected_account, %{
+             project_id: project.id,
+             installation_id: repository.installation_id,
+             repository_id: repository.id
+           }) do
+      {:noreply,
+       socket
+       |> assign(entire_connections: EntireTrails.connections(assigns.selected_account))
+       |> assign(entire_project_id: nil, entire_repository_key: nil)
+       |> push_event("close-modal", %{id: "entire-connection-modal"})}
+    else
+      _ ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("dashboard_integrations", "Could not connect the Entire repository."))}
+    end
+  end
+
+  def handle_event("delete-entire-connection", %{"connection_id" => id}, %{assigns: assigns} = socket) do
+    with :ok <- Authorization.authorize(:account_update, assigns.current_user, assigns.selected_account),
+         {:ok, _} <- EntireTrails.disconnect(assigns.selected_account, id) do
+      {:noreply, assign(socket, entire_connections: EntireTrails.connections(assigns.selected_account))}
+    else
+      _ -> {:noreply, socket}
+    end
   end
 
   @impl true
@@ -695,7 +745,7 @@ defmodule TuistWeb.IntegrationsLive do
   defp get_connection_info(vcs_connection) do
     time_ago = DateFormatter.from_now(vcs_connection.inserted_at)
 
-    if is_nil(vcs_connection.created_by) do
+    if is_nil(Map.get(vcs_connection, :created_by)) do
       dgettext("dashboard_integrations", "Connected %{time_ago}", time_ago: time_ago)
     else
       dgettext("dashboard_integrations", "Connected %{time_ago} by %{name}",
@@ -878,6 +928,54 @@ defmodule TuistWeb.IntegrationsLive do
 
     {field_errors, form_error}
   end
+
+  defp assign_entire_integration(socket, account) do
+    enabled? = EntireTrails.enabled?(account)
+
+    assign(socket,
+      entire_enabled?: enabled?,
+      entire_installed?: enabled? and EntireTrails.installations(account) != [],
+      entire_connections: if(enabled?, do: EntireTrails.connections(account), else: []),
+      entire_project_id: nil,
+      entire_repository_key: nil
+    )
+  end
+
+  defp load_entire_repositories(socket) do
+    account = socket.assigns.selected_account
+
+    if socket.assigns.entire_enabled? do
+      assign_async(socket, :entire_repositories, fn ->
+        with {:ok, repositories} <- EntireTrails.repositories(account) do
+          {:ok, %{entire_repositories: Enum.sort_by(repositories, & &1.name)}}
+        end
+      end)
+    else
+      assign(socket, entire_repositories: %{ok?: true, result: [], loading: false, failed: nil})
+    end
+  end
+
+  defp entire_available_projects(assigns) do
+    connected = MapSet.new(assigns.entire_connections, & &1.project_id)
+    assigns.selected_account.projects |> Enum.reject(&MapSet.member?(connected, &1.id)) |> Enum.sort_by(& &1.name)
+  end
+
+  defp entire_selected_project(assigns) do
+    case entire_available_projects(assigns) do
+      [project] -> project
+      projects -> Enum.find(projects, &(to_string(&1.id) == assigns.entire_project_id))
+    end
+  end
+
+  defp entire_available_repositories(assigns) do
+    if assigns.entire_repositories.ok?, do: assigns.entire_repositories.result, else: []
+  end
+
+  defp entire_selected_repository(assigns) do
+    Enum.find(entire_available_repositories(assigns), &(entire_repository_key(&1) == assigns.entire_repository_key))
+  end
+
+  defp entire_repository_key(repository), do: repository.installation_id <> ":" <> repository.id
 
   defp vcs_connections(account, opts \\ []) do
     force = Keyword.get(opts, :force, false)

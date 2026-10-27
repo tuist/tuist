@@ -370,6 +370,8 @@ defmodule Tuist.Application do
           {Cachex, [:tuist, []]},
           Supervisor.child_spec({Cachex, [:license, []]}, id: :license),
           Supervisor.child_spec({Cachex, [:display, []]}, id: :display),
+          # JWKS HTTP refreshes must not block the application cache's transaction worker.
+          Supervisor.child_spec({Cachex, [:entire_jwks, []]}, id: :entire_jwks),
           Tuist.OIDC.JWKSCache,
           Tuist.Authentication.TokenVerificationCache,
           Tuist.Authentication.SubjectCache,

@@ -810,4 +810,169 @@
       </div>
     </div>
   </.card_section>
+  <.card_section :if={@entire_enabled?} data-part="entire-card-section">
+    <div data-part="header">
+      <span data-part="title">Entire</span>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_integrations",
+          "Keep build, test, bundle, and preview insights up to date on your Trails."
+        )}
+      </span>
+    </div>
+    <div data-part="content">
+      <div data-part="actions">
+        <.button
+          :if={not @entire_installed?}
+          label={dgettext("dashboard_integrations", "Install Entire plugin")}
+          variant="primary"
+          href={~p"/integrations/entire/start?#{%{account_handle: @selected_account.name}}"}
+        />
+        <.button
+          :if={@entire_installed?}
+          label={dgettext("dashboard_integrations", "Manage integration")}
+          variant="secondary"
+          href={~p"/integrations/entire/start?#{%{account_handle: @selected_account.name}}"}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <:icon_right><.external_link /></:icon_right>
+        </.button>
+        <.modal
+          :if={@entire_installed?}
+          id="entire-connection-modal"
+          title={dgettext("dashboard_integrations", "Choose repository to connect to")}
+          description={
+            dgettext(
+              "dashboard_integrations",
+              "Your access to repositories depends on your Entire and Tuist integration setup."
+            )
+          }
+          header_type="icon"
+          header_size="large"
+          on_dismiss="close-entire-connection-modal"
+        >
+          <:trigger :let={attrs}>
+            <.button
+              label={dgettext("dashboard_integrations", "Add new project connection")}
+              variant="primary"
+              {attrs}
+            />
+          </:trigger>
+          <:header_icon><.folder /></:header_icon>
+          <.line_divider />
+          <div :if={@entire_repositories.loading} role="status">
+            {dgettext("dashboard_integrations", "Loading Entire repositories…")}
+          </div>
+          <div :if={@entire_repositories.failed} role="alert">
+            {dgettext("dashboard_integrations", "Could not load Entire repositories.")}
+            <.button
+              label={dgettext("dashboard_integrations", "Retry")}
+              variant="secondary"
+              phx-click="retry-entire-repositories"
+            />
+          </div>
+          <div data-part="create-connection">
+            <.dropdown
+              id="entire-project-dropdown"
+              label={
+                if project = entire_selected_project(assigns),
+                  do: project.name,
+                  else: dgettext("dashboard_integrations", "Choose Tuist project")
+              }
+            >
+              <:icon><.brand_tuist /></:icon>
+              <.dropdown_item
+                :for={project <- entire_available_projects(assigns)}
+                value={to_string(project.id)}
+                label={project.name}
+                phx-click="select-entire-project"
+                phx-value-project_id={project.id}
+              />
+            </.dropdown>
+            <div data-part="connection">
+              <div data-part="icon-container">
+                <div data-part="icon">
+                  <.s_turn_down />
+                </div>
+              </div>
+            </div>
+            <.dropdown
+              id="entire-repository-dropdown"
+              label={
+                if repository = entire_selected_repository(assigns),
+                  do: repository.name,
+                  else: dgettext("dashboard_integrations", "Choose a repository")
+              }
+            >
+              <:icon><.folder /></:icon>
+              <.dropdown_item
+                :for={repository <- entire_available_repositories(assigns)}
+                value={entire_repository_key(repository)}
+                label={repository.name}
+                phx-click="select-entire-repository"
+                phx-value-repository={entire_repository_key(repository)}
+              />
+            </.dropdown>
+          </div>
+          <.line_divider />
+          <:footer>
+            <.modal_footer>
+              <:action>
+                <.button
+                  label={dgettext("dashboard_integrations", "Cancel")}
+                  variant="secondary"
+                  phx-click="close-entire-connection-modal"
+                />
+              </:action>
+              <:action>
+                <.button
+                  label={dgettext("dashboard_integrations", "Create Connection")}
+                  variant="primary"
+                  phx-click="create-entire-connection"
+                  disabled={
+                    is_nil(entire_selected_project(assigns)) or
+                      is_nil(entire_selected_repository(assigns))
+                  }
+                />
+              </:action>
+            </.modal_footer>
+          </:footer>
+        </.modal>
+      </div>
+      <.card_section
+        :for={connection <- @entire_connections}
+        data-part="connection-card-section"
+        data-value={connection.id}
+      >
+        <div data-part="header">
+          <div data-part="item">
+            <div data-part="icon"><.brand_tuist /></div>
+            <span data-part="label">{connection.project.name}</span>
+          </div>
+          <div data-part="icon"><.arrows_exchange /></div>
+          <div data-part="item">
+            <div data-part="icon"><.folder /></div>
+            <span data-part="label">{connection.repository_name}</span>
+          </div>
+        </div>
+        <div data-part="footer">
+          <span data-part="subtitle">{get_connection_info(connection)}</span>
+          <.inline_dropdown
+            id={"entire-connection-actions-#{connection.id}"}
+            label={dgettext("dashboard_integrations", "Manage")}
+          >
+            <.dropdown_item
+              label={dgettext("dashboard_integrations", "Remove connection")}
+              value="remove"
+              phx-click="delete-entire-connection"
+              phx-value-connection_id={connection.id}
+            >
+              <:left_icon><.trash /></:left_icon>
+            </.dropdown_item>
+          </.inline_dropdown>
+        </div>
+      </.card_section>
+    </div>
+  </.card_section>
 </div>
