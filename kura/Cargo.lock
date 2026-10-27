@@ -1391,12 +1391,14 @@ name = "kura"
 version = "0.8.0"
 dependencies = [
  "arc-swap",
+ "async-trait",
  "axum",
  "axum-server",
  "base64",
  "bazel-remote-apis",
  "bytes",
  "deadpool",
+ "futures-executor",
  "futures-util",
  "h2",
  "hex",
@@ -1411,6 +1413,7 @@ dependencies = [
  "memmap2",
  "moka",
  "opentelemetry",
+ "opentelemetry-http",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
  "prometheus-client",
