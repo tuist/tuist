@@ -1,8 +1,21 @@
 # Cluster API Provider
 
-- OVH cache vRack reconciliation is additive on the Ready path, scoped by the
-  environment ConfigMap and cache taint, or explicit `spec.vRackID` on Kata runners. Persist address reservations across
-  Machine deletion, preserve main-table unreachable guards for existing Machines,
+- OVH runner public egress is opt-in through `capi.ovhRunnerEgress`. Keep
+  Machine-UID address reservations until policy withdrawal and confirmed host
+  cleanup, before deleting SSH credentials or requesting reinstall. Remove and
+  reload kubelet's egress dependency before stopping the egress service; an
+  explicit stop otherwise propagates through `Requires` and stops kubelet.
+  Never move an existing cache vRack NIC automatically. Managed staging/canary
+  enable activation; production stays off until advance allowlisting and qualification;
+  preserve private-cache enrollment during public-egress cleanup. Block inventory,
+  staging qualification limits and rollout/rollback steps are in
+  [OVH runner egress](docs/ovh-runner-egress.md).
+
+- OVH private vRack reconciliation is additive on the Ready path, scoped by the
+  environment ConfigMap and cache taint or explicit Kata Machine `spec.vRackID`.
+  Public egress enrollment alone does not opt a runner into private peer routes.
+  Persist address reservations across Machine deletion, preserve main-table
+  unreachable guards for existing Machines,
   retire owned guards only after authoritative Machine removal, and advertise
   private topology only after every participant installs the same membership.
   See [managed private networking](../kura-controller/private-network-provisioning.md).
@@ -3449,3 +3462,13 @@ scw apple-silicon server update <id> zone=<zone> name=tuist-pool-...
 
 - macOS custom volumes reuse the shared runner-cache lifecycle with an APFS
   backend; rollout and compatibility are documented in `infra/tart-kubelet/custom-cache-volumes.md` at repository root.
+
+### Scaleway processor maintenance
+
+`ScalewayAppleSiliconMachine` accepts explicit `tuist.dev/os-update` requests for
+the xcresult fleet. See [serialized maintenance](scaleway-os-maintenance.md) for
+requirements, the plan-first task, status phases, the persistent fleet lock and
+canary/rollback checks. The controller pauses only its configured Deployment,
+evicts through namespace-scoped RBAC, and waits for the guest drain before an
+install. Failures retain owned holds; never clear a fleet Lease just to advance
+another host. No release-triggered or scheduled OS policy is enabled.

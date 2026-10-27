@@ -529,6 +529,7 @@ server:
   appUrl: http://tuist.local
   logLevel: info
   hosted: false
+  ssoRequireLoginDomainVerification: false
   # Cloudflare Turnstile protects self-service browser registration on hosted
   # deployments. When `enabled` is true, TUIST_TURNSTILE_ENABLED is set on the
   # deployment and the site/secret keys are synced from the TURNSTILE 1Password
@@ -1509,6 +1510,12 @@ capi:
     # Upgrade existing runtimes before qualifying an additional region.
     regions: {}
   ovhPrivateNetwork:
+    enabled: false
+    vrackID: ""
+    cidr: ""
+  # Disable first and wait for RunnerEgressReady to disappear before changing
+  # the block, removing this config, or rolling back to an older provider image.
+  ovhRunnerEgress:
     enabled: false
     vrackID: ""
     cidr: ""
