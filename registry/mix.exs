@@ -26,7 +26,6 @@ defmodule TuistRegistry.MixProject do
 
   defp deps do
     [
-      {:certifi, "~> 2.18", override: true},
       {:sentry, "~> 11.0.4"},
       {:hackney, "~> 1.8"},
       {:bandit, git: "https://github.com/tuist/bandit", branch: "detect-client-disconnect-on-timeout", override: true},
