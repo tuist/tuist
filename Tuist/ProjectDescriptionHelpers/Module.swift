@@ -1219,11 +1219,13 @@ public enum Module: String, CaseIterable {
                 ]
             case .oidc:
                 [
+                    .target(name: Module.http.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.environment.targetName),
                 ]
             case .http:
                 [
+                    .external(name: "Crypto"),
                     .target(name: Module.alert.targetName, condition: .when([.macos])),
                     .target(name: Module.support.targetName, condition: .when([.macos])),
                     .target(name: Module.environment.targetName),
@@ -1267,6 +1269,7 @@ public enum Module: String, CaseIterable {
                 ]
             case .cargoCommand:
                 [
+                    .target(name: Module.http.targetName),
                     .target(name: Module.cas.targetName),
                     .target(name: Module.core.targetName),
                     .target(name: Module.reapi.targetName),
@@ -2236,6 +2239,10 @@ public enum Module: String, CaseIterable {
                 ]
             case .http:
                 [
+                    .target(name: Module.testSupport.targetName),
+                    .external(name: "NIOCore"),
+                    .external(name: "NIOPosix"),
+                    .external(name: "NIOSSL"),
                     .target(name: Module.testing.targetName),
                     .target(name: Module.support.targetName),
                     .target(name: Module.environment.targetName),
