@@ -8,7 +8,9 @@ on:
       - 'infra/k8s/mgmt/controller-*.yaml'
       - 'infra/k8s/mgmt/etcd-snapshot.yaml'
       - 'infra/k8s/mgmt/tailscale.yaml'
+      - 'infra/k8s/mgmt/bootstrap/hccm-values.yaml'
       - 'infra/certificate-trust/guard*'
+      - '.github/workflows/hccm-deployment.yml'
       - '.github/workflows/mgmt-cluster-*.yml'
   push:
     branches: [main]
@@ -18,7 +20,9 @@ on:
       - 'infra/k8s/mgmt/controller-*.yaml'
       - 'infra/k8s/mgmt/etcd-snapshot.yaml'
       - 'infra/k8s/mgmt/tailscale.yaml'
+      - 'infra/k8s/mgmt/bootstrap/hccm-values.yaml'
       - 'infra/certificate-trust/guard*'
+      - '.github/workflows/hccm-deployment.yml'
       - '.github/workflows/mgmt-cluster-*.yml'
 
 permissions:

@@ -71,3 +71,40 @@ exit "${GUARD_EXIT:-0}"
 	command(t, false, "bash", "guard.sh", "unknown")
 	command(t, false, "bash", "guard.sh", "management-tailscale", "--typo")
 }
+
+func TestReplacementGuardHCCM(t *testing.T) {
+	work := t.TempDir()
+	kubectl := filepath.Join(work, "kubectl")
+	write(t, kubectl, []byte(`#!/bin/sh
+test "$*" = '--request-timeout=30s -n kube-system get deployment hcloud-cloud-controller-manager --ignore-not-found -o json' || exit 2
+printf '%s' "$GUARD_FIXTURE"
+exit "${GUARD_EXIT:-0}"
+`))
+	if err := os.Chmod(kubectl, 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", work+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("GITHUB_STEP_SUMMARY", filepath.Join(work, "summary"))
+	t.Setenv("GUARD_EXIT", "0")
+	tag := regexp.MustCompile(`(?m)^  tag: (\S+)\s*$`).FindAllSubmatch(read(t, "../k8s/mgmt/bootstrap/hccm-values.yaml"), -1)
+	if len(tag) != 1 {
+		t.Fatal("cannot establish desired HCCM tag")
+	}
+	fixture := func(image string) string {
+		return fmt.Sprintf(`{"kind":"Deployment","metadata":{"name":"hcloud-cloud-controller-manager","namespace":"kube-system"},"spec":{"template":{"spec":{"containers":[{"name":"hcloud-cloud-controller-manager","image":%q}]}}}}`, image)
+	}
+	t.Setenv("GUARD_FIXTURE", fixture("docker.io/hetznercloud/hcloud-cloud-controller-manager:"+string(tag[0][1])))
+	command(t, true, "bash", "guard.sh", "hccm")
+	for _, raw := range []string{"", fixture("old-image")} {
+		t.Setenv("GUARD_FIXTURE", raw)
+		command(t, false, "bash", "guard.sh", "hccm")
+		command(t, true, "bash", "guard.sh", "hccm", "--acknowledged")
+	}
+	for _, raw := range []string{"{", `{"spec":{}}`, strings.ReplaceAll(fixture("old-image"), "Deployment", "DaemonSet")} {
+		t.Setenv("GUARD_FIXTURE", raw)
+		command(t, false, "bash", "guard.sh", "hccm", "--acknowledged")
+	}
+	t.Setenv("GUARD_FIXTURE", "")
+	t.Setenv("GUARD_EXIT", "1")
+	command(t, false, "bash", "guard.sh", "hccm", "--acknowledged")
+}

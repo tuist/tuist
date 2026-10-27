@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Read-only replacement guard. Acknowledgement never grants Kubernetes access.
 set -euo pipefail
-[[ $# -ge 1 && $# -le 2 ]] || { echo "usage: $0 management-tailscale [--acknowledged]" >&2; exit 2; }
+[[ $# -ge 1 && $# -le 2 ]] || { echo "usage: $0 management-tailscale|hccm [--acknowledged]" >&2; exit 2; }
 component="$1"
 acknowledged=false
 if [[ $# -eq 2 ]]; then
@@ -18,6 +18,17 @@ case "$component" in
     container=tailscale
     desired="$(awk '/^[[:space:]]+image: / {print $2}' "$root/infra/k8s/mgmt/tailscale.yaml")"
     requirement="qualify independent management access, per-node identity/KubePrism and a patched rollback path before the DaemonSet rolls"
+    ;;
+  hccm)
+    namespace=kube-system
+    resource=deployment
+    kind=Deployment
+    name=hcloud-cloud-controller-manager
+    container=hcloud-cloud-controller-manager
+    tag="$(awk '/^  tag: / {print $2}' "$root/infra/k8s/mgmt/bootstrap/hccm-values.yaml")"
+    [[ -n "$tag" && "$tag" != *$'\n'* ]] || { echo "cannot establish desired HCCM tag" >&2; exit 1; }
+    desired="docker.io/hetznercloud/hcloud-cloud-controller-manager:$tag"
+    requirement="qualify Robot InternalIP load-balancer targets and independent patched rollback access in this environment"
     ;;
   *) echo "unknown component: $component" >&2; exit 2 ;;
 esac
