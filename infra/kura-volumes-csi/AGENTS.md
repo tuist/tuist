@@ -165,6 +165,9 @@ installation uses curtin LVM; old hosts need a planned migration/reinstall.
 
 Keep the reusable [rollout probe](cmd/rollout-probe/AGENTS.md) under `cmd/`;
 generated run output belongs outside the source tree.
+The [bounded cache benchmark](cmd/cache-bench/AGENTS.md) measures authenticated
+request latency and eviction churn on disposable fixtures; it is a mutating
+load test, not a production health probe.
 
 ## Key custody and admission
 

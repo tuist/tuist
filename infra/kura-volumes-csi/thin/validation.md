@@ -1,7 +1,7 @@
 # Thin stack qualification
 
 Date: 2026-10-27. The actual conservative CSI implementation has completed the
-local qualification below. Staging evidence is recorded separately. The original
+local and hosted staging qualification below. The hosted performance gate failed. The original
 mechanism experiment remains evidence against physical overcommit.
 
 ## Decision from the experiment
@@ -83,37 +83,199 @@ do not establish safe shared overcommit or recovery from actual pool metadata
 exhaustion. The old shared-XFS capacity gains, regional memory measurements and
 final runtime filesystem-overhead profile remain unvalidated for thin storage.
 
-## Staging deployment and remaining gate
+## Hosted staging qualification — 2026-10-27
 
-On 2026-10-27, the scoped staging deployment
-[40541097983](https://github.com/tuist/tuist/actions/runs/40541097983) successfully
-rolled out CSI and the Kura controller at **`sha-3711f4bf393d`**. Thin configuration
-was absent. Comparing workload images before and after found only these two
-intended changes; all eight existing Kura runtime pods retained their UIDs and
-remained Ready. Server, runners and unrelated staging experiments were preserved.
-The branch build also preserves the controller's `latest` tag for main builds.
+The safety and performance runs below used the real CSI service, live PVC/PV
+ownership, projected workload authentication and server-issued encrypted volume
+keys on staging. CSI image: `sha-3711f4bf393d`; Kura runtime:
+`sha-6e7fbe5cf700`. The controller's original candidate exposed a migration
+reservation bug; its correction `13002218f364` was deployed and exercised below.
+Production was not changed. **Neither uninterrupted migration nor the no-performance-regression gate passed.**
 
-**The live thin-stack rehearsal has not passed.** Paris staging's Linux
-`6.8.0-146-generic` kernel did not have the `thin-pool` device-mapper target
-loaded. The bounded pool creation failed before creating any LV or configuration.
-The original 128 GiB `data` LV retained its UUID, and no thin-ready label or
-migration-source annotation was applied. Loading `dm_thin_pool` requires approved
-host preparation; that approval is pending. `prepare_pool.rb` now explicitly
-checks this prerequisite before mutation. Its negative test in the disposable
-Linux VM passed, leaving the state directory empty; Ruby syntax and diff checks
-also passed. Host reboot availability must be configured and validated separately.
+### Measured thick versus thin performance
 
-An isolated legacy two-replica fixture reached Ready, but its initial 1 GiB
-filesystem was too small for Kura's segment-rotation free-space margin: the first
-cache PUT returned HTTP 503. This is not a successful traffic or migration test.
-The runtime reserves at least twice its 512 MiB segment size before rotation;
-the next legacy source fixture must be larger than that plus filesystem overhead.
-The fixture, claims, encrypted backing files/mappings, account and wrapped-key
-records were removed and physical cleanup was verified.
+Both controls ran on `tuist-tuist-kura-fleet-fm4h8-qmkn8`, using its Samsung
+MZVLB1T0HALR NVMe devices and Linux `6.8.0-146-generic`. Both virtual LVs were
+6.5 GiB (6,979,321,856 bytes), with per-volume LUKS2. Thick used the existing
+CSI filesystem defaults; thin used 64 KiB pool chunks, discard through LUKS,
+XFS project quotas, a 64 MiB log and reflinks disabled. The pool was 16 GiB
+with 512 MiB metadata, 1 GiB data reserve, 64 MiB metadata reserve and four slots.
+These are paired tests of the thick implementation versus this thin implementation,
+not a new comparison with pre-PR shared-XFS production.
 
-Staging quota/reclaim, pod restart, replica catch-up and endpoint handoff remain
-outstanding. No production enrollment has occurred. Keep the PR draft and do not
-promote the older thick/OpenBao rehearsal as thin-stack evidence.
+The runtime image, auth, 1-CPU limit, 256 MiB memory request, 768 MiB memory
+limit and actual segment-ring budget were identical. A separate on-node client
+avoided kubectl port-forward and WAN timing. The order was thick/thin/thin/thick.
+Each run performed 2,528 requests at concurrency eight: small 16 KiB writes/reads,
+large 4 MiB writes/reads, 24 batches of 256 MiB unique writes crossing the cache
+ring repeatedly, then checksum reads of the final batch. Object generation is
+outside timed phases; reads include warm cache. **10,112 requests passed with
+zero HTTP failures or checksum mismatches.**
+
+| HTTP operation | Thick, two samples | Thin, two samples |
+| --- | ---: | ---: |
+| 16 KiB PUT p95 | 31.72–36.63 ms | 29.38–40.19 ms |
+| 16 KiB GET p95 | 1.93–2.85 ms | 2.25–3.00 ms |
+| 4 MiB PUT p95 | 254.82–256.44 ms | 247.25–252.23 ms |
+| 4 MiB GET p95 | 91.60–93.66 ms | 97.98–101.29 ms |
+| Six-GiB eviction-write throughput | 157.19–161.02 MiB/s | 156.26–158.65 MiB/s |
+| GET p95 after eviction churn | 105.17–110.09 ms | 111.82–112.06 ms |
+
+Large-read p95 was about **7.6% higher** using the mean of the two samples.
+Write and eviction throughput were similar. This is not statistical proof of
+unchanged request performance: each runtime hit its CPU quota. Per-run CPU use
+was 41.88–42.95 seconds thick and 42.72–43.40 seconds thin, with 33–42 seconds
+of reported throttling. Cgroup memory peaks were about 372 MiB on the first
+runs and 640 MiB thick / 649 MiB thin after the repeated runs; no OOM events
+occurred. These bounded cgroup measurements do not establish regional memory
+or admission gains.
+
+Direct-I/O fio 3.36 used a separate 512 MiB file inside each fixture filesystem,
+libaio, QD32, 10 measured seconds plus two seconds ramp-up, and the same
+thick/thin/thin/thick order. Runtime containers retained their 1-CPU limit;
+these results are for that resource profile, not unconstrained device ceilings.
+All 16 samples completed without fio errors.
+
+| Direct I/O | Thick | Thin | Change in sample means |
+| --- | ---: | ---: | ---: |
+| 1 MiB sequential write | 2,203–2,211 MiB/s | 2,159–2,196 MiB/s | −1.3% |
+| 1 MiB sequential read | 3,723–3,851 MiB/s | 2,550–2,588 MiB/s | **−32.2%** |
+| 4 KiB random write | 61.8–62.0k IOPS | 45.7–46.2k IOPS | **−25.7%** |
+| 4 KiB random read | 64.9–66.3k IOPS | 48.1–48.4k IOPS | **−26.5%** |
+
+Random-read p99 increased from 0.840–0.864 ms to 1.139 ms; random-write p99
+increased from 0.922–0.930 ms to 1.286 ms. Random reads spent approximately
+99% of the fio process's CPU in user/system time. The extra storage-layer cost
+is material under this CPU budget even though the HTTP write workload largely
+hid it. **Do not promote this result as regression-free.** Tuning or a reviewed
+performance tradeoff and another paired run must precede broad enrollment.
+
+The reusable authenticated workload is `cmd/cache-bench`; fio can be reproduced
+with `--size=512M --ioengine=libaio --direct=1 --iodepth=32 --time_based=1
+--runtime=10 --ramp_time=2 --group_reporting=1 --output-format=json`, using
+`write/read` with `--bs=1M` and `randwrite/randread` with `--bs=4k`. Use only
+isolated fixture files; never drop host caches on a shared node.
+
+### Live safety evidence
+
+- XFS project quota stopped real writes at **2,281,701,376 bytes**, below the
+  **3,623,878,656-byte** virtual LV. The 16 GiB pool was healthy and far from
+  full. This kernel returned ENOSPC for the project limit; the quota counter
+  exactly matched its hard limit, and subsequent writes after cleanup worked.
+- Deleting a 768 MiB payload while holding its descriptor open, then trimming,
+  released **zero** mapped bytes. After closing the descriptor, the first
+  reclaim response conservatively credited **201,457,664 bytes** while discard
+  was still completing. Later volume and pool counters both confirmed exactly
+  **805,306,368 bytes** released. Another volume then consumed that capacity.
+  Full backing commitments remained unchanged throughout.
+- CSI restart preserved commitments. Removing the workload closed both LUKS
+  mappings; unmounted retained volumes stayed fully charged. Cold re-stage
+  through the live key service preserved SHA-256 data, LV/pool identities and
+  the reduced quota. The new pod UID invalidated the old pod's reclaim request;
+  stale grant generations were also rejected.
+- Concurrent PVC provisioning admitted two further volumes, reaching four
+  fully backed devices. A fifth was unschedulable for insufficient
+  `tuist.dev/kura-disk`. Concurrent deletion released exactly the two confirmed
+  removed commitments. No actual shared-pool exhaustion was induced.
+- After HTTP eviction churn, mapped use was **3,378,511,872 bytes** while quota
+  use was **2,172,420,096 bytes**, demonstrating why filesystem usage cannot
+  replace physical accounting.
+
+This run used the live server's **`tuist_root`** wrapping provider (fixture key
+version 1). It validates the real key-service/CSI path but does **not** requalify
+OpenBao custody. Earlier OpenBao-specific evidence remains separate. No keys,
+projected tokens or ciphertext were printed or exported for inspection.
+
+### Migration outcome: storage completed, continuity gate failed
+
+The isolated two-replica instance moved from 4 GiB encrypted file-backed PVCs
+on Canada staging to two thin PVCs on the Paris node. Only the Canada source
+was cordoned and selected with `tuist.dev/kura-lvm-migrate=true`; ordinary node
+evacuation was not used. Before source selection, the migration gate preserved
+both source pod UIDs and the legacy template. The landing pool backed both
+6.5 GiB virtual devices; no whole-fleet duplication was needed.
+
+The first candidate stalled safely before deleting either source replica:
+`reconcileDataStorageResize` compared the 6.5 GiB scheduler reservation against
+the 4 GiB useful cache claim and repeatedly reapplied the held template. Commit
+`13002218f364` compares against `diskReservation(instance)` instead. Both file-to-thin
+and thick-to-thin regression cases fail with the old comparison and pass with
+the correction. Controller tests/vet and the [image build](https://github.com/tuist/tuist/actions/runs/40551337577)
+passed. This correction was exercised by the actual migration, not just mocks.
+
+Paris has a different runner-cache taint from the Canada source. The first
+replacement remained Pending until the isolated fixture's instance, held template
+and pending pod gained that toleration. No host taint was removed. The fixture
+also disables the optional memory-ceiling resource, which Paris does not advertise.
+A rollout preflight must include compatible taints and all extended resources,
+not just the destination's free disk space.
+
+Both replicas reached Paris and finished catch-up in approximately 212 seconds
+from source selection, including that scheduling correction. The live API charged
+**13,958,643,712 bytes** for the two complete virtual devices. Post-migration reads
+verified all 128 seeded objects through the Service and independently through each
+pod (**384 reads, zero errors or checksum mismatches**).
+
+However, the continuous no-retry probe recorded **27 failures in 4,217 requests**:
+one PUT EOF at 17:41:13 UTC and 26 GET 404 responses from 17:41:39.904 through
+17:41:42.696 UTC. The first coincided with the Service handoff away from the
+source. The misses occurred when the Service selected the second replacement
+before its first backfill pass completed at 17:41:42.869 UTC. The first thin pod
+also underwent a normal template rollout after the fixture toleration changed.
+The sampled timeline and runtime logs establish this overlap, but do not prove
+which change is necessary or sufficient to eliminate it. Treat catch-up gating,
+release of the resize hold, and draining existing HTTP connections as unresolved.
+**This is not a passed uninterrupted end-to-end migration.** Later successful
+checksum checks do not erase those failures. The earlier ten-minute pre-migration
+hold soak had 6,657 requests and no failures; it was not migration traffic.
+
+The fixture validates file-to-thin movement with real replication and key service.
+It does not establish a live populated thick-to-thin conversion, single-copy
+standby migration, host reboot recovery, or public ingress continuity. The PR
+remains draft; both continuity and performance gates block production enrollment.
+
+### Setup failures retained as evidence
+
+The first preparation found the unloaded `dm_thin_pool` host module. With
+explicit approval it was loaded temporarily through a short-lived pod with a
+read-only module mount; no host boot configuration changed. The pool was created
+from free VG extents, preserving the original `data` LV. The preparation script
+now checks kernel target availability before mutation. Host reboot/bootstrap
+qualification remains separate.
+
+The initial 1 GiB legacy fixture rejected the first PUT because Kura needs at
+least 1 GiB free for segment rotation. A later 4 GiB thick benchmark control
+also returned two HTTP 503 responses during churn: this runtime enforces a
+minimum 2.5 GiB segment ring despite a smaller requested CAS budget. Those failed
+attempts were retained and excluded from the paired success results. The source
+fixture was recreated at 4 GiB for its bounded migration corpus; benchmark
+controls were recreated with equal 6.5 GiB virtual devices. The runtime minimum
+must be reflected in future allocator grant floors and workspace qualification.
+
+### Cleanup and remaining staging state
+
+All owned runtime/benchmark fixtures, PVCs/PVs, encrypted source files and LUKS
+mappings were removed. The server reconciler recreated the archived fixture once
+after its KuraInstance was deleted; removing the fixture's database records before
+the second deletion stopped reconciliation, and absence was verified afterward.
+The synthetic account and wrapped keys were removed after the encrypted volumes
+were gone; the scoped client token and port-forward were destroyed.
+
+The empty pool and its owned metadata spare were removed only after checking
+UUIDs and zero outstanding commitments. VG free space returned to exactly
+**812,541,542,400 bytes**, and the original 128 GiB `data` LV retained UUID
+`qf316g-aMzF-KlpS-5jsX-yqKl-25BI-OhgZ5U`. Pool configuration, thin-ready and thin
+layout labels were removed; only Paris CSI was restarted to restore legacy
+capacity advertisement. The source is uncordoned with no migration annotation.
+The kernel module remains temporarily loaded; no persistent boot config was
+written and a shared module was not forcibly unloaded.
+
+All eight pre-existing ordinary Kura runtime pods retained their UIDs and were
+Ready at the final check. The server and runner workload images were unchanged;
+only the intended controller image differed from the start of this approved run.
+An unrelated `shard-replica-test-1027` StatefulSet disappeared during the interval;
+this task did not modify it. Staging retains the candidate CSI and corrected
+controller images, with no test thin enrollment remaining. Production was untouched.
 
 ## Original mechanism experiment
 
@@ -237,23 +399,18 @@ production overhead. Cache hit-rate benefits were not measured.
 
 ## Remaining blocking gates
 
+Physical overcommit remains blocked. Quotas do not bound mapped allocation;
+shared-mode pressure containment must be demonstrated independently under data
+and metadata pressure, exhausted VG extension space, allocator/CSI outages and
+process pauses. Passing the negative fragmentation test establishes an unsafe
+assumption, not a working pressure guard.
 
-Before any implementation rollout, test the **final CSI code** on the actual
-stack: concurrent CSI/grant/reclaim/delete operations, cancellation and crashes
-at each durable boundary, restart reconciliation, stale snapshots, retained and
-unknown volumes, pod-incarnation changes and replayed lease requests. This
-harness does not exercise those interfaces.
+The hosted thin-versus-thick comparison above found material I/O regressions.
+Tune and remeasure, or explicitly review the performance tradeoff, before broad
+enrollment. Recalculate #14825's shared-XFS regional admission and memory
+projections for the qualified thin geometry and final runtime sizing policy.
 
-Test data and metadata pressure independently with exhausted VG extension space,
-allocator/CSI outages and process pauses. Verify write containment before either
-reserve is consumed. The current negative case establishes why project quotas
-and trim alone are inadequate; it does not establish a working pressure guard.
-A new policy must not be declared safe merely because this harness's assertions
-pass: one of its passing assertions demonstrates the unsafe assumption.
-
-Benchmark representative Kura HTTP reads, writes, backfill and eviction churn
-against thick storage, including CPU, memory and tails on representative hardware.
-Recalculate #14825's shared-XFS regional admission and memory projections for the
-qualified thin geometry and sizing policy. Rehearse the new thick-to-thin
-migration on staging, preserving catch-up, endpoint handoff and deletion gates.
-The older thick-LVM/OpenBao staging evidence does not satisfy these gates.
+Host bootstrap/reboot, genuine pool metadata exhaustion, and an actual populated
+thick-to-thin migration across prepared hosts remain separate qualification gates.
+The staging fixture uses legacy file-backed encrypted storage as its source.
+Neither this run nor the older thick/OpenBao evidence qualifies every topology.
