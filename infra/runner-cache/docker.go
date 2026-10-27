@@ -188,6 +188,12 @@ func (b *LocalImages) sealDocker(slot Slot, path string) error {
 	if report.MergedGeneration > 0 {
 		return b.sealDockerMerge(slot, path, report)
 	}
+	// The allocation's CAS base can be newer than the bytes actually mounted.
+	// Publishing an unmerged older clone would pass CAS and erase that head's
+	// images/builders. A failed or skipped guest merge must withhold it instead.
+	if b.MountedGeneration(slot) > 0 {
+		return ErrSuperseded
+	}
 	if err := b.verifyDocker(slot, path); err != nil {
 		return err
 	}

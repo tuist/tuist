@@ -174,7 +174,15 @@ func (a *agent) serveDockerMerge(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	head, err := a.dockerHeads(slot)
-	if err != nil || head.BaseGeneration <= slot.BaseGeneration {
+	// Allocation pins the server's head, not necessarily the copy on this host.
+	// An older local clone must merge even when HEAD has not moved since dispatch.
+	mounted := slot.BaseGeneration
+	if slot.MountedGeneration > 0 {
+		mounted = slot.MountedGeneration
+	} else if !slot.Warm {
+		mounted = 0
+	}
+	if err != nil || head.BaseGeneration <= mounted {
 		_ = json.NewEncoder(w).Encode(none)
 		return
 	}

@@ -107,7 +107,8 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   names the master's `scope` and `generation`.
 - The Linux agent prefetches the assigned master after a warm acquisition that
   found no local copy of it (mounted older, started empty, or timed out; checked
-  with `HasMaster`), one at a time with no queue and the same disk reserve. Like
+  with `HasMaster`), one at a time with a bounded 64-lineage FIFO and the same
+  disk reserve. Coalesce queued generations to the newest one per scope. Like
   refreshes, a prefetch has no deadline: its download ends on a stall or after
   its attempts. macOS queues
   prefetches (see tart-kubelet). Never create a private branch, publish, or extend

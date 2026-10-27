@@ -73,7 +73,7 @@ jobs:
             -v "$RUNNER_TEMP/cache-volume.test:/cache-volume.test:ro" \
             --entrypoint sh \
             public.ecr.aws/docker/library/docker:28-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac \
-            -c 'apk add --no-cache e2fsprogs coreutils >/dev/null && /cache-volume.test -test.v -test.run TestDockerBuildCacheAcrossJobs -test.timeout=14m' \
+            -c 'apk add --no-cache e2fsprogs coreutils util-linux >/dev/null && /cache-volume.test -test.v -test.run "TestDockerBuildCacheAcrossJobs|TestDockerTrimReclaimsDeletedBlocks" -test.timeout=14m' \
             2>&1 | tee "$RUNNER_TEMP/docker-build-cache.log"
       - uses: actions/upload-artifact@v4
         if: always()

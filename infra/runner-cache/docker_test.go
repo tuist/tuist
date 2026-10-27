@@ -549,3 +549,21 @@ func TestDockerDeleteRemovesTheOfferedHead(t *testing.T) {
 		}
 	}
 }
+
+func TestDockerOlderCloneCannotReplaceItsAssignedHead(t *testing.T) {
+	b, remote := newLocal(t)
+	slot := dockerSlot(first)
+	path := attachDocker(t, b, slot)
+	slot.BaseGeneration = 8
+	if err := os.WriteFile(b.image(slot)+".base", []byte("7"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	writeSuperblock(t, b.image(slot), 1, 0, 0)
+	writeDockerReport(t, path, DockerReport{Clean: true, Changed: true})
+	if err := b.Seal(slot, path); !errors.Is(err, ErrSuperseded) {
+		t.Fatalf("unmerged older clone: %v", err)
+	}
+	if remote.uploads != 0 {
+		t.Fatal("published generation 7 over assigned generation 8")
+	}
+}
