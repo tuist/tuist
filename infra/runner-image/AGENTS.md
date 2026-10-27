@@ -1,21 +1,10 @@
-# Runner Image
+# macOS Runner Image
 
-Tart VM image hosted on the **customer-runner Mac mini fleet**
-(`tuist.dev/fleet=<runnersFleetName>`). One image, one Tart VM
-per Pod, one ephemeral GitHub Actions runner per VM, one job per
-runner.
+Tart Layer 2 over `macos-tahoe-xcode`: one VM per Pod, one ephemeral GitHub Actions job per VM. Keep Xcode/tool installation in [Layer 1](../macos-xcode-image/AGENTS.md).
 
-## What's in the image
+## Runtime contracts
 
-The runtime user is `runner` with home `/Users/runner`, matching
-GitHub-hosted macOS runner images. On-disk artifacts that bake
-absolute paths (SwiftPM `.build/checkouts/`, Xcode DerivedData,
-`actions/cache` payloads) are interchangeable between hosted and
-self-hosted runs without per-environment cache keys.
-
-The Cirrus base image's pre-existing `admin` user is kept around
-as the Packer SSH provisioning identity but is not used at
-runtime — no service, sudo entry, or auto-login targets it.
+- Runtime identity/home/workspace remain `runner`, `/Users/runner`, `/Users/runner/work`; absolute paths are shared with GitHub-hosted cache artifacts. `admin` is Packer's provisioning identity, not a runtime service/auto-login target.
 
 Because the base images provision as `admin` and jobs run as
 `runner`, anything the base installs under `admin` has to be
@@ -455,8 +444,9 @@ added to catch that failed on `admin`'s unwritable cache instead.
 
 ## Build
 
+From this directory:
+
 ```bash
-cd infra/runner-image
 mkdir -p build
 go build -trimpath -ldflags="-s -w" -o build/runner-shell-agent ./cmd/runner-shell-agent
 packer init runner.pkr.hcl

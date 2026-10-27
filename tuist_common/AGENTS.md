@@ -1,18 +1,10 @@
-# Tuist Common (Shared Elixir Utilities)
+# Shared Elixir utilities
 
-This package contains shared Elixir utilities consumed by multiple Tuist services.
+Put reusable cross-service helpers and telemetry implementations here. Keep
+application-specific configuration, supervision, HTTP, and UI code in the owning
+service. Repository-monitoring wrappers in each app supply labels and telemetry
+prefixes; the shared pool-metric implementation belongs here.
 
-## Responsibilities
-- Host cross-service helper modules that are not owned by a single app.
-- Centralize low-level integration utilities shared by `server/` and `cache/`.
-- Keep shared telemetry and repository helpers framework-agnostic where practical.
-- Own reusable telemetry plugin implementations shared across services.
-- `ObanLogger` emits compact job lifecycle records without job arguments or metadata. Keep job identity, timings, state and exception diagnostics; `ObanTelemetry` independently reports failures to Sentry.
-
-## Boundaries
-- App-specific wiring belongs in `server/` or `cache/`.
-- HTTP/API and UI logic stay in the owning application.
-
-## Related Context
-- Server service: `server/AGENTS.md`
-- Cache service: `cache/AGENTS.md`
+`ObanLogger` records job identity, lifecycle timings/state, and exception diagnostics,
+never job arguments or metadata. `ObanTelemetry` reports failures to Sentry
+independently.

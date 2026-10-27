@@ -1,6 +1,4 @@
-# Server Private Assets (Migrations, Seeds)
-
-This directory contains database migrations and other private assets.
+# Server Migrations, Documentation and Private Assets
 
 - Correlated runner-crash exclusions add a default-false boolean exclusion flag to case executions and filter future commit/automation evidence. Preserve existing provenance filters and historical aggregate states; migrate all ClickHouse deployments before rolling out writers. Roll back application writers before dropping the column.
 

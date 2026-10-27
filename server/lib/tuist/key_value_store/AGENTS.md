@@ -1,26 +1,12 @@
-# Key Value Store (Context)
+# Key Value Store
 
-This context owns key-value caching with Redis and in-memory fallbacks.
+- The cache is ephemeral; never rely on it for durable state. Redis is explicitly selected with `persist_across_deployments: true`; `cache:` names the Cachex fallback.
+- `get/2` and `put/3` handle raised and returned `Redix.ConnectionError`s, preserving the selected fallback and TTL.
+- `LoadLimiter` is a storage-independent bounded pool for expensive misses. Coalesce same-key callers, bound pending jobs/waiters and inherit `$callers`. Retain running slots after soft timeouts while remote database work may still run; workers may write through after callers time out. A fill inherits only its first caller's allowlisted observability snapshot, not request metadata, and retains it through `on_error`; the coordinator never adopts tenant context. Isolate tenants in keys; coalesced waiters must not replace the fill's target.
 
-## Responsibilities
-- Provide `get_or_update` with optional locking.
-- Use Redis when available, falling back to Cachex on connection failure. `get/2` and `put/3` handle both raised and returned `Redix.ConnectionError`s, preserving the selected Cachex fallback and TTL.
-- Manage cache TTL and key normalization. Redis is explicitly selected with `persist_across_deployments: true`; `cache:` names the Cachex fallback.
-- `LoadLimiter` is a storage-independent, bounded pool for expensive misses. It coalesces same-key callers, bounds pending jobs/waiters, inherits `$callers`, and retains running slots after soft timeouts. Never release a slot while remote database work may still be running; workers may write through `KeyValueStore` after callers time out. A fresh fill worker inherits only the first caller's allowlisted observability snapshot (not request metadata), retaining it through `on_error`; the admission coordinator never adopts tenant context. Keys must isolate tenants, and coalesced waiters must not replace the fill's target.
+## Replica safety
 
-## Boundaries
-- HTTP/API and UI code live in `server/lib/tuist_web`.
-- Configuration belongs in `server/config`.
-- Schema changes and migrations live in `server/priv`.
-
-## Guardrails
-- Cache is ephemeral; do not rely on it for durable state.
-
-## Related Context
-- Parent business logic: `server/lib/tuist/AGENTS.md`
-- Web layer: `server/lib/tuist_web/AGENTS.md`
-- Migrations: `server/priv/AGENTS.md`
-
-## Replica-safety rollout
-
-Only `cache: :display` invalidations are broadcast to connected nodes. Prepaid balance reads and refreshes use that dedicated cache. On node join/leave, clear it and the FunWithFlags membership cache, never the general `:tuist` request/integration cache or dedicated authentication/license caches. Lost broadcasts and fills racing deletion remain bounded by the display value's TTL, not a strong consistency guarantee. Persistent-key invalidation reports failed Redis deletion after evicting/broadcasting fallback copies. `cache_errors: false` opts out of storing `{:error, reason}` callback results on locked, unlocked and persistent paths. Keep the default arbitrary-value contract, including literal `{:ignore, value}` tuples. License validation has a separate ten-second retry entry, while successful licenses keep their normal TTL. These are regenerable views, not authoritative authorization state.
+- Broadcast only `cache: :display` invalidations; prepaid balance reads/refreshes use that dedicated cache. On node join/leave, clear it and the FunWithFlags membership cache, never general `:tuist` request/integration or authentication/license caches.
+- Lost broadcasts and fills racing deletion are bounded by display TTL, not strong consistency. Persistent invalidation reports failed Redis deletion after evicting/broadcasting fallback copies.
+- `cache_errors: false` excludes `{:error, reason}` results on locked, unlocked and persistent paths. Preserve arbitrary values, including literal `{:ignore, value}` tuples.
+- License validation has a separate ten-second retry entry; successful licenses retain normal TTL. These are regenerable views, not authoritative authorization state.
