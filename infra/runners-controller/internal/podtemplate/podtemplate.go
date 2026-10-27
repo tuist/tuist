@@ -436,7 +436,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			})
 			dindPackages := "e2fsprogs"
 			if pool.Spec.DockerCache {
-				dindPackages += " coreutils"
+				dindPackages += " coreutils util-linux"
 			}
 			initContainers = append(initContainers, corev1.Container{
 				Name:  "dind",

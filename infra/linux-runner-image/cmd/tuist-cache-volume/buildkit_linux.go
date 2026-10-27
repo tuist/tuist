@@ -157,6 +157,8 @@ func (d *daemon) mergeBuildkitVolumes(ctx context.Context, into string, branch, 
 		}
 	}
 	sort.Strings(names)
+	ledger := readDockerLedger(dockerBuilderLedger(toRoot))
+	sourceLedger := readDockerLedger(dockerBuilderLedger(fromRoot))
 	for _, name := range names {
 		if !buildkitVolumeName.MatchString(name) {
 			return fmt.Errorf("invalid BuildKit volume name")
@@ -187,6 +189,7 @@ func (d *daemon) mergeBuildkitVolumes(ctx context.Context, into string, branch, 
 		if out, err := d.run(ctx, "cp", "-a", "--preserve=all", "--sparse=always", source, target); err != nil {
 			return fmt.Errorf("copy BuildKit cache: %s: %w", strings.TrimSpace(string(out)), err)
 		}
+		ledger[name] = sourceLedger[name]
 	}
-	return nil
+	return writeDockerLedger(dockerBuilderLedger(toRoot), ledger)
 }
