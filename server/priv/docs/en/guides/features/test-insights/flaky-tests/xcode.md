@@ -37,9 +37,11 @@ tuist xcodebuild test \
 
 ### Cross-run detection {#cross-run-detection}
 
-Even without test retries, Tuist can detect flaky tests by comparing results across different CI runs on the same commit and the same scheme. If a test passes in one CI run but fails in another run for the same commit and scheme, both runs are marked as flaky.
+Even without test retries, Tuist can detect flaky tests by comparing results across different CI runs on the same commit, scheme, and reported destination (device name, platform, and OS version). If a test passes in one matching CI run but fails in another, the failing execution is marked as flaky. This works regardless of which result arrives first.
 
-The scheme is part of the comparison key because the same test can behave deterministically differently across schemes — for example, a snapshot test that's only valid against a specific simulator destination, or a test target that's compiled with different flags. Two runs of the same commit on different schemes are treated as separate execution variants and won't flag each other as flaky.
+The same test can behave consistently differently across schemes or destinations. For example, passing on iOS 26 and failing on iOS 27 does not establish flakiness. Results from different schemes, devices, platforms, or OS versions do not flag each other as flaky.
+
+Reports without destination metadata are compared only with other reports without that metadata. Reports containing multiple distinct destinations or incomplete destination metadata are excluded from cross-run detection because individual test outcomes cannot yet be attributed to a destination. Retry-based detection still applies. Existing historical flaky classifications are unchanged.
 
 This is particularly useful for catching flaky tests that don't fail consistently enough to be caught by retries, but still cause intermittent CI failures.
 

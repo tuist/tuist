@@ -16,8 +16,13 @@ defmodule Tuist.Tests.TestCaseRunByCommit do
   schema; the legacy table is dropped in a follow-up migration once the
   rollout is stable.
 
-  Used by `Tuist.Tests.get_existing_ci_runs_for_commit/4` to identify
-  historical CI runs for a given commit and scheme; the main table is then
+  `flakiness_environment` additionally isolates the reported device, platform
+  and OS version. It is filtered within the existing commit/scheme range.
+  Empty values represent legacy or missing destination data; `unattributed`
+  represents reports that cannot supply destination-specific evidence.
+
+  Used by `Tuist.Tests.get_existing_ci_runs_for_commit/5` to identify
+  historical CI runs for a given commit, scheme and destination; the main table is then
   hit by `id` (via the `idx_id` bloom filter) only for the small subset that
   needs full rows.
   """
@@ -28,6 +33,7 @@ defmodule Tuist.Tests.TestCaseRunByCommit do
     field :project_id, Ch, type: "Int64"
     field :git_commit_sha, Ch, type: "String"
     field :scheme, Ch, type: "String"
+    field :flakiness_environment, Ch, type: "LowCardinality(String)", default: ""
     field :is_ci, :boolean, default: false
     field :status, Ch, type: "Enum8('success' = 0, 'failure' = 1, 'skipped' = 2)"
     field :test_case_id, Ch, type: "Nullable(UUID)"

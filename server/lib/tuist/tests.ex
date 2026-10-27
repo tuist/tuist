@@ -601,7 +601,8 @@ defmodule Tuist.Tests do
           test_modules,
           shard_index,
           shard_plan,
-          Coverage.Evidence.test_states(test.project_id, Map.get(attrs, :coverage_evidence))
+          Coverage.Evidence.test_states(test.project_id, Map.get(attrs, :coverage_evidence)),
+          Map.get(attrs, :run_destinations, [])
         )
 
       run_test_followups(test, test_case_runs, shard_plan)
@@ -861,7 +862,9 @@ defmodule Tuist.Tests do
           create_run_destinations(test, Map.get(attrs, :run_destinations, []))
           create_run_errors(test, Map.get(attrs, :run_errors, []))
           StressNewTests.insert_candidates(test, stress)
-          {_newly_flaky, runs} = create_test_modules(test, modules, index, plan, %{})
+
+          {_newly_flaky, runs} =
+            create_test_modules(test, modules, index, plan, %{}, Map.get(attrs, :run_destinations, []))
 
           flaky? = test.is_flaky or flaky_run?(test, runs) or (test.is_ci and has_any_flaky_test_case?(modules))
           {%{test | is_flaky: flaky?}, runs, Batch.uuid(:report)}
@@ -978,7 +981,8 @@ defmodule Tuist.Tests do
                 test_modules,
                 shard_index,
                 shard_plan,
-                Coverage.Evidence.test_states(project_id, Map.get(attrs, :coverage_evidence))
+                Coverage.Evidence.test_states(project_id, Map.get(attrs, :coverage_evidence)),
+                Map.get(attrs, :run_destinations, [])
               )
             end
 
@@ -2156,7 +2160,7 @@ defmodule Tuist.Tests do
 
   # `evidence_states` say, per test, what the report's evidence holds for it
   # (`Coverage.Evidence.test_states/2`), which their runs record.
-  defp create_test_modules(test, test_modules, shard_index, shard_plan, evidence_states) do
+  defp create_test_modules(test, test_modules, shard_index, shard_plan, evidence_states, destinations) do
     # Resolved once per run and threaded down rather than looked up where each
     # row is built: it decides `is_new` for every test case and
     # `is_default_branch` for every run row, and both used to mean a separate
@@ -2167,7 +2171,7 @@ defmodule Tuist.Tests do
 
     test_case_run_data =
       OpenTelemetry.Tracer.with_span "tests.get_test_case_run_data" do
-        get_test_case_run_data(test, test_modules, project)
+        get_test_case_run_data(test, test_modules, project, flakiness_environment(destinations))
       end
 
     test_case_ids = collect_test_case_ids(test.project_id, test_modules)
@@ -2286,7 +2290,34 @@ defmodule Tuist.Tests do
     :ok
   end
 
-  defp get_test_case_run_data(test, test_modules, project) do
+  # Destinations belong to this report/shard, not the merged parent run. A
+  # multi-destination report cannot attribute individual test outcomes to a
+  # destination, so it must not supply cross-run evidence. Missing destinations
+  # retain the legacy bucket, which never matches a known destination.
+  defp flakiness_environment(destinations) when destinations in [nil, []], do: ""
+
+  defp flakiness_environment(destinations) when is_list(destinations) do
+    destinations =
+      destinations
+      |> Enum.map(fn destination ->
+        Enum.map([:platform, :os_version, :name], &destination_field(destination, &1))
+      end)
+      |> Enum.uniq()
+
+    case destinations do
+      [destination] ->
+        if Enum.all?(destination, &(is_binary(&1) and &1 != "")),
+          do: JSON.encode!(destination),
+          else: "unattributed"
+
+      _ ->
+        "unattributed"
+    end
+  end
+
+  defp flakiness_environment(_destinations), do: "unattributed"
+
+  defp get_test_case_run_data(test, test_modules, project, environment) do
     all_test_cases =
       Enum.flat_map(test_modules, fn module_attrs ->
         module_name = Map.get(module_attrs, :name)
@@ -2314,25 +2345,30 @@ defmodule Tuist.Tests do
       end)
 
     {test_case_data, historical_flaky_runs} =
-      check_cross_run_flakiness(test, test_case_data)
+      check_cross_run_flakiness(test, test_case_data, environment)
 
     mark_test_case_runs_as_flaky(test.project_id, test.git_commit_sha, historical_flaky_runs)
 
     test_case_data = check_new_test_cases(test_case_data, project)
 
     Map.new(test_case_data, fn data ->
-      {data.identity_key, Map.take(data, [:status, :is_flaky, :is_new, :is_flakiness_excluded])}
+      {data.identity_key,
+       data
+       |> Map.take([:status, :is_flaky, :is_new, :is_flakiness_excluded])
+       |> Map.put(:flakiness_environment, environment)}
     end)
   end
 
-  defp check_cross_run_flakiness(%{submission_auth: "network_trusted"}, data), do: {data, []}
+  defp check_cross_run_flakiness(_test, data, "unattributed"), do: {data, []}
 
-  defp check_cross_run_flakiness(%{is_ci: false}, test_case_data), do: {test_case_data, []}
+  defp check_cross_run_flakiness(%{submission_auth: "network_trusted"}, data, _environment), do: {data, []}
 
-  defp check_cross_run_flakiness(%{git_commit_sha: commit}, test_case_data) when commit in [nil, ""],
+  defp check_cross_run_flakiness(%{is_ci: false}, test_case_data, _environment), do: {test_case_data, []}
+
+  defp check_cross_run_flakiness(%{git_commit_sha: commit}, test_case_data, _environment) when commit in [nil, ""],
     do: {test_case_data, []}
 
-  defp check_cross_run_flakiness(test, test_case_data) do
+  defp check_cross_run_flakiness(test, test_case_data, environment) do
     scheme = test.scheme || ""
 
     existing_runs =
@@ -2340,7 +2376,8 @@ defmodule Tuist.Tests do
         Enum.reject(test_case_data, & &1.is_flakiness_excluded),
         test.git_commit_sha,
         test.project_id,
-        scheme
+        scheme,
+        environment
       )
 
     Enum.map_reduce(test_case_data, [], fn data, historical_runs ->
@@ -2350,7 +2387,7 @@ defmodule Tuist.Tests do
   end
 
   # A run is flaky only when it is a failure that the same test case also passed
-  # on for the same commit and scheme — a failure that did not reproduce. The
+  # on for the same commit, scheme and destination — a failure that did not reproduce. The
   # passing runs that prove the test can succeed on the commit are left clean, so
   # flaky-run counts and rates reflect the spurious failures rather than every
   # execution of the commit.
@@ -2384,12 +2421,13 @@ defmodule Tuist.Tests do
   # them by `id` held hundreds of MiB per ingestion until it timed out. A run's
   # `status` is in the table's sort key and never changes, so each read stays
   # in range, and passes are only looked up for the test cases that failed now.
-  defp get_existing_ci_runs_for_commit(test_case_data, git_commit_sha, project_id, scheme) do
+  defp get_existing_ci_runs_for_commit(test_case_data, git_commit_sha, project_id, scheme, environment) do
     runs_on_commit =
       from(tcr in TestCaseRunByCommit,
         where: tcr.project_id == ^project_id,
         where: tcr.git_commit_sha == ^git_commit_sha,
         where: tcr.scheme == ^scheme,
+        where: tcr.flakiness_environment == ^environment,
         where: tcr.is_ci == true
       )
 
@@ -2691,7 +2729,13 @@ defmodule Tuist.Tests do
         identity_key = {case_name, module_name, suite_name}
         test_case_id = Map.get(test_case_id_map, identity_key)
 
-        %{status: status, is_flaky: is_flaky, is_new: is_new, is_flakiness_excluded: is_flakiness_excluded} =
+        %{
+          status: status,
+          is_flaky: is_flaky,
+          is_new: is_new,
+          is_flakiness_excluded: is_flakiness_excluded,
+          flakiness_environment: environment
+        } =
           Map.get(test_case_run_data, identity_key)
 
         test_case_run = %{
@@ -2716,6 +2760,7 @@ defmodule Tuist.Tests do
           is_flaky: is_flaky,
           is_new: is_new,
           is_flakiness_excluded: is_flakiness_excluded,
+          flakiness_environment: environment,
           is_quarantined: Map.get(case_attrs, :is_quarantined, false),
           coverage_evidence: Map.get(evidence_states, identity_key, "none"),
           duration: Map.get(case_attrs, :duration, 0),
@@ -4378,6 +4423,7 @@ defmodule Tuist.Tests do
       status,
       is_flaky,
       is_flakiness_excluded,
+      flakiness_environment,
       is_new,
       is_quarantined,
       duration,
@@ -4409,6 +4455,7 @@ defmodule Tuist.Tests do
       status,
       true,
       is_flakiness_excluded,
+      flakiness_environment,
       is_new,
       is_quarantined,
       duration,
