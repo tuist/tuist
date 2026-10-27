@@ -407,6 +407,21 @@
     &[data-layout="start"] {
       justify-content: flex-start;
     }
+
+    /* One row per child, each laying out its own items. */
+    &[data-layout="rows"] {
+      flex-direction: column;
+      flex-wrap: nowrap;
+      align-items: flex-start;
+      gap: var(--noora-spacing-4);
+
+      & > * {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--noora-spacing-4);
+      }
+    }
   }
 
   /* The example's source: a code window card inset in the frame under the

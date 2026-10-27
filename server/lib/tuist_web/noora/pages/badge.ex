@@ -11,61 +11,60 @@ defmodule TuistWeb.Noora.Pages.Badge do
       "For run and job states, use the status badge, which pairs each state with a consistent icon."
     ]
 
-  example "Colors", description: "Each color carries a meaning. `neutral` is the default." do
+  example "Variants",
+    description: "Each color comes as a solid `fill` and a softer `light-fill`. `neutral` is the default color.",
+    layout: :rows do
     ~H"""
-    <.badge label="Neutral" color="neutral" />
-    <.badge label="Primary" color="primary" />
-    <.badge label="Secondary" color="secondary" />
-    <.badge label="Information" color="information" />
-    <.badge label="Focus" color="focus" />
-    <.badge label="Success" color="success" />
-    <.badge label="Attention" color="attention" />
-    <.badge label="Warning" color="warning" />
-    <.badge label="Destructive" color="destructive" />
+    <div :for={
+      color <- ~w(neutral primary secondary information focus success attention warning destructive)
+    }>
+      <.badge size="large" label={String.capitalize(color)} color={color} />
+      <.badge size="large" label={String.capitalize(color)} color={color} style="light-fill" />
+    </div>
     """
   end
 
-  example "Light fill", description: "A softer background for badges that appear in groups or tables." do
+  example "With icons",
+    description: "An icon before the label, in every color, style, and size.",
+    layout: :rows do
     ~H"""
-    <.badge label="Neutral" color="neutral" style="light-fill" />
-    <.badge label="Primary" color="primary" style="light-fill" />
-    <.badge label="Information" color="information" style="light-fill" />
-    <.badge label="Success" color="success" style="light-fill" />
-    <.badge label="Warning" color="warning" style="light-fill" />
-    <.badge label="Destructive" color="destructive" style="light-fill" />
+    <div :for={
+      color <- ~w(neutral primary secondary information focus success attention warning destructive)
+    }>
+      <.badge
+        :for={size <- ~w(large medium small)}
+        label={String.capitalize(color)}
+        color={color}
+        size={size}
+      >
+        <:icon><.bell /></:icon>
+      </.badge>
+      <.badge
+        :for={size <- ~w(small medium large)}
+        label={String.capitalize(color)}
+        color={color}
+        style="light-fill"
+        size={size}
+      >
+        <:icon><.bell /></:icon>
+      </.badge>
+    </div>
     """
   end
 
-  example "Sizes", description: "Small is the default. Large suits headers and cards with more room." do
+  example "Sizes",
+    description: "Small is the default. Medium suits headers and cards with more room, and large suits page headers." do
     ~H"""
     <.badge label="Small" size="small" color="primary" />
+    <.badge label="Medium" size="medium" color="primary" />
     <.badge label="Large" size="large" color="primary" />
     """
   end
 
   example "Dot and icon", description: "A dot or an icon before the label reinforces the status at a glance." do
     ~H"""
-    <.badge label="Live" color="success" style="light-fill" dot />
-    <.badge label="Flaky" color="warning" style="light-fill">
-      <:icon><.alert_circle /></:icon>
-    </.badge>
-    <.badge label="Large" color="success" style="light-fill" size="large" dot />
-    """
-  end
-
-  example "Icon only", description: "For tight spaces. The label is not rendered, so pass an `aria-label`." do
-    ~H"""
-    <.badge label="Warning" icon_only color="warning" style="light-fill" aria-label="Warning">
-      <:icon><.alert_circle /></:icon>
-    </.badge>
-    <.badge
-      label="Warning"
-      icon_only
-      size="large"
-      color="warning"
-      style="light-fill"
-      aria-label="Warning"
-    >
+    <.badge size="large" label="Live" color="success" style="light-fill" dot />
+    <.badge size="large" label="Flaky" color="warning" style="light-fill">
       <:icon><.alert_circle /></:icon>
     </.badge>
     """
@@ -73,8 +72,7 @@ defmodule TuistWeb.Noora.Pages.Badge do
 
   example "Disabled", description: "Ignores the color and uses the disabled presentation." do
     ~H"""
-    <.badge label="Disabled" color="success" disabled />
-    <.badge label="Disabled" color="success" style="light-fill" disabled />
+    <.badge size="large" label="Disabled" color="success" disabled />
     """
   end
 end

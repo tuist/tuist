@@ -149,7 +149,7 @@ defmodule Tuist.OpenGraph.ProjectImage do
           /* Noora's status badge (.noora-status-badge) in dark mode, scaled
              3.5x so it sits comfortably beside the footer wordmark: the
              4px/8px padding, 4px gap, 6px radius, 16px icon and the
-             light-default border ring all scale together. Token values are
+             small-default border ring all scale together. Token values are
              the dark-mode results of tokens.css, written as hex. */
           .badge[data-status] {
             right: 76px;
@@ -169,7 +169,7 @@ defmodule Tuist.OpenGraph.ProjectImage do
             font-weight: 500;
             line-height: 56px;
             letter-spacing: 0;
-            color: #FDFDFD;
+            color: #F6F6F6;
             overflow: visible;
           }
           .badge[data-status="disabled"] { color: #A4A4A4; }
@@ -184,10 +184,10 @@ defmodule Tuist.OpenGraph.ProjectImage do
             overflow: hidden;
             text-overflow: ellipsis;
           }
-          .badge[data-status="success"] [data-part="icon"] { color: #008C1C; }
-          .badge[data-status="error"] [data-part="icon"] { color: #BC0000; }
-          .badge[data-status="warning"] [data-part="icon"] { color: #F25F00; }
-          .badge[data-status="attention"] [data-part="icon"] { color: #FFC100; }
+          .badge[data-status="success"] [data-part="icon"] { color: #038930; }
+          .badge[data-status="error"] [data-part="icon"] { color: #B40211; }
+          .badge[data-status="warning"] [data-part="icon"] { color: #E86800; }
+          .badge[data-status="attention"] [data-part="icon"] { color: #FFC305; }
           .badge[data-status="disabled"] [data-part="icon"] { color: #A4A4A4; }
           .badge[data-status="in_progress"] [data-part="icon"] { color: #D2D2D2; }
         </style>
