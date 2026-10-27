@@ -1,15 +1,7 @@
-# TuistKit (CLI Commands)
+# TuistKit
 
-This module houses CLI command definitions, command wiring, and high-level orchestration.
-
-## Responsibilities
-- Define the root command (`TuistCommand`) and subcommand groups.
-- Load config, server URL, and trackable command execution lifecycle.
-- Centralize error handling, logging, and Noora integration.
-
-## Boundaries
-- Keep orchestration here; domain logic lives in feature modules (e.g., generator, cache, server).
-- Avoid direct file system or graph logic that belongs in `TuistCore`, `TuistGenerator`, or `TuistSupport`.
+Legacy command orchestration lives here; the executable and `TuistCommand` live in
+`Sources/tuist`. Add new domain logic to feature modules, not this monolith.
 
 ## Invariants
 - New infrastructure probes are injected only by the live `tuist xcodebuild build` wrapper into `UploadBuildRunService`; the upload service's default observations remain empty. Never label an activity-log importer/uploader as the build host. Preserve explicit metadata and discover the receiver budget before expanded maps.
@@ -31,11 +23,7 @@ This module houses CLI command definitions, command wiring, and high-level orche
 - When selective testing skips every test, publish a completed empty test run with the selected scheme name, recovering pruned workspace schemes from the initial graph. A build-only sharding run must also publish it when emitting an empty shard matrix, because no test job will follow.
 - Every path that runs an Xcode test action (`tuist test` on a scheme, `tuist test --without-building` on a shard or an `.xctestproducts` bundle, `tuist xcodebuild test`) prepares the coverage evidence before xcodebuild, runs it inside `XcodeBuildEnvironment.$additionalVariables`, and records the evidence and exports the coverage right after it, failed or not, before any stress pass. A new test path that skips this uploads no evidence and only the bundle's `xccov` coverage.
 
-## Related Context
-- CLI entry point: `cli/Sources/tuist/AGENTS.md`
-- Core domain models: `cli/Sources/TuistCore/AGENTS.md`
-- Project generation: `cli/Sources/TuistGenerator/AGENTS.md`
-- Server integration: `cli/Sources/TuistServer/AGENTS.md`
+## Coverage and generation
 - `BinaryCacheCoverage.resolved(config:)` picks a command's binary-cache variant: `TUIST_COVERAGE_ENABLED`, then `Tuist.swift`'s `coverage.enabled`, and off without the `COVERAGE` client feature flag. There is no command-line flag, so every command that generates (`tuist cache`, `tuist hash cache`, `tuist generate`, `tuist test`, `tuist build`, `tuist run`, `tuist inspect dependencies`, `tuist hash selective-testing`) resolves the same variant in one environment. Every `GeneratorFactorying` method takes the resolved variant and writes it into the config's `coverage.enabled` (`Tuist.resolvingCoverage`) before building mappers, so the linker setting, automatic-scheme coverage and binary-cache keys (`BinaryCacheCoverage(config:)` in `CacheGraphMapperFactory`) all follow one value. A Release warm always warms plain. `tuist test` warns when a run that collects coverage (passthrough `-enableCodeCoverage`, else the tested scheme's test action) linked repository targets from the cache as plain binaries (`CacheItem.instrumented == false`).
 - A warm with coverage on fills the coverage variant of the binary cache: the hash pass and the warm-project generator take `BinaryCacheCoverage.on`, the repository's frameworks and libraries get the `TUIST_BINARY_CACHE_COVERAGE` marker, and the binary (not bundle or macro) builds get `InstrumentedBinaryCacheWarm.buildSettings` as passthrough xcodebuild arguments, raw strings rather than `.xcarg` because the settings hold `$(…)` references and xcodebuild runs without a shell. The checkout root comes from `CoverageBuildSourcesService.root(from:)`, the same rule `tuist test` ties coverage with.
 - Cache warming carries the preload graph's SDK fingerprints through archiving and publication; do not recompute them from the graph after binary replacement. Preserve these publication fingerprints even when profile exclusions prevent handing precomputed target hashes to the warm-project generator.

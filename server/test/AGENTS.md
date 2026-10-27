@@ -1,7 +1,5 @@
 # Server Tests
 
-This directory contains ExUnit tests for the Tuist Server.
-
 ## Testing Guidelines
 
 - Feature flag control tests cover workload-only routes, actor exclusions/inheritance, deterministic rollout expansion, stale revisions and idempotent audit writes. Resource evaluation regressions use sandboxed persisted gates without populating the shared cache; cover authoritative project ownership, actual environment/dependency/kill-switch helpers, Kura rename eligibility, isolated observability context and a maximum of four database reads for both cold and repeated account/project requests. Reject FunWithFlags cache reads so per-flag query regressions fail independently of cache warmth. The concurrency regression pauses the real legacy adapter after its percentage read on an independent PostgreSQL connection, verifies Atlas blocks, then checks the legacy gate survives and Atlas rejects the stale revision. Restore persisted rules and remove only the test's change audit on cleanup. Write-input regressions cover int8 overflow, percentage-ratio underflow and shared Slack provenance rejection; simulate both advisory/table lock timeouts at the SQL boundary, verify 503 with unchanged gates/audit, and ensure unexpected database errors are not swallowed.
@@ -60,16 +58,12 @@ This directory contains ExUnit tests for the Tuist Server.
 - Analytics loading regressions cover partial results, retained successful content during refresh, explicit failures and filter recovery. Distinguish recorded zero values from absent observations. Analytics-backed widget and empty-state assertions must wait for async assigns with `render_async/2`; bundle-size percentage checks include the complete signed value so `0.0%` cannot accidentally match `+100.0%`. Use date ranges whose comparison period is also supported by ClickHouse, and give real asynchronous queries an explicit timeout. When adopting shared analytics cards, update page tests to assert the shared failure state and successful recovery; keep separate coverage for optional-result failures that must leave required content visible.
 - Billing-period fixtures that must be active use boundaries relative to the current time, with margin on either side. Fixed dates eventually expire and exercise the Stripe fallback instead; stale-period tests must construct explicitly closed windows.
 - Audit-event assertions should compare contents without assuming chronological order from second-precision timestamps or UUIDv7 IDs generated in the same millisecond.
-- Never modify System environment variables in tests (shared state).
-- Use mocks/stubs/DI for environment-dependent behavior.
 - Telemetry handlers are global: `:telemetry_test.attach_event_handlers/2` also delivers an event a concurrently running test emitted, tagged with this test's own ref. Use `TuistTestSupport.TelemetryCapture.attach_event_handlers/1`, which forwards only what the attaching process emits.
 
 - Direct `XcodeGraph.Buffer` fixture inserts must provide `project_id` and `modules_count` along with the existing header fields. Use the parent event's project and `nil` for uncounted historical graphs; write-through buffers require every schema column key.
 - Build-entity replacement regressions must assert actual cross-month physical partitions, late older writes, cleared nullable values and time/cohort moves before filters. Native ID-index/materialization tests use unsandboxed ClickHouse owners, not disabled assertions. Keep timing assertions out of normal ExUnit tests.
 
-## Related Context
-
-- Business logic: `server/lib/tuist/AGENTS.md`
+## Cross-subsystem regression contracts
 
 - Recorded timeline coverage includes Gradle clock alignment, all-operation loading, legacy reports, Bazel retained-span limits, opaque IDs, filtered navigation, tab reopening, and API/MCP parent authorization. Shared lifecycle coverage also checks source/project identity, forced refresh, stale and inactive-tab bootstrap requests, and authenticated HTTP metadata downloads for all three build systems.
 

@@ -28,7 +28,9 @@ struct ManifestCacheTests {
     @Test(.inTemporaryDirectory)
     func nativeManifestCacheDefaultsToTheSharedCacheRoot() async throws {
         let package = try #require(FileSystem.temporaryTestDirectory).fileURL
-        let defaultRoot = try Cache.resolvedRoot(nil).standardizedFileURL
+        // Bazel may omit HOME and XDG_CACHE_HOME. The context must remain usable
+        // without a shared cache when neither default root is available.
+        let defaultRoot = (try? Cache.resolvedRoot(nil))?.standardizedFileURL
         try await ManifestCache.withContext(packageDirectory: package, scratchDirectory: nil) {
             #expect(ManifestCache.sharedCacheDirectory == defaultRoot)
         }

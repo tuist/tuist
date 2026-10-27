@@ -1,6 +1,4 @@
-# Accounts (Context)
-
-This context owns business logic and data related to accounts, users, organizations, roles, and auth tokens.
+# Accounts
 
 ## Responsibilities
 - `OIDCTrustPolicy` and `OIDCTrustPolicies` own reusable account-level workload identities. A matching policy grants account-wide CI access to all current and future projects, including projects created or transferred into the account after token issuance; do not enumerate project IDs or require a first project. Scope names and CRUD to the account, ignore submitted account IDs, and lock the account row to enforce 20 policies. There is no project association table. Project deletion or transfer leaves the identity intact; account deletion cascades its policies. Candidate lookup uses indexed `citext` account equality and audience prefiltering, returning each policy once regardless of project count. Fresh issuance through `oidc_account_by_grants/1` must recheck the policy ID, own key URL, issuer, audience, typed claims and selected account before issuing an `all_projects: true`, CI-only token. Existing project authorization must still require current account ownership. See `../oidc/AGENTS.md`.
@@ -11,20 +9,8 @@ This context owns business logic and data related to accounts, users, organizati
 - Own the WorkOS auth.md registration state machine, including service-signed identity assertions, browser claims, scheduled registration expiry, exchanged access-token records, audit events, and provider security events.
 - The account usage worker refreshes metered cache egress and requests, then queues Air limit notifications through `Tuist.Billing.AirUsageNotifications` for the execution time, so delayed jobs cannot overwrite current-month counts with the previous month. `UserNotifier.air_usage_email/3` builds the HTML and plain-text email in the recipient’s preferred locale for delivery and previews.
 
-## Boundaries
-- HTTP/API and UI code live in `server/lib/tuist_web`.
-- Configuration belongs in `server/config`.
-- Schema changes and migrations live in `server/priv`.
-
 ## Guardrails
-- If changes add or modify stored customer data (users, organizations, tokens), update `server/data-export.md`.
 - Keep the current `/agent/identity`, `/oauth2/token`, `/oauth2/revoke`, and `/agent/event/notify` behavior aligned with the published `/auth.md` document and authorization-server metadata.
-
-## Related Context
-- Parent business logic: `server/lib/tuist/AGENTS.md`
-- Web layer: `server/lib/tuist_web/AGENTS.md`
-- Migrations: `server/priv/AGENTS.md`
-
 - Account handles ending in `-staging` or `-canary` are reserved case-insensitively to prevent stable cache DNS collisions across environments. Existing suffixed handles keep regional endpoints until explicitly renamed. Stable managed endpoint responses preserve eligible custom endpoints and registered self-hosted URLs.
 - Email-derived signup handles receive a numeric suffix when reserved, with the
   normal collision retries; explicit reserved handles remain invalid. Add custom
