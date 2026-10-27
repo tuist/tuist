@@ -54,6 +54,32 @@ These records have creation timestamps; mutable records also have update timesta
 Native clients retain an unconfirmed launch's reviewed revision, request UUID and input in device-only Keychain (iOS) or Android Keystore-backed encrypted preferences, until acknowledged or explicitly cleared by a new sign-in/sign-out. This local retry copy is not a separate server record or server-side export source. Foreground channels carry only execution state/step/timing metadata; approval payloads and results use separate authorized reads. No device tokens, push subscriptions or Live Activity records are collected by this version.
 
 For a request covering Atlas records, select the applicable workflow IDs, export their revisions and referenced behaviors, then join runs by `revision_id` and attempts/approvals/events by `run_id`. Include triggers referencing those revisions and relevant user identities/audit events, excluding credential hashes. References to customer data may occur inside arbitrary configuration, source, inputs, or outputs rather than an account foreign key, so account-specific requests require review of those payloads and the domain records they reference. Do not assume filtering only by workflow creator identifies every customer's data. Task actions create ordinary Atlas task records, which must be included separately where applicable. Stored definitions and run payloads must not contain credentials.
+### Atlas native local inbox cache
+
+Native Atlas clients retain disposable first-page Orbit inbox projections in
+`reads.sqlite3`, under iOS Application Support `Atlas/ReadCache` or Android
+`noBackupFilesDir/reads`. Both locations are app-private and excluded from backups;
+iOS also applies device file protection. SQLite itself is not application-level
+encrypted. `read_snapshots` stores sanitized assistant display metadata and up to
+25 conversation IDs, titles, summaries, kinds, statuses, origins and update times
+as JSON, with query keys and fetch timestamps. It does not store credentials,
+participant/owner identities, mutation permissions, live agent status, message
+history, drafts or attachments. `cache_namespaces` stores only hashed origin plus
+random credential-lifetime identifiers and generation/retirement fences; the
+unhashed random identifier remains with the opaque session in secure storage.
+
+Snapshots expire for reads after seven days and are pruned on database open, with
+32-entry, 1 MiB-per-entry and SQLite page-count limits. Explicit logout and
+authoritative access denial delete affected snapshots; successful mutations
+invalidate the credential lifetime's inbox variants. Retired namespace fences
+remain until app data removal to reject late writes. An offline device can display
+previously authorized metadata until it reconnects or rereads after expiry; this
+is not a durable offline authorization grant. Uninstall/app-data removal deletes
+the local database. These device-only derivatives are not uploaded, remotely
+retrievable or a separate server export source. Export original Orbit threads
+from Atlas's PostgreSQL database with the applicable authorization/customer-data
+review; no server-side table or object-storage path is introduced.
+
 ### Report actor attribution and publishing policy
 
 ClickHouse `build_runs`, `gradle_builds`, `mix_builds`, `test_runs`, `test_case_runs`, and `command_events` store `actor_account_id` (the server-authenticated individual account, or 0), `claimed_actor_id` (an optional opaque identifier supplied by the reporting client), and `submission_auth` (server-set publishing provenance: `token` or `network_trusted`; empty for historical records). Test-case rows inherit the parent test report's attribution. Existing publisher `account_id`/user relationships remain unchanged. Unsigned test reports use server receipt timestamps, retain report-local child outcomes and may link existing canonical cases, but never create/replace canonical testcase state or enter trusted test-validation, shard-timing, quarantine or case-history aggregate evidence. Claims are unverified, organization-scoped attribution, not credentials; identifiers may contain personal data such as a local username. They are never automatically matched to user records.

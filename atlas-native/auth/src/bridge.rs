@@ -18,6 +18,13 @@ enum Command {
     Restore {
         session: Session,
     },
+    Bootstrap {
+        session: Session,
+    },
+    ForgetCache {
+        session: Session,
+        directory: String,
+    },
     Native {
         session: Session,
         request: crate::api::Request,
@@ -96,6 +103,10 @@ pub fn execute(input: &str) -> String {
                 serde_json::to_value(complete(pending, &callback)?)
             }
             Command::Restore { session } => serde_json::to_value(restore(session)?),
+            Command::Bootstrap { session } => serde_json::to_value(crate::bootstrap(session)?),
+            Command::ForgetCache { session, directory } => {
+                return crate::orbit_session::forget_cache(&session, &directory);
+            }
             Command::Native { session, request } => return crate::api::execute(session, request),
             Command::Themes { server } => return crate::themes::fetch(&server),
             Command::ValidateThemes { catalog } => return crate::themes::validate(catalog),

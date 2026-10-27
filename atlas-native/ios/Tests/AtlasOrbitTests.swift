@@ -21,6 +21,27 @@ extension AtlasOrbitTests {
 }
 
 extension AtlasOrbitTests {
+    @Test func localInboxAppearsBeforeProtectedRefreshAndSurvivesItsFailure() async throws {
+        var model: AtlasOrbit!
+        defer { model = nil }
+        var online = false
+        model = AtlasOrbit(request: { action in
+            if action["action"] as? String == "open" {
+                let saved = try JSONSerialization.jsonObject(with: snapshot(sequence: 1, fields: ["cached": true]))
+                return try JSONSerialization.data(withJSONObject: ["connection": "saved-inbox", "snapshot": saved])
+            }
+            #expect(model.cached && model.threads.first?.id == id)
+            guard online else { throw AtlasAuthenticationError(kind: "network", message: "Offline. Try again.") }
+            return try snapshot(sequence: 2, fields: ["cached": false])
+        }, localRequest: { _ in throw CancellationError() })
+        await model.load()
+        #expect(model.cached && model.threads.first?.id == id)
+        #expect(model.errorMessage == "Offline. Try again.")
+        online = true
+        await model.load()
+        #expect(!model.cached && model.errorMessage == nil)
+    }
+
     @Test func adapterForwardsCommandsAndRendersRustState() async throws {
         var commands: [String] = []
         let model = AtlasOrbit(request: { action in
