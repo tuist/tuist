@@ -163,6 +163,31 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
 
 ## Private runner entrance
 
+Linux runners reuse existing regional Kura instances over OVH vRack; there is
+no Linux runner-specific cache region. The default-off account flag
+`runner_linux_vrack` selects isolated runner pools on enrolled hosts. See
+[linux-runner-private-cache.md](linux-runner-private-cache.md) for the required
+staging experiment cleanup before deployment, physical-path qualification and
+production rollout. Historical measurements and validation results are recorded
+in PR #14766; reusable probes publish new outputs as workflow artifacts.
+Additional cache-host orders are on hold. Shared managed
+values prepare disjoint runner pools in staging, canary and production;
+no account or Machine is enrolled automatically. `spec.vRackID` opts in a whole
+host; ordinary hosts must remain unenrolled. Preserve cohort membership in
+CAPI as well as live Node labels before enabling only the Tuist actor flag.
+Drain all ordinary pollers and claimed jobs before changing cohort membership.
+Staging and canary target one RISE-M each: qualify ordinary and vRack paths
+sequentially across drained cohort/network transitions. With no ordinary host,
+excluded jobs queue; never relax isolation to make them run. Production needs
+concurrent ordinary capacity. The staging RISE-S fixtures have been moved to
+the Gravelines cache host with verified archives retained; the runbook records
+the preserved older fixture's pre-existing fenced state and backup location.
+Canary's RISE-M replacement passed ordinary Kata runner/cache acceptance on
+2026-10-26; the old RISE-S has left the cluster. This hardware cutover did not
+enroll the replacement in vRack or qualify the account-gated private path.
+Do not create a second logical region on the public pool: storage
+reservations are accounted by region. Preserve macOS private-cache behavior.
+
 Runner instances share the managed StatefulSet rollout, preferred co-location, disruption budget, primary routing, mesh and drain. Kubernetes defaults new sets to RollingUpdate; leave a live operator-set update strategy intact. Primary selection prefers full ring visibility but falls back to a fresh Ready/serving writer when no fully joined member remains, so a restarting sibling cannot pin traffic to a dead pod.
 
 `privateHost` opts a private instance into the existing HTTP/gRPC ingress and certificate path, with a host-network ingress class and valid nonempty `clientCIDRs`. Private gateways retain their per-instance certificate and do not select the shared public wildcard, even if a legacy publicHost remains. Private client DNS prefers the selected primary's node initially, then retains its healthy published gateway. Pod List order cannot move it. Public peer DNS stays public. Private gateway-backed pods carry `tuist.dev/host-network-gateway=true`; the managed Helm CiliumNetworkPolicy admits only cache-port traffic from host/remote-node identities, while nginx enforces external client CIDRs.

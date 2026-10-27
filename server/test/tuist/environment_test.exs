@@ -17,6 +17,22 @@ defmodule Tuist.EnvironmentTest do
     end
   end
 
+  describe "runners_linux_vrack_pools/1" do
+    test "missing and malformed mappings disable isolated dispatch" do
+      assert Environment.runners_linux_vrack_pools(%{}) == %{}
+
+      for value <- ["bad", "[]", "null", ~s({"pool":null,"same":"same","":"target"})] do
+        assert Environment.runners_linux_vrack_pools(%{"TUIST_RUNNERS_LINUX_VRACK_POOLS" => value}) == %{}
+      end
+    end
+
+    test "reads only valid distinct pool pairs" do
+      assert Environment.runners_linux_vrack_pools(%{
+               "TUIST_RUNNERS_LINUX_VRACK_POOLS" => ~s({"linux-4":"linux-vrack-4","invalid":3})
+             }) == %{"linux-4" => "linux-vrack-4"}
+    end
+  end
+
   describe "parse_runners_site_pools/1" do
     test "reads each pool's site and platform" do
       assert Environment.parse_runners_site_pools("tuist-runner-pool-ber1=ber1:macos, pool-x=ams1:linux") == %{

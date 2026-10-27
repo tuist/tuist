@@ -33,6 +33,26 @@ on:
         description: Optional exact public IPv4 address required for runner egress qualification
         type: string
         default: ""
+      compare_regional_cache:
+        description: With gradle_cache, compare the existing EU-West cache with a remote region
+        type: boolean
+        default: false
+      measure_request_latency:
+        description: With gradle_cache, measure regional HTTP health, metadata, and tiny-read latency
+        type: boolean
+        default: false
+      hold_seconds:
+        description: With gradle_cache, pause after upload for a bounded cache restart drill (0-900)
+        type: string
+        default: '0'
+      compile_project:
+        description: With gradle_cache, compile and remotely restore the real Tuist Gradle plugin sources
+        type: boolean
+        default: false
+      wan_cache_endpoint:
+        description: Explicit public-region Service for the controlled comparison
+        type: string
+        default: http://kura-tuist-ca-east-1.kura.svc.cluster.local:4000
       stable_cache_dns:
         description: With gradle_cache, validate the spec95 public stable endpoint using the temporary staging fixture token
         type: boolean
@@ -211,7 +231,7 @@ jobs:
       contents: read
       id-token: write
     runs-on: ${{ inputs.runner_label }}
-    timeout-minutes: ${{ inputs.stable_cache_dns && 30 || 15 }}
+    timeout-minutes: ${{ (inputs.compare_regional_cache || inputs.compile_project || inputs.hold_seconds != '0') && 45 || inputs.stable_cache_dns && 30 || 15 }}
     container:
       image: eclipse-temurin:21-jdk-jammy
     defaults:
@@ -225,6 +245,8 @@ jobs:
       MISE_GITHUB_ATTESTATIONS: 0
       MISE_LOCKED: 1
       TUIST_TOKEN: ${{ inputs.stable_cache_dns && secrets.SPEC95_STAGING_CACHE_TOKEN || '' }}
+      BENCH_WAN_ENDPOINT: ${{ inputs.wan_cache_endpoint }}
+      SMOKE_HOLD_SECONDS: ${{ inputs.hold_seconds }}
     steps:
       - name: Verify public egress from the job container
         if: ${{ inputs.expected_public_ip != '' }}
@@ -262,8 +284,27 @@ jobs:
         if: ${{ !inputs.stable_cache_dns }}
         run: tuist auth login
       - name: Verify a remote upload followed by a remote hit
-        if: ${{ !inputs.stable_cache_dns }}
+        if: ${{ !inputs.stable_cache_dns && !inputs.compare_regional_cache && !inputs.measure_request_latency && !inputs.compile_project }}
         run: bash infra/linux-runner-image/gradle-cache-smoke.sh
+      - name: Compile and restore the real Gradle plugin
+        if: ${{ inputs.compile_project }}
+        run: bash infra/linux-runner-image/gradle-real-cache-smoke.sh
+      - name: Measure local-region and remote request latency
+        id: latency
+        if: ${{ inputs.measure_request_latency }}
+        run: |
+          test "$TUIST_URL" = https://staging.tuist.dev
+          test '${{ inputs.stable_cache_dns }}' = false
+          node_bin=/__e/node24/bin/node
+          test -x "$node_bin" || node_bin=/__e/node20/bin/node
+          "$node_bin" infra/linux-runner-image/kura-request-latency.mjs
+      - name: Compare existing regional Gradle caches
+        id: benchmark
+        if: ${{ inputs.compare_regional_cache }}
+        run: |
+          test "$TUIST_URL" = https://staging.tuist.dev
+          test '${{ inputs.stable_cache_dns }}' = false
+          bash infra/linux-runner-image/gradle-regional-benchmark.sh
       - name: Soak the public stable cache endpoint
         if: ${{ inputs.stable_cache_dns }}
         run: bash infra/cache-dns/staging-ci-smoke.sh
@@ -271,5 +312,27 @@ jobs:
         if: always()
         with:
           name: gradle-container-cache-logs
-          path: ${{ runner.temp }}/gradle-cache-smoke/*.log
+          path: |
+            ${{ runner.temp }}/gradle-cache-smoke/*.log
           if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && inputs.compare_regional_cache && steps.benchmark.outputs.logs != '' }}
+        with:
+          name: gradle-regional-benchmark-logs
+          path: |
+            ${{ steps.benchmark.outputs.logs }}/*.log
+            ${{ steps.benchmark.outputs.logs }}/*.csv
+            ${{ steps.benchmark.outputs.logs }}/environment.txt
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && inputs.measure_request_latency && steps.latency.outputs.logs != '' }}
+        with:
+          name: kura-request-latency
+          path: ${{ steps.latency.outputs.logs }}
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && inputs.compile_project }}
+        with:
+          name: gradle-real-cache-smoke
+          path: /__w/_temp/gradle-real-cache-smoke/*.log
+          if-no-files-found: error

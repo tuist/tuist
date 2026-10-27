@@ -32,9 +32,11 @@ network's eu-central zone works). On merge:
    network. The config holds the cluster's private keys, so it is never passed
    as Hetzner user data (readable by every pod on the node) and never leaves the
    cluster. The node joins etcd as a learner and registers with Kubernetes.
-3. The job waits until the node is Ready with stable control-plane pods and is a
-   voting etcd member, then joins the next node, then applies `patches/` to all
-   of them.
+3. The job waits until the node is Ready, checks DNS and pod HTTP in every
+   direction between the control-plane nodes, then requires stable
+   control-plane pods and a voting etcd member before joining the next node.
+   It applies `patches/` to all nodes, synchronizes the live Flannel arguments,
+   and checks private Flannel endpoints and pod networking again.
 
 Add nodes in pairs, so etcd keeps an odd number of members: two members need
 both to keep quorum, which tolerates no more failures than one. Removing a node
@@ -53,6 +55,13 @@ on exit, because every principal with cluster-wide secret read could use it.
 The Job applies with `--mode no-reboot`, one node at a time, and waits for
 the API server, the node, its control-plane pods and every Deployment to be
 healthy before the next node.
+
+Talos Jobs are pinned to an existing Ready control-plane member, also used as
+the source of a new node's config. A new member's broken pod network is checked
+by separate, credential-free probes rather than by scheduling the etcd query
+on that member. The health gate requires all three static control-plane pods
+and logs their UID, restart count and readiness when its stability window
+resets. A stable but unready pod cannot satisfy the window.
 
 Rules for a patch:
 
@@ -131,3 +140,141 @@ talosctl -n 100.92.208.109 -e 100.92.208.109 logs machined | grep OOM
 Raise a limit if the component's working set gets close to it
 (`container_memory_working_set_bytes{cluster="tuist-management", namespace="kube-system"}`).
 Crossing it means a kernel OOM kill of that one container.
+
+## Private Flannel traffic
+
+`patches/60-private-flannel.yaml` selects the interface used to reach Hetzner's
+private gateway, `10.0.0.1`. It explicitly names the Flannel CNI: adding only
+`flannel.extraArgs` to a config with the default CNI omitted fails validation.
+
+The machine-config patch is necessary for future bootstrap, but does not
+update an existing DaemonSet. Talos 1.13.0's
+[manifest controller](https://github.com/siderolabs/talos/blob/v1.13.0/internal/app/machined/pkg/controllers/k8s/manifest_apply.go)
+skips objects already in its inventory or already present in Kubernetes.
+After all node patches succeed, `reconcile-flannel.sh --apply` uses server-side
+apply to own only the `kube-flannel` container's arguments. The extra arguments
+come from the Talos patch; the two base arguments match Talos's manifest. It
+leaves the image, environment, mounts and security context with Talos.
+
+The script waits for rollout, requires every declared node's
+`flannel.alpha.coreos.com/public-ip` annotation to equal its `privateIP`, then
+runs `check-pod-network.sh`. The latter starts a temporary HTTP pod on each
+control-plane node and a client Job on each node. Every client must resolve
+`kubernetes.default.svc.cluster.local` and read the expected node identity from
+every server pod IP. This exercises both directions across each node pair,
+not just host networking or local pod traffic. Probes have no API token, run
+under the restricted Pod Security policy, have deadlines, and are deleted on
+exit. A failed check stops the Talos job before any further join.
+
+Changing the VXLAN interface briefly interrupts cross-node pod traffic while
+the DaemonSet rolls and peer endpoints converge. Keep the temporary public
+VXLAN firewall rule until the complete migration and network gate pass.
+The `hetzner` job precedes `talos`, so removing that rule there in the same
+rollout would close the working path too early.
+
+### Operator rollout and remaining HA work
+
+The [2026-10-26 Flannel deployment](https://github.com/tuist/tuist/actions/runs/40403476483)
+passed. A subsequent read-only check confirmed three Ready control-plane
+nodes advertising `10.0.1.11`, `10.0.1.12` and `10.0.1.13` for Flannel, caph
+at 2/2 replicas, all six webhook budgets allowing one disruption, no unhealthy
+pods and all seven workload Clusters Available. API targets still use public
+addresses until the follow-up private-target spec is deployed. The temporary
+UDP firewall exceptions have not been removed. Production mutations remain
+operator-run as specified in the handoff.
+
+1. Apply the reviewed Talos changes through the normal main-branch workflow.
+   Require private endpoint verification and the complete pod-network gate.
+   The workload step restores caph to two replicas and applies
+   `../controller-pdbs.yaml`, keeping at least one ready replica of each of the
+   six admission webhooks during voluntary eviction. Check both replicas and
+   `kubectl get pdb -A` before draining anything. Budgets do not protect against
+   node failures or direct Deployment rollouts.
+2. After the network gate passes, remove the temporary **UDP 8472 and UDP
+   4789** ingress rules from firewall `tuist-mgmt`, preserving the TCP API
+   rule and every unrelated rule. Re-run `check-pod-network.sh` afterwards.
+   Inspect the live rules with `hcloud firewall describe tuist-mgmt -o json`
+   and use their exact direction, protocol, port and source IPs when calling
+   `hcloud firewall delete-rule`. Firewall ownership is not yet declarative.
+3. The follow-up spec sets `loadBalancer.usePrivateIP: true`; deploy it only
+   after the preceding private Flannel rollout and network gate pass. The
+   reconciler reads fresh target health immediately before removing a target,
+   requires a different target healthy on every configured API port, and
+   waits up to five minutes for the switched target to recover before moving
+   on. A missing/unknown check is not healthy. If a switch fails, it stops
+   with the other targets in place; repair or revert that target before
+   retrying. After every private target is healthy and API writes through the
+   load balancer work, remove the nodes' public TCP 6443 firewall rule.
+4. Upgrade Talos from 1.13.0 to 1.13.11 one node at a time only after a current
+   etcd snapshot is verified and the webhook budgets/replicas are healthy.
+   Confirm the installed image's architecture and extension schematic before
+   choosing the installer. For each node, wait for Ready, all voting etcd
+   members, stable control-plane pods, private Flannel endpoints, the complete
+   pod-network gate and a healthy load-balancer target before the next node.
+   The upgrade and installer/snapshot selection are deliberately separate
+   from this network migration.
+5. Remove the old Tailscale rollback Secrets only after verifying their exact
+   names and lack of references. Migrate the etcd snapshot credential to the
+   ephemeral Talos ServiceAccount approach separately; it is still pinned to
+   the first node. Check that node's advertised etcd client URL after its
+   rolling restart. The original ten-minute join delay remains unexplained:
+   the current pod timestamps do not identify why earlier pods were replaced.
+   Use the stability-window reset logs on the next join rather than reducing
+   the safety window.
+
+If the Flannel migration fails, retain the public VXLAN exception. Restore
+the old DaemonSet arguments (`--ip-masq`, `--kube-subnet-mgr`) and roll it back
+to the working public path before retrying; revert the Talos extra arguments
+too so a later bootstrap does not reintroduce the failed selection. Do not
+remove firewall rules or begin an OS upgrade while the network gate fails.
+
+### Remove the temporary public VXLAN rules
+
+After the private network gate passes, the operator can remove the two exact
+rules verified on 2026-10-26. The management-project credential confines this
+to the intended project; the commands retain TCP 6443 and unrelated rules.
+Inspect the firewall first if its rules have changed since that verification.
+
+```bash
+op signin --account tuist.1password.com &&
+HCLOUD_TOKEN=op://tuist-k8s-mgmt-hetzner/hetzner-tuist-mgmt/credential \
+  CI=1 mise exec -- op run -- bash -eu -c '
+    for port in 8472 4789; do
+      hcloud firewall delete-rule tuist-mgmt --direction in --protocol udp \
+        --port "$port" \
+        --source-ips 178.105.79.109/32,91.99.129.8/32,167.235.133.98/32 \
+        --description "flannel VXLAN between mgmt nodes (temporary)"
+    done
+  '
+KUBECONFIG=~/.kube/tuist-mgmt.yaml CI=1 mise exec -- infra/mise/tasks/mgmt/check-pod-network.sh
+```
+
+### Validation
+
+Credential-free checks run in `mgmt-cluster-tests.yml`:
+
+```bash
+CI=1 mise exec -- infra/mise/tasks/mgmt/test-health.sh
+CI=1 mise exec -- node --test infra/mise/tasks/mgmt/test-hetzner.cjs
+CI=1 mise exec -- shellcheck infra/mise/tasks/mgmt/{test-health,check-pod-network,reconcile-flannel,reconcile-talos,reconcile-hetzner}.sh
+CI=1 mise exec -- actionlint .github/workflows/mgmt-cluster-{apply,tests}.yml
+```
+
+For integration testing, use an isolated Docker Talos 1.13.0 / Kubernetes
+1.36.5 cluster with two nodes and a second Docker network (`10.0.0.0/16`,
+gateway `10.0.0.1`). Attach its nodes at `10.0.1.11` and `10.0.1.12`. With a
+control-plane/worker test cluster, label the disposable worker
+`node-role.kubernetes.io/control-plane` so both participate in the probe;
+this tests pod networking, not multi-member etcd. Keep its kubeconfig and
+Talos credentials under gitignored `tmp/` and select that kubeconfig explicitly.
+`MGMT_TALOS_SPEC` can point `reconcile-flannel.sh` at a temporary spec containing
+the test node names/private IPs; the production default remains `hetzner.yaml`.
+
+The local test on 2026-10-26 applied the patch without rebooting, switched both
+Flannel annotations to the private addresses, passed DNS and HTTP in both
+directions, failed the gate after disconnecting one private Docker interface,
+and passed again after reconnection and a Flannel restart. A repeat reconciliation
+passed without changing the DaemonSet generation. All six PDB manifests passed
+server-side dry-run validation against that local Kubernetes API. Docker has no
+Hetzner firewall, so this does not validate live firewall removal, load-balancer
+switching or an OS upgrade.

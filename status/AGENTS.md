@@ -143,6 +143,8 @@ The response shape is `{ error, incidents: [...], cursor: { hasMore, nextValue }
 
 After filtering resolved incidents to the last 14 days, the client calls `KeyUpdatesService.QueryKeyUpdates` for every active and recent incident. These key updates supply the timestamped status-update timeline shown on the page and republished in the feeds. The incident summary remains a fallback for incidents without key updates. Key-update queries follow the same cursor limit as incident queries and are hydrated with at most five concurrent requests.
 
+When incidents are present, `StatusService.QueryOrgStatuses` supplies the mapping from each key update's historical `statusID` to its status. Updates without a known status ID fall back to their title, never the incident's current status.
+
 ## Severity Mapping
 
 Grafana Incident severity → component status (`severityToComponentStatus` in `grafana-irm.ts`):

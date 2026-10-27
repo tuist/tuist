@@ -30,3 +30,5 @@ This context owns ops reporting workers and the internal feature-flag control AP
 - Parent business logic: `server/lib/tuist/AGENTS.md`
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations: `server/priv/AGENTS.md`
+
+- `runner_linux_vrack` is an account-scoped, default-off dispatch flag. Initial rollout enrolls only Tuist after host cohort isolation; disabling affects new dispatch and does not remove routes or terminate recorded jobs.

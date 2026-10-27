@@ -1,0 +1,36 @@
+name: Mgmt Cluster Tests
+
+on:
+  pull_request:
+    paths:
+      - 'infra/mise/tasks/mgmt/**'
+      - 'infra/k8s/mgmt/talos/**'
+      - 'infra/k8s/mgmt/controller-*.yaml'
+      - '.github/workflows/mgmt-cluster-*.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/mise/tasks/mgmt/**'
+      - 'infra/k8s/mgmt/talos/**'
+      - 'infra/k8s/mgmt/controller-*.yaml'
+      - '.github/workflows/mgmt-cluster-*.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked node jq yq"
+          cache: "false"
+      - run: infra/mise/tasks/mgmt/test-health.sh
+      - run: node --test infra/mise/tasks/mgmt/test-hetzner.cjs
+      # These linters are not in the repository's mise.lock. Pin their
+      # versions explicitly instead of asking --locked to resolve them.
+      - run: CI=1 mise exec shellcheck@0.11.0 -- shellcheck infra/mise/tasks/mgmt/{test-health,check-pod-network,reconcile-flannel,reconcile-talos,reconcile-hetzner}.sh
+      - run: CI=1 mise exec actionlint@1.7.12 -- actionlint .github/workflows/mgmt-cluster-{apply,tests}.yml

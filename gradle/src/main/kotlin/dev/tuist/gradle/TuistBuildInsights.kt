@@ -292,6 +292,8 @@ abstract class TuistBuildInsightsService :
 
     override fun close() {
         val machineMetrics = downsample(machineMetricsService.finish(), maxCount = 3600)
+        if (executionTelemetry.tasks.isEmpty() && !executionTelemetry.failures.buildFailed) return
+
         val shouldUploadInBackground = uploadInBackground ?: parameters.backgroundUpload.getOrElse(!ciDetector.isCi())
         val observations = try {
             withoutMetadataInputTracking(objects.newInstance(MetricsInputTracking::class.java).state) {
@@ -524,15 +526,13 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
     private val logger = Logging.getLogger(TuistBuildInsightsPlugin::class.java)
 
     override fun apply(project: Project) {
-        if (project !== project.rootProject) return
-
         val config = TuistGradleConfig.from(project) ?: return
-        val gitInfo = project.providers.of(GitInfoValueSource::class.java) {}.get()
 
         val serviceProvider = project.gradle.sharedServices.registerIfAbsent(
             "tuistBuildInsights",
             TuistBuildInsightsService::class.java
         ) {
+            val gitInfo = project.providers.of(GitInfoValueSource::class.java) {}.get()
             parameters.machineMetrics.set(project.gradle.sharedServices.registerIfAbsent(
                 "tuistMachineMetrics",
                 TuistMachineMetricsService::class.java
@@ -541,8 +541,8 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
             config.project?.let { parameters.project.set(it) }
             parameters.useEnvironmentProxy.set(config.network.proxy)
             parameters.gradleVersion.set(project.gradle.gradleVersion)
-            parameters.rootProjectName.set(project.rootProject.name)
-            parameters.projectDir.set(project.rootProject.layout.projectDirectory)
+            parameters.rootProjectName.set(config.rootProjectName)
+            parameters.projectDir.set(project.rootDir)
             parameters.customTags.set(config.customMetadata.tags)
             parameters.customValues.set(config.customMetadata.values)
             parameters.gitBranch.set(gitInfo.branch())

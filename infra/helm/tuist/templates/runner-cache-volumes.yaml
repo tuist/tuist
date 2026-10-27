@@ -119,7 +119,21 @@ spec:
       {{- end }}
       nodeSelector:
         kubernetes.io/os: linux
+        {{- if not .Values.runnersFleetLinux.vrack.enabled }}
         node.cluster.x-k8s.io/pool: {{ include "tuist.runnersFleetLinuxName" . | quote }}
+        {{- end }}
+      {{- if .Values.runnersFleetLinux.vrack.enabled }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node.cluster.x-k8s.io/pool
+                    operator: In
+                    values:
+                      - {{ include "tuist.runnersFleetLinuxName" . | quote }}
+                      - {{ .Values.runnersFleetLinux.vrack.nodePool | quote }}
+      {{- end }}
       tolerations:
         - key: tuist.dev/runner-tier
           operator: Exists

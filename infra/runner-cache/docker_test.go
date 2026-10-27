@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/synctest"
 )
 
 func dockerSlot(id string) Slot {
@@ -359,6 +360,101 @@ func TestDockerDownloadsTheSavedHeadToMergeWith(t *testing.T) {
 	}
 	if remote.downloads != 1 || !sameFile(b.image(slot)+".merge", filepath.Join(path, DockerMergeImageName)) {
 		t.Fatalf("downloads = %d", remote.downloads)
+	}
+}
+
+type blockedDockerHeadTransfer struct {
+	*testTransfer
+	started chan struct{}
+	finish  chan error
+}
+
+func (d *blockedDockerHeadTransfer) Download(ctx context.Context, slot Slot, path string) error {
+	close(d.started)
+	select {
+	case err := <-d.finish:
+		if err != nil {
+			return err
+		}
+		return d.testTransfer.Download(ctx, slot, path)
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func TestDockerMergeWaitsForPrefetchedHead(t *testing.T) {
+	for _, outcome := range []string{"success", "download failure", "waiter canceled"} {
+		t.Run(outcome, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				b, remote := newLocal(t)
+				slot := dockerSlot(first)
+				path := attachDocker(t, b, slot)
+				head := savedDockerHead(2)
+				saved := slot
+				saved.BaseGeneration, saved.ImageDigest, saved.ContentDigest = head.BaseGeneration, head.ImageDigest, head.ContentDigest
+				remote.source = filepath.Join(t.TempDir(), "head.img")
+				writeSuperblock(t, remote.source, 1, 0, 0)
+				download := &blockedDockerHeadTransfer{testTransfer: remote, started: make(chan struct{}), finish: make(chan error, 1)}
+				b.Transfer = download
+				fetchCtx, stopFetch := context.WithCancel(context.Background())
+				defer stopFetch()
+				fetched := make(chan error, 1)
+				go func() { fetched <- b.Prefetch(fetchCtx, saved) }()
+				<-download.started
+
+				mergeCtx, cancelMerge := context.WithCancel(context.Background())
+				defer cancelMerge()
+				exposed := make(chan error, 1)
+				go func() { exposed <- b.ExposeDockerHead(mergeCtx, slot, path, head) }()
+				synctest.Wait()
+				select {
+				case err := <-exposed:
+					t.Fatalf("merge returned before the background download finished: %v", err)
+				default:
+				}
+
+				link := filepath.Join(path, DockerMergeImageName)
+				if outcome == "waiter canceled" {
+					cancelMerge()
+					if err := <-exposed; !errors.Is(err, context.Canceled) {
+						t.Fatalf("canceled merge: %v", err)
+					}
+					if _, err := os.Stat(link); !os.IsNotExist(err) {
+						t.Fatalf("canceled merge exposed a head: %v", err)
+					}
+				}
+				var fetchErr error
+				if outcome == "download failure" {
+					fetchErr = errors.New("head download failed")
+				}
+				download.finish <- fetchErr
+				if err := <-fetched; !errors.Is(err, fetchErr) {
+					t.Fatalf("prefetch: %v, want %v", err, fetchErr)
+				}
+				if outcome != "waiter canceled" {
+					if err := <-exposed; !errors.Is(err, fetchErr) {
+						t.Fatalf("merge: %v, want %v", err, fetchErr)
+					}
+				}
+				if fetchErr != nil {
+					if b.HasMaster(saved.Identity) {
+						t.Fatal("failed download installed a master")
+					}
+					if _, err := os.Stat(link); !os.IsNotExist(err) {
+						t.Fatalf("failed download exposed a head: %v", err)
+					}
+				}
+				// A failed fetch can be retried, and a canceled waiter leaves the
+				// background fetch available for the next merge request.
+				b.Transfer = remote
+				if err := b.ExposeDockerHead(context.Background(), slot, path, head); err != nil {
+					t.Fatalf("retry merge: %v", err)
+				}
+				if remote.downloads != 1 || !b.HasMaster(saved.Identity) || !sameFile(b.image(slot)+".merge", link) || sameFile(b.master(saved), link) {
+					t.Fatalf("expected one completed download and a private merge clone; downloads = %d", remote.downloads)
+				}
+			})
+		})
 	}
 }
 

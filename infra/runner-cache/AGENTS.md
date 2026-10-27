@@ -45,6 +45,14 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Archives store only non-zero data extents (`SEEK_DATA`/`SEEK_HOLE`) in zstd so
   save and restore cost scales with data, not the logical image size. Restore
   must keep accepting legacy full-image gzip masters until they age out.
+- Archive downloads, compression and both restoration formats flush every 16 MiB
+  written, in addition to their final sync. Dirty filesystem pages count toward
+  the Linux agent's 512 MiB memory limit: a production merge download was OOM-killed
+  with about 439 MiB dirty or in writeback and only 55 MiB anonymous memory.
+  Preserve this per-stream writeback bound, including across sparse extents;
+  never let `io.Copy` use a file's `ReadFrom` to bypass it. A resumed download
+  syncs its existing prefix before adding bytes. Write or sync errors stop the
+  stream and must prevent publication; this does not bound other processes' I/O.
 - Reconcile generation/digest master sidecars against HEAD and evict stale or
   idle masters. Preserve os.Root cleanup and no-follow Linux mount operations.
 
@@ -207,6 +215,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - `prefetch` and refreshes download into
   `staging/<scope>-<generation>-<content digest>.img` and take the scope lock only
   to install (`fetchMaster`), one download per staging name at a time;
+  background callers leave an active fetch alone. A Docker merge sets `wait`
+  to await its installation result or its own context ending. Canceling a
+  waiter does not cancel the download it joined. Only the installing caller
+  runs its installation callback.
   `maintainMaster` asks for the HEAD before taking it. Never hold a scope lock
   across a network call: APFS jobs clone under that lock. With `Replace` set, maintenance keeps a superseded master
   used in the last day while its successor is queued, instead of removing it.
@@ -314,8 +326,10 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - A Docker branch whose lineage another job saved since it was mounted is merged,
   not lost: `ExposeDockerHead` clones that head (downloading it when this host
   lacks it) next to the branch as `.merge`, records it in `.merge.json` and links
-  it into the pod's directory as `head.img`; the guest loads the images only one
-  side keeps into the other. A report naming `merged_generation` and
+  it into the pod's directory as `head.img`. If a prefetch or refresh is already
+  downloading the head, the offer waits for installation before cloning; it
+  must not treat an in-flight download as an available master. The guest loads
+  the images only one side keeps into the other. A report naming `merged_generation` and
   `merged_into` (`sealDockerMerge`) must name the head this host offered; a
   merge into `head` renames the clone over the branch after the same inode and
   superblock checks, then the use is rebased on the server (`Rebaser`, the
