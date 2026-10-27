@@ -45,6 +45,10 @@ defmodule Tuist.Kura.VolumeKeysTest do
       {:ok, key} = VolumeKeys.ensure_active_key(account)
       stub(Environment, :kura_volume_root_keys, fn -> [{"root-b", :crypto.strong_rand_bytes(32)}] end)
       assert {:error, :unknown_root_key} = VolumeKeys.rewrap_key(key.id, {"tuist_root", "root-b"})
+
+      assert {:error, %{reason: :unknown_root_key, progress: %{processed: 0, after_id: nil, done: false}}} =
+               Rotation.batch({"tuist_root", "root-b"})
+
       assert Repo.reload!(key).shares == key.shares
     end
 

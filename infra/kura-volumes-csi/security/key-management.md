@@ -15,6 +15,33 @@ ValidatingAdmissionPolicies or update ClusterRoles. Those objects require the
 normal reviewed deployment workflow. OIDC discovery through that identity was
 also forbidden, so public federation readiness remains unverified.
 
+## Staging admission rollout
+
+The [chart-only deployment](https://github.com/tuist/tuist/actions/runs/40479579902)
+completed successfully on October 27. Integration commit
+`1457e5a1ef5365a8b26ca9af15be79b392dc9193` starts from staging's deployed
+`130e8af72995f9e70dcf50fa3e52690eed5c1fdf`, preserving the newer KVM work.
+Server/runtime/controller/CSI and other component images stayed pinned to their
+previous values; KMS stayed disabled. The live CSI ClusterRole now has only
+read verbs on PVCs; the new `kura` Role grants their updates/events.
+
+A disposable **1 GiB diagnostic, unencrypted LVM** claim on Paris exercised the
+real provisioner's node selection, PV creation, mount, write/sync/read, unstage
+and deletion under the policies. The marker read back correctly and the PV was
+reclaimed through normal CSI deletion. Pod/PVC/PV fixtures were removed. All
+**12 existing Kura pods** retained their UID and readiness; CSI stayed **3/3
+Ready**. No CSI authorization/capacity errors appeared in the checked ten-minute
+log window. This confirms the normal provisioner lifecycle, not live KMS or
+another encrypted-data migration. Adversarial rejection cases and policy
+compilation were verified on the disposable local API server; the human staging
+identity cannot read admission-policy status directly. No privileged test role
+was installed on staging.
+
+The source-code rewrap fixes and KMS provider were tested locally; this
+chart-only rollout intentionally kept the server on `sha-ef07ca13e38d` and did
+not activate those modules. KMS migration, token refresh, CloudTrail and actual
+backup restore gates remain pending AWS access/federation setup.
+
 ## Custody
 
 `server.config.kuraVolumeKMS` enables a dedicated AWS KMS key ARN and workload
@@ -219,4 +246,4 @@ kind delete cluster --name kura-key-security
 The admission test deliberately grants its local fixture identity cluster-admin
 so admission must independently reject attacks. It refuses other context names
 and removes its temporary token file. Never install that test role on staging
-or production. Hosted activation and the AWS recovery/audit drill remain gates.
+or production. KMS activation and the AWS recovery/audit drill remain gates; the CSI chart rollout is recorded above.
