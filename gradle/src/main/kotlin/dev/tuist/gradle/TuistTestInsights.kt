@@ -646,7 +646,6 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
 
     override fun apply(project: Project) {
         val config = TuistGradleConfig.from(project) ?: return
-        val gitInfo = project.providers.of(GitInfoValueSource::class.java) {}.get()
         @Suppress("UNCHECKED_CAST")
         val buildServiceProvider = project.gradle.sharedServices.registrations
             .findByName("tuistBuildInsights")?.service as? Provider<TuistBuildInsightsService>
@@ -655,6 +654,7 @@ internal abstract class TuistTestInsightsPlugin @Inject constructor() : Plugin<P
             "tuistTestInsights",
             TuistTestInsightsService::class.java
         ) {
+            val gitInfo = project.providers.of(GitInfoValueSource::class.java) {}.get()
             parameters.url.set(config.url)
             config.project?.let { parameters.project.set(it) }
             parameters.useEnvironmentProxy.set(config.network.proxy)

@@ -527,12 +527,12 @@ internal abstract class TuistBuildInsightsPlugin @Inject constructor(
 
     override fun apply(project: Project) {
         val config = TuistGradleConfig.from(project) ?: return
-        val gitInfo = project.providers.of(GitInfoValueSource::class.java) {}.get()
 
         val serviceProvider = project.gradle.sharedServices.registerIfAbsent(
             "tuistBuildInsights",
             TuistBuildInsightsService::class.java
         ) {
+            val gitInfo = project.providers.of(GitInfoValueSource::class.java) {}.get()
             parameters.machineMetrics.set(project.gradle.sharedServices.registerIfAbsent(
                 "tuistMachineMetrics",
                 TuistMachineMetricsService::class.java
