@@ -989,15 +989,16 @@ defmodule Tuist.Kura.CapacityTest do
       stub_pool([pool_box("box-1", allocatable: %{"ephemeral-storage" => "100Gi"})])
       memoize_key_value_store()
 
-      assert Capacity.admission_headroom_gib(region) == 85
+      assert Capacity.admission_headroom_gib(region) == 90
 
       # Two Enterprise instances are created inside the minute. Measured again,
-      # they would leave 21 GiB, too little for a third. Both readings keep the
+      # they would leave 26 GiB, too little for a third. Both readings keep the
       # first measurement, so the metric reports what placement acted on.
       instance(account(:enterprise), :provisioning)
       instance(account(:enterprise), :provisioning)
 
-      assert Capacity.admission_headroom_gib(region) == 85
+      assert Admission.headroom_gib(region) == 26
+      assert Capacity.admission_headroom_gib(region) == 90
       assert Capacity.room_for?(@region, :enterprise) == true
     end
 
