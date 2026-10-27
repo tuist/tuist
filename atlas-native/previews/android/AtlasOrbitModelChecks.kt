@@ -60,14 +60,16 @@ internal fun checkOrbitModel() {
     model.setActive(true)
     model.open()
     model.load()
-    take("open").second(Result.success(JSONObject("""{"connection":"handle"}""")))
+    take("open").second(Result.success(JSONObject().put("connection", "handle").put("snapshot", snapshot(1).put("cached", true))))
+    check(model.snapshot.cached && model.snapshot.threads.size == 2)
     val active = take("request", "active")
     check(active.first.getJSONObject("command").getBoolean("active") && active.first.getString("connection") == "handle")
     val load = take("request", "load")
     check(pending.none { it.first.optJSONObject("command")?.getString("action") == "load" })
     val wait = take("next")
-    check(wait.first.getLong("after") == 0L)
+    check(wait.first.getLong("after") == 1L)
     load.second(Result.success(snapshot(2)))
+    check(!model.snapshot.cached)
     check(
         model.snapshot.privateThread?.id == PRIVATE && model.snapshot.shared
             .single()

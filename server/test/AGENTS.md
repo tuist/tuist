@@ -154,3 +154,5 @@
 - Linux runner tests preserve shared profile/legacy pool selection across accounts and direct regional Kura endpoint selection. Helm checks preserve one runner cohort with no relay or account-path configuration.
 
 - SSO switch regressions use `existing_sso_configuration` to seed already-enabled policies without writing the removed compatibility column. Historical migration tests recreate the old column only inside serialized sandbox transactions; the drop migration is tested against a connection-local temporary table. Cover member-only discovery, linked sign-in/enforcement, denied unverified enrollment/account creation, signed-in link confirmation, editable saved policies, and materialization of implicit memberships without overwriting explicit roles.
+
+- Saved-cache chart regressions must distinguish the published head from retained job copies, preserve unknown sizes, cover clear/expiry/capacity reset and stale/retried publication, and retain a range baseline after history pruning. Verify account scoping and transaction rollback with PostgreSQL; render the selectable Used space widget and byte chart separately from activity charts.

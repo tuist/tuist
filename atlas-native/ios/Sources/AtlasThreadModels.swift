@@ -119,6 +119,11 @@ struct AtlasOrbitAssistant: Decodable {
 }
 
 extension AtlasOrbit {
+    struct Opened: Decodable {
+        let connection: String
+        let snapshot: Snapshot?
+    }
+
     struct Viewer: Decodable, Identifiable {
         let id: String
         let name: String
@@ -126,6 +131,7 @@ extension AtlasOrbit {
     }
     struct Snapshot: Decodable {
         let sequence: UInt64
+        let cached: Bool?
         let assistant: AtlasOrbitAssistant?
         let threads: [AtlasThread]
         let selected: AtlasThread?

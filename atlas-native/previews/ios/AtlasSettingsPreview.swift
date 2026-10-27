@@ -12,6 +12,19 @@ struct AtlasSettingsPreview: App {
     @StateObject private var presence = AtlasPresencePreviewData()
     @StateObject private var navigation = AtlasNavigation()
     @StateObject private var notifications = AtlasPushNotifications()
+    @StateObject private var connections = AtlasConnections(request: { action in
+        if action["action"] as? String == "list" {
+            return Data("""
+            {"connections":[{"provider":"github","name":"GitHub","configured":true,
+            "account_name":null,"status":"not_connected"},
+            {"provider":"slack","name":"Slack","configured":true,
+            "account_name":"Demo teammate · Demo workspace","status":"connected"},
+            {"provider":"google","name":"Google","configured":true,
+            "account_name":"demo@example.org","status":"needs_authorization"}]}
+            """.utf8)
+        }
+        throw AtlasAuthenticationError(kind: "preview", message: "Preview only. No accounts are changed.")
+    }, authorize: { _ in nil })
     @StateObject private var appearance = AtlasAppearance(request: { action in
         if action["operation"] as? String == "themes" {
             if ProcessInfo.processInfo.arguments.contains("--old-server") { throw CancellationError() }
@@ -69,17 +82,19 @@ struct AtlasSettingsPreview: App {
                                        orbitRequest: threads.request, orbitLocalRequest: threads.local, presence: presence.model,
                                        navigation: navigation) {
                         AtlasSettingsView(server: previewServer, accounts: accounts,
-                                          signOut: {}, profileRequest: business.request)
+                                          signOut: {}, profileRequest: business.request, connections: connections)
                     }
                 } else {
                     NavigationStack {
-                        if ProcessInfo.processInfo.arguments.contains("--time-off") {
+                        if ProcessInfo.processInfo.arguments.contains("--connections") {
+                            AtlasConnectionsView(model: connections)
+                        } else if ProcessInfo.processInfo.arguments.contains("--time-off") {
                             AtlasTimeOffView(
                                 title: AtlasCore.sections().first(where: { $0.screen == "time-off" })!.title,
                                 request: holidays.request
                             )
                         } else {
-                            AtlasSettingsView(server: previewServer, accounts: accounts, signOut: {})
+                            AtlasSettingsView(server: previewServer, accounts: accounts, signOut: {}, connections: connections)
                         }
                     }
                 }

@@ -1,30 +1,9 @@
-import AtlasAuthFFI
 import AuthenticationServices
 import Foundation
 import SwiftUI
 
-struct AtlasAuthenticationError: LocalizedError {
-    let kind: String
-    let message: String
-    var errorDescription: String? { message }
-}
-
 enum AtlasLoginProvider: String {
     case google
-}
-
-enum AtlasAuthBridge {
-    static func execute(_ input: String) async throws -> String {
-        try await Task.detached(priority: .userInitiated) {
-            try input.withCString { pointer in
-                guard let result = atlas_auth_execute(pointer) else {
-                    throw AtlasAuthenticationError(kind: "internal", message: "Could not complete sign-in.")
-                }
-                defer { atlas_auth_free(result) }
-                return String(cString: result)
-            }
-        }.value
-    }
 }
 
 @MainActor
@@ -37,6 +16,7 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
     private var browser: ASWebAuthenticationSession?
     private var apiWaiters: [CheckedContinuation<Void, Never>] = []
     private var accountModel: AtlasAIAccounts?
+    private var connectionsModel: AtlasConnections?
     private var presenceModel: AtlasPresence?
     @Published private(set) var sharedItems: AtlasSharedItems?
     private var sessionIdentity = UUID()
@@ -71,18 +51,37 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         return model
     }
 
+    var connectionSettings: AtlasConnections {
+        if let connectionsModel { return connectionsModel }
+        let identity = sessionIdentity
+        let model = AtlasConnections(request: authenticatedRequest(operation: "connections")) { [weak self] url in
+            guard let self, self.server != nil, self.sessionIdentity == identity, self.browser == nil else {
+                throw CancellationError()
+            }
+            defer { self.browser = nil }
+            let callback = try await self.authenticate(url)
+            guard self.sessionIdentity == identity else { throw CancellationError() }
+            return callback
+        }
+        connectionsModel = model
+        return model
+    }
+
     func restore() async {
         guard !busy, server == nil else { return }
         busy = true
-        defer { busy = false }
+        defer { releaseAPI() }
         do {
             guard let session = try AtlasSecureStorage.load("session") else { return }
-            let restored = try await command(["operation": "restore", "session": try object(session)])
+            let local = try await command(["operation": "bootstrap", "session": try object(session)])
+            // Persist the namespace before rendering; protected requests still wait for rotation.
+            try accept(local)
+            let restored = try await command(["operation": "restore", "session": local])
             try accept(restored)
         } catch {
             if let failure = error as? AtlasAuthenticationError, failure.kind == "rejected" {
                 do {
-                    try discardSession(removeRegistration: true)
+                    try await discardSession(removeRegistration: true)
                 } catch { errorMessage = error.localizedDescription }
             }
             errorMessage = error.localizedDescription
@@ -128,16 +127,19 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
             await acquireAPI()
             defer { releaseAPI() }
             do {
-                try discardSession()
+                try await discardSession()
                 errorMessage = nil
             } catch { errorMessage = error.localizedDescription }
         }
     }
 
-    private func discardSession(removeRegistration: Bool = false) throws {
+    private func discardSession(removeRegistration: Bool = false) async throws {
         var origin = server?.absoluteString
+        sessionIdentity = UUID()
+        server = nil
         if let saved = try? AtlasSecureStorage.load("session"), let session = try? object(saved) {
             origin = (session["registration"] as? [String: Any])?["server"] as? String ?? origin
+            _ = try? await command(["operation": "forget_cache", "session": session, "directory": AtlasSecureStorage.readCacheURL.path])
         }
         pushNotifications.prepareForSessionEnd(origin: origin)
         liveActivity.invalidate()
@@ -149,9 +151,11 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         try AtlasSecureStorage.delete("session")
         presenceModel?.setActive(false)
         presenceModel = nil
-        server = nil
+        connectionsModel?.invalidate()
+        connectionsModel = nil
+        browser?.cancel()
+        browser = nil
         accountModel = nil
-        sessionIdentity = UUID()
         if removeRegistration { try AtlasSecureStorage.delete("registration") }
     }
 
@@ -186,7 +190,7 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
             return try JSONSerialization.data(withJSONObject: response)
         } catch let failure as AtlasAuthenticationError where failure.kind == "rejected" {
             errorMessage = failure.message
-            do { try discardSession(removeRegistration: true) } catch { errorMessage = error.localizedDescription }
+            do { try await discardSession(removeRegistration: true) } catch { errorMessage = error.localizedDescription }
             throw failure
         }
     }
@@ -231,12 +235,15 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
             guard let self, self.server != nil, self.sessionIdentity == identity else {
                 throw AtlasAuthenticationError(kind: "sign_in_required", message: "Sign in to Atlas again.")
             }
-            let session = try await self.apiSession(identity: identity)
+            let localOpen = operation == "orbit_session" && action["action"] as? String == "open"
+            let saved = try (localOpen ? AtlasSecureStorage.load("session") : nil)
+            let session = if let saved { try self.object(saved) } else { try await self.apiSession(identity: identity) }
             try Task.checkCancellation()
             guard self.sessionIdentity == identity else { throw CancellationError() }
             var request = action
             request["operation"] = operation
             request["session"] = session
+            if localOpen { request["cache_directory"] = await AtlasSecureStorage.prepareReadCache() }
             let response = try await self.command(request)
             guard self.sessionIdentity == identity else {
                 if ["presence", "orbit_session"].contains(operation), let connection = response["connection"] as? String {
@@ -259,7 +266,7 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
             try accept(restored)
             return restored
         } catch let failure as AtlasAuthenticationError where failure.kind == "rejected" {
-            try discardSession(removeRegistration: true)
+            try await discardSession(removeRegistration: true)
             throw failure
         }
     }

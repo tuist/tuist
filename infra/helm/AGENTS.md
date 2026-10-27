@@ -281,3 +281,5 @@ Cluster formation requires a stable shared cookie Secret, a fixed distribution l
   shared capacity and enrollment with `helm/linux-vrack.sh`.
 
 - The immutable `kura-thin-encrypted-nvme` class requires thin topology. Thin opt-in is per node through `/data/kura-volumes/thin-pool.json` plus a restart of that node's CSI pod. Global `kuraVolumesCSI.thin` overrides are for homogeneous prepared deployments; leave them empty for mixed fleets. `podInfoOnMount` supplies the UID needed to fence grant operations. See `../kura-volumes-csi/thin/interface.md`.
+
+- Managed Linux pools inherit KVM through `runnersFleetLinux.nestedVirtualization.defaultEnabled`; false rolls idle runners back without removing host prerequisites. Device allocations follow each Node’s Pod capacity. Validate defaults, rollback revisions and the preparation gate with `bash infra/mise/tasks/helm/nested-kvm.sh`.
