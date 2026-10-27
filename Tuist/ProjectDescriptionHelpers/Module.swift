@@ -1688,6 +1688,16 @@ public enum Module: String, CaseIterable {
                 []
             case .reapi:
                 [
+                    .target(name: Module.testSupport.targetName),
+                    .external(name: "FileSystem"),
+                    .external(name: "Path"),
+                    .external(name: "FileSystemTesting"),
+                    .target(name: Module.http.targetName),
+                    .target(name: Module.environment.targetName),
+                    .external(name: "NIOSSL"),
+                    .external(name: "NIOCore"),
+                    .external(name: "NIOPosix"),
+                    .external(name: "NIOTLS"),
                     .target(name: Module.environmentTesting.targetName),
                     .external(name: "GRPCCore"),
                     .external(name: "GRPCNIOTransportHTTP2"),
