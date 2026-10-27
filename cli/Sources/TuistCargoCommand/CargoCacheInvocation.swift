@@ -2,7 +2,7 @@ import Foundation
 import Path
 import TuistREAPI
 
-struct CargoCacheInvocation {
+struct CargoCacheInvocation: CargoCacheAction {
     let arguments: [String]
     let environment: [String: String]
     let directory: AbsolutePath
@@ -13,10 +13,13 @@ struct CargoCacheInvocation {
     let output: URL
     let name: String
     let files: [String]
-    let key: REAPI.Digest
+    var key: REAPI.Digest
     let inputHasher: CargoInputHasher
+    var compilerInputs: CargoCacheInputs?
 
-    static let keyVersion = "tuist-swift-cargo-cache-v2"
+    static let keyVersion = "tuist-swift-cargo-cache-v4"
+    var cacheVersion: String { Self.keyVersion }
+    var kind: String { "rust" }
     static let ignoredEnvironment = Set([
         "RUSTC_WRAPPER", "CARGO_BUILD_RUSTC_WRAPPER", "CARGO_MAKEFLAGS", "MAKEFLAGS", "MFLAGS", "CI",
         "SHLVL", "OLDPWD", "_", "TERM_SESSION_ID", "INVOCATION_ID",
@@ -30,13 +33,18 @@ struct CargoCacheInvocation {
     ) async throws -> CargoCacheInvocation? {
         guard environment["TUIST_CARGO_CACHE_DIR"] != nil,
               environment["TUIST_CARGO_INNER_WRAPPER"] == nil,
-              environment["OUT_DIR"] == nil,
               environment["RUSTC_WORKSPACE_WRAPPER"].map(\.isEmpty) ?? true,
+              !environment.keys.contains(where: { $0.hasPrefix("LD_") || $0.hasPrefix("DYLD_") }),
+              !arguments.contains(where: { argument in
+                  argument.hasPrefix("-") && !argument.hasPrefix("--") && argument.count > 2
+                      && !["-C", "-L", "-A", "-W", "-D", "-F"].contains(where: argument.hasPrefix)
+              }),
               !arguments.contains(where: {
-                  $0.hasPrefix("@") || $0.hasPrefix("-Z") || $0.hasPrefix("--extern")
+                  $0.hasPrefix("@") || $0.hasPrefix("-Z")
                       || $0.hasPrefix("--print") || $0.hasPrefix("--remap-path-prefix")
                       || $0.hasPrefix("--sysroot") || $0.hasPrefix("--target")
-                      || $0 == "--test" || $0 == "-o"
+                      || $0.hasPrefix("--codegen") || $0.hasPrefix("--library-path")
+                      || $0.hasPrefix("-l") || $0.hasPrefix("-o") || $0 == "--test"
               }),
               let executable = arguments.first, URL(fileURLWithPath: executable).lastPathComponent == "rustc",
               let manifest = environment["CARGO_MANIFEST_DIR"],
@@ -71,9 +79,12 @@ struct CargoCacheInvocation {
         let cargoHome = URL(fileURLWithPath: environment["CARGO_HOME"] ?? FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".cargo").path)
         let registry = cargoHome.appendingPathComponent("registry/src").standardizedFileURL
-        guard package.deletingLastPathComponent().deletingLastPathComponent() == registry,
-              URL(fileURLWithPath: source, relativeTo: URL(fileURLWithPath: directory.pathString)).standardizedFileURL.path
-              .hasPrefix(package.path + "/") else { return nil }
+        guard CargoCacheInputs.values("--extern", in: arguments).allSatisfy({
+            let parts = $0.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            return parts.count == 2 && ["rlib", "rmeta"].contains(URL(fileURLWithPath: String(parts[1])).pathExtension)
+        }) else { throw CacheError.unsupported }
+        let inputHasher = CargoInputHasher(sessionDirectory: environment["TUIST_CARGO_SESSION"]
+            .map { URL(fileURLWithPath: $0) })
         let sysroot = try await process.capture(
             executable, arguments: ["--print", "sysroot"], environment: environment, directory: directory
         ).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -86,18 +97,34 @@ struct CargoCacheInvocation {
                   launcher == resolve("rustup", environment: environment, directory: directory) else { return nil }
         }
         let files = ["lib\(name)\(suffix).rlib", "lib\(name)\(suffix).rmeta", "\(name)\(suffix).d"]
-        let candidate = CargoCacheInvocation(
+        var candidate = CargoCacheInvocation(
             arguments: arguments, environment: environment, directory: directory, package: package,
             compiler: compiler, launcher: launcher, toolchain: toolchain,
             output: URL(fileURLWithPath: out).standardizedFileURL,
             name: name, files: files, key: REAPI.emptyBlob,
-            inputHasher: CargoInputHasher(sessionDirectory: environment["TUIST_CARGO_SESSION"].map { URL(fileURLWithPath: $0) })
+            inputHasher: inputHasher,
+            compilerInputs: nil
         )
-        return CargoCacheInvocation(
-            arguments: arguments, environment: environment, directory: directory, package: package,
-            compiler: compiler, launcher: launcher, toolchain: toolchain, output: candidate.output, name: name, files: files,
-            key: try candidate.fingerprint(), inputHasher: candidate.inputHasher
+        if environment["OUT_DIR"] == nil,
+           CargoCacheInputs.values("--extern", in: arguments).isEmpty,
+           searches.allSatisfy({ $0.hasPrefix("dependency=") }),
+           package.deletingLastPathComponent().deletingLastPathComponent() == registry,
+           URL(fileURLWithPath: source, relativeTo: URL(fileURLWithPath: directory.pathString)).standardizedFileURL.path
+           .hasPrefix(package.path + "/"),
+           let key = try? candidate.fingerprint()
+        {
+            candidate.key = key
+            return candidate
+        }
+        let rootSource = URL(fileURLWithPath: source, relativeTo: URL(fileURLWithPath: directory.pathString))
+            .standardizedFileURL
+        _ = try candidate.inputHasher.sourceDigest(rootSource, validate: validateSource)
+        candidate.compilerInputs = try await CargoCacheInputs.discover(
+            arguments: arguments, environment: environment, directory: directory,
+            inputHasher: candidate.inputHasher, process: process
         )
+        candidate.key = try candidate.fingerprint()
+        return candidate
     }
 
     func fingerprint() throws -> REAPI.Digest {
@@ -105,13 +132,35 @@ struct CargoCacheInvocation {
         inputs += keyArguments
         inputs += environment.sorted { $0.key < $1.key }.filter { !Self.isIgnored($0.key) }.map { "\($0.key)=\($0.value)" }
         var budget = 2_000_000_000
-        inputs += try snapshot(package, budget: &budget, inspectSources: true)
-        inputs += try snapshot(toolchain.appendingPathComponent("lib"), budget: &budget)
+        if let compilerInputs {
+            for file in compilerInputs.sources {
+                let digest = try inputHasher.sourceDigest(file, validate: Self.validateSource)
+                inputs += [file.path, digest.hash, String(digest.sizeBytes)]
+            }
+            for file in compilerInputs.externs {
+                let digest = try inputHasher.digest(file, shared: true)
+                try CargoCacheInputs.validateDependency(file, digest: digest, environment: environment)
+                inputs += [file.path, digest.hash, String(digest.sizeBytes)]
+            }
+        } else {
+            inputs += try snapshot(package, budget: &budget, inspectSources: true)
+        }
+        let libraries = toolchain.appendingPathComponent("lib")
+        inputs += try inputHasher.withSharedDigests(under: libraries) {
+            try snapshot(libraries, budget: &budget)
+        }
         for executable in Set([compiler.resolvingSymlinksInPath(), launcher]).sorted(by: { $0.path < $1.path }) {
             let digest = try inputHasher.digest(executable, shared: true)
             inputs += [executable.path, digest.hash, String(digest.sizeBytes)]
         }
         return REAPI.digest(try JSONEncoder().encode(inputs))
+    }
+
+    private static func validateSource(_ data: Data) throws {
+        if let text = String(data: data, encoding: .utf8), text.range(
+            of: "\\b(asm|global_asm|naked_asm|link|link_args|concat_idents|macro_metavar_expr_concat)\\b|\\$\\s*\\{\\s*concat\\b",
+            options: .regularExpression
+        ) != nil { throw CacheError.unsupported }
     }
 
     func acceptsOutput(_ file: String) -> Bool {
@@ -152,15 +201,41 @@ struct CargoCacheInvocation {
             throw CacheError.unsupported
         }
         let text = try String(contentsOf: path, encoding: .utf8)
-        guard !text.split(separator: "\n").contains(where: { line in
-            guard line.hasPrefix("# env-dep:") else { return false }
-            return Self.isIgnored(String(line.dropFirst(10).prefix { $0 != "=" }))
-        }) else { throw CacheError.unsupported }
+        try Self.validateEnvironmentDependencies(text)
         let dependencies = try Self.dependencies(text)
+        if let compilerInputs {
+            let sources = Set(dependencies.map {
+                URL(fileURLWithPath: $0, relativeTo: URL(fileURLWithPath: directory.pathString)).standardizedFileURL
+            })
+            guard sources == Set(compilerInputs.sources) else { throw CacheError.unsupported }
+            return
+        }
         guard !dependencies.isEmpty, dependencies.allSatisfy({ dependency in
             let file = URL(fileURLWithPath: dependency, relativeTo: URL(fileURLWithPath: directory.pathString))
                 .standardizedFileURL
             return file.path.hasPrefix(package.path + "/")
+        }) else { throw CacheError.unsupported }
+    }
+
+    func validateDependencies(restoring: Bool) async throws {
+        if !restoring { try validateDependencies() }
+    }
+
+    func certifyOutputs(metadataOnly: Bool = false) throws {
+        try validateDependencies()
+        guard try fingerprint() == key else { throw CacheError.unsupported }
+        for name in metadataOnly ? [files[1]] : Array(files.prefix(2)) {
+            let digest = try inputHasher.digest(output.appendingPathComponent(name), shared: true)
+            guard let proof = CargoCacheInputs.proofPath(digest, environment: environment) else { continue }
+            try FileManager.default.createDirectory(at: proof.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(Self.keyVersion.utf8).write(to: proof, options: .atomic)
+        }
+    }
+
+    static func validateEnvironmentDependencies(_ text: String) throws {
+        guard !text.split(separator: "\n").contains(where: { line in
+            guard line.hasPrefix("# env-dep:") else { return false }
+            return isIgnored(String(line.dropFirst(10).prefix { $0 != "=" }))
         }) else { throw CacheError.unsupported }
     }
 
@@ -220,8 +295,9 @@ struct CargoCacheInvocation {
                 files.append((target, try inputHasher.digest(target, shared: true)))
             }
             if properties.isDirectory == true { continue }
-            let content = file.resolvingSymlinksInPath()
-            let regular = try content.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+            let content = properties.isSymbolicLink == true ? file.resolvingSymlinksInPath() : file
+            let regular = properties.isSymbolicLink == true
+                ? try content.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]) : properties
             guard files.count < 10000, regular.isRegularFile == true, let size = regular.fileSize,
                   size <= budget else { throw CacheError.unsupported }
             budget -= size
@@ -230,7 +306,7 @@ struct CargoCacheInvocation {
                 guard size <= 2_000_000 else { throw CacheError.unsupported }
                 digest = try inputHasher.sourceDigest(content) { data in
                     guard let text = String(data: data, encoding: .utf8), text.range(
-                        of: "\\b(asm|global_asm|link|link_args|extern|include|concat|concat_idents)\\b",
+                        of: "\\b(asm|global_asm|naked_asm|link|link_args|extern|include|concat|concat_idents)\\b",
                         options: .regularExpression
                     ) == nil else { throw CacheError.unsupported }
                 }

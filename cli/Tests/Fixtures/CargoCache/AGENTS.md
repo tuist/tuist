@@ -37,3 +37,29 @@ The fixture clears GitHub and inherited internal cache settings; remote publicat
 Pass `--benchmark` to generate a standard Cargo local-registry leaf with substantial compiler work. This is an explicitly generated workload, not a representative real-world application. The driver compares three ordinary Cargo clean builds against three public-CLI local hits; timings include CLI setup/reporting. Chunked uploads leave transferred-byte provenance unknown rather than counting the full spliced parent size, so the benchmark does not require a positive cold upload counter; the subsequent remote hit after moving the publisher cache proves publication independently. Do not run benchmarks concurrently or present a small fixture's compiler avoidance as a wall-clock speedup. Tiny crates may cost less to compile than the cache/decorator overhead.
 
 These fixtures do not qualify cross-worker relocation: cache keys intentionally retain absolute paths and the effective environment. All cache logic remains Swift; the Rust sources here are only programs Cargo compiles.
+
+## Dependency and generated-input admission
+
+```sh
+TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
+  python3 cli/Tests/Fixtures/CargoCache/coverage_e2e.py
+```
+
+This offline fixture creates a workspace with a generated-source library and two downstream libraries. Each phase removes Cargo outputs and uses a new private compiler session. Cold builds miss, unchanged builds restore all three, generated input changes invalidate all three, and changing the middle library preserves only the generated library hit. Every phase compares executable output against a fresh uncached Cargo build.
+
+A proc macro reading an undeclared external file, an upstream generic using inline assembly with an assembler `.include`, and a `naked_asm!` function stay uncached. Mutating each external file must change program output without invalidating unrelated eligible libraries. This protects the transitive admission boundary: successful dep-info resolution and direct extern hashes alone cannot certify those backend/macro reads. Metadata admission must be available before Cargo pipelines a dependent compiler, not only when upstream codegen finishes. The assembly fixture supports aarch64 and x86-64 hosts. Success removes its temporary workspace; failure retains all sources, reports and logs.
+
+The direct-compiler guard cases also exercise an implicit proc macro hidden behind grouped `-gL` search options and a loader-library-search override. These must execute normally without a cache decision; changing the macro's undeclared input must change the linked program. Loader guards are conservative: `LD_`/`DYLD_` settings bypass caching, including Cargo's ordinary Linux `LD_LIBRARY_PATH`. The positive cache-reuse scenarios are currently qualified on macOS, not Linux.
+
+## Native build-script compiler actions
+
+On arm64 macOS with Xcode:
+
+```sh
+TUIST_CLI_BINARY=/absolute/path/to/freshly/built/tuist \
+  python3 cli/Tests/Fixtures/CargoCache/native_e2e.py
+```
+
+This fixture exercises `cargo __native` with real Clang and verifies linked executable output against uncached Clang. It checks cold/warm reuse, corrupt-blob fallback, header edits, a newly present `__has_include` file without a corresponding `#include`, and an earlier search-path header shadowing an unchanged old header. SDK declaration asm labels and empty instruction templates remain eligible. Caller-owned dependency outputs and assembler `.include` inputs bypass caching; changing the assembler input still changes the program. The hook must work with an unavailable generic CLI state directory. Full public Cargo benchmarks separately qualify wrapper installation, normal build-script execution and remote storage.
+
+Header symlinks must support warm reuse and invalidate when retargeted. C23 digit separators must not hide assembly from source admission, and response files in option operands must bypass caching so caller-owned outputs are preserved. The small fixture runs local-only; remote native caching intentionally bypasses sources smaller than 32 KiB to avoid spending more on discovery and transfer than compilation.

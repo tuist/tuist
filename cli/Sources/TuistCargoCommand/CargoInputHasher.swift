@@ -8,14 +8,14 @@ import TuistREAPI
     import Musl
 #endif
 
-/// Rechecks file identities on every use; only toolchain digests may be shared within a Cargo session.
+/// Rechecks file identities on every use; compiler and immutable artifact digests may be shared within a Cargo session.
 final class CargoInputHasher {
     struct Identity: Codable, Equatable {
         let fields: [String]
         let precise: Bool
     }
 
-    private struct Entry: Codable {
+    private struct Entry: Codable, Equatable {
         let identity: Identity
         let hash: String
         let size: Int64
@@ -26,6 +26,7 @@ final class CargoInputHasher {
     private let sharedDirectory: URL?
     private var entries: [URL: (Identity, REAPI.Digest)] = [:]
     private var supportedSources: Set<REAPI.Digest> = []
+    private var loadedTrees: Set<URL> = []
 
     init(
         sessionDirectory: URL? = nil,
@@ -63,6 +64,42 @@ final class CargoInputHasher {
         let handle = try FileHandle(forReadingFrom: file)
         defer { try? handle.close() }
         return try JSONDecoder().decode(Entry.self, from: handle.read(upToCount: 4096) ?? Data())
+    }
+
+    /// Batch the session memo reads, never directory discovery or per-file identity checks.
+    func withSharedDigests<T>(under root: URL, body: () throws -> T) throws -> T {
+        guard let sharedDirectory, loadedTrees.insert(root).inserted else { return try body() }
+        let memo = sharedDirectory.appendingPathComponent("tree-" + REAPI.digest(Data(root.path.utf8)).hash)
+        let prefix = root.path + "/"
+        var previous: [String: Entry] = [:]
+        if let handle = try? FileHandle(forReadingFrom: memo) {
+            defer { try? handle.close() }
+            if let data = try? handle.read(upToCount: 2_000_001), data.count <= 2_000_000,
+               let records = try? JSONDecoder().decode([String: Entry].self, from: data), records.count <= 10000
+            {
+                previous = records
+                for (path, record) in records where path.hasPrefix(prefix) {
+                    let digest = REAPI.Digest.with { $0.hash = record.hash; $0.sizeBytes = record.size }
+                    let file = URL(fileURLWithPath: path)
+                    if (try? REAPI.validate(digest)) != nil, entries[file] == nil {
+                        entries[file] = (record.identity, digest)
+                    }
+                }
+            }
+        }
+        let result = try body()
+        let records = entries.reduce(into: [String: Entry]()) { records, entry in
+            if entry.key.path.hasPrefix(prefix) {
+                records[entry.key.path] = Entry(identity: entry.value.0, hash: entry.value.1.hash, size: entry.value.1.sizeBytes)
+            }
+        }
+        if records != previous, records.count <= 10000,
+           let data = try? JSONEncoder().encode(records), data.count <= 2_000_000
+        {
+            try? FileManager.default.createDirectory(at: sharedDirectory, withIntermediateDirectories: true)
+            try? data.write(to: memo, options: .atomic)
+        }
+        return result
     }
 
     /// Admission is attached to the exact bytes in the key, not a second, independently read version of the source.

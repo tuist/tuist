@@ -19,7 +19,8 @@ struct CargoInputHasherTests {
         #expect(try CargoInputHasher().digest(file) == digest)
     }
 
-    @Test(.inTemporaryDirectory) func sharesOnlyUnchangedToolchainInputsWithinTheSession() throws {
+    @Test(.inTemporaryDirectory, arguments: [false, true])
+    func sharesOnlyUnchangedToolchainInputsWithinTheSession(batch: Bool) throws {
         let file = try input()
         let session = file.deletingLastPathComponent().appendingPathComponent("session")
         var reads = 0
@@ -27,13 +28,21 @@ struct CargoInputHasherTests {
             reads += 1
             return try REAPI.digest(file: file)
         }
-        let original = try CargoInputHasher(sessionDirectory: session, hashFile: hash).digest(file, shared: true)
-        #expect(try CargoInputHasher(sessionDirectory: session, hashFile: hash).digest(file, shared: true) == original)
+        func digest(_ hasher: CargoInputHasher) throws -> REAPI.Digest {
+            if batch {
+                return try hasher.withSharedDigests(under: file.deletingLastPathComponent()) {
+                    try hasher.digest(file, shared: true)
+                }
+            }
+            return try hasher.digest(file, shared: true)
+        }
+        let original = try digest(CargoInputHasher(sessionDirectory: session, hashFile: hash))
+        #expect(try digest(CargoInputHasher(sessionDirectory: session, hashFile: hash)) == original)
         #expect(reads == 1)
         #expect(try CargoInputHasher(sessionDirectory: session, hashFile: hash).digest(file) == original)
         #expect(reads == 2)
         let other = session.appendingPathComponent("another-session")
-        #expect(try CargoInputHasher(sessionDirectory: other, hashFile: hash).digest(file, shared: true) == original)
+        #expect(try digest(CargoInputHasher(sessionDirectory: other, hashFile: hash)) == original)
         #expect(reads == 3)
         let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
         let modified = try #require(attributes[.modificationDate])
@@ -41,10 +50,30 @@ struct CargoInputHasherTests {
         try handle.write(contentsOf: Data("next".utf8))
         try handle.close()
         try FileManager.default.setAttributes([.modificationDate: modified], ofItemAtPath: file.path)
-        let changed = try CargoInputHasher(sessionDirectory: session, hashFile: hash).digest(file, shared: true)
+        let changed = try digest(CargoInputHasher(sessionDirectory: session, hashFile: hash))
         #expect(changed == REAPI.digest(Data("next".utf8)))
         #expect(changed != original)
         #expect(reads == 4)
+    }
+
+    @Test(.inTemporaryDirectory) func sharedDigestsDoNotCacheDirectoryDiscovery() throws {
+        let file = try input()
+        let root = file.deletingLastPathComponent()
+        let session = root.appendingPathComponent("session")
+        func snapshot() throws -> [REAPI.Digest] {
+            let hasher = CargoInputHasher(sessionDirectory: session)
+            return try hasher.withSharedDigests(under: root) {
+                try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
+                    .filter { $0.lastPathComponent != "session" }.sorted { $0.path < $1.path }
+                    .map { try hasher.digest($0, shared: true) }
+            }
+        }
+        #expect(try snapshot() == [REAPI.digest(Data("data".utf8))])
+        let extra = root.appendingPathComponent("new-library")
+        try Data("added".utf8).write(to: extra)
+        #expect(try snapshot() == [REAPI.digest(Data("data".utf8)), REAPI.digest(Data("added".utf8))])
+        try FileManager.default.removeItem(at: file)
+        #expect(try snapshot() == [REAPI.digest(Data("added".utf8))])
     }
 
     @Test(.inTemporaryDirectory) func invalidatesChangedContentWithRestoredModificationTime() throws {

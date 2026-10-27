@@ -10,7 +10,9 @@ import TuistSupport
 @_documentation(visibility: private)
 private enum TuistCLI {
     static func main() async throws {
-        if let arguments = CargoCommand.delegatedArguments(in: CommandLine.arguments), arguments.first == "__compiler" {
+        if let arguments = CargoCommand.delegatedArguments(in: CommandLine.arguments),
+           arguments.first == "__compiler" || arguments.first == "__native"
+        {
             do {
                 let command = try CargoCommand.parse(arguments)
                 try await command.run()

@@ -53,6 +53,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         fileSystem: FileSysteming = FileSystem(),
         guards: TransferGuards = .default,
         metadataTimeout: Duration = .seconds(120),
+        connectionCount: Int = 4,
         stats: REAPIStats? = nil,
         backpressureRetryPolicy: REAPIBackpressureRetryPolicy? = nil,
         environment: [String: String] = Environment.current.variables,
@@ -69,10 +70,13 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         if let value = guards.downloadConcurrency, value <= 0 {
             throw REAPICacheError.invalidTransferGuards(reason: "downloadConcurrency must be positive, got \(value)")
         }
+        guard connectionCount > 0 else {
+            throw REAPICacheError.invalidTransferGuards(reason: "connectionCount must be positive, got \(connectionCount)")
+        }
         var clients: [GRPCClient<HTTP2ClientTransport.Posix>] = []
         var connections: [Task<Void, Error>] = []
         do {
-            for _ in 0 ..< 4 {
+            for _ in 0 ..< connectionCount {
                 let transport = try await REAPITransport.make(endpoint: endpoint, fileSystem: fileSystem)
                 let client = GRPCClient(transport: transport)
                 clients.append(client)
@@ -854,11 +858,36 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         try await downloadAvailableBlobs(blobs, onDownloaded: { _ in })
     }
 
+    public func downloadBlobs(_ blobs: [REAPI.Digest: URL]) async throws -> REAPIBlobDownload {
+        try await download(blobs, orderedDigests: [], onDownloaded: { _ in })
+    }
+
     public func downloadAvailableBlobs(
         _ blobs: [REAPI.Digest: URL],
         orderedDigests: [REAPI.Digest] = [],
         onDownloaded: @escaping @Sendable (REAPI.Digest) async throws -> Void
     ) async throws -> Set<REAPI.Digest> {
+        try await download(blobs, orderedDigests: orderedDigests, onDownloaded: onDownloaded).available
+    }
+
+    private static let downloadFailureCodes: Set<Int32> = [1, 2, 4, 7, 8, 12, 13, 14, 16]
+
+    private static func downloadFailure(codes: [Int32]) -> RPCError? {
+        guard let value = codes.first(where: downloadFailureCodes.contains),
+              let status = Status.Code(rawValue: Int(value)), let code = RPCError.Code(status) else { return nil }
+        return RPCError(code: code, message: "Cache download rejected")
+    }
+
+    private static func isDownloadEndpointFailure(_ error: any Error) -> Bool {
+        if let error = error as? RPCError { return downloadFailureCodes.contains(Int32(error.code.rawValue)) }
+        return (error as? REAPICacheError) == .transferStalled || (error as? REAPICacheError) == .proxyConnectionFailed
+    }
+
+    private func download(
+        _ blobs: [REAPI.Digest: URL], orderedDigests: [REAPI.Digest],
+        onDownloaded: @escaping @Sendable (REAPI.Digest) async throws -> Void
+    ) async throws -> REAPIBlobDownload {
+        let failures = Mutex(Set<REAPI.Digest>())
         for digest in blobs.keys {
             try REAPI.validate(digest)
         }
@@ -880,7 +909,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
         // Every read request takes one of these, so a split read's chunk batches and the other transfers share the
         // download's limit instead of a split read adding requests on top of the transfer slots.
         let requests = Permits(maxConcurrentTasks)
-        return try await synthesized.union(transfer(batches(ordered), maxConcurrentTasks: maxConcurrentTasks) { batch in
+        let available = try await synthesized.union(transfer(batches(ordered), maxConcurrentTasks: maxConcurrentTasks) { batch in
             if batch.count == 1, let digest = batch.first, digest.sizeBytes > self.batchBytes {
                 // `downloadBlob` resumes from the byte it reached, which subsumes a restart from zero.
                 do {
@@ -895,6 +924,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                 } catch {
                     if error is CancellationError || Task.isCancelled { throw error }
                     self.stats?.recordStreamDownloadFailure(digestsLost: 1)
+                    if Self.isDownloadEndpointFailure(error) { failures.withLock { _ = $0.insert(digest) } }
                     return []
                 }
                 // `onDownloaded` lives outside the counted block: a local-admission failure here
@@ -909,8 +939,11 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                 return [digest]
             }
             var successful = Set<REAPI.Digest>()
+            var endpointFailures = Set<REAPI.Digest>()
+            var receivedResponse = false
             do {
                 try await requests.run { try await self.retry {
+                    receivedResponse = false
                     let pending = batch.filter { !successful.contains($0) }
                     let response = try await self.withClient { client in
                         try await Build_Bazel_Remote_Execution_V2_ContentAddressableStorage
@@ -926,6 +959,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                                 options: self.batchOptions(forBytes: pending.reduce(0) { $0 + $1.sizeBytes })
                             )
                     }
+                    receivedResponse = true
                     for output in response.responses where output.status.code == 0 {
                         guard batch.contains(output.digest), !successful.contains(output.digest),
                               let path = blobs[output.digest] else { continue }
@@ -953,17 +987,25 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                             if error is CancellationError || Task.isCancelled { throw error }
                         }
                     }
-                    if let error = Self.batchFailure(codes: response.responses.map(\.status.code)) {
+                    endpointFailures = Set(response.responses.filter {
+                        pending.contains($0.digest) && Self.downloadFailureCodes.contains($0.status.code)
+                    }.map(\.digest))
+                    if let error = Self
+                        .downloadFailure(codes: response.responses.filter { pending.contains($0.digest) }.map(\.status.code))
+                    {
                         throw error
                     }
                 } }
             } catch {
                 if error is CancellationError || Task.isCancelled { throw error }
-                let lost = Set(batch).subtracting(successful).count
-                if lost > 0 { self.stats?.recordBatchDownloadFailure(digestsLost: lost) }
+                let lost = Set(batch).subtracting(successful)
+                if !lost.isEmpty { self.stats?.recordBatchDownloadFailure(digestsLost: lost.count) }
+                if !Self.isDownloadEndpointFailure(error) { endpointFailures = [] } else if !receivedResponse { endpointFailures = lost }
             }
+            failures.withLock { $0.formUnion(endpointFailures.subtracting(successful)) }
             return successful
         })
+        return REAPIBlobDownload(available: available, remoteFailures: failures.withLock { $0.subtracting(available) })
     }
 
     private func transfer(
@@ -1065,7 +1107,7 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                     )
                 }
             } }.chunkDigests
-        } catch let error as RPCError where error.code == .notFound {
+        } catch let error as RPCError where [.notFound, .invalidArgument, .failedPrecondition].contains(error.code) {
             return false
         } catch let error as RPCError where error.code == .unimplemented {
             splitting.withLock { $0 = false }
@@ -1162,7 +1204,11 @@ public final class REAPICacheClient: REAPICacheStoring, Sendable { // swiftlint:
                 }
                 if REAPI.digest(data) == output.digest { chunks[output.digest] = data }
             }
-            if let error = Self.batchFailure(codes: response.responses.map(\.status.code)) { throw error }
+            if let error = Self
+                .downloadFailure(codes: response.responses.filter { pending.contains($0.digest) }.map(\.status.code))
+            {
+                throw error
+            }
         }
         guard chunks.count == digests.count else {
             throw RPCError(code: .notFound, message: "The cache is missing chunks of the blob")

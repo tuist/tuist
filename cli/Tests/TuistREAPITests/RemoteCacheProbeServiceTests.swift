@@ -53,15 +53,31 @@ struct RemoteCacheProbeServiceTests {
         }
     }
 
-    @Test(.withMockedEnvironment(), arguments: Consumer.allCases)
-    func cancellationStopsActivationRetries(consumer: Consumer) async throws {
-        let state = ActivationProbeState(code: .unavailable, failures: .max)
+    @Test(.withMockedEnvironment(), arguments: Consumer.allCases, [false, true])
+    func cancellationStopsActivationRetries(consumer: Consumer, stalled: Bool) async throws {
+        let state = ActivationProbeState(
+            code: .unavailable, failures: .max, firstResponseDelay: stalled ? .seconds(5) : .zero
+        )
         try await withServer(state: state) { endpoint in
             let validation = Task { try await consumer.validate(endpoint: endpoint) }
             await state.waitForAttempt()
+            let started = ContinuousClock.now
             validation.cancel()
             await #expect(throws: (any Error).self) { try await validation.value }
+            #expect(ContinuousClock.now - started < .seconds(2))
             #expect(await state.attempts == 1)
+        }
+    }
+
+    @Test(.withMockedEnvironment())
+    func singleConnectionClientRetriesTransientErrors() async throws {
+        let state = ActivationProbeState(code: .unavailable, failures: 1)
+        try await withServer(state: state) { endpoint in
+            let client = try await REAPICacheClient(
+                endpoint: endpoint, accountHandle: "account", instanceName: "project", connectionCount: 1
+            ) { "token" }
+            try await client.validateCapabilities()
+            #expect(await state.attempts == 2)
         }
     }
 
