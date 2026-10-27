@@ -1,13 +1,6 @@
 # Linux Runner Image
 
-OCI image hosted on the **Linux runner fleet** (Hetzner Cloud
-nodes selected via `tuist.dev/fleet=<runnersFleetLinuxName>`). One
-ephemeral GitHub Actions runner per Pod, one job per runner. The
-same image runs in two roles within a Pod (see "Credential split"
-below): a `poller` init container and a `runner` main container.
-
-This is the Linux analog of `infra/runner-image/` (the Tart-based
-macOS image). Same single-shot lifecycle, much simpler substrate.
+One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are owned by [runners-controller](../runners-controller/AGENTS.md).
 
 ## What's in the image
 
@@ -176,8 +169,9 @@ root, or trimming externals from the image, breaks job containers
 
 ## Build
 
+From this directory:
+
 ```bash
-cd infra/linux-runner-image
 docker build --pull -t ghcr.io/tuist/tuist-linux-runner:dev .
 ```
 
@@ -219,6 +213,30 @@ be reachable, then runs `gradle-cache-smoke.sh`: a unique task input
 must upload on the first build and hit remotely after deleting outputs,
 with local caching disabled. Run this against the candidate image
 before promoting it, then against the production runner profile.
+
+With `compare_regional_cache` enabled, the same staging workflow runs
+`gradle-regional-benchmark.sh`. It requires dispatch to inject the existing EU-West
+Service (including a moved -m instance) and compares it with an explicitly selected remote-region Service.
+Five alternating cold/restore pairs at each payload size use unique keys,
+disabled local caching and checksum verification. Keep the raw CSV/log artifact;
+`summarize-gradle-pn-benchmark.mjs` validates and summarizes it. Record the actual
+underlay path separately: a remote region on vRack still crosses the WAN.
+
+`measure_request_latency` runs `kura-request-latency.mjs` independently of the
+Gradle timing fixture. It measures health, authenticated HEAD hit/miss and 1 KiB
+reads over persistent and fresh HTTP/1.1 connections. Ten warm-ups precede 100
+alternating samples per endpoint/case; status, metadata, body and connection
+reuse checks are mandatory. Credentials stay in memory and outside artifacts.
+Use `summarize-kura-request-latency.mjs` for the raw CSV's median/p95 table.
+
+The pn/wan CSV labels are retained for historical comparisons; they do not prove
+private transport. New results must identify the ordinary regional instance.
+
+Staging drills can set `hold_seconds` (0–900) to pause the synthetic smoke after
+upload, with a `cold-complete` marker in its temporary fixture, before restoring
+through the originally injected endpoint. `compile_project` builds real Gradle
+plugin production/test Kotlin sources with fresh task inputs and checks remote
+restores against every compiled class checksum. Keep local build caching off.
 
 ## How it ends up serving traffic
 

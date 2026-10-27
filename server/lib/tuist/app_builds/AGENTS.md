@@ -1,6 +1,4 @@
-# App Builds (Context)
-
-This context owns business logic and data related to app builds and previews.
+# App Builds
 
 ## Responsibilities
 - Create previews and app builds, and link builds to previews. Uploads are
@@ -11,16 +9,3 @@ This context owns business logic and data related to app builds and previews.
 - List previews with pagination and distinct bundle identifiers. `list_preview_tracks/1` independently returns the project's total preview count and nonempty tracks with counts, grouped case-insensitively with deterministic spelling and ordering. Count only listable previews (nonempty bundle identifiers); include untracked builds in the total. Counts ignore active search, track filters, and pagination. Literal, case-insensitive search across display names and full release notes applies before distinct selection and pagination without changing exact-name filtering. A string searches one literal substring; a list of terms requires every term to match either field, preserving the web list's word-search behavior.
 - Previews can carry optional plain-text `release_notes` (up to 10,000 characters). Notes are metadata, never part of preview identity: old and new clients must group the same build even when only one supplies notes. The first nonblank notes are retained; filling a reused preview uses an atomic `release_notes IS NULL` update so competing replicas cannot overwrite them. Omitted, null, empty, and whitespace-only notes never clear stored notes. Notes follow the preview's existing retention and export rules.
 - Apply supported-platform filters before choosing distinct bundle identifiers, so a newer device-only upload cannot hide an older simulator build.
-
-## Boundaries
-- HTTP/API and UI code live in `server/lib/tuist_web`.
-- Configuration belongs in `server/config`.
-- Schema changes and migrations live in `server/priv`.
-
-## Guardrails
-- If changes add or modify stored customer data, update `server/data-export.md`.
-
-## Related Context
-- Parent business logic: `server/lib/tuist/AGENTS.md`
-- Web layer: `server/lib/tuist_web/AGENTS.md`
-- Migrations: `server/priv/AGENTS.md`

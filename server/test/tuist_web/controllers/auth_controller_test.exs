@@ -584,7 +584,7 @@ defmodule TuistWeb.AuthControllerTest do
       assert identity.user_id == existing_user.id
     end
 
-    test "preserves new-user onboarding for a legacy custom-provider organization", %{conn: conn} do
+    test "rejects new-user onboarding for a former compatibility-mode organization", %{conn: conn} do
       admin = AccountsFixtures.user_fixture(email: "legacy-admin@customer.example")
       new_user_email = "new-user@consultancy.example"
 
@@ -610,7 +610,7 @@ defmodule TuistWeb.AuthControllerTest do
         {:ok, %{"sub" => "legacy-new-user", "email" => new_user_email, "name" => "New User"}}
       end)
 
-      conn =
+      assert_error_sent 401, fn ->
         conn
         |> init_test_session(%{
           sso_organization_id: organization.id,
@@ -618,9 +618,9 @@ defmodule TuistWeb.AuthControllerTest do
           sso_route_provider: :oauth2
         })
         |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
+      end
 
-      assert redirected_to(conn) == "/users/choose-username"
-      assert get_session(conn, :pending_oauth_signup)["email"] == new_user_email
+      assert {:error, :not_found} = Tuist.Accounts.get_user_by_email(new_user_email)
     end
 
     test "rejects a new user when automatic enrollment is disabled and no invitation exists", %{conn: conn} do
@@ -1118,6 +1118,34 @@ defmodule TuistWeb.AuthControllerTest do
   end
 
   describe "linking an existing account through a custom provider" do
+    test "keeps linked members signing in after compatibility mode is retired", %{conn: conn} do
+      member = AccountsFixtures.user_fixture(email: "linked@customer.example")
+
+      organization =
+        custom_provider_organization(
+          creator: member,
+          sso_legacy_email_domain_fallback: true,
+          sso_automatic_enrollment: true
+        )
+
+      organization = organization |> Ecto.Changeset.change(sso_enforced: true) |> Tuist.Repo.update!()
+
+      Tuist.Accounts.link_oauth_identity_to_user(member, %{
+        provider: :oauth2,
+        id_in_provider: "linked-member",
+        provider_organization_id: organization.sso_organization_id
+      })
+
+      stub_sso_userinfo("linked-member", member.email)
+
+      conn = sso_callback(conn, organization)
+      assert get_session(conn, :user_token)
+      assert get_session(conn, :auth_method) == :oauth2
+      assert Tuist.Accounts.belongs_to_organization?(member, organization)
+      assert Tuist.Accounts.sso_enforced_for_email?(member.email)
+      refute Tuist.Accounts.sso_enforced_for_email?("new@customer.example")
+    end
+
     test "does not link a member by email while the login domain is unverified", %{conn: conn} do
       member = AccountsFixtures.user_fixture(email: "member@customer.example")
       organization = custom_provider_organization(creator: member)
@@ -1192,7 +1220,7 @@ defmodule TuistWeb.AuthControllerTest do
                Tuist.Accounts.get_oauth2_identity(:oauth2, "foreign-identity", "https://login.vendor.example")
     end
 
-    test "keeps linking members by email in compatibility mode", %{conn: conn} do
+    test "requires existing members to sign in before linking despite the retired compatibility flag", %{conn: conn} do
       member = AccountsFixtures.user_fixture(email: "legacy-member@customer.example")
 
       organization =
@@ -1202,17 +1230,15 @@ defmodule TuistWeb.AuthControllerTest do
 
       conn = sso_callback(conn, organization)
 
-      assert redirected_to(conn) =~ "/#{member.account.name}"
+      assert redirected_to(conn) == "/users/log_in"
 
-      assert {:ok, identity} =
+      assert {:error, :not_found} =
                Tuist.Accounts.get_oauth2_identity(:oauth2, "legacy-member", "https://login.vendor.example")
-
-      assert identity.user_id == member.id
     end
 
     test "asks a signed-in member to confirm linking an identity with a different email", %{conn: conn} do
       member = AccountsFixtures.user_fixture(email: "personal@mail.example")
-      organization = custom_provider_organization(creator: member)
+      organization = custom_provider_organization(creator: member, sso_legacy_email_domain_fallback: true)
       stub_sso_userinfo("work-identity", "person@customer.example")
 
       conn =

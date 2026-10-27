@@ -35,6 +35,7 @@ selected server. OAuth tokens are not browser cookies.
 - `android/`: Kotlin platform-widget UI, JNI adapter, manifest and resources; see `android/AGENTS.md`.
 - `ios/`: SwiftUI app, Swift adapter, Info.plist and Swift Testing bridge/form tests; see `ios/AGENTS.md`.
 - `ios/LiveActivity/`: shared ActivityKit contract and credential-free WidgetKit extension; see `ios/LiveActivity/AGENTS.md`. Orbit's aggregate Live Activity leads with bounded authorized conversation titles and secondary phases, never message or tool content.
+- `ios/Share/`: credential-free URL/text share extension and protected, recipient-bound App Group inbox; see `ios/Share/AGENTS.md`. The host reviews server suggestions before publishing to Moodboard. Local media uploads are not implemented.
 - `android/distribution/`: stable-key Android signing and publication guard; see
   `android/distribution/AGENTS.md`. PR/debug builds must never supply verified-link identities.
   The signed-out screen matches Tuist's login layout with Atlas's azure palette,

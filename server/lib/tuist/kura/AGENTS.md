@@ -1,5 +1,9 @@
 # Kura control plane
 
+- Admission permits claims up to 90% of allocatable disk, retaining 10% on
+  top of the managed kubelet's existing nodefs reserve. This remains full-claim
+  reservation accounting; scheduler requests and filesystem quotas are unchanged.
+
 - `Origins` and `Demand` sort bulk upsert rows by their full conflict keys before
   insertion so concurrent overlapping batches acquire locks in a consistent
   order. Keep this ordering at the write boundary, including backfills and

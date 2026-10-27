@@ -1,6 +1,4 @@
-# Authentication (Context)
-
-This context owns authentication flows and token handling.
+# Authentication
 
 ## Responsibilities
 - Resolve subjects from verified JWTs, user tokens and account/project tokens. `authenticated_subject/1` is fresh; `authenticated_subject_snapshot/1` also exposes expiry from verified state, never unverified claims.
@@ -19,9 +17,3 @@ This context owns authentication flows and token handling.
 - Production-cost proof coverage runs in ExUnit with explicit rounds 12 and one real verification for 2,000 lookups at concurrency 64 using `Mimic.call_original/3` inside the initialized counting mock. No shared bcrypt configuration mutation, VM tracing or latency assertions. Pre-mock sanity checks call Bcrypt directly.
 - Inject both clocks in snapshot tests. Cover bounded revocation/scopes/deactivation, expiry, slow fills, outages, coalescing, strict routes and stream deadline inheritance. Count real authoritative fills rather than claiming SQL capacity from correctness tests.
 - Cold-start fill admission/jitter, proof TTL changes and SQL consolidation remain separate measured improvements. Local tests do not establish production capacity.
-- Update `server/data-export.md` when stored customer data changes.
-
-## Related Context
-- Parent: `server/lib/tuist/AGENTS.md`
-- Web: `server/lib/tuist_web/AGENTS.md`
-- Migrations: `server/priv/AGENTS.md`

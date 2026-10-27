@@ -108,6 +108,10 @@ Do not add README entries for internal operational details such as env var names
 
 - Registrations, delivery and provider credentials live in [push](lib/atlas/push/AGENTS.md); the HTTP contract is in [the native HTTP boundary](lib/atlas_web/controllers/AGENTS.md#push-devices) and operator setup in [deployment guidance](deploy/AGENTS.md#push-notifications). Only fixed notification kinds are sent; there is no arbitrary-recipient or free-text send path. Activity/self-test retain generic text. Opted-in Orbit completion uses the cleaned conversation title and plain-text final reply, resolved from the exact committed message after send-time authorization. APNs adds Pip as subtitle, groups by thread and offers an unlocked foreground Open conversation action; jobs and audits never carry reply content.
 
+## Native Moodboard sharing
+
+The iOS share-sheet inbox, reviewable server inference and replay-safe native/MCP saves are documented in [Moodboard](lib/atlas/moodboard/AGENTS.md) and [the iOS extension](../atlas-native/ios/Share/AGENTS.md). Suggestions alone never publish; global provider availability is optional. Keep source content out of route/session/telemetry logs and preserve explicit user review before the shared board write.
+
 ## Native appearance catalog
 
 - `GET /api/native/themes` is public, instance-wide, credential-free appearance data, cached for five minutes. It must precede the authenticated dynamic native-resource route. It never returns identity, permissions, or customer data. Existing clients do not need to request it; newer clients must remain usable on older servers.
