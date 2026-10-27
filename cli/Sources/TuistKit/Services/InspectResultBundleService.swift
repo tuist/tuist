@@ -588,7 +588,9 @@ extension UploadResultBundleService {
             let buildRoots = rootSpellings.filter { $0 != XcodeCoverageManifest.sourceRootPlaceholder }
                 .compactMap { try? AbsolutePath(validating: $0) }
             for root in [rootDirectory] + buildRoots {
-                for spelling in Self.rootSpellings(of: root, coveredFilePaths: coveredFilePaths)
+                // Resolving a path is a few syscalls, and an earlier root has tied most of them.
+                let untied = coveredFilePaths.filter { path in !rootSpellings.contains { path.hasPrefix($0 + "/") } }
+                for spelling in Self.rootSpellings(of: root, coveredFilePaths: untied)
                     where !rootSpellings.contains(spelling)
                 {
                     rootSpellings.append(spelling)
