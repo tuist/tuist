@@ -42,6 +42,8 @@ func main() {
 	account := flag.String("account", "", "fixture account")
 	out := flag.String("out", "/tmp/bench.json", "report")
 	workingSet := flag.Bool("working-set", false, "seed and read a 1 GiB working set without retaining bodies in the client")
+	corpusPath := flag.String("corpus", "", "working-set hash/size manifest to save or verify")
+	verifyCorpus := flag.Bool("verify-corpus", false, "read and checksum an existing working-set manifest without writing")
 	flag.Parse()
 	if *base == "" || *account == "" {
 		panic("fixture required")
@@ -147,6 +149,25 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	if *verifyCorpus {
+		if *corpusPath == "" || *workingSet {
+			panic("verification requires a corpus and no seeding")
+		}
+		data, err := os.ReadFile(*corpusPath)
+		must(err)
+		var corpus []object
+		must(json.Unmarshal(data, &corpus))
+		if len(corpus) == 0 || len(corpus) > 256 {
+			panic("invalid corpus size")
+		}
+		for _, o := range corpus {
+			if o.Body != nil || o.Size != 4<<20 || !strings.HasPrefix(o.Key, "thin-bench-") {
+				panic("invalid working-set object")
+			}
+		}
+		run("working_set_verify", "GET", corpus)
+		return
+	}
 	if *workingSet {
 		var corpus []object
 		for batch := 0; batch < 4; batch++ {
@@ -158,6 +179,11 @@ func main() {
 			}
 		}
 		mathrand.Shuffle(len(corpus), func(i, j int) { corpus[i], corpus[j] = corpus[j], corpus[i] })
+		if *corpusPath != "" {
+			data, err := json.Marshal(corpus)
+			must(err)
+			must(os.WriteFile(*corpusPath, data, 0600))
+		}
 		run("working_set_get", "GET", corpus)
 		return
 	}

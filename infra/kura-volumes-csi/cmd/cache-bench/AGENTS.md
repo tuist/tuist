@@ -28,3 +28,7 @@ and sizes in the client, then reads all objects in shuffled order with checksum
 verification. Use a runtime memory limit below that corpus size. This exercises
 a working set larger than memory without global cache-dropping, but is not proof
 that every read is cold. Keep the same mode and client limits on both layouts.
+
+With `-working-set -corpus PATH`, persist only hashes and sizes for later
+`-verify-corpus -corpus PATH` checksum reads through a Service or each replica.
+Verification performs no writes and accepts at most the bounded 256-object corpus.
