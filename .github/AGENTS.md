@@ -265,6 +265,10 @@ fallback. Retaining only an external source/native-manifest cache is possible,
 but rebuilds workspace state and manifest JSON; benchmark it separately before
 changing the retained layout.
 
+The SwiftPM build job runs `e2e/global_flags.bats` against its newly built CLI.
+Resolve the products directory with `--show-bin-path` and test its unmodified
+outputs, including manifest loading and ProjectDescription helper compilation.
+
 ## Server deploy cascade volumes
 
 The production cascade's acceptance job keeps mise's data directory, `~/.rustup`
