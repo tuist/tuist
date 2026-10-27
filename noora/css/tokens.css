@@ -508,77 +508,84 @@
     var(--noora-pink-600)
   );
 
+  /* Light-fill backgrounds are tints that blend with the surface under the
+     badge (see --noora-badge-light-fill-blend-mode): multiplied in light
+     mode and screened in dark mode, so a badge stays a step darker or
+     lighter than whatever it sits on. Each tint keeps a scale step's hue at
+     a fixed lightness, with half its chroma; neutral blends its scale steps
+     as they are. */
+  --noora-badge-light-fill-blend-mode: multiply;
   --noora-badge-light-fill-neutral-background: light-dark(
-    var(--noora-neutral-light-300),
-    var(--noora-neutral-gray-50)
+    var(--noora-neutral-light-200),
+    var(--noora-neutral-dark-1100)
   );
   --noora-badge-light-fill-neutral-label: light-dark(
     var(--noora-neutral-light-1100),
     var(--noora-neutral-dark-50)
   );
   --noora-badge-light-fill-destructive-background: light-dark(
-    var(--noora-red-100),
-    var(--noora-alpha-red)
+    oklch(from var(--noora-red-800) 0.95 calc(c * 0.5) h),
+    oklch(from var(--noora-red-400) 0.24 calc(c * 0.5) h)
   );
   --noora-badge-light-fill-destructive-label: light-dark(
-    var(--noora-red-600),
-    var(--noora-red-400)
+    var(--noora-red-700),
+    var(--noora-red-300)
   );
   --noora-badge-light-fill-warning-background: light-dark(
-    var(--noora-orange-100),
-    var(--noora-alpha-orange)
+    oklch(from var(--noora-orange-800) 0.95 calc(c * 0.5) h),
+    oklch(from var(--noora-orange-400) 0.24 calc(c * 0.5) h)
   );
   --noora-badge-light-fill-warning-label: light-dark(
-    var(--noora-orange-600),
+    var(--noora-orange-700),
     var(--noora-orange-300)
   );
   --noora-badge-light-fill-attention-background: light-dark(
-    var(--noora-yellow-100),
-    var(--noora-alpha-yellow)
+    oklch(from var(--noora-yellow-400) 0.95 calc(c * 0.5) h),
+    oklch(from var(--noora-yellow-500) 0.24 calc(c * 0.5) h)
   );
   --noora-badge-light-fill-attention-label: light-dark(
-    var(--noora-yellow-700),
+    var(--noora-yellow-800),
     var(--noora-yellow-400)
   );
   --noora-badge-light-fill-success-background: light-dark(
-    var(--noora-green-100),
-    var(--noora-alpha-green)
+    oklch(from var(--noora-green-500) 0.95 calc(c * 0.5) h),
+    oklch(from var(--noora-green-600) 0.24 calc(c * 0.5) h)
   );
   --noora-badge-light-fill-success-label: light-dark(
     var(--noora-green-700),
-    var(--noora-green-400)
+    var(--noora-green-300)
   );
   --noora-badge-light-fill-information-background: light-dark(
-    var(--noora-azure-100),
-    var(--noora-alpha-azure)
+    oklch(from var(--noora-azure-800) 0.95 calc(c * 0.5) h),
+    oklch(from var(--noora-azure-500) 0.24 calc(c * 0.5) h)
   );
   --noora-badge-light-fill-information-label: light-dark(
     var(--noora-azure-700),
-    var(--noora-azure-400)
+    var(--noora-azure-300)
   );
   --noora-badge-light-fill-focus-background: light-dark(
-    var(--noora-blue-100),
-    var(--noora-alpha-blue)
+    oklch(from var(--noora-blue-950) 0.95 calc(c * 0.5) h),
+    oklch(from var(--noora-blue-600) 0.24 calc(c * 0.5) h)
   );
   --noora-badge-light-fill-focus-label: light-dark(
     var(--noora-blue-700),
-    var(--noora-blue-400)
+    var(--noora-blue-300)
   );
   --noora-badge-light-fill-primary-background: light-dark(
-    var(--noora-purple-100),
-    var(--noora-alpha-purple)
+    oklch(from var(--noora-purple-500) 0.95 calc(c * 0.5) h),
+    oklch(from var(--noora-purple-500) 0.24 calc(c * 0.5) h)
   );
   --noora-badge-light-fill-primary-label: light-dark(
     var(--noora-purple-700),
-    var(--noora-purple-400)
+    var(--noora-purple-300)
   );
   --noora-badge-light-fill-secondary-background: light-dark(
-    var(--noora-pink-100),
-    var(--noora-alpha-pink)
+    oklch(from var(--noora-pink-900) 0.95 calc(c * 0.5) h),
+    oklch(from var(--noora-pink-500) 0.24 calc(c * 0.5) h)
   );
   --noora-badge-light-fill-secondary-label: light-dark(
-    var(--noora-pink-600),
-    var(--noora-pink-400)
+    var(--noora-pink-700),
+    var(--noora-pink-300)
   );
 
   --noora-badge-disabled-background: light-dark(
@@ -951,6 +958,7 @@
   }
 
   &[data-theme="dark"] {
+    --noora-badge-light-fill-blend-mode: screen;
     --noora-border-small-default:
       0px 1px 1px 0px oklch(16.2% 0 0 / 0.3),
       0px 0px 0px 1px oklch(54.9% 0 0 / 0.45),

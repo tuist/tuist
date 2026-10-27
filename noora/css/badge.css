@@ -135,49 +135,89 @@
     }
   }
 
+  /* The tint is drawn on a layer behind the content and blended with the
+     surface under the badge; blending the badge itself would blend its label
+     too. Where an ancestor isolates blending, the tint shows as it is. */
   &[data-style="light-fill"] {
+    position: relative;
+
+    &::before {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: var(--noora-badge-light-fill-background);
+      content: "";
+      mix-blend-mode: var(--noora-badge-light-fill-blend-mode);
+    }
+
+    & > * {
+      position: relative;
+    }
+
+    &[data-disabled]::before {
+      display: none;
+    }
+
     &[data-color="neutral"] {
-      background: var(--noora-badge-light-fill-neutral-background);
+      --noora-badge-light-fill-background: var(
+        --noora-badge-light-fill-neutral-background
+      );
       color: var(--noora-badge-light-fill-neutral-label);
     }
 
     &[data-color="destructive"] {
-      background: var(--noora-badge-light-fill-destructive-background);
+      --noora-badge-light-fill-background: var(
+        --noora-badge-light-fill-destructive-background
+      );
       color: var(--noora-badge-light-fill-destructive-label);
     }
 
     &[data-color="warning"] {
-      background: var(--noora-badge-light-fill-warning-background);
+      --noora-badge-light-fill-background: var(
+        --noora-badge-light-fill-warning-background
+      );
       color: var(--noora-badge-light-fill-warning-label);
     }
 
     &[data-color="attention"] {
-      background: var(--noora-badge-light-fill-attention-background);
+      --noora-badge-light-fill-background: var(
+        --noora-badge-light-fill-attention-background
+      );
       color: var(--noora-badge-light-fill-attention-label);
     }
 
     &[data-color="success"] {
-      background: var(--noora-badge-light-fill-success-background);
+      --noora-badge-light-fill-background: var(
+        --noora-badge-light-fill-success-background
+      );
       color: var(--noora-badge-light-fill-success-label);
     }
 
     &[data-color="information"] {
-      background: var(--noora-badge-light-fill-information-background);
+      --noora-badge-light-fill-background: var(
+        --noora-badge-light-fill-information-background
+      );
       color: var(--noora-badge-light-fill-information-label);
     }
 
     &[data-color="focus"] {
-      background: var(--noora-badge-light-fill-focus-background);
+      --noora-badge-light-fill-background: var(
+        --noora-badge-light-fill-focus-background
+      );
       color: var(--noora-badge-light-fill-focus-label);
     }
 
     &[data-color="primary"] {
-      background: var(--noora-badge-light-fill-primary-background);
+      --noora-badge-light-fill-background: var(
+        --noora-badge-light-fill-primary-background
+      );
       color: var(--noora-badge-light-fill-primary-label);
     }
 
     &[data-color="secondary"] {
-      background: var(--noora-badge-light-fill-secondary-background);
+      --noora-badge-light-fill-background: var(
+        --noora-badge-light-fill-secondary-background
+      );
       color: var(--noora-badge-light-fill-secondary-label);
     }
   }
