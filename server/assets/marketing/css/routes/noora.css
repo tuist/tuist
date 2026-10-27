@@ -1166,3 +1166,411 @@
 :where(.noora-docs) :is([data-part="brand"], h2 a, p a):focus-visible {
   border-radius: var(--noora-radius-2);
 }
+
+/* TEMPORARY: compares light-fill badge backgrounds on each surface. Remove
+   with the "Surfaces" example on the badge page. */
+.noora-docs-badge-surfaces {
+  --noora-docs-blend-light-l: 0.95;
+  --noora-docs-blend-light-c: 0.5;
+  --noora-docs-blend-dark-l: 0.24;
+  --noora-docs-blend-dark-c: 0.5;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-13);
+  width: 100%;
+
+  & > [data-approach] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+  }
+
+  & [data-part="header"] {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--noora-spacing-5);
+  }
+
+  & [data-part="index"] {
+    display: inline-flex;
+    flex: none;
+    justify-content: center;
+    align-items: center;
+    box-shadow: var(--noora-border-small-default);
+    border-radius: var(--noora-radius-2);
+    width: 24px;
+    height: 24px;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    font-variant-numeric: tabular-nums;
+  }
+
+  & [data-part="heading"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-1);
+  }
+
+  & [data-part="heading-title"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+  }
+
+  & [data-part="heading-description"] {
+    max-width: 60ch;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+    text-wrap: pretty;
+  }
+
+  & [data-part="surfaces"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--noora-spacing-5);
+  }
+
+  /* A small table: the badge, then its contrast in light and dark mode.
+     Rows are display: contents so every cell sits on the card's grid. */
+  & [data-surface] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) repeat(2, 3.25rem);
+    row-gap: var(--noora-spacing-4);
+    align-items: center;
+    box-shadow: var(--noora-border-small-default);
+    border-radius: var(--noora-radius-4);
+    padding: var(--noora-spacing-6) var(--noora-spacing-6) var(--noora-spacing-7);
+  }
+
+  & [data-surface="primary"] {
+    background: var(--noora-surface-background-primary);
+  }
+
+  & [data-surface="tertiary"] {
+    background: var(--noora-surface-background-tertiary);
+  }
+
+  & [data-surface="secondary"] {
+    background: var(--noora-surface-background-secondary);
+  }
+
+  & [data-part="surface-name"] {
+    padding-bottom: var(--noora-spacing-2);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+
+  & [data-part="mode-icon"] {
+    display: flex;
+    justify-content: flex-end;
+    padding-bottom: var(--noora-spacing-2);
+    color: var(--noora-surface-label-secondary);
+
+    & svg {
+      width: 14px;
+      height: 14px;
+    }
+  }
+
+  & [data-part="cell"] {
+    display: contents;
+
+    & .noora-badge {
+      justify-self: start;
+    }
+  }
+
+  & [data-ratio] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-code-medium);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+
+    &[data-fail] {
+      color: var(--noora-surface-label-destructive);
+    }
+  }
+
+  /* The blend controls: one panel per mode, side by side. */
+  & .noora-docs-blend-controls {
+    display: grid;
+    position: relative;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--noora-spacing-9) var(--noora-spacing-10);
+    box-shadow: var(--noora-border-small-default);
+    border-radius: var(--noora-radius-4);
+    padding: var(--noora-spacing-7);
+
+    & [data-mode] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-6);
+    }
+
+    & [data-part="mode-header"] {
+      display: flex;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+      min-height: 28px;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+      & svg {
+        width: 16px;
+        height: 16px;
+        color: var(--noora-surface-label-secondary);
+      }
+    }
+
+    & [data-part="formula"] {
+      margin-left: auto;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-code-medium);
+      font-variant-numeric: tabular-nums;
+
+      & [data-live] {
+        color: var(--noora-surface-label-brand);
+      }
+    }
+
+    /* A tick ruler: 20 minor ticks, a major tick every quarter, and a slim
+       bar for the thumb. The native range input draws it, so keyboard and
+       screen reader support stay intact. */
+    & [data-part="slider"] {
+      --noora-docs-slider-tick: light-dark(var(--noora-neutral-light-400), var(--noora-neutral-dark-700));
+      --noora-docs-slider-tick-major: light-dark(var(--noora-neutral-light-700), var(--noora-neutral-dark-400));
+      --noora-docs-slider-ruler: linear-gradient(to right, var(--noora-docs-slider-tick-major) 0 2px, transparent 2px) 0
+          50% / calc((100% - 2px) / 4) 20px repeat-x,
+        linear-gradient(to right, var(--noora-docs-slider-tick) 0 2px, transparent 2px) 0 50% / calc((100% - 2px) / 20)
+          10px repeat-x;
+
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: var(--noora-spacing-2) var(--noora-spacing-4);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+
+      & output {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        font-variant-numeric: tabular-nums;
+      }
+
+      & input {
+        grid-column: 1 / -1;
+        appearance: none;
+        cursor: pointer;
+        margin: 0;
+        background: transparent;
+        width: 100%;
+        height: 28px;
+
+        &::-webkit-slider-runnable-track {
+          background: var(--noora-docs-slider-ruler);
+          height: 28px;
+        }
+
+        &::-moz-range-track {
+          background: var(--noora-docs-slider-ruler);
+          height: 28px;
+        }
+
+        &::-webkit-slider-thumb {
+          appearance: none;
+          border: 0;
+          border-radius: var(--noora-radius-1);
+          background: var(--noora-surface-label-brand);
+          width: 4px;
+          height: 28px;
+        }
+
+        &::-moz-range-thumb {
+          border: 0;
+          border-radius: var(--noora-radius-1);
+          background: var(--noora-surface-label-brand);
+          width: 4px;
+          height: 28px;
+        }
+
+        &:focus-visible {
+          outline: 2px solid var(--noora-surface-label-brand);
+          outline-offset: 4px;
+          border-radius: var(--noora-radius-2);
+        }
+      }
+    }
+
+    & [data-part="axis"] {
+      display: flex;
+      grid-column: 1 / -1;
+      justify-content: space-between;
+      color: var(--noora-surface-label-tertiary);
+      font: var(--noora-font-code-small);
+      font-variant-numeric: tabular-nums;
+    }
+
+    & [data-part="pickers"] {
+      display: grid;
+      grid-template-columns: minmax(84px, auto) 1fr 1fr;
+      align-items: center;
+      gap: var(--noora-spacing-3) var(--noora-spacing-4);
+      margin-top: var(--noora-spacing-2);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+    }
+
+    & [data-part="column-heading"] {
+      color: var(--noora-surface-label-tertiary);
+    }
+
+    & select {
+      box-shadow: var(--noora-border-small-default);
+      border: 0;
+      border-radius: var(--noora-radius-2);
+      background: var(--noora-surface-background-primary);
+      padding: var(--noora-spacing-2) var(--noora-spacing-3);
+      min-width: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-code-medium);
+    }
+
+    & [data-part="reset"] {
+      grid-column: 1 / -1;
+      justify-self: start;
+      cursor: pointer;
+      box-shadow: var(--noora-border-small-default);
+      border: 0;
+      border-radius: var(--noora-radius-3);
+      background: var(--noora-surface-background-primary);
+      padding: var(--noora-spacing-3) var(--noora-spacing-5);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    }
+  }
+
+  /* Each color's base hue, its previous backgrounds, and its previous light
+     and dark labels, which the blend approach's label pickers override. */
+  & .noora-badge[data-style="light-fill"] {
+    &[data-color] {
+      --noora-docs-badge-base-light: var(--noora-docs-badge-hue);
+      --noora-docs-badge-base-dark: var(--noora-docs-badge-hue);
+
+      color: light-dark(var(--noora-docs-label-light), var(--noora-docs-label-dark));
+    }
+
+    &[data-color="neutral"] {
+      --noora-docs-badge-base-light: var(--noora-neutral-light-300);
+      --noora-docs-badge-base-dark: var(--noora-neutral-gray-50);
+      --noora-docs-badge-hue: oklch(from var(--noora-neutral-gray-50) l c h);
+      --noora-docs-badge-alpha: var(--noora-neutral-gray-50);
+      --noora-docs-badge-before-light: var(--noora-neutral-light-300);
+      --noora-docs-label-light: var(--noora-neutral-light-1100);
+      --noora-docs-label-dark: var(--noora-neutral-dark-50);
+    }
+    &[data-color="destructive"] {
+      --noora-docs-badge-hue: var(--noora-red-500);
+      --noora-docs-badge-alpha: var(--noora-alpha-red);
+      --noora-docs-badge-before-light: var(--noora-red-100);
+      --noora-docs-label-light: var(--noora-red-600);
+      --noora-docs-label-dark: var(--noora-red-400);
+    }
+    &[data-color="warning"] {
+      --noora-docs-badge-hue: var(--noora-orange-500);
+      --noora-docs-badge-alpha: var(--noora-alpha-orange);
+      --noora-docs-badge-before-light: var(--noora-orange-100);
+      --noora-docs-label-light: var(--noora-orange-600);
+      --noora-docs-label-dark: var(--noora-orange-300);
+    }
+    &[data-color="attention"] {
+      --noora-docs-badge-hue: var(--noora-yellow-500);
+      --noora-docs-badge-alpha: var(--noora-alpha-yellow);
+      --noora-docs-badge-before-light: var(--noora-yellow-100);
+      --noora-docs-label-light: var(--noora-yellow-700);
+      --noora-docs-label-dark: var(--noora-yellow-400);
+    }
+    &[data-color="success"] {
+      --noora-docs-badge-hue: var(--noora-green-500);
+      --noora-docs-badge-alpha: var(--noora-alpha-green);
+      --noora-docs-badge-before-light: var(--noora-green-100);
+      --noora-docs-label-light: var(--noora-green-700);
+      --noora-docs-label-dark: var(--noora-green-400);
+    }
+    &[data-color="information"] {
+      --noora-docs-badge-hue: var(--noora-azure-500);
+      --noora-docs-badge-alpha: var(--noora-alpha-azure);
+      --noora-docs-badge-before-light: var(--noora-azure-100);
+      --noora-docs-label-light: var(--noora-azure-700);
+      --noora-docs-label-dark: var(--noora-azure-400);
+    }
+    &[data-color="focus"] {
+      --noora-docs-badge-hue: var(--noora-blue-500);
+      --noora-docs-badge-alpha: var(--noora-alpha-blue);
+      --noora-docs-badge-before-light: var(--noora-blue-100);
+      --noora-docs-label-light: var(--noora-blue-700);
+      --noora-docs-label-dark: var(--noora-blue-400);
+    }
+    &[data-color="primary"] {
+      --noora-docs-badge-hue: var(--noora-purple-500);
+      --noora-docs-badge-alpha: var(--noora-alpha-purple);
+      --noora-docs-badge-before-light: var(--noora-purple-100);
+      --noora-docs-label-light: var(--noora-purple-700);
+      --noora-docs-label-dark: var(--noora-purple-400);
+    }
+    &[data-color="secondary"] {
+      --noora-docs-badge-hue: var(--noora-pink-500);
+      --noora-docs-badge-alpha: var(--noora-alpha-pink);
+      --noora-docs-badge-before-light: var(--noora-pink-100);
+      --noora-docs-label-light: var(--noora-pink-600);
+      --noora-docs-label-dark: var(--noora-pink-400);
+    }
+  }
+
+  /* Before: the previous light-fill colors, an opaque 100 tint in light
+     mode and the alpha token in dark mode, without blending. */
+  & [data-approach="current"] .noora-badge[data-style="light-fill"] {
+    background: light-dark(var(--noora-docs-badge-before-light), var(--noora-docs-badge-alpha));
+
+    &::before {
+      display: none;
+    }
+  }
+
+  & [data-approach="blend"] .noora-badge[data-style="light-fill"] {
+    position: relative;
+    background: transparent;
+
+    &::before {
+      position: absolute;
+      mix-blend-mode: multiply;
+      inset: 0;
+      border-radius: inherit;
+      background: light-dark(
+        oklch(
+          from var(--noora-docs-badge-base-light) var(--noora-docs-blend-light-l)
+            calc(c * var(--noora-docs-blend-light-c)) h
+        ),
+        oklch(
+          from var(--noora-docs-badge-base-dark) var(--noora-docs-blend-dark-l) calc(c * var(--noora-docs-blend-dark-c))
+            h
+        )
+      );
+      content: "";
+    }
+
+    & > * {
+      position: relative;
+    }
+
+    /* Neutral blends its own background tokens as they are. */
+    &[data-color="neutral"]::before {
+      background: light-dark(var(--noora-docs-badge-base-light), var(--noora-docs-badge-base-dark));
+    }
+  }
+}
+
+:root[data-theme="dark"]
+  .noora-docs-badge-surfaces
+  [data-approach="blend"]
+  .noora-badge[data-style="light-fill"]::before {
+  mix-blend-mode: screen;
+}
