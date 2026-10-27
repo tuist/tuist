@@ -64,11 +64,11 @@
   use the region's disk resource; they must never substitute `/data` free space
   for missing LVM capacity.
 
-- [Volume-key providers](volume_keys/AGENTS.md) support `aws_kms` with explicit
-  full key ARNs and a dedicated projected STS identity. Partial KMS configuration
+- [Volume-key providers](volume_keys/AGENTS.md) support `openbao` with pinned HTTPS
+  origin/mount/key identities and a dedicated projected Kubernetes identity. Partial configuration
   fails closed. `VolumeKeys.Rotation` rewraps the SAME plaintext shares with a
   pinned target, verification and compare-and-swap outside remote-call
   transactions. This envelope-only change is safe within a version; adding or
   removing a composite share is not. Include retired versions and retained
-  backups before retiring a root. `KMSHTTP` avoids shared request-body telemetry.
+  backups before retiring a root. `KeyServiceHTTP` avoids shared request-body telemetry.
   See `infra/kura-volumes-csi/security/key-management.md` for activation/recovery.

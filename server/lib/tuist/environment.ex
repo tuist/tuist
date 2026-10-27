@@ -2067,52 +2067,69 @@ defmodule Tuist.Environment do
   end
 
   @doc """
-  Dedicated KMS key ARNs and projected workload identity. Partial or malformed
-  configuration fails closed instead of selecting the legacy root provider.
+  OpenBao Transit and dedicated projected Kubernetes identity. Any partial
+  configuration fails closed. Persisted key IDs pin the HTTPS origin, mount
+  and key, so changing an endpoint cannot silently redirect existing shares.
   """
-  def kura_volume_kms(environment \\ System.get_env()) do
-    key_id = Map.get(environment, "TUIST_KURA_VOLUME_KMS_KEY_ARN", "")
-    role_arn = Map.get(environment, "TUIST_KURA_VOLUME_KMS_ROLE_ARN", "")
+  def kura_volume_openbao(environment \\ System.get_env()) do
+    prefix = "TUIST_KURA_VOLUME_OPENBAO_"
+    configured = Enum.any?(environment, fn {key, _} -> String.starts_with?(key, prefix) end)
 
-    decrypt_keys =
-      environment
-      |> Map.get("TUIST_KURA_VOLUME_KMS_DECRYPT_KEY_ARNS", "")
-      |> String.split(",", trim: true)
-      |> Enum.map(&String.trim/1)
+    if configured do
+      address = environment |> Map.get(prefix <> "ADDRESS", "") |> String.trim_trailing("/")
+      uri = URI.parse(address)
+      key_name = Map.get(environment, prefix <> "KEY_NAME", "")
+      role = Map.get(environment, prefix <> "ROLE", "")
+      transit_mount = Map.get(environment, prefix <> "TRANSIT_MOUNT", "transit")
+      auth_mount = Map.get(environment, prefix <> "AUTH_MOUNT", "kubernetes")
+      token_file = Map.get(environment, prefix <> "TOKEN_FILE", "/var/run/tuist/kura-openbao/token")
+      ca_cert_file = Map.get(environment, prefix <> "CA_CERT_FILE")
 
-    key_pattern = ~r/\Aarn:aws:kms:([a-z]{2}-[a-z]+-[0-9]):[0-9]{12}:key\/[a-f0-9-]{36}\z/
+      decrypt_names =
+        environment
+        |> Map.get(prefix <> "DECRYPT_KEY_NAMES", "")
+        |> String.split(",", trim: true)
+        |> Enum.map(&String.trim/1)
 
-    case Regex.run(key_pattern, key_id) do
-      [_, region] ->
-        if Regex.match?(~r/\Aarn:aws:iam::[0-9]{12}:role\/[A-Za-z0-9_+=,.@\/-]+\z/, role_arn) and
-             Enum.all?(decrypt_keys, &(Regex.run(key_pattern, &1) == [&1, region])) do
-          {:ok,
-           %{
-             key_id: key_id,
-             region: region,
-             role_arn: role_arn,
-             decrypt_key_ids: Enum.uniq([key_id | decrypt_keys]),
-             token_file: Map.get(environment, "TUIST_KURA_VOLUME_KMS_TOKEN_FILE", "/var/run/tuist/kura-kms/token")
-           }}
-        else
-          {:error, :invalid_kms_configuration}
-        end
+      names = [key_name, role, transit_mount, auth_mount | decrypt_names]
 
-      _ ->
-        if key_id == "" and role_arn == "" and decrypt_keys == [],
-          do: :disabled,
-          else: {:error, :invalid_kms_configuration}
+      if uri.scheme == "https" and is_binary(uri.host) and uri.host != "" and
+           uri.path in [nil, ""] and is_nil(uri.userinfo) and is_nil(uri.query) and is_nil(uri.fragment) and
+           Enum.all?(names, &Regex.match?(~r/\A[a-zA-Z0-9][a-zA-Z0-9_-]*\z/, &1)) and
+           Path.type(token_file) == :absolute and
+           (is_nil(ca_cert_file) or Path.type(ca_cert_file) == :absolute) do
+        key_id = "#{address}/v1/#{transit_mount}/keys/#{key_name}"
+
+        {:ok,
+         %{
+           address: address,
+           key_id: key_id,
+           key_name: key_name,
+           transit_mount: transit_mount,
+           auth_mount: auth_mount,
+           role: role,
+           token_file: token_file,
+           ca_cert_file: ca_cert_file,
+           decrypt_keys: Map.new([key_name | decrypt_names], &{"#{address}/v1/#{transit_mount}/keys/#{&1}", &1})
+         }}
+      else
+        {:error, :invalid_openbao_configuration}
+      end
+    else
+      :disabled
     end
+  rescue
+    _ -> {:error, :invalid_openbao_configuration}
   end
 
   @doc """
   Legacy wrapping roots (`TUIST_KURA_VOLUME_ROOT_KEYS`), as `[{id, key}]`.
-  The first wraps new shares only when KMS is disabled; all entries decrypt.
+  The first wraps new shares only when OpenBao is disabled; all entries decrypt.
   Prepending a replacement does not rewrap existing shares. Use
   `Tuist.Kura.VolumeKeys.Rotation` before retiring a root, including backups.
 
   Outside canary/production an unset value derives a development root from
-  secret_key_base. Canary/production require explicit roots or KMS.
+  secret_key_base. Canary/production require explicit roots or OpenBao.
   """
   def kura_volume_root_keys(secrets \\ secrets()) do
     case get([:kura, :volume_root_keys], secrets) do

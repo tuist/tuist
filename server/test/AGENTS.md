@@ -143,9 +143,10 @@ This directory contains ExUnit tests for the Tuist Server.
 
 - Zero-hit secondary retirement tests cover ten complete reported UTC days, the exact instance-age boundary, unknown age, missing/duplicate reports, hits anywhere in the window or today, a surviving region with hits, primary exclusion, the rollout gate, and unchanged 28-day low-traffic retirement.
 
-- Kura wrapping-key tests must preserve passphrases through root/KMS rewrap,
+- Kura wrapping-key tests must preserve passphrases through root/OpenBao rewrap,
   include retired versions, refuse concurrent overwrite, and cover unavailable
-  keys and recovery from an older key record. KMS HTTP fakes assert exact ARN,
-  context, projected identity and sanitized failures; they are not evidence of
-  live AWS IAM, CloudTrail or database backup restore success.
+  keys and recovery from an older key record. OpenBao HTTP fakes assert pinned backend,
+  context, projected identity and sanitized failures. The disposable integration
+  check exercises real Kubernetes login and Transit; it is not evidence of
+  hosted recovery, audit delivery or database backup restore success.
 - Linux vRack flag tests cover every environment's default-off behavior, account isolation and opt-out, profile/legacy routing, direct-label bypass rejection, missing pool configuration, and unchanged alternate-pool resource accounting. Helm regression tests assert disjoint selectors and unchanged ordinary capacity.

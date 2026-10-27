@@ -147,10 +147,10 @@ generated run output belongs outside the source tree.
 
 ## Key custody and admission
 
-[Security runbook and tests](security/AGENTS.md) cover KMS wrapping, resumable
+[Security runbook and tests](security/AGENTS.md) cover OpenBao Transit wrapping, resumable
 rewrap and recovery gates. The main chart owns three retained fail-closed
 admission policies restricting the shared CSI identity to its token-bound node,
 immutable PV/PVC ownership and its own disk-capacity field. PVC writes/events
 are namespaced to `kura`. Cluster administrators and privileged host access
-remain trusted. Never claim hosted KMS custody before the live migration gates
+remain trusted. Never claim hosted OpenBao custody before the live migration gates
 in `security/key-management.md` pass.

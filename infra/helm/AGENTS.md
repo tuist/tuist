@@ -257,11 +257,12 @@ Cluster formation requires a stable shared cookie Secret, a fixed distribution l
   node-layout rollout. Both `kura-lvm-nvme` and `kura-encrypted-nvme` need the CSI
   driver retained across rollback.
 
-- `server.config.kuraVolumeKMS` adds only a dedicated projected STS token to the
-  web server, plus explicit wrapping/decrypt ARNs and role. Legacy root sync
+- `server.config.kuraVolumeOpenBao` adds a dedicated projected Kubernetes token
+  to the web server, with explicit HTTPS origin, Transit/auth mounts, key names
+  and role. An optional ConfigMap supplies the private CA without disabling TLS. Legacy root sync
   remains independently enabled during verified rewrap, then must be disabled
   and every shared Secret consumer restarted. Managed overlays must not claim
-  KMS custody until public OIDC/IAM/audit/re-stage gates pass.
+  OpenBao custody until identity, seal recovery, backups, audit and re-stage gates pass.
 - Kura CSI's retained admission policies constrain its pod-bound identity to
   its own node's PV lifecycle and disk capacity, and preserve PVC ownership.
   Claim writes/events are a `kura` Role. Run the disposable real-API admission

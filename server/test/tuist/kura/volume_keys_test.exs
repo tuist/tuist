@@ -12,7 +12,7 @@ defmodule Tuist.Kura.VolumeKeysTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup do
-    stub(Environment, :kura_volume_kms, fn -> :disabled end)
+    stub(Environment, :kura_volume_openbao, fn -> :disabled end)
     root_key = :crypto.strong_rand_bytes(32)
     stub(Environment, :kura_volume_root_keys, fn -> [{"root-a", root_key}] end)
     %{account: AccountsFixtures.account_fixture(), root_key: root_key}
@@ -67,10 +67,10 @@ defmodule Tuist.Kura.VolumeKeysTest do
       assert Repo.reload!(active).state == :active
     end
 
-    test "invalid KMS configuration never falls back to an exportable root" do
-      stub(Environment, :kura_volume_kms, fn -> {:error, :invalid_kms_configuration} end)
+    test "invalid OpenBao configuration never falls back to an exportable root" do
+      stub(Environment, :kura_volume_openbao, fn -> {:error, :invalid_openbao_configuration} end)
       refute VolumeKeys.available?()
-      assert {:error, :invalid_kms_configuration} = VolumeKeys.wrapping_target()
+      assert {:error, :invalid_openbao_configuration} = VolumeKeys.wrapping_target()
     end
   end
 

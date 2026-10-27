@@ -17,7 +17,7 @@ defmodule Tuist.Kura.VolumeKeys do
   every share of the version.
 
   Each version currently has one Tuist-managed share, wrapped either by the
-  legacy `tuist_root` provider or the configured `aws_kms` provider. Rewrapping
+  legacy `tuist_root` provider or the configured `openbao` provider. Rewrapping
   changes only its envelope, preserving plaintext and volume passphrases.
   Future organization-managed KMS shares require a new key version. Revocation
   prevents future unwraps; it does not close an already-open LUKS mapping.
@@ -35,15 +35,15 @@ defmodule Tuist.Kura.VolumeKeys do
   alias Tuist.Kubernetes.Client
   alias Tuist.Kura.Identity
   alias Tuist.Kura.Server
-  alias Tuist.Kura.VolumeKeys.AWSKMSShareProvider
   alias Tuist.Kura.VolumeKeys.HKDF
+  alias Tuist.Kura.VolumeKeys.OpenBaoShareProvider
   alias Tuist.Kura.VolumeKeys.TenantKey
   alias Tuist.Kura.VolumeKeys.TuistRootShareProvider
   alias Tuist.Repo
 
   require Logger
 
-  @providers %{"tuist_root" => TuistRootShareProvider, "aws_kms" => AWSKMSShareProvider}
+  @providers %{"tuist_root" => TuistRootShareProvider, "openbao" => OpenBaoShareProvider}
   @share_bytes 32
   @passphrase_bytes 32
   @tenant_key_aad_prefix "kura-tenant-key/v1|"
@@ -66,9 +66,9 @@ defmodule Tuist.Kura.VolumeKeys do
 
   @doc "Returns the configured provider and pinned wrapping key identifier, never key material."
   def wrapping_target do
-    case Environment.kura_volume_kms() do
+    case Environment.kura_volume_openbao() do
       {:ok, %{key_id: key_id}} ->
-        {:ok, "aws_kms", key_id}
+        {:ok, "openbao", key_id}
 
       :disabled ->
         case Environment.kura_volume_root_keys() do

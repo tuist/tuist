@@ -2,18 +2,18 @@
 
 ## Status and boundaries
 
-The PR adds an AWS KMS share provider, a resumable root-rewrap API, dedicated
-projected workload identity and CSI admission policies. **These changes are not
-an assertion that the hosted deployment already uses KMS.** Managed overlays
-continue to use their existing roots until the migration gates below pass.
+The PR adds an OpenBao Transit share provider, a resumable root-rewrap API,
+dedicated Kubernetes workload identity and CSI admission policies. The earlier
+AWS implementation was never activated and has been removed. **Hosted storage
+does not yet use OpenBao.** Managed overlays continue using their existing roots
+until a dedicated OpenBao service and the migration gates below are validated.
 
 The October 27, 2026 access review used only metadata. No root key, volume
 passphrase, Secret value or backup object was retrieved. No production mutation
-was performed. AWS provisioning was blocked by an expired `tuist-dns` session;
-there was no default AWS identity. The current staging identity cannot create
-ValidatingAdmissionPolicies or update ClusterRoles. Those objects require the
-normal reviewed deployment workflow. OIDC discovery through that identity was
-also forbidden, so public federation readiness remains unverified.
+was performed. The staging identity could not create ValidatingAdmissionPolicies
+or update ClusterRoles. Those objects required the normal deployment workflow.
+No existing OpenBao service is configured in this repository; its deployment,
+operator custody and hosted recovery validation remain prerequisites.
 
 ## Staging admission rollout
 
@@ -39,88 +39,119 @@ was installed on staging.
 
 The source-code rewrap fixes and KMS provider were tested locally; this
 chart-only rollout intentionally kept the server on `sha-ef07ca13e38d` and did
-not activate those modules. KMS migration, token refresh, CloudTrail and actual
-backup restore gates remain pending AWS access/federation setup.
+not activate those modules. That rollout is historical admission evidence, not
+validation of the subsequent OpenBao provider. Hosted OpenBao migration, token
+refresh, durable audit delivery and actual backup restore gates remain pending.
 
-## Custody
+## Custody and dedicated deployment
 
-`server.config.kuraVolumeKMS` enables a dedicated AWS KMS key ARN and workload
-role ARN on the web server. Its projected token has audience `sts.amazonaws.com`
-and expires after one hour. Each key operation exchanges that token for a
-short-lived STS session. It does not inherit S3 credentials or require a static
-AWS access key. The server receives plaintext tenant shares during authorized
-unwraps but never receives the KMS wrapping key. It performs no KMS operations
-on artifact GET/PUT: the CSI stage/re-stage path fetches volume passphrases.
+`server.config.kuraVolumeOpenBao` configures an HTTPS origin, Transit/auth mount,
+key name and Kubernetes role on the web server. The dedicated projected token
+has audience `openbao.kura.tuist.dev` and expires after one hour. Each operation
+reads the current projected token, logs in to OpenBao and uses the returned
+short-lived batch token for one encrypt/decrypt request. There are no static
+workload tokens, AWS credentials, STS calls or public OIDC discovery dependency.
+OpenBao's Kubernetes auth method verifies identity through TokenReview.
 
-Only full symmetric-key ARNs in the configured region are accepted. The active
-ARN wraps new shares; the explicit decrypt allowlist retains old ARNs during
-migration. Partial/invalid KMS configuration and provider outages fail closed,
-without falling back to a legacy wrapper for new shares. Legacy ciphertext
-continues to use the root named in its record until it is rewrapped.
+Use a stable HTTPS origin and explicit single-segment names. Stored `key_id`
+values include origin, Transit mount and key name; changing the configured
+origin/mount cannot silently redirect old ciphertext. `decryptKeyNames` allows
+older keys in the same backend during migration. Cross-service relocation needs
+an explicit migration design; it is not achieved by changing `address`.
+The optional `caConfigMap` projects `ca.crt` for private TLS. Peer and hostname
+verification remain enabled; HTTP, embedded credentials, URL paths, redirects,
+queries and fragments are rejected. This transport bypasses shared HTTP body
+telemetry and emits sanitized reason atoms, never tokens or provider bodies.
 
-The KMS encryption context contains `purpose=kura-volume-share` and the existing
-stable tenant/version/share-position AAD. It contains no artifact content. KMS
-responses must name the expected key and contain exactly 32 plaintext bytes.
-The transport uses verified HTTPS with bounded connect/request timeouts and no
-redirects. It deliberately bypasses shared ExAws/Finch request-body telemetry;
-errors contain only fixed reason atoms. ExAws is used for signing, not transport.
-There is no plaintext-share cache in this provider. Server memory remains in the
-trusted boundary; BEAM garbage collection is not guaranteed secure erasure.
+Configure a derived `aes256-gcm96` Transit key. Every operation supplies both
+base64 derivation `context` and `associated_data` with the existing stable
+`kura-tenant-key/v1|tenant|version|position` identity. Returned plaintext must be
+exactly 32 bytes. Partial configuration, denial, sealed OpenBao or an outage
+fails closed; no legacy fallback wraps new shares. Existing legacy records
+still decrypt with their named roots until rewrapped. There is no share/token
+cache and no key-service call on artifact GET/PUT, only stage/re-stage and key
+management. Plaintext shares still exist in the server's memory; BEAM GC is not
+secure erasure. OpenBao software keys do not provide an HSM boundary.
 
-Generate reviewable IAM policies with `kms-policies.rb`, setting the six named
-`KURA_*` inputs listed in that script. Use a separate key and workload role per
-environment. Create a symmetric `AWS_KMS` origin key; enable 90-day automatic
-material rotation. Keep the key on infrastructure-stack deletion. The workload
-gets only Encrypt/Decrypt with the required context, while a separate operator
-role administers the key. Review existing account policies and grants too:
-these generated policies alone cannot prove there are no additional grants.
+Generate a configuration plan without making API calls:
 
-Before enabling the chart:
+```sh
+KURA_OPENBAO_SERVER_NAMESPACE=tuist-staging \
+KURA_OPENBAO_ROLE=kura-staging \
+KURA_OPENBAO_KEY_NAME=kura-volume-root \
+ruby infra/kura-volumes-csi/security/openbao-config.rb
+```
 
-1. Verify the cluster token's issuer has public HTTPS discovery and JWKS which
-   AWS can fetch. Never expose the Kubernetes API or private signing keys to
-   achieve discovery. Verify issuer/signing-key rotation and retain overlapping
-   public keys until old tokens expire. Changing a cluster's issuer needs its
-   own reviewed platform rollout; do not silently change it with this PR.
-2. Register that issuer in IAM and restrict trust to the exact environment's
-   `system:serviceaccount:<namespace>:tuist-server` and STS audience. Use the
-   rendered ServiceAccount name if an installation overrides chart naming.
-3. Create the dedicated role before installing a key policy that names it.
-   Verify the runtime role cannot change policy, create grants, disable/delete
-   the key, or access another environment's key. Keep key-admin access separate.
-4. Verify durable CloudTrail management-event delivery includes KMS (it can be
-   excluded). Retention/access protections must be checked on the actual trail.
-   Produce one authorized wrap/unwrap and one denied wrong-context operation;
-   verify principal, key ARN and AAD in the events without recording plaintext.
-5. Exercise token refresh, KMS denial/outage and re-stage recovery on a disposable
-   staging volume. Record latency and availability; local mocks do not validate
-   IAM, public discovery, network reachability or CloudTrail delivery.
+Optional `KURA_OPENBAO_TRANSIT_MOUNT`, `KURA_OPENBAO_AUTH_MOUNT` and
+`KURA_OPENBAO_DECRYPT_KEY_NAMES` select dedicated mounts and old keys. The plan
+sets derived, non-exportable keys with plaintext backup disabled and 90-day
+rotation, exact Transit encrypt/decrypt policy paths, an exact namespace and
+`tuist-server` service account, the dedicated audience, and five-minute batch
+tokens without the default policy. Do not grant the workload key creation,
+rotation, export, backup, mount/policy administration or root access. Configure
+mounts, keys and roles using a separately authorized operator. Give OpenBao's
+own service account TokenReview permission; configure its Kubernetes auth with
+its locally rotated reviewer token and cluster CA, not a permanent reviewer JWT.
 
-AWS references: [encryption context](https://docs.aws.amazon.com/kms/latest/developerguide/encrypt_context.html),
-[CloudTrail](https://docs.aws.amazon.com/kms/latest/developerguide/logging-using-cloudtrail.html),
-[OIDC prerequisites](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc.html).
+Before hosted activation:
+
+1. Prepare a dedicated OpenBao deployment separate from the application release.
+   Use at least three Raft members across independent nodes, durable storage,
+   TLS, controlled network access and a stable endpoint. Do not place its Raft
+   storage on encrypted Kura volumes: that creates a circular boot dependency.
+   Keep environment keys/auth roles isolated and administrative access separate.
+2. Choose and exercise root-of-trust custody. Without an external HSM/KMS,
+   Shamir unseal needs operator-held shares after node restart. Distribute a
+   threshold across independent custodians; never put every share in one vault
+   or a Kubernetes Secret readable by the application cluster. No automated
+   unseal script or embedded root token is supplied. A future HSM/auto-unseal
+   choice needs its own tested recovery path. Do not claim unattended recovery
+   while manual unseal remains required.
+3. Declare durable audit devices in the OpenBao server configuration with raw
+   logging disabled (the fixture uses `audit "file" "local"`); do not enable
+   unsafe API audit-device creation to work around configuration. Protect their
+   delivery/storage. Verify authorized login, wrap/unwrap and denied access
+   appear, with sensitive values HMAC-protected. Check audit-destination failure
+   behavior. A local file audit fixture is not durable hosted delivery.
+4. Back up encrypted Raft snapshots outside the application cluster. Keep the
+   required unseal custody separate from snapshots. Restore a snapshot onto an
+   isolated service, unseal it and decrypt a saved share; then verify the same
+   volume passphrase with a matching database recovery point. Test total-cluster
+   loss, member replacement, token refresh and operator availability.
+5. Enable the provider in staging only after the service is ready and exercise
+   a disposable volume. Test expired/wrong-audience/wrong-service-account tokens, removed
+   role permissions, sealing/outage and recovery, and real CSI re-stage/checksum
+   preservation. Keep legacy root sync during the staged rewrap below. Regional
+   LVM enrollment and OpenBao cutover are independent changes.
+
+References: [Transit API](https://openbao.org/docs/api/secret/transit/),
+[Kubernetes authentication](https://openbao.org/docs/auth/kubernetes/),
+[seal and recovery](https://openbao.org/docs/concepts/seal/).
 
 ## Rewrap, retirement and recovery
 
 Root-envelope rotation does not change a tenant share, key version, share order,
 LUKS passphrase or data encryption key. It requires no volume rewrite/restart.
 This is different from rotating a compromised tenant share or LUKS keyslot; that
-workflow is not delivered here. Automatic KMS material rotation keeps the ARN
-and old material for decryption; moving to a different ARN requires rewrap.
-See [AWS rotation semantics](https://docs.aws.amazon.com/kms/latest/developerguide/rotate-keys.html).
+workflow is not delivered here. Transit rotation keeps the key name and old
+versions available for decryption; the ciphertext's `vault:vN:` prefix records
+the version. Rewrap batches encrypt with the latest version even when `key_id`
+stays the same. Inventory counts key names, not Transit versions: do not raise
+`min_decryption_version`, trim versions or delete a key based on those counts.
+Old database backups may still contain envelopes from earlier versions.
 
 1. Take a recoverable database backup and record its recovery point and required
    wrapping-key identifiers. Verify the old key remains recoverable. Store only
    identifiers in the change record, never key material.
-2. Deploy provider-capable code everywhere before any KMS shares are written.
+2. Deploy provider-capable code everywhere before any OpenBao shares are written.
    Enable the destination wrapper while retaining all source decrypt keys.
-   For legacy-to-KMS migration retain `kuraVolumeRootKeys.enabled: true` initially.
+   For legacy-to-OpenBao migration retain `kuraVolumeRootKeys.enabled: true` initially.
 3. On the release, inspect `Tuist.Kura.VolumeKeys.Rotation.inventory/0`.
    It reports provider, wrapping identifier, active/retired state and counts.
 4. Run a single batch pinned to the expected destination, initially with limit 1:
 
    ```elixir
-   target = {"aws_kms", "<the exact new key ARN>"}
+   target = {"openbao", "https://<stable-openbao-origin>/v1/transit/keys/kura-volume-root"}
    Tuist.Kura.VolumeKeys.Rotation.batch(target, limit: 1)
    ```
 
@@ -146,19 +177,20 @@ See [AWS rotation semantics](https://docs.aws.amazon.com/kms/latest/developergui
    snapshot, replica, rollback image and exported recovery bundle depending on
    them has expired or been replaced and a restore drill has passed. The observed
    database retention was 30 days, not evidence that all possible copies expire
-   at 30 days. Never delete KMS keys or root history automatically from a zero
+   at 30 days. Never delete Transit keys or root history automatically from a zero
    live-row count.
 
 For recovery, restore a selected backup into an isolated environment, restore
-its matching legacy roots or KMS decrypt permissions, and verify a known
+its matching legacy roots or OpenBao decrypt permissions, and verify a known
 volume's derived passphrase through an actual re-stage/checksum probe. Never
 connect a restored database to production controllers. A pre-rewrap backup still
-requires the old wrapper. Re-enabling a disabled KMS key/repairing IAM can restore
-unwraps; deleting a KMS key cannot be undone after its deletion window.
+requires the old wrapper. Restoring role access, unsealing the service or restoring
+a matching Raft snapshot can recover unwraps. Losing Transit key material and
+its recoverable backups makes the corresponding volumes unrecoverable.
 
-Rollback after any KMS share exists must retain KMS-capable code and its decrypt
+Rollback after any OpenBao share exists must retain OpenBao-capable code and its decrypt
 configuration. To move back to legacy custody, rewrap every row while both
-providers work, verify inventory and recovery, and only then disable KMS.
+providers work, verify inventory and recovery, and only then disable OpenBao.
 Already-open mappings can continue through a key-service outage; new/re-staged
 volumes fail closed. Revoking a wrapper does not revoke mounted plaintext.
 
@@ -200,7 +232,7 @@ Read-only live findings (staging and production, October 27):
 - Many platform identities have namespace-wide or cluster-wide Secret reads:
   ingress, cert-manager, monitoring, external-secrets, CAPI and node identities,
   among others. Root custody is therefore broader than vault membership alone.
-  Removing the root from the shared Secret after KMS migration is the immediate
+  Removing the root from the shared Secret after OpenBao migration is the immediate
   mitigation. Do not revoke unrelated controller permissions without testing
   those controllers' dependencies. Kubernetes data-at-rest encryption was not
   established by this RBAC review.
@@ -214,26 +246,40 @@ Read-only live findings (staging and production, October 27):
 
 ## Reproducible local validation
 
-The focused ExUnit run passed 106 tests against the unchanged lockfile. The
-real Kubernetes 1.34 admission run passed 16 allowed/denied cases with no policy
-type-check warnings. The isolated Helm render checks, CSI Go tests/vet, and managed rack-release isolation checks passed. Strict Credo found no issues in the 11 key modules/tests. The suites cover legacy-root rewrap/retirement, restoring an old key
-record with its old root, KMS migration/outage recovery with a cryptographic
-stand-in, concurrent-update refusal, target pinning, retired versions, bounded
-resumption, ARN/context/identity validation and existing issuance authorization.
-These tests do not constitute a live KMS or full database restore drill.
+The 112 focused server tests pass and cover legacy-root rewrap/retirement, old-record recovery,
+context/identity binding, target pinning, outage recovery, concurrent-update
+refusal, retired versions and bounded resumption. `openbao_integration.rb`
+creates a disposable kind cluster and real TLS-enabled OpenBao with Raft,
+Kubernetes TokenReview authentication and the generated least-privilege policy.
+It exercises the production Elixir provider, rotation, identity/permission
+rejections, sealing/recovery, encrypted Raft snapshot restore and HMAC protection
+of JWTs and plaintext shares in audit records. Its one-share
+unseal and single-member ephemeral storage are test fixtures only. It deletes
+its cluster and temporary credentials; it never uses a hosted kubeconfig.
+The snapshot is restored into the same disposable service; this is not a
+total-cluster-loss, hosted availability or full database/volume restore drill.
+The real OpenBao 2.7.1/Kubernetes 1.34 run passes, as do strict Credo on the 11
+key modules/tests, the OpenBao Helm checks and managed rack-release isolation.
+
+The prior real Kubernetes 1.34 CSI admission run passed 16 allowed/denied cases
+with no policy type-check warnings. Those policies are unchanged by the provider
+replacement. Historical CSI tests/vet and managed rack-release checks also passed.
 
 ```sh
 cd server
 mix test test/tuist/kura/volume_keys_test.exs \
-  test/tuist/kura/aws_kms_share_provider_test.exs \
-  test/tuist/kura/kms_http_test.exs \
+  test/tuist/kura/openbao_share_provider_test.exs \
+  test/tuist/kura/key_service_http_test.exs \
   test/tuist_web/controllers/internal/kura_volume_keys_controller_test.exs \
   test/tuist/environment_test.exs
 ```
 
 From the repository root, `ruby infra/kura-volumes-csi/security/helm_test.rb`
-checks projected identity, root-secret removal, required KMS settings, policy
-rendering and namespaced CSI writes. For real admission evaluation:
+checks projected identity, root-secret removal, required OpenBao settings, policy
+rendering and namespaced CSI writes. Run the isolated real-provider integration
+with `ruby infra/kura-volumes-csi/security/openbao_integration.rb` (Docker, kind,
+kubectl, OpenSSL and the installed server toolchain are required). For real
+admission evaluation:
 
 ```sh
 kind create cluster --name kura-key-security --image kindest/node:v1.34.0 \
@@ -246,4 +292,4 @@ kind delete cluster --name kura-key-security
 The admission test deliberately grants its local fixture identity cluster-admin
 so admission must independently reject attacks. It refuses other context names
 and removes its temporary token file. Never install that test role on staging
-or production. KMS activation and the AWS recovery/audit drill remain gates; the CSI chart rollout is recorded above.
+or production. Hosted OpenBao activation and recovery/audit drills remain gates; the CSI chart rollout is recorded above.
