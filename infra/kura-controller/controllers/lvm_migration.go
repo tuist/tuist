@@ -45,7 +45,7 @@ func (r *KuraInstanceReconciler) lvmMigrationAllowed(ctx context.Context, instan
 	if err := r.Get(ctx, client.ObjectKey{Name: volume.claim.Spec.VolumeName}, pv); err != nil {
 		return false, err
 	}
-	if pv.Spec.CSI != nil && pv.Spec.CSI.Driver == "kura-volumes.tuist.dev" && pv.Spec.CSI.VolumeAttributes["backing"] == "lvm" {
+	if verifiedStorageBacking(instance, pv) {
 		return true, nil
 	}
 	hosts := pvRequiredHostnames(pv)
@@ -79,6 +79,9 @@ func (r *KuraInstanceReconciler) lvmMigrationAllowed(ctx context.Context, instan
 		return false, err
 	default:
 		selector = sts.Spec.Template.Spec.NodeSelector
+		if instance.Spec.StorageClassName == thinLocalStorageClass {
+			selector = nodeSelector(instance)
+		}
 	}
 	// This is a minimum landing check, not a capacity reservation. Kubernetes
 	// remains authoritative; preflight the whole source node's claims before
@@ -86,7 +89,7 @@ func (r *KuraInstanceReconciler) lvmMigrationAllowed(ctx context.Context, instan
 	var prepared []corev1.Node
 	for _, node := range nodes.Items {
 		capacity := node.Status.Allocatable[kuraDiskResource]
-		if capacity.Cmp(storageQuantity(instance)) >= 0 {
+		if capacity.Cmp(diskReservation(instance)) >= 0 {
 			prepared = append(prepared, node)
 		}
 	}

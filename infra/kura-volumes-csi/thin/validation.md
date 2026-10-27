@@ -1,7 +1,8 @@
 # Thin stack qualification
 
-Date: 2026-10-27. This is local mechanism evidence for [the proposed design](design.md),
-not qualification of a thin CSI implementation or a staging deployment.
+Date: 2026-10-27. The actual conservative CSI implementation has completed the
+local qualification below. Staging evidence is recorded separately. The original
+mechanism experiment remains evidence against physical overcommit.
 
 ## Decision from the experiment
 
@@ -11,10 +12,78 @@ physical thin allocation. Fragmented files retained whole thin chunks even
 after successful trim with discard enabled. This prevents treating quota
 reductions or successful trim as transferable physical capacity.
 
-The driver still creates thick LVs. The new API, sizing policy, persistent grant
-ledger and pressure containment described in the design are not implemented by
-this harness. It deliberately overcommits virtual sizes to explore the failure
+The original Ruby harness does not exercise the CSI API or ledger. It deliberately overcommits virtual sizes to explore the failure
 case in a disposable VM. That is not the proposed conservative admission mode.
+
+## Actual CSI qualification
+
+The actual driver completed its disposable Linux qualification in **122.54 s**,
+including benchmarks. `internal/driver/thin_integration_test.go` uses the real
+command runner, mount table, LUKS, XFS and LVM code; only key retrieval supplies
+random in-memory fixture keys. It also serves and reads the root-only Unix API.
+The pool had 16 GiB data, 512 MiB metadata, 64 KiB chunks, 256 MiB data reserve,
+32 MiB metadata reserve and four slots. The VM had four CPUs and 4 GiB RAM.
+
+- Reclaiming A released **805,371,904 bytes** in both volume and pool counters;
+  writing 768 MiB to B increased pool use by exactly that amount. Open-unlinked
+  files remained charged. Injected trim failure returned an error.
+- Lowered quotas rejected both fallocate and actual writes. The test rejects
+  unrelated I/O failures as quota evidence and verifies subsequent writes work.
+- Interrupted creation retained a full reservation until explicit deletion.
+  Interrupted quota application recovered the durable intent on re-stage.
+- Lost-response retries were idempotent. Stale generations and another pod UID
+  were rejected. Reconstructed driver state and unstage/reopen preserved the
+  SHA-256-verified payload and stable identity.
+- Four concurrent creates admitted only two additional devices, reaching the
+  four-slot limit. Increased data/metadata reserve requirements refused new
+  admission. Retained volumes stayed charged; active deletion was refused;
+  confirmed deletion released exactly one complete virtual reservation.
+- The HTTP observation succeeded over a `0600` Unix socket. Cleanup removed the
+  fixture VG and verified loop detachment before unlinking the backing file.
+
+Earlier attempts found and fixed empty-pool device-mapper naming and unsupported
+`lvcreate --zero` on thin children. Another attempt exhausted the laptop's backing
+disk and caused VM I/O errors and an XFS shutdown. That run was rejected as
+qualification. After backing space recovered and the VM restarted, the complete
+suite passed. Physical device errors remain outside quota admission guarantees.
+
+Cross-compile `go test -c ./internal/driver` for a disposable Linux VM with
+LVM, cryptsetup, XFS tools and fio, then run:
+
+```sh
+sudo env KURA_THIN_DISPOSABLE_VM=1 KURA_THIN_BENCHMARK=1 \
+  ./driver.test -test.run '^TestThinRealStack$' -test.v -test.timeout 12m
+```
+
+### Actual driver performance comparison
+
+The control uses the thick CSI path's normal XFS defaults, without project
+quotas or discard through LUKS. The thin path uses the implemented profile.
+Runs are ordered thick/thin/thin/thick, with a 256 MiB fio file, direct I/O,
+QD32 and five seconds per operation. The same loop-backed VM is used throughout.
+These short samples do not establish hosted NVMe or Kura HTTP performance.
+
+| Operation | Thick CSI | Thin CSI |
+| --- | ---: | ---: |
+| Sequential write | 4.33–5.65 GiB/s | 3.83–5.30 GiB/s |
+| Sequential read | 6.55–7.42 GiB/s | 5.55–5.64 GiB/s |
+| Random write, 4 KiB | 76.0–157.0k IOPS | 117.5–131.4k IOPS |
+| Random read, 4 KiB | 211.0–389.8k IOPS | 214.1–284.7k IOPS |
+| Eight 16 MiB write/fsync/delete cycles | 182–215 ms | 6,049–6,234 ms |
+
+The churn comparison includes full CSI flush/trim/accounting verification after
+**each** thin deletion; thick performs ordinary deletion. This exposes substantial
+control-operation overhead, not just storage latency. The future allocator must
+batch reclamation outside the foreground request path. Batching and final cache
+workload latency are not qualified by this microbenchmark. Sample variability
+precludes a single reliable percentage regression from these VM results.
+
+Data/metadata pressure cases verify admission refusal before exhaustion. They
+do not establish safe shared overcommit or recovery from actual pool metadata
+exhaustion. The old shared-XFS capacity gains, regional memory measurements and
+final runtime filesystem-overhead profile remain unvalidated for thin storage.
+
+## Original mechanism experiment
 
 ## Reproduction and isolation
 

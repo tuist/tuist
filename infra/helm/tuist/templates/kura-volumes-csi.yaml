@@ -166,7 +166,7 @@ metadata:
     app.kubernetes.io/component: kura-volumes-csi
 spec:
   attachRequired: false
-  podInfoOnMount: false
+  podInfoOnMount: true
   volumeLifecycleModes: [Persistent]
   # The volume is a LUKS container the driver formats itself; kubelet must not
   # chown it on every mount.
@@ -207,6 +207,24 @@ metadata:
 provisioner: {{ $driver }}
 parameters:
   encryption: none
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: false
+---
+# Immutable thin layout; selecting it is a separate per-instance rollout.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: kura-thin-encrypted-nvme
+  annotations:
+    helm.sh/resource-policy: keep
+provisioner: {{ $driver }}
+parameters:
+  layout: thin-luks-xfs-v1
+allowedTopologies:
+  - matchLabelExpressions:
+      - key: topology.kura-volumes.tuist.dev/node-layout
+        values: [thin-luks-xfs-v1]
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: false
@@ -272,6 +290,14 @@ spec:
             - --token-path=/var/run/secrets/kura-volume-keys/token
             {{- with .Values.kuraVolumesCSI.volumeGroup }}
             - --volume-group={{ . }}
+            {{- end }}
+            {{- with .Values.kuraVolumesCSI.thin }}
+            {{- if .pool }}
+            - --thin-pool={{ .pool }}
+            - --thin-data-reserve-bytes={{ .dataReserveBytes | int64 }}
+            - --thin-metadata-reserve-bytes={{ .metadataReserveBytes | int64 }}
+            - --thin-max-volumes={{ .maxVolumes }}
+            {{- end }}
             {{- end }}
           env:
             - name: NODE_NAME

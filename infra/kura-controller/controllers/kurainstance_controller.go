@@ -3780,7 +3780,7 @@ func (r *KuraInstanceReconciler) dataVolumesToReplace(ctx context.Context, insta
 			if err := r.Get(ctx, types.NamespacedName{Name: pvc.Spec.VolumeName}, pv); err != nil {
 				return nil, false, err
 			}
-			if pv.Spec.CSI == nil || pv.Spec.CSI.Driver != "kura-volumes.tuist.dev" || pv.Spec.CSI.VolumeAttributes["backing"] != "lvm" {
+			if !verifiedStorageBacking(instance, pv) {
 				replacements = append(replacements, dataVolumeReplacement{
 					ordinal: ordinal, claim: pvc, reason: "volume has no verified LVM backing",
 				})
@@ -4698,7 +4698,7 @@ func defaultResources(instance *kurav1alpha1.KuraInstance, binPackCeiling bool) 
 	// LVM capacity is independent of kubelet's filesystem. Extended resources
 	// require equal requests and limits; legacy disk requests have no limit
 	// because ephemeral-storage eviction measures logs, layers and emptyDir.
-	if storage := storageQuantity(instance); !storage.IsZero() {
+	if storage := diskReservation(instance); !storage.IsZero() {
 		disk := diskResource(instance)
 		r.Requests[disk] = storage
 		if disk == kuraDiskResource {
@@ -4872,11 +4872,18 @@ func defaultNodeSelector() map[string]string {
 
 func nodeSelector(instance *kurav1alpha1.KuraInstance) map[string]string {
 	if len(instance.Spec.NodeSelector) == 0 {
-		return defaultNodeSelector()
+		selector := defaultNodeSelector()
+		if instance.Spec.StorageClassName == thinLocalStorageClass {
+			selector["tuist.dev/kura-thin-ready"] = "true"
+		}
+		return selector
 	}
 	selector := make(map[string]string, len(instance.Spec.NodeSelector))
 	for key, value := range instance.Spec.NodeSelector {
 		selector[key] = value
+	}
+	if instance.Spec.StorageClassName == thinLocalStorageClass {
+		selector["tuist.dev/kura-thin-ready"] = "true"
 	}
 	return selector
 }

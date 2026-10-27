@@ -31,6 +31,7 @@ type KeyFetcher interface {
 }
 
 type Config struct {
+	Thin         ThinConfig
 	NodeID       string
 	StateDir     string
 	ReserveBytes int64
@@ -50,6 +51,7 @@ type Driver struct {
 	csi.UnimplementedControllerServer
 	csi.UnimplementedNodeServer
 
+	thin         ThinConfig
 	nodeID       string
 	stateDir     string
 	reserveBytes int64
@@ -79,11 +81,15 @@ func New(cfg Config) (*Driver, error) {
 	if cfg.VolumeGroup != "" && !volumeGroupPattern.MatchString(cfg.VolumeGroup) {
 		return nil, fmt.Errorf("volume group %q is not a valid LVM name", cfg.VolumeGroup)
 	}
+	if err := cfg.Thin.validate(cfg.VolumeGroup); err != nil {
+		return nil, err
+	}
 	logger := cfg.Logger
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
 	return &Driver{
+		thin:         cfg.Thin,
 		nodeID:       cfg.NodeID,
 		stateDir:     cfg.StateDir,
 		reserveBytes: cfg.ReserveBytes,
@@ -138,5 +144,9 @@ func (d *Driver) Probe(context.Context, *csi.ProbeRequest) (*csi.ProbeResponse, 
 }
 
 func (d *Driver) topology() *csi.Topology {
-	return &csi.Topology{Segments: map[string]string{TopologyKey: d.nodeID}}
+	segments := map[string]string{TopologyKey: d.nodeID}
+	if d.thin.Pool != "" {
+		segments[TopologyKey+"-layout"] = ThinLayout
+	}
+	return &csi.Topology{Segments: segments}
 }

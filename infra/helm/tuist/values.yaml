@@ -399,6 +399,13 @@ kuraVolumesCSI:
   # under /data/kura-volumes, whose double journal flush makes small synced
   # writes about twice as slow. Empty disables LVM everywhere.
   volumeGroup: kura-volumes
+  # Explicit opt-in only on prepared nodes. This does not create/convert pools.
+  # Use a separately scoped plugin deployment while migrating mixed fleets.
+  thin:
+    pool: ""
+    dataReserveBytes: 1073741824
+    metadataReserveBytes: 67108864
+    maxVolumes: 128
   nodeDriverRegistrar:
     image: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.14.0
   provisioner:

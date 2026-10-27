@@ -257,3 +257,5 @@ CPU, memory and placement constraints before selection. Never reformat until
 all its claims have moved and replacement replicas have completed backfill.
 Rebuild and verify the emptied node, clear the selection, then select the next.
 Already-LVM volume growth retains its normal per-replica path.
+
+- `kura-thin-encrypted-nvme` selects prepared nodes and reserves the complete virtual ceiling (cache ceiling + workspace + filesystem/encryption overhead) as `tuist.dev/kura-disk`. PVC size remains the useful cache ceiling. Keep `diskReservation` aligned with CSI's versioned sizing policy. Thick-to-thin moves retain the single-source-node migration gate; a thick PV is not a verified thin destination.
