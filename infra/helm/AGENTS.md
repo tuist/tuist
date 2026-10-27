@@ -19,8 +19,9 @@ Helm-installed resource; publishing it is a separate rollout step.
 
 - `capi.ovhRunnerEgress` keeps its disabled ConfigMap and cleanup RBAC present
   while the provider withdraws runner policies and host addresses. Reservations
-  belong to the controller, never Helm. Keep activation disabled until each
-  environment passes the runbook's qualification gates. Preserve
+  belong to the controller, never Helm. Staging/canary values enable egress;
+  align their public block with the cache vRack before deployment. Production
+  stays disabled until advance allowlisting and qualification are complete. Preserve
   `node_network_info` for the MAC-based
   bandwidth alerts. See [OVH runner egress](../cluster-api-provider-tuist/docs/ovh-runner-egress.md).
 

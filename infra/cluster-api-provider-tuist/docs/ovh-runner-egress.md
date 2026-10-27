@@ -2,7 +2,8 @@
 
 `capi.ovhRunnerEgress` gives Linux runner jobs one OVH Additional IP block per
 environment while preserving each host's primary management IP and private-cache
-connection. Activation is **disabled in all checked-in environments**. The
+connection. Checked-in values enable **staging and canary**; **production remains
+disabled** until its allowlist migration and rollout gates are complete. The
 provider configures existing blocks; it does not order them or move a NIC between
 vRacks. Public egress alone does not enroll a runner into private-cache routing:
 that still requires explicit Machine `spec.vRackID` enrollment.
@@ -20,7 +21,9 @@ Recorded attachments from 2026-10-26; recheck before activation:
 Staging's block was moved onto its existing cache vRack, preserving the runner's
 private NIC and reservation. Canary and production still need their public-block
 attachments aligned with their intended private-cache networks before activation.
-Never move an enrolled runner's NIC to resolve this mismatch.
+Canary's configured target is `pn-2024092`; its block must be moved there before
+deploying the enabled overlay. Production's intended private-cache vRack is
+`pn-2024093`. Never move an enrolled runner's NIC to resolve this mismatch.
 
 The controller accepts canonical public IPv4 /24 through /29 blocks. OVH reserves
 the first, penultimate and last addresses for network, gateway and broadcast.
@@ -61,7 +64,8 @@ means configuration was applied; a real job must prove the resulting public IP.
    image workflow, then use the normal deployment workflow with a matching
    `capi_image_tag`; the chart adds a manager flag older images do not understand.
    Preserve any newer staging changes in the deployment baseline.
-2. Deploy with egress disabled, then qualify staging first. Cordon hosts and wait
+2. For first installation, override `capi.ovhRunnerEgress.enabled=false`, then
+   qualify staging first. Cordon hosts and wait
    for running jobs to finish before changing their egress identity. Keep the
    provider, ConfigMap and cleanup RBAC installed throughout activation/rollback.
    Avoid concurrent deployments that could replace the provider or its arguments.
@@ -85,11 +89,19 @@ means configuration was applied; a real job must prove the resulting public IP.
    before kubelet, disable/re-enable, and Machine deletion/replacement with safe
    address reuse. Repeat real-job checks after transitions. Provision and verify
    monitoring before promotion.
-7. Align and qualify canary, run runner acceptance, then qualify production on
-   every host. Use the normal deployment workflow or human elevation for writes.
-   Only then replace the Linux /32 table in
-   `server/priv/docs/en/guides/server/network.md` with `5.135.7.160/27`; keep the
-   macOS range `95.130.119.0/24`.
+7. Align canary's block with `pn-2024092`, deploy the capable provider/configuration
+   and explicitly enroll its drained existing runner into the private-cache
+   vRack. The OnDelete template does not backfill existing Machine specs. Qualify
+   canary's public IP and private cache together and run runner acceptance. Use
+   the normal deployment workflow or human elevation for writes.
+8. Publish `5.135.7.160/27` as the **upcoming** production Linux range in
+   `server/priv/docs/en/guides/server/network.md` before switching production.
+   Retain every current Linux /32 so both the transition and rollback remain
+   allowlisted. Keep production disabled until users have had time to update
+   their allowlists and the remaining qualification gates are complete. After
+   separately authorized production activation, verify every host and retain the
+   old /32s through the rollback window before announcing their removal. The
+   macOS range `95.130.119.0/24` is unchanged.
 
 ## Rollback and deletion
 

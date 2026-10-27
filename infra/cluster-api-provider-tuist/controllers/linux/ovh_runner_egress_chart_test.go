@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -46,9 +47,7 @@ func TestRunnerEgressChart(t *testing.T) {
 			base := []string{"template", "test", chart, "--namespace", "tuist-" + env, "--values", filepath.Join(source, "values-managed-common.yaml"), "--values", filepath.Join(source, "values-managed-"+env+".yaml")}
 			for _, enabled := range []bool{false, true} {
 				args := append([]string{}, base...)
-				if enabled {
-					args = append(args, "--set", "capi.ovhRunnerEgress.enabled=true")
-				}
+				args = append(args, "--set", "capi.ovhRunnerEgress.enabled="+strconv.FormatBool(enabled))
 				output, err := exec.Command(helm, args...).CombinedOutput()
 				if err != nil {
 					t.Fatalf("helm: %v\n%s", err, output)

@@ -381,8 +381,8 @@ pdcAgent:
 
 capi:
   ovhRunnerEgress:
-    enabled: false
-    vrackID: pn-2025491
+    enabled: true
+    vrackID: pn-2024092
     cidr: "5.196.103.232/29"
   ovhPrivateNetwork:
     enabled: true

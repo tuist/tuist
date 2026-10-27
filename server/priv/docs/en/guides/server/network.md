@@ -68,6 +68,17 @@ macOS jobs on Tuist's own racks reach the internet from the [Tuist IP range](#tu
 
 #### Linux {#tuist-runners-linux}
 
+Linux runners are moving to a reserved IPv4 range. **Add `5.135.7.160/27` to your allowlist now**, alongside every current address listed below, so your workflows can continue connecting when the switch happens.
+
+| Upcoming production range | Status |
+|---|---|
+| `5.135.7.160/27` | Reserved for Linux runner egress; production has not switched yet. |
+
+> [!IMPORTANT]
+> Keep the current Linux addresses allowlisted throughout the transition. Do not replace them with the new range yet. This page will be updated after the production switch is complete and the old addresses can be removed. The macOS and server allowlists are unchanged.
+
+Current production Linux runner addresses:
+
 | IP address | CIDR notation |
 |---|---|
 | 51.255.75.64 | `51.255.75.64/32` |
@@ -82,7 +93,7 @@ macOS jobs on Tuist's own racks reach the internet from the [Tuist IP range](#tu
 | 217.182.193.152 | `217.182.193.152/32` |
 
 > [!NOTE]
-> These lists change when we add machines to the fleets. Runners are moving to the [Tuist IP range](#tuist-ip-range), after which these per-machine addresses are no longer needed.
+> Current per-machine lists can change as the fleets grow. The upcoming Linux range above is allocated through OVHcloud and is separate from the [Tuist IP range](#tuist-ip-range) used by rack-hosted macOS jobs.
 
 <!--
 MAINTAINERS: the server table is the customer-facing contract for the reserved
@@ -102,4 +113,12 @@ from AS218377. Only list a prefix here once it is registered to Tuist GmbH in
 the RIPE Database with a route/route6 object and a ROA for AS218377.
 Add it to server/priv/static/geofeed.csv too, with the location of the site
 that announces it.
+
+The upcoming Linux range must match `capi.ovhRunnerEgress.cidr` in
+infra/helm/tuist/values-managed-production.yaml. Publish it before enabling
+production egress so allowlists can be updated in advance. Keep the current
+Linux /32s through the rollout and rollback window; remove them only after all
+production runners have been verified on the new block and rollback no longer
+requires the primary IPs. This OVH allocation is not an AS218377 announcement
+and must not be added to the Tuist-owned range table or geofeed.
 -->
