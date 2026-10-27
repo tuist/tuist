@@ -135,9 +135,18 @@ jobs:
         with:
           mise-install-args: erlang elixir
           restore-mix-cache: 'false'
+      - name: Use installed Erlang and Elixir directly
+        working-directory: server
+        run: |
+          # Shims reload development environment defaults. A broad mise exec
+          # also installs unrelated monorepo tools; use the installed binaries.
+          dirname "$(mise which mix)" >> "$GITHUB_PATH"
+          dirname "$(mise which erl)" >> "$GITHUB_PATH"
       - name: Compile isolated control plane
         working-directory: server
-        run: mise exec -- mix compile
+        run: |
+          [[ $(command -v mix) != */shims/* ]]
+          mix compile
       - uses: actions/cache/save@v4
         with:
           path: |
@@ -147,9 +156,9 @@ jobs:
       - name: Migrate disposable databases
         working-directory: server
         run: |
-          # Apply overrides after mise's checkout-local development defaults.
+          # Override mise's checkout-local development defaults.
           # ClickHouse reaches PostgreSQL through the service container network.
-          mise exec -- env \
+          env \
             TUIST_SERVER_TEST_POSTGRES_DB=tuist_amp_orbs_live \
             TUIST_SERVER_TEST_CLICKHOUSE_DB=tuist_amp_orbs_live \
             TUIST_IPV4_DATABASE_URL=postgres://postgres:postgres@postgres:5432/tuist_amp_orbs_live \
