@@ -11,6 +11,7 @@ on:
       - go.work
       - infra/**/go.mod
       - kube-impersonator/go.mod
+      - infra/linux-runner-image/cmd/tuist-cache-volume/**
       - .github/workflows/certificate-trust.yml
   push:
     branches: [main]
@@ -23,6 +24,7 @@ on:
       - go.work
       - infra/**/go.mod
       - kube-impersonator/go.mod
+      - infra/linux-runner-image/cmd/tuist-cache-volume/**
       - .github/workflows/certificate-trust.yml
   workflow_dispatch:
 
@@ -62,6 +64,8 @@ jobs:
           go -C ../linux-runner-image test -race -count=1 ./cmd/runner-shell-agent
       - name: Test policy evidence and public store contracts
         run: go test -count=1 ./...
+      - name: Race-test cache-volume HTTPS clients and wire controls
+        run: go -C ../linux-runner-image test -race -count=1 ./cmd/tuist-cache-volume
       - name: Check shell syntax
         run: bash -n pem-store.sh && bash -n java-store.sh
       - name: Qualify compiler distrust with retained runtime defaults
