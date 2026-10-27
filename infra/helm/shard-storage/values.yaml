@@ -13,6 +13,8 @@ tolerations:
     value: "true"
     effect: NoSchedule
 externalSecrets:
+  # Disable only when the release-named Secret is provisioned separately.
+  enabled: true
   storeRef:
     name: onepassword
     kind: ClusterSecretStore
