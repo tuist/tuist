@@ -327,7 +327,8 @@
     padding: var(--noora-spacing-1) var(--noora-spacing-3);
     font: var(--noora-font-weight-medium) var(--noora-font-body-small);
 
-    &[data-status="verified"] {
+    &[data-status="verified"],
+    &[data-status="instance"] {
       background: var(--noora-badge-light-fill-success-background);
       color: var(--noora-badge-light-fill-success-label);
     }

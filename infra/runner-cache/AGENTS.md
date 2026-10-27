@@ -180,6 +180,13 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
 - Linux attach admission is `MinFreeBytes` plus whatever the expected size
   exceeds `SizeGB` by. APFS prefetch needs `Identity.RestoreBytes`: twice the head's used
   bytes, else twice the capacity.
+- Linux pressure eviction rechecks free space every 10 ms for up to 100 ms
+  (`ReclaimWait`) before removing another master. XFS queues inode reclamation
+  after unlink; `statfs` starts that work without waiting, and `syncfs` does not
+  reliably wait for it either. An immediate check can evict every master and
+  still report capacity exhausted. Keep the request deadline, physical-space
+  threshold and error propagation intact; live reflinks may retain the blocks.
+  APFS leaves the wait disabled.
 - `HTTPTransfer.Download` keeps the archive at `<path>.part` and resumes it with
   `Range` requests: a fresh link per attempt, at most five attempts, an attempt
   abandoned after two minutes without bytes (response headers included),

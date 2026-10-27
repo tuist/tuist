@@ -791,7 +791,7 @@ defmodule TuistWeb.AuthenticationTest do
           creator: user,
           sso_provider: :okta,
           sso_organization_id: "company.okta.com",
-          sso_legacy_email_domain_fallback: true,
+          existing_sso_configuration: true,
           oauth2_client_id: "client_id",
           oauth2_client_secret: "client_secret",
           preload: [:account]

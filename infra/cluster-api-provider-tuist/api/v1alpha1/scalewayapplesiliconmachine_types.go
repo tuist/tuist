@@ -299,6 +299,10 @@ type GHActionsRunnerConfig struct {
 
 // ScalewayAppleSiliconMachineStatus is the observed state of the Machine.
 type ScalewayAppleSiliconMachineStatus struct {
+	// OSUpdate records an explicitly requested, serialized host update.
+	// +optional
+	OSUpdate *OSUpdateStatus `json:"osUpdate,omitempty"`
+
 	// HostAgentStatus carries the phase, terminal-failure fields and
 	// host-config drift bookkeeping shared with every other macOS machine
 	// kind. Embedded, so the wire shape is unchanged (`.status.phase`,

@@ -2,6 +2,11 @@
 
 Reconciles `RunnerPool` Pods/per-Pod SAs and desired replicas. Run `go test ./...` here; keep API changes aligned with [chart CRDs](../helm/tuist/crds/).
 
+The Linux cache agent gives XFS up to 100 ms after each pressure eviction to
+report reclaimed space before admission removes another master. The wait is
+cancellable and leaves the reserve intact. See
+[`runner-cache/AGENTS.md`](../runner-cache/AGENTS.md).
+
 ## Lifecycle and capacity
 
 - **`RunnerPoolReconciler`** — converges Pods + SAs to match

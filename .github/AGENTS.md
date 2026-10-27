@@ -28,7 +28,10 @@ Helm CI also tests the runner macOS host-health rules with promtool, including
 fixed kernels, uptime thresholds, stale samples and failed collection.
 The Helm render job also runs `infra/helm/tuist/test-cluster-cookie.py` offline:
 check all managed environment cookie references and Secret ownership without
-reading 1Password or logging rendered cookie values.
+reading 1Password or logging rendered cookie values. It also runs
+`infra/helm/tuist/test-sso-domain-verification.py` to check the default-off DNS
+policy and explicit opt-in across managed server runtime modes. The hosted
+Docker smoke test explicitly enables and asserts the same DNS policy.
 
 The existing runner-image release workflow runs the portable TCC report tests
 on PRs with read-only permissions and without persisted checkout credentials
@@ -622,3 +625,9 @@ Macrobenchmark iterations. The pinned fixture and its contract live in
 on failure too; do not accept a successful build that executed no tests.
 
 Managed server deployment prepares KVM before upgrading runner pools, using the same resolved provider/plugin images as Helm. `scripts/runner-kvm-prepare.sh` updates only the existing provider image and the four Helm-owned plugin resources; it waits for current-boot host proof and allocations covering Pod capacity. A failed gate leaves preparation in place and pools untouched. Rollback skips the gate. Validate with `bash scripts/runner-kvm-prepare.test.sh` from `.github`, or the Helm `nested-kvm` task.
+
+## macOS maintenance validation
+
+`macos-maintenance.test.sh` exercises the explicit host-maintenance request task
+with a fake kubectl and no credentials. The provider's macOS Go suite runs it;
+keep planning read-only and refuse a new request over active or failed status.

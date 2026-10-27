@@ -26,7 +26,7 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-op read "op://tuist/Atlas App Ad Hoc/Atlas_App_Ad_Hoc.mobileprovision" --out-file "$tmp/profile.mobileprovision"
+op read "op://tuist/vs6k25m5i4ue7a4futc54kqlgi/Atlas_App_Ad_Hoc.mobileprovision" --out-file "$tmp/profile.mobileprovision"
 security cms -D -i "$tmp/profile.mobileprovision" > "$tmp/profile.plist"
 application_id="U6LC622NKF.dev.tuist.atlas"
 [[ "$("$plist" -c 'Print :Entitlements:application-identifier' "$tmp/profile.plist")" = "$application_id" ]] || fail "Expected the Atlas provisioning profile"
@@ -46,7 +46,7 @@ identity=$(plutil -extract DeveloperCertificates.0 raw "$tmp/profile.plist" | ba
 op read "op://tuist/Atlas Live Activity Ad Hoc/Atlas_Live_Activity_Ad_Hoc.mobileprovision" --out-file "$tmp/activity.mobileprovision"
 security cms -D -i "$tmp/activity.mobileprovision" > "$tmp/activity-profile.plist"
 validate_live_activity_profile "$tmp/activity-profile.plist" "$tmp/profile.plist" "$identity"
-op read "op://tuist/Atlas Share Ad Hoc/Atlas_Share_Ad_Hoc.mobileprovision" --out-file "$tmp/share.mobileprovision"
+op read "op://tuist/odncvv6h4lm5ttnymazojjgng4/Atlas_Share_Ad_Hoc.mobileprovision" --out-file "$tmp/share.mobileprovision"
 security cms -D -i "$tmp/share.mobileprovision" > "$tmp/share-profile.plist"
 validate_live_activity_profile "$tmp/share-profile.plist" "$tmp/profile.plist" "$identity" dev.tuist.atlas.share
 # Validate capability authorization before retrieving any private signing material.

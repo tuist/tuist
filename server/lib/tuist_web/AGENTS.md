@@ -2,6 +2,10 @@
 
 - Keep request handling, rendering, and UI state here; delegate domain operations to `server/lib/tuist` contexts. JS/CSS belongs in `server/assets`.
 - Authorize channel access via `Tuist.Authorization`.
+- All Gettext backends using `Gettext.Configuration` share `TuistWeb.Gettext.Plural`.
+  It supplies Cantonese's single cardinal plural form when a catalog has no
+  `Plural-Forms` header, preserving explicit headers and other locales' defaults.
+  Do not edit bot-managed translations to repair missing locale-table support.
 
 ## Public representations
 
