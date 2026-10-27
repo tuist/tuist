@@ -20,5 +20,13 @@ cannot escape a rolled-back domain action.
 - Domain workflow tests must cover output-contract rollback removing both the domain
   row and its PostgreSQL search record, and retry producing only one committed effect.
 
+- Moodboard resources and comments use the same deferred transaction boundary.
+  `moodboard_resource` indexes contributor notes, original text and bounded fetched
+  source text and independent hostname terms; `moodboard_comment` indexes each discussion contribution separately
+  so embedding input truncation cannot crowd out comments behind an article.
+  Both resolve to the authenticated resource detail page. Resource deletion removes
+  both kinds of projection; title changes refresh related comment titles. Backfill
+  rebuilds both from domain rows. See [`../moodboard/AGENTS.md`](../moodboard/AGENTS.md).
+
 The Automation transaction and contract boundaries are documented in
 [`../automations/AGENTS.md`](../automations/AGENTS.md).

@@ -35,6 +35,7 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorker do
 
   alias Tuist.Accounts
   alias Tuist.Billing.Workers.SyncCustomerStripeMetersWorker
+  alias Tuist.Repo
 
   # Customer jobs are released in per-second batches rather than all at
   # once. Each one spends a Stripe request discovering service-period
@@ -90,19 +91,25 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorker do
   defp midnight?(_datetime), do: false
 
   defp sync(%DateTime{} = period_start, %DateTime{} = period_end) do
-    Accounts.list_billable_customers()
-    |> Enum.with_index()
-    |> Enum.map(fn {customer_id, index} ->
-      SyncCustomerStripeMetersWorker.new(
-        %{
-          customer_id: customer_id,
-          period_start: DateTime.to_unix(period_start, :microsecond),
-          period_end: DateTime.to_unix(period_end, :microsecond)
-        },
-        release_opts(index)
-      )
-    end)
-    |> Oban.insert_all()
+    customer_ids = Accounts.list_billable_customers()
+
+    {:ok, :ok} =
+      Repo.transaction(fn ->
+        customer_ids
+        |> Stream.with_index()
+        |> Stream.map(fn {customer_id, index} ->
+          SyncCustomerStripeMetersWorker.new(
+            %{
+              customer_id: customer_id,
+              period_start: DateTime.to_unix(period_start, :microsecond),
+              period_end: DateTime.to_unix(period_end, :microsecond)
+            },
+            release_opts(index)
+          )
+        end)
+        |> Stream.chunk_every(1_000)
+        |> Enum.each(&Oban.insert_all/1)
+      end)
 
     :ok
   end

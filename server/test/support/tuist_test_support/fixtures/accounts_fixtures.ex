@@ -99,9 +99,10 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
         sso_login_domain: Keyword.get(opts, :sso_login_domain),
         sso_login_domain_verification_token: Keyword.get(opts, :sso_login_domain_verification_token),
         sso_login_domain_verified_at: Keyword.get(opts, :sso_login_domain_verified_at),
-        sso_automatic_enrollment: Keyword.get(opts, :sso_automatic_enrollment, false),
+        sso_automatic_enrollment:
+          Keyword.get(opts, :sso_automatic_enrollment, false) and
+            not Keyword.get(opts, :sso_legacy_email_domain_fallback, false),
         sso_default_role: Keyword.get(opts, :sso_default_role, "user"),
-        sso_legacy_email_domain_fallback: Keyword.get(opts, :sso_legacy_email_domain_fallback, false),
         oauth2_client_id: oauth2_client_id,
         oauth2_client_secret: oauth2_client_secret,
         oauth2_authorize_url: oauth2_authorize_url,
@@ -111,6 +112,21 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
         customer_id: customer_id,
         setup_billing: setup_billing
       )
+
+    # Seed the retired database flag directly to exercise pre-switch rows. The
+    # runtime schema intentionally cannot read or write compatibility mode.
+    organization =
+      if Keyword.get(opts, :sso_legacy_email_domain_fallback, false) do
+        Tuist.Repo.update_all(from(o in "organizations", where: o.id == ^organization.id),
+          set: [sso_legacy_email_domain_fallback: true]
+        )
+
+        organization
+        |> Ecto.Changeset.change(sso_automatic_enrollment: Keyword.get(opts, :sso_automatic_enrollment, false))
+        |> Tuist.Repo.update!()
+      else
+        organization
+      end
 
     put_cache_usage(from(a in Account, where: a.organization_id == ^organization.id), opts)
 

@@ -43,6 +43,23 @@ defmodule TuistWeb.ProjectSettingsLiveTest do
     end
   end
 
+  test "shows automations only for build systems that apply quarantine", %{
+    conn: conn,
+    organization: organization
+  } do
+    for {system, shown?} <- [xcode: true, bazel: true, mix: true, gradle: false, cargo: false] do
+      project = ProjectsFixtures.project_fixture(account: organization.account, build_system: system)
+      base = "/#{organization.account.name}/#{project.name}"
+
+      for page <- ["/settings", "/settings/automations"] do
+        {:ok, lv, _html} = live(conn, base <> page)
+
+        assert has_element?(lv, "a[href='#{base}/settings/automations']", "Automations") == shown?,
+               "#{system} #{page}"
+      end
+    end
+  end
+
   test "hides bundle settings for Bazel projects", %{
     conn: conn,
     organization: organization

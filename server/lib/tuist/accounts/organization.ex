@@ -40,8 +40,7 @@ defmodule Tuist.Accounts.Organization do
   @sso_verification_fields [
     :sso_login_domain_verification_token,
     :sso_login_domain_verified_at,
-    :sso_login_domain_last_verified_at,
-    :sso_legacy_email_domain_fallback
+    :sso_login_domain_last_verified_at
   ]
 
   schema "organizations" do
@@ -54,7 +53,6 @@ defmodule Tuist.Accounts.Organization do
     field :sso_login_domain_last_verified_at, :utc_datetime
     field :sso_automatic_enrollment, :boolean, default: false
     field :sso_default_role, :string, default: "user"
-    field :sso_legacy_email_domain_fallback, :boolean, default: false
     field :oauth2_client_id, :string
     field :oauth2_encrypted_client_secret, Binary
     field :oauth2_authorize_url, :string
@@ -78,7 +76,6 @@ defmodule Tuist.Accounts.Organization do
       :sso_login_domain_verified_at,
       :sso_automatic_enrollment,
       :sso_default_role,
-      :sso_legacy_email_domain_fallback,
       :oauth2_client_id,
       :oauth2_encrypted_client_secret,
       :oauth2_authorize_url,
@@ -141,8 +138,7 @@ defmodule Tuist.Accounts.Organization do
     organization
     |> change(
       sso_login_domain_verified_at: verified_at,
-      sso_login_domain_last_verified_at: verified_at,
-      sso_legacy_email_domain_fallback: false
+      sso_login_domain_last_verified_at: verified_at
     )
     |> unique_constraint(:sso_login_domain,
       name: :organizations_verified_sso_login_domain_index,
@@ -176,15 +172,15 @@ defmodule Tuist.Accounts.Organization do
     )
   end
 
-  # Withdrawing operator trust must not force an administrator to disable SSO
-  # merely to rotate a secret. Carry saved flags only across unchanged trust
-  # inputs; enrollment and email linking still check effective trust at runtime.
+  # Existing enabled policies survive loss or absence of domain trust so admins
+  # can edit their configuration. Enrollment still checks trust at runtime.
   defp require_verified_domain(changeset, field, domain_trust) do
+    previously_enabled? = Map.get(changeset.data, field) == true and get_change(changeset, field) != true
+
     cond do
       get_field(changeset, field) != true -> changeset
-      unchanged_sso_policy?(changeset, field) -> changeset
       trusted_domain?(changeset, domain_trust) -> changeset
-      get_field(changeset, :sso_legacy_email_domain_fallback) -> changeset
+      previously_enabled? -> changeset
       true -> add_error(changeset, field, "requires a verified login email domain for this provider")
     end
   end
@@ -196,12 +192,6 @@ defmodule Tuist.Accounts.Organization do
   end
 
   defp trusted_domain?(_changeset, trust), do: trust in [:instance, :dns_verified]
-
-  defp unchanged_sso_policy?(changeset, field) do
-    (changeset.data.id != nil or not is_nil(changeset.data.sso_login_domain_last_verified_at)) and
-      Map.get(changeset.data, field) == true and not changed?(changeset, field) and
-      Enum.all?([:sso_provider, :sso_organization_id, :sso_login_domain], &(not changed?(changeset, &1)))
-  end
 
   defp validate_oauth2_required_fields(changeset) do
     if get_field(changeset, :sso_provider) in @oauth2_providers do

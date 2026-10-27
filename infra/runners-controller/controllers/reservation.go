@@ -833,10 +833,14 @@ func fleetNodeSelector(pool *tuistv1.RunnerPool) client.MatchingLabels {
 			nodeOSLabel:        "linux",
 		}
 	default:
-		return client.MatchingLabels{
+		selector := client.MatchingLabels{
 			macosFleetLabel: pool.Spec.FleetSelector,
 			nodeOSLabel:     macosNodeOSDarwin,
 		}
+		if pool.Spec.Site != "" {
+			selector[podtemplate.RackSiteNodeLabel] = pool.Spec.Site
+		}
+		return selector
 	}
 }
 

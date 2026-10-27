@@ -11,6 +11,9 @@ a box with an empty disk boots it on its own, and a running one is reinstalled
 by raising its `reinstallGeneration`. The edges run the boot server, each serving the other, so
 only the first edge of a site is installed from a stick of its own.
 
+Bringing up a whole new site, from boxes to taking jobs, follows
+[`site-bring-up.md`](site-bring-up.md).
+
 ## The pieces
 
 - **Inventory** is `rackLinuxFleet.hosts` in the env's tuist chart values,
@@ -18,8 +21,8 @@ only the first edge of a site is installed from a stick of its own.
   its hostname (the node, OS and tailnet name), role, site, and optionally its
   `bootMAC`, the MAC of the NIC it netboots from (the MS-01's i226-LM, on the
   management switch), which otherwise comes from the machine's announcement.
-  Its role's `rackLinuxFleet.roles.<role>` gives its tailnet tags, labels and
-  taints. The operator keeps a CAPI Machine for each host, which makes it a
+  Its role's `rackLinuxFleet.sites.<site>.roles.<role>`, else
+  `rackLinuxFleet.roles.<role>`, gives its tailnet tags, labels and taints. The operator keeps a CAPI Machine for each host, which makes it a
   node.
 - **The operator** (`infra/cluster-api-provider-tuist`, `controllers/linux`)
   publishes each host's install, finds the host on the tailnet and joins it.
@@ -363,7 +366,11 @@ carries the same guard.
   `vrrp0-<n>` on the n-th uplink with its VRRP address and a default route
   through the other edge at metric 200, built the way the rack-edge pod
   builds it, plus global resolvers in
-  `/etc/systemd/resolved.conf.d/10-tuist-edge.conf`. Nothing serves DHCP on
+  `/etc/systemd/resolved.conf.d/10-tuist-edge.conf`. Once the site's WAN
+  address is known, an edge also gets a first-boot WAN service. The first
+  edge of a site has no other edge to go out through, so it takes the site's
+  static WAN itself until its rack-edge pod runs ("The first edge of a site" in
+  `infra/cluster-api-provider-tuist/AGENTS.md`). Nothing serves DHCP on
   the management VLAN at the colo, so that is how a reinstalled edge reaches
   the tailnet and gets converged. It needs the other edge up as master, so the
   edges are reinstalled one at a time. A per-host stick (`--host`) renders no
@@ -470,7 +477,7 @@ sheet. Declaring the box takes both:
 
 ```yaml
 - uuid: 03de3d42-4a8e-9278-ee1a-a0ad9f25c75f
-  hostname: ber2-edge-b
+  hostname: larch-edge-b
   role: edge
   tpmCheckCode: 1a2b-3c4d-5e6f-7a8b
 ```
@@ -1156,6 +1163,41 @@ hands a queued job to any idle runner of the org that carries its labels, and
 a rack runner carries the same label as a rented one, so keeping rented
 runners from being minted is what keeps the jobs on the rack.
 
+### Several sites
+
+A job is bound to its Xcode and shape, not to a site. The rack's pools are
+rendered once, named after `rackFleet.site` (`…-ber1-<xcode>`), and select the
+rack fleet. A second site (`rackFleet.sites.<site>`, e.g. `larch`) joins that
+fleet when its `runners.enabled` is true: its minis' Nodes then carry the rack
+fleet's `tuist.dev/fleet` instead of their own `<rack fleet>-<site>`, so every
+rack pool spans both sites and the runners-controller apportions all their
+guest slots together. Until then the site's minis get no runners.
+
+- **Where a job runs.** Whichever site's runner claims it first. The claim
+  reads the claiming Node's `node.cluster.x-k8s.io/rack-site` label and hands
+  out that site's Kura runner cache (`server/lib/tuist/runners/AGENTS.md`). A
+  runner passes over a job whose account's runner cache is warm at the other
+  site for the job's first 60 seconds, so the warm site gets it first while it
+  has an idle runner.
+- **A dark site.** Its minis go NotReady, drop out of the autoscaler's budget,
+  and the runners-controller retires their idle runners after two minutes
+  (`infra/runners-controller/AGENTS.md`), so the pools' queued jobs run at the
+  sites still up. Nothing moves jobs between sites. Jobs already running there
+  are lost with the site.
+- **One guest per pool.** A RunnerPool has one guest size, so a site whose
+  runners are on runs `rackFleet.runners` as is. The render fails when
+  `rackFleet.sites.<site>.runners` sets `guestShapes`, `shapes`,
+  `stackedImages`, `autoscaling`, `rollout` or `xcodeOverrides` differently,
+  when `rackFleet.runners` is off, or when the site names its own `nodeFleet`.
+  Different hardware at a site needs a different design, not a per-site
+  override.
+- **Pinned pools.** An explicit `runnersFleet.pools` entry with a `site` runs
+  only on that site's minis (`spec.site`), which is how the `ber1` smoke pool
+  keeps testing ber1.
+- **Pool names.** They keep ber1 in them. Renaming them is part of turning a
+  second site's runners on, with the queued jobs on the old names moved in the
+  same deploy.
+
 Staging and canary rent no macOS runner hosts: their only macOS runners are
 the rack hosts production lends them (b01 and b02, "Lending a host to
 another env" below), and `runner_site` is on for every account there
@@ -1195,8 +1237,8 @@ Xcode and shape, and `SiteSpilloverWorker` moves its queued ones there every
 minute. A cluster the server cannot read leaves the rack up. An env that
 rents no macOS fleet (staging, canary) has no backup, so neither happens there.
 
-The flag also gives the account a node in `ber1-runners`, as
-`runner_site_cache` does. With the
+The flag also gives the account a node in the site's runner-cache region
+(`ber1-runners`, `larch-runners`), as `runner_site_cache` does. With the
 flag off for everyone, the rack's pools idle at their floors and nothing a
 customer runs lands on them.
 
@@ -1210,6 +1252,39 @@ fixed count would hold slots it believes free.
 A Tart guest cannot be newer than its host. Every catalog image is a macOS 26
 guest and the rack's hosts run macOS 27, so every Xcode runs there; a catalog
 entry on a newer guest needs the hosts updated first.
+
+### More than one site
+
+One rack fleet holds every site's minis: one operator, one set of credentials
+and one CAPI fleet, whose Machines are `<rackFleet.name>-<host>` at every site.
+`rackFleet.site` (ber1) is the default site, and every other site is a key of
+`rackFleet.sites` (larch). A host at such a site sets `site: <site>` and takes
+that site's block:
+
+- **Its Node's fleet.** The host's Node carries `tuist.dev/fleet:
+  <rackFleet.name>-<site>` (`RackHost.spec.nodeFleet`, overridable as the
+  site's `nodeFleet`), not the default site's fleet. Runner pools select Nodes
+  by that label alone, so without it ber1's pools would place runners on larch
+  minis. The Machine keeps the operator's fleet, its name and its credentials,
+  as for any `nodeFleet`. A lent host (`lendTo`) keeps the borrower's fleet.
+- **Its SSH ingress** is the site's `sshIngressAllowCIDRs`, the site's own
+  edges. It never falls back to the default site's, and the chart refuses a
+  host at a site whose block has none.
+- **Its pools.** The site's `runners` is a runner catalog of its own, with the
+  same keys as `rackFleet.runners`. It renders
+  `<release>-runner-pool-macos-<site>-<xcode>` pools that select the site's
+  fleet, so each site's pools share only that site's guest slots, and
+  `TUIST_RUNNERS_SITE_POOLS` lists them as `<pool>=<site>:macos` after the
+  default site's.
+- **Its VMs' cache gateways** (`vmCacheGatewayCIDRs`) join the operator's
+  fleet-wide `--rackhost-vm-cache-gateway-cidrs`: the pf pass is the same on
+  every rack host, and a host has no route to another site's gateway.
+
+A host naming a site that is neither `rackFleet.site` nor a key of
+`rackFleet.sites` fails the render. Keep a site's `runners` disabled until
+its minis are declared and its uplink is up. The rack fleet's
+MachineHealthCheck still spans every site, so while one site is dark its
+`unhealthyRange` also holds back remediation of a single mini at the other.
 
 ### Lending a host to another env
 

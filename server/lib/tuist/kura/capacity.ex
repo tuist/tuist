@@ -58,10 +58,11 @@ defmodule Tuist.Kura.Capacity do
 
   # Share of a region's allocatable disk its instances may reserve. Admission
   # refuses past it, and pressure engages once what is left under it can no
-  # longer take a new enterprise instance. Below 1 for the margin kubelet needs:
-  # it evicts at `imagefs.available<15%`, on the same disk the cache ring lives
-  # on, and an eviction takes the node's whole region with it.
-  @pressure_fraction 0.85
+  # longer take a new enterprise instance. Allocatable already excludes the
+  # managed kubelet's 10% nodefs reserve. Keeping another 10% leaves about 19%
+  # of physical capacity outside cache claims, above its 15% imagefs eviction
+  # threshold. This is still reservation-based admission, not disk overcommit.
+  @pressure_fraction 0.90
 
   # Replicas an instance runs when its region declares none, matching the
   # kura-controller's own default. Guessing lower would understate what an
@@ -899,7 +900,7 @@ defmodule Tuist.Kura.Capacity do
   pool that can take them split is a pool the scheduler will place them in.
 
   The instance also has to get past `Tuist.Kura.Admission`, which refuses to
-  create one once the region's reservations would cross 85% of its allocatable
+  create one once the region's reservations would cross 90% of its allocatable
   disk. A node can have room beyond that line, so the plan's starting claim
   across every replica has to fit `Tuist.Kura.Admission.headroom_gib/1` too.
   Where admission is not enforced, only the nodes are read. Either reading

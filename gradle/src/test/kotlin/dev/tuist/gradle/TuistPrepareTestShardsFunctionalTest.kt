@@ -78,7 +78,10 @@ class TuistPrepareTestShardsFunctionalTest {
 
     @Test
     fun `only plans the projects with the test task selected with tuistShardTestTask`() {
-        val result = runner("tuistPrepareTestShards", "-PtuistShardTestTask=otherTest").build()
+        val result = runner(
+            "tuistPrepareTestShards", "-PtuistShardTestTask=otherTest",
+            "--configuration-cache", "-Dorg.gradle.unsafe.isolated-projects=true"
+        ).build()
 
         assertEquals(emptyList(), executedCompileTasks(result), result.output)
         assertEquals(listOf(":app"), plannedModules())
@@ -214,9 +217,11 @@ class TuistPrepareTestShardsFunctionalTest {
 
             val otherTest by sourceSets.creating
 
-            tasks.register<Test>("otherTest") {
-                testClassesDirs = otherTest.output.classesDirs
-                classpath = otherTest.runtimeClasspath
+            afterEvaluate {
+                tasks.register<Test>("otherTest") {
+                    testClassesDirs = otherTest.output.classesDirs
+                    classpath = otherTest.runtimeClasspath
+                }
             }
             """.trimIndent()
         )

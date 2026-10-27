@@ -47,6 +47,9 @@ spec:
       {{- with $fleet.machine.egressBudgetMbps }}
       egressBudgetMbps: {{ . }}
       {{- end }}
+      {{- with $fleet.machine.vRackID }}
+      vRackID: {{ . | quote }}
+      {{- end }}
       {{- if $fleet.machine.kataRuntime }}
       kataRuntime: true
       {{- end }}

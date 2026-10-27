@@ -141,14 +141,16 @@
         "speed": "25G",
         "controller": "bnxt_en",
         "os_name": "ens17f0np0",
-        "note": "Broadcom N225P port 1. Linked at 10G with FEC off on a 10G SFP+ DAC; 25G needs an SFP28 DAC into the ToR's SFP28 ports. An admin-down port keeps its link, so a bond on it runs fast LACP."
+        "note": "Broadcom N225P port 1. Linked at 10G with FEC off on a 10G SFP+ DAC; 25G needs an SFP28 DAC into the ToR's SFP28 ports. An admin-down port keeps its link, so a bond on it runs fast LACP. Its rings hold at most 2047 descriptors (ethtool -g, measured 26 Oct).",
+        "ring_max": 2047
       },
       "n225p-2": {
         "media": "dac",
         "speed": "25G",
         "controller": "bnxt_en",
         "os_name": "ens17f1np1",
-        "note": "Broadcom N225P port 2."
+        "note": "Broadcom N225P port 2.",
+        "ring_max": 2047
       }
     }
   }

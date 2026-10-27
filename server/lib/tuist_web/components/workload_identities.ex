@@ -18,17 +18,16 @@ defmodule TuistWeb.Components.WorkloadIdentities do
 
   def initialize(socket) do
     account = authorize_account_update!(socket)
+    policies = Accounts.list_oidc_trust_policies(account)
 
     socket
-    |> assign(oidc_trust_policies: Accounts.list_oidc_trust_policies(account), oidc_configuration_visible: false)
+    |> assign(oidc_trust_policies: policies, oidc_configuration_visible: policies != [])
     |> assign_empty_form()
   end
 
-  def handle_event("toggle_oidc_configuration", %{"checked" => checked}, socket) when is_boolean(checked) do
-    {:noreply, assign(socket, :oidc_configuration_visible, checked)}
+  def handle_event("toggle_oidc_configuration", _params, socket) do
+    {:noreply, update(socket, :oidc_configuration_visible, &(!&1))}
   end
-
-  def handle_event("toggle_oidc_configuration", _params, socket), do: {:noreply, socket}
 
   def handle_event("select_oidc_template", %{"value" => [template]}, socket) when template in ["custom", "fly"] do
     socket = assign(socket, :oidc_template, template)

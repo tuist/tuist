@@ -477,7 +477,14 @@ spec:
             - --rackhost-fleet-name={{ include "tuist.rackFleetName" . }}
             - --rackhost-cluster-name={{ include "tuist.componentName" (dict "root" . "component" "capi") }}
             - --rackhost-bootstrap-secret-name={{ include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
-            {{- with .Values.rackFleet.vmCacheGatewayCIDRs }}
+            {{- /* The operator's pass is fleet-wide, so every site's gateways go
+            in one list: a host at one site can name another site's gateway but
+            has no route to it. */}}
+            {{- $vmCacheGatewayCIDRs := .Values.rackFleet.vmCacheGatewayCIDRs | default list }}
+            {{- range $name := keys (.Values.rackFleet.sites | default dict) | sortAlpha }}
+            {{- $vmCacheGatewayCIDRs = concat $vmCacheGatewayCIDRs (dig $name "vmCacheGatewayCIDRs" (list) $.Values.rackFleet.sites) }}
+            {{- end }}
+            {{- with $vmCacheGatewayCIDRs | uniq }}
             - --rackhost-vm-cache-gateway-cidrs={{ join "," . }}
             {{- end }}
             {{- with include "tuist.rackImageMirrors" . }}

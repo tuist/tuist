@@ -169,7 +169,16 @@ defmodule Tuist.Accounts.SSOLoginDomainTrustTest do
              Accounts.update_sso_configuration(organization.id, :okta, %{oauth2_client_secret: "rotated"})
 
     assert rotated.sso_enforced
-    assert {:error, _} = Accounts.update_sso_configuration(organization.id, :okta, %{sso_login_domain: "other.com"})
+
+    assert {:ok, changed_domain} =
+             Accounts.update_sso_configuration(organization.id, :okta, %{sso_login_domain: "other.com"})
+
+    assert changed_domain.sso_enforced
+    assert changed_domain.sso_automatic_enrollment
+    refute changed_domain.sso_login_domain_verified_at
+    refute Accounts.sso_automatic_enrollment_allowed?(changed_domain, "new@other.com")
+    refute Accounts.sso_identity_linking_allowed?(changed_domain, "new@other.com")
+
     assert :ok = Accounts.add_user_to_organization(user, organization, role: :user)
     assert Accounts.organization_user?(user, organization)
   end

@@ -1,13 +1,6 @@
 # Linux Runner Image
 
-OCI image hosted on the **Linux runner fleet** (Hetzner Cloud
-nodes selected via `tuist.dev/fleet=<runnersFleetLinuxName>`). One
-ephemeral GitHub Actions runner per Pod, one job per runner. The
-same image runs in two roles within a Pod (see "Credential split"
-below): a `poller` init container and a `runner` main container.
-
-This is the Linux analog of `infra/runner-image/` (the Tart-based
-macOS image). Same single-shot lifecycle, much simpler substrate.
+One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are owned by [runners-controller](../runners-controller/AGENTS.md).
 
 ## What's in the image
 
@@ -176,8 +169,9 @@ root, or trimming externals from the image, breaks job containers
 
 ## Build
 
+From this directory:
+
 ```bash
-cd infra/linux-runner-image
 docker build --pull -t ghcr.io/tuist/tuist-linux-runner:dev .
 ```
 
@@ -219,6 +213,30 @@ be reachable, then runs `gradle-cache-smoke.sh`: a unique task input
 must upload on the first build and hit remotely after deleting outputs,
 with local caching disabled. Run this against the candidate image
 before promoting it, then against the production runner profile.
+
+With `compare_regional_cache` enabled, the same staging workflow runs
+`gradle-regional-benchmark.sh`. It requires dispatch to inject the existing EU-West
+Service (including a moved -m instance) and compares it with an explicitly selected remote-region Service.
+Five alternating cold/restore pairs at each payload size use unique keys,
+disabled local caching and checksum verification. Keep the raw CSV/log artifact;
+`summarize-gradle-pn-benchmark.mjs` validates and summarizes it. Record the actual
+underlay path separately: a remote region on vRack still crosses the WAN.
+
+`measure_request_latency` runs `kura-request-latency.mjs` independently of the
+Gradle timing fixture. It measures health, authenticated HEAD hit/miss and 1 KiB
+reads over persistent and fresh HTTP/1.1 connections. Ten warm-ups precede 100
+alternating samples per endpoint/case; status, metadata, body and connection
+reuse checks are mandatory. Credentials stay in memory and outside artifacts.
+Use `summarize-kura-request-latency.mjs` for the raw CSV's median/p95 table.
+
+The pn/wan CSV labels are retained for historical comparisons; they do not prove
+private transport. New results must identify the ordinary regional instance.
+
+Staging drills can set `hold_seconds` (0–900) to pause the synthetic smoke after
+upload, with a `cold-complete` marker in its temporary fixture, before restoring
+through the originally injected endpoint. `compile_project` builds real Gradle
+plugin production/test Kotlin sources with fresh task inputs and checks remote
+restores against every compiled class checksum. Keep local build caching off.
 
 ## How it ends up serving traffic
 
@@ -361,3 +379,45 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   history: a job that fetched full history (`fetch-depth: 0`) would otherwise
   leave out objects only the tip's ancestors had, which the shallow master on
   the host does not hold, and the host's `index-pack --strict` refuses the pack.
+
+## Docker cache
+
+- Pools with `dockerCache` run the dind sidecar's dockerd under
+  `tuist-cache-volume dind SOCKET ROOT EPHEMERAL -- dockerd ...` (`dind_linux.go`):
+  the supervisor serves the mount socket itself and owns dockerd, restarting it
+  only for a switch; an exit nobody asked for ends the supervisor with dockerd's
+  code, so the sidecar restarts as before. It also sets `TUIST_DOCKER_CACHE=1`
+  on the runner.
+- With `TUIST_DOCKER_CACHE=1` the job-start hook runs `tuist-cache-volume
+  --docker` concurrently with the checkout and waits for both. The client asks
+  the agent's `/docker`, checks the `.tuist-volume` proof and the regular
+  `docker.img` file, and sends the supervisor a `switch` (a JSON object without
+  descriptors on the mount socket). The supervisor stops the idle dockerd,
+  unmounts the ephemeral data root, loop-mounts the image at `/var/lib/docker`
+  and starts dockerd again. An image the kernel refuses to mount is formatted
+  empty with the host's format arguments and mounted again, the switch answers
+  `reset` and the teardown reports it, so that job replaces the saved data root;
+  any other failure remounts the ephemeral root. It switches at most once per pod. The hook records `/home/runner/.tuist-docker.json`.
+- After the runner exits, `run-job.sh` runs `--docker-teardown`. With a mounted
+  volume the supervisor removes every container, volume and non-default network,
+  keeps each image under an internal `tuist-docker-cache:<id>` reference and
+  removes its registry tags and digests, so every later reference resolves and
+  is authorized against its registry again; it drops images no job pulled, ran or
+  built for 14 days (`tuist/ledger.json` in the data root), trims the build cache
+  to 10 GB, stops dockerd, unmounts and writes `docker.json` beside the image
+  (`clean`, `changed`, `reset`, the inventory; a reset data root is always
+  `changed`). Before that, when the agent's `/docker-merge` offers the saved head
+  another job published since the mount, a changed data root is merged with it:
+  a second dockerd runs on the head's clone (`/var/lib/docker-merge`, its own
+  socket, no networking), the images only one side keeps are copied into the
+  other with `docker save | docker load` (`planDockerMerge`: whichever moves
+  fewer bytes), the ledgers are merged, and the report names `merged_generation`
+  and `merged_into` (`branch` or `head`) and describes the merged root. Any
+  failure leaves the data root as the job left it. Without a volume, a job the agent answered
+  `unseen` reports `/docker-seen` when the daemon holds any image, so the
+  repository's next jobs get one. Neither ever affects the exit code.
+- `planDockerTeardown` decides what survives: a job used an image when one of its
+  containers ran it or it has a registry reference (teardown removed every one
+  the last time). `changed` compares image IDs and build-cache bytes with the
+  mount, or a used image whose saved last use is a day old, so an unchanged data
+  root is not republished.

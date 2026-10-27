@@ -1413,7 +1413,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["eu-west", "scw-fr-par-runners", "ber1-runners"]
+        ["eu-west", "scw-fr-par-runners", "ber1-runners", "larch-runners"]
       end)
 
       stub(Provisioner, :external_endpoint, fn %Server{region: region} ->
@@ -1442,6 +1442,67 @@ defmodule Tuist.KuraTest do
 
     test "a fleet at a site without a cache gets none rather than another site's", %{account: account} do
       assert Kura.runner_cache_endpoint_url(account, :macos, "ams1") == nil
+      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == nil
+    end
+
+    test "a fleet at the larch site gets the account's node in larch-runners once it is active", %{account: account} do
+      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "larch-runners", image_tag: "0.5.2"})
+      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == nil
+
+      {:ok, _active} = Kura.activate_server(server, "0.5.2")
+      assert Kura.runner_cache_endpoint_url(account, :macos, "larch") == "https://tuist-larch-runners.kura.tuist.dev"
+    end
+  end
+
+  describe "runner_cache_elsewhere/2" do
+    setup do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["eu-west", "scw-fr-par-runners", "ber1-runners"]
+      end)
+
+      stub(Provisioner, :external_endpoint, fn %Server{region: region} ->
+        {:ok,
+         %{url: "https://tuist-#{region}.kura.tuist.dev", observed_at: DateTime.truncate(DateTime.utc_now(), :second)}}
+      end)
+
+      warm = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      cold = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      rented = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+
+      {:ok, server} = Kura.create_server(%{account_id: warm.id, region: "ber1-runners", image_tag: "0.5.2"})
+      {:ok, _active} = Kura.activate_server(server, "0.5.2")
+
+      {:ok, server} = Kura.create_server(%{account_id: rented.id, region: "scw-fr-par-runners", image_tag: "0.5.2"})
+      {:ok, _active} = Kura.activate_server(server, "0.5.2")
+
+      %{warm: warm, cold: cold, rented: rented}
+    end
+
+    test "names the accounts whose runner cache is at another site", %{warm: warm, cold: cold, rented: rented} do
+      assert Kura.runner_cache_elsewhere([warm.id, cold.id, rented.id], "larch") == MapSet.new([warm.id])
+    end
+
+    test "names none whose cache is at the claiming site", %{warm: warm, cold: cold} do
+      assert Kura.runner_cache_elsewhere([warm.id, cold.id], "ber1") == MapSet.new()
+    end
+
+    test "ignores a node that is not active", %{warm: warm} do
+      Server
+      |> Repo.get_by!(account_id: warm.id, region: "ber1-runners")
+      |> Ecto.Changeset.change(status: :drain_pending)
+      |> Repo.update!()
+
+      assert Kura.runner_cache_elsewhere([warm.id], "larch") == MapSet.new()
+    end
+
+    test "reads nothing while every site region is at the claiming site", %{warm: warm} do
+      reject(&Repo.all/1)
+      reject(&Repo.all/2)
+
+      assert Kura.runner_cache_elsewhere([warm.id], "ber1") == MapSet.new()
     end
   end
 

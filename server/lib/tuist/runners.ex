@@ -116,6 +116,7 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.GitLab
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSessions
+  alias Tuist.Runners.Sites
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.VolumeAffinities
   alias Tuist.Runners.VolumeHeads
@@ -821,7 +822,7 @@ defmodule Tuist.Runners do
          {:ok, fleet_name} <- pool_label(sa) do
       case check_not_stale(namespace, sa_name, fleet_name) do
         {:ok, node_name} ->
-          pod = %{node_name: node_name, guest: guest}
+          pod = %{node_name: node_name, guest: guest, site: Sites.claim_site(fleet_name, node_name)}
           {claim_and_serve(namespace, sa_name, fleet_name, pod), fleet_name}
 
         {:error, reason} ->
@@ -880,7 +881,7 @@ defmodule Tuist.Runners do
        ) do
     case pick_affine_candidate(
            fleet_name,
-           pod.node_name,
+           pod,
            excluded_account_ids,
            excluded_repositories,
            excluded_workflow_job_ids
@@ -892,6 +893,7 @@ defmodule Tuist.Runners do
           fleet_name: fleet_name,
           node_name: pod.node_name,
           guest: pod.guest,
+          site: pod.site,
           candidate: candidate,
           affinity_outcome: affinity_outcome,
           retry_context: %{
@@ -923,7 +925,7 @@ defmodule Tuist.Runners do
     context = Map.put(context, :resources, resources)
 
     candidate.workflow_job_id
-    |> Claims.attempt(candidate.account_id, fleet_name, sa_name, resources)
+    |> Claims.attempt(candidate.account_id, fleet_name, sa_name, resources, context.site)
     |> handle_claim_attempt(context)
   end
 
@@ -1013,6 +1015,7 @@ defmodule Tuist.Runners do
            fleet_name: fleet_name,
            node_name: node_name,
            guest: guest,
+           site: site,
            retry_context: retry_context,
            candidate: candidate
          },
@@ -1022,7 +1025,7 @@ defmodule Tuist.Runners do
       namespace,
       sa_name,
       fleet_name,
-      %{node_name: node_name, guest: guest},
+      %{node_name: node_name, guest: guest, site: site},
       retry_context,
       candidate,
       exclusion_scope
@@ -1121,33 +1124,36 @@ defmodule Tuist.Runners do
   # pick the one to hand this node: the oldest candidate whose master this node
   # likely holds, unless the head has waited past the age tolerance, else the
   # head. With no node identity or no residency, this is exactly today's
-  # "oldest queued job".
+  # "oldest queued job". A runner at a rack site first passes over, for a short
+  # while, the jobs whose runner cache is warm at another site
+  # (`Sites.prefer_cache_site/3`).
   defp pick_affine_candidate(
          fleet_name,
-         node_name,
+         %{node_name: node_name, site: site},
          excluded_account_ids,
          excluded_repositories,
          excluded_workflow_job_ids
        ) do
-    case Jobs.pick_queued_top_k(
-           fleet_name,
-           excluded_account_ids,
-           excluded_repositories,
-           excluded_workflow_job_ids,
-           volume_affinity_top_k()
-         ) do
-      {:ok, candidates} ->
-        if volume_affinity_enabled?(fleet_name) do
-          select_affine_candidate(candidates, node_name)
-        else
-          # No volumes on this fleet: hand out the plain oldest-queued head, no
-          # affinity scoring or reordering. A nil outcome means "affinity never
-          # ran here", which is what suppresses the metric for this fleet.
-          {:ok, List.first(candidates), nil}
-        end
-
-      {:error, :empty} ->
-        {:error, :empty}
+    with {:ok, candidates} <-
+           Jobs.pick_queued_top_k(
+             fleet_name,
+             excluded_account_ids,
+             excluded_repositories,
+             excluded_workflow_job_ids,
+             volume_affinity_top_k()
+           ),
+         [_ | _] = candidates <- Sites.prefer_cache_site(candidates, site) do
+      if volume_affinity_enabled?(fleet_name) do
+        select_affine_candidate(candidates, node_name)
+      else
+        # No volumes on this fleet: hand out the plain oldest-queued head, no
+        # affinity scoring or reordering. A nil outcome means "affinity never
+        # ran here", which is what suppresses the metric for this fleet.
+        {:ok, List.first(candidates), nil}
+      end
+    else
+      {:error, :empty} -> {:error, :empty}
+      [] -> {:error, :empty}
     end
   end
 
@@ -1282,7 +1288,7 @@ defmodule Tuist.Runners do
              workflow_job_id: candidate.workflow_job_id,
              fleet_on_cluster_network: Catalog.fleet_on_cluster_network?(fleet_name),
              fleet_platform: Catalog.fleet_platform(fleet_name),
-             fleet_site: Catalog.fleet_site(fleet_name),
+             fleet_site: Map.get(context, :site),
              # Per-account cache-signing grant — trusted jobs only. nil for an
              # untrusted (fork) job or when minting is unconfigured; the runner
              # then falls back to the MAC default (machine-local), so an

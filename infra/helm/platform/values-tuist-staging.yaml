@@ -58,9 +58,32 @@ grpc-ingress-nginx:
         load-balancer.hetzner.cloud/location: fsn1
         load-balancer.hetzner.cloud/node-selector: topology.kubernetes.io/region=fsn1
 
-# Public non-production Kura now runs only on OVH ca-east.
+# Reuse the prepared Gravelines cache host as ordinary EU-West capacity.
+# Complete the staging migration in kura-controller/linux-runner-private-cache.md
+# before enabling regional admission. Match the production OVH gateway shape.
 kura-eu-west-ingress-nginx:
-  enabled: false
+  enabled: true
+  controller:
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    reportNodeInternalIp: true
+    config:
+      use-proxy-protocol: "false"
+    extraArgs:
+      sync-rate-limit: "1"
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-dedibox
+    tolerations:
+      - key: tuist.dev/kura-cache
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
+    service:
+      type: ClusterIP
+      externalTrafficPolicy: ""
+      annotations: {}
 
 kura-ca-east-ingress-nginx:
   enabled: true

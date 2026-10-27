@@ -176,18 +176,18 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     verified_domain? =
       form_domain_trust(provider, socket.assigns.organization, form_params) in [:instance, :dns_verified]
 
-    legacy_enforcement? =
-      legacy_sso_enforcement?(provider, socket.assigns.organization)
+    existing_enforcement? =
+      existing_sso_enforcement?(provider, socket.assigns.organization)
 
-    legacy_automatic_enrollment? =
-      legacy_sso_automatic_enrollment?(provider, socket.assigns.organization)
+    existing_automatic_enrollment? =
+      existing_sso_automatic_enrollment?(provider, socket.assigns.organization)
 
     sso_automatic_enrollment =
       automatic_enrollment_for_provider_selection(
         provider,
         socket.assigns.selected_provider,
         verified_domain?,
-        legacy_automatic_enrollment?,
+        existing_automatic_enrollment?,
         socket.assigns.sso_automatic_enrollment
       )
 
@@ -195,7 +195,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       enforcement_for_provider_selection(
         provider,
         verified_domain?,
-        legacy_enforcement?,
+        existing_enforcement?,
         socket.assigns.sso_enforced
       )
 
@@ -228,20 +228,17 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     custom_provider_without_verified_domain? =
       socket.assigns.selected_provider in @oauth2_form_providers and not verified_domain?
 
-    legacy_enforcement? =
-      legacy_sso_enforcement?(
+    existing_enforcement? =
+      existing_sso_enforcement?(
         socket.assigns.selected_provider,
         socket.assigns.organization
       )
 
-    legacy_automatic_enrollment? =
-      legacy_sso_automatic_enrollment?(
+    existing_automatic_enrollment? =
+      existing_sso_automatic_enrollment?(
         socket.assigns.selected_provider,
         socket.assigns.organization
       )
-
-    unchanged_trust_inputs? =
-      saved_trust_inputs_unchanged?(socket.assigns.selected_provider, socket.assigns.organization, form_params)
 
     domain_verification_error =
       if normalize_domain(form_params["sso_login_domain"]) ==
@@ -253,20 +250,14 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       current_form_params: form_params,
       domain_verification_error: domain_verification_error,
       sso_automatic_enrollment:
-        policy_after_validation(
-          socket.assigns.sso_automatic_enrollment,
-          socket.assigns.organization.sso_automatic_enrollment,
-          custom_provider_without_verified_domain?,
-          legacy_automatic_enrollment?,
-          unchanged_trust_inputs?
+        if(custom_provider_without_verified_domain? and not existing_automatic_enrollment?,
+          do: false,
+          else: socket.assigns.sso_automatic_enrollment
         ),
       sso_enforced:
-        policy_after_validation(
-          socket.assigns.sso_enforced,
-          socket.assigns.organization.sso_enforced,
-          custom_provider_without_verified_domain?,
-          legacy_enforcement?,
-          unchanged_trust_inputs?
+        if(custom_provider_without_verified_domain? and not existing_enforcement?,
+          do: false,
+          else: socket.assigns.sso_enforced
         )
     )
     |> compute_form_valid()
@@ -834,11 +825,9 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       not automatic_enrollment
   end
 
-  defp sso_enforcement_toggle_disabled?(selected_provider, organization, trust, enforced) do
-    legacy_enforcement? = legacy_sso_enforcement?(selected_provider, organization)
-
+  defp sso_enforcement_toggle_disabled?(selected_provider, _organization, trust, enforced) do
     selected_provider in @oauth2_form_providers and trust not in [:instance, :dns_verified] and
-      not legacy_enforcement? and not enforced
+      not enforced
   end
 
   defp form_domain_trust(provider, organization, form_params) when provider in @oauth2_form_providers do
@@ -859,29 +848,12 @@ defmodule TuistWeb.AuthenticationSettingsLive do
 
   defp form_domain_trust(_provider, _organization, _form_params), do: :untrusted
 
-  defp policy_after_validation(current, saved, untrusted?, legacy?, unchanged_trust_inputs?) do
-    if untrusted? and not legacy? and not (unchanged_trust_inputs? and saved), do: false, else: current
+  defp existing_sso_enforcement?(selected_provider, organization) do
+    organization.sso_enforced and selected_provider == form_provider(organization)
   end
 
-  defp saved_trust_inputs_unchanged?(provider, organization, form_params) when provider in @oauth2_form_providers do
-    {issuer, _, _, _} = extract_oauth2_urls(provider, form_params)
-    provider = provider_atom(provider)
-
-    provider == organization.sso_provider and
-      issuer == organization.sso_organization_id and
-      normalize_domain(form_params["sso_login_domain"]) == organization.sso_login_domain
-  end
-
-  defp saved_trust_inputs_unchanged?(_provider, _organization, _form_params), do: false
-
-  defp legacy_sso_enforcement?(selected_provider, organization) do
-    organization.sso_legacy_email_domain_fallback and
-      selected_provider == form_provider(organization)
-  end
-
-  defp legacy_sso_automatic_enrollment?(selected_provider, organization) do
-    organization.sso_legacy_email_domain_fallback and
-      organization.sso_automatic_enrollment and
+  defp existing_sso_automatic_enrollment?(selected_provider, organization) do
+    organization.sso_automatic_enrollment and
       selected_provider == form_provider(organization)
   end
 
@@ -889,7 +861,7 @@ defmodule TuistWeb.AuthenticationSettingsLive do
          "google",
          previous_provider,
          _verified_domain?,
-         _legacy_automatic_enrollment?,
+         _existing_automatic_enrollment?,
          _automatic_enrollment
        )
        when previous_provider != "google", do: true
@@ -901,14 +873,14 @@ defmodule TuistWeb.AuthenticationSettingsLive do
          _provider,
          _previous_provider,
          _verified_domain?,
-         _legacy_automatic_enrollment?,
+         _existing_automatic_enrollment?,
          automatic_enrollment
        ), do: automatic_enrollment
 
   defp enforcement_for_provider_selection(provider, false, false, _enforced) when provider in @oauth2_form_providers,
     do: false
 
-  defp enforcement_for_provider_selection(_provider, _verified_domain?, _legacy_enforcement?, enforced), do: enforced
+  defp enforcement_for_provider_selection(_provider, _verified_domain?, _existing_enforcement?, enforced), do: enforced
 
   # The form provider is not always the stored `sso_provider`: an organization
   # whose `:oauth2` configuration matches the Entra preset exactly is shown as

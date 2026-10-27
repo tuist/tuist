@@ -797,7 +797,7 @@ defmodule TuistWeb.AuthenticationTest do
           preload: [:account]
         )
 
-      {:ok, organization} = Accounts.update_organization(organization, %{sso_enforced: true})
+      organization = organization |> Ecto.Changeset.change(sso_enforced: true) |> Repo.update!()
 
       conn =
         %{

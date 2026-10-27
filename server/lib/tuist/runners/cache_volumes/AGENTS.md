@@ -185,3 +185,30 @@ these schemas persist volume identities and per-job uses.
   the volume identity carries the session's platform, architecture and UID, so a
   repository has separate macOS and Linux checkout volumes, published and
   restored through the same `image/3` clauses.
+
+- `docker` is a reserved key: `allocate/1` refuses it, and only
+  `allocate_docker/1` (host agent, `/runners/cache-volumes/docker`) allocates it,
+  for GitHub jobs of the same repository (`same_repository`; forks never get one)
+  on Linux sessions, when `FeatureFlags.runner_docker_cache_enabled?/1` and the job's
+  runner profile `docker_cache` (default true; a legacy label follows the account)
+  allow it. The volume holds the repository's Docker data root; the guest mounts
+  its image, so the host never mounts it (runner-cache `KindDocker`). Its UID is 0
+  (the sidecar's root dockerd) and its capacity is always 100 GB
+  (`@managed_volume_bytes`); the agent sends `max_volume_bytes` of 100 GB for it.
+  A repository gets one only once a volume row exists: `mark_docker_seen/1`
+  (`/runners/cache-volumes/docker-seen`) inserts the row, with no use, when a job
+  without a data root reports that it used Docker, and it binds through the open
+  runner session whatever the job's status, since the report comes after the job.
+  Until then `allocate_docker/1` answers `{:error, :unseen}` (404). Publication
+  follows the profile's writer policy like any custom volume. A report for a
+  `docker` use may carry `docker` (`images`, `build_cache_bytes`): the guest-written
+  inventory is validated and stored on the use as `docker_images`, describes the
+  volume page's Images tab on the dashboard (`Tuist.Runners.DockerCache`) and
+  decides nothing. `reserved_bytes` for `docker` is the saved head plus 20 GB,
+  runner-cache's `DockerGrowthBytes`. Docker cache storage is not billed: when
+  volume storage becomes a billing meter, exclude the `docker` and `checkout` keys.
+- `image/3` with the `rebase` operation (Docker volumes only) moves a successful
+  job's use that may still publish onto the lineage's current HEAD, named by
+  `generation` and its `content_digest`, once its host reports the guest merged
+  the job's images with that HEAD; publication then fast-forwards it. Anything
+  but the current HEAD is a conflict.

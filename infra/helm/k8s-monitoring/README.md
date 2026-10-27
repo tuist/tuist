@@ -114,6 +114,17 @@ node-exporter does not run on a rack's nodes (`node.cluster.x-k8s.io/instance-ty
 
 The Mac minis' temperatures, fan speeds, system power and thermal pressure come from [`macos-host-sensors`](../../macos-host-sensors/AGENTS.md) through node_exporter's textfile collector, as `macos_*` in `tuist-macos-node-exporter`. That prefix is outside the families the destination drops outside production, so every mini keeps them in every environment; it is a few dozen series per host.
 
+The collector also exposes `macos_host_info`, `macos_host_uptime_seconds`,
+`macos_host_tcp_time_wait` and `macos_host_health_collection_success`: four series
+per host for OS maintenance and TCP stall diagnostics. Preserve `instance`,
+`job`, `cluster`, `env`, `product_version` and `kernel_release` in downstream
+aggregation. `runner-macos-host-alert-rules.json` contains three Grafana rules
+for old Tahoe kernels approaching a TCP clock wrap, persistent TIME_WAIT
+accumulation and failed/stale collection. Provision that payload separately
+after releasing the collector and this chart; Helm does not install alert JSON.
+`bash test-runner-macos-host-alerts.sh` checks the shipped expressions with
+promtool. See the [incident and OS rollout runbook](../../cluster-api-provider-tuist/macos-tcp-clock.md).
+
 A rack can live in a non-production env (BER1 was in staging while it was built at home), and the destination drops almost every `node_*` metric outside production. So rack hardware is marked `rack_host="true"` (Linux hosts by `alloy-rack`, minis by their egress Service belonging to the rack fleet), and the destination keeps a marked host's `node_*` metrics in every environment. Other non-production nodes are filtered as before.
 
 The rack's switches report through the Omada controller rather than a scrape of their own: [`rack-switch-controller`](../../rack-switch-controller/AGENTS.md) exports `rack_switch_*` and carries the `prometheus.io/scrape` annotation.

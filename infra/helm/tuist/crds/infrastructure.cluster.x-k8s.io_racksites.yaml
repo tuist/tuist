@@ -28,6 +28,15 @@ spec:
         - jsonPath: .status.nextContractedPowerChange
           name: Next Change
           type: string
+        - jsonPath: .status.powerBudgetWatts
+          name: Budget W
+          type: integer
+        - jsonPath: .status.meteredWatts
+          name: Metered W
+          type: string
+        - jsonPath: .status.conditions[?(@.type=='PowerAdmission')].status
+          name: Admission
+          type: string
       name: v1alpha1
       schema:
         openAPIV3Schema:
@@ -82,10 +91,122 @@ spec:
                   x-kubernetes-list-map-keys:
                     - from
                   x-kubernetes-list-type: map
+                powerBudget:
+                  description: |-
+                    PowerBudget is the draw at which the site's Mac minis stop taking new
+                    runner VMs. Unset, nothing is held back.
+                  properties:
+                    chainAmps:
+                      anyOf:
+                        - type: integer
+                        - type: string
+                      description: |-
+                        ChainAmps is the output current at which a transfer switch's chain stops
+                        taking new runner VMs on the minis its PDUs power.
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    otherWatts:
+                      description: |-
+                        OtherWatts is what the site draws outside its transfer switches, which
+                        nothing meters: dual-PSU gear on the colocation's own strips. The
+                        switches together may draw the contracted power in effect less this.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                  required:
+                    - chainAmps
+                  type: object
               type: object
             status:
               description: RackSiteStatus is what the controller derived from the spec.
               properties:
+                chains:
+                  description: Chains is each transfer switch's chain, by name.
+                  items:
+                    description: |-
+                      RackSiteChain is one transfer switch's chain as the controller last
+                      judged it.
+                    properties:
+                      currentAmps:
+                        anyOf:
+                          - type: integer
+                          - type: string
+                        description: |-
+                          CurrentAmps is the chain's output current, unset without a recent
+                          reading.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                      held:
+                        description: Held is true while the chain's minis take no new runner VMs.
+                        type: boolean
+                      heldSince:
+                        description: HeldSince is when the chain was last held.
+                        format: date-time
+                        type: string
+                      hosts:
+                        description: Hosts is how many Mac minis the chain's PDUs power.
+                        type: integer
+                      name:
+                        description: Name is the transfer switch, or the PDU for one that hangs off none.
+                        type: string
+                      watts:
+                        anyOf:
+                          - type: integer
+                          - type: string
+                        description: Watts is the chain's draw, unset without a recent reading.
+                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                        x-kubernetes-int-or-string: true
+                    required:
+                      - name
+                    type: object
+                  type: array
+                  x-kubernetes-list-map-keys:
+                    - name
+                  x-kubernetes-list-type: map
+                conditions:
+                  description: 'Conditions: PowerAdmission.'
+                  items:
+                    description: Condition defines an observation of a Cluster API resource operational state.
+                    properties:
+                      lastTransitionTime:
+                        description: |-
+                          Last time the condition transitioned from one status to another.
+                          This should be when the underlying condition changed. If that is not known, then using the time when
+                          the API field changed is acceptable.
+                        format: date-time
+                        type: string
+                      message:
+                        description: |-
+                          A human readable message indicating details about the transition.
+                          This field may be empty.
+                        type: string
+                      reason:
+                        description: |-
+                          The reason for the condition's last transition in CamelCase.
+                          The specific API may choose whether or not this field is considered a guaranteed API.
+                          This field may be empty.
+                        type: string
+                      severity:
+                        description: |-
+                          severity provides an explicit classification of Reason code, so the users or machines can immediately
+                          understand the current situation and act accordingly.
+                          The Severity field MUST be set only when Status=False.
+                        type: string
+                      status:
+                        description: status of the condition, one of True, False, Unknown.
+                        type: string
+                      type:
+                        description: |-
+                          type of condition in CamelCase or in foo.example.com/CamelCase.
+                          Many .condition.type values are consistent across resources like Available, but because arbitrary conditions
+                          can be useful (see .node.status.conditions), the ability to deconflict is important.
+                        type: string
+                    required:
+                      - lastTransitionTime
+                      - status
+                      - type
+                    type: object
+                  type: array
                 contractedPowerSince:
                   description: ContractedPowerSince is the first day of the step in effect.
                   type: string
@@ -96,8 +217,33 @@ spec:
                 message:
                   description: Message says why the spec could not be read, empty when it could.
                   type: string
+                meteredWatts:
+                  anyOf:
+                    - type: integer
+                    - type: string
+                  description: |-
+                    MeteredWatts is what the site's transfer switches drew together at the
+                    last judgement, unset when a switch had no recent reading.
+                  pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                  x-kubernetes-int-or-string: true
                 nextContractedPowerChange:
                   description: NextContractedPowerChange is the first day of the next step.
+                  type: string
+                powerBudgetWatts:
+                  description: |-
+                    PowerBudgetWatts is what the site's transfer switches may draw together
+                    at the contracted step in effect: its watts less spec.powerBudget's
+                    otherWatts. 0 without a budget or a step.
+                  format: int64
+                  type: integer
+                siteHeld:
+                  description: |-
+                    SiteHeld is true while every Mac mini at the site takes no new runner
+                    VMs because the site is over its budget.
+                  type: boolean
+                siteHeldSince:
+                  description: SiteHeldSince is when the site was last held.
+                  format: date-time
                   type: string
               type: object
           type: object

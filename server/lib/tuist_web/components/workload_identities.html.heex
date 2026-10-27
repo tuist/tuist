@@ -2,14 +2,26 @@
   <.card_section id="oidc-trust-policies" data-part="oidc-card-section">
     <div data-part="header">
       <div data-part="heading">
-        <.toggle
+        <button
           id="oidc-configuration-toggle"
-          label={dgettext("dashboard_account", "Show configuration")}
-          checked={@oidc_configuration_visible}
-          data-on-checked-change="toggle_oidc_configuration"
+          type="button"
+          role="switch"
+          class="noora-toggle"
+          phx-click="toggle_oidc_configuration"
+          aria-checked={to_string(@oidc_configuration_visible)}
           aria-controls="oidc-trust-policy-form"
           aria-expanded={to_string(@oidc_configuration_visible)}
-        />
+        >
+          <span
+            class="noora-toggle-control"
+            data-part="control"
+            data-state={if @oidc_configuration_visible, do: "checked", else: "unchecked"}
+            aria-hidden="true"
+          >
+            <span data-part="track"><span data-part="thumb" /></span>
+          </span>
+          <span data-part="label">{dgettext("dashboard_account", "Show configuration")}</span>
+        </button>
         <span id="oidc-workload-title" data-part="title">
           {dgettext("dashboard_account", "Workload identities")}
         </span>

@@ -10,6 +10,34 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
 
   setup :set_mimic_from_context
 
+  test "queues a large customer list without resetting the release schedule between batches" do
+    customer_ids = Enum.map(1..10_001, &"customer-#{&1}")
+    now = ~U[2026-10-27 10:00:00.000000Z]
+    stub(DateTime, :utc_now, fn -> now end)
+    stub(Tuist.Accounts, :list_billable_customers, fn -> customer_ids end)
+
+    assert :ok = SyncStripeMetersWorker.perform(%Oban.Job{args: %{}})
+
+    jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
+    assert length(jobs) == length(customer_ids)
+    assert MapSet.new(jobs, & &1.args["customer_id"]) == MapSet.new(customer_ids)
+
+    for job <- jobs do
+      "customer-" <> index = job.args["customer_id"]
+      delay = div(String.to_integer(index) - 1, 10)
+
+      if delay == 0 do
+        assert job.state == "available"
+      else
+        assert job.state == "scheduled"
+        assert DateTime.diff(job.scheduled_at, now) == delay
+      end
+
+      assert job.args["period_start"] == DateTime.to_unix(~U[2026-10-26 00:00:00Z], :microsecond)
+      assert job.args["period_end"] == DateTime.to_unix(~U[2026-10-27 00:00:00Z], :microsecond)
+    end
+  end
+
   test "enqueues SyncCustomerStripeMetersWorker jobs for each billable customer with cache events" do
     first_account_customer_id = "account-1-#{UUIDv7.generate()}"
     second_account_customer_id = "account-2-#{UUIDv7.generate()}"

@@ -107,6 +107,7 @@ kubectl -n "$NAMESPACE" create configmap talos-patches --from-file="$workdir" --
 job_manifest() {
   local job_name="$1" deadline="$2" container="$3" volumes="$4"
   jq -n --arg name "$job_name" --arg namespace "$NAMESPACE" --argjson deadline "$deadline" \
+    --arg node "$TALOS_JOB_NODE" \
     --argjson container "$container" --argjson volumes "$volumes" '{
     apiVersion: "batch/v1",
     kind: "Job",
@@ -117,6 +118,8 @@ job_manifest() {
       template: {
         spec: {
           restartPolicy: "Never",
+          nodeSelector: {"kubernetes.io/hostname": $node},
+          tolerations: [{key: "node-role.kubernetes.io/control-plane", operator: "Exists", effect: "NoSchedule"}],
           securityContext: {runAsNonRoot: true, runAsUser: 65534, runAsGroup: 65534, seccompProfile: {type: "RuntimeDefault"}},
           containers: [$container + {
             securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}},
@@ -170,7 +173,7 @@ run_job() {
   kubectl -n "$NAMESPACE" delete pods -l "job-name=$job_name" --ignore-not-found >/dev/null 2>&1 || true
 
   if [[ "$status" != Succeeded && -z "$output" ]]; then
-    echo "Job $job_name produced no output. If it never started a pod, kube-controller-manager is probably down; fix the node with talosctl over the tailnet." >&2
+    echo "Job $job_name produced no output (pod phase: ${status:-missing}); check scheduling, image pulls, pod networking and kube-controller-manager on $TALOS_JOB_NODE." >&2
   fi
   printf '%s\n' "$output"
   [[ "$status" == Succeeded ]]
@@ -193,6 +196,9 @@ wait_until_healthy() {
   while true; do
     state="$(control_plane_state "$node")"
     if [[ "$state" != "$previous" || "$state" == *"=false"* || -z "$state" ]]; then
+      if [[ "$state" != "$previous" ]]; then
+        echo "control-plane stability window reset on $node: ${state:-pods missing or API unavailable}"
+      fi
       previous="$state"
       stable_since=$SECONDS
     elif (( SECONDS - stable_since >= 90 )); then
@@ -205,10 +211,10 @@ wait_until_healthy() {
   kubectl wait --for=condition=Available deployment --all --all-namespaces --timeout=15m >/dev/null
 }
 
-# One "name=uid:restarts:ready" entry per control-plane pod on the node.
+# One "name=uid:restarts:ready=boolean" entry per control-plane pod.
 control_plane_state() {
   kubectl -n kube-system get pods -l tier=control-plane --field-selector "spec.nodeName=$1" \
-    -o jsonpath='{range .items[*]}{.metadata.name}={.metadata.uid}:{.status.containerStatuses[0].restartCount}:{.status.containerStatuses[0].ready}{" "}{end}' 2>/dev/null || true
+    -o json 2>/dev/null | jq -L "$REPO_ROOT/infra/mise/tasks/mgmt" -r 'include "health"; control_plane_state' || true
 }
 
 control_plane_nodes() {
@@ -294,13 +300,19 @@ join_node() {
 # Control-plane nodes listed in hetzner.yaml that are not in the cluster
 # yet, as "name privateIP", in the order listed.
 registered="$(kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')"
+# Keep management Jobs on an existing Ready member. A new member's broken
+# overlay must fail the explicit network gate, not strand an etcd query Job.
+TALOS_JOB_NODE="$(kubectl get nodes -l node-role.kubernetes.io/control-plane -o json | jq -r '
+  [.items[] | select(.spec.unschedulable != true and any(.status.conditions[]; .type == "Ready" and .status == "True"))] |
+  sort_by(.metadata.name) | .[0].metadata.name // empty')"
+[[ -n "$TALOS_JOB_NODE" ]] || fail "no Ready, uncordoned control-plane node for Talos Jobs"
 pending="$(yq -r '.nodes[] | .name + " " + .privateIP' "$SPEC" |
   while read -r name ip; do grep -qxF "$name" <<<"$registered" || echo "$name $ip"; done)"
 
 if [[ -n "$pending" ]]; then
   current="$(control_plane_nodes)"
   [[ -n "$current" ]] || fail "no control-plane nodes found"
-  read -r _ source_ip <<<"$current"
+  source_ip="$(kubectl get node "$TALOS_JOB_NODE" -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')"
   echo "==> etcd members (hostname, learner)"
   etcd_members "$source_ip" || fail "could not list the etcd members through $source_ip"
 
@@ -325,6 +337,8 @@ if [[ -n "$pending" ]]; then
       (( SECONDS < deadline )) || fail "$node did not register within 20 minutes of receiving its machine config"
       sleep 10
     done
+    kubectl wait --for=condition=Ready "node/$node" --timeout=10m >/dev/null
+    "$REPO_ROOT/infra/mise/tasks/mgmt/check-pod-network.sh"
     wait_until_healthy "$node"
     registered_ip="$(kubectl get node "$node" -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')"
     [[ "$registered_ip" == "$node_ip" ]] || fail "$node registered with InternalIP $registered_ip, hetzner.yaml says $node_ip"
@@ -359,6 +373,12 @@ while read -r node node_ip <&3; do
     wait_until_healthy "$node"
   fi
 done 3<<<"$nodes"
+
+if $apply; then
+  "$REPO_ROOT/infra/mise/tasks/mgmt/reconcile-flannel.sh" --apply
+else
+  "$REPO_ROOT/infra/mise/tasks/mgmt/reconcile-flannel.sh"
+fi
 
 if ! $apply; then
   echo "==> Dry run; pass --apply to apply these changes"

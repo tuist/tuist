@@ -1274,6 +1274,44 @@ defmodule Tuist.Runners.ClaimsTest do
       assert lifecycle_row!(7530).status == "queued"
     end
 
+    test "attempt/6 records the claiming runner's site on the claim and the lifecycle row" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7540))
+
+      assert {:ok, claim} = Claims.attempt(7540, account.id, "fleet-a", "pod-1", @linux_resources, "larch")
+
+      assert claim.site == "larch"
+      assert Repo.get!(Claim, "pod-1").site == "larch"
+      assert lifecycle_row!(7540).site == "larch"
+    end
+
+    test "release/2 clears the site, so the next claim decides it again" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7541))
+      assert {:ok, claim} = Claims.attempt(7541, account.id, "fleet-a", "pod-1", @linux_resources, "larch")
+
+      assert :ok = Claims.release(7541, claim.claimed_at)
+      assert lifecycle_row!(7541).site == nil
+
+      assert {:ok, _} = Claims.attempt(7541, account.id, "fleet-a", "pod-2", @linux_resources, "ber1")
+      assert lifecycle_row!(7541).site == "ber1"
+    end
+
+    test "a job GitHub places on the runner takes the runner's site" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7542))
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7543))
+      assert {:ok, _} = Claims.attempt(7542, account.id, "fleet-a", "pod-1", @linux_resources, "larch")
+      :ok = mark_running!(7542, "runner-larch")
+
+      assert {:mismatch, _displaced} = Claims.record_execution("runner-larch", 7543, account.id)
+
+      executed = lifecycle_row!(7543)
+      assert executed.status == "running"
+      assert executed.site == "larch"
+      assert lifecycle_row!(7542).site == nil
+    end
+
     test "release_pod_missing/2 frees a displaced claim without a job to re-queue" do
       account = account_fixture()
       handle = DateTime.add(DateTime.utc_now(), -600, :second)
