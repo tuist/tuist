@@ -42,7 +42,8 @@ cmp "${fixtures}/expected" "${GITHUB_ENV}"
 echo "ok: the runtime endpoint is appended to the runtime environment file"
 
 export TUIST_CACHE_SIGNING_GRANT="signed.runner.grant"
-bash -eu "${JOB_STARTED_HOOK}"
+bash -eu "${JOB_STARTED_HOOK}" > "${fixtures}/grant-mask"
+grep -qx '::add-mask::signed.runner.grant' "${fixtures}/grant-mask"
 grep -qx 'TUIST_CACHE_SIGNING_GRANT=signed.runner.grant' "${GITHUB_ENV}"
 unset TUIST_CACHE_SIGNING_GRANT
 echo "ok: the dispatch grant reaches GitHub container steps"
