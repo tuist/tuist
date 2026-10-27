@@ -141,6 +141,31 @@ func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 	}
 }
 
+func TestLVMMigrationCanRecreateItsOrphanedStatefulSet(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = kurav1.AddToScheme(scheme)
+	f := newResizeHoldFixture(100)
+	f.instance.Spec.DiskResource = string(kuraDiskResource)
+	f.instance.Spec.NodeSelector = map[string]string{"pool": "cache"}
+	claim := f.claim(0, "32Gi")
+	claim.Spec.VolumeName = "legacy-pv"
+	pv := &corev1.PersistentVolume{ObjectMeta: metav1.ObjectMeta{Name: claim.Spec.VolumeName}, Spec: corev1.PersistentVolumeSpec{
+		NodeAffinity: &corev1.VolumeNodeAffinity{Required: &corev1.NodeSelector{NodeSelectorTerms: []corev1.NodeSelectorTerm{{MatchExpressions: []corev1.NodeSelectorRequirement{{Key: corev1.LabelHostname, Operator: corev1.NodeSelectorOpIn, Values: []string{"source"}}}}}}},
+	}}
+	source := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "source", Annotations: map[string]string{lvmMigrationNodeAnnotation: "true"}}, Spec: corev1.NodeSpec{Unschedulable: true}}
+	landing := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "landing", Labels: map[string]string{"pool": "cache"}}, Status: corev1.NodeStatus{
+		Allocatable: corev1.ResourceList{kuraDiskResource: resource.MustParse("64Gi")},
+		Conditions:  []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}},
+	}}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(f.instance, claim, pv, source, landing).Build()
+	r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+	allowed, err := r.lvmMigrationAllowed(context.Background(), f.instance, dataVolumeReplacement{claim: claim})
+	if err != nil || !allowed {
+		t.Fatalf("orphaned immutable-template replacement cannot resume: allowed=%v err=%v", allowed, err)
+	}
+}
+
 func TestLVMHandoverMovesClientAndPeerRoles(t *testing.T) {
 	scheme := runtime.NewScheme()
 	_ = clientgoscheme.AddToScheme(scheme)
