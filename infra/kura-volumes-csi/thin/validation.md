@@ -1,10 +1,342 @@
 # Thin stack qualification
 
-## Follow-up: tuning and live migration fixes — 2026-10-27
+## Destination-bound handoff qualification — 2026-10-27
 
-**The PR remains draft. Sequential-read and random-write regressions were
+**The live-write handoff defect is corrected and its repeated staged migration
+passed. Performance remains a release blocker; keep this PR draft and production
+thin enrollment disabled.** The following evidence supersedes the current-state
+conclusion of the earlier failed rehearsal below. Production was not changed.
+Physical overcommit remains disabled: only `ceiling-backed-v1` is implemented.
+
+### Handoff fix and actual staged migration
+
+The previous two fresh-write misses came from acknowledging a donor write before
+asynchronous replication made it available at the selected destination. The
+controller now persists the source process and destination pod/process identities
+before any endpoint move. An authenticated preparation verifies retained content
+on that exact peer and covers concurrent writes through the source feed. Once
+armed, successful HTTP/gRPC mutation completion requires destination content
+verification. A cursor alone is never a receipt. Existing endpoint observation,
+connection retirement, catch-up, deletion and queued-template safeguards remain.
+See [the protocol and pause/retry procedure](../../kura-controller/thin-migration.md).
+
+Runtime `60996da4c4c7` and controller `6e17641d4fac` completed a new actual
+Canada-file-backed → Paris-thin migration. Both source replicas held a verified
+1 GiB large-object corpus and 128 small objects. Desired thin layout did not
+replace either source while the node remained unselected. After selecting one
+cordoned source, both claims migrated in **520 seconds**. An annotation queued
+during catch-up restarted the first thin replica without replacing its PVC.
+The hold released only after the replacement replicas completed catch-up.
+
+The continuous probe completed **21,276 requests, zero failures and 7,092
+successful writes**. It has no application retry loop; Go's transport may retry
+an idempotent request after a stale connection. Every successful write was
+journaled by key, length and SHA-256, then independently read through the Service
+and both final replicas: **21,276 successful journal verification reads**.
+The original corpus passed another **1,152 verification reads**, for **22,428
+final reads** in total. The earlier failed run remains below; eventual checks
+are not being substituted for the zero-error live traffic result.
+
+The 16 GiB pool retained its 1 GiB data and 64 MiB metadata reserves. Final
+commitments were **13,958,643,712 bytes** for two 6.5 GiB virtual volumes. At the
+post-migration snapshot, physical data usage was **4,357,357,568 bytes**, metadata
+usage **17,039,360 bytes**, and unattributed allocation zero. Both volume UUIDs
+remained stable across the queued restart and CSI image rollout. All eight
+pre-existing Kura runtime pods retained their UIDs and readiness.
+
+The first large-corpus seed exhausted the probe client's 512 MiB limit. It was
+rerun with a 1 GiB client limit; runtime limits remained one CPU/768 MiB. This
+was fixture correction, not evidence of lower runtime memory requirements.
+The migration fixture reduced its claim to 4 GiB but retained the rendered
+5,728,412,631-byte CAS budget. Its approximately 2 GiB retained workload stayed
+inside the grant; this is not a full-capacity budget-alignment test. The final
+paired performance fixtures explicitly set both cache budgets to 4 GiB.
+The live key provider was `tuist_root`; this rehearsal does not requalify OpenBao
+custody. Prior OpenBao evidence remains a separate deployment/operational gate.
+
+### Packaged metadata checking
+
+The staging activation revealed that the CSI image omitted
+`thin-provisioning-tools`: LVM warned that `thin_check` was unavailable and could
+skip its activation check. The Docker image now includes the package and checks
+the executable at build time. Pool preparation verifies the prerequisite before
+any VG mutation. The corrected image `e13640b0fc04` reports `thin_check` 0.9.0
+and re-staged the live fixture without probe failures. The same package was
+installed in the preceding test container before the new image finished building;
+the later restart verifies the packaged dependency. Offline metadata checks are
+never run against a live metadata device.
+
+[CSI image qualification](https://github.com/tuist/tuist/actions/runs/40581939556)
+passed Go tests/vet and both the actual-driver and mechanism tests at 64 and
+512 KiB before publishing. These include physical A-to-B reclaim, deleted-open
+files, failed/ignored discard, restart, stale-identity rejection, concurrent
+operations and reserve refusal. They do not qualify recovery after actual
+metadata exhaustion. [Controller build](https://github.com/tuist/tuist/actions/runs/40577662478)
+and full Go tests/vet passed. The
+[handoff runtime qualification](https://github.com/tuist/tuist/actions/runs/40579216449)
+passed formatting, Clippy and 1,259 Rust tests, with 49 ignored and the binary
+test passing separately.
+
+### Pause, retry and HTTP/2 qualification
+
+Runtime `04e128167d80` separates the bounded preparation deadline from an
+established bridge. After readiness, a weak-reference background loop refreshes
+the feed consumer and verifies the destination until the donor drains. An exact-
+identity reset endpoint clears only a completed failed, unarmed preparation;
+it cannot clear a running preparation or a ready bridge. Reset serializes with
+acknowledgments and releases only that attempt's feed pin.
+
+[Linux qualification](https://github.com/tuist/tuist/actions/runs/40585572593)
+passed formatting, Clippy and **1,261 Rust tests, 49 ignored**, plus the binary
+test. The same image then passed live staging checks:
+
+- A deliberately wrong destination incarnation failed preparation. Wrong source
+  or destination reset identities returned 409; the exact failed attempt reset
+  successfully without restarting the source. Reset of a ready bridge returned
+  409. The correct preparation became ready in 17 seconds.
+- The armed bridge remained healthy for over 21 minutes with both process
+  identities unchanged, exceeding the old 20-minute deadline. The probe completed
+  **22,587 requests, zero failures and 7,529 successful writes** in 1,313 seconds.
+  All writes were independently verified through the Service and both replicas
+  using HTTP/2. This deliberately held one fixture's progress; the shared
+  controller was never paused.
+- A separate h2c-only run completed **16,347 requests, zero failures and 5,449
+  writes**. Every response was required to use HTTP/2 and every write was verified
+  through all three endpoints. The original four-connection cohort reached zero
+  after **275 seconds**, within the existing five-minute maximum connection age.
+  The harness's initial 240-second observation deadline was too short; an extended
+  observer watched the same uninterrupted run complete. This was not a runtime
+  restart or a replay of failed traffic.
+
+Together with the migration, these three runs produced **60,210 live requests,
+zero failures and 20,070 successful writes**, followed by **60,210 independent
+journal reads**, all successful. The extra 1,152 original-corpus reads also passed.
+The initial sequential HTTP/1 journal reader on a retiring source incurred about
+78 ms per request because every response closed its connection. After complete
+HTTP/2 verification, that redundant reader was stopped by its exact process
+identity. It is not counted as a failed or completed verification run.
+
+A separate eight-concurrent-request, 1 GiB large-object bridge test verified
+all 256 writes through the source and destination. While the Service was
+intentionally held on the bridged, retiring source, 4 MiB PUT batches delivered
+only **16.25–21.12 MiB/s**, with **2.10–3.12 seconds p95**. GET throughput was
+273.98 MiB/s with 158.54 ms p95. Replication, destination verification and retiring
+HTTP/1 connections were all active. This is a substantial temporary migration
+cost, not normal thin serving performance; the paired unbridged tests below
+must be read separately. A long operator pause can prolong this cost.
+
+### Final unbridged application comparison
+
+Runtime `04e128167d80` ran on equal 6.5 GiB thick/thin devices, one CPU/768 MiB
+limits, 100 mCPU/256 MiB requests, an explicitly matched 4 GiB useful cache
+budget and 2 GiB workspace. Replication/discovery and migration bridges were
+inactive on these standalone fixtures. The authenticated on-node client had a
+1 GiB limit. Order was thick/thin/thin/thick, with 20 seconds settling after each
+run. Each run performed 2,528 checksum-checked requests, including 6 GiB of
+writes through segment eviction. **All 10,112 requests passed.**
+
+| Application measurement | Thick | Thin |
+| --- | ---: | ---: |
+| 6 GiB eviction churn | 156.21–159.48 MiB/s | 157.76–160.64 MiB/s |
+| 16 KiB PUT p95 | 27.38–36.95 ms | 36.31–38.89 ms |
+| 16 KiB GET p95 | 2.95–2.96 ms | 3.61–4.99 ms |
+| 4 MiB PUT p95 | 224.05–230.21 ms | 242.36–251.72 ms |
+| 4 MiB GET p95 | 92.92–95.71 ms | 94.42–99.18 ms |
+| Post-churn 4 MiB GET p95 | 93.85–98.59 ms | 97.02–115.27 ms |
+| Runtime CPU per run | 42.70–43.39 s | 42.60–42.82 s |
+| Sampled peak anonymous memory | 45.85–47.82 MiB | 44.64–45.49 MiB |
+
+All runs reported zero memory-pressure state and no OOM. CPU throttling was
+present on both one-CPU fixtures; these are workload comparisons under the same
+limits, not storage-only latency measurements. Each served 543,424,512 measured
+artifact bytes. Retained cache directories were 3.24–3.78 GB as segment eviction
+rotated; request bytes and cache budget matched, not the incidental ring phase.
+CPU/memory figures describe the runtime cgroup, not total host, CSI or OpenBao\ncost. They do not establish a tenant-density or regional-memory projection.\nShort ranges and page-cache hits do not prove statistical equivalence. These
+results replace the earlier runtime `532db7a28be5` application results as the
+current candidate comparison.
+
+A separate 1 GiB shuffled-read working set exceeded the 768 MiB container limit.
+All **2,048 requests** passed. Thick GET throughput was **424.48–455.37 MiB/s**
+and thin **484.91–493.04 MiB/s**; p95 was **106.74–114.39 ms** versus
+**104.70–106.85 ms**. No global cache dropping was used, and not every read is
+claimed cold. This bulk-workload result does not overturn the small direct-read
+regression or establish a regional capacity gain.
+
+The prepared-node guard correctly rejected creating a new thick claim after
+thin opt-in. For the diagnostic control only, a fresh, bounded 6.5 GiB LV was
+preallocated from verified free VG space under its exact CSI volume lock, with
+its exclusive unformatted marker. Normal CSI retry then recognized the existing
+volume, obtained its real key and formatted/staged it. This preserves the new-
+volume guard and exercises the supported existing-thick path; it does not
+qualify new thick admission on thin-enrolled nodes.
+
+### Runtime-only control on the same thin PVC
+
+The main/candidate/candidate/main control recreated the Pod on the same thin
+PVC before each run. The baseline image `172ffef18648` has exactly the same Kura
+source tree as main `3552a2c78f4`; the candidate was `04e128167d80`. No bridge was
+armed. Equal resources, useful cache budget and workload were retained. All
+**10,112 requests passed**.
+
+| Measurement | Main runtime | Candidate runtime |
+| --- | ---: | ---: |
+| Runtime CPU per run | 44.06–44.51 s | 43.37–44.06 s |
+| Sampled peak anonymous memory | 44.17–49.16 MiB | 45.76–47.36 MiB |
+| Eviction churn | 152.99–154.64 MiB/s | 154.29–156.33 MiB/s |
+| 16 KiB PUT p95 | 35.97–36.38 ms | 41.09–41.46 ms |
+| 16 KiB GET p95 | 2.80–3.06 ms | 2.53–2.63 ms |
+| 4 MiB PUT p95 | 262.69–282.00 ms | 220.85–264.86 ms |
+| 4 MiB GET p95 | 93.74–94.05 ms | 96.51–100.36 ms |
+
+No OOM or memory-pressure state was observed; measured artifact egress remained
+543,424,512 bytes per run. The resource measurements do not show increased CPU
+or anonymous-memory consumption when the new bridge is inactive. Small PUT and
+large GET tails were higher in these samples, while other phases improved;
+this short, CPU-throttled control does not establish latency equivalence or
+attribute every timing difference to the handoff code. The earlier claim based
+on runtime `532db7a28be5` is superseded by these final-image measurements.
+
+### Current-main/shared-XFS application baseline
+
+A separate new directory on Paris's existing shared XFS `data` LV hosted the
+main-runtime control (`172ffef18648`, same Kura source tree as main `3552a2c78f4`).
+The candidate (`04e128167d80`) used the existing encrypted thin fixture. Both
+had the same 4 GiB cache budget, CPU/memory limits, client and workload. Order
+was shared/thin/thin/shared. All **10,112 requests passed**, bringing the four
+final benchmark groups to **32,384 requests with zero failures**.
+
+| Measurement | Main / shared XFS | Candidate / thin LUKS XFS |
+| --- | ---: | ---: |
+| Eviction churn | 159.36–164.16 MiB/s | 156.55–157.45 MiB/s |
+| 16 KiB PUT p95 | 28.99–29.84 ms | 34.87–35.82 ms |
+| 16 KiB GET p95 | 2.66–3.20 ms | 2.99–3.51 ms |
+| 4 MiB PUT p95 | 256.42–274.84 ms | 261.17–261.71 ms |
+| 4 MiB GET p95 | 93.41–114.91 ms | 93.11–94.87 ms |
+| Runtime CPU per run | 42.40–43.29 s | 43.21–43.39 s |
+| Sampled peak anonymous memory | 43.41–44.50 MiB | 51.52–56.99 MiB |
+| Settled anonymous memory | 17.35–21.17 MiB | 20.94–24.29 MiB |
+
+The small-write tail increased by about 6 ms; eviction churn was modestly lower.
+Sampled anonymous-memory peaks were higher in this comparison, despite the
+runtime-only control's overlapping ranges. Neither result is a regional density
+projection. Both controls were CPU-throttled, reported no OOM or memory-pressure
+state, and served the same measured artifact bytes. This is a **production-style
+baseline recreated on staging**, not a benchmark of live production, a mixed
+fleet workload or a cold-cache saturation test. It changes both layout and
+runtime; the preceding controlled comparisons isolate those separately.
+
+The shared directory was created only after a free-space/filesystem check,
+without reusing any existing directory. The original data LV was not reformatted.
+The thick control and this shared-XFS control are diagnostic fixtures, not new
+storage classes or alternative admission paths in the implementation.
+
+### Retained-volume accounting
+
+After scaling the qualified fixture from two replicas to one, the unmounted
+second volume remained charged: total backing commitments stayed at
+**13,958,643,712 bytes**, and its **3,457,155,072 mapped bytes** remained visible.
+Only deleting its retained PVC through normal CSI cleanup released those mapped
+bytes and reduced commitments to **6,979,321,856 bytes**. Pod disappearance alone
+released neither physical allocation nor backing commitment.
+
+After the final benchmarks, the pool remained healthy with two thin members:
+**8,977,383,424 data bytes**, **17,199,104 metadata bytes**, and
+**13,958,643,712 committed bytes**. Data and metadata reserves remained intact.
+The 4 GiB-budget benchmark volume itself mapped **5,507,645,440 bytes** after
+churn, reinforcing why cache usage or a quota cannot stand in for physical
+allocation. These measured counters, rather than a successful trim command,
+own the accounting conclusions.
+
+### Final cleanup and release decision
+
+Normal CSI deletion removed the benchmark and migrated claims and released all
+thin commitments. The shared-XFS control directory was removed only after its
+Pod terminated and its recorded inode and ownership marker matched. The empty
+pool and its owned metadata spare were removed after checking every LV UUID
+against the creation record. The original **128 GiB `data` LV** retained UUID
+`qf316g-aMzF-KlpS-5jsX-yqKl-25BI-OhgZ5U`. VG free space and Kubernetes capacity/
+allocatable both returned to **812,541,542,400 bytes**. Thin configuration and
+node opt-in were removed; Canada was unselected and schedulable.
+
+The fixture account/key rows, clients and local token file were removed. No
+qualification PVs remain, including the previous source claims. The first health
+check caught test clients still completing normal termination; a subsequent live
+check confirmed all qualification Pods absent, CSI **3/3 Ready**, and all eight
+original Kura runtime Pods at their original UIDs and Ready. Candidate CSI and
+controller images remain on staging. The temporarily loaded kernel module was
+not forcibly unloaded and no persistent host boot configuration was written.
+Production was not changed.
+
+**Keep this PR draft and production thin enrollment disabled.** The live-write
+handoff correctness blocker and missing metadata-checker package are corrected.
+Conservative backing contains the demonstrated fragmentation risk; physical
+overcommit remains blocked. The requested no-performance-regression gate still
+fails, with both direct random-read loss and application-level small-write/read
+tail increases. Further sector, chunk and queue/concurrency experiments did not
+remove the raw loss. A staged rollout limits exposure but cannot waive that gate.
+
+Permanent OpenBao custody/audit/off-cluster recovery, real populated-thick-volume
+multi-host migration, a host reboot, physical rack installation and public-ingress/
+gRPC continuity still need their own qualification before the corresponding
+production phase. This report does not infer those results from colocated final
+replicas or direct HTTP traffic. The node-by-node rollout and rollback procedure
+remains in [the storage interface](interface.md) and
+[handoff runbook](../../kura-controller/thin-migration.md).
+
+### Integration checks
+
+Main `3552a2c78f4` is integrated. Three guidance-file conflicts retained both
+main's maintenance/KVM instructions and the storage contract. The merge changed
+no Kura runtime, controller or CSI implementation. Full controller and CSI Go
+tests/vet passed again, as did the OpenBao/CSI Helm checks, managed rack-release
+isolation and `git diff --check`.
+
+After the required server dependency installation, **110 focused tests passed**
+for key management, the OpenBao provider, HKDF, internal endpoint authorization
+and environment configuration. Hex also selected `websock_adapter` 0.7.0 over
+the upstream 0.6.0 lock; repeating with that dependency's local checkout removed
+still requested the same change. Only that lock entry was refreshed. A subsequent
+`MIX_ENV=test mix deps.get --check-locked` passed and all 110 tests passed again.
+These checks validate integration, not a new permanent OpenBao deployment.
+
+### Additional random-read investigation
+
+Neither changing encryption sectors to 4 KiB nor creating a separate 4 MiB-chunk
+pool removed the random-read cost. The clean larger-chunk ABBA run measured
+**67.05–67.77k IOPS thick versus 50.98–51.63k thin** at 4 KiB/QD32. Both layouts
+kept AES-XTS with a 512-bit key. The sector experiment was exploratory and some
+later samples overlapped an interrupted result copy; it is not release evidence.
+Neither change was adopted: encryption sectors remain 512 bytes and new pools
+use 512 KiB chunks.
+
+An own-process kernel profile showed extra thin B-tree lookup, bio cloning and
+block-accounting work, with the fio caller CPU saturated. A second bounded ABBA
+experiment used fresh disposable thick/thin 2 GiB devices, identical 512 MiB
+files, 4 KiB direct/libaio reads, QD32 **per job**, 12 seconds plus 2 seconds
+ramp. Each row is a distinct total queue depth; these are not interchangeable
+with the single-job QD32 comparison.
+
+| Jobs / aggregate queue depth | Thick IOPS | Thin IOPS |
+| --- | ---: | ---: |
+| 1 / 32 | 67,688–68,243 | 48,001–48,400 |
+| 4 / 128 | 237,263–242,169 | 154,848–156,533 |
+| 8 / 256 | 429,224–429,546 | 248,762–249,513 |
+| 16 / 512 | 500,862–508,145 | 258,481–260,175 |
+
+All samples completed without I/O errors. Increasing concurrency did not hide
+the regression. The fixture runtime was rolling during the later concurrency
+samples; this experiment is an additional diagnostic, not an uncontended fleet
+capacity estimate. The earlier paired idle-fixture result of approximately
+25.6% lower single-job IOPS remains the controlled release evidence. No global
+scheduler, security-mitigation or cache-drop changes were used. All private
+benchmark devices were removed after the run.
+
+
+## Historical follow-up: tuning and live migration fixes — 2026-10-27
+
+**Historical status, superseded by the qualification above:** Sequential-read and random-write regressions were
 recovered, and the premature donor restart was corrected. The no-regression and
-uninterrupted live-write migration gates still fail.** This section supersedes
+uninterrupted live-write migration gates still failed at that point. This section supersedes
 the current-state conclusions in the original rehearsal below, whose failed
 results remain part of the evidence. Production was not changed.
 

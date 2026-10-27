@@ -275,19 +275,20 @@ with peer mTLS inside the tunnel, including on cluster-network pods. It must not
 rely on direct reachability of node-local PodIPs or broader peer NetworkPolicy
 permissions. The process incarnation binds a receipt across pod/process races.
 
-The retirement receipt proves transport completion only. The repeated staging
-rehearsal still saw immediate GET misses after successful PUTs at handoff;
-initial catch-up and an empty connection cohort do not prove final writes have
-reached the destination. Zero-error live-write migration remains blocked pending
-a destination-bound completion barrier coordinated with write admission and
-serving ownership. Keep the failed evidence in the CSI thin validation report.
+The retirement receipt proves transport completion only. An earlier staging
+rehearsal saw immediate GET misses after successful PUTs at handoff; initial
+catch-up and an empty connection cohort did not prove destination content.
+The destination-bound acknowledgment bridge corrected that defect: the repeated
+staged migration passed with every acknowledged write independently verified.
+Keep both the failed and successful evidence in the CSI thin validation report;
+the remaining performance gate still blocks production thin enrollment.
 
-Pending thin write handoff adds a persisted source-process/destination-pod-and-
+Thin write handoff adds a persisted source-process/destination-pod-and-
 process binding before `lvm-rebuild`. The runtime's content preparation receipt
 must precede endpoint demotion; endpoint observation must name that exact pod
 UID. Controller retries must not substitute a restarted or different target.
-This candidate remains unqualified until runtime tests and a no-retry staging
-migration pass, including recovery from interrupted preparation.
+Qualify runtime changes with Linux tests and staging traffic without application
+retries, including recovery from interrupted preparation.
 
 [Thin migration handoff and retry](thin-migration.md) defines the destination
 binding, runtime acknowledgment bridge and restricted reset procedure. Source

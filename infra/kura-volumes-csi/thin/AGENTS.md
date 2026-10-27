@@ -32,8 +32,10 @@ reusable local Linux qualification harness, not a deployed allocator.
   mapping overhead but can retain more allocation around small live extents.
   Never change the geometry of a populated pool as a tuning operation.
 
-- The latest staging run recovered sequential-read/random-write throughput but
-  retained a QD32 random-read regression and two fresh-write handoff misses.
-  Connection retirement is a transport receipt, not proof of destination data.
-  Keep the PR draft and production thin enrollment disabled until those gates
-  pass; preserve the failed evidence in `validation.md`.
+- The latest staged migration passed after adding a destination-bound write
+  acknowledgment bridge; every successful write was independently checked on
+  both replicas. Connection retirement alone remains insufficient. The QD32
+  random-read regression persists, including further sector/chunk/concurrency
+  experiments. Keep the PR draft and production thin enrollment disabled until
+  the performance gate passes or its acceptance criterion is explicitly changed.
+  Preserve failed and successful evidence in `validation.md`.

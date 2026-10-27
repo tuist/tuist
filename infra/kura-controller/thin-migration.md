@@ -54,6 +54,15 @@ endpoint. A destination failure can refuse writes on the old source. Preserve
 both volumes and investigate rather than treating readiness or a timeout as a
 handover receipt. Changed process identities require fresh qualification.
 
+An armed source pays for replication and destination content verification before
+acknowledging writes. The staging pause test deliberately kept routing on that
+source: eight concurrent 4 MiB writes delivered only 16–21 MiB/s, with 2.10–3.12 s
+p95. Ordinary unarmed serving does not perform these checks. Keep this temporary
+cost in the rollout budget, observe write latency during each handoff, and do not
+pause a ready bridge indefinitely as a substitute for completing the move. An
+unacceptable latency increase should stop selection of further nodes while the
+already armed handoff is completed or recovered using its verified identities.
+
 A failed **unarmed preparation** can be retried without restarting the writer:
 
 1. Clear the selected node's `tuist.dev/kura-lvm-migrate` annotation. Retain its
