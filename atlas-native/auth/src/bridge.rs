@@ -68,6 +68,11 @@ enum Command {
         #[serde(flatten)]
         action: crate::accounts::Action,
     },
+    Connections {
+        session: Session,
+        #[serde(flatten)]
+        action: crate::connections::Action,
+    },
 }
 
 pub fn execute(input: &str) -> String {
@@ -122,6 +127,9 @@ pub fn execute(input: &str) -> String {
             }
             Command::AiAccounts { session, action } => {
                 return crate::accounts::execute(session, action);
+            }
+            Command::Connections { session, action } => {
+                return crate::connections::execute(session, action);
             }
         }
         .map_err(|_| crate::invalid())

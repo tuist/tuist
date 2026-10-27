@@ -32,6 +32,30 @@ native destinations only; the shared catalog/CLI also retain browser routes.
 Native OAuth tokens do not create browser cookies. The app is not a WebView
 wrapper and does not provide offline editing.
 
+## Personal account connections
+
+Profile → Connections manages personal GitHub, Slack and Google grants separately
+from AI accounts and Atlas sign-in. Connect/Reconnect opens the server's consent
+flow in the system browser; disconnect requires confirmation. The Atlas browser
+login must belong to the same person as the signed-in native session.
+
+The bearer-authenticated `/api/me/connections` API exposes only connection metadata
+and disconnect. Its native-only authorization endpoint issues a ten-minute signed
+browser handoff bound to the user, provider, native client and random state.
+Providers continue using the server's HTTPS OAuth callbacks. After consent Atlas
+returns to `dev.tuist.atlas://connections-callback` with only state, provider and
+status, never a provider token. This is separate from `oauth-callback` for Atlas
+sign-in. Rust validates the exact destination, pending state, selected origin,
+issuing client and expiration; both apps reload authenticated metadata afterward.
+Android encrypts pending handoffs so browser returns survive process recreation.
+Sign-out/new login clears pending state, and unrelated drafts block callback navigation.
+
+Provider credentials and API enablement are server configuration, not bundled app
+secrets. Older servers show an unavailable-feature explanation without signing the
+person out. Preview-only `--connections` (iOS) and `--ez connections true`
+(Android Settings preview) render fictional connected/disconnected/reconnect states
+without contacting providers or changing accounts.
+
 ## Object navigation
 
 Both clients accept server-bound native object links for Orbit, Tasks, Accounts, Finance,

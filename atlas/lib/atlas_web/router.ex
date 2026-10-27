@@ -230,6 +230,10 @@ defmodule AtlasWeb.Router do
   scope "/api/me", AtlasWeb do
     pipe_through :native
 
+    get "/connections", ConnectionController, :index, log: false
+    delete "/connections/:provider", ConnectionController, :delete, log: false
+    post "/connections/:provider/authorize", ConnectionController, :prepare, log: false
+
     get "/orbit-live-activity", OrbitLiveActivityController, :show
     put "/orbit-live-activity/:registration_id", OrbitLiveActivityController, :update
     delete "/orbit-live-activity/:registration_id", OrbitLiveActivityController, :delete
@@ -350,6 +354,9 @@ defmodule AtlasWeb.Router do
   scope "/", AtlasWeb do
     pipe_through [:browser, :require_auth]
 
+    get "/connections/:provider/authorize", ConnectionController, :authorize, log: false
+    get "/connections/:provider/callback", ConnectionController, :callback, log: false
+
     post "/settings/llm-providers/claude", LLMConnectionsController, :save_claude_browser
 
     live_session :authenticated_account,
@@ -357,6 +364,7 @@ defmodule AtlasWeb.Router do
       layout: {AtlasWeb.Layouts, :account} do
       live "/settings", AccountSettingsLive, :index
       live "/settings/llm-providers", LLMProviderSettingsLive, :index
+      live "/settings/connections", ConnectionsLive, :index
     end
 
     live_session :authenticated_dashboard,

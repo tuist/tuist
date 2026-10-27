@@ -2,6 +2,42 @@ import XCTest
 
 @MainActor
 final class AtlasSettingsUITests: XCTestCase {
+    func testPersonalConnections() {
+        for arguments in [[String](), ["--dark", "--large-text"]] {
+            let app = XCUIApplication(bundleIdentifier: "dev.tuist.atlas.settings-preview")
+            app.launchArguments = ["--workspace"] + arguments
+            app.launch()
+            XCUIDevice.shared.orientation = .portrait
+            XCTAssertTrue(app.tabBars.buttons["Profile"].waitForExistence(timeout: 10))
+            app.tabBars.buttons["Profile"].tap()
+            tap(app.buttons["profile-connections"], in: app)
+            XCTAssertTrue(app.navigationBars["Connections"].waitForExistence(timeout: 10))
+            let github = app.buttons["connection-github"]
+            XCTAssertTrue(github.waitForExistence(timeout: 10))
+            XCTAssertGreaterThanOrEqual(github.frame.height, 44)
+            XCTAssertTrue(github.isEnabled)
+            capture(arguments.isEmpty ? "ios-connections-preview" : "ios-connections-dark-large-preview", app: app)
+            let disconnect = app.buttons["Disconnect Slack"]
+            if !arguments.isEmpty {
+                let reconnect = app.buttons["connection-slack"]
+                reveal(reconnect, in: app)
+                XCTAssertGreaterThanOrEqual(disconnect.frame.minY, reconnect.frame.maxY)
+            }
+            tap(disconnect, in: app)
+            XCTAssertTrue(app.buttons["Disconnect"].waitForExistence(timeout: 5))
+            if app.buttons["Cancel"].exists {
+                app.buttons["Cancel"].tap()
+            } else {
+                // iOS 26 presents a popover; tapping outside is its native Cancel action.
+                let dismiss = app.otherElements["PopoverDismissRegion"]
+                XCTAssertTrue(dismiss.exists)
+                dismiss.tap()
+            }
+            XCTAssertTrue(app.staticTexts["Demo teammate · Demo workspace"].exists)
+            app.terminate()
+        }
+    }
+
     func testSettingsAndAccountForms() {
         exerciseSettings(launch())
     }

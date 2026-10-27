@@ -189,6 +189,7 @@
     "update_my_profile": "Personal self-description requires an explicit caller request, not automated workflow inference or mutation of personal preferences.",
     "list_automation_types": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "list_llm_provider_connections": "Personal provider credentials and device-login lifecycle are not workflow capabilities.",
+    "manage_account_connections": "Personal OAuth metadata and disconnect require explicit caller intent, never workflow credential lifecycle management.",
     "update_automation_workflow": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "get_automation_workflow": "Control-plane lifecycle operation; recursive workflow authoring/control is not a business behavior.",
     "save_memory": "Vector/embedding effects need a bounded, durable operation-specific adapter; local list/get alternatives are available.",
