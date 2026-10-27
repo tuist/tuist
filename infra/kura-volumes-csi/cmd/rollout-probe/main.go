@@ -18,8 +18,10 @@ import (
 )
 
 type object struct {
-	Key  string `json:"key"`
-	Body []byte `json:"body"`
+	Key    string `json:"key"`
+	Body   []byte `json:"body,omitempty"`
+	Size   int    `json:"size,omitempty"`
+	SHA256 string `json:"sha256,omitempty"`
 }
 type report struct {
 	Started    time.Time `json:"started"`
@@ -37,11 +39,23 @@ func main() {
 	account := flag.String("account", "", "account handle")
 	state := flag.String("state", "/tmp/corpus.json", "corpus path")
 	out := flag.String("out", "/tmp/report.json", "report path")
-	mode := flag.String("mode", "seed", "seed, verify or soak")
+	mode := flag.String("mode", "seed", "seed, verify, verify-journal or soak")
+	journal := flag.String("journal", "", "new file for hashes of successful soak writes")
+	expectedWrites := flag.Int("expected-writes", 0, "required successful write count for verify-journal")
 	duration := flag.Duration("duration", 45*time.Minute, "maximum soak")
 	stop := flag.String("stop", "/tmp/stop", "stop file")
 	count := flag.Int("objects", 512, "seed object count")
 	flag.Parse()
+	var journalFile *os.File
+	if *journal != "" {
+		if *mode != "soak" {
+			panic("journal requires soak mode")
+		}
+		var err error
+		journalFile, err = os.OpenFile(*journal, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		must(err)
+		defer journalFile.Close()
+	}
 	token, err := os.ReadFile(*tokenFile)
 	must(err)
 	client := &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{MaxIdleConnsPerHost: 8}}
@@ -72,7 +86,7 @@ func main() {
 				msg = e.Error()
 			} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 				msg = fmt.Sprintf("HTTP %d %.160s", resp.StatusCode, data)
-			} else if method == "GET" && !bytes.Equal(data, o.Body) {
+			} else if method == "GET" && !matches(data, o) {
 				msg = "checksum mismatch"
 			}
 		}
@@ -91,6 +105,13 @@ func main() {
 			r.ReadChecks++
 		} else {
 			r.Writes++
+			if journalFile != nil {
+				if r.Writes > 20_000 {
+					panic("bounded write journal exhausted")
+				}
+				sum := sha256.Sum256(o.Body)
+				must(json.NewEncoder(journalFile).Encode(object{Key: o.Key, Size: len(o.Body), SHA256: hex.EncodeToString(sum[:])}))
+			}
 		}
 		return true
 	}
@@ -108,7 +129,7 @@ func main() {
 		_, err := rand.Read(b)
 		must(err)
 		sum := sha256.Sum256(b)
-		return object{"stage-" + hex.EncodeToString(sum[:]), b}
+		return object{Key: "stage-" + hex.EncodeToString(sum[:]), Body: b}
 	}
 	var corpus []object
 	if *mode == "seed" {
@@ -123,6 +144,36 @@ func main() {
 		data, err := json.Marshal(corpus)
 		must(err)
 		must(os.WriteFile(*state, data, 0600))
+	} else if *mode == "verify-journal" {
+		if *expectedWrites <= 0 || *expectedWrites > 20_000 {
+			panic("expected write count required")
+		}
+		file, err := os.Open(*state)
+		must(err)
+		defer file.Close()
+		stat, err := file.Stat()
+		must(err)
+		if stat.Size() > 8*1024*1024 {
+			panic("oversized write journal")
+		}
+		decoder := json.NewDecoder(io.LimitReader(file, 8*1024*1024))
+		count := 0
+		for {
+			var o object
+			err := decoder.Decode(&o)
+			if err == io.EOF {
+				break
+			}
+			must(err)
+			count++
+			if count > 20_000 || o.Size != 16384 || len(o.SHA256) != 64 || o.Key != "stage-"+o.SHA256 || o.Body != nil {
+				panic("invalid bounded write journal")
+			}
+			request("GET", o)
+		}
+		if count != *expectedWrites {
+			panic("journal does not cover every successful write")
+		}
 	} else {
 		data, err := os.ReadFile(*state)
 		must(err)
@@ -168,6 +219,15 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+func matches(data []byte, o object) bool {
+	if o.Body != nil {
+		return bytes.Equal(data, o.Body)
+	}
+	sum := sha256.Sum256(data)
+	return len(data) == o.Size && hex.EncodeToString(sum[:]) == o.SHA256
+}
+
 func must(err error) {
 	if err != nil {
 		panic(err)

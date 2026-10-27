@@ -15,3 +15,10 @@ or full-corpus durability. Use it only against an authorized test instance.
 Run `go run ./cmd/rollout-probe -help` from `infra/kura-volumes-csi` for options.
 Seeding and soaking write cache objects; use a scoped token and an explicitly
 authorized test instance. Verification reads the corpus created by seeding.
+
+`soak -journal PATH` creates an exclusive bounded JSONL file containing only the
+key, size and hash of each successful write (at most 20,000). After the soak,
+`verify-journal -state PATH -expected-writes N` checks every acknowledged object
+and rejects a truncated, oversized or incomplete journal. Set N from the soak
+report's successful-write count. This complements the pre-seeded corpus check;
+it does not infer durability from a successful PUT or replication cursor.
