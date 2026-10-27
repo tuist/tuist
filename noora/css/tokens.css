@@ -471,9 +471,6 @@
     var(--noora-neutral-light-1200),
     var(--noora-neutral-dark-1200)
   );
-  /* Badge text sits between regular and medium: at badge sizes, medium
-     Inter reads heavier than the label needs. */
-  --noora-badge-font-weight: 450;
   --noora-badge-fill-neutral: light-dark(
     var(--noora-neutral-light-900),
     var(--noora-neutral-dark-700)
@@ -600,15 +597,18 @@
     var(--noora-neutral-dark-500)
   );
 
-  --noora-badge-status-success: var(--noora-green-500);
+  --noora-badge-status-success: light-dark(
+    var(--noora-green-500),
+    var(--noora-green-400)
+  );
   --noora-badge-status-warning: var(--noora-orange-400);
   --noora-badge-status-error: light-dark(
     var(--noora-red-500),
-    var(--noora-red-600)
+    var(--noora-red-400)
   );
   --noora-badge-status-attention: light-dark(
     var(--noora-yellow-600),
-    var(--noora-yellow-500)
+    var(--noora-yellow-400)
   );
   --noora-badge-status-in-progress: light-dark(
     var(--noora-neutral-light-900),

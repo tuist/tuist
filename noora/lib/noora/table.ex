@@ -431,12 +431,18 @@ defmodule Noora.Table do
     doc: "The color of the badge"
   )
 
+  attr(:size, :string,
+    values: ~w(small medium large),
+    default: "medium",
+    doc: "The size of the badge"
+  )
+
   attr(:rest, :global)
 
   def badge_cell(assigns) do
     ~H"""
     <div data-part="cell" data-type="badge" {@rest}>
-      <.badge style={@style} color={@color} size="medium" label={@label}>
+      <.badge style={@style} color={@color} size={@size} label={@label}>
         <:icon :if={@icon}>
           <.icon name={@icon} />
         </:icon>

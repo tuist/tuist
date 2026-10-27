@@ -20,7 +20,7 @@
   }
 
   &[data-size="small"] {
-    font: var(--noora-badge-font-weight) var(--noora-font-body-xsmall);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
     /* Optical balance: the xsmall step (10px) plus 1px reads as better
        centered in the small badge. Only the size changes; the token's 12px
        line height, and so the badge's height, stay as they are. */
@@ -42,7 +42,7 @@
   }
 
   &[data-size="medium"] {
-    font: var(--noora-badge-font-weight) var(--noora-font-body-small);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
 
     &[data-icon] {
       gap: var(--noora-spacing-2);
@@ -66,7 +66,7 @@
   }
 
   &[data-size="large"] {
-    font: var(--noora-badge-font-weight) var(--noora-font-body-medium);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
     /* Optical balance, as in the small badge: the medium step (14px) minus
        1px. Only the size changes; the token's 20px line height, and so the
        badge's height, stay as they are. */
@@ -233,9 +233,9 @@
   align-items: center;
   gap: var(--noora-spacing-2);
   box-shadow: var(--noora-border-small-default);
-  border-radius: var(--noora-radius-3);
+  border-radius: var(--noora-radius-2);
   background: var(--noora-surface-background-primary);
-  padding: var(--noora-spacing-2) var(--noora-spacing-4) var(--noora-spacing-2)
+  padding: var(--noora-spacing-1) var(--noora-spacing-4) var(--noora-spacing-1)
     var(--noora-spacing-2);
 
   & [data-part="icon"] {
@@ -249,8 +249,11 @@
     }
   }
 
+  /* Matches the large badge: the medium font step (14px) minus 1px, keeping
+     the token's 20px line height. */
   & [data-part="label"] {
-    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    font-size: calc(0.875rem - 1px);
   }
 
   &:not([data-status="disabled"]) {
