@@ -1,0 +1,28 @@
+# RBAC for the hetzner-robot-controller manager.
+#
+# Two surfaces:
+#   1. HetznerBareMetalHost CRs (caph's CRD) — list/get/create/
+#      patch/delete. Both reconcilers touch this resource.
+#   2. Leader election (coordination.k8s.io/Lease) — manager
+#      requires leader election by default to keep the Robot
+#      poll loop singleton.
+#
+# The chart wraps this in a Role (namespace-scoped) or
+# ClusterRole + RoleBinding to the controller's ServiceAccount.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: hetzner-robot-controller
+rules:
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["hetznerbaremetalhosts"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["hetznerbaremetalhosts/status"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]

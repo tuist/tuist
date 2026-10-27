@@ -1,4 +1,5 @@
-Mimic.copy(Appsignal.Tracer)
-Mimic.copy(Appsignal.Span)
-
 ExUnit.start()
+Credo.Application.start([], [])
+Mimic.copy(Req)
+Mimic.copy(Sentry)
+Mimic.copy(TuistCommon.Repo.PoolMetrics)

@@ -1,7 +1,10 @@
 import ArgumentParser
+import TuistSupport
 
-struct AnalyticsUploadCommand: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
+public struct AnalyticsUploadCommand: AsyncParsableCommand, ProjectPathProviding {
+    public init() {}
+
+    public static let configuration = CommandConfiguration(
         commandName: "analytics-upload",
         abstract: "Upload a command event to the server",
         shouldDisplay: false
@@ -22,11 +25,23 @@ struct AnalyticsUploadCommand: AsyncParsableCommand {
     )
     var serverURL: String
 
-    func run() async throws {
+    @Argument(
+        help: "Path to the session directory containing logs and network recordings."
+    )
+    var sessionDirectory: String?
+
+    @Option(name: .long, help: .hidden)
+    var projectPath: String?
+
+    public var path: String? { projectPath }
+
+    public func run() async throws {
         try await AnalyticsUploadCommandService().run(
             eventFilePath: eventFilePath,
             fullHandle: fullHandle,
-            serverURL: serverURL
+            serverURL: serverURL,
+            sessionDirectory: sessionDirectory,
+            projectPath: projectPath
         )
     }
 }

@@ -1,0 +1,245 @@
+name: CAPI Scaleway Apple Silicon Provider Image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - infra/cluster-api-provider-tuist/**
+      - infra/macos-host-bootstrap/**
+      - infra/macos-log-shipper/**
+      - infra/macos-host-sensors/**
+      - infra/tart-kubelet/**
+      - infra/runner-cache/**
+      - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_*.yaml
+      - infra/helm/tuist/templates/rack-linux-fleet.yaml
+      - infra/helm/tuist/rack-sites/**
+      - infra/rack-switch-fleet/k8s/**
+      - mise/tasks/capi-scaleway-applesilicon/**
+      - .github/workflows/capi-provider-scaleway-applesilicon-image.yml
+  pull_request:
+    paths:
+      - infra/cluster-api-provider-tuist/**
+      - infra/macos-host-bootstrap/**
+      - infra/macos-log-shipper/**
+      - infra/macos-host-sensors/**
+      - infra/tart-kubelet/**
+      - infra/runner-cache/**
+      - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_*.yaml
+      - infra/helm/tuist/templates/rack-linux-fleet.yaml
+      - infra/helm/tuist/rack-sites/**
+      - infra/rack-switch-fleet/k8s/**
+      - mise/tasks/capi-scaleway-applesilicon/**
+      - .github/workflows/capi-provider-scaleway-applesilicon-image.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/capi-provider-scaleway-applesilicon
+
+jobs:
+  test:
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/cluster-api-provider-tuist/go.mod
+          cache-dependency-path: infra/cluster-api-provider-tuist/go.sum
+      - name: Check formatting (provider)
+        working-directory: infra/cluster-api-provider-tuist
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            exit 1
+          fi
+      - name: Test (provider)
+        working-directory: infra/cluster-api-provider-tuist
+        run: go test ./...
+      - name: Vet (provider)
+        working-directory: infra/cluster-api-provider-tuist
+        run: go vet ./...
+
+  test-macos-host-bootstrap:
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/macos-host-bootstrap/go.mod
+          cache-dependency-path: infra/macos-host-bootstrap/go.sum
+      - name: Check formatting (macos-host-bootstrap)
+        working-directory: infra/macos-host-bootstrap
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            exit 1
+          fi
+      - name: Test (macos-host-bootstrap)
+        working-directory: infra/macos-host-bootstrap
+        run: go test ./...
+      - name: Vet (macos-host-bootstrap)
+        working-directory: infra/macos-host-bootstrap
+        run: go vet ./...
+
+  test-tart-kubelet:
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/tart-kubelet/go.mod
+          cache-dependency-path: infra/tart-kubelet/go.sum
+      - name: Check formatting (tart-kubelet)
+        working-directory: infra/tart-kubelet
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            exit 1
+          fi
+      - name: Test (tart-kubelet)
+        working-directory: infra/tart-kubelet
+        run: go test ./...
+      - name: Vet (tart-kubelet)
+        working-directory: infra/tart-kubelet
+        run: go vet ./...
+
+  test-macos-log-shipper:
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/macos-log-shipper/go.mod
+          # Stdlib-only module: no go.sum to key a module cache on, and
+          # setup-go errors on a cache-dependency-path that resolves to
+          # nothing. Keep it dependency-free — the whole argument for a
+          # purpose-built shipper is that it stays small enough to ride
+          # every SSH drift roll.
+          cache: false
+      - name: Check formatting (macos-log-shipper)
+        working-directory: infra/macos-log-shipper
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            exit 1
+          fi
+      - name: Test (macos-log-shipper)
+        working-directory: infra/macos-log-shipper
+        run: go test ./...
+      - name: Vet (macos-log-shipper)
+        working-directory: infra/macos-log-shipper
+        run: go vet ./...
+      # The binary only ever runs on a Mac mini, so a Linux-only test pass
+      # would not catch a darwin build break (the tailer reads syscall.Stat_t
+      # for the inode). Cross-compile it here rather than discovering it in
+      # the image build.
+      - name: Cross-build for the fleet (darwin/arm64)
+        working-directory: infra/macos-log-shipper
+        run: GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build ./cmd/tuist-log-shipper
+
+  test-macos-host-sensors:
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/macos-host-sensors/go.mod
+          cache-dependency-path: infra/macos-host-sensors/go.sum
+      - name: Check formatting (macos-host-sensors)
+        working-directory: infra/macos-host-sensors
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            exit 1
+          fi
+      - name: Test (macos-host-sensors)
+        working-directory: infra/macos-host-sensors
+        run: go test ./...
+      # The sensor reads are darwin-only files, so a Linux vet and test pass
+      # never compiles them. Vet and cross-build for the fleet as well.
+      - name: Vet (macos-host-sensors)
+        working-directory: infra/macos-host-sensors
+        run: |
+          go vet ./...
+          GOOS=darwin GOARCH=arm64 go vet ./...
+      - name: Cross-build for the fleet (darwin/arm64)
+        working-directory: infra/macos-host-sensors
+        run: GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build ./cmd/tuist-host-sensors
+
+  generated:
+    # The CRDs the apiserver enforces in every environment are generated from
+    # the annotated Go types, but they land in the Helm chart's `crds/`
+    # directory rather than beside the types. Nothing else ties a `*_types.go`
+    # edit to its regenerated manifest, and nothing else catches a manifest
+    # edited by hand.
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/cluster-api-provider-tuist/go.mod
+          cache-dependency-path: infra/cluster-api-provider-tuist/go.sum
+      - uses: ./.github/actions/mise
+        with:
+          # The task stamps the CAPI contract label onto each generated CRD
+          # with yq. controller-gen comes in through `go run`.
+          install_args: "--locked yq"
+          cache: "false"
+      - name: Regenerate DeepCopy + CRDs
+        run: mise run --skip-tools capi-scaleway-applesilicon:generate
+      - name: Check for uncommitted changes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error title=Generated CAPI artefacts out of sync::The committed CRDs and DeepCopy methods do not match the API types. Run 'mise run capi-scaleway-applesilicon:generate' and commit the result."
+            echo "Changed files:"
+            git status --porcelain
+            echo "Diff:"
+            git diff
+            exit 1
+          fi
+          echo "Generated CAPI artefacts are up to date"
+
+  build:
+    needs: [test, test-macos-host-bootstrap, test-macos-log-shipper, test-macos-host-sensors, test-tart-kubelet, generated]
+    if: github.repository == 'tuist/tuist' && github.event_name != 'pull_request'
+    runs-on: tuist-linux
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute tags
+        id: tags
+        run: |
+          # SHA-tagged builds for ad-hoc deploys; semver tags + `:latest`
+          # are owned by server-production-deployment.yml's release-capi-operator job.
+          GIT_SHA="${GITHUB_SHA::8}"
+          echo "tags=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GIT_SHA}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/cluster-api-provider-tuist/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha,scope=capi-scaleway-applesilicon
+          cache-to: type=gha,mode=max,scope=capi-scaleway-applesilicon

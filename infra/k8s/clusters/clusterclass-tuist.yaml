@@ -1,0 +1,1228 @@
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: ClusterClass
+metadata:
+  name: tuist-hcloud
+  namespace: org-tuist
+spec:
+  controlPlane:
+    templateRef:
+      apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+      kind: KubeadmControlPlaneTemplate
+      name: tuist-hcloud-control-plane
+    machineInfrastructure:
+      templateRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: HCloudMachineTemplate
+        name: tuist-hcloud-hcloud-machinetemplate
+    deletion:
+      # The default ten-second timeout can expire during a brief control-plane
+      # interruption and leave a Node behind after its Machine is deleted.
+      # Zero keeps retrying until the workload control plane accepts deletion.
+      nodeDeletionTimeoutSeconds: 0
+    healthCheck:
+      checks:
+        # New members currently reach the infrastructure-ready state but do
+        # not register a Node. Do not delete and recreate them indefinitely
+        # until that bootstrap defect has been diagnosed from the host.
+        nodeStartupTimeoutSeconds: 0
+        unhealthyNodeConditions:
+          - type: Ready
+            status: Unknown
+            timeoutSeconds: 300
+          - type: Ready
+            status: "False"
+            timeoutSeconds: 300
+      remediation:
+        triggerIf:
+          # Allow only one registered unhealthy member to be replaced at a
+          # time. An absolute limit does not change as the control plane
+          # moves between two and three Machines.
+          unhealthyLessThanOrEqualTo: 1
+  infrastructure:
+    templateRef:
+      apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+      kind: HetznerClusterTemplate
+      name: tuist-hcloud-cluster
+  workers:
+    machineDeployments:
+      # General-purpose Hetzner Cloud worker. Server, system DaemonSets,
+      # observability — anything that benefits from elastic scaling and
+      # doesn't need KVM exposed.
+      - class: hcloud-worker
+        bootstrap:
+          templateRef:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            name: tuist-hcloud-hcloud-worker-bootstraptemplate
+        infrastructure:
+          templateRef:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HCloudMachineTemplate
+            name: tuist-hcloud-hcloud-machinetemplate
+        # A MachineDeployment topology that sets any `healthCheck` field
+        # replaces this whole block, not just the fields it sets: a pool that
+        # overrides only `remediation` gets no unhealthy node conditions and
+        # never remediates a node that fails after joining. Overrides must
+        # restate `checks`.
+        healthCheck:
+          checks:
+            nodeStartupTimeoutSeconds: 600
+            unhealthyNodeConditions:
+              - type: Ready
+                status: Unknown
+                timeoutSeconds: 300
+              - type: Ready
+                status: "False"
+                timeoutSeconds: 300
+          remediation:
+            triggerIf:
+              # Remediate one unhealthy node at a time. Two or more unhealthy
+              # at once usually means a shared cause, such as a control-plane
+              # or network blip, and on a two-node pool any wider range lets
+              # that blip replace the whole pool.
+              unhealthyInRange: "[0-1]"
+      # Hetzner Robot bare-metal worker. Linux runner Pods (Firecracker
+      # microVMs via Kata Containers — see `kataContainers` in the
+      # helm chart) schedule onto these exclusively. The `installimage`
+      # spec + cloud-init bootstrap live in `bare-metal-staging.yaml`
+      # alongside the `HetznerBareMetalHost` CRs caph claims to satisfy
+      # MD replicas. Pre-ordered hosts only: nothing here orders new
+      # bare metal from Robot, the operator does that out of band.
+      - class: bare-metal-worker
+        bootstrap:
+          templateRef:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            name: tuist-bare-metal-worker-bootstraptemplate
+        infrastructure:
+          templateRef:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HetznerBareMetalMachineTemplate
+            name: tuist-bare-metal-machinetemplate
+        rollout:
+          strategy:
+            type: RollingUpdate
+            rollingUpdate:
+              # CAPI defaults to `maxSurge: 1, maxUnavailable: 0` — build the
+              # replacement Machine, then delete the old one. That default
+              # cannot make progress on a bare-metal pool. Hosts here are
+              # pre-ordered and operator-managed, so at steady state every
+              # `HetznerBareMetalHost` is claimed and the surge Machine has
+              # nothing to land on: caph parks it `NoAvailableHost` ("all
+              # hosts are in use"), it never goes Ready, `maxUnavailable: 0`
+              # therefore never permits deleting an old Machine, and the
+              # freed host that would unblock it never appears. Self-
+              # sustaining deadlock — the production runner pool sat in it
+              # from 2026-06-17, receiving no template change for two months
+              # while still reporting healthy.
+              #
+              # Inverting the order makes a roll self-sufficient on a fully
+              # claimed pool: delete first, then reprovision the freed host.
+              #
+              # The cost is one node of capacity for the whole replacement,
+              # and that is dominated by the drain, not by provisioning.
+              # Runner Pods drain with `WaitCompleted`, so the node waits
+              # for its in-flight jobs before it is deleted — up to six
+              # hours for a Linux job — and `installimage` adds ~8-15 min
+              # after that. Budget most of a day for a two-host pool, not
+              # the quarter hour the provisioning time alone suggests.
+              #
+              # Accepted deliberately: the Linux pools run internal
+              # workflows only, so halved capacity for a stretch is a
+              # tolerable trade against paying rent on a permanently idle
+              # spare host. A spare would be the alternative — it restores
+              # `maxSurge: 1` and removes the dip entirely by building the
+              # replacement while the old node drains — and is the thing to
+              # revisit if customer workloads ever land on Linux.
+              #
+              # On the single-host staging and canary pools this is a full
+              # outage of Linux runners for the same window, which is the
+              # only option those pools have either way.
+              #
+              # `hcloud-worker` deliberately keeps the default: Hetzner Cloud
+              # provisions on demand, so a surge there always has somewhere
+              # to go and there is no reason to give up a zero-downtime roll.
+              maxSurge: 0
+              maxUnavailable: 1
+        deletion:
+          # Unbounded on purpose. Runner Pods are drained with
+          # `behavior: WaitCompleted` (see
+          # `infra/k8s/clusters/machinedrainrules.yaml`), so a drain waits
+          # for the node's in-flight CI jobs instead of evicting them, and
+          # a job can legitimately run for hours. Any finite timeout here
+          # is a promise to kill a customer's job once it is exceeded,
+          # which is the failure this whole arrangement exists to prevent.
+          #
+          # The risk this accepts is a drain that never finishes holding
+          # the roll open. That is deliberately handled by making it loud
+          # rather than by capping it: "Worker pool has a Machine it
+          # cannot delete" in `infra/helm/k8s-monitoring/alerts.md` fires
+          # on `status.replicas > spec.replicas`.
+          #
+          # Not `upToDateReplicas < spec.replicas`: that is the sibling
+          # "stuck mid-rollout" rule, and it covers the all-hosts-claimed
+          # wedge only. A roll blocked purely on deletion has already
+          # produced every up-to-date Machine it needs, so up-to-date
+          # equals spec and that rule stays quiet. tuist-md-processor sat
+          # in exactly that blind spot for 14 days from 2026-07-31.
+          nodeDrainTimeoutSeconds: 0
+        healthCheck:
+          checks:
+            # Longer timeout than hcloud: rescue → installimage → reboot
+            # → cloud-init → kubeadm join on a fresh AX42-U takes 8-15
+            # minutes vs. the ~2 minutes for a cloud VM.
+            nodeStartupTimeoutSeconds: 1800
+            unhealthyNodeConditions:
+              - type: Ready
+                status: Unknown
+                timeoutSeconds: 600
+              - type: Ready
+                status: "False"
+                timeoutSeconds: 600
+          remediation:
+            triggerIf:
+              # Operator-paced provisioning means we don't want
+              # auto-remediation chewing through Robot reinstalls if a
+              # box is briefly NotReady. Operator investigates instead.
+              unhealthyInRange: "[0-0]"
+      # Stateful bare-metal pool: ClickHouse today, and the place other
+      # carefully scheduled stateful workloads can join once its headroom is
+      # measured. Templates live in `bare-metal-stateful.yaml`, which also
+      # explains why this cannot share `bare-metal-worker`'s templates
+      # (disk layout, RAID level, and no Kata).
+      - class: stateful-worker
+        bootstrap:
+          templateRef:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            name: tuist-stateful-worker-bootstraptemplate
+        infrastructure:
+          templateRef:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HetznerBareMetalMachineTemplate
+            name: tuist-stateful-machinetemplate
+        rollout:
+          strategy:
+            type: RollingUpdate
+            rollingUpdate:
+              # Delete-then-reprovision, for the same reason as
+              # `bare-metal-worker`: hosts are pre-ordered, so at steady
+              # state every HBM is claimed and a surge Machine has nowhere
+              # to land. caph parks it `NoAvailableHost`, `maxUnavailable: 0`
+              # then never permits deleting an old Machine, and the freed
+              # host that would unblock it never appears.
+              #
+              # The cost here is different from the runner pool's, and
+              # worth stating: rolling a stateful node destroys its local
+              # PV, because the reinstall wipes `/data`. The replica comes
+              # back empty and refills from its peer, roughly four hours
+              # for a production-sized copy over a 1 Gbit/s uplink. So a
+              # template change to this class is a real operation, not a
+              # routine roll, and it must never run against both replicas
+              # at once. `maxUnavailable: 1` plus the ClickHouse
+              # PodDisruptionBudget is what keeps that true.
+              maxSurge: 0
+              maxUnavailable: 1
+        deletion:
+          # Finite, unlike the runner pool's unbounded drain. A ClickHouse
+          # pod here is bound to a local PV pinned to this node, so it
+          # cannot be rescheduled anywhere: waiting longer does not let it
+          # land elsewhere, it only holds the roll open. Availability
+          # during the drain is the PodDisruptionBudget's job, not this
+          # timeout's.
+          nodeDrainTimeoutSeconds: 600
+        healthCheck:
+          checks:
+            # rescue → installimage → reboot → cloud-init → kubeadm join
+            # takes 8-15 minutes on this hardware, against ~2 for a cloud VM.
+            nodeStartupTimeoutSeconds: 1800
+            unhealthyNodeConditions:
+              - type: Ready
+                status: Unknown
+                timeoutSeconds: 600
+              - type: Ready
+                status: "False"
+                timeoutSeconds: 600
+          remediation:
+            triggerIf:
+              # Never auto-remediate. On the runner pool this avoids
+              # chewing through Robot reinstalls; here the stakes are
+              # higher, because remediation reinstalls the host and
+              # destroys a database replica. A NotReady stateful node is
+              # something an operator looks at.
+              unhealthyInRange: "[0-0]"
+  variables:
+    - name: clusterEndpointHost
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ""
+    - name: clusterEndpointPort
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: integer
+          default: 443
+    - name: clusterLoadBalancerType
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: "lb11"
+    - name: clusterLoadBalancerExtraServices
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: array
+          default: []
+          items:
+            type: object
+            properties:
+              protocol:
+                type: string
+              listenPort:
+                type: integer
+              destinationPort:
+                type: integer
+    - name: hcloudPlacementGroups
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: array
+          default: []
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              type:
+                type: string
+    - name: hcloudNetwork
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            cidrBlock:
+              type: string
+            subnetCidrBlock:
+              type: string
+            networkZone:
+              type: string
+    - name: hcloudSSHKeyName
+      required: true
+      schema:
+        openAPIV3Schema:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+    - name: region
+      required: true
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: fsn1
+    - name: hcloudControlPlaneMachineType
+      required: true
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: cx33
+    - name: hcloudControlPlaneMachineImageName
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ubuntu-24.04
+    - name: hcloudControlPlanePlacementGroupName
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ""
+    - name: hcloudWorkerMachineType
+      required: true
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: cx23
+    - name: hcloudWorkerMachineImageName
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ubuntu-24.04
+    - name: hcloudWorkerMachinePlacementGroupName
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ""
+    # Extra kubelet node-labels for a worker pool, in kubelet's
+    # `k=v,k=v` form. Set as a per-MachineDeployment override so a pool
+    # self-applies role labels at registration. Unlike MachineDeployment
+    # metadata labels (which CAPI only syncs for the
+    # node-role/node-restriction/node.cluster.x-k8s.io prefixes), this
+    # reaches the node directly and survives node replacement — which is
+    # why the stable-egress gateway role is pinned this way.
+    - name: workerNodeLabels
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ""
+    # Extra kubelet taints for a worker pool, in kubelet's
+    # `key=value:Effect,key=value:Effect` form. Set as a per-MachineDeployment
+    # override so a dedicated pool registers tainted and general workloads can't
+    # colonize it. Used to isolate the stable-egress gateway pool (md-egress):
+    # untainted, those 4 GB nodes hosted ingress-nginx/CoreDNS/Redis and were
+    # OOM-killed, which is what set off the 2026-07-30 egress outage. Only the
+    # DaemonSets that tolerate this taint (cilium, hcloud-csi, the egress
+    # host-configurer, and the monitoring agents) land there. Like
+    # workerNodeLabels this reaches the node at registration and survives
+    # MachineHealthCheck remediation.
+    - name: workerNodeTaints
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ""
+    # Resolver file for cloud-worker pods. It remains a per-cluster value
+    # because resolver paths depend on the operating-system configuration.
+    - name: workerResolvConf
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ""
+    # Bare-metal cluster gate. Each per-cluster topology sets this
+    # to its own env (`staging` / `canary` / `production`) so the
+    # `HetznerBareMetalMachineTemplateClusterSelector` patch below
+    # can scope HBM claims to that env only. Empty (the default)
+    # means "no bare-metal in this cluster" — the patch is a no-op,
+    # leaving the shared HBMM template's selector as just the
+    # managed-by gate (which would let *any* env claim *any* HBM if
+    # you forget to set this, so don't).
+    - name: bareMetalCluster
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ""
+    # Software RAID level installimage builds on `stateful-worker` hosts.
+    # It is a variable rather than a constant because the pool spans two
+    # disk counts and installimage reads the level against the whole disk
+    # set: SWRAIDLEVEL 1 on a four-disk box is a FOUR-WAY MIRROR, so a
+    # 4x3.84 TB EX131-2 installs with 3.84 TB usable instead of 7.68 TB.
+    #
+    #   two-disk hosts (AX42 non-production)  -> 1  (mirror, the default)
+    #   four-disk hosts (EX131 production)    -> 10 (stripe of mirrors)
+    #
+    # Set it on the Cluster next to `bareMetalCluster`, and set it BEFORE
+    # the host is claimed: the layout is fixed at install, so changing it
+    # afterwards means a reinstall and a replica rebuild from the peer.
+    # Do not set 0: caph rewrites RAID 0 to 1 in the installimage wrapper.
+    #
+    # EVERY Cluster CR must declare this explicitly, including the ones with
+    # no stateful pool. A defaulted variable a Cluster does not declare is
+    # appended to the live `spec.topology.variables` by the topology
+    # controller in ALPHABETICAL order, while `kubectl diff` appends it after
+    # the declared ones; the two orders then disagree on every subsequent
+    # run and the post-apply drift check in `mgmt-cluster-apply.yml` can
+    # never converge. That is what turned the merge of #12799 red. The three
+    # older defaulted variables hid the problem by happening to sort after
+    # the declared ones already. Any future variable with a `default` needs
+    # the same treatment in the same change.
+    - name: statefulRaidLevel
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: integer
+          default: 1
+          enum: [1, 10]
+    # apiserver --kubelet-preferred-address-types order. Default keeps Hetzner
+    # nodes on ExternalIP; envs with cross-cloud nodes (Scaleway Elastic Metal /
+    # macOS PN) that report no ExternalIP and an unresolvable Hostname set this
+    # to insert InternalIP so the apiserver can reach those kubelets (logs/exec).
+    # Flipping it rolls that cluster's control plane — do it per-env, deliberately.
+    - name: kubeletPreferredAddressTypes
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: string
+          default: ExternalIP,Hostname,InternalDNS,ExternalDNS
+    # Opt-in because changing API-server metrics requires a control-plane roll.
+    - name: aggregateApiServerMetrics
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: boolean
+          default: false
+    # Rollout switch for a kubeadm control-plane join failure observed with
+    # ControlPlaneKubeletLocalMode on the Hetzner nodes. Keep this opt-in so
+    # each environment can validate the compatibility fallback separately.
+    - name: disableControlPlaneKubeletLocalMode
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: boolean
+    # Opt-in kernel lockup hardening for cloud workers, the same settings the
+    # bare-metal fleets get from cluster-api-provider-tuist: soft and hard CPU
+    # lockups panic, a panic reboots after 10 seconds, and systemd arms the
+    # watchdog device when the VM has one. Without it a node whose kernel locks
+    # up stays NotReady until a MachineHealthCheck or an operator replaces it.
+    # Set it as a MachineDeployment override to roll one pool at a time.
+    - name: nodeLockupHardening
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: boolean
+  patches:
+    - name: HetznerClusterTemplateGeneral
+      definitions:
+        - selector:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HetznerClusterTemplate
+            matchResources:
+              infrastructureCluster: true
+          jsonPatches:
+            - op: replace
+              path: "/spec/template/spec/controlPlaneEndpoint/host"
+              valueFrom:
+                variable: clusterEndpointHost
+            - op: replace
+              path: "/spec/template/spec/controlPlaneEndpoint/port"
+              valueFrom:
+                variable: clusterEndpointPort
+            - op: add
+              path: "/spec/template/spec/controlPlaneLoadBalancer/type"
+              valueFrom:
+                variable: clusterLoadBalancerType
+            - op: add
+              path: "/spec/template/spec/controlPlaneLoadBalancer/extraServices"
+              valueFrom:
+                variable: clusterLoadBalancerExtraServices
+            - op: add
+              path: "/spec/template/spec/hcloudPlacementGroups"
+              valueFrom:
+                variable: hcloudPlacementGroups
+            - op: add
+              path: "/spec/template/spec/sshKeys/hcloud"
+              valueFrom:
+                variable: hcloudSSHKeyName
+            - op: add
+              path: "/spec/template/spec/controlPlaneRegions"
+              valueFrom:
+                template: "[{{ .region | quote }}]"
+            - op: add
+              path: "/spec/template/spec/controlPlaneLoadBalancer/region"
+              valueFrom:
+                variable: region
+    - name: HetznerClusterTemplateNetwork
+      enabledIf: "{{ if .hcloudNetwork.enabled }}true{{end}}"
+      definitions:
+        - selector:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HetznerClusterTemplate
+            matchResources:
+              infrastructureCluster: true
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/hcloudNetwork"
+              valueFrom:
+                variable: hcloudNetwork
+    - name: HCloudMachineTemplateControlPlane
+      definitions:
+        - selector:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HCloudMachineTemplate
+            matchResources:
+              controlPlane: true
+          jsonPatches:
+            - op: replace
+              path: "/spec/template/spec/type"
+              valueFrom:
+                variable: hcloudControlPlaneMachineType
+            - op: replace
+              path: "/spec/template/spec/imageName"
+              valueFrom:
+                variable: hcloudControlPlaneMachineImageName
+    # placementGroupName patch split out + conditional: caph errors out
+    # ("Placement group does not exist") if we set placementGroupName to
+    # empty string. Only patch when the variable is non-empty.
+    - name: HCloudMachineTemplateControlPlanePlacementGroup
+      enabledIf: '{{ if ne .hcloudControlPlanePlacementGroupName "" }}true{{end}}'
+      definitions:
+        - selector:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HCloudMachineTemplate
+            matchResources:
+              controlPlane: true
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/placementGroupName"
+              valueFrom:
+                variable: hcloudControlPlanePlacementGroupName
+    - name: HCloudMachineTemplateWorker
+      definitions:
+        - selector:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HCloudMachineTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - hcloud-worker
+          jsonPatches:
+            - op: replace
+              path: "/spec/template/spec/type"
+              valueFrom:
+                variable: hcloudWorkerMachineType
+            - op: replace
+              path: "/spec/template/spec/imageName"
+              valueFrom:
+                variable: hcloudWorkerMachineImageName
+    - name: HCloudMachineTemplateWorkerPlacementGroup
+      enabledIf: '{{ if ne .hcloudWorkerMachinePlacementGroupName "" }}true{{end}}'
+      definitions:
+        - selector:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HCloudMachineTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - hcloud-worker
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/placementGroupName"
+              valueFrom:
+                variable: hcloudWorkerMachinePlacementGroupName
+    # Append per-pool kubelet node-labels to the worker bootstrap. The
+    # shared worker KubeadmConfigTemplate carries only cloud-provider +
+    # config args; this appends `--node-labels=<workerNodeLabels>` for any
+    # MachineDeployment that overrides the variable (no-op otherwise). It
+    # is how the stable-egress gateway pool self-labels its node so the
+    # role survives MachineHealthCheck remediation.
+    - name: KubeadmConfigTemplateWorkerNodeLabels
+      enabledIf: '{{ if ne .workerNodeLabels "" }}true{{end}}'
+      definitions:
+        - selector:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - hcloud-worker
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/joinConfiguration/nodeRegistration/kubeletExtraArgs/-"
+              valueFrom:
+                template: '{"name":"node-labels","value":{{ .workerNodeLabels | quote }}}'
+    # Append per-pool kubelet taints to the worker bootstrap, mirroring the
+    # node-labels patch above. Adds `--register-with-taints=<workerNodeTaints>`
+    # for any MachineDeployment that sets the variable (no-op otherwise). This
+    # is how the stable-egress gateway pool registers tainted so only tolerating
+    # workloads schedule on it.
+    - name: KubeadmConfigTemplateWorkerNodeTaints
+      enabledIf: '{{ if ne .workerNodeTaints "" }}true{{end}}'
+      definitions:
+        - selector:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - hcloud-worker
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/joinConfiguration/nodeRegistration/kubeletExtraArgs/-"
+              valueFrom:
+                template: '{"name":"register-with-taints","value":{{ .workerNodeTaints | quote }}}'
+    # Configure the resolver file through the kubelet's supported flag for
+    # every cloud-worker MachineDeployment in a Cluster that sets the value.
+    - name: KubeadmConfigTemplateWorkerResolvConf
+      enabledIf: '{{ if ne .workerResolvConf "" }}true{{end}}'
+      definitions:
+        - selector:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - hcloud-worker
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/joinConfiguration/nodeRegistration/kubeletExtraArgs/-"
+              valueFrom:
+                template: '{"name":"resolv-conf","value":{{ .workerResolvConf | quote }}}'
+    # Inject the per-cluster gate into the shared bare-metal HBMM
+    # template. `hetzner-robot-controller` stamps each HBM with
+    # `tuist.dev/cluster=<env>` based on the Robot server name; the
+    # selector match here is what keeps a staging cluster from
+    # claiming canary or production HBMs out of the shared Robot
+    # account. The patch fires only when the Cluster topology sets
+    # `bareMetalCluster`, so Kura-only clusters (no bare-metal
+    # MachineDeployment at all) skip the patch and don't render the
+    # HBMM template.
+    - name: HetznerBareMetalMachineTemplateClusterSelector
+      enabledIf: '{{ if ne .bareMetalCluster "" }}true{{end}}'
+      definitions:
+        - selector:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HetznerBareMetalMachineTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - bare-metal-worker
+                  - stateful-worker
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/hostSelector/matchLabels/tuist.dev~1cluster"
+              valueFrom:
+                variable: bareMetalCluster
+    # Software RAID level for the stateful pool. See the `statefulRaidLevel`
+    # variable for why this is per-cluster. Always applied where the class is
+    # used; at the default of 1 it renders exactly what the template already
+    # carries, so it is a no-op until a cluster asks for 10.
+    - name: HetznerBareMetalMachineTemplateStatefulRaidLevel
+      definitions:
+        - selector:
+            apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+            kind: HetznerBareMetalMachineTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - stateful-worker
+          jsonPatches:
+            - op: replace
+              path: "/spec/template/spec/installImage/swraidLevel"
+              valueFrom:
+                variable: statefulRaidLevel
+    # Rebuilds the apiserver extraArgs array (CAPI ClusterClass patches can't
+    # index array elements) with kubelet-preferred-address-types set from the
+    # per-cluster variable. No-op while the variable equals the template
+    # default, so applying this patch rolls nothing; setting the variable on a
+    # Cluster CR regenerates that KubeadmControlPlane and rolls its CP.
+    - name: KubeadmControlPlaneKubeletAddressTypes
+      definitions:
+        - selector:
+            apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+            kind: KubeadmControlPlaneTemplate
+            matchResources:
+              controlPlane: true
+          jsonPatches:
+            - op: replace
+              path: "/spec/template/spec/kubeadmConfigSpec/clusterConfiguration/apiServer/extraArgs"
+              valueFrom:
+                template: '[{"name": "kubelet-preferred-address-types", "value": {{ .kubeletPreferredAddressTypes | quote }} }{{ if .aggregateApiServerMetrics }}, {"name": "allow-metric-labels-manifest", "value": "/etc/kubernetes/metric-labels.yaml"}{{ end }}]'
+    - name: ApiServerMetricLabelAggregation
+      enabledIf: "{{ if .aggregateApiServerMetrics }}true{{end}}"
+      definitions:
+        - selector:
+            apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+            kind: KubeadmControlPlaneTemplate
+            matchResources:
+              controlPlane: true
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/kubeadmConfigSpec/clusterConfiguration/apiServer/extraVolumes"
+              value:
+                - name: metric-labels
+                  hostPath: /etc/kubernetes/metric-labels.yaml
+                  mountPath: /etc/kubernetes/metric-labels.yaml
+                  readOnly: true
+                  pathType: File
+            - op: add
+              path: "/spec/template/spec/kubeadmConfigSpec/files/-"
+              value:
+                owner: root:root
+                path: /etc/kubernetes/metric-labels.yaml
+                permissions: "0600"
+                # Flat metric,label -> allowed value map. __none__ is never
+                # emitted, so even empty labels become unexpected at increment
+                # time. An empty allow-list would leave empty values distinct.
+                content: |
+                  "apiserver_request_total,component": "__none__"
+                  "apiserver_request_total,dry_run": "__none__"
+                  "apiserver_request_total,group": "__none__"
+                  "apiserver_request_total,resource": "__none__"
+                  "apiserver_request_total,scope": "__none__"
+                  "apiserver_request_total,subresource": "__none__"
+                  "apiserver_request_total,version": "__none__"
+                  "apiserver_request_duration_seconds,component": "__none__"
+                  "apiserver_request_duration_seconds,dry_run": "__none__"
+                  "apiserver_request_duration_seconds,group": "__none__"
+                  "apiserver_request_duration_seconds,resource": "__none__"
+                  "apiserver_request_duration_seconds,scope": "__none__"
+                  "apiserver_request_duration_seconds,subresource": "__none__"
+                  "apiserver_request_duration_seconds,version": "__none__"
+                  "apiserver_request_terminations_total,component": "__none__"
+                  "apiserver_request_terminations_total,group": "__none__"
+                  "apiserver_request_terminations_total,resource": "__none__"
+                  "apiserver_request_terminations_total,scope": "__none__"
+                  "apiserver_request_terminations_total,subresource": "__none__"
+                  "apiserver_request_terminations_total,version": "__none__"
+    # kubeadm's local-mode join points the bootstrap kubelet at the new node's
+    # control-plane endpoint before that endpoint exists. On the affected
+    # Hetzner nodes, the kubelet cannot finish its certificate bootstrap, so
+    # the local etcd learner never starts and kubeadm aborts the join. This
+    # opt-in patch restores the established load-balancer bootstrap path per
+    # environment.
+    - name: DisableControlPlaneKubeletLocalMode
+      enabledIf: "{{ if .disableControlPlaneKubeletLocalMode }}true{{end}}"
+      definitions:
+        - selector:
+            apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+            kind: KubeadmControlPlaneTemplate
+            matchResources:
+              controlPlane: true
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/kubeadmConfigSpec/clusterConfiguration/featureGates"
+              valueFrom:
+                template: '{"ControlPlaneKubeletLocalMode": false}'
+    - name: KubeadmConfigTemplateWorkerNodeLockupHardening
+      enabledIf: "{{ if .nodeLockupHardening }}true{{end}}"
+      definitions:
+        - selector:
+            apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+            kind: KubeadmConfigTemplate
+            matchResources:
+              machineDeploymentClass:
+                names:
+                  - hcloud-worker
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/files/-"
+              value:
+                owner: root:root
+                path: /etc/sysctl.d/99-tuist-hardening.conf
+                permissions: "0644"
+                content: |
+                  kernel.softlockup_panic = 1
+                  kernel.hardlockup_panic = 1
+                  kernel.panic_on_oops = 1
+                  kernel.panic = 10
+            - op: add
+              path: "/spec/template/spec/files/-"
+              value:
+                owner: root:root
+                path: /etc/systemd/system.conf.d/10-tuist-watchdog.conf
+                permissions: "0644"
+                content: |
+                  [Manager]
+                  RuntimeWatchdogSec=30s
+                  RebootWatchdogSec=5min
+            # The existing `sysctl --system` step loads the sysctl file. PID 1
+            # reads system.conf.d only when it re-executes.
+            - op: add
+              path: "/spec/template/spec/preKubeadmCommands/-"
+              value: systemctl daemon-reexec
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: HetznerClusterTemplate
+metadata:
+  name: tuist-hcloud-cluster
+  namespace: org-tuist
+spec:
+  template:
+    spec:
+      controlPlaneEndpoint:
+        host: ""
+        port: 443
+      controlPlaneLoadBalancer:
+        region: fsn1
+      controlPlaneRegions: []
+      hcloudNetwork:
+        enabled: false
+      hetznerSecretRef:
+        key:
+          hcloudToken: hcloud
+        name: hetzner
+      sshKeys:
+        hcloud: []
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: HCloudMachineTemplate
+metadata:
+  name: tuist-hcloud-hcloud-machinetemplate
+  namespace: org-tuist
+spec:
+  template:
+    spec:
+      imageName: ubuntu-24.04
+      type: cx23
+---
+# KEEP IN SYNC with the worker `KubeadmConfigTemplate` below: the
+# `files:` block (kubelet config + containerd systemd unit + sysctl)
+# and `preKubeadmCommands` (containerd/runc/kubelet install) must
+# stay byte-for-byte equivalent except for the indicated per-role
+# differences (the KCP gets initConfiguration + joinConfiguration +
+# clusterConfiguration; the worker gets joinConfiguration only;
+# kubelet `maxPods` is intentionally lower on the CP).
+apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+kind: KubeadmControlPlaneTemplate
+metadata:
+  name: tuist-hcloud-control-plane
+  namespace: org-tuist
+spec:
+  template:
+    spec:
+      kubeadmConfigSpec:
+        clusterConfiguration:
+          apiServer:
+            extraArgs:
+              # Default value. The KubeadmControlPlaneKubeletAddressTypes patch
+              # rebuilds this whole extraArgs array from the
+              # kubeletPreferredAddressTypes variable, plus the optional
+              # metric-labels manifest. Add future args to that patch too.
+              - name: kubelet-preferred-address-types
+                value: ExternalIP,Hostname,InternalDNS,ExternalDNS
+          controllerManager:
+            extraArgs:
+              - name: cloud-provider
+                value: external
+          etcd:
+            local:
+              dataDir: /var/lib/etcd
+        files:
+          - content: |
+              net.ipv4.conf.lxc*.rp_filter = 0
+            owner: root:root
+            path: /etc/sysctl.d/99-cilium.conf
+            permissions: "0744"
+          - content: |
+              overlay
+              br_netfilter
+            owner: root:root
+            path: /etc/modules-load.d/crio.conf
+            permissions: "0744"
+          - content: |
+              net.bridge.bridge-nf-call-iptables  = 1
+              net.bridge.bridge-nf-call-ip6tables = 1
+              net.ipv4.ip_forward                 = 1
+            owner: root:root
+            path: /etc/sysctl.d/99-kubernetes-cri.conf
+            permissions: "0744"
+          - content: |
+              vm.overcommit_memory=1
+              kernel.panic=10
+              kernel.panic_on_oops=1
+            owner: root:root
+            path: /etc/sysctl.d/99-kubelet.conf
+            permissions: "0744"
+          # NOTE: this is the second --config flag passed to kubelet
+          # (the first is /var/lib/kubelet/config.yaml from kubeadm).
+          # The second OVERRIDES the first, so any field omitted here
+          # gets cleared. Critical fields below are required for kubelet
+          # to talk to containerd (containerRuntimeEndpoint), watch
+          # static pods (staticPodPath), and resolve in-cluster DNS
+          # (clusterDNS / clusterDomain). resolvConf must point at the
+          # systemd-resolved upstream file. /etc/resolv.conf points at
+          # the host-local 127.0.0.53 stub, which is unreachable from a
+          # pod network namespace and makes CoreDNS detect a forwarding
+          # loop when it is scheduled on that node.
+          - content: |
+              apiVersion: kubelet.config.k8s.io/v1beta1
+              kind: KubeletConfiguration
+              authentication:
+                anonymous:
+                  enabled: false
+                webhook:
+                  enabled: true
+                # Required so kubelet trusts the kube-apiserver's
+                # client cert for /exec, /port-forward, and etcd
+                # health checks. kubeadm's stock KubeletConfiguration
+                # sets this; our `files:`-shipped config OVERRIDES
+                # kubeadm's (second --config wins), so we must
+                # re-include it. Same trap as containerRuntimeEndpoint
+                # and staticPodPath.
+                x509:
+                  clientCAFile: /etc/kubernetes/pki/ca.crt
+              authorization:
+                mode: Webhook
+              cgroupDriver: systemd
+              clusterDNS:
+                - 10.128.0.10
+              clusterDomain: cluster.local
+              containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+              # Point kubelet at the systemd-resolved-managed file
+              # (real upstream resolvers from DHCP, e.g. Hetzner's
+              # 185.12.64.1) instead of /etc/resolv.conf (which is a
+              # symlink to a stub at 127.0.0.53 that pods cannot
+              # reach across network namespaces). Without this,
+              # CoreDNS upstream resolution AND any pod with
+              # dnsPolicy=Default fails to resolve external names —
+              # in particular HCCM crashes on startup trying to
+              # resolve api.hetzner.cloud.
+              resolvConf: /run/systemd/resolve/resolv.conf
+              maxPods: 120
+              readOnlyPort: 0
+              serverTLSBootstrap: true
+              staticPodPath: /etc/kubernetes/manifests
+            owner: root:root
+            path: /etc/kubernetes/kubelet/config.yaml
+            permissions: "0644"
+          # systemd unit for containerd 2.x. Ported from caph's flat
+          # cluster-template-hcloud.yaml; the reference ClusterClass omits
+          # this because it assumed the older cri-containerd-cni- bundle
+          # which shipped a service file. The plain `containerd-` tarball
+          # we install in preKubeadmCommands does not, so without this
+          # `systemctl start containerd` finds no unit and kubeadm init
+          # times out waiting for the CRI socket.
+          - content: |
+              [Unit]
+              Description=containerd container runtime
+              Documentation=https://containerd.io
+              After=network.target local-fs.target dbus.service
+
+              [Service]
+              ExecStartPre=-/sbin/modprobe overlay
+              ExecStart=/usr/local/bin/containerd
+
+              Type=notify
+              Delegate=yes
+              KillMode=process
+              Restart=always
+              RestartSec=5
+
+              LimitNPROC=infinity
+              LimitCORE=infinity
+
+              TasksMax=infinity
+              OOMScoreAdjust=-999
+
+              [Install]
+              WantedBy=multi-user.target
+            owner: root:root
+            path: /etc/systemd/system/containerd.service
+            permissions: "0744"
+        initConfiguration:
+          # Cilium is the CNI on Tuist's workload clusters and replaces
+          # kube-proxy. Skip the kube-proxy addon during cluster init so
+          # the kube-proxy DaemonSet is never deployed.
+          skipPhases:
+            - addon/kube-proxy
+          nodeRegistration:
+            kubeletExtraArgs:
+              - name: cloud-provider
+                value: external
+              - name: config
+                value: /etc/kubernetes/kubelet/config.yaml
+        joinConfiguration:
+          nodeRegistration:
+            kubeletExtraArgs:
+              - name: cloud-provider
+                value: external
+              - name: config
+                value: /etc/kubernetes/kubelet/config.yaml
+        # preKubeadmCommands ported from caph's flat cluster-template-hcloud.yaml
+        # (the reference ClusterClass uses an older `cri-containerd-cni-` bundle
+        # that's no longer published for containerd 2.x; this version installs
+        # containerd + runc separately, matching what the flat template does).
+        preKubeadmCommands:
+          - set -x
+          - grep VERSION= /etc/os-release; uname -a
+          - export CONTAINERD=2.2.3
+          - export RUNC=1.2.5
+          # KUBERNETES_VERSION pins what apt installs
+          # (kubelet/kubeadm/kubectl). topology.version on each
+          # Cluster CR pins what KCP writes into the static pod
+          # manifests. The two MUST stay aligned — `mise run
+          # k8s:lint-version-drift` checks this at commit time.
+          - export KUBERNETES_VERSION=1.34.6
+          - export TRIMMED_KUBERNETES_VERSION=$(echo ${KUBERNETES_VERSION} | sed 's/^v//' | awk -F . '{print $1 "." $2}')
+          - ARCH="$(dpkg --print-architecture)"
+          - localectl set-locale LANG=en_US.UTF-8
+          - localectl set-locale LANGUAGE=en_US.UTF-8
+          - apt-get update -y
+          - apt-get -y install at jq unzip wget socat mtr logrotate apt-transport-https
+          - sed -i '/swap/d' /etc/fstab
+          - swapoff -a
+          - modprobe overlay
+          - modprobe br_netfilter
+          - sysctl --system
+          - wget https://github.com/opencontainers/runc/releases/download/v$RUNC/runc.$ARCH
+          - wget https://github.com/opencontainers/runc/releases/download/v$RUNC/runc.sha256sum
+          - sha256sum --check --ignore-missing runc.sha256sum
+          - install runc.$ARCH /usr/local/sbin/runc
+          - rm -f runc.$ARCH runc.sha256sum
+          - wget https://github.com/containerd/containerd/releases/download/v$CONTAINERD/containerd-$CONTAINERD-linux-$ARCH.tar.gz
+          - wget https://github.com/containerd/containerd/releases/download/v$CONTAINERD/containerd-$CONTAINERD-linux-$ARCH.tar.gz.sha256sum
+          - sha256sum --check containerd-$CONTAINERD-linux-$ARCH.tar.gz.sha256sum
+          - tar -zxf containerd-$CONTAINERD-linux-$ARCH.tar.gz -C /usr/local
+          - rm -f containerd-$CONTAINERD-linux-$ARCH.tar.gz containerd-$CONTAINERD-linux-$ARCH.tar.gz.sha256sum
+          - mkdir -p /etc/containerd
+          - containerd config default > /etc/containerd/config.toml
+          - sed -i "s/SystemdCgroup = false/SystemdCgroup = true/" /etc/containerd/config.toml
+          - systemctl daemon-reload
+          - systemctl enable containerd
+          - systemctl start containerd
+          - mkdir -p /etc/apt/keyrings/
+          - curl -fsSL https://pkgs.k8s.io/core:/stable:/v$TRIMMED_KUBERNETES_VERSION/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+          - echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v$TRIMMED_KUBERNETES_VERSION/deb/ /" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+          - apt-get update
+          - apt-get install -y kubelet="$KUBERNETES_VERSION-*" kubeadm="$KUBERNETES_VERSION-*" kubectl="$KUBERNETES_VERSION-*" bash-completion
+          - apt-mark hold kubelet kubectl kubeadm
+          - systemctl enable kubelet
+          - kubeadm config images pull --kubernetes-version $KUBERNETES_VERSION
+          - echo 'source <(kubectl completion bash)' >>/root/.bashrc
+          - echo 'export KUBECONFIG=/etc/kubernetes/admin.conf' >>/root/.bashrc
+          - apt-get -y autoremove
+          - apt-get -y clean all
+---
+# KEEP IN SYNC with the `KubeadmControlPlaneTemplate` above: the
+# `files:` block (kubelet config + containerd systemd unit + sysctl)
+# and `preKubeadmCommands` (containerd/runc/kubelet install) must
+# stay byte-for-byte equivalent except for the indicated per-role
+# differences (this template gets joinConfiguration only, no
+# initConfiguration / clusterConfiguration; kubelet `maxPods` is
+# higher than CP since worker nodes pack more pods).
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+kind: KubeadmConfigTemplate
+metadata:
+  name: tuist-hcloud-hcloud-worker-bootstraptemplate
+  namespace: org-tuist
+spec:
+  template:
+    spec:
+      files:
+        - content: |
+            net.ipv4.conf.lxc*.rp_filter = 0
+          owner: root:root
+          path: /etc/sysctl.d/99-cilium.conf
+          permissions: "0744"
+        - content: |
+            overlay
+            br_netfilter
+          owner: root:root
+          path: /etc/modules-load.d/crio.conf
+          permissions: "0744"
+        - content: |
+            net.bridge.bridge-nf-call-iptables  = 1
+            net.bridge.bridge-nf-call-ip6tables = 1
+            net.ipv4.ip_forward                 = 1
+          owner: root:root
+          path: /etc/sysctl.d/99-kubernetes-cri.conf
+          permissions: "0744"
+        - content: |
+            vm.overcommit_memory=1
+            kernel.panic=10
+            kernel.panic_on_oops=1
+          owner: root:root
+          path: /etc/sysctl.d/99-kubelet.conf
+          permissions: "0744"
+        # See the control-plane files block above for why these fields
+        # are mandatory. The workerResolvConf ClusterClass variable supplies
+        # the kubelet's resolver-file flag.
+        - content: |
+            apiVersion: kubelet.config.k8s.io/v1beta1
+            kind: KubeletConfiguration
+            authentication:
+              anonymous:
+                enabled: false
+              webhook:
+                enabled: true
+              x509:
+                clientCAFile: /etc/kubernetes/pki/ca.crt  # see KCP block above for why
+            authorization:
+              mode: Webhook
+            cgroupDriver: systemd
+            clusterDNS:
+              - 10.128.0.10
+            clusterDomain: cluster.local
+            containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+            maxPods: 220
+            readOnlyPort: 0
+            serverTLSBootstrap: true
+            staticPodPath: /etc/kubernetes/manifests
+          owner: root:root
+          path: /etc/kubernetes/kubelet/config.yaml
+          permissions: "0644"
+        # See KCP files block above for why this systemd unit is needed.
+        - content: |
+            [Unit]
+            Description=containerd container runtime
+            Documentation=https://containerd.io
+            After=network.target local-fs.target dbus.service
+
+            [Service]
+            ExecStartPre=-/sbin/modprobe overlay
+            ExecStart=/usr/local/bin/containerd
+
+            Type=notify
+            Delegate=yes
+            KillMode=process
+            Restart=always
+            RestartSec=5
+
+            LimitNPROC=infinity
+            LimitCORE=infinity
+
+            TasksMax=infinity
+            OOMScoreAdjust=-999
+
+            [Install]
+            WantedBy=multi-user.target
+          owner: root:root
+          path: /etc/systemd/system/containerd.service
+          permissions: "0744"
+      joinConfiguration:
+        nodeRegistration:
+          kubeletExtraArgs:
+            - name: cloud-provider
+              value: external
+            - name: config
+              value: /etc/kubernetes/kubelet/config.yaml
+      # See KCP preKubeadmCommands above for why we port from the flat template
+      # rather than use the reference ClusterClass's containerd install path.
+      preKubeadmCommands:
+        - set -x
+        - grep VERSION= /etc/os-release; uname -a
+        - export CONTAINERD=2.2.3
+        - export RUNC=1.2.5
+        - export KUBERNETES_VERSION=1.34.6
+        - export TRIMMED_KUBERNETES_VERSION=$(echo ${KUBERNETES_VERSION} | sed 's/^v//' | awk -F . '{print $1 "." $2}')
+        - ARCH="$(dpkg --print-architecture)"
+        - localectl set-locale LANG=en_US.UTF-8
+        - localectl set-locale LANGUAGE=en_US.UTF-8
+        - apt-get update -y
+        - apt-get -y install at jq unzip wget socat mtr logrotate apt-transport-https
+        - sed -i '/swap/d' /etc/fstab
+        - swapoff -a
+        - modprobe overlay
+        - modprobe br_netfilter
+        - sysctl --system
+        - wget https://github.com/opencontainers/runc/releases/download/v$RUNC/runc.$ARCH
+        - wget https://github.com/opencontainers/runc/releases/download/v$RUNC/runc.sha256sum
+        - sha256sum --check --ignore-missing runc.sha256sum
+        - install runc.$ARCH /usr/local/sbin/runc
+        - rm -f runc.$ARCH runc.sha256sum
+        - wget https://github.com/containerd/containerd/releases/download/v$CONTAINERD/containerd-$CONTAINERD-linux-$ARCH.tar.gz
+        - wget https://github.com/containerd/containerd/releases/download/v$CONTAINERD/containerd-$CONTAINERD-linux-$ARCH.tar.gz.sha256sum
+        - sha256sum --check containerd-$CONTAINERD-linux-$ARCH.tar.gz.sha256sum
+        - tar -zxf containerd-$CONTAINERD-linux-$ARCH.tar.gz -C /usr/local
+        - rm -f containerd-$CONTAINERD-linux-$ARCH.tar.gz containerd-$CONTAINERD-linux-$ARCH.tar.gz.sha256sum
+        - mkdir -p /etc/containerd
+        - containerd config default > /etc/containerd/config.toml
+        - sed -i "s/SystemdCgroup = false/SystemdCgroup = true/" /etc/containerd/config.toml
+        - systemctl daemon-reload
+        - systemctl enable containerd
+        - systemctl start containerd
+        - mkdir -p /etc/apt/keyrings/
+        - curl -fsSL https://pkgs.k8s.io/core:/stable:/v$TRIMMED_KUBERNETES_VERSION/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+        - echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v$TRIMMED_KUBERNETES_VERSION/deb/ /" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+        - apt-get update
+        - apt-get install -y kubelet="$KUBERNETES_VERSION-*" kubeadm="$KUBERNETES_VERSION-*" kubectl="$KUBERNETES_VERSION-*" bash-completion
+        - apt-mark hold kubelet kubectl kubeadm
+        - systemctl enable kubelet
+        - kubeadm config images pull --kubernetes-version $KUBERNETES_VERSION
+        - echo 'source <(kubectl completion bash)' >>/root/.bashrc
+        - echo 'export KUBECONFIG=/etc/kubernetes/admin.conf' >>/root/.bashrc
+        - apt-get -y autoremove
+        - apt-get -y clean all

@@ -4,6 +4,8 @@ defmodule Tuist.AlertsTest do
   alias Tuist.Alerts
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AlertsFixtures
+  alias TuistTestSupport.Fixtures.BundlesFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
 
@@ -114,6 +116,232 @@ defmodule Tuist.AlertsTest do
       # Then
       assert result == :ok
     end
+
+    test "filters by scheme when set" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # Create 5 "current" builds with matching scheme and high duration
+      for i <- 1..5 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1500,
+            scheme: "MyApp",
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create 5 "previous" builds with matching scheme and normal duration
+      for i <- 6..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            scheme: "MyApp",
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create builds with different scheme (should be ignored)
+      for i <- 1..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 500,
+            scheme: "OtherApp",
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :build_run_duration,
+          metric: :average,
+          deviation_percentage: 20.0,
+          rolling_window_size: 5,
+          scheme: "MyApp"
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then
+      assert {:triggered, data} = result
+      assert data.current == 1500.0
+      assert data.previous == 1000.0
+    end
+
+    test "filters to CI builds only when environment is ci" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # Create 5 "current" CI builds with high duration
+      for i <- 1..5 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1500,
+            is_ci: true,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create 5 "previous" CI builds with normal duration
+      for i <- 6..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            is_ci: true,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create local builds with very short duration (should be ignored)
+      for i <- 1..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 100,
+            is_ci: false,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :build_run_duration,
+          metric: :average,
+          deviation_percentage: 20.0,
+          rolling_window_size: 5,
+          environment: "ci"
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then - only CI builds are considered, local builds with duration 100 are ignored
+      assert {:triggered, data} = result
+      assert data.current == 1500.0
+      assert data.previous == 1000.0
+    end
+
+    test "filters to local builds only when environment is local" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # Create 5 "current" local builds with high duration
+      for i <- 1..5 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1500,
+            is_ci: false,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create 5 "previous" local builds with normal duration
+      for i <- 6..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            is_ci: false,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create CI builds with very short duration (should be ignored)
+      for i <- 1..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 100,
+            is_ci: true,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :build_run_duration,
+          metric: :average,
+          deviation_percentage: 20.0,
+          rolling_window_size: 5,
+          environment: "local"
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then - only local builds are considered, CI builds with duration 100 are ignored
+      assert {:triggered, data} = result
+      assert data.current == 1500.0
+      assert data.previous == 1000.0
+    end
+
+    test "includes all builds when environment is any" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # Create 5 "current" builds (mix of CI and local)
+      for i <- 1..5 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1200,
+            is_ci: rem(i, 2) == 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create 5 "previous" builds (mix of CI and local)
+      for i <- 6..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            is_ci: rem(i, 2) == 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :build_run_duration,
+          metric: :average,
+          deviation_percentage: 15.0,
+          rolling_window_size: 5,
+          environment: "any"
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then - all builds considered
+      assert {:triggered, _data} = result
+    end
   end
 
   describe "evaluate/1 for test_run_duration" do
@@ -193,6 +421,126 @@ defmodule Tuist.AlertsTest do
 
       # Then
       assert result == :ok
+    end
+
+    test "filters to CI tests only when environment is ci" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # Create 5 "current" CI tests with high duration
+      for i <- 1..5 do
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: user.account.id,
+            duration: 2300,
+            is_ci: true,
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -i * 60, :second)
+          )
+      end
+
+      # Create 5 "previous" CI tests with normal duration
+      for i <- 6..10 do
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: user.account.id,
+            duration: 2000,
+            is_ci: true,
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -i * 60, :second)
+          )
+      end
+
+      # Create local tests with very short duration (should be ignored)
+      for i <- 1..10 do
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: user.account.id,
+            duration: 100,
+            is_ci: false,
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -i * 60, :second)
+          )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :test_run_duration,
+          metric: :average,
+          deviation_percentage: 10.0,
+          rolling_window_size: 5,
+          environment: "ci"
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then - only CI tests are considered, local tests with duration 100 are ignored
+      assert {:triggered, data} = result
+      assert data.current == 2300.0
+      assert data.previous == 2000.0
+    end
+
+    test "filters to local tests only when environment is local" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # Create 5 "current" local tests with high duration
+      for i <- 1..5 do
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: user.account.id,
+            duration: 2300,
+            is_ci: false,
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -i * 60, :second)
+          )
+      end
+
+      # Create 5 "previous" local tests with normal duration
+      for i <- 6..10 do
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: user.account.id,
+            duration: 2000,
+            is_ci: false,
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -i * 60, :second)
+          )
+      end
+
+      # Create CI tests with very short duration (should be ignored)
+      for i <- 1..10 do
+        {:ok, _} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            account_id: user.account.id,
+            duration: 100,
+            is_ci: true,
+            ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -i * 60, :second)
+          )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :test_run_duration,
+          metric: :average,
+          deviation_percentage: 10.0,
+          rolling_window_size: 5,
+          environment: "local"
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then - only local tests are considered, CI tests with duration 100 are ignored
+      assert {:triggered, data} = result
+      assert data.current == 2300.0
+      assert data.previous == 2000.0
     end
   end
 
@@ -297,6 +645,844 @@ defmodule Tuist.AlertsTest do
 
       # Then
       assert result == :ok
+    end
+
+    test "filters to CI builds only when environment is ci" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # Create 5 "current" CI builds with 70% cache hit rate
+      for i <- 1..5 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            is_ci: true,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 50,
+            cacheable_task_remote_hits_count: 20,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create 5 "previous" CI builds with 80% cache hit rate
+      for i <- 6..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            is_ci: true,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 60,
+            cacheable_task_remote_hits_count: 20,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create local builds with 100% cache hit rate (should be ignored)
+      for i <- 1..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            is_ci: false,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 100,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create 5 "current" CI module cache events with 50% hit rate
+      for i <- 1..5 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "generate",
+          is_ci: true,
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: ["A"],
+          ran_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+        )
+      end
+
+      # Create 5 "previous" CI module cache events with 60% hit rate
+      for i <- 6..10 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "generate",
+          is_ci: true,
+          cacheable_targets: ["A", "B", "C", "D", "E"],
+          local_cache_target_hits: ["A", "B", "C"],
+          ran_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+        )
+      end
+
+      # Local module cache events with 100% hit rate, newer than every CI event
+      # so they would take over both windows if the environment scope leaked
+      for i <- 1..10 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "generate",
+          is_ci: false,
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: ["A", "B"],
+          ran_at: DateTime.add(DateTime.utc_now(), -i, :second)
+        )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :cache_hit_rate,
+          metric: :average,
+          deviation_percentage: 10.0,
+          rolling_window_size: 5,
+          environment: "ci"
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then - only CI runs are considered on both sources; the 100% local runs
+      # are ignored by the Xcode cache and the module cache alike
+      assert {:triggered, data} = result
+      assert_in_delta data.current, 0.6, 0.0001
+      assert_in_delta data.previous, 0.7, 0.0001
+    end
+
+    test "filters to local builds only when environment is local" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # Create 5 "current" local builds with 70% cache hit rate
+      for i <- 1..5 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            is_ci: false,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 50,
+            cacheable_task_remote_hits_count: 20,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create 5 "previous" local builds with 80% cache hit rate
+      for i <- 6..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            is_ci: false,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 60,
+            cacheable_task_remote_hits_count: 20,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create CI builds with 100% cache hit rate (should be ignored)
+      for i <- 1..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            is_ci: true,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 100,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :cache_hit_rate,
+          metric: :average,
+          deviation_percentage: 10.0,
+          rolling_window_size: 5,
+          environment: "local"
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then - only local builds are considered; CI builds with 100% hit rate are ignored
+      assert {:triggered, data} = result
+      assert data.current == 0.7
+      assert data.previous == 0.8
+    end
+
+    test "filters to builds on the configured branch when git_branch is set" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # Create 5 "current" main builds with 70% cache hit rate
+      for i <- 1..5 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "main",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 50,
+            cacheable_task_remote_hits_count: 20,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create 5 "previous" main builds with 80% cache hit rate
+      for i <- 6..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "main",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 60,
+            cacheable_task_remote_hits_count: 20,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Feature branch builds with 0% cache hit rate (should be ignored)
+      for i <- 1..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "feature",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 0,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Create 5 "current" main module cache events with 50% hit rate
+      for i <- 1..5 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "generate",
+          git_branch: "main",
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: ["A"],
+          ran_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+        )
+      end
+
+      # Create 5 "previous" main module cache events with 60% hit rate
+      for i <- 6..10 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "generate",
+          git_branch: "main",
+          cacheable_targets: ["A", "B", "C", "D", "E"],
+          local_cache_target_hits: ["A", "B", "C"],
+          ran_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+        )
+      end
+
+      # Feature branch module cache events with 0% hit rate, newer than every
+      # main event so they would take over both windows if the scope leaked
+      for i <- 1..10 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "generate",
+          git_branch: "feature",
+          cacheable_targets: ["A", "B"],
+          local_cache_target_hits: [],
+          ran_at: DateTime.add(DateTime.utc_now(), -i, :second)
+        )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :cache_hit_rate,
+          metric: :average,
+          deviation_percentage: 10.0,
+          rolling_window_size: 5,
+          git_branch: "main"
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then - both the Xcode cache and the module cache are scoped to main
+      assert {:triggered, data} = result
+      assert_in_delta data.current, 0.6, 0.0001
+      assert_in_delta data.previous, 0.7, 0.0001
+    end
+
+    test "ignores a source that only has runs in one of the two windows" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # Xcode cache: a steady 80% hit rate across both windows
+      for i <- 1..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "main",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 60,
+            cacheable_task_remote_hits_count: 20,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Module cache: only enough events on main to fill the current window
+      for i <- 1..5 do
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "generate",
+          git_branch: "main",
+          cacheable_targets: ["A", "B", "C", "D"],
+          local_cache_target_hits: ["A"],
+          ran_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+        )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :cache_hit_rate,
+          metric: :average,
+          deviation_percentage: 10.0,
+          rolling_window_size: 5,
+          git_branch: "main"
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then - the module cache is missing from the previous window, so it is
+      # left out of the current one too instead of comparing 0.525 against 0.8
+      assert result == :ok
+    end
+
+    test "returns :ok when a window did not fill up" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # 5 "current" builds with a 10% hit rate
+      for i <- 1..5 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "main",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 10,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Only 2 "previous" builds, so the older window is short of the window size
+      for i <- 6..7 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "main",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 90,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :cache_hit_rate,
+          metric: :average,
+          deviation_percentage: 10.0,
+          rolling_window_size: 5,
+          git_branch: "main"
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then
+      assert result == :ok
+    end
+
+    test "considers every branch when git_branch is empty" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # Recent feature-branch builds with 0% cache hit rate
+      for i <- 1..5 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "feature",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 0,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Older main builds with 80% cache hit rate
+      for i <- 6..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            user_id: user.account.id,
+            duration: 1000,
+            git_branch: "main",
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 60,
+            cacheable_task_remote_hits_count: 20,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :cache_hit_rate,
+          metric: :average,
+          deviation_percentage: 10.0,
+          rolling_window_size: 5,
+          git_branch: ""
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then - the feature-branch drop is included, so the rule triggers
+      assert {:triggered, data} = result
+      assert data.current == 0.0
+      assert data.previous == 0.8
+    end
+  end
+
+  describe "evaluate/1 for bundle_size" do
+    test "returns {:triggered, ...} when install size increased beyond threshold" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      _previous_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          install_size: 1_000_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -2, :hour)
+        )
+
+      _current_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          install_size: 1_500_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -1, :hour)
+        )
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :bundle_size,
+          metric: :install_size,
+          git_branch: "main",
+          deviation_percentage: 20.0
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then
+      assert {:triggered, data} = result
+      assert data.current == 1_500_000.0
+      assert data.previous == 1_000_000.0
+      assert data.deviation == 50.0
+    end
+
+    test "returns :ok when deviation is below threshold" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      _previous_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          install_size: 1_000_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -2, :hour)
+        )
+
+      _current_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          install_size: 1_050_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -1, :hour)
+        )
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :bundle_size,
+          metric: :install_size,
+          git_branch: "main",
+          deviation_percentage: 20.0
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then
+      assert result == :ok
+    end
+
+    test "returns :ok when no bundles exist" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :bundle_size,
+          metric: :install_size,
+          git_branch: "main",
+          deviation_percentage: 20.0
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then
+      assert result == :ok
+    end
+
+    test "returns :ok when only one bundle exists" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      _current_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          install_size: 1_500_000
+        )
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :bundle_size,
+          metric: :install_size,
+          git_branch: "main",
+          deviation_percentage: 20.0
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then
+      assert result == :ok
+    end
+
+    test "returns {:triggered, ...} when download size increased beyond threshold" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      _previous_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          download_size: 500_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -2, :hour)
+        )
+
+      _current_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          download_size: 800_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -1, :hour)
+        )
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :bundle_size,
+          metric: :download_size,
+          git_branch: "main",
+          deviation_percentage: 20.0
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then
+      assert {:triggered, data} = result
+      assert data.current == 800_000.0
+      assert data.previous == 500_000.0
+      assert data.deviation == 60.0
+    end
+
+    test "ignores bundles on different branches" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      _bundle_on_other_branch =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "develop",
+          install_size: 1_000_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -2, :hour)
+        )
+
+      _bundle_on_other_branch_2 =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "develop",
+          install_size: 2_000_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -1, :hour)
+        )
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :bundle_size,
+          metric: :install_size,
+          git_branch: "main",
+          deviation_percentage: 20.0
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then
+      assert result == :ok
+    end
+
+    test "ignores bundles with different name" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      _previous_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          name: "OtherApp",
+          install_size: 1_000_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -2, :hour)
+        )
+
+      _current_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          name: "MyApp",
+          install_size: 2_000_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -1, :hour)
+        )
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :bundle_size,
+          metric: :install_size,
+          git_branch: "main",
+          bundle_name: "MyApp",
+          deviation_percentage: 20.0
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then - only one bundle named "MyApp", so no previous to compare
+      assert result == :ok
+    end
+
+    test "filters by bundle_name when set" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      _previous_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          name: "MyApp",
+          install_size: 1_000_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -2, :hour)
+        )
+
+      _current_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          name: "MyApp",
+          install_size: 1_500_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -1, :hour)
+        )
+
+      # Create a bundle for a different app (should be ignored by the filter)
+      _other_app_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          name: "OtherApp",
+          install_size: 500_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -30, :minute)
+        )
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :bundle_size,
+          metric: :install_size,
+          git_branch: "main",
+          bundle_name: "MyApp",
+          deviation_percentage: 20.0
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then
+      assert {:triggered, data} = result
+      assert data.current == 1_500_000.0
+      assert data.previous == 1_000_000.0
+    end
+
+    test "returns :ok when size decreased" do
+      # Given
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      _previous_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          install_size: 2_000_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -2, :hour)
+        )
+
+      _current_bundle =
+        BundlesFixtures.bundle_fixture(
+          project: project,
+          uploaded_by_account: user.account,
+          git_branch: "main",
+          install_size: 1_000_000,
+          inserted_at: DateTime.add(DateTime.utc_now(), -1, :hour)
+        )
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :bundle_size,
+          metric: :install_size,
+          git_branch: "main",
+          deviation_percentage: 20.0
+        )
+
+      # When
+      result = Alerts.evaluate(alert_rule)
+
+      # Then - decrease should not trigger an increase-only alert
+      assert result == :ok
+    end
+  end
+
+  describe "create_alert_rule/1 for bundle_size" do
+    test "creates a bundle_size alert rule with valid attributes" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        name: "Bundle Size Alert",
+        category: :bundle_size,
+        metric: :install_size,
+        deviation_percentage: 5.0,
+        git_branch: "main",
+        slack_channel_id: "C123456",
+        slack_channel_name: "test-channel"
+      }
+
+      # When
+      result = Alerts.create_alert_rule(attrs)
+
+      # Then
+      assert {:ok, alert_rule} = result
+      assert alert_rule.category == :bundle_size
+      assert alert_rule.metric == :install_size
+      assert alert_rule.git_branch == "main"
+      assert alert_rule.deviation_percentage == 5.0
+      assert is_nil(alert_rule.rolling_window_size)
+    end
+
+    test "returns error when git_branch is missing" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        name: "Bundle Size Alert",
+        category: :bundle_size,
+        metric: :install_size,
+        deviation_percentage: 5.0,
+        slack_channel_id: "C123456",
+        slack_channel_name: "test-channel"
+      }
+
+      # When
+      result = Alerts.create_alert_rule(attrs)
+
+      # Then
+      assert {:error, changeset} = result
+      assert %{git_branch: _} = errors_on(changeset)
     end
   end
 
@@ -518,153 +1704,6 @@ defmodule Tuist.AlertsTest do
       assert alert.alert_rule_id == alert_rule.id
       assert alert.current_value == 1200.0
       assert alert.previous_value == 1000.0
-    end
-  end
-
-  describe "get_project_flaky_test_alert_rules/1" do
-    test "returns flaky test alert rules for a project" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-      rule1 = AlertsFixtures.flaky_test_alert_rule_fixture(project: project, trigger_threshold: 3)
-      rule2 = AlertsFixtures.flaky_test_alert_rule_fixture(project: project, trigger_threshold: 5)
-
-      # When
-      rules = Alerts.get_project_flaky_test_alert_rules(project)
-
-      # Then
-      assert length(rules) == 2
-      rule_ids = Enum.map(rules, & &1.id)
-      assert rule1.id in rule_ids
-      assert rule2.id in rule_ids
-    end
-
-    test "returns empty list when project has no flaky test alert rules" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      # When
-      rules = Alerts.get_project_flaky_test_alert_rules(project)
-
-      # Then
-      assert rules == []
-    end
-  end
-
-  describe "get_flaky_test_alert_rule/1" do
-    test "returns flaky test alert rule when it exists" do
-      # Given
-      rule = AlertsFixtures.flaky_test_alert_rule_fixture()
-
-      # When
-      result = Alerts.get_flaky_test_alert_rule(rule.id)
-
-      # Then
-      assert {:ok, fetched} = result
-      assert fetched.id == rule.id
-    end
-
-    test "returns error when flaky test alert rule does not exist" do
-      # Given
-      non_existent_id = Ecto.UUID.generate()
-
-      # When
-      result = Alerts.get_flaky_test_alert_rule(non_existent_id)
-
-      # Then
-      assert {:error, :not_found} = result
-    end
-  end
-
-  describe "create_flaky_test_alert_rule/1" do
-    test "creates a flaky test alert rule with valid attributes" do
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      attrs = %{
-        project_id: project.id,
-        name: "Flaky Alert",
-        trigger_threshold: 5,
-        slack_channel_id: "C123456",
-        slack_channel_name: "flaky-alerts"
-      }
-
-      # When
-      result = Alerts.create_flaky_test_alert_rule(attrs)
-
-      # Then
-      assert {:ok, rule} = result
-      assert rule.project_id == project.id
-      assert rule.name == "Flaky Alert"
-      assert rule.trigger_threshold == 5
-      assert rule.slack_channel_id == "C123456"
-      assert rule.slack_channel_name == "flaky-alerts"
-    end
-
-    test "returns error with invalid attributes" do
-      # When
-      result = Alerts.create_flaky_test_alert_rule(%{})
-
-      # Then
-      assert {:error, changeset} = result
-      assert changeset.valid? == false
-    end
-  end
-
-  describe "update_flaky_test_alert_rule/2" do
-    test "updates a flaky test alert rule" do
-      # Given
-      rule = AlertsFixtures.flaky_test_alert_rule_fixture()
-
-      # When
-      result = Alerts.update_flaky_test_alert_rule(rule, %{trigger_threshold: 10, name: "Updated Name"})
-
-      # Then
-      assert {:ok, updated} = result
-      assert updated.trigger_threshold == 10
-      assert updated.name == "Updated Name"
-    end
-  end
-
-  describe "delete_flaky_test_alert_rule/1" do
-    test "deletes a flaky test alert rule" do
-      # Given
-      rule = AlertsFixtures.flaky_test_alert_rule_fixture()
-
-      # When
-      result = Alerts.delete_flaky_test_alert_rule(rule)
-
-      # Then
-      assert {:ok, _deleted} = result
-      assert Alerts.get_flaky_test_alert_rule(rule.id) == {:error, :not_found}
-    end
-  end
-
-  describe "create_flaky_test_alert/1" do
-    test "creates a flaky test alert with valid attributes" do
-      # Given
-      rule = AlertsFixtures.flaky_test_alert_rule_fixture()
-      test_case_id = Ecto.UUID.generate()
-
-      attrs = %{
-        flaky_test_alert_rule_id: rule.id,
-        flaky_runs_count: 5,
-        test_case_id: test_case_id,
-        test_case_name: "testExample",
-        test_case_module_name: "MyTests",
-        test_case_suite_name: "TestSuite"
-      }
-
-      # When
-      result = Alerts.create_flaky_test_alert(attrs)
-
-      # Then
-      assert {:ok, alert} = result
-      assert alert.flaky_test_alert_rule_id == rule.id
-      assert alert.flaky_runs_count == 5
-      assert alert.test_case_id == test_case_id
-      assert alert.test_case_name == "testExample"
-      assert alert.test_case_module_name == "MyTests"
-      assert alert.test_case_suite_name == "TestSuite"
     end
   end
 end

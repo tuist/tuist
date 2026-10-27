@@ -1,0 +1,225 @@
+<div id="gradle-build-runs">
+  <.card
+    title={dgettext("dashboard_gradle", "Build Runs")}
+    icon="chart_column"
+    data-part="build-runs-card"
+  >
+    <.card_section data-part="build-runs-card-section">
+      <div data-part="filters">
+        <.form
+          id="gradle-build-runs-search-form"
+          for={%{}}
+          phx-change="search-build-runs"
+          phx-debounce="200"
+        >
+          <.text_input
+            type="search"
+            id="search-build-runs"
+            name="search"
+            placeholder={dgettext("dashboard_gradle", "Search project...")}
+            show_suffix={false}
+            data-part="search"
+            value={@build_runs_search}
+          />
+        </.form>
+        <.dropdown
+          id="gradle-build-runs-sort-by"
+          label={
+            case @build_runs_sort_by do
+              "failure-category" -> dgettext("dashboard_builds", "Failure category")
+              "duration" -> dgettext("dashboard_gradle", "Duration")
+              _ -> dgettext("dashboard_gradle", "Ran at")
+            end
+          }
+          secondary_text={dgettext("dashboard_gradle", "Sort by:")}
+        >
+          <.dropdown_item
+            value="failure-category"
+            label={dgettext("dashboard_builds", "Failure category")}
+            patch={TuistWeb.GradleBuildRunsLive.column_patch_sort(assigns, "failure-category")}
+            data-selected={@build_runs_sort_by == "failure-category"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="duration"
+            label={dgettext("dashboard_gradle", "Duration")}
+            patch={TuistWeb.GradleBuildRunsLive.column_patch_sort(assigns, "duration")}
+            data-selected={@build_runs_sort_by == "duration"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="ran-at"
+            label={dgettext("dashboard_gradle", "Ran at")}
+            patch={TuistWeb.GradleBuildRunsLive.column_patch_sort(assigns, "ran-at")}
+            data-selected={@build_runs_sort_by == "ran-at"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+        <.filter_dropdown
+          id="gradle-filter-dropdown"
+          label={dgettext("dashboard_gradle", "Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
+      </div>
+      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
+      </div>
+      <div :if={not Enum.empty?(@build_runs)} data-part="build-runs-table">
+        <.table
+          id="gradle-build-runs-table"
+          rows={@build_runs}
+          row_navigate={
+            fn build ->
+              url(
+                ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{build.id}"
+              )
+            end
+          }
+        >
+          <:col :let={build} label={dgettext("dashboard_gradle", "Project")}>
+            <.project_with_tags_cell
+              label={build.root_project_name}
+              tags={build.custom_tags || []}
+            />
+          </:col>
+          <:col :let={build} label={dgettext("dashboard_gradle", "Status")}>
+            <.status_badge_cell
+              :if={build.status == "success"}
+              label={dgettext("dashboard_gradle", "Passed")}
+              status="success"
+            />
+            <.status_badge_cell
+              :if={build.status == "failure"}
+              label={dgettext("dashboard_gradle", "Failed")}
+              status="error"
+            />
+            <.status_badge_cell
+              :if={build.status == "cancelled"}
+              label={dgettext("dashboard_gradle", "Cancelled")}
+              status="warning"
+            />
+          </:col>
+          <:col :let={build} label={dgettext("dashboard_gradle", "Branch")}>
+            <.text_cell
+              icon="git_branch"
+              label={if(build.git_branch == "", do: "None", else: build.git_branch)}
+            />
+          </:col>
+          <:col :let={build} label={dgettext("dashboard_gradle", "Commit SHA")}>
+            <.text_cell label={SHA.format_commit_sha(build.git_commit_sha)} />
+          </:col>
+          <:col :let={build} label={dgettext("dashboard_gradle", "Requested tasks")}>
+            <.text_cell label={
+              case build.requested_tasks do
+                [] ->
+                  dgettext("dashboard_gradle", "Unknown")
+
+                tasks ->
+                  truncated = Enum.take(tasks, 2)
+
+                  if length(tasks) > 2,
+                    do: Enum.join(truncated, " ") <> " +#{length(tasks) - 2}",
+                    else: Enum.join(truncated, " ")
+              end
+            } />
+          </:col>
+          <:col :let={build} label={dgettext("dashboard_gradle", "Built by")}>
+            <.gradle_build_ran_by_badge_cell build={build} />
+          </:col>
+          <:col
+            :let={build}
+            label={dgettext("dashboard_gradle", "Duration")}
+            patch={
+              @build_runs_sort_by == "duration" &&
+                TuistWeb.GradleBuildRunsLive.column_patch_sort(assigns, "duration")
+            }
+            sort_order={@build_runs_sort_by == "duration" && @build_runs_sort_order}
+          >
+            <.text_cell
+              label={
+                dgettext("dashboard_gradle", "%{duration}s",
+                  duration:
+                    (build.duration_ms / 1000)
+                    |> Decimal.from_float()
+                    |> Decimal.round(1)
+                )
+              }
+              icon="history"
+            />
+          </:col>
+          <:col :let={build} label={dgettext("dashboard_gradle", "Cache Hit Rate")}>
+            <.text_cell label={
+              case Gradle.cache_hit_rate(build) do
+                nil ->
+                  dgettext("dashboard_gradle", "N/A")
+
+                hit_rate ->
+                  dgettext("dashboard_gradle", "%{hit_rate}%",
+                    hit_rate:
+                      hit_rate
+                      |> Decimal.from_float()
+                      |> Decimal.round(1)
+                  )
+              end
+            } />
+          </:col>
+          <:col :let={build} label={dgettext("dashboard_gradle", "Gradle Version")}>
+            <.text_cell label={
+              if(build.gradle_version == "",
+                do: dgettext("dashboard_gradle", "Unknown"),
+                else: build.gradle_version
+              )
+            } />
+          </:col>
+          <:col
+            :let={build}
+            label={dgettext("dashboard_gradle", "Ran at")}
+            patch={
+              @build_runs_sort_by == "ran-at" &&
+                TuistWeb.GradleBuildRunsLive.column_patch_sort(assigns, "ran-at")
+            }
+            sort_order={@build_runs_sort_by == "ran-at" && @build_runs_sort_order}
+          >
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(build.inserted_at)} />
+          </:col>
+        </.table>
+        <.pagination_group
+          :if={@build_runs_page_count > 1}
+          current_page={@build_runs_page}
+          number_of_pages={@build_runs_page_count}
+          page_patch={
+            fn page ->
+              "?#{Query.put(@uri.query, "page", to_string(page))}"
+            end
+          }
+        />
+      </div>
+      <div :if={Enum.empty?(@build_runs)} data-part="empty-build-runs">
+        <.empty_card_section
+          title={dgettext("dashboard_gradle", "No data yet")}
+          get_started_href="https://tuist.dev/en/docs/guides/features/cache/gradle-cache"
+          data-part="empty-build-runs-table-card-section"
+        >
+          <:image>
+            <img
+              src={~p"/images/empty_table_light.png"}
+              data-theme="light"
+              loading="lazy"
+              decoding="async"
+            />
+            <img
+              src={~p"/images/empty_table_dark.png"}
+              data-theme="dark"
+              loading="lazy"
+              decoding="async"
+            />
+          </:image>
+        </.empty_card_section>
+      </div>
+    </.card_section>
+  </.card>
+</div>

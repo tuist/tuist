@@ -3,7 +3,7 @@ import Path
 import TuistMigration
 import TuistSupport
 
-class MigrationCheckEmptyBuildSettingsService {
+struct MigrationCheckEmptyBuildSettingsService {
     // MARK: - Attributes
 
     private let emptyBuildSettingsChecker: EmptyBuildSettingsChecking

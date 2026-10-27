@@ -48,7 +48,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    // SchemeA: UnitTestsA -> FrameworkA (both cached)
+    // SchemeA: UnitTestsA -> FrameworkA (UnitTestsA cached)
     // SchemeB: UnitTestsA -> FrameworkA, UnitTestsB (UnitTestsB not cached)
     func test_map_when_only_one_unit_test_target_is_cached() async throws {
         let frameworkATarget = Target.test(
@@ -168,13 +168,11 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         let unitTestsBStorableItem = CacheStorableItem(name: "UnitTestsB", hash: "UnitTestsB")
         let frameworkAStorableItem = CacheStorableItem(name: "FrameworkA", hash: "FrameworkA")
         let unitTestsACacheItem: CacheItem = .test(name: "UnitTestsA", hash: "UnitTestsA")
-        let frameworkACacheItem: CacheItem = .test(name: "FrameworkA", hash: "FrameworkA")
         given(cacheStorage).fetch(
             .value(Set([unitTestsAStorableItem, frameworkAStorableItem, unitTestsBStorableItem])),
             cacheCategory: .value(.selectiveTests)
         ).willReturn([
             unitTestsACacheItem: cachePath.appending(component: "unitTestsAItem"),
-            frameworkACacheItem: cachePath.appending(component: "frameworkAItem"),
         ])
 
         // When
@@ -205,7 +203,6 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             [
                 project.path: [
                     "UnitTestsA": unitTestsACacheItem,
-                    "FrameworkA": frameworkACacheItem,
                 ],
             ]
         )
@@ -221,7 +218,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         )
     }
 
-    // SchemeA: UITestsA -> FrameworkA (both cached)
+    // SchemeA: UITestsA -> FrameworkA (UITestsA cached)
     // SchemeB: UITestsA -> FrameworkA, UITestsB (UITestsB not cached)
     func test_map_when_only_one_ui_test_target_is_cached() async throws {
         let frameworkATarget = Target.test(
@@ -343,13 +340,11 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         let uiTestsBStorableItem = CacheStorableItem(name: "UITestsB", hash: "UITestsB")
         let frameworkAStorableItem = CacheStorableItem(name: "FrameworkA", hash: "FrameworkA")
         let uiTestsACacheItem: CacheItem = .test(name: "UITestsA", hash: "UITestsA")
-        let frameworkACacheItem: CacheItem = .test(name: "FrameworkA", hash: "FrameworkA")
         given(cacheStorage).fetch(
             .value(Set([uiTestsAStorableItem, frameworkAStorableItem, uiTestsBStorableItem])),
             cacheCategory: .value(.selectiveTests)
         ).willReturn([
             uiTestsACacheItem: cachePath.appending(component: "unitTestsAItem"),
-            frameworkACacheItem: cachePath.appending(component: "frameworkAItem"),
         ])
 
         // When
@@ -380,7 +375,6 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             [
                 project.path: [
                     "UITestsA": uiTestsACacheItem,
-                    "FrameworkA": frameworkACacheItem,
                 ],
             ]
         )
@@ -396,7 +390,8 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         )
     }
 
-    // SchemeA: UnitTestsA -> FrameworkA (only UnitTestsA cached)
+    // SchemeA: UnitTestsA -> FrameworkA (UnitTestsA cached, FrameworkA not cached)
+    // Dependency hashes don't need to be cached — the test target hash already includes dependency content
     func test_map_only_tests_cached() async throws {
         let frameworkATarget = Target.test(
             name: "FrameworkA"
@@ -509,6 +504,16 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                 project.path: [
                     "UnitTestsA": unitTestsACacheItem,
                 ],
+            ]
+        )
+        let targetsToPrune = gotGraph.projects.values
+            .flatMap(\.targets.values)
+            .filter { $0.metadata.tags.contains("tuist:prunable") }
+            .sorted(by: { $0.name < $1.name })
+        XCTAssertEqual(
+            targetsToPrune,
+            [
+                unitTestsATarget,
             ]
         )
     }
@@ -654,13 +659,11 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         let unitTestsAStorableItem = CacheStorableItem(name: "UnitTestsA", hash: "UnitTestsA")
         let frameworkAStorableItem = CacheStorableItem(name: "FrameworkA", hash: "FrameworkA")
         let unitTestsACacheItem: CacheItem = .test(name: "UnitTestsA", hash: "UnitTestsA")
-        let frameworkACacheItem: CacheItem = .test(name: "FrameworkA", hash: "FrameworkA")
         given(cacheStorage).fetch(
             .value(Set([unitTestsAStorableItem, frameworkAStorableItem])),
             cacheCategory: .value(.selectiveTests)
         ).willReturn([
             unitTestsACacheItem: cachePath.appending(component: "unitTestsAItem"),
-            frameworkACacheItem: cachePath.appending(component: "frameworkAItem"),
         ])
 
         // When

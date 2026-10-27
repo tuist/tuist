@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+#MISE description="Regenerate CAPI provider DeepCopy + CRDs from API types"
+
+# Single source of truth for the CAPI provider's CRDs is the
+# annotated Go types in
+# infra/cluster-api-provider-tuist/api/v1alpha1/.
+# This task runs controller-gen to regenerate
+#   - api/v1alpha1/zz_generated.deepcopy.go
+#   - infra/helm/tuist/crds/infrastructure.cluster.x-k8s.io_*.yaml
+# from those types' `+kubebuilder:` markers. Every kind in that API
+# group is generated, not a subset.
+#
+# Run it whenever you touch a *_types.go file. Generated artefacts
+# are committed; the `generated` job in
+# .github/workflows/capi-provider-scaleway-applesilicon-image.yml
+# re-runs this task and fails on a diff.
+#
+# controller-gen is invoked via `go run @<version>`: no install
+# step, version pinned by string. Go's module cache makes the
+# second-and-later runs fast.
+
+set -euo pipefail
+
+CONTROLLER_GEN_VERSION="v0.16.5"
+PROVIDER_DIR="infra/cluster-api-provider-tuist"
+CRD_OUT_DIR="infra/helm/tuist/crds"
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "${REPO_ROOT}"
+
+echo "→ Generating DeepCopy methods (${PROVIDER_DIR}/api/v1alpha1/zz_generated.deepcopy.go)"
+(
+  cd "${PROVIDER_DIR}"
+  go run "sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}" \
+    object paths=./api/...
+)
+
+echo "→ Generating CRD manifests (${CRD_OUT_DIR}/)"
+(
+  cd "${PROVIDER_DIR}"
+  go run "sigs.k8s.io/controller-tools/cmd/controller-gen@${CONTROLLER_GEN_VERSION}" \
+    crd paths=./api/... output:crd:dir="${REPO_ROOT}/${CRD_OUT_DIR}"
+)
+
+# CAPI core looks up infrastructure-provider CRDs by the
+# `cluster.x-k8s.io/v1beta1=<api-version>` label. controller-gen
+# doesn't emit that on its own; patch it in here so CAPI core
+# discovers our CRDs.
+#
+# Every CRD generated into this directory, not a list of name prefixes. A new
+# machine kind whose prefix was missing from such a list produced CRDs that
+# looked fine and installed cleanly, and then CAPI core refused to build a
+# MachineSet from them: "cannot find any versions matching contract
+# cluster.x-k8s.io/v1beta1 ... contract version label(s) are either missing or
+# empty". The MachineDeployment sat at no replicas with InternalError and
+# nothing downstream ever ran.
+echo "→ Adding CAPI provider label to generated CRDs"
+shopt -s nullglob
+labelled=0
+for f in "${REPO_ROOT}/${CRD_OUT_DIR}"/infrastructure.cluster.x-k8s.io_*.yaml; do
+  yq -i '.metadata.labels."cluster.x-k8s.io/v1beta1" = "v1alpha1"' "$f"
+  labelled=$((labelled + 1))
+done
+[ "$labelled" -gt 0 ] || { echo "no CRDs found to label in ${CRD_OUT_DIR}" >&2; exit 1; }
+echo "  labelled ${labelled} CRD(s)"
+
+echo "✓ Done"

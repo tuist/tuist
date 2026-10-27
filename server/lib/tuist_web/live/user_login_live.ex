@@ -3,8 +3,13 @@ defmodule TuistWeb.UserLoginLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.AppAuthComponents
+
   alias Phoenix.Flash
+  alias Tuist.Accounts
   alias Tuist.Environment
+  alias TuistWeb.GoogleOneTap
+  alias TuistWeb.Turnstile
 
   def mount(_params, _session, socket) do
     email = Flash.get(socket.assigns.flash, :email)
@@ -14,11 +19,16 @@ defmodule TuistWeb.UserLoginLive do
       socket
       |> assign(:head_title, "#{dgettext("dashboard_auth", "Log in")} · Tuist")
       |> assign(:form, form)
-      |> assign(:github_configured?, Environment.github_oauth_configured?())
-      |> assign(:google_configured?, Environment.google_oauth_configured?())
-      |> assign(:okta_configured?, Environment.okta_oauth_configured?())
-      |> assign(:apple_configured?, Environment.apple_oauth_configured?())
+      |> assign(:github_configured?, Environment.github_oauth_configured?() and Environment.github_auth_enabled?())
+      |> assign(:google_configured?, Environment.google_oauth_configured?() and Environment.google_auth_enabled?())
+      |> assign(:okta_configured?, Environment.okta_oauth_configured?() and Environment.okta_auth_enabled?())
+      |> assign(:apple_configured?, Environment.apple_oauth_configured?() and Environment.apple_auth_enabled?())
+      |> assign(:sso_configured?, Accounts.sso_configured?())
       |> assign(:tuist_hosted?, Environment.tuist_hosted?())
+      |> assign(:email_auth_enabled?, Environment.email_auth_enabled?())
+      |> assign(:test_user_login_enabled?, Environment.test_user_login_enabled?())
+      |> assign(:turnstile_required?, Turnstile.required?())
+      |> assign(:turnstile_site_key, Turnstile.site_key())
 
     {
       :ok,
@@ -30,13 +40,10 @@ defmodule TuistWeb.UserLoginLive do
   def render(assigns) do
     ~H"""
     <div id="login">
+      <GoogleOneTap.prompt current_user={assigns[:current_user]} live />
       <div data-part="frame">
         <div data-part="content">
-          <img
-            src="/images/tuist_logo_32x32@2x.png"
-            alt={dgettext("dashboard_auth", "Tuist Logo")}
-            data-part="logo"
-          />
+          <.tuist_mark data-part="logo" aria-label={dgettext("dashboard_auth", "Tuist Logo")} />
           <div data-part="dots">
             <.dots_light />
             <.dots_dark />
@@ -47,65 +54,66 @@ defmodule TuistWeb.UserLoginLive do
               {dgettext("dashboard_auth", "Welcome back! Please log in to continue")}
             </span>
           </div>
-          <div
-            :if={oauth_configured?()}
-            data-part="oauth"
-            data-compact={all_oauth_providers_configured?(assigns)}
-          >
-            <.button
-              :if={@github_configured?}
-              href={~p"/users/auth/github"}
-              variant="secondary"
-              size="medium"
-              label="GitHub"
-              icon_only={all_oauth_providers_configured?(assigns)}
+          <div :if={oauth_configured?(assigns)} data-part="oauth-providers">
+            <div
+              :if={social_oauth_configured?(assigns)}
+              data-part="oauth"
+              data-compact={all_social_providers_configured?(assigns)}
             >
-              <.brand_github />
-              <:icon_left>
+              <.button
+                :if={@github_configured?}
+                href={~p"/users/auth/github"}
+                variant="secondary"
+                size="medium"
+                label="GitHub"
+                icon_only={all_social_providers_configured?(assigns)}
+              >
                 <.brand_github />
-              </:icon_left>
-            </.button>
-            <.button
-              :if={@google_configured?}
-              href={~p"/users/auth/google"}
-              variant="secondary"
-              size="medium"
-              label="Google"
-              icon_only={all_oauth_providers_configured?(assigns)}
-            >
-              <.brand_google />
-              <:icon_left>
+                <:icon_left>
+                  <.brand_github />
+                </:icon_left>
+              </.button>
+              <.button
+                :if={@google_configured?}
+                href={~p"/users/auth/google"}
+                variant="secondary"
+                size="medium"
+                label="Google"
+                icon_only={all_social_providers_configured?(assigns)}
+              >
                 <.brand_google />
-              </:icon_left>
-            </.button>
-            <.button
-              :if={@apple_configured?}
-              href={~p"/users/auth/apple"}
-              variant="secondary"
-              size="medium"
-              label="Apple"
-              icon_only={all_oauth_providers_configured?(assigns)}
-            >
-              <.brand_apple />
-              <:icon_left>
+                <:icon_left>
+                  <.brand_google />
+                </:icon_left>
+              </.button>
+              <.button
+                :if={@apple_configured?}
+                href={~p"/users/auth/apple"}
+                variant="secondary"
+                size="medium"
+                label="Apple"
+                icon_only={all_social_providers_configured?(assigns)}
+              >
                 <.brand_apple />
-              </:icon_left>
-            </.button>
-            <.button
-              :if={@okta_configured? or @tuist_hosted?}
-              href={if @tuist_hosted?, do: ~p"/users/log_in/sso", else: ~p"/users/log_in/okta"}
-              variant="secondary"
-              size="medium"
-              label="Okta"
-              icon_only={all_oauth_providers_configured?(assigns)}
-            >
-              <.brand_okta />
-              <:icon_left>
-                <.brand_okta />
-              </:icon_left>
-            </.button>
+                <:icon_left>
+                  <.brand_apple />
+                </:icon_left>
+              </.button>
+            </div>
+            <div :if={sso_login_available?(assigns)} data-part="sso">
+              <.button
+                href={~p"/users/log_in/sso"}
+                variant="secondary"
+                size="medium"
+                label={dgettext("dashboard_auth", "Log in with SSO")}
+              >
+                <:icon_left>
+                  <.lock />
+                </:icon_left>
+              </.button>
+            </div>
           </div>
-          <.line_divider :if={oauth_configured?()} text="OR" />
+          <.line_divider :if={oauth_configured?(assigns) and @email_auth_enabled?} text="OR" />
           <.alert
             :if={Flash.get(@flash, :info)}
             id="flash"
@@ -115,6 +123,7 @@ defmodule TuistWeb.UserLoginLive do
             title={Flash.get(@flash, :info)}
           />
           <.form
+            :if={@email_auth_enabled?}
             data-part="form"
             for={@form}
             id="login_form"
@@ -145,6 +154,7 @@ defmodule TuistWeb.UserLoginLive do
               field={@form[:password]}
               label={dgettext("dashboard_auth", "Password")}
               id="password"
+              type="password"
               input_type="password"
               show_prefix={false}
               error={Flash.get(@flash, :error)}
@@ -166,6 +176,16 @@ defmodule TuistWeb.UserLoginLive do
                 label={dgettext("dashboard_auth", "Forgot password?")}
               />
             </div>
+            <div
+              :if={@turnstile_required? and is_binary(@turnstile_site_key)}
+              id="email-login-turnstile"
+              phx-hook="Turnstile"
+              phx-update="ignore"
+              data-action="email_login"
+              data-sitekey={@turnstile_site_key}
+            >
+              <input data-turnstile-response name="cf-turnstile-response" type="hidden" />
+            </div>
             <.button
               variant="primary"
               size="large"
@@ -173,8 +193,27 @@ defmodule TuistWeb.UserLoginLive do
               tabindex={4}
             />
           </.form>
+          <form
+            :if={@test_user_login_enabled?}
+            action={~p"/users/log_in"}
+            method="post"
+            style="display: contents;"
+          >
+            <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+            <input type="hidden" name="user[email]" value="tuistrocks@tuist.dev" />
+            <input type="hidden" name="user[password]" value="tuistrocks" />
+            <button
+              type="submit"
+              class="noora-button"
+              data-variant="secondary"
+              data-size="large"
+              style="width: 100%;"
+            >
+              <span>{dgettext("dashboard_auth", "Log in as test user")}</span>
+            </button>
+          </form>
         </div>
-        <div data-part="bottom-link">
+        <div :if={@email_auth_enabled?} data-part="bottom-link">
           <span>{dgettext("dashboard_auth", "Don't have an account?")}</span>
           <.link_button
             navigate={~p"/users/register"}
@@ -189,18 +228,28 @@ defmodule TuistWeb.UserLoginLive do
         <div data-part="bottom-left-gradient"></div>
         <div data-part="shell"><.shell /></div>
       </div>
+      <.terms_and_privacy />
     </div>
     """
   end
 
-  defp oauth_configured? do
-    Environment.github_oauth_configured?() || Environment.google_oauth_configured?() ||
-      Environment.okta_oauth_configured?() || Environment.apple_oauth_configured?() ||
-      Environment.tuist_hosted?()
+  def handle_event("turnstile_state_changed", _payload, socket) do
+    {:noreply, socket}
   end
 
-  defp all_oauth_providers_configured?(assigns) do
-    assigns.github_configured? and assigns.google_configured? and
-      (assigns.okta_configured? or assigns.tuist_hosted?) and assigns.apple_configured?
+  defp oauth_configured?(assigns) do
+    social_oauth_configured?(assigns) or sso_login_available?(assigns)
+  end
+
+  defp sso_login_available?(assigns) do
+    assigns.okta_configured? or assigns.tuist_hosted? or assigns.sso_configured?
+  end
+
+  defp social_oauth_configured?(assigns) do
+    assigns.github_configured? or assigns.google_configured? or assigns.apple_configured?
+  end
+
+  defp all_social_providers_configured?(assigns) do
+    assigns.github_configured? and assigns.google_configured? and assigns.apple_configured?
   end
 end

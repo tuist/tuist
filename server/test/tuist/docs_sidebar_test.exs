@@ -1,0 +1,155 @@
+defmodule Tuist.Docs.SidebarTest do
+  use ExUnit.Case, async: true
+  use Mimic
+
+  alias Tuist.Docs
+  alias Tuist.Docs.CLI
+  alias Tuist.Docs.Page
+  alias Tuist.Docs.Sidebar
+
+  test "tree returns a non-empty list of groups" do
+    stub(CLI, :sidebar_items, fn -> [] end)
+
+    tree = Sidebar.tree()
+    assert [_ | _] = tree
+  end
+
+  test "puts install and the starting journeys first in the guides sidebar" do
+    [%Sidebar.Group{label: nil, items: [install, chooser]} | rest] = Sidebar.guides_tree()
+
+    assert install.label == "Install Tuist"
+    assert install.slug == "/en/guides/install-tuist"
+    assert install.icon == "download"
+
+    assert chooser.label == "Get started"
+    assert chooser.slug == "/en/guides/get-started"
+    assert chooser.icon == "bulb"
+
+    assert Enum.map(chooser.items, &{&1.label, &1.slug}) == [
+             {"Xcode project", "/en/guides/get-started/existing-xcode-project"},
+             {"Generated Xcode project", "/en/guides/get-started/generated-xcode-project"},
+             {"Gradle project", "/en/guides/get-started/gradle-project"},
+             {"Elixir project", "/en/guides/get-started/elixir-project"},
+             {"Rust project", "/en/guides/get-started/rust-project"},
+             {"Bazel project", "/en/guides/get-started/bazel-project"}
+           ]
+
+    assert Enum.find(chooser.items, &(&1.label == "Rust project")).icon == "brand_rust"
+
+    refute Enum.any?(rest, &(&1.label == "Guides"))
+    refute Enum.any?(rest, &(&1.label == "Tutorials"))
+  end
+
+  test "links every Rust journey with the Rust brand logo" do
+    rust_slugs =
+      for group <- Sidebar.guides_tree(),
+          item <- group.items,
+          child <- item.items,
+          child.icon == "brand_rust",
+          do: child.slug
+
+    assert MapSet.new(rust_slugs) ==
+             MapSet.new([
+               "/en/guides/get-started/rust-project",
+               "/en/guides/features/cache/rust",
+               "/en/guides/features/build-insights/rust",
+               "/en/guides/features/test-insights/rust",
+               "/en/guides/features/test-insights/flaky-tests/rust",
+               "/en/guides/features/test-sharding/rust"
+             ])
+  end
+
+  test "links the library documentation from the references sidebar" do
+    libraries = Enum.find(Sidebar.references_tree(), &(&1.label == "Libraries"))
+
+    assert [%{label: "Elixir", url: "https://hexdocs.pm/tuist_ex", icon: "brand_elixir"}] = libraries.items
+  end
+
+  test "all sidebar slugs correspond to actual docs pages" do
+    stub(CLI, :sidebar_items, fn -> [] end)
+
+    stub(CLI, :get_page, fn
+      "/en/cli/debugging" = slug ->
+        %Page{slug: slug, title: "Debugging", body: "Debugging", source_path: "test://cli/debugging"}
+
+      "/en/cli/directories" = slug ->
+        %Page{slug: slug, title: "Directories", body: "Directories", source_path: "test://cli/directories"}
+
+      "/en/cli/shell-completions" = slug ->
+        %Page{
+          slug: slug,
+          title: "Shell completions",
+          body: "Shell completions",
+          source_path: "test://cli/shell-completions"
+        }
+
+      _slug ->
+        nil
+    end)
+
+    slugs = collect_slugs(Sidebar.tree())
+
+    for slug <- slugs do
+      assert Docs.get_page(slug) != nil, "Sidebar references non-existent page: #{slug}"
+    end
+  end
+
+  test "item_active? returns true for matching slug" do
+    item = %Sidebar.Item{label: "Test", slug: "/en/guides/install-tuist"}
+    assert Sidebar.item_active?(item, "/en/guides/install-tuist")
+    refute Sidebar.item_active?(item, "/en/guides/other")
+  end
+
+  test "item_or_children_active? returns true for child match" do
+    item = %Sidebar.Item{
+      label: "Parent",
+      slug: "/en/parent",
+      items: [
+        %Sidebar.Item{label: "Child", slug: "/en/parent/child"}
+      ]
+    }
+
+    assert Sidebar.item_or_children_active?(item, "/en/parent")
+    assert Sidebar.item_or_children_active?(item, "/en/parent/child")
+    refute Sidebar.item_or_children_active?(item, "/en/other")
+  end
+
+  test "localizes each Insights item by its catalogue path, not by English label" do
+    tree = Sidebar.tree_for_tab(:guides, "es")
+
+    insights_by_group =
+      for %Sidebar.Group{label: group, items: items} <- tree,
+          group in ["Builds", "Tests", "Bundles"],
+          item <- items,
+          item.slug in [
+            "/es/guides/features/build-insights",
+            "/es/guides/features/test-insights",
+            "/es/guides/features/bundle-insights"
+          ],
+          into: %{} do
+        {group, item.label}
+      end
+
+    assert insights_by_group["Builds"] == "Análisis de builds"
+    assert insights_by_group["Tests"] == "Insights"
+    assert insights_by_group["Bundles"] == "Insights"
+  end
+
+  test "returns the top-level category for localized slugs" do
+    assert Sidebar.category_for_slug("/en/guides/install-tuist") == "Guides"
+    assert Sidebar.category_for_slug("/ko/guides/install-tuist") == "Guides"
+    assert Sidebar.category_for_slug("/en/guides/get-started/ask") == "Guides"
+    assert Sidebar.category_for_slug("/en/not-in-the-sidebar") == "Docs"
+  end
+
+  defp collect_slugs(groups) do
+    Enum.flat_map(groups, fn group ->
+      Enum.flat_map(group.items, &collect_item_slugs/1)
+    end)
+  end
+
+  defp collect_item_slugs(%{slug: slug, items: items}) do
+    own = if slug, do: [slug], else: []
+    own ++ Enum.flat_map(items, &collect_item_slugs/1)
+  end
+end

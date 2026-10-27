@@ -34,10 +34,8 @@ public struct Plugins: Equatable {
         templatePaths: [],
         resourceSynthesizers: []
     )
-}
 
-#if DEBUG
-    extension Plugins {
+    #if DEBUG
         public static func test(
             projectDescriptionHelpers: [ProjectDescriptionHelpersPlugin] = [],
             templatePaths: [AbsolutePath] = [],
@@ -49,5 +47,5 @@ public struct Plugins: Equatable {
                 resourceSynthesizers: resourceSynthesizers
             )
         }
-    }
-#endif
+    #endif
+}

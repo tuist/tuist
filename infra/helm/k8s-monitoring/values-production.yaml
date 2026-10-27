@@ -1,0 +1,65 @@
+# Overlay for the production workload cluster.
+# Install with:
+#   helm dependency update infra/helm/k8s-monitoring
+#   helm upgrade --install k8s-monitoring infra/helm/k8s-monitoring \
+#     -n observability --create-namespace \
+#     -f infra/helm/k8s-monitoring/values-production.yaml
+
+k8s-monitoring:
+  cluster:
+    name: tuist-production
+
+  destinations:
+    grafana-cloud-metrics:
+      extraLabels:
+        env: production
+    grafana-cloud-logs:
+      extraLabels:
+        env: production
+    # OTLP destinations don't take extraLabels; traces are identified by
+    # `cluster = tuist-production` (auto-set from k8s-monitoring.cluster.name)
+    # plus the `deployment.environment` resource attribute below.
+    grafana-cloud-traces:
+      processors:
+        attributes:
+          actions:
+            - action: insert
+              key: deployment.environment
+              value: production
+        tailSampling:
+          collector:
+            controller:
+              replicas: 2
+
+  # Put the OTLP receiver on the tailnet.
+  #
+  # The xcresult-processor runs inside macOS Tart VMs whose only network
+  # interface is Tailscale (see the comment on postgresql.cnpg.pooler.tailscale
+  # in the tuist chart). Those VMs are not on the cluster network and
+  # tart-kubelet injects no cluster DNS, so the in-cluster receiver address
+  # every workload inherits,
+  # `k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317`,
+  # cannot resolve there. Spans were being created and dropped inside the VM:
+  # Tempo has never held a single span with `os.type = darwin`.
+  #
+  # This is the same fix already used for Postgres, where a Tailscale
+  # operator-managed proxy fronts the CNPG pooler so the same VMs can reach it.
+  # The operator watches Services for `expose=true` and provisions a userspace
+  # proxy node on the tailnet in front of the Service's ClusterIP, so no
+  # cluster CIDR has to be routed through the subnet router.
+  #
+  # Linux workloads keep using the in-cluster address; only the Tart VMs are
+  # pointed at this hostname (see xcresultProcessor.extraEnv in the tuist
+  # chart's production values).
+  collectors:
+    alloy-receiver:
+      service:
+        annotations:
+          tailscale.com/expose: "true"
+          tailscale.com/hostname: tuist-alloy-receiver-production
+          tailscale.com/tags: tag:tuist-k8s-production
+
+    # BER1's Linux nodes. Their pods' logs and node-local Kura metrics reach
+    # the receiver above over the tailnet; see alloy-rack in values.yaml.
+    alloy-rack:
+      enabled: true

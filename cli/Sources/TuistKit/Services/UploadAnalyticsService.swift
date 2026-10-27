@@ -10,7 +10,12 @@ import TuistSupport
 @Mockable
 public protocol UploadAnalyticsServicing {
     @discardableResult
-    func upload(commandEvent: CommandEvent, fullHandle: String, serverURL: URL) async throws -> ServerCommandEvent
+    func upload(
+        commandEvent: CommandEvent,
+        fullHandle: String,
+        serverURL: URL,
+        sessionDirectory: AbsolutePath?
+    ) async throws -> ServerCommandEvent
 }
 
 public struct UploadAnalyticsService: UploadAnalyticsServicing {
@@ -38,12 +43,10 @@ public struct UploadAnalyticsService: UploadAnalyticsServicing {
     public func upload(
         commandEvent: CommandEvent,
         fullHandle: String,
-        serverURL: URL
+        serverURL: URL,
+        sessionDirectory: AbsolutePath? = nil
     ) async throws -> ServerCommandEvent {
         let runsDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .runs)
-        let runDirectory = runsDirectory.appending(component: commandEvent.runId)
-        let resultBundlePath = commandEvent.resultBundlePath
-            ?? runDirectory.appending(component: "\(Constants.resultBundleName).xcresult")
 
         let serverCommandEvent = try await createCommandEventService.createCommandEvent(
             commandEvent: commandEvent,
@@ -53,9 +56,31 @@ public struct UploadAnalyticsService: UploadAnalyticsServicing {
 
         let (accountHandle, projectHandle) = try fullHandleService.parse(fullHandle)
 
-        if try await fileSystem.exists(resultBundlePath) {
-            try await analyticsArtifactUploadService.uploadResultBundle(
-                resultBundlePath,
+        if let resultBundlePath = commandEvent.resultBundlePath,
+           try await fileSystem.exists(resultBundlePath)
+        {
+            // The run is over either way, and nothing retries a failed upload, so a bundle kept
+            // after one is a bundle kept forever. On a runner's cache volume that leak is what
+            // filled the volume; removing the bundle here loses an artifact that was already lost.
+            var uploadError: Error?
+            do {
+                try await analyticsArtifactUploadService.uploadAndAnalyzeResultBundle(
+                    resultBundlePath,
+                    accountHandle: accountHandle,
+                    projectHandle: projectHandle,
+                    commandEventId: serverCommandEvent.id,
+                    serverURL: serverURL
+                )
+            } catch {
+                uploadError = error
+            }
+            await removeOwnedRun(at: resultBundlePath, in: runsDirectory)
+            if let uploadError { throw uploadError }
+        }
+
+        if let sessionDirectory, try await fileSystem.exists(sessionDirectory) {
+            try await analyticsArtifactUploadService.uploadSession(
+                sessionDirectory,
                 accountHandle: accountHandle,
                 projectHandle: projectHandle,
                 commandEventId: serverCommandEvent.id,
@@ -63,12 +88,29 @@ public struct UploadAnalyticsService: UploadAnalyticsServicing {
             )
         }
 
-        if resultBundlePath.parentDirectory.commonAncestor(with: runsDirectory) == runsDirectory,
-           try await fileSystem.exists(resultBundlePath)
-        {
-            try await fileSystem.remove(resultBundlePath)
-        }
-
         return serverCommandEvent
+    }
+
+    /// Removes the run directory a result bundle belongs to, when it is one Tuist created under the
+    /// runs cache. A caller-provided `--result-bundle-path` is theirs and is left alone.
+    ///
+    /// The whole run entry goes, not just the bundle inside it: the run directory is what the
+    /// support-cache retention accounts for, and one left behind empty is one it keeps measuring.
+    ///
+    /// Ownership is read from the exact shapes Tuist writes — `<runs>/<run id>` and
+    /// `<runs>/<run id>/<bundle>`, the id being a UUID — rather than from "somewhere below the runs
+    /// cache". Walking up to whatever child of the runs directory an arbitrary path descends from
+    /// would delete a caller's own tree when they point `--result-bundle-path` inside it.
+    private func removeOwnedRun(at resultBundlePath: AbsolutePath, in runsDirectory: AbsolutePath) async {
+        let run: AbsolutePath
+        if resultBundlePath.parentDirectory == runsDirectory {
+            run = resultBundlePath
+        } else if resultBundlePath.parentDirectory.parentDirectory == runsDirectory {
+            run = resultBundlePath.parentDirectory
+        } else {
+            return
+        }
+        guard UUID(uuidString: run.basename) != nil else { return }
+        try? await fileSystem.remove(run)
     }
 }

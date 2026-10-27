@@ -1,24 +1,208 @@
 defmodule TuistWeb.Webhooks.GitHubController do
   use TuistWeb, :controller
 
-  alias Tuist.AppBuilds
+  alias Tuist.Bundles
   alias Tuist.Environment
   alias Tuist.Projects
-  alias Tuist.QA
-  alias Tuist.Repo
+  alias Tuist.Projects.Project
+  alias Tuist.Runners.Workers.DispatchWorker
   alias Tuist.VCS
 
   require Logger
+
+  @doc """
+  Resolves the HMAC signing secret for an inbound GitHub webhook and,
+  when a per-installation row owns the request, stashes it on
+  `conn.assigns[:github_installation]` so post-HMAC handlers don't
+  redo a potentially-ambiguous lookup.
+
+  Two ways an installation gets a webhook secret:
+
+    * **Per-installation** — manifest-flow registrations (GHES) persist
+      `webhook_secret` directly on the `GitHubAppInstallation` row,
+      Cloak-encrypted. Each customer's GHES App has its own secret.
+
+    * **Global env var** — github.com installations leave
+      `webhook_secret` `nil` and rely on
+      `TUIST_GITHUB_APP_WEBHOOK_SECRET`, which is the secret of the
+      single Tuist App registered on github.com.
+
+  Strategy: gather every row that could plausibly own the request
+  (matching `installation.id` from the body and/or the App ID from
+  `installation.app_id` / `X-GitHub-Hook-Installation-Target-ID`) and
+  iterate them, computing the HMAC of the raw body against each row's
+  `webhook_secret`. The row whose signature matches GitHub's is the
+  one that owns the request — `webhook_secret` is the natural
+  disambiguator because it's a per-row cryptographic capability, so
+  even when the schema permits two rows to share an
+  `(installation_id, app_id)` pair across different `client_url`s
+  (the composite unique index is per host), the right row is the
+  unique one whose secret verifies.
+
+  github.com webhooks have no matching per-installation row (their
+  `webhook_secret` is nil), so they fall through to the env var; HMAC
+  verification then runs against that.
+  """
+  def resolve_webhook_secret(conn) do
+    body = conn.body_params
+    installation_id = body_get(body, ["installation", "id"])
+    app_id = app_id_from_request(conn, body)
+
+    case find_matching_installation(conn, installation_id, app_id) do
+      {:ok, installation} ->
+        {:ok, installation.webhook_secret, assign(conn, :github_installation, installation)}
+
+      :error ->
+        # No per-installation row matches. Fall back to the env var so
+        # github.com webhooks (and any unsigned-by-us deliveries) still
+        # get HMAC-checked.
+        Environment.github_app_webhook_secret()
+    end
+  end
+
+  defp find_matching_installation(_conn, nil, nil), do: :error
+
+  defp find_matching_installation(conn, installation_id, app_id) do
+    raw_body = conn.assigns[:raw_body] |> List.wrap() |> IO.iodata_to_binary()
+    signature = conn |> get_req_header("x-hub-signature-256") |> List.first()
+
+    candidates =
+      VCS.list_github_app_installations_for_webhook(
+        installation_id && to_string(installation_id),
+        app_id && to_string(app_id)
+      )
+
+    Enum.find_value(candidates, :error, fn installation ->
+      if is_binary(installation.webhook_secret) and
+           webhook_signature_matches?(raw_body, installation.webhook_secret, signature) do
+        {:ok, installation}
+      end
+    end)
+  end
+
+  defp webhook_signature_matches?(_raw_body, _secret, nil), do: false
+
+  defp webhook_signature_matches?(raw_body, secret, signature) do
+    expected =
+      "sha256=" <>
+        (:hmac
+         |> :crypto.mac(:sha256, secret, raw_body)
+         |> Base.encode16(case: :lower))
+
+    Plug.Crypto.secure_compare(signature, expected)
+  end
+
+  # Looks up the installation by `installation_id`, disambiguating with
+  # the App ID from the body or the `X-GitHub-Hook-Installation-Target-ID`
+  # header. The composite unique index on
+  # `(client_url, installation_id)` means two GitHub instances can have
+  # rows sharing an `installation_id`, so a disambiguator is required.
+  #
+  # Three branches, depending on what we know about the App ID:
+  #
+  #   * Request App ID matches `Environment.github_app_id()` → it's a
+  #     github.com webhook. github.com rows leave `app_id` NULL (the
+  #     runtime falls back to `TUIST_GITHUB_APP_*` env vars), so an
+  #     `app_id = ?` filter would miss them. Pin by
+  #     `client_url='https://github.com'`.
+  #
+  #   * `Environment.github_app_id()` is `nil` (self-hosted instance
+  #     without a configured github.com App ID) → we can't tell the
+  #     two cases apart from the header alone. Try the github.com row
+  #     first, fall back to an `app_id` lookup. github.com is the more
+  #     common deployment, so the first try usually wins.
+  #
+  #   * Otherwise → it's a GHES App registered via the manifest flow.
+  #     Pin by `app_id`. (Cross-instance `app_id` collisions on the
+  #     same `installation_id` are theoretically possible but require
+  #     two unrelated GHES instances to assign overlapping numeric IDs
+  #     to the Apps registered for this Tuist deployment; the schema
+  #     allows it but the chance is very low. If it ever happens, the
+  #     HMAC step at `resolve_webhook_secret/1` is the next-line
+  #     disambiguator — only one row's `webhook_secret` will verify.)
+  defp lookup_installation_by_id(conn, body, installation_id) do
+    case conn.assigns[:github_installation] do
+      nil ->
+        lookup_installation_by_id_uncached(conn, body, installation_id)
+
+      installation ->
+        # `resolve_webhook_secret/1` already picked the row by HMAC
+        # verification — trust that result rather than redoing a
+        # potentially-ambiguous DB lookup here. We deliberately do NOT
+        # gate this on `installation.installation_id == installation_id`
+        # because the manifest-flow bootstrap race (the `installation.created`
+        # webhook arriving before the redirect-driven setup callback)
+        # leaves the row's `installation_id` nil while the body carries
+        # the freshly-assigned one. Falling through to a DB lookup keyed
+        # on the body's id would miss the pending row entirely.
+        {:ok, installation}
+    end
+  end
+
+  defp lookup_installation_by_id_uncached(conn, body, installation_id) do
+    case app_id_from_request(conn, body) do
+      nil ->
+        VCS.get_github_app_installation_by_installation_id(installation_id)
+
+      app_id ->
+        app_id_string = to_string(app_id)
+        env_app_id = Environment.github_app_id()
+
+        cond do
+          env_app_id == app_id_string ->
+            VCS.get_github_app_installation_by_installation_id(
+              installation_id,
+              client_url: VCS.default_client_url()
+            )
+
+          is_nil(env_app_id) ->
+            github_com_or_app_id_lookup(installation_id, app_id_string)
+
+          true ->
+            VCS.get_github_app_installation_by_installation_id(
+              installation_id,
+              app_id: app_id_string
+            )
+        end
+    end
+  end
+
+  defp github_com_or_app_id_lookup(installation_id, app_id) do
+    case VCS.get_github_app_installation_by_installation_id(
+           installation_id,
+           client_url: VCS.default_client_url()
+         ) do
+      {:ok, _} = ok ->
+        ok
+
+      {:error, :not_found} ->
+        VCS.get_github_app_installation_by_installation_id(installation_id, app_id: app_id)
+    end
+  end
+
+  defp app_id_from_request(conn, body) do
+    body_get(body, ["installation", "app_id"]) ||
+      conn |> get_req_header("x-github-hook-installation-target-id") |> List.first()
+  end
+
+  defp body_get(body, [a, b]) do
+    get_in(body, [a, b]) || get_in(body, [String.to_existing_atom(a), String.to_existing_atom(b)])
+  rescue
+    ArgumentError -> nil
+  end
 
   def handle(conn, params) do
     event_type = conn |> get_req_header("x-github-event") |> List.first()
 
     case event_type do
-      "issue_comment" ->
-        handle_issue_comment(conn, params)
-
       "installation" ->
         handle_installation(conn, params)
+
+      "check_run" ->
+        handle_check_run(conn, params)
+
+      "workflow_job" ->
+        handle_workflow_job(conn, params)
 
       _ ->
         conn
@@ -27,77 +211,120 @@ defmodule TuistWeb.Webhooks.GitHubController do
     end
   end
 
-  defp handle_issue_comment(
-         conn,
-         %{
-           "action" => "created",
-           "comment" => %{"body" => comment_body},
-           "repository" => repository,
-           "issue" => %{"number" => issue_number, "pull_request" => _pull_request}
-         } = _params
-       ) do
-    qa_result = tuist_qa_prompt(comment_body)
+  # Hand off to the `:webhooks` Oban queue and acknowledge to
+  # GitHub immediately. The synchronous variant of this handler
+  # (account lookup + K8s LIST + ClickHouse INSERT inside the
+  # request) caused the 2026-05-19 incident: every webhook held
+  # a Phoenix worker for the full 10 s GitHub timeout while
+  # downstream stalled, so the HTTP body-read pool saturated and
+  # the ingress started 5xx-ing.
+  #
+  # Failure modes after this change:
+  #
+  #   * Payload missing `installation.id` → 200 OK, no enqueue.
+  #     GitHub won't redeliver and there's nothing to dispatch
+  #     against — same shape as the previous `:ignored` branch.
+  #   * `Oban.insert/1` returns `{:error, _}` → 503 so GitHub
+  #     retries. Only triggers if PG is unreachable, which
+  #     would have us 503-ing anyway.
+  #   * Worker errors → Oban retries with backoff up to
+  #     `max_attempts`. The HTTP layer is done.
+  # Actions that the dispatch pipeline persists or claims against.
+  # `waiting` is GitHub's self-hosted-runner state for jobs waiting
+  # on capacity, so it must reach the worker even though the UI labels
+  # the same job as queued. `in_progress` is the first event carrying
+  # the `runner_name` GitHub actually placed the job on — the only
+  # real-time proof of the runner↔job binding, which the worker binds
+  # onto the runner's claim and session so metrics attribute to the
+  # job that ran. Any remaining action falls through to the catch-all
+  # `:ignored` branch in the worker; short-circuiting those here
+  # removes the Oban.insert (and its Postgres write) for events the
+  # worker would discard anyway.
+  @dispatchable_workflow_job_actions ~w(queued waiting completed)
 
-    if qa_result do
-      repository_full_name = repository["full_name"]
-      git_ref = "refs/pull/#{issue_number}/merge"
+  # `in_progress` is the only action we admit conditionally. It carries the
+  # `runner_name` GitHub actually placed the job on — the sole real-time
+  # proof of the runner↔job binding — but it also fires for every job of
+  # every installation, including VCS-only customers whose jobs run on
+  # GitHub-hosted runners and can never match one of our claims. Admitting
+  # it unconditionally would restore exactly the per-event Oban insert this
+  # short-circuit exists to avoid, for traffic that always ends in
+  # `:unknown_runner`. `workflow_job.labels` is in the payload here, so a
+  # job that cannot possibly target a Tuist pool is dropped at the door and
+  # the binding is kept only for jobs that can actually match.
+  @tuist_runner_label_prefix "tuist-"
 
-      case get_project_for_qa(qa_result, repository_full_name) do
-        {:ok, project} ->
-          {_, prompt} = qa_result
-          test_qa_prompt(project, prompt, git_ref, repository_full_name)
+  defp dispatchable_workflow_job?("in_progress", %{"workflow_job" => %{} = workflow_job}) do
+    workflow_job
+    |> Map.get("labels")
+    |> List.wrap()
+    |> Enum.any?(fn label ->
+      is_binary(label) and String.starts_with?(String.downcase(label), @tuist_runner_label_prefix)
+    end)
+  end
 
-        {:error, :not_found} ->
-          case qa_result do
-            {project_name, _} when not is_nil(project_name) ->
-              VCS.create_comment(%{
-                repository_full_handle: repository_full_name,
-                git_ref: git_ref,
-                body: "Project '#{project_name}' is not connected to this repository.",
-                project: nil
-              })
+  defp dispatchable_workflow_job?(action, %{"workflow_job" => %{}}), do: action in @dispatchable_workflow_job_actions
 
-            _ ->
-              :ok
-          end
+  # GitHub occasionally delivers `workflow_job` events whose `workflow_job` is null.
+  defp dispatchable_workflow_job?(_action, _params), do: false
 
-        {:error, {:multiple_projects, projects}} ->
-          project_handles = Enum.map_join(projects, ", ", & &1.name)
-
-          VCS.create_comment(%{
-            repository_full_handle: repository_full_name,
-            git_ref: git_ref,
-            body:
-              "Multiple Tuist projects are connected to this repository. Please specify the project handle: `/tuist <project-handle> qa <your-prompt>`\n\nAvailable projects: #{project_handles}",
-            project: List.first(projects)
-          })
+  defp handle_workflow_job(conn, params) do
+    installation_id =
+      case params do
+        %{"installation" => %{"id" => id}} when is_integer(id) -> id
+        _ -> nil
       end
+
+    delivery_guid = conn |> get_req_header("x-github-delivery") |> List.first()
+    action = Map.get(params, "action")
+
+    cond do
+      is_nil(installation_id) ->
+        conn |> put_status(:ok) |> json(%{status: "ok"})
+
+      not dispatchable_workflow_job?(action, params) ->
+        conn |> put_status(:ok) |> json(%{status: "ok"})
+
+      true ->
+        enqueue_dispatch(conn, params, installation_id, delivery_guid)
     end
+  end
+
+  defp enqueue_dispatch(conn, params, installation_id, delivery_guid) do
+    args = %{
+      "payload" => params,
+      "installation_id" => installation_id,
+      "delivery_guid" => delivery_guid
+    }
+
+    case args |> DispatchWorker.new() |> Oban.insert() do
+      {:ok, _job} ->
+        conn |> put_status(:ok) |> json(%{status: "ok"})
+
+      {:error, reason} ->
+        Logger.warning("runners: failed to enqueue dispatch worker; returning 503",
+          reason: inspect(reason)
+        )
+
+        conn
+        |> put_status(:service_unavailable)
+        |> json(%{status: "error", reason: "transient"})
+    end
+  end
+
+  defp handle_installation(conn, %{"action" => "deleted", "installation" => %{"id" => installation_id}} = params) do
+    {:ok, _} = delete_github_app_installation(conn, params, installation_id)
 
     conn
     |> put_status(:ok)
     |> json(%{status: "ok"})
   end
 
-  defp handle_issue_comment(conn, _params) do
-    conn
-    |> put_status(:ok)
-    |> json(%{status: "ok"})
-  end
-
-  defp handle_installation(conn, %{"action" => "deleted", "installation" => %{"id" => installation_id}}) do
-    {:ok, _} = delete_github_app_installation(installation_id)
-
-    conn
-    |> put_status(:ok)
-    |> json(%{status: "ok"})
-  end
-
-  defp handle_installation(conn, %{
-         "action" => "created",
-         "installation" => %{"id" => installation_id, "html_url" => html_url}
-       }) do
-    case update_github_app_installation_html_url_with_retry(installation_id, html_url) do
+  defp handle_installation(
+         conn,
+         %{"action" => "created", "installation" => %{"id" => installation_id, "html_url" => html_url}} = params
+       ) do
+    case update_github_app_installation_html_url_with_retry(conn, params, installation_id, html_url) do
       {:ok, _} ->
         conn
         |> put_status(:ok)
@@ -126,129 +353,193 @@ defmodule TuistWeb.Webhooks.GitHubController do
     |> json(%{status: "ok"})
   end
 
-  defp get_project_for_qa(qa_result, repository_full_name) do
-    case qa_result do
-      {project_name, _prompt} when not is_nil(project_name) ->
-        Projects.project_by_name_and_vcs_repository_full_handle(
-          project_name,
-          repository_full_name,
-          preload: :account
-        )
+  defp handle_check_run(
+         conn,
+         %{
+           "action" => "requested_action",
+           "check_run" => %{"id" => check_run_id, "name" => "tuist/bundle-size"} = check_run,
+           "requested_action" => %{"identifier" => "accept_bundle_size"},
+           "installation" => %{"id" => installation_id},
+           "repository" => %{"full_name" => repository_full_name}
+         } = params
+       ) do
+    installation_id = to_string(installation_id)
+    sender = sender_from_params(params)
 
-      {nil, _prompt} ->
-        projects =
-          Projects.projects_by_vcs_repository_full_handle(repository_full_name, preload: :account)
+    with {:ok, installation} <- lookup_installation_by_id(conn, params, installation_id) do
+      check_run_params = %{
+        repository_full_handle: repository_full_name,
+        check_run_id: check_run_id,
+        installation: installation
+      }
 
-        case projects do
-          [] -> {:error, :not_found}
-          [project] -> {:ok, project}
-          multiple -> {:error, {:multiple_projects, multiple}}
-        end
+      resolve_bundle_size_approval(check_run, check_run_params, sender, repository_full_name)
     end
+
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
   end
 
-  defp test_qa_prompt(project, prompt, git_ref, repository_full_handle) do
-    if FunWithFlags.enabled?(:qa, for: project.account) do
-      start_or_enqueue_qa_run(project, prompt, git_ref)
-    else
-      VCS.create_comment(%{
-        repository_full_handle: repository_full_handle,
-        git_ref: git_ref,
-        body:
-          "Tuist QA is currently not generally available. Contact us at contact@tuist.dev if you'd like an early preview of the feature.",
-        project: project
-      })
-    end
+  defp handle_check_run(conn, _params) do
+    conn
+    |> put_status(:ok)
+    |> json(%{status: "ok"})
   end
 
-  defp start_or_enqueue_qa_run(project, prompt, git_ref) do
-    project = Repo.preload(project, :vcs_connection)
+  defp sender_from_params(%{"sender" => %{"id" => id, "login" => login}}), do: %{id: to_string(id), handle: login}
+  defp sender_from_params(_params), do: %{id: nil, handle: nil}
 
-    simulator_app_build =
-      AppBuilds.latest_app_build(git_ref, project, supported_platform: :ios_simulator)
+  # GitHub replaces a check run's `output` wholesale on update rather than
+  # merging, so anything we send has to carry the size report with it or the
+  # report is gone. The refusal is separated from it by a rule we own, which
+  # also lets a repeated press replace the previous refusal instead of
+  # stacking them.
+  @refusal_separator "\n\n---\n\n"
 
-    {:ok, qa_run} =
-      QA.create_qa_run(%{
-        app_build_id: simulator_app_build && simulator_app_build.id,
-        prompt: prompt,
-        status: "pending",
-        git_ref: git_ref,
-        issue_comment_id: nil
-      })
-
-    {:ok, %{"id" => comment_id}} =
-      post_initial_comment(
-        simulator_app_build,
-        project.vcs_connection && project.vcs_connection.repository_full_handle,
-        git_ref,
-        project,
-        qa_run
-      )
-
-    {:ok, updated_qa_run} = QA.update_qa_run(qa_run, %{issue_comment_id: comment_id})
-
-    if simulator_app_build do
-      QA.enqueue_test_worker(updated_qa_run)
-    end
-  end
-
-  defp post_initial_comment(simulator_app_build, repository_full_handle, git_ref, project, qa_run) do
-    qa_run_url =
-      "#{Environment.app_url()}/#{project.account.name}/#{project.name}/qa/#{qa_run.id}"
-
-    body =
-      if simulator_app_build do
-        simulator_app_build = Repo.preload(simulator_app_build, :preview)
-        preview = simulator_app_build.preview
-
-        preview_url =
-          "#{Environment.app_url()}/#{project.account.name}/#{project.name}/previews/#{preview.id}"
-
-        "Running QA for [#{preview.display_name}](#{preview_url}). [See the live QA session](#{qa_run_url})."
-      else
-        "No preview found for your PR. Tuist QA will be triggered as soon as a Tuist Preview is available. Make sure to include `tuist share` as part of your CI pipeline. For more details on how to set up Previews, head over to our [documentation](https://docs.tuist.dev/en/guides/features/previews)."
-      end
-
-    VCS.create_comment(%{
-      repository_full_handle: repository_full_handle,
-      git_ref: git_ref,
-      body: body,
-      project: project
-    })
-  end
-
-  defp tuist_qa_prompt(body) do
-    base_command =
-      cond do
-        Environment.stag?() -> "/tuist-staging"
-        Environment.dev?() -> "/tuist-development"
-        Environment.can?() -> "/tuist-canary"
-        true -> "/tuist"
-      end
-
-    # Pattern 1: /tuist <project-name> qa <prompt> (with project name)
-    pattern_with_project = ~r/^\s*#{Regex.escape(base_command)}\s+(\S+)\s+qa\s+(.*)$/im
-
-    # Pattern 2: /tuist qa <prompt> (no project name, valid in case only a single Tuist project is connected to the GitHub repository)
-    pattern_without_project = ~r/^\s*#{Regex.escape(base_command)}\s+qa\s+(.*)$/im
-
-    case Regex.run(pattern_with_project, body) do
-      [_, project_name, prompt] ->
-        {String.trim(project_name), String.trim(prompt)}
+  # A check run with no `external_id` predates the stamping and carries no
+  # bundle reference, so the project it belongs to is unknowable. Rather than
+  # accept those unconditionally, which would leave every pull request open at
+  # deploy time permanently unguarded, ask whether any project backed by this
+  # repository restricts approvals at all. Where none does, the answer would
+  # have been "accept" anyway; where one does, somebody asked for a gate and
+  # an unverifiable press should not pass it.
+  #
+  # A check run that does carry an id is a different case. Failing to resolve
+  # it means the bundle read came back empty, not that the project has no
+  # policy. `bundles` lives in ClickHouse, where a read is not guaranteed to
+  # see a recent write, and a bundle can also age out of retention, so this is
+  # reachable without anyone doing anything wrong. It leaves the check failing
+  # and invites another press.
+  defp resolve_bundle_size_approval(check_run, check_run_params, sender, repository_full_name) do
+    case check_run["external_id"] do
+      bundle_id when is_binary(bundle_id) and bundle_id != "" ->
+        authorize_stamped_check_run(bundle_id, check_run, check_run_params, sender)
 
       _ ->
-        case Regex.run(pattern_without_project, body) do
-          [_, prompt] ->
-            {nil, String.trim(prompt)}
-
-          _ ->
-            nil
-        end
+        authorize_unstamped_check_run(check_run, check_run_params, sender, repository_full_name)
     end
   end
 
-  defp delete_github_app_installation(installation_id) do
-    case VCS.get_github_app_installation_by_installation_id(installation_id) do
+  defp authorize_stamped_check_run(bundle_id, check_run, check_run_params, sender) do
+    case project_for_bundle(bundle_id) do
+      {:ok, project} ->
+        case Bundles.authorize_bundle_size_approval(project, sender) do
+          :ok ->
+            Bundles.record_bundle_size_approval(%{bundle_id: bundle_id, project_id: project.id, sender: sender})
+            accept_bundle_size(check_run_params, sender)
+
+          {:error, reason} ->
+            reject_bundle_size(check_run_params, check_run, sender, reason)
+        end
+
+      {:error, :not_found} ->
+        reject_bundle_size(check_run_params, check_run, sender, :bundle_not_found)
+    end
+  end
+
+  defp authorize_unstamped_check_run(check_run, check_run_params, sender, repository_full_name) do
+    if repository_restricts_bundle_size_approvals?(repository_full_name) do
+      reject_bundle_size(check_run_params, check_run, sender, :check_run_predates_policy)
+    else
+      accept_bundle_size(check_run_params, sender)
+    end
+  end
+
+  defp repository_restricts_bundle_size_approvals?(repository_full_name) do
+    repository_full_name
+    |> Projects.projects_by_vcs_repository_full_handle(preload: [])
+    |> Enum.any?(&(&1.bundle_size_approval_policy != :everyone))
+  end
+
+  defp project_for_bundle(bundle_id) do
+    with project_id when is_integer(project_id) <- Bundles.get_bundle_project_id(bundle_id),
+         %Project{} = project <- Projects.get_project_by_id(project_id) do
+      {:ok, project}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  defp accept_bundle_size(check_run_params, sender) do
+    VCS.update_check_run(
+      Map.merge(check_run_params, %{
+        conclusion: "success",
+        output: %{
+          title: "Bundle size increase accepted",
+          summary: accepted_summary(sender)
+        }
+      })
+    )
+  end
+
+  # Leaves the check run failing and re-sends the action so whoever is
+  # allowed to accept still has a button to press, with the size report still
+  # under it so they can see what they would be accepting.
+  defp reject_bundle_size(check_run_params, check_run, sender, reason) do
+    VCS.update_check_run(
+      Map.merge(check_run_params, %{
+        conclusion: "action_required",
+        output: %{
+          title: existing_output(check_run, "title") || "Bundle size increase not accepted",
+          summary: summary_with_refusal(existing_output(check_run, "summary"), rejected_summary(sender, reason))
+        },
+        actions: [
+          %{
+            label: "Accept",
+            description: "Accept the bundle size increase",
+            identifier: "accept_bundle_size"
+          }
+        ]
+      })
+    )
+  end
+
+  defp existing_output(%{"output" => output}, key) when is_map(output) do
+    case output[key] do
+      value when is_binary(value) and value != "" -> value
+      _ -> nil
+    end
+  end
+
+  defp existing_output(_check_run, _key), do: nil
+
+  defp summary_with_refusal(nil, refusal), do: refusal
+
+  defp summary_with_refusal(existing, refusal) do
+    case existing |> String.split(@refusal_separator) |> List.first() |> String.trim() do
+      "" -> refusal
+      report -> report <> @refusal_separator <> refusal
+    end
+  end
+
+  defp accepted_summary(%{handle: nil}), do: "The bundle size increase was manually accepted."
+  defp accepted_summary(%{handle: handle}), do: "The bundle size increase was accepted by @#{handle}."
+
+  defp rejected_summary(_sender, :bundle_not_found) do
+    "This check run could not be matched to its bundle, so who may accept could not be checked. Press Accept again in a moment."
+  end
+
+  defp rejected_summary(_sender, :check_run_predates_policy) do
+    "This check run was created before approvals were restricted for this repository, so who may accept cannot be checked. Push a new commit to get a check run that can be."
+  end
+
+  defp rejected_summary(sender, :not_an_approver) do
+    "#{who(sender)} is not allowed to accept bundle size increases for this project. A project admin can change who is, under Settings > Bundles in Tuist."
+  end
+
+  # Any denial reason without its own wording still has to produce a check run
+  # update: falling through to a FunctionClauseError here would 500 the
+  # webhook and leave the check run without the button it needs.
+  defp rejected_summary(sender, _reason) do
+    "#{who(sender)} is not allowed to accept bundle size increases for this project."
+  end
+
+  defp who(%{handle: nil}), do: "This GitHub account"
+  defp who(%{handle: handle}), do: "@#{handle}"
+
+  defp delete_github_app_installation(conn, body, installation_id) do
+    case lookup_installation_by_id(conn, body, installation_id) do
       {:ok, github_app_installation} ->
         VCS.delete_github_app_installation(github_app_installation)
 
@@ -257,21 +548,35 @@ defmodule TuistWeb.Webhooks.GitHubController do
     end
   end
 
-  defp update_github_app_installation_html_url(installation_id, html_url) do
-    case VCS.get_github_app_installation_by_installation_id(installation_id) do
+  defp update_github_app_installation_html_url(conn, body, installation_id, html_url) do
+    case lookup_installation_by_id(conn, body, installation_id) do
       {:ok, github_app_installation} ->
-        VCS.update_github_app_installation(github_app_installation, %{html_url: html_url})
+        # Manifest-flow bootstrap race: when this webhook arrives before
+        # the redirect-driven setup callback has filled the row's
+        # `installation_id`, fill it from the body alongside the
+        # html_url. Without this, the pending row stays orphaned with
+        # `installation_id: nil` because the setup callback's
+        # update path never runs (the user's browser already redirected
+        # past it).
+        attrs =
+          if is_nil(github_app_installation.installation_id) do
+            %{html_url: html_url, installation_id: installation_id}
+          else
+            %{html_url: html_url}
+          end
+
+        VCS.update_github_app_installation(github_app_installation, attrs)
 
       {:error, :not_found} ->
         {:error, :not_found}
     end
   end
 
-  defp update_github_app_installation_html_url_with_retry(installation_id, html_url, attempt \\ 1) do
+  defp update_github_app_installation_html_url_with_retry(conn, body, installation_id, html_url, attempt \\ 1) do
     max_attempts = 3
     retry_delay_ms = 1000
 
-    case update_github_app_installation_html_url(installation_id, html_url) do
+    case update_github_app_installation_html_url(conn, body, installation_id, html_url) do
       {:ok, result} ->
         {:ok, result}
 
@@ -281,7 +586,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
         )
 
         Process.sleep(retry_delay_ms)
-        update_github_app_installation_html_url_with_retry(installation_id, html_url, attempt + 1)
+        update_github_app_installation_html_url_with_retry(conn, body, installation_id, html_url, attempt + 1)
 
       {:error, :not_found} ->
         {:error, :not_found_after_retries}

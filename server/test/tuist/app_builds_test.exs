@@ -6,6 +6,20 @@ defmodule Tuist.AppBuildsTest do
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
+  describe "has_previews?/1" do
+    test "checks for previews in the selected project regardless of build system" do
+      for build_system <- [:once, :bazel, :mix, :cargo] do
+        project = ProjectsFixtures.project_fixture(build_system: build_system)
+        refute AppBuilds.has_previews?(project)
+
+        AppBuildsFixtures.preview_fixture(project: project)
+        assert AppBuilds.has_previews?(project)
+      end
+
+      refute AppBuilds.has_previews?(ProjectsFixtures.project_fixture())
+    end
+  end
+
   describe "create_preview/1" do
     test "creates a bundle preview" do
       # Given
@@ -124,6 +138,46 @@ defmodule Tuist.AppBuildsTest do
   end
 
   describe "find_or_create_preview/1" do
+    test "mixed clients share one preview and the first nonblank notes are retained" do
+      project = ProjectsFixtures.project_fixture()
+
+      attrs = %{
+        project_id: project.id,
+        bundle_identifier: "com.example.app",
+        version: "1.0.0",
+        git_commit_sha: "abc123",
+        created_by_account_id: project.account.id,
+        display_name: "Test App",
+        release_notes: "Fix sign-in"
+      }
+
+      assert {:ok, first, :created} = AppBuilds.find_or_create_preview(Map.delete(attrs, :release_notes))
+      assert first.release_notes == nil
+      assert {:ok, annotated, :reused} = AppBuilds.find_or_create_preview(attrs)
+      assert first.id == annotated.id
+      assert annotated.release_notes == "Fix sign-in"
+
+      for legacy_attrs <- [
+            Map.delete(attrs, :release_notes),
+            %{attrs | release_notes: nil},
+            %{attrs | release_notes: ""},
+            %{attrs | release_notes: "  \n"},
+            %{attrs | release_notes: "Fix checkout"}
+          ] do
+        assert {:ok, reused, :reused} = AppBuilds.find_or_create_preview(legacy_attrs)
+        assert reused.id == first.id
+        assert reused.release_notes == "Fix sign-in"
+      end
+
+      assert length(Repo.all(Preview)) == 1
+    end
+
+    test "rejects release notes longer than 10000 characters" do
+      changeset = Preview.create_changeset(%Preview{}, %{project_id: 1, release_notes: String.duplicate("a", 10_001)})
+      refute changeset.valid?
+      assert Keyword.has_key?(changeset.errors, :release_notes)
+    end
+
     test "creates a new preview when none exists" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -142,9 +196,10 @@ defmodule Tuist.AppBuildsTest do
       }
 
       # When
-      {:ok, preview} = AppBuilds.find_or_create_preview(attrs)
+      {:ok, preview, status} = AppBuilds.find_or_create_preview(attrs)
 
       # Then
+      assert status == :created
       assert preview.project_id == project.id
       assert preview.bundle_identifier == "com.example.app"
       assert preview.version == "1.0.0"
@@ -173,9 +228,10 @@ defmodule Tuist.AppBuildsTest do
       {:ok, existing_preview} = AppBuilds.create_preview(attrs)
 
       # When
-      {:ok, found_preview} = AppBuilds.find_or_create_preview(attrs)
+      {:ok, found_preview, status} = AppBuilds.find_or_create_preview(attrs)
 
       # Then
+      assert status == :reused
       assert found_preview.id == existing_preview.id
       # Ensure only one preview exists
       assert length(Repo.all(Preview)) == 1
@@ -198,9 +254,10 @@ defmodule Tuist.AppBuildsTest do
       AppBuilds.create_preview(attrs)
 
       # When
-      {:ok, found_preview} = AppBuilds.find_or_create_preview(attrs)
+      {:ok, found_preview, status} = AppBuilds.find_or_create_preview(attrs)
 
       # Then
+      assert status == :reused
       assert found_preview.bundle_identifier == attrs.bundle_identifier
     end
 
@@ -223,9 +280,10 @@ defmodule Tuist.AppBuildsTest do
       {:ok, _existing_preview} = AppBuilds.create_preview(attrs1)
 
       # When
-      {:ok, new_preview} = AppBuilds.find_or_create_preview(attrs2)
+      {:ok, new_preview, status} = AppBuilds.find_or_create_preview(attrs2)
 
       # Then
+      assert status == :created
       assert new_preview.project_id == project2.id
       # Ensure two previews exist
       assert length(Repo.all(Preview)) == 2
@@ -249,9 +307,10 @@ defmodule Tuist.AppBuildsTest do
       {:ok, _existing_preview} = AppBuilds.create_preview(attrs1)
 
       # When
-      {:ok, new_preview} = AppBuilds.find_or_create_preview(attrs2)
+      {:ok, new_preview, status} = AppBuilds.find_or_create_preview(attrs2)
 
       # Then
+      assert status == :created
       assert new_preview.bundle_identifier == "com.example.app2"
       # Ensure two previews exist
       assert length(Repo.all(Preview)) == 2
@@ -273,9 +332,10 @@ defmodule Tuist.AppBuildsTest do
       {:ok, existing_preview} = AppBuilds.create_preview(attrs)
 
       # When
-      {:ok, found_preview} = AppBuilds.find_or_create_preview(attrs)
+      {:ok, found_preview, status} = AppBuilds.find_or_create_preview(attrs)
 
       # Then
+      assert status == :reused
       assert found_preview.id == existing_preview.id
       # Ensure only one preview exists
       assert length(Repo.all(Preview)) == 1
@@ -296,9 +356,10 @@ defmodule Tuist.AppBuildsTest do
       }
 
       # When
-      {:ok, preview} = AppBuilds.find_or_create_preview(attrs)
+      {:ok, preview, status} = AppBuilds.find_or_create_preview(attrs)
 
       # Then
+      assert status == :created
       assert preview.track == "beta"
     end
 
@@ -319,9 +380,10 @@ defmodule Tuist.AppBuildsTest do
       {:ok, existing_preview} = AppBuilds.create_preview(attrs)
 
       # When
-      {:ok, found_preview} = AppBuilds.find_or_create_preview(attrs)
+      {:ok, found_preview, status} = AppBuilds.find_or_create_preview(attrs)
 
       # Then
+      assert status == :reused
       assert found_preview.id == existing_preview.id
       assert found_preview.track == "beta"
       assert length(Repo.all(Preview)) == 1
@@ -346,9 +408,10 @@ defmodule Tuist.AppBuildsTest do
       {:ok, _existing_preview} = AppBuilds.create_preview(attrs_beta)
 
       # When
-      {:ok, new_preview} = AppBuilds.find_or_create_preview(attrs_nightly)
+      {:ok, new_preview, status} = AppBuilds.find_or_create_preview(attrs_nightly)
 
       # Then
+      assert status == :created
       assert new_preview.track == "nightly"
       assert length(Repo.all(Preview)) == 2
     end
@@ -371,9 +434,10 @@ defmodule Tuist.AppBuildsTest do
       {:ok, preview_no_track} = AppBuilds.create_preview(attrs_no_track)
 
       # When
-      {:ok, preview_with_track} = AppBuilds.find_or_create_preview(attrs_with_track)
+      {:ok, preview_with_track, status} = AppBuilds.find_or_create_preview(attrs_with_track)
 
       # Then
+      assert status == :created
       assert preview_no_track.track == ""
       assert preview_with_track.track == "beta"
       assert preview_no_track.id != preview_with_track.id
@@ -400,9 +464,10 @@ defmodule Tuist.AppBuildsTest do
       {:ok, _preview_with_track} = AppBuilds.create_preview(attrs_with_track)
 
       # When
-      {:ok, found_preview} = AppBuilds.find_or_create_preview(attrs)
+      {:ok, found_preview, status} = AppBuilds.find_or_create_preview(attrs)
 
       # Then
+      assert status == :reused
       assert found_preview.id == existing_preview.id
       assert found_preview.track == ""
     end
@@ -465,9 +530,9 @@ defmodule Tuist.AppBuildsTest do
   end
 
   describe "storage_key/1" do
-    test "returns the storage key for a preview" do
+    test "returns the storage key with .zip extension for non-apk builds" do
       # Given
-      app_build = %{id: "app-build-id"}
+      app_build = %{id: "app-build-id", type: :app_bundle}
       account_handle = "account-handle"
       project_handle = "project-handle"
 
@@ -476,16 +541,34 @@ defmodule Tuist.AppBuildsTest do
         AppBuilds.storage_key(%{
           account_handle: account_handle,
           project_handle: project_handle,
-          app_build_id: app_build.id
+          app_build: app_build
         })
 
       # Then
       assert result == "#{account_handle}/#{project_handle}/previews/#{app_build.id}.zip"
     end
 
-    test "returns the storage key for a preview icon with downcased account and project handles" do
+    test "returns the storage key with .apk extension for apk builds" do
       # Given
-      app_build = %{id: "app-build-id"}
+      app_build = %{id: "app-build-id", type: :apk}
+      account_handle = "account-handle"
+      project_handle = "project-handle"
+
+      # When
+      result =
+        AppBuilds.storage_key(%{
+          account_handle: account_handle,
+          project_handle: project_handle,
+          app_build: app_build
+        })
+
+      # Then
+      assert result == "#{account_handle}/#{project_handle}/previews/#{app_build.id}.apk"
+    end
+
+    test "returns the storage key with downcased account and project handles" do
+      # Given
+      app_build = %{id: "app-build-id", type: :ipa}
       account_handle = "Account"
       project_handle = "Project"
 
@@ -494,7 +577,7 @@ defmodule Tuist.AppBuildsTest do
         AppBuilds.storage_key(%{
           account_handle: account_handle,
           project_handle: project_handle,
-          app_build_id: app_build.id
+          app_build: app_build
         })
 
       # Then
@@ -719,6 +802,73 @@ defmodule Tuist.AppBuildsTest do
   end
 
   describe "list_previews/1" do
+    test "searches release notes before choosing distinct bundle identifiers" do
+      project = ProjectsFixtures.project_fixture()
+
+      matching =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          release_notes: "Build 204\nFix checkout",
+          inserted_at: ~U[2026-01-01 00:00:00Z]
+        )
+
+      AppBuildsFixtures.preview_fixture(
+        project: project,
+        release_notes: "Build 205",
+        inserted_at: ~U[2026-01-02 00:00:00Z]
+      )
+
+      AppBuildsFixtures.preview_fixture(release_notes: "Fix checkout")
+
+      {previews, _meta} =
+        AppBuilds.list_previews(
+          %{
+            page: 1,
+            page_size: 20,
+            filters: [%{field: :project_id, op: :==, value: project.id}],
+            order_by: [:inserted_at],
+            order_directions: [:desc]
+          },
+          search: "CHECKOUT",
+          distinct: [:bundle_identifier]
+        )
+
+      assert Enum.map(previews, & &1.id) == [matching.id]
+    end
+
+    test "selects the latest compatible platform before distinct bundle identifiers" do
+      project = ProjectsFixtures.project_fixture()
+
+      compatible =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          supported_platforms: [:ios_simulator],
+          inserted_at: ~U[2026-01-01 00:00:00Z]
+        )
+
+      AppBuildsFixtures.preview_fixture(
+        project: project,
+        supported_platforms: [:ios],
+        inserted_at: ~U[2026-01-02 00:00:00Z]
+      )
+
+      {previews, _meta} =
+        AppBuilds.list_previews(
+          %{
+            page: 1,
+            page_size: 20,
+            filters: [%{field: :project_id, op: :==, value: project.id}],
+            order_by: [:inserted_at],
+            order_directions: [:desc]
+          },
+          distinct: [:bundle_identifier],
+          supported_platforms: [:ios_simulator],
+          preload: [:app_builds]
+        )
+
+      assert Enum.map(previews, & &1.id) == [compatible.id]
+    end
+
     test "returns previews" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -1173,6 +1323,50 @@ defmodule Tuist.AppBuildsTest do
       assert result.git_branch == "main"
     end
 
+    test "returns the latest branchless preview when the app build's preview has no git branch" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      binary_id = "550E8400-E29B-41D4-A716-446655440005"
+      build_version = "1"
+
+      preview_one =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: nil,
+          inserted_at: ~U[2021-01-01 00:00:00Z]
+        )
+
+      _app_build_one =
+        AppBuildsFixtures.app_build_fixture(preview: preview_one, binary_id: binary_id, build_version: build_version)
+
+      preview_two =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: nil,
+          inserted_at: ~U[2021-01-02 00:00:00Z]
+        )
+
+      _app_build_two = AppBuildsFixtures.app_build_fixture(preview: preview_two)
+
+      preview_main =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          bundle_identifier: "com.example.app",
+          git_branch: "main",
+          inserted_at: ~U[2021-01-03 00:00:00Z]
+        )
+
+      _app_build_main = AppBuildsFixtures.app_build_fixture(preview: preview_main)
+
+      # When
+      {:ok, result} = AppBuilds.latest_preview_for_binary_id_and_build_version(binary_id, build_version, project)
+
+      # Then
+      assert result.id == preview_two.id
+    end
+
     test "returns not_found when binary_id does not exist" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -1484,6 +1678,26 @@ defmodule Tuist.AppBuildsTest do
       assert app_build.type == :ipa
     end
 
+    test "creates an apk type app build" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+
+      attrs = %{
+        preview_id: preview.id,
+        type: :apk,
+        built_by_account_id: project.account.id,
+        supported_platforms: [:android]
+      }
+
+      # When
+      {:ok, app_build} = AppBuilds.create_app_build(attrs)
+
+      # Then
+      assert app_build.type == :apk
+      assert app_build.supported_platforms == [:android]
+    end
+
     test "creates an app build with binary_id and build_version" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -1654,6 +1868,31 @@ defmodule Tuist.AppBuildsTest do
       assert unique_platforms == [:ios, :macos, :watchos]
       assert length(unique_platforms) == 3
     end
+
+    test "adds android platform from apk app build" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      preview =
+        AppBuildsFixtures.preview_fixture(
+          project: project,
+          supported_platforms: []
+        )
+
+      app_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          type: :apk,
+          supported_platforms: [:android]
+        )
+
+      # When
+      updated_preview = AppBuilds.update_preview_with_app_build(preview.id, app_build)
+
+      # Then
+      assert updated_preview.supported_platforms == [:android]
+    end
   end
 
   describe "platform_string/1" do
@@ -1691,6 +1930,10 @@ defmodule Tuist.AppBuildsTest do
 
     test "returns correct string for macos platform" do
       assert AppBuilds.platform_string(:macos) == "macOS"
+    end
+
+    test "returns correct string for android platform" do
+      assert AppBuilds.platform_string(:android) == "Android"
     end
   end
 
@@ -1804,6 +2047,80 @@ defmodule Tuist.AppBuildsTest do
 
       # Then
       assert result.id == ipa_build.id
+    end
+  end
+
+  describe "latest_apk_app_build_for_preview/1" do
+    test "returns the latest apk app build for a preview" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+
+      _ipa_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          type: :ipa
+        )
+
+      _apk_build_1 =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          type: :apk,
+          supported_platforms: [:android]
+        )
+
+      _apk_build_2 =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          type: :apk,
+          supported_platforms: [:android]
+        )
+
+      preview_with_builds = Repo.preload(preview, :app_builds)
+
+      # When
+      result = AppBuilds.latest_apk_app_build_for_preview(preview_with_builds)
+
+      # Then
+      assert result.type == :apk
+      assert result.id
+    end
+
+    test "returns nil when preview has no apk app builds" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+
+      _ipa_build =
+        AppBuildsFixtures.app_build_fixture(
+          preview: preview,
+          project: project,
+          type: :ipa
+        )
+
+      preview_with_builds = Repo.preload(preview, :app_builds)
+
+      # When
+      result = AppBuilds.latest_apk_app_build_for_preview(preview_with_builds)
+
+      # Then
+      assert result == nil
+    end
+
+    test "returns nil when preview has no app builds" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      preview = AppBuildsFixtures.preview_fixture(project: project)
+      preview_with_builds = Repo.preload(preview, :app_builds)
+
+      # When
+      result = AppBuilds.latest_apk_app_build_for_preview(preview_with_builds)
+
+      # Then
+      assert result == nil
     end
   end
 

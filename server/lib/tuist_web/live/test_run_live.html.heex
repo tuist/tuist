@@ -24,13 +24,28 @@
             <.alert_circle />
           </div>
         </div>
+        <div :if={@run.status == "in_progress"} data-part="badge-processing">
+          <div data-part="icon">
+            <.circle_dashed />
+          </div>
+        </div>
+        <div :if={@run.status == "processing"} data-part="badge-processing">
+          <div data-part="icon">
+            <.circle_dashed />
+          </div>
+        </div>
+        <div :if={@run.status == "failed_processing"} data-part="badge-warning">
+          <div data-part="icon">
+            <.alert_hexagon />
+          </div>
+        </div>
         <div :if={@run.status == "skipped"} data-part="badge-warning">
           <div data-part="icon">
             <.alert_hexagon />
           </div>
         </div>
         <h1 data-part="label">
-          {@run.scheme || dgettext("dashboard_tests", "Unknown")}
+          {test_run_label(@selected_project, @run.scheme)}
         </h1>
         <.badge
           :if={@run.is_flaky}
@@ -47,7 +62,45 @@
         }
         label={
           dgettext("dashboard_tests", "Build: %{scheme}",
-            scheme: @run.build_run.scheme || dgettext("dashboard_tests", "Unknown")
+            scheme:
+              if(@run.build_run.scheme == "",
+                do: dgettext("dashboard_tests", "Unknown"),
+                else: @run.build_run.scheme
+              )
+          )
+        }
+        size="large"
+        underline
+      >
+        <:icon_left><.versions /></:icon_left>
+      </.link_button>
+      <.link_button
+        :if={@run.gradle_build}
+        navigate={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/build-runs/#{@run.gradle_build_id}"
+        }
+        label={
+          dgettext("dashboard_tests", "Build: %{name}",
+            name:
+              if(@run.gradle_build.root_project_name == "",
+                do: dgettext("dashboard_tests", "Unknown"),
+                else: @run.gradle_build.root_project_name
+              )
+          )
+        }
+        size="large"
+        underline
+      >
+        <:icon_left><.versions /></:icon_left>
+      </.link_button>
+      <.link_button
+        :if={@run.build_system == "bazel" && @run.bazel_invocation_id != ""}
+        navigate={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/builds/invocations/#{@run.bazel_invocation_id}"
+        }
+        label={
+          dgettext("dashboard_tests", "Build: %{name}",
+            name: test_run_label(@selected_project, @run.scheme)
           )
         }
         size="large"
@@ -58,9 +111,9 @@
     </div>
     <div data-part="actions">
       <.button
-        :if={@has_result_bundle.ok? && @has_result_bundle.result && @command_event}
+        :if={@run.status != "processing" && @has_result_bundle.ok? && @has_result_bundle.result}
         href={
-          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@command_event.id}/download"
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@has_result_bundle.result}/download"
         }
         label={dgettext("dashboard_tests", "Download result")}
         variant="secondary"
@@ -69,8 +122,35 @@
         <:icon_left><.download /></:icon_left>
       </.button>
       <.button
-        :if={Tuist.Runs.test_ci_run_url(@run)}
-        href={Tuist.Runs.test_ci_run_url(@run)}
+        :if={@run.status == "processing"}
+        label={dgettext("dashboard_tests", "Download result")}
+        variant="secondary"
+        size="medium"
+        disabled
+      >
+        <:icon_left><.download /></:icon_left>
+      </.button>
+      <.button
+        :if={
+          @run.status != "processing" && @has_session.ok? && @has_session.result && @command_event
+        }
+        href={
+          ~p"/#{@selected_project.account.name}/#{@selected_project.name}/runs/#{@command_event.id}/download_session"
+        }
+        label={dgettext("dashboard_tests", "Download session")}
+        variant="secondary"
+        size="medium"
+      >
+        <:icon_left><.download /></:icon_left>
+      </.button>
+      <.pull_request_button
+        project={@selected_project}
+        git_ref={@run.git_ref}
+        disabled={@run.status == "processing"}
+      />
+      <.button
+        :if={@run.status != "processing" && @ci_run_url}
+        href={@ci_run_url}
         label={dgettext("dashboard_tests", "CI Run")}
         variant="secondary"
         size="medium"
@@ -78,10 +158,57 @@
       >
         <:icon_left><.external_link /></:icon_left>
       </.button>
+      <.button
+        :if={@run.status == "processing"}
+        label={dgettext("dashboard_tests", "CI Run")}
+        variant="secondary"
+        size="medium"
+        disabled
+      >
+        <:icon_left><.external_link /></:icon_left>
+      </.button>
     </div>
   </div>
 
-  <.tab_menu_horizontal>
+  <div :if={@run.status == "processing"} data-part="processing-state">
+    <div data-part="image">
+      <img
+        src={~p"/images/processing_build_light.png"}
+        data-theme="light"
+        loading="lazy"
+        decoding="async"
+      />
+      <img
+        src={~p"/images/processing_build_dark.png"}
+        data-theme="dark"
+        loading="lazy"
+        decoding="async"
+      />
+    </div>
+    <div data-part="labels">
+      <span data-part="title">
+        {dgettext("dashboard_tests", "Your test results are being processed")}
+      </span>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_tests",
+          "This usually takes a few seconds. If the page doesn't update automatically, click the refresh button."
+        )}
+      </span>
+    </div>
+    <.button
+      label={dgettext("dashboard_tests", "Refresh")}
+      variant="secondary"
+      size="medium"
+      phx-click="refresh_test_run"
+    >
+      <:icon_left>
+        <.reload />
+      </:icon_left>
+    </.button>
+  </div>
+
+  <.tab_menu_horizontal :if={@run.status != "processing"}>
     <.tab_menu_horizontal_item
       label={dgettext("dashboard_tests", "Overview")}
       selected={@selected_tab == "overview"}
@@ -90,21 +217,21 @@
     />
     <.tab_menu_horizontal_item
       :if={@has_selective_testing_data}
-      label={dgettext("dashboard_tests", "Test Optimizations")}
+      label={dgettext("dashboard_tests", "Selective Testing")}
       selected={@selected_tab == "test-optimizations"}
       patch={"?#{Query.put(@uri.query, "tab", "test-optimizations")}"}
       replace={true}
     />
     <.tab_menu_horizontal_item
       :if={@has_binary_cache_data}
-      label={dgettext("dashboard_tests", "Compilation Optimizations")}
-      selected={@selected_tab == "compilation-optimizations"}
-      patch={"?#{Query.put(@uri.query, "tab", "compilation-optimizations")}"}
+      label={dgettext("dashboard_tests", "Module Cache")}
+      selected={@selected_tab == "module-cache"}
+      patch={"?#{Query.put(@uri.query, "tab", "module-cache")}"}
       replace={true}
     />
     <.tab_menu_horizontal_item
       :if={@failures_count > 0}
-      label={dgettext("dashboard_tests", "Failures")}
+      label={dgettext("dashboard_tests", "Test Failures")}
       selected={@selected_tab == "failures"}
       patch={"?#{Query.put(@uri.query, "tab", "failures")}"}
       replace={true}
@@ -116,9 +243,16 @@
       patch={"?#{Query.put(@uri.query, "tab", "flaky-runs")}"}
       replace={true}
     />
+    <.tab_menu_horizontal_item
+      :if={@run.build_system == "bazel"}
+      label={dgettext("dashboard_tests", "Logs")}
+      selected={@selected_tab == "logs"}
+      patch={"?#{Query.put(@uri.query, "tab", "logs")}"}
+      replace={true}
+    />
   </.tab_menu_horizontal>
 
-  <div :if={@selected_tab == "overview"} data-part="overview">
+  <div :if={@selected_tab == "overview" and @run.status != "processing"} data-part="overview">
     <.card
       title={dgettext("dashboard_tests", "Test Details")}
       icon="chart_arcs"
@@ -144,8 +278,22 @@
                 size="large"
               />
               <.badge
+                :if={@run.status == "in_progress"}
+                label={dgettext("dashboard_tests", "In progress")}
+                color="neutral"
+                style="fill"
+                size="large"
+              />
+              <.badge
                 :if={@run.status == "skipped"}
                 label={dgettext("dashboard_tests", "Skipped")}
+                color="warning"
+                style="fill"
+                size="large"
+              />
+              <.badge
+                :if={@run.status == "failed_processing"}
+                label={dgettext("dashboard_tests", "Failed processing")}
                 color="warning"
                 style="fill"
                 size="large"
@@ -159,11 +307,17 @@
             </div>
             <div data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Duration")}</div>
-              <span data-part="value">
+              <span :if={@run.status != "in_progress"} data-part="value">
                 <.history />
-                {dgettext("dashboard_tests", "%{run_duration}s",
-                  run_duration: (@run.duration / 1000) |> Decimal.from_float() |> Decimal.round(2)
+                {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @display_duration
                 )}
+              </span>
+              <span :if={@run.status == "in_progress"} data-part="value">
+                <.status_badge_cell
+                  label={dgettext("dashboard_tests", "In Progress")}
+                  status="in_progress"
+                />
               </span>
             </div>
             <div data-part="metadata">
@@ -193,7 +347,7 @@
                 data-part="value"
               />
             </div>
-            <div data-part="metadata">
+            <div :if={@run.build_system == "xcode"} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "Mac device")}</div>
               <span data-part="value">
                 <.device_laptop />
@@ -202,12 +356,37 @@
                   else: Tuist.Apple.devices()[@run.model_identifier]}
               </span>
             </div>
-            <div data-part="metadata">
+            <div :if={@run.build_system == "xcode"} data-part="metadata">
               <div data-part="title">{dgettext("dashboard_tests", "macOS version")}</div>
               <span data-part="value">
                 <.device_laptop />
                 {@run.macos_version}
               </span>
+            </div>
+          </div>
+          <div :if={@run.run_destinations != []} data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">
+                {dngettext(
+                  "dashboard_tests",
+                  "Device",
+                  "Devices",
+                  length(@run.run_destinations)
+                )}
+              </div>
+              <div data-part="value">
+                <div data-part="run-destinations">
+                  <div :for={destination <- @run.run_destinations} data-part="run-destination">
+                    <.icon name={platform_icon_name(destination.platform)} />
+                    <span>{destination.name}</span>
+                    <span data-part="subtitle">
+                      {String.trim(
+                        "#{TestRunDestination.humanize_platform(destination)} #{destination.os_version}"
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -227,7 +406,10 @@
           <.widget
             title={dgettext("dashboard_tests", "Flaky test cases")}
             description={
-              dgettext("dashboard_tests", "Number of test cases that passed after retry.")
+              dgettext(
+                "dashboard_tests",
+                "Number of test cases that both passed and failed in this run, whether across retries or under the stress gate's repetitions."
+              )
             }
             value={@test_metrics.flaky_count}
             id="widget-flaky-test-cases"
@@ -291,34 +473,158 @@
       </.card_section>
     </.card>
 
+    <.ci_context_card
+      :if={@ci_context}
+      context={@ci_context}
+    />
+
+    <.card
+      :if={@is_sharded}
+      title={dgettext("dashboard_tests", "Shards")}
+      icon="stack_2"
+      data-part="shards-card"
+    >
+      <.card_section :if={length(@shard_rows) > 0} data-part="shard-balance-section">
+        <div :if={@run.status == "in_progress"} data-part="shards-in-progress-section">
+          <div data-part="image">
+            <img
+              src={~p"/images/shards_in_progress_light.png"}
+              data-theme="light"
+              loading="lazy"
+              decoding="async"
+            />
+            <img
+              src={~p"/images/shards_in_progress_dark.png"}
+              data-theme="dark"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+          <span data-part="title">
+            {dgettext("dashboard_tests", "The shards are in progress...")}
+          </span>
+        </div>
+        <.table id="shard-balance-table" rows={@shard_rows}>
+          <:col :let={shard} label={dgettext("dashboard_tests", "Shard")}>
+            <.text_cell label={
+              dgettext("dashboard_tests", "Shard %{index}", index: shard.shard_index)
+            } />
+          </:col>
+          <:col
+            :let={shard}
+            label={
+              cond do
+                @run.build_system == "once" ->
+                  dgettext("dashboard_tests", "Batches")
+
+                @run.shard_plan && @run.shard_plan.granularity == "suite" ->
+                  dgettext("dashboard_tests", "Test Suites")
+
+                true ->
+                  dgettext("dashboard_tests", "Modules")
+              end
+            }
+          >
+            <.text_cell label={format_number(shard.target_count)} />
+          </:col>
+          <:col :let={shard} label={dgettext("dashboard_tests", "Duration")}>
+            <.text_cell
+              :if={shard.actual_duration_ms}
+              label={
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  shard.actual_duration_ms
+                )
+              }
+              icon="history"
+            />
+            <.status_badge_cell
+              :if={!shard.actual_duration_ms && shard.status != "not_reported"}
+              label={dgettext("dashboard_tests", "In Progress")}
+              status="in_progress"
+            />
+          </:col>
+          <:col :let={shard} label={dgettext("dashboard_tests", "Status")}>
+            <.status_badge_cell
+              :if={shard.status == "success"}
+              label={dgettext("dashboard_tests", "Passed")}
+              status="success"
+            />
+            <.status_badge_cell
+              :if={shard.status == "failure"}
+              label={dgettext("dashboard_tests", "Failed")}
+              status="error"
+            />
+            <.status_badge_cell
+              :if={shard.status == "pending"}
+              label={dgettext("dashboard_tests", "Pending")}
+              status="warning"
+            />
+            <.status_badge_cell
+              :if={shard.status == "not_reported"}
+              label={dgettext("dashboard_tests", "Not reported")}
+              status="error"
+            />
+          </:col>
+        </.table>
+      </.card_section>
+    </.card>
+
+    <.card
+      :if={@run_errors != []}
+      title={dgettext("dashboard_tests", "Errors")}
+      icon="alert_triangle"
+      data-part="run-errors"
+    >
+      <.card_section data-part="run-errors-section">
+        <div data-part="errors-list">
+          <div :for={error <- @run_errors} data-part="error" class="test-error-card">
+            <div data-part="header">
+              <div data-part="icon">
+                <.alert_triangle />
+              </div>
+              <div data-part="title-and-subtitle">
+                <h3 data-part="title">
+                  {if(error.module_name != "",
+                    do: error.module_name,
+                    else: dgettext("dashboard_tests", "Run error")
+                  )}
+                </h3>
+              </div>
+            </div>
+            <span data-part="message">{error.message}</span>
+          </div>
+        </div>
+      </.card_section>
+    </.card>
+
     <.card
       :if={@failures_count > 0}
-      title={dgettext("dashboard_tests", "Failures")}
+      title={dgettext("dashboard_tests", "Test Failures")}
       icon="alert_circle"
       data-part="failures-overview-card"
     >
       <.card_section data-part="failures-overview-card-section">
         <div data-part="header">
           <span data-part="title">
-            {dgettext("dashboard_tests", "Failures")}
+            {dgettext("dashboard_tests", "Test Failures")}
           </span>
           <span data-part="dot">
             {dgettext("dashboard_tests", "•")}
           </span>
           <span data-part="count">
-            {@failures_count}
+            {format_number(@failures_count)}
           </span>
           <.button
             variant="secondary"
             label={dgettext("dashboard_tests", "View more")}
-            size="small"
+            size="medium"
             patch={"?#{Query.put(@uri.query, "tab", "failures")}"}
           />
         </div>
         <div data-part="failures-list">
           <div
-            :for={{test_case_run_id, failures} <- Enum.take(@failures_grouped_by_test_case, 4)}
-            id={"test-failure-overview-#{test_case_run_id}"}
+            :for={test_case_run <- Enum.take(@failed_test_case_runs, 4)}
+            id={"test-failure-overview-#{test_case_run.id}"}
             phx-hook="NooraCollapsible"
             data-part="collapsible"
             data-state="closed"
@@ -332,57 +638,301 @@
                   </div>
                   <div data-part="title-and-subtitle">
                     <h3 data-part="title">
-                      {List.first(failures).test_case_name}
+                      {test_case_run.name}
+                      <.badge
+                        :if={test_case_run.is_quarantined}
+                        label={dgettext("dashboard_tests", "Quarantined")}
+                        color="information"
+                        style="light-fill"
+                        size="large"
+                      />
                     </h3>
                     <span
-                      :if={
-                        List.first(failures).test_module_name &&
-                          List.first(failures).test_suite_name != ""
-                      }
+                      :if={test_case_run.module_name && test_case_run.suite_name != ""}
                       data-part="subtitle"
                     >
-                      {List.first(failures).test_module_name} • {List.first(failures).test_suite_name}
+                      {test_case_run.module_name} • {test_case_run.suite_name}
                     </span>
                     <span
-                      :if={
-                        List.first(failures).test_module_name &&
-                          List.first(failures).test_suite_name == ""
-                      }
+                      :if={test_case_run.module_name && test_case_run.suite_name == ""}
                       data-part="subtitle"
                     >
-                      {List.first(failures).test_module_name}
+                      {test_case_run.module_name}
                     </span>
                   </div>
                   <.badge
-                    label={length(failures)}
+                    label={format_number(length(test_case_run.failures))}
                     color="destructive"
                     style="light-fill"
-                    size="small"
+                    size="large"
                   />
                 </div>
                 <.neutral_button
                   data-part="closed-collapsible-button"
                   variant="secondary"
-                  size="small"
+                  size="medium"
                 >
                   <.chevron_down />
                 </.neutral_button>
                 <.neutral_button
                   data-part="open-collapsible-button"
                   variant="secondary"
-                  size="small"
+                  size="medium"
                 >
                   <.chevron_up />
                 </.neutral_button>
               </div>
               <div data-part="content" data-state="closed">
-                <span :for={failure <- failures} data-part="failure">
-                  {format_failure_message(failure, @run)}
-                </span>
+                <%= if Enum.any?(test_case_run.arguments) do %>
+                  <div
+                    :for={
+                      argument <- Enum.filter(test_case_run.arguments, &(&1.status == "failure"))
+                    }
+                    class="argument-collapsible"
+                  >
+                    <div data-part="argument-header">
+                      <.badge
+                        label={dgettext("dashboard_tests", "Failed")}
+                        color="destructive"
+                        style="light-fill"
+                        size="small"
+                      />
+                      <span data-part="argument-name">{argument.name}</span>
+                      <.neutral_button
+                        :if={Enum.any?(argument.failures) or Enum.any?(argument.repetitions)}
+                        id={"arg-closed-btn-#{argument.id}"}
+                        variant="secondary"
+                        size="small"
+                        phx-click={
+                          JS.hide(to: "#arg-closed-btn-#{argument.id}")
+                          |> JS.show(to: "#arg-open-btn-#{argument.id}", display: "flex")
+                          |> JS.show(to: "#arg-body-#{argument.id}", display: "flex")
+                        }
+                      >
+                        <.chevron_down />
+                      </.neutral_button>
+                      <.neutral_button
+                        :if={Enum.any?(argument.failures) or Enum.any?(argument.repetitions)}
+                        id={"arg-open-btn-#{argument.id}"}
+                        variant="secondary"
+                        size="small"
+                        style="display:none"
+                        phx-click={
+                          JS.show(to: "#arg-closed-btn-#{argument.id}", display: "flex")
+                          |> JS.hide(to: "#arg-open-btn-#{argument.id}")
+                          |> JS.hide(to: "#arg-body-#{argument.id}")
+                        }
+                      >
+                        <.chevron_up />
+                      </.neutral_button>
+                    </div>
+                    <div
+                      id={"arg-body-#{argument.id}"}
+                      data-part="argument-body"
+                      style="display:none"
+                    >
+                      <div :if={Enum.any?(argument.repetitions)} data-part="repetitions">
+                        <div
+                          :for={
+                            {repetition, rep_index} <-
+                              Enum.with_index(
+                                Enum.sort_by(argument.repetitions, & &1.repetition_number)
+                              )
+                          }
+                          data-part="repetition-wrapper"
+                        >
+                          <div data-part="repetition-item">
+                            <.badge
+                              :if={repetition.status == "success"}
+                              label={dgettext("dashboard_tests", "Passed")}
+                              color="success"
+                              style="light-fill"
+                              size="small"
+                            />
+                            <.badge
+                              :if={repetition.status == "failure"}
+                              label={dgettext("dashboard_tests", "Failed")}
+                              color="destructive"
+                              style="light-fill"
+                              size="small"
+                            />
+                            <span data-part="repetition-name">{repetition.name}</span>
+                          </div>
+                          <div
+                            :if={
+                              Enum.any?(
+                                attachments_for_repetition(
+                                  argument.attachments,
+                                  repetition.repetition_number
+                                )
+                              )
+                            }
+                            data-part="attachments-list"
+                          >
+                            <.inline_attachment_items
+                              attachments={
+                                attachments_for_repetition(
+                                  argument.attachments,
+                                  repetition.repetition_number
+                                )
+                              }
+                              test_case_run={test_case_run}
+                              project={@selected_project}
+                              id_prefix={"overview-arg-#{argument.id}-rep-#{rep_index}"}
+                              text_attachment_urls={@text_attachment_urls}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <.failure_message_span
+                        :for={failure <- argument.failures}
+                        failure={failure}
+                        context={@run}
+                      />
+                    </div>
+                  </div>
+                <% else %>
+                  <div :if={Enum.any?(test_case_run.repetitions)} data-part="repetitions">
+                    <div
+                      :for={{repetition, rep_index} <- Enum.with_index(test_case_run.repetitions)}
+                      data-part="repetition-wrapper"
+                    >
+                      <div data-part="repetition-item">
+                        <.badge
+                          :if={repetition.status == "success"}
+                          label={dgettext("dashboard_tests", "Passed")}
+                          color="success"
+                          style="light-fill"
+                          size="small"
+                        />
+                        <.badge
+                          :if={repetition.status == "failure"}
+                          label={dgettext("dashboard_tests", "Failed")}
+                          color="destructive"
+                          style="light-fill"
+                          size="small"
+                        />
+                        <span data-part="repetition-name">{repetition.name}</span>
+                      </div>
+                      <.failure_message_span
+                        :if={
+                          repetition.status == "failure" and Enum.any?(test_case_run.failures) and
+                            Enum.at(test_case_run.failures, rep_index)
+                        }
+                        failure={Enum.at(test_case_run.failures, rep_index)}
+                        context={@run}
+                      />
+                      <div
+                        :if={
+                          Enum.any?(
+                            attachments_for_repetition(
+                              test_case_run.attachments,
+                              repetition.repetition_number
+                            )
+                          )
+                        }
+                        data-part="attachments-list"
+                      >
+                        <.inline_attachment_items
+                          attachments={
+                            attachments_for_repetition(
+                              test_case_run.attachments,
+                              repetition.repetition_number
+                            )
+                          }
+                          test_case_run={test_case_run}
+                          project={@selected_project}
+                          id_prefix={"overview-rep-#{rep_index}"}
+                          text_attachment_urls={@text_attachment_urls}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <.failure_message_span
+                    :for={failure <- test_case_run.failures}
+                    :if={!Enum.any?(test_case_run.repetitions)}
+                    failure={failure}
+                    context={@run}
+                  />
+                <% end %>
+                <div :if={test_case_run.crash_report} data-part="crash-report-details">
+                  <div data-part="crash-report-header">
+                    <span data-part="crash-report-title">
+                      {dgettext("dashboard_tests", "Crash Report")}
+                    </span>
+                    <.neutral_button
+                      :if={test_case_run.crash_report.test_case_run_attachment.file_name}
+                      href={
+                        ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{test_case_run.crash_report.test_case_run_attachment.file_name}"
+                      }
+                      target="_blank"
+                      size="medium"
+                    >
+                      <.download />
+                    </.neutral_button>
+                  </div>
+                  <div data-part="crash-report-metadata">
+                    <span
+                      :if={test_case_run.crash_report.exception_type != ""}
+                      data-part="crash-report-meta-item"
+                    >
+                      <span data-part="meta-label">
+                        {dgettext("dashboard_tests", "Exception")}
+                      </span>
+                      <span data-part="meta-value">
+                        {test_case_run.crash_report.exception_type}
+                      </span>
+                    </span>
+                    <span
+                      :if={test_case_run.crash_report.signal != ""}
+                      data-part="crash-report-meta-item"
+                    >
+                      <span data-part="meta-label">{dgettext("dashboard_tests", "Signal")}</span>
+                      <span data-part="meta-value">{test_case_run.crash_report.signal}</span>
+                    </span>
+                    <span
+                      :if={test_case_run.crash_report.exception_subtype != ""}
+                      data-part="crash-report-meta-item"
+                    >
+                      <span data-part="meta-label">{dgettext("dashboard_tests", "Subtype")}</span>
+                      <span data-part="meta-value">
+                        {test_case_run.crash_report.exception_subtype}
+                      </span>
+                    </span>
+                  </div>
+                  <div
+                    :if={test_case_run.crash_report.triggered_thread_frames != ""}
+                    data-part="crash-report-frames"
+                  >
+                    <div
+                      :for={
+                        {index, image_name, symbol} <-
+                          parse_frames(test_case_run.crash_report.triggered_thread_frames)
+                      }
+                      data-part="frame-line"
+                    >
+                      <span :if={index} data-part="frame-index">{index}</span>
+                      <span :if={image_name} data-part="frame-image">{image_name}</span>
+                      <span data-part="frame-symbol">{symbol}</span>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  :if={Enum.any?(attachments_without_repetition(test_case_run.attachments))}
+                  data-part="attachments-list"
+                >
+                  <.inline_attachment_items
+                    attachments={attachments_without_repetition(test_case_run.attachments)}
+                    test_case_run={test_case_run}
+                    project={@selected_project}
+                    id_prefix="overview"
+                    text_attachment_urls={@text_attachment_urls}
+                  />
+                </div>
               </div>
             </div>
           </div>
-          <div :if={Enum.count(@failures_grouped_by_test_case) > 4} data-part="more-cards-wrapper">
+          <div :if={length(@failed_test_case_runs) > 4} data-part="more-cards-wrapper">
             <div data-part="more-card" data-index="two"></div>
             <div data-part="more-card" data-index="one"></div>
           </div>
@@ -405,18 +955,18 @@
             {dgettext("dashboard_tests", "•")}
           </span>
           <span data-part="count">
-            {Enum.reduce(@flaky_runs_grouped, 0, fn group, acc -> acc + length(group.runs) end)}
+            {@flaky_runs_meta.total_runs_count}
           </span>
           <.button
             variant="secondary"
             label={dgettext("dashboard_tests", "View more")}
-            size="small"
+            size="medium"
             patch={"?#{Query.put(@uri.query, "tab", "flaky-runs")}"}
           />
         </div>
         <div data-part="flaky-runs-list">
           <div
-            :for={group <- Enum.take(@flaky_runs_grouped, 4)}
+            :for={group <- @flaky_runs_grouped}
             id={"flaky-group-#{group.test_case_id}"}
             phx-hook="NooraCollapsible"
             data-part="collapsible"
@@ -434,6 +984,13 @@
                     >
                       {group.name}
                     </.link>
+                    <.badge
+                      :if={Enum.any?(group.runs, & &1.is_quarantined)}
+                      label={dgettext("dashboard_tests", "Quarantined")}
+                      color="information"
+                      style="light-fill"
+                      size="large"
+                    />
                   </h3>
                   <span
                     :if={group.module_name not in [nil, ""] and group.suite_name not in [nil, ""]}
@@ -460,11 +1017,11 @@
                   </span>
                   <div data-part="passed-count">
                     <.circle_check />
-                    <span data-part="label">{group.passed_count}</span>
+                    <span data-part="label">{format_number(group.passed_count)}</span>
                   </div>
                   <div data-part="failed-count">
                     <.circle_x />
-                    <span data-part="label">{group.failed_count}</span>
+                    <span data-part="label">{format_number(group.failed_count)}</span>
                   </div>
                 </div>
                 <.neutral_button data-part="trigger" variant="secondary" size="medium">
@@ -540,31 +1097,29 @@
                           />
                           <span data-part="repetition-name">{repetition.name}</span>
                         </div>
-                        <span
+                        <.failure_message_span
                           :if={
                             repetition.status == "failure" and Enum.any?(run.failures) and
                               Enum.at(run.failures, rep_index)
                           }
-                          data-part="repetition-failure"
-                        >
-                          {format_failure_message(Enum.at(run.failures, rep_index), @run)}
-                        </span>
+                          failure={Enum.at(run.failures, rep_index)}
+                          context={@run}
+                        />
                       </div>
                     </div>
-                    <span
+                    <.failure_message_span
                       :for={failure <- run.failures}
                       :if={!Enum.any?(run.repetitions) and run.status == "failure"}
-                      data-part="repetition-failure"
-                    >
-                      {format_failure_message(failure, @run)}
-                    </span>
+                      failure={failure}
+                      context={@run}
+                    />
                   </div>
                   <.line_divider :if={index < length(group.runs) - 1} />
                 </div>
               </div>
             </div>
           </div>
-          <div :if={length(@flaky_runs_grouped) > 4} data-part="more-cards-wrapper">
+          <div :if={@flaky_runs_meta.total_groups_count > 4} data-part="more-cards-wrapper">
             <div data-part="more-card" data-index="two"></div>
             <div data-part="more-card" data-index="one"></div>
           </div>
@@ -579,12 +1134,13 @@
         patch={"?#{Query.put(@uri.query, "test-tab", "test-cases")}"}
       />
       <.tab_menu_horizontal_item
-        label={dgettext("dashboard_tests", "Test Suites")}
+        :if={@show_test_suites}
+        label={test_suites_label(@selected_project)}
         selected={@selected_test_tab == "test-suites"}
         patch={"?#{Query.put(@uri.query, "test-tab", "test-suites")}"}
       />
       <.tab_menu_horizontal_item
-        label={dgettext("dashboard_tests", "Modules")}
+        label={modules_label(@selected_project)}
         selected={@selected_test_tab == "test-modules"}
         patch={"?#{Query.put(@uri.query, "test-tab", "test-modules")}"}
       />
@@ -651,11 +1207,9 @@
           rows={@test_cases}
           row_navigate={
             fn test_case ->
-              if test_case.test_case_id do
-                url(
-                  ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/#{test_case.test_case_id}"
-                )
-              end
+              url(
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case.id}"
+              )
             end
           }
         >
@@ -666,10 +1220,7 @@
               @test_cases_sort_by == "name" &&
                 test_cases_column_patch_sort(assigns, "name")
             }
-            icon={
-              @test_cases_sort_by == "name" &&
-                sort_icon(@test_cases_sort_order)
-            }
+            sort_order={@test_cases_sort_by == "name" && @test_cases_sort_order}
           >
             <div data-part="cell" data-type="text_and_description">
               <div data-part="column">
@@ -686,6 +1237,24 @@
                     :if={test_case.is_new}
                     label={dgettext("dashboard_tests", "New")}
                     color="primary"
+                    style="light-fill"
+                    size="large"
+                  />
+                  <.badge
+                    :for={
+                      candidate <-
+                        [stress_candidate_for(@stress_candidates_by_identity, test_case)]
+                        |> Enum.reject(&is_nil/1)
+                    }
+                    label={stress_badge_label(candidate)}
+                    color={stress_badge_color(candidate)}
+                    style="light-fill"
+                    size="large"
+                  />
+                  <.badge
+                    :if={test_case.is_quarantined}
+                    label={dgettext("dashboard_tests", "Quarantined")}
+                    color="information"
                     style="light-fill"
                     size="large"
                   />
@@ -708,15 +1277,21 @@
           </:col>
           <:col
             :let={test_case}
+            :if={@is_sharded}
+            label={dgettext("dashboard_tests", "Shard")}
+          >
+            <.text_cell label={
+              dgettext("dashboard_tests", "Shard %{index}", index: test_case.shard_index || 0)
+            } />
+          </:col>
+          <:col
+            :let={test_case}
             label={dgettext("dashboard_tests", "Duration")}
             patch={
               @test_cases_sort_by == "duration" &&
                 test_cases_column_patch_sort(assigns, "duration")
             }
-            icon={
-              @test_cases_sort_by == "duration" &&
-                sort_icon(@test_cases_sort_order)
-            }
+            sort_order={@test_cases_sort_by == "duration" && @test_cases_sort_order}
           >
             <.text_cell
               label={
@@ -767,7 +1342,7 @@
 
     <.card
       :if={@selected_test_tab == "test-suites"}
-      title={dgettext("dashboard_tests", "Test Suites")}
+      title={test_suites_label(@selected_project)}
       icon="exchange"
       data-part="test-suites-card"
     >
@@ -789,7 +1364,7 @@
             label={
               case @test_suites_sort_by do
                 "name" ->
-                  dgettext("dashboard_tests", "Test suite")
+                  test_suite_label(@selected_project)
 
                 "test_case_count" ->
                   dgettext("dashboard_tests", "Test cases")
@@ -801,14 +1376,14 @@
                   dgettext("dashboard_tests", "Duration")
 
                 _ ->
-                  dgettext("dashboard_tests", "Test suite")
+                  test_suite_label(@selected_project)
               end
             }
             secondary_text={dgettext("dashboard_tests", "Sort by:")}
           >
             <.dropdown_item
               value="name"
-              label={dgettext("dashboard_tests", "Test suite")}
+              label={test_suite_label(@selected_project)}
               patch={test_suites_dropdown_item_patch_sort("name", @uri)}
               data-selected={@test_suites_sort_by == "name"}
             >
@@ -852,15 +1427,12 @@
         <.table id="test-suites-table" rows={@test_suites}>
           <:col
             :let={test_suite}
-            label={dgettext("dashboard_tests", "Test suite")}
+            label={test_suite_label(@selected_project)}
             patch={
               @test_suites_sort_by == "name" &&
                 test_suites_column_patch_sort(assigns, "name")
             }
-            icon={
-              @test_suites_sort_by == "name" &&
-                sort_icon(@test_suites_sort_order)
-            }
+            sort_order={@test_suites_sort_by == "name" && @test_suites_sort_order}
           >
             <div data-part="cell" data-type="text_and_description">
               <div data-part="column">
@@ -879,17 +1451,23 @@
           </:col>
           <:col
             :let={test_suite}
+            :if={@is_sharded}
+            label={dgettext("dashboard_tests", "Shard")}
+          >
+            <.text_cell label={
+              dgettext("dashboard_tests", "Shard %{index}", index: test_suite.shard_index || 0)
+            } />
+          </:col>
+          <:col
+            :let={test_suite}
             label={dgettext("dashboard_tests", "Test cases")}
             patch={
               @test_suites_sort_by == "test_case_count" &&
                 test_suites_column_patch_sort(assigns, "test_case_count")
             }
-            icon={
-              @test_suites_sort_by == "test_case_count" &&
-                sort_icon(@test_suites_sort_order)
-            }
+            sort_order={@test_suites_sort_by == "test_case_count" && @test_suites_sort_order}
           >
-            <.text_cell label={"#{test_suite.test_case_count}"} />
+            <.text_cell label={format_number(test_suite.test_case_count)} />
           </:col>
           <:col
             :let={test_suite}
@@ -898,9 +1476,8 @@
               @test_suites_sort_by == "avg_test_case_duration" &&
                 test_suites_column_patch_sort(assigns, "avg_test_case_duration")
             }
-            icon={
-              @test_suites_sort_by == "avg_test_case_duration" &&
-                sort_icon(@test_suites_sort_order)
+            sort_order={
+              @test_suites_sort_by == "avg_test_case_duration" && @test_suites_sort_order
             }
           >
             <.text_cell
@@ -936,10 +1513,7 @@
               @test_suites_sort_by == "duration" &&
                 test_suites_column_patch_sort(assigns, "duration")
             }
-            icon={
-              @test_suites_sort_by == "duration" &&
-                sort_icon(@test_suites_sort_order)
-            }
+            sort_order={@test_suites_sort_by == "duration" && @test_suites_sort_order}
           >
             <.text_cell
               label={
@@ -973,7 +1547,7 @@
 
     <.card
       :if={@selected_test_tab == "test-modules"}
-      title={dgettext("dashboard_tests", "Test Modules")}
+      title={test_modules_label(@selected_project)}
       icon="apps"
       data-part="test-modules-card"
     >
@@ -995,10 +1569,10 @@
             label={
               case @test_modules_sort_by do
                 "name" ->
-                  dgettext("dashboard_tests", "Module")
+                  module_label(@selected_project)
 
                 "test_suite_count" ->
-                  dgettext("dashboard_tests", "Test suites")
+                  test_suites_label(@selected_project)
 
                 "test_case_count" ->
                   dgettext("dashboard_tests", "Test cases")
@@ -1010,14 +1584,14 @@
                   dgettext("dashboard_tests", "Duration")
 
                 _ ->
-                  dgettext("dashboard_tests", "Module")
+                  module_label(@selected_project)
               end
             }
             secondary_text={dgettext("dashboard_tests", "Sort by:")}
           >
             <.dropdown_item
               value="name"
-              label={dgettext("dashboard_tests", "Module")}
+              label={module_label(@selected_project)}
               patch={test_modules_dropdown_item_patch_sort("name", @uri)}
               data-selected={@test_modules_sort_by == "name"}
             >
@@ -1025,7 +1599,7 @@
             </.dropdown_item>
             <.dropdown_item
               value="test_suite_count"
-              label={dgettext("dashboard_tests", "Test suites")}
+              label={test_suites_label(@selected_project)}
               patch={test_modules_dropdown_item_patch_sort("test_suite_count", @uri)}
               data-selected={@test_modules_sort_by == "test_suite_count"}
             >
@@ -1069,15 +1643,12 @@
         <.table id="test-modules-table" rows={@test_modules}>
           <:col
             :let={test_module}
-            label={dgettext("dashboard_tests", "Module")}
+            label={module_label(@selected_project)}
             patch={
               @test_modules_sort_by == "name" &&
                 test_modules_column_patch_sort(assigns, "name")
             }
-            icon={
-              @test_modules_sort_by == "name" &&
-                sort_icon(@test_modules_sort_order)
-            }
+            sort_order={@test_modules_sort_by == "name" && @test_modules_sort_order}
           >
             <div data-part="cell" data-type="text_and_description">
               <div data-part="column">
@@ -1096,17 +1667,23 @@
           </:col>
           <:col
             :let={test_module}
-            label={dgettext("dashboard_tests", "Test suites")}
+            :if={(@is_sharded and @run.shard_plan) && @run.shard_plan.granularity == "module"}
+            label={dgettext("dashboard_tests", "Shard")}
+          >
+            <.text_cell label={
+              dgettext("dashboard_tests", "Shard %{index}", index: test_module.shard_index || 0)
+            } />
+          </:col>
+          <:col
+            :let={test_module}
+            label={test_suites_label(@selected_project)}
             patch={
               @test_modules_sort_by == "test_suite_count" &&
                 test_modules_column_patch_sort(assigns, "test_suite_count")
             }
-            icon={
-              @test_modules_sort_by == "test_suite_count" &&
-                sort_icon(@test_modules_sort_order)
-            }
+            sort_order={@test_modules_sort_by == "test_suite_count" && @test_modules_sort_order}
           >
-            <.text_cell label={"#{test_module.test_suite_count}"} />
+            <.text_cell label={format_number(test_module.test_suite_count)} />
           </:col>
           <:col
             :let={test_module}
@@ -1115,12 +1692,9 @@
               @test_modules_sort_by == "test_case_count" &&
                 test_modules_column_patch_sort(assigns, "test_case_count")
             }
-            icon={
-              @test_modules_sort_by == "test_case_count" &&
-                sort_icon(@test_modules_sort_order)
-            }
+            sort_order={@test_modules_sort_by == "test_case_count" && @test_modules_sort_order}
           >
-            <.text_cell label={"#{test_module.test_case_count}"} />
+            <.text_cell label={format_number(test_module.test_case_count)} />
           </:col>
           <:col
             :let={test_module}
@@ -1129,9 +1703,8 @@
               @test_modules_sort_by == "avg_test_case_duration" &&
                 test_modules_column_patch_sort(assigns, "avg_test_case_duration")
             }
-            icon={
-              @test_modules_sort_by == "avg_test_case_duration" &&
-                sort_icon(@test_modules_sort_order)
+            sort_order={
+              @test_modules_sort_by == "avg_test_case_duration" && @test_modules_sort_order
             }
           >
             <.text_cell
@@ -1162,10 +1735,7 @@
               @test_modules_sort_by == "duration" &&
                 test_modules_column_patch_sort(assigns, "duration")
             }
-            icon={
-              @test_modules_sort_by == "duration" &&
-                sort_icon(@test_modules_sort_order)
-            }
+            sort_order={@test_modules_sort_by == "duration" && @test_modules_sort_order}
           >
             <.text_cell
               label={
@@ -1199,279 +1769,62 @@
   </div>
 
   <div :if={@selected_tab == "test-optimizations" && @has_selective_testing_data}>
-    <.card
-      title={dgettext("dashboard_tests", "Optimization Summary")}
-      icon="chart_arcs"
-      data-part="optimization-summary"
-    >
-      <.card_section data-part="optimization-summary-section">
-        <.widget
-          title={dgettext("dashboard_tests", "Total modules")}
-          description={
-            dgettext(
-              "dashboard_tests",
-              "Total modules represents the total number of testable modules."
-            )
-          }
-          value={@selective_testing_analytics.total_modules_count}
-          id="widget-optimization-summary-total-modules"
-        />
-        <.widget
-          title={dgettext("dashboard_tests", "Selective test hits")}
-          description={
-            dgettext(
-              "dashboard_tests",
-              "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
-            )
-          }
-          value={
-            @selective_testing_analytics.selective_testing_local_hits_count +
-              @selective_testing_analytics.selective_testing_remote_hits_count
-          }
-          id="widget-optimization-summary-selective-test-hits"
-        />
-        <.widget
-          title={dgettext("dashboard_tests", "Selective test misses")}
-          description={
-            dgettext(
-              "dashboard_tests",
-              "Selective test misses represents the number of test modules that were run as they were not successfully run before."
-            )
-          }
-          value={@selective_testing_analytics.selective_testing_misses_count}
-          id="widget-optimization-summary-selective-test-misses"
-        />
-      </.card_section>
-    </.card>
-    <.card
-      title={dgettext("dashboard_tests", "Selective Testing")}
-      icon="history_toggle"
-      data-part="selective-testing"
-    >
-      <.card_section data-part="selective-testing-section">
-        <.form for={%{}} phx-change="search-selective-testing" phx-debounce="200">
-          <.text_input
-            type="search"
-            id="search-selective-testing"
-            name="search"
-            placeholder={dgettext("dashboard_tests", "Search...")}
-            show_suffix={false}
-            data-part="search"
-            value={@selective_testing_filter}
-          />
-        </.form>
-        <.table id="selective-testing-table" rows={@selective_testing_analytics.test_modules}>
-          <:col
-            :let={test_module}
-            label={dgettext("dashboard_tests", "Module")}
-            patch={
-              "?#{@uri.query
-              |> Query.put("selective-testing-sort-by", "name")
-              |> Query.put("selective-testing-sort-order", sort_order_patch_value("name", @selective_testing_sort_by, @selective_testing_sort_order))
-              |> Query.drop("selective-testing-page")}"
-            }
-            icon={
-              @selective_testing_sort_by == "name" &&
-                sort_icon(@selective_testing_sort_order)
-            }
-          >
-            <.text_and_description_cell label={test_module.name} />
-          </:col>
-          <:col :let={test_module} label={dgettext("dashboard_tests", "Hit")}>
-            <.badge_cell
-              :if={test_module.selective_testing_hit == :remote}
-              label={dgettext("dashboard_tests", "Remote")}
-              color="focus"
-              style="light-fill"
-            />
-            <.badge_cell
-              :if={test_module.selective_testing_hit == :local}
-              label={dgettext("dashboard_tests", "Local")}
-              color="secondary"
-              style="light-fill"
-            />
-            <.badge_cell
-              :if={test_module.selective_testing_hit == :miss}
-              label={dgettext("dashboard_tests", "Missed")}
-              color="warning"
-              style="light-fill"
-            />
-          </:col>
-          <:col :let={test_module} label={dgettext("dashboard_tests", "Hash")}>
-            <.text_cell label={
-              test_module.selective_testing_hash || dgettext("dashboard_tests", "Unknown")
-            } />
-          </:col>
-          <:empty_state>
-            <.table_empty_state
-              icon="history_toggle"
-              title={dgettext("dashboard_tests", "No modules found")}
-              subtitle={dgettext("dashboard_tests", "Try changing your search term")}
-            />
-          </:empty_state>
-        </.table>
-        <.pagination_group
-          :if={@selective_testing_page_count > 1}
-          current_page={@selective_testing_page}
-          number_of_pages={@selective_testing_page_count}
-          page_patch={
-            fn page ->
-              "?#{Query.put(@uri.query, "selective-testing-page", page)}"
-            end
-          }
-        />
-      </.card_section>
-    </.card>
+    <.selective_testing_tab
+      project={@selected_project}
+      selective_testing_analytics={@selective_testing_analytics}
+      selective_testing_filter={@selective_testing_filter}
+      selective_testing_page={@selective_testing_page}
+      selective_testing_page_count={@selective_testing_page_count}
+      selective_testing_sort_by={@selective_testing_sort_by}
+      selective_testing_sort_order={@selective_testing_sort_order}
+      expanded_target_names={@expanded_target_names}
+      uri={@uri}
+      run={@command_event}
+      available_filters={@selective_testing_available_filters}
+      selective_testing_active_filters={@selective_testing_active_filters}
+    />
   </div>
 
-  <div :if={@selected_tab == "compilation-optimizations" && @has_binary_cache_data}>
-    <.card
-      title={dgettext("dashboard_tests", "Optimization Summary")}
-      icon="chart_arcs"
-      data-part="optimization-summary"
-    >
-      <.card_section data-part="optimization-summary-section">
-        <.widget
-          title={dgettext("dashboard_tests", "Binary cache hits")}
-          description={
-            dgettext(
-              "dashboard_tests",
-              "Total number of modules taken from either the local or the remote cache."
-            )
-          }
-          value={
-            @binary_cache_analytics.binary_cache_local_hits_count +
-              @binary_cache_analytics.binary_cache_remote_hits_count
-          }
-          id="widget-optimization-summary-binary-cache-hits"
-        />
-        <.widget
-          title={dgettext("dashboard_tests", "Binary cache misses")}
-          description={
-            dgettext(
-              "dashboard_tests",
-              "Total number of modules that could have been taken from the cache if it was fully populated."
-            )
-          }
-          value={@binary_cache_analytics.binary_cache_misses_count}
-          id="widget-optimization-summary-binary-cache-misses"
-        />
-        <.widget
-          title={dgettext("dashboard_tests", "Cache hit rate")}
-          description={
-            dgettext(
-              "dashboard_tests",
-              "Percentage of modules that were successfully retrieved from the cache."
-            )
-          }
-          value={"#{@binary_cache_analytics.cache_hit_rate}%"}
-          id="widget-optimization-summary-cache-hit-rate"
-        />
-      </.card_section>
-    </.card>
-    <.card
-      title={dgettext("dashboard_tests", "Binary Cache")}
-      icon="database"
-      data-part="binary-cache"
-    >
-      <.card_section data-part="binary-cache-section">
-        <.form for={%{}} phx-change="search-binary-cache" phx-debounce="200">
-          <.text_input
-            type="search"
-            id="search-binary-cache"
-            name="search"
-            placeholder={dgettext("dashboard_tests", "Search...")}
-            show_suffix={false}
-            data-part="search"
-            value={@binary_cache_filter}
-          />
-        </.form>
-        <.table id="binary-cache-table" rows={@binary_cache_analytics.cacheable_targets}>
-          <:col
-            :let={binary_cache_module}
-            label={dgettext("dashboard_tests", "Module")}
-            patch={
-              "?#{@uri.query
-              |> Query.put("binary-cache-sort-by", "name")
-              |> Query.put("binary-cache-sort-order", sort_order_patch_value("name", @binary_cache_sort_by, @binary_cache_sort_order))
-              |> Query.drop("binary-cache-page")}"
-            }
-            icon={
-              @binary_cache_sort_by == "name" &&
-                sort_icon(@binary_cache_sort_order)
-            }
-          >
-            <.text_and_description_cell label={binary_cache_module.name} />
-          </:col>
-          <:col :let={binary_cache_module} label={dgettext("dashboard_tests", "Hit")}>
-            <.badge_cell
-              :if={binary_cache_module.binary_cache_hit == :remote}
-              label={dgettext("dashboard_tests", "Remote")}
-              color="focus"
-              style="light-fill"
-            />
-            <.badge_cell
-              :if={binary_cache_module.binary_cache_hit == :local}
-              label={dgettext("dashboard_tests", "Local")}
-              color="secondary"
-              style="light-fill"
-            />
-            <.badge_cell
-              :if={binary_cache_module.binary_cache_hit == :miss}
-              label={dgettext("dashboard_tests", "Missed")}
-              color="warning"
-              style="light-fill"
-            />
-          </:col>
-          <:col :let={binary_cache_module} label={dgettext("dashboard_tests", "Hash")}>
-            <.text_cell label={
-              binary_cache_module.binary_cache_hash || dgettext("dashboard_tests", "Unknown")
-            } />
-          </:col>
-          <:empty_state>
-            <.table_empty_state
-              icon="database"
-              title={dgettext("dashboard_tests", "No modules found")}
-              subtitle={dgettext("dashboard_tests", "Try changing your search term")}
-            />
-          </:empty_state>
-        </.table>
-        <.pagination_group
-          :if={@binary_cache_page_count > 1}
-          current_page={@binary_cache_page}
-          number_of_pages={@binary_cache_page_count}
-          page_patch={
-            fn page ->
-              "?#{Query.put(@uri.query, "binary-cache-page", page)}"
-            end
-          }
-        />
-      </.card_section>
-    </.card>
+  <div :if={@selected_tab == "module-cache" && @has_binary_cache_data}>
+    <.module_cache_tab
+      project={@selected_project}
+      binary_cache_analytics={@binary_cache_analytics}
+      binary_cache_filter={@binary_cache_filter}
+      binary_cache_page={@binary_cache_page}
+      binary_cache_page_count={@binary_cache_page_count}
+      binary_cache_sort_by={@binary_cache_sort_by}
+      binary_cache_sort_order={@binary_cache_sort_order}
+      expanded_target_names={@expanded_target_names}
+      uri={@uri}
+      run={@binary_cache_command_event}
+      module_cache_metrics={@module_cache_metrics}
+      available_filters={@binary_cache_available_filters}
+      binary_cache_active_filters={@binary_cache_active_filters}
+    />
   </div>
 
   <.card
     :if={@selected_tab == "failures"}
-    title={dgettext("dashboard_tests", "Failures")}
+    title={dgettext("dashboard_tests", "Test Failures")}
     icon="alert_circle"
     data-part="failures-card"
   >
     <.card_section data-part="failures-card-section">
       <div data-part="header">
         <span data-part="title">
-          {dgettext("dashboard_tests", "Failures")}
+          {dgettext("dashboard_tests", "Test Failures")}
         </span>
         <span data-part="dot">
           {dgettext("dashboard_tests", "•")}
         </span>
         <span data-part="count">
-          {@failures_count}
+          {format_number(@failures_count)}
         </span>
       </div>
       <div data-part="failures-list">
         <div
-          :for={{test_case_run_id, failures} <- @failures_grouped_by_test_case}
-          id={"test-failure-#{test_case_run_id}"}
+          :for={test_case_run <- @failed_test_case_runs}
+          id={"test-failure-#{test_case_run.id}"}
           phx-hook="NooraCollapsible"
           data-part="collapsible"
           data-state="closed"
@@ -1485,58 +1838,190 @@
                 </div>
                 <div data-part="title-and-subtitle">
                   <h3 data-part="title">
-                    {List.first(failures).test_case_name}
+                    {test_case_run.name}
+                    <.badge
+                      :if={test_case_run.is_quarantined}
+                      label={dgettext("dashboard_tests", "Quarantined")}
+                      color="information"
+                      style="light-fill"
+                      size="large"
+                    />
                   </h3>
                   <span
-                    :if={
-                      List.first(failures).test_module_name &&
-                        List.first(failures).test_suite_name != ""
-                    }
+                    :if={test_case_run.module_name && test_case_run.suite_name != ""}
                     data-part="subtitle"
                   >
-                    {List.first(failures).test_module_name} • {List.first(failures).test_suite_name}
+                    {test_case_run.module_name} • {test_case_run.suite_name}
                   </span>
                   <span
-                    :if={
-                      List.first(failures).test_module_name &&
-                        List.first(failures).test_suite_name == ""
-                    }
+                    :if={test_case_run.module_name && test_case_run.suite_name == ""}
                     data-part="subtitle"
                   >
-                    {List.first(failures).test_module_name}
+                    {test_case_run.module_name}
                   </span>
                 </div>
                 <.badge
-                  label={length(failures)}
+                  label={format_number(length(test_case_run.failures))}
                   color="destructive"
                   style="light-fill"
-                  size="small"
+                  size="large"
                 />
               </div>
               <.neutral_button
                 data-part="closed-collapsible-button"
                 variant="secondary"
-                size="small"
+                size="medium"
               >
                 <.chevron_down />
               </.neutral_button>
               <.neutral_button
                 data-part="open-collapsible-button"
                 variant="secondary"
-                size="small"
+                size="medium"
               >
                 <.chevron_up />
               </.neutral_button>
             </div>
             <div data-part="content" data-state="closed">
-              <span :for={failure <- failures} data-part="failure">
-                {format_failure_message(failure, @run)}
-              </span>
+              <div :if={Enum.any?(test_case_run.repetitions)} data-part="repetitions">
+                <div
+                  :for={{repetition, rep_index} <- Enum.with_index(test_case_run.repetitions)}
+                  data-part="repetition-wrapper"
+                >
+                  <div data-part="repetition-item">
+                    <.badge
+                      :if={repetition.status == "success"}
+                      label={dgettext("dashboard_tests", "Passed")}
+                      color="success"
+                      style="light-fill"
+                      size="small"
+                    />
+                    <.badge
+                      :if={repetition.status == "failure"}
+                      label={dgettext("dashboard_tests", "Failed")}
+                      color="destructive"
+                      style="light-fill"
+                      size="small"
+                    />
+                    <span data-part="repetition-name">{repetition.name}</span>
+                  </div>
+                  <.failure_message_span
+                    :if={
+                      repetition.status == "failure" and Enum.any?(test_case_run.failures) and
+                        Enum.at(test_case_run.failures, rep_index)
+                    }
+                    failure={Enum.at(test_case_run.failures, rep_index)}
+                    context={@run}
+                  />
+                  <div
+                    :if={
+                      Enum.any?(
+                        attachments_for_repetition(
+                          test_case_run.attachments,
+                          repetition.repetition_number
+                        )
+                      )
+                    }
+                    data-part="attachments-list"
+                  >
+                    <.inline_attachment_items
+                      attachments={
+                        attachments_for_repetition(
+                          test_case_run.attachments,
+                          repetition.repetition_number
+                        )
+                      }
+                      test_case_run={test_case_run}
+                      project={@selected_project}
+                      id_prefix={"failure-rep-#{rep_index}"}
+                      text_attachment_urls={@text_attachment_urls}
+                    />
+                  </div>
+                </div>
+              </div>
+              <.failure_message_span
+                :for={failure <- test_case_run.failures}
+                :if={!Enum.any?(test_case_run.repetitions)}
+                failure={failure}
+                context={@run}
+              />
+              <div :if={test_case_run.crash_report} data-part="crash-report-details">
+                <div data-part="crash-report-header">
+                  <span data-part="crash-report-title">
+                    {dgettext("dashboard_tests", "Crash Report")}
+                  </span>
+                  <.neutral_button
+                    :if={test_case_run.crash_report.test_case_run_attachment.file_name}
+                    href={
+                      ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/runs/#{test_case_run.id}/attachments/#{test_case_run.crash_report.test_case_run_attachment.file_name}"
+                    }
+                    target="_blank"
+                    size="medium"
+                  >
+                    <.download />
+                  </.neutral_button>
+                </div>
+                <div data-part="crash-report-metadata">
+                  <span
+                    :if={test_case_run.crash_report.exception_type != ""}
+                    data-part="crash-report-meta-item"
+                  >
+                    <span data-part="meta-label">{dgettext("dashboard_tests", "Exception")}</span>
+                    <span data-part="meta-value">
+                      {test_case_run.crash_report.exception_type}
+                    </span>
+                  </span>
+                  <span
+                    :if={test_case_run.crash_report.signal != ""}
+                    data-part="crash-report-meta-item"
+                  >
+                    <span data-part="meta-label">{dgettext("dashboard_tests", "Signal")}</span>
+                    <span data-part="meta-value">{test_case_run.crash_report.signal}</span>
+                  </span>
+                  <span
+                    :if={test_case_run.crash_report.exception_subtype != ""}
+                    data-part="crash-report-meta-item"
+                  >
+                    <span data-part="meta-label">{dgettext("dashboard_tests", "Subtype")}</span>
+                    <span data-part="meta-value">
+                      {test_case_run.crash_report.exception_subtype}
+                    </span>
+                  </span>
+                </div>
+                <div
+                  :if={test_case_run.crash_report.triggered_thread_frames != ""}
+                  data-part="crash-report-frames"
+                >
+                  <div
+                    :for={
+                      {index, image_name, symbol} <-
+                        parse_frames(test_case_run.crash_report.triggered_thread_frames)
+                    }
+                    data-part="frame-line"
+                  >
+                    <span :if={index} data-part="frame-index">{index}</span>
+                    <span :if={image_name} data-part="frame-image">{image_name}</span>
+                    <span data-part="frame-symbol">{symbol}</span>
+                  </div>
+                </div>
+              </div>
+              <div
+                :if={Enum.any?(attachments_without_repetition(test_case_run.attachments))}
+                data-part="attachments-list"
+              >
+                <.inline_attachment_items
+                  attachments={attachments_without_repetition(test_case_run.attachments)}
+                  test_case_run={test_case_run}
+                  project={@selected_project}
+                  id_prefix="failure"
+                  text_attachment_urls={@text_attachment_urls}
+                />
+              </div>
             </div>
           </div>
         </div>
       </div>
-      <div :if={Enum.empty?(@failures_grouped_by_test_case)} data-part="empty-state">
+      <div :if={Enum.empty?(@failed_test_case_runs)} data-part="empty-state">
         <span data-part="title">{dgettext("dashboard_tests", "No failures detected")}</span>
         <span data-part="subtitle">{dgettext("dashboard_tests", "All tests passed!")}</span>
       </div>
@@ -1568,7 +2053,7 @@
           {dgettext("dashboard_tests", "•")}
         </span>
         <span data-part="count">
-          {@flaky_runs_meta.total_runs_count}
+          {format_number(@flaky_runs_meta.total_runs_count)}
         </span>
       </div>
       <div
@@ -1590,6 +2075,13 @@
                 >
                   {group.name}
                 </.link>
+                <.badge
+                  :if={Enum.any?(group.runs, & &1.is_quarantined)}
+                  label={dgettext("dashboard_tests", "Quarantined")}
+                  color="information"
+                  style="light-fill"
+                  size="large"
+                />
               </h3>
               <span
                 :if={group.module_name not in [nil, ""] and group.suite_name not in [nil, ""]}
@@ -1616,11 +2108,11 @@
               </span>
               <div data-part="passed-count">
                 <.circle_check />
-                <span data-part="label">{group.passed_count}</span>
+                <span data-part="label">{format_number(group.passed_count)}</span>
               </div>
               <div data-part="failed-count">
                 <.circle_x />
-                <span data-part="label">{group.failed_count}</span>
+                <span data-part="label">{format_number(group.failed_count)}</span>
               </div>
             </div>
             <.neutral_button data-part="trigger" variant="secondary" size="medium">
@@ -1696,24 +2188,22 @@
                       />
                       <span data-part="repetition-name">{repetition.name}</span>
                     </div>
-                    <span
+                    <.failure_message_span
                       :if={
                         repetition.status == "failure" and Enum.any?(run.failures) and
                           Enum.at(run.failures, rep_index)
                       }
-                      data-part="repetition-failure"
-                    >
-                      {format_failure_message(Enum.at(run.failures, rep_index), @run)}
-                    </span>
+                      failure={Enum.at(run.failures, rep_index)}
+                      context={@run}
+                    />
                   </div>
                 </div>
-                <span
+                <.failure_message_span
                   :for={failure <- run.failures}
                   :if={!Enum.any?(run.repetitions) and run.status == "failure"}
-                  data-part="repetition-failure"
-                >
-                  {format_failure_message(failure, @run)}
-                </span>
+                  failure={failure}
+                  context={@run}
+                />
               </div>
               <.line_divider :if={index < length(group.runs) - 1} />
             </div>
@@ -1732,4 +2222,21 @@
       />
     </.card_section>
   </.card>
+
+  <div :if={@selected_tab == "logs"} data-part="bazel-invocation-logs">
+    <.live_component
+      module={TuistWeb.Components.Logs}
+      id="bazel-invocation-logs-list"
+      logs={@bazel_invocation_logs}
+      empty_message={
+        dgettext("dashboard_tests", "No logs were captured for this Bazel invocation.")
+      }
+    />
+    <.pagination_group
+      :if={@bazel_invocation_logs_meta.total_pages > 1}
+      current_page={@bazel_invocation_logs_meta.current_page}
+      number_of_pages={@bazel_invocation_logs_meta.total_pages}
+      page_patch={fn page -> "?#{Query.put(@uri.query, "logs-page", page)}" end}
+    />
+  </div>
 </div>

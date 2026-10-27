@@ -7,13 +7,116 @@ defmodule TuistWeb.TestRunLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.CommandEvents
+  alias Tuist.IngestRepo
+  alias Tuist.Projects
+  alias Tuist.Runners.Job
+  alias Tuist.Runners.JobSteps
+  alias Tuist.Shards.Analytics, as: ShardsAnalytics
+  alias Tuist.Storage
+  alias Tuist.Tests
+  alias Tuist.Xcode
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistTestSupport.Fixtures.ShardsFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
+  alias TuistWeb.Helpers.OpenGraph
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     stub(CommandEvents, :has_result_bundle?, fn _ -> false end)
+    stub(Storage, :generate_download_url, fn _key, _account, _opts -> "https://s3.example.com/download" end)
     %{conn: conn, user: user}
+  end
+
+  for source <- [:build, :test, :other_project, :empty] do
+    @source source
+    test "module cache tab uses #{@source} evidence without copying lookups", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, build} = RunsFixtures.build_fixture(project_id: project.id)
+      {:ok, run} = RunsFixtures.test_fixture(project_id: project.id, build_run_id: build.id)
+
+      test_event =
+        CommandEventsFixtures.command_event_fixture(project_id: project.id, build_run_id: build.id, test_run_id: run.id)
+
+      build_project_id = if @source == :other_project, do: ProjectsFixtures.project_fixture().id, else: project.id
+      build_event = CommandEventsFixtures.command_event_fixture(project_id: build_project_id, build_run_id: build.id)
+
+      if @source != :empty do
+        graph = XcodeFixtures.xcode_graph_fixture(command_event_id: build_event.id)
+        xcode_project = XcodeFixtures.xcode_project_fixture(xcode_graph_id: graph.id)
+
+        XcodeFixtures.xcode_target_fixture(
+          xcode_project_id: xcode_project.id,
+          name: "BuildFramework",
+          binary_cache_hash: "build-key",
+          binary_cache_hit: :remote
+        )
+      end
+
+      if @source == :test do
+        graph = XcodeFixtures.xcode_graph_fixture(command_event_id: test_event.id)
+        xcode_project = XcodeFixtures.xcode_project_fixture(xcode_graph_id: graph.id)
+
+        XcodeFixtures.xcode_target_fixture(
+          xcode_project_id: xcode_project.id,
+          name: "TestFramework",
+          binary_cache_hash: "test-key",
+          binary_cache_hit: :remote
+        )
+      end
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{run.id}?tab=module-cache")
+
+      if @source in [:build, :test] do
+        assert has_element?(lv, ".noora-tab-menu-horizontal-item", "Module Cache")
+        name = if @source == :build, do: "BuildFramework", else: "TestFramework"
+        assert has_element?(lv, "table span", name)
+        if @source == :test, do: refute(has_element?(lv, "table span", "BuildFramework"))
+      else
+        refute has_element?(lv, ".noora-tab-menu-horizontal-item", "Module Cache")
+      end
+
+      assert Xcode.has_binary_cache_data?(test_event) == (@source == :test)
+    end
+  end
+
+  for {scheme, title} <- [{"", "mix test"}, {"integration", "mix test · integration"}] do
+    @scheme scheme
+    @card_title title
+    test "uses #{@card_title} on public Mix test-run cards", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, project} = Projects.update_project(project, %{build_system: :mix, visibility: :public})
+
+      {:ok, run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          build_system: "mix",
+          scheme: @scheme,
+          git_branch: "feature/elixir-og",
+          status: "failure"
+        )
+
+      path = ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{run.id}"
+      html = conn |> get(path) |> html_response(:ok)
+      [image] = html |> Floki.parse_document!() |> Floki.attribute("meta[property='og:image']", "content")
+      %{"token" => token} = URI.decode_query(URI.parse(image).query)
+
+      assert {:ok, params} = OpenGraph.verify_image_token(token)
+      assert params["template"] == "project"
+      assert params["project_id"] == to_string(project.id)
+      assert params["title"] == @card_title
+      assert params["subtitle"] == "feature/elixir-og"
+      assert params["badge"] == "Failure"
+    end
   end
 
   test "shows details of a test run", %{
@@ -33,6 +136,226 @@ defmodule TuistWeb.TestRunLiveTest do
     assert has_element?(lv, "h1")
   end
 
+  test "shows the stress gate's verdict and the candidate that disagreed", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, test_run} =
+      Tests.create_test(%{
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        account_id: organization.account.id,
+        duration: 1000,
+        status: "success",
+        scheme: "App",
+        git_branch: "feature",
+        git_commit_sha: "abc123",
+        ran_at: NaiveDateTime.utc_now(),
+        is_ci: true,
+        test_modules: [
+          %{
+            name: "AppTests",
+            status: "success",
+            duration: 1000,
+            test_cases: [
+              %{
+                name: "testAppliesDiscount",
+                test_suite_name: "CheckoutTests",
+                status: "success",
+                duration: 10,
+                repetitions: [
+                  %{repetition_number: 1, name: "Stress 1", status: "success", duration: 4, source: "stress"},
+                  %{repetition_number: 2, name: "Stress 2", status: "failure", duration: 5, source: "stress"}
+                ]
+              }
+            ]
+          }
+        ],
+        stress_new_tests: %{
+          mode: "report",
+          outcome: "disagreed",
+          new_count: 1,
+          stressed_count: 1,
+          excluded_count: 0,
+          known_count: 40,
+          test_cases: [
+            %{
+              name: "testAppliesDiscount",
+              suite_name: "CheckoutTests",
+              module_name: "AppTests",
+              repetitions: 10,
+              failed_repetitions: 2,
+              outcome: "disagreed",
+              is_quarantined: false,
+              repetition_results: [
+                %{repetition_number: 1, status: "success", duration: 4},
+                %{
+                  repetition_number: 2,
+                  status: "failure",
+                  duration: 5,
+                  failure: %{
+                    message: "Bool.random()",
+                    issue_type: "assertion_failure",
+                    line_number: 0
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      })
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+    # A test that disagreed with itself is flaky, not failed.
+    assert has_element?(lv, "#widget-flaky-test-cases", "1")
+    assert has_element?(lv, "#widget-failed-test-cases", "0")
+
+    # The candidate is badged where the reader already reads the test cases.
+    assert has_element?(lv, "#test-cases-table", "2 of 10 repetitions failed")
+
+    # And the finding sits with the run's flaky tests, expandable to its repetitions.
+    # The finding needs no surface of its own: reruns that disagreed make the test case
+    # run flaky, so it appears with the run's flaky tests like any other.
+    assert has_element?(lv, "[data-part='flaky-runs-card']", "testAppliesDiscount")
+
+    # It is not presented as one of the run's failures.
+    refute has_element?(lv, "[data-part='failures-overview-card']")
+  end
+
+  test "does not show the stress gate for a run that did not carry it", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+    refute has_element?(lv, "[data-part='flaky-runs-card']")
+  end
+
+  test "surfaces linked runner CI context when test run came from a Tuist runner job", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    seed_runner_job(organization.account, 31_401, 314_010, "Run tests")
+
+    {:ok, test_run} =
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        account_id: organization.account.id,
+        scheme: "AppTests",
+        duration: 95_000,
+        ci_provider: "github",
+        ci_run_id: "314010",
+        ci_project_handle: "tuist/tuist",
+        is_ci: true
+      )
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+    assert has_element?(lv, "[data-part='ci-context-card']", "CI Details")
+    assert has_element?(lv, "[data-part='ci-context-card'] a", "View more")
+
+    assert has_element?(
+             lv,
+             ~s|[data-part='ci-context-card'] a[href="/#{organization.account.name}/runners/workflows/tuist/tuist/Server"]|,
+             "Server"
+           )
+
+    assert has_element?(
+             lv,
+             ~s|[data-part='ci-context-card'] a[href="/#{organization.account.name}/runners/runs/314010/jobs/31401"]|,
+             "Build and test"
+           )
+
+    assert has_element?(
+             lv,
+             ~s|[data-part='ci-context-card'] a[href="/#{organization.account.name}/runners/runs/314010/jobs/31401?tab=overview&step=2"]|,
+             "Run tests ·"
+           )
+
+    refute has_element?(lv, "[data-part='ci-context-card'] a", "GitHub")
+    refute has_element?(lv, "[data-part='ci-context-card']", "Status")
+    refute has_element?(lv, "[data-part='ci-context-card']", "Workflow jobs")
+    refute has_element?(lv, "[data-part='ci-context-card']", "Repository")
+    refute has_element?(lv, "[data-part='ci-context-card']", "Run ID")
+    assert render(lv) =~ "Profile"
+    assert render(lv) =~ "tuist-macos"
+    refute has_element?(lv, "[data-part='ci-context-card']", "Platform")
+    refute has_element?(lv, "[data-part='ci-context-card']", "Test duration")
+    assert has_element?(lv, "[data-part='ci-context-card']", "Step")
+    assert render(lv) =~ "Run tests ·"
+  end
+
+  test "hides linked runner CI context when no runner job matches the test", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    seed_runner_job(organization.account, 31_402, 314_020, "Deploy", job_name: "Deploy")
+
+    {:ok, test_run} =
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        account_id: organization.account.id,
+        scheme: "AppTests",
+        ci_provider: "github",
+        ci_run_id: "314020",
+        ci_project_handle: "tuist/tuist",
+        is_ci: true
+      )
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+    refute has_element?(lv, "[data-part='ci-context-card']")
+  end
+
+  test "renders the run destinations metadata block when destinations exist", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    {:ok, test_run} =
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        run_destinations: [
+          %{name: "iPhone 17", platform: "ios_simulator", os_version: "26.4"},
+          %{name: "iPhone 17 Pro", platform: "ios_simulator", os_version: "26.4"}
+        ]
+      )
+
+    # When
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+    # Then
+    assert has_element?(lv, "[data-part='run-destinations']")
+    assert render(lv) =~ "iPhone 17"
+    assert render(lv) =~ "iPhone 17 Pro"
+    assert render(lv) =~ "iOS Simulator 26.4"
+  end
+
+  test "hides the run destinations metadata block when none were recorded", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+
+    # When
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+    # Then
+    refute has_element?(lv, "[data-part='run-destinations']")
+  end
+
   test "shows test cases table", %{
     conn: conn,
     organization: organization,
@@ -50,12 +373,86 @@ defmodule TuistWeb.TestRunLiveTest do
     assert has_element?(lv, "#test-cases-table")
   end
 
+  test "renders the test cases table when the sort order query param is invalid", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+
+    # When - a fuzzed sort order that is not a valid Flop direction
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?test-cases-sort-order=381719201"
+      )
+
+    # Then - the page renders instead of raising Flop.InvalidParamsError
+    assert has_element?(lv, "#test-cases-table")
+  end
+
+  test "renders the test suites table when the sort order query param is invalid", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+
+    # When
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?test-tab=test-suites&test-suites-sort-order=381719201"
+      )
+
+    # Then
+    assert has_element?(lv, "#test-suites-table")
+  end
+
+  test "hides framework test suites for Bazel projects", %{
+    conn: conn,
+    organization: organization
+  } do
+    bazel_project = ProjectsFixtures.project_fixture(account: organization.account, build_system: :bazel)
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: bazel_project.id, build_system: "bazel")
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{bazel_project.name}/tests/test-runs/#{test_run.id}?test-tab=test-suites"
+      )
+
+    refute has_element?(lv, "#test-suites-table")
+    assert has_element?(lv, "#test-cases-table")
+    refute has_element?(lv, "[data-part='test-suites-card']")
+  end
+
+  test "renders the test modules table when the sort order query param is invalid", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+
+    # When
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?test-tab=test-modules&test-modules-sort-order=381719201"
+      )
+
+    # Then
+    assert has_element?(lv, "#test-modules-table")
+  end
+
   test "shows download button with command event ID when test run has result bundle", %{
     conn: conn,
     organization: organization,
     project: project
   } do
-    alias TuistTestSupport.Fixtures.CommandEventsFixtures
     # Given
     {:ok, test_run} =
       RunsFixtures.test_fixture(project_id: project.id)
@@ -78,6 +475,35 @@ defmodule TuistWeb.TestRunLiveTest do
     assert has_element?(lv, "a[href*='/runs/#{command_event.id}/download']")
   end
 
+  test "immutable runs expose a canonical download link for a shard's original bundle", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 1, reporting_version: 1)
+    source_id = String.upcase(UUIDv7.generate())
+    stub(Tuist.Tasks, :run_async, fn _ -> :ok end)
+
+    assert {:ok, _} =
+             Tests.create_test(%{
+               id: source_id,
+               project_id: project.id,
+               account_id: organization.account.id,
+               shard_plan_id: plan.id,
+               shard_index: 0,
+               status: "success",
+               duration: 1,
+               is_ci: true,
+               test_modules: []
+             })
+
+    key = "#{organization.account.name}/#{project.name}/runs/#{source_id}/result_bundle.zip"
+    stub(Storage, :object_exists?, fn object_key, _ -> object_key == key end)
+    {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{plan.id}")
+    render_async(lv)
+    assert has_element?(lv, "a[href*='/runs/#{plan.id}/download']", "Download result")
+  end
+
   test "hides download button when test run has no result bundle", %{
     conn: conn,
     organization: organization,
@@ -94,6 +520,239 @@ defmodule TuistWeb.TestRunLiveTest do
 
     # Then
     refute has_element?(lv, "a", "Download result")
+  end
+
+  describe "pull request button" do
+    test "links the test run to its pull request", %{conn: conn, organization: organization} do
+      project =
+        ProjectsFixtures.project_fixture(
+          account_id: organization.account.id,
+          vcs_connection: [repository_full_handle: "tuist/tuist", provider: :github]
+        )
+
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, git_ref: "refs/pull/23958/merge")
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      assert has_element?(
+               lv,
+               ~s([data-part="actions"] a[data-part="pull-request-button"][href="https://github.com/tuist/tuist/pull/23958"]),
+               "PR #23958"
+             )
+    end
+
+    test "is hidden when the test run is not for a pull request", %{conn: conn, organization: organization} do
+      project =
+        ProjectsFixtures.project_fixture(
+          account_id: organization.account.id,
+          vcs_connection: [repository_full_handle: "tuist/tuist", provider: :github]
+        )
+
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id, git_ref: "refs/heads/main")
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      refute has_element?(lv, ~s([data-part="pull-request-button"]))
+    end
+  end
+
+  describe "attachments in failures" do
+    test "groups attachments by repetition in the failures tab", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 1000,
+              test_cases: [
+                %{name: "testFlaky", status: "failure", duration: 500}
+              ]
+            }
+          ]
+        )
+
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      RunsFixtures.test_case_failure_fixture(test_case_run_id: test_case_run.id)
+      RunsFixtures.test_case_failure_fixture(test_case_run_id: test_case_run.id)
+
+      RunsFixtures.test_case_run_repetition_fixture(
+        test_case_run_id: test_case_run.id,
+        repetition_number: 1,
+        name: "First Run",
+        status: "failure"
+      )
+
+      RunsFixtures.test_case_run_repetition_fixture(
+        test_case_run_id: test_case_run.id,
+        repetition_number: 2,
+        name: "Retry 1",
+        status: "failure"
+      )
+
+      RunsFixtures.test_case_run_attachment_fixture(
+        test_case_run_id: test_case_run.id,
+        file_name: "attempt1_screenshot.png",
+        repetition_number: 1
+      )
+
+      RunsFixtures.test_case_run_attachment_fixture(
+        test_case_run_id: test_case_run.id,
+        file_name: "attempt2_screenshot.png",
+        repetition_number: 2
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      # When
+      # Then - attachments are scoped inside their repetition wrappers
+      {:ok, _lv, html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=failures"
+        )
+
+      {:ok, document} = Floki.parse_document(html)
+
+      repetition_wrappers =
+        Floki.find(document, "[data-part=repetition-wrapper]")
+
+      assert length(repetition_wrappers) >= 2
+
+      # Find each wrapper by its repetition name and verify the correct attachment is inside
+      first_run_wrapper =
+        Enum.find(repetition_wrappers, fn w -> Floki.raw_html(w) =~ "First Run" end)
+
+      retry_wrapper =
+        Enum.find(repetition_wrappers, fn w -> Floki.raw_html(w) =~ "Retry 1" end)
+
+      assert first_run_wrapper, "Expected a repetition wrapper for 'First Run'"
+      assert retry_wrapper, "Expected a repetition wrapper for 'Retry 1'"
+
+      first_run_html = Floki.raw_html(first_run_wrapper)
+      retry_html = Floki.raw_html(retry_wrapper)
+
+      assert first_run_html =~ "attempt1_screenshot.png"
+      refute first_run_html =~ "attempt2_screenshot.png"
+      assert retry_html =~ "attempt2_screenshot.png"
+      refute retry_html =~ "attempt1_screenshot.png"
+    end
+
+    test "shows attachment file names in the failures tab", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 1000,
+              test_cases: [
+                %{name: "testFailing", status: "failure", duration: 500}
+              ]
+            }
+          ]
+        )
+
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      RunsFixtures.test_case_failure_fixture(test_case_run_id: test_case_run.id)
+
+      RunsFixtures.test_case_run_attachment_fixture(
+        test_case_run_id: test_case_run.id,
+        file_name: "failure_screenshot.png"
+      )
+
+      RunsFixtures.test_case_run_attachment_fixture(
+        test_case_run_id: test_case_run.id,
+        file_name: "console.log"
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      # When
+      {:ok, _lv, html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=failures"
+        )
+
+      # Then
+      assert html =~ "failure_screenshot.png"
+      assert html =~ "console.log"
+    end
+
+    test "does not show crash report attachment in attachments list on failures tab", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          test_modules: [
+            %{
+              name: "TestModule",
+              status: "failure",
+              duration: 1000,
+              test_cases: [
+                %{name: "testCrashing", status: "failure", duration: 500}
+              ]
+            }
+          ]
+        )
+
+      test_run = Tuist.ClickHouseRepo.preload(test_run, :test_case_runs)
+      [test_case_run | _] = test_run.test_case_runs
+
+      RunsFixtures.test_case_failure_fixture(test_case_run_id: test_case_run.id)
+
+      crash_attachment =
+        RunsFixtures.test_case_run_attachment_fixture(
+          test_case_run_id: test_case_run.id,
+          file_name: "crash-report.ips"
+        )
+
+      RunsFixtures.crash_report_fixture(
+        test_case_run_id: test_case_run.id,
+        test_case_run_attachment_id: crash_attachment.id
+      )
+
+      RunsFixtures.test_case_run_attachment_fixture(
+        test_case_run_id: test_case_run.id,
+        file_name: "non_crash_screenshot.png"
+      )
+
+      RunsFixtures.optimize_test_case_runs()
+
+      # When
+      {:ok, _lv, html} =
+        live(
+          conn,
+          ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}?tab=failures"
+        )
+
+      # Then
+      assert html =~ "non_crash_screenshot.png"
+      assert html =~ "Crash Report"
+    end
   end
 
   describe "test case badges" do
@@ -184,5 +843,373 @@ defmodule TuistWeb.TestRunLiveTest do
       assert has_element?(lv, "#test-cases-table", "testExistingCase")
       refute has_element?(lv, "#test-cases-table span", "New")
     end
+  end
+
+  describe "shard card for sharded test runs" do
+    for {build_system, granularity, label} <- [
+          {:once, "module", "Batches"},
+          {:xcode, "module", "Modules"},
+          {:xcode, "suite", "Test Suites"},
+          {:cargo, "module", "Modules"}
+        ] do
+      @tag build_system: build_system, granularity: granularity, label: label
+      test "shows #{build_system} #{granularity} shard counts as #{label}", %{
+        conn: conn,
+        organization: organization,
+        project: project,
+        build_system: build_system,
+        granularity: granularity,
+        label: label
+      } do
+        {:ok, project} = Projects.update_project(project, %{build_system: build_system})
+        shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2, granularity: granularity)
+
+        {:ok, test_run} =
+          RunsFixtures.test_fixture(
+            project_id: project.id,
+            build_system: to_string(build_system),
+            scheme: "AppScheme",
+            shard_plan_id: shard_plan.id,
+            shard_index: 0
+          )
+
+        stub(ShardsAnalytics, :shard_metrics, fn _ ->
+          [
+            %{shard_index: 0, actual_duration_ms: 5000, status: "success", ran_at: NaiveDateTime.utc_now()},
+            %{shard_index: 1, actual_duration_ms: 4000, status: "success", ran_at: NaiveDateTime.utc_now()}
+          ]
+        end)
+
+        {:ok, lv, _html} =
+          live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+        assert has_element?(lv, "[data-part='shards-card']")
+        assert has_element?(lv, "#shard-balance-table th", label)
+      end
+    end
+
+    test "shows pending shards when not all reported", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 3)
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          scheme: "AppScheme",
+          status: "in_progress",
+          shard_plan_id: shard_plan.id,
+          shard_index: 0
+        )
+
+      stub(ShardsAnalytics, :shard_metrics, fn _ ->
+        [
+          %{shard_index: 0, actual_duration_ms: 5000, status: "success", ran_at: NaiveDateTime.utc_now()}
+        ]
+      end)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      assert has_element?(lv, "[data-part='shards-card']")
+      assert has_element?(lv, "#shard-balance-table", "Pending")
+    end
+
+    test "shows shards that never reported as such once the run has outlived the reaper window", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          scheme: "AppScheme",
+          status: "failure",
+          ran_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -7, :hour),
+          shard_plan_id: shard_plan.id,
+          shard_index: 1
+        )
+
+      stub(ShardsAnalytics, :shard_metrics, fn _ ->
+        [
+          %{shard_index: 1, actual_duration_ms: 5000, status: "failure", ran_at: NaiveDateTime.utc_now()}
+        ]
+      end)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      assert has_element?(lv, "#shard-balance-table", "Not reported")
+      refute has_element?(lv, "#shard-balance-table", "Pending")
+      refute has_element?(lv, "#shard-balance-table", "In Progress")
+    end
+
+    test "keeps outstanding shards pending while a freshly failed run could still hear from them", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 4)
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          scheme: "AppScheme",
+          status: "failure",
+          ran_at: NaiveDateTime.utc_now(),
+          shard_plan_id: shard_plan.id,
+          shard_index: 0
+        )
+
+      stub(ShardsAnalytics, :shard_metrics, fn _ ->
+        [
+          %{shard_index: 0, actual_duration_ms: 5000, status: "failure", ran_at: NaiveDateTime.utc_now()}
+        ]
+      end)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      assert has_element?(lv, "#shard-balance-table", "Pending")
+      assert has_element?(lv, "#shard-balance-table", "In Progress")
+      refute has_element?(lv, "#shard-balance-table", "Not reported")
+    end
+
+    test "refreshes shard rows, metrics and cases when the run state reloads", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      shard_plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2, reporting_version: 1)
+
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          scheme: "AppScheme",
+          status: "in_progress",
+          shard_plan_id: shard_plan.id,
+          shard_index: 0,
+          test_modules: [
+            %{
+              name: "FirstModule",
+              status: "success",
+              duration: 500,
+              test_cases: [%{name: "firstShardCase", status: "success", duration: 500}]
+            }
+          ]
+        )
+
+      stub(ShardsAnalytics, :shard_metrics, fn _ ->
+        [
+          %{shard_index: 0, actual_duration_ms: 5000, status: "success", ran_at: NaiveDateTime.utc_now()}
+        ]
+      end)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      assert has_element?(lv, "#shard-balance-table", "Pending")
+      assert has_element?(lv, "#widget-test-cases", "1")
+      assert has_element?(lv, "#widget-failed-test-cases", "0")
+      assert has_element?(lv, "#test-cases-table", "firstShardCase")
+
+      {:ok, _} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          scheme: "AppScheme",
+          status: "failure",
+          shard_plan_id: shard_plan.id,
+          shard_index: 1,
+          test_modules: [
+            %{
+              name: "SecondModule",
+              status: "failure",
+              duration: 700,
+              test_cases: [
+                %{name: "secondShardPassed", status: "success", duration: 300},
+                %{name: "secondShardFailed", status: "failure", duration: 400}
+              ]
+            }
+          ]
+        )
+
+      stub(ShardsAnalytics, :shard_metrics, fn _ ->
+        [
+          %{shard_index: 0, actual_duration_ms: 5000, status: "success", ran_at: NaiveDateTime.utc_now()},
+          %{shard_index: 1, actual_duration_ms: 7000, status: "failure", ran_at: NaiveDateTime.utc_now()}
+        ]
+      end)
+
+      render_hook(lv, "refresh_test_run")
+
+      refute has_element?(lv, "#shard-balance-table", "Pending")
+      assert has_element?(lv, "#widget-test-cases", "3")
+      assert has_element?(lv, "#widget-failed-test-cases", "1")
+      assert has_element?(lv, "#test-cases-table", "firstShardCase")
+      assert has_element?(lv, "#test-cases-table", "secondShardPassed")
+      assert has_element?(lv, "#test-cases-table", "secondShardFailed")
+    end
+  end
+
+  describe "handle_info catch-all" do
+    test "ignores unrelated PubSub broadcasts (e.g. :xcode_build_created) without crashing", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given - a rendered test run
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      # When - a sibling Xcode build broadcast lands on the same account/project topic
+      send(
+        lv.pid,
+        {:xcode_build_created, %Tuist.Builds.Build{id: Ecto.UUID.generate(), project_id: project.id}}
+      )
+
+      # And an arbitrary future broadcast
+      send(lv.pid, {:unrelated_topic_broadcast, %{ignored: true}})
+
+      # Then - the LiveView stays alive and re-renders normally
+      assert render(lv) =~ "test-cases-card"
+    end
+  end
+
+  describe "refresh_test_run event" do
+    test "re-renders without raising when refreshing a non-processing run", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given - a finished test run rendered on the overview tab (test-cases sub-tab is the default)
+      {:ok, test_run} = RunsFixtures.test_fixture(project_id: project.id)
+
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      # When - the LiveView re-fetches the run after the run has finished processing.
+      # This mirrors handle_info({:test_created, ...}) and the manual refresh flow,
+      # which both reset the test_cases_meta assign back to %{}.
+      html = render_hook(lv, "refresh_test_run")
+
+      # Then - the page re-renders without raising a KeyError on @test_cases_meta.total_pages
+      assert html =~ "test-cases-card"
+    end
+  end
+
+  describe "transient-state polling" do
+    test "clears the processing spinner once the run finishes, even without a broadcast", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given - a run still being processed, rendered live (shows the spinner)
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(project_id: project.id, status: "processing", test_modules: [])
+
+      {:ok, lv, html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      assert html =~ "processing-state"
+
+      # When - the run finishes in ClickHouse but the completion broadcast is never
+      # delivered (mirrors the cross-node-isolated xcresult-processor). The poll
+      # timer firing is simulated by delivering the message directly.
+      {:ok, _completed} =
+        RunsFixtures.test_fixture(id: test_run.id, project_id: project.id, status: "success")
+
+      send(lv.pid, :poll_run_state)
+
+      # Then - the spinner clears on its own and results render
+      html = render(lv)
+      refute html =~ ~s(data-part="processing-state")
+      assert html =~ "test-cases-card"
+    end
+
+    test "polls an in_progress (sharded) run and clears the in-progress badge on completion", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given - a run still in progress (e.g. waiting on other shards)
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(project_id: project.id, status: "in_progress")
+
+      {:ok, lv, html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+
+      assert html =~ ~s(data-part="badge-processing")
+
+      # When - the run reaches a terminal status and the poll fires
+      {:ok, _completed} =
+        RunsFixtures.test_fixture(id: test_run.id, project_id: project.id, status: "success")
+
+      send(lv.pid, :poll_run_state)
+
+      # Then - the in-progress badge clears without a broadcast
+      refute render(lv) =~ ~s(data-part="badge-processing")
+    end
+  end
+
+  defp seed_runner_job(account, workflow_job_id, workflow_run_id, matched_step_name, opts \\ []) do
+    enqueued_at = ~U[2026-05-28 10:00:00.000000Z]
+    claimed_at = ~U[2026-05-28 10:00:08.000000Z]
+    started_at = ~U[2026-05-28 10:00:12.000000Z]
+    completed_at = ~U[2026-05-28 10:08:12.000000Z]
+
+    IngestRepo.insert_all(Job, [
+      %{
+        workflow_job_id: workflow_job_id,
+        account_id: account.id,
+        fleet_name: "macos-xcode-26.4",
+        repository: "tuist/tuist",
+        workflow_run_id: workflow_run_id,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: Keyword.get(opts, :job_name, "Build and test"),
+        head_branch: "main",
+        head_sha: "abcdef1234567890",
+        status: "completed",
+        conclusion: "success",
+        enqueued_at: enqueued_at,
+        claimed_at: claimed_at,
+        started_at: started_at,
+        completed_at: completed_at,
+        pod_name: "runner-pod-ci-context",
+        runner_name: "tuist-runner-ci-context",
+        requested_dispatch_label: "tuist-macos",
+        updated_at: completed_at
+      }
+    ])
+
+    :ok =
+      JobSteps.record([
+        %{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          number: 1,
+          name: "Run actions/checkout@v4",
+          status: "completed",
+          conclusion: "success",
+          started_at: started_at,
+          completed_at: DateTime.add(started_at, 20, :second)
+        },
+        %{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          number: 2,
+          name: matched_step_name,
+          status: "completed",
+          conclusion: "success",
+          started_at: DateTime.add(started_at, 20, :second),
+          completed_at: DateTime.add(started_at, 260, :second)
+        }
+      ])
   end
 end

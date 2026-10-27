@@ -19,10 +19,8 @@ public struct PhysicalDevice: Codable, Equatable, Identifiable {
     public let osVersion: String?
     public let transportType: TransportType?
     public let connectionState: ConnectionState
-}
 
-#if DEBUG
-    extension PhysicalDevice {
+    #if DEBUG
         public static func test(
             id: String = "id",
             name: String = "My iPhone",
@@ -40,5 +38,5 @@ public struct PhysicalDevice: Codable, Equatable, Identifiable {
                 connectionState: connectionState
             )
         }
-    }
-#endif
+    #endif
+}

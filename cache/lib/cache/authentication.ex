@@ -5,7 +5,9 @@ defmodule Cache.Authentication do
   This module validates that a request has proper authorization to access a project
   by first attempting to decode JWT tokens locally and extract the projects claim.
   For non-JWT tokens (e.g., project tokens), it falls back to calling the server's
-  /api/projects endpoint and caching the results.
+  /api/cache/access endpoint and caching the results. That endpoint resolves
+  cache access specifically, so an account that has exhausted the free tier is
+  already absent from what it returns.
   """
 
   require Logger
@@ -28,71 +30,132 @@ defmodule Cache.Authentication do
 
   Returns `{:ok, auth_header}` if authorized, or `{:error, status, message}` otherwise.
   """
-  def ensure_project_accessible(conn, account_handle, project_handle) do
+  def ensure_project_accessible(conn, account_handle, project_handle, opts \\ []) do
     auth_header = conn |> Plug.Conn.get_req_header("authorization") |> List.first()
+    cache = Keyword.get(opts, :cache_name, cache_name())
 
     if is_nil(auth_header) do
       {:error, 401, "Missing Authorization header"}
     else
       requested_handle = full_handle(account_handle, project_handle)
 
-      case authorize(auth_header, requested_handle, conn) do
-        :ok -> {:ok, auth_header}
-        {:error, status, message} -> {:error, status, message}
+      case authorize(auth_header, requested_handle, conn, cache) do
+        :ok ->
+          {:ok, auth_header}
+
+        {:error, status, message} ->
+          {:error, status, message}
       end
     end
   end
 
-  defp authorize(auth_header, requested_handle, conn) do
-    cache_key = {generate_cache_key(auth_header), requested_handle}
+  defp authorize(auth_header, requested_handle, conn, cache) do
+    # Keyed by action as well as token and handle: a token can be granted the
+    # read and not the write, so a decision reached for one must never be
+    # replayed for the other.
+    cache_key = {generate_cache_key(auth_header), requested_handle, request_action(conn)}
 
-    case Cachex.get(cache_name(), cache_key) do
-      {:ok, nil} -> authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn)
-      {:ok, result} -> result
-      _ -> authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn)
+    case Cachex.get(cache, cache_key) do
+      {:ok, nil} ->
+        :telemetry.execute([:cache, :auth, :cache, :miss], %{}, %{})
+        authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn, cache)
+
+      {:ok, result} ->
+        :telemetry.execute([:cache, :auth, :cache, :hit], %{}, %{})
+        if result == :ok, do: :telemetry.execute([:cache, :auth, :authorized], %{}, %{method: :cache})
+        result
+
+      _ ->
+        :telemetry.execute([:cache, :auth, :cache, :miss], %{}, %{})
+        authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn, cache)
     end
   end
 
-  defp authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn) do
+  defp authorize_with_jwt_or_api(auth_header, cache_key, requested_handle, conn, cache) do
     token = extract_token(auth_header)
+    {_token_key, _handle, action} = cache_key
 
-    case verify_jwt(token, requested_handle) do
+    case verify_jwt(token, requested_handle, action) do
       {:ok, ttl} ->
-        cache_result(cache_key, :ok, ttl)
+        :telemetry.execute([:cache, :auth, :authorized], %{}, %{method: :jwt})
+        cache_result(cache, cache_key, :ok, ttl)
 
       {:error, :not_jwt} ->
-        fetch_and_cache_projects(auth_header, cache_key, conn)
+        fetch_and_cache_projects(auth_header, cache_key, conn, cache)
 
       {:error, :project_not_in_jwt} ->
-        fetch_and_cache_projects(auth_header, cache_key, conn)
+        fetch_and_cache_projects(auth_header, cache_key, conn, cache)
 
-      {:error, _reason} ->
-        fetch_and_cache_projects(auth_header, cache_key, conn)
+      # A token carrying grants has already had its say, so this is the answer
+      # rather than a reason to ask the server. Asking would also be futile:
+      # the server does not accept a cache token as a credential, so the
+      # fallback turns every ungranted request into a misleading 401.
+      {:error, :not_granted} ->
+        :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :forbidden})
+        cache_result(cache, cache_key, {:error, 403, "You don't have access to this project"}, failure_ttl())
+
+      {:error, :payment_required, account_handle} ->
+        :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :payment_required})
+        cache_result(cache, cache_key, payment_required_error(account_handle), failure_ttl())
     end
   end
+
+  # An exhausted plan reaches a node as absence from the grants, which alone is
+  # indistinguishable from never having had access. The server names the
+  # accounts it withheld for payment so the caller is told what is actually
+  # wrong and what to do about it.
+  defp payment_required_error(account_handle) do
+    {:error, 402,
+     "The account '#{account_handle}' has reached the limits of the plan 'Tuist Air' and requires upgrading to the plan 'Tuist Pro'."}
+  end
+
+  defp payment_required?(handles, account_handle) when is_list(handles) do
+    Enum.any?(handles, fn handle ->
+      is_binary(handle) and String.downcase(handle) == String.downcase(account_handle)
+    end)
+  end
+
+  defp payment_required?(_handles, _account_handle), do: false
+
+  defp account_handle_of(requested_handle) do
+    requested_handle |> String.split("/") |> List.first()
+  end
+
+  defp request_action(%Plug.Conn{method: method}) when method in ["GET", "HEAD"], do: :read
+  defp request_action(_conn), do: :write
 
   defp extract_token("Bearer " <> token), do: token
   defp extract_token(token), do: token
 
-  defp verify_jwt(token, requested_handle) do
+  defp verify_jwt(token, requested_handle, action) do
     if Cache.Config.guardian_configured?() do
-      do_verify_jwt(token, requested_handle)
+      do_verify_jwt(token, requested_handle, action)
     else
       {:error, :not_jwt}
     end
   end
 
-  defp do_verify_jwt(token, requested_handle) do
+  defp do_verify_jwt(token, requested_handle, action) do
     case Cache.Guardian.decode_and_verify(token) do
       {:ok, claims} ->
-        verify_project_access(claims, requested_handle)
+        verify_project_access(claims, requested_handle, action)
 
       {:error, _reason} ->
         {:error, :not_jwt}
     end
   end
 
-  defp verify_project_access(claims, requested_handle) do
+  defp verify_project_access(claims, requested_handle, action) do
+    case Map.get(claims, "cache_grants") do
+      nil -> verify_listed_project(claims, requested_handle)
+      grants -> verify_granted_project(grants, claims, requested_handle, action)
+    end
+  end
+
+  # The projects claim lists what the token reaches without saying what it may
+  # do there, and it is capped, so a handle missing from it is inconclusive and
+  # falls through to the server.
+  defp verify_listed_project(claims, requested_handle) do
     projects = Map.get(claims, "projects", [])
     exp = Map.get(claims, "exp")
 
@@ -100,6 +163,68 @@ defmodule Cache.Authentication do
       {:ok, calculate_ttl(exp)}
     else
       {:error, :project_not_in_jwt}
+    end
+  end
+
+  # Grants say which action they cover, so for a project they name they are the
+  # whole answer. Tuist's server mints these; the shape is agreed with the cache
+  # nodes that read them back.
+  #
+  # A cache token's grants are complete. An access token's cover only the
+  # subject's most recently used projects when it was minted, so a project they
+  # leave out may still be reachable and is asked of the server.
+  defp verify_granted_project(grants, claims, requested_handle, action) do
+    account_handle = account_handle_of(requested_handle)
+
+    cond do
+      granted?(grants, requested_handle, action) ->
+        {:ok, calculate_ttl(Map.get(claims, "exp"))}
+
+      payment_required?(Map.get(claims, "cache_payment_required", []), account_handle) ->
+        {:error, :payment_required, account_handle}
+
+      Map.get(claims, "typ") == "cache" or granted?(grants, requested_handle, :read) ->
+        {:error, :not_granted}
+
+      true ->
+        {:error, :project_not_in_jwt}
+    end
+  end
+
+  # A request naming a project is answered by the project bucket alone: an
+  # account grant is access to the account's own cache, not to every project
+  # in it.
+  defp granted?(grants, requested_handle, action) do
+    bucket = grants |> grant_bucket("project") |> granted_handles(action)
+
+    requested_handle in bucket
+  end
+
+  defp grant_bucket(grants, scope) when is_map(grants) do
+    case Map.get(grants, scope) do
+      bucket when is_map(bucket) -> bucket
+      _ -> %{}
+    end
+  end
+
+  defp grant_bucket(_grants, _scope), do: %{}
+
+  # Write implies read, so a writer never has to be granted both.
+  defp granted_handles(bucket, :read), do: handles(bucket, "read") ++ handles(bucket, "write")
+  defp granted_handles(bucket, :write), do: handles(bucket, "write")
+
+  # Handles compare lowercased, and an empty handle counts as absent rather
+  # than as a handle named "".
+  defp handles(bucket, action) do
+    case Map.get(bucket, action) do
+      handles when is_list(handles) ->
+        handles
+        |> Enum.filter(&is_binary/1)
+        |> Enum.map(&(&1 |> String.trim() |> String.downcase()))
+        |> Enum.reject(&(&1 == ""))
+
+      _ ->
+        []
     end
   end
 
@@ -118,27 +243,57 @@ defmodule Cache.Authentication do
 
   defp calculate_ttl(_), do: success_ttl()
 
-  defp fetch_and_cache_projects(auth_header, cache_key, conn) do
+  defp fetch_and_cache_projects(auth_header, cache_key, conn, cache) do
     headers = build_headers(auth_header, conn)
     options = request_options(headers)
 
-    case Req.get(options) do
-      {:ok, %{status: 200, body: %{"projects" => projects}}} ->
-        cache_projects(cache_key, projects)
+    cache
+    |> Cachex.fetch(cache_key, fn -> fetch_projects(cache_key, options) end)
+    |> unwrap_fetch_result()
+  end
+
+  defp fetch_projects(cache_key, options) do
+    start_time = System.monotonic_time()
+    :telemetry.execute([:cache, :auth, :server, :request], %{}, %{})
+
+    result = Req.get(options)
+
+    duration = System.monotonic_time() - start_time
+    :telemetry.execute([:cache, :auth, :server, :response], %{duration: duration}, %{})
+
+    case result do
+      {:ok, %{status: 200, body: %{"projects" => projects} = body}} ->
+        result = project_access_result(cache_key, projects, Map.get(body, "payment_required", []))
+        ttl = if result == :ok, do: success_ttl(), else: failure_ttl()
+        {:commit, result, expire: ttl}
 
       {:ok, %{status: 403}} ->
-        cache_result(cache_key, {:error, 403, "You don't have access to this project"}, failure_ttl())
+        :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :forbidden})
+        {:commit, {:error, 403, "You don't have access to this project"}, expire: failure_ttl()}
 
       {:ok, %{status: 401}} ->
-        cache_result(cache_key, {:error, 401, "Unauthorized"}, failure_ttl())
+        :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :unauthorized})
+        {:commit, {:error, 401, "Unauthorized"}, expire: failure_ttl()}
 
       {:ok, %{status: status}} ->
-        {:error, status, "Server responded with status #{status}"}
+        :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: "status_#{status}"})
+        {:ignore, {:error, status, "Server responded with status #{status}"}}
 
       {:error, reason} ->
+        :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :network_error})
         Logger.warning("Failed to fetch accessible projects: #{inspect(reason)}")
-        {:error, 500, "Failed to fetch accessible projects"}
+        {:ignore, {:error, 500, "Failed to fetch accessible projects"}}
     end
+  end
+
+  defp unwrap_fetch_result({:ok, result}), do: result
+  defp unwrap_fetch_result({:commit, result}), do: result
+  defp unwrap_fetch_result({:commit, result, _options}), do: result
+  defp unwrap_fetch_result({:ignore, result}), do: result
+
+  defp unwrap_fetch_result({:error, reason}) do
+    Logger.warning("Failed to fetch accessible projects: #{inspect(reason)}")
+    {:error, 500, "Failed to fetch accessible projects"}
   end
 
   defp build_headers(auth_header, conn) do
@@ -152,9 +307,14 @@ defmodule Cache.Authentication do
 
   defp request_options(headers) do
     base_url = server_url()
-    url = "#{base_url}/api/projects"
+    url = "#{base_url}/api/cache/access"
 
-    req_options = Application.get_env(:cache, :req_options, [])
+    req_options =
+      Application.get_env(
+        :cache,
+        :authentication_req_options,
+        Application.get_env(:cache, :req_options, [])
+      )
 
     Keyword.merge(
       [url: url, headers: headers, finch: Cache.Finch, retry: false, cache: false],
@@ -180,30 +340,34 @@ defmodule Cache.Authentication do
     |> Base.encode16(case: :lower)
   end
 
-  defp cache_projects({auth_key, requested_handle}, projects) do
-    ttl = success_ttl()
-
+  defp project_access_result({_auth_key, requested_handle, _action}, projects, payment_required) do
     project_handles =
       projects
       |> Enum.map(fn
-        %{"full_name" => name} when is_binary(name) -> String.downcase(name)
+        handle when is_binary(handle) -> String.downcase(handle)
         _ -> nil
       end)
       |> Enum.reject(&is_nil/1)
       |> MapSet.new()
 
-    result =
-      if MapSet.member?(project_handles, requested_handle) do
-        :ok
-      else
-        {:error, 403, "You don't have access to this project"}
-      end
+    account_handle = account_handle_of(requested_handle)
 
-    cache_result({auth_key, requested_handle}, result, ttl)
+    cond do
+      MapSet.member?(project_handles, requested_handle) ->
+        :telemetry.execute([:cache, :auth, :authorized], %{}, %{method: :server})
+        :ok
+
+      payment_required?(payment_required, account_handle) ->
+        :telemetry.execute([:cache, :auth, :server, :error], %{}, %{reason: :payment_required})
+        payment_required_error(account_handle)
+
+      true ->
+        {:error, 403, "You don't have access to this project"}
+    end
   end
 
-  defp cache_result(cache_key, result, ttl) do
-    Cachex.put(cache_name(), cache_key, result, ttl: ttl)
+  defp cache_result(cache, cache_key, result, ttl) do
+    Cachex.put(cache, cache_key, result, ttl: ttl)
     result
   end
 

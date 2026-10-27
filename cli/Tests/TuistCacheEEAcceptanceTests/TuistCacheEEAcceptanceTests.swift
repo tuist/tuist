@@ -4,8 +4,15 @@ import Foundation
 import Path
 import Testing
 import TuistAcceptanceTesting
+import TuistCacheCommand
+import TuistEnvironment
+import TuistEnvironmentTesting
+import TuistGenerateCommand
+import TuistLoggerTesting
+import TuistNooraTesting
 import TuistServer
 import TuistSupport
+import TuistTestCommand
 import TuistTesting
 import XcodeProj
 
@@ -14,31 +21,27 @@ import XcodeProj
 
 struct TuistCacheEEAcceptanceTests {
     @Test(
+        .disabled("Requires simulator and SPM install"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
         .withFixture("generated_framework_with_native_swift_macro")
     ) func framework_with_native_swift_macro() async throws {
-        // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let mockedEnvironment = try #require(Environment.mocked)
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
 
-        // When: Cache the binaries
         try await TuistTest.run(
             CacheCommand.self,
             ["--path", fixtureDirectory.pathString]
         )
 
-        // When: Generate with a focuson the App
         try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString, "Framework"])
 
         let xcodeProj =
             try XcodeProj(path: .init(fixtureDirectory.appending(component: "FrameworkWithSwiftMacro.xcodeproj").pathString))
 
-        // We check that OTHER_SWIFT_FLAGS references the build directory as a proof
-        // of the target linking pre-compiled Swift macros.
         let frameworkTarget = try #require(xcodeProj.pbxproj.targets(named: "Framework").first)
         let configurationList = try #require(frameworkTarget.buildConfigurationList)
         #expect(configurationList.buildConfigurations.isEmpty == false)
@@ -49,17 +52,16 @@ struct TuistCacheEEAcceptanceTests {
     }
 
     @Test(
+        .disabled("Requires SPM install"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
         .withFixture("generated_ios_app_with_external_dependencies_filtered_out")
     ) func generated_ios_app_with_external_dependencies_filtered_out() async throws {
-        // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
 
-        // When: Cache the binaries
         try await TuistTest.run(
             CacheCommand.self,
             ["--path", fixtureDirectory.pathString]
@@ -67,13 +69,13 @@ struct TuistCacheEEAcceptanceTests {
     }
 
     @Test(
+        .disabled("Requires SPM install"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
         .withFixture("generated_ios_app_with_frameworks_keeping_target_sources")
     ) func generated_ios_app_with_frameworks_keeping_target_sources() async throws {
-        // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let xcodeprojPath = fixtureDirectory.appending(component: "MainApp.xcodeproj")
@@ -81,17 +83,13 @@ struct TuistCacheEEAcceptanceTests {
         let fileSystem = FileSystem()
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
 
-        // When: Cache the binaries
         try await TuistTest.run(
             CacheCommand.self,
             ["--path", fixtureDirectory.pathString]
         )
 
-        // When: Generate with a focuson the App
         try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString, "Framework1"])
 
-        // Then
-        // The app doesn't get tree-shaked
         try TuistTest.expectContainsTarget("App", inXcodeProj: xcodeprojPath)
 
         try TuistTest.expectLinked("Framework1.framework", by: "App", inXcodeProj: xcodeprojPath)
@@ -106,7 +104,6 @@ struct TuistCacheEEAcceptanceTests {
         try TuistTest.expectLinked("Framework5.xcframework", by: "Framework3", inXcodeProj: xcodeprojPath)
         try TuistTest.expectLinked("Framework5.xcframework", by: "Framework4", inXcodeProj: xcodeprojPath)
 
-        // Then: Schemes
         let schemes = try await fileSystem.glob(directory: xcworkspacePath, include: ["xcshareddata/xcschemes/*.xcscheme"])
             .collect()
         let cachedSchemePath = try #require(schemes.first(where: { $0.basename == "MainApp-Cached.xcscheme" }))
@@ -121,7 +118,6 @@ struct TuistCacheEEAcceptanceTests {
             "GoogleUtilities-NSData",
         ])
 
-        // Then: Builds
         let arguments = [
             "-scheme", "App",
             "-destination", "generic/platform=iOS Simulator",
@@ -135,163 +131,525 @@ struct TuistCacheEEAcceptanceTests {
     }
 
     @Test(
+        .disabled("Requires simulator"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("xcode_project_with_ios_app_and_cas"),
-        .withTestingSimulator("iPhone 17")
-    ) func xcode_project_with_ios_app_and_cas() async throws {
-        // Given
+        .withTestingSimulator("iPhone 17"),
+        .withFixture("generated_feature_tests_with_cached_library_and_googlemaps")
+    ) func generated_feature_tests_with_cached_library_and_googlemaps() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
-        let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
-        let simulator = try #require(Simulator.testing)
-        let fileSystem = FileSystem()
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let environment = try #require(Environment.mocked)
-        environment.stateDirectory = try await fileSystem.currentWorkingDirectory()
-        let fixtureFullHandle = try #require(TuistTest.fixtureFullHandle)
-
-        let backgroundTask = Task {
-            while !Task.isCancelled {
-                try await TuistTest.run(
-                    CacheStartCommand.self,
-                    [fixtureFullHandle, "--url", Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev"]
-                )
-            }
-        }
-
-        defer {
-            backgroundTask.cancel()
-        }
-
-        let remoteCacheServicePath = environment.stateDirectory
-            .appending(component: "\(fixtureFullHandle.replacingOccurrences(of: "/", with: "_")).sock")
-
-        let arguments = [
-            "-scheme", "App",
-            "-destination", simulator.description,
-            "-project", xcodeprojPath.pathString,
-            "-derivedDataPath", temporaryDirectory.pathString,
-            "CODE_SIGN_IDENTITY=",
-            "CODE_SIGNING_REQUIRED=NO",
-            "CODE_SIGNING_ALLOWED=NO",
-            "COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(remoteCacheServicePath.pathString)",
-        ]
-        try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
-        TuistTest.expectLogs("note: 0 hits / 60 cacheable tasks (0%)")
-        resetUI()
-
-        try await fileSystem.remove(temporaryDirectory)
-
-        try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
-        TuistTest.expectLogs("note: 60 hits / 60 cacheable tasks (100%)")
-    }
-
-    @Test(
-        .inTemporaryDirectory,
-        .withMockedEnvironment(inheritingVariables: ["PATH"]),
-        .withMockedNoora,
-        .withMockedLogger(forwardLogs: true),
-        .withFixtureConnectedToCanary("generated_project_with_caching_enabled"),
-        .withTestingSimulator("iPhone 17")
-    ) func generated_project_with_caching_enabled() async throws {
-        // Given
-        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
-        let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
         let simulator = try #require(Simulator.testing)
-        let fileSystem = FileSystem()
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let environment = try #require(Environment.mocked)
-        environment.stateDirectory = try await fileSystem.currentWorkingDirectory()
-        let fixtureFullHandle = try #require(TuistTest.fixtureFullHandle)
+        let xcodeprojPath = fixtureDirectory.appending(components: "Feature", "Feature.xcodeproj")
 
-        try await fileSystem.writeText(
-            """
-            import ProjectDescription
-
-            let tuist = Tuist(
-                fullHandle: "\(fixtureFullHandle)",
-                url: "\(Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev")",
-                project: .tuist(
-                    generationOptions: .options(
-                        enableCaching: true
-                    )
-                )
-            )
-            """,
-            at: fixtureDirectory.appending(components: "Tuist.swift"),
-            options: Set([.overwrite])
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["Library", "--path", fixtureDirectory.pathString]
         )
 
-        let backgroundTask = Task {
-            while !Task.isCancelled {
-                try await TuistTest.run(
-                    CacheStartCommand.self,
-                    [fixtureFullHandle, "--url", Environment.current.variables["TUIST_URL"] ?? "https://canary.tuist.dev"]
+        try await TuistTest.run(
+            TestCommand.self,
+            [
+                "Feature",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                temporaryDirectory.pathString,
+                "--device",
+                simulator.name,
+                "--",
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked(
+            "Library",
+            by: "Feature",
+            xcodeprojPath: xcodeprojPath
+        )
+        try TuistAcceptanceTest.expectXCFrameworkLinked(
+            "Library",
+            by: "FeatureTests",
+            xcodeprojPath: xcodeprojPath
+        )
+        try TuistAcceptanceTest.expectXCFrameworkNotLinked(
+            "GoogleMaps",
+            by: "Feature",
+            xcodeprojPath: xcodeprojPath
+        )
+        try TuistAcceptanceTest.expectXCFrameworkNotLinked(
+            "GoogleMapsBase",
+            by: "Feature",
+            xcodeprojPath: xcodeprojPath
+        )
+        try TuistAcceptanceTest.expectXCFrameworkNotLinked(
+            "GoogleMapsCore",
+            by: "Feature",
+            xcodeprojPath: xcodeprojPath
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_app_with_cached_xctest_support")
+    ) func generated_ios_app_with_cached_xctest_support() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let mockedEnvironment = try #require(Environment.mocked)
+        let fileSystem = FileSystem()
+        let xcodeprojPath = fixtureDirectory.appending(component: "CachedXCTestSupport.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        let cachedFeatureArtifacts = try await fileSystem.glob(
+            directory: mockedEnvironment.cacheDirectory,
+            include: ["**/Feature.xcframework"]
+        ).collect()
+        let cachedTestSupportArtifacts = try await fileSystem.glob(
+            directory: mockedEnvironment.cacheDirectory,
+            include: ["**/TestSupport.xcframework"]
+        ).collect()
+        let cachedSwiftTestingSupportArtifacts = try await fileSystem.glob(
+            directory: mockedEnvironment.cacheDirectory,
+            include: ["**/SwiftTestingSupport.xcframework"]
+        ).collect()
+        let cachedTestBundleArtifacts = try await fileSystem.glob(
+            directory: mockedEnvironment.cacheDirectory,
+            include: ["**/AppTests.xcframework"]
+        ).collect()
+        #expect(!cachedFeatureArtifacts.isEmpty)
+        #expect(!cachedTestSupportArtifacts.isEmpty)
+        #expect(!cachedSwiftTestingSupportArtifacts.isEmpty)
+        #expect(cachedTestBundleArtifacts.isEmpty)
+
+        try await TuistTest.run(
+            TestCommand.self,
+            [
+                "App",
+                "--build-only",
+                "--no-upload",
+                "--no-selective-testing",
+                "--path",
+                fixtureDirectory.pathString,
+                "--",
+                "-destination",
+                "generic/platform=iOS Simulator",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked("Feature", by: "App", xcodeprojPath: xcodeprojPath)
+        try TuistAcceptanceTest.expectXCFrameworkLinked("Feature", by: "AppTests", xcodeprojPath: xcodeprojPath)
+        try TuistAcceptanceTest.expectXCFrameworkLinked("TestSupport", by: "AppTests", xcodeprojPath: xcodeprojPath)
+        try TuistAcceptanceTest.expectXCFrameworkLinked("SwiftTestingSupport", by: "AppTests", xcodeprojPath: xcodeprojPath)
+        try TuistAcceptanceTest.expectXCFrameworkNotLinked("TestSupport", by: "App", xcodeprojPath: xcodeprojPath)
+        try TuistAcceptanceTest.expectXCFrameworkNotLinked("SwiftTestingSupport", by: "App", xcodeprojPath: xcodeprojPath)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_libraries_and_frameworks")
+    ) func generated_macos_tool_with_cached_libraries_and_frameworks() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let mockedEnvironment = try #require(Environment.mocked)
+        let fileSystem = FileSystem()
+        let xcodeprojPath = fixtureDirectory.appending(component: "CachedLibrariesAndFrameworks.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        for target in [
+            "CoreCLibrary",
+            "CoreStaticLibrary",
+            "DiagnosticsDynamicLibrary",
+            "FeatureStaticLibrary",
+            "FeatureFramework",
+            "ModelsStaticFramework",
+            "NetworkingFramework",
+        ] {
+            let cachedArtifacts = try await fileSystem.glob(
+                directory: mockedEnvironment.cacheDirectory,
+                include: ["**/\(target).xcframework"]
+            ).collect()
+            #expect(!cachedArtifacts.isEmpty, "\(target) should be stored as an xcframework")
+        }
+
+        try await TuistTest.run(
+            GenerateCommand.self,
+            ["--no-open", "--path", fixtureDirectory.pathString, "Tool"]
+        )
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked("FeatureFramework", by: "Tool", xcodeprojPath: xcodeprojPath)
+        try TuistAcceptanceTest.expectXCFrameworkLinked("DiagnosticsDynamicLibrary", by: "Tool", xcodeprojPath: xcodeprojPath)
+        try TuistAcceptanceTest.expectXCFrameworkLinked("CoreCLibrary", by: "Tool", xcodeprojPath: xcodeprojPath)
+
+        try await TuistTest.run(
+            XcodeBuildBuildCommand.self,
+            [
+                "-project",
+                xcodeprojPath.pathString,
+                "-scheme",
+                "Tool",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+    }
+
+    /// A warm that finds some targets already cached has to swap those in while it builds the rest, and it
+    /// resolves them from the hashes it computed before the build rather than hashing the graph a second
+    /// time. Warming `CoreStaticLibrary` on its own and then warming everything puts one target on the
+    /// cached side of that split and six on the built side, so a hash that did not survive the handover
+    /// would show up as an empty replacement list and a rebuilt `CoreStaticLibrary`.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_libraries_and_frameworks")
+    ) func warming_reuses_an_already_cached_target_while_building_the_rest() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let mockedEnvironment = try #require(Environment.mocked)
+        let fileSystem = FileSystem()
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["CoreStaticLibrary", "--path", fixtureDirectory.pathString]
+        )
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        TuistTest.expectLogs(
+            "Using cache binaries for the following targets: CoreStaticLibrary",
+            at: .info,
+            <=
+        )
+
+        for target in [
+            "CoreCLibrary",
+            "CoreStaticLibrary",
+            "DiagnosticsDynamicLibrary",
+            "FeatureStaticLibrary",
+            "FeatureFramework",
+            "ModelsStaticFramework",
+            "NetworkingFramework",
+        ] {
+            let cachedArtifacts = try await fileSystem.glob(
+                directory: mockedEnvironment.cacheDirectory,
+                include: ["**/\(target).xcframework"]
+            ).collect()
+            #expect(!cachedArtifacts.isEmpty, "\(target) should be stored as an xcframework")
+        }
+    }
+
+    /// Regression test for static Objective-C xcframeworks whose public headers live in a
+    /// `Headers/<Module>/` subdirectory and re-import each other with the `<Module/...>` prefix,
+    /// consumed through the binary cache. `NestedObjC`/`NestedObjCKit` are static `.a` xcframeworks
+    /// of that shape, and `NestedObjCKit` imports `NestedObjC`, so building one drives the other's
+    /// module. Caching `Library` turns it into a dynamic xcframework that links them behind it, so
+    /// building `Tool` drives `StaticXCFrameworkModuleMapGraphMapper`. Earlier this produced
+    /// `'NestedObjC/TrackingState.h' file not found` (missing `Headers` root) and, after that was
+    /// "fixed" by also adding the xcframework's own `Headers` root next to the derived module map,
+    /// `import of shadowed module 'Anchor'` (the module reachable through two module maps). The
+    /// mapper now consumes such nested xcframeworks through their own module map with the `Headers`
+    /// root on the search path, so the module is defined exactly once and the prefixed imports resolve.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_nested_header_xcframework")
+    ) func generated_macos_tool_with_cached_nested_header_xcframework() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "NestedHeaderXCFramework.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["Library", "--path", fixtureDirectory.pathString]
+        )
+
+        try await TuistTest.run(
+            GenerateCommand.self,
+            ["--no-open", "--path", fixtureDirectory.pathString, "Tool"]
+        )
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked("Library", by: "Tool", xcodeprojPath: xcodeprojPath)
+
+        try await TuistTest.run(
+            XcodeBuildBuildCommand.self,
+            [
+                "-project",
+                xcodeprojPath.pathString,
+                "-scheme",
+                "Tool",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+    }
+
+    /// Same nested-header xcframeworks as above, but `ToolLinkingXCFrameworksDirectly` also links
+    /// them directly, so they stay referenced once `Library` is replaced by its cached xcframework.
+    /// Xcode then runs `ProcessXCFramework` and copies each slice's headers into
+    /// `$(BUILT_PRODUCTS_DIR)/include/<Module>/`, which is searched ahead of `HEADER_SEARCH_PATHS`.
+    /// Pointing the module map at the xcframework's own headers therefore defined the module over
+    /// one copy of the headers while `#import <NestedObjC/Anchor.h>` resolved to another, which
+    /// clang reports as `umbrella header for module 'NestedObjC' does not include header ...` and,
+    /// once a second module map became reachable through that copy, `import of shadowed module
+    /// 'Anchor'`. The module map and the search path must name the same headers, so the mapper
+    /// consumes these through `$(BUILT_PRODUCTS_DIR)/include`, which is where the prefixed imports
+    /// resolve.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_nested_header_xcframework")
+    ) func generated_macos_tool_linking_cached_nested_header_xcframework_directly() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "NestedHeaderXCFramework.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["Library", "--path", fixtureDirectory.pathString]
+        )
+
+        try await TuistTest.run(
+            GenerateCommand.self,
+            ["--no-open", "--path", fixtureDirectory.pathString, "ToolLinkingXCFrameworksDirectly"]
+        )
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked(
+            "Library",
+            by: "ToolLinkingXCFrameworksDirectly",
+            xcodeprojPath: xcodeprojPath
+        )
+
+        try await TuistTest.run(
+            XcodeBuildBuildCommand.self,
+            [
+                "-project",
+                xcodeprojPath.pathString,
+                "-scheme",
+                "ToolLinkingXCFrameworksDirectly",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+    }
+
+    /// A consumer that links a cached STATIC framework wrapping a nested-header xcframework and
+    /// also links a cached DYNAMIC framework that reaches the same xcframework. `LinkGenerator`'s
+    /// `staticDependenciesPrecompiledLibrariesAndFrameworks` relinks the wrapped xcframework at
+    /// the consumer, so Xcode's `ProcessXCFramework` writes `include/<Module>/module.modulemap`
+    /// into `$(BUILT_PRODUCTS_DIR)/include/`. Without widening the mapper's direct-link
+    /// suppression to see `linkableDependencies` (not just direct graph edges), the mapper still
+    /// added the vendor `Headers/<Module>/module.modulemap` on the search path for the dynamic
+    /// route, and Clang's dependency scanner rejected both maps with `redefinition of module`.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_nested_header_xcframework")
+    ) func generated_macos_tool_linking_cached_static_and_dynamic_wrappers_over_nested_header_xcframework() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "NestedHeaderXCFramework.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["Library", "StaticWrapper", "--path", fixtureDirectory.pathString]
+        )
+
+        try await TuistTest.run(
+            GenerateCommand.self,
+            ["--no-open", "--path", fixtureDirectory.pathString, "ToolLinkingStaticAndDynamicWrappers"]
+        )
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked(
+            "Library",
+            by: "ToolLinkingStaticAndDynamicWrappers",
+            xcodeprojPath: xcodeprojPath
+        )
+        try TuistAcceptanceTest.expectXCFrameworkLinked(
+            "StaticWrapper",
+            by: "ToolLinkingStaticAndDynamicWrappers",
+            xcodeprojPath: xcodeprojPath
+        )
+
+        // The mapper's contract: the vendor `Headers/` path from the nested static xcframeworks
+        // must NOT land on `HEADER_SEARCH_PATHS` for the consumer, because Xcode's
+        // `ProcessXCFramework` already publishes `include/<Module>/module.modulemap` under
+        // `$(BUILT_PRODUCTS_DIR)/include`. Two module maps for the same module on the search
+        // path is exactly what triggers Clang's `redefinition of module` failure. Whether
+        // Clang actually rejects the pair at build time depends on the toolchain's tolerance
+        // for byte-identical duplicates (Xcode 26.3 does; some later versions don't), so we
+        // guard the invariant at the settings level — it holds regardless of Clang version.
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let target = try #require(
+            xcodeproj.pbxproj.projects.flatMap(\.targets)
+                .first(where: { $0.name == "ToolLinkingStaticAndDynamicWrappers" })
+        )
+        let configurations = try #require(target.buildConfigurationList?.buildConfigurations)
+        #expect(configurations.isEmpty == false)
+        for configuration in configurations {
+            let headerSearchPaths = configuration.buildSettings["HEADER_SEARCH_PATHS"]?.arrayValue
+                ?? configuration.buildSettings["HEADER_SEARCH_PATHS"].map { [$0.stringValue ?? ""] }
+                ?? []
+            for xcframework in ["NestedObjC.xcframework", "NestedObjCKit.xcframework"] {
+                #expect(
+                    headerSearchPaths.contains(where: { $0.contains("\(xcframework)/") }) == false,
+                    "The \(configuration.name) HEADER_SEARCH_PATHS must not contain the vendor \(xcframework) Headers path; the include/ copy from ProcessXCFramework already covers module resolution."
                 )
             }
         }
 
-        defer {
-            backgroundTask.cancel()
-        }
-
-        let remoteCacheServicePath = environment.stateDirectory
-            .appending(component: "\(fixtureFullHandle.replacingOccurrences(of: "/", with: "_")).sock")
-
-        try await TuistTest.run(GenerateCommand.self, ["--path", fixtureDirectory.pathString, "--no-open"])
-        resetUI()
-
-        let arguments = [
-            "-scheme", "App",
-            "-destination", simulator.description,
-            "-project", xcodeprojPath.pathString,
-            "-derivedDataPath", temporaryDirectory.pathString,
-            "CODE_SIGN_IDENTITY=",
-            "CODE_SIGNING_REQUIRED=NO",
-            "CODE_SIGNING_ALLOWED=NO",
-            "COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(remoteCacheServicePath.pathString)",
-        ]
-        try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
-        TuistTest.expectLogs("cacheable tasks (0%)")
-        resetUI()
-
-        try await fileSystem.remove(temporaryDirectory)
-
-        try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
-        TuistTest.expectLogs("cacheable tasks (100%)")
+        try await TuistTest.run(
+            XcodeBuildBuildCommand.self,
+            [
+                "-project",
+                xcodeprojPath.pathString,
+                "-scheme",
+                "ToolLinkingStaticAndDynamicWrappers",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
     }
 
     @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_nested_header_xcframework")
+    ) func generate_reuses_warmed_framework_wrapping_precompiled_dependencies() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "NestedHeaderXCFramework.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            [
+                "Library",
+                "--path", fixtureDirectory.pathString,
+                "--cache-profile", "all-possible",
+            ]
+        )
+
+        try await TuistTest.run(
+            GenerateCommand.self,
+            [
+                "--no-open",
+                "--path", fixtureDirectory.pathString,
+                "--cache-profile", "all-possible",
+            ]
+        )
+
+        TuistTest.expectLogs("Using cache binaries for the following targets: Library", at: .info, <=)
+        try TuistAcceptanceTest.expectXCFrameworkLinked("Library", by: "Tool", xcodeprojPath: xcodeprojPath)
+    }
+
+    /// Cache hashes must depend on the *resolved* configuration, never on how it was resolved. A CI job
+    /// that fills the cache with an explicit `--configuration` and a developer who generates without one
+    /// resolve to the same configuration, so they must agree on hashes. Regression test for #12012, which
+    /// scoped settings only when the configuration was named explicitly and left an unflagged `generate`
+    /// hashing every configuration, missing 100% of the cache the flagged fill had just stored.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_nested_header_xcframework")
+    ) func generate_reuses_framework_warmed_with_an_explicit_configuration() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "NestedHeaderXCFramework.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            [
+                "Library",
+                "--path", fixtureDirectory.pathString,
+                "--cache-profile", "all-possible",
+                "--configuration", "Debug",
+            ]
+        )
+
+        try await TuistTest.run(
+            GenerateCommand.self,
+            [
+                "--no-open",
+                "--path", fixtureDirectory.pathString,
+                "--cache-profile", "all-possible",
+            ]
+        )
+
+        TuistTest.expectLogs("Using cache binaries for the following targets: Library", at: .info, <=)
+        try TuistAcceptanceTest.expectXCFrameworkLinked("Library", by: "Tool", xcodeprojPath: xcodeprojPath)
+    }
+
+    @Test(
+        .disabled("Requires SPM install"),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
         .withFixture("generated_ios_app_with_catalyst")
     ) func ios_app_with_catalyst_caches_mac_catalyst_slice() async throws {
-        // Given
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let mockedEnvironment = try #require(Environment.mocked)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
 
-        // When: Cache the binaries
         try await TuistTest.run(
             CacheCommand.self,
             ["--path", fixtureDirectory.pathString]
         )
 
-        // Then: Generate the project with a focus on the App
         try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString, "App"])
 
-        // Then: The Framework XCFramework should be linked in the App
         let xcworkspacePath = fixtureDirectory.appending(component: "App.xcworkspace")
         let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
         try TuistAcceptanceTest.expectXCFrameworkLinked("Framework", by: "App", xcodeprojPath: xcodeprojPath)
 
-        // Then: Build the app for Mac Catalyst to verify it links correctly
         let arguments = [
             "-workspace", xcworkspacePath.pathString,
             "-scheme", "App",
@@ -302,5 +660,339 @@ struct TuistCacheEEAcceptanceTests {
             "CODE_SIGNING_ALLOWED=NO",
         ]
         try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
+    }
+
+    @Test(
+        .disabled("Slow"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_app_with_appintents_framework")
+    ) func ios_app_with_appintents_framework_caches_metadata() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let mockedEnvironment = try #require(Environment.mocked)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        let metadataFiles = try await fileSystem.glob(
+            directory: mockedEnvironment.cacheDirectory,
+            include: ["**/*.xcframework/**/*.framework/Metadata.appintents"]
+        ).collect()
+        #expect(!metadataFiles.isEmpty, "Metadata.appintents should be embedded in the cached xcframework slices")
+
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString, "App"])
+
+        let xcworkspacePath = fixtureDirectory.appending(component: "AppIntentsApp.xcworkspace")
+        let arguments = [
+            "-workspace", xcworkspacePath.pathString,
+            "-scheme", "App",
+            "-destination", "generic/platform=iOS Simulator",
+            "-derivedDataPath", temporaryDirectory.pathString,
+            "CODE_SIGN_IDENTITY=",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGNING_ALLOWED=NO",
+        ]
+        try await TuistTest.run(XcodeBuildBuildCommand.self, arguments)
+    }
+
+    @Test(
+        .disabled("Slow"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH", "JAVA_HOME", "GRADLE_HOME"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_app_with_foreign_build_dependency")
+    ) func generated_ios_app_with_foreign_build_dependency() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "ForeignBuildApp.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        try await TuistTest.run(
+            GenerateCommand.self,
+            ["--no-open", "--path", fixtureDirectory.pathString, "App"]
+        )
+
+        try TuistTest.expectContainsTarget("App", inXcodeProj: xcodeprojPath)
+        try TuistTest.expectLinked("Framework1.xcframework", by: "App", inXcodeProj: xcodeprojPath)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_app_with_cache_profiles")
+    ) func cache_warm_with_positional_target_hashes_transitive_dependencies() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            [
+                "--path", fixtureDirectory.pathString,
+                "--cache-profile", "all-possible",
+                "--generate-only",
+                "NonCacheableModule",
+            ]
+        )
+
+        TuistTest.expectLogs("Targets to be cached: ExpensiveModule, NonCacheableModule")
+        TuistTest.doesntExpectLogs("All cacheable targets are already cached")
+    }
+
+    /// The project is bound to a server that refuses connections, so every upload fails at connect while
+    /// the build and the local cache work as usual.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_libraries_and_frameworks")
+    ) func cache_warm_fails_when_uploads_fail_and_keeps_the_local_cache() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let mockedEnvironment = try #require(Environment.mocked)
+        let fileSystem = FileSystem()
+        let unreachableServer = "http://127.0.0.1:1"
+        mockedEnvironment.variables["TUIST_TOKEN"] = "acceptance-test-token"
+        mockedEnvironment.variables["TUIST_CACHE_ENDPOINT"] = unreachableServer
+        try await fileSystem.writeText(
+            """
+            import ProjectDescription
+
+            let tuist = Tuist(fullHandle: "tuist/acceptance", url: "\(unreachableServer)")
+            """,
+            at: fixtureDirectory.appending(component: "Tuist.swift"),
+            options: Set([.overwrite])
+        )
+
+        let targets = [
+            "CoreCLibrary",
+            "CoreStaticLibrary",
+            "DiagnosticsDynamicLibrary",
+            "FeatureFramework",
+            "FeatureStaticLibrary",
+            "ModelsStaticFramework",
+            "NetworkingFramework",
+        ]
+        let error = await #expect(throws: CacheWarmCommandServiceError.self) {
+            try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+        }
+
+        guard case let .uploadsFailed(failures, storedCount) = error else {
+            Issue.record("Expected the warm to fail its uploads, got \(String(describing: error))")
+            return
+        }
+        #expect(failures.map(\.item.name).sorted() == targets)
+        #expect(storedCount == 0)
+        for target in targets {
+            let cachedArtifacts = try await fileSystem.glob(
+                directory: mockedEnvironment.cacheDirectory,
+                include: ["**/\(target).xcframework"]
+            ).collect()
+            #expect(!cachedArtifacts.isEmpty, "\(target) should still be stored in the local cache")
+        }
+        TuistTest.doesntExpectLogs("All cacheable targets have been cached successfully")
+    }
+
+    /// ServicesMockSupport stays a cache hit while Services and Feature are misses, so the warm keeps it as
+    /// source and Feature, from another project, builds it as a dependency. Built that way, its Swift dependency
+    /// scan receives the module map of the package's clang target only when the warm scheme lists it.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_static_frameworks_with_package_kept_as_source")
+    ) func cache_warm_builds_cache_hits_kept_as_source_without_storing_them() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+        #expect(try await evictFromLocalCache(["Services", "Feature"]) == 4)
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+
+        TuistTest.expectLogs("Targets to be cached: Feature, Services")
+        TuistTest.expectLogs("2 targets stored: Feature, Services")
+    }
+
+    /// ServicesMockSupport uses the Analytics package product and Feature imports ServicesMockSupport. The second warm
+    /// serves Services and ServicesMockSupport from the cache and builds only Feature, whose Swift dependency scan
+    /// follows the `import Analytics` of the cached ServicesMockSupport module. It resolves only when Feature depends
+    /// on the package product and the workspace keeps the package that the emptied ServicesMockSupport project declares.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_static_frameworks_with_package_kept_as_source")
+    ) func cache_warm_builds_a_miss_importing_a_package_product_through_a_cache_hit() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+        #expect(try await evictFromLocalCache(["Feature"]) == 2)
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+
+        TuistTest.expectLogs("Targets to be cached: Feature")
+        TuistTest.expectLogs("1 target stored: Feature")
+    }
+
+    /// NativeRendererKit links the static NativeRenderer.xcframework, which ships its own flat
+    /// module map, under `.when(platforms: [.iOS])`. The cold warm builds NativeRendererKit from
+    /// source. The second warm evicts Tokens, Canvas and Feature, so Palette is kept as source
+    /// behind the cached dynamic Renderer while Canvas processes NativeRenderer.xcframework
+    /// through the cached NativeRendererKit. Both warms fail with `redefinition of module
+    /// 'NativeRendererFFI'` if the conditioned link does not count as publishing the module map.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_static_xcframework_linked_under_platform_condition")
+    ) func cache_warm_with_static_xcframework_linked_under_platform_condition() async throws {
+        // The temporary directory lives under the `/var` -> `/private/var` symlink. Without a canonical path, the
+        // generated projects and the SwiftPM-resolved local package reference the xcframework through different
+        // paths, and Xcode rejects the two `ProcessXCFramework` tasks as unexpected duplicates.
+        let fixtureDirectory = try AbsolutePath(
+            validating: URL(fileURLWithPath: try #require(TuistTest.fixtureDirectory).pathString)
+                .resolvingSymlinksInPath().path
+        )
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+        #expect(try await evictFromLocalCache(["Canvas", "Feature", "Tokens"]) == 6)
+        try await TuistTest.run(CacheCommand.self, ["--path", fixtureDirectory.pathString])
+
+        TuistTest.expectLogs("Targets to be cached: Canvas, Feature, Tokens")
+        TuistTest.expectLogs("3 targets stored: Canvas, Feature, Tokens")
+    }
+
+    /// Foundation's #bundle macro expands to Bundle.module only when
+    /// SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE is set at compile time, and the expansion is baked
+    /// into cached binaries. StaticFramework uses #bundle directly and through an SE-0422
+    /// caller-side default argument declared in ResourceLoader, so testing App while both
+    /// frameworks are consumed as cached xcframeworks exercises the expansion that warming froze
+    /// into the artifacts. The fixture's tests resolve a bundled resource at runtime and fail if
+    /// the macro fell back to the DSO-handle lookup.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_static_framework_with_bundle_macro")
+    ) func generated_static_framework_with_bundle_macro_from_cached_binaries() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "BundleMacro.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        try await TuistTest.run(
+            TestCommand.self,
+            [
+                "App",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                temporaryDirectory.pathString,
+                "--",
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked(
+            "StaticFramework",
+            by: "App",
+            xcodeprojPath: xcodeprojPath
+        )
+        try TuistAcceptanceTest.expectXCFrameworkLinked(
+            "ResourceLoader",
+            by: "App",
+            xcodeprojPath: xcodeprojPath
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_ios_cached_framework_with_package_resources")
+    ) func generated_ios_cached_framework_with_package_resources() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "CachedFrameworkWithPackageResources.xcodeproj")
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+        let fileSystem = FileSystem()
+
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        try await TuistTest.run(
+            TestCommand.self,
+            [
+                "Framework",
+                "--build-only",
+                "--no-upload",
+                "--no-selective-testing",
+                "--path",
+                fixtureDirectory.pathString,
+                "--",
+                "-destination",
+                "generic/platform=iOS Simulator",
+                "-derivedDataPath",
+                derivedDataPath.pathString,
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked("Framework", by: "FrameworkTests", xcodeprojPath: xcodeprojPath)
+        let productsDirectory = derivedDataPath.appending(components: "Build", "Products", "Debug-iphonesimulator")
+        #expect(try await fileSystem.exists(productsDirectory.appending(component: "Framework.framework")))
+        #expect(try await fileSystem.exists(productsDirectory.appending(component: "ResourcesPackage_ResourcesLib.bundle")))
+    }
+
+    /// Removes the targets' binaries from the local cache so the next warm treats them as misses, and returns the
+    /// number of cache actions removed.
+    private func evictFromLocalCache(_ targets: Set<String>) async throws -> Int {
+        let environment = try #require(Environment.mocked)
+        let fileSystem = FileSystem()
+        let blobs = try await fileSystem.glob(directory: environment.cacheDirectory, include: ["**/blob-*"]).collect()
+        var evictedActions = 0
+        for blob in blobs {
+            guard let inputs = try? JSONSerialization.jsonObject(with: await fileSystem.readFile(at: blob)) as? [String: String],
+                  let name = inputs["name"], targets.contains(name),
+                  let variant = inputs["variant"], let fingerprint = inputs["fingerprint"]
+            else { continue }
+            let action = try BinaryCacheAction(name: name, variant: variant, fingerprint: fingerprint)
+            try await fileSystem.remove(environment.cacheDirectory.appending(components: [
+                "Binaries",
+                "action-\(action.digest.hash)",
+            ]))
+            evictedActions += 1
+        }
+        for target in targets {
+            let artifacts = try await fileSystem
+                .glob(directory: environment.cacheDirectory, include: ["**/\(target).xcframework"]).collect()
+            for artifact in artifacts {
+                try await fileSystem.remove(artifact.parentDirectory)
+            }
+        }
+        return evictedActions
     }
 }

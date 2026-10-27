@@ -12,16 +12,23 @@ defmodule Cache.PromEx do
   def plugins do
     [
       PromEx.Plugins.Beam,
-      {PromEx.Plugins.Phoenix,
+      {TuistCommon.PromExPhoenixPlugin,
        router: CacheWeb.Router,
        endpoint: CacheWeb.Endpoint,
+       http_status_tag: :status_class,
+       include_controller_action_tags: false,
        duration_buckets: [10, 100, 500, 1000, 5000, 10_000, 30_000]},
-      PromEx.Plugins.Ecto,
       PromEx.Plugins.Oban,
-      Cache.CAS.PromExPlugin,
+      Cache.Xcode.PromExPlugin,
       Cache.KeyValue.PromExPlugin,
-      Cache.Module.PromExPlugin,
-      Cache.S3Transfers.PromExPlugin
+      Cache.XcodeModule.PromExPlugin,
+      Cache.Repo.PromExPlugin,
+      {TuistCommon.Finch.PromExPlugin, prefix: :cache, finch_name: Cache.Finch, pools_module: Cache.Finch.Pools},
+      Cache.SQLiteBuffer.PromExPlugin,
+      Cache.S3Transfers.PromExPlugin,
+      {TuistCommon.S3.PromExPlugin, prefix: :cache},
+      Cache.Authentication.PromExPlugin,
+      TuistCommon.HTTP.TransportPromExPlugin
     ]
   end
 end

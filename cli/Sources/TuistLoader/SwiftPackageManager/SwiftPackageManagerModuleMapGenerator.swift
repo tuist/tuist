@@ -1,5 +1,6 @@
 import FileSystem
 import Path
+import TuistConstants
 import TuistCore
 import TuistSupport
 
@@ -40,11 +41,12 @@ public protocol SwiftPackageManagerModuleMapGenerating {
     func generate(
         packageDirectory: AbsolutePath,
         moduleName: String,
-        publicHeadersPath: AbsolutePath
+        publicHeadersPath: AbsolutePath,
+        swiftPackageManagerScratchDirectory: AbsolutePath?
     ) async throws -> ModuleMap
 }
 
-public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMapGenerating {
+public struct SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMapGenerating {
     private let contentHasher: ContentHashing
     private let fileSystem: FileSysteming
 
@@ -60,7 +62,8 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
     public func generate(
         packageDirectory: AbsolutePath,
         moduleName: String,
-        publicHeadersPath: AbsolutePath
+        publicHeadersPath: AbsolutePath,
+        swiftPackageManagerScratchDirectory: AbsolutePath? = nil
     ) async throws -> ModuleMap {
         let sanitizedModuleName = moduleName.sanitizedModuleName
         let umbrellaHeaderPath = publicHeadersPath.appending(component: sanitizedModuleName + ".h")
@@ -69,12 +72,17 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         let customModuleMapPath = try await customModuleMapPath(publicHeadersPath: publicHeadersPath)
         let generatedModuleMapPath: AbsolutePath
 
-        if publicHeadersPath.pathString.contains("\(Constants.SwiftPackageManager.packageBuildDirectoryName)/checkouts") {
-            generatedModuleMapPath = packageDirectory
-                .parentDirectory
-                .parentDirectory
+        let resolvedSwiftPackageManagerScratchDirectory = SwiftPackageManagerPaths.scratchDirectory(
+            containingPackageSource: publicHeadersPath,
+            knownScratchDirectory: swiftPackageManagerScratchDirectory
+        )
+        if let resolvedSwiftPackageManagerScratchDirectory,
+           SwiftPackageManagerPaths.isPath(publicHeadersPath, inPackageSourcesOf: resolvedSwiftPackageManagerScratchDirectory)
+        {
+            generatedModuleMapPath = resolvedSwiftPackageManagerScratchDirectory
                 .appending(
                     components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                    Constants.DerivedDirectory.dependenciesModuleMapsDirectory,
                     sanitizedModuleName,
                     "\(sanitizedModuleName).modulemap"
                 )
@@ -84,8 +92,11 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             )
         }
 
-        if try await !fileSystem.exists(generatedModuleMapPath.parentDirectory) {
-            try FileHandler.shared.createFolder(generatedModuleMapPath.parentDirectory)
+        do {
+            try await fileSystem.makeDirectory(at: generatedModuleMapPath.parentDirectory)
+        } catch {
+            // Concurrent generation can create the directory first.
+            guard try await fileSystem.exists(generatedModuleMapPath.parentDirectory, isDirectory: true) else { throw error }
         }
 
         if try await fileSystem.exists(umbrellaHeaderPath) {
@@ -150,7 +161,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         let newContentHash = try contentHasher.hash(moduleMapContent)
         let currentContentHash = try? await contentHasher.hash(path: path)
         if currentContentHash != newContentHash {
-            try FileHandler.shared.write(moduleMapContent, path: path, atomically: true)
+            try await fileSystem.writeText(moduleMapContent, at: path, encoding: .utf8, options: [.overwrite])
         }
     }
 
@@ -158,13 +169,13 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         guard try await fileSystem.exists(publicHeadersPath) else { return nil }
 
         let moduleMapPath = try RelativePath(validating: ModuleMap.filename)
-        let publicHeadersFolderContent = try FileHandler.shared.contentsOfDirectory(publicHeadersPath)
+        let publicHeadersFolderContent = try await fileSystem.contentsOfDirectory(publicHeadersPath)
 
         if publicHeadersFolderContent.contains(publicHeadersPath.appending(moduleMapPath)) {
             return publicHeadersPath.appending(moduleMapPath)
         } else if publicHeadersFolderContent.count == 1,
                   let nestedHeadersPath = publicHeadersFolderContent.first,
-                  FileHandler.shared.isFolder(nestedHeadersPath),
+                  try await fileSystem.exists(nestedHeadersPath, isDirectory: true),
                   try await fileSystem.exists(nestedHeadersPath.appending(moduleMapPath))
         {
             return nestedHeadersPath.appending(moduleMapPath)

@@ -1,0 +1,1144 @@
+:root {
+  color-scheme: light dark;
+
+  /* Color palette */
+  --noora-purple-50: oklch(97.5% 0.012 291.5);
+  --noora-purple-100: oklch(93.7% 0.032 290.8);
+  --noora-purple-200: oklch(86.8% 0.069 290);
+  --noora-purple-300: oklch(77.5% 0.122 289.2);
+  --noora-purple-400: oklch(66.5% 0.189 288.3);
+  --noora-purple-500: oklch(54.8% 0.266 287.4);
+  --noora-purple-600: oklch(48.5% 0.262 287);
+  --noora-purple-700: oklch(41.5% 0.222 286.6);
+  --noora-purple-800: oklch(34.5% 0.176 286.2);
+  --noora-purple-900: oklch(27.5% 0.13 285.9);
+  --noora-purple-950: oklch(21.5% 0.095 285.6);
+
+  --noora-pink-50: oklch(97.5% 0.012 5);
+  --noora-pink-100: oklch(93.7% 0.033 5.5);
+  --noora-pink-200: oklch(86.8% 0.073 6);
+  --noora-pink-300: oklch(77.5% 0.138 6.5);
+  --noora-pink-400: oklch(66.5% 0.233 7);
+  --noora-pink-500: oklch(54.8% 0.219 7.5);
+  --noora-pink-600: oklch(48.5% 0.194 7.8);
+  --noora-pink-700: oklch(41.5% 0.166 8);
+  --noora-pink-800: oklch(34.5% 0.138 8);
+  --noora-pink-900: oklch(27.5% 0.11 8);
+  --noora-pink-950: oklch(21.5% 0.085 8);
+
+  --noora-red-50: oklch(97.5% 0.012 25);
+  --noora-red-100: oklch(93.7% 0.031 25.4);
+  --noora-red-200: oklch(86.8% 0.07 25.8);
+  --noora-red-300: oklch(77.5% 0.132 26.2);
+  --noora-red-400: oklch(66.5% 0.221 26.6);
+  --noora-red-500: oklch(54.8% 0.223 27);
+  --noora-red-600: oklch(48.5% 0.197 27.2);
+  --noora-red-700: oklch(41.5% 0.169 27.4);
+  --noora-red-800: oklch(34.5% 0.14 27.6);
+  --noora-red-900: oklch(27.5% 0.112 27.8);
+  --noora-red-950: oklch(21.5% 0.087 28);
+
+  --noora-orange-50: oklch(97.5% 0.014 58);
+  --noora-orange-100: oklch(93.7% 0.038 57);
+  --noora-orange-200: oklch(86.8% 0.082 55);
+  --noora-orange-300: oklch(77.5% 0.148 52);
+  --noora-orange-400: oklch(66.5% 0.181 48);
+  --noora-orange-500: oklch(54.8% 0.159 44);
+  --noora-orange-600: oklch(48.5% 0.146 42);
+  --noora-orange-700: oklch(41.5% 0.127 41);
+  --noora-orange-800: oklch(34.5% 0.106 41);
+  --noora-orange-900: oklch(27.5% 0.084 41);
+  --noora-orange-950: oklch(21.5% 0.066 41);
+
+  --noora-yellow-50: oklch(97.5% 0.032 94);
+  --noora-yellow-100: oklch(95.5% 0.063 93);
+  --noora-yellow-200: oklch(93% 0.094 91.5);
+  --noora-yellow-300: oklch(90.5% 0.121 90);
+  --noora-yellow-400: oklch(87.5% 0.15 88);
+  --noora-yellow-500: oklch(84.8% 0.173 86);
+  --noora-yellow-600: oklch(72% 0.149 80);
+  --noora-yellow-700: oklch(56.5% 0.119 74);
+  --noora-yellow-800: oklch(44.5% 0.096 70);
+  --noora-yellow-900: oklch(32.5% 0.071 68);
+  --noora-yellow-950: oklch(21.5% 0.047 67);
+
+  --noora-green-50: oklch(97.5% 0.022 152);
+  --noora-green-100: oklch(93.7% 0.05 151);
+  --noora-green-200: oklch(86.8% 0.1 150);
+  --noora-green-300: oklch(77.5% 0.165 149);
+  --noora-green-400: oklch(66.5% 0.192 148);
+  --noora-green-500: oklch(54.8% 0.162 147);
+  --noora-green-600: oklch(48.5% 0.142 147.5);
+  --noora-green-700: oklch(41.5% 0.12 148);
+  --noora-green-800: oklch(34.5% 0.097 149);
+  --noora-green-900: oklch(27.5% 0.075 150);
+  --noora-green-950: oklch(21.5% 0.057 151);
+
+  --noora-azure-50: oklch(97.5% 0.013 236);
+  --noora-azure-100: oklch(93.7% 0.034 236.5);
+  --noora-azure-200: oklch(86.8% 0.074 237);
+  --noora-azure-300: oklch(77.5% 0.13 238);
+  --noora-azure-400: oklch(66.5% 0.152 240);
+  --noora-azure-500: oklch(54.8% 0.13 242);
+  --noora-azure-600: oklch(48.5% 0.118 243.5);
+  --noora-azure-700: oklch(41.5% 0.104 245);
+  --noora-azure-800: oklch(34.5% 0.088 246);
+  --noora-azure-900: oklch(27.5% 0.072 247);
+  --noora-azure-950: oklch(21.5% 0.057 248);
+
+  --noora-blue-50: oklch(97.5% 0.011 256);
+  --noora-blue-100: oklch(93.7% 0.03 256.5);
+  --noora-blue-200: oklch(86.8% 0.065 257);
+  --noora-blue-300: oklch(77.5% 0.115 258);
+  --noora-blue-400: oklch(66.5% 0.178 259);
+  --noora-blue-500: oklch(54.8% 0.223 260);
+  --noora-blue-600: oklch(48.5% 0.209 261);
+  --noora-blue-700: oklch(41.5% 0.191 262);
+  --noora-blue-800: oklch(34.5% 0.155 263);
+  --noora-blue-900: oklch(27.5% 0.118 263.5);
+  --noora-blue-950: oklch(21.5% 0.088 264);
+
+  --noora-neutral-light-50: oklch(99.4% 0 0);
+  --noora-neutral-light-100: oklch(97.6% 0 0);
+  --noora-neutral-light-200: oklch(95.5% 0.002 247.84);
+  --noora-neutral-light-300: oklch(93% 0.003 247.86);
+  --noora-neutral-light-400: oklch(89% 0.003 247.863);
+  --noora-neutral-light-500: oklch(84.4% 0.005 247.888);
+  --noora-neutral-light-600: oklch(78.4% 0.005 247.894);
+  --noora-neutral-light-700: oklch(72% 0.006 247.902);
+  --noora-neutral-light-800: oklch(64.5% 0.006 247.914);
+  --noora-neutral-light-900: oklch(55.7% 0.008 247.968);
+  --noora-neutral-light-1000: oklch(45.1% 0.006 247.965);
+  --noora-neutral-light-1100: oklch(32% 0.005 247.968);
+  --noora-neutral-light-1200: oklch(21.7% 0.002 247.941);
+
+  --noora-neutral-dark-50: oklch(97.2% 0 0);
+  --noora-neutral-dark-100: oklch(91.9% 0 0);
+  --noora-neutral-dark-200: oklch(86.3% 0 0);
+  --noora-neutral-dark-300: oklch(72% 0 0);
+  --noora-neutral-dark-400: oklch(64.9% 0 0);
+  --noora-neutral-dark-500: oklch(54.9% 0 0);
+  --noora-neutral-dark-600: oklch(45.9% 0 0);
+  --noora-neutral-dark-700: oklch(39.6% 0 0);
+  --noora-neutral-dark-800: oklch(34.8% 0 0);
+  --noora-neutral-dark-900: oklch(30.2% 0 0);
+  --noora-neutral-dark-1000: oklch(25.4% 0 0);
+  --noora-neutral-dark-1100: oklch(20.9% 0 0);
+  --noora-neutral-dark-1200: oklch(16.2% 0 0);
+
+  --noora-neutral-gray-50: oklch(30.2% 0 0 / 0.5);
+  --noora-neutral-gray-24: oklch(32% 0.005 247.968 / 0.24);
+  --noora-neutral-gray-16: oklch(34.8% 0 0 / 0.16);
+
+  --noora-alpha-red: oklch(54.8% 0.223 27 / 0.18);
+  --noora-alpha-orange: oklch(66.5% 0.181 48 / 0.14);
+  --noora-alpha-yellow: oklch(84.8% 0.173 86 / 0.16);
+  --noora-alpha-green: oklch(54.8% 0.162 147 / 0.14);
+  --noora-alpha-azure: oklch(54.8% 0.13 242 / 0.16);
+  --noora-alpha-blue: oklch(54.8% 0.223 260 / 0.2);
+  --noora-alpha-purple: oklch(54.8% 0.266 287.4 / 0.24);
+  --noora-alpha-pink: oklch(54.8% 0.219 7.5 / 0.22);
+  --noora-alpha-black: oklch(0% 0 0 / 0.8);
+
+  /* Semantic colors */
+  /* Background */
+  --noora-surface-background-primary: light-dark(
+    var(--noora-neutral-light-50),
+    var(--noora-neutral-dark-1200)
+  );
+  --noora-surface-background-secondary: light-dark(
+    var(--noora-neutral-light-200),
+    var(--noora-neutral-dark-1000)
+  );
+  --noora-surface-background-tertiary: light-dark(
+    var(--noora-neutral-light-100),
+    var(--noora-neutral-dark-1100)
+  );
+  --noora-surface-overlay: light-dark(
+    var(--noora-neutral-gray-24),
+    var(--noora-neutral-gray-16)
+  );
+
+  /* Label */
+  --noora-surface-label-primary: light-dark(
+    var(--noora-neutral-light-1200),
+    var(--noora-neutral-light-50)
+  );
+  --noora-surface-label-secondary: light-dark(
+    var(--noora-neutral-light-1000),
+    var(--noora-neutral-light-500)
+  );
+  --noora-surface-label-tertiary: light-dark(
+    var(--noora-neutral-light-700),
+    var(--noora-neutral-dark-500)
+  );
+  --noora-surface-label-destructive: light-dark(
+    var(--noora-red-500),
+    var(--noora-red-300)
+  );
+  --noora-surface-label-disabled: light-dark(
+    var(--noora-neutral-light-600),
+    var(--noora-neutral-dark-300)
+  );
+
+  /* Button */
+  --noora-button-primary-background: var(--noora-purple-500);
+  --noora-button-primary-label: var(--noora-neutral-light-50);
+  --noora-button-primary-disabled-background: var(--noora-purple-300);
+  --noora-button-primary-disabled-label: var(--noora-neutral-light-200);
+  --noora-button-secondary-background: light-dark(
+    var(--noora-neutral-light-50),
+    var(--noora-neutral-dark-1100)
+  );
+  --noora-button-secondary-label: light-dark(
+    var(--noora-neutral-light-1200),
+    var(--noora-neutral-light-50)
+  );
+  --noora-button-secondary-disabled-background: light-dark(
+    var(--noora-neutral-light-100),
+    var(--noora-neutral-dark-1000)
+  );
+  --noora-button-neutral-background-hover: light-dark(
+    var(--noora-neutral-light-200),
+    var(--noora-neutral-dark-1000)
+  );
+  --noora-button-neutral-background-active: light-dark(
+    var(--noora-neutral-light-300),
+    var(--noora-neutral-dark-900)
+  );
+  --noora-button-secondary-disabled-label: light-dark(
+    var(--noora-neutral-light-600),
+    var(--noora-neutral-dark-600)
+  );
+  --noora-button-destructive-background: var(--noora-red-500);
+  --noora-button-destructive-label: var(--noora-neutral-light-50);
+  --noora-button-destructive-disabled-background: var(--noora-red-300);
+  --noora-button-destructive-disabled-label: var(--noora-neutral-light-200);
+  --noora-button-neutral-label: light-dark(
+    var(--noora-neutral-light-1200),
+    var(--noora-neutral-light-50)
+  );
+  --noora-button-neutral-disabled-label: light-dark(
+    var(--noora-neutral-light-600),
+    var(--noora-neutral-dark-600)
+  );
+
+  /* Button Dropdown Trigger */
+  --noora-button-dropdown-trigger-background:
+    linear-gradient(
+      180deg,
+      oklch(78.4% 0.005 247.894 / 0) 0%,
+      light-dark(
+          oklch(78.4% 0.005 247.894 / 0.06),
+          oklch(78.4% 0.005 247.894 / 0.13)
+        )
+        100%
+    ),
+    var(--noora-button-secondary-background);
+  --noora-button-dropdown-trigger-background-hover:
+    linear-gradient(
+      180deg,
+      light-dark(
+          oklch(78.4% 0.005 247.894 / 0.03),
+          oklch(78.4% 0.005 247.894 / 0)
+        )
+        0%,
+      light-dark(
+          oklch(78.4% 0.005 247.894 / 0.13),
+          oklch(78.4% 0.005 247.894 / 0.255)
+        )
+        100%
+    ),
+    var(--noora-button-secondary-background);
+  --noora-button-dropdown-trigger-background-disabled:
+    linear-gradient(
+      180deg,
+      oklch(78.4% 0.005 247.894 / 0) 0%,
+      light-dark(
+          oklch(78.4% 0.005 247.894 / 0.06),
+          oklch(78.4% 0.005 247.894 / 0.13)
+        )
+        100%
+    ),
+    var(--noora-button-secondary-disabled-background);
+
+  --noora-button-background-primary:
+    linear-gradient(
+      180deg,
+      oklch(100% 0 0 / 0.06) 0%,
+      oklch(100% 0 0 / 0) 100%
+    ),
+    var(--noora-button-primary-background);
+  --noora-button-background-primary-hover:
+    linear-gradient(
+      180deg,
+      oklch(100% 0 0 / 0.18) 0%,
+      oklch(100% 0 0 / 0) 100%
+    ),
+    var(--noora-button-primary-background);
+  --noora-button-background-primary-active: var(
+    --noora-button-primary-background
+  );
+  --noora-button-background-primary-disabled:
+    linear-gradient(
+      180deg,
+      light-dark(oklch(100% 0 0 / 0.16), oklch(32% 0.005 247.968 / 0.25)),
+      light-dark(oklch(100% 0 0 / 0), oklch(32% 0.005 247.968 / 0.5))
+    ),
+    var(--noora-button-primary-disabled-background);
+  --noora-button-border-primary:
+    0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
+    0px 1px 1px 0px
+      light-dark(oklch(32% 0.005 247.968 / 0.05), oklch(16.2% 0 0 / 0.2)),
+    0px 0px 0px 1px oklch(from var(--noora-purple-600) l c h / 0.9),
+    0px 1px 3px 0px
+      light-dark(oklch(32% 0.005 247.968 / 0.16), oklch(0% 0 0 / 0.4));
+  --noora-button-border-primary-hover:
+    0px 1px 1px oklch(32% 0.005 247.968 / 0.12),
+    0px 0px 0px 1px oklch(from var(--noora-purple-600) l c h / 0.9),
+    0px 2px 3px oklch(32% 0.005 247.968 / 0.16),
+    0px 1px 0px oklch(100% 0 0 / 0.1) inset;
+  --noora-button-border-primary-focus:
+    0px 0px 0px 1px
+      light-dark(var(--noora-neutral-light-50), var(--noora-neutral-dark-1200)),
+    0px 0px 0px 2.5px
+      light-dark(var(--noora-purple-500), var(--noora-purple-400)),
+    0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
+    0px 1px 1px 0px oklch(32% 0.005 247.968 / 0.12),
+    0px 0px 0px 1px oklch(from var(--noora-purple-600) l c h / 0.9),
+    0px 2px 3px 0px oklch(32% 0.005 247.968 / 0.16);
+  --noora-button-border-primary-active:
+    0px 0px 0px 1px oklch(from var(--noora-purple-600) l c h / 0.9),
+    0px 1px 4px 0px light-dark(oklch(0% 0 0 / 0.3), oklch(0% 0 0 / 0.4)) inset;
+  --noora-button-border-primary-disabled:
+    0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
+    0px 1px 1px 0px
+      light-dark(oklch(32% 0.005 247.968 / 0.12), oklch(16.2% 0 0 / 0.2)),
+    0px 0px 0px 1px oklch(from var(--noora-purple-600) l c h / 0.4),
+    0px 2px 3px 0px
+      light-dark(oklch(32% 0.005 247.968 / 0.16), oklch(0% 0 0 / 0.4));
+
+  --noora-button-background-secondary:
+    linear-gradient(
+      180deg,
+      light-dark(oklch(78.4% 0.005 247.894 / 0), oklch(100% 0 0 / 0.04)),
+      light-dark(oklch(78.4% 0.005 247.894 / 0.08), oklch(100% 0 0 / 0))
+    ),
+    var(--noora-button-secondary-background);
+  --noora-button-background-secondary-hover:
+    linear-gradient(
+      180deg,
+      light-dark(oklch(78.4% 0.005 247.894 / 0), oklch(100% 0 0 / 0.08)),
+      light-dark(oklch(78.4% 0.005 247.894 / 0.16), oklch(100% 0 0 / 0))
+    ),
+    var(--noora-button-secondary-background);
+  --noora-button-background-secondary-disabled:
+    linear-gradient(
+      180deg,
+      light-dark(oklch(78.4% 0.005 247.894 / 0), oklch(100% 0 0 / 0.06)),
+      light-dark(oklch(78.4% 0.005 247.894 / 0.08), oklch(100% 0 0 / 0))
+    ),
+    var(--noora-button-secondary-disabled-background);
+  --noora-button-border-secondary:
+    0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.16))
+      inset,
+    0px 1px 1px 0px
+      light-dark(oklch(32% 0.005 247.968 / 0.05), oklch(16.2% 0 0 / 0.1)),
+    0px 0px 0px 1px
+      light-dark(oklch(32% 0.005 247.968 / 0.08), oklch(34.8% 0 0 / 0.9)),
+    0px 2px 3px 0px
+      light-dark(oklch(32% 0.005 247.968 / 0.06), oklch(0% 0 0 / 0.5));
+  --noora-button-border-secondary-disabled:
+    0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.7), oklch(100% 0 0 / 0.16))
+      inset,
+    0px 1px 1px 0px
+      light-dark(oklch(32% 0.005 247.968 / 0.05), oklch(16.2% 0 0 / 0.1)),
+    0px 0px 0px 1px
+      light-dark(oklch(32% 0.005 247.968 / 0.05), oklch(34.8% 0 0 / 0.9)),
+    0px 2px 3px 0px
+      light-dark(oklch(32% 0.005 247.968 / 0.06), oklch(0% 0 0 / 0.5));
+  --noora-button-background-secondary-active:
+    linear-gradient(
+      180deg,
+      light-dark(oklch(78.4% 0.005 247.894 / 0.03), oklch(100% 0 0 / 0.03)),
+      light-dark(oklch(78.4% 0.005 247.894 / 0.13), oklch(100% 0 0 / 0))
+    ),
+    var(--noora-button-secondary-background);
+  --noora-button-border-secondary-focus:
+    0px 0px 0px 1px
+      light-dark(
+        var(--noora-neutral-light-1000),
+        var(--noora-neutral-dark-1200)
+      ),
+    0px 0px 0px 2.5px
+      light-dark(oklch(32% 0.005 247.968 / 0.25), oklch(54.9% 0 0 / 0.8)),
+    0px 1px 0px 0px light-dark(oklch(100% 0 0 / 0.9), oklch(100% 0 0 / 0.16))
+      inset,
+    0px 1px 1px 0px
+      light-dark(oklch(32% 0.005 247.968 / 0.05), oklch(16.2% 0 0 / 0.1)),
+    0px 0px 0px 1px
+      light-dark(oklch(32% 0.005 247.968 / 0.08), oklch(34.8% 0 0 / 0.9)),
+    0px 2px 3px 0px
+      light-dark(oklch(32% 0.005 247.968 / 0.06), oklch(0% 0 0 / 0.5));
+  --noora-button-border-secondary-active:
+    0px 0px 0px 1px
+      light-dark(oklch(32% 0.005 247.968 / 0.08), oklch(34.8% 0 0 / 0.9)),
+    0px 1px 2px 0px light-dark(oklch(0% 0 0 / 0.05), oklch(0% 0 0 / 0.4)) inset;
+
+  --noora-button-background-destructive:
+    linear-gradient(180deg, oklch(100% 0 0 / 0.06), oklch(100% 0 0 / 0)),
+    var(--noora-button-destructive-background);
+  --noora-button-border-destructive:
+    0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
+    0px 1px 1px 0px
+      light-dark(oklch(32% 0.005 247.968 / 0.12), oklch(16.2% 0 0 / 0.2)),
+    0px 0px 0px 1px oklch(from var(--noora-red-600) l c h / 0.8),
+    0px 2px 3px 0px
+      light-dark(oklch(32% 0.005 247.968 / 0.16), oklch(0% 0 0 / 0.4));
+  --noora-button-background-destructive-hover:
+    linear-gradient(180deg, oklch(100% 0 0 / 0.24), oklch(100% 0 0 / 0)),
+    var(--noora-button-destructive-background);
+  --noora-button-border-destructive-hover:
+    0px 1px 0px 0px oklch(100% 0 0 / 0.1) inset,
+    0px 1px 1px 0px
+      light-dark(oklch(32% 0.005 247.968 / 0.12), oklch(16.2% 0 0 / 0.2)),
+    0px 0px 0px 1px oklch(from var(--noora-red-600) l c h / 0.8),
+    0px 2px 3px 0px
+      light-dark(oklch(32% 0.005 247.968 / 0.16), oklch(0% 0 0 / 0.4));
+  --noora-button-background-destructive-disabled:
+    linear-gradient(
+      180deg,
+      light-dark(oklch(100% 0 0 / 0.06), oklch(32% 0.005 247.968 / 0.25)),
+      light-dark(oklch(100% 0 0 / 0), oklch(32% 0.005 247.968 / 0.5))
+    ),
+    var(--noora-button-destructive-disabled-background);
+  --noora-button-border-destructive-disabled:
+    0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
+    0px 1px 1px 0px
+      light-dark(oklch(32% 0.005 247.968 / 0.12), oklch(16.2% 0 0 / 0.2)),
+    0px 0px 0px 1px oklch(from var(--noora-red-600) l c h / 0.5),
+    0px 2px 3px 0px
+      light-dark(oklch(32% 0.005 247.968 / 0.16), oklch(0% 0 0 / 0.4));
+  --noora-button-border-destructive-active:
+    0px 0px 0px 1px oklch(from var(--noora-red-600) l c h / 0.8),
+    0px 1px 4px 0px light-dark(oklch(0% 0 0 / 0.3), oklch(0% 0 0 / 0.4)) inset;
+  --noora-button-border-destructive-focus:
+    0px 0px 0px 1px
+      light-dark(var(--noora-neutral-light-50), var(--noora-neutral-dark-1200)),
+    0px 0px 0px 2.5px
+      light-dark(
+        oklch(from var(--noora-red-500) l c h / 0.75),
+        oklch(from var(--noora-red-400) l c h / 0.8)
+      ),
+    0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
+    0px 1px 1px 0px oklch(32% 0.005 247.968 / 0.12),
+    0px 0px 0px 1px oklch(from var(--noora-red-600) l c h / 0.8),
+    0px 2px 3px 0px oklch(32% 0.005 247.968 / 0.16);
+
+  /* Tooltip */
+  --noora-tooltip-background: light-dark(
+    var(--noora-neutral-light-1200),
+    var(--noora-neutral-dark-50)
+  );
+  --noora-tooltip-border:
+    box-shadow: 0 4px 8px 0
+      light-dark(oklch(32% 0.005 247.968 / 0.08), oklch(0% 0 0 / 0.16)) 0 2px
+      4px 0 light-dark(oklch(32% 0.005 247.968 / 0.04), oklch(0% 0 0 / 0.24)),
+    0 1px 2px 0 light-dark(oklch(0% 0 0 / 0.25), oklch(0% 0 0 / 0.65));
+  --noora-tooltip-label-primary: light-dark(
+    var(--noora-neutral-light-50),
+    var(--noora-neutral-dark-1200)
+  );
+  --noora-tooltip-label-secondary: light-dark(
+    var(--noora-neutral-light-200),
+    var(--noora-neutral-dark-1000)
+  );
+
+  /* Badge */
+  --noora-badge-fill-label: light-dark(
+    var(--noora-neutral-light-50),
+    var(--noora-neutral-light-100)
+  );
+  --noora-badge-fill-neutral: light-dark(
+    var(--noora-neutral-light-800),
+    var(--noora-neutral-dark-600)
+  );
+  --noora-badge-fill-destructive: light-dark(
+    var(--noora-red-500),
+    var(--noora-red-700)
+  );
+  --noora-badge-fill-warning: light-dark(
+    var(--noora-orange-500),
+    var(--noora-orange-600)
+  );
+  --noora-badge-fill-attention: light-dark(
+    var(--noora-yellow-600),
+    var(--noora-yellow-600)
+  );
+  --noora-badge-fill-success: light-dark(
+    var(--noora-green-500),
+    var(--noora-green-600)
+  );
+  --noora-badge-fill-information: light-dark(
+    var(--noora-azure-500),
+    var(--noora-azure-700)
+  );
+  --noora-badge-fill-focus: light-dark(
+    var(--noora-blue-500),
+    var(--noora-blue-700)
+  );
+  --noora-badge-fill-primary: light-dark(
+    var(--noora-purple-500),
+    var(--noora-purple-700)
+  );
+  --noora-badge-fill-secondary: light-dark(
+    var(--noora-pink-500),
+    var(--noora-pink-700)
+  );
+
+  --noora-badge-light-fill-neutral-background: light-dark(
+    var(--noora-neutral-light-300),
+    var(--noora-neutral-gray-50)
+  );
+  --noora-badge-light-fill-neutral-label: light-dark(
+    var(--noora-neutral-light-1100),
+    var(--noora-neutral-light-100)
+  );
+  --noora-badge-light-fill-destructive-background: light-dark(
+    var(--noora-red-50),
+    var(--noora-alpha-red)
+  );
+  --noora-badge-light-fill-destructive-label: light-dark(
+    var(--noora-red-600),
+    var(--noora-red-400)
+  );
+  --noora-badge-light-fill-warning-background: light-dark(
+    var(--noora-orange-50),
+    var(--noora-alpha-orange)
+  );
+  --noora-badge-light-fill-warning-label: light-dark(
+    var(--noora-orange-600),
+    var(--noora-orange-300)
+  );
+  --noora-badge-light-fill-attention-background: light-dark(
+    var(--noora-yellow-50),
+    var(--noora-alpha-yellow)
+  );
+  --noora-badge-light-fill-attention-label: light-dark(
+    var(--noora-yellow-700),
+    var(--noora-yellow-400)
+  );
+  --noora-badge-light-fill-success-background: light-dark(
+    var(--noora-green-50),
+    var(--noora-alpha-green)
+  );
+  --noora-badge-light-fill-success-label: light-dark(
+    var(--noora-green-700),
+    var(--noora-green-400)
+  );
+  --noora-badge-light-fill-information-background: light-dark(
+    var(--noora-azure-50),
+    var(--noora-alpha-azure)
+  );
+  --noora-badge-light-fill-information-label: light-dark(
+    var(--noora-azure-700),
+    var(--noora-azure-400)
+  );
+  --noora-badge-light-fill-focus-background: light-dark(
+    var(--noora-blue-50),
+    var(--noora-alpha-blue)
+  );
+  --noora-badge-light-fill-focus-label: light-dark(
+    var(--noora-blue-700),
+    var(--noora-blue-400)
+  );
+  --noora-badge-light-fill-primary-background: light-dark(
+    var(--noora-purple-50),
+    var(--noora-alpha-purple)
+  );
+  --noora-badge-light-fill-primary-label: light-dark(
+    var(--noora-purple-700),
+    var(--noora-purple-400)
+  );
+  --noora-badge-light-fill-secondary-background: light-dark(
+    var(--noora-pink-50),
+    var(--noora-alpha-pink)
+  );
+  --noora-badge-light-fill-secondary-label: light-dark(
+    var(--noora-pink-600),
+    var(--noora-pink-400)
+  );
+
+  --noora-badge-disabled-background: light-dark(
+    var(--noora-neutral-light-200),
+    var(--noora-neutral-light-1000)
+  );
+  --noora-badge-disabled-label: light-dark(
+    var(--noora-neutral-light-600),
+    var(--noora-neutral-light-300)
+  );
+
+  --noora-badge-status-success: var(--noora-green-500);
+  --noora-badge-status-warning: var(--noora-orange-400);
+  --noora-badge-status-error: light-dark(
+    var(--noora-red-500),
+    var(--noora-red-600)
+  );
+  --noora-badge-status-attention: light-dark(
+    var(--noora-yellow-600),
+    var(--noora-yellow-500)
+  );
+  --noora-badge-status-in-progress: light-dark(
+    var(--noora-neutral-light-900),
+    var(--noora-neutral-dark-200)
+  );
+
+  /* Borders */
+  --noora-surface-border-primary: light-dark(
+    var(--noora-neutral-light-500),
+    var(--noora-neutral-dark-800)
+  );
+  --noora-light-border-default:
+    0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
+    0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.08),
+    0px 1px 1px 0px oklch(32% 0.005 247.968 / 0.1);
+
+  --noora-light-border-focus:
+    0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
+    0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.08),
+    0px 1px 3px 0px oklch(32% 0.005 247.968 / 0.1),
+    0px 0px 0px 3px oklch(32% 0.005 247.968 / 0.12);
+
+  /* Table */
+  --noora-surface-table-header: light-dark(
+    var(--noora-neutral-light-200),
+    var(--noora-neutral-dark-1000)
+  );
+
+  /* Choice Selector */
+  --noora-choice-selector-uncheck-background:
+    linear-gradient(
+      180deg,
+      oklch(78.4% 0.005 247.894 / 0) 0%,
+      oklch(78.4% 0.005 247.894 / 0.06) 100%
+    ),
+    var(--noora-neutral-light-50);
+  --noora-choice-selector-uncheck-background-hover:
+    linear-gradient(
+      180deg,
+      oklch(78.4% 0.005 247.894 / 0.05) 0%,
+      oklch(78.4% 0.005 247.894 / 0.19) 100%
+    ),
+    var(--noora-neutral-light-50);
+  --noora-choice-selector-check-background:
+    linear-gradient(
+      180deg,
+      oklch(100% 0 0 / 0.16) 0%,
+      oklch(100% 0 0 / 0) 100%
+    ),
+    var(--noora-purple-500);
+  --noora-choice-selector-check-background-hover:
+    linear-gradient(
+      180deg,
+      oklch(100% 0 0 / 0.12) 0%,
+      oklch(100% 0 0 / 0) 100%
+    ),
+    var(--noora-purple-500);
+  --noora-choice-selector-disabled-background: light-dark(
+    var(--noora-neutral-light-400),
+    var(--noora-neutral-dark-900)
+  );
+  --noora-choice-selector-label: oklch(99.4% 0 0);
+  --noora-choice-selector-switch-off-background: var(--noora-neutral-light-400);
+  --noora-choice-selector-switch-off-background-hover: var(
+    --noora-neutral-light-500
+  );
+  --noora-choice-selector-check-border:
+    0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset,
+    0px 1px 1px 0px
+      light-dark(oklch(32% 0.005 247.968 / 0.12), oklch(16.2% 0 0 / 0.2)),
+    0px 0px 0px 1px oklch(from var(--noora-purple-700) l c h / 0.9),
+    0px 1px 3px 0px
+      light-dark(oklch(32% 0.005 247.968 / 0.16), oklch(0% 0 0 / 0.4));
+
+  /* Divider */
+  --noora-content-divider-line: light-dark(
+    var(--noora-neutral-light-400),
+    var(--noora-neutral-dark-900)
+  );
+
+  /* Charts */
+  --noora-chart-primary: light-dark(
+    var(--noora-purple-500),
+    var(--noora-purple-400)
+  );
+  --noora-chart-secondary: light-dark(
+    var(--noora-blue-500),
+    var(--noora-blue-400)
+  );
+  --noora-chart-tertiary: light-dark(
+    var(--noora-green-500),
+    var(--noora-green-400)
+  );
+  --noora-chart-quaternary: light-dark(
+    var(--noora-azure-500),
+    var(--noora-azure-400)
+  );
+  --noora-chart-destructive: light-dark(
+    var(--noora-red-400),
+    var(--noora-red-300)
+  );
+  --noora-chart-flaky: light-dark(
+    var(--noora-yellow-600),
+    var(--noora-yellow-400)
+  );
+  --noora-chart-p99: light-dark(var(--noora-green-500), var(--noora-green-400));
+  --noora-chart-p90: light-dark(var(--noora-pink-500), var(--noora-pink-400));
+  --noora-chart-p50: light-dark(
+    var(--noora-orange-400),
+    var(--noora-orange-300)
+  );
+  --noora-chart-legend-primary: light-dark(
+    var(--noora-purple-500),
+    var(--noora-purple-400)
+  );
+  --noora-chart-legend-primary-translucent: light-dark(
+    var(--noora-purple-200),
+    var(--noora-purple-700)
+  );
+  --noora-chart-legend-secondary: light-dark(
+    var(--noora-blue-500),
+    var(--noora-blue-400)
+  );
+  --noora-chart-lines: light-dark(
+    var(--noora-neutral-light-300),
+    var(--noora-neutral-gray-16)
+  );
+  --noora-sunburst-binaries: var(--noora-purple-500);
+  --noora-sunburst-localizations: var(--noora-orange-400);
+  --noora-sunburst-fonts: var(--noora-yellow-500);
+  --noora-sunburst-assets: var(--noora-green-500);
+  --noora-sunburst-videos: var(--noora-azure-500);
+  --noora-sunburst-duplicates: var(--noora-red-500);
+  --noora-sunburst-unknown: var(--noora-pink-500);
+  --noora-sunburst-directory: var(--noora-neutral-light-500);
+  --noora-sunburst-files: var(--noora-azure-500);
+
+  /* Icons */
+  --noora-icon-destructive-background: light-dark(
+    var(--noora-red-50),
+    var(--noora-alpha-red)
+  );
+  --noora-icon-destructive-label: light-dark(
+    var(--noora-red-600),
+    var(--noora-red-500)
+  );
+  --noora-icon-warning-background: light-dark(
+    var(--noora-orange-50),
+    var(--noora-alpha-orange)
+  );
+  --noora-icon-warning-label: light-dark(
+    var(--noora-orange-500),
+    var(--noora-orange-400)
+  );
+  --noora-icon-success-background: light-dark(
+    var(--noora-green-50),
+    var(--noora-alpha-green)
+  );
+  --noora-icon-success-label: light-dark(
+    var(--noora-green-700),
+    var(--noora-green-400)
+  );
+  --noora-icon-info-background: light-dark(
+    var(--noora-azure-50),
+    var(--noora-alpha-azure)
+  );
+  --noora-icon-info-label: light-dark(
+    var(--noora-azure-700),
+    var(--noora-azure-400)
+  );
+  --noora-icon-primary-label: light-dark(
+    var(--noora-purple-500),
+    var(--noora-purple-400)
+  );
+  --noora-icon-primary-background: light-dark(
+    var(--noora-purple-50),
+    oklch(from var(--noora-purple-500) l c h / 0.24)
+  );
+  --noora-icon-neutral-label: light-dark(
+    var(--noora-neutral-light-1000),
+    var(--noora-neutral-dark-300)
+  );
+  --noora-icon-neutral-background: light-dark(
+    var(--noora-neutral-light-300),
+    var(--noora-neutral-gray-16)
+  );
+
+  /* Spacing */
+  --noora-spacing-0: 0rem;
+  --noora-spacing-1: 0.125rem;
+  --noora-spacing-2: 0.25rem;
+  --noora-spacing-3: 0.375rem;
+  --noora-spacing-4: 0.5rem;
+  --noora-spacing-5: 0.75rem;
+  --noora-spacing-6: 1rem;
+  --noora-spacing-7: 1.25rem;
+  --noora-spacing-8: 1.5rem;
+  --noora-spacing-9: 2rem;
+  --noora-spacing-10: 2.5rem;
+  --noora-spacing-11: 3rem;
+  --noora-spacing-12: 3.5rem;
+  --noora-spacing-13: 4rem;
+  --noora-spacing-14: 4.5rem;
+  --noora-spacing-15: 5rem;
+  --noora-spacing-16: 6rem;
+  --noora-spacing-17: 7rem;
+
+  /* Z-index */
+  --noora-z-index-0: auto;
+  --noora-z-index-1: 100;
+  --noora-z-index-2: 400;
+  --noora-z-index-3: 510;
+  --noora-z-index-4: 512;
+  --noora-z-index-5: 513;
+  --noora-z-index-6: 514;
+  --noora-z-index-7: 515;
+  --noora-z-index-8: 516;
+  --noora-z-index-9: 517;
+  --noora-z-index-10: 518;
+  --noora-z-index-11: 519;
+  --noora-z-index-12: 520;
+
+  /* Borders */
+  --noora-surface-border-primary: light-dark(
+    var(--noora-neutral-light-500),
+    var(--noora-neutral-dark-800)
+  );
+
+  --noora-border-light-default:
+    0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
+    0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.08),
+    0px 1px 1px 0px oklch(32% 0.005 247.968 / 0.1);
+  --noora-border-light-focus:
+    0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
+    0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.08),
+    0px 1px 3px 0px oklch(32% 0.005 247.968 / 0.1),
+    0px 0px 0px 3px oklch(32% 0.005 247.968 / 0.12);
+  --noora-border-light-error:
+    0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
+    0px 0px 0px 1px var(--noora-red-500),
+    0px 1px 3px 0px oklch(32% 0.005 247.968 / 0.1);
+  --noora-border-light-error-focus:
+    0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
+    0px 0px 0px 1px var(--noora-red-500),
+    0px 1px 3px 0px oklch(32% 0.005 247.968 / 0.1),
+    0px 0px 0px 3px oklch(from var(--noora-red-500) l c h / 0.2);
+  --noora-border-light-warning-focus:
+    0px 1px 1px 0px oklch(16.2% 0 0 / 0.05),
+    0px 0px 0px 1px var(--noora-orange-400),
+    0px 1px 3px 0px oklch(32% 0.005 247.968 / 0.1),
+    0px 0px 0px 3px oklch(from var(--noora-orange-400) l c h / 0.2);
+
+  --noora-border-medium:
+    0px 0px 0px 1px oklch(32% 0.005 247.968 / 0.08) inset,
+    0px -1px 0px 0px oklch(32% 0.005 247.968 / 0.16) inset,
+    0px 8px 6px 0px oklch(32% 0.005 247.968 / 0.02),
+    0px 2px 4px 0px oklch(32% 0.005 247.968 / 0.04);
+  --noora-border-section: 0 0 0 1px oklch(32% 0.005 247.968 / 0.06);
+  --noora-border-heavy:
+    0px 0px 0px 1.5px oklch(32% 0.005 247.968 / 0.1) inset,
+    0px -1.5px 0px 0px oklch(32% 0.005 247.968 / 0.12) inset,
+    0px 4px 8px 0px oklch(32% 0.005 247.968 / 0.08),
+    0px 2px 4px 0px oklch(32% 0.005 247.968 / 0.04);
+
+  /* Radius */
+  --noora-radius-0: 0rem;
+  --noora-radius-1: 0.125rem;
+  --noora-radius-2: 0.25rem;
+  --noora-radius-3: 0.375rem;
+  --noora-radius-4: 0.5rem;
+  --noora-radius-5: 0.625rem;
+  --noora-radius-6: 0.75rem;
+  --noora-radius-7: 0.875rem;
+  --noora-radius-8: 1rem;
+  --noora-radius-99: 1000px;
+
+  /* Icon */
+  --noora-icon-size-small: 0.75rem;
+  --noora-icon-size-medium: 1rem;
+  --noora-icon-size-large: 1.25rem;
+
+  /* Typography */
+  --noora-font-heading: "Inter Variable", "Noto Sans Georgian", sans-serif;
+  --noora-font-body: "Inter Variable", "Noto Sans Georgian", sans-serif;
+  --noora-font-code: "Geist Mono", monospace;
+
+  --noora-font-weight-regular: 400;
+  --noora-font-weight-medium: 500;
+  --noora-font-weight-semibold: 600;
+  --noora-font-weight-bold: 700;
+
+  --noora-font-display-xlarge: 2.5rem/3rem var(--noora-font-heading);
+  --noora-font-display-large: 2.375rem/2.875rem var(--noora-font-heading);
+  --noora-font-display-medium: 2.25rem/2.625rem var(--noora-font-heading);
+  --noora-font-display-small: 2.125rem/2.5rem var(--noora-font-heading);
+  --noora-font-heading-2xlarge: 2rem/2.375rem var(--noora-font-heading);
+  --noora-font-heading-xlarge: 1.5rem/2rem var(--noora-font-heading);
+  --noora-font-heading-large: 1.25rem/1.625rem var(--noora-font-heading);
+  --noora-font-heading-medium: 1.125rem/1.5rem var(--noora-font-heading);
+  --noora-font-heading-small: 1rem/1.375rem var(--noora-font-heading);
+  --noora-font-body-large: 1rem/1.5rem var(--noora-font-body);
+  --noora-font-body-medium: 0.875rem/1.25rem var(--noora-font-body);
+  --noora-font-body-small: 0.75rem/1rem var(--noora-font-body);
+  --noora-font-body-xsmall: 0.625rem/0.75rem var(--noora-font-body);
+  --noora-font-code-large: 0.875rem/1.25rem var(--noora-font-code);
+  --noora-font-code-medium: 0.75rem/1rem var(--noora-font-code);
+  --noora-font-code-small: 0.625rem/0.75rem var(--noora-font-code);
+
+  &[data-theme="dark"] {
+    --noora-button-border-primary-hover:
+      0px 1px 0px 0px oklch(100% 0 0 / 0.1) inset,
+      0px 1px 1px 0px oklch(16.2% 0 0 / 0.2),
+      0px 0px 0px 1px oklch(from var(--noora-purple-600) l c h / 0.9),
+      0px 2px 3px 0px oklch(0% 0 0 / 0.4);
+    --noora-button-border-secondary-hover:
+      0px 1px 0px 0px oklch(100% 0 0 / 0.24) inset,
+      0px 1px 1px 0px oklch(16.2% 0 0 / 0.1),
+      0px 0px 0px 1px oklch(34.8% 0 0 / 0.9),
+      0px 2px 3px 0px oklch(0% 0 0 / 0.5);
+  }
+
+  &[data-theme="dark"] {
+    --noora-light-border-default:
+      0px 1px 1px 0px oklch(16.2% 0 0 / 0.3),
+      0px 0px 0px 1px oklch(54.9% 0 0 / 0.45),
+      0px 2px 3px 0px oklch(0% 0 0 / 0.3);
+
+    --noora-light-border-focus:
+      0px 1px 1px 0px oklch(16.2% 0 0 / 0.2),
+      0px 0px 0px 1px oklch(54.9% 0 0 / 0.3),
+      0px 2px 3px 0px oklch(0% 0 0 / 0.3),
+      0px 0px 0px 3px oklch(54.9% 0 0 / 0.4);
+  }
+
+  &[data-theme="dark"] {
+    --noora-choice-selector-uncheck-background:
+      linear-gradient(
+        180deg,
+        oklch(100% 0 0 / 0.05) 0%,
+        oklch(100% 0 0 / 0) 100%
+      ),
+      var(--noora-neutral-dark-1100);
+
+    --noora-choice-selector-uncheck-background-hover:
+      linear-gradient(
+        180deg,
+        oklch(100% 0 0 / 0.03) 0%,
+        oklch(100% 0 0 / 0) 100%
+      ),
+      var(--noora-neutral-dark-1100);
+
+    --noora-choice-selector-switch-off-background: var(
+      --noora-neutral-dark-800
+    );
+    --noora-choice-selector-switch-off-background-hover: var(
+      --noora-neutral-dark-900
+    );
+    --noora-choice-selector-check-background-hover:
+      linear-gradient(
+        180deg,
+        oklch(100% 0 0 / 0.06) 0%,
+        oklch(100% 0 0 / 0) 100%
+      ),
+      var(--noora-purple-500);
+  }
+
+  &[data-theme="dark"] {
+    --noora-border-light-default:
+      0px 1px 1px 0px oklch(16.2% 0 0 / 0.3),
+      0px 0px 0px 1px oklch(54.9% 0 0 / 0.45),
+      0px 2px 3px 0px oklch(0% 0 0 / 0.3);
+    --noora-border-light-focus:
+      0px 1px 1px 0px oklch(16.2% 0 0 / 0.2),
+      0px 0px 0px 1px oklch(54.9% 0 0 / 0.3),
+      0px 2px 3px 0px oklch(0% 0 0 / 0.3),
+      0px 0px 0px 3px oklch(54.9% 0 0 / 0.4);
+    --noora-border-light-error:
+      0px 1px 1px 0px oklch(16.2% 0 0 / 0.2),
+      0px 0px 0px 1px var(--noora-red-300), 0px 2px 3px 0px oklch(0% 0 0 / 0.3);
+    --noora-border-light-error-focus:
+      0px 1px 1px 0px oklch(16.2% 0 0 / 0.2),
+      0px 0px 0px 1px var(--noora-red-300), 0px 2px 3px 0px oklch(0% 0 0 / 0.3),
+      0px 0px 0px 3px oklch(from var(--noora-red-300) l c h / 0.25);
+    --noora-border-light-warning-focus:
+      0px 1px 1px 0px oklch(16.2% 0 0 / 0.2),
+      0px 0px 0px 1px var(--noora-orange-300),
+      0px 2px 3px 0px oklch(0% 0 0 / 0.3),
+      0px 0px 0px 3px oklch(from var(--noora-orange-300) l c h / 0.25);
+    --noora-border-medium:
+      0px 1px 0px 0px oklch(54.9% 0 0 / 0.3) inset,
+      0px 0px 0px 1px oklch(54.9% 0 0 / 0.2) inset,
+      0px 2px 4px 0px oklch(0% 0 0 / 0.12), 0px 4px 8px 0px oklch(0% 0 0 / 0.24);
+    --noora-border-section: 0 0 0 1px oklch(34.8% 0 0 / 0.55);
+    --noora-border-heavy:
+      0px 1.5px 0px 0px oklch(54.9% 0 0 / 0.3) inset,
+      0px 0px 0px 1.5px oklch(54.9% 0 0 / 0.2) inset,
+      0px 4px 8px 0px oklch(0% 0 0 / 0.16), 0px 2px 4px 0px oklch(0% 0 0 / 0.24);
+  }
+
+  @media screen and (min-width: 768px) {
+    --noora-font-display-xlarge: 4.5rem/4.875rem var(--noora-font-heading);
+    --noora-font-display-large: 4rem/4.375rem var(--noora-font-heading);
+    --noora-font-display-medium: 3.5rem/4rem var(--noora-font-heading);
+    --noora-font-display-small: 3rem/3.5rem var(--noora-font-heading);
+    --noora-font-heading-2xlarge: 2.5rem/2.875rem var(--noora-font-heading);
+    --noora-font-heading-xlarge: 2rem/2.375rem var(--noora-font-heading);
+    --noora-font-heading-large: 1.5rem/2rem var(--noora-font-heading);
+    --noora-font-heading-medium: 1.25rem/1.625rem var(--noora-font-heading);
+    --noora-font-heading-small: 1.125rem/1.5rem var(--noora-font-heading);
+  }
+
+  --noora-font-color-primary: light-dark(
+    var(--noora-neutral-light-1100),
+    var(--noora-neutral-light-100)
+  );
+  --noora-font-color-secondary: light-dark(
+    var(--noora-neutral-light-1000),
+    var(--noora-neutral-light-400)
+  );
+  --noora-font-color-disabled: light-dark(
+    var(--noora-neutral-light-800),
+    var(--noora-neutral-light-900)
+  );
+  --noora-font-color-information: light-dark(
+    var(--noora-azure-500),
+    var(--noora-azure-300)
+  );
+  --noora-font-color-success: light-dark(
+    var(--noora-green-600),
+    var(--noora-green-400)
+  );
+  --noora-font-color-warning: light-dark(
+    var(--noora-orange-600),
+    var(--noora-orange-300)
+  );
+  --noora-font-color-error: light-dark(
+    var(--noora-red-500),
+    var(--noora-red-300)
+  );
+
+  /* Easing */
+  --ease-in-quad: cubic-bezier(0.55, 0.085, 0.68, 0.53);
+  --ease-in-cubic: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+  --ease-in-quart: cubic-bezier(0.895, 0.03, 0.685, 0.22);
+  --ease-in-quint: cubic-bezier(0.755, 0.05, 0.855, 0.06);
+  --ease-in-expo: cubic-bezier(0.95, 0.05, 0.795, 0.035);
+  --ease-in-circ: cubic-bezier(0.6, 0.04, 0.98, 0.335);
+
+  --ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --ease-out-quart: cubic-bezier(0.165, 0.84, 0.44, 1);
+  --ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+  --ease-out-circ: cubic-bezier(0.075, 0.82, 0.165, 1);
+
+  --ease-in-out-quad: cubic-bezier(0.455, 0.03, 0.515, 0.955);
+  --ease-in-out-cubic: cubic-bezier(0.645, 0.045, 0.355, 1);
+  --ease-in-out-quart: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-in-out-quint: cubic-bezier(0.86, 0, 0.07, 1);
+  --ease-in-out-expo: cubic-bezier(1, 0, 0, 1);
+  --ease-in-out-circ: cubic-bezier(0.785, 0.135, 0.15, 0.86);
+}
+
+/* Wide-gamut overrides: same lightness and hue, more chroma on Display P3 screens.
+   Steps without an entry already sit inside sRGB. */
+@media (color-gamut: p3) {
+  :root {
+    --noora-purple-50: oklch(97.5% 0.014 291.5);
+    --noora-purple-100: oklch(93.7% 0.035 290.8);
+    --noora-purple-200: oklch(86.8% 0.076 290);
+    --noora-purple-300: oklch(77.5% 0.133 289.2);
+    --noora-purple-400: oklch(66.5% 0.2 288.3);
+    --noora-purple-500: oklch(54.8% 0.283 287.4);
+    --noora-pink-50: oklch(97.5% 0.016 5);
+    --noora-pink-100: oklch(93.7% 0.038 5.5);
+    --noora-pink-200: oklch(86.8% 0.088 6);
+    --noora-pink-300: oklch(77.5% 0.162 6.5);
+    --noora-pink-400: oklch(66.5% 0.26 7);
+    --noora-pink-500: oklch(54.8% 0.245 7.5);
+    --noora-pink-600: oklch(48.5% 0.215 7.8);
+    --noora-pink-700: oklch(41.5% 0.182 8);
+    --noora-pink-800: oklch(34.5% 0.145 8);
+    --noora-pink-900: oklch(27.5% 0.112 8);
+    --noora-red-50: oklch(97.5% 0.015 25);
+    --noora-red-100: oklch(93.7% 0.04 25.4);
+    --noora-red-200: oklch(86.8% 0.09 25.8);
+    --noora-red-300: oklch(77.5% 0.16 26.2);
+    --noora-red-400: oklch(66.5% 0.24 26.6);
+    --noora-red-500: oklch(54.8% 0.25 27);
+    --noora-red-600: oklch(48.5% 0.22 27.2);
+    --noora-red-700: oklch(41.5% 0.185 27.4);
+    --noora-red-800: oklch(34.5% 0.15 27.6);
+    --noora-red-900: oklch(27.5% 0.115 27.8);
+    --noora-orange-50: oklch(97.5% 0.016 58);
+    --noora-orange-100: oklch(93.7% 0.042 57);
+    --noora-orange-200: oklch(86.8% 0.095 55);
+    --noora-orange-300: oklch(77.5% 0.17 52);
+    --noora-orange-400: oklch(66.5% 0.205 48);
+    --noora-orange-500: oklch(54.8% 0.18 44);
+    --noora-orange-600: oklch(48.5% 0.165 42);
+    --noora-orange-700: oklch(41.5% 0.144 41);
+    --noora-orange-800: oklch(34.5% 0.115 41);
+    --noora-orange-900: oklch(27.5% 0.09 41);
+    --noora-orange-950: oklch(21.5% 0.07 41);
+    --noora-yellow-200: oklch(93% 0.1 91.5);
+    --noora-yellow-300: oklch(90.5% 0.135 90);
+    --noora-yellow-400: oklch(87.5% 0.168 88);
+    --noora-yellow-500: oklch(84.8% 0.195 86);
+    --noora-yellow-600: oklch(72% 0.17 80);
+    --noora-yellow-700: oklch(56.5% 0.135 74);
+    --noora-yellow-800: oklch(44.5% 0.105 70);
+    --noora-yellow-900: oklch(32.5% 0.078 68);
+    --noora-yellow-950: oklch(21.5% 0.052 67);
+    --noora-green-400: oklch(66.5% 0.2 148);
+    --noora-green-500: oklch(54.8% 0.19 147);
+    --noora-green-600: oklch(48.5% 0.172 147.5);
+    --noora-green-700: oklch(41.5% 0.148 148);
+    --noora-green-800: oklch(34.5% 0.118 149);
+    --noora-green-900: oklch(27.5% 0.09 150);
+    --noora-green-950: oklch(21.5% 0.068 151);
+    --noora-azure-50: oklch(97.5% 0.015 236);
+    --noora-azure-100: oklch(93.7% 0.038 236.5);
+    --noora-azure-200: oklch(86.8% 0.08 237);
+    --noora-azure-300: oklch(77.5% 0.14 238);
+    --noora-azure-400: oklch(66.5% 0.185 240);
+    --noora-azure-500: oklch(54.8% 0.169 242);
+    --noora-azure-600: oklch(48.5% 0.154 243.5);
+    --noora-azure-700: oklch(41.5% 0.135 245);
+    --noora-azure-800: oklch(34.5% 0.11 246);
+    --noora-azure-900: oklch(27.5% 0.088 247);
+    --noora-azure-950: oklch(21.5% 0.068 248);
+    --noora-blue-50: oklch(97.5% 0.013 256);
+    --noora-blue-100: oklch(93.7% 0.033 256.5);
+    --noora-blue-200: oklch(86.8% 0.071 257);
+    --noora-blue-300: oklch(77.5% 0.125 258);
+    --noora-blue-400: oklch(66.5% 0.188 259);
+    --noora-blue-500: oklch(54.8% 0.24 260);
+    --noora-blue-600: oklch(48.5% 0.225 261);
+    --noora-blue-700: oklch(41.5% 0.195 262);
+
+    --noora-alpha-red: oklch(54.8% 0.25 27 / 0.18);
+    --noora-alpha-orange: oklch(66.5% 0.205 48 / 0.14);
+    --noora-alpha-yellow: oklch(84.8% 0.195 86 / 0.16);
+    --noora-alpha-green: oklch(54.8% 0.19 147 / 0.14);
+    --noora-alpha-azure: oklch(54.8% 0.169 242 / 0.16);
+    --noora-alpha-blue: oklch(54.8% 0.24 260 / 0.2);
+    --noora-alpha-purple: oklch(54.8% 0.283 287.4 / 0.24);
+    --noora-alpha-pink: oklch(54.8% 0.245 7.5 / 0.22);
+  }
+}
+
+/* Dark mode for Storybook only */
+.noora-dark {
+  color-scheme: dark;
+}

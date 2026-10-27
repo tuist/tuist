@@ -1,11 +1,16 @@
+import Foundation
 import OpenAPIRuntime
 import SwiftUI
+import TuistAuthentication
 import TuistHTTP
+import TuistLogging
 import TuistServer
+import UIKit
 
 struct ErrorAlert: Identifiable {
     var id = UUID()
     var message: String
+    var allowsLogSharing = false
     var dismissAction: (() -> Void)?
 }
 
@@ -14,24 +19,60 @@ public final class ErrorHandling: ObservableObject {
 
     @MainActor
     public func handle(error: Error) {
-        let errorDescription: String
         if let clientError = error as? ClientError {
-            if let underlyingServerClientError = clientError.underlyingError
-                as? ClientAuthenticationError
-            {
-                errorDescription = "\(underlyingServerClientError.errorDescription ?? "Unknown error")"
-            } else {
-                errorDescription = clientError.underlyingError.localizedDescription
+            if clientError.underlyingError is ClientAuthenticationError {
+                let clientErrorType = String(reflecting: type(of: clientError))
+                let underlyingErrorType = String(reflecting: type(of: clientError.underlyingError))
+                Logger.current.error(
+                    "Client authentication error received. Deleting stored credentials. error_type=\(clientErrorType) underlying_error_type=\(underlyingErrorType) error=\(clientError.underlyingError.localizedDescription)"
+                )
+                showAlert(
+                    message: clientError.underlyingError.localizedDescription,
+                    withLogExport: true
+                )
+                Task {
+                    try await ServerCredentialsStore.current.delete(
+                        serverURL: AppServerEnvironmentService().url()
+                    )
+                }
+                return
             }
+            let clientErrorType = String(reflecting: type(of: clientError))
+            let underlyingErrorType = String(reflecting: type(of: clientError.underlyingError))
+            Logger.current.error(
+                "Client error received error_type=\(clientErrorType) underlying_error_type=\(underlyingErrorType) error=\(clientError.underlyingError.localizedDescription)"
+            )
+            currentAlert = ErrorAlert(message: clientError.underlyingError.localizedDescription)
+            return
         } else {
-            errorDescription = error.localizedDescription
+            let errorType = String(reflecting: type(of: error))
+            Logger.current.error(
+                "Error received error_type=\(errorType) error=\(error.localizedDescription)"
+            )
+            showAlert(
+                message: error.localizedDescription,
+                withLogExport: error is ClientAuthenticationError
+            )
         }
-        currentAlert = ErrorAlert(message: errorDescription)
+    }
+
+    @MainActor
+    private func showAlert(
+        message: String,
+        withLogExport: Bool
+    ) {
+        guard withLogExport else {
+            currentAlert = ErrorAlert(message: message)
+            return
+        }
+
+        currentAlert = ErrorAlert(message: message, allowsLogSharing: true)
     }
 }
 
 struct HandleErrorsByShowingAlertViewModifier: ViewModifier {
     @StateObject var errorHandling = ErrorHandling()
+    @State private var logsToShare: LogsToShare?
 
     func body(content: Content) -> some View {
         content
@@ -42,16 +83,71 @@ struct HandleErrorsByShowingAlertViewModifier: ViewModifier {
             .background(
                 EmptyView()
                     .alert(item: $errorHandling.currentAlert) { currentAlert in
-                        Alert(
-                            title: Text("Error"),
-                            message: Text(currentAlert.message),
-                            dismissButton: .default(Text("Ok")) {
-                                currentAlert.dismissAction?()
-                            }
-                        )
+                        if currentAlert.allowsLogSharing {
+                            return Alert(
+                                title: Text("Error"),
+                                message: Text(currentAlert.message),
+                                primaryButton: .default(Text("Share logs")) {
+                                    currentAlert.dismissAction?()
+                                    Task {
+                                        do {
+                                            let logExportURL = try await ApplicationLogStore.current.plainTextExport()
+                                            logsToShare = LogsToShare(fileURL: logExportURL)
+                                        } catch {
+                                            Logger.current
+                                                .error(
+                                                    "Failed to prepare application logs for sharing: \(error.localizedDescription)"
+                                                )
+                                        }
+                                    }
+                                },
+                                secondaryButton: .cancel(Text("Ok")) {
+                                    currentAlert.dismissAction?()
+                                }
+                            )
+                        } else {
+                            return Alert(
+                                title: Text("Error"),
+                                message: Text(currentAlert.message),
+                                dismissButton: .default(Text("Ok")) {
+                                    currentAlert.dismissAction?()
+                                }
+                            )
+                        }
                     }
             )
+            .sheet(item: $logsToShare) { logsToShare in
+                ActivityView(
+                    activityItems: [logsToShare.fileURL],
+                    completion: {
+                        try? FileManager.default.removeItem(at: logsToShare.fileURL)
+                        self.logsToShare = nil
+                    }
+                )
+                .onDisappear {
+                    try? FileManager.default.removeItem(at: logsToShare.fileURL)
+                    self.logsToShare = nil
+                }
+            }
     }
+}
+
+private struct LogsToShare: Identifiable {
+    let id = UUID()
+    let fileURL: URL
+}
+
+private struct ActivityView: UIViewControllerRepresentable {
+    let activityItems: [Any]
+    let completion: () -> Void
+
+    func makeUIViewController(context _: Context) -> UIActivityViewController {
+        let viewController = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        viewController.completionWithItemsHandler = { _, _, _, _ in completion() }
+        return viewController
+    }
+
+    func updateUIViewController(_: UIActivityViewController, context _: Context) {}
 }
 
 extension View {

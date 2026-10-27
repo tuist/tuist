@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TuistEnvironment
 import TuistSupport
 
 @Mockable
@@ -19,6 +20,7 @@ public struct CIController: CIControlling {
             return CIInfo(
                 provider: .github,
                 runId: env["GITHUB_RUN_ID"],
+                attemptNumber: env["GITHUB_RUN_ATTEMPT"] ?? "1",
                 projectHandle: env["GITHUB_REPOSITORY"]
             )
         }
@@ -51,10 +53,15 @@ public struct CIController: CIControlling {
             } else {
                 nil
             }
+            // CIRCLE_BUILD_NUM is the per-job number used to build dashboard URLs.
+            // CIRCLE_WORKFLOW_ID is stable across all jobs in a workflow, so we surface it as
+            // `pipelineId` and prefer it for shard reference derivation: a `build-for-testing`
+            // job and its downstream `test-without-building` shard jobs share the workflow id.
             return CIInfo(
                 provider: .circleci,
                 runId: env["CIRCLE_BUILD_NUM"],
-                projectHandle: projectHandle
+                projectHandle: projectHandle,
+                pipelineId: env["CIRCLE_WORKFLOW_ID"]
             )
         }
 

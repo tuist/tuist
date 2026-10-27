@@ -1,0 +1,223 @@
+#account-webhook {
+  display: flex;
+  flex-grow: 1;
+  flex-direction: column;
+  gap: var(--noora-spacing-7);
+  background: var(--noora-surface-background-primary);
+  min-height: 100%;
+
+  & > [data-part="action-buttons"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+
+    & > [data-part="header-actions"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+
+      /* Noora's icon-only dropdown renders smaller than a medium icon-only
+         button. Match the surrounding medium button height by bumping the
+         glyph size and padding. */
+      & .noora-dropdown > [data-part="trigger"][data-icon-only] {
+        padding: var(--noora-spacing-3);
+        width: var(--noora-icon-size-medium);
+        height: var(--noora-icon-size-medium);
+
+        & [data-part="icon"] {
+          width: var(--noora-icon-size-medium);
+          height: var(--noora-icon-size-medium);
+        }
+      }
+    }
+  }
+
+  & > [data-part="header"] {
+    & > [data-part="title"] {
+      margin: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+    }
+  }
+
+  & > [data-part="details-card"] > [data-part="details-card-section"] {
+    & > [data-part="metadata-grid"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-9);
+
+      & > [data-part="metadata-row"] {
+        display: flex;
+        flex-direction: row;
+        gap: var(--noora-spacing-7);
+
+        & > [data-part="metadata"] {
+          display: flex;
+          flex: 1;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: var(--noora-spacing-4);
+          min-width: 0;
+
+          & > [data-part="title"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+          }
+
+          & > [data-part="label"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: var(--noora-spacing-2);
+            max-width: 100%;
+            overflow: hidden;
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          & > code[data-part="label"] {
+            font-size: 0.95em;
+            font-family: "Geist Mono", monospace;
+          }
+
+          & > [data-part="event-tags"] {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: var(--noora-spacing-3);
+          }
+        }
+      }
+    }
+  }
+
+  & > [data-part="deliveries-chart-card"] > [data-part="deliveries-chart-card-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+
+    & > [data-part="legends"] {
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-5);
+
+      & > * {
+        flex-grow: 1;
+      }
+    }
+
+    & .noora-chart {
+      width: 100%;
+      height: 240px;
+    }
+  }
+
+  & > [data-part="deliveries-card"] > [data-part="deliveries-card-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-8);
+
+    & > [data-part="filters"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+
+      & > form {
+        flex-grow: 1;
+        max-width: 320px;
+      }
+    }
+
+    & > [data-part="active-filters"] {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: var(--noora-spacing-2);
+    }
+  }
+
+  @media (max-width: 768px) {
+    &
+      > [data-part="details-card"]
+      > [data-part="details-card-section"]
+      > [data-part="metadata-grid"]
+      > [data-part="metadata-row"] {
+      flex-direction: column;
+    }
+  }
+}
+
+/* Edit endpoint + rotate-secret modals — both live on this page. The
+   rotate-secret modal is purely the disclosure step, the edit modal is
+   purely the form, but they share the surrounding chrome. */
+:is(#webhook-edit-endpoint-modal, #webhook-signing-secret-modal) {
+  & [data-part="modal-content-wrapper"] {
+    display: flex;
+    flex-direction: column;
+
+    & > .noora-line-divider {
+      flex-shrink: 0;
+    }
+  }
+
+  & [data-part="modal-body"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    padding: var(--noora-spacing-7) var(--noora-spacing-4);
+  }
+}
+
+#webhook-edit-endpoint-modal > [data-part="positioner"] > [data-part="content"] {
+  width: min(560px, 90vw);
+  max-width: 560px;
+}
+
+#webhook-signing-secret-modal {
+  & [data-part="modal-message"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+
+    & > [data-part="title"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="subtitle"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+  }
+
+  & [data-part="read-only-value"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    border-radius: var(--noora-radius-3);
+    background: var(--noora-surface-background-tertiary);
+    padding: var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-5);
+    min-width: 0;
+
+    & > code {
+      flex-grow: 1;
+      overflow: hidden;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      font-family: "Geist Mono", monospace;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    & > .noora-button {
+      flex-shrink: 0;
+    }
+  }
+}

@@ -1,5 +1,7 @@
 import Foundation
 import Mockable
+import Testing
+import TuistHTTP
 import TuistTesting
 import XCTest
 
@@ -18,6 +20,7 @@ final class RetryProviderTests: TuistUnitTestCase {
             .willReturn(1)
 
         subject = RetryProvider(
+            maximumRetryCount: 3,
             delayProvider: delayProvider
         )
     }
@@ -66,5 +69,154 @@ final class RetryProviderTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(operationCalls, 4)
+    }
+
+    func test_runWithRetries_whenMaximumRetryCountIsZero_doesNotRetry() async throws {
+        // Given
+        let error = TestError("exists failed")
+        let subject = RetryProvider(maximumRetryCount: 0)
+
+        // When
+        await XCTAssertThrowsSpecific(
+            try await subject.runWithRetries { [self] in
+                operationCalls += 1
+                throw error
+            },
+            error
+        )
+
+        // Then
+        XCTAssertEqual(operationCalls, 1)
+    }
+
+    func test_runWithRetries_whenOperationIsCancelled_doesNotRetry() async throws {
+        // Given / When
+        do {
+            try await subject.runWithRetries { [self] in
+                operationCalls += 1
+                throw CancellationError()
+            }
+            XCTFail("Expected cancellation")
+        } catch is CancellationError {}
+
+        // Then
+        XCTAssertEqual(operationCalls, 1)
+    }
+
+    func test_runWithRetries_whenCallerTaskIsCancelled_cancelsInFlightOperation() async throws {
+        // Given
+        let operationStarted = expectation(description: "Operation started")
+        let task = Task {
+            try await subject.runWithRetries {
+                operationStarted.fulfill()
+                try await Task.sleep(for: .seconds(2))
+            }
+        }
+        await fulfillment(of: [operationStarted], timeout: 1)
+
+        // When
+        let cancellationStartedAt = Date()
+        task.cancel()
+
+        // Then
+        do {
+            try await task.value
+            XCTFail("Expected cancellation")
+        } catch is CancellationError {}
+        XCTAssertLessThan(Date().timeIntervalSince(cancellationStartedAt), 0.5)
+    }
+}
+
+private actor OperationCounter {
+    private(set) var count = 0
+
+    func increment() {
+        count += 1
+    }
+}
+
+struct RetryProviderErrorClassificationTests {
+    private let subject: RetryProviding
+
+    init() {
+        let delayProvider = MockDelayProviding()
+        given(delayProvider)
+            .delay(for: .any)
+            .willReturn(1)
+
+        subject = RetryProvider(maximumRetryCount: 3, delayProvider: delayProvider)
+    }
+
+    @Test func does_not_retry_a_permanent_client_error() async throws {
+        // Given
+        let operationCalls = OperationCounter()
+        let error = GetCacheServiceError.forbidden("Not authorized to read cache")
+
+        // When
+        await #expect(throws: error) {
+            try await subject.runWithRetries {
+                await operationCalls.increment()
+                throw error
+            }
+        }
+
+        // Then
+        #expect(await operationCalls.count == 1)
+    }
+
+    @Test func does_not_retry_a_throttled_authorization_denial() async throws {
+        // Given
+        let operationCalls = OperationCounter()
+        let error = AuthorizationThrottledError(retryAfterSeconds: 30)
+
+        // When
+        await #expect(throws: error) {
+            try await subject.runWithRetries {
+                await operationCalls.increment()
+                throw error
+            }
+        }
+
+        // Then
+        #expect(await operationCalls.count == 1)
+    }
+
+    @Test(.withMockedEnvironment()) func keeps_three_retries_by_default() async throws {
+        // Given
+        let delayProvider = MockDelayProviding()
+        given(delayProvider)
+            .delay(for: .any)
+            .willReturn(1)
+        let subject = RetryProvider(delayProvider: delayProvider)
+        let operationCalls = OperationCounter()
+        let error = GetCacheServiceError.unknownError(503)
+
+        // When
+        await #expect(throws: error) {
+            try await subject.runWithRetries {
+                await operationCalls.increment()
+                throw error
+            }
+        }
+
+        // Then
+        #expect(await operationCalls.count == 4)
+    }
+
+    @Test func retries_a_retryable_server_error() async throws {
+        // Given
+        let operationCalls = OperationCounter()
+        let error = GetCacheServiceError.unknownError(503)
+
+        // When
+        await #expect(throws: error) {
+            try await subject.runWithRetries {
+                await operationCalls.increment()
+                throw error
+            }
+        }
+
+        // Then
+        #expect(await operationCalls.count == 4)
     }
 }

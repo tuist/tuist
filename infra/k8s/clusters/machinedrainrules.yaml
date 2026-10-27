@@ -1,0 +1,99 @@
+# Cluster API drain behaviour for Tuist runner Pods.
+#
+# A runner Pod is running a customer's CI job. Cluster API's default
+# drain behaviour is to *evict* Pods, which kills those jobs — the
+# customer sees the "lost communication" failure — every time a Machine
+# is replaced: a template roll, a MachineHealthCheck remediation, a
+# scale-down. There is no PodDisruptionBudget in `tuist-runners`, and a
+# PDB could not express this correctly anyway (see below).
+#
+# `WaitCompleted` replaces eviction with waiting. Cluster API leaves the
+# Pod alone and holds the drain until the Pod reaches a terminal phase.
+# That fits the runner shape exactly: a runner Pod is single-shot
+# (`RestartPolicy: Never`, one `workflow_job`, then exit), so a Pod
+# running a job completes on its own and the drain proceeds — bounded by
+# the job's own duration rather than by a disruption budget.
+#
+# This alone would never converge, and the other half lives in the
+# controller. An *idle* runner Pod is a dispatch poller with nothing to
+# finish: it polls for as long as it exists, so `WaitCompleted` would
+# wait on it forever. The cordon that starts a drain stops new Pods
+# landing but does not remove the ones already bound, so nothing else
+# clears them either. `reapIdlePodsOnCordonedNodes` in
+# `infra/runners-controller/controllers/node_drain.go` retires idle Pods
+# on a draining node — free to do, since no customer work is attached —
+# leaving only job-running Pods, each of which completes and releases
+# the drain.
+#
+# Why not a PodDisruptionBudget: a PDB selects on labels, and the only
+# "this Pod has claimed a job" label — `tuist.dev/runner-pool-owner` —
+# is best-effort. The server degrades to running the job *without* the
+# label rather than dropping the job when the apiserver patch fails, so
+# a label-keyed PDB would evict exactly the jobs it exists to protect.
+# The controller-side reap reads `isIdle`, which also treats a
+# terminated `poller` init container as proof of a claim and therefore
+# holds when the label never landed.
+#
+# `machines` is omitted, so the rule applies to every Machine in
+# `org-tuist` on the management cluster. The in-cluster fleets (the OVH
+# Linux runner boxes, the macOS hosts) are not there: their Machines live
+# in each workload cluster's release namespace, where Cluster API never
+# drains a Machine, and the Linux runner boxes get the same wait from
+# `holdReleaseForRunnerJobs` in cluster-api-provider-tuist instead.
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: MachineDrainRule
+metadata:
+  name: runner-jobs-wait-completed
+  namespace: org-tuist
+spec:
+  drain:
+    behavior: WaitCompleted
+  pods:
+    - selector:
+        matchLabels:
+          tuist.dev/runner: "true"
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: tuist-runners
+---
+# Cluster API drain behaviour for Kura cache Pods on Machines in
+# `org-tuist`. The in-cluster cache fleets never reach it: Cluster API
+# does not drain Machines in the workload clusters, so their release
+# deletes the Node and reaps the node-local PVCs without a drain.
+#
+# Evicting a cache Pod cannot help a drain finish. Its PVC is bound to a
+# local-path PV with a `kubernetes.io/hostname` affinity to the box being
+# drained, so the replacement Pod has nowhere to schedule, and each
+# `KuraInstance`'s `minAvailable: 1` PodDisruptionBudget then makes the
+# eviction API refuse the second replica. With no `nodeDrainTimeout` the
+# drain has no deadline, so the Machine would sit in Deleting
+# indefinitely. `Skip` lets the drain complete instead.
+#
+# Skipping is safe here in a way it would not be for a runner Pod. A
+# runner Pod is a customer's CI job and losing it is a visible failure,
+# which is why those get `WaitCompleted`. A cache Pod holds regenerable
+# content: a miss is a miss, and the client rebuilds and re-uploads.
+#
+# This is a safety net, not the migration procedure. It makes the naive
+# "delete the Machine" path terminate rather than hang, but it gives up
+# the cache: both replicas of an instance are co-located, so deleting
+# their box leaves no peer to backfill from. Preserving warmth needs the
+# staged per-replica move documented in
+# `infra/cluster-api-provider-tuist/AGENTS.md`, which moves the standby
+# to a second box and lets it catch up before the primary follows.
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: MachineDrainRule
+metadata:
+  name: kura-cache-skip
+  namespace: org-tuist
+spec:
+  drain:
+    behavior: Skip
+  pods:
+    - selector:
+        matchLabels:
+          app.kubernetes.io/name: kura
+          app.kubernetes.io/managed-by: kura-controller
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kura

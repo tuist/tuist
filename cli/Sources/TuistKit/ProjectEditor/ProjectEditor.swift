@@ -2,9 +2,13 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistConfigLoader
+import TuistConstants
 import TuistCore
+import TuistEnvironment
 import TuistGenerator
 import TuistLoader
+import TuistLogging
 import TuistScaffold
 import TuistSupport
 import XcodeGraph
@@ -28,7 +32,7 @@ enum ProjectEditorError: FatalError, Equatable {
 }
 
 @Mockable
-protocol ProjectEditing: AnyObject {
+protocol ProjectEditing {
     /// Generates an Xcode project to edit the Project defined in the given directory.
     /// - Parameters:
     ///   - editingPath: Directory whose project will be edited.
@@ -44,7 +48,7 @@ protocol ProjectEditing: AnyObject {
     ) async throws -> AbsolutePath
 }
 
-final class ProjectEditor: ProjectEditing {
+struct ProjectEditor: ProjectEditing {
     /// Project generator.
     let generator: DescriptorGenerating
 
@@ -56,6 +60,8 @@ final class ProjectEditor: ProjectEditing {
 
     /// Utility to locate manifest files.
     let manifestFilesLocator: ManifestFilesLocating
+
+    let configLoader: ConfigLoading
 
     /// Utility to locate the helpers directory.
     let helpersDirectoryLocator: HelpersDirectoryLocating
@@ -71,6 +77,7 @@ final class ProjectEditor: ProjectEditing {
 
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring
+    private let swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator
 
     /// Xcode Project writer
     private let writer: XcodeProjWriting
@@ -82,6 +89,7 @@ final class ProjectEditor: ProjectEditing {
         projectEditorMapper: ProjectEditorMapping = ProjectEditorMapper(),
         resourceLocator: ResourceLocating = ResourceLocator(),
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator(),
+        configLoader: ConfigLoading = ConfigLoader(),
         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator(),
         writer: XcodeProjWriting = XcodeProjWriter(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
@@ -90,12 +98,15 @@ final class ProjectEditor: ProjectEditing {
         stencilDirectoryLocator: StencilPathLocating = StencilPathLocator(),
         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring =
             ProjectDescriptionHelpersBuilderFactory(),
+        swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator =
+            SwiftPackageManagerScratchDirectoryLocator(),
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.generator = generator
         self.projectEditorMapper = projectEditorMapper
         self.resourceLocator = resourceLocator
         self.manifestFilesLocator = manifestFilesLocator
+        self.configLoader = configLoader
         self.helpersDirectoryLocator = helpersDirectoryLocator
         self.writer = writer
         self.templatesDirectoryLocator = templatesDirectoryLocator
@@ -103,6 +114,7 @@ final class ProjectEditor: ProjectEditing {
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.stencilDirectoryLocator = stencilDirectoryLocator
         self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
+        self.swiftPackageManagerScratchDirectoryLocator = swiftPackageManagerScratchDirectoryLocator
         self.fileSystem = fileSystem
     }
 
@@ -113,23 +125,27 @@ final class ProjectEditor: ProjectEditing {
         onlyCurrentDirectory: Bool,
         plugins: Plugins
     ) async throws -> AbsolutePath {
-        let tuistIgnoreContent = (try? FileHandler.shared.readTextFile(editingPath.appending(component: ".tuistignore"))) ?? ""
-        let tuistIgnoreEntries = try tuistIgnoreContent
-            .split(separator: "\n")
-            .map(String.init)
-            .map { entry -> String in
-                guard !entry.starts(with: "**") else { return entry }
-                let path = editingPath.appending(try RelativePath(validating: entry))
-                if FileHandler.shared.isFolder(path) {
-                    return path.appending(component: "**").pathString
-                } else {
-                    return path.pathString
-                }
+        let tuistIgnoreContent = (try? await fileSystem.readTextFile(at: editingPath.appending(component: ".tuistignore"))) ?? ""
+        var tuistIgnoreEntries: [String] = []
+        for entry in tuistIgnoreContent.split(separator: "\n").map(String.init) {
+            guard !entry.starts(with: "**") else {
+                tuistIgnoreEntries.append(entry)
+                continue
             }
+            let path = editingPath.appending(try RelativePath(validating: entry))
+            if try await fileSystem.exists(path, isDirectory: true) {
+                tuistIgnoreEntries.append(path.appending(component: "**").pathString)
+            } else {
+                tuistIgnoreEntries.append(path.pathString)
+            }
+        }
 
-        let pathsToExclude = [
-            "**/\(Constants.SwiftPackageManager.packageBuildDirectoryName)/**",
-        ] + tuistIgnoreEntries
+        let packageManifestPath = try await manifestFilesLocator.locatePackageManifest(at: editingPath)
+        let pathsToExclude = try await pathsToExclude(
+            editingPath: editingPath,
+            packageManifestPath: packageManifestPath,
+            tuistIgnoreEntries: tuistIgnoreEntries
+        )
 
         let projectDescriptionPath = try await resourceLocator.projectDescription()
         let projectManifests = try await manifestFilesLocator.locateProjectManifests(
@@ -141,7 +157,6 @@ final class ProjectEditor: ProjectEditing {
         let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
             cacheDirectory: try cacheDirectoriesProvider.cacheDirectory(for: .projectDescriptionHelpers)
         )
-        let packageManifestPath = try await manifestFilesLocator.locatePackageManifest(at: editingPath)
 
         let helpers: [AbsolutePath]
         if let helpersDirectory = try await helpersDirectoryLocator.locate(at: editingPath) {
@@ -209,7 +224,7 @@ final class ProjectEditor: ProjectEditing {
         }
 
         // To be sure that we are using the same binary of Tuist that invoked `edit`
-        let tuistPath = try AbsolutePath(validating: TuistCommand.processArguments()!.first!)
+        let tuistPath = try AbsolutePath(validating: CommandArguments.processArguments()!.first!)
         let workspaceName = "Manifests"
 
         let graph = try await projectEditorMapper.map(
@@ -234,6 +249,39 @@ final class ProjectEditor: ProjectEditing {
         let descriptor = try await generator.generateWorkspace(graphTraverser: graphTraverser)
         try await writer.write(workspace: descriptor)
         return descriptor.xcworkspacePath
+    }
+
+    private func pathsToExclude(
+        editingPath: AbsolutePath,
+        packageManifestPath: AbsolutePath?,
+        tuistIgnoreEntries: [String]
+    ) async throws -> [String] {
+        var pathsToExclude = [
+            "**/\(Constants.SwiftPackageManager.packageBuildDirectoryName)/**",
+        ] + tuistIgnoreEntries
+
+        guard let packageManifestPath else { return pathsToExclude }
+
+        let packageDirectory = packageManifestPath.parentDirectory
+        let defaultScratchDirectory = packageDirectory.appending(
+            component: Constants.SwiftPackageManager.packageBuildDirectoryName
+        )
+        let config = try await configLoader.loadConfig(path: editingPath)
+        let arguments = config.project.generatedProject?.installOptions.passthroughSwiftPackageManagerArguments ?? []
+        let scratchDirectory = try swiftPackageManagerScratchDirectoryLocator.locate(
+            packagePath: packageDirectory,
+            arguments: arguments,
+            environment: Environment.current.variables,
+            workingDirectory: try await Environment.current.currentWorkingDirectory()
+        )
+
+        if scratchDirectory != defaultScratchDirectory,
+           scratchDirectory.isDescendantOfOrEqual(to: editingPath)
+        {
+            pathsToExclude.append(scratchDirectory.appending(component: "**").pathString)
+        }
+
+        return pathsToExclude
     }
 
     /// - Returns: A list of plugin manifests which should be loaded as part of the project.
@@ -264,7 +312,23 @@ final class ProjectEditor: ProjectEditing {
             )
         }
 
-        return Array(Set(loadedEditablePluginManifests + localEditablePluginManifests))
+        var seenPaths = Set<AbsolutePath>()
+        var seenNames = Set<String>()
+        let allManifests = loadedEditablePluginManifests + localEditablePluginManifests
+        let uniqueManifests = allManifests.compactMap { manifest -> EditablePluginManifest? in
+            guard seenPaths.insert(manifest.path).inserted else { return nil }
+            var name = manifest.name
+            if seenNames.contains(name) {
+                name = "\(manifest.path.parentDirectory.basename)-\(name)"
+                while seenNames.contains(name) {
+                    name = "_\(name)"
+                }
+            }
+            seenNames.insert(name)
+            return name == manifest.name ? manifest : EditablePluginManifest(name: name, path: manifest.path)
+        }
+
+        return uniqueManifests
     }
 
     /// - Returns: Builds all remote plugins and returns a list of the helper modules.

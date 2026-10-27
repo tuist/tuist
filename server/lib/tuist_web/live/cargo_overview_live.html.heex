@@ -1,0 +1,220 @@
+<div class="gradle-overview" data-build-system="cargo">
+  <.async_card
+    :let={ready?}
+    results={[@cargo_overview_analytics]}
+    title={dgettext("dashboard_projects", "Analytics")}
+    icon="chart_arcs"
+    data-part="analytics"
+  >
+    <:actions>
+      <.overview_filters
+        prefix="analytics"
+        environment={@analytics_environment}
+        label={@analytics_environment_label}
+        preset={@analytics_preset}
+        period={@analytics_period}
+        uri={@uri}
+      />
+    </:actions>
+    <div data-part="analytics-content">
+      <div data-part="widgets">
+        <.widget
+          id="widget-average-build-time"
+          loading={!ready?}
+          title={dgettext("dashboard_projects", "Average build time")}
+          description={
+            dgettext(
+              "dashboard_projects",
+              "Average time it takes to complete a Cargo invocation during the selected period."
+            )
+          }
+          value={
+            if ready?,
+              do:
+                DateFormatter.format_duration_from_milliseconds(
+                  @cargo_overview_analytics.result.builds.total_average_duration
+                )
+          }
+          trend_value={if ready?, do: @cargo_overview_analytics.result.builds.trend}
+          trend_label={@analytics_trend_label}
+          trend_type={:inverse}
+          empty={ready? && @cargo_overview_analytics.result.builds.total_average_duration == 0}
+        />
+        <.widget
+          id="widget-test-run-duration"
+          loading={!ready?}
+          title={dgettext("dashboard_tests", "Avg. test run duration")}
+          description={dgettext("dashboard_tests", "The average test run duration.")}
+          value={
+            if ready?,
+              do:
+                DateFormatter.format_duration_from_milliseconds(
+                  @cargo_overview_analytics.result.tests.total_average_duration
+                )
+          }
+          trend_value={if ready?, do: @cargo_overview_analytics.result.tests.trend}
+          trend_label={@analytics_trend_label}
+          trend_type={:inverse}
+          empty={ready? && @cargo_overview_analytics.result.tests.total_average_duration == 0}
+        />
+      </div>
+      <.card_section :if={!ready?} data-part="cache-hit-rate-chart-section">
+        <div data-part="cache-hit-rate-chart">
+          <div data-part="legends"><.skeleton_legend /><.skeleton_legend /></div>
+          <.skeleton_chart />
+        </div>
+      </.card_section>
+      <.card_section
+        :if={
+          ready? &&
+            (@cargo_overview_analytics.result.builds.total_average_duration != 0 ||
+               @cargo_overview_analytics.result.tests.total_average_duration != 0)
+        }
+        data-part="cache-hit-rate-chart-section"
+      >
+        <div data-part="cache-hit-rate-chart">
+          <div data-part="legends">
+            <.legend
+              title={dgettext("dashboard_projects", "Average build time")}
+              value={
+                DateFormatter.format_duration_from_milliseconds(
+                  @cargo_overview_analytics.result.builds.total_average_duration
+                )
+              }
+              style="primary"
+            />
+            <.legend
+              title={dgettext("dashboard_tests", "Avg. test run duration")}
+              value={
+                DateFormatter.format_duration_from_milliseconds(
+                  @cargo_overview_analytics.result.tests.total_average_duration
+                )
+              }
+              style="secondary"
+            />
+          </div>
+          <.duration_chart
+            id="chart-cargo-durations"
+            analytics={@cargo_overview_analytics.result.builds}
+            tests={@cargo_overview_analytics.result.tests}
+            preset={@analytics_preset}
+          />
+        </div>
+      </.card_section>
+      <.empty_chart
+        :if={
+          ready? && @cargo_overview_analytics.result.builds.total_average_duration == 0 &&
+            @cargo_overview_analytics.result.tests.total_average_duration == 0
+        }
+        title={dgettext("dashboard_projects", "No data yet")}
+      />
+    </div>
+  </.async_card>
+  <.async_card
+    :let={ready?}
+    results={[@cargo_recent_tests]}
+    title={dgettext("dashboard_projects", "Tests")}
+    icon="subtask"
+  >
+    <:actions>
+      <.button
+        variant="secondary"
+        label={dgettext("dashboard_projects", "View more")}
+        size="medium"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
+        disabled={!@cargo_recent_tests.ok? || Enum.empty?(@cargo_recent_tests.result.points)}
+      />
+    </:actions>
+    <.card_section :if={!ready?}>
+      <div data-part="test-runs-chart">
+        <div data-part="legends"><.skeleton_legend /><.skeleton_legend /></div>
+        <.skeleton_chart />
+      </div>
+    </.card_section>
+    <.card_section :if={ready? && @cargo_recent_tests.result.points != []}>
+      <.recent_chart id="chart-cargo-recent-tests" runs={@cargo_recent_tests.result} kind={:test} />
+    </.card_section>
+    <.empty_chart
+      :if={ready? && @cargo_recent_tests.result.points == []}
+      title={dgettext("dashboard_projects", "Runs: no data yet")}
+      chart="bar"
+    />
+  </.async_card>
+  <.async_card
+    :let={ready?}
+    results={[@cargo_overview_builds]}
+    title={dgettext("dashboard_projects", "Builds")}
+    icon="subtask"
+    data-part="builds-card-section"
+  >
+    <:actions>
+      <.overview_filters
+        prefix="builds"
+        environment={@builds_environment}
+        label={@builds_environment_label}
+        preset={@builds_preset}
+        period={@builds_period}
+        uri={@uri}
+      />
+    </:actions>
+    <div data-part="builds-card-sections">
+      <.card_section :if={!ready?}>
+        <div data-part="build-runs-chart">
+          <div data-part="legends"><.skeleton_legend /><.skeleton_legend /></div>
+          <.skeleton_chart />
+        </div>
+      </.card_section>
+      <.card_section :if={ready? && @cargo_overview_builds.result.recent.points != []}>
+        <.recent_chart
+          id="chart-cargo-recent-builds"
+          runs={@cargo_overview_builds.result.recent}
+          kind={:build}
+        />
+      </.card_section>
+      <.empty_chart
+        :if={ready? && @cargo_overview_builds.result.recent.points == []}
+        title={dgettext("dashboard_projects", "No recent builds yet")}
+        chart="bar"
+      />
+      <.card_section
+        :if={!ready? || @cargo_overview_builds.result.analytics.total_average_duration != 0}
+        data-part="average-build-time-card-section"
+      >
+        <div data-part="average-build-time-chart">
+          <.button
+            :if={ready?}
+            data-part="view-more"
+            label={dgettext("dashboard_projects", "View more")}
+            size="small"
+            variant="secondary"
+            navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
+          />
+          <div data-part="legends">
+            <.skeleton_legend :if={!ready?} />
+            <.legend
+              :if={ready?}
+              title={dgettext("dashboard_projects", "Average build time")}
+              value={
+                DateFormatter.format_duration_from_milliseconds(
+                  @cargo_overview_builds.result.analytics.total_average_duration
+                )
+              }
+              style="secondary"
+            />
+          </div>
+          <.skeleton_chart :if={!ready?} />
+          <.duration_chart
+            :if={ready?}
+            id="chart-cargo-build-duration"
+            analytics={@cargo_overview_builds.result.analytics}
+            preset={@builds_preset}
+          />
+        </div>
+      </.card_section>
+      <.empty_chart
+        :if={ready? && @cargo_overview_builds.result.analytics.total_average_duration == 0}
+        title={dgettext("dashboard_projects", "No builds yet")}
+      />
+    </div>
+  </.async_card>
+</div>

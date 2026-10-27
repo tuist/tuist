@@ -10,6 +10,7 @@ import TuistServer
     @main
     struct TuistApp: App {
         @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+        @StateObject private var bootstrapper = AppBootstrapper()
 
         private let updaterController: SPUStandardUpdaterController
 
@@ -22,7 +23,41 @@ import TuistServer
         }
 
         var body: some Scene {
-            appDelegate.menuBarExtra = FluidMenuBarExtra(title: "Tuist", image: "MenuBarIcon") {
+            // `FluidMenuBarExtra` creates an `NSStatusItem` on initialization and expects to be
+            // initialized only once for the lifetime of the app. `body` is re-evaluated, for example
+            // when `bootstrapper.isReady` changes, so creating the extra unconditionally here leaves
+            // a stale duplicated icon in the menu bar. The readiness state is instead observed by
+            // `MenuBarRootView`, which swaps the spinner for the menu inside the same status item.
+            if appDelegate.menuBarExtra == nil {
+                appDelegate.menuBarExtra = FluidMenuBarExtra(title: "Tuist", image: "MenuBarIcon") {
+                    MenuBarRootView(
+                        bootstrapper: bootstrapper,
+                        appDelegate: appDelegate,
+                        updaterController: updaterController
+                    )
+                }
+            }
+
+            // `FluidMenuBarExtra` cannot be used as the main scene.
+            // To get around this, we're returning an empty Settings view.
+            // In the future, we should implement the Settings view, for example, to allow setting apps shown in the quick
+            // launcher.
+            return Settings {
+                EmptyView()
+            }
+            .commands {
+                CommandGroup(replacing: .appSettings) {}
+            }
+        }
+    }
+
+    private struct MenuBarRootView: View {
+        @ObservedObject var bootstrapper: AppBootstrapper
+        let appDelegate: AppDelegate
+        let updaterController: SPUStandardUpdaterController
+
+        var body: some View {
+            if bootstrapper.isReady {
                 ServerCredentialsStore.$current.withValue(
                     ServerCredentialsStore(backend: .keychain)
                 ) {
@@ -33,17 +68,8 @@ import TuistServer
                         )
                     }
                 }
-            }
-
-            // It is not possible to set `FluidMenuBarExtra` as the main scene.
-            // To get around this, we're removing empty Settings view.
-            // In the future, we should implement the Settings view, for example, to allow setting apps shown in the quick
-            // launcher.
-            return Settings {
-                EmptyView()
-            }
-            .commands {
-                CommandGroup(replacing: .appSettings) {}
+            } else {
+                ProgressView()
             }
         }
     }
@@ -62,61 +88,70 @@ import TuistServer
 
     @main
     struct TuistApp: App {
-        @StateObject private var authenticationService = AuthenticationService()
-        @State var activeTab = TabIdentifier.previews
+        @StateObject private var bootstrapper = AppBootstrapper()
 
         var body: some Scene {
             WindowGroup {
-                ServerCredentialsStore.$current.withValue(
-                    ServerCredentialsStore(backend: .keychain)
-                ) {
-                    CachedValueStore.$current.withValue(CachedValueStore(backend: .inSystemProcess)) {
-                        Group {
-                            if case let .loggedIn(account: account) = authenticationService.authenticationState {
-                                TabView(selection: $activeTab) {
-                                    PreviewsView()
-                                        .environmentObject(authenticationService)
-                                        .tabItem {
-                                            NooraIcon(.deviceMobile)
-                                            Text("Previews")
-                                        }
-                                        .tag(TabIdentifier.previews)
-
-                                    ProfileView(account: account)
-                                        .environmentObject(authenticationService)
-                                        .tabItem {
-                                            NooraIcon(.user)
-                                                .frame(width: 24, height: 24)
-                                            Text("Profile")
-                                        }
-                                        .tag(TabIdentifier.profile)
-                                }
-                                .onOpenURL { _ in
-                                    activeTab = .previews
-                                }
-                                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { _ in
-                                    activeTab = .previews
-                                }
-                                .accentColor(Noora.Colors.accent)
-                            } else {
-                                LogInView()
-                                #if DEBUG
-                                    .task {
-                                        await checkForAutomaticLogin()
-                                    }
-                                #endif
-                            }
-                        }
-                        .withErrorHandling()
-                        .task {
-                            TuistSDK(
-                                fullHandle: "tuist/tuist",
-                                apiKey: "tuist_019b26d5-fd7e-7b79-ae62-b5525b26ce38_OTSCoR3hGfPI20i1Hfnpl7HPSWI="
-                            )
-                            .monitorPreviewUpdates()
-                        }
-                    }
+                if bootstrapper.isReady {
+                    RootView()
+                } else {
+                    ProgressView()
                 }
+            }
+        }
+    }
+
+    private struct RootView: View {
+        @StateObject private var authenticationService = AuthenticationService()
+        @State private var activeTab = TabIdentifier.previews
+
+        var body: some View {
+            content
+                .environmentObject(authenticationService)
+                .withErrorHandling()
+                .task {
+                    TuistSDK(
+                        fullHandle: "tuist/tuist",
+                        apiKey: "tuist_019b26d5-fd7e-7b79-ae62-b5525b26ce38_OTSCoR3hGfPI20i1Hfnpl7HPSWI="
+                    )
+                    .monitorPreviewUpdates()
+                }
+        }
+
+        @ViewBuilder
+        private var content: some View {
+            switch authenticationService.authenticationState {
+            case let .loggedIn(account, _):
+                TabView(selection: $activeTab) {
+                    PreviewsView()
+                        .tabItem {
+                            NooraIcon(.deviceMobile)
+                            Text("Previews")
+                        }
+                        .tag(TabIdentifier.previews)
+
+                    ProfileView(account: account)
+                        .tabItem {
+                            NooraIcon(.user)
+                                .frame(width: 24, height: 24)
+                            Text("Profile")
+                        }
+                        .tag(TabIdentifier.profile)
+                }
+                .onOpenURL { _ in
+                    activeTab = .previews
+                }
+                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { _ in
+                    activeTab = .previews
+                }
+                .accentColor(Noora.Colors.accent)
+            case .loggedOut:
+                LogInView()
+                #if DEBUG
+                    .task {
+                        await checkForAutomaticLogin()
+                    }
+                #endif
             }
         }
 

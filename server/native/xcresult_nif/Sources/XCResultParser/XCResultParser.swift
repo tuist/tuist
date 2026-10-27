@@ -1,0 +1,1018 @@
+import FileSystem
+import Foundation
+import Path
+
+public enum XCResultParserError: LocalizedError, Equatable {
+    case failedToParseOutput(AbsolutePath)
+    case timedOut(AbsolutePath, seconds: Int)
+    case decodingFailed(step: String, path: AbsolutePath, detail: String)
+
+    public var errorDescription: String? {
+        switch self {
+        case let .failedToParseOutput(path):
+            return "Failed to parse xcresult output at \(path.pathString)"
+        case let .timedOut(path, seconds):
+            return "xcresult parsing timed out after \(seconds)s at \(path.pathString)"
+        case let .decodingFailed(step, path, detail):
+            return "Failed to decode xcresult \(step) at \(path.pathString): \(detail)"
+        }
+    }
+}
+
+public struct XCResultParser: Sendable {
+    private let fileSystem: FileSysteming
+    private let execute: XCResultToolExecuting
+    private let ipsCrashReportParser: IPSCrashReportParsing
+    private let coverageParser: XcodeCoverageParsing
+
+    public init(
+        fileSystem: FileSysteming = FileSystem(),
+        execute: @escaping XCResultToolExecuting = executeXCResultTool,
+        ipsCrashReportParser: IPSCrashReportParsing = IPSCrashReportParser(),
+        coverageParser: XcodeCoverageParsing? = nil
+    ) {
+        self.fileSystem = fileSystem
+        self.execute = execute
+        self.ipsCrashReportParser = ipsCrashReportParser
+        self.coverageParser = coverageParser ?? XcodeCoverageParser(fileSystem: fileSystem)
+    }
+
+    private func secondsToMilliseconds(_ seconds: Double) -> Int {
+        let ms = Int(seconds * 1000)
+        return (ms == 0 && seconds > 0) ? 1 : ms
+    }
+
+    private static let errorPatterns = [
+        "failed: caught error: ",
+        "caught error: ",
+        "thrown error: ",
+        "failed - caught error: ",
+    ]
+
+    private func parseFailureMessage(_ message: String) -> (
+        issueType: TestCaseFailure.IssueType, cleanedMessage: String
+    ) {
+        if let cleaned = cleanedMessage(from: message, matching: Self.errorPatterns) {
+            return (.errorThrown, cleaned.trimmingQuotes())
+        }
+
+        if let cleaned = cleanedMessage(from: message, matching: ["issue recorded: "]) {
+            return (.issueRecorded, cleaned)
+        }
+
+        if let cleaned = cleanedMessage(from: message, matching: ["expectation failed: "]) {
+            return (.assertionFailure, cleaned)
+        }
+
+        return (.assertionFailure, message)
+    }
+
+    private func cleanedMessage(from message: String, matching patterns: [String]) -> String? {
+        for pattern in patterns {
+            guard message.localizedCaseInsensitiveContains(pattern) else { continue }
+            return message.replacingOccurrences(of: pattern, with: "", options: .caseInsensitive)
+                .trimmingCharacters(in: .whitespaces)
+        }
+        return nil
+    }
+
+    /// - Parameters:
+    ///   - rootDirectory: base used to relativize failure file paths for
+    ///     display. This is the caller's *source* root (e.g. the project
+    ///     dir for CLI callers) and is only ever read from.
+    ///   - attachmentsDirectory: directory the parser exports test
+    ///     attachments into. The caller owns it and decides whether and
+    ///     when it's cleaned up, so pass a directory you manage (the server
+    ///     worker's per-run temp dir). When nil, a temporary directory is
+    ///     used — attachments are never written under `rootDirectory`,
+    ///     which for CLI callers is the user's project.
+    public func parse(
+        path: AbsolutePath,
+        rootDirectory: AbsolutePath?,
+        attachmentsDirectory: AbsolutePath? = nil
+    ) async throws -> TestSummary? {
+        let testOutput = try await loadTestOutput(path: path)
+        let summary = try await parseTestOutput(
+            testOutput,
+            rootDirectory: rootDirectory,
+            attachmentsDirectory: attachmentsDirectory,
+            xcresultPath: path
+        )
+        let bundle = URL(fileURLWithPath: path.pathString)
+        return summary
+            .applying(executionModes: TestExecutionModes.read(fromResultBundle: bundle))
+            .applying(coverageEvidence: Self.coverageEvidence(inResultBundle: bundle))
+    }
+
+    /// The evidence a client wrote into the bundle, tied to the repository by the coverage
+    /// manifest beside it. Nil without either: evidence over paths nobody can place is no use.
+    static func coverageEvidence(inResultBundle bundle: URL) -> TestCoverageEvidence? {
+        guard let evidence = TestCoverageEvidence.read(fromResultBundle: bundle),
+              let data = try? Data(contentsOf: bundle.appendingPathComponent(XcodeCoverageManifest.fileName)),
+              let manifest = try? JSONDecoder().decode(XcodeCoverageManifest.self, from: data)
+        else { return nil }
+        return evidence.inRepository(manifest: manifest)
+    }
+
+    /// Reads the bundle's code coverage against the ``XcodeCoverageManifest`` the client wrote
+    /// into it, streamed to `output` as one JSON object per source file. Nil for a bundle without
+    /// a manifest, which has no coverage to tie to a repository, and for one whose manifest says
+    /// the client measured and sent the coverage itself.
+    public func parseCoverage(path: AbsolutePath, into output: AbsolutePath) async throws -> XcodeCoverageSummary? {
+        let manifestPath = path.appending(component: XcodeCoverageManifest.fileName)
+        guard try await fileSystem.exists(manifestPath) else { return nil }
+        let manifest = try JSONDecoder().decode(
+            XcodeCoverageManifest.self,
+            from: Data(try await fileSystem.readTextFile(at: manifestPath).utf8)
+        )
+        guard !manifest.clientReported else { return nil }
+        return try await coverageParser.parse(resultBundlePath: path, manifest: manifest, into: output)
+    }
+
+    public func parseTestStatuses(path: AbsolutePath) async throws -> TestResultStatuses {
+        let testOutput = try await loadTestOutput(path: path)
+
+        var results: [TestResultStatuses.TestCaseStatus] = []
+        for testNode in testOutput.testNodes {
+            extractTestCaseStatuses(from: testNode, module: nil, into: &results)
+        }
+
+        return TestResultStatuses(testCases: results)
+    }
+
+    private func loadTestOutput(path: AbsolutePath) async throws -> XCResultTestOutput {
+        try await fileSystem
+            .runInTemporaryDirectory(prefix: "xcresult-test-results") { temporaryDirectory in
+                let tempFile = temporaryDirectory.appending(component: "test-results.json")
+
+                let output = try await execute([
+                        "/bin/sh", "-c",
+                        // `exec` replaces the shell with the tool so cancellation, which signals
+                        // only the direct child, reaches xcresulttool instead of orphaning it.
+                        "exec /usr/bin/xcrun xcresulttool get test-results tests --path '\(path.pathString)' > '\(tempFile.pathString)'",
+                    ]
+                )
+                try output.requireSuccess(for: ["xcresulttool", "get", "test-results", "tests"])
+
+                let outputString = try await fileSystem.readTextFile(at: tempFile)
+                let jsonString = extractJSON(from: outputString)
+                guard let jsonData = jsonString.data(using: .utf8) else {
+                    throw XCResultParserError.failedToParseOutput(path)
+                }
+                do {
+                    return try JSONDecoder().decode(XCResultTestOutput.self, from: jsonData)
+                } catch {
+                    throw XCResultParserError.decodingFailed(
+                        step: "test-results", path: path,
+                        detail: describeDecodingFailure(error, output: jsonString)
+                    )
+                }
+            }
+    }
+
+    private func extractTestCaseStatuses(
+        from node: TestNode,
+        module: String?,
+        into results: inout [TestResultStatuses.TestCaseStatus]
+    ) {
+        let currentModule = (node.nodeType == "Unit test bundle" || node.nodeType == "UI test bundle") ? node.name : module
+
+        if node.nodeType == "Test Case", let name = node.name, !isRunnerError(node), !isUnattributedIssues(node) {
+            let argumentNodes = (node.children ?? []).filter { $0.nodeType == "Arguments" }
+            let status: TestStatus = if argumentNodes.isEmpty {
+                testStatus(from: node.result)
+            } else {
+                argumentNodes.contains(where: { argumentStatus($0) == .failed }) ? .failed : .passed
+            }
+            results.append(
+                TestResultStatuses.TestCaseStatus(
+                    name: name,
+                    testSuite: extractSuiteName(from: node.nodeIdentifier),
+                    module: currentModule,
+                    status: status
+                )
+            )
+        }
+
+        for child in node.children ?? [] {
+            extractTestCaseStatuses(from: child, module: currentModule, into: &results)
+        }
+    }
+
+    private func extractJSON(from output: String) -> String {
+        guard let jsonStartIndex = output.firstIndex(of: "{"),
+              let jsonEndIndex = output.lastIndex(of: "}")
+        else {
+            return output
+        }
+        return String(output[jsonStartIndex ... jsonEndIndex])
+    }
+
+    /// Renders a decoding failure into a single Sentry-friendly line: the
+    /// `DecodingError` kind, the JSON key path it choked on, and a short head of
+    /// the offending output. The default `localizedDescription` collapses every
+    /// `DecodingError` to "The data couldn't be read because it isn't in the
+    /// correct format.", which tells us nothing about which xcresulttool output
+    /// drifted from the schema.
+    private func describeDecodingFailure(_ error: Error, output: String) -> String {
+        let head = output.prefix(200).replacingOccurrences(of: "\n", with: " ")
+        let snippet = output.isEmpty ? "<empty>" : "\"\(head)\""
+
+        func path(_ context: DecodingError.Context) -> String {
+            context.codingPath.map(\.stringValue).joined(separator: ".")
+        }
+
+        let reason: String
+        switch error {
+        case let DecodingError.dataCorrupted(context):
+            reason = "dataCorrupted at [\(path(context))]: \(context.debugDescription)"
+        case let DecodingError.keyNotFound(key, context):
+            reason = "keyNotFound \(key.stringValue) at [\(path(context))]"
+        case let DecodingError.typeMismatch(type, context):
+            reason = "typeMismatch \(type) at [\(path(context))]: \(context.debugDescription)"
+        case let DecodingError.valueNotFound(type, context):
+            reason = "valueNotFound \(type) at [\(path(context))]"
+        default:
+            reason = error.localizedDescription
+        }
+
+        return "\(reason) (\(output.count) bytes: \(snippet))"
+    }
+
+    private func parseTestOutput(
+        _ output: XCResultTestOutput,
+        rootDirectory: AbsolutePath?,
+        attachmentsDirectory: AbsolutePath?,
+        xcresultPath: AbsolutePath
+    ) async throws -> TestSummary {
+        let actionLog = try await actionLog(from: xcresultPath)
+        let failuresFromActionLog = actionLog.extractTestFailures(rootDirectory: rootDirectory)
+            .reduce(into: [String: [TestFailure]]()) { result, entry in
+                let key = normalizeTestIdentifier(entry.key)
+                result[key, default: []].append(contentsOf: entry.value)
+            }
+
+        var allTestCases: [TestCase] = []
+        var suiteDurations: [String: Int] = [:]
+        var moduleDurations: [String: Int] = [:]
+
+        for testNode in output.testNodes {
+            extractTestCases(
+                from: testNode,
+                module: nil,
+                into: &allTestCases,
+                suiteDurations: &suiteDurations,
+                moduleDurations: &moduleDurations,
+                rootDirectory: rootDirectory,
+                actionLogFailures: failuresFromActionLog
+            )
+        }
+
+        let (updatedTestCases, swiftTestingSuiteDurations, swiftTestingModuleDurations, overallDuration) =
+            updateWithSwiftTestingDurations(testCases: allTestCases, actionLog: actionLog)
+
+        allTestCases = updatedTestCases
+        suiteDurations.merge(swiftTestingSuiteDurations) { _, new in new }
+        moduleDurations.merge(swiftTestingModuleDurations) { _, new in new }
+
+        let extractedAttachments = await attachmentsByTestIdentifiers(
+            from: xcresultPath,
+            attachmentsDirectory: attachmentsDirectory
+        )
+
+        allTestCases = allTestCases.map { testCase in
+            let testIdentifier = normalizeTestIdentifier(
+                testCase.testSuite.map { "\($0)/\(testCase.name)" } ?? testCase.name
+            )
+            var testCase = testCase
+            testCase.crashReport = extractedAttachments.crashReports[testIdentifier]
+            testCase.attachments = extractedAttachments.attachments[testIdentifier] ?? []
+            return testCase
+        }
+
+        var runnerErrors: [TestRunError] = []
+        var unattributedIssues: [TestRunError] = []
+        for testNode in output.testNodes {
+            extractErrors(
+                from: testNode,
+                module: nil,
+                runnerErrors: &runnerErrors,
+                unattributedIssues: &unattributedIssues
+            )
+        }
+        let errors = dedupedErrors(runnerErrors + unattributedIssues)
+
+        let overallStatus = overallStatus(from: allTestCases, hasRunnerErrors: !runnerErrors.isEmpty)
+        let testModules = testModules(from: allTestCases, suiteDurations: suiteDurations, moduleDurations: moduleDurations)
+        let runDestinations = (output.devices ?? []).compactMap { device -> RunDestination? in
+            guard let name = device.deviceName,
+                  let platform = device.platform,
+                  let osVersion = device.osVersion
+            else { return nil }
+            return RunDestination(name: name, platform: platform, osVersion: osVersion)
+        }
+
+        return TestSummary(
+            testPlanName: output.testNodes.first?.name ?? actionLog.title?.components(separatedBy: .whitespacesAndNewlines).last,
+            status: overallStatus,
+            duration: overallDuration,
+            testModules: testModules,
+            runDestinations: runDestinations,
+            errors: errors
+        )
+    }
+
+    private func overallStatus(from testCases: [TestCase], hasRunnerErrors: Bool) -> TestStatus {
+        if hasRunnerErrors || testCases.contains(where: { $0.status == .failed }) {
+            return .failed
+        } else if testCases.allSatisfy({ $0.status == .skipped }) {
+            return .skipped
+        } else {
+            return .passed
+        }
+    }
+
+    /// xctest emits a synthetic "test case" when the runner itself errors — a
+    /// whole target whose `.xctest` bundle can't be loaded, or an app/UI-test
+    /// runner that can't launch. Xcode surfaces these in a separate "Errors"
+    /// section per target, not as test cases, so we do the same: lift them out of
+    /// the test cases (so they don't inflate counts, create unbounded per-pid
+    /// rows, or fire `test_case.created` webhooks) and collect them as
+    /// target-keyed errors. The pid varies per run, so we dedup by (target,
+    /// message) to land one per target like Xcode.
+    ///
+    /// The node is named "<runner-process> (<pid>) encountered an error", but the
+    /// runner process is only `xctest` for unit tests — for UI tests it's the
+    /// app/UI-runner target, so the prefix varies per project and can't be
+    /// hardcoded. We key on structure instead: a real test's `nodeIdentifier` is a
+    /// "Suite/method" id that differs from its display name, whereas the synthetic
+    /// node has no real identifier, so Xcode repeats the sentence there
+    /// (`nodeIdentifier == name`). We also require the machine-generated
+    /// "… encountered an error" grammar and the `Failure Message` child every
+    /// runner error carries, so a real Swift Testing case whose display name
+    /// merely ends this way is kept.
+    private func isRunnerError(_ node: TestNode) -> Bool {
+        guard node.nodeType == "Test Case",
+              let name = node.name,
+              node.nodeIdentifier == name,
+              (node.children ?? []).contains(where: { $0.nodeType == "Failure Message" })
+        else { return false }
+
+        return name.wholeMatch(of: /\S+ \(\d+\) encountered an error/) != nil
+            || name == "The test runner encountered an error"
+            || name.wholeMatch(of: /\S+ encountered an error/) != nil
+    }
+
+    /// Swift Testing attributes an issue to whatever test is running when it is
+    /// recorded. Work that outlives its test — a leaked task, a retained
+    /// callback, an observer that keeps firing — has no current test, so Xcode
+    /// collects those issues under one synthetic
+    /// "Issues recorded without an associated test or suite" case per target.
+    ///
+    /// It is not a test: it has no identifier, no duration, and can't be retried
+    /// or selectively re-run. Left as a test case it becomes a permanent failing
+    /// entry in the project's test catalogue, feeds flakiness signal, fires
+    /// `test_case.created`, and drags every run red. xcodebuild gates on tests
+    /// and these belong to none, so it exits 0 on them — a run whose only
+    /// failure is this node was reported failed while CI was green.
+    ///
+    /// So we lift it into the same target-keyed "Errors" section as runner
+    /// errors, one row per distinct issue, and leave the run status to the tests
+    /// so it agrees with the exit code the user saw.
+    ///
+    /// Xcode has no identifier to put on the node, so unlike a runner error the
+    /// `nodeIdentifier` is absent (older Xcodes repeat the sentence there). A
+    /// real Swift Testing case named this way carries a "Suite/method"
+    /// identifier and is kept.
+    private func isUnattributedIssues(_ node: TestNode) -> Bool {
+        node.nodeType == "Test Case"
+            && node.name == Self.unattributedIssuesNodeName
+            && (node.nodeIdentifier == nil || node.nodeIdentifier == node.name)
+    }
+
+    private static let unattributedIssuesNodeName = "Issues recorded without an associated test or suite"
+
+    private func extractErrors(
+        from node: TestNode,
+        module: String?,
+        runnerErrors: inout [TestRunError],
+        unattributedIssues: inout [TestRunError]
+    ) {
+        let currentModule = (node.nodeType == "Unit test bundle" || node.nodeType == "UI test bundle") ? node.name : module
+
+        if isRunnerError(node) {
+            let message = (node.children ?? [])
+                .first { $0.nodeType == "Failure Message" }?.name
+                ?? node.name
+                ?? "The test runner encountered an error"
+            runnerErrors.append(TestRunError(target: currentModule, message: message))
+        } else if isUnattributedIssues(node) {
+            // Repetitions and iterations re-record the same issue, so the
+            // messages repeat; dedup collapses them to one row per issue.
+            let messages = failureMessages(in: node)
+            unattributedIssues.append(
+                contentsOf: (messages.isEmpty ? [Self.unattributedIssuesNodeName] : messages).map {
+                    TestRunError(target: currentModule, message: "Issue recorded without an associated test: \($0)")
+                }
+            )
+        }
+
+        for child in node.children ?? [] {
+            extractErrors(
+                from: child,
+                module: currentModule,
+                runnerErrors: &runnerErrors,
+                unattributedIssues: &unattributedIssues
+            )
+        }
+    }
+
+    private func failureMessages(in node: TestNode) -> [String] {
+        (node.children ?? []).flatMap { child -> [String] in
+            if child.nodeType == "Failure Message" {
+                return child.name.map { [$0] } ?? []
+            }
+            return failureMessages(in: child)
+        }
+    }
+
+    private func dedupedErrors(_ errors: [TestRunError]) -> [TestRunError] {
+        var seen = Set<String>()
+        return errors.filter { seen.insert("\($0.target ?? "")\u{0}\($0.message)").inserted }
+    }
+
+    private func extractTestCases(
+        from node: TestNode,
+        module: String?,
+        into testCases: inout [TestCase],
+        suiteDurations: inout [String: Int],
+        moduleDurations: inout [String: Int],
+        rootDirectory: AbsolutePath?,
+        actionLogFailures: [String: [TestFailure]]
+    ) {
+        let currentModule = (node.nodeType == "Unit test bundle" || node.nodeType == "UI test bundle") ? node.name : module
+
+        captureSuiteDuration(from: node, into: &suiteDurations)
+
+        if let testCase = testCase(
+            from: node,
+            module: currentModule,
+            rootDirectory: rootDirectory,
+            actionLogFailures: actionLogFailures
+        ) {
+            testCases.append(testCase)
+        }
+
+        for child in node.children ?? [] {
+            extractTestCases(
+                from: child,
+                module: currentModule,
+                into: &testCases,
+                suiteDurations: &suiteDurations,
+                moduleDurations: &moduleDurations,
+                rootDirectory: rootDirectory,
+                actionLogFailures: actionLogFailures
+            )
+        }
+    }
+
+    private func captureSuiteDuration(from node: TestNode, into suiteDurations: inout [String: Int]) {
+        guard node.nodeType == "Test Suite",
+              let suiteName = node.name,
+              let durationInSeconds = node.durationInSeconds
+        else { return }
+
+        suiteDurations[suiteName] = secondsToMilliseconds(durationInSeconds)
+    }
+
+    private func testCase(
+        from node: TestNode,
+        module: String?,
+        rootDirectory: AbsolutePath?,
+        actionLogFailures: [String: [TestFailure]]
+    ) -> TestCase? {
+        guard node.nodeType == "Test Case",
+              let name = node.name,
+              !isRunnerError(node),
+              !isUnattributedIssues(node)
+        else { return nil }
+
+        let suiteName = extractSuiteName(from: node.nodeIdentifier)
+
+        let argumentNodes = (node.children ?? []).filter { $0.nodeType == "Arguments" }
+        let directRepetitions = (node.children ?? []).filter { $0.nodeType == "Repetition" }
+
+        let arguments: [TestCaseArgument] = argumentNodes.compactMap { argNode in
+            guard let argName = argNode.name else { return nil }
+            let argRepNodes = (argNode.children ?? []).filter { $0.nodeType == "Repetition" }
+            let argRepetitions = argRepNodes.compactMap { repNode -> TestCaseRepetition? in
+                guard let repName = repNode.name, let repResult = repNode.result else { return nil }
+                let repNumber = Int(repNode.nodeIdentifier ?? "") ?? 0
+                return TestCaseRepetition(
+                    repetitionNumber: repNumber,
+                    name: repName,
+                    status: testStatus(from: repResult),
+                    duration: repNode.durationInSeconds.map { secondsToMilliseconds($0) } ?? 0,
+                    failures: extractFailures(from: repNode, rootDirectory: rootDirectory)
+                )
+            }
+
+            let argFailures: [TestCaseFailure] = if !argRepetitions.isEmpty {
+                argRepetitions.filter { $0.status == .failed }.flatMap(\.failures)
+            } else {
+                extractFailures(from: argNode, rootDirectory: rootDirectory)
+            }
+            let argStatus = argumentStatus(argNode)
+            let argDuration = argNode.durationInSeconds.map { secondsToMilliseconds($0) }
+                ?? argRepetitions.compactMap(\.duration).max() ?? 0
+            return TestCaseArgument(
+                name: argName,
+                status: argStatus,
+                duration: argDuration,
+                failures: argFailures,
+                repetitions: argRepetitions
+            )
+        }
+
+        let allRepetitionNodes = if !directRepetitions.isEmpty {
+            directRepetitions
+        } else {
+            argumentNodes.flatMap { ($0.children ?? []).filter { $0.nodeType == "Repetition" } }
+        }
+
+        let repetitions: [TestCaseRepetition] = mergeRepetitions(
+            allRepetitionNodes,
+            rootDirectory: rootDirectory
+        )
+
+        let failures: [TestCaseFailure]
+        if !arguments.isEmpty {
+            failures = []
+        } else {
+            let failedRepetitions = repetitions.filter { $0.status == .failed }
+            if !failedRepetitions.isEmpty {
+                failures = failedRepetitions.flatMap(\.failures)
+            } else {
+                failures = testCaseFailures(
+                    testName: name,
+                    suiteName: suiteName,
+                    node: node,
+                    rootDirectory: rootDirectory,
+                    actionLogFailures: actionLogFailures
+                )
+            }
+        }
+
+        let status: TestStatus
+        let duration: Int?
+        if !arguments.isEmpty {
+            status = arguments.contains(where: { $0.status == .failed }) ? .failed : .passed
+            duration = node.durationInSeconds.map { secondsToMilliseconds($0) }
+                ?? arguments.map(\.duration).reduce(0, +)
+        } else {
+            status = testStatus(from: node.result)
+            duration = node.durationInSeconds.map { secondsToMilliseconds($0) }
+        }
+
+        return TestCase(
+            name: name,
+            testSuite: suiteName,
+            module: module,
+            duration: duration,
+            status: status,
+            failures: failures,
+            repetitions: repetitions,
+            arguments: arguments
+        )
+    }
+
+    /// Xcode rolls a parameterized test's argument up as failed when any attempt failed, even under
+    /// `-retry-tests-on-failure` where a passing retry passes it for xcodebuild ("Failed after 2 retry"
+    /// with a passed "Retry 1"). Retried attempts are named "Retry N", and for those the last attempt
+    /// decides; fixed iterations ("Repetition N") fail on any failed iteration, as xcodebuild does.
+    private func argumentStatus(_ argNode: TestNode) -> TestStatus {
+        let repetitions = (argNode.children ?? []).filter { $0.nodeType == "Repetition" && $0.result != nil }
+        guard let lastAttempt = repetitions.last else { return testStatus(from: argNode.result) }
+
+        if repetitions.contains(where: { $0.name?.hasPrefix("Retry ") == true }) {
+            return testStatus(from: lastAttempt.result)
+        }
+        return repetitions.contains(where: { testStatus(from: $0.result) == .failed }) ? .failed : .passed
+    }
+
+    private func mergeRepetitions(
+        _ nodes: [TestNode],
+        rootDirectory: AbsolutePath?
+    ) -> [TestCaseRepetition] {
+        var grouped: [Int: (name: String, status: TestStatus, duration: Int, failures: [TestCaseFailure])] = [:]
+
+        for repNode in nodes {
+            guard let repName = repNode.name, let repResult = repNode.result else { continue }
+            let repNumber = Int(repNode.nodeIdentifier ?? "") ?? 0
+            let repStatus = testStatus(from: repResult)
+            let repDuration = repNode.durationInSeconds.map { secondsToMilliseconds($0) } ?? 0
+            let repFailures = extractFailures(from: repNode, rootDirectory: rootDirectory)
+
+            if var existing = grouped[repNumber] {
+                if repStatus == .failed { existing.status = .failed }
+                existing.duration = max(existing.duration, repDuration)
+                existing.failures.append(contentsOf: repFailures)
+                grouped[repNumber] = existing
+            } else {
+                grouped[repNumber] = (repName, repStatus, repDuration, repFailures)
+            }
+        }
+
+        return grouped.sorted(by: { $0.key < $1.key }).map { number, value in
+            TestCaseRepetition(
+                repetitionNumber: number,
+                name: value.name,
+                status: value.status,
+                duration: value.duration,
+                failures: value.failures
+            )
+        }
+    }
+
+    private func testCaseFailures(
+        testName: String,
+        suiteName: String?,
+        node: TestNode,
+        rootDirectory: AbsolutePath?,
+        actionLogFailures: [String: [TestFailure]]
+    ) -> [TestCaseFailure] {
+        let testIdentifier = suiteName.map { "\($0)/\(testName)" } ?? testName
+
+        guard let actionLogFailureList = actionLogFailures[testIdentifier] else {
+            return extractFailures(from: node, rootDirectory: rootDirectory)
+        }
+
+        return actionLogFailureList.map { failure in
+            let (issueType, cleanedMessage) = parseFailureMessage(failure.message)
+            return TestCaseFailure(
+                message: cleanedMessage,
+                path: failure.filePath,
+                lineNumber: failure.lineNumber,
+                issueType: issueType
+            )
+        }
+    }
+
+    private func extractSuiteName(from identifier: String?) -> String? {
+        guard let identifier else { return nil }
+        let components = identifier.split(separator: "/")
+        return components.count >= 2 ? String(components[components.count - 2]) : nil
+    }
+
+    private func testStatus(from result: String?) -> TestStatus {
+        switch result {
+        case "Passed", "Expected Failure":
+            return .passed
+        case "Skipped":
+            return .skipped
+        default:
+            return .failed
+        }
+    }
+
+    private func extractFailures(from node: TestNode, rootDirectory: AbsolutePath?) -> [TestCaseFailure] {
+        (node.children ?? [])
+            .filter { $0.nodeType == "Failure Message" }
+            .compactMap(\.name)
+            .map { failure(from: $0, rootDirectory: rootDirectory) }
+    }
+
+    private func failure(from message: String, rootDirectory: AbsolutePath?) -> TestCaseFailure {
+        guard let location = parseFileLocation(from: message) else {
+            let (issueType, cleanedMessage) = parseFailureMessage(message)
+            return TestCaseFailure(message: cleanedMessage, path: nil, lineNumber: 0, issueType: issueType)
+        }
+
+        let relativePath = (try? AbsolutePath(validating: location.filePath))
+            .map { $0.relative(to: rootDirectory ?? .root) }
+        let (issueType, cleanedMessage) = parseFailureMessage(location.errorMessage)
+
+        return TestCaseFailure(message: cleanedMessage, path: relativePath, lineNumber: location.lineNumber, issueType: issueType)
+    }
+
+    private func parseFileLocation(from message: String) -> FileLocation? {
+        let components = message.components(separatedBy: ": ")
+        guard components.count >= 2 else { return nil }
+
+        let fileAndLine = components[0]
+        let fileComponents = fileAndLine.components(separatedBy: ":")
+        guard fileComponents.count >= 2 else { return nil }
+
+        let filePath = fileComponents[0]
+        let lineNumber = Int(fileComponents[1]) ?? 0
+        let errorMessage = components.dropFirst().joined(separator: ": ")
+
+        return FileLocation(filePath: filePath, lineNumber: lineNumber, errorMessage: errorMessage)
+    }
+
+    private func testModules(
+        from testCases: [TestCase],
+        suiteDurations: [String: Int],
+        moduleDurations: [String: Int]
+    ) -> [TestModule] {
+        Dictionary(grouping: testCases) { $0.module ?? "Unknown" }
+            .map { moduleName, moduleTestCases in
+                testModule(
+                    name: moduleName,
+                    testCases: moduleTestCases,
+                    suiteDurations: suiteDurations,
+                    moduleDurations: moduleDurations
+                )
+            }
+    }
+
+    private func testModule(
+        name: String,
+        testCases: [TestCase],
+        suiteDurations: [String: Int],
+        moduleDurations: [String: Int]
+    ) -> TestModule {
+        let status: TestStatus = testCases.contains { $0.status == .failed } ? .failed : .passed
+        let duration = moduleDurations[name] ?? testCases.compactMap(\.duration).reduce(0, +)
+        let suites = testSuites(from: testCases, suiteDurations: suiteDurations)
+
+        return TestModule(name: name, status: status, duration: duration, testSuites: suites, testCases: testCases)
+    }
+
+    private func testSuites(from testCases: [TestCase], suiteDurations: [String: Int]) -> [TestSuite] {
+        Dictionary(grouping: testCases) { $0.testSuite }
+            .compactMap { suiteName, suiteTestCases in
+                guard let suiteName else { return nil }
+                let status: TestStatus = suiteTestCases.contains { $0.status == .failed } ? .failed : .passed
+                let duration = suiteDurations[suiteName] ?? suiteTestCases.compactMap(\.duration).reduce(0, +)
+                return TestSuite(name: suiteName, status: status, duration: duration)
+            }
+    }
+
+    private struct FileLocation {
+        let filePath: String
+        let lineNumber: Int
+        let errorMessage: String
+    }
+
+    private func updateWithSwiftTestingDurations(
+        testCases: [TestCase],
+        actionLog: ActionLogSection
+    ) -> ([TestCase], [String: Int], [String: Int], Int?) { // swiftlint:disable:this large_tuple
+        let emittedOutputs = actionLog.collectEmittedOutputs()
+        let (testDurations, suiteDurations) = swiftTestingDurations(from: emittedOutputs)
+
+        let actionLogDurations = actionLog.extractTestDurations()
+        let overall = actionLogDurations.overallDuration ?? actionLog.duration.map { secondsToMilliseconds($0) }
+        let modules = actionLogDurations.moduleDurations
+        let updatedTestCases = testCasesWithDurations(testCases, testDurations: testDurations)
+
+        return (updatedTestCases, suiteDurations, modules, overall)
+    }
+
+    private func actionLog(from xcresultPath: AbsolutePath) async throws -> ActionLogSection {
+        try await fileSystem.runInTemporaryDirectory(prefix: "xcresult-action-log") { temporaryDirectory in
+            let tempFile = temporaryDirectory.appending(component: "action-log.json")
+
+            let output = try await execute([
+                    "/bin/sh", "-c",
+                    // `exec` replaces the shell with the tool so cancellation, which signals
+                    // only the direct child, reaches xcresulttool instead of orphaning it.
+                    "exec /usr/bin/xcrun xcresulttool get log --type action --compact --path '\(xcresultPath.pathString)' > '\(tempFile.pathString)'",
+                ]
+            )
+            if !output.succeeded, !output.standardError.contains("No action log available") {
+                try output.requireSuccess(for: ["xcresulttool", "get", "log", "--type", "action"])
+            }
+
+            let logData = try await fileSystem.readFile(at: tempFile)
+            // An aborted or test-less xcresult has no action log: `xcresulttool
+            // get log --type action` prints "No action log available" and writes
+            // nothing. The action log only enriches durations and failure
+            // locations, so treat its absence as empty rather than failing the
+            // whole parse with an opaque decode error.
+            guard !logData.isEmpty else { return .empty }
+            do {
+                return try JSONDecoder().decode(ActionLogSection.self, from: logData)
+            } catch {
+                throw XCResultParserError.decodingFailed(
+                    step: "action-log", path: xcresultPath,
+                    detail: describeDecodingFailure(error, output: String(decoding: logData, as: UTF8.self))
+                )
+            }
+        }
+    }
+
+    private func testCasesWithDurations(_ testCases: [TestCase], testDurations: [String: Int]) -> [TestCase] {
+        testCases.map { testCase in
+            guard testCase.duration == nil || testCase.duration == 0 else { return testCase }
+
+            let testNameWithoutParens = testCase.name.replacingOccurrences(of: "()", with: "")
+            guard let duration = testDurations[testNameWithoutParens] ?? testDurations[testCase.name] else {
+                return testCase
+            }
+
+            var updated = testCase
+            updated.duration = duration
+            return updated
+        }
+    }
+
+    // MARK: - Crash Attachment Extraction
+
+    private struct AttachmentManifest: Decodable {
+        let testIdentifier: String?
+        let attachments: [Attachment]
+
+        struct Attachment: Decodable {
+            let exportedFileName: String
+            let suggestedHumanReadableName: String?
+            let isAssociatedWithFailure: Bool?
+            let repetitionNumber: Int?
+            let arguments: [String]?
+        }
+    }
+
+    /// Resolves where to export attachments, given the caller's optional
+    /// attachments directory.
+    ///
+    /// Attachments are exported for the caller to consume *after* parse
+    /// returns (the server worker uploads them to S3), so they can't live
+    /// in an auto-cleaned `runInTemporaryDirectory` block like the other
+    /// xcresulttool scratch dirs.
+    ///
+    /// When the caller provides a directory — one it owns and cleans up
+    /// (the server worker's per-run temp dir) — we export into an
+    /// `xcresult-attachments` subdirectory of it so the caller's cleanup
+    /// reclaims the (potentially large) attachment files too. Callers that
+    /// don't manage one (the CLI, where the only directory in hand is the
+    /// user's project) get a process-wide temp dir instead, so we never
+    /// drop attachments into a source tree.
+    private func attachmentsExportDirectory(in attachmentsDirectory: AbsolutePath?) async throws -> AbsolutePath {
+        guard let attachmentsDirectory else {
+            return try await fileSystem.makeTemporaryDirectory(prefix: "xcresult-attachments")
+        }
+
+        let directory = attachmentsDirectory.appending(component: "xcresult-attachments")
+        if try await !fileSystem.exists(directory) {
+            try await fileSystem.makeDirectory(at: directory)
+        }
+        return directory
+    }
+
+    private func attachmentsByTestIdentifiers(
+        from xcresultPath: AbsolutePath,
+        attachmentsDirectory: AbsolutePath?
+    ) async -> (crashReports: [String: CrashReport], attachments: [String: [TestAttachment]]) {
+        do {
+            let temporaryDirectory = try await attachmentsExportDirectory(in: attachmentsDirectory)
+
+            _ = try await execute([
+                    "/bin/sh", "-c",
+                    // `exec` replaces the shell with the tool so cancellation, which signals
+                    // only the direct child, reaches xcresulttool instead of orphaning it.
+                    "exec /usr/bin/xcrun xcresulttool export attachments --path '\(xcresultPath.pathString)' --output-path '\(temporaryDirectory.pathString)' 2>/dev/null",
+                ]
+            )
+
+            let manifestPath = temporaryDirectory.appending(component: "manifest.json")
+            guard try await fileSystem.exists(manifestPath) else {
+                return ([:], [:])
+            }
+
+            let manifestData = try await fileSystem.readFile(at: manifestPath)
+            let manifestEntries = try JSONDecoder().decode([AttachmentManifest].self, from: manifestData)
+
+            var crashReportsByTestIdentifier: [String: CrashReport] = [:]
+            var attachmentsByTestIdentifier: [String: [TestAttachment]] = [:]
+
+            await convertCgBIPNGs(in: temporaryDirectory, manifestEntries: manifestEntries)
+
+            for entry in manifestEntries {
+                guard let testIdentifier = entry.testIdentifier else { continue }
+                let normalizedIdentifier = normalizeTestIdentifier(testIdentifier)
+
+                for attachment in entry.attachments {
+                    let filePath = temporaryDirectory.appending(component: attachment.exportedFileName)
+                    guard try await fileSystem.exists(filePath) else { continue }
+
+                    let testAttachment = TestAttachment(
+                        filePath: filePath,
+                        fileName: attachment.suggestedHumanReadableName ?? attachment.exportedFileName,
+                        repetitionNumber: attachment.repetitionNumber,
+                        argumentName: attachment.arguments?.first
+                    )
+                    attachmentsByTestIdentifier[normalizedIdentifier, default: []].append(testAttachment)
+
+                    if attachment.exportedFileName.hasSuffix(".ips"),
+                       attachment.isAssociatedWithFailure == true
+                    {
+                        let content = try await fileSystem.readTextFile(at: filePath)
+                        let crashReport = try ipsCrashReportParser.parse(content)
+                        crashReportsByTestIdentifier[normalizedIdentifier] = CrashReport(
+                            exceptionType: crashReport.exceptionType,
+                            signal: crashReport.signal,
+                            exceptionSubtype: crashReport.exceptionSubtype,
+                            filePath: filePath,
+                            triggeredThreadFrames: crashReport.triggeredThreadFrames
+                        )
+                    }
+                }
+            }
+
+            return (crashReportsByTestIdentifier, attachmentsByTestIdentifier)
+        } catch {
+            return ([:], [:])
+        }
+    }
+
+    private func convertCgBIPNGs(in directory: AbsolutePath, manifestEntries: [AttachmentManifest]) async {
+        let pngFileNames = manifestEntries
+            .flatMap(\.attachments)
+            .map(\.exportedFileName)
+            .filter { $0.lowercased().hasSuffix(".png") }
+
+        for fileName in pngFileNames {
+            let filePath = directory.appending(component: fileName)
+            do {
+                _ = try await execute(["/usr/bin/sips", "-s", "format", "png", filePath.pathString, "--out", filePath.pathString])
+            } catch {
+                // Silently skip PNG conversion failures
+            }
+        }
+    }
+
+    private func normalizeTestIdentifier(_ identifier: String) -> String {
+        var normalized = identifier
+        normalized = normalized.replacingOccurrences(of: "`", with: "")
+        if let range = normalized.range(of: #"\([^)]*\)$"#, options: .regularExpression) {
+            normalized = String(normalized[..<range.lowerBound])
+        }
+        let components = normalized.split(separator: "/")
+        if components.count >= 2 {
+            return "\(components[components.count - 2])/\(components[components.count - 1])"
+        }
+        return normalized
+    }
+
+    // MARK: - Swift Testing Duration Parsing
+
+    private static let testDurationPatterns = [
+        #"[✔✘] Test (\w+)\(\) (?:passed|failed) after ([\d.]+) seconds"#,
+        #"✔ Test (\w+)\(\) passed after ([\d.]+) seconds"#,
+        #"✘ Test (\w+)\(\) failed after ([\d.]+) seconds"#,
+        #"[✔✘] Test "([^"]+)" (?:passed|failed) after ([\d.]+) seconds"#,
+        #"✔ Test "([^"]+)" passed after ([\d.]+) seconds"#,
+        #"✘ Test "([^"]+)" failed after ([\d.]+) seconds"#,
+        #"[✔✘] Test (\w+\([^)]*\)) with \d+ test cases? (?:passed|failed) after ([\d.]+) seconds"#,
+        #"[✔✘] Test "([^"]+)" with \d+ test cases? (?:passed|failed) after ([\d.]+) seconds"#,
+    ].compactMap { try? NSRegularExpression(pattern: $0, options: []) }
+
+    private static let suiteDurationPatterns = [
+        #"[✔✘] Suite (\w+) (?:passed|failed) after ([\d.]+) seconds"#,
+        #"✔ Suite (\w+) passed after ([\d.]+) seconds"#,
+        #"✘ Suite (\w+) failed after ([\d.]+) seconds"#,
+    ].compactMap { try? NSRegularExpression(pattern: $0, options: []) }
+
+    private func swiftTestingDurations(from emittedOutputs: [String]) -> (tests: [String: Int], suites: [String: Int]) {
+        var testDurations: [String: Int] = [:]
+        var suiteDurations: [String: Int] = [:]
+
+        let lines = emittedOutputs.flatMap { $0.components(separatedBy: .newlines) }
+            .filter { $0.contains("seconds") }
+
+        for line in lines {
+            if line.contains("Test"), let (name, duration) = extractDuration(from: line, using: Self.testDurationPatterns) {
+                testDurations[name] = testDurations[name] ?? duration
+            }
+            if line.contains("Suite"), let (name, duration) = extractDuration(from: line, using: Self.suiteDurationPatterns) {
+                suiteDurations[name] = suiteDurations[name] ?? duration
+            }
+        }
+
+        return (testDurations, suiteDurations)
+    }
+
+    private func extractDuration(from line: String, using patterns: [NSRegularExpression]) -> (name: String, duration: Int)? {
+        let range = NSRange(line.startIndex ..< line.endIndex, in: line)
+
+        for regex in patterns {
+            guard let match = regex.firstMatch(in: line, options: [], range: range),
+                  let nameRange = Range(match.range(at: 1), in: line),
+                  let durationRange = Range(match.range(at: 2), in: line),
+                  let durationSeconds = Double(String(line[durationRange]))
+            else { continue }
+
+            return (String(line[nameRange]), secondsToMilliseconds(durationSeconds))
+        }
+
+        return nil
+    }
+}
+
+extension String {
+    fileprivate func trimmingQuotes() -> String {
+        guard hasPrefix("\""), hasSuffix("\"") else { return self }
+        return String(dropFirst().dropLast())
+    }
+}

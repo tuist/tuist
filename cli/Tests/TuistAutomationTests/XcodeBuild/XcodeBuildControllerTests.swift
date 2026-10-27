@@ -1,4 +1,3 @@
-import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -6,6 +5,8 @@ import Mockable
 import Testing
 import TSCBasic
 import TuistCore
+import TuistEnvironment
+import TuistProcess
 import TuistSupport
 
 @testable import TuistAutomation
@@ -20,14 +21,12 @@ final class MockFormatter: Formatting {
 struct XcodeBuildControllerTests {
     var subject: XcodeBuildController!
     var formatter = MockFormatter()
-    var system = MockSystem()
-    var commandRunner = MockCommandRunning()
+    var commandRunner = MockCommandRunner()
 
     init() {
         subject = XcodeBuildController(
             formatter: formatter,
-            commandRunner: commandRunner,
-            system: system
+            commandRunner: commandRunner
         )
     }
 
@@ -45,7 +44,7 @@ struct XcodeBuildControllerTests {
 
         var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
-        system.succeedCommand(command, output: "output")
+        commandRunner.succeedCommand(command, output: "output")
 
         // When
         try await subject.build(
@@ -73,7 +72,7 @@ struct XcodeBuildControllerTests {
 
         var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
-        system.succeedCommand(command, output: "output")
+        commandRunner.succeedCommand(command, output: "output")
 
         // When
         try await subject.build(
@@ -102,7 +101,7 @@ struct XcodeBuildControllerTests {
         var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "id=this_is_a_udid"])
-        system.succeedCommand(command, output: "output")
+        commandRunner.succeedCommand(command, output: "output")
 
         // When
         try await subject.build(
@@ -131,7 +130,7 @@ struct XcodeBuildControllerTests {
         var command = ["/usr/bin/xcrun", "xcodebuild", "clean", "build", "-scheme", scheme]
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "id=this_is_a_udid,arch=x86_64"])
-        system.succeedCommand(command, output: "output")
+        commandRunner.succeedCommand(command, output: "output")
 
         // When
         try await subject.build(
@@ -167,7 +166,7 @@ struct XcodeBuildControllerTests {
         ]
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "id=device-id"])
-        system.succeedCommand(command, output: "output")
+        commandRunner.succeedCommand(command, output: "output")
 
         // When
         try await subject.test(
@@ -209,7 +208,7 @@ struct XcodeBuildControllerTests {
         ]
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "id=device-id,arch=x86_64"])
-        system.succeedCommand(command, output: "output")
+        commandRunner.succeedCommand(command, output: "output")
 
         // When
         try await subject.test(
@@ -253,7 +252,7 @@ struct XcodeBuildControllerTests {
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "platform=macOS,arch=x86_64"])
 
-        system.succeedCommand(command, output: "output")
+        commandRunner.succeedCommand(command, output: "output")
         environment.stubbedArchitecture = .x8664
 
         // When
@@ -297,7 +296,7 @@ struct XcodeBuildControllerTests {
         command.append(contentsOf: target.xcodebuildArguments)
         command.append(contentsOf: ["-destination", "id=device-id"])
 
-        system.succeedCommand(command, output: "output")
+        commandRunner.succeedCommand(command, output: "output")
 
         // When
         try await subject.test(
@@ -343,7 +342,7 @@ struct XcodeBuildControllerTests {
         command.append(contentsOf: ["-destination", "platform=macOS,arch=x86_64"])
         command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
 
-        system.succeedCommand(command, output: "output")
+        commandRunner.succeedCommand(command, output: "output")
         mockEnvironment.stubbedArchitecture = .x8664
 
         // When
@@ -388,7 +387,7 @@ struct XcodeBuildControllerTests {
         command.append(contentsOf: ["-destination", "platform=macOS,arch=x86_64"])
         command.append(contentsOf: ["-resultBundlePath", resultBundlePath.pathString])
 
-        system.succeedCommand(command, output: "output")
+        commandRunner.succeedCommand(command, output: "output")
         mockEnvironment.stubbedArchitecture = .x8664
 
         // When
@@ -428,7 +427,7 @@ struct XcodeBuildControllerTests {
 
         command.append(contentsOf: target.xcodebuildArguments)
 
-        system.succeedCommand(command, output: "output")
+        commandRunner.succeedCommand(command, output: "output")
 
         // When
         try await subject.test(
@@ -467,7 +466,7 @@ struct XcodeBuildControllerTests {
 
         command.append(contentsOf: target.xcodebuildArguments)
 
-        system.succeedCommand(command, output: "output")
+        commandRunner.succeedCommand(command, output: "output")
 
         // When
         try await subject.test(
@@ -485,6 +484,46 @@ struct XcodeBuildControllerTests {
             skipTestTargets: [],
             testPlanConfiguration: nil,
             passthroughXcodeBuildArguments: []
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func without_building_with_xctestrun() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcworkspacePath = temporaryDirectory.appending(component: "Project.xcworkspace")
+        let xctestrunPath = temporaryDirectory.appending(component: "Project.xctestrun")
+        let target = XcodeBuildTarget.workspace(xcworkspacePath)
+
+        let command = [
+            "/usr/bin/xcrun",
+            "xcodebuild",
+            "test-without-building",
+            "-configuration",
+            "Debug",
+            "-xctestrun",
+            xctestrunPath.pathString,
+            "-only-testing",
+            "ProjectTests",
+        ]
+        commandRunner.succeedCommand(command, output: "output")
+
+        // When
+        try await subject.test(
+            target,
+            scheme: "Project",
+            clean: false,
+            destination: nil,
+            action: .testWithoutBuilding,
+            rosetta: false,
+            derivedDataPath: nil,
+            resultBundlePath: nil,
+            arguments: [.configuration("Debug")],
+            retryCount: 0,
+            testTargets: [try TestIdentifier(target: "ProjectTests")],
+            skipTestTargets: [],
+            testPlanConfiguration: nil,
+            passthroughXcodeBuildArguments: ["-xctestrun", xctestrunPath.pathString]
         )
     }
 }

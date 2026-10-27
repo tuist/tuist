@@ -1,0 +1,23 @@
+{
+  "hash": "06a4845060589e6efbd4a85ce91ab8dc2cc67151b6714e1e0b81ea93104fc742",
+  "hash_tree": {
+    "context": {
+      "child": {
+        "child": {
+          "file": "server/priv/docs/L10N.md",
+          "hash": "f674eef089dd3e7a6d3c35af48a34eedeea8cdccbe779b265ab82a196162e54b"
+        },
+        "file": "server/L10N.md",
+        "hash": "4b6d469c7014caa6766970af517055bd43685866b230e2545cce3b06044cec87"
+      },
+      "file": "L10N.md",
+      "hash": "5d5910c58a27c289d172b18f0bca28176bf6b6a74bd894e27273f55199cd2816"
+    },
+    "source": {
+      "file": "server/priv/docs/en/guides/features/cache.md",
+      "hash": "60541d147787cd8b6b95a0789ce95431a23c6463ab35c6a369224bf5fd8cc178"
+    }
+  },
+  "model": "openai:gpt-4.1-mini",
+  "translated_at": "2026-05-19T13:50:36.738359Z"
+}

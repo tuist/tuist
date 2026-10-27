@@ -5,6 +5,12 @@ defmodule TuistWeb.BillingLive do
 
   alias Tuist.Accounts
   alias Tuist.Billing
+  alias Tuist.Billing.UsagePricing
+  alias Tuist.FeatureFlags
+  alias Tuist.Runners.Allowance
+  alias Tuist.Runners.Billing, as: RunnerBilling
+  alias Tuist.Runners.Prepaid
+  alias Tuist.Runners.Trials
 
   @impl true
   def mount(params, _uri, %{assigns: %{current_user: current_user, selected_account: selected_account}} = socket) do
@@ -22,24 +28,26 @@ defmodule TuistWeb.BillingLive do
         subscription.plan
       end
 
-    current_month_remote_cache_hits_count = selected_account.current_month_remote_cache_hits_count
+    # Every figure on the card is measured over one window, so the usage
+    # it shows and the date it says that usage is charged on cannot
+    # disagree with each other.
+    billing_period = Billing.current_billing_period(selected_account)
 
+    prepaid_runner_credit = Prepaid.balance(selected_account)
+    runner_usage = runner_usage(selected_account, subscription, prepaid_runner_credit, billing_period)
+
+    usage_pricing = usage_pricing(selected_account, billing_period)
+
+    # Runner time is billed alongside the usage meters, so the headline
+    # figure has to carry both or it understates the bill for anyone
+    # using runners.
     estimated_next_payment =
-      Billing.get_estimated_next_payment(%{
-        current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
-      })
+      usage_pricing
+      |> usage_payment()
+      |> Money.add(runner_usage.billed)
+      |> format_money()
 
-    next_charge_date =
-      if is_nil(subscription) do
-        dgettext("dashboard_account", "charged /per month")
-      else
-        dgettext("dashboard_account", "charged on %{next_charge_date}",
-          next_charge_date:
-            subscription.subscription_id
-            |> Billing.get_subscription_current_period_end()
-            |> Timex.format!("{Mfull} {D}")
-        )
-      end
+    next_charge_date = next_charge_date(billing_period)
 
     payment_method =
       with {:subscription, subscription} when not is_nil(subscription) <-
@@ -63,16 +71,28 @@ defmodule TuistWeb.BillingLive do
 
     socket =
       socket
-      |> assign(selected_tab: "billing")
+      |> assign(:runner_usage, runner_usage)
       |> assign(:estimated_next_payment, estimated_next_payment)
       |> assign(:plan, plan)
       |> assign(:next_charge_date, next_charge_date)
-      |> assign(:current_month_remote_cache_hits_count, current_month_remote_cache_hits_count)
+      |> assign(:usage_pricing, usage_pricing)
       |> assign(:head_title, "#{dgettext("dashboard_account", "Billing")} · #{selected_account.name} · Tuist")
       |> assign(:payment_method, payment_method)
+      |> assign(:payment_issue, payment_issue(selected_account, subscription))
 
     {:ok, socket}
   end
+
+  # A past due subscription keeps its plan while Stripe retries the payment, and
+  # an unpaid one has already lost it. Either way the customer settles the open
+  # invoice rather than upgrading, which would open a second subscription.
+  defp payment_issue(_account, %{status: "past_due"}), do: :past_due
+
+  defp payment_issue(account, nil) do
+    if Billing.payment_failed?(account), do: :payment_failed
+  end
+
+  defp payment_issue(_account, _subscription), do: nil
 
   @impl true
   def handle_params(_params, uri, socket) do
@@ -117,6 +137,160 @@ defmodule TuistWeb.BillingLive do
       assign(socket, :plan, new_plan)
     }
   end
+
+  # The window the next invoice will cover. A subscription renewing
+  # mid-month bills on its own cycle, so counting from the first of the
+  # calendar month would show usage from a window the customer is never
+  # invoiced for, and disagree with the same figure on the usage page.
+  # The calendar month is only the fallback for an account with no
+  # subscription, which has no cycle to read.
+  defp usage_period({%DateTime{} = period_start, %DateTime{} = period_end}, _now), do: {period_start, period_end}
+
+  defp usage_period(_billing_period, now), do: {%{now | day: 1, hour: 0, minute: 0, second: 0, microsecond: {0, 6}}, now}
+
+  defp usage_pricing(account, billing_period) do
+    UsagePricing.period_breakdown(account, billing_period || hd(Billing.recent_billing_periods(account, 1)))
+  end
+
+  defp usage_payment(%{cache: cache, tests: tests}) do
+    Money.add(cache.billed || Money.new(0, :USD), tests.billed || Money.new(0, :USD))
+  end
+
+  def usage_allowance_exceeded?(%{cache: cache, tests: tests}) do
+    cache.egress.billable > 0 or cache.requests.billable > 0 or tests.billable > 0
+  end
+
+  @doc """
+  One row per usage-based meter the period has gone past the allowance of.
+  """
+  def usage_pricing_rows(%{cache: cache, tests: tests}) do
+    Enum.filter(
+      [
+        %{
+          id: "cache-egress",
+          label: dgettext("dashboard_account", "Cache egress"),
+          quantity: Tuist.Utilities.ByteFormatter.format_bytes(cache.egress.billable),
+          price: TuistWeb.UsageLive.egress_rate_label(),
+          total: cache.egress.charge
+        },
+        %{
+          id: "cache-requests",
+          label: dgettext("dashboard_account", "Cache requests"),
+          quantity: format_number(cache.requests.billable),
+          price: TuistWeb.UsageLive.request_rate_label(),
+          total: cache.requests.charge
+        },
+        %{
+          id: "passing-test-cases",
+          label: dgettext("dashboard_account", "Passing test cases"),
+          quantity: format_number(tests.billable),
+          price: TuistWeb.UsageLive.passing_test_case_rate_label(),
+          total: tests.charge
+        }
+      ],
+      &Money.positive?(&1.total)
+    )
+  end
+
+  defp next_charge_date({_period_start, %DateTime{} = period_end}) do
+    dgettext("dashboard_account", "charged on %{next_charge_date}",
+      next_charge_date: Timex.format!(period_end, "{Mfull} {D}")
+    )
+  end
+
+  defp next_charge_date(_billing_period), do: dgettext("dashboard_account", "charged /per month")
+
+  # Runner usage is reported gross for every account, so what it accrues
+  # and what it is billed are two different numbers whenever a trial or
+  # the absence of a subscription stands between them. Showing only the
+  # billed figure would present a trial as an unexplained absence of
+  # charges; showing only the accrued one would read as a bill that is
+  # not coming.
+  defp runner_usage(account, subscription, prepaid, billing_period) do
+    now = DateTime.utc_now()
+    {period_start, _period_end} = usage_period(billing_period, now)
+
+    total_ms =
+      RunnerBilling.compute_milliseconds(account.id, period_start, now)
+
+    # Truncated to whole minutes, matching how the Stripe Price rounds,
+    # so this figure is the quantity that would be invoiced rather than
+    # one running slightly ahead of it.
+    free_minutes = Allowance.free_monthly_minutes()
+    free_ms = free_minutes * 60_000
+
+    # Costed per millisecond rather than per whole minute, because the
+    # runner Price charges that way: its tiers are in raw meter units and
+    # Stripe rounds none of it. Costing minutes would show nothing at all
+    # for an account that has run less than one.
+    accrued = Prepaid.on_demand_cost_for_milliseconds(total_ms)
+    chargeable = Prepaid.on_demand_cost_for_milliseconds(max(total_ms - free_ms, 0))
+
+    {billed, not_billed_because} =
+      cond do
+        Trials.on_trial?(account) -> {Money.new(0, :USD), :trial}
+        is_nil(subscription) -> {Money.new(0, :USD), :no_subscription}
+        total_ms <= free_ms -> {Money.new(0, :USD), :within_allowance}
+        true -> {chargeable, nil}
+      end
+
+    # Prepaid minutes are already paid for, so from the customer's side
+    # they cost nothing more to run. Counting them alongside the free
+    # allowance makes one bar answer "how much can I still run", which is
+    # the question the bar is there to answer.
+    prepaid_minutes = if prepaid, do: prepaid.period_minutes, else: 0
+
+    %{
+      # An account with runners turned on has an allowance whether or
+      # not it has touched it, and that is the thing the bar answers.
+      enabled: FeatureFlags.runners_enabled?(account),
+      total_ms: total_ms,
+      minutes: div(total_ms, 60_000),
+      free_minutes: free_minutes,
+      prepaid_minutes: prepaid_minutes,
+      covered_minutes: free_minutes + prepaid_minutes,
+      accrued: accrued,
+      billed: billed,
+      not_billed_because: not_billed_because
+    }
+  end
+
+  @doc """
+  Runner time rendered at a resolution the reader can act on: seconds
+  while under a minute, whole minutes above it.
+
+  A page that only ever said "0 minutes" for a job that really ran would
+  read as though the usage had not been recorded.
+  """
+  def runner_duration_label(total_ms) when total_ms < 60_000 do
+    dngettext("dashboard_account", "%{count} second", "%{count} seconds", div(total_ms, 1000))
+  end
+
+  def runner_duration_label(total_ms) do
+    dngettext("dashboard_account", "%{count} minute", "%{count} minutes", div(total_ms, 60_000))
+  end
+
+  @doc """
+  Says what the runner bar's ceiling is made of, so a limit larger than
+  the plan's allowance is not left unexplained.
+  """
+  def runner_minutes_composition(%{prepaid_minutes: 0}), do: dgettext("dashboard_account", "of your usage")
+
+  def runner_minutes_composition(%{free_minutes: free, prepaid_minutes: prepaid}),
+    do:
+      dgettext("dashboard_account", "of your usage (%{free} free runner minutes plus %{prepaid} prepaid)",
+        free: format_number(free),
+        prepaid: format_number(prepaid)
+      )
+
+  def runner_billed_explanation(:within_allowance),
+    do: dgettext("dashboard_account", "within your %{count} free minutes", count: Allowance.free_monthly_minutes())
+
+  def runner_billed_explanation(:trial), do: dgettext("dashboard_account", "free during your trial")
+
+  def runner_billed_explanation(:no_subscription), do: dgettext("dashboard_account", "no paid plan to bill against")
+
+  def runner_billed_explanation(_reason), do: dgettext("dashboard_account", "on your next invoice")
 
   attr :label, :string, required: true
 

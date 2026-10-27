@@ -1,0 +1,8 @@
+/_build/
+/deps/
+*.beam
+*.ez
+.elixir_ls/
+priv/native/*.so
+priv/native/*.dylib
+.DS_Store

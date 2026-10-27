@@ -8,6 +8,8 @@ defmodule TuistWeb.BundlesLiveTest do
 
   alias TuistTestSupport.Fixtures.BundlesFixtures
 
+  @render_async_timeout 1_000
+
   test "renders empty view when no bundles are available", %{
     conn: conn,
     organization: organization,
@@ -25,23 +27,27 @@ defmodule TuistWeb.BundlesLiveTest do
     organization: organization,
     project: project
   } do
-    # Given
+    # Given — two bundles of the same app, so both fall under the page's
+    # app-name filter (defaulted from the first app with :ios platform).
     BundlesFixtures.bundle_fixture(
       project: project,
-      name: "AppOne"
+      name: "App",
+      git_commit_sha: "aaaa111bbbb",
+      inserted_at: DateTime.add(DateTime.utc_now(), -1, :hour)
     )
 
     BundlesFixtures.bundle_fixture(
       project: project,
-      name: "AppTwo"
+      name: "App",
+      git_commit_sha: "cccc222dddd"
     )
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
 
     # Then
-    assert has_element?(lv, "span", "AppOne")
-    assert has_element?(lv, "span", "AppTwo")
+    assert has_element?(lv, "#bundles-table span", "aaaa111")
+    assert has_element?(lv, "#bundles-table span", "cccc222")
   end
 
   test "defaults download size to 0 MB when last bundle has only install size", %{
@@ -59,6 +65,8 @@ defmodule TuistWeb.BundlesLiveTest do
 
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
+
+    render_async(lv, @render_async_timeout)
 
     # Then
     assert has_element?(lv, "span", "0 MB")
@@ -128,6 +136,8 @@ defmodule TuistWeb.BundlesLiveTest do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles?bundle-size-branch=main")
 
+    render_async(lv, @render_async_timeout)
+
     # Then
     assert has_element?(lv, "span", "2.0 KB")
   end
@@ -158,6 +168,8 @@ defmodule TuistWeb.BundlesLiveTest do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles?bundle-size-branch=any")
 
+    render_async(lv, @render_async_timeout)
+
     # Then
     assert has_element?(lv, "span", "3.0 KB")
   end
@@ -178,13 +190,15 @@ defmodule TuistWeb.BundlesLiveTest do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
 
+    render_async(lv, @render_async_timeout)
+
     # Then - should show data from feature branch since no main branch bundles exist
     assert has_element?(lv, "span", "5.0 KB")
     # Dropdown should be hidden since no main branch bundles
     refute has_element?(lv, "#bundle-size-branch-dropdown")
   end
 
-  test "defaults to 0.0% download size trend when previous bundle download_size is nil", %{
+  test "shows no change when previous bundle download_size is nil", %{
     conn: conn,
     organization: organization,
     project: project
@@ -211,11 +225,13 @@ defmodule TuistWeb.BundlesLiveTest do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
 
+    render_async(lv, @render_async_timeout)
+
     # Then
-    assert has_element?(lv, "#widget-download-size span", "0.0%")
+    assert has_element?(lv, "#widget-download-size span", "No change")
   end
 
-  test "download size is 0.0% when last bundle download_size is 0", %{
+  test "shows no change when last bundle download_size is 0", %{
     conn: conn,
     organization: organization,
     project: project
@@ -242,11 +258,13 @@ defmodule TuistWeb.BundlesLiveTest do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
 
+    render_async(lv, @render_async_timeout)
+
     # Then
-    assert has_element?(lv, "#widget-download-size span", "0.0%")
+    assert has_element?(lv, "#widget-download-size span", "No change")
   end
 
-  test "download is 0.0% when previous bundle download_size is 0", %{
+  test "shows a 100.0% trend when previous bundle download_size is 0", %{
     conn: conn,
     organization: organization,
     project: project
@@ -273,8 +291,10 @@ defmodule TuistWeb.BundlesLiveTest do
     # When
     {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/bundles")
 
+    render_async(lv, @render_async_timeout)
+
     # Then
-    assert has_element?(lv, "#widget-download-size span", "0.0%")
+    assert has_element?(lv, "#widget-download-size span", "+100.0%")
   end
 
   test "handles cursor mismatch when sort order changes", %{
@@ -282,11 +302,12 @@ defmodule TuistWeb.BundlesLiveTest do
     organization: organization,
     project: project
   } do
+    # Use a single app name so all bundles match the page's app-name filter.
     for i <- 1..25 do
       BundlesFixtures.bundle_fixture(
         project: project,
-        name: "App-#{i}",
-        install_size: i * 1000
+        name: "App",
+        install_size: i * 1024
       )
     end
 
@@ -307,6 +328,7 @@ defmodule TuistWeb.BundlesLiveTest do
                ~p"/#{organization.account.name}/#{project.name}/bundles?bundles-sort-by=install-size&bundles-sort-order=asc&after=#{cursor}"
              )
 
-    assert has_element?(lv, "span", "App-1")
+    # install_size ascending starts at 1024 bytes = "1.0 KB".
+    assert has_element?(lv, "#bundles-table span", "1.0 KB")
   end
 end

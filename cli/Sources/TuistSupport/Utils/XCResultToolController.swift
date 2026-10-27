@@ -1,5 +1,6 @@
 import Mockable
 import Path
+import TuistProcess
 
 import struct TSCUtility.Version
 
@@ -7,28 +8,29 @@ import struct TSCUtility.Version
 public protocol XCResultToolControlling {
     func resultBundleObject(_ path: AbsolutePath) async throws -> String
     func resultBundleObject(_ path: AbsolutePath, id: String) async throws -> String
+    func merge(_ resultBundlePaths: [AbsolutePath], into resultBundlePath: AbsolutePath) async throws
 }
 
-public final class XCResultToolController: XCResultToolControlling {
-    private let system: Systeming
+public struct XCResultToolController: XCResultToolControlling {
+    private let commandRunner: CommandRunning
 
     public init(
-        system: Systeming = System.shared
+        commandRunner: CommandRunning = CommandRunner()
     ) {
-        self.system = system
+        self.commandRunner = commandRunner
     }
 
     public func resultBundleObject(_ path: AbsolutePath) async throws -> String {
         if try await XcodeController.current.selectedVersion() >= Version(16, 0, 0) {
-            return try system.capture(
-                [
+            return try await commandRunner.capture(
+                arguments: [
                     "/usr/bin/xcrun", "xcresulttool", "get", "--path", path.pathString, "--format",
                     "json", "--legacy",
                 ]
             )
         } else {
-            return try system.capture(
-                [
+            return try await commandRunner.capture(
+                arguments: [
                     "/usr/bin/xcrun", "xcresulttool", "get", "--path", path.pathString, "--format",
                     "json",
                 ]
@@ -38,19 +40,27 @@ public final class XCResultToolController: XCResultToolControlling {
 
     public func resultBundleObject(_ path: AbsolutePath, id: String) async throws -> String {
         if try await XcodeController.current.selectedVersion() >= Version(16, 0, 0) {
-            return try system.capture(
-                [
+            return try await commandRunner.capture(
+                arguments: [
                     "/usr/bin/xcrun", "xcresulttool", "get", "--path", path.pathString, "--id", id,
                     "--format", "json", "--legacy",
                 ]
             )
         } else {
-            return try system.capture(
-                [
+            return try await commandRunner.capture(
+                arguments: [
                     "/usr/bin/xcrun", "xcresulttool", "get", "--path", path.pathString, "--id", id,
                     "--format", "json",
                 ]
             )
         }
+    }
+
+    public func merge(_ resultBundlePaths: [AbsolutePath], into resultBundlePath: AbsolutePath) async throws {
+        _ = try await commandRunner.capture(
+            arguments: ["/usr/bin/xcrun", "xcresulttool", "merge"]
+                + resultBundlePaths.map(\.pathString)
+                + ["--output-path", resultBundlePath.pathString]
+        )
     }
 }

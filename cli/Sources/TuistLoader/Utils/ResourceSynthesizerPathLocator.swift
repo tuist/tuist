@@ -1,7 +1,9 @@
 import FileSystem
 import Foundation
 import Path
+import TuistConstants
 import TuistCore
+import TuistLogging
 import TuistRootDirectoryLocator
 import TuistSupport
 
@@ -42,7 +44,7 @@ enum ResourceSynthesizerPathLocatorError: FatalError, Equatable {
     }
 }
 
-public final class ResourceSynthesizerPathLocator: ResourceSynthesizerPathLocating {
+public struct ResourceSynthesizerPathLocator: ResourceSynthesizerPathLocating {
     private let rootDirectoryLocator: RootDirectoryLocating
     private let fileSystem: FileSysteming
 

@@ -13,12 +13,20 @@ struct AppPreviewTile: View {
                     .pinnedApplicationImageStyle()
             }
 
-            Text(appPreview.displayName)
-                .font(.caption)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: 60)
-                .fixedSize()
+            VStack(spacing: 0) {
+                Text(appPreview.displayName)
+                    .font(.caption)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                if let platformName = appPreview.platformName {
+                    Text(platformName)
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: 60)
+            .fixedSize()
         }
     }
 }

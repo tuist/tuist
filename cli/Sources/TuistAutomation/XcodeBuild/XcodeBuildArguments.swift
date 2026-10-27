@@ -38,9 +38,7 @@ public struct XcodeBuildArguments: Equatable {
         self.projectPath = projectPath
         self.workspacePath = workspacePath
     }
-}
 
-extension XcodeBuildArguments {
     public static func test(
         derivedDataPath: AbsolutePath? = nil,
         destination: Destination? = nil,

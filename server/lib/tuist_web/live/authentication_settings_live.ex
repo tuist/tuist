@@ -1,0 +1,915 @@
+defmodule TuistWeb.AuthenticationSettingsLive do
+  @moduledoc false
+  use TuistWeb, :live_view
+  use Noora
+
+  import Phoenix.Component
+
+  alias Tuist.Accounts
+  alias Tuist.Authorization
+  alias Tuist.Environment
+  alias Tuist.SCIM
+  alias TuistWeb.Components.WorkloadIdentities
+
+  # Form-level providers. "entra" is a preset over the generic `:oauth2`
+  # provider: it derives Entra's endpoints from a directory (tenant)
+  # identifier and persists as `:oauth2`, so no new `sso_provider` value,
+  # callback route, or identity migration is involved.
+  alias TuistWeb.Errors.UnauthorizedError
+
+  @oauth2_form_providers ["okta", "oauth2", "entra"]
+  @form_providers ["google" | @oauth2_form_providers]
+
+  # Automatic enrollment never mints an admin, so only the two non-privileged
+  # roles are offered here.
+  @sso_default_roles Accounts.organization_role_names() -- ["admin"]
+
+  @impl true
+  def mount(_params, _uri, %{assigns: %{selected_account: %{organization_id: nil} = account}} = socket) do
+    :ok = authorize_account_update!(socket)
+
+    {:ok,
+     socket
+     |> assign(organization: nil, flash_message: nil)
+     |> WorkloadIdentities.initialize()
+     |> assign(:head_title, "#{dgettext("dashboard_account", "Authentication")} · #{account.name} · Tuist")}
+  end
+
+  def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
+    if Authorization.authorize(:account_update, current_user, selected_account) != :ok do
+      raise UnauthorizedError,
+            dgettext("dashboard_account", "You are not authorized to perform this action.")
+    end
+
+    {:ok, organization} = Accounts.get_organization_by_id(selected_account.organization_id)
+
+    sso_enabled = not is_nil(organization.sso_provider)
+
+    socket =
+      socket
+      |> assign(organization: organization)
+      |> assign(sso_enabled: sso_enabled)
+      |> assign(sso_enforced: organization.sso_enforced)
+      |> assign(sso_automatic_enrollment: organization.sso_automatic_enrollment)
+      |> assign(sso_default_role: Accounts.sso_default_role(organization))
+      |> assign(flash_message: nil, field_errors: %{})
+      |> assign_form_from_organization(organization)
+      |> assign_saved_state()
+      |> assign(:scim_base_url, Environment.app_url(path: "/scim/v2"))
+      |> assign(:scim_tokens, SCIM.list_tokens(organization))
+      |> assign(:new_scim_token_plaintext, nil)
+      |> assign(:new_scim_token_form, to_form(%{"name" => ""}, as: "scim_token"))
+      |> WorkloadIdentities.initialize()
+      |> assign(
+        :head_title,
+        "#{dgettext("dashboard_account", "Authentication")} · #{selected_account.name} · Tuist"
+      )
+
+    {:ok, socket}
+  end
+
+  @impl true
+  def handle_params(_params, _uri, %{assigns: %{live_action: :workload_identities}} = socket) do
+    {:noreply,
+     push_navigate(socket, to: ~p"/#{socket.assigns.selected_account.name}/settings/authentication#oidc-trust-policies")}
+  end
+
+  def handle_params(_params, _uri, socket), do: {:noreply, socket}
+
+  ## SSO events ----------------------------------------------------------
+
+  # A socket outlives the role that opened it, so mount's answer is a snapshot.
+  # Every event that writes resolves `:account_update` again, which is what stops
+  # an administrator demoted while this page is open from carrying on changing
+  # the single sign-on configuration or minting SCIM tokens.
+  defp authorize_account_update!(%{assigns: %{current_user: current_user, selected_account: selected_account}}) do
+    if Authorization.authorize(:account_update, current_user, selected_account) == :ok do
+      :ok
+    else
+      raise UnauthorizedError,
+            dgettext("dashboard_account", "You are not authorized to perform this action.")
+    end
+  end
+
+  @impl true
+  def handle_event(event, params, socket)
+      when event in [
+             "toggle_oidc_configuration",
+             "select_oidc_template",
+             "change_oidc_trust_policy",
+             "create_oidc_trust_policy",
+             "delete_oidc_trust_policy"
+           ] do
+    WorkloadIdentities.handle_event(event, params, socket)
+  end
+
+  def handle_event(_event, _params, %{assigns: %{organization: nil}} = socket), do: {:noreply, socket}
+
+  def handle_event("toggle_sso", _params, socket) do
+    sso_enabled = not socket.assigns.sso_enabled
+
+    socket
+    |> assign(
+      sso_enabled: sso_enabled,
+      sso_enforced: sso_enabled and socket.assigns.sso_enforced,
+      sso_automatic_enrollment:
+        cond do
+          not sso_enabled -> false
+          is_nil(socket.assigns.organization.sso_provider) and socket.assigns.selected_provider == "google" -> true
+          true -> socket.assigns.sso_automatic_enrollment
+        end,
+      flash_message: nil,
+      field_errors: %{}
+    )
+    |> compute_form_valid()
+    |> compute_has_changes()
+    |> then(&{:noreply, &1})
+  end
+
+  def handle_event("toggle_sso_enforced", _params, socket) do
+    if sso_enforcement_toggle_disabled?(
+         socket.assigns.selected_provider,
+         socket.assigns.organization,
+         socket.assigns.current_form_params,
+         socket.assigns.sso_enforced
+       ) do
+      {:noreply, socket}
+    else
+      socket
+      |> assign(sso_enforced: not socket.assigns.sso_enforced, flash_message: nil, field_errors: %{})
+      |> compute_has_changes()
+      |> then(&{:noreply, &1})
+    end
+  end
+
+  def handle_event("toggle_sso_automatic_enrollment", _params, socket) do
+    if automatic_enrollment_toggle_disabled?(
+         socket.assigns.selected_provider,
+         socket.assigns.organization,
+         socket.assigns.current_form_params,
+         socket.assigns.sso_automatic_enrollment
+       ) do
+      {:noreply, socket}
+    else
+      socket
+      |> assign(
+        sso_automatic_enrollment: not socket.assigns.sso_automatic_enrollment,
+        flash_message: nil,
+        field_errors: %{}
+      )
+      |> compute_has_changes()
+      |> then(&{:noreply, &1})
+    end
+  end
+
+  def handle_event("select_sso_default_role", %{"value" => [role]}, socket) when role in @sso_default_roles do
+    socket
+    |> assign(sso_default_role: role, flash_message: nil, field_errors: %{})
+    |> compute_has_changes()
+    |> then(&{:noreply, &1})
+  end
+
+  def handle_event("select_provider", %{"value" => [provider]}, socket) when provider in @form_providers do
+    form_params = Map.put(socket.assigns.current_form_params, "provider", provider)
+
+    verified_domain? =
+      verified_login_domain_selected?(provider, socket.assigns.organization, form_params)
+
+    existing_enforcement? =
+      existing_sso_enforcement?(provider, socket.assigns.organization)
+
+    existing_automatic_enrollment? =
+      existing_sso_automatic_enrollment?(provider, socket.assigns.organization)
+
+    sso_automatic_enrollment =
+      automatic_enrollment_for_provider_selection(
+        provider,
+        socket.assigns.selected_provider,
+        verified_domain?,
+        existing_automatic_enrollment?,
+        socket.assigns.sso_automatic_enrollment
+      )
+
+    sso_enforced =
+      enforcement_for_provider_selection(
+        provider,
+        verified_domain?,
+        existing_enforcement?,
+        socket.assigns.sso_enforced
+      )
+
+    socket
+    |> assign(
+      selected_provider: provider,
+      sso_automatic_enrollment: sso_automatic_enrollment,
+      sso_enforced: sso_enforced,
+      flash_message: nil,
+      field_errors: %{}
+    )
+    |> assign(current_form_params: form_params)
+    |> assign(form: to_form(form_params, as: "sso"))
+    |> compute_form_valid()
+    |> compute_has_changes()
+    |> then(&{:noreply, &1})
+  end
+
+  def handle_event("select_provider", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("validate_sso", %{"sso" => form_params}, socket) do
+    verified_domain? =
+      verified_login_domain_selected?(
+        socket.assigns.selected_provider,
+        socket.assigns.organization,
+        form_params
+      )
+
+    custom_provider_without_verified_domain? =
+      socket.assigns.selected_provider in @oauth2_form_providers and not verified_domain?
+
+    existing_enforcement? =
+      existing_sso_enforcement?(
+        socket.assigns.selected_provider,
+        socket.assigns.organization
+      )
+
+    existing_automatic_enrollment? =
+      existing_sso_automatic_enrollment?(
+        socket.assigns.selected_provider,
+        socket.assigns.organization
+      )
+
+    domain_verification_error =
+      if normalize_domain(form_params["sso_login_domain"]) ==
+           normalize_domain(socket.assigns.current_form_params["sso_login_domain"]),
+         do: socket.assigns.domain_verification_error
+
+    socket
+    |> assign(
+      current_form_params: form_params,
+      domain_verification_error: domain_verification_error,
+      sso_automatic_enrollment:
+        if(custom_provider_without_verified_domain? and not existing_automatic_enrollment?,
+          do: false,
+          else: socket.assigns.sso_automatic_enrollment
+        ),
+      sso_enforced:
+        if(custom_provider_without_verified_domain? and not existing_enforcement?,
+          do: false,
+          else: socket.assigns.sso_enforced
+        )
+    )
+    |> compute_form_valid()
+    |> compute_has_changes()
+    |> then(&{:noreply, &1})
+  end
+
+  def handle_event("validate_sso", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("save_sso", _params, %{assigns: %{sso_enabled: false}} = socket) do
+    :ok = authorize_account_update!(socket)
+
+    disable_sso(socket)
+  end
+
+  def handle_event("save_sso", params, socket) do
+    :ok = authorize_account_update!(socket)
+
+    case validate_sso_enforcement(socket) do
+      :ok ->
+        case socket.assigns.selected_provider do
+          "google" -> save_google_sso(socket, params)
+          provider when provider in @oauth2_form_providers -> save_oauth2_sso(socket, params)
+        end
+
+      {:error, message} ->
+        {:noreply, assign(socket, flash_message: {"error", message})}
+    end
+  end
+
+  def handle_event("verify_sso_login_domain", _params, socket) do
+    :ok = authorize_account_update!(socket)
+
+    form_domain = normalize_domain(socket.assigns.current_form_params["sso_login_domain"])
+    socket = assign(socket, flash_message: nil)
+
+    case Accounts.get_organization_by_id(socket.assigns.organization.id) do
+      {:ok, organization} when organization.sso_login_domain == form_domain ->
+        case Accounts.verify_sso_login_domain(organization) do
+          {:ok, organization} ->
+            {:noreply,
+             socket
+             |> assign(:organization, organization)
+             |> assign(:domain_verification_error, nil)}
+
+          {:error, :verification_record_not_found} ->
+            {:noreply,
+             assign(
+               socket,
+               :domain_verification_error,
+               dgettext(
+                 "dashboard_account",
+                 "No TXT record with the verification value was found at %{record_name}. DNS changes can take a while to propagate, so try again in a few minutes.",
+                 record_name: Accounts.sso_login_domain_record_name(organization)
+               )
+             )}
+
+          {:error, :login_domain_not_configured} ->
+            {:noreply,
+             assign(
+               socket,
+               :domain_verification_error,
+               dgettext("dashboard_account", "Configure and save a login domain first.")
+             )}
+
+          {:error, changeset} ->
+            {:noreply,
+             assign(
+               socket,
+               :domain_verification_error,
+               changeset_error_message(changeset)
+             )}
+        end
+
+      _ ->
+        {:noreply,
+         assign(
+           socket,
+           :domain_verification_error,
+           dgettext("dashboard_account", "Save the login domain before verifying it.")
+         )}
+    end
+  end
+
+  ## SCIM events ---------------------------------------------------------
+
+  def handle_event("generate_scim_token", %{"scim_token" => params}, socket) do
+    :ok = authorize_account_update!(socket)
+
+    name = params |> Map.get("name", "") |> String.trim()
+
+    if name == "" do
+      {:noreply,
+       assign(
+         socket,
+         :flash_message,
+         {"error", dgettext("dashboard_account", "Token name is required.")}
+       )}
+    else
+      case SCIM.create_token(socket.assigns.organization, %{name: name}) do
+        {:ok, {_token, plaintext}} ->
+          {:noreply,
+           socket
+           |> assign(:new_scim_token_plaintext, plaintext)
+           |> assign(:new_scim_token_form, to_form(%{"name" => ""}, as: "scim_token"))
+           |> assign(:scim_tokens, SCIM.list_tokens(socket.assigns.organization))
+           |> assign(:flash_message, nil)}
+
+        {:error, changeset} ->
+          message =
+            changeset
+            |> Ecto.Changeset.traverse_errors(fn {msg, _} -> msg end)
+            |> Enum.map_join("; ", fn {field, msgs} -> "#{field}: #{Enum.join(msgs, ", ")}" end)
+
+          {:noreply, assign(socket, :flash_message, {"error", message})}
+      end
+    end
+  end
+
+  def handle_event("dismiss_scim_token", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:new_scim_token_plaintext, nil)
+     |> push_event("close-modal", %{id: "generate-scim-token-modal"})}
+  end
+
+  # Reset the modal to its blank form when closed via Escape, backdrop click, or
+  # the X icon. The `details.open` flag is sent by Zag.js dialog state machine.
+  def handle_event("scim_modal_open_change", %{"open" => false}, socket) do
+    {:noreply,
+     socket
+     |> assign(:new_scim_token_plaintext, nil)
+     |> assign(:new_scim_token_form, to_form(%{"name" => ""}, as: "scim_token"))}
+  end
+
+  def handle_event("scim_modal_open_change", _params, socket), do: {:noreply, socket}
+
+  def handle_event("revoke_scim_token", %{"id" => id}, socket) do
+    :ok = authorize_account_update!(socket)
+
+    case SCIM.revoke_token(socket.assigns.organization, id) do
+      {:ok, _} ->
+        {:noreply, assign(socket, :scim_tokens, SCIM.list_tokens(socket.assigns.organization))}
+
+      {:error, :not_found} ->
+        {:noreply, assign(socket, :flash_message, {"error", dgettext("dashboard_account", "Token not found.")})}
+    end
+  end
+
+  ## SSO helpers ---------------------------------------------------------
+
+  defp disable_sso(%{assigns: %{organization: organization}} = socket) do
+    if is_nil(organization.sso_provider) and not organization.sso_enforced do
+      {:noreply, socket}
+    else
+      {:ok, updated_organization} =
+        Accounts.update_organization(organization, %{
+          sso_provider: nil,
+          sso_organization_id: nil,
+          sso_enforced: false,
+          sso_login_domain: nil,
+          sso_automatic_enrollment: false,
+          oauth2_client_id: nil,
+          oauth2_encrypted_client_secret: nil,
+          oauth2_authorize_url: nil,
+          oauth2_token_url: nil,
+          oauth2_user_info_url: nil
+        })
+
+      {:noreply,
+       socket
+       |> assign(organization: updated_organization)
+       |> assign(sso_enforced: false)
+       |> assign(sso_automatic_enrollment: false)
+       |> assign_form_from_organization(updated_organization)
+       |> assign_saved_state()
+       |> assign(flash_message: nil, field_errors: %{})}
+    end
+  end
+
+  defp save_google_sso(%{assigns: %{organization: organization, current_user: current_user}} = socket, params) do
+    domain = String.trim(params["sso"]["google_domain"] || "")
+
+    case validate_google_sso(domain, current_user) do
+      :ok ->
+        {:ok, updated_organization} =
+          Accounts.update_organization(organization, %{
+            sso_provider: :google,
+            sso_organization_id: domain,
+            sso_enforced: socket.assigns.sso_enforced,
+            sso_automatic_enrollment: socket.assigns.sso_automatic_enrollment,
+            sso_default_role: socket.assigns.sso_default_role
+          })
+
+        {:noreply,
+         socket
+         |> assign(organization: updated_organization)
+         |> assign_form_from_organization(updated_organization)
+         |> assign_saved_state()
+         |> assign(flash_message: nil, field_errors: %{})}
+
+      {:error, message} ->
+        {:noreply, assign(socket, flash_message: {"error", message})}
+    end
+  end
+
+  defp save_oauth2_sso(%{assigns: %{organization: organization, selected_provider: selected_provider}} = socket, params) do
+    form_params = params["sso"] || %{}
+    sso_provider = provider_atom(selected_provider)
+
+    attrs =
+      build_oauth2_attrs(
+        selected_provider,
+        form_params,
+        socket.assigns.sso_enforced,
+        socket.assigns.sso_automatic_enrollment,
+        socket.assigns.sso_default_role
+      )
+
+    case Accounts.update_sso_configuration(organization.id, sso_provider, attrs) do
+      {:ok, updated_organization} ->
+        {:noreply,
+         socket
+         |> assign(organization: updated_organization)
+         |> assign_form_from_organization(updated_organization)
+         |> assign_saved_state()
+         |> assign(flash_message: nil, field_errors: %{})}
+
+      {:error, changeset} ->
+        form_params =
+          default_form_data()
+          |> Map.merge(form_params)
+          |> Map.put("provider", selected_provider)
+
+        {:noreply,
+         socket
+         |> assign(current_form_params: form_params)
+         |> assign(form: to_form(form_params, as: "sso"))
+         |> assign(field_errors: changeset_to_field_errors(changeset, selected_provider))
+         |> assign(flash_message: {"error", changeset_error_message(changeset)})
+         |> compute_form_valid()
+         |> compute_has_changes()}
+    end
+  end
+
+  @changeset_to_form_field %{
+    sso_organization_id: %{"okta" => "okta_domain", "oauth2" => "oauth2_site", "entra" => "entra_tenant_id"},
+    sso_login_domain: "sso_login_domain",
+    oauth2_authorize_url: "oauth2_authorize_url",
+    oauth2_token_url: "oauth2_token_url",
+    oauth2_user_info_url: "oauth2_user_info_url",
+    oauth2_client_id: "oauth2_client_id",
+    oauth2_encrypted_client_secret: "oauth2_client_secret"
+  }
+
+  defp changeset_to_field_errors(changeset, provider) do
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {msg, _opts} -> msg end)
+    |> Enum.reduce(%{}, fn {field, msgs}, acc ->
+      form_field =
+        case Map.get(@changeset_to_form_field, field) do
+          %{} = per_provider -> Map.get(per_provider, provider, to_string(field))
+          name when is_binary(name) -> name
+          nil -> to_string(field)
+        end
+
+      Map.put(acc, form_field, Enum.join(msgs, ", "))
+    end)
+  end
+
+  defp build_oauth2_attrs(selected_provider, form, sso_enforced, sso_automatic_enrollment, sso_default_role) do
+    {sso_organization_id, authorize_url, token_url, user_info_url} =
+      extract_oauth2_urls(selected_provider, form)
+
+    attrs = %{
+      sso_organization_id: sso_organization_id,
+      sso_enforced: sso_enforced,
+      sso_login_domain: normalize_domain(form["sso_login_domain"]),
+      sso_automatic_enrollment: sso_automatic_enrollment,
+      sso_default_role: sso_default_role,
+      oauth2_client_id: String.trim(form["oauth2_client_id"] || ""),
+      oauth2_authorize_url: authorize_url,
+      oauth2_token_url: token_url,
+      oauth2_user_info_url: user_info_url
+    }
+
+    client_secret = String.trim(form["oauth2_client_secret"] || "")
+
+    if client_secret == "",
+      do: attrs,
+      else: Map.put(attrs, :oauth2_client_secret, client_secret)
+  end
+
+  defp extract_oauth2_urls("okta", form) do
+    domain = String.trim(form["okta_domain"] || "")
+
+    {domain, Accounts.okta_authorize_url(domain), Accounts.okta_token_url(domain), Accounts.okta_userinfo_url(domain)}
+  end
+
+  defp extract_oauth2_urls("entra", form) do
+    tenant = entra_tenant_from_form(form)
+
+    {Accounts.entra_site_url(tenant), Accounts.entra_authorize_url(tenant), Accounts.entra_token_url(tenant),
+     Accounts.entra_userinfo_url()}
+  end
+
+  defp extract_oauth2_urls("oauth2", form) do
+    {String.trim(form["oauth2_site"] || ""), String.trim(form["oauth2_authorize_url"] || ""),
+     String.trim(form["oauth2_token_url"] || ""), String.trim(form["oauth2_user_info_url"] || "")}
+  end
+
+  defp entra_tenant_from_form(form) do
+    (form["entra_tenant_id"] || "") |> String.trim() |> String.trim("/")
+  end
+
+  defp validate_sso_enforcement(%{assigns: %{sso_enforced: false}}), do: :ok
+
+  defp validate_sso_enforcement(%{assigns: %{current_user: current_user}} = socket) do
+    provider = provider_atom(socket.assigns.selected_provider)
+
+    sso_organization_id =
+      case socket.assigns.selected_provider do
+        "google" -> String.trim(socket.assigns.current_form_params["google_domain"] || "")
+        "okta" -> String.trim(socket.assigns.current_form_params["okta_domain"] || "")
+        "oauth2" -> String.trim(socket.assigns.current_form_params["oauth2_site"] || "")
+        "entra" -> Accounts.entra_site_url(entra_tenant_from_form(socket.assigns.current_form_params))
+      end
+
+    has_identity =
+      not is_nil(
+        Accounts.find_oauth2_identity(%{user: current_user, provider: provider},
+          provider_organization_id: sso_organization_id
+        )
+      )
+
+    if has_identity do
+      :ok
+    else
+      {:error,
+       dgettext(
+         "dashboard_account",
+         "You must authenticate with the SSO provider before enforcing SSO. Please sign in with your SSO provider first."
+       )}
+    end
+  end
+
+  defp provider_atom("google"), do: :google
+  defp provider_atom("okta"), do: :okta
+  defp provider_atom("oauth2"), do: :oauth2
+  defp provider_atom("entra"), do: :oauth2
+
+  defp validate_google_sso(domain, current_user) do
+    if is_nil(
+         Accounts.find_oauth2_identity(%{user: current_user, provider: :google},
+           provider_organization_id: domain
+         )
+       ) do
+      {:error,
+       dgettext(
+         "dashboard_account",
+         "You must be authenticated with Google using an email tied to this domain. Please sign in with Google first."
+       )}
+    else
+      :ok
+    end
+  end
+
+  defp assign_form_from_organization(socket, organization) do
+    provider = form_provider(organization)
+    form_data = build_form_data(provider, organization)
+
+    socket
+    |> assign(selected_provider: provider)
+    |> assign(current_form_params: form_data)
+    |> assign(form: to_form(form_data, as: "sso"))
+    |> assign(domain_verification_error: nil)
+  end
+
+  defp assign_saved_state(socket) do
+    socket
+    |> compute_form_valid()
+    |> assign(
+      saved_state: %{
+        sso_enabled: socket.assigns.sso_enabled,
+        sso_enforced: socket.assigns.sso_enforced,
+        sso_automatic_enrollment: socket.assigns.sso_automatic_enrollment,
+        sso_default_role: socket.assigns.sso_default_role,
+        selected_provider: socket.assigns.selected_provider,
+        form_params: socket.assigns.current_form_params
+      },
+      has_changes: false
+    )
+  end
+
+  defp compute_form_valid(socket) do
+    valid =
+      if socket.assigns.sso_enabled do
+        form_fields_valid?(
+          socket.assigns.selected_provider,
+          socket.assigns.current_form_params,
+          socket.assigns.organization
+        )
+      else
+        true
+      end
+
+    assign(socket, form_valid: valid)
+  end
+
+  defp form_fields_valid?("google", params, _organization) do
+    String.trim(params["google_domain"] || "") != ""
+  end
+
+  defp form_fields_valid?("okta", params, organization) do
+    field_present?(params, "okta_domain") and
+      oauth2_credentials_valid?(params, organization)
+  end
+
+  defp form_fields_valid?("oauth2", params, organization) do
+    oauth2_credentials_valid?(params, organization) and
+      required_fields_present?(params, [
+        "oauth2_site",
+        "oauth2_authorize_url",
+        "oauth2_token_url",
+        "oauth2_user_info_url"
+      ])
+  end
+
+  defp form_fields_valid?("entra", params, organization) do
+    Accounts.valid_entra_tenant?(entra_tenant_from_form(params)) and
+      oauth2_credentials_valid?(params, organization)
+  end
+
+  defp form_fields_valid?(_provider, _params, _organization), do: true
+
+  defp oauth2_credentials_valid?(params, organization) do
+    field_present?(params, "oauth2_client_id") and
+      (field_present?(params, "oauth2_client_secret") or has_existing_secret?(organization))
+  end
+
+  defp has_existing_secret?(organization) do
+    organization.sso_provider in [:okta, :oauth2] and
+      not is_nil(organization.oauth2_encrypted_client_secret)
+  end
+
+  defp field_present?(params, field), do: String.trim(params[field] || "") != ""
+
+  defp required_fields_present?(params, fields) do
+    Enum.all?(fields, fn field ->
+      String.trim(params[field] || "") != ""
+    end)
+  end
+
+  defp compute_has_changes(socket) do
+    saved = socket.assigns.saved_state
+
+    has_changes =
+      socket.assigns.sso_enabled != saved.sso_enabled or
+        socket.assigns.sso_enforced != saved.sso_enforced or
+        socket.assigns.sso_automatic_enrollment != saved.sso_automatic_enrollment or
+        socket.assigns.sso_default_role != saved.sso_default_role or
+        socket.assigns.selected_provider != saved.selected_provider or
+        socket.assigns.current_form_params != saved.form_params
+
+    assign(socket, has_changes: has_changes)
+  end
+
+  defp build_form_data("google", organization) do
+    Map.merge(default_form_data(), %{"provider" => "google", "google_domain" => organization.sso_organization_id || ""})
+  end
+
+  defp build_form_data("okta", organization) do
+    Map.merge(default_form_data(), %{
+      "provider" => "okta",
+      "okta_domain" => organization.sso_organization_id || "",
+      "oauth2_client_id" => organization.oauth2_client_id || "",
+      "oauth2_client_secret" => "",
+      "sso_login_domain" => organization.sso_login_domain || ""
+    })
+  end
+
+  defp build_form_data("entra", organization) do
+    Map.merge(default_form_data(), %{
+      "provider" => "entra",
+      "entra_tenant_id" => Accounts.entra_tenant(organization) || "",
+      "oauth2_client_id" => organization.oauth2_client_id || "",
+      "oauth2_client_secret" => "",
+      "sso_login_domain" => organization.sso_login_domain || ""
+    })
+  end
+
+  defp build_form_data("oauth2", organization) do
+    Map.merge(default_form_data(), %{
+      "provider" => "oauth2",
+      "oauth2_site" => organization.sso_organization_id || "",
+      "oauth2_client_id" => organization.oauth2_client_id || "",
+      "oauth2_client_secret" => "",
+      "oauth2_authorize_url" => organization.oauth2_authorize_url || "",
+      "oauth2_token_url" => organization.oauth2_token_url || "",
+      "oauth2_user_info_url" => organization.oauth2_user_info_url || "",
+      "sso_login_domain" => organization.sso_login_domain || ""
+    })
+  end
+
+  defp build_form_data(_provider, _organization) do
+    default_form_data()
+  end
+
+  defp default_form_data do
+    %{
+      "provider" => "google",
+      "google_domain" => "",
+      "okta_domain" => "",
+      "entra_tenant_id" => "",
+      "oauth2_client_id" => "",
+      "oauth2_client_secret" => "",
+      "oauth2_site" => "",
+      "sso_login_domain" => "",
+      "oauth2_authorize_url" => "",
+      "oauth2_token_url" => "",
+      "oauth2_user_info_url" => ""
+    }
+  end
+
+  defp normalize_domain(nil), do: nil
+
+  defp normalize_domain(domain) do
+    case domain |> String.trim() |> String.trim_trailing(".") |> String.downcase() do
+      "" -> nil
+      normalized_domain -> normalized_domain
+    end
+  end
+
+  defp changeset_error_message(changeset) do
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
+    |> Enum.map_join("; ", fn {field, messages} ->
+      "#{Phoenix.Naming.humanize(field)} #{Enum.join(messages, ", ")}"
+    end)
+  end
+
+  defp automatic_enrollment_toggle_disabled?(selected_provider, organization, form_params, automatic_enrollment) do
+    selected_provider in @oauth2_form_providers and
+      not verified_login_domain_selected?(selected_provider, organization, form_params) and
+      not automatic_enrollment
+  end
+
+  defp sso_enforcement_toggle_disabled?(selected_provider, organization, form_params, enforced) do
+    selected_provider in @oauth2_form_providers and
+      not verified_login_domain_selected?(selected_provider, organization, form_params) and
+      not enforced
+  end
+
+  defp verified_login_domain_selected?(selected_provider, organization, form_params) do
+    selected_provider in @oauth2_form_providers and
+      not is_nil(organization.sso_login_domain_verified_at) and
+      normalize_domain(form_params["sso_login_domain"]) == organization.sso_login_domain
+  end
+
+  defp existing_sso_enforcement?(selected_provider, organization) do
+    organization.sso_enforced and selected_provider == form_provider(organization)
+  end
+
+  defp existing_sso_automatic_enrollment?(selected_provider, organization) do
+    organization.sso_automatic_enrollment and
+      selected_provider == form_provider(organization)
+  end
+
+  defp automatic_enrollment_for_provider_selection(
+         "google",
+         previous_provider,
+         _verified_domain?,
+         _existing_automatic_enrollment?,
+         _automatic_enrollment
+       )
+       when previous_provider != "google", do: true
+
+  defp automatic_enrollment_for_provider_selection(provider, _previous_provider, false, false, _automatic_enrollment)
+       when provider in @oauth2_form_providers, do: false
+
+  defp automatic_enrollment_for_provider_selection(
+         _provider,
+         _previous_provider,
+         _verified_domain?,
+         _existing_automatic_enrollment?,
+         automatic_enrollment
+       ), do: automatic_enrollment
+
+  defp enforcement_for_provider_selection(provider, false, false, _enforced) when provider in @oauth2_form_providers,
+    do: false
+
+  defp enforcement_for_provider_selection(_provider, _verified_domain?, _existing_enforcement?, enforced), do: enforced
+
+  # The form provider is not always the stored `sso_provider`: an organization
+  # whose `:oauth2` configuration matches the Entra preset exactly is shown as
+  # "entra" so it gets the tenant field instead of four URL fields.
+  defp form_provider(%{sso_provider: nil}), do: "google"
+
+  defp form_provider(%{sso_provider: :oauth2} = organization) do
+    if Accounts.entra_tenant(organization), do: "entra", else: "oauth2"
+  end
+
+  defp form_provider(%{sso_provider: provider}), do: Atom.to_string(provider)
+
+  defp oauth2_form_provider?(provider), do: provider in @oauth2_form_providers
+
+  defp domain_verification_shown?(organization, form) do
+    not is_nil(organization.sso_login_domain) and organization.sso_login_domain == form[:sso_login_domain].value
+  end
+
+  defp domain_record_instruction(organization, form) do
+    cond do
+      not domain_verification_shown?(organization, form) ->
+        nil
+
+      Accounts.sso_login_domain_expiring?(organization) ->
+        dgettext(
+          "dashboard_account",
+          "The TXT record below no longer resolves. Publish it again at your DNS provider, then click Verify domain."
+        )
+
+      is_nil(organization.sso_login_domain_verified_at) ->
+        dgettext("dashboard_account", "Add the TXT record below at your DNS provider, then click Verify domain.")
+
+      true ->
+        nil
+    end
+  end
+
+  attr :id, :string, required: true
+  attr :value, :string, required: true
+  attr :copy_label, :string, required: true
+
+  defp copyable_value(assigns) do
+    ~H"""
+    <div data-part="read-only-value">
+      <code id={@id}>{@value}</code>
+      <.button
+        id={"#{@id}-copy-button"}
+        variant="secondary"
+        size="small"
+        icon_only
+        type="button"
+        phx-hook="Clipboard"
+        data-clipboard-value={@value}
+        aria-label={@copy_label}
+      >
+        <.copy />
+      </.button>
+    </div>
+    """
+  end
+end

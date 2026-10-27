@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 
 @Mockable
 public protocol ListAccountTokensServicing {
@@ -26,7 +26,7 @@ enum ListAccountTokensServiceError: LocalizedError {
     }
 }
 
-public final class ListAccountTokensService: ListAccountTokensServicing {
+public struct ListAccountTokensService: ListAccountTokensServicing {
     public init() {}
 
     public func listAccountTokens(

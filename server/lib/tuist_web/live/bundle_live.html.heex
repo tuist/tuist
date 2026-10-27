@@ -11,6 +11,7 @@
       </:icon_left>
     </.button>
     <.button
+      :if={@can_delete_bundle}
       label={dgettext("dashboard_cache", "Delete bundle")}
       data-part="delete-button"
       variant="secondary"
@@ -63,7 +64,11 @@
             </span>
           </div>
           <div data-part="metadata">
-            <div data-part="title">{dgettext("dashboard_cache", "Bundle ID")}</div>
+            <div data-part="title">
+              {if :android in @bundle.supported_platforms,
+                do: dgettext("dashboard_cache", "Package name"),
+                else: dgettext("dashboard_cache", "Bundle ID")}
+            </div>
             <span data-part="label">
               {@bundle.app_bundle_id}
             </span>
@@ -236,16 +241,18 @@
               |> Enum.take(index + 1)
               |> Enum.join("/")
 
-            breadcrumb_artifact = Map.get(@artifacts_by_path, breadcrumb_path) %>
+            breadcrumb_artifact = Map.get(@artifacts_by_path, breadcrumb_path)
+            breadcrumb_label = if index == 0, do: @bundle.name, else: path_component %>
             <.breadcrumb
-              :if={breadcrumb_artifact}
+              :if={index == 0 or breadcrumb_artifact}
               id={"bundle-size-analysis-breadcrumb-#{index}"}
-              label={if index == 0, do: @bundle.name, else: path_component}
+              label={breadcrumb_label}
+              title={breadcrumb_label}
               phx-click={
                 JS.dispatch(
                   "bundle-size-analysis-breadcrumb-clicked",
                   to: "#bundle-size-analysis-current-contents",
-                  detail: %{artifact_id: breadcrumb_artifact.id}
+                  detail: %{path: if(index > 0, do: breadcrumb_path)}
                 )
               }
             >
@@ -268,10 +275,12 @@
           id="bundle-size-analysis-current-contents"
           phx-hook="BundleSizeSunburstChartLegend"
           data-chart-id="bundle-size-analysis-sunburst"
+          data-current-path={@sunburst_current_path}
         >
           <.table
             id="bundle-size-analysis-sunburst-chart-table"
             rows={@bundle_size_analysis_sunburst_chart_table_current_page_artifacts}
+            row_key={fn artifact -> artifact.path || artifact.name end}
             row_click={
               fn artifact ->
                 if Map.get(artifact, :collapsed?) do
@@ -306,7 +315,7 @@
                   data-duplicate={artifact.duplicate?}
                 >
                 </div>
-                <span data-part="label">{artifact.name}</span>
+                <span data-part="label" title={artifact.name}>{artifact.name}</span>
               </div>
             </:col>
             <:col
@@ -337,8 +346,18 @@
       data-part="empty-insights-card-section"
     >
       <:image>
-        <img src="/images/empty_insights_light.png" data-theme="light" />
-        <img src="/images/empty_insights_dark.png" data-theme="dark" />
+        <img
+          src={~p"/images/empty_insights_light.png"}
+          data-theme="light"
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          src={~p"/images/empty_insights_dark.png"}
+          data-theme="dark"
+          loading="lazy"
+          decoding="async"
+        />
       </:image>
     </.empty_card_section>
 
@@ -347,30 +366,24 @@
         data-part="insights-category"
         id="insights-duplicates"
         phx-hook="NooraCollapsible"
+        data-on-open-change="duplicates_open_changed"
         class="collapsible"
       >
         <div data-part="root">
-          <div data-part="trigger" data-state="closed">
+          <div data-part="trigger" data-state={collapsible_state(@duplicates_open)}>
             <div data-part="header">
               <h2 data-part="title">{dgettext("dashboard_cache", "Remove duplicate files")}</h2>
               <span data-part="savings-label">
                 {dgettext("dashboard_cache", "Potential savings")}
               </span>
               <span data-part="savings-value">
-                {format_bytes(
-                  Enum.flat_map(@duplicates, & &1.artifacts)
-                  |> Enum.reduce(0, fn duplicate, acc -> acc + duplicate.size end)
-                )}
+                {format_bytes(@duplicates_total_size)}
               </span>
               <.badge
                 label={
                   dgettext("dashboard_cache", "%{savings} %",
                     savings:
-                      Decimal.from_float(
-                        (@duplicates
-                         |> Enum.reduce(0, fn duplicate, acc -> acc + duplicate.size end)) /
-                          @bundle.install_size * 100
-                      )
+                      Decimal.from_float(@duplicates_total_size / @bundle.install_size * 100)
                       |> Decimal.round(2)
                   )
                 }
@@ -396,8 +409,8 @@
               <.chevron_up />
             </.button>
           </div>
-          <div data-part="content" data-state="closed">
-            <%= for duplicate <- @duplicates do %>
+          <div data-part="content" data-state={collapsible_state(@duplicates_open)}>
+            <%= for duplicate <- @duplicates_current_page do %>
               <div
                 id={"#{duplicate.shasum}-insights-duplicate-collapsible"}
                 phx-hook="NooraCollapsible"
@@ -407,9 +420,8 @@
                 <div data-part="root">
                   <div data-part="trigger">
                     <div data-part="header">
-                      <h3 data-part="title">
-                        {"/" <> List.last(String.split(hd(duplicate.artifacts).path, "/"))}
-                      </h3>
+                      <% duplicate_name = "/" <> Path.basename(hd(duplicate.artifacts).path) %>
+                      <h3 data-part="title" title={duplicate_name}>{duplicate_name}</h3>
                       <.badge
                         label={format_bytes(duplicate.size)}
                         color="information"
@@ -419,7 +431,7 @@
                       <.badge
                         label={
                           dgettext("dashboard_cache", "%{duplicates_count} duplicates",
-                            duplicates_count: Enum.count(duplicate.artifacts)
+                            duplicates_count: format_number(duplicate.artifacts_count)
                           )
                         }
                         color="destructive"
@@ -445,7 +457,7 @@
                   <div data-part="content">
                     <%= for artifact <- duplicate.artifacts do %>
                       <div data-part="duplicate">
-                        <span data-part="title">{artifact.path}</span>
+                        <span data-part="title" title={artifact.path}>{artifact.path}</span>
                         <.badge
                           label={format_bytes(artifact.size)}
                           color="information"
@@ -454,10 +466,27 @@
                         />
                       </div>
                     <% end %>
+                    <div :if={duplicate.hidden_artifacts_count > 0} data-part="duplicate">
+                      <span data-part="title">
+                        {dgettext("dashboard_cache", "and %{count} more",
+                          count: format_number(duplicate.hidden_artifacts_count)
+                        )}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
             <% end %>
+            <.pagination_group
+              :if={@duplicates_page_count > 1}
+              current_page={@duplicates_page}
+              number_of_pages={@duplicates_page_count}
+              page_patch={
+                fn page ->
+                  "?#{Query.put(@uri.query, "duplicates-page", page)}"
+                end
+              }
+            />
           </div>
         </div>
       </div>
@@ -509,6 +538,15 @@
             <:right_icon><.check /></:right_icon>
           </.dropdown_item>
         </.dropdown>
+        <.filter_dropdown
+          id="file-breakdown-filter-dropdown"
+          label={dgettext("dashboard_cache", "Filter")}
+          available_filters={@file_breakdown_available_filters}
+          active_filters={@file_breakdown_active_filters}
+        />
+      </div>
+      <div :if={Enum.any?(@file_breakdown_active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @file_breakdown_active_filters} filter={filter} />
       </div>
       <.table id="file-breakdown-table" rows={@file_breakdown_current_page_artifacts}>
         <:col
@@ -518,10 +556,7 @@
             @file_breakdown_sort_by == "path" &&
               file_breakdown_column_patch_sort(assigns, "path")
           }
-          icon={
-            @file_breakdown_sort_by == "path" &&
-              sort_icon(@file_breakdown_sort_order)
-          }
+          sort_order={@file_breakdown_sort_by == "path" && @file_breakdown_sort_order}
         >
           <.text_and_description_cell label={
             artifact.path |> String.split("/") |> Enum.drop(1) |> Enum.join("/")
@@ -560,10 +595,7 @@
             @file_breakdown_sort_by == "size" &&
               file_breakdown_column_patch_sort(assigns, "size")
           }
-          icon={
-            @file_breakdown_sort_by == "size" &&
-              sort_icon(@file_breakdown_sort_order)
-          }
+          sort_order={@file_breakdown_sort_by == "size" && @file_breakdown_sort_order}
         >
           <.text_cell label={format_bytes(artifact.size)} />
         </:col>
@@ -645,10 +677,7 @@
             @module_breakdown_sort_by == "name" &&
               module_breakdown_column_patch_sort(assigns, "name")
           }
-          icon={
-            @module_breakdown_sort_by == "name" &&
-              sort_icon(@module_breakdown_sort_order)
-          }
+          sort_order={@module_breakdown_sort_by == "name" && @module_breakdown_sort_order}
         >
           <.text_and_description_cell label={module.name} />
         </:col>
@@ -659,10 +688,7 @@
             @module_breakdown_sort_by == "size" &&
               module_breakdown_column_patch_sort(assigns, "size")
           }
-          icon={
-            @module_breakdown_sort_by == "size" &&
-              sort_icon(@module_breakdown_sort_order)
-          }
+          sort_order={@module_breakdown_sort_by == "size" && @module_breakdown_sort_order}
         >
           <.text_cell label={format_bytes(module.size)} />
         </:col>

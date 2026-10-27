@@ -1,0 +1,620 @@
+<div id="project-bundle-settings">
+  <h1 data-part="title">
+    {@selected_project.name}
+  </h1>
+
+  <.tab_menu_horizontal>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_projects", "General")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings"}
+    />
+    <.tab_menu_horizontal_item
+      :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
+      label={dgettext("dashboard_projects", "Notifications")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/notifications"}
+    />
+    <.tab_menu_horizontal_item
+      :if={
+        Tuist.Projects.Project.xcode_project?(@selected_project) or
+          Tuist.Projects.Project.bazel_project?(@selected_project) or
+          Tuist.Projects.Project.mix_project?(@selected_project)
+      }
+      label={dgettext("dashboard_projects", "Automations")}
+      selected={false}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/automations"}
+    />
+    <.tab_menu_horizontal_item
+      :if={Tuist.Projects.Project.supports_bundles?(@selected_project)}
+      label={dgettext("dashboard_projects", "Bundles")}
+      selected={true}
+      patch={~p"/#{@selected_account.name}/#{@selected_project.name}/settings/bundles"}
+    />
+  </.tab_menu_horizontal>
+
+  <h2 data-part="subtitle">
+    {dgettext("dashboard_projects", "Bundles")}
+  </h2>
+
+  <.card_section data-part="bundle-thresholds-card-section">
+    <div data-part="header">
+      <div data-part="title-group">
+        <span data-part="title">
+          {dgettext("dashboard_projects", "Size thresholds")}
+        </span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_projects",
+            "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
+          )}
+        </span>
+      </div>
+    </div>
+    <div data-part="content">
+      <.alert
+        :if={!@has_vcs_connection}
+        status="information"
+        type="secondary"
+        size="medium"
+        data-part="github-connect-alert"
+        title={
+          dgettext(
+            "dashboard_projects",
+            "Connect the Tuist GitHub App to enable bundle size check runs on PRs."
+          )
+        }
+      >
+        <:action>
+          <.link_button
+            href={~p"/#{@selected_account.name}/settings/integrations"}
+            target="_blank"
+            label={dgettext("dashboard_projects", "Connect GitHub")}
+            variant="secondary"
+          >
+            <:icon_right><.external_link /></:icon_right>
+          </.link_button>
+        </:action>
+      </.alert>
+      <div data-part="alert-section">
+        <div data-part="subsection-header">
+          <h3 data-part="subsection-title">
+            {dgettext("dashboard_projects", "Thresholds")}
+          </h3>
+          <.modal
+            id="create-threshold-modal"
+            data-threshold-modal
+            title={dgettext("dashboard_projects", "Create size threshold")}
+            header_size="large"
+            on_dismiss="close_create_threshold_modal"
+          >
+            <:trigger :let={attrs}>
+              <.button
+                label={dgettext("dashboard_projects", "Add threshold")}
+                variant="secondary"
+                size="medium"
+                disabled={!@has_vcs_connection}
+                phx-click="open_create_threshold_modal"
+                {attrs}
+              />
+            </:trigger>
+            <.line_divider />
+            <p data-part="alert-description">
+              {threshold_description(
+                @create_form_metric,
+                @create_form_deviation,
+                @create_form_unit,
+                @create_form_baseline_branch,
+                @create_form_bundle_name
+              )}
+            </p>
+            <.alert
+              :if={@create_form_error}
+              status="error"
+              type="secondary"
+              size="small"
+              title={@create_form_error}
+            />
+            <div data-part="alert-form">
+              <div data-part="schedule-row">
+                <label data-part="schedule-label">
+                  {dgettext("dashboard_projects", "Name")}
+                </label>
+                <.text_input
+                  type="basic"
+                  id="create-threshold-name"
+                  name="name"
+                  value={@create_form_name}
+                  placeholder={dgettext("dashboard_projects", "Threshold name")}
+                  phx-keyup="update_create_form_name"
+                  phx-debounce="300"
+                />
+              </div>
+              <div data-part="schedule-row">
+                <label data-part="schedule-label">
+                  {dgettext("dashboard_projects", "Metric")}
+                </label>
+                <.dropdown
+                  id="create-threshold-metric-dropdown"
+                  label={metric_label(@create_form_metric)}
+                >
+                  <.dropdown_item
+                    :for={metric <- [:install_size, :download_size]}
+                    value={Atom.to_string(metric)}
+                    label={metric_label(metric)}
+                    phx-click="update_create_form_metric"
+                    phx-value-metric={metric}
+                    data-selected={@create_form_metric == metric}
+                  >
+                    <:right_icon :if={@create_form_metric == metric}>
+                      <.icon name="check" />
+                    </:right_icon>
+                  </.dropdown_item>
+                </.dropdown>
+              </div>
+              <div data-part="schedule-row">
+                <label data-part="schedule-label">
+                  {dgettext("dashboard_projects", "Threshold type")}
+                </label>
+                <.dropdown
+                  id="create-threshold-unit-dropdown"
+                  label={unit_label(@create_form_unit)}
+                >
+                  <.dropdown_item
+                    :for={unit <- ["percentage", "megabytes"]}
+                    value={unit}
+                    label={unit_label(unit)}
+                    phx-click="update_create_form_unit"
+                    phx-value-unit={unit}
+                    data-selected={@create_form_unit == unit}
+                  />
+                </.dropdown>
+              </div>
+              <div data-part="schedule-row">
+                <label data-part="schedule-label">
+                  {deviation_label(@create_form_unit)}
+                </label>
+                <.text_input
+                  type="basic"
+                  id="create-threshold-deviation"
+                  hint={deviation_hint(@create_form_unit)}
+                  name="deviation"
+                  value={@create_form_deviation}
+                  placeholder="5.0"
+                  phx-keyup="update_create_form_deviation"
+                  phx-debounce="300"
+                />
+              </div>
+              <div data-part="schedule-row">
+                <label data-part="schedule-label">
+                  {dgettext("dashboard_projects", "Baseline branch")}
+                </label>
+                <.text_input
+                  type="basic"
+                  id="create-threshold-baseline-branch"
+                  name="baseline_branch"
+                  value={@create_form_baseline_branch}
+                  placeholder="main"
+                  phx-keyup="update_create_form_baseline_branch"
+                  phx-debounce="300"
+                />
+              </div>
+              <div data-part="schedule-row">
+                <label data-part="schedule-label">
+                  {dgettext("dashboard_projects", "Bundle name")}
+                </label>
+                <.text_input
+                  type="basic"
+                  id="create-threshold-bundle-name"
+                  name="bundle_name"
+                  value={@create_form_bundle_name}
+                  placeholder={dgettext("dashboard_projects", "e.g. MyApp (optional)")}
+                  phx-keyup="update_create_form_bundle_name"
+                  phx-debounce="300"
+                />
+              </div>
+            </div>
+            <.line_divider />
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_projects", "Cancel")}
+                    variant="secondary"
+                    phx-click="close_create_threshold_modal"
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    type="button"
+                    label={dgettext("dashboard_projects", "Create")}
+                    variant="primary"
+                    disabled={
+                      @create_form_name == "" || @create_form_baseline_branch == "" ||
+                        !valid_limit?(@create_form_unit, @create_form_deviation)
+                    }
+                    phx-click="create_threshold"
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </div>
+        <.table
+          id="thresholds-table"
+          rows={@thresholds}
+          row_key={fn t -> t.id end}
+        >
+          <:col :let={threshold} label={dgettext("dashboard_projects", "Name")}>
+            <.text_cell label={threshold.name} />
+          </:col>
+          <:col :let={threshold} label={dgettext("dashboard_projects", "Metric")}>
+            <.tag_cell label={metric_label(threshold.metric)} />
+          </:col>
+          <:col :let={threshold} label={dgettext("dashboard_projects", "Deviation")}>
+            <.text_cell label={BundleThreshold.limit_label(threshold)} />
+          </:col>
+          <:col :let={threshold} label={dgettext("dashboard_projects", "Baseline branch")}>
+            <.badge_cell label={threshold.baseline_branch} color="information" style="light-fill" />
+          </:col>
+          <:col :let={threshold} label={dgettext("dashboard_projects", "Bundle name")}>
+            <.text_cell
+              :if={threshold.bundle_name}
+              label={threshold.bundle_name}
+            />
+            <.text_cell
+              :if={is_nil(threshold.bundle_name)}
+              label={dgettext("dashboard_projects", "All")}
+            />
+          </:col>
+          <:col :let={threshold} label="">
+            <.button_cell>
+              <:button>
+                <% form = Map.get(@edit_threshold_forms, threshold.id, %{}) %>
+                <.modal
+                  id={"update-threshold-modal-#{threshold.id}"}
+                  data-threshold-modal
+                  title={dgettext("dashboard_projects", "Update size threshold")}
+                  header_size="large"
+                  on_dismiss={JS.push("close_edit_threshold_modal", value: %{id: threshold.id})}
+                >
+                  <:trigger :let={attrs}>
+                    <.button icon_only size="small" variant="secondary" {attrs}>
+                      <.icon name="pencil" />
+                    </.button>
+                  </:trigger>
+                  <.line_divider />
+                  <p data-part="alert-description">
+                    {threshold_description(
+                      form[:metric] || threshold.metric,
+                      form[:deviation] || threshold_value(threshold),
+                      form[:unit] || threshold_unit(threshold),
+                      form[:baseline_branch] || threshold.baseline_branch,
+                      form[:bundle_name] || threshold.bundle_name
+                    )}
+                  </p>
+                  <.alert
+                    :if={form[:error]}
+                    status="error"
+                    type="secondary"
+                    size="small"
+                    title={form[:error]}
+                  />
+                  <div data-part="alert-form">
+                    <div data-part="schedule-row">
+                      <label data-part="schedule-label">
+                        {dgettext("dashboard_projects", "Name")}
+                      </label>
+                      <.text_input
+                        type="basic"
+                        id={"edit-threshold-name-#{threshold.id}"}
+                        name="name"
+                        value={form[:name] || threshold.name}
+                        phx-keyup="update_edit_form_name"
+                        phx-value-id={threshold.id}
+                        phx-debounce="300"
+                      />
+                    </div>
+                    <div data-part="schedule-row">
+                      <label data-part="schedule-label">
+                        {dgettext("dashboard_projects", "Metric")}
+                      </label>
+                      <.dropdown
+                        id={"edit-threshold-metric-dropdown-#{threshold.id}"}
+                        label={metric_label(form[:metric] || threshold.metric)}
+                      >
+                        <.dropdown_item
+                          :for={metric <- [:install_size, :download_size]}
+                          value={Atom.to_string(metric)}
+                          label={metric_label(metric)}
+                          phx-click="update_edit_form_metric"
+                          phx-value-id={threshold.id}
+                          phx-value-metric={metric}
+                          data-selected={(form[:metric] || threshold.metric) == metric}
+                        >
+                          <:right_icon :if={(form[:metric] || threshold.metric) == metric}>
+                            <.icon name="check" />
+                          </:right_icon>
+                        </.dropdown_item>
+                      </.dropdown>
+                    </div>
+                    <div data-part="schedule-row">
+                      <label data-part="schedule-label">
+                        {dgettext("dashboard_projects", "Threshold type")}
+                      </label>
+                      <.dropdown
+                        id={"edit-threshold-unit-dropdown-#{threshold.id}"}
+                        label={unit_label(form[:unit] || threshold_unit(threshold))}
+                      >
+                        <.dropdown_item
+                          :for={unit <- ["percentage", "megabytes"]}
+                          value={unit}
+                          label={unit_label(unit)}
+                          phx-click="update_edit_form_unit"
+                          phx-value-id={threshold.id}
+                          phx-value-unit={unit}
+                          data-selected={(form[:unit] || threshold_unit(threshold)) == unit}
+                        />
+                      </.dropdown>
+                    </div>
+                    <div data-part="schedule-row">
+                      <label data-part="schedule-label">
+                        {deviation_label(form[:unit] || threshold_unit(threshold))}
+                      </label>
+                      <.text_input
+                        type="basic"
+                        id={"edit-threshold-deviation-#{threshold.id}"}
+                        hint={deviation_hint(form[:unit] || threshold_unit(threshold))}
+                        name="deviation"
+                        value={form[:deviation] || threshold_value(threshold)}
+                        phx-keyup="update_edit_form_deviation"
+                        phx-value-id={threshold.id}
+                        phx-debounce="300"
+                      />
+                    </div>
+                    <div data-part="schedule-row">
+                      <label data-part="schedule-label">
+                        {dgettext("dashboard_projects", "Baseline branch")}
+                      </label>
+                      <.text_input
+                        type="basic"
+                        id={"edit-threshold-baseline-branch-#{threshold.id}"}
+                        name="baseline_branch"
+                        value={form[:baseline_branch] || threshold.baseline_branch}
+                        phx-keyup="update_edit_form_baseline_branch"
+                        phx-value-id={threshold.id}
+                        phx-debounce="300"
+                      />
+                    </div>
+                    <div data-part="schedule-row">
+                      <label data-part="schedule-label">
+                        {dgettext("dashboard_projects", "Bundle name")}
+                      </label>
+                      <.text_input
+                        type="basic"
+                        id={"edit-threshold-bundle-name-#{threshold.id}"}
+                        name="bundle_name"
+                        value={form[:bundle_name] || threshold.bundle_name || ""}
+                        placeholder={dgettext("dashboard_projects", "e.g. MyApp (optional)")}
+                        phx-keyup="update_edit_form_bundle_name"
+                        phx-value-id={threshold.id}
+                        phx-debounce="300"
+                      />
+                    </div>
+                  </div>
+                  <.line_divider />
+                  <:footer>
+                    <.modal_footer>
+                      <:action>
+                        <.button
+                          type="button"
+                          label={dgettext("dashboard_projects", "Cancel")}
+                          variant="secondary"
+                          phx-click="close_edit_threshold_modal"
+                          phx-value-id={threshold.id}
+                        />
+                      </:action>
+                      <:action>
+                        <.button
+                          type="button"
+                          label={dgettext("dashboard_projects", "Save")}
+                          variant="primary"
+                          disabled={
+                            (form[:name] || threshold.name) == "" ||
+                              (form[:baseline_branch] || threshold.baseline_branch) == "" ||
+                              !valid_limit?(
+                                form[:unit] || threshold_unit(threshold),
+                                form[:deviation] || threshold_value(threshold)
+                              )
+                          }
+                          phx-click="update_threshold"
+                          phx-value-id={threshold.id}
+                        />
+                      </:action>
+                    </.modal_footer>
+                  </:footer>
+                </.modal>
+              </:button>
+              <:button>
+                <.button
+                  icon_only
+                  size="small"
+                  variant="secondary"
+                  phx-click="delete_threshold"
+                  phx-value-threshold_id={threshold.id}
+                >
+                  <.icon name="trash" />
+                </.button>
+              </:button>
+            </.button_cell>
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="bell"
+              title={dgettext("dashboard_projects", "No size thresholds")}
+              subtitle={
+                dgettext(
+                  "dashboard_projects",
+                  "Create a threshold to block PRs when bundle size exceeds a limit"
+                )
+              }
+            />
+          </:empty_state>
+        </.table>
+      </div>
+    </div>
+  </.card_section>
+
+  <.card_section data-part="bundle-approvals-card-section">
+    <div data-part="header">
+      <div data-part="title-group">
+        <span data-part="title">{dgettext("dashboard_projects", "Approvals")}</span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_projects",
+            "Choose who can accept a bundle size increase that exceeded a threshold."
+          )}
+        </span>
+      </div>
+    </div>
+    <div
+      class="policy-options"
+      data-part="policy-options"
+      role="radiogroup"
+      aria-label={dgettext("dashboard_projects", "Who can accept")}
+    >
+      <button
+        :for={policy <- @approval_policies}
+        id={"bundle-approval-policy-#{policy}"}
+        type="button"
+        data-part="policy-option"
+        data-selected={
+          if @selected_project.bundle_size_approval_policy == policy, do: "true", else: "false"
+        }
+        role="radio"
+        aria-checked={
+          if @selected_project.bundle_size_approval_policy == policy, do: "true", else: "false"
+        }
+        phx-click="select_approval_policy"
+        phx-value-policy={policy}
+      >
+        <span data-part="option-header">
+          <span data-part="control" aria-hidden="true"></span>
+          <span data-part="body">
+            <span data-part="label">{approval_policy_label(policy)}</span>
+            <span data-part="description">{approval_policy_description(policy)}</span>
+          </span>
+        </span>
+      </button>
+    </div>
+
+    <div
+      :if={@selected_project.bundle_size_approval_policy == :selected}
+      data-part="approvers-section"
+    >
+      <div data-part="approvers-header">
+        <h3 data-part="approvers-title">{dgettext("dashboard_projects", "Approvers")}</h3>
+        <.modal
+          id="add-approver-modal"
+          title={dgettext("dashboard_projects", "Add approver")}
+          description={
+            dgettext(
+              "dashboard_projects",
+              "This person can accept a bundle size increase that exceeded a threshold, from the check run on a pull request."
+            )
+          }
+          header_size="large"
+          on_dismiss="close_add_approver_modal"
+        >
+          <:trigger :let={attrs}>
+            <.button
+              label={dgettext("dashboard_projects", "Add approver")}
+              variant="secondary"
+              size="medium"
+              disabled={!@has_vcs_connection}
+              phx-click="open_add_approver_modal"
+              {attrs}
+            />
+          </:trigger>
+          <.line_divider />
+          <div data-part="alert-form">
+            <div data-part="schedule-row">
+              <label data-part="schedule-label">
+                {dgettext("dashboard_projects", "GitHub username")}
+              </label>
+              <.text_input
+                type="basic"
+                id="add-approver-handle"
+                name="github_handle"
+                value={@approver_handle}
+                placeholder="octocat"
+                phx-keyup="update_approver_handle"
+                phx-debounce="300"
+              />
+            </div>
+            <.hint_text :if={@approver_error} label={@approver_error} variant="destructive" />
+          </div>
+          <.line_divider />
+          <:footer>
+            <.modal_footer>
+              <:action>
+                <.button
+                  type="button"
+                  label={dgettext("dashboard_projects", "Cancel")}
+                  variant="secondary"
+                  phx-click="close_add_approver_modal"
+                />
+              </:action>
+              <:action>
+                <.button
+                  type="button"
+                  label={dgettext("dashboard_projects", "Add")}
+                  variant="primary"
+                  disabled={String.trim(@approver_handle) == ""}
+                  phx-click="add_approver"
+                />
+              </:action>
+            </.modal_footer>
+          </:footer>
+        </.modal>
+      </div>
+      <.table
+        id="bundle-size-approvers-table"
+        rows={@approvers}
+        row_key={fn approver -> "approver-#{approver.id}" end}
+      >
+        <:col :let={approver} label={dgettext("dashboard_projects", "GitHub username")}>
+          <.text_cell label={"@#{approver.github_handle}"} />
+        </:col>
+        <:col :let={approver}>
+          <.button_cell>
+            <:button>
+              <.button
+                icon_only
+                size="small"
+                variant="secondary"
+                phx-click="delete_approver"
+                phx-value-approver_id={approver.id}
+              >
+                <.icon name="trash" />
+              </.button>
+            </:button>
+          </.button_cell>
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            icon="users"
+            title={dgettext("dashboard_projects", "No approvers")}
+            subtitle={
+              dgettext(
+                "dashboard_projects",
+                "Nobody can accept a size increase until a GitHub username is added"
+              )
+            }
+          />
+        </:empty_state>
+      </.table>
+    </div>
+  </.card_section>
+</div>

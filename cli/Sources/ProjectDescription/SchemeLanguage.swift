@@ -13,11 +13,9 @@ public struct SchemeLanguage: Codable, Equatable, ExpressibleByStringLiteral, Se
     public init(stringLiteral: String) {
         identifier = stringLiteral
     }
-}
 
-// Pre-defined languages
+    // Pre-defined languages
 
-extension SchemeLanguage {
     public static var doubleLengthPseudoLanguage: SchemeLanguage {
         SchemeLanguage(identifier: "IDELaunchSchemeLanguageDoubleLocalizedStrings")
     }

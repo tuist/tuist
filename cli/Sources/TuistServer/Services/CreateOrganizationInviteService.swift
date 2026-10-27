@@ -1,12 +1,13 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 
 @Mockable
 public protocol CreateOrganizationInviteServicing {
     func createOrganizationInvite(
         organizationName: String,
         email: String,
+        role: Operations.createInvitation.Input.Body.jsonPayload.rolePayload?,
         serverURL: URL
     ) async throws -> ServerInvitation
 }
@@ -28,12 +29,13 @@ enum CreateOrganizationInviteServiceError: LocalizedError {
     }
 }
 
-public final class CreateOrganizationInviteService: CreateOrganizationInviteServicing {
+public struct CreateOrganizationInviteService: CreateOrganizationInviteServicing {
     public init() {}
 
     public func createOrganizationInvite(
         organizationName: String,
         email: String,
+        role: Operations.createInvitation.Input.Body.jsonPayload.rolePayload?,
         serverURL: URL
     ) async throws -> ServerInvitation {
         let client = Client.authenticated(serverURL: serverURL)
@@ -41,7 +43,7 @@ public final class CreateOrganizationInviteService: CreateOrganizationInviteServ
         let response = try await client.createInvitation(
             .init(
                 path: .init(organization_name: organizationName),
-                body: .json(.init(invitee_email: email))
+                body: .json(.init(invitee_email: email, role: role))
             )
         )
         switch response {

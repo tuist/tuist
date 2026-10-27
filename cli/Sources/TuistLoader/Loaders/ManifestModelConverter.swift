@@ -12,6 +12,11 @@ import XcodeGraph
 public protocol ManifestModelConverting {
     func convert(manifest: ProjectDescription.Workspace, path: AbsolutePath) async throws -> XcodeGraph.Workspace
     func convert(
+        manifest: ProjectDescription.Workspace,
+        path: AbsolutePath,
+        swiftPackageManagerScratchDirectory: AbsolutePath?
+    ) async throws -> XcodeGraph.Workspace
+    func convert(
         manifest: ProjectDescription.Project,
         path: AbsolutePath,
         plugins: Plugins,
@@ -22,14 +27,14 @@ public protocol ManifestModelConverting {
         .DependenciesGraph
 }
 
-public final class ManifestModelConverter: ManifestModelConverting {
+public struct ManifestModelConverter: ManifestModelConverting {
     private let manifestLoader: ManifestLoading
     private let resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating
     private let rootDirectoryLocator: RootDirectoryLocating
     private let fileSystem: FileSysteming
     private let contentHasher: ContentHashing
 
-    public convenience init() {
+    public init() {
         self.init(
             manifestLoader: ManifestLoader.current,
             rootDirectoryLocator: RootDirectoryLocator(),
@@ -37,7 +42,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
         )
     }
 
-    public convenience init(
+    public init(
         manifestLoader: ManifestLoading
     ) {
         self.init(
@@ -90,6 +95,14 @@ public final class ManifestModelConverter: ManifestModelConverting {
         manifest: ProjectDescription.Workspace,
         path: AbsolutePath
     ) async throws -> XcodeGraph.Workspace {
+        try await convert(manifest: manifest, path: path, swiftPackageManagerScratchDirectory: nil)
+    }
+
+    public func convert(
+        manifest: ProjectDescription.Workspace,
+        path: AbsolutePath,
+        swiftPackageManagerScratchDirectory: AbsolutePath?
+    ) async throws -> XcodeGraph.Workspace {
         let rootDirectory: AbsolutePath = try await rootDirectoryLocator.locate(from: path)
         let generatorPaths = GeneratorPaths(
             manifestDirectory: path,
@@ -100,7 +113,8 @@ public final class ManifestModelConverter: ManifestModelConverting {
             path: path,
             generatorPaths: generatorPaths,
             manifestLoader: manifestLoader,
-            fileSystem: fileSystem
+            fileSystem: fileSystem,
+            swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
         )
         return workspace
     }
@@ -128,13 +142,16 @@ public final class ManifestModelConverter: ManifestModelConverting {
             uniqueKeysWithValues: dependenciesGraph.externalProjects
                 .concurrentMap { path, project in
                     let projectPath = try AbsolutePath(validating: path.pathString)
-                    var project = try await self.convert(
+                    let swiftPackageManagerScratchDirectory = try project.swiftPackageManagerScratchDirectory
+                        .map { try AbsolutePath(validating: $0.pathString) }
+                    var project = try await convert(
                         manifest: project.manifest,
                         path: projectPath,
                         plugins: .none,
                         externalDependencies: externalDependencies,
                         type: .external(hash: project.hash)
                     )
+                    project.swiftPackageManagerScratchDirectory = swiftPackageManagerScratchDirectory
                     // Disable all lastUpgradeCheck related warnings on projects generated from dependencies
                     project.lastUpgradeCheck = Version(99, 9, 9)
                     return (projectPath, project)

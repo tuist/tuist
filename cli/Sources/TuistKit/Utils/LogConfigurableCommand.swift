@@ -1,4 +1,4 @@
-enum LogFilePathDisplayStrategy: Decodable {
+public enum LogFilePathDisplayStrategy: Decodable {
     /// Only shows the path to the log file on error
     case onError
 
@@ -13,6 +13,6 @@ enum LogFilePathDisplayStrategy: Decodable {
 /// regarding how the log file path should be shown.
 ///
 /// If a command doesn't conform to this protocol, the default strategy used is "onError"
-protocol LogConfigurableCommand {
+public protocol LogConfigurableCommand {
     var logFilePathDisplayStrategy: LogFilePathDisplayStrategy { get }
 }

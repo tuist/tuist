@@ -1,9 +1,16 @@
 defmodule TuistTestSupport.Fixtures.AccountsFixtures do
   @moduledoc false
 
+  import Ecto.Query, only: [from: 2]
+
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
+  alias Tuist.Accounts.Oauth2Identity
 
   def user_fixture(opts \\ []) do
+    email = Keyword.get(opts, :email, unique_user_email())
+    handle = Keyword.get(opts, :handle, handle_from_email(email))
+
     create_opts =
       [
         password: Keyword.get(opts, :password, valid_user_password()),
@@ -11,33 +18,72 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
         created_at: Keyword.get(opts, :created_at, DateTime.utc_now()),
         customer_id: Keyword.get(opts, :customer_id, "#{TuistTestSupport.Utilities.unique_integer()}"),
         setup_billing: Keyword.get(opts, :setup_billing, false),
-        current_month_remote_cache_hits_count: Keyword.get(opts, :current_month_remote_cache_hits_count, 0),
         current_month_remote_cache_hits_count_updated_at:
-          Keyword.get(opts, :current_month_remote_cache_hits_count_updated_at)
+          Keyword.get(opts, :current_month_remote_cache_hits_count_updated_at),
+        handle: handle
       ]
-
-    create_opts =
-      if Keyword.has_key?(opts, :handle) do
-        Keyword.put(create_opts, :handle, Keyword.get(opts, :handle))
-      else
-        create_opts
-      end
-
-    email = Keyword.get(opts, :email, unique_user_email())
 
     {:ok, user} =
       Accounts.create_user(email, create_opts)
 
+    put_cache_usage(from(a in Account, where: a.user_id == ^user.id), opts)
+
     Tuist.Repo.preload(user, Keyword.get(opts, :preload, [:account]))
   end
+
+  def oauth2_identity_fixture(opts \\ []) do
+    user = Keyword.get_lazy(opts, :user, fn -> user_fixture() end)
+    provider = Keyword.get(opts, :provider, :google)
+
+    # Google records the Workspace it authenticated against as the hosted
+    # domain (`hd`); model it from the user's email so an `@tuist.dev` operator
+    # fixture lands in the `tuist.dev` Workspace by default.
+    provider_organization_id =
+      Keyword.get_lazy(opts, :provider_organization_id, fn ->
+        if provider == :google, do: email_domain(user.email)
+      end)
+
+    {:ok, identity} =
+      %Oauth2Identity{}
+      |> Oauth2Identity.create_changeset(%{
+        provider: provider,
+        id_in_provider: Keyword.get(opts, :id_in_provider, "#{provider}-#{TuistTestSupport.Utilities.unique_integer()}"),
+        provider_organization_id: provider_organization_id,
+        user_id: user.id
+      })
+      |> Tuist.Repo.insert()
+
+    identity
+  end
+
+  defp email_domain(email), do: email |> String.split("@") |> List.last()
 
   def organization_fixture(opts \\ []) do
     name = Keyword.get(opts, :name, "#{TuistTestSupport.Utilities.unique_integer(6)}")
     creator = Keyword.get_lazy(opts, :creator, fn -> user_fixture() end)
     sso_provider = Keyword.get(opts, :sso_provider)
     sso_organization_id = Keyword.get(opts, :sso_organization_id)
-    okta_client_id = Keyword.get(opts, :okta_client_id)
-    okta_client_secret = Keyword.get(opts, :okta_client_secret)
+    oauth2_client_id = Keyword.get(opts, :oauth2_client_id)
+    oauth2_client_secret = Keyword.get(opts, :oauth2_client_secret)
+
+    oauth2_authorize_url =
+      Keyword.get_lazy(opts, :oauth2_authorize_url, fn ->
+        if sso_provider == :okta and sso_organization_id,
+          do: "https://#{sso_organization_id}/oauth2/v1/authorize"
+      end)
+
+    oauth2_token_url =
+      Keyword.get_lazy(opts, :oauth2_token_url, fn ->
+        if sso_provider == :okta and sso_organization_id,
+          do: "https://#{sso_organization_id}/oauth2/v1/token"
+      end)
+
+    oauth2_user_info_url =
+      Keyword.get_lazy(opts, :oauth2_user_info_url, fn ->
+        if sso_provider == :okta and sso_organization_id,
+          do: "https://#{sso_organization_id}/oauth2/v1/userinfo"
+      end)
+
     created_at = Keyword.get(opts, :created_at, DateTime.utc_now())
 
     customer_id =
@@ -46,26 +92,66 @@ defmodule TuistTestSupport.Fixtures.AccountsFixtures do
     preload = Keyword.get(opts, :preload, [:account])
     setup_billing = Keyword.get(opts, :setup_billing, false)
 
-    current_month_remote_cache_hits_count =
-      Keyword.get(opts, :current_month_remote_cache_hits_count, 0)
-
     {:ok, organization} =
       Accounts.create_organization(%{name: name, creator: creator},
         sso_provider: sso_provider,
         sso_organization_id: sso_organization_id,
-        okta_client_id: okta_client_id,
-        okta_client_secret: okta_client_secret,
+        sso_login_domain: Keyword.get(opts, :sso_login_domain),
+        sso_login_domain_verification_token: Keyword.get(opts, :sso_login_domain_verification_token),
+        sso_login_domain_verified_at: Keyword.get(opts, :sso_login_domain_verified_at),
+        sso_automatic_enrollment:
+          Keyword.get(opts, :sso_automatic_enrollment, false) and
+            not Keyword.get(opts, :sso_legacy_email_domain_fallback, false),
+        sso_default_role: Keyword.get(opts, :sso_default_role, "user"),
+        oauth2_client_id: oauth2_client_id,
+        oauth2_client_secret: oauth2_client_secret,
+        oauth2_authorize_url: oauth2_authorize_url,
+        oauth2_token_url: oauth2_token_url,
+        oauth2_user_info_url: oauth2_user_info_url,
         created_at: created_at,
         customer_id: customer_id,
-        setup_billing: setup_billing,
-        current_month_remote_cache_hits_count: current_month_remote_cache_hits_count
+        setup_billing: setup_billing
       )
+
+    # Seed the retired database flag directly to exercise pre-switch rows. The
+    # runtime schema intentionally cannot read or write compatibility mode.
+    organization =
+      if Keyword.get(opts, :sso_legacy_email_domain_fallback, false) do
+        Tuist.Repo.update_all(from(o in "organizations", where: o.id == ^organization.id),
+          set: [sso_legacy_email_domain_fallback: true]
+        )
+
+        organization
+        |> Ecto.Changeset.change(sso_automatic_enrollment: Keyword.get(opts, :sso_automatic_enrollment, false))
+        |> Tuist.Repo.update!()
+      else
+        organization
+      end
+
+    put_cache_usage(from(a in Account, where: a.organization_id == ^organization.id), opts)
 
     Tuist.Repo.preload(organization, preload)
   end
 
+  defp put_cache_usage(account_query, opts) do
+    case Keyword.take(opts, [:current_month_cache_egress_megabytes, :current_month_cache_requests]) do
+      [] -> :ok
+      usage -> Tuist.Repo.update_all(account_query, set: usage)
+    end
+  end
+
   def unique_user_email, do: "#{TuistTestSupport.Utilities.unique_integer(6)}@tuist.io"
   def valid_user_password, do: "hello world!"
+
+  defp handle_from_email(email) do
+    email
+    |> String.split("@")
+    |> List.first()
+    |> String.replace(".", "-")
+    |> String.replace("_", "-")
+    |> String.replace(~r/[^a-zA-Z0-9-]/, "")
+    |> String.downcase()
+  end
 
   def valid_user_attributes(attrs \\ %{}) do
     Enum.into(attrs, %{

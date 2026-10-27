@@ -1,0 +1,136 @@
+{{- $host := .Values.host | default .Values.ingress.host -}}
+{{- $phxHost := required "host or ingress.host is required" $host -}}
+{{- $imageTag := required "image.tag is required" .Values.image.tag -}}
+{{- $podLabels := merge (dict) (.Values.global.podLabels | default (dict)) (.Values.podLabels | default (dict)) -}}
+{{- $nodeSelector := merge (dict) (.Values.global.nodeSelector | default (dict)) (.Values.nodeSelector | default (dict)) -}}
+{{- $tolerations := concat (.Values.global.tolerations | default (list)) (.Values.tolerations | default (list)) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "slack.fullname" . }}
+  labels:
+    {{- include "slack.labels" . | nindent 4 }}
+    app.kubernetes.io/component: app
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: {{ .Values.deploymentStrategy.type }}
+  selector:
+    matchLabels:
+      {{- include "slack.componentLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "slack.componentLabels" . | nindent 8 }}
+        {{- with $podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      serviceAccountName: {{ include "slack.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+      {{- include "slack.podScheduling" . | nindent 6 }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: slack
+          image: "{{ .Values.image.repository }}:{{ $imageTag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+          env:
+            - name: MIX_ENV
+              value: "prod"
+            - name: PHX_HOST
+              value: {{ $phxHost | quote }}
+            - name: PORT
+              value: {{ printf "%v" .Values.service.targetPort | quote }}
+            - name: DATABASE_PATH
+              value: {{ .Values.database.path | quote }}
+            - name: POOL_SIZE
+              value: {{ .Values.database.poolSize | quote }}
+            - name: SLACK_MAILER_FROM_NAME
+              value: {{ .Values.mailer.fromName | quote }}
+            - name: SLACK_MAILER_FROM_EMAIL
+              value: {{ .Values.mailer.fromEmail | quote }}
+            - name: MAILGUN_DOMAIN
+              value: {{ .Values.mailer.mailgunDomain | quote }}
+            - name: MAILGUN_BASE_URL
+              value: {{ .Values.mailer.mailgunBaseUrl | quote }}
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "slack.appSecretName" . }}
+                  key: secret-key-base
+            - name: RELEASE_COOKIE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "slack.appSecretName" . }}
+                  key: release-cookie
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ include "slack.runtimeSecretName" . }}
+            {{- with .Values.extraEnvFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.probes.startup.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "slack.dataClaimName" . }}
+        - name: tmp
+          emptyDir: {}

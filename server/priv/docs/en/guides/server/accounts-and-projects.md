@@ -1,0 +1,70 @@
+---
+{
+  "title": "Accounts and projects",
+  "titleTemplate": ":title | Server | Guides | Tuist",
+  "description": "Learn how to create and manage accounts and projects in Tuist."
+}
+---
+# Accounts and projects {#accounts-and-projects}
+
+Some Tuist features require a server which adds persistence of data and can interact with other services. To interact with the server, you need an account and a project that you connect to your local project.
+
+## Accounts {#accounts}
+
+To use the server, you'll need an account. There are two types of accounts:
+
+- **Personal account:** Those accounts are created automaticaly when you sign up and are identified by a handle that's obtained either from the identity provider (e.g. GitHub) or the first part of the email address.
+- **Organization account:** Those accounts are manually created and are identified by a handle that's defined by the developer. Organizations allow inviting other members to collaborate on projects.
+
+If you are familiar with [GitHub](https://github.com), the concept is similar to theirs, where you can have personal and organization accounts, and they are identified by a *handle* that's used when constructing URLs.
+
+> [!NOTE]
+> **Cli-first**
+>
+> Most operations to manage accounts and projects are done through the CLI. We are working on a web interface that will make it easier to manage accounts and projects.
+
+
+You can manage the organization through the subcommands under <.localized_link href="/cli/organization">`tuist organization`</.localized_link>. To create a new organization account, run:
+```bash
+tuist organization create {account-handle}
+```
+
+### Organization membership {#organization-membership}
+
+Users can become organization members through an invitation, automatic single sign-on enrollment, or <.localized_link href="/guides/integrations/authentication/scim">System for Cross-domain Identity Management provisioning</.localized_link>.
+
+Authenticating with an organization's identity provider does not grant membership by itself. The organization's <.localized_link href="/guides/integrations/authentication/sso#choose-an-enrollment-policy">single sign-on enrollment policy</.localized_link> determines whether a user from its trusted domain needs an invitation or may join automatically.
+
+Administrators can invite a member from the dashboard or with <.localized_link href="/cli/organization/invite">`tuist organization invite`</.localized_link>. Pass `--role admin` or `--role viewer` to give the invitee a role other than `user` when they accept.
+
+### Roles {#roles}
+
+Every organization member holds one of three roles:
+
+| Role | What it grants |
+| --- | --- |
+| **Admin** | Everything a user can do, plus managing the organization: members and invitations, projects, billing, tokens, webhooks, and settings. |
+| **User** | Reads and acts on the organization's work: running builds and tests, writing to the cache, creating and deleting previews, and changing a test case's state. |
+| **Viewer** | Reads the organization's work and changes none of it. Dashboards, builds, test runs, flaky and quarantined tests, previews, bundles, and runner activity are all readable. Attaching an interactive shell or VNC session to a runner is not, because it runs commands on the machine. |
+
+Pick a role when you invite someone, and change it later from **Members** in the dashboard. A role set this way is never overwritten by a later sign-in.
+
+## Projects {#projects}
+
+Your projects need to be integrated with your account through a remote project. Continuing with the comparison with GitHub, it's like having a local and a remote repository where you push your changes. You can use the <.localized_link href="/cli/project">`tuist project`</.localized_link> to create and manage projects.
+
+Projects are identified by a full handle, which is the result of concatenating the organization handle and the project handle. For example, if you have an organization with the handle `tuist`, and a project with the handle `tuist`, the full handle would be `tuist/tuist`.
+
+The binding between the local and the remote project is done through the configuration file. If you don't have any, create it at `Tuist.swift` and add the following content:
+
+```swift
+let tuist = Tuist(fullHandle: "{account-handle}/{project-handle}") // e.g. tuist/tuist
+```
+
+> [!WARNING]
+> **Tuist Project-only Features**
+>
+> Note that some features like <.localized_link href="/guides/features/cache/module-cache">module caching</.localized_link> require a Tuist-managed project. If you are not using Tuist to manage your project, you won't be able to use those features.
+
+
+Your project's URL is constructed by using the full handle. For example, Tuist's dashboard, which is public, is accessible at [tuist.dev/tuist/tuist](https://tuist.dev/tuist/tuist), where `tuist/tuist` is the project's full handle.

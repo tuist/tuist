@@ -1,5 +1,5 @@
 defmodule Tuist.AccountsTest do
-  use TuistTestSupport.Cases.DataCase, async: false
+  use TuistTestSupport.Cases.DataCase, async: true
   use TuistTestSupport.Cases.StubCase, billing: true
   use Mimic
 
@@ -8,65 +8,123 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountToken
+  alias Tuist.Accounts.AgentRegistration
+  alias Tuist.Accounts.AgentRegistrationEvent
+  alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.Invitation
+  alias Tuist.Accounts.Organization
   alias Tuist.Accounts.Role
+  alias Tuist.Accounts.SSOLoginDomainVerification
   alias Tuist.Accounts.User
   alias Tuist.Accounts.UserRole
   alias Tuist.Accounts.UserToken
+  alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
+  alias Tuist.Authentication
   alias Tuist.Base64
   alias Tuist.Billing
-  alias Tuist.CommandEvents
+  alias Tuist.CacheEndpoints
   alias Tuist.Environment
+  alias Tuist.IngestRepo
+  alias Tuist.Kura.Demand
+  alias Tuist.Kura.Registrations
+  alias Tuist.Kura.Server
+  alias Tuist.Kura.UsageEvent
+  alias Tuist.Kura.Workers.ProvisionOnDemandWorker
   alias Tuist.Projects
+  alias Tuist.Repo
+  alias Tuist.Runners.Profiles, as: RunnerProfiles
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.KuraFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup do
-    stub(JOSE.JWT, :peek_payload, fn _ ->
-      %JOSE.JWT{
-        fields: %{
-          "iss" => "https://tuist.okta.com"
-        }
-      }
-    end)
-
     :ok
   end
 
-  describe "new_organizations_in_last_hour/0" do
-    test "returns organizations created less than an hour ago" do
-      # Given
-      organization = AccountsFixtures.organization_fixture()
+  describe "new_organizations_in_period/2" do
+    test "includes the start, excludes the end, and orders organizations by creation time" do
+      start_at = ~U[2026-09-10 18:00:00Z]
+      end_at = ~U[2026-09-10 19:00:00Z]
+      creator = AccountsFixtures.user_fixture()
+      later = AccountsFixtures.organization_fixture(creator: creator, created_at: DateTime.add(start_at, 30, :minute))
+      first = AccountsFixtures.organization_fixture(creator: creator, created_at: start_at)
+      AccountsFixtures.organization_fixture(creator: creator, created_at: DateTime.add(start_at, -1, :second))
+      at_end = AccountsFixtures.organization_fixture(creator: creator, created_at: end_at)
 
-      # When
-      assert Accounts.new_organizations_in_last_hour() == [organization]
+      assert Accounts.new_organizations_in_period(start_at, end_at) == [first, later]
+      assert Accounts.new_organizations_in_period(end_at, DateTime.add(end_at, 1, :hour)) == [at_end]
     end
 
-    test "doesn't return organizations created more than an hour ago" do
-      # Given
-      AccountsFixtures.organization_fixture(created_at: DateTime.add(DateTime.utc_now(), -2, :hour))
-
-      # When
-      assert Accounts.new_organizations_in_last_hour() == []
+    test "returns an empty list when no organizations were created in the period" do
+      assert Accounts.new_organizations_in_period(~U[2026-09-10 18:00:00Z], ~U[2026-09-10 19:00:00Z]) == []
     end
   end
 
-  describe "new_users_in_last_hour/0" do
-    test "returns organizations created less than an hour ago" do
-      # Given
-      user = AccountsFixtures.user_fixture()
+  describe "new_users_in_period/2" do
+    test "includes the start, excludes the end, and orders users by creation time" do
+      start_at = ~U[2026-09-10 18:00:00Z]
+      end_at = ~U[2026-09-10 19:00:00Z]
+      later = AccountsFixtures.user_fixture(created_at: DateTime.add(start_at, 30, :minute))
+      first = AccountsFixtures.user_fixture(created_at: start_at)
+      AccountsFixtures.user_fixture(created_at: DateTime.add(start_at, -1, :second))
+      at_end = AccountsFixtures.user_fixture(created_at: end_at)
 
-      # When
-      assert Accounts.new_users_in_last_hour() == [user]
+      assert Accounts.new_users_in_period(start_at, end_at) == [first, later]
+      assert Accounts.new_users_in_period(end_at, DateTime.add(end_at, 1, :hour)) == [at_end]
     end
 
-    test "doesn't return organizations created more than an hour ago" do
+    test "returns an empty list when no users were created in the period" do
+      assert Accounts.new_users_in_period(~U[2026-09-10 18:00:00Z], ~U[2026-09-10 19:00:00Z]) == []
+    end
+  end
+
+  describe "touch_last_sign_in/1" do
+    test "records the first authentication" do
       # Given
-      AccountsFixtures.user_fixture(created_at: DateTime.add(DateTime.utc_now(), -2, :hour))
+      user = AccountsFixtures.user_fixture()
+      assert is_nil(user.last_sign_in_at)
 
       # When
-      assert Accounts.new_users_in_last_hour() == []
+      got = Accounts.touch_last_sign_in(user)
+
+      # Then
+      assert got.last_sign_in_at
+      assert Accounts.get_user_by_id(user.id).last_sign_in_at
+    end
+
+    test "does not write again within the throttle window" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      %{last_sign_in_at: first} = Accounts.touch_last_sign_in(user)
+      user = Accounts.get_user_by_id(user.id)
+
+      # When
+      got = Accounts.touch_last_sign_in(user)
+
+      # Then
+      assert got.last_sign_in_at == first
+    end
+
+    test "writes again once the throttle window has passed" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      stale = NaiveDateTime.add(NaiveDateTime.utc_now(:second), -13, :hour)
+
+      Repo.update_all(
+        from(u in User, where: u.id == ^user.id),
+        set: [last_sign_in_at: stale]
+      )
+
+      user = Accounts.get_user_by_id(user.id)
+
+      # When
+      got = Accounts.touch_last_sign_in(user)
+
+      # Then
+      assert NaiveDateTime.after?(got.last_sign_in_at, stale)
+      assert NaiveDateTime.after?(Accounts.get_user_by_id(user.id).last_sign_in_at, stale)
     end
   end
 
@@ -98,7 +156,7 @@ defmodule Tuist.AccountsTest do
       got = Accounts.create_customer_when_absent(account)
 
       # Then
-      assert got == %{account | customer_id: customer_id}
+      assert %{got | updated_at: account.updated_at} == %{account | customer_id: customer_id}
     end
   end
 
@@ -125,43 +183,60 @@ defmodule Tuist.AccountsTest do
       got =
         Accounts.update_account_current_month_usage(
           account_id,
-          %{
-            remote_cache_hits_count: 20
-          },
+          %{cache_egress_megabytes: 1_500, cache_requests: 2_500},
           updated_at: now
         )
 
       # Then
       assert %{
-               current_month_remote_cache_hits_count: 20,
+               current_month_cache_egress_megabytes: 1_500,
+               current_month_cache_requests: 2_500,
                current_month_remote_cache_hits_count_updated_at: ~N[2025-05-18 15:27:00]
              } = got
     end
   end
 
   describe "account_month_usage/1" do
-    test "returns the right value when there are remote cache hits" do
-      # Given
+    test "meters cache egress and requests from the free tier's reset onwards, with runner traffic at half" do
       now = ~U[2025-05-18 15:27:00Z]
-      stub(DateTime, :utc_now, fn -> now end)
       _user = %{account: %{id: account_id}} = AccountsFixtures.user_fixture()
-      _project = %{id: project_id} = ProjectsFixtures.project_fixture(account_id: account_id)
 
-      CommandEventsFixtures.command_event_fixture(
-        project_id: project_id,
-        remote_test_target_hits: ["Core"],
-        remote_cache_target_hits: ["Kit"],
-        created_at: ~U[2025-05-17 15:27:00Z]
-      )
+      Account
+      |> Repo.get!(account_id)
+      |> Ecto.Changeset.change(free_tier_reset_at: ~U[2025-05-15 00:00:00Z])
+      |> Repo.update!()
 
-      # When
-      got = Accounts.account_month_usage(account_id)
+      for {region, bytes, requests, window_start} <- [
+            {"eu-west", 9_000_000_000, 900, ~N[2025-05-10 12:00:00]},
+            {"eu-west", 3_000_000_000, 300, ~N[2025-05-16 12:00:00]},
+            {"scw-fr-par-runners", 2_000_000_000, 200, ~N[2025-05-17 12:00:00]}
+          ] do
+        IngestRepo.insert_all(UsageEvent, [
+          %{
+            event_id: "evt-#{System.unique_integer([:positive])}",
+            account_id: account_id,
+            project_id: 0,
+            node_id: "kura-test",
+            region: region,
+            traffic_plane: "public",
+            direction: "egress",
+            operation: "download",
+            protocol: "http",
+            artifact_kind: "xcode",
+            bytes: bytes,
+            request_count: requests,
+            window_start: window_start,
+            window_seconds: 60,
+            inserted_at: window_start
+          }
+        ])
+      end
 
-      # Then
-      assert %{remote_cache_hits_count: 1} == got
+      # 3 GB since the reset, plus 2 GB served from a runner region at half
+      assert %{cache_egress_megabytes: 4_000, cache_requests: 400} = Accounts.account_month_usage(account_id, now)
     end
 
-    test "returns the right value when there are no remote cache hits" do
+    test "returns zero when the account has no cache usage" do
       # Given
       now = ~U[2025-05-18 15:27:00Z]
       _user = %{account: %{id: account_id}} = AccountsFixtures.user_fixture()
@@ -171,7 +246,7 @@ defmodule Tuist.AccountsTest do
       got = Accounts.account_month_usage(account_id, now)
 
       # Then
-      assert %{remote_cache_hits_count: 0} == got
+      assert %{cache_egress_megabytes: 0, cache_requests: 0} == got
     end
   end
 
@@ -256,8 +331,8 @@ defmodule Tuist.AccountsTest do
       stub(DateTime, :utc_now, fn -> today end)
 
       org = AccountsFixtures.organization_fixture()
-      account = Tuist.Repo.get_by!(Account, organization_id: org.id)
-      account = Tuist.Repo.update!(Account.billing_changeset(account, %{customer_id: UUIDv7.generate()}))
+      account = Repo.get_by!(Account, organization_id: org.id)
+      account = Repo.update!(Account.billing_changeset(account, %{customer_id: UUIDv7.generate()}))
 
       {:ok, _} =
         Billing.create_token_usage(%{
@@ -283,8 +358,8 @@ defmodule Tuist.AccountsTest do
       stub(DateTime, :utc_now, fn -> today end)
 
       org = AccountsFixtures.organization_fixture()
-      account = Tuist.Repo.get_by!(Account, organization_id: org.id)
-      account = Tuist.Repo.update!(Account.billing_changeset(account, %{customer_id: UUIDv7.generate()}))
+      account = Repo.get_by!(Account, organization_id: org.id)
+      account = Repo.update!(Account.billing_changeset(account, %{customer_id: UUIDv7.generate()}))
 
       {:ok, _} =
         Billing.create_token_usage(%{
@@ -318,6 +393,113 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "tuist_operator?/1" do
+    setup do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      :ok
+    end
+
+    test "true on a self-hosted instance for an operator-domain email (no Google check)" do
+      # Self-hosted has no Tuist Google Workspace; the operator-domain email
+      # match alone qualifies, with no Google identity required.
+      stub(Environment, :tuist_hosted?, fn -> false end)
+
+      user =
+        user_fixture(
+          email: "selfhosted-#{System.unique_integer([:positive])}@tuist.dev",
+          confirmed_at: nil
+        )
+
+      assert Accounts.tuist_operator?(user)
+    end
+
+    test "false on a self-hosted instance for a non-operator-domain email" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+
+      user =
+        user_fixture(
+          email: "ext-#{System.unique_integer([:positive])}@example.com",
+          confirmed_at: nil
+        )
+
+      refute Accounts.tuist_operator?(user)
+    end
+
+    test "true for an operator-domain email in the operator Google Workspace" do
+      # Google sign-ins never set confirmed_at; membership is proven by the
+      # hosted-domain (hd) claim stored as the identity's provider_organization_id.
+      user =
+        user_fixture(
+          email: "g-#{System.unique_integer([:positive])}@tuist.dev",
+          confirmed_at: nil
+        )
+
+      oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "tuist.dev")
+
+      assert Accounts.tuist_operator?(user)
+    end
+
+    test "false for an operator-domain email whose Google identity has no hosted domain" do
+      # The historical-row case: a Google identity without a captured hd does
+      # not prove Workspace membership, so it must not qualify.
+      user =
+        user_fixture(
+          email: "nohd-#{System.unique_integer([:positive])}@tuist.dev",
+          confirmed_at: nil
+        )
+
+      oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: nil)
+
+      refute Accounts.tuist_operator?(user)
+    end
+
+    test "false for an operator-domain email signed into a different Google Workspace" do
+      user =
+        user_fixture(
+          email: "other-#{System.unique_integer([:positive])}@tuist.dev",
+          confirmed_at: nil
+        )
+
+      oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "evil.example")
+
+      refute Accounts.tuist_operator?(user)
+    end
+
+    test "false for an operator-domain email that only confirmed via the email flow" do
+      user =
+        user_fixture(
+          email: "op-#{System.unique_integer([:positive])}@tuist.dev",
+          confirmed_at: DateTime.utc_now()
+        )
+
+      refute Accounts.tuist_operator?(user)
+    end
+
+    test "false for an operator-domain email signed in with a non-Google provider" do
+      user =
+        user_fixture(
+          email: "gh-#{System.unique_integer([:positive])}@tuist.dev",
+          confirmed_at: nil
+        )
+
+      oauth2_identity_fixture(user: user, provider: :github)
+
+      refute Accounts.tuist_operator?(user)
+    end
+
+    test "false for a non-operator-domain email in its own Google Workspace" do
+      user =
+        user_fixture(
+          email: "ext-#{System.unique_integer([:positive])}@example.com",
+          confirmed_at: nil
+        )
+
+      oauth2_identity_fixture(user: user, provider: :google, provider_organization_id: "example.com")
+
+      refute Accounts.tuist_operator?(user)
+    end
+  end
+
   describe "organization_admin?/2" do
     test "organization_admin? returns false if the user is not an admin" do
       # Given
@@ -336,6 +518,108 @@ defmodule Tuist.AccountsTest do
 
       # When
       assert Accounts.organization_admin?(user, organization) == true
+    end
+  end
+
+  describe "get_organization_members/2 with SSO" do
+    test "lists an SSO member with a stored viewer role only as a viewer" do
+      # Given — the member both matches the organization's SSO and holds an
+      # explicit viewer role.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
+        )
+
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+      :ok = Accounts.add_user_to_organization(user, organization, role: :viewer)
+      {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :viewer)
+
+      # Then
+      viewer_ids = Enum.map(Accounts.get_organization_members(organization, :viewer), & &1.id)
+      user_ids = Enum.map(Accounts.get_organization_members(organization, :user), & &1.id)
+
+      assert user.id in viewer_ids
+      refute user.id in user_ids
+    end
+
+    test "a viewer holding a role in another organization is not also listed as a user" do
+      # Given — a left join over the member's roles yields a non-matching row for
+      # the unrelated organization, which would read as "no role here".
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
+        )
+
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+      :ok = Accounts.add_user_to_organization(user, organization, role: :viewer)
+      {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :viewer)
+
+      elsewhere = AccountsFixtures.organization_fixture()
+      :ok = Accounts.add_user_to_organization(user, elsewhere, role: :user)
+
+      # Then
+      viewer_ids = Enum.map(Accounts.get_organization_members(organization, :viewer), & &1.id)
+      user_ids = Enum.map(Accounts.get_organization_members(organization, :user), & &1.id)
+
+      assert user.id in viewer_ids
+      refute user.id in user_ids
+    end
+
+    test "lists nobody by enrollment role when automatic enrollment is off" do
+      # Given — `organization_viewer?/2` answers false for these identities, so
+      # the listing must not claim them either.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: false,
+          sso_default_role: "viewer"
+        )
+
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+      Repo.delete_all(from(ur in UserRole, where: ur.user_id == ^user.id))
+
+      # Then
+      refute Accounts.organization_viewer?(user, organization)
+      viewer_ids = Enum.map(Accounts.get_organization_members(organization, :viewer), & &1.id)
+      refute user.id in viewer_ids
+    end
+
+    test "lists a role-less SSO member under the organization's enrollment role" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true,
+          sso_default_role: "viewer"
+        )
+
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+      Repo.delete_all(from(ur in UserRole, where: ur.user_id == ^user.id))
+
+      # Then — the enrollment role decides, rather than defaulting to user.
+      viewer_ids = Enum.map(Accounts.get_organization_members(organization, :viewer), & &1.id)
+      user_ids = Enum.map(Accounts.get_organization_members(organization, :user), & &1.id)
+
+      assert user.id in viewer_ids
+      refute user.id in user_ids
     end
   end
 
@@ -362,30 +646,20 @@ defmodule Tuist.AccountsTest do
     test "organization_user? returns true if the user's sso matches the organization's when the sso is Google" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      provider_organization_id = unique_sso_domain("okta")
 
       user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :okta,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{},
-              token: %OAuth2.AccessToken{
-                other_params: %{
-                  "id_token" => "jwt-token"
-                }
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(okta_oauth_identity(provider_organization_id))
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :okta,
-          sso_organization_id: "tuist.okta.com"
+          sso_organization_id: provider_organization_id,
+          sso_automatic_enrollment: true,
+          sso_login_domain: "tuist.dev",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret"
         )
 
       # When
@@ -395,57 +669,123 @@ defmodule Tuist.AccountsTest do
     test "organization_user? returns true if the user's sso matches the organization's when the sso is Okta" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
 
       user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tuist.io"
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
         )
 
       # When
       assert Accounts.organization_user?(user, organization) == true
     end
 
+    test "organization_user? returns false for a viewer that SSO automatic enrollment would otherwise enroll" do
+      # Given — the viewer role is explicit, so it must not be widened into
+      # `user` by the SSO automatic-enrollment path.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
+
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
+        )
+
+      # Mirrors what the members API does when an admin sets the role of a
+      # member that SSO enrolled without ever writing a role row.
+      :ok = Accounts.add_user_to_organization(user, organization, role: :viewer)
+
+      # Then
+      assert Accounts.belongs_to_sso_organization?(user, organization)
+      assert Accounts.organization_viewer?(user, organization)
+      refute Accounts.organization_user?(user, organization)
+      refute Accounts.organization_admin?(user, organization)
+      assert Accounts.belongs_to_organization?(user, organization)
+    end
+
+    test "SSO automatic enrollment writes the organization's configured role" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true,
+          sso_default_role: "viewer"
+        )
+
+      # When — signing in is what triggers enrollment.
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+
+      # Then
+      assert %{name: "viewer"} = Accounts.get_user_role_in_organization(user, organization)
+    end
+
+    test "organization_user? returns false when the organization enrolls SSO members as viewers" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
+
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true,
+          sso_default_role: "viewer"
+        )
+
+      # Then — no role row was written, so the organization's configured
+      # enrollment role is what the member resolves to.
+      assert Accounts.belongs_to_sso_organization?(user, organization)
+      assert Accounts.organization_viewer?(user, organization)
+      refute Accounts.organization_user?(user, organization)
+      assert Accounts.belongs_to_organization?(user, organization)
+    end
+
+    test "organization_user? returns false when only the SSO identity matches and automatic enrollment is disabled" do
+      domain = unique_sso_domain()
+
+      user =
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: false
+        )
+
+      assert Accounts.belongs_to_sso_organization?(user, organization)
+      refute Accounts.organization_user?(user, organization)
+    end
+
     test "organization_user? returns false if the user's sso domain matches the organization's but the providers are different" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
 
       user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tuist.io"
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :okta,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain,
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret"
         )
 
       # When
@@ -455,27 +795,16 @@ defmodule Tuist.AccountsTest do
     test "organization_user? returns false if the user's sso does not match the organization's when both are Google" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      user_domain = unique_sso_domain("tools")
+      organization_domain = unique_sso_domain()
 
       user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tools.io"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tools.io"
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(user_domain))
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: organization_domain
         )
 
       # When
@@ -513,27 +842,16 @@ defmodule Tuist.AccountsTest do
     test "returns true if the user's sso matches the organization's" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
 
       user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tuist.io"
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
         )
 
       # When
@@ -594,27 +912,15 @@ defmodule Tuist.AccountsTest do
     test "returns true if the user's sso matches the organization's" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
 
       user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tuist.io"
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         )
 
       # When
@@ -627,27 +933,16 @@ defmodule Tuist.AccountsTest do
     test "returns false if the user's sso does not match the organization's" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      user_domain = unique_sso_domain("tools")
+      organization_domain = unique_sso_domain()
 
       user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tools.io"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tools.io"
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(user_domain))
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: organization_domain
         )
 
       # When
@@ -658,104 +953,200 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "update_okta_configuration/2" do
-    test "updates Okta configuration for an existing organization" do
-      # Given
+  describe "update_sso_configuration/3" do
+    test "updates Okta SSO configuration using shared fields" do
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(creator: user)
 
-      # When
       result =
-        Accounts.update_okta_configuration(organization.id, %{
-          okta_client_id: "test_client_id",
-          okta_client_secret: "test_secret",
-          sso_organization_id: "https://test.okta.com"
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_secret",
+          sso_organization_id: "test.okta.com",
+          oauth2_authorize_url: "https://test.okta.com/oauth2/v1/authorize",
+          oauth2_token_url: "https://test.okta.com/oauth2/v1/token",
+          oauth2_user_info_url: "https://test.okta.com/oauth2/v1/userinfo"
         })
 
-      # Then
       assert {:ok, updated_org} = result
-      assert updated_org.okta_client_id == "test_client_id"
+      assert updated_org.oauth2_client_id == "test_client_id"
       assert updated_org.sso_provider == :okta
-      assert updated_org.sso_organization_id == "https://test.okta.com"
-      # Check that the secret is stored (encrypted)
-      assert updated_org.okta_encrypted_client_secret
+      assert updated_org.sso_organization_id == "test.okta.com"
+      assert updated_org.oauth2_encrypted_client_secret
     end
 
     test "encrypts the client secret when storing" do
-      # Given
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(creator: user)
       plain_secret = "my_super_secret_key"
 
-      # When
       {:ok, updated_org} =
-        Accounts.update_okta_configuration(organization.id, %{
-          okta_client_id: "test_client_id",
-          okta_client_secret: plain_secret,
-          sso_organization_id: "https://test.okta.com"
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: plain_secret,
+          sso_organization_id: "test.okta.com",
+          oauth2_authorize_url: "https://test.okta.com/oauth2/v1/authorize",
+          oauth2_token_url: "https://test.okta.com/oauth2/v1/token",
+          oauth2_user_info_url: "https://test.okta.com/oauth2/v1/userinfo"
         })
 
-      # Then
-      # Verify the secret was stored
-      assert updated_org.okta_encrypted_client_secret
-      # Reload from database to ensure we're testing the persisted value
+      assert updated_org.oauth2_encrypted_client_secret
       {:ok, reloaded_org} = Accounts.get_organization_by_id(updated_org.id)
-
-      # The Vault.Binary type should automatically decrypt when loaded
-      # so we should get back the original plain text
-      assert reloaded_org.okta_encrypted_client_secret == plain_secret
+      assert reloaded_org.oauth2_encrypted_client_secret == plain_secret
     end
 
     test "returns error when organization doesn't exist" do
-      # When
       result =
-        Accounts.update_okta_configuration(999_999, %{
-          okta_client_id: "test_client_id"
+        Accounts.update_sso_configuration(999_999, :okta, %{
+          oauth2_client_id: "test_client_id"
         })
 
-      # Then
       assert result == {:error, :not_found}
     end
 
-    test "automatically sets sso_provider to okta" do
-      # Given
+    test "automatically sets sso_provider" do
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(creator: user, sso_provider: :google)
 
-      # When - update Okta configuration
       {:ok, updated_org} =
-        Accounts.update_okta_configuration(organization.id, %{
-          okta_client_id: "test_client_id"
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_secret",
+          sso_organization_id: "test.okta.com",
+          oauth2_authorize_url: "https://test.okta.com/oauth2/v1/authorize",
+          oauth2_token_url: "https://test.okta.com/oauth2/v1/token",
+          oauth2_user_info_url: "https://test.okta.com/oauth2/v1/userinfo"
         })
 
-      # Then - sso_provider should be changed to :okta
       assert updated_org.sso_provider == :okta
     end
 
     test "can update partial Okta configuration" do
-      # Given
       user = AccountsFixtures.user_fixture()
 
       organization =
         AccountsFixtures.organization_fixture(
           creator: user,
-          okta_client_id: "old_client_id",
-          sso_organization_id: "https://old.okta.com",
+          oauth2_client_id: "old_client_id",
+          oauth2_client_secret: "old_secret",
+          sso_organization_id: "old.okta.com",
           sso_provider: :okta
         )
 
-      # When - update only the client ID
       {:ok, updated_org} =
-        Accounts.update_okta_configuration(organization.id, %{
-          okta_client_id: "new_client_id"
+        Accounts.update_sso_configuration(organization.id, :okta, %{
+          oauth2_client_id: "new_client_id"
         })
 
-      # Then
-      assert updated_org.okta_client_id == "new_client_id"
-      # unchanged
-      assert updated_org.sso_organization_id == "https://old.okta.com"
-      # still okta
+      assert updated_org.oauth2_client_id == "new_client_id"
+      assert updated_org.sso_organization_id == "old.okta.com"
       assert updated_org.sso_provider == :okta
+    end
+
+    test "updates custom OAuth2 configuration for an existing organization" do
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      assert {:ok, updated_org} =
+               Accounts.update_sso_configuration(organization.id, :oauth2, %{
+                 oauth2_client_id: "test_client_id",
+                 oauth2_client_secret: "test_secret",
+                 oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+                 oauth2_token_url: "https://auth.example.com/oauth2/token",
+                 oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo",
+                 sso_organization_id: "https://auth.example.com/"
+               })
+
+      assert updated_org.oauth2_client_id == "test_client_id"
+      assert updated_org.oauth2_authorize_url == "https://auth.example.com/oauth2/authorize"
+      assert updated_org.oauth2_token_url == "https://auth.example.com/oauth2/token"
+      assert updated_org.oauth2_user_info_url == "https://auth.example.com/oauth2/userinfo"
+      assert updated_org.oauth2_encrypted_client_secret
+      assert updated_org.sso_provider == :oauth2
+      assert updated_org.sso_organization_id == "https://auth.example.com"
+    end
+
+    test "accepts string-keyed custom provider attributes without mixing key types" do
+      organization = AccountsFixtures.organization_fixture()
+
+      assert {:ok, updated_org} =
+               Accounts.update_sso_configuration(organization.id, :oauth2, %{
+                 "oauth2_client_id" => "test_client_id",
+                 "oauth2_client_secret" => "test_secret",
+                 "oauth2_authorize_url" => "https://auth.example.com/oauth2/authorize",
+                 "oauth2_token_url" => "https://auth.example.com/oauth2/token",
+                 "oauth2_user_info_url" => "https://auth.example.com/oauth2/userinfo",
+                 "sso_login_domain" => "Example.COM.",
+                 "sso_organization_id" => "https://auth.example.com/"
+               })
+
+      assert updated_org.sso_login_domain == "example.com"
+      assert updated_org.sso_organization_id == "https://auth.example.com"
+    end
+
+    test "returns error for oauth2 when organization doesn't exist" do
+      result =
+        Accounts.update_sso_configuration(999_999, :oauth2, %{
+          oauth2_client_id: "test_client_id"
+        })
+
+      assert result == {:error, :not_found}
+    end
+  end
+
+  describe "oauth2_config_for_organization/1" do
+    test "returns config for a custom OAuth2 organization" do
+      organization = %Organization{
+        sso_provider: :oauth2,
+        sso_organization_id: "https://auth.example.com",
+        oauth2_client_id: "test_client_id",
+        oauth2_encrypted_client_secret: "test_client_secret",
+        oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+        oauth2_token_url: "https://auth.example.com/oauth2/token",
+        oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+      }
+
+      assert {:ok, config} = Accounts.oauth2_config_for_organization(organization)
+
+      assert config.site == "https://auth.example.com"
+      assert config.provider_organization_id == "https://auth.example.com"
+      assert config.client_id == "test_client_id"
+      assert config.client_secret == "test_client_secret"
+      assert config.authorize_url == "https://auth.example.com/oauth2/authorize"
+      assert config.token_url == "https://auth.example.com/oauth2/token"
+      assert config.user_info_url == "https://auth.example.com/oauth2/userinfo"
+    end
+
+    test "returns config for an Okta organization using shared fields" do
+      organization = %Organization{
+        sso_provider: :okta,
+        sso_organization_id: "dev-example.okta.com",
+        oauth2_client_id: "test_client_id",
+        oauth2_encrypted_client_secret: "test_client_secret",
+        oauth2_authorize_url: "https://dev-example.okta.com/oauth2/v1/authorize",
+        oauth2_token_url: "https://dev-example.okta.com/oauth2/v1/token",
+        oauth2_user_info_url: "https://dev-example.okta.com/oauth2/v1/userinfo"
+      }
+
+      assert {:ok, config} = Accounts.oauth2_config_for_organization(organization)
+
+      assert config.site == "https://dev-example.okta.com"
+      assert config.provider_organization_id == "dev-example.okta.com"
+      assert config.client_id == "test_client_id"
+      assert config.client_secret == "test_client_secret"
+      assert config.authorize_url == "https://dev-example.okta.com/oauth2/v1/authorize"
+      assert config.token_url == "https://dev-example.okta.com/oauth2/v1/token"
+      assert config.user_info_url == "https://dev-example.okta.com/oauth2/v1/userinfo"
+    end
+
+    test "returns error for a non-OAuth2 organization" do
+      organization = %Organization{
+        sso_provider: :google,
+        sso_organization_id: "example.com"
+      }
+
+      assert {:error, :oauth2_not_configured} =
+               Accounts.oauth2_config_for_organization(organization)
     end
   end
 
@@ -910,6 +1301,180 @@ defmodule Tuist.AccountsTest do
       # Then
       assert got == Repo.preload(invitation, inviter: :account)
     end
+
+    test "returns :expired when the invitation is older than the validity window" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      # When
+      got = Accounts.get_invitation_by_token(invitation.token, invitee)
+
+      # Then
+      assert got == {:error, :expired}
+    end
+  end
+
+  describe "get_invitation_by_token/1" do
+    test "returns :expired when the invitation is older than the validity window" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      # When
+      got = Accounts.get_invitation_by_token(invitation.token)
+
+      # Then
+      assert got == {:error, :expired}
+    end
+  end
+
+  describe "get_pending_invitations_by_email/1" do
+    test "returns invitations for the given email" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      # When
+      got = Accounts.get_pending_invitations_by_email("new@tuist.io")
+
+      # Then
+      assert [%{id: id}] = got
+      assert id == invitation.id
+    end
+
+    test "orders invitations by most recent first" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, older} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: AccountsFixtures.organization_fixture(creator: user),
+          url: fn token -> token end
+        })
+
+      {:ok, newer} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: AccountsFixtures.organization_fixture(creator: user),
+          url: fn token -> token end
+        })
+
+      Repo.update_all(
+        from(i in Invitation, where: i.id == ^older.id),
+        set: [created_at: ~N[2026-01-01 00:00:00]]
+      )
+
+      Repo.update_all(
+        from(i in Invitation, where: i.id == ^newer.id),
+        set: [created_at: ~N[2026-02-01 00:00:00]]
+      )
+
+      # When
+      got = Accounts.get_pending_invitations_by_email("new@tuist.io")
+
+      # Then
+      assert Enum.map(got, & &1.id) == [newer.id, older.id]
+    end
+
+    test "returns an empty list when no invitations exist for the given email" do
+      # When
+      got = Accounts.get_pending_invitations_by_email("nobody@tuist.io")
+
+      # Then
+      assert got == []
+    end
+
+    test "does not return invitations for other emails" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      {:ok, _invitation} =
+        Accounts.invite_user_to_organization("someone@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      # When
+      got = Accounts.get_pending_invitations_by_email("other@tuist.io")
+
+      # Then
+      assert got == []
+    end
+
+    test "does not return expired invitations" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      # When
+      got = Accounts.get_pending_invitations_by_email("new@tuist.io")
+
+      # Then
+      assert got == []
+    end
   end
 
   describe "accept_invitation/1" do
@@ -940,6 +1505,106 @@ defmodule Tuist.AccountsTest do
 
       assert Accounts.get_invitation_by_id(invitation.id) == nil
     end
+
+    test "accepting a viewer invitation grants the viewer role" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      invitee = AccountsFixtures.user_fixture(email: "viewer@tuist.io")
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization(
+          "viewer@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          role: :viewer
+        )
+
+      # When
+      Accounts.accept_invitation(%{
+        invitation: invitation,
+        invitee: invitee,
+        organization: organization
+      })
+
+      # Then
+      assert Accounts.organization_viewer?(invitee, organization)
+      refute Accounts.organization_user?(invitee, organization)
+      refute Accounts.organization_admin?(invitee, organization)
+
+      assert Enum.map(Accounts.get_organization_members(organization, :viewer), & &1.id) == [
+               invitee.id
+             ]
+    end
+
+    test "does not accept an expired invitation" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      # When
+      got =
+        Accounts.accept_invitation(%{
+          invitation: invitation,
+          invitee: invitee,
+          organization: organization
+        })
+
+      # Then
+      assert got == {:error, :expired}
+      refute Accounts.organization_user?(invitee, organization)
+      assert Accounts.get_invitation_by_id(invitation.id)
+    end
+
+    test "does not accept an invitation whose token was refreshed" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization(
+          "new@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          token: "old-token"
+        )
+
+      {:ok, _resent_invitation} =
+        Accounts.resend_invitation(
+          invitation,
+          %{url: fn token -> "/auth/invitations/#{token}" end},
+          token: "new-token"
+        )
+
+      # When
+      got =
+        Accounts.accept_invitation(%{
+          invitation: invitation,
+          invitee: invitee,
+          organization: organization
+        })
+
+      # Then
+      assert got == {:error, :not_found}
+      refute Accounts.organization_user?(invitee, organization)
+    end
   end
 
   describe "invite_user_to_organization/2" do
@@ -969,6 +1634,30 @@ defmodule Tuist.AccountsTest do
       assert invitation.organization_id == organization.id
     end
 
+    test "defaults the invited role to user and records an explicit viewer role" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture()
+
+      # When
+      {:ok, default_invitation} =
+        Accounts.invite_user_to_organization(
+          "default@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end}
+        )
+
+      {:ok, viewer_invitation} =
+        Accounts.invite_user_to_organization(
+          "viewer@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          role: :viewer
+        )
+
+      # Then
+      assert default_invitation.role == "user"
+      assert viewer_invitation.role == "viewer"
+    end
+
     test "returns errors" do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -992,6 +1681,55 @@ defmodule Tuist.AccountsTest do
       # Then
       assert {:error, changeset} = result
       assert "has already been taken" in errors_on(changeset).invitee_email
+    end
+  end
+
+  describe "resend_invitation/2" do
+    test "refreshes the token and delivers the new invitation URL" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization(
+          "test@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          token: "old-token"
+        )
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      stub(Environment, :mail_configured?, fn -> true end)
+
+      expect(Tuist.Accounts.UserNotifier, :deliver_invitation, fn invitee_email, opts ->
+        assert invitee_email == "test@tuist.io"
+        assert opts.inviter.id == user.id
+        assert opts.to.organization.id == organization.id
+        assert opts.url == "/auth/invitations/new-token"
+        :ok
+      end)
+
+      # When
+      {:ok, got} =
+        Accounts.resend_invitation(
+          invitation,
+          %{url: fn token -> "/auth/invitations/#{token}" end},
+          token: "new-token"
+        )
+
+      # Then
+      assert got.token == "new-token"
+      refute Invitation.expired?(got)
+      assert Accounts.get_invitation_by_token("old-token") == {:error, :not_found}
+      assert {:ok, %{token: "new-token"}} = Accounts.get_invitation_by_token("new-token")
     end
   end
 
@@ -1083,6 +1821,22 @@ defmodule Tuist.AccountsTest do
       assert Accounts.organization_admin?(user, organization) == true
     end
 
+    test "auto-bootstraps the protected linux runner profile" do
+      # Every new organization account lands with the default `linux`
+      # profile so `runs-on: <prefix>linux` resolves the moment the
+      # account exists — without it the customer's first workflow
+      # would error out before they ever see the Profiles UI.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, organization} = Accounts.create_organization(%{name: "tuist", creator: user})
+
+      profiles = RunnerProfiles.list_for_account(organization.account)
+
+      assert %{name: "linux", protected: true, vcpus: 2, memory_gb: 8} =
+               Enum.find(profiles, &(&1.name == "linux"))
+    end
+
     test "creates an organization when new pricing model is enabled" do
       # Given
       Billing
@@ -1101,6 +1855,7 @@ defmodule Tuist.AccountsTest do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
+      domain = unique_sso_domain()
 
       # When
       {:ok, organization} =
@@ -1110,7 +1865,7 @@ defmodule Tuist.AccountsTest do
             creator: user
           },
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         )
 
       # Then
@@ -1118,7 +1873,7 @@ defmodule Tuist.AccountsTest do
                Accounts.get_organization_by_id(organization.id, preload: [:account])
 
       assert organization.sso_provider == :google
-      assert organization.sso_organization_id == "tuist.io"
+      assert organization.sso_organization_id == domain
       assert Accounts.organization_admin?(user, organization) == true
     end
 
@@ -1152,6 +1907,26 @@ defmodule Tuist.AccountsTest do
       assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
       assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
     end
+
+    test "tears the organization's Kura servers out of the cluster before its rows cascade away" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      test_pid = self()
+
+      expect(Tuist.Kura, :destroy_servers_for_account, fn account_id ->
+        send(test_pid, {:kura_teardown, account_id, Accounts.get_account_by_id(account_id)})
+        :ok
+      end)
+
+      # When
+      Accounts.delete_organization!(organization)
+
+      # Then
+      assert_receive {:kura_teardown, account_id, {:ok, _account}}
+      assert account_id == account.id
+      assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+    end
   end
 
   describe "get_organization_by_id/1" do
@@ -1170,6 +1945,28 @@ defmodule Tuist.AccountsTest do
       # When / Then
       assert {:error, :not_found} == Accounts.get_organization_by_id(999)
     end
+
+    test "returns not found error when id is a non-integer string" do
+      assert {:error, :not_found} == Accounts.get_organization_by_id("1,`")
+      assert {:error, :not_found} == Accounts.get_organization_by_id("not-a-number")
+      assert {:error, :not_found} == Accounts.get_organization_by_id("1abc")
+      assert {:error, :not_found} == Accounts.get_organization_by_id("")
+    end
+
+    test "returns not found error when id is nil or an unexpected type" do
+      assert {:error, :not_found} == Accounts.get_organization_by_id(nil)
+      assert {:error, :not_found} == Accounts.get_organization_by_id(-1)
+      assert {:error, :not_found} == Accounts.get_organization_by_id(%{})
+    end
+
+    test "returns organization when id is a string of digits" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      {:ok, organization} = Accounts.create_organization(%{name: "test-org-string-id", creator: user})
+
+      # When / Then
+      assert {:ok, organization} == Accounts.get_organization_by_id(Integer.to_string(organization.id))
+    end
   end
 
   describe "find_or_create_user_from_oauth2" do
@@ -1179,13 +1976,13 @@ defmodule Tuist.AccountsTest do
 
       first_oauth_identity = %{
         provider: :github,
-        uid: 123,
+        uid: System.unique_integer([:positive]),
         info: %{email: "find_or_create_user_from_oauth2@tuist.io"}
       }
 
       second_oauth_identity = %{
         provider: :github,
-        uid: 456,
+        uid: System.unique_integer([:positive]),
         info: %{email: "find_or_create_user_from_oauth1@tuist.test.io"}
       }
 
@@ -1201,59 +1998,81 @@ defmodule Tuist.AccountsTest do
       assert second_account_handle == "find-or-create-user-from-oauth1"
     end
 
-    test "assigns user role to SSO users for Google SSO" do
+    test "confirms accounts created from an OAuth2 sign-in" do
       # Given
-      organization =
-        AccountsFixtures.organization_fixture(
-          sso_provider: :google,
-          sso_organization_id: "tuist.io"
-        )
-
       oauth_identity = %{
-        provider: :google,
+        provider: :github,
         uid: System.unique_integer([:positive]),
-        info: %{email: "google-sso@tuist.io"},
-        extra: %{
-          raw_info: %{
-            user: %{"hd" => "tuist.io"}
-          }
-        }
+        info: %{email: "oauth-confirmed-#{System.unique_integer([:positive])}@tuist.io"}
       }
 
       # When
       user = Accounts.find_or_create_user_from_oauth2(oauth_identity)
 
       # Then
+      assert user.confirmed_at
+    end
+
+    test "assigns user role to SSO users for Google SSO" do
+      # Given
+      domain = unique_sso_domain()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
+        )
+
+      # When
+      user =
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, email: unique_email(domain, "google-sso")))
+
+      # Then
       assert Accounts.belongs_to_organization?(user, organization)
       assert Accounts.get_user_role_in_organization(user, organization).name == "user"
     end
 
+    test "does not assign a user role when automatic enrollment is disabled" do
+      domain = unique_sso_domain()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: false
+        )
+
+      user =
+        Accounts.find_or_create_user_from_oauth2(
+          google_oauth_identity(domain, email: unique_email(domain, "invitation-only"))
+        )
+
+      assert Accounts.belongs_to_sso_organization?(user, organization)
+      refute Accounts.organization_user?(user, organization)
+      refute Accounts.get_user_role_in_organization(user, organization)
+    end
+
     test "assigns user role to SSO users for Okta SSO" do
       # Given
+      provider_organization_id = unique_sso_domain("okta")
+
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :okta,
-          sso_organization_id: "tuist.okta.com"
+          sso_organization_id: provider_organization_id,
+          sso_automatic_enrollment: true,
+          sso_login_domain: "tuist.dev",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret"
         )
 
-      oauth_identity = %{
-        provider: :okta,
-        uid: 890,
-        info: %{email: "okta-sso@tuist.io"},
-        extra: %{
-          raw_info: %{
-            user: %{},
-            token: %{
-              other_params: %{
-                "id_token" => "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3R1aXN0Lm9rdGEuY29tIn0.test"
-              }
-            }
-          }
-        }
-      }
-
       # When
-      user = Accounts.find_or_create_user_from_oauth2(oauth_identity)
+      user =
+        Accounts.find_or_create_user_from_oauth2(
+          okta_oauth_identity(provider_organization_id, email: unique_email("tuist.dev", "okta-sso"))
+        )
 
       # Then
       assert Accounts.belongs_to_organization?(user, organization)
@@ -1328,7 +2147,7 @@ defmodule Tuist.AccountsTest do
 
       Accounts.find_or_create_user_from_oauth2(%{
         provider: :github,
-        uid: 123,
+        uid: System.unique_integer([:positive]),
         info: %{
           email: user.email
         }
@@ -1336,7 +2155,7 @@ defmodule Tuist.AccountsTest do
 
       Accounts.find_or_create_user_from_oauth2(%{
         provider: :google,
-        uid: 123,
+        uid: System.unique_integer([:positive]),
         info: %{
           email: user.email
         },
@@ -1360,7 +2179,7 @@ defmodule Tuist.AccountsTest do
 
       Accounts.find_or_create_user_from_oauth2(%{
         provider: :google,
-        uid: 123,
+        uid: System.unique_integer([:positive]),
         info: %{
           email: user.email
         },
@@ -1384,18 +2203,13 @@ defmodule Tuist.AccountsTest do
 
       Accounts.find_or_create_user_from_oauth2(%{
         provider: :okta,
-        uid: "uid",
+        uid: "uid-#{System.unique_integer([:positive])}",
         info: %{
           email: user.email
         },
         extra: %{
           raw_info: %{
-            user: %{},
-            token: %{
-              other_params: %{
-                "id_token" => "jwt-token"
-              }
-            }
+            provider_organization_id: unique_sso_domain("okta")
           }
         }
       })
@@ -1413,7 +2227,7 @@ defmodule Tuist.AccountsTest do
 
       Accounts.find_or_create_user_from_oauth2(%{
         provider: :github,
-        uid: 123,
+        uid: System.unique_integer([:positive]),
         info: %{
           email: user.email
         }
@@ -1436,7 +2250,7 @@ defmodule Tuist.AccountsTest do
 
       Accounts.find_or_create_user_from_oauth2(%{
         provider: :github,
-        uid: 123,
+        uid: System.unique_integer([:positive]),
         info: %{
           email: user.email
         }
@@ -1446,12 +2260,11 @@ defmodule Tuist.AccountsTest do
       organization = AccountsFixtures.organization_fixture()
       Accounts.add_user_to_organization(user, organization)
 
-      command_event =
-        CommandEventsFixtures.command_event_fixture(
-          name: "generate",
-          project_id: project.id,
-          user_id: user.id
-        )
+      CommandEventsFixtures.command_event_fixture(
+        name: "generate",
+        project_id: project.id,
+        user_id: user.id
+      )
 
       Accounts.update_last_visited_project(user, project.id)
       code = Accounts.create_device_code("some-code")
@@ -1471,8 +2284,35 @@ defmodule Tuist.AccountsTest do
              ) == nil
 
       assert Accounts.belongs_to_organization?(user, organization) == false
-      assert CommandEvents.get_command_event_by_id(command_event.id) == {:error, :not_found}
+      # ClickHouse event deletion is async (mutations_sync = 0), so we don't
+      # assert immediate removal — the mutation will complete eventually.
       assert Accounts.get_device_code(code.code) == nil
+    end
+
+    test "tears the user's Kura servers out of the cluster and purges its storage" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      test_pid = self()
+
+      expect(Tuist.Kura, :destroy_servers_for_account, fn account_id ->
+        send(test_pid, {:kura_teardown, account_id, Accounts.get_account_by_id(account_id)})
+        :ok
+      end)
+
+      expect(Tuist.Storage, :delete_all_objects, 2, fn prefix, _actor ->
+        send(test_pid, {:purged, prefix})
+        {:ok, 0}
+      end)
+
+      # When
+      Accounts.delete_user(user)
+
+      # Then
+      assert_receive {:kura_teardown, account_id, {:ok, _account}}
+      assert account_id == account.id
+      assert_receive {:purged, "runner-volume-masters/" <> _}
+      assert_receive {:purged, "runner-gitlab-cache/" <> _}
     end
   end
 
@@ -1504,9 +2344,65 @@ defmodule Tuist.AccountsTest do
       # Then
       assert got
     end
+
+    test "returns nil when the handle is a percent wildcard" do
+      # Given
+      AccountsFixtures.user_fixture(preload: [:account])
+      AccountsFixtures.user_fixture(preload: [:account])
+
+      # When
+      got = Accounts.get_account_by_handle("%")
+
+      # Then
+      assert is_nil(got)
+    end
+
+    test "returns nil when the handle is made of underscore wildcards" do
+      # Given
+      %{account: %{name: handle}} = AccountsFixtures.user_fixture(preload: [:account])
+
+      # When
+      got = Accounts.get_account_by_handle(String.duplicate("_", String.length(handle)))
+
+      # Then
+      assert is_nil(got)
+    end
   end
 
   describe "create_user/1" do
+    test "suffixes reserved email-derived handles and retries collisions" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+
+      for {local, handle} <- [
+            {"ci.canary", "ci-canary"},
+            {"jane-staging", "jane-staging"},
+            {"TEAM_CANARY", "team-canary"}
+          ] do
+        assert {:ok, first} = Accounts.create_user("#{local}@first.example.com", password: valid_user_password())
+        assert first.account.name == handle <> "1"
+        assert {:ok, second} = Accounts.create_user("#{local}@second.example.com", password: valid_user_password())
+        assert second.account.name == handle <> "2"
+      end
+    end
+
+    test "still rejects an explicitly requested reserved handle" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+
+      assert {:error, errors} =
+               Accounts.create_user(unique_user_email(), handle: "ci-canary", password: valid_user_password())
+
+      assert errors[:name] == ["must not end in -staging or -canary"]
+    end
+
+    test "drops the hyphens a handle derived from the email would start or end with" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      unique = TuistTestSupport.Utilities.unique_integer()
+
+      {:ok, user} = Accounts.create_user("_edge.#{unique}_@tuist.dev", password: valid_user_password())
+
+      assert Accounts.get_account_from_user(user).name == "edge-#{unique}"
+    end
+
     test "doesn't start biling trial if it's an on-premise environment" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> false end)
@@ -1535,6 +2431,21 @@ defmodule Tuist.AccountsTest do
       assert user.email == email
       assert is_binary(user.encrypted_password)
       assert is_nil(user.confirmed_at)
+    end
+
+    test "auto-bootstraps the protected linux runner profile" do
+      # Same default-profile invariant the organization path enforces:
+      # personal accounts land with the `linux` profile so the
+      # `<prefix>linux` label resolves from the first workflow run.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :skip_email_confirmation?, fn -> false end)
+
+      {:ok, user} = Accounts.create_user(unique_user_email(), password: valid_user_password())
+
+      profiles = RunnerProfiles.list_for_account(user.account)
+
+      assert %{name: "linux", protected: true, vcpus: 2, memory_gb: 8} =
+               Enum.find(profiles, &(&1.name == "linux"))
     end
 
     test "creates the user infering the handle from the email when no handle is provided" do
@@ -1715,6 +2626,19 @@ defmodule Tuist.AccountsTest do
       assert reloaded_account.custom_cache_endpoints_enabled == true
     end
 
+    test "persists the cache write policy", %{user: user} do
+      account = Repo.preload(user, :account).account
+      assert account.cache_write_policy == :members_and_tokens
+
+      assert {:ok, account} =
+               Accounts.update_account(account, %{cache_write_policy: :tokens_only})
+
+      assert account.cache_write_policy == :tokens_only
+
+      assert {:ok, reloaded_account} = Accounts.get_account_by_id(account.id)
+      assert reloaded_account.cache_write_policy == :tokens_only
+    end
+
     test "validates name format", %{user: user} do
       account = Repo.preload(user, :account).account
 
@@ -1792,10 +2716,17 @@ defmodule Tuist.AccountsTest do
     test "sends token through notification", %{user: user} do
       token =
         extract_user_token(fn confirmation_url ->
-          Accounts.deliver_user_confirmation_instructions(%{
-            user: user,
-            confirmation_url: confirmation_url
-          })
+          :ok =
+            Accounts.deliver_user_confirmation_instructions(%{
+              user: user,
+              confirmation_url: confirmation_url
+            })
+
+          assert [job] = all_enqueued(worker: DeliverConfirmationInstructionsWorker)
+          assert :ok = perform_job(DeliverConfirmationInstructionsWorker, job.args)
+          assert_receive {:delivered_email, email}
+
+          email
         end)
 
       {:ok, token} = Base.url_decode64(token, padding: false)
@@ -1803,6 +2734,38 @@ defmodule Tuist.AccountsTest do
       assert user_token.user_id == user.id
       assert user_token.sent_to == user.email
       assert user_token.context == "confirm"
+    end
+
+    test "returns :ok without issuing a new token within the cooldown window", %{user: user} do
+      extract_user_token(fn confirmation_url ->
+        :ok = Accounts.deliver_user_confirmation_instructions(%{user: user, confirmation_url: confirmation_url})
+
+        assert [job] = all_enqueued(worker: DeliverConfirmationInstructionsWorker)
+        assert :ok = perform_job(DeliverConfirmationInstructionsWorker, job.args)
+        assert_receive {:delivered_email, email}
+
+        email
+      end)
+
+      assert Accounts.deliver_user_confirmation_instructions(%{
+               user: user,
+               confirmation_url: &"https://tuist.dev/users/confirm/#{&1}"
+             }) == :ok
+
+      assert Repo.aggregate(
+               from(t in UserToken, where: t.user_id == ^user.id and t.context == "confirm"),
+               :count,
+               :id
+             ) == 1
+    end
+
+    test "returns an already-confirmed error for a confirmed user" do
+      user = user_fixture(confirmed_at: DateTime.utc_now())
+
+      assert Accounts.deliver_user_confirmation_instructions(%{
+               user: user,
+               confirmation_url: &"https://tuist.dev/users/confirm/#{&1}"
+             }) == {:error, :already_confirmed}
     end
   end
 
@@ -1814,10 +2777,17 @@ defmodule Tuist.AccountsTest do
 
       token =
         extract_user_token(fn confirmation_url ->
-          Accounts.deliver_user_confirmation_instructions(%{
-            user: user,
-            confirmation_url: confirmation_url
-          })
+          :ok =
+            Accounts.deliver_user_confirmation_instructions(%{
+              user: user,
+              confirmation_url: confirmation_url
+            })
+
+          assert [job] = all_enqueued(worker: DeliverConfirmationInstructionsWorker)
+          assert :ok = perform_job(DeliverConfirmationInstructionsWorker, job.args)
+          assert_receive {:delivered_email, email}
+
+          email
         end)
 
       %{user: user, token: token}
@@ -1866,6 +2836,33 @@ defmodule Tuist.AccountsTest do
       assert user_token.sent_to == user.email
       assert user_token.context == "reset_password"
     end
+
+    test "does not create another reset password token during the cooldown window", %{user: user} do
+      reset_password_url = &"/users/reset_password/#{&1}"
+
+      Accounts.deliver_user_reset_password_instructions(%{
+        user: user,
+        reset_password_url: reset_password_url
+      })
+
+      assert Repo.aggregate(
+               from(t in UserToken, where: t.user_id == ^user.id and t.context == "reset_password"),
+               :count,
+               :id
+             ) == 1
+
+      assert :ok =
+               Accounts.deliver_user_reset_password_instructions(%{
+                 user: user,
+                 reset_password_url: reset_password_url
+               })
+
+      assert Repo.aggregate(
+               from(t in UserToken, where: t.user_id == ^user.id and t.context == "reset_password"),
+               :count,
+               :id
+             ) == 1
+    end
   end
 
   describe "get_user_by_reset_password_token/1" do
@@ -1908,9 +2905,10 @@ defmodule Tuist.AccountsTest do
     end
 
     test "updates the password", %{user: user} do
-      {:ok, _} =
+      {:ok, %{user: updated_user}} =
         Accounts.reset_user_password(user, %{"password" => "new valid password"})
 
+      assert updated_user.id == user.id
       assert Accounts.get_user_by_email_and_password(user.email, "new valid password")
     end
 
@@ -1919,11 +2917,21 @@ defmodule Tuist.AccountsTest do
       {:ok, _} = Accounts.reset_user_password(user, %{"password" => "new valid password"})
       refute Repo.get_by(UserToken, user_id: user.id)
     end
+
+    test "returns revoked session live socket ids", %{user: user} do
+      session_token = Accounts.generate_user_session_token(user)
+
+      assert {:ok, %{revoked_session_live_socket_ids: [live_socket_id]}} =
+               Accounts.reset_user_password(user, %{"password" => "new valid password"})
+
+      assert live_socket_id == UserToken.live_socket_id(session_token)
+    end
   end
 
   describe "update_organization/2" do
     test "updates organization with a google hosted domain" do
       # Given
+      domain = unique_sso_domain()
       user = AccountsFixtures.user_fixture()
       organization = AccountsFixtures.organization_fixture(creator: user)
 
@@ -1931,49 +2939,56 @@ defmodule Tuist.AccountsTest do
       {:ok, organization} =
         Accounts.update_organization(organization, %{
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
         })
 
       # Then
-      assert organization.sso_organization_id == "tuist.io"
+      assert organization.sso_organization_id == domain
       assert organization.sso_provider == :google
     end
 
     test "updates organization with an okta hosted domain" do
       # Given
+      provider_organization_id = unique_sso_domain("okta")
       user = AccountsFixtures.user_fixture()
-      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_login_domain: "example.com",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z]
+        )
 
       # When
       {:ok, organization} =
         Accounts.update_organization(organization, %{
           sso_provider: :okta,
-          sso_organization_id: "tuist.okta.com"
+          sso_organization_id: provider_organization_id,
+          sso_automatic_enrollment: true,
+          oauth2_client_id: "client-id",
+          oauth2_encrypted_client_secret: "client-secret",
+          oauth2_authorize_url: "https://#{provider_organization_id}/oauth2/v1/authorize",
+          oauth2_token_url: "https://#{provider_organization_id}/oauth2/v1/token",
+          oauth2_user_info_url: "https://#{provider_organization_id}/oauth2/v1/userinfo"
         })
 
       # Then
-      assert organization.sso_organization_id == "tuist.okta.com"
+      assert organization.sso_organization_id == provider_organization_id
       assert organization.sso_provider == :okta
     end
 
     test "assigns existing SSO users when enabling Google SSO" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
 
       organization = AccountsFixtures.organization_fixture()
 
       # Create an existing user with Google OAuth2 identity
       existing_user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: System.unique_integer([:positive]),
-          info: %{email: "user@tuist.io"},
-          extra: %{
-            raw_info: %{
-              user: %{"hd" => "tuist.io"}
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, email: unique_email(domain, "user")))
 
       # Verify user is not yet assigned to organization
       refute Accounts.belongs_to_organization?(existing_user, organization)
@@ -1982,12 +2997,13 @@ defmodule Tuist.AccountsTest do
       {:ok, updated_organization} =
         Accounts.update_organization(organization, %{
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
         })
 
       # Then
       assert updated_organization.sso_provider == :google
-      assert updated_organization.sso_organization_id == "tuist.io"
+      assert updated_organization.sso_organization_id == domain
 
       # Existing SSO user should now be assigned to the organization with explicit role
       assert Accounts.belongs_to_organization?(existing_user, updated_organization)
@@ -1999,26 +3015,21 @@ defmodule Tuist.AccountsTest do
     test "assigns existing SSO users when enabling Okta SSO" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      provider_organization_id = unique_sso_domain("okta")
 
-      organization = AccountsFixtures.organization_fixture()
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_login_domain: "tuist.dev",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+          sso_automatic_enrollment: true
+        )
 
       # Create an existing user with Okta OAuth2 identity
       existing_user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :okta,
-          uid: System.unique_integer([:positive]),
-          info: %{email: "user@tuist.io"},
-          extra: %{
-            raw_info: %{
-              user: %{},
-              token: %{
-                other_params: %{
-                  "id_token" => "eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJodHRwczovL3R1aXN0Lm9rdGEuY29tIn0.signature"
-                }
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(
+          okta_oauth_identity(provider_organization_id, email: unique_email("tuist.dev", "user"))
+        )
 
       # Verify user is not yet assigned to organization
       refute Accounts.belongs_to_organization?(existing_user, organization)
@@ -2027,12 +3038,17 @@ defmodule Tuist.AccountsTest do
       {:ok, updated_organization} =
         Accounts.update_organization(organization, %{
           sso_provider: :okta,
-          sso_organization_id: "tuist.okta.com"
+          sso_organization_id: provider_organization_id,
+          oauth2_client_id: "client-id",
+          oauth2_encrypted_client_secret: "client-secret",
+          oauth2_authorize_url: "https://#{provider_organization_id}/oauth2/v1/authorize",
+          oauth2_token_url: "https://#{provider_organization_id}/oauth2/v1/token",
+          oauth2_user_info_url: "https://#{provider_organization_id}/oauth2/v1/userinfo"
         })
 
       # Then
       assert updated_organization.sso_provider == :okta
-      assert updated_organization.sso_organization_id == "tuist.okta.com"
+      assert updated_organization.sso_organization_id == provider_organization_id
 
       # Existing SSO user should now be assigned to the organization with explicit role
       assert Accounts.belongs_to_organization?(existing_user, updated_organization)
@@ -2044,26 +3060,21 @@ defmodule Tuist.AccountsTest do
     test "does not assign users when SSO is updated but not newly enabled" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      existing_domain = unique_sso_domain("existing")
+      new_domain = unique_sso_domain()
 
       # Create organization with SSO already enabled
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "existing.io"
+          sso_organization_id: existing_domain
         )
 
       # Create a user with a domain that doesn't match any SSO organization yet
       other_user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: System.unique_integer([:positive]),
-          info: %{email: "user@tuist.io"},
-          extra: %{
-            raw_info: %{
-              user: %{"hd" => "tuist.io"}
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(
+          google_oauth_identity(new_domain, email: unique_email(new_domain, "user"))
+        )
 
       # Verify user is not assigned to organization (different domain)
       refute Accounts.belongs_to_organization?(other_user, organization)
@@ -2071,11 +3082,11 @@ defmodule Tuist.AccountsTest do
       # When - Update SSO organization ID (not newly enabling)
       {:ok, updated_organization} =
         Accounts.update_organization(organization, %{
-          sso_organization_id: "tuist.io"
+          sso_organization_id: new_domain
         })
 
       # Then
-      assert updated_organization.sso_organization_id == "tuist.io"
+      assert updated_organization.sso_organization_id == new_domain
 
       # User should have SSO-based access (automatic through belongs_to_sso_organization)
       assert Accounts.belongs_to_sso_organization?(other_user, updated_organization)
@@ -2087,33 +3098,16 @@ defmodule Tuist.AccountsTest do
     test "assigns multiple existing SSO users when enabling SSO" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
 
       organization = AccountsFixtures.organization_fixture()
 
       # Create multiple existing users with Google OAuth2 identities
       user1 =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: System.unique_integer([:positive]),
-          info: %{email: "user1@tuist.io"},
-          extra: %{
-            raw_info: %{
-              user: %{"hd" => "tuist.io"}
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, email: unique_email(domain, "user1")))
 
       user2 =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: System.unique_integer([:positive]),
-          info: %{email: "user2@tuist.io"},
-          extra: %{
-            raw_info: %{
-              user: %{"hd" => "tuist.io"}
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, email: unique_email(domain, "user2")))
 
       # Verify users are not yet assigned to organization
       refute Accounts.belongs_to_organization?(user1, organization)
@@ -2123,7 +3117,8 @@ defmodule Tuist.AccountsTest do
       {:ok, updated_organization} =
         Accounts.update_organization(organization, %{
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
         })
 
       # Then
@@ -2139,59 +3134,52 @@ defmodule Tuist.AccountsTest do
     test "creates a user from a github identity" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      email = unique_user_email()
 
       # When
       user =
         Accounts.find_or_create_user_from_oauth2(%{
           provider: :github,
-          uid: 123,
+          uid: System.unique_integer([:positive]),
           info: %{
-            email: "tuist@tuist.dev"
+            email: email
           }
         })
 
       # Then
-      assert user.email == "tuist@tuist.dev"
+      assert user.email == email
     end
 
     test "creates a user from a google identity with a hosted domain" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
+      uid = System.unique_integer([:positive])
+      email = unique_email(domain)
 
       # When
       user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tuist.io"
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, uid: uid, email: email))
 
       # Then
-      assert user.email == "tuist@tuist.dev"
-      oauth2_identity = Accounts.get_oauth2_identity_by_provider_and_id(:google, 123)
-      assert oauth2_identity.provider_organization_id == "tuist.io"
+      assert user.email == email
+      oauth2_identity = Accounts.get_oauth2_identity_by_provider_and_id(:google, uid)
+      assert oauth2_identity.provider_organization_id == domain
     end
 
     test "creates a user from a google identity without a hosted domain" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      uid = System.unique_integer([:positive])
+      email = unique_user_email()
 
       # When
       user =
         Accounts.find_or_create_user_from_oauth2(%{
           provider: :google,
-          uid: 123,
+          uid: uid,
           info: %{
-            email: "tuist@tuist.dev"
+            email: email
           },
           extra: %{
             raw_info: %{
@@ -2203,20 +3191,21 @@ defmodule Tuist.AccountsTest do
         })
 
       # Then
-      assert user.email == "tuist@tuist.dev"
-      oauth2_identity = Accounts.get_oauth2_identity_by_provider_and_id(:google, 123)
+      assert user.email == email
+      oauth2_identity = Accounts.get_oauth2_identity_by_provider_and_id(:google, uid)
       assert oauth2_identity.provider_organization_id == nil
     end
 
     test "updates an existing user with a new github identity" do
-      user = user_fixture(email: "tuist@tuist.dev")
+      email = unique_user_email()
+      user = user_fixture(email: email)
 
       got =
         Accounts.find_or_create_user_from_oauth2(%{
           provider: :github,
-          uid: 123,
+          uid: System.unique_integer([:positive]),
           info: %{
-            email: "tuist@tuist.dev"
+            email: email
           }
         })
 
@@ -2225,26 +3214,12 @@ defmodule Tuist.AccountsTest do
     end
 
     test "updates an existing user with a new okta identity" do
-      user = user_fixture(email: "tuist@tuist.dev")
+      email = unique_user_email()
+      provider_organization_id = unique_sso_domain("okta")
+      user = user_fixture(email: email)
 
       got =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :okta,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{},
-              token: %{
-                other_params: %{
-                  "id_token" => "jwt-token"
-                }
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(okta_oauth_identity(provider_organization_id, email: email))
 
       assert user.email == got.email
       assert Accounts.find_oauth2_identity(%{user: user, provider: :okta})
@@ -2255,7 +3230,7 @@ defmodule Tuist.AccountsTest do
       user =
         Accounts.find_or_create_user_from_oauth2(%{
           provider: :github,
-          uid: 123,
+          uid: System.unique_integer([:positive]),
           info: %{
             email: "admin@example.com"
           }
@@ -2330,28 +3305,16 @@ defmodule Tuist.AccountsTest do
     test "deletes a user when a user belongs to the SSO organization" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         )
 
       user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tuist.io"
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
 
       # When
       :ok = Accounts.remove_user_from_organization(user, organization)
@@ -2385,7 +3348,7 @@ defmodule Tuist.AccountsTest do
 
       # Then - Should only have one role/user_role for this user+organization
       roles =
-        Tuist.Repo.all(
+        Repo.all(
           from(ur in UserRole,
             join: r in Role,
             on: ur.role_id == r.id,
@@ -2411,7 +3374,7 @@ defmodule Tuist.AccountsTest do
 
       # Then - Should only have one role (the first one created)
       roles =
-        Tuist.Repo.all(
+        Repo.all(
           from(ur in UserRole,
             join: r in Role,
             on: ur.role_id == r.id,
@@ -2480,11 +3443,12 @@ defmodule Tuist.AccountsTest do
     test "returns users of an organization" do
       # Given
       user_one = AccountsFixtures.user_fixture()
+      domain = unique_sso_domain()
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         )
 
       Accounts.add_user_to_organization(user_one, organization, role: :user)
@@ -2507,46 +3471,25 @@ defmodule Tuist.AccountsTest do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user_one = AccountsFixtures.user_fixture()
+      domain = unique_sso_domain()
+      other_domain = unique_sso_domain("tools")
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
         )
 
       Accounts.add_user_to_organization(user_one, organization, role: :user)
       AccountsFixtures.user_fixture()
 
       user_three =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{
-                "hd" => "tuist.io"
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
 
-      Accounts.find_or_create_user_from_oauth2(%{
-        provider: :google,
-        uid: 1234,
-        info: %{
-          email: "tuist-tools@tools.io"
-        },
-        extra: %{
-          raw_info: %{
-            user: %{
-              "hd" => "tools.io"
-            }
-          }
-        }
-      })
+      Accounts.find_or_create_user_from_oauth2(
+        google_oauth_identity(other_domain, email: unique_email(other_domain, "tools"))
+      )
 
       # When
       got = Accounts.get_organization_members(organization, :user)
@@ -2559,60 +3502,29 @@ defmodule Tuist.AccountsTest do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user_one = AccountsFixtures.user_fixture()
+      provider_organization_id = unique_sso_domain("okta")
+      other_provider_organization_id = unique_sso_domain("different-org")
 
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :okta,
-          sso_organization_id: "tuist.okta.com"
+          sso_organization_id: provider_organization_id,
+          sso_automatic_enrollment: true,
+          sso_login_domain: "tuist.dev",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret"
         )
 
       Accounts.add_user_to_organization(user_one, organization, role: :user)
       AccountsFixtures.user_fixture()
 
       user_three =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :okta,
-          uid: 123,
-          info: %{
-            email: "tuist@tuist.dev"
-          },
-          extra: %{
-            raw_info: %{
-              user: %{},
-              token: %{
-                other_params: %{
-                  "id_token" => "jwt-token"
-                }
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(okta_oauth_identity(provider_organization_id))
 
-      stub(JOSE.JWT, :peek_payload, fn _ ->
-        %JOSE.JWT{
-          fields: %{
-            "iss" => "https://different-org.okta.com"
-          }
-        }
-      end)
-
-      Accounts.find_or_create_user_from_oauth2(%{
-        provider: :okta,
-        uid: 1234,
-        info: %{
-          email: "tuist-tools@tools.io"
-        },
-        extra: %{
-          raw_info: %{
-            user: %{},
-            token: %{
-              other_params: %{
-                "id_token" => "different-jwt-token"
-              }
-            }
-          }
-        }
-      })
+      Accounts.find_or_create_user_from_oauth2(
+        okta_oauth_identity(other_provider_organization_id, email: unique_email("tuist.dev", "tools"))
+      )
 
       # When
       got = Accounts.get_organization_members(organization, :user)
@@ -2622,50 +3534,22 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "get_organization_members_with_role/1" do
-    test "returns members of an organization" do
-      user_one = AccountsFixtures.user_fixture()
-      organization = AccountsFixtures.organization_fixture(creator: user_one)
-      user_two = AccountsFixtures.user_fixture()
-      Accounts.add_user_to_organization(user_two, organization, role: :user)
-      user_three = AccountsFixtures.user_fixture()
-      Accounts.add_user_to_organization(user_three, organization, role: :admin)
-
-      organization_two = AccountsFixtures.organization_fixture()
-      Accounts.add_user_to_organization(user_one, organization_two, role: :admin)
-
-      # When
-      got =
-        organization
-        |> Accounts.get_organization_members_with_role()
-        |> Enum.sort(&(hd(&1).id < hd(&2).id))
-
-      # Then
-      assert [[user_one, "admin"], [user_two, "user"], [user_three, "admin"]] == got
-    end
-
+  describe "list_organization_members_with_role/2 with SSO" do
     test "includes SSO users for organizations with Google SSO" do
       user_one = AccountsFixtures.user_fixture()
+      domain = unique_sso_domain()
 
       organization =
         AccountsFixtures.organization_fixture(
           creator: user_one,
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
         )
 
       # Create an SSO user
       sso_user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: 123,
-          info: %{email: "sso@tuist.io"},
-          extra: %{
-            raw_info: %{
-              user: %{"hd" => "tuist.io"}
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, email: unique_email(domain, "sso")))
 
       # Add a regular user
       user_two = AccountsFixtures.user_fixture()
@@ -2674,7 +3558,8 @@ defmodule Tuist.AccountsTest do
       # When
       got =
         organization
-        |> Accounts.get_organization_members_with_role()
+        |> Accounts.list_organization_members_with_role()
+        |> elem(0)
         |> Enum.sort(&(hd(&1).id < hd(&2).id))
 
       # Then - should include admin, regular user, and SSO user
@@ -2686,34 +3571,31 @@ defmodule Tuist.AccountsTest do
 
     test "includes SSO users for organizations with Okta SSO" do
       user_one = AccountsFixtures.user_fixture()
+      provider_organization_id = unique_sso_domain("okta")
 
       organization =
         AccountsFixtures.organization_fixture(
           creator: user_one,
           sso_provider: :okta,
-          sso_organization_id: "tuist.okta.com"
+          sso_organization_id: provider_organization_id,
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret",
+          sso_automatic_enrollment: true,
+          sso_login_domain: "tuist.dev",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z]
         )
 
       # Create an SSO user
       sso_user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :okta,
-          uid: 456,
-          info: %{email: "okta@tuist.io"},
-          extra: %{
-            raw_info: %{
-              user: %{},
-              token: %{
-                other_params: %{"id_token" => "jwt-token"}
-              }
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(
+          okta_oauth_identity(provider_organization_id, email: unique_email("tuist.dev", "okta"))
+        )
 
       # When
       got =
         organization
-        |> Accounts.get_organization_members_with_role()
+        |> Accounts.list_organization_members_with_role()
+        |> elem(0)
         |> Enum.sort(&(hd(&1).id < hd(&2).id))
 
       # Then - should include admin and SSO user
@@ -2723,13 +3605,134 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "list_organization_members_with_role/2" do
+    test "paginates members ordered by account name with the total count" do
+      creator = AccountsFixtures.user_fixture(handle: "aaa-creator#{System.unique_integer([:positive])}")
+      organization = AccountsFixtures.organization_fixture(creator: creator)
+
+      members =
+        for index <- 1..4 do
+          user = AccountsFixtures.user_fixture(handle: "member-#{index}-#{System.unique_integer([:positive])}")
+          Accounts.add_user_to_organization(user, organization, role: :user)
+          user
+        end
+
+      other_organization = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(hd(members), other_organization, role: :admin)
+
+      # When
+      {first_page, first_total} = Accounts.list_organization_members_with_role(organization, page: 1, page_size: 3)
+      {second_page, second_total} = Accounts.list_organization_members_with_role(organization, page: 2, page_size: 3)
+
+      # Then
+      assert first_total == 5
+      assert second_total == 5
+
+      assert Enum.map(first_page ++ second_page, fn [user, role] -> {user.id, role} end) ==
+               [{creator.id, "admin"} | Enum.map(members, &{&1.id, "user"})]
+
+      assert Enum.all?(first_page, fn [user, _role] -> user.account.name end)
+    end
+
+    test "filters members by email or account name, case-insensitively" do
+      creator = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: creator)
+      by_email = AccountsFixtures.user_fixture(email: "Alice-#{System.unique_integer([:positive])}@example.com")
+      by_name = AccountsFixtures.user_fixture(handle: "alice-#{System.unique_integer([:positive])}")
+      Accounts.add_user_to_organization(by_email, organization)
+      Accounts.add_user_to_organization(by_name, organization)
+
+      # When
+      {members, total} = Accounts.list_organization_members_with_role(organization, search: "ALICE")
+
+      # Then
+      assert total == 2
+      assert members |> Enum.map(fn [user, _role] -> user.id end) |> Enum.sort() == Enum.sort([by_email.id, by_name.id])
+    end
+
+    test "treats LIKE wildcards in the search term literally" do
+      creator = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: creator)
+
+      # When
+      {members, total} = Accounts.list_organization_members_with_role(organization, search: "%")
+
+      # Then
+      assert members == []
+      assert total == 0
+    end
+  end
+
+  describe "list_organization_invitations/2" do
+    test "paginates the organization's invitations newest first with the total count" do
+      inviter = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: inviter)
+      other_organization = AccountsFixtures.organization_fixture(creator: inviter)
+
+      invitations =
+        for index <- 1..3 do
+          {:ok, invitation} =
+            Accounts.invite_user_to_organization("invitee-#{index}@tuist.dev", %{
+              inviter: inviter,
+              to: organization,
+              url: &"/auth/invitations/#{&1}"
+            })
+
+          Repo.update_all(
+            from(i in Invitation, where: i.id == ^invitation.id),
+            set: [created_at: NaiveDateTime.add(~N[2026-01-01 00:00:00], index, :day)]
+          )
+
+          invitation
+        end
+
+      Accounts.invite_user_to_organization("other@tuist.dev", %{
+        inviter: inviter,
+        to: other_organization,
+        url: &"/auth/invitations/#{&1}"
+      })
+
+      # When
+      {first_page, first_total} = Accounts.list_organization_invitations(organization, page: 1, page_size: 2)
+      {second_page, second_total} = Accounts.list_organization_invitations(organization, page: 2, page_size: 2)
+
+      # Then
+      assert first_total == 3
+      assert second_total == 3
+      assert Enum.map(first_page ++ second_page, & &1.id) == invitations |> Enum.reverse() |> Enum.map(& &1.id)
+    end
+
+    test "filters invitations by invitee email, case-insensitively, with LIKE wildcards taken literally" do
+      inviter = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: inviter)
+
+      {:ok, alice} =
+        Accounts.invite_user_to_organization("alice@tuist.dev", %{
+          inviter: inviter,
+          to: organization,
+          url: &"/auth/invitations/#{&1}"
+        })
+
+      Accounts.invite_user_to_organization("bob@tuist.dev", %{
+        inviter: inviter,
+        to: organization,
+        url: &"/auth/invitations/#{&1}"
+      })
+
+      # When / Then
+      assert {[%{id: id}], 1} = Accounts.list_organization_invitations(organization, search: "ALICE")
+      assert id == alice.id
+      assert {[], 0} = Accounts.list_organization_invitations(organization, search: "%")
+    end
+  end
+
   describe "account_token/1" do
     test "returns account token" do
       # Given
       account = AccountsFixtures.user_fixture(preload: [:account]).account
 
       {:ok, {account_token, account_token_value}} =
-        Accounts.create_account_token(%{account: account, scopes: ["account:registry:read"], name: "test-token"})
+        Accounts.create_account_token(%{account: account, scopes: ["project:cache:read"], name: "test-token"})
 
       # When
       {:ok, got} = Accounts.account_token(account_token_value)
@@ -2774,7 +3777,7 @@ defmodule Tuist.AccountsTest do
       {:ok, {_, got_token_value}} =
         Accounts.create_account_token(%{
           account: account,
-          scopes: ["account:registry:read"],
+          scopes: ["project:cache:read"],
           name: "my-token"
         })
 
@@ -2920,6 +3923,57 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "get_account_token/3" do
+    test "returns token when found" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      token = AccountsFixtures.account_token_fixture(account: account, name: "my-token")
+
+      # When
+      {:ok, found_token} = Accounts.get_account_token(account, token.id)
+
+      # Then
+      assert found_token.id == token.id
+      assert found_token.name == "my-token"
+    end
+
+    test "returns error when token ID is invalid" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      # When
+      result = Accounts.get_account_token(account, "not-a-token-id")
+
+      # Then
+      assert {:error, :not_found} == result
+    end
+
+    test "does not return token from different account" do
+      # Given
+      account1 = AccountsFixtures.user_fixture(preload: [:account]).account
+      account2 = AccountsFixtures.user_fixture(preload: [:account]).account
+      token = AccountsFixtures.account_token_fixture(account: account1, name: "my-token")
+
+      # When
+      result = Accounts.get_account_token(account2, token.id)
+
+      # Then
+      assert {:error, :not_found} == result
+    end
+
+    test "preloads specified associations" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      token = AccountsFixtures.account_token_fixture(account: account, name: "my-token")
+
+      # When
+      {:ok, found_token} = Accounts.get_account_token(account, token.id, preload: [:projects])
+
+      # Then
+      assert Ecto.assoc_loaded?(found_token.projects)
+    end
+  end
+
   describe "get_account_token_by_name/3" do
     test "returns token when found" do
       # Given
@@ -3038,35 +4092,18 @@ defmodule Tuist.AccountsTest do
     test "finds users with matching SSO credentials not assigned to organization" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
+      domain = unique_sso_domain()
 
       # Create organization without SSO initially
       organization = AccountsFixtures.organization_fixture()
 
       # Create a user with matching Google OAuth2 identity
       unassigned_user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: System.unique_integer([:positive]),
-          info: %{email: "unassigned@tuist.io"},
-          extra: %{
-            raw_info: %{
-              user: %{"hd" => "tuist.io"}
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, email: unique_email(domain, "unassigned")))
 
       # Create a user already assigned to the organization
       assigned_user =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: System.unique_integer([:positive]),
-          info: %{email: "assigned@tuist.io"},
-          extra: %{
-            raw_info: %{
-              user: %{"hd" => "tuist.io"}
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, email: unique_email(domain, "assigned")))
 
       Accounts.add_user_to_organization(assigned_user, organization, role: :user)
 
@@ -3075,11 +4112,11 @@ defmodule Tuist.AccountsTest do
         Accounts.find_or_create_user_from_oauth2(%{
           provider: :github,
           uid: System.unique_integer([:positive]),
-          info: %{email: "github@tuist.io"}
+          info: %{email: unique_email(domain, "github")}
         })
 
       # When
-      unassigned_users = Accounts.find_unassigned_sso_users(organization, :google, "tuist.io")
+      unassigned_users = Accounts.find_unassigned_sso_users(organization, :google, domain)
 
       # Then
       user_ids = Enum.map(unassigned_users, & &1.id)
@@ -3090,14 +4127,16 @@ defmodule Tuist.AccountsTest do
 
     test "returns empty list when no matching users exist" do
       # Given
+      domain = unique_sso_domain()
+
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "tuist.io"
+          sso_organization_id: domain
         )
 
       # When
-      unassigned_users = Accounts.find_unassigned_sso_users(organization, :google, "tuist.io")
+      unassigned_users = Accounts.find_unassigned_sso_users(organization, :google, domain)
 
       # Then
       assert unassigned_users == []
@@ -3108,41 +4147,30 @@ defmodule Tuist.AccountsTest do
     test "assigns matching SSO users to organization and returns count" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
-
+      domain = unique_sso_domain()
       organization = AccountsFixtures.organization_fixture()
 
       # Create multiple users with matching Google OAuth2 identities
       user1 =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: System.unique_integer([:positive]),
-          info: %{email: "user1@tuist.io"},
-          extra: %{
-            raw_info: %{
-              user: %{"hd" => "tuist.io"}
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, email: unique_email(domain, "user1")))
 
       user2 =
-        Accounts.find_or_create_user_from_oauth2(%{
-          provider: :google,
-          uid: System.unique_integer([:positive]),
-          info: %{email: "user2@tuist.io"},
-          extra: %{
-            raw_info: %{
-              user: %{"hd" => "tuist.io"}
-            }
-          }
-        })
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, email: unique_email(domain, "user2")))
 
       # Verify users are not assigned to organization
       refute Accounts.belongs_to_organization?(user1, organization)
       refute Accounts.belongs_to_organization?(user2, organization)
 
       # When
+      organization = %{
+        organization
+        | sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
+      }
+
       count =
-        Accounts.assign_existing_sso_users_to_organization(organization, :google, "tuist.io")
+        Accounts.assign_existing_sso_users_to_organization(organization, :google, domain)
 
       # Then
       assert count == 2
@@ -3154,11 +4182,12 @@ defmodule Tuist.AccountsTest do
 
     test "returns 0 when no matching users exist" do
       # Given
+      domain = unique_sso_domain()
       organization = AccountsFixtures.organization_fixture()
 
       # When
       count =
-        Accounts.assign_existing_sso_users_to_organization(organization, :google, "tuist.io")
+        Accounts.assign_existing_sso_users_to_organization(organization, :google, domain)
 
       # Then
       assert count == 0
@@ -3166,6 +4195,13 @@ defmodule Tuist.AccountsTest do
   end
 
   describe "delete_account/1" do
+    setup do
+      # Account deletion purges the account's runner cache-volume masters from
+      # object storage; stub it so tests don't reach real storage.
+      stub(Tuist.Storage, :delete_all_objects, fn _prefix, _actor -> {:ok, 0} end)
+      :ok
+    end
+
     test "deletes a user account successfully" do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -3192,87 +4228,173 @@ defmodule Tuist.AccountsTest do
       assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
       assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
     end
+
+    test "purges the account's runner cache-volume masters and GitLab caches from object storage" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      test_pid = self()
+
+      expect(Tuist.Storage, :delete_all_objects, 2, fn prefix, _actor ->
+        send(test_pid, {:purged, prefix})
+        {:ok, 0}
+      end)
+
+      # When
+      Accounts.delete_account!(account)
+
+      # Then
+      assert_receive {:purged, "runner-volume-masters/" <> rest}
+      assert rest == "#{account.id}/"
+      assert_receive {:purged, gitlab_cache_prefix}
+      assert gitlab_cache_prefix == "runner-gitlab-cache/#{account.id}/"
+    end
+
+    test "a failed cache-master purge does not skip the GitLab cache purge" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      test_pid = self()
+
+      stub(Tuist.Storage, :delete_all_objects, fn
+        "runner-volume-masters/" <> _, _actor ->
+          raise "storage down"
+
+        prefix, _actor ->
+          send(test_pid, {:purged, prefix})
+          {:ok, 0}
+      end)
+
+      # When
+      Accounts.delete_account!(account)
+
+      # Then
+      assert_receive {:purged, "runner-gitlab-cache/" <> _}
+    end
+
+    test "account deletion still succeeds when the cache-master purge fails" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      stub(Tuist.Storage, :delete_all_objects, fn _prefix, _actor -> raise "storage down" end)
+
+      # When / Then — the best-effort purge is rescued, deletion proceeds.
+      Accounts.delete_account!(account)
+      assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+    end
+
+    test "tears the account's Kura servers out of the cluster before its rows cascade away" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      test_pid = self()
+
+      expect(Tuist.Kura, :destroy_servers_for_account, fn account_id ->
+        # The rows the reconciler would need must still be readable here: once
+        # the account is gone they cascade, and nothing can reclaim the
+        # workload afterwards.
+        send(test_pid, {:kura_teardown, account_id, Accounts.get_account_by_id(account_id)})
+        :ok
+      end)
+
+      # When
+      Accounts.delete_account!(account)
+
+      # Then
+      assert_receive {:kura_teardown, account_id, {:ok, _account}}
+      assert account_id == account.id
+      assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+    end
+
+    test "account deletion still succeeds when the Kura teardown fails" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      stub(Tuist.Kura, :destroy_servers_for_account, fn _account_id -> raise "cluster unreachable" end)
+
+      # When / Then
+      Accounts.delete_account!(account)
+      assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+    end
   end
 
-  describe "okta_organization_for_user_email/1" do
+  describe "sso_configured?/0" do
+    test "returns false when no organization has SSO configured" do
+      AccountsFixtures.organization_fixture()
+
+      refute Accounts.sso_configured?()
+    end
+
+    test "returns true when an organization has Okta SSO configured" do
+      AccountsFixtures.organization_fixture(
+        sso_provider: :okta,
+        sso_organization_id: "company.okta.com",
+        oauth2_client_id: "client-id",
+        oauth2_client_secret: "client-secret"
+      )
+
+      assert Accounts.sso_configured?()
+    end
+
+    test "returns true when an organization has generic OAuth2 SSO configured" do
+      AccountsFixtures.organization_fixture(
+        sso_provider: :oauth2,
+        sso_organization_id: "https://id.company.com",
+        oauth2_client_id: "client-id",
+        oauth2_client_secret: "client-secret",
+        oauth2_authorize_url: "https://id.company.com/authorize",
+        oauth2_token_url: "https://id.company.com/token",
+        oauth2_user_info_url: "https://id.company.com/userinfo"
+      )
+
+      assert Accounts.sso_configured?()
+    end
+
+    test "returns false when the only SSO organization uses Google" do
+      AccountsFixtures.organization_fixture(sso_provider: :google, sso_organization_id: "company.com")
+
+      refute Accounts.sso_configured?()
+    end
+  end
+
+  describe "sso_organization_for_user_email/1" do
     test "returns organization when user exists and has okta organization" do
-      # Given
       user = AccountsFixtures.user_fixture()
 
       organization =
         AccountsFixtures.organization_fixture(
           creator: user,
           sso_provider: :okta,
-          sso_organization_id: "company.okta.com"
+          sso_organization_id: "company.okta.com",
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret"
         )
 
-      # When
-      {:ok, got_organization} = Accounts.okta_organization_for_user_email(user.email)
+      {:ok, got_organization} = Accounts.sso_organization_for_user_email(user.email)
 
-      # Then
       assert got_organization.id == organization.id
       assert got_organization.sso_provider == :okta
     end
 
-    test "falls back to domain-based matching when user doesn't exist" do
-      # Given - no user exists but organization exists for domain
-      AccountsFixtures.organization_fixture(
-        sso_provider: :okta,
-        sso_organization_id: "company.okta.com"
-      )
-
-      # When
-      {:ok, organization} = Accounts.okta_organization_for_user_email("newuser@company.com")
-
-      # Then
-      assert organization.sso_provider == :okta
-      assert organization.sso_organization_id == "company.okta.com"
-    end
-
-    test "falls back to domain-based matching when user has no okta organization" do
-      # Given
-      user = AccountsFixtures.user_fixture(email: "user@company.com")
-      # User has no organization
-
-      # But organization exists for domain
-      AccountsFixtures.organization_fixture(
-        sso_provider: :okta,
-        sso_organization_id: "company.okta.com"
-      )
-
-      # When
-      {:ok, organization} = Accounts.okta_organization_for_user_email(user.email)
-
-      # Then
-      assert organization.sso_provider == :okta
-      assert organization.sso_organization_id == "company.okta.com"
-    end
-
     test "returns error when user does not exist" do
-      # When / Then
       assert {:error, :not_found} ==
-               Accounts.okta_organization_for_user_email("nonexistent@example.com")
+               Accounts.sso_organization_for_user_email("nonexistent@example.com")
     end
 
-    test "returns error when user exists but has no okta organization" do
-      # Given
+    test "returns error when user exists but has no SSO organization" do
       user = AccountsFixtures.user_fixture()
 
-      # When / Then
-      assert {:error, :not_found} == Accounts.okta_organization_for_user_email(user.email)
+      assert {:error, :not_found} == Accounts.sso_organization_for_user_email(user.email)
     end
 
     test "returns error when user has organization but no sso configured" do
-      # Given
       user = AccountsFixtures.user_fixture()
       AccountsFixtures.organization_fixture(creator: user)
 
-      # When / Then
-      assert {:error, :not_found} == Accounts.okta_organization_for_user_email(user.email)
+      assert {:error, :not_found} == Accounts.sso_organization_for_user_email(user.email)
     end
 
     test "returns error when user has google sso instead of okta" do
-      # Given
       user = AccountsFixtures.user_fixture()
 
       AccountsFixtures.organization_fixture(
@@ -3281,108 +4403,340 @@ defmodule Tuist.AccountsTest do
         sso_organization_id: "company.com"
       )
 
-      # When / Then
-      assert {:error, :not_found} == Accounts.okta_organization_for_user_email(user.email)
+      assert {:error, :not_found} == Accounts.sso_organization_for_user_email(user.email)
     end
-  end
 
-  describe "get_okta_configuration_by_organization_id/1" do
-    test "returns okta configuration when organization has okta configured with db values" do
-      # Given
-      user = AccountsFixtures.user_fixture()
+    test "falls back to domain-based matching for okta when user is not in SSO organization" do
+      creator = AccountsFixtures.user_fixture()
 
       organization =
         AccountsFixtures.organization_fixture(
-          creator: user,
+          creator: creator,
           sso_provider: :okta,
-          sso_organization_id: "company.okta.com",
-          okta_client_id: "test_client_id",
-          okta_client_secret: "test_client_secret"
+          sso_organization_id: "example.okta.com",
+          sso_login_domain: "example.com",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret"
         )
 
-      # When
-      {:ok, config} = Accounts.get_okta_configuration_by_organization_id(organization.id)
+      {:ok, got_organization} =
+        Accounts.sso_organization_for_user_email("someone@example.com")
 
-      # Then
-      assert config.client_id == "test_client_id"
-      assert config.client_secret == "test_client_secret"
-      assert config.site == "company.okta.com"
+      assert got_organization.id == organization.id
     end
 
-    test "returns error when organization does not have okta configured" do
-      # Given
-      user = AccountsFixtures.user_fixture()
+    test "falls back to domain-based matching for custom oauth2 when user is not in SSO organization" do
+      creator = AccountsFixtures.user_fixture()
 
       organization =
         AccountsFixtures.organization_fixture(
-          creator: user,
+          creator: creator,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://example.com",
+          sso_login_domain: "example.com",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret",
+          oauth2_authorize_url: "https://example.com/authorize",
+          oauth2_token_url: "https://example.com/token",
+          oauth2_user_info_url: "https://example.com/userinfo"
+        )
+
+      {:ok, got_organization} =
+        Accounts.sso_organization_for_user_email("someone@example.com")
+
+      assert got_organization.id == organization.id
+    end
+
+    test "does not discover an organization from an unverified login domain" do
+      AccountsFixtures.organization_fixture(
+        sso_provider: :oauth2,
+        sso_organization_id: "https://login.example.net",
+        sso_login_domain: "example.com",
+        sso_login_domain_verification_token: "verification-token",
+        oauth2_client_id: "client-id",
+        oauth2_client_secret: "client-secret",
+        oauth2_authorize_url: "https://login.example.net/authorize",
+        oauth2_token_url: "https://login.example.net/token",
+        oauth2_user_info_url: "https://login.example.net/userinfo"
+      )
+
+      assert {:error, :not_found} ==
+               Accounts.sso_organization_for_user_email("someone@example.com")
+    end
+
+    test "does not discover a former compatibility-mode organization for nonmembers" do
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :oauth2,
+          sso_organization_id: "https://example.com",
+          sso_legacy_email_domain_fallback: true,
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret",
+          oauth2_authorize_url: "https://example.com/authorize",
+          oauth2_token_url: "https://example.com/token",
+          oauth2_user_info_url: "https://example.com/userinfo"
+        )
+
+      assert {:error, :not_found} = Accounts.sso_organization_for_user_email("someone@example.com")
+      member = AccountsFixtures.user_fixture(email: "member@example.com")
+      Accounts.add_user_to_organization(member, organization)
+      assert {:ok, discovered_organization} = Accounts.sso_organization_for_user_email(member.email)
+      assert discovered_organization.id == organization.id
+    end
+
+    test "prefers a verified login domain over an overlapping legacy provider identifier" do
+      verified_organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :oauth2,
+          sso_organization_id: "https://login.example.net",
+          sso_login_domain: "example.com",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret",
+          oauth2_authorize_url: "https://login.example.net/authorize",
+          oauth2_token_url: "https://login.example.net/token",
+          oauth2_user_info_url: "https://login.example.net/userinfo"
+        )
+
+      AccountsFixtures.organization_fixture(
+        sso_provider: :okta,
+        sso_organization_id: "example.okta.com",
+        sso_legacy_email_domain_fallback: true,
+        oauth2_client_id: "legacy-client-id",
+        oauth2_client_secret: "legacy-client-secret"
+      )
+
+      assert {:ok, discovered_organization} =
+               Accounts.sso_organization_for_user_email("someone@example.com")
+
+      assert discovered_organization.id == verified_organization.id
+    end
+
+    test "does not apply the legacy provider-identifier heuristic to a new organization" do
+      AccountsFixtures.organization_fixture(
+        sso_provider: :oauth2,
+        sso_organization_id: "https://example.com",
+        oauth2_client_id: "client-id",
+        oauth2_client_secret: "client-secret",
+        oauth2_authorize_url: "https://example.com/authorize",
+        oauth2_token_url: "https://example.com/token",
+        oauth2_user_info_url: "https://example.com/userinfo"
+      )
+
+      assert {:error, :not_found} ==
+               Accounts.sso_organization_for_user_email("someone@example.com")
+    end
+
+    test "domain-based fallback returns error when no matching organization" do
+      assert {:error, :not_found} ==
+               Accounts.sso_organization_for_user_email("someone@nomatch.com")
+    end
+
+    test "domain-based fallback skips Google SSO organizations" do
+      creator = AccountsFixtures.user_fixture()
+
+      _google_org =
+        AccountsFixtures.organization_fixture(
+          creator: creator,
           sso_provider: :google,
-          sso_organization_id: "company.com"
+          sso_organization_id: "example.com"
         )
 
-      # When / Then
       assert {:error, :not_found} ==
-               Accounts.get_okta_configuration_by_organization_id(organization.id)
-    end
-
-    test "returns error when organization has okta as provider but no client_id" do
-      # Given
-      user = AccountsFixtures.user_fixture()
-
-      organization =
-        AccountsFixtures.organization_fixture(
-          creator: user,
-          sso_provider: :okta,
-          sso_organization_id: "company.okta.com"
-        )
-
-      # When / Then
-      assert {:error, :not_found} ==
-               Accounts.get_okta_configuration_by_organization_id(organization.id)
-    end
-
-    test "returns error when organization does not exist" do
-      # When / Then
-      assert {:error, :not_found} == Accounts.get_okta_configuration_by_organization_id(999_999)
+               Accounts.sso_organization_for_user_email("someone@example.com")
     end
   end
 
-  describe "create_namespace_tenant_for_account/1" do
-    test "creates a tenant and updates account with namespace_tenant_id" do
-      # Given
-      %{account: account} = AccountsFixtures.user_fixture()
-      namespace_tenant_id = "tenant-123"
-      account_name = account.name
-      account_id = account.id
+  describe "sso_automatic_enrollment_allowed?/2" do
+    test "allows a matching verified login domain" do
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_login_domain: "example.com",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+          sso_automatic_enrollment: true
+        )
 
-      expect(Tuist.Namespace, :create_tenant, 1, fn ^account_name, ^account_id ->
-        {:ok, %{"tenant" => %{"id" => namespace_tenant_id}}}
-      end)
-
-      # When
-      {:ok, updated_account} = Accounts.create_namespace_tenant_for_account(account)
-
-      # Then
-      assert updated_account.namespace_tenant_id == namespace_tenant_id
-      assert updated_account.id == account.id
+      assert Accounts.sso_automatic_enrollment_allowed?(organization, "Person@EXAMPLE.COM")
+      refute Accounts.sso_automatic_enrollment_allowed?(organization, "person@other.example")
     end
 
-    test "returns error when Namespace.create_tenant fails" do
-      # Given
-      %{account: account} = AccountsFixtures.user_fixture()
-      error_reason = "Namespace API error"
+    test "rejects an unverified login domain" do
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_login_domain: "example.com",
+          sso_login_domain_verification_token: "verification-token"
+        )
 
-      expect(Tuist.Namespace, :create_tenant, 1, fn _account_name, _account_id ->
-        {:error, error_reason}
+      refute Accounts.sso_automatic_enrollment_allowed?(organization, "person@example.com")
+    end
+
+    test "rejects enrollment when the policy is disabled" do
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_login_domain: "example.com",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+          sso_automatic_enrollment: false
+        )
+
+      refute Accounts.sso_automatic_enrollment_allowed?(organization, "person@example.com")
+    end
+
+    test "fails closed when a custom configuration has no login domain" do
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_automatic_enrollment: true,
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z]
+        )
+
+      refute Accounts.sso_automatic_enrollment_allowed?(organization, "person@example.com")
+      refute Accounts.sso_automatic_enrollment_allowed?(organization, "invalid-email")
+      refute Accounts.sso_identity_linking_allowed?(organization, "person@example.com")
+    end
+
+    test "trusts the signed Google hosted-domain match for secondary email domains" do
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: "primary.example",
+          sso_automatic_enrollment: true
+        )
+
+      assert Accounts.sso_automatic_enrollment_allowed?(organization, "person@secondary.example")
+    end
+
+    test "blocks enrollment for a former compatibility-mode organization without a domain" do
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :oauth2,
+          sso_organization_id: "https://login.vendor.example",
+          sso_automatic_enrollment: true,
+          sso_legacy_email_domain_fallback: true,
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret",
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        )
+
+      refute Accounts.sso_automatic_enrollment_allowed?(organization, "person@unrelated.example")
+      refute Accounts.sso_new_user_enrollment_allowed?(organization, "person@unrelated.example", false)
+      refute Accounts.sso_identity_linking_allowed?(organization, "person@unrelated.example")
+    end
+
+    test "blocks enrollment for a former compatibility-mode organization with an unverified domain" do
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :oauth2,
+          sso_organization_id: "https://login.vendor.example",
+          sso_automatic_enrollment: true,
+          sso_legacy_email_domain_fallback: true,
+          sso_login_domain: "example.com",
+          sso_login_domain_verification_token: "verification-token",
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret",
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        )
+
+      refute Accounts.sso_automatic_enrollment_allowed?(organization, "person@example.com")
+      refute Accounts.sso_new_user_enrollment_allowed?(organization, "person@example.com", false)
+      refute Accounts.sso_automatic_enrollment_allowed?(organization, "person@unrelated.example")
+      refute Accounts.sso_new_user_enrollment_allowed?(organization, "person@unrelated.example", false)
+
+      refute Accounts.sso_new_user_enrollment_allowed?(organization, "person@example.com", true)
+      refute Accounts.sso_identity_linking_allowed?(organization, "person@example.com")
+    end
+
+    test "allows identity linking through a verified domain when automatic enrollment is disabled" do
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_login_domain: "example.com",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+          sso_automatic_enrollment: false
+        )
+
+      assert Accounts.sso_identity_linking_allowed?(organization, "person@example.com")
+      refute Accounts.sso_automatic_enrollment_allowed?(organization, "person@example.com")
+    end
+  end
+
+  describe "verify_sso_login_domain/1" do
+    test "marks the domain as verified when the expected text record exists" do
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_login_domain: "example.com",
+          sso_login_domain_verification_token: "verification-token",
+          sso_legacy_email_domain_fallback: true
+        )
+
+      expect(SSOLoginDomainVerification, :verified?, fn "example.com", "verification-token" -> true end)
+
+      assert {:ok, verified_organization} = Accounts.verify_sso_login_domain(organization)
+      assert verified_organization.sso_login_domain_verified_at
+
+      assert verified_organization.sso_login_domain_last_verified_at ==
+               verified_organization.sso_login_domain_verified_at
+    end
+
+    test "keeps the domain pending when the expected text record is absent" do
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_login_domain: "example.com",
+          sso_login_domain_verification_token: "verification-token"
+        )
+
+      expect(SSOLoginDomainVerification, :verified?, fn "example.com", "verification-token" -> false end)
+
+      assert {:error, :verification_record_not_found} =
+               Accounts.verify_sso_login_domain(organization)
+    end
+
+    test "does not verify a domain that changed while its text record was being checked" do
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_login_domain: "example.com",
+          sso_login_domain_verification_token: "verification-token"
+        )
+
+      expect(SSOLoginDomainVerification, :verified?, fn "example.com", "verification-token" ->
+        assert {:ok, _updated_organization} =
+                 Accounts.update_organization(organization, %{sso_login_domain: "other.example"})
+
+        true
       end)
 
-      # When
-      {:error, reason} = Accounts.create_namespace_tenant_for_account(account)
+      assert {:error, :verification_record_not_found} =
+               Accounts.verify_sso_login_domain(organization)
 
-      # Then
-      assert reason == error_reason
-      {:ok, reloaded_account} = Accounts.get_account_by_id(account.id)
-      assert is_nil(reloaded_account.namespace_tenant_id)
+      assert {:ok, updated_organization} = Accounts.get_organization_by_id(organization.id)
+      assert updated_organization.sso_login_domain == "other.example"
+      refute updated_organization.sso_login_domain_verified_at
+    end
+
+    test "does not allow a general organization update to forge verification" do
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_login_domain: "example.com",
+          sso_login_domain_verification_token: "verification-token"
+        )
+
+      assert {:ok, updated_organization} =
+               Accounts.update_organization(organization, %{
+                 sso_login_domain_verification_token: "forged-token",
+                 sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z]
+               })
+
+      assert updated_organization.sso_login_domain_verification_token == "verification-token"
+      refute updated_organization.sso_login_domain_verified_at
     end
   end
 
@@ -3467,12 +4821,58 @@ defmodule Tuist.AccountsTest do
       assert retrieved.user.id == user.id
     end
 
+    test "allows the same user and provider subject under different issuers" do
+      # Given
+      user = user_fixture(email: "multi-issuer@example.com")
+      uid = "shared-sub-#{System.unique_integer([:positive])}"
+
+      first_attrs = %{
+        provider: :oauth2,
+        id_in_provider: uid,
+        provider_organization_id: "https://first.example.com"
+      }
+
+      second_attrs = %{
+        provider: :oauth2,
+        id_in_provider: uid,
+        provider_organization_id: "https://second.example.com"
+      }
+
+      # When
+      {:ok, first_identity} = Accounts.link_oauth_identity_to_user(user, first_attrs)
+      {:ok, second_identity} = Accounts.link_oauth_identity_to_user(user, second_attrs)
+
+      # Then
+      refute first_identity.id == second_identity.id
+      assert first_identity.user_id == user.id
+      assert second_identity.user_id == user.id
+    end
+
+    test "returns the existing identity when the same link is inserted twice" do
+      # Given
+      user = user_fixture(email: "duplicate-link@example.com")
+
+      attrs = %{
+        provider: :google,
+        id_in_provider: "google-uid-#{System.unique_integer([:positive])}",
+        provider_organization_id: nil
+      }
+
+      # When
+      {:ok, first_identity} = Accounts.link_oauth_identity_to_user(user, attrs)
+      {:ok, second_identity} = Accounts.link_oauth_identity_to_user(user, attrs)
+
+      # Then
+      assert second_identity.id == first_identity.id
+    end
+
     test "assigns user to SSO organization when provider_organization_id matches" do
       # Given
       organization =
         organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "link-sso-test.io"
+          sso_organization_id: "link-sso-test.io",
+          sso_automatic_enrollment: true
         )
 
       user = user_fixture(email: "link-sso-user@example.com")
@@ -3586,25 +4986,18 @@ defmodule Tuist.AccountsTest do
       assert is_nil(result)
     end
 
-    test "extracts issuer domain for Okta provider" do
-      # Given
+    test "extracts provider_organization_id for Okta provider" do
       auth = %{
         provider: :okta,
         extra: %{
           raw_info: %{
-            token: %{
-              other_params: %{
-                "id_token" => "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL3R1aXN0Lm9rdGEuY29tIn0.test"
-              }
-            }
+            provider_organization_id: "tuist.okta.com"
           }
         }
       }
 
-      # When
       result = Accounts.extract_provider_organization_id(auth)
 
-      # Then
       assert result == "tuist.okta.com"
     end
   end
@@ -3654,7 +5047,8 @@ defmodule Tuist.AccountsTest do
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "sso-test.io"
+          sso_organization_id: "sso-test.io",
+          sso_automatic_enrollment: true
         )
 
       oauth_data = %{
@@ -3741,6 +5135,25 @@ defmodule Tuist.AccountsTest do
       assert endpoint1.id in endpoint_ids
       assert endpoint2.id in endpoint_ids
     end
+
+    test "returns only endpoints for the requested technology" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, default_endpoint} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
+
+      {:ok, _kura_endpoint} =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://kura-cache.example.com",
+          technology: :kura_self_hosted_peer
+        })
+
+      # When
+      endpoints = Accounts.list_account_cache_endpoints(account, :default)
+
+      # Then
+      assert Enum.map(endpoints, & &1.id) == [default_endpoint.id]
+    end
   end
 
   describe "create_account_cache_endpoint/2" do
@@ -3755,6 +5168,7 @@ defmodule Tuist.AccountsTest do
       # Then
       assert endpoint.url == "https://cache.example.com"
       assert endpoint.account_id == account.id
+      assert endpoint.technology == :default
     end
 
     test "returns error for invalid URL" do
@@ -3797,6 +5211,24 @@ defmodule Tuist.AccountsTest do
       assert {:ok, endpoint} = result
       assert endpoint.url == "https://cache.example.com"
     end
+
+    test "allows same URL for different cache technologies on the same account" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, _endpoint1} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache.example.com"})
+
+      # When
+      result =
+        Accounts.create_account_cache_endpoint(account, %{
+          url: "https://cache.example.com",
+          technology: :kura
+        })
+
+      # Then
+      assert {:ok, endpoint} = result
+      assert endpoint.technology == :kura
+    end
   end
 
   describe "delete_account_cache_endpoint/1" do
@@ -3837,7 +5269,7 @@ defmodule Tuist.AccountsTest do
     end
   end
 
-  describe "get_cache_endpoints_for_handle/1" do
+  describe "get_cache_resolution_for_handle/3 for earlier clients" do
     test "returns custom endpoints when account has them configured and enabled" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
@@ -3849,10 +5281,334 @@ defmodule Tuist.AccountsTest do
       {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache2.example.com"})
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
 
       # Then
       assert Enum.sort(endpoints) == Enum.sort(["https://cache1.example.com", "https://cache2.example.com"])
+    end
+
+    test "returns account Kura endpoints when the client requests Kura and the account has Kura endpoints" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
+
+      KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
+
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
+
+      # Then
+      assert endpoints == ["https://kura-cache.example.com"]
+    end
+
+    test "surfaces registered self-hosted node addresses for an entitled account" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      stub(Registrations, :active_advertised_urls, fn _ -> ["https://node.acme.example:8080"] end)
+
+      # When
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
+
+      # Then
+      assert endpoints == ["https://node.acme.example:8080"]
+    end
+
+    test "hides registered self-hosted node addresses when the account is not entitled to self-hosting" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      reject(&Registrations.active_advertised_urls/1)
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
+
+      # Then
+      assert endpoints == default_endpoints
+    end
+
+    test "returns custom endpoints when the client requests Kura but the account has no Kura endpoints" do
+      # Given
+      # An account that has never routed through Kura keeps the custom-endpoint
+      # behaviour. Stubbed rather than arranged, because the demand this very
+      # call records is what makes an account lifecycle-managed, and the window
+      # before it is flushed is exactly what this branch serves.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Demand, :lifecycle_managed?, fn _account -> false end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
+
+      # When
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
+
+      # Then
+      assert endpoints == ["https://custom-cache.example.com"]
+    end
+
+    test "serves the Tuist-hosted default lane while a lifecycle-managed account has no Kura instance" do
+      # Given
+      # An archived account must not fall back to the legacy custom-endpoint
+      # path: that would make archiving accounts the thing that keeps the
+      # legacy path alive.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true, region: :usa})
+
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
+      {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
+
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
+
+      # Then
+      assert endpoints == default_endpoints
+    end
+
+    test "reports provisioning while the account's instance is not serving yet" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
+
+      Repo.insert!(%Server{
+        account_id: account.id,
+        region: "us-east",
+        status: :archived,
+        provisioner_node_ref: "kura-#{account.id}-us-east"
+      })
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback)
+
+      # Then
+      assert resolution.endpoints == ["https://default.tuist.dev"]
+      assert resolution.provisioning
+    end
+
+    test "reports provisioning on the very first request, before any demand row exists" do
+      # Given
+      # The request asking the question is the one that records the demand a
+      # cold return is provisioned from, so a check that waited for the row
+      # would answer `false` on the request where it matters most and leave the
+      # client caching a stand-in lane for its full interval.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback)
+
+      # Then
+      assert resolution.endpoints == ["https://default.tuist.dev"]
+      assert resolution.provisioning
+    end
+
+    test "does not report provisioning for an account with no resolvable service region" do
+      # Given
+      # A plan Kura does not serve resolves to no region, so no instance is
+      # coming and the client must not poll for one.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :open_source)
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback)
+
+      # Then
+      refute resolution.provisioning
+    end
+
+    test "reports provisioning for a paid account that allows every storage region" do
+      # Given
+      # These accounts used to be refused a region outright, which left them on
+      # a stand-in lane indefinitely with the client told nothing was coming.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
+      {:ok, account} = Accounts.update_account(account, %{region: :all})
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback)
+
+      # Then
+      assert resolution.endpoints == ["https://default.tuist.dev"]
+      assert resolution.provisioning
+    end
+
+    test "asks for the account's instance straight away when none is serving" do
+      # Given
+      # Returning an archived instance used to wait for the demand buffer's
+      # flush and the next reconciler tick, up to two minutes before the
+      # instance even started coming back.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      Accounts.get_cache_resolution_for_handle(account.name, :kura)
+      Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      assert [%Oban.Job{args: %{"account_id" => account_id}}] =
+               all_enqueued(worker: ProvisionOnDemandWorker)
+
+      assert account_id == account.id
+    end
+
+    test "does not ask for an instance for an account with no resolvable service region" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :open_source)
+
+      # When
+      Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      refute_enqueued(worker: ProvisionOnDemandWorker)
+    end
+
+    test "does not report provisioning once an instance is serving" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      KuraFixtures.active_server_fixture(account, region: "us-east", url: "https://acme-us-east-1.kura.tuist.dev")
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback)
+
+      # Then
+      assert resolution.endpoints == ["https://acme-us-east-1.kura.tuist.dev"]
+      refute resolution.provisioning
+      refute_enqueued(worker: ProvisionOnDemandWorker)
+    end
+
+    test "does not report provisioning when the client is not routed to Kura" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :legacy)
+
+      # Then
+      refute resolution.provisioning
+    end
+
+    test "records cache demand for the account when a Kura client resolves endpoints" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
+      Demand.flush()
+
+      # Then
+      assert Demand.get(account.id, "us-east")
+    end
+
+    test "does not record cache demand when the client is not routed to Kura" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://default.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
+      Demand.flush()
+
+      # Then
+      refute Demand.get(account.id, "us-east")
+    end
+
+    test "returns custom endpoints when the client does not request Kura even if the account has Kura endpoints" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
+
+      KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
+
+      # When
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
+
+      # Then
+      assert endpoints == ["https://custom-cache.example.com"]
+    end
+
+    test "returns default endpoints when the client requests Kura but the account has no Kura or custom endpoints" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      default_endpoints = ["https://default.tuist.dev"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback).endpoints
+
+      # Then
+      assert endpoints == default_endpoints
     end
 
     test "returns default endpoints when account has no custom endpoints" do
@@ -3866,7 +5622,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
 
       # Then
       assert endpoints == default_endpoints
@@ -3883,7 +5639,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
 
       # Then
       assert endpoints == default_endpoints
@@ -3900,7 +5656,24 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
+
+      # Then
+      assert endpoints == default_endpoints
+    end
+
+    test "returns environment endpoints when self-hosted" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, _} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
+      default_endpoints = ["https://cache-self-hosted.example.com"]
+      stub(Environment, :cache_endpoints, fn -> default_endpoints end)
+
+      # When
+      endpoints = Accounts.get_cache_resolution_for_handle(account.name, :legacy).endpoints
 
       # Then
       assert endpoints == default_endpoints
@@ -3912,7 +5685,7 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle("nonexistent-account")
+      endpoints = Accounts.get_cache_resolution_for_handle("nonexistent-account", :legacy).endpoints
 
       # Then
       assert endpoints == default_endpoints
@@ -3924,10 +5697,917 @@ defmodule Tuist.AccountsTest do
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
 
       # When
-      endpoints = Accounts.get_cache_endpoints_for_handle(nil)
+      endpoints = Accounts.get_cache_resolution_for_handle(nil, :legacy).endpoints
 
       # Then
       assert endpoints == default_endpoints
+    end
+  end
+
+  describe "get_cache_resolution_for_handle/3 for Kura clients" do
+    test "returns the account's Kura endpoints over its custom endpoints" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
+      KuraFixtures.active_server_fixture(account, url: "https://kura-cache.example.com")
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      assert resolution == %{endpoints: ["https://kura-cache.example.com"], provisioning: false}
+    end
+
+    test "returns no endpoints instead of the legacy cache nodes while a lifecycle-managed account has no Kura instance" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://cache-us-east.tuist.dev"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true, region: :usa})
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
+      {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
+
+      # When
+      kura = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+      legacy_fallback = Accounts.get_cache_resolution_for_handle(account.name, :kura_with_legacy_fallback)
+
+      # Then
+      assert kura.endpoints == []
+      assert legacy_fallback.endpoints == ["https://cache-us-east.tuist.dev"]
+    end
+
+    test "returns custom endpoints for an account that has never routed through Kura" do
+      # Given
+      # Stubbed rather than arranged, because the demand this very call records
+      # is what makes an account lifecycle-managed.
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Demand, :lifecycle_managed?, fn _account -> false end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
+      {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://cache1.example.com"})
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      assert resolution.endpoints == ["https://cache1.example.com"]
+    end
+
+    test "returns no endpoints instead of the legacy cache nodes when the account has no Kura or custom endpoints" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> nil end)
+      stub(Demand, :lifecycle_managed?, fn _account -> false end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, _} =
+        CacheEndpoints.create_cache_endpoint(%{url: "https://cache-eu-central.tuist.dev", display_name: "EU"})
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      assert resolution.endpoints == []
+    end
+
+    test "reports provisioning while the account's instance is not serving yet" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      {:ok, _} = Demand.upsert(account.id, "us-east", DateTime.utc_now())
+
+      Repo.insert!(%Server{
+        account_id: account.id,
+        region: "us-east",
+        status: :archived,
+        provisioner_node_ref: "kura-#{account.id}-us-east"
+      })
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      assert resolution == %{endpoints: [], provisioning: true}
+    end
+
+    test "does not report provisioning, nor kick it, while an idle Air archival is held" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+      stub(Environment, :kura_available_region_ids, fn -> ["us-east", "eu-west"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      archived_at = DateTime.truncate(DateTime.add(DateTime.utc_now(), -86_400, :second), :second)
+      {:ok, _} = Demand.upsert(account.id, "us-east", archived_at)
+
+      account.id
+      |> Demand.get("us-east")
+      |> Ecto.Changeset.change(%{drain_reason: :idle, archived_at: archived_at})
+      |> Repo.update!()
+
+      Repo.insert!(%Server{
+        account_id: account.id,
+        region: "us-east",
+        status: :archived,
+        provisioner_node_ref: "kura-#{account.id}-us-east"
+      })
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      assert resolution == %{endpoints: [], provisioning: false}
+      refute_enqueued(worker: ProvisionOnDemandWorker)
+    end
+
+    test "returns no endpoints instead of the legacy cache nodes for an unknown or missing account handle" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :cache_endpoints, fn -> ["https://cache-us-east.tuist.dev"] end)
+
+      # When / Then
+      assert Accounts.get_cache_resolution_for_handle("nonexistent-account", :kura) ==
+               %{endpoints: [], provisioning: false}
+
+      assert Accounts.get_cache_resolution_for_handle(nil, :kura) == %{endpoints: [], provisioning: false}
+    end
+
+    test "returns the configured endpoints when self-hosted" do
+      # Given
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :cache_endpoints, fn -> ["https://cache-self-hosted.example.com"] end)
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      # When
+      resolution = Accounts.get_cache_resolution_for_handle(account.name, :kura)
+
+      # Then
+      assert resolution == %{endpoints: ["https://cache-self-hosted.example.com"], provisioning: false}
+    end
+  end
+
+  describe "update_user_preferred_locale/2" do
+    # "es"/"ja" are only valid supported locales when TUIST_DEV_ALL_LOCALES=1.
+    @tag :locale
+    test "sets a supported locale" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      # When
+      {:ok, updated_user} = Accounts.update_user_preferred_locale(user, "es")
+
+      # Then
+      assert updated_user.preferred_locale == "es"
+    end
+
+    @tag :locale
+    test "clears the locale when set to nil" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      {:ok, user} = Accounts.update_user_preferred_locale(user, "ja")
+
+      # When
+      {:ok, updated_user} = Accounts.update_user_preferred_locale(user, nil)
+
+      # Then
+      assert updated_user.preferred_locale == nil
+    end
+
+    test "returns an error for an unsupported locale" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+
+      # When
+      {:error, changeset} = Accounts.update_user_preferred_locale(user, "xx")
+
+      # Then
+      assert "is invalid" in errors_on(changeset).preferred_locale
+    end
+  end
+
+  describe "list_accounts/1" do
+    test "paginates and filters by handle via the :search custom Flop filter" do
+      # Given — three handles, two of which share a substring.
+      AccountsFixtures.organization_fixture(name: "acme")
+      AccountsFixtures.organization_fixture(name: "acmetools")
+      AccountsFixtures.organization_fixture(name: "other")
+
+      # When — search narrows to just the matching pair.
+      {accounts, _meta} =
+        Accounts.list_accounts(%{
+          page: 1,
+          page_size: 10,
+          filters: [%{field: :search, op: :==, value: "acme"}]
+        })
+
+      # Then
+      assert accounts |> Enum.map(& &1.name) |> Enum.sort() == ["acme", "acmetools"]
+    end
+  end
+
+  describe "agent registration" do
+    setup do
+      stub(Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
+      stub(Environment, :email_icon_url, fn -> "https://tuist.dev/icon.png" end)
+      stub(Environment, :agent_auth_trusted_providers, fn -> [] end)
+      :ok
+    end
+
+    test "creates an email-required registration and emails a claim link" do
+      email = AccountsFixtures.unique_user_email()
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          email: String.upcase(email),
+          requested_credential_type: :access_token,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          registration_ip: "127.0.0.1"
+        })
+
+      assert result.claim_token =~ "clm_"
+
+      assert %AgentRegistration{
+               email: ^email,
+               status: :pending,
+               registration_ip: "127.0.0.1",
+               claim_requested_ip: "127.0.0.1"
+             } = Repo.get!(AgentRegistration, result.registration.id)
+
+      assert [%AgentRegistrationEvent{event_type: :created, actor_ip: "127.0.0.1", metadata: metadata}] =
+               Repo.all(
+                 from(e in AgentRegistrationEvent,
+                   where: e.agent_registration_id == ^result.registration.id,
+                   order_by: e.occurred_at
+                 )
+               )
+
+      assert metadata == %{
+               "claim_attempt_id" => result.registration.claim_attempt_id,
+               "credential_type" => "access_token",
+               "registration_type" => "email_verification"
+             }
+
+      assert result.email_delivery.subject == "Your Tuist agent sign-in code"
+      assert result.email_delivery.html_body =~ "/agent/auth/claim/view?token="
+      refute result.email_delivery.html_body =~ result.claim_token
+      refute result.email_delivery.html_body =~ "<div class=\"otp\">"
+    end
+
+    test "claims the registration for an existing unconfirmed user" do
+      email = AccountsFixtures.unique_user_email()
+      user = AccountsFixtures.user_fixture(email: email, confirmed_at: nil)
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          email: email,
+          requested_credential_type: :access_token,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          registration_ip: "127.0.0.1"
+        })
+
+      claim_view_token = extract_claim_view_token(result.email_delivery.html_body)
+      {:ok, %{otp: otp}} = Accounts.get_agent_registration_claim_view(claim_view_token)
+
+      {:ok, claimed} =
+        Accounts.complete_agent_registration_claim(%{
+          claim_token: result.claim_token,
+          otp: otp,
+          claim_completed_ip: "192.0.2.4"
+        })
+
+      assert %AgentRegistration{
+               status: :claimed,
+               claim_completed_ip: "192.0.2.4",
+               claimed_by_user_id: claimed_by_user_id
+             } = Repo.get!(AgentRegistration, claimed.registration.id)
+
+      assert claimed_by_user_id == user.id
+      assert %User{confirmed_at: confirmed_at} = Repo.get!(User, user.id)
+      assert confirmed_at
+
+      assert %AuthenticatedAccount{
+               account: %{user_id: ^claimed_by_user_id},
+               scopes: ["mcp"],
+               all_projects: true,
+               issued_by: %{id: ^claimed_by_user_id, email: ^email}
+             } = Authentication.authenticated_subject(claimed.credential)
+
+      assert [:claimed, :created] =
+               claimed.registration.id
+               |> agent_registration_events()
+               |> Enum.map(& &1.event_type)
+    end
+
+    test "provisions and claims a new user when none exists" do
+      email = AccountsFixtures.unique_user_email()
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          email: email,
+          requested_credential_type: :access_token,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          registration_ip: "127.0.0.1"
+        })
+
+      claim_view_token = extract_claim_view_token(result.email_delivery.html_body)
+      {:ok, %{otp: otp}} = Accounts.get_agent_registration_claim_view(claim_view_token)
+
+      {:ok, claimed} =
+        Accounts.complete_agent_registration_claim(%{
+          claim_token: result.claim_token,
+          otp: otp,
+          claim_completed_ip: "192.0.2.5"
+        })
+
+      {:ok, user} = Accounts.get_user_by_email(email)
+      user_id = user.id
+
+      assert user.confirmed_at
+      assert claimed.registration.claimed_by_user_id == user_id
+
+      assert %AuthenticatedAccount{
+               account: %{user_id: ^user_id},
+               issued_by: %{id: ^user_id, email: ^email}
+             } = Authentication.authenticated_subject(claimed.credential)
+    end
+
+    test "resends claim instructions and records an audit event" do
+      email = AccountsFixtures.unique_user_email()
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          email: email,
+          requested_credential_type: :access_token,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          registration_ip: "127.0.0.1"
+        })
+
+      {:ok, resent} =
+        Accounts.resend_agent_registration_claim(%{
+          claim_token: result.claim_token,
+          email: email,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          claim_requested_ip: "192.0.2.10"
+        })
+
+      assert resent.registration.claim_requested_ip == "192.0.2.10"
+
+      assert [
+               %AgentRegistrationEvent{event_type: :claim_resent, actor_ip: "192.0.2.10", metadata: metadata},
+               %AgentRegistrationEvent{event_type: :created}
+             ] = agent_registration_events(result.registration.id)
+
+      assert metadata == %{
+               "claim_attempt_id" => resent.registration.claim_attempt_id,
+               "email" => email
+             }
+    end
+
+    test "persists failed OTP attempts and records audit events" do
+      email = AccountsFixtures.unique_user_email()
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          email: email,
+          requested_credential_type: :access_token,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          registration_ip: "127.0.0.1"
+        })
+
+      assert {:error, :otp_invalid} =
+               Accounts.complete_agent_registration_claim(%{
+                 claim_token: result.claim_token,
+                 otp: "000000",
+                 claim_completed_ip: "192.0.2.11"
+               })
+
+      assert %AgentRegistration{otp_attempt_count: 1} = Repo.get!(AgentRegistration, result.registration.id)
+
+      assert [
+               %AgentRegistrationEvent{event_type: :created},
+               %AgentRegistrationEvent{event_type: :otp_failed, actor_ip: "192.0.2.11", metadata: metadata}
+             ] = agent_registration_events(result.registration.id)
+
+      assert metadata == %{
+               "claim_attempt_id" => result.registration.claim_attempt_id,
+               "otp_attempt_count" => 1
+             }
+    end
+
+    test "creates an anonymous API key and later claims it for a real user" do
+      email = AccountsFixtures.unique_user_email()
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          registration_type: :anonymous,
+          requested_credential_type: :api_key,
+          registration_ip: "127.0.0.1"
+        })
+
+      assert result.credential_type == :api_key
+      assert result.credential =~ "tuist_"
+      assert result.scopes == ["mcp"]
+
+      assert %AuthenticatedAccount{account: %{user_id: anonymous_user_id}} =
+               Authentication.authenticated_subject(result.credential)
+
+      {:ok, resent} =
+        Accounts.resend_agent_registration_claim(%{
+          claim_token: result.claim_token,
+          email: email,
+          claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+          claim_requested_ip: "192.0.2.20"
+        })
+
+      claim_view_token = extract_claim_view_token(resent.email_delivery.html_body)
+      {:ok, %{otp: otp}} = Accounts.get_agent_registration_claim_view(claim_view_token)
+
+      {:ok, claimed} =
+        Accounts.complete_agent_registration_claim(%{
+          claim_token: result.claim_token,
+          otp: otp,
+          claim_completed_ip: "192.0.2.21"
+        })
+
+      {:ok, claimed_user} = Accounts.get_user_by_email(email)
+      assert claimed.registration.claimed_by_user_id == claimed_user.id
+
+      assert %AuthenticatedAccount{account: %{user_id: claimed_user_id}, scopes: ["mcp"]} =
+               Authentication.authenticated_subject(result.credential)
+
+      assert claimed_user_id == claimed_user.id
+      refute claimed_user_id == anonymous_user_id
+
+      assert [:claim_resent, :claimed, :created] =
+               result.registration.id
+               |> agent_registration_events()
+               |> Enum.map(& &1.event_type)
+    end
+
+    test "creates an agent-provider access token and revokes it from a logout token" do
+      email = AccountsFixtures.unique_user_email()
+      {provider, assertion, jwk} = id_jag_with_jwk(email, "id-jag-to-revoke")
+      stub(Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          registration_type: :agent_provider,
+          assertion: assertion,
+          requested_credential_type: :access_token,
+          audience: "https://tuist.dev",
+          registration_ip: "127.0.0.1"
+        })
+
+      assert result.credential_type == :access_token
+      assert result.scopes == ["mcp"]
+
+      assert %AuthenticatedAccount{issued_by: %{email: ^email}} =
+               Authentication.authenticated_subject(result.credential)
+
+      assert %AgentRegistration{
+               registration_type: :agent_provider,
+               status: :claimed,
+               email: ^email,
+               issuer: "https://agent-provider.example.com",
+               subject: "provider-user-1",
+               client_id: "test-agent-client",
+               assertion_jti: "id-jag-to-revoke"
+             } = Repo.get!(AgentRegistration, result.registration.id)
+
+      assert [:claimed, :created] =
+               result.registration.id
+               |> agent_registration_events()
+               |> Enum.map(& &1.event_type)
+
+      logout_token = logout_token(jwk, "logout-jti")
+
+      assert {:ok, %{revoked_count: 1}} = Accounts.revoke_agent_registrations(logout_token, "https://tuist.dev")
+      assert Authentication.authenticated_subject(result.credential) == nil
+
+      assert %AgentRegistration{status: :revoked, revoked_at: revoked_at} =
+               Repo.get!(AgentRegistration, result.registration.id)
+
+      assert revoked_at
+
+      assert [:claimed, :created, :revoked] =
+               result.registration.id
+               |> agent_registration_events()
+               |> Enum.map(& &1.event_type)
+    end
+
+    test "creates an agent-provider API key and revokes the backing account token" do
+      email = AccountsFixtures.unique_user_email()
+      {provider, assertion, jwk} = id_jag_with_jwk(email, "id-jag-api-key")
+      stub(Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+      {:ok, result} =
+        Accounts.create_agent_registration(%{
+          registration_type: :agent_provider,
+          assertion: assertion,
+          requested_credential_type: :api_key,
+          audience: "https://tuist.dev",
+          registration_ip: "127.0.0.1"
+        })
+
+      assert result.credential_type == :api_key
+
+      {:ok, user} = Accounts.get_user_by_email(email)
+
+      assert %AuthenticatedAccount{account: %{user_id: user_id}, scopes: ["mcp"]} =
+               Authentication.authenticated_subject(result.credential)
+
+      assert user_id == user.id
+
+      assert %AgentRegistration{account_token_id: account_token_id} = result.registration
+      assert Repo.get!(AccountToken, account_token_id)
+
+      logout_token = logout_token(jwk, "logout-api-key-jti")
+
+      assert {:ok, %{revoked_count: 1}} = Accounts.revoke_agent_registrations(logout_token, "https://tuist.dev")
+      assert Repo.get(AccountToken, account_token_id) == nil
+      assert Authentication.authenticated_subject(result.credential) == nil
+    end
+
+    test "rejects an agent-provider assertion from an untrusted issuer" do
+      email = AccountsFixtures.unique_user_email()
+      {_provider, assertion, _jwk} = id_jag_with_jwk(email, "untrusted-id-jag")
+
+      assert {:error, :invalid_issuer} =
+               Accounts.create_agent_registration(%{
+                 registration_type: :agent_provider,
+                 assertion: assertion,
+                 requested_credential_type: :access_token,
+                 audience: "https://tuist.dev"
+               })
+    end
+
+    test "rejects replayed agent-provider assertions" do
+      email = AccountsFixtures.unique_user_email()
+      {provider, assertion, _jwk} = id_jag_with_jwk(email, "replayed-id-jag")
+      stub(Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+      attrs = %{
+        registration_type: :agent_provider,
+        assertion: assertion,
+        requested_credential_type: :access_token,
+        audience: "https://tuist.dev"
+      }
+
+      assert {:ok, _result} = Accounts.create_agent_registration(attrs)
+      assert {:error, :replay_detected} = Accounts.create_agent_registration(attrs)
+    end
+
+    test "rejects agent-provider assertions without a verified email" do
+      jwk = JOSE.JWK.generate_key({:rsa, 2048})
+      provider = agent_auth_provider(jwk)
+      stub(Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+      assertion =
+        sign_agent_auth_jwt(
+          jwk,
+          "oauth-id-jag+jwt",
+          claims("agent@example.com", "unverified-email-jti", %{
+            "email_verified" => false
+          })
+        )
+
+      assert {:error, :missing_verified_email} =
+               Accounts.create_agent_registration(%{
+                 registration_type: :agent_provider,
+                 assertion: assertion,
+                 requested_credential_type: :access_token,
+                 audience: "https://tuist.dev"
+               })
+    end
+
+    test "rejects agent-provider assertions for the wrong client" do
+      jwk = JOSE.JWK.generate_key({:rsa, 2048})
+      provider = agent_auth_provider(jwk)
+      stub(Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+      assertion =
+        sign_agent_auth_jwt(
+          jwk,
+          "oauth-id-jag+jwt",
+          claims("agent@example.com", "wrong-client-jti", %{
+            "client_id" => "other-client"
+          })
+        )
+
+      assert {:error, :invalid_client_id} =
+               Accounts.create_agent_registration(%{
+                 registration_type: :agent_provider,
+                 assertion: assertion,
+                 requested_credential_type: :access_token,
+                 audience: "https://tuist.dev"
+               })
+    end
+
+    test "refuses email-verification registration for SSO-enforced existing users" do
+      email = AccountsFixtures.unique_user_email()
+      user = AccountsFixtures.user_fixture(email: email)
+      org = sso_enforced_organization_fixture()
+      Accounts.add_user_to_organization(user, org)
+
+      assert {:error, :sso_required} =
+               Accounts.create_agent_registration(%{
+                 email: email,
+                 requested_credential_type: :access_token,
+                 claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+                 registration_ip: "127.0.0.1"
+               })
+
+      assert Repo.aggregate(AgentRegistration, :count) == 0
+    end
+
+    test "refuses email-verification registration when the email domain maps to an SSO-enforced org" do
+      org =
+        sso_enforced_organization_fixture(
+          sso_organization_id: "acme.okta.com",
+          sso_login_domain: "acme.com",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z]
+        )
+
+      assert org.sso_login_domain == "acme.com"
+      email = "new-user-#{TuistTestSupport.Utilities.unique_integer(6)}@acme.com"
+
+      assert {:error, :sso_required} =
+               Accounts.create_agent_registration(%{
+                 email: email,
+                 requested_credential_type: :access_token,
+                 claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+                 registration_ip: "127.0.0.1"
+               })
+
+      assert {:error, :not_found} = Accounts.get_user_by_email(email)
+    end
+
+    test "refuses agent-provider registration when the asserted email is SSO-enforced" do
+      email = AccountsFixtures.unique_user_email()
+      user = AccountsFixtures.user_fixture(email: email)
+      org = sso_enforced_organization_fixture()
+      Accounts.add_user_to_organization(user, org)
+
+      {provider, assertion, _jwk} = id_jag_with_jwk(email, "sso-enforced-id-jag")
+      stub(Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+      assert {:error, :sso_required} =
+               Accounts.create_agent_registration(%{
+                 registration_type: :agent_provider,
+                 assertion: assertion,
+                 requested_credential_type: :access_token,
+                 audience: "https://tuist.dev",
+                 registration_ip: "127.0.0.1"
+               })
+
+      assert Repo.aggregate(AgentRegistration, :count) == 0
+    end
+
+    test "refuses anonymous claim when the supplied email is SSO-enforced" do
+      email = AccountsFixtures.unique_user_email()
+      user = AccountsFixtures.user_fixture(email: email)
+      org = sso_enforced_organization_fixture()
+      Accounts.add_user_to_organization(user, org)
+
+      {:ok, anonymous} =
+        Accounts.create_agent_registration(%{
+          registration_type: :anonymous,
+          requested_credential_type: :api_key,
+          registration_ip: "127.0.0.1"
+        })
+
+      assert {:error, :sso_required} =
+               Accounts.resend_agent_registration_claim(%{
+                 claim_token: anonymous.claim_token,
+                 email: email,
+                 claim_view_url: &"https://tuist.dev/agent/auth/claim/view?token=#{&1}",
+                 claim_requested_ip: "192.0.2.30"
+               })
+    end
+  end
+
+  defp sso_enforced_organization_fixture(opts \\ []) do
+    sso_organization_id =
+      Keyword.get(opts, :sso_organization_id, "sso-org-#{TuistTestSupport.Utilities.unique_integer(6)}.com")
+
+    org =
+      AccountsFixtures.organization_fixture(
+        sso_provider: :okta,
+        sso_organization_id: sso_organization_id,
+        sso_login_domain: Keyword.get(opts, :sso_login_domain),
+        sso_login_domain_verification_token: Keyword.get(opts, :sso_login_domain_verification_token),
+        sso_login_domain_verified_at: Keyword.get(opts, :sso_login_domain_verified_at),
+        sso_legacy_email_domain_fallback: Keyword.get(opts, :sso_legacy_email_domain_fallback, false),
+        oauth2_client_id: "client-id",
+        oauth2_client_secret: "client-secret"
+      )
+
+    {:ok, org} =
+      org
+      |> Ecto.Changeset.change(sso_enforced: true)
+      |> Repo.update()
+
+    org
+  end
+
+  describe "sso_enforced_for_email?/1" do
+    test "returns true when the existing user belongs to an SSO-enforced organization" do
+      email = AccountsFixtures.unique_user_email()
+      user = AccountsFixtures.user_fixture(email: email)
+      org = sso_enforced_organization_fixture()
+      Accounts.add_user_to_organization(user, org)
+
+      assert Accounts.sso_enforced_for_email?(email)
+    end
+
+    test "returns false when the existing user has no SSO-enforced organization" do
+      email = AccountsFixtures.unique_user_email()
+      _user = AccountsFixtures.user_fixture(email: email)
+
+      refute Accounts.sso_enforced_for_email?(email)
+    end
+
+    test "returns true for an unknown email whose domain maps to an SSO-enforced org" do
+      _org =
+        sso_enforced_organization_fixture(
+          sso_organization_id: "example.okta.com",
+          sso_login_domain: "example-sso.com",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z]
+        )
+
+      email = "unknown-#{TuistTestSupport.Utilities.unique_integer(6)}@example-sso.com"
+
+      assert Accounts.sso_enforced_for_email?(email)
+    end
+
+    test "returns false for an unknown email whose login domain is unverified" do
+      _org =
+        sso_enforced_organization_fixture(
+          sso_organization_id: "example.okta.com",
+          sso_login_domain: "example-sso.com",
+          sso_login_domain_verification_token: "verification-token"
+        )
+
+      refute Accounts.sso_enforced_for_email?("unknown@example-sso.com")
+    end
+
+    test "does not enforce SSO for a nonmember through the retired compatibility flag" do
+      _org =
+        sso_enforced_organization_fixture(
+          sso_organization_id: "example.okta.com",
+          sso_legacy_email_domain_fallback: true
+        )
+
+      refute Accounts.sso_enforced_for_email?("unknown@example.com")
+    end
+
+    test "does not use the provider identifier for a new organization" do
+      _org =
+        sso_enforced_organization_fixture(sso_organization_id: "example.okta.com")
+
+      refute Accounts.sso_enforced_for_email?("unknown@example.com")
+    end
+
+    test "returns false for malformed input" do
+      refute Accounts.sso_enforced_for_email?(nil)
+      refute Accounts.sso_enforced_for_email?("not-an-email")
+    end
+  end
+
+  defp extract_claim_view_token(html_body) do
+    [_, encoded_token] = Regex.run(~r{/agent/auth/claim/view\?token=([^"&]+)}, html_body)
+    URI.decode_www_form(encoded_token)
+  end
+
+  defp unique_sso_domain(prefix \\ "tuist") do
+    "#{prefix}-#{TuistTestSupport.Utilities.unique_integer(6)}.io"
+  end
+
+  defp unique_email(domain, local \\ "tuist") do
+    "#{local}-#{TuistTestSupport.Utilities.unique_integer(6)}@#{domain}"
+  end
+
+  defp google_oauth_identity(domain, opts \\ []) do
+    %{
+      provider: :google,
+      uid: Keyword.get_lazy(opts, :uid, fn -> System.unique_integer([:positive]) end),
+      info: %{
+        email: Keyword.get_lazy(opts, :email, fn -> unique_email(domain) end)
+      },
+      extra: %{
+        raw_info: %{
+          user: %{
+            "hd" => domain
+          }
+        }
+      }
+    }
+  end
+
+  defp okta_oauth_identity(provider_organization_id, opts \\ []) do
+    %{
+      provider: :okta,
+      uid: Keyword.get_lazy(opts, :uid, fn -> System.unique_integer([:positive]) end),
+      info: %{
+        email: Keyword.get_lazy(opts, :email, fn -> unique_email("tuist.dev") end)
+      },
+      extra: %{
+        raw_info: %{
+          provider_organization_id: provider_organization_id
+        }
+      }
+    }
+  end
+
+  # Compare audit contents by type: occurred_at has second precision and cannot order events within a second.
+  defp agent_registration_events(agent_registration_id) do
+    AgentRegistrationEvent
+    |> where([e], e.agent_registration_id == ^agent_registration_id)
+    |> Repo.all()
+    |> Enum.sort_by(& &1.event_type)
+  end
+
+  defp id_jag_with_jwk(email, jti) do
+    jwk = JOSE.JWK.generate_key({:rsa, 2048})
+    provider = agent_auth_provider(jwk)
+
+    {provider, sign_agent_auth_jwt(jwk, "oauth-id-jag+jwt", claims(email, jti)), jwk}
+  end
+
+  defp agent_auth_provider(jwk) do
+    {_, public_jwk} = jwk |> JOSE.JWK.to_public() |> JOSE.JWK.to_map()
+    public_jwk = Map.put(public_jwk, "kid", "agent-auth-test-key")
+
+    %{
+      "issuer" => "https://agent-provider.example.com",
+      "jwks" => %{"keys" => [public_jwk]},
+      "client_ids" => ["test-agent-client"]
+    }
+  end
+
+  defp logout_token(jwk, jti) do
+    sign_agent_auth_jwt(jwk, "logout+jwt", %{
+      "iss" => "https://agent-provider.example.com",
+      "sub" => "provider-user-1",
+      "aud" => "https://tuist.dev",
+      "client_id" => "test-agent-client",
+      "jti" => jti,
+      "iat" => DateTime.to_unix(DateTime.utc_now()),
+      "exp" => DateTime.utc_now() |> DateTime.add(300, :second) |> DateTime.to_unix(),
+      "events" => %{
+        "https://schemas.workos.com/events/agent/auth/identity/assertion/revoked" => %{}
+      }
+    })
+  end
+
+  defp claims(email, jti, overrides \\ %{}) do
+    Map.merge(
+      %{
+        "iss" => "https://agent-provider.example.com",
+        "sub" => "provider-user-1",
+        "aud" => "https://tuist.dev",
+        "client_id" => "test-agent-client",
+        "jti" => jti,
+        "iat" => DateTime.to_unix(DateTime.utc_now()),
+        "exp" => DateTime.utc_now() |> DateTime.add(300, :second) |> DateTime.to_unix(),
+        "email" => email,
+        "email_verified" => true
+      },
+      overrides
+    )
+  end
+
+  defp sign_agent_auth_jwt(jwk, typ, claims) do
+    jwt = JOSE.JWT.from_map(claims)
+    jws = %{"alg" => "RS256", "kid" => "agent-auth-test-key", "typ" => typ}
+    {_, token} = jwk |> JOSE.JWT.sign(jws, jwt) |> JOSE.JWS.compact()
+    token
+  end
+
+  describe "get_account_ids_by_handles/1" do
+    test "keys each account id by the handle as requested, whatever its casing" do
+      account = organization_fixture(name: "Mixed-Case-#{System.unique_integer([:positive])}").account
+      downcased = String.downcase(account.name)
+
+      assert Accounts.get_account_ids_by_handles([account.name, downcased, "no-such-account-#{account.id}"]) ==
+               %{account.name => account.id, downcased => account.id}
     end
   end
 end

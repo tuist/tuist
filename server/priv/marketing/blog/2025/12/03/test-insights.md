@@ -1,14 +1,14 @@
 ---
-title: "Test Insights for Xcode"
+title: "Tuist Test Insights for Xcode"
 category: "product"
 tags: ["product"] 
-excerpt: "Understand, analyze, and optimize your tests with the new Test Insights"
+excerpt: "Get Xcode test analytics and optimize your test suite with Tuist Test Insights."
 author: fortmarek
 og_image_path: /marketing/images/blog/2025/12/03/test-insights/og.jpg
 highlighted: true
 ---
 
-Earlier this year, we announced [Build Insights](/blog/2025/06/05/build-insights) – the best way to understand your Xcode builds in local and CI environments. But teams were still kept in the dark about their tests. 
+Earlier this year, we announced [Build Insights](/blog/2025/06/05/build-insights) – the best way to understand your Xcode builds in local and CI environments. But teams were still kept in the dark about their tests. Tuist Test Insights adds Xcode test analytics to fill that gap.
 
 As your test suite grows, you will inevitably face pains like slow test suites or flaky tests. Additionally, debugging issues on the CI has always been a challenge – can't I get a link that tells me exactly what went wrong, instead of trying to understand the logs, running the tests locally, or downloading the `.xcresult`?
 
@@ -20,16 +20,16 @@ Test Insights gives you a comprehensive overview of your overall test suite _ove
 
 ## Getting started
 
-To get started with test insights, you will need a [Tuist account and a project](https://docs.tuist.dev/en/server/introduction/accounts-and-projects). The best way to get started is to use our [CLI](https://docs.tuist.dev/en/guides/quick-start/install-tuist) and run the `tuist init` command.
+To get started with test insights, you will need a [Tuist account and a project](https://tuist.dev/en/docs/guides/server/accounts-and-projects). The best way to get started is to use our [CLI](https://tuist.dev/en/docs/guides/install-tuist) and run the `tuist init` command.
 
-Once you authenticate, you will need to add a `tuist inspect test` command in your Xcode scheme test post-action – unless you use [generated projects](https://docs.tuist.dev/en/guides/develop/projects), in which case we generate the post-action for you. Note that the exact script depends on your installation. If you use [mise](https://mise.jdx.dev/), the full script should be:
+Once you authenticate, you will need to add a `tuist inspect test` command in your Xcode scheme test post-action – unless you use [generated projects](https://tuist.dev/en/docs/guides/features/projects), in which case we generate the post-action for you. Note that the exact script depends on your installation. If you use [mise](https://mise.jdx.dev/), the full script should be:
 ```sh
 $HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test
 ```
 
 ![Screenshot of how to set up an Xcode post action for test insights](/marketing/images/blog/2025/12/03/test-insights/inspect-test-scheme-post-action.png)
 
-For more details how to set up test insights, head over to our [docs](https://docs.tuist.dev/en/guides/develop/insights).
+For more details how to set up test insights, head over to our [docs](https://tuist.dev/en/docs/guides/features/build-insights).
 
 ## Test detail
 
@@ -86,4 +86,4 @@ But this is just the beginning. The test insights will provide us with a great f
 
 Are there any day-to-day pains related to your test suite? Let us know and we'd love to prioritize solving your needs.
 
-To learn more about test insights, head over to our [documentation](https://docs.tuist.dev/en/guides/features/insights#tests). If you have any feedback or suggestions, please don't hesitate to reach out to us at [contact@tuist.dev](mailto:contact@tuist.dev).
+To learn more about test insights, head over to our [documentation](https://tuist.dev/en/docs/guides/features/build-insights#tests). If you have any feedback or suggestions, please don't hesitate to reach out to us at [contact@tuist.dev](mailto:contact@tuist.dev).

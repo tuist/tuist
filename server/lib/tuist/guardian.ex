@@ -26,19 +26,34 @@ defmodule Tuist.Guardian do
     {:ok, sub}
   end
 
+  def subject_for_token(%AuthenticatedAccount{account: %Account{id: id}}, _claims) do
+    sub = to_string(id)
+    {:ok, sub}
+  end
+
   def subject_for_token(_, _) do
     {:error, :invalid_subject}
   end
 
+  # Cache tokens carry their bearer's cache grants so a cache node can authorize
+  # without asking us. They must never resolve to a subject here, or a token
+  # minted to reach the cache would also act as an API credential. The `sub` on
+  # one is a project id, which would otherwise be read as a user id.
+  def resource_from_claims(%{"typ" => "cache"}), do: {:error, :invalid_token_type}
+
   def resource_from_claims(%{"sub" => id, "type" => "account"} = claims) do
     case Accounts.get_account_by_id(id) do
       {:ok, account} ->
+        user = load_user_from_claims(claims)
+
         {:ok,
          %AuthenticatedAccount{
            account: account,
            scopes: claims["scopes"],
-           all_projects: false,
-           project_ids: extract_project_ids(claims)
+           all_projects: Map.get(claims, "all_projects", false),
+           project_ids: extract_project_ids(claims),
+           issued_by: user,
+           agent_registration_id: claims["agent_registration_id"]
          }}
 
       {:error, :not_found} ->
@@ -50,6 +65,12 @@ defmodule Tuist.Guardian do
     resource = Accounts.get_user_by_id(id)
     {:ok, resource}
   end
+
+  defp load_user_from_claims(%{"user_id" => user_id}) when not is_nil(user_id) do
+    Accounts.get_user_by_id(user_id)
+  end
+
+  defp load_user_from_claims(_), do: nil
 
   defp extract_project_ids(%{"project_ids" => project_ids}) when is_list(project_ids), do: project_ids
   defp extract_project_ids(%{"project_id" => project_id}) when not is_nil(project_id), do: [project_id]

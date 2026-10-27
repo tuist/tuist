@@ -16,7 +16,7 @@ protocol InfoPlistContentProviding {
     func content(project: Project, target: Target, extendedWith: [String: Plist.Value]) -> [String: Any]?
 }
 
-final class InfoPlistContentProvider: InfoPlistContentProviding {
+struct InfoPlistContentProvider: InfoPlistContentProviding {
     /// It returns the content that should be used to generate an Info.plist file
     /// for the given target. It uses default values that specific to the target's destinations
     /// and product, and extends them with the values provided by the user.
@@ -110,7 +110,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
             packageType = "BNDL"
         case .staticFramework, .framework:
             packageType = "FMWK"
-        case .watch2App, .watch2Extension, .tvTopShelfExtension:
+        case .watch2App, .watch2AppContainer, .watch2Extension, .tvTopShelfExtension:
             packageType = "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
         case .appExtension, .stickerPackExtension, .messagesExtension, .xpc, .extensionKitExtension:
             packageType = "XPC!"

@@ -1,0 +1,6 @@
+tuistEnv: canary
+publicHostname: kube-canary.tuist.dev
+authenticateHostname: authenticate.kube-canary.tuist.dev
+
+ingress:
+  tlsSecretName: pomerium-canary-tls

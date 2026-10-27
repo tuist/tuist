@@ -10,16 +10,17 @@ defmodule TuistWeb.ProjectsLive do
   alias Tuist.Projects
   alias Tuist.Projects.Project
   alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Components.ResourceCard
   alias TuistWeb.Utilities.Query
 
   @pagination_threshold 6
 
   @impl true
-  def mount(_params, _uri, socket) do
+  def mount(_params, session, socket) do
     selected_account = socket.assigns[:selected_account]
     current_user = socket.assigns[:current_user]
 
-    if Authorization.authorize(:projects_read, current_user, selected_account) != :ok do
+    if Authorization.authorize(:account_dashboard_read, current_user, selected_account) != :ok do
       raise TuistWeb.Errors.NotFoundError,
             dgettext("dashboard_projects", "The page you are looking for doesn't exist or has been moved.")
     end
@@ -29,27 +30,45 @@ defmodule TuistWeb.ProjectsLive do
     {:ok,
      socket
      |> assign(:form, form)
-     |> assign(:selected_tab, "projects")
+     |> assign(
+       :visible_project_opts,
+       visible_project_opts(current_user, selected_account)
+     )
+     |> assign(
+       :can_create_project?,
+       Authorization.authorize(:project_create, current_user, selected_account) == :ok
+     )
+     |> assign(:selected_build_system, "xcode")
+     |> assign(:origin, session["origin"])
      |> assign(:head_title, "#{dgettext("dashboard_projects", "Projects")} · #{selected_account.name} · Tuist")
      |> assign(:pagination_threshold, @pagination_threshold)}
   end
 
   @impl true
-  def handle_params(params, uri, socket) do
+  def handle_params(_params, uri, socket) do
+    params = uri |> Query.query_params() |> Query.clear_cursors_on_initial_load(socket.assigns)
+    uri = URI.parse(uri)
+    uri = %{uri | query: URI.encode_query(params)}
+
     selected_account = socket.assigns[:selected_account]
-    total_project_count = Projects.get_project_count_for_account(selected_account)
+
+    total_project_count =
+      Projects.get_project_count_for_account(selected_account, socket.assigns.visible_project_opts)
 
     {:noreply,
      socket
+     |> assign(:current_params, params)
      |> assign(:total_project_count, total_project_count)
      |> assign_projects(params, total_project_count)
      |> assign(:search_term, Map.get(params, "search", ""))
-     |> assign(:uri, URI.parse(uri))}
+     |> assign(:uri, uri)}
   end
 
   defp assign_projects(socket, _params, total_project_count) when total_project_count <= @pagination_threshold do
     selected_account = socket.assigns[:selected_account]
-    all_project_accounts = Projects.get_all_project_accounts(selected_account)
+
+    all_project_accounts =
+      Projects.get_all_project_accounts(selected_account, socket.assigns.visible_project_opts)
 
     all_projects_with_interaction =
       all_project_accounts
@@ -64,12 +83,23 @@ defmodule TuistWeb.ProjectsLive do
 
   defp assign_projects(socket, params, _total_project_count) do
     selected_account = socket.assigns[:selected_account]
-    recent_projects = Projects.get_recent_projects_for_account(selected_account)
+    visible_project_opts = socket.assigns.visible_project_opts
+
+    recent_projects =
+      Projects.get_recent_projects_for_account(selected_account, 3, visible_project_opts)
 
     # Build Flop options for pagination and search
-    flop_filters = [
-      %{field: :account_id, op: :==, value: selected_account.id}
-    ]
+    flop_filters =
+      case Keyword.get(visible_project_opts, :visibility) do
+        nil ->
+          [%{field: :account_id, op: :==, value: selected_account.id}]
+
+        visibility ->
+          [
+            %{field: :account_id, op: :==, value: selected_account.id},
+            %{field: :visibility, op: :==, value: visibility}
+          ]
+      end
 
     # Add search filter if present
     flop_filters =
@@ -122,7 +152,13 @@ defmodule TuistWeb.ProjectsLive do
     <div id="projects">
       <div data-part="row">
         <h2 data-part="title">{dgettext("dashboard_projects", "Projects")}</h2>
-        <.create_project_form id="create-project-form" form={@form} source="header" />
+        <.create_project_form
+          :if={@can_create_project?}
+          id="create-project-form"
+          form={@form}
+          source="header"
+          selected_build_system={@selected_build_system}
+        />
       </div>
 
       <%= if @total_project_count <= @pagination_threshold do %>
@@ -130,11 +166,13 @@ defmodule TuistWeb.ProjectsLive do
         <div data-part="grid">
           <div :if={Enum.empty?(@all_projects)} data-part="empty-state">
             <.create_project_form
+              :if={@can_create_project?}
               id="create-project-form-empty-state"
               form={@form}
               source="empty-state"
+              selected_build_system={@selected_build_system}
             />
-            <.project_background />
+            <ResourceCard.background />
           </div>
           <div
             :for={project <- @all_projects}
@@ -142,9 +180,15 @@ defmodule TuistWeb.ProjectsLive do
             phx-click="navigate"
             phx-value-project={project.name}
           >
-            <.project_background />
+            <ResourceCard.background />
             <div data-part="title">
-              {project.name}
+              <span>{project.name}</span>
+              <.badge
+                :if={build_system_badge(project.build_system)}
+                label={build_system_badge(project.build_system).label}
+                color={build_system_badge(project.build_system).color}
+                size="large"
+              />
             </div>
             <div
               :if={Enum.any?(Projects.platforms(project, device_platforms_only?: true))}
@@ -185,9 +229,15 @@ defmodule TuistWeb.ProjectsLive do
               phx-click="navigate"
               phx-value-project={project.name}
             >
-              <.project_background />
+              <ResourceCard.background />
               <div data-part="title">
-                {project.name}
+                <span>{project.name}</span>
+                <.badge
+                  :if={build_system_badge(project.build_system)}
+                  label={build_system_badge(project.build_system).label}
+                  color={build_system_badge(project.build_system).color}
+                  size="large"
+                />
               </div>
               <div
                 :if={Enum.any?(Projects.platforms(project, device_platforms_only?: true))}
@@ -217,8 +267,8 @@ defmodule TuistWeb.ProjectsLive do
             </div>
           </div>
         </div>
-        
-    <!-- All projects section -->
+
+        <!-- All projects section -->
         <div data-part="all-section">
           <h3 data-part="section-title">{dgettext("dashboard_projects", "All projects")}</h3>
           <.form
@@ -240,11 +290,13 @@ defmodule TuistWeb.ProjectsLive do
           <div data-part="grid">
             <div :if={Enum.empty?(@all_projects)} data-part="empty-state">
               <.create_project_form
+                :if={@can_create_project?}
                 id="create-project-form-empty-state"
                 form={@form}
                 source="empty-state"
+                selected_build_system={@selected_build_system}
               />
-              <.project_background />
+              <ResourceCard.background />
             </div>
             <div
               :for={project <- @all_projects}
@@ -252,9 +304,15 @@ defmodule TuistWeb.ProjectsLive do
               phx-click="navigate"
               phx-value-project={project.name}
             >
-              <.project_background />
+              <ResourceCard.background />
               <div data-part="title">
-                {project.name}
+                <span>{project.name}</span>
+                <.badge
+                  :if={build_system_badge(project.build_system)}
+                  label={build_system_badge(project.build_system).label}
+                  color={build_system_badge(project.build_system).color}
+                  size="large"
+                />
               </div>
               <div
                 :if={Enum.any?(Projects.platforms(project, device_platforms_only?: true))}
@@ -298,9 +356,14 @@ defmodule TuistWeb.ProjectsLive do
     """
   end
 
+  attr :id, :string, required: true
+  attr :form, :any, required: true
+  attr :source, :string, required: true
+  attr :selected_build_system, :string, required: true
+
   defp create_project_form(assigns) do
     ~H"""
-    <.form id={@id} for={@form} phx-submit="create-project">
+    <.form id={@id} for={@form} phx-change="validate-project" phx-submit="create-project">
       <.modal
         id={"#{@id}-modal"}
         title={dgettext("dashboard_projects", "Create project")}
@@ -310,9 +373,11 @@ defmodule TuistWeb.ProjectsLive do
           <.button
             :if={@source == "header"}
             variant="primary"
-            label={dgettext("dashboard_projects", "New project")}
+            label={dgettext("dashboard_projects", "New Project")}
             {attrs}
-          />
+          >
+            <:icon_left><.plus /></:icon_left>
+          </.button>
           <.button
             :if={@source == "empty-state"}
             variant="secondary"
@@ -322,11 +387,35 @@ defmodule TuistWeb.ProjectsLive do
           />
         </:trigger>
         <.line_divider />
-        <.text_input
-          id={"#{@id}-input"}
-          field={@form[:name]}
-          label={dgettext("dashboard_projects", "Name")}
-        />
+        <div style="display: flex; flex-direction: column; gap: var(--noora-spacing-6); padding: var(--noora-spacing-9) 0 var(--noora-spacing-9) 0;">
+          <.text_input
+            id={"#{@id}-input"}
+            field={@form[:name]}
+            label={dgettext("dashboard_projects", "Name")}
+            show_required
+            required
+          />
+          <div style="display: flex; flex-direction: column; gap: var(--noora-spacing-2);">
+            <.label
+              label={dgettext("dashboard_projects", "Select build system")}
+              required
+            />
+            <.select
+              id={"#{@id}-build-system-selection"}
+              name="build_system"
+              label={dgettext("dashboard_projects", "Build system")}
+              value={@selected_build_system}
+              on_value_change="select_build_system"
+            >
+              <:item value="xcode" label="Xcode" />
+              <:item value="gradle" label="Gradle" />
+              <:item value="bazel" label="Bazel" />
+              <:item value="mix" label="Mix (Elixir)" />
+              <:item value="cargo" label="Cargo (Rust)" />
+              <:item value="once" label="Once" />
+            </.select>
+          </div>
+        </div>
         <.line_divider />
         <:footer>
           <.modal_footer>
@@ -339,7 +428,11 @@ defmodule TuistWeb.ProjectsLive do
               />
             </:action>
             <:action>
-              <.button label="Save" type="submit" />
+              <.button
+                label={dgettext("dashboard_projects", "Create")}
+                type="submit"
+                form={@id}
+              />
             </:action>
           </.modal_footer>
         </:footer>
@@ -370,11 +463,29 @@ defmodule TuistWeb.ProjectsLive do
     {:noreply, push_patch(socket, to: path)}
   end
 
+  def handle_event("select_build_system", %{"value" => [value]}, socket) do
+    {:noreply, assign(socket, selected_build_system: value)}
+  end
+
+  def handle_event("validate-project", %{"project" => params}, socket) do
+    form =
+      params
+      |> Project.create_changeset()
+      |> Map.put(:action, :validate)
+      |> to_form()
+
+    {:noreply, assign(socket, form: form)}
+  end
+
   def handle_event("create-project", %{"project" => %{"name" => name}}, socket) do
     account = socket.assigns.selected_account
 
     with :ok <- Authorization.authorize(:project_create, socket.assigns.current_user, account),
-         {:ok, _project} <- Projects.create_project(%{name: name, account: account}) do
+         {:ok, _project} <-
+           Projects.create_project(%{name: name, account: account},
+             build_system: String.to_existing_atom(socket.assigns.selected_build_system),
+             origin: socket.assigns.origin
+           ) do
       socket =
         socket
         |> push_event("close-modal", %{id: "create-project-form-modal"})
@@ -385,6 +496,10 @@ defmodule TuistWeb.ProjectsLive do
     else
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, form: to_form(changeset))}
+
+      {:error, :forbidden} ->
+        raise TuistWeb.Errors.UnauthorizedError,
+              dgettext("dashboard_projects", "You are not authorized to perform this action.")
     end
   end
 
@@ -397,55 +512,21 @@ defmodule TuistWeb.ProjectsLive do
     {:noreply, socket}
   end
 
-  defp project_background(assigns) do
-    ~H"""
-    <svg viewBox="0 0 292 196" fill="none" xmlns="http://www.w3.org/2000/svg" data-part="background">
-      <mask
-        id="mask0_1989_22018"
-        style="mask-type:alpha"
-        maskUnits="userSpaceOnUse"
-        x="0"
-        y="-1"
-        width="292"
-        height="198"
-      >
-        <rect
-          x="0.5"
-          y="-0.5"
-          width="291"
-          height="197"
-          fill="url(#paint0_radial_1989_22018)"
-          fill-opacity="0.2"
-        />
-      </mask>
-      <g mask="url(#mask0_1989_22018)">
-        <path d="M11 149.75H281" />
-        <path d="M11 98H281" />
-        <path d="M11 46.25H281" />
-        <path d="M197.751 233V-37" />
-        <path d="M146 233V-37" />
-        <path d="M94.2501 233V-37" />
-        <path d="M281 233L11 -37" />
-        <path d="M11 233L281 -37" />
-        <rect x="29" y="-19" width="234" height="234" />
-        <circle cx="146" cy="98" r="51.75" />
-        <circle cx="146" cy="98" r="74.25" />
-        <circle cx="146" cy="98" r="117" />
-      </g>
-      <defs>
-        <radialGradient
-          id="paint0_radial_1989_22018"
-          cx="0"
-          cy="0"
-          r="1"
-          gradientUnits="userSpaceOnUse"
-          gradientTransform="translate(146 98) rotate(90) scale(99 146)"
-        >
-          <stop stop-color="white" />
-          <stop offset="1" stop-color="white" stop-opacity="0" />
-        </radialGradient>
-      </defs>
-    </svg>
-    """
+  defp build_system_badge(:xcode), do: %{label: "Xcode", color: "focus"}
+  defp build_system_badge(:gradle), do: %{label: "Gradle", color: "success"}
+  defp build_system_badge(:bazel), do: %{label: "Bazel", color: "warning"}
+  defp build_system_badge(:mix), do: %{label: "Mix", color: "information"}
+  defp build_system_badge(:cargo), do: %{label: "Cargo", color: "information"}
+  defp build_system_badge(:once), do: %{label: "Once", color: "primary"}
+  defp build_system_badge(_), do: nil
+
+  # Signed-out visitors on a public account see the account's public
+  # projects only; private project names stay hidden.
+  defp visible_project_opts(current_user, account) do
+    if Authorization.authorize(:projects_read, current_user, account) == :ok do
+      []
+    else
+      [visibility: :public]
+    end
   end
 end

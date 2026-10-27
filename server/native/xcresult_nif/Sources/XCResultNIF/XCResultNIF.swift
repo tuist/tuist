@@ -1,0 +1,191 @@
+import Foundation
+import os
+import Path
+import XCResultParser
+
+/// Outcome of a parse in the form the C boundary carries.
+///
+/// Failures are reduced to their message because that is all `parse_xcresult`
+/// writes back, and it keeps the value `Sendable` so it can cross from the
+/// parse task to the thread blocked on it.
+private enum ParseOutcome: Sendable {
+    case parsed(TestSummary)
+    case failed(String)
+}
+
+/// Seconds a parse may run before it cancels itself.
+private let timeoutSeconds = 600
+
+/// Seconds reading the coverage may run after the tests are parsed. Its own budget, so a slow
+/// archive costs the run its coverage rather than its test results.
+private let coverageTimeoutSeconds = 300
+
+/// Seconds a cancelled parse is given to unwind before the caller gives up on
+/// it. Cancellation reaches the `xcresulttool`/`sips` child through the task
+/// that owns the subprocess; a child that
+/// ignores it would otherwise hold this thread for the life of the BEAM.
+private let cancellationGraceSeconds = 30
+
+@_cdecl("parse_xcresult")
+public func parseXCResult(
+    _ pathPtr: UnsafePointer<CChar>,
+    _ rootDirPtr: UnsafePointer<CChar>,
+    _ outputPtr: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>,
+    _ outputLen: UnsafeMutablePointer<Int32>
+) -> Int32 {
+    let path = String(cString: pathPtr)
+    let rootDir = String(cString: rootDirPtr)
+
+    let outcome = OSAllocatedUnfairLock<ParseOutcome?>(initialState: nil)
+    let semaphore = DispatchSemaphore(value: 0)
+
+    let task = Task {
+        let value: ParseOutcome
+        do {
+            var parsed = try await parse(path: path, rootDir: rootDir, timeout: timeoutSeconds)
+            do {
+                // Streamed beside the bundle rather than returned as a term: a large bundle's
+                // per-line counts would not fit the BEAM comfortably, and the processor reads
+                // the file back in chunks.
+                let output = "\(rootDir)/tuist_coverage.ndjson"
+                if let summary = try await parseCoverage(path: path, into: output, timeout: coverageTimeoutSeconds) {
+                    parsed.coveragePath = output
+                    parsed.coveragePartial = summary.partial
+                    parsed.coverageFileCount = summary.fileCount
+                }
+            } catch {
+                parsed.coverageError = error.localizedDescription
+            }
+            value = .parsed(parsed)
+        } catch {
+            value = .failed(error.localizedDescription)
+        }
+        outcome.withLock { $0 = value }
+        semaphore.signal()
+    }
+
+    // The parse cancels itself at `timeoutSeconds` and the task group it runs
+    // in cannot return until that cancellation has been awaited, so reaching
+    // this deadline means the child never honoured it. Nothing is read from
+    // `outcome` on that path, so a late write cannot race the value returned.
+    let deadline = DispatchTime.now() + .seconds(timeoutSeconds + coverageTimeoutSeconds + 2 * cancellationGraceSeconds)
+    guard semaphore.wait(timeout: deadline) == .success else {
+        // Cancelling runs the parse's cancellation handlers on the calling thread. Off this dirty
+        // scheduler, so a handler that never returns cannot keep the scheduler and the job with it.
+        Thread.detachNewThread { task.cancel() }
+        return write(
+            timedOutMessage(path: path, seconds: timeoutSeconds),
+            outputPtr: outputPtr,
+            outputLen: outputLen
+        )
+    }
+
+    guard let value = outcome.withLock({ $0 }) else {
+        return write(failedToParseMessage(path: path), outputPtr: outputPtr, outputLen: outputLen)
+    }
+
+    switch value {
+    case let .parsed(parsed):
+        do {
+            let jsonData = try JSONEncoder().encode(parsed)
+            let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: jsonData.count)
+            jsonData.withUnsafeBytes { rawBytes in
+                buffer.initialize(
+                    from: rawBytes.bindMemory(to: CChar.self).baseAddress!,
+                    count: jsonData.count
+                )
+            }
+            outputPtr.pointee = buffer
+            outputLen.pointee = Int32(jsonData.count)
+            return 0
+        } catch {
+            return write(error.localizedDescription, outputPtr: outputPtr, outputLen: outputLen)
+        }
+    case let .failed(message):
+        return write(message, outputPtr: outputPtr, outputLen: outputLen)
+    }
+}
+
+/// Runs the parse against a deadline, racing it with a sleeping sibling.
+///
+/// Losing the race cancels the winner's sibling, and the group cannot return
+/// until every child has been awaited, so a timed-out parse is torn down
+/// before the caller sees the error rather than left running with a
+/// process-limiter permit and a temp directory the worker is
+/// about to delete.
+private func parse(path: String, rootDir: String, timeout: Int) async throws -> TestSummary {
+    let xcresultPath = try AbsolutePath(validating: path)
+    let rootDirectory = try AbsolutePath(validating: rootDir)
+
+    return try await withThrowingTaskGroup(of: TestSummary?.self) { group in
+        group.addTask {
+            // The server worker passes its per-run temp dir as rootDir and
+            // removes it wholesale once the run is processed, so it's also
+            // a directory we can export attachments into — point them there
+            // so the worker's cleanup reclaims them instead of leaking them
+            // in a process-wide temp dir.
+            try await XCResultParser().parse(
+                path: xcresultPath,
+                rootDirectory: rootDirectory,
+                attachmentsDirectory: rootDirectory
+            )
+        }
+        group.addTask {
+            try await Task.sleep(for: .seconds(timeout))
+            throw XCResultParserError.timedOut(xcresultPath, seconds: timeout)
+        }
+
+        defer { group.cancelAll() }
+
+        guard let finished = try await group.next(), let parsed = finished else {
+            throw XCResultParserError.failedToParseOutput(xcresultPath)
+        }
+        return parsed
+    }
+}
+
+/// Reads the coverage against its own deadline, the same way ``parse`` does.
+private func parseCoverage(path: String, into output: String, timeout: Int) async throws -> XcodeCoverageSummary? {
+    let xcresultPath = try AbsolutePath(validating: path)
+    let outputPath = try AbsolutePath(validating: output)
+
+    return try await withThrowingTaskGroup(of: XcodeCoverageSummary?.self) { group in
+        group.addTask {
+            try await XCResultParser().parseCoverage(path: xcresultPath, into: outputPath)
+        }
+        group.addTask {
+            try await Task.sleep(for: .seconds(timeout))
+            throw XCResultParserError.timedOut(xcresultPath, seconds: timeout)
+        }
+
+        defer { group.cancelAll() }
+
+        return try await group.next() ?? nil
+    }
+}
+
+/// Mirror `XCResultParserError`'s descriptions, for the paths where no
+/// validated `AbsolutePath` is at hand to build the error itself from.
+private func timedOutMessage(path: String, seconds: Int) -> String {
+    "xcresult parsing timed out after \(seconds)s at \(path)"
+}
+
+private func failedToParseMessage(path: String) -> String {
+    "Failed to parse xcresult output at \(path)"
+}
+
+private func write(
+    _ message: String,
+    outputPtr: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>,
+    outputLen: UnsafeMutablePointer<Int32>
+) -> Int32 {
+    let errorJSON = "{\"error\": \"\(message.replacingOccurrences(of: "\"", with: "\\\""))\"}"
+    let data = Array(errorJSON.utf8)
+    let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: data.count)
+    for (i, byte) in data.enumerated() {
+        buffer[i] = CChar(bitPattern: byte)
+    }
+    outputPtr.pointee = buffer
+    outputLen.pointee = Int32(data.count)
+    return 1
+}

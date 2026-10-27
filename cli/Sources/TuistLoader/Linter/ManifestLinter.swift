@@ -8,7 +8,7 @@ public protocol ManifestLinting {
     func lint(workspace: ProjectDescription.Workspace) -> [LintingIssue]
 }
 
-public class AnyManifestLinter: ManifestLinting {
+public struct AnyManifestLinter: ManifestLinting {
     let lintProject: ((ProjectDescription.Project) -> [LintingIssue])?
     let lintWorkspace: ((ProjectDescription.Workspace) -> [LintingIssue])?
 
@@ -37,7 +37,7 @@ public class AnyManifestLinter: ManifestLinting {
     }
 }
 
-public class ManifestLinter: ManifestLinting {
+public struct ManifestLinter: ManifestLinting {
     public init() {}
 
     public func lint(project: ProjectDescription.Project) -> [LintingIssue] {
@@ -95,7 +95,9 @@ public class ManifestLinter: ManifestLinting {
         if let runAction {
             issues.append(contentsOf: lintExecutionActionTargets(runAction.preActions, actionType: "runAction", scheme: scheme))
             issues.append(contentsOf: lintExecutionActionTargets(runAction.postActions, actionType: "runAction", scheme: scheme))
-            issues.append(contentsOf: lintSchemeTarget(runAction.executable, actionType: "runAction", scheme: scheme))
+            if case let .some(.executable(ref)) = runAction.executable {
+                issues.append(contentsOf: lintSchemeTarget(ref, actionType: "runAction", scheme: scheme))
+            }
             issues.append(contentsOf: lintSchemeTarget(
                 runAction.expandVariableFromTarget,
                 actionType: "runAction",
@@ -114,7 +116,9 @@ public class ManifestLinter: ManifestLinting {
                 actionType: "profileAction",
                 scheme: scheme
             ))
-            issues.append(contentsOf: lintSchemeTarget(profileAction.executable, actionType: "profileAction", scheme: scheme))
+            if case let .some(.executable(ref)) = profileAction.executable {
+                issues.append(contentsOf: lintSchemeTarget(ref, actionType: "profileAction", scheme: scheme))
+            }
         }
 
         if let testAction {

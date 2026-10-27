@@ -1,0 +1,43 @@
+# Placeholder values for the `Render` CI check only (helm template +
+# kubeconform in helm.yml). The chart hard-fails when these image
+# versions are empty, but the managed values leave them empty on purpose
+# — server-deployment.yml resolves them from the latest `<component>@`
+# git tags and passes them via --set at deploy time. This overlay feeds
+# dummy values so static rendering/validation passes.
+server:
+  image:
+    tag: validation
+
+kuraController:
+  image:
+    tag: validation
+
+kuraRuntime:
+  image:
+    tag: validation
+
+egressTreeAgent:
+  image:
+    tag: validation
+
+codebaseSearch:
+  image:
+    tag: validation
+
+registry:
+  image:
+    tag: validation
+
+runnersController:
+  image:
+    tag: validation
+
+runnersFleet:
+  runnerImageSemver: validation
+
+runnersFleetLinux:
+  shapeRunnerImage: ghcr.io/tuist/tuist-linux-runner:validation
+
+xcresultProcessor:
+  release:
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000

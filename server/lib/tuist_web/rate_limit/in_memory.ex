@@ -6,18 +6,26 @@ defmodule TuistWeb.RateLimit.InMemory do
   eventually consistent approach. It combines local in-memory counting with a
   broadcasting mechanism to keep counters in sync across nodes in a cluster.
   """
-  alias Tuist.Environment
-
   defmodule Local do
     @moduledoc false
     use Hammer, backend: :ets
     # This inner module handles local hit counting via Hammer with ETS as a backend.
   end
 
+  defmodule TokenBucket do
+    @moduledoc false
+    use Hammer, backend: :ets, algorithm: :token_bucket
+  end
+
   # Checks rate locally and broadcasts the hit to other nodes to synchronize.
   def hit(key, scale, limit, increment \\ 1) do
-    :ok = broadcast({:inc, key, scale, increment})
+    :ok = broadcast({:fixed_window, key, scale, increment})
     Local.hit(key, scale, limit, increment)
+  end
+
+  def hit_token_bucket(key, refill_rate, capacity, cost \\ 1) do
+    :ok = broadcast({:token_bucket, key, refill_rate, capacity, cost})
+    TokenBucket.hit(key, refill_rate, capacity, cost)
   end
 
   defmodule Listener do
@@ -25,13 +33,13 @@ defmodule TuistWeb.RateLimit.InMemory do
     use GenServer
 
     # Starts the listener process, subscribing to the specified PubSub topic.
-    # This process will listen for `:inc` messages to keep local counters in sync.
+    # This process will listen for hit messages to keep local counters in sync.
 
     @doc false
     def start_link(opts) do
       pubsub = Keyword.fetch!(opts, :pubsub)
       topic = Keyword.fetch!(opts, :topic)
-      GenServer.start_link(__MODULE__, {pubsub, topic})
+      GenServer.start_link(__MODULE__, {pubsub, topic}, name: __MODULE__)
     end
 
     @impl true
@@ -40,30 +48,18 @@ defmodule TuistWeb.RateLimit.InMemory do
       {:ok, []}
     end
 
-    # Handles remote `:inc` messages by updating the local counter.
+    # Handles remote hit messages by updating the local limiter.
 
     @impl true
-    def handle_info({:inc, key, scale, increment}, state) do
+    def handle_info({:fixed_window, key, scale, increment}, state) do
       _count = Local.inc(key, scale, increment)
       {:noreply, state}
     end
-  end
 
-  def rate_limit(%Plug.Conn{} = conn, _opts) do
-    if Environment.tuist_hosted?() do
-      scale_ms = to_timeout(minute: 1)
-      limit = 1_000
-
-      case hit(TuistWeb.RemoteIp.get(conn), scale_ms, limit) do
-        {:allow, _count} ->
-          conn
-
-        {:deny, _limit} ->
-          raise TuistWeb.Errors.TooManyRequestsError,
-            message: "You have made too many requests. Please try again later."
-      end
-    else
-      conn
+    @impl true
+    def handle_info({:token_bucket, key, refill_rate, capacity, cost}, state) do
+      _result = TokenBucket.hit(key, refill_rate, capacity, cost)
+      {:noreply, state}
     end
   end
 
@@ -72,7 +68,8 @@ defmodule TuistWeb.RateLimit.InMemory do
 
   # Sends a message to other nodes in the cluster to synchronize rate-limiting information.
   defp broadcast(message) do
-    Phoenix.PubSub.broadcast(@pubsub, @topic, message)
+    listener = Process.whereis(Listener)
+    Phoenix.PubSub.broadcast_from(@pubsub, listener, @topic, message)
   end
 
   def child_spec(opts) do
@@ -85,7 +82,7 @@ defmodule TuistWeb.RateLimit.InMemory do
 
   # Wraps the local Hammer counter and the listener processes under a single supervisor.
   def start_link(opts) do
-    children = [{Local, opts}, {Listener, pubsub: @pubsub, topic: @topic}]
+    children = [{Local, opts}, {TokenBucket, opts}, {Listener, pubsub: @pubsub, topic: @topic}]
     Supervisor.start_link(children, strategy: :one_for_one)
   end
 end

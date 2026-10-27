@@ -1,6 +1,6 @@
 [tools]
-    pnpm = "10.17.1"
-    node = "20.12.0"
+    aube = "1.6.2"
+    node = "22.12.0"
     "npm:wrangler" = "4.30.0"
 
 [hooks]

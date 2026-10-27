@@ -1,5 +1,5 @@
 import Path
 
-public protocol FileContentHashing {
+public protocol FileContentHashing: Sendable {
     func hash(path: AbsolutePath) async throws -> String
 }

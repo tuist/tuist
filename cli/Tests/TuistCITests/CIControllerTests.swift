@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import TuistEnvironment
 import TuistSupport
 import TuistTesting
 
@@ -28,9 +29,28 @@ struct CIControllerTests {
         #expect(ciInfo == CIInfo(
             provider: .github,
             runId: "123456789",
+            attemptNumber: "1",
             projectHandle: "owner/repo",
             host: nil
         ))
+        #expect(ciInfo?.shardReference == "github-123456789")
+    }
+
+    @Test(.withMockedEnvironment()) func ciInfo_github_shard_reference_is_stable_across_attempts() throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.variables = [
+            "GITHUB_ACTIONS": "true",
+            "GITHUB_REPOSITORY": "owner/repo",
+            "GITHUB_RUN_ID": "123456789",
+            "GITHUB_RUN_ATTEMPT": "2",
+        ]
+
+        // When
+        let ciInfo = subject.ciInfo()
+
+        // Then
+        #expect(ciInfo?.shardReference == "github-123456789")
     }
 
     @Test(.withMockedEnvironment()) func ciInfo_returns_gitlab_info_with_default_host() throws {
@@ -104,6 +124,33 @@ struct CIControllerTests {
             "CIRCLECI": "true",
             "CIRCLE_PROJECT_USERNAME": "owner",
             "CIRCLE_PROJECT_REPONAME": "repo",
+            "CIRCLE_WORKFLOW_ID": "workflow-abc",
+            "CIRCLE_BUILD_NUM": "42",
+        ]
+
+        // When
+        let ciInfo = subject.ciInfo()
+
+        // Then
+        #expect(ciInfo == CIInfo(
+            provider: .circleci,
+            runId: "42",
+            projectHandle: "owner/repo",
+            host: nil,
+            pipelineId: "workflow-abc"
+        ))
+        // Shard reference prefers the workflow id so it binds across jobs in a workflow.
+        #expect(ciInfo?.shardReference == "circleci-workflow-abc")
+    }
+
+    @Test(.withMockedEnvironment())
+    func ciInfo_returns_circleci_info_without_workflow_id() throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.variables = [
+            "CIRCLECI": "true",
+            "CIRCLE_PROJECT_USERNAME": "owner",
+            "CIRCLE_PROJECT_REPONAME": "repo",
             "CIRCLE_BUILD_NUM": "42",
         ]
 
@@ -117,6 +164,8 @@ struct CIControllerTests {
             projectHandle: "owner/repo",
             host: nil
         ))
+        // Falls back to runId when no workflow id is present.
+        #expect(ciInfo?.shardReference == "circleci-42")
     }
 
     @Test(.withMockedEnvironment()) func ciInfo_returns_buildkite_info() throws {
@@ -189,6 +238,7 @@ struct CIControllerTests {
         #expect(ciInfo == CIInfo(
             provider: .github,
             runId: "123456789",
+            attemptNumber: "1",
             projectHandle: nil,
             host: nil
         ))
@@ -210,6 +260,7 @@ struct CIControllerTests {
         #expect(ciInfo == CIInfo(
             provider: .github,
             runId: nil,
+            attemptNumber: "1",
             projectHandle: "owner/repo",
             host: nil
         ))

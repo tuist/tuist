@@ -7,7 +7,7 @@ enum JWTError: Equatable, LocalizedError {
         switch self {
         case let .invalidJWT(token):
             return
-                "The access token \(token) is invalid. Try to reauthenticate by running 'tuist auth login'."
+                "The access token is invalid (\(token.count) characters). Try to reauthenticate by running 'tuist auth login'."
         }
     }
 }
@@ -27,7 +27,7 @@ public struct JWT: Equatable {
     public let preferredUsername: String?
     public let type: String?
 
-    static func make(
+    public static func make(
         expiryDate: Date,
         typ: String = "JWT",
         email: String? = nil,
@@ -116,10 +116,8 @@ public struct JWT: Equatable {
             type: payload.type
         )
     }
-}
 
-#if DEBUG
-    extension JWT {
+    #if DEBUG
         public static func test(
             token: String = "token",
             expiryDate: Date = Date(),
@@ -135,5 +133,5 @@ public struct JWT: Equatable {
                 type: type
             )
         }
-    }
-#endif
+    #endif
+}

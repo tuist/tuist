@@ -1,9 +1,13 @@
-import Command
 import FileSystem
 import Foundation
 import Mockable
 import Path
+import SwifterPMCore
 import TSCUtility
+import TuistConstants
+import TuistEnvironment
+import TuistLogging
+import TuistProcess
 
 /// Protocol that defines an interface to interact with the Swift Package Manager.
 @Mockable
@@ -13,24 +17,24 @@ public protocol SwiftPackageManagerControlling {
     ///   - path: Directory where the `Package.swift` is defined.
     ///   - arguments: Additional arguments for `swift package resolve`.
     ///   - printOutput: When true it prints the Swift Package Manager's output.
-    func resolve(at path: AbsolutePath, arguments: [String], printOutput: Bool) throws
+    func resolve(at path: AbsolutePath, arguments: [String], printOutput: Bool) async throws
 
     /// Updates package dependencies.
     /// - Parameters:
     ///   - path: Directory where the `Package.swift` is defined.
     ///   - arguments: Additional arguments for `swift package update`.
     ///   - printOutput: When true it prints the Swift Package Manager's output.
-    func update(at path: AbsolutePath, arguments: [String], printOutput: Bool) throws
+    func update(at path: AbsolutePath, arguments: [String], printOutput: Bool) async throws
 
     /// Gets the tools version of the package at the given path
     /// - Parameter path: Directory where the `Package.swift` is defined.
     /// - Returns: Version of tools.
-    func getToolsVersion(at path: AbsolutePath) throws -> Version
+    func getToolsVersion(at path: AbsolutePath) async throws -> Version
 
     /// Sets tools version of package to the given value.
     /// - Parameter path: Directory where the `Package.swift` is defined.
     /// - Parameter version: Version of tools. When `nil` then the environment’s version will be set.
-    func setToolsVersion(at path: AbsolutePath, to version: Version) throws
+    func setToolsVersion(at path: AbsolutePath, to version: Version) async throws
 
     /// Builds a release binary containing release binaries compatible with arm64 and x86.
     /// - Parameters:
@@ -62,65 +66,136 @@ public protocol SwiftPackageManagerControlling {
     ) async throws
 }
 
+protocol SwifterPMResolving: Sendable {
+    func resolveDependencies(_ request: SwifterPMResolutionRequest) async throws
+    func updateDependencies(_ request: SwifterPMResolutionRequest) async throws
+}
+
+extension SwifterPM: SwifterPMResolving {
+    func resolveDependencies(_ request: SwifterPMResolutionRequest) async throws {
+        _ = try await resolve(request)
+    }
+
+    func updateDependencies(_ request: SwifterPMResolutionRequest) async throws {
+        _ = try await update(request)
+    }
+}
+
+public enum SwiftPackageManagerControllerError: FatalError, Equatable {
+    case unexpectedSwifterPMCommand(String)
+
+    public var type: ErrorType {
+        .abort
+    }
+
+    public var description: String {
+        switch self {
+        case let .unexpectedSwifterPMCommand(command):
+            return "Expected SwifterPM to parse a \(command) command."
+        }
+    }
+}
+
 public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
-    private let system: Systeming
     private let fileSystem: FileSysteming
     private let commandRunner: () -> CommandRunning
+    private let swifterPM: SwifterPMResolving
+    private let environmentVariables: @Sendable () -> [String: String]
 
     public init() {
         self.init(
-            system: System.shared,
             fileSystem: FileSystem(),
-            commandRunner: { CommandRunner(logger: Logger.current) }
+            commandRunner: { CommandRunner() },
+            swifterPM: SwifterPM()
         )
     }
 
     init(
-        system: Systeming,
         fileSystem: FileSysteming,
-        commandRunner: @escaping () -> CommandRunning
+        commandRunner: @escaping () -> CommandRunning,
+        swifterPM: SwifterPMResolving = SwifterPM(),
+        environmentVariables: @escaping @Sendable () -> [String: String] = { Environment.current.variables }
     ) {
-        self.system = system
         self.fileSystem = fileSystem
         self.commandRunner = commandRunner
+        self.swifterPM = swifterPM
+        self.environmentVariables = environmentVariables
     }
 
-    public func resolve(at path: AbsolutePath, arguments: [String], printOutput: Bool) throws {
-        let command = buildSwiftPackageCommand(
+    public func resolve(at path: AbsolutePath, arguments: [String], printOutput: Bool) async throws {
+        if swifterPMIsEnabled {
+            let request = try await swifterPMRequest(
+                command: "resolve",
+                packagePath: path,
+                arguments: arguments,
+                printOutput: printOutput
+            )
+            try await swifterPM.resolveDependencies(request)
+            return
+        }
+
+        let command = try await buildResolveOrUpdateCommand(
             packagePath: path,
             extraArguments: arguments + ["resolve"]
         )
 
-        printOutput ?
-            try system.runAndPrint(command) :
-            try system.run(command)
+        let environment = resolutionEnvironment ?? environmentVariables()
+        let directories = try await nativeWorkspaceDirectories(packagePath: path, arguments: arguments)
+        try await SwifterPM().withNativeWorkspace(
+            packageDirectory: directories.package, scratchDirectory: directories.scratch
+        ) {
+            if printOutput {
+                try await commandRunner().runAndPrint(arguments: command, environment: environment)
+            } else {
+                try await commandRunner().runAndWait(arguments: command, environment: environment)
+            }
+        }
     }
 
-    public func update(at path: AbsolutePath, arguments: [String], printOutput: Bool) throws {
-        let command = buildSwiftPackageCommand(
+    public func update(at path: AbsolutePath, arguments: [String], printOutput: Bool) async throws {
+        if swifterPMIsEnabled {
+            let request = try await swifterPMRequest(
+                command: "update",
+                packagePath: path,
+                arguments: arguments,
+                printOutput: printOutput
+            )
+            try await swifterPM.updateDependencies(request)
+            return
+        }
+
+        let command = try await buildResolveOrUpdateCommand(
             packagePath: path,
             extraArguments: arguments + ["update"]
         )
 
-        printOutput ?
-            try system.runAndPrint(command) :
-            try system.run(command)
+        let environment = resolutionEnvironment ?? environmentVariables()
+        let directories = try await nativeWorkspaceDirectories(packagePath: path, arguments: arguments)
+        try await SwifterPM().withNativeWorkspace(
+            packageDirectory: directories.package, scratchDirectory: directories.scratch
+        ) {
+            if printOutput {
+                try await commandRunner().runAndPrint(arguments: command, environment: environment)
+            } else {
+                try await commandRunner().runAndWait(arguments: command, environment: environment)
+            }
+        }
     }
 
-    public func setToolsVersion(at path: AbsolutePath, to version: Version) throws {
+    public func setToolsVersion(at path: AbsolutePath, to version: Version) async throws {
         let extraArguments = ["tools-version", "--set", "\(version.major).\(version.minor)"]
 
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: extraArguments)
 
-        try system.run(command)
+        try await commandRunner().runAndWait(arguments: command)
     }
 
-    public func getToolsVersion(at path: AbsolutePath) throws -> Version {
+    public func getToolsVersion(at path: AbsolutePath) async throws -> Version {
         let extraArguments = ["tools-version"]
 
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: extraArguments)
 
-        let rawVersion = try system.capture(command).trimmingCharacters(in: .whitespacesAndNewlines)
+        let rawVersion = try await commandRunner().capture(arguments: command).trimmingCharacters(in: .whitespacesAndNewlines)
         return try Version(versionString: rawVersion)
     }
 
@@ -142,12 +217,14 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
 
         let arm64Target = "arm64-apple-macosx"
         let x64Target = "x86_64-apple-macosx"
-        try system.run(
+        try await commandRunner().runAndWait(
+            arguments:
             buildCommand + [
                 arm64Target,
             ]
         )
-        try system.run(
+        try await commandRunner().runAndWait(
+            arguments:
             buildCommand + [
                 x64Target,
             ]
@@ -157,7 +234,7 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
             try await fileSystem.makeDirectory(at: outputPath)
         }
 
-        try system.run([
+        try await commandRunner().runAndWait(arguments: [
             "lipo", "-create", "-output", outputPath.appending(component: product).pathString,
             buildPath.appending(components: arm64Target, "release", product).pathString,
             buildPath.appending(components: x64Target, "release", product).pathString,
@@ -206,5 +283,92 @@ public struct SwiftPackageManagerController: SwiftPackageManagerControlling {
             packagePath.pathString,
         ]
             + extraArguments
+    }
+
+    private func buildResolveOrUpdateCommand(packagePath: AbsolutePath, extraArguments: [String]) async throws -> [String] {
+        buildSwiftPackageCommand(packagePath: packagePath, extraArguments: extraArguments)
+    }
+
+    private func nativeWorkspaceDirectories(
+        packagePath: AbsolutePath, arguments: [String]
+    ) async throws -> (package: Foundation.URL, scratch: Foundation.URL?) {
+        let cwd = Foundation.URL(fileURLWithPath: try await fileSystem.currentWorkingDirectory().pathString, isDirectory: true)
+        var package = Foundation.URL(fileURLWithPath: packagePath.pathString, isDirectory: true)
+        var scratch: Foundation.URL?
+        var index = 0
+        while index < arguments.count {
+            let parts = arguments[index].split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+            if ["--package-path", "--scratch-path", "--build-path"].contains(parts[0]) {
+                let value: String
+                if parts.count == 2 {
+                    value = parts[1]
+                } else if index + 1 < arguments.count {
+                    index += 1
+                    value = arguments[index]
+                } else {
+                    break
+                }
+                let url = Foundation.URL(fileURLWithPath: value, relativeTo: cwd).standardizedFileURL
+                if parts[0] == "--package-path" { package = url } else { scratch = url }
+            }
+            index += 1
+        }
+        return (package, scratch)
+    }
+
+    private var swifterPMIsEnabled: Bool {
+        !Environment(variables: environmentVariables()).isVariableFalsy(Constants.EnvironmentVariables.useSwifterPM)
+    }
+
+    private func swifterPMRequest(
+        command: String,
+        packagePath: AbsolutePath,
+        arguments: [String],
+        printOutput: Bool
+    ) async throws -> SwifterPMResolutionRequest {
+        let parserArguments = swifterPMArguments(
+            command: command,
+            packagePath: packagePath,
+            arguments: arguments
+        )
+        let parsedCommand = try await SwifterPMCommandParser.parse(parserArguments)
+
+        var request: SwifterPMResolutionRequest
+        switch (command, parsedCommand) {
+        case let ("resolve", .resolve(parsedRequest)),
+             let ("update", .update(parsedRequest)):
+            request = parsedRequest
+        default:
+            throw SwiftPackageManagerControllerError.unexpectedSwifterPMCommand(command)
+        }
+
+        request.quiet = request.quiet || !printOutput
+        request.manifestEnvironment = manifestEnvironment
+        request.resolutionEnvironment = resolutionEnvironment
+        return request
+    }
+
+    private var manifestEnvironment: [String: String]? {
+        PackageManifestEnvironment.filtered(environmentVariables())
+    }
+
+    private var resolutionEnvironment: [String: String]? {
+        PackageManifestEnvironment.filtered(environmentVariables(), forDependencyResolution: true)
+    }
+
+    private func swifterPMArguments(command: String, packagePath: AbsolutePath, arguments: [String]) -> [String] {
+        var parserArguments = arguments
+        if !parserArguments.containsPackagePathArgument {
+            parserArguments = ["--package-path", packagePath.pathString] + parserArguments
+        }
+        return parserArguments + [command]
+    }
+}
+
+extension [String] {
+    fileprivate var containsPackagePathArgument: Bool {
+        contains { argument in
+            argument == "--package-path" || argument.hasPrefix("--package-path=")
+        }
     }
 }

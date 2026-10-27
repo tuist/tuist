@@ -7,9 +7,11 @@ defmodule TuistWeb.AuthenticationTest do
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Repo
+  alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AppBuildsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
+  alias TuistWeb.Errors.NotFoundError
 
   @remember_me_cookie "_tuist_web_user_remember_me"
 
@@ -60,6 +62,81 @@ defmodule TuistWeb.AuthenticationTest do
     end
   end
 
+  describe "attributed_user/1" do
+    test "when the authenticated subject is a user", %{user: user, conn: conn} do
+      # Given
+      conn = assign(conn, :current_user, user)
+
+      # Then
+      assert Authentication.attributed_user(conn) == user
+    end
+
+    test "when the authenticated subject is an account token that carries its issuer", %{
+      user: user,
+      project: project,
+      conn: conn
+    } do
+      # Given
+      conn =
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: project.account,
+          scopes: ["project:runs:write"],
+          issued_by: user
+        })
+
+      # Then
+      assert Authentication.attributed_user(conn) == user
+    end
+
+    test "when the authenticated subject is a long-lived token minted for CI", %{
+      user: user,
+      project: project,
+      conn: conn
+    } do
+      # The account that created the token is recorded, but nobody authorized the
+      # request it is now signing, so the run must not be attributed to them.
+      conn =
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: project.account,
+          scopes: ["ci"],
+          all_projects: true,
+          token_id: Ecto.UUID.generate(),
+          created_by_account_id: user.account.id
+        })
+
+      # Then
+      assert Authentication.attributed_user(conn) == nil
+    end
+
+    test "when the authenticated subject is a CI token obtained through OIDC", %{
+      project: project,
+      conn: conn
+    } do
+      # Given
+      conn =
+        assign(conn, :current_subject, %AuthenticatedAccount{
+          account: project.account,
+          scopes: ["ci"],
+          project_ids: [project.id]
+        })
+
+      # Then
+      assert Authentication.attributed_user(conn) == nil
+    end
+
+    test "when the authenticated subject is a project", %{project: project, conn: conn} do
+      # Given
+      conn = assign(conn, :current_project, project)
+
+      # Then
+      assert Authentication.attributed_user(conn) == nil
+    end
+
+    test "when there is no authenticated subject", %{conn: conn} do
+      assert Authentication.attributed_user(conn) == nil
+    end
+  end
+
   describe "log_in_user/3" do
     test "stores the user token in the session", %{conn: conn, user: user} do
       conn = Authentication.log_in_user(conn, user)
@@ -77,6 +154,16 @@ defmodule TuistWeb.AuthenticationTest do
     test "redirects to the configured path", %{conn: conn, user: user} do
       conn = conn |> put_session(:user_return_to, "/hello") |> Authentication.log_in_user(user)
       assert redirected_to(conn) == "/hello"
+    end
+
+    test "stores auth_method as :password by default", %{conn: conn, user: user} do
+      conn = Authentication.log_in_user(conn, user)
+      assert get_session(conn, :auth_method) == :password
+    end
+
+    test "stores auth_method when provided", %{conn: conn, user: user} do
+      conn = Authentication.log_in_user(conn, user, %{auth_method: :google})
+      assert get_session(conn, :auth_method) == :google
     end
 
     test "writes a cookie if remember_me is configured", %{conn: conn, user: user} do
@@ -391,6 +478,83 @@ defmodule TuistWeb.AuthenticationTest do
     end
   end
 
+  describe "require_authenticated_user_for_private_accounts/2" do
+    test "does not redirect if a user is authenticated", %{conn: conn, user: user} do
+      # Given
+      %{account: account} = AccountsFixtures.organization_fixture(preload: [:account])
+      conn = %{conn | path_params: %{"account_handle" => account.name}}
+
+      # When
+      conn =
+        conn
+        |> assign(:current_user, user)
+        |> Authentication.require_authenticated_user_for_private_accounts([])
+
+      # Then
+      refute conn.halted
+      refute conn.status
+    end
+
+    test "does not redirect if a user is anonymous and an account is public", %{conn: conn} do
+      # Given
+      %{account: account} = AccountsFixtures.organization_fixture(preload: [:account])
+      {:ok, _account} = Accounts.update_account_visibility(account, :public)
+      conn = %{conn | path_params: %{"account_handle" => account.name}}
+
+      # When
+      conn = Authentication.require_authenticated_user_for_private_accounts(conn, [])
+
+      # Then
+      refute conn.halted
+      refute conn.status
+    end
+
+    test "redirects if a user is anonymous and an account is private", %{conn: conn} do
+      # Given
+      %{account: account} = AccountsFixtures.organization_fixture(preload: [:account])
+      conn = %{conn | path_params: %{"account_handle" => account.name}}
+
+      # When
+      conn =
+        conn
+        |> Phoenix.ConnTest.init_test_session(%{})
+        |> fetch_flash()
+        |> Authentication.require_authenticated_user_for_private_accounts([])
+
+      # Then
+      assert conn.halted
+      assert redirected_to(conn) == ~p"/users/log_in"
+    end
+
+    test "raises a 404 if the account doesn't exist, signed in or not", %{conn: conn} do
+      # Given
+      conn = %{conn | path_params: %{"account_handle" => "does-not-exist"}}
+
+      # When/Then
+      assert_raise NotFoundError, fn ->
+        conn
+        |> Phoenix.ConnTest.init_test_session(%{})
+        |> fetch_flash()
+        |> Authentication.require_authenticated_user_for_private_accounts([])
+      end
+    end
+
+    test "raises a 404 if the account handle is a wildcard matching many accounts", %{conn: conn} do
+      # Given
+      AccountsFixtures.organization_fixture()
+      AccountsFixtures.organization_fixture()
+      conn = %{conn | path_params: %{"account_handle" => "%"}}
+
+      # When/Then
+      assert_raise NotFoundError, fn ->
+        conn
+        |> Phoenix.ConnTest.init_test_session(%{})
+        |> fetch_flash()
+        |> Authentication.require_authenticated_user_for_private_accounts([])
+      end
+    end
+  end
+
   describe "require_authenticated_user_for_previews/2" do
     test "does not redirect if a user is authenticated", %{conn: conn, user: user} do
       # Given
@@ -475,7 +639,7 @@ defmodule TuistWeb.AuthenticationTest do
       assert conn.status
     end
 
-    test "does not redirect if a user is anonymous, a project is private, and preview is public",
+    test "does not redirect if a user is anonymous, a project is private, and preview type is :ipa",
          %{conn: conn} do
       # Given
       project =
@@ -501,59 +665,218 @@ defmodule TuistWeb.AuthenticationTest do
       refute conn.halted
       refute conn.status
     end
+  end
 
-    test "does not redirect when preview.visibility is nil and project.default_previews_visibility is :public",
-         %{conn: conn} do
+  describe "require_sso_authentication/2" do
+    test "does not redirect an anonymous visitor when the account is public and enforces SSO", %{conn: conn, user: user} do
       # Given
-      project =
-        [visibility: :private, default_previews_visibility: :public]
-        |> ProjectsFixtures.project_fixture()
-        |> Repo.preload(:account)
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "example.com",
+          preload: [:account]
+        )
 
-      preview = AppBuildsFixtures.preview_fixture(project: project, visibility: nil)
-
-      conn = %{
-        conn
-        | path_params: %{
-            "account_handle" => project.account.name,
-            "project_handle" => project.name,
-            "id" => preview.id
-          }
-      }
+      Accounts.update_organization(organization, %{sso_enforced: true})
+      {:ok, _account} = Accounts.update_account_visibility(organization.account, :public)
 
       # When
-      conn = Authentication.require_authenticated_user_for_previews(conn, [])
+      conn =
+        Authentication.require_sso_authentication(
+          %{
+            conn
+            | params: %{"account_handle" => organization.account.name},
+              path_info: [organization.account.name, "runners"],
+              query_string: ""
+          },
+          []
+        )
 
       # Then
       refute conn.halted
       refute conn.status
     end
 
-    test "redirects when preview.visibility is nil and project.default_previews_visibility is :private",
-         %{conn: conn} do
-      # Given
-      project =
-        [visibility: :private, default_previews_visibility: :private]
-        |> ProjectsFixtures.project_fixture()
-        |> Repo.preload(:account)
+    test "still redirects a signed-in user when the account is public and enforces SSO", %{conn: conn, user: user} do
+      # Given — signed-in users can see member-level data on a public account,
+      # so the organization's enforcement still applies to them.
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "example.com",
+          preload: [:account]
+        )
 
-      preview = AppBuildsFixtures.preview_fixture(project: project, visibility: nil)
-
-      conn = %{
-        conn
-        | path_params: %{
-            "account_handle" => project.account.name,
-            "project_handle" => project.name,
-            "id" => preview.id
-          }
-      }
+      Accounts.update_organization(organization, %{sso_enforced: true})
+      {:ok, _account} = Accounts.update_account_visibility(organization.account, :public)
 
       # When
-      conn = Authentication.require_authenticated_user_for_previews(conn, [])
+      conn =
+        %{
+          conn
+          | params: %{"account_handle" => organization.account.name},
+            path_info: [organization.account.name, "runners"],
+            query_string: ""
+        }
+        |> assign(:current_user, user)
+        |> Authentication.require_sso_authentication([])
 
       # Then
       assert conn.halted
-      assert conn.status
+      assert redirected_to(conn) == "/users/auth/google"
+    end
+
+    test "redirects an anonymous visitor when the account is private and enforces SSO", %{conn: conn, user: user} do
+      # Given
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "example.com",
+          preload: [:account]
+        )
+
+      Accounts.update_organization(organization, %{sso_enforced: true})
+
+      # When
+      conn =
+        Authentication.require_sso_authentication(
+          %{
+            conn
+            | params: %{"account_handle" => organization.account.name},
+              path_info: [organization.account.name, "runners"],
+              query_string: ""
+          },
+          []
+        )
+
+      # Then
+      assert conn.halted
+      assert redirected_to(conn) == "/users/auth/google"
+    end
+
+    test "redirects to Google SSO when org has Google SSO enforced and session auth provider does not match",
+         %{conn: conn, user: user} do
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "example.com",
+          preload: [:account]
+        )
+
+      Accounts.update_organization(organization, %{sso_enforced: true})
+
+      conn =
+        %{
+          conn
+          | params: %{"account_handle" => organization.account.name},
+            path_info: [organization.account.name, "settings"],
+            query_string: ""
+        }
+        |> assign(:current_user, user)
+        |> Authentication.require_sso_authentication([])
+
+      assert conn.halted
+      assert redirected_to(conn) == "/users/auth/google"
+      assert get_session(conn, :oauth_return_to) == "/#{organization.account.name}/settings"
+    end
+
+    test "redirects to Okta SSO when org has Okta SSO enforced and session auth provider does not match",
+         %{conn: conn, user: user} do
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :okta,
+          sso_organization_id: "company.okta.com",
+          sso_legacy_email_domain_fallback: true,
+          oauth2_client_id: "client_id",
+          oauth2_client_secret: "client_secret",
+          preload: [:account]
+        )
+
+      organization = organization |> Ecto.Changeset.change(sso_enforced: true) |> Repo.update!()
+
+      conn =
+        %{
+          conn
+          | params: %{"account_handle" => organization.account.name},
+            path_info: [organization.account.name, "projects"],
+            query_string: ""
+        }
+        |> assign(:current_user, user)
+        |> Authentication.require_sso_authentication([])
+
+      assert conn.halted
+      assert redirected_to(conn) == "/users/auth/okta?organization_id=#{organization.id}"
+    end
+
+    test "does not redirect when session auth provider matches org SSO provider",
+         %{conn: conn, user: user} do
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "example.com",
+          preload: [:account]
+        )
+
+      Accounts.update_organization(organization, %{sso_enforced: true})
+
+      conn =
+        conn
+        |> put_session(:auth_method, :google)
+        |> Map.put(:params, %{"account_handle" => organization.account.name})
+        |> assign(:current_user, user)
+        |> Authentication.require_sso_authentication([])
+
+      refute conn.halted
+    end
+
+    test "does not redirect when org has SSO but enforcement is disabled",
+         %{conn: conn, user: user} do
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: user,
+          sso_provider: :google,
+          sso_organization_id: "example.com",
+          preload: [:account]
+        )
+
+      conn =
+        %{conn | params: %{"account_handle" => organization.account.name}}
+        |> assign(:current_user, user)
+        |> Authentication.require_sso_authentication([])
+
+      refute conn.halted
+    end
+
+    test "does not redirect when no account_handle param is present",
+         %{conn: conn} do
+      conn = Authentication.require_sso_authentication(conn, [])
+      refute conn.halted
+    end
+  end
+
+  describe "get_authorization_token_from_conn/1" do
+    test "extracts token from Bearer authorization header", %{conn: conn} do
+      token = "my_bearer_token_123"
+
+      conn = put_req_header(conn, "authorization", "Bearer #{token}")
+
+      assert Authentication.get_authorization_token_from_conn(conn) == token
+    end
+
+    test "returns nil when no authorization header is present", %{conn: conn} do
+      assert Authentication.get_authorization_token_from_conn(conn) == nil
+    end
+
+    test "returns nil for invalid authorization header format", %{conn: conn} do
+      conn = put_req_header(conn, "authorization", "InvalidFormat token123")
+
+      assert Authentication.get_authorization_token_from_conn(conn) == nil
     end
   end
 end

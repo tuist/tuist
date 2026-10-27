@@ -99,6 +99,52 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         try assert(scheme: model, matches: manifest, path: projectPath, generatorPaths: generatorPaths)
     }
 
+    func test_from_when_the_run_action_has_askForAppToLaunch() async throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/somepath/Project")
+        let rootDirectory = try temporaryPath()
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: projectPath,
+            rootDirectory: rootDirectory
+        )
+        let runAction = ProjectDescription.RunAction.test(askForAppToLaunch: true)
+        let manifest = ProjectDescription.Scheme.test(
+            name: "Scheme",
+            shared: false,
+            runAction: runAction
+        )
+
+        // When
+        let model = try await XcodeGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
+
+        // Then
+        XCTAssertEqual(model.runAction?.askForAppToLaunch, true)
+    }
+
+    func test_from_when_the_profile_action_has_askForAppToLaunch() async throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/somepath/Project")
+        let rootDirectory = try temporaryPath()
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: projectPath,
+            rootDirectory: rootDirectory
+        )
+        let profileAction = ProjectDescription.ProfileAction.profileAction(
+            executable: .askOnLaunch
+        )
+        let manifest = ProjectDescription.Scheme.test(
+            name: "Scheme",
+            shared: false,
+            profileAction: profileAction
+        )
+
+        // When
+        let model = try await XcodeGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
+
+        // Then
+        XCTAssertEqual(model.profileAction?.askForAppToLaunch, true)
+    }
+
     func test_from_when_the_scheme_uses_custom_executable_and_working_directory() async throws {
         // Given
         let projectPath = try AbsolutePath(validating: "/somepath/Project")

@@ -64,8 +64,12 @@ We may disclose personal information to third parties, including service provide
 
 ### Your Rights and Controlling Your Personal Information
 
-- **Access**: Request details of the personal information we hold about you.
+You have the right to access, correct, transfer, and request deletion of your personal information. To exercise any of these rights, email us at [contact@tuist.dev](mailto:contact@tuist.dev) from the address associated with your account and tell us which right you wish to exercise. We will respond within 30 days.
+
+- **Access**: Request a copy of the personal information we hold about you.
 - **Correction**: Request corrections to any inaccurate or outdated personal information.
+- **Deletion**: Request that we delete your personal information. Some information may be retained where required by law or for legitimate business purposes (for example, billing records). Account holders can also delete their account at any time from their account settings, which removes the personal information associated with the account.
+- **Data portability**: Request that we transfer a machine-readable copy of your personal information to you or to another service. See our [data export documentation](https://github.com/tuist/tuist/blob/main/server/data-export.md) for the categories of data covered.
 - **Non-discrimination**: Exercise rights without discrimination.
 - **Data Breaches**: Notification in case of data breaches.
 

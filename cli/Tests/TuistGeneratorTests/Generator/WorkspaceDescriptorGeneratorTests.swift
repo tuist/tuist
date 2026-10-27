@@ -82,7 +82,7 @@ struct WorkspaceDescriptorGeneratorTests {
         // Given
         let name = "test"
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
-        try FileHandler.shared.createFolder(temporaryPath.appending(component: "\(name).xcworkspace"))
+        try await FileSystem().makeDirectory(at: temporaryPath.appending(component: "\(name).xcworkspace"))
         let workspace = Workspace.test(name: name)
         let graph = Graph.test(
             path: temporaryPath,
@@ -225,7 +225,7 @@ extension XCWorkspaceDataElement: CustomDebugStringConvertible {
         switch self {
         case let .file(file):
             return file.location.path
-        case let .group(group):
+        case let .group(group), let .fileSystemSynchronizedGroup(group):
             return group.debugDescription
         }
     }

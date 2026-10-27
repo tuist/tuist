@@ -1,7 +1,10 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Path
 import Testing
 import TuistCore
+import TuistSupport
 import XcodeGraph
 import XcodeProj
 @testable import TuistGenerator
@@ -34,7 +37,11 @@ struct TargetGeneratorTests {
                         excluded: [path.appending(components: ["Sources", "Excluded.swift"])],
                         compilerFlags: [path.appending(components: ["Sources", "CompilerFlags.swift"]): "-print-stats"],
                         publicHeaders: [path.appending(components: ["Sources", "Headers", "Public.h"])],
-                        privateHeaders: [path.appending(components: ["Sources", "Headers", "Private.h"])]
+                        privateHeaders: [path.appending(components: ["Sources", "Headers", "Private.h"])],
+                        platformFilters: [
+                            path.appending(components: ["Sources", "Resources", "ios_only.mp4"]):
+                                .when([.ios])!,
+                        ]
                     ),
                 ]), resolvedFiles: [
                     BuildableFolderFile(path: path.appending(components: ["Sources", "Included.swift"]), compilerFlags: nil),
@@ -70,7 +77,7 @@ struct TargetGeneratorTests {
         )
 
         // When
-        let generatedTarget = try await subject.generateTarget(
+        let (generatedTarget, _) = try await subject.generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -91,6 +98,236 @@ struct TargetGeneratorTests {
         #expect(exception.additionalCompilerFlagsByRelativePath == ["CompilerFlags.swift": "-print-stats"])
         #expect(exception.publicHeaders == ["Headers/Public.h"])
         #expect(exception.privateHeaders == ["Headers/Private.h"])
+        #expect(exception.platformFiltersByRelativePath == ["Resources/ios_only.mp4": ["ios"]])
+    }
+
+    @Test func generateTarget_macro_usesHostBuildToolProductType() async throws {
+        // Given
+        let target = Target.test(name: "MacroImplementation", destinations: [.mac], product: .macro)
+        let project = Project.test(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "Test.xcodeproj"),
+            targets: [target]
+        )
+        let graphTraverser = GraphTraverser(graph: .test())
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
+        try fileElements.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // When
+        let (generatedTarget, _) = try await subject.generateTarget(
+            target: target,
+            project: project,
+            pbxproj: pbxproj,
+            pbxProject: pbxProject,
+            projectSettings: .test(),
+            fileElements: fileElements,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        #expect(generatedTarget.productType == .hostBuildTool)
+    }
+
+    @Test func generateTarget_synchronizedGroups_mapsTargetHeadersIntoSynchronizedExceptions() async throws {
+        // Given
+        let buildableFolderPath = path.appending(component: "Sources")
+        let publicHeaderPath = path.appending(components: ["Sources", "Headers", "Public.h"])
+        let privateHeaderPath = path.appending(components: ["Sources", "Headers", "Private.h"])
+        let projectHeaderPath = path.appending(components: ["Sources", "Headers", "Project.h"])
+        let target = Target.test(
+            name: "MyFramework",
+            product: .framework,
+            headers: Headers(
+                public: [publicHeaderPath],
+                private: [privateHeaderPath],
+                project: [projectHeaderPath]
+            ),
+            scripts: [],
+            buildableFolders: [
+                BuildableFolder(path: buildableFolderPath, exceptions: BuildableFolderExceptions(exceptions: []), resolvedFiles: [
+                    BuildableFolderFile(path: path.appending(components: ["Sources", "Included.swift"]), compilerFlags: nil),
+                    BuildableFolderFile(path: publicHeaderPath, compilerFlags: nil),
+                    BuildableFolderFile(path: privateHeaderPath, compilerFlags: nil),
+                    BuildableFolderFile(path: projectHeaderPath, compilerFlags: nil),
+                ]),
+            ]
+        )
+        let project = Project.test(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "Test.xcodeproj"),
+            targets: [target]
+        )
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+        let groups = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        )
+        try fileElements.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // When
+        let (generatedTarget, _) = try await subject.generateTarget(
+            target: target,
+            project: project,
+            pbxproj: pbxproj,
+            pbxProject: pbxProject,
+            projectSettings: Settings.test(),
+            fileElements: fileElements,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        let group = try #require(generatedTarget.fileSystemSynchronizedGroups?.first)
+        #expect(group.exceptions?.count == 1)
+        let exception = try #require(group.exceptions?.first as? PBXFileSystemSynchronizedBuildFileExceptionSet)
+        #expect(exception.membershipExceptions == nil || exception.membershipExceptions == [])
+        #expect(exception.publicHeaders == ["Headers/Public.h"])
+        #expect(exception.privateHeaders == ["Headers/Private.h"])
+    }
+
+    @Test(.inTemporaryDirectory) func generateTarget_synchronizedGroups_withExcludedFolders() async throws {
+        // Given
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = temporaryPath.appending(component: "Sources")
+        let excludedFolderPath = sourcesPath.appending(component: "ExcludedFolder")
+        try await FileSystem().makeDirectory(at: excludedFolderPath)
+
+        let target = Target.test(
+            name: "MyFramework",
+            product: .framework,
+            scripts: [],
+            buildableFolders: [
+                BuildableFolder(path: sourcesPath, exceptions: BuildableFolderExceptions(exceptions: [
+                    BuildableFolderException(
+                        excluded: [
+                            excludedFolderPath,
+                            sourcesPath.appending(component: "ExcludedFile.swift"),
+                        ],
+                        compilerFlags: [:],
+                        publicHeaders: [],
+                        privateHeaders: [],
+                        platformFilters: [:]
+                    ),
+                ]), resolvedFiles: [
+                    BuildableFolderFile(path: sourcesPath.appending(component: "Included.swift"), compilerFlags: nil),
+                ]),
+            ]
+        )
+        let project = Project.test(
+            path: temporaryPath,
+            sourceRootPath: temporaryPath,
+            xcodeProjPath: temporaryPath.appending(component: "Test.xcodeproj"),
+            targets: [target]
+        )
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+        let pbxproj = PBXProj()
+        let pbxProject = createPbxProject(pbxproj: pbxproj)
+        let groups = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        )
+        let fileElements = ProjectFileElements([:])
+        try fileElements.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // When
+        let (generatedTarget, _) = try await subject.generateTarget(
+            target: target,
+            project: project,
+            pbxproj: pbxproj,
+            pbxProject: pbxProject,
+            projectSettings: Settings.test(),
+            fileElements: fileElements,
+            path: temporaryPath,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        let group = try #require(generatedTarget.fileSystemSynchronizedGroups?.first)
+        #expect(group.explicitFolders == ["ExcludedFolder"])
+        let exception = try #require(group.exceptions?.first as? PBXFileSystemSynchronizedBuildFileExceptionSet)
+        #expect(exception.membershipExceptions == ["ExcludedFolder", "ExcludedFile.swift"])
+    }
+
+    @Test func generateBuildableFolderForeignExceptions_addsMembershipForForeignTarget() async throws {
+        // Given
+        let buildableFolderPath = path.appending(component: "App")
+        let sharedStub = buildableFolderPath.appending(component: "SharedStub.swift")
+        let appTarget = Target.test(
+            name: "App",
+            product: .app,
+            buildableFolders: [
+                BuildableFolder(
+                    path: buildableFolderPath,
+                    exceptions: BuildableFolderExceptions(exceptions: [
+                        BuildableFolderException(
+                            excluded: [],
+                            compilerFlags: [:],
+                            publicHeaders: [],
+                            privateHeaders: [],
+                            platformFilters: [:],
+                            target: "AppTests",
+                            included: [sharedStub]
+                        ),
+                    ]),
+                    resolvedFiles: []
+                ),
+            ]
+        )
+        let testsTarget = Target.test(name: "AppTests", product: .unitTests)
+        let project = Project.test(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "Test.xcodeproj"),
+            targets: [appTarget, testsTarget]
+        )
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
+        try fileElements.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+        let appPBXTarget = PBXNativeTarget(name: "App")
+        let testsPBXTarget = PBXNativeTarget(name: "AppTests")
+        pbxproj.add(object: appPBXTarget)
+        pbxproj.add(object: testsPBXTarget)
+
+        // When
+        try subject.generateBuildableFolderForeignExceptions(
+            targets: [appTarget, testsTarget],
+            nativeTargets: ["App": appPBXTarget, "AppTests": testsPBXTarget],
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then: the foreign exception set lives on the App folder but targets AppTests, with no flat file reference.
+        let group = try #require(fileElements.elements[buildableFolderPath] as? PBXFileSystemSynchronizedRootGroup)
+        let exception = try #require(group.exceptions?.first as? PBXFileSystemSynchronizedBuildFileExceptionSet)
+        #expect(exception.membershipExceptions == ["SharedStub.swift"])
+        #expect(exception.target?.name == "AppTests")
+        #expect(fileElements.file(path: sharedStub) == nil)
     }
 
     @Test func generateTarget_productName() async throws {
@@ -133,7 +370,7 @@ struct TargetGeneratorTests {
         )
 
         // When
-        let generatedTarget = try await subject.generateTarget(
+        let (generatedTarget, _) = try await subject.generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -254,7 +491,7 @@ struct TargetGeneratorTests {
         )
 
         // When
-        let pbxTarget = try await subject.generateTarget(
+        let (pbxTarget, _) = try await subject.generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -275,6 +512,70 @@ struct TargetGeneratorTests {
         #expect(postBuildPhase?.name == "post")
         #expect(postBuildPhase?.shellPath == "/bin/sh")
         #expect(postBuildPhase?.shellScript == "\"$SRCROOT\"/script.sh arg")
+    }
+
+    @Test func generateTarget_whenAggregateTarget_generatesOnlyScriptPhases() async throws {
+        // Given
+        let outputPath = path.appending(component: "SharedKMP.xcframework")
+        let target = Target.test(
+            name: "SharedKMP",
+            product: .framework,
+            sources: [],
+            resources: .init([]),
+            scripts: [
+                TargetScript(
+                    name: "Foreign Build: SharedKMP",
+                    order: .pre,
+                    script: .embedded("gradle build")
+                ),
+                TargetScript(
+                    name: "post",
+                    order: .post,
+                    script: .embedded("echo post")
+                ),
+            ],
+            foreignBuild: ForeignBuild(
+                script: "gradle build",
+                inputs: [],
+                output: .xcframework(path: outputPath, linking: .dynamic)
+            )
+        )
+        let project = Project.test(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "Project.xcodeproj"),
+            targets: [target]
+        )
+        let graph = Graph.test(path: project.path, projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+        let groups = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        )
+        try fileElements.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // When
+        let (pbxTarget, _) = try await subject.generateTarget(
+            target: target,
+            project: project,
+            pbxproj: pbxproj,
+            pbxProject: pbxProject,
+            projectSettings: project.settings,
+            fileElements: fileElements,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        #expect(pbxTarget is PBXAggregateTarget)
+        #expect(pbxTarget.buildPhases.count == 2)
+        #expect(pbxTarget.buildPhases.compactMap { $0 as? PBXShellScriptBuildPhase }.count == 2)
+        #expect(pbxTarget.buildPhases.map { $0.name() } == ["Foreign Build: SharedKMP", "post"])
     }
 
     // MARK: - Helpers

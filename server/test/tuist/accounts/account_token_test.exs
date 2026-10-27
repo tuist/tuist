@@ -1,8 +1,57 @@
 defmodule Tuist.Accounts.AccountTokenTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Accounts.AccountToken
   alias TuistTestSupport.Fixtures.AccountsFixtures
+
+  describe "scope definitions" do
+    test "exposes user-creatable scopes from the canonical scope list" do
+      assert AccountToken.user_creatable_scopes() == [
+               "ci",
+               "account:cache:read",
+               "account:cache:write",
+               "account:members:read",
+               "account:members:write",
+               "account:registry:read",
+               "account:registry:write",
+               "account:runners:read",
+               "account:runners:write",
+               "project:previews:read",
+               "project:previews:write",
+               "project:admin:read",
+               "project:admin:write",
+               "project:cache:read",
+               "project:cache:write",
+               "project:bundles:read",
+               "project:bundles:write",
+               "project:tests:read",
+               "project:tests:write",
+               "project:builds:read",
+               "project:builds:write",
+               "project:runs:read",
+               "project:runs:write"
+             ]
+
+      refute "mcp" in AccountToken.user_creatable_scopes()
+      refute AccountToken.scim_scope() in AccountToken.user_creatable_scopes()
+    end
+
+    test "expands preset scopes from the account token definition" do
+      assert AccountToken.expand_scopes(["ci"]) == [
+               "account:cache:write",
+               "project:cache:write",
+               "project:previews:write",
+               "project:bundles:write",
+               "project:tests:write",
+               "project:builds:write",
+               "project:runs:write"
+             ]
+    end
+
+    test "includes runner reads in the coding-agent scope" do
+      assert "account:runners:read" in AccountToken.expand_scopes([AccountToken.mcp_scope()])
+    end
+  end
 
   describe "create_changeset/1" do
     test "ensures an account_id is present" do
@@ -157,8 +206,22 @@ defmodule Tuist.Accounts.AccountTokenTest do
         AccountToken.create_changeset(%{
           account_id: 1,
           encrypted_token_hash: "hash",
-          scopes: ["project:cache:read", "project:cache:write", "account:registry:read"],
+          scopes: ["project:cache:read", "project:cache:write"],
           name: "my-token"
+        })
+
+      # Then
+      assert got.valid?
+    end
+
+    test "accepts the SCIM scope" do
+      # When
+      got =
+        AccountToken.create_changeset(%{
+          account_id: 1,
+          encrypted_token_hash: "hash",
+          scopes: [AccountToken.scim_scope()],
+          name: "scim"
         })
 
       # Then

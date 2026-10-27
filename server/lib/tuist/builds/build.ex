@@ -1,0 +1,293 @@
+defmodule Tuist.Builds.Build do
+  @moduledoc """
+  A build represents a single build run of a project, such as when building an app from Xcode.
+  This is a ClickHouse entity that stores build run data.
+
+  `build_runs` is `ReplacingMergeTree(updated_at)`: a build is written once as a
+  `processing` placeholder and again once `ProcessBuildWorker` has parsed its
+  xcactivitylog. `updated_at` is the dedup version, so the row written second has
+  to carry the higher one; `inserted_at` stays the build's own timestamp and the
+  partition key.
+
+  A first write takes `updated_at` from `inserted_at`. A write that replaces a
+  known row passes that row's version, bumped, as `updated_at`, and
+  `to_buffer_map/1` treats it as a floor: the stored version is the later of it
+  and now. Ordering therefore does not depend on the writing pods' clocks
+  agreeing, only on each writer reading the row it replaces.
+  """
+  use Ecto.Schema
+  use Tuist.Ingestion.Bufferable
+
+  import Ecto.Changeset
+
+  alias Tuist.Accounts.Account
+  alias Tuist.Builds.Metadata
+
+  @status_values ["success", "failure", "processing", "failed_processing"]
+  @category_values ["clean", "incremental"]
+  @ci_provider_values ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
+
+  @derive {
+    Flop.Schema,
+    filterable: [
+      :failure_category,
+      :project_id,
+      :scheme,
+      :configuration,
+      :category,
+      :status,
+      :git_branch,
+      :xcode_version,
+      :macos_version,
+      :account_id,
+      :verified_actor,
+      :claimed_actor_id,
+      :is_ci,
+      :ci_provider,
+      :cacheable_tasks_count,
+      :custom_tags,
+      :inserted_at
+    ],
+    sortable: [:failure_category, :id, :inserted_at, :duration],
+    adapter_opts: [
+      custom_fields: [
+        verified_actor: [
+          filter: {Tuist.ReportActor, :verified_account_filter, []},
+          ecto_type: :integer,
+          operators: [:==, :!=]
+        ]
+      ]
+    ]
+  }
+
+  @primary_key {:id, Ch, type: "UUID", autogenerate: false}
+  schema "build_runs" do
+    field :failure_category, :string, virtual: true, default: ""
+    field :duration, Ch, type: "Int32"
+    field :project_id, Ch, type: "Int64"
+    field :account_id, Ch, type: "Int64"
+    field :actor_account_id, Ch, type: "Int64", default: 0
+    field :claimed_actor_id, Ch, type: "String", default: ""
+    field :submission_auth, Ch, type: "LowCardinality(String)", default: ""
+    belongs_to :actor_account, Account, foreign_key: :actor_account_id, define_field: false
+    field :macos_version, :string, default: ""
+    field :xcode_version, :string, default: ""
+    field :is_ci, :boolean
+    field :model_identifier, :string, default: ""
+    field :scheme, :string, default: ""
+    field :status, Ch, type: "LowCardinality(String)"
+    field :category, Ch, type: "LowCardinality(String)"
+    field :configuration, :string, default: ""
+    field :git_branch, :string, default: ""
+    field :git_commit_sha, :string, default: ""
+    field :git_ref, :string, default: ""
+    field :ci_run_id, :string, default: ""
+    field :ci_project_handle, :string, default: ""
+    field :ci_host, :string, default: ""
+
+    field :ci_provider, Ch, type: "LowCardinality(String)"
+
+    field :cacheable_task_remote_hits_count, Ch, type: "Int32", default: 0
+    field :cacheable_task_local_hits_count, Ch, type: "Int32", default: 0
+    field :cacheable_tasks_count, Ch, type: "Int32", default: 0
+    field :custom_tags, {:array, :string}, default: []
+    field :custom_values, Ch, type: "Map(String, String)", default: %{}
+    field :xcode_cache_upload_enabled, :boolean, default: false
+    field :generation_id, Ch, type: "Nullable(UUID)"
+    field :inserted_at, Ch, type: "DateTime64(6)"
+    field :updated_at, Ch, type: "DateTime64(6)"
+    field :started_at, Ch, type: "Nullable(DateTime64(6))"
+
+    belongs_to :project, Tuist.Projects.Project, define_field: false
+    belongs_to :ran_by_account, Account, foreign_key: :account_id, define_field: false
+    has_many :issues, Tuist.Builds.BuildIssue, foreign_key: :build_run_id
+    has_many :files, Tuist.Builds.BuildFile, foreign_key: :build_run_id
+    has_many :targets, Tuist.Builds.BuildTarget, foreign_key: :build_run_id
+    has_many :machine_metrics, Tuist.Builds.BuildMachineMetric, foreign_key: :build_run_id
+  end
+
+  def create_changeset(build \\ %__MODULE__{}, attrs) do
+    attrs
+    |> normalize_datetime_attr(:inserted_at)
+    |> normalize_datetime_attr(:started_at)
+    |> default_to_empty_string([
+      :status,
+      :category,
+      :ci_provider,
+      :macos_version,
+      :xcode_version,
+      :model_identifier,
+      :scheme,
+      :configuration,
+      :git_branch,
+      :git_commit_sha,
+      :git_ref,
+      :ci_run_id,
+      :ci_project_handle,
+      :ci_host
+    ])
+    |> then(fn attrs ->
+      build
+      |> cast(attrs, [
+        :id,
+        :duration,
+        :macos_version,
+        :xcode_version,
+        :is_ci,
+        :model_identifier,
+        :scheme,
+        :project_id,
+        :account_id,
+        :actor_account_id,
+        :claimed_actor_id,
+        :submission_auth,
+        :inserted_at,
+        :updated_at,
+        :started_at,
+        :status,
+        :category,
+        :configuration,
+        :git_branch,
+        :git_commit_sha,
+        :git_ref,
+        :ci_run_id,
+        :ci_project_handle,
+        :ci_host,
+        :ci_provider,
+        :cacheable_task_remote_hits_count,
+        :cacheable_task_local_hits_count,
+        :cacheable_tasks_count,
+        :custom_tags,
+        :custom_values,
+        :xcode_cache_upload_enabled,
+        :generation_id
+      ])
+      |> validate_required([
+        :id,
+        :duration,
+        :is_ci,
+        :project_id,
+        :account_id,
+        :status
+      ])
+      |> validate_inclusion(:status, ["" | @status_values])
+      |> validate_inclusion(:category, ["" | @category_values])
+      |> validate_inclusion(:ci_provider, ["" | @ci_provider_values])
+      |> validate_custom_tags()
+      |> validate_custom_values()
+    end)
+  end
+
+  defp normalize_datetime_attr(attrs, field) do
+    case Map.fetch(attrs, field) do
+      :error ->
+        attrs
+
+      {:ok, %DateTime{} = dt} ->
+        Map.put(attrs, field, DateTime.to_naive(dt))
+
+      {:ok, _} ->
+        attrs
+    end
+  end
+
+  defp default_to_empty_string(attrs, fields) do
+    Enum.reduce(fields, attrs, fn field, acc ->
+      case Map.fetch(acc, field) do
+        {:ok, nil} -> Map.put(acc, field, "")
+        {:ok, value} when is_atom(value) -> Map.put(acc, field, Atom.to_string(value))
+        :error -> Map.put(acc, field, "")
+        _ -> acc
+      end
+    end)
+  end
+
+  def to_buffer_map(%__MODULE__{} = build) do
+    build
+    |> Map.from_struct()
+    |> Map.drop([:__meta__, :project, :ran_by_account, :actor_account, :issues, :files, :targets, :failure_category])
+    |> Map.update(:id, UUIDv7.generate(), fn id -> id || UUIDv7.generate() end)
+    |> Map.update(:inserted_at, NaiveDateTime.utc_now(), fn
+      nil -> NaiveDateTime.utc_now()
+      %DateTime{} = dt -> DateTime.to_naive(dt)
+      other -> other
+    end)
+    |> then(fn attrs ->
+      Map.update(attrs, :updated_at, attrs.inserted_at, fn
+        nil -> attrs.inserted_at
+        floor -> Enum.max([NaiveDateTime.utc_now(), floor], NaiveDateTime)
+      end)
+    end)
+    |> Map.new(fn
+      {key, %NaiveDateTime{} = ndt} -> {key, %{ndt | microsecond: {elem(ndt.microsecond, 0), 6}}}
+      other -> other
+    end)
+  end
+
+  def validate_custom_metadata(custom_tags, custom_values) when is_list(custom_tags) and is_map(custom_values) do
+    changeset =
+      %__MODULE__{}
+      |> change(custom_tags: custom_tags, custom_values: custom_values)
+      |> validate_custom_tags()
+      |> validate_custom_values()
+
+    if changeset.valid?, do: :ok, else: {:error, changeset}
+  end
+
+  def validate_custom_metadata(_, _), do: {:error, :invalid_custom_metadata}
+
+  defp validate_custom_tags(changeset) do
+    changeset
+    |> validate_length(:custom_tags, max: 50, message: "cannot have more than 50 tags")
+    |> validate_change(:custom_tags, fn :custom_tags, tags ->
+      Enum.flat_map(tags, fn tag ->
+        cond do
+          String.length(tag) > 50 ->
+            [{:custom_tags, "tag exceeds maximum length of 50 characters"}]
+
+          not Regex.match?(~r/^[a-zA-Z0-9_-]+$/, tag) ->
+            [{:custom_tags, "tag contains invalid characters (only alphanumeric, hyphens, and underscores allowed)"}]
+
+          true ->
+            []
+        end
+      end)
+    end)
+  end
+
+  defp validate_custom_values(changeset) do
+    validate_change(changeset, :custom_values, fn :custom_values, values ->
+      if map_size(values) > Metadata.limit() do
+        [{:custom_values, "cannot have more than #{Metadata.limit()} key-value pairs"}]
+      else
+        Enum.flat_map(values, fn {key, value} ->
+          key_errors =
+            cond do
+              not is_binary(key) ->
+                [{:custom_values, "keys must be strings"}]
+
+              String.length(key) > 50 ->
+                [{:custom_values, "key '#{String.slice(key, 0, 20)}...' exceeds maximum length of 50 characters"}]
+
+              true ->
+                []
+            end
+
+          value_errors =
+            cond do
+              not is_binary(value) ->
+                [{:custom_values, "values must be strings"}]
+
+              String.length(value) > 500 ->
+                [{:custom_values, "value for key '#{key}' exceeds maximum length of 500 characters"}]
+
+              true ->
+                []
+            end
+
+          key_errors ++ value_errors
+        end)
+      end
+    end)
+  end
+end

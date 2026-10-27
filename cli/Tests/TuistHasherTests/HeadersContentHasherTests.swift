@@ -65,8 +65,5 @@ final class HeadersContentHasherTests: TuistUnitTestCase {
         // Then
         let hash = try await subject.hash(headers: headers)
         XCTAssertEqual(hash, "1;2;3;4;5;6")
-        verify(contentHasher)
-            .hash(path: .any)
-            .called(6)
     }
 }

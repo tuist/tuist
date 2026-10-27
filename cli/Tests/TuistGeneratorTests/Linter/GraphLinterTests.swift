@@ -5,6 +5,7 @@ import Mockable
 import Path
 import Testing
 import struct TSCUtility.Version
+import TuistConfig
 import TuistCore
 import TuistSupport
 import TuistTesting
@@ -29,7 +30,7 @@ struct GraphLinterTests {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let frameworkAPath = temporaryPath.appending(try RelativePath(validating: "Test/Build/iOS/A.framework"))
         let frameworkBPath = temporaryPath.appending(try RelativePath(validating: "Test/Build/iOS/B.framework"))
-        try FileHandler.shared.createFolder(frameworkAPath)
+        try await FileSystem().makeDirectory(at: frameworkAPath)
         let graph = Graph.test(dependencies: [
             GraphDependency.testFramework(path: frameworkAPath): Set(),
             GraphDependency.testFramework(path: frameworkBPath): Set(),
@@ -136,7 +137,8 @@ struct GraphLinterTests {
             result ==
                 [LintingIssue(
                     reason: "Cannot find targets UnknownReferenceTarget (.)  defined in SomeScheme",
-                    severity: .warning
+                    severity: .warning,
+                    category: .schemeTargetNotFound
                 )]
         )
     }
@@ -185,6 +187,245 @@ struct GraphLinterTests {
         #expect(
             result ==
                 []
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_when_scheme_codeCoverageTarget_references_localPackage() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let packagePath: AbsolutePath = "/package"
+
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [TargetReference(projectPath: path, name: "App")]),
+            testAction: .test(
+                targets: [TestableTarget(target: TargetReference(projectPath: path, name: "AppTests"))],
+                coverage: true,
+                codeCoverageTargets: [TargetReference(projectPath: packagePath, name: "PackageTarget")]
+            ),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil,
+            analyzeAction: nil
+        )
+        let project = Project.test(
+            path: path,
+            name: "TuistProject",
+            targets: [
+                Target.test(name: "App", dependencies: [.package(product: "PackageTarget", type: .runtime)]),
+                Target.test(name: "AppTests"),
+            ],
+            packages: [.local(path: packagePath)]
+        )
+
+        let workspace = Workspace.test(
+            path: path,
+            name: "TuistWorkspace",
+            projects: [path],
+            schemes: [scheme]
+        )
+
+        let graph = Graph.test(
+            path: path,
+            workspace: workspace,
+            projects: [path: project]
+        )
+
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(
+            result ==
+                []
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_when_scheme_codeCoverageTarget_is_not_a_consumed_localPackage_product() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let packagePath: AbsolutePath = "/package"
+
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [TargetReference(projectPath: path, name: "App")]),
+            testAction: .test(
+                targets: [TestableTarget(target: TargetReference(projectPath: path, name: "AppTests"))],
+                coverage: true,
+                // The name of the package target backing the product, not the product itself.
+                codeCoverageTargets: [TargetReference(projectPath: packagePath, name: "PackageTargetCore")]
+            ),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil,
+            analyzeAction: nil
+        )
+        let project = Project.test(
+            path: path,
+            name: "TuistProject",
+            targets: [
+                Target.test(name: "App", dependencies: [.package(product: "PackageTarget", type: .runtime)]),
+                Target.test(name: "AppTests"),
+            ],
+            packages: [.local(path: packagePath)]
+        )
+
+        let workspace = Workspace.test(
+            path: path,
+            name: "TuistWorkspace",
+            projects: [path],
+            schemes: [scheme]
+        )
+
+        let graph = Graph.test(
+            path: path,
+            workspace: workspace,
+            projects: [path: project]
+        )
+
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(
+            result ==
+                [LintingIssue(
+                    reason: "Cannot find targets PackageTargetCore (../package)  defined in SomeScheme",
+                    severity: .warning,
+                    category: .schemeTargetNotFound
+                )]
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_when_localPackage_reference_is_not_exclusive_to_codeCoverage() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let packagePath: AbsolutePath = "/package"
+        let packageTargetReference = TargetReference(projectPath: packagePath, name: "PackageTarget")
+
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [
+                TargetReference(projectPath: path, name: "App"),
+                packageTargetReference,
+            ]),
+            testAction: .test(
+                targets: [TestableTarget(target: TargetReference(projectPath: path, name: "AppTests"))],
+                coverage: true,
+                codeCoverageTargets: [packageTargetReference]
+            ),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil,
+            analyzeAction: nil
+        )
+        let project = Project.test(
+            path: path,
+            name: "TuistProject",
+            targets: [
+                Target.test(name: "App", dependencies: [.package(product: "PackageTarget", type: .runtime)]),
+                Target.test(name: "AppTests"),
+            ],
+            packages: [.local(path: packagePath)]
+        )
+
+        let workspace = Workspace.test(
+            path: path,
+            name: "TuistWorkspace",
+            projects: [path],
+            schemes: [scheme]
+        )
+
+        let graph = Graph.test(
+            path: path,
+            workspace: workspace,
+            projects: [path: project]
+        )
+
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(
+            result ==
+                [LintingIssue(
+                    reason: "Cannot find targets PackageTarget (../package)  defined in SomeScheme",
+                    severity: .warning,
+                    category: .schemeTargetNotFound
+                )]
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_when_scheme_codeCoverageTarget_references_unknown_target() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [TargetReference(projectPath: path, name: "App")]),
+            testAction: .test(
+                targets: [TestableTarget(target: TargetReference(projectPath: path, name: "AppTests"))],
+                coverage: true,
+                codeCoverageTargets: [TargetReference(projectPath: path, name: "UnknownTarget")]
+            ),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil,
+            analyzeAction: nil
+        )
+        let project = Project.test(
+            path: path,
+            name: "TuistProject",
+            targets: [
+                Target.test(name: "App"),
+                Target.test(name: "AppTests"),
+            ]
+        )
+
+        let workspace = Workspace.test(
+            path: path,
+            name: "TuistWorkspace",
+            projects: [path],
+            schemes: [scheme]
+        )
+
+        let graph = Graph.test(
+            path: path,
+            workspace: workspace,
+            projects: [path: project]
+        )
+
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(
+            result ==
+                [LintingIssue(
+                    reason: "Cannot find targets UnknownTarget (.)  defined in SomeScheme",
+                    severity: .warning,
+                    category: .schemeTargetNotFound
+                )]
         )
     }
 
@@ -349,6 +590,32 @@ struct GraphLinterTests {
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: appExtension.name, path: path): Set([.target(name: bundle.name, path: path)]),
+            .target(name: bundle.name, path: path): Set([]),
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(result.isEmpty == true)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func lint_appClip_canDependOnBundle() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let appClip = Target.empty(name: "app_clip", product: .appClip)
+        let bundle = Target.empty(name: "bundle", product: .bundle)
+        let project = Project.empty(path: path)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: appClip.name, path: path): Set([.target(name: bundle.name, path: path)]),
             .target(name: bundle.name, path: path): Set([]),
         ]
 
@@ -763,6 +1030,45 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_when_visionOS_UITests_depends_on_app() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let app = Target.empty(
+            name: "App",
+            destinations: .visionOS,
+            product: .app
+        )
+        let appTests = Target.empty(
+            name: "AppUITests",
+            destinations: .visionOS,
+            product: .uiTests,
+            dependencies: [.target(name: app.name)]
+        )
+        let project = Project.test(path: path, targets: [app, appTests])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: path): Set([]),
+            .target(name: appTests.name, path: path): Set([.target(name: app.name, path: path)]),
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(got.isEmpty == true)
+    }
+
     @Test(.inTemporaryDirectory, .withMockedXcodeController) func lint_watch_application() async throws {
         // Note: This was introduced in Xcode 14 / watchOS 9
         // watchOS applications can now use the regular application (.app) product identifier
@@ -960,7 +1266,8 @@ struct GraphLinterTests {
         #expect(result == [
             LintingIssue(
                 reason: "The project 'ProjectC' has missing or mismatching configurations. It has [Debug (debug), Release (release)], other projects have [Beta (release), Debug (debug), Release (release), Testing (debug)]",
-                severity: .warning
+                severity: .warning,
+                category: .mismatchedConfigurations
             ),
         ])
     }
@@ -1035,7 +1342,8 @@ struct GraphLinterTests {
         #expect(result == [
             LintingIssue(
                 reason: "The project 'ProjectC' has missing or mismatching configurations. It has [Beta (release), Debug (release), Release (release), Testing (release)], other projects have [Beta (release), Debug (debug), Release (release), Testing (debug)]",
-                severity: .warning
+                severity: .warning,
+                category: .mismatchedConfigurations
             ),
         ])
     }
@@ -1771,6 +2079,36 @@ struct GraphLinterTests {
         #expect(got.isEmpty == true)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedXcodeController) func lint_ios_bundle_allows_ios_dependencies() async throws {
+        let path: AbsolutePath = "/project"
+
+        let bundle = Target.test(name: "Bundle", platform: .iOS, product: .bundle)
+        let framework = Target.test(name: "Framework", platform: .iOS, product: .framework)
+        let staticLibrary = Target.test(name: "StaticLibrary", platform: .iOS, product: .staticLibrary)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: bundle.name, path: path): Set([
+                .target(name: framework.name, path: path),
+                .target(name: staticLibrary.name, path: path),
+            ]),
+        ]
+
+        let project = Project.test(path: path, targets: [bundle, framework, staticLibrary])
+
+        let graph = Graph.test(
+            path: path,
+            workspace: Workspace.test(projects: [path]),
+            projects: [path: project],
+            dependencies: dependencies
+        )
+
+        // When
+        let got = try await subject.lint(graphTraverser: GraphTraverser(graph: graph), configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(got.isEmpty == true)
+    }
+
     @Test(.inTemporaryDirectory, .withMockedXcodeController) func lintDifferentBundleIdentifiers() async throws {
         // Given
         let path: AbsolutePath = "/project"
@@ -2202,7 +2540,8 @@ struct GraphLinterTests {
             results ==
                 [LintingIssue(
                     reason: "The target 'App' has dependencies with the following duplicated product names: Framework.framework",
-                    severity: .warning
+                    severity: .warning,
+                    category: .duplicateProductNames
                 )]
         )
     }
@@ -2243,7 +2582,8 @@ struct GraphLinterTests {
             results ==
                 [LintingIssue(
                     reason: "The target 'App' has dependencies with the following duplicated product names: Framework.framework",
-                    severity: .warning
+                    severity: .warning,
+                    category: .duplicateProductNames
                 )]
         )
     }
@@ -2483,5 +2823,109 @@ struct GraphLinterTests {
 
         // Then
         #expect(result.isEmpty == true)
+    }
+
+    // MARK: - warningsAsErrors
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_warningsAsErrors_all_promotesSchemeWarningToError() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [TargetReference(projectPath: path, name: "Unknown")])
+        )
+        let project = Project.test(path: path, targets: [Target.test(name: "App")])
+        let workspace = Workspace.test(path: path, projects: [path], schemes: [scheme])
+        let graph = Graph.test(path: path, workspace: workspace, projects: [path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(
+            graphTraverser: graphTraverser,
+            configGeneratedProjectOptions: .test(generationOptions: .test(warningsAsErrors: .all))
+        )
+
+        // Then
+        #expect(result.contains { $0.severity == .error && $0.category == .schemeTargetNotFound })
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_warningsAsErrors_only_promotesMatchingWarning() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [TargetReference(projectPath: path, name: "Unknown")])
+        )
+        let project = Project.test(path: path, targets: [Target.test(name: "App")])
+        let workspace = Workspace.test(path: path, projects: [path], schemes: [scheme])
+        let graph = Graph.test(path: path, workspace: workspace, projects: [path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When — promote only schemeTargetNotFound
+        let result = try await subject.lint(
+            graphTraverser: graphTraverser,
+            configGeneratedProjectOptions: .test(generationOptions: .test(warningsAsErrors: .only([.schemeTargetNotFound])))
+        )
+
+        // Then
+        #expect(result.contains { $0.severity == .error && $0.category == .schemeTargetNotFound })
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_warningsAsErrors_only_doesNotPromoteNonMatchingWarning() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [TargetReference(projectPath: path, name: "Unknown")])
+        )
+        let project = Project.test(path: path, targets: [Target.test(name: "App")])
+        let workspace = Workspace.test(path: path, projects: [path], schemes: [scheme])
+        let graph = Graph.test(path: path, workspace: workspace, projects: [path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When — promote only duplicateProductNames (not schemeTargetNotFound)
+        let result = try await subject.lint(
+            graphTraverser: graphTraverser,
+            configGeneratedProjectOptions: .test(generationOptions: .test(warningsAsErrors: .only([.duplicateProductNames])))
+        )
+
+        // Then — schemeTargetNotFound stays a warning
+        #expect(result.contains { $0.severity == .warning && $0.category == .schemeTargetNotFound })
+        #expect(!result.contains { $0.severity == .error && $0.category == .schemeTargetNotFound })
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
+    ) func lint_warningsAsErrors_none_keepsWarnings() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [TargetReference(projectPath: path, name: "Unknown")])
+        )
+        let project = Project.test(path: path, targets: [Target.test(name: "App")])
+        let workspace = Workspace.test(path: path, projects: [path], schemes: [scheme])
+        let graph = Graph.test(path: path, workspace: workspace, projects: [path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(
+            graphTraverser: graphTraverser,
+            configGeneratedProjectOptions: .test(generationOptions: .test(warningsAsErrors: .none))
+        )
+
+        // Then
+        #expect(result.contains { $0.severity == .warning && $0.category == .schemeTargetNotFound })
+        #expect(!result.contains { $0.severity == .error })
     }
 }

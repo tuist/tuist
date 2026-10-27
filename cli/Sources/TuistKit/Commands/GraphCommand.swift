@@ -2,13 +2,14 @@ import ArgumentParser
 import Foundation
 import GraphViz
 import Path
+import TuistEnvironment
 import TuistGenerator
 import TuistLoader
 import TuistSupport
 import XcodeGraph
 
 /// Command that generates and exports a dot graph from the workspace or project in the current directory.
-public struct GraphCommand: AsyncParsableCommand {
+public struct GraphCommand: AsyncParsableCommand, ProjectPathProviding {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -31,6 +32,13 @@ public struct GraphCommand: AsyncParsableCommand {
         envKey: .graphSkipExternalDependencies
     )
     var skipExternalDependencies: Bool = false
+
+    @Flag(
+        name: [.customShort("m"), .long],
+        help: "Skip Swift Macro support targets (SwiftSyntax, SwiftCompilerPlugin, etc.). Macro plugin targets themselves are still shown.",
+        envKey: .graphSkipMacroSupportTargets
+    )
+    var skipMacroSupportTargets: Bool = false
 
     @Option(
         name: [.customShort("l"), .long],
@@ -72,7 +80,7 @@ public struct GraphCommand: AsyncParsableCommand {
         completion: .directory,
         envKey: .graphPath
     )
-    var path: String?
+    public var path: String?
 
     @Option(
         name: .shortAndLong,
@@ -82,18 +90,19 @@ public struct GraphCommand: AsyncParsableCommand {
     var outputPath: String?
 
     public func run() async throws {
+        let cwd = try await Environment.current.currentWorkingDirectory()
         try await GraphService().run(
             format: format,
             layoutAlgorithm: layoutAlgorithm,
             skipTestTargets: skipTestTargets,
             skipExternalDependencies: skipExternalDependencies,
+            skipMacroSupportTargets: skipMacroSupportTargets,
             open: open,
             platformToFilter: platform,
             targetsToFilter: targets,
-            path: path.map { try AbsolutePath(validating: $0) } ?? FileHandler.shared.currentPath,
+            path: path.map { try AbsolutePath(validating: $0) } ?? cwd,
             outputPath: outputPath
-                .map { try AbsolutePath(validating: $0, relativeTo: FileHandler.shared.currentPath) } ?? FileHandler.shared
-                .currentPath
+                .map { try AbsolutePath(validating: $0, relativeTo: cwd) } ?? cwd
         )
     }
 }

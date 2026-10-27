@@ -6,6 +6,7 @@ defmodule Cache.CacheArtifacts do
   import Ecto.Query
 
   alias Cache.CacheArtifact
+  alias Cache.CacheArtifactsBuffer
   alias Cache.Disk
   alias Cache.Repo
 
@@ -27,7 +28,7 @@ defmodule Cache.CacheArtifacts do
   """
 
   def delete_by_key(key) do
-    key |> by_key_query() |> Repo.delete_all()
+    Repo.delete_all(from(a in CacheArtifact, where: a.key == ^key))
     :ok
   end
 
@@ -41,6 +42,23 @@ defmodule Cache.CacheArtifacts do
   end
 
   @doc """
+  Returns the subset of keys that exist in the cache_artifacts table.
+  """
+
+  def existing_keys([]), do: []
+
+  def existing_keys(keys) when is_list(keys) do
+    keys
+    |> Enum.chunk_every(@default_batch_size)
+    |> Enum.flat_map(fn chunk ->
+      CacheArtifact
+      |> where([a], a.key in ^chunk)
+      |> select([a], a.key)
+      |> Repo.all()
+    end)
+  end
+
+  @doc """
   Tracks access to a cache artifact by updating its metadata in the database.
 
   Creates or updates a CacheArtifact record with the current file size and access time.
@@ -48,22 +66,10 @@ defmodule Cache.CacheArtifacts do
   """
   def track_artifact_access(key) do
     size_bytes = file_size_for(key)
+    last_accessed_at = DateTime.utc_now()
 
-    attrs = %{
-      key: key,
-      size_bytes: size_bytes,
-      last_accessed_at: DateTime.utc_now()
-    }
-
-    changeset = CacheArtifact.changeset(%CacheArtifact{}, attrs)
-
-    case Repo.insert(changeset,
-           conflict_target: :key,
-           on_conflict: {:replace, [:size_bytes, :last_accessed_at, :updated_at]}
-         ) do
-      {:ok, _} -> :ok
-      {:error, reason} -> {:error, reason}
-    end
+    :ok = CacheArtifactsBuffer.enqueue_access(key, size_bytes, last_accessed_at)
+    :ok
   end
 
   defp file_size_for(key) do
@@ -74,9 +80,5 @@ defmodule Cache.CacheArtifacts do
       {:ok, %File.Stat{size: size}} -> size
       _ -> nil
     end
-  end
-
-  defp by_key_query(key) do
-    from(a in CacheArtifact, where: a.key == ^key)
   end
 end

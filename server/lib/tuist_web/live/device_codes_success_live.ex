@@ -3,6 +3,8 @@ defmodule TuistWeb.DeviceCodesSuccessLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.AppAuthComponents
+
   alias Tuist.Accounts
   alias TuistWeb.Authentication
 
@@ -21,11 +23,7 @@ defmodule TuistWeb.DeviceCodesSuccessLive do
       <div data-part="wrapper">
         <div data-part="frame">
           <div data-part="content">
-            <img
-              src="/images/tuist_logo_32x32@2x.png"
-              alt={dgettext("dashboard_auth", "Tuist Logo")}
-              data-part="logo"
-            />
+            <.tuist_mark data-part="logo" aria-label={dgettext("dashboard_auth", "Tuist Logo")} />
             <div data-part="dots">
               <.dots_light />
               <.dots_dark />
@@ -70,6 +68,7 @@ defmodule TuistWeb.DeviceCodesSuccessLive do
         <div data-part="bottom-left-gradient"></div>
         <div data-part="shell"><.shell /></div>
       </div>
+      <.terms_and_privacy />
     </div>
     """
   end

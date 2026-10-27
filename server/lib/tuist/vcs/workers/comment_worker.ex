@@ -5,7 +5,13 @@ defmodule Tuist.VCS.Workers.CommentWorker do
   This worker processes VCS comment generation asynchronously to improve
   API response times for the runs endpoint.
   """
-  use Oban.Worker
+  use Oban.Worker,
+    queue: :vcs_comments,
+    unique: [keys: [:project_id, :git_ref], states: :incomplete, period: :infinity]
+
+  use Phoenix.VerifiedRoutes,
+    endpoint: TuistWeb.Endpoint,
+    router: TuistWeb.Router
 
   import Ecto.Query
 
@@ -16,24 +22,18 @@ defmodule Tuist.VCS.Workers.CommentWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{
         id: job_id,
-        args:
-          %{
-            "build_id" => _build_id,
-            "git_commit_sha" => git_commit_sha,
-            "git_ref" => git_ref,
-            "git_remote_url_origin" => git_remote_url_origin,
-            "project_id" => project_id,
-            "preview_url_template" => preview_url_template,
-            "preview_qr_code_url_template" => preview_qr_code_url_template,
-            "command_run_url_template" => command_run_url_template,
-            "test_run_url_template" => test_run_url_template,
-            "bundle_url_template" => bundle_url_template,
-            "build_url_template" => build_url_template
-          } = args
+        args: %{
+          "git_commit_sha" => git_commit_sha,
+          "git_ref" => git_ref,
+          "git_remote_url_origin" => git_remote_url_origin,
+          "project_id" => project_id
+        }
       }) do
-    # Cancel any other running jobs with the same args to implement debouncing.
-    # We want only the latest comment worker to run as it will have the most up-to-date information and this way we don't have to worry about data races due to longer-running GitHub API calls.
-    cancel_competing_jobs(job_id, args)
+    # Cancel any other running jobs targeting the same PR to implement debouncing.
+    # We match on project_id + git_ref (which identifies the PR) rather than full
+    # args, so jobs from different endpoints (builds, tests, analytics, previews,
+    # bundles) and different commits properly cancel each other.
+    cancel_competing_jobs(job_id, project_id, git_ref)
 
     project = Projects.get_project_by_id(project_id)
 
@@ -42,48 +42,56 @@ defmodule Tuist.VCS.Workers.CommentWorker do
       git_ref: git_ref,
       git_remote_url_origin: git_remote_url_origin,
       project: project,
-      preview_url: &build_url(preview_url_template, &1),
-      preview_qr_code_url: &build_url(preview_qr_code_url_template, &1),
-      command_run_url: &build_url(command_run_url_template, &1),
-      test_run_url: &build_url(test_run_url_template, &1),
-      bundle_url: &build_url(bundle_url_template, &1),
-      build_url: &build_url(build_url_template, &1)
+      preview_url: &preview_url/1,
+      preview_qr_code_url: &preview_qr_code_url/1,
+      command_run_url: &command_run_url/1,
+      test_run_url: &test_run_url/1,
+      bundle_url: &bundle_url/1,
+      build_url: &build_url/1
     })
 
     :ok
   end
 
-  defp cancel_competing_jobs(current_job_id, args) do
+  defp preview_url(%{project: %{account: account} = project, preview: preview}) do
+    url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}")
+  end
+
+  defp preview_qr_code_url(%{project: %{account: account} = project, preview: preview}) do
+    url(~p"/#{account.name}/#{project.name}/previews/#{preview.id}/qr-code.png")
+  end
+
+  defp command_run_url(%{project: %{account: account} = project, command_event: command_event}) do
+    url(~p"/#{account.name}/#{project.name}/runs/#{command_event.id}")
+  end
+
+  defp test_run_url(%{project: %{account: account} = project, test_run: test_run}) do
+    url(~p"/#{account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
+  end
+
+  defp bundle_url(%{project: %{account: account} = project, bundle: bundle}) do
+    url(~p"/#{account.name}/#{project.name}/bundles/#{bundle.id}")
+  end
+
+  defp build_url(%{project: %{account: account} = project, build: build}) do
+    url(~p"/#{account.name}/#{project.name}/builds/build-runs/#{build.id}")
+  end
+
+  defp cancel_competing_jobs(current_job_id, project_id, git_ref) do
     worker = inspect(__MODULE__, structs: false)
+    project_id_str = to_string(project_id)
 
     competing_jobs =
       Oban.Job
       |> where([j], j.worker == ^worker)
       |> where([j], j.state == "executing")
       |> where([j], j.id != ^current_job_id)
-      |> where([j], j.args == ^args)
+      |> where([j], fragment("?->>'project_id' = ?", j.args, ^project_id_str))
+      |> where([j], fragment("?->>'git_ref' = ?", j.args, ^git_ref))
       |> Repo.all()
 
     Enum.each(competing_jobs, fn job ->
       Oban.cancel_job(job.id)
     end)
-  end
-
-  defp build_url(template, data) do
-    template
-    |> String.replace(":account_name", data.project.account.name)
-    |> String.replace(":project_name", data.project.name)
-    |> replace_if_present(data, :preview, ":preview_id")
-    |> replace_if_present(data, :command_event, ":command_event_id")
-    |> replace_if_present(data, :test_run, ":test_run_id")
-    |> replace_if_present(data, :bundle, ":bundle_id")
-    |> replace_if_present(data, :build, ":build_id")
-  end
-
-  defp replace_if_present(template, data, key, placeholder) do
-    case Map.get(data, key) do
-      nil -> String.replace(template, placeholder, "")
-      value -> String.replace(template, placeholder, to_string(Map.get(value, :id)))
-    end
   end
 end

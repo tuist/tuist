@@ -1,0 +1,634 @@
+defmodule TuistWeb.Internal.KuraMeshControllerTest do
+  use TuistTestSupport.Cases.ConnCase, async: true
+  use Mimic
+
+  alias Tuist.Accounts
+  alias Tuist.Kubernetes.Client
+  alias Tuist.Kura
+  alias Tuist.Kura.Identity
+  alias Tuist.Kura.Registrations
+  alias Tuist.Kura.SelfHostedClients
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.KuraFixtures
+
+  defp csr_pem do
+    :secp256r1
+    |> X509.PrivateKey.new_ec()
+    |> X509.CSR.new("/CN=node")
+    |> X509.CSR.to_pem()
+  end
+
+  test "managed discovery resolves the permanent tenant after repeated account renames", %{conn: conn, account: account} do
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+    tenant = account.kura_tenant_id
+    {:ok, renamed} = Accounts.update_account(account, %{name: "renamed-#{account.id}"})
+    {:ok, renamed} = Accounts.update_account(renamed, %{name: "twice-#{account.id}"})
+
+    response =
+      conn
+      |> basic_auth("static-kura-client", "static-kura-secret")
+      |> get(~p"/_internal/kura/mesh/peers?tenant_id=#{tenant}")
+      |> json_response(200)
+
+    assert response["account_handle"] == renamed.name
+    assert tenant in response["account_aliases"]
+    assert response["endpoint_redirects"] == %{}
+
+    conn
+    |> recycle()
+    |> basic_auth("static-kura-client", "wrong")
+    |> get(~p"/_internal/kura/mesh/peers?tenant_id=#{tenant}")
+    |> json_response(401)
+
+    conn
+    |> recycle()
+    |> basic_auth("static-kura-client", "static-kura-secret")
+    |> get(~p"/_internal/kura/mesh/peers?tenant_id=missing-tenant")
+    |> json_response(401)
+  end
+
+  test "self-hosted enrollment retains its tenant and CA lookup after rename", %{
+    conn: conn,
+    account: account,
+    client: client,
+    secret: secret
+  } do
+    tenant = account.kura_tenant_id
+    {:ok, renamed} = Accounts.update_account(account, %{name: "renamed-#{account.id}"})
+    ca_key = X509.PrivateKey.new_ec(:secp256r1)
+    ca_cert = X509.Certificate.self_signed(ca_key, "/CN=original peer CA", template: :root_ca)
+
+    expect(Client, :get, fn path, _opts ->
+      assert path == "/api/v1/namespaces/kura/secrets/kura-#{tenant}-peer-ca"
+
+      {:ok,
+       %{
+         "data" => %{
+           "ca.pem" => Base.encode64(X509.Certificate.to_pem(ca_cert)),
+           "ca-key.pem" => Base.encode64(X509.PrivateKey.to_pem(ca_key))
+         }
+       }}
+    end)
+
+    enrollment =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/enroll", %{csr: csr_pem(), node_url: "https://renamed-node.test:7443"})
+      |> json_response(201)
+
+    assert enrollment["tenant_id"] == tenant
+    assert enrollment["account_handle"] == renamed.name
+    assert enrollment["ca_certificate"] == X509.Certificate.to_pem(ca_cert)
+
+    response =
+      conn
+      |> recycle()
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/heartbeat", %{node_url: "https://renamed-node.test:7443"})
+      |> json_response(200)
+
+    assert response["account_handle"] == renamed.name
+  end
+
+  test "on-prem registration and discovery reject renamed handles with the permanent tenant", %{conn: conn} do
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+    stub(Tuist.Environment, :env, fn -> :prod end)
+    # No managed server or tenant-scoped client: the rename gate does not cover
+    # a standalone installation using the deployment-level credential.
+    account = AccountsFixtures.organization_fixture().account
+    tenant = account.kura_tenant_id
+    {:ok, middle} = Accounts.update_account(account, %{name: "middle-#{account.id}"})
+    {:ok, renamed} = Accounts.update_account(middle, %{name: "renamed-#{account.id}"})
+
+    for handle <- [middle.name, renamed.name, String.upcase(renamed.name)] do
+      for response <- control_plane_tenant_requests(conn, handle, "static-kura-secret") do
+        assert %{
+                 "error" => "tenant_mismatch",
+                 "expected_tenant_id" => ^tenant,
+                 "message" => message
+               } = json_response(response, 409)
+
+        assert message =~ "KURA_TENANT_ID is permanent"
+      end
+    end
+
+    assert Registrations.list_endpoints(renamed) == []
+
+    [registration, peers] = control_plane_tenant_requests(conn, tenant, "static-kura-secret")
+    assert %{"accepted" => true} = json_response(registration, 200)
+    assert %{"account_handle" => handle} = json_response(peers, 200)
+    assert handle == renamed.name
+    assert [endpoint] = Registrations.list_endpoints(renamed)
+    assert endpoint.account_id == account.id
+  end
+
+  test "invalid control-plane credentials cannot discover a renamed account's permanent tenant", %{conn: conn} do
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+    account = AccountsFixtures.organization_fixture().account
+    {:ok, renamed} = Accounts.update_account(account, %{name: "renamed-#{account.id}"})
+    reject(&Identity.account/1)
+    reject(&Identity.account_for_handle/1)
+
+    for response <- control_plane_tenant_requests(conn, renamed.name, "wrong") do
+      assert json_response(response, 401) == %{"error" => "unauthorized"}
+    end
+  end
+
+  test "unknown control-plane tenants remain unauthorized", %{conn: conn} do
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+
+    for response <- control_plane_tenant_requests(conn, "missing-tenant", "static-kura-secret") do
+      assert json_response(response, 401) == %{"error" => "unauthorized"}
+    end
+  end
+
+  defp control_plane_tenant_requests(conn, tenant, secret) do
+    [
+      conn
+      |> recycle()
+      |> basic_auth("static-kura-client", secret)
+      |> post(~p"/_internal/kura/mesh/registrations", %{
+        node_id: "standalone-node",
+        tenant_id: tenant,
+        advertised_http_url: "https://cache.example.internal",
+        ready: true
+      }),
+      conn
+      |> recycle()
+      |> basic_auth("static-kura-client", secret)
+      |> get(~p"/_internal/kura/mesh/peers?tenant_id=#{tenant}")
+    ]
+  end
+
+  defp basic_auth(conn, client_id, secret) do
+    put_req_header(conn, "authorization", "Basic " <> Base.encode64("#{client_id}:#{secret}"))
+  end
+
+  # Stubs the account's controller-managed peer CA so enrollment can sign leaves.
+  defp stub_account_peer_ca do
+    ca_key = X509.PrivateKey.new_ec(:secp256r1)
+    ca_cert = X509.Certificate.self_signed(ca_key, "/CN=kura test peer CA", template: :root_ca)
+
+    data = %{
+      "ca.pem" => Base.encode64(X509.Certificate.to_pem(ca_cert)),
+      "ca-key.pem" => Base.encode64(X509.PrivateKey.to_pem(ca_key))
+    }
+
+    stub(Kura, :server_regions_for_account, fn _ -> ["local-controller"] end)
+    stub(Client, :get, fn _path, _opts -> {:ok, %{"data" => data}} end)
+  end
+
+  setup do
+    # A non-hosted (self-managed) deployment grants every entitlement, so the
+    # self-hosted-cache gate in SelfHostedClients.verify/2 stays open here.
+    stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+    account = AccountsFixtures.organization_fixture().account
+
+    {:ok, {client, secret}} =
+      SelfHostedClients.create_self_hosted_client(account, %{name: "mesh"})
+
+    stub_account_peer_ca()
+    %{account: account, client: client, secret: secret}
+  end
+
+  test "enrolls a node with a valid credential", %{
+    conn: conn,
+    account: account,
+    client: client,
+    secret: secret
+  } do
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/enroll", %{
+        csr: csr_pem(),
+        node_url: "https://kura-1.acme.test:4433"
+      })
+
+    assert %{
+             "tenant_id" => tenant_id,
+             "certificate" => certificate,
+             "ca_certificate" => ca_certificate,
+             "peers" => [],
+             "renew_after_seconds" => renew_after_seconds
+           } = json_response(conn, 201)
+
+    assert tenant_id == account.name
+    assert certificate =~ "BEGIN CERTIFICATE"
+    assert ca_certificate =~ "BEGIN CERTIFICATE"
+    assert is_integer(renew_after_seconds)
+  end
+
+  test "rejects a wrong secret", %{conn: conn, client: client} do
+    conn =
+      conn
+      |> basic_auth(client.client_id, "wrong")
+      |> post(~p"/_internal/kura/mesh/enroll", %{
+        csr: csr_pem(),
+        node_url: "https://kura-1.acme.test:4433"
+      })
+
+    assert json_response(conn, 401)
+  end
+
+  test "rejects an invalid CSR", %{conn: conn, client: client, secret: secret} do
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/enroll", %{
+        csr: "not a csr",
+        node_url: "https://kura-1.acme.test:4433"
+      })
+
+    assert json_response(conn, 422)
+  end
+
+  test "returns 503 when the account has no controller-managed CA yet", %{
+    conn: conn,
+    client: client,
+    secret: secret
+  } do
+    stub(Kura, :server_regions_for_account, fn _ -> [] end)
+
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/enroll", %{
+        csr: csr_pem(),
+        node_url: "https://kura-1.acme.test:4433"
+      })
+
+    assert json_response(conn, 503) == %{"error" => "ca_unavailable"}
+  end
+
+  test "registers a heartbeat with a valid credential", %{
+    conn: conn,
+    account: account,
+    client: client,
+    secret: secret
+  } do
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/registrations", %{
+        node_id: "kura-0",
+        tenant_id: account.name,
+        advertised_http_url: "https://cache.acme.internal",
+        ready: true,
+        version: "0.5.2"
+      })
+
+    assert %{
+             "accepted" => true,
+             "lease_seconds" => lease,
+             "heartbeat_interval_seconds" => interval
+           } =
+             json_response(conn, 200)
+
+    assert is_integer(lease) and is_integer(interval)
+  end
+
+  test "registers a heartbeat with the deployment-level Kura control-plane credential", %{
+    conn: conn,
+    account: account
+  } do
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+
+    conn =
+      conn
+      |> basic_auth("static-kura-client", "static-kura-secret")
+      |> post(~p"/_internal/kura/mesh/registrations", %{
+        node_id: "kura-0",
+        tenant_id: account.name,
+        advertised_http_url: "https://cache.acme.internal",
+        ready: true,
+        version: "0.5.2"
+      })
+
+    assert %{"accepted" => true} = json_response(conn, 200)
+  end
+
+  test "rejects deployment-level registration without a tenant", %{conn: conn} do
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+
+    conn =
+      conn
+      |> basic_auth("static-kura-client", "static-kura-secret")
+      |> post(~p"/_internal/kura/mesh/registrations", %{
+        node_id: "kura-0",
+        advertised_http_url: "https://cache.acme.internal",
+        ready: true,
+        version: "0.5.2"
+      })
+
+    assert json_response(conn, 401)
+  end
+
+  test "rejects a registration heartbeat with invalid credentials", %{conn: conn} do
+    conn =
+      conn
+      |> basic_auth("cache_bogus", "wrong")
+      |> post(~p"/_internal/kura/mesh/registrations", %{
+        node_id: "kura-0",
+        advertised_http_url: "https://cache.acme.internal"
+      })
+
+    assert json_response(conn, 401)
+  end
+
+  test "rejects a registration heartbeat whose tenant does not match the account", %{
+    conn: conn,
+    client: client,
+    secret: secret
+  } do
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/registrations", %{
+        node_id: "kura-0",
+        tenant_id: "someone-else",
+        advertised_http_url: "https://cache.acme.internal"
+      })
+
+    assert json_response(conn, 409)
+  end
+
+  test "mesh heartbeat confirms membership and returns the peer list", %{
+    conn: conn,
+    client: client,
+    secret: secret
+  } do
+    conn
+    |> basic_auth(client.client_id, secret)
+    |> post(~p"/_internal/kura/mesh/enroll", %{
+      csr: csr_pem(),
+      node_url: "https://kura-1.acme.test:4433"
+    })
+
+    conn
+    |> basic_auth(client.client_id, secret)
+    |> post(~p"/_internal/kura/mesh/enroll", %{
+      csr: csr_pem(),
+      node_url: "https://kura-2.acme.test:4433"
+    })
+
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/heartbeat", %{node_url: "https://kura-1.acme.test:4433"})
+
+    assert %{
+             "mesh_member" => true,
+             "peers" => ["https://kura-2.acme.test:4433"],
+             "heartbeat_interval_seconds" => interval
+           } = json_response(conn, 200)
+
+    assert is_integer(interval)
+  end
+
+  test "mesh heartbeat publishes the account's pull flag but never the managed pods' roles", %{
+    conn: conn,
+    account: account,
+    client: client,
+    secret: secret
+  } do
+    KuraFixtures.active_server_fixture(account,
+      region: "eu-west",
+      peer_roles: [
+        %{"url" => "https://kura-eu-0.peer:7443", "gateway" => false},
+        %{"url" => "https://kura-eu-1.peer:7443", "gateway" => true}
+      ]
+    )
+
+    conn
+    |> basic_auth(client.client_id, secret)
+    |> post(~p"/_internal/kura/mesh/enroll", %{
+      csr: csr_pem(),
+      node_url: "https://kura-1.acme.test:4433"
+    })
+
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/heartbeat", %{node_url: "https://kura-1.acme.test:4433"})
+
+    body = json_response(conn, 200)
+
+    # Roles are keyed by each managed pod's internal `KURA_NODE_URL`, which a
+    # self-hosted node's peer list never names, so publishing them here could
+    # only ship internal cluster addresses for the node to ignore.
+    assert %{"mesh_member" => true, "peers" => [], "replication_pull" => true} = body
+    refute Map.has_key?(body, "peer_roles")
+  end
+
+  test "mesh heartbeat answers a true pull flag for an account without managed servers", %{
+    conn: conn,
+    client: client,
+    secret: secret
+  } do
+    conn
+    |> basic_auth(client.client_id, secret)
+    |> post(~p"/_internal/kura/mesh/enroll", %{
+      csr: csr_pem(),
+      node_url: "https://kura-1.acme.test:4433"
+    })
+
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/heartbeat", %{node_url: "https://kura-1.acme.test:4433"})
+
+    assert %{"mesh_member" => true, "replication_pull" => true} = json_response(conn, 200)
+  end
+
+  test "mesh heartbeat reports non-membership for a node that never enrolled", %{
+    conn: conn,
+    client: client,
+    secret: secret
+  } do
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/heartbeat", %{node_url: "https://stranger.acme.test:4433"})
+
+    assert %{"mesh_member" => false} = json_response(conn, 200)
+  end
+
+  test "rejects a mesh heartbeat with invalid credentials", %{conn: conn, client: client} do
+    conn =
+      conn
+      |> basic_auth(client.client_id, "wrong")
+      |> post(~p"/_internal/kura/mesh/heartbeat", %{node_url: "https://kura-1.acme.test:4433"})
+
+    assert json_response(conn, 401)
+  end
+
+  test "rejects a mesh heartbeat without a node_url", %{conn: conn, client: client, secret: secret} do
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> post(~p"/_internal/kura/mesh/heartbeat", %{})
+
+    assert json_response(conn, 400)
+  end
+
+  test "returns the self-hosted peer view with a self-hosted credential", %{
+    conn: conn,
+    account: account,
+    client: client,
+    secret: secret
+  } do
+    KuraFixtures.active_server_fixture(account,
+      region: "eu-west",
+      peer_roles: [%{"url" => "https://internal-pod.kura.svc:7443", "gateway" => true}]
+    )
+
+    conn
+    |> basic_auth(client.client_id, secret)
+    |> post(~p"/_internal/kura/mesh/enroll", %{
+      csr: csr_pem(),
+      node_url: "https://kura-1.acme.test:4433"
+    })
+
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> get(~p"/_internal/kura/mesh/peers")
+
+    assert %{
+             "peers" => ["https://kura-1.acme.test:4433"],
+             "peer_roles" => [],
+             "refresh_interval_seconds" => interval
+           } = json_response(conn, 200)
+
+    assert is_integer(interval)
+  end
+
+  test "returns the peer view with the deployment-level credential and a tenant", %{
+    conn: conn,
+    account: account,
+    client: client,
+    secret: secret
+  } do
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+
+    conn
+    |> basic_auth(client.client_id, secret)
+    |> post(~p"/_internal/kura/mesh/enroll", %{
+      csr: csr_pem(),
+      node_url: "https://kura-1.acme.test:4433"
+    })
+
+    conn =
+      conn
+      |> basic_auth("static-kura-client", "static-kura-secret")
+      |> get(~p"/_internal/kura/mesh/peers?tenant_id=#{account.name}")
+
+    assert %{"peers" => ["https://kura-1.acme.test:4433"]} = json_response(conn, 200)
+  end
+
+  test "publishes the roles and the pull flag in the peer view for managed pods", %{
+    conn: conn,
+    account: account
+  } do
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+
+    gateway_url = "https://kura-eu-0.peer:7443"
+
+    KuraFixtures.active_server_fixture(account,
+      region: "eu-west",
+      peer_roles: [%{"url" => gateway_url, "gateway" => true}]
+    )
+
+    # Every field in this response is a Postgres read: no apiserver on the path.
+    reject(&Client.get_kura_instance/3)
+
+    conn =
+      conn
+      |> basic_auth("static-kura-client", "static-kura-secret")
+      |> get(~p"/_internal/kura/mesh/peers?tenant_id=#{account.name}")
+
+    assert %{
+             "peers" => [],
+             "peer_roles" => [%{"url" => ^gateway_url, "region" => "eu-west", "gateway" => true}],
+             "replication_pull" => true,
+             "refresh_interval_seconds" => interval
+           } = json_response(conn, 200)
+
+    assert is_integer(interval)
+  end
+
+  test "answers no roles for a server the reconciler has not observed roles for", %{
+    conn: conn,
+    account: account
+  } do
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+
+    KuraFixtures.active_server_fixture(account, region: "eu-west")
+    reject(&Client.get_kura_instance/3)
+
+    conn =
+      conn
+      |> basic_auth("static-kura-client", "static-kura-secret")
+      |> get(~p"/_internal/kura/mesh/peers?tenant_id=#{account.name}")
+
+    assert %{"peers" => [], "peer_roles" => [], "replication_pull" => true} = json_response(conn, 200)
+  end
+
+  test "rejects a peer view request with invalid credentials", %{conn: conn, client: client} do
+    conn =
+      conn
+      |> basic_auth(client.client_id, "wrong")
+      |> get(~p"/_internal/kura/mesh/peers")
+
+    assert json_response(conn, 401)
+  end
+
+  # The rest of this file runs non-hosted, where every entitlement is granted and
+  # the self-hosted-cache gate is invisible. These two pin the hosted behaviour of
+  # each credential kind against an account whose plan does not grant it.
+  test "serves the peer view to the deployment-level credential for a hosted account without the self-hosted-cache entitlement",
+       %{conn: conn, account: account} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_configured?, fn -> true end)
+    stub(Tuist.Environment, :kura_control_plane_client_id, fn -> "static-kura-client" end)
+    stub(Tuist.Environment, :kura_control_plane_client_secret, fn -> "static-kura-secret" end)
+
+    conn =
+      conn
+      |> basic_auth("static-kura-client", "static-kura-secret")
+      |> get(~p"/_internal/kura/mesh/peers?tenant_id=#{account.name}")
+
+    assert %{"peers" => []} = json_response(conn, 200)
+  end
+
+  test "rejects the peer view for a customer credential on a hosted account without the self-hosted-cache entitlement",
+       %{conn: conn, client: client, secret: secret} do
+    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+    conn =
+      conn
+      |> basic_auth(client.client_id, secret)
+      |> get(~p"/_internal/kura/mesh/peers")
+
+    assert json_response(conn, 401)
+  end
+end

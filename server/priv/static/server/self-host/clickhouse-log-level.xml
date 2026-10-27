@@ -1,0 +1,14 @@
+<clickhouse>
+  <!--
+    `replace="1"` is required on every element that carries both a `from_env`
+    and an inline default. Without it ClickHouse refuses to preprocess the
+    config and the server fails to start.
+  -->
+  <logger>
+    <level from_env="CLICKHOUSE_TEXT_LOG_LEVEL" replace="1">information</level>
+  </logger>
+
+  <text_log>
+    <level from_env="CLICKHOUSE_TEXT_LOG_LEVEL" replace="1">information</level>
+  </text_log>
+</clickhouse>

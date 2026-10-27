@@ -3,7 +3,10 @@ defmodule TuistWeb.UserForgotPasswordLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.AppAuthComponents
+
   alias Tuist.Accounts
+  alias Tuist.Environment
 
   def render(assigns) do
     ~H"""
@@ -16,11 +19,7 @@ defmodule TuistWeb.UserForgotPasswordLive do
     <div id="forgot-password">
       <div data-part="frame">
         <div data-part="content">
-          <img
-            src="/images/tuist_logo_32x32@2x.png"
-            alt={dgettext("dashboard_auth", "Tuist Logo")}
-            data-part="logo"
-          />
+          <.tuist_mark data-part="logo" aria-label={dgettext("dashboard_auth", "Tuist Logo")} />
           <div data-part="dots">
             <.dots_light />
             <.dots_dark />
@@ -79,15 +78,28 @@ defmodule TuistWeb.UserForgotPasswordLive do
         <div data-part="bottom-left-gradient"></div>
         <div data-part="shell"><.shell /></div>
       </div>
+      <.terms_and_privacy />
     </div>
     """
   end
 
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, form: to_form(%{}, as: "user"), success: false)}
+    if Environment.email_auth_enabled?() do
+      {:ok, assign(socket, form: to_form(%{}, as: "user"), success: false)}
+    else
+      {:ok, redirect(socket, to: ~p"/users/log_in")}
+    end
   end
 
   def handle_event("send_email", %{"user" => %{"email" => email}}, socket) do
+    if Environment.email_auth_enabled?() do
+      send_reset_email(email, socket)
+    else
+      {:noreply, redirect(socket, to: ~p"/users/log_in")}
+    end
+  end
+
+  defp send_reset_email(email, socket) do
     email = String.trim(email)
 
     case Accounts.get_user_by_email(email) do

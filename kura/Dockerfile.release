@@ -1,0 +1,29 @@
+# syntax=docker/dockerfile:1.7
+
+# Runtime-only image for releases. The Kura binaries are compiled natively
+# (amd64 and arm64) by the release-kura-binaries job and copied in here, so
+# this build performs no compilation and needs no QEMU-emulated Rust build.
+# The base is ubuntu:24.04 to match the glibc/libstdc++ of the runners that
+# produce those binaries.
+
+FROM ubuntu:24.04
+
+ARG TARGETARCH
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates \
+      curl \
+      tini \
+      libstdc++6 && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV RUST_LOG=info
+
+WORKDIR /app
+
+COPY bin/${TARGETARCH}/kura /usr/local/bin/kura
+
+EXPOSE 4000
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/kura"]

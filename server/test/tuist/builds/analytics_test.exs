@@ -1,0 +1,3914 @@
+defmodule Tuist.Builds.AnalyticsTest do
+  use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
+
+  alias Tuist.Builds.Analytics
+  alias Tuist.IngestRepo
+  alias Tuist.Xcode.XcodeGraph.Buffer
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
+
+  describe "build_duration_analytics_by_category/3" do
+    test "returns duration analytics grouped by xcode_version" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        xcode_version: "14.3.1",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        xcode_version: "14.3.1",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1500,
+        xcode_version: "15.0.0",
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        xcode_version: "13.2.1",
+        inserted_at: ~U[2024-04-27 10:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_duration_analytics_by_category(
+          project.id,
+          :xcode_version,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day)
+        )
+
+      # Then
+      assert Enum.sort_by(got, & &1.category) == [
+               %{value: 2000.0, category: "13.2.1"},
+               %{value: 1500.0, category: "14.3.1"},
+               %{value: 1500.0, category: "15.0.0"}
+             ]
+    end
+
+    test "returns duration analytics grouped by model_identifier" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        model_identifier: "MacBookPro18,2",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        model_identifier: "MacBookPro18,2",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1500,
+        model_identifier: "Mac14,15",
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_duration_analytics_by_category(
+          project.id,
+          :model_identifier,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day)
+        )
+
+      # Then
+      assert Enum.sort_by(got, & &1.category) == [
+               %{value: 1500.0, category: "Mac14,15"},
+               %{value: 1500.0, category: "MacBookPro18,2"}
+             ]
+    end
+
+    test "returns duration analytics grouped by macos_version" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        macos_version: "13.5.1",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        macos_version: "13.5.1",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1500,
+        macos_version: "14.0.0",
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_duration_analytics_by_category(
+          project.id,
+          :macos_version,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day)
+        )
+
+      # Then
+      assert Enum.sort_by(got, & &1.category) == [
+               %{value: 1500.0, category: "13.5.1"},
+               %{value: 1500.0, category: "14.0.0"}
+             ]
+    end
+
+    test "filters by is_ci" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        xcode_version: "15.0.0",
+        is_ci: true,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        xcode_version: "15.0.0",
+        is_ci: false,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 3000,
+        xcode_version: "14.3.1",
+        is_ci: false,
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      got =
+        Analytics.build_duration_analytics_by_category(
+          project.id,
+          :xcode_version,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day),
+          is_ci: false
+        )
+
+      assert Enum.sort_by(got, & &1.category) == [
+               %{value: 3000.0, category: "14.3.1"},
+               %{value: 1000.0, category: "15.0.0"}
+             ]
+    end
+  end
+
+  describe "build_duration_analytics/2" do
+    test "returns duration analytics for the last three days" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1500,
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        inserted_at: ~U[2024-04-27 10:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_duration_analytics(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day)
+        )
+
+      # Then
+      assert got.values == [0, 1500.0, 1500.0]
+      assert got.trend == -25.0
+      assert got.total_average_duration == 1500
+    end
+
+    test "returns duration analytics filtered by configuration" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 3000,
+        configuration: "Debug",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        configuration: "Debug",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 5000,
+        configuration: "Release",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_duration_analytics(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          configuration: "Debug"
+        )
+
+      # Then
+      assert got.values == [0, 0, 2000.0]
+      assert got.total_average_duration == 2000
+    end
+
+    test "returns hourly duration analytics for a single day range" do
+      # Given - stub DateTime.utc_now to a known time
+      # Hourly range generates hours from start of day up to utc_now
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 11:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1500,
+        inserted_at: ~U[2024-04-30 08:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_duration_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-30 00:00:00Z],
+          end_datetime: ~U[2024-04-30 11:00:00Z]
+        )
+
+      # Then - shows hours from 00:00 to 11:00, which is 12 hours
+      assert length(got.dates) == 12
+      assert length(got.values) == 12
+      # Hourly ranges return DateTime structs
+      assert ~U[2024-04-30 03:00:00Z] in got.dates
+      assert ~U[2024-04-30 08:00:00Z] in got.dates
+
+      # Verify the actual values match the dates
+      # At 03:00, there are 2 builds with duration 2000 and 1000, so average is 1500
+      hour_03_index = Enum.find_index(got.dates, &(&1 == ~U[2024-04-30 03:00:00Z]))
+      assert Enum.at(got.values, hour_03_index) == 1500.0
+
+      # At 08:00, there's 1 build with duration 1500
+      hour_08_index = Enum.find_index(got.dates, &(&1 == ~U[2024-04-30 08:00:00Z]))
+      assert Enum.at(got.values, hour_08_index) == 1500.0
+
+      # Other hours should have 0 values
+      assert Enum.count(got.values, &(&1 == 0)) == 10
+    end
+  end
+
+  describe "build_percentile_durations/2" do
+    test "returns p90 duration analytics for the last three days" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1_000_000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 4000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1500,
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        inserted_at: ~U[2024-04-27 10:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_percentile_durations(
+          project.id,
+          0.5,
+          start_datetime: ~U[2024-04-28 00:00:00Z]
+        )
+
+      # Then
+      assert got.values == [0, 1500.0, 3000.0]
+      # P50 of [1500, 2000, 2000, 4000, 1_000_000] = 2000
+      assert got.total_percentile_duration == 2000.0
+    end
+
+    test "returns trend comparing current period percentile to previous period" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Previous period (2024-04-25 to 2024-04-27): builds with p50 of 1000
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 500,
+        inserted_at: ~U[2024-04-25 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        inserted_at: ~U[2024-04-26 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1500,
+        inserted_at: ~U[2024-04-27 03:00:00Z]
+      )
+
+      # Current period (2024-04-28 to 2024-04-30)
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        inserted_at: ~U[2024-04-28 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 3000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_percentile_durations(
+          project.id,
+          0.5,
+          start_datetime: ~U[2024-04-28 00:00:00Z],
+          end_datetime: ~U[2024-05-01 00:00:00Z]
+        )
+
+      # Then
+      # days_delta = 3, so previous period is April 25-28
+      # Previous p50([500, 1000, 1500]) = 1000, Current p50([1000, 2000, 3000]) = 2000
+      # Trend from 1000 to 2000 = +100%
+      assert got.trend == 100.0
+      assert got.values == [1000.0, 2000.0, 3000.0, 0]
+      # P50 of [1000, 2000, 3000] = 2000
+      assert got.total_percentile_duration == 2000.0
+    end
+  end
+
+  describe "build_duration_percentiles_analytics/2" do
+    test "returns average and p50/p90/p99 series in a single result" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      for duration <- [1_000_000, 4000, 2000, 2000] do
+        RunsFixtures.build_fixture(
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          duration: duration,
+          inserted_at: ~U[2024-04-30 03:00:00Z]
+        )
+      end
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1500,
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        inserted_at: ~U[2024-04-27 10:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_duration_percentiles_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-28 00:00:00Z]
+        )
+
+      # Then
+      # Daily buckets: [04-28 (empty), 04-29, 04-30]
+      assert length(got.dates) == 3
+      # avg per day: 04-29 = 1500, 04-30 = (1_000_000 + 4000 + 2000 + 2000) / 4 = 252_000
+      assert got.values == [0, 1500.0, 252_000.0]
+      # p50 per day: 04-30 = p50([2000, 2000, 4000, 1_000_000]) = 3000
+      assert got.p50_values == [0, 1500.0, 3000.0]
+      # Whole-period p50([1500, 2000, 2000, 4000, 1_000_000]) = 2000
+      assert got.p50 == 2000.0
+      # Whole-period average = (1500 + 2000 + 2000 + 4000 + 1_000_000) / 5 = 201_900
+      assert got.total_average_duration == 201_900.0
+      assert got.p90 >= got.p50
+      assert got.p99 >= got.p90
+    end
+
+    test "applies the is_ci filter" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 5000,
+        is_ci: true,
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        is_ci: false,
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_duration_percentiles_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-28 00:00:00Z],
+          is_ci: true
+        )
+
+      # Then
+      assert got.total_average_duration == 5000.0
+    end
+  end
+
+  describe "build_analytics/2" do
+    test "returns builds analytics for the last three days" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1500,
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        inserted_at: ~U[2024-04-27 10:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_analytics(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day)
+        )
+
+      assert got.values == [0, 1, 2]
+      assert got.dates == [~D[2024-04-28], ~D[2024-04-29], ~D[2024-04-30]]
+      assert got.trend == 200
+      assert got.count == 3
+    end
+
+    test "returns hourly build counts for a single day range" do
+      # Given - stub DateTime.utc_now to a known time
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 11:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1500,
+        inserted_at: ~U[2024-04-30 08:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-30 00:00:00Z],
+          end_datetime: ~U[2024-04-30 11:00:00Z]
+        )
+
+      # Then - 12 hours from 00:00 to 11:00
+      assert length(got.dates) == 12
+      assert length(got.values) == 12
+
+      # At 03:00, there are 2 builds
+      hour_03_index = Enum.find_index(got.dates, &(&1 == ~U[2024-04-30 03:00:00Z]))
+      assert Enum.at(got.values, hour_03_index) == 2
+
+      # At 08:00, there is 1 build
+      hour_08_index = Enum.find_index(got.dates, &(&1 == ~U[2024-04-30 08:00:00Z]))
+      assert Enum.at(got.values, hour_08_index) == 1
+
+      # Other hours should have 0 builds
+      assert Enum.count(got.values, &(&1 == 0)) == 10
+
+      # Total count
+      assert got.count == 3
+    end
+  end
+
+  describe "selective_testing_analytics/4" do
+    test "returns selective testing analytics for the last three days" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: ["C"],
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["E", "F"],
+        remote_test_target_hits: [],
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: [],
+        remote_test_target_hits: ["B"],
+        created_at: ~N[2024-04-27 03:00:00]
+      )
+
+      # When
+      got =
+        Analytics.selective_testing_analytics(
+          project_id: project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now()
+        )
+
+      # Then
+      assert got.values == [0, 0, 0.5]
+      assert got.hit_rate == 0.5
+    end
+
+    test "returns selective testing analytics for tuist xcodebuild test" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "xcodebuild",
+        subcommand: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: ["C"],
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "xcodebuild",
+        subcommand: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["E", "F"],
+        remote_test_target_hits: [],
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "xcodebuild",
+        subcommand: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: [],
+        remote_test_target_hits: ["B"],
+        created_at: ~N[2024-04-27 03:00:00]
+      )
+
+      # When
+      got =
+        Analytics.selective_testing_analytics(
+          project_id: project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now()
+        )
+
+      # Then
+      assert got.values == [0, 0, 0.5]
+      assert got.hit_rate == 0.5
+    end
+
+    test "returns selective testing analytics for the last three days for ci only" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: ["C"],
+        created_at: ~N[2024-04-30 03:00:00],
+        is_ci: true
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A", "B", "C"],
+        remote_test_target_hits: [],
+        created_at: ~N[2024-04-30 03:00:00],
+        is_ci: false
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: [],
+        remote_test_target_hits: ["B"],
+        created_at: ~N[2024-04-29 03:00:00],
+        is_ci: true
+      )
+
+      # When
+      got =
+        Analytics.selective_testing_analytics(
+          project_id: project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now(),
+          is_ci: true
+        )
+
+      # Then
+      assert got.values == [0, 0.5, 0.5]
+      assert got.hit_rate == 0.5
+    end
+
+    test "excludes command events after the selected period from the summary" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: [],
+        created_at: ~N[2024-04-29 09:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: ["A", "B"],
+        remote_test_target_hits: [],
+        created_at: ~N[2024-04-30 09:00:00]
+      )
+
+      got =
+        Analytics.selective_testing_analytics(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-29 00:00:00Z],
+          end_datetime: ~U[2024-04-29 23:59:59Z]
+        )
+
+      assert got.hit_rate == 0.5
+    end
+  end
+
+  describe "selective_testing_analytics_with_percentiles/1" do
+    test "returns selective testing analytics with percentile values" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: ["C"],
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["E", "F"],
+        remote_test_target_hits: [],
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: [],
+        remote_test_target_hits: ["B"],
+        created_at: ~N[2024-04-27 03:00:00]
+      )
+
+      # When
+      got =
+        Analytics.selective_testing_analytics_with_percentiles(
+          project_id: project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now()
+        )
+
+      # Then
+      assert got.values == [0, 0, 0.5]
+      assert got.hit_rate == 0.5
+      assert Map.has_key?(got, :p50)
+      assert Map.has_key?(got, :p90)
+      assert Map.has_key?(got, :p99)
+      assert Map.has_key?(got, :p50_values)
+      assert Map.has_key?(got, :p90_values)
+      assert Map.has_key?(got, :p99_values)
+      assert is_float(got.p50)
+      assert is_float(got.p90)
+      assert is_float(got.p99)
+      assert is_list(got.p50_values)
+      assert is_list(got.p90_values)
+      assert is_list(got.p99_values)
+      assert length(got.p50_values) == length(got.dates)
+      assert length(got.p90_values) == length(got.dates)
+      assert length(got.p99_values) == length(got.dates)
+    end
+  end
+
+  describe "build_success_rate_analytics/2" do
+    test "returns success rate analytics for builds" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Create successful builds
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "success",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "success",
+        inserted_at: ~U[2024-04-30 02:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "success",
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      # Create failed build
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "failure",
+        inserted_at: ~U[2024-04-29 01:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_success_rate_analytics(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now()
+        )
+
+      # Then
+      # 3 successful out of 4 total builds
+      assert got.success_rate == 0.75
+      assert length(got.dates) == 3
+      assert length(got.values) == 3
+      # Exact success rates for each day
+      assert got.values == [0.0, 0.5, 1.0]
+    end
+
+    test "returns 0% success rate when all builds fail" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "failure",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "failure",
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_success_rate_analytics(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now()
+        )
+
+      # Then
+      assert got.success_rate == 0.0
+      assert got.values == [0.0, 0.0, 0.0]
+    end
+
+    test "returns 100% success rate when all builds succeed" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "success",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "success",
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_success_rate_analytics(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now()
+        )
+
+      # Then
+      assert got.success_rate == 1.0
+      assert got.values == [0.0, 1.0, 1.0]
+    end
+
+    test "returns 0% success rate when no builds exist" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      got =
+        Analytics.build_success_rate_analytics(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now()
+        )
+
+      # Then
+      assert got.success_rate == 0.0
+      assert got.values == [0.0, 0.0, 0.0]
+    end
+
+    test "calculates trend correctly with previous period data" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Previous period: 1 success out of 2 builds = 50%
+      # Note: builds must be after 10:20:30 to be in the previous period window
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "success",
+        inserted_at: ~U[2024-04-26 12:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "failure",
+        inserted_at: ~U[2024-04-26 11:00:00Z]
+      )
+
+      # Current period (last 2 days): 3 success out of 4 builds = 75%
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "success",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "success",
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "success",
+        inserted_at: ~U[2024-04-29 02:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "failure",
+        inserted_at: ~U[2024-04-29 01:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_success_rate_analytics(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -2, :day),
+          end_datetime: DateTime.utc_now()
+        )
+
+      # Then
+      # 3 success out of 4 builds in current period
+      assert got.success_rate == 0.75
+      # From 50% to 75% = +50%
+      assert got.trend == 50.0
+    end
+
+    test "respects build scheme filter" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # AppOne builds: 3 success, 1 failure = 75%
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "success",
+        scheme: "AppOne",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "success",
+        scheme: "AppOne",
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "success",
+        scheme: "AppOne",
+        inserted_at: ~U[2024-04-28 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "failure",
+        scheme: "AppOne",
+        inserted_at: ~U[2024-04-28 02:00:00Z]
+      )
+
+      # AppTwo builds: all failures
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "failure",
+        scheme: "AppTwo",
+        inserted_at: ~U[2024-04-30 02:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_success_rate_analytics(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -3, :day),
+          end_datetime: DateTime.utc_now(),
+          scheme: "AppOne"
+        )
+
+      # Then
+      assert got.success_rate == 0.75
+    end
+
+    test "respects build configuration filter" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "success",
+        configuration: "Debug",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "success",
+        configuration: "Debug",
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "failure",
+        configuration: "Debug",
+        inserted_at: ~U[2024-04-28 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "failure",
+        configuration: "Release",
+        inserted_at: ~U[2024-04-30 02:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "failure",
+        configuration: "Release",
+        inserted_at: ~U[2024-04-29 02:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_success_rate_analytics(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -3, :day),
+          end_datetime: DateTime.utc_now(),
+          configuration: "Debug"
+        )
+
+      # Then
+      assert_in_delta got.success_rate, 0.6667, 0.0001
+    end
+
+    test "respects build tag filter" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Builds with "nightly" tag: 2 success, 1 failure = 66.7%
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "success",
+        custom_tags: ["nightly", "ci"],
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "success",
+        custom_tags: ["nightly"],
+        inserted_at: ~U[2024-04-29 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "failure",
+        custom_tags: ["nightly", "release"],
+        inserted_at: ~U[2024-04-28 03:00:00Z]
+      )
+
+      # Builds without "nightly" tag: all failures
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "failure",
+        custom_tags: ["ci"],
+        inserted_at: ~U[2024-04-30 02:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        status: "failure",
+        custom_tags: [],
+        inserted_at: ~U[2024-04-29 02:00:00Z]
+      )
+
+      # When
+      got =
+        Analytics.build_success_rate_analytics(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -3, :day),
+          end_datetime: DateTime.utc_now(),
+          tag: "nightly"
+        )
+
+      # Then
+      assert_in_delta got.success_rate, 0.6667, 0.0001
+    end
+  end
+
+  describe "trend/2" do
+    test "returns a trend when current_value is smaller" do
+      # Given / When
+      got = Analytics.trend(previous_value: 20.0, current_value: 10.0)
+
+      # Then
+      assert got == -50.0
+    end
+
+    test "returns a trend when current_value is bigger" do
+      # Given / When
+      got = Analytics.trend(previous_value: 10.0, current_value: 20.0)
+
+      # Then
+      assert got == 100.0
+    end
+
+    test "returns 0 for a trend if previous value is 0" do
+      # Given / When
+      got = Analytics.trend(previous_value: 0, current_value: 20.0)
+
+      # Then
+      assert got == 0
+    end
+
+    test "returns 0 for a trend if both values are 0" do
+      # Given / When
+      got = Analytics.trend(previous_value: 0.0, current_value: 0)
+
+      # Then
+      assert got == 0
+    end
+  end
+
+  describe "build_time_analytics/1" do
+    test "returns build time analytics with real data" do
+      # Given - use dates relative to actual current time to avoid ClickHouse TTL
+      now_dt = DateTime.utc_now()
+      today = DateTime.to_date(now_dt)
+      stub(DateTime, :utc_now, fn -> now_dt end)
+      stub(Date, :utc_today, fn -> today end)
+
+      one_day_ago =
+        NaiveDateTime.utc_now() |> NaiveDateTime.add(-1, :day) |> NaiveDateTime.truncate(:second)
+
+      two_days_ago =
+        NaiveDateTime.utc_now() |> NaiveDateTime.add(-2, :day) |> NaiveDateTime.truncate(:second)
+
+      project = ProjectsFixtures.project_fixture()
+
+      command_event_1 =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          created_at: one_day_ago,
+          duration: 1500
+        )
+
+      command_event_2 =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          created_at: two_days_ago,
+          duration: 2000
+        )
+
+      {:ok, _} =
+        Buffer.insert(%{
+          id: UUIDv7.generate(),
+          name: "TestGraph1",
+          command_event_id: command_event_1.id,
+          project_id: command_event_1.project_id,
+          modules_count: nil,
+          binary_build_duration: 5000,
+          inserted_at: one_day_ago
+        })
+
+      {:ok, _} =
+        Buffer.insert(%{
+          id: UUIDv7.generate(),
+          name: "TestGraph2",
+          command_event_id: command_event_2.id,
+          project_id: command_event_2.project_id,
+          modules_count: nil,
+          binary_build_duration: 3000,
+          inserted_at: two_days_ago
+        })
+
+      Buffer.flush()
+
+      # When
+      got = Analytics.build_time_analytics(project_id: project.id)
+
+      # Then
+      assert got.total_time_saved == 8000
+      assert got.actual_build_time == 3500
+      assert got.total_build_time == 11_500
+    end
+
+    test "handles empty results correctly" do
+      # Given
+      now_dt = DateTime.utc_now()
+      today = DateTime.to_date(now_dt)
+      stub(DateTime, :utc_now, fn -> now_dt end)
+      stub(Date, :utc_today, fn -> today end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When - no command events or xcode graphs exist
+      got = Analytics.build_time_analytics(project_id: project.id)
+
+      # Then
+      assert got.actual_build_time == 0
+      assert got.total_time_saved == 0
+      assert got.total_build_time == 0
+    end
+
+    test "filters by project_id correctly" do
+      # Given
+      now_dt = DateTime.utc_now()
+      today = DateTime.to_date(now_dt)
+      stub(DateTime, :utc_now, fn -> now_dt end)
+      stub(Date, :utc_today, fn -> today end)
+
+      one_day_ago =
+        NaiveDateTime.utc_now() |> NaiveDateTime.add(-1, :day) |> NaiveDateTime.truncate(:second)
+
+      two_days_ago =
+        NaiveDateTime.utc_now() |> NaiveDateTime.add(-2, :day) |> NaiveDateTime.truncate(:second)
+
+      project1 = ProjectsFixtures.project_fixture()
+      project2 = ProjectsFixtures.project_fixture()
+
+      command_event_1 =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project1.id,
+          duration: 1500,
+          created_at: one_day_ago
+        )
+
+      command_event_2 =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project2.id,
+          duration: 2000,
+          created_at: two_days_ago
+        )
+
+      {:ok, _} =
+        Buffer.insert(%{
+          id: UUIDv7.generate(),
+          name: "TestGraph1",
+          command_event_id: command_event_1.id,
+          project_id: command_event_1.project_id,
+          modules_count: nil,
+          binary_build_duration: 3000,
+          inserted_at: one_day_ago
+        })
+
+      {:ok, _} =
+        Buffer.insert(%{
+          id: UUIDv7.generate(),
+          name: "TestGraph2",
+          command_event_id: command_event_2.id,
+          project_id: command_event_2.project_id,
+          modules_count: nil,
+          binary_build_duration: 4000,
+          inserted_at: two_days_ago
+        })
+
+      Buffer.flush()
+
+      # When - query for project1 only
+      got = Analytics.build_time_analytics(project_id: project1.id)
+
+      # Then
+      assert got.actual_build_time == 1500
+      assert got.total_time_saved == 3000
+      assert got.total_build_time == 4500
+    end
+
+    test "filters by is_ci correctly" do
+      # Given
+      now_dt = DateTime.utc_now()
+      today = DateTime.to_date(now_dt)
+      stub(DateTime, :utc_now, fn -> now_dt end)
+      stub(Date, :utc_today, fn -> today end)
+
+      one_day_ago =
+        NaiveDateTime.utc_now() |> NaiveDateTime.add(-1, :day) |> NaiveDateTime.truncate(:second)
+
+      two_days_ago =
+        NaiveDateTime.utc_now() |> NaiveDateTime.add(-2, :day) |> NaiveDateTime.truncate(:second)
+
+      project = ProjectsFixtures.project_fixture()
+
+      command_event_ci =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          duration: 1500,
+          is_ci: true,
+          created_at: one_day_ago
+        )
+
+      command_event_local =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          duration: 2000,
+          is_ci: false,
+          created_at: two_days_ago
+        )
+
+      {:ok, _} =
+        Buffer.insert(%{
+          id: UUIDv7.generate(),
+          name: "TestGraphCI",
+          command_event_id: command_event_ci.id,
+          project_id: command_event_ci.project_id,
+          modules_count: nil,
+          binary_build_duration: 3000,
+          inserted_at: one_day_ago
+        })
+
+      {:ok, _} =
+        Buffer.insert(%{
+          id: UUIDv7.generate(),
+          name: "TestGraphLocal",
+          command_event_id: command_event_local.id,
+          project_id: command_event_local.project_id,
+          modules_count: nil,
+          binary_build_duration: 4000,
+          inserted_at: two_days_ago
+        })
+
+      Buffer.flush()
+
+      # When - query for CI events only
+      got = Analytics.build_time_analytics(project_id: project.id, is_ci: true)
+
+      # Then
+      assert got.actual_build_time == 1500
+      assert got.total_time_saved == 3000
+      assert got.total_build_time == 4500
+    end
+
+    test "handles custom date range" do
+      # Given
+      now_dt = DateTime.utc_now()
+      today = DateTime.to_date(now_dt)
+      stub(DateTime, :utc_now, fn -> now_dt end)
+      stub(Date, :utc_today, fn -> today end)
+
+      ten_days_ago =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-10, :day)
+        |> NaiveDateTime.truncate(:second)
+
+      two_days_ago =
+        NaiveDateTime.utc_now() |> NaiveDateTime.add(-2, :day) |> NaiveDateTime.truncate(:second)
+
+      project = ProjectsFixtures.project_fixture()
+
+      command_event_in_range =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          created_at: ten_days_ago,
+          duration: 1000
+        )
+
+      command_event_out_of_range =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          created_at: two_days_ago,
+          duration: 2000
+        )
+
+      {:ok, _} =
+        Buffer.insert(%{
+          id: UUIDv7.generate(),
+          name: "TestGraphInRange",
+          command_event_id: command_event_in_range.id,
+          project_id: command_event_in_range.project_id,
+          modules_count: nil,
+          binary_build_duration: 2000,
+          inserted_at: ten_days_ago
+        })
+
+      {:ok, _} =
+        Buffer.insert(%{
+          id: UUIDv7.generate(),
+          name: "TestGraphOutOfRange",
+          command_event_id: command_event_out_of_range.id,
+          project_id: command_event_out_of_range.project_id,
+          modules_count: nil,
+          binary_build_duration: 3000,
+          inserted_at: two_days_ago
+        })
+
+      Buffer.flush()
+
+      # When - use custom date range that excludes the second event
+      fifteen_days_ago_dt = DateTime.add(now_dt, -15, :day)
+      five_days_ago_dt = DateTime.add(now_dt, -5, :day)
+
+      got =
+        Analytics.build_time_analytics(
+          project_id: project.id,
+          start_datetime: fifteen_days_ago_dt,
+          end_datetime: five_days_ago_dt
+        )
+
+      # Then - only the first event should be included
+      assert got.actual_build_time == 1000
+      assert got.total_time_saved == 2000
+      assert got.total_build_time == 3000
+    end
+
+    test "handles nil duration events correctly" do
+      # Given
+      now_dt = DateTime.utc_now()
+      today = DateTime.to_date(now_dt)
+      stub(DateTime, :utc_now, fn -> now_dt end)
+      stub(Date, :utc_today, fn -> today end)
+
+      one_day_ago =
+        NaiveDateTime.utc_now() |> NaiveDateTime.add(-1, :day) |> NaiveDateTime.truncate(:second)
+
+      project = ProjectsFixtures.project_fixture()
+
+      command_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          duration: nil,
+          created_at: one_day_ago
+        )
+
+      {:ok, _} =
+        Buffer.insert(%{
+          id: UUIDv7.generate(),
+          name: "TestGraphNilDuration",
+          command_event_id: command_event.id,
+          project_id: command_event.project_id,
+          modules_count: nil,
+          binary_build_duration: 1500,
+          inserted_at: one_day_ago
+        })
+
+      Buffer.flush()
+
+      # When
+      got = Analytics.build_time_analytics(project_id: project.id)
+
+      # Then
+      assert got.actual_build_time == 0
+      assert got.total_time_saved == 1500
+      assert got.total_build_time == 1500
+    end
+  end
+
+  describe "build_cache_hit_rate/4" do
+    test "returns Xcode build cache metrics" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 04:00:00Z],
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local},
+          %{key: "task2_key", type: :swift, status: :hit_remote},
+          %{key: "task3_key", type: :swift, status: :miss},
+          %{key: "task4_key", type: :clang, status: :miss}
+        ]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-29 04:00:00Z],
+        cacheable_tasks: [
+          %{key: "task5_key", type: :swift, status: :hit_local},
+          %{key: "task6_key", type: :clang, status: :miss}
+        ]
+      )
+
+      got =
+        Analytics.build_cache_hit_rate(
+          project.id,
+          DateTime.add(DateTime.utc_now(), -2, :day),
+          DateTime.utc_now(),
+          []
+        )
+
+      assert got.cacheable_tasks_count == 6
+      assert got.cacheable_task_local_hits_count == 2
+      assert got.cacheable_task_remote_hits_count == 1
+    end
+
+    test "returns zero counts when no builds exist" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      got =
+        Analytics.build_cache_hit_rate(
+          project.id,
+          DateTime.add(DateTime.utc_now(), -2, :day),
+          DateTime.utc_now(),
+          []
+        )
+
+      assert got.cacheable_tasks_count == 0
+      assert got.cacheable_task_local_hits_count == 0
+      assert got.cacheable_task_remote_hits_count == 0
+    end
+
+    test "filters by is_ci when specified" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 04:00:00Z],
+        is_ci: true,
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local},
+          %{key: "task2_key", type: :swift, status: :miss}
+        ]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 04:00:00Z],
+        is_ci: false,
+        cacheable_tasks: [
+          %{key: "task3_key", type: :swift, status: :hit_local},
+          %{key: "task4_key", type: :clang, status: :hit_remote}
+        ]
+      )
+
+      got =
+        Analytics.build_cache_hit_rate(
+          project.id,
+          DateTime.add(DateTime.utc_now(), -2, :day),
+          DateTime.utc_now(),
+          is_ci: true
+        )
+
+      assert got.cacheable_tasks_count == 2
+      assert got.cacheable_task_local_hits_count == 1
+      assert got.cacheable_task_remote_hits_count == 0
+    end
+
+    test "only includes builds with cacheable_tasks_count > 0" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 04:00:00Z],
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local}
+        ]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 05:00:00Z],
+        cacheable_tasks: []
+      )
+
+      got =
+        Analytics.build_cache_hit_rate(
+          project.id,
+          DateTime.add(DateTime.utc_now(), -2, :day),
+          DateTime.utc_now(),
+          []
+        )
+
+      assert got.cacheable_tasks_count == 1
+      assert got.cacheable_task_local_hits_count == 1
+    end
+  end
+
+  describe "build_cache_hit_rates/5" do
+    test "returns Xcode build cache metrics over time" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-29 04:00:00Z],
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local},
+          %{key: "task2_key", type: :swift, status: :miss}
+        ]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-30 04:00:00Z],
+        cacheable_tasks: [
+          %{key: "task3_key", type: :swift, status: :hit_remote},
+          %{key: "task4_key", type: :clang, status: :miss}
+        ]
+      )
+
+      got =
+        Analytics.build_cache_hit_rates(
+          project.id,
+          ~U[2024-04-29 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
+          "1 day",
+          []
+        )
+
+      assert length(got) == 2
+
+      day1 = Enum.find(got, &(&1.date == "2024-04-29"))
+      assert day1.cacheable_tasks == 2
+      assert day1.cacheable_task_local_hits == 1
+      assert day1.cacheable_task_remote_hits == 0
+
+      day2 = Enum.find(got, &(&1.date == "2024-04-30"))
+      assert day2.cacheable_tasks == 2
+      assert day2.cacheable_task_local_hits == 0
+      assert day2.cacheable_task_remote_hits == 1
+    end
+
+    test "returns empty list when no builds exist" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      got =
+        Analytics.build_cache_hit_rates(
+          project.id,
+          ~U[2024-04-29 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
+          "1 day",
+          []
+        )
+
+      assert got == []
+    end
+
+    test "groups by month when using month bucket" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-05-15 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-03-15 04:00:00Z],
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local}
+        ]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-03-20 04:00:00Z],
+        cacheable_tasks: [
+          %{key: "task2_key", type: :swift, status: :hit_remote}
+        ]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-10 04:00:00Z],
+        cacheable_tasks: [
+          %{key: "task3_key", type: :swift, status: :miss}
+        ]
+      )
+
+      got =
+        Analytics.build_cache_hit_rates(
+          project.id,
+          ~U[2024-03-01 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
+          "1 month",
+          []
+        )
+
+      assert length(got) == 2
+
+      march = Enum.find(got, &(&1.date == "2024-03"))
+      assert march.cacheable_tasks == 2
+      assert march.cacheable_task_local_hits == 1
+      assert march.cacheable_task_remote_hits == 1
+
+      april = Enum.find(got, &(&1.date == "2024-04"))
+      assert april.cacheable_tasks == 1
+      assert april.cacheable_task_local_hits == 0
+      assert april.cacheable_task_remote_hits == 0
+    end
+
+    test "filters by is_ci when specified" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-29 04:00:00Z],
+        is_ci: true,
+        cacheable_tasks: [
+          %{key: "task1_key", type: :swift, status: :hit_local}
+        ]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        inserted_at: ~U[2024-04-29 04:00:00Z],
+        is_ci: false,
+        cacheable_tasks: [
+          %{key: "task2_key", type: :swift, status: :hit_remote}
+        ]
+      )
+
+      got =
+        Analytics.build_cache_hit_rates(
+          project.id,
+          ~U[2024-04-29 00:00:00Z],
+          ~U[2024-04-30 23:59:59Z],
+          "1 day",
+          is_ci: true
+        )
+
+      assert length(got) == 1
+
+      day1 = Enum.find(got, &(&1.date == "2024-04-29"))
+      assert day1.cacheable_tasks == 1
+      assert day1.cacheable_task_local_hits == 1
+      assert day1.cacheable_task_remote_hits == 0
+    end
+  end
+
+  describe "project-wide module timeseries" do
+    setup do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      target = fn event_id, name, hit, sources ->
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event_id,
+          name: name,
+          product: "framework",
+          binary_cache_hash: "h-#{name}-#{sources}",
+          binary_cache_hit: hit,
+          sources_hash: sources
+        )
+      end
+
+      event = fn created_at ->
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: "main",
+          created_at: created_at
+        ).id
+      end
+
+      %{project: project, target: target, event: event}
+    end
+
+    test "without a name the series covers every module", %{
+      project: project,
+      target: target,
+      event: event
+    } do
+      day_one = event.(~N[2024-04-01 10:00:00])
+      target.(day_one, "Core", :miss, "s1")
+      target.(day_one, "Networking", :remote, "n1")
+
+      day_two = event.(~N[2024-04-02 10:00:00])
+      target.(day_two, "Core", :miss, "s2")
+      target.(day_two, "Networking", :miss, "n2")
+
+      series =
+        Analytics.module_invalidation_timeseries(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-02 23:59:59Z]
+        )
+
+      # Both modules on both days: one miss and one hit, then two misses.
+      assert series.invalidations == [1, 2]
+      assert series.reuses == [1, 0]
+    end
+
+    test "counts the modules on the latest commit of the default branch", %{
+      project: project,
+      target: target
+    } do
+      commit = fn sha, branch, created_at ->
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: branch,
+          git_commit_sha: sha,
+          created_at: created_at
+        ).id
+      end
+
+      # An older commit had three modules; one has since been removed.
+      old_commit = commit.("old", "main", ~N[2024-04-01 10:00:00])
+      target.(old_commit, "Core", :miss, "s1")
+      target.(old_commit, "Networking", :miss, "n1")
+      target.(old_commit, "Removed", :miss, "r1")
+
+      # The latest commit on main has two, built twice.
+      latest = commit.("latest", "main", ~N[2024-04-03 10:00:00])
+      target.(latest, "Core", :miss, "s2")
+      rebuild = commit.("latest", "main", ~N[2024-04-03 11:00:00])
+      target.(rebuild, "Networking", :miss, "n2")
+
+      # A branch that is not the default does not count, even though it is newer.
+      feature = commit.("feature", "feature/x", ~N[2024-04-04 10:00:00])
+      target.(feature, "OnlyOnFeature", :miss, "f1")
+
+      count =
+        Analytics.module_count(
+          project_id: project.id,
+          git_branch: "main",
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-05 23:59:59Z]
+        )
+
+      # Both builds of the latest commit, and not the module it dropped.
+      assert count == 2
+    end
+
+    test "counts the distinct modules built each day", %{
+      project: project,
+      target: target,
+      event: event
+    } do
+      day_one = event.(~N[2024-04-01 10:00:00])
+      target.(day_one, "Core", :miss, "s1")
+      target.(day_one, "Networking", :remote, "n1")
+
+      day_two = event.(~N[2024-04-02 10:00:00])
+      target.(day_two, "Core", :miss, "s2")
+      target.(day_two, "Networking", :miss, "n2")
+
+      series =
+        Analytics.modules_timeseries(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-02 23:59:59Z]
+        )
+
+      # Every module built that day, whether it hit or missed.
+      assert series.counts == [2, 2]
+      assert length(series.dates) == 2
+    end
+
+    test "the reason split classifies each module against its own history", %{
+      project: project,
+      event: event
+    } do
+      build = fn event_id, name, hit, sources, deps ->
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event_id,
+          name: name,
+          product: "framework",
+          binary_cache_hash: "h-#{name}-#{sources}-#{deps}",
+          binary_cache_hit: hit,
+          sources_hash: sources,
+          dependencies_hash: deps
+        )
+      end
+
+      first = event.(~N[2024-04-01 10:00:00])
+      build.(first, "Core", :miss, "s1", "d1")
+      build.(first, "Networking", :miss, "n1", "d1")
+
+      # Core's own sources changed. Networking's did not; only its dependency
+      # hash moved, so it is upstream. Two modules in one build is what catches
+      # a window that compares one module against another.
+      second = event.(~N[2024-04-02 10:00:00])
+      build.(second, "Core", :miss, "s2", "d1")
+      build.(second, "Networking", :miss, "n1", "d2")
+
+      series =
+        Analytics.module_miss_reasons_timeseries(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-02 23:59:59Z]
+        )
+
+      assert series.cold == [2, 0]
+      assert series.changed == [0, 1]
+      assert series.upstream == [0, 1]
+    end
+  end
+
+  describe "module cache classification edge cases" do
+    setup do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      %{project: ProjectsFixtures.project_fixture()}
+    end
+
+    test "a change to any own input counts as changed, not cold", %{project: project} do
+      build = fn created_at, attrs ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: "main",
+            created_at: created_at
+          )
+
+        XcodeFixtures.xcode_target_fixture(
+          Keyword.merge(
+            [
+              command_event_id: event.id,
+              name: "Core",
+              product: "framework",
+              binary_cache_hit: :miss,
+              sources_hash: "s1"
+            ],
+            attrs
+          )
+        )
+      end
+
+      # Only the additional hashing inputs move between the two builds. Every
+      # other own input, the dependency hash and the external hash stay put.
+      build.(~N[2024-04-01 10:00:00],
+        binary_cache_hash: "h1",
+        additional_hashing_inputs_hash: "a1"
+      )
+
+      build.(~N[2024-04-02 10:00:00],
+        binary_cache_hash: "h2",
+        additional_hashing_inputs_hash: "a2"
+      )
+
+      [core] = Analytics.module_invalidations(project_id: project.id)
+
+      assert core.self_changes == 1
+      assert core.dependency_induced == 0
+      # The first build has nothing before it, so exactly one miss is cold.
+      assert core.unclassified == 1
+    end
+
+    test "the branch filter reaches the hit rate analytics, not just the module table", %{
+      project: project
+    } do
+      on_branch = fn branch, created_at ->
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: branch,
+          created_at: created_at,
+          cacheable_targets: ["Core", "Networking"],
+          remote_cache_target_hits: if(branch == "main", do: ["Core", "Networking"], else: [])
+        )
+      end
+
+      on_branch.("main", ~N[2024-04-01 10:00:00])
+      on_branch.("feature/x", ~N[2024-04-02 10:00:00])
+
+      opts = [
+        project_id: project.id,
+        start_datetime: ~U[2024-04-01 00:00:00Z],
+        end_datetime: ~U[2024-04-03 00:00:00Z]
+      ]
+
+      everything = Analytics.module_cache_hits_analytics(opts)
+      just_main = Analytics.module_cache_hits_analytics(Keyword.put(opts, :git_branch, "main"))
+
+      # main hit both targets and the feature branch hit none, so scoping to
+      # main cannot leave the count unchanged.
+      assert everything.total_count == 2
+      assert just_main.total_count == 2
+
+      just_feature =
+        Analytics.module_cache_hits_analytics(Keyword.put(opts, :git_branch, "feature/x"))
+
+      assert just_feature.total_count == 0
+    end
+
+    test "a module removed from the latest commit is no longer a dependent", %{project: project} do
+      commit = fn sha, created_at ->
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: "main",
+          git_commit_sha: sha,
+          created_at: created_at
+        ).id
+      end
+
+      target = fn event_id, name, sources, deps ->
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event_id,
+          name: name,
+          product: "framework",
+          binary_cache_hash: "h-#{name}-#{sources}",
+          binary_cache_hit: :miss,
+          sources_hash: sources,
+          dependencies: deps
+        )
+      end
+
+      # Two modules depended on Core.
+      old = commit.("old", ~N[2024-04-01 10:00:00])
+      target.(old, "Core", "c1", [])
+      target.(old, "Networking", "n1", ["Core"])
+      target.(old, "Legacy", "l1", ["Core"])
+
+      # Legacy is gone in the newest commit, so Core has one dependent left.
+      latest = commit.("latest", ~N[2024-04-02 10:00:00])
+      target.(latest, "Core", "c2", [])
+      target.(latest, "Networking", "n2", ["Core"])
+
+      modules = Analytics.module_invalidations(project_id: project.id)
+      core = Enum.find(modules, &(&1.name == "Core"))
+
+      assert core.blast_radius == 1
+    end
+
+    test "the environment filter picks the latest commit within that environment", %{
+      project: project
+    } do
+      build = fn sha, is_ci, created_at, names ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: "main",
+            git_commit_sha: sha,
+            is_ci: is_ci,
+            created_at: created_at
+          )
+
+        for name <- names do
+          XcodeFixtures.xcode_target_fixture(
+            command_event_id: event.id,
+            name: name,
+            product: "framework",
+            binary_cache_hash: "h-#{name}-#{sha}",
+            binary_cache_hit: :miss,
+            sources_hash: "s-#{name}-#{sha}"
+          )
+        end
+      end
+
+      build.("ci-commit", true, ~N[2024-04-01 10:00:00], ["Core", "Networking"])
+      # A later local build of a different commit must not blank out the CI count.
+      build.("local-commit", false, ~N[2024-04-02 10:00:00], ["Core"])
+
+      opts = [project_id: project.id, git_branch: "main"]
+
+      assert Analytics.module_count(Keyword.put(opts, :is_ci, true)) == 2
+      assert Analytics.module_count(Keyword.put(opts, :is_ci, false)) == 1
+    end
+  end
+
+  describe "module_build_history/1" do
+    test "raises when ClickHouse fails the query" do
+      project = ProjectsFixtures.project_fixture()
+
+      expect(Tuist.ClickHouseRepo, :query!, fn _query, _params ->
+        raise Ch.Error, code: 159, message: "Code: 159. DB::Exception: Timeout exceeded"
+      end)
+
+      assert_raise Ch.Error, fn -> Analytics.module_build_history(project_id: project.id, name: "Core") end
+    end
+
+    setup do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      build = fn created_at, hit, sources, deps ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: "main",
+            git_commit_sha: "sha-#{sources}-#{deps}",
+            created_at: created_at
+          )
+
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: "Core",
+          product: "framework",
+          binary_cache_hash: "h-#{sources}-#{deps}",
+          binary_cache_hit: hit,
+          sources_hash: sources,
+          dependencies_hash: deps
+        )
+
+        event
+      end
+
+      %{project: project, build: build}
+    end
+
+    test "says why each build missed", %{project: project, build: build} do
+      # First build on the branch has nothing to compare against.
+      build.(~N[2024-04-01 10:00:00], :miss, "s1", "d1")
+      # Same inputs, served from cache.
+      build.(~N[2024-04-02 10:00:00], :remote, "s1", "d1")
+      # Its own sources changed.
+      build.(~N[2024-04-03 10:00:00], :miss, "s2", "d1")
+      # Only a dependency changed.
+      build.(~N[2024-04-04 10:00:00], :miss, "s2", "d2")
+      # Identical inputs missed again, without proof that this key was ever available.
+      build.(~N[2024-04-05 10:00:00], :miss, "s2", "d2")
+
+      page = Analytics.module_build_history(project_id: project.id, name: "Core")
+
+      # Newest first.
+      assert Enum.map(page.rows, & &1.reason) == ["cold", "upstream", "changed", "hit", "cold"]
+      assert Enum.map(page.rows, & &1.hit) == ["miss", "miss", "miss", "remote", "miss"]
+      assert Enum.all?(page.rows, &(&1.branch == "main"))
+      refute page.has_previous_page
+      refute page.has_next_page
+    end
+
+    test "pages backwards and forwards over the history", %{project: project, build: build} do
+      for day <- 1..10 do
+        build.(NaiveDateTime.new!(2024, 4, day, 10, 0, 0), :miss, "s#{day}", "d1")
+      end
+
+      first = Analytics.module_build_history(project_id: project.id, name: "Core", limit: 4)
+
+      assert length(first.rows) == 4
+      refute first.has_previous_page
+      assert first.has_next_page
+
+      second =
+        Analytics.module_build_history(
+          project_id: project.id,
+          name: "Core",
+          limit: 4,
+          after: first.end_cursor
+        )
+
+      assert length(second.rows) == 4
+      assert second.has_previous_page
+      assert second.has_next_page
+
+      # The two pages do not overlap and stay in order.
+      assert Enum.map(first.rows, & &1.id) ++ Enum.map(second.rows, & &1.id) ==
+               Enum.uniq(Enum.map(first.rows, & &1.id) ++ Enum.map(second.rows, & &1.id))
+
+      assert List.last(first.rows).ran_at > List.first(second.rows).ran_at
+
+      # Walking back from the second page lands on the first again.
+      back =
+        Analytics.module_build_history(
+          project_id: project.id,
+          name: "Core",
+          limit: 4,
+          before: second.start_cursor
+        )
+
+      assert Enum.map(back.rows, & &1.id) == Enum.map(first.rows, & &1.id)
+      assert back.has_next_page
+    end
+
+    test "the last page reports no further pages", %{project: project, build: build} do
+      for day <- 1..6 do
+        build.(NaiveDateTime.new!(2024, 4, day, 10, 0, 0), :miss, "s#{day}", "d1")
+      end
+
+      first = Analytics.module_build_history(project_id: project.id, name: "Core", limit: 4)
+
+      last =
+        Analytics.module_build_history(
+          project_id: project.id,
+          name: "Core",
+          limit: 4,
+          after: first.end_cursor
+        )
+
+      assert length(last.rows) == 2
+      assert last.has_previous_page
+      refute last.has_next_page
+    end
+
+    test "a malformed cursor falls back to the first page", %{project: project, build: build} do
+      build.(~N[2024-04-01 10:00:00], :miss, "s1", "d1")
+
+      page = Analytics.module_build_history(project_id: project.id, name: "Core", after: "not-a-cursor")
+
+      assert length(page.rows) == 1
+      refute page.has_previous_page
+    end
+
+    test "filters by branch, commit sha prefix and reason", %{project: project} do
+      on_branch = fn branch, sha, created_at, hit, sources ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: branch,
+            git_commit_sha: sha,
+            created_at: created_at
+          )
+
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: "Core",
+          product: "framework",
+          binary_cache_hash: "h-#{sources}",
+          binary_cache_hit: hit,
+          sources_hash: sources
+        )
+      end
+
+      on_branch.("main", "aaa111", ~N[2024-04-01 10:00:00], :miss, "s1")
+      on_branch.("main", "aaa222", ~N[2024-04-02 10:00:00], :remote, "s1")
+      on_branch.("feature/x", "bbb111", ~N[2024-04-03 10:00:00], :miss, "s9")
+
+      by_branch = Analytics.module_build_history(project_id: project.id, name: "Core", git_branch: "main")
+      assert length(by_branch.rows) == 2
+      assert Enum.all?(by_branch.rows, &(&1.branch == "main"))
+
+      by_sha = Analytics.module_build_history(project_id: project.id, name: "Core", commit_sha: "aaa")
+      assert length(by_sha.rows) == 2
+
+      by_exact_sha = Analytics.module_build_history(project_id: project.id, name: "Core", commit_sha: "aaa222")
+      assert length(by_exact_sha.rows) == 1
+
+      hits = Analytics.module_build_history(project_id: project.id, name: "Core", reason: "hit")
+      assert Enum.map(hits.rows, & &1.hit) == ["remote"]
+
+      cold = Analytics.module_build_history(project_id: project.id, name: "Core", reason: "cold")
+      assert Enum.all?(cold.rows, &(&1.reason == "cold"))
+      refute Enum.empty?(cold.rows)
+    end
+
+    test "orders oldest first and pages through it", %{project: project, build: build} do
+      for day <- 1..6 do
+        build.(NaiveDateTime.new!(2024, 4, day, 10, 0, 0), :miss, "s#{day}", "d1")
+      end
+
+      first =
+        Analytics.module_build_history(project_id: project.id, name: "Core", order: "asc", limit: 4)
+
+      assert length(first.rows) == 4
+      # Oldest first, so each row is later than the one before it.
+      assert first.rows |> Enum.map(& &1.ran_at) |> Enum.sort() == Enum.map(first.rows, & &1.ran_at)
+      refute first.has_previous_page
+      assert first.has_next_page
+
+      second =
+        Analytics.module_build_history(
+          project_id: project.id,
+          name: "Core",
+          order: "asc",
+          limit: 4,
+          after: first.end_cursor
+        )
+
+      assert length(second.rows) == 2
+      assert second.has_previous_page
+      refute second.has_next_page
+      assert List.first(second.rows).ran_at > List.last(first.rows).ran_at
+
+      back =
+        Analytics.module_build_history(
+          project_id: project.id,
+          name: "Core",
+          order: "asc",
+          limit: 4,
+          before: second.start_cursor
+        )
+
+      assert Enum.map(back.rows, & &1.id) == Enum.map(first.rows, & &1.id)
+    end
+
+    test "takes the scheme from the build run the command event belongs to", %{project: project} do
+      {:ok, build_run} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: "AppTests",
+          inserted_at: ~N[2024-04-02 10:00:00]
+        )
+
+      linked =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: "main",
+          build_run_id: build_run.id,
+          created_at: ~N[2024-04-02 10:00:00]
+        )
+
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: linked.id,
+        name: "Core",
+        product: "framework",
+        binary_cache_hash: "h-1",
+        binary_cache_hit: :miss,
+        sources_hash: "s1"
+      )
+
+      # generate and cache produce no activity log, so they have no build run
+      # and no scheme to show.
+      unlinked =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: "main",
+          created_at: ~N[2024-04-03 10:00:00]
+        )
+
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: unlinked.id,
+        name: "Core",
+        product: "framework",
+        binary_cache_hash: "h-2",
+        binary_cache_hit: :miss,
+        sources_hash: "s2"
+      )
+
+      page = Analytics.module_build_history(project_id: project.id, name: "Core")
+
+      assert Enum.map(page.rows, & &1.scheme) == ["", "AppTests"]
+    end
+
+    test "restricts to CI runs when asked", %{project: project} do
+      for {is_ci, sources} <- [{true, "ci"}, {false, "local"}] do
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: "main",
+            is_ci: is_ci,
+            created_at: ~N[2024-04-01 10:00:00]
+          )
+
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: "Core",
+          product: "framework",
+          binary_cache_hash: "h-#{sources}",
+          binary_cache_hit: :miss,
+          sources_hash: sources
+        )
+      end
+
+      page = Analytics.module_build_history(project_id: project.id, name: "Core", is_ci: true)
+
+      assert length(page.rows) == 1
+    end
+  end
+
+  describe "module_invalidations/1" do
+    setup do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+      %{project: project}
+    end
+
+    test "raises when ClickHouse fails the query", %{project: project} do
+      expect(Tuist.ClickHouseRepo, :query!, fn _query, _params ->
+        raise Ch.Error, code: 159, message: "Code: 159. DB::Exception: Timeout exceeded"
+      end)
+
+      assert_raise Ch.Error, fn -> Analytics.module_invalidations(project_id: project.id) end
+    end
+
+    test "classifies invalidations as self-change vs dependency-induced", %{project: project} do
+      build = fn name, created_at, hit, sources, deps ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: "main",
+            created_at: created_at
+          )
+
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: name,
+          product: "framework",
+          binary_cache_hash: "h-#{name}-#{sources}-#{deps}",
+          binary_cache_hit: hit,
+          sources_hash: sources,
+          dependencies_hash: deps
+        )
+      end
+
+      # Core: own content keeps changing -> self-changes
+      build.("Core", ~N[2024-04-01 10:00:00], :miss, "s1", "d1")
+      build.("Core", ~N[2024-04-02 10:00:00], :remote, "s1", "d1")
+      build.("Core", ~N[2024-04-03 10:00:00], :miss, "s2", "d1")
+      build.("Core", ~N[2024-04-04 10:00:00], :miss, "s3", "d1")
+
+      # Networking: only dependencies change -> dependency-induced
+      build.("Networking", ~N[2024-04-01 11:00:00], :miss, "n1", "nd1")
+      build.("Networking", ~N[2024-04-02 11:00:00], :miss, "n1", "nd2")
+      build.("Networking", ~N[2024-04-03 11:00:00], :miss, "n1", "nd3")
+
+      # Stable: always a hit -> excluded (no invalidations)
+      build.("Stable", ~N[2024-04-01 12:00:00], :remote, "st1", "sd1")
+      build.("Stable", ~N[2024-04-02 12:00:00], :remote, "st1", "sd1")
+
+      got =
+        Analytics.module_invalidations(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      assert [core, networking] = got
+
+      assert core.name == "Core"
+      assert core.appearances == 4
+      assert core.invalidations == 3
+      assert core.self_changes == 2
+      assert core.dependency_induced == 0
+      assert core.unclassified == 1
+      assert_in_delta core.invalidation_rate, 75.0, 0.1
+      # No dependency edges in this graph -> blast radius is unknown.
+      assert core.blast_radius == nil
+
+      assert networking.name == "Networking"
+      assert networking.appearances == 3
+      assert networking.invalidations == 3
+      assert networking.self_changes == 0
+      assert networking.dependency_induced == 2
+      assert networking.unclassified == 1
+      assert_in_delta networking.invalidation_rate, 100.0, 0.1
+    end
+
+    test "compares builds within the same branch only", %{project: project} do
+      build = fn created_at, branch, hit, sources, deps ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: branch,
+            created_at: created_at
+          )
+
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: "Core",
+          product: "framework",
+          binary_cache_hash: "h-#{branch}-#{sources}-#{deps}",
+          binary_cache_hit: hit,
+          sources_hash: sources,
+          dependencies_hash: deps
+        )
+      end
+
+      build.(~N[2024-04-01 10:00:00], "main", :miss, "s1", "d1")
+      build.(~N[2024-04-01 10:30:00], "feature", :miss, "fX", "d1")
+      build.(~N[2024-04-02 10:00:00], "main", :miss, "s1", "d2")
+
+      got =
+        Analytics.module_invalidations(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      assert [core] = got
+      # main's third build has the same own content as main's first build but a changed
+      # dependency hash -> dependency-induced. It must NOT be compared against the
+      # interleaved feature-branch build (which would look like a self-change).
+      assert core.dependency_induced == 1
+      assert core.self_changes == 0
+      assert core.unclassified == 2
+    end
+
+    test "filters by branch", %{project: project} do
+      build = fn created_at, branch ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: branch,
+            created_at: created_at
+          )
+
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: "Core",
+          product: "framework",
+          binary_cache_hash: "h-#{branch}-#{created_at}",
+          binary_cache_hit: :miss,
+          sources_hash: "s-#{created_at}"
+        )
+      end
+
+      build.(~N[2024-04-01 10:00:00], "main")
+      build.(~N[2024-04-02 10:00:00], "main")
+      build.(~N[2024-04-01 11:00:00], "feature")
+
+      got =
+        Analytics.module_invalidations(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z],
+          git_branch: "main"
+        )
+
+      assert [core] = got
+      assert core.appearances == 2
+    end
+
+    test "computes downstream blast radius from the latest graph edges", %{project: project} do
+      event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          git_branch: "main",
+          created_at: ~N[2024-04-10 10:00:00]
+        )
+
+      # App -> Feature -> Core (each depends on the next).
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: event.id,
+        name: "Core",
+        binary_cache_hash: "h-core",
+        binary_cache_hit: :miss,
+        sources_hash: "c1",
+        dependencies: []
+      )
+
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: event.id,
+        name: "Feature",
+        binary_cache_hash: "h-feature",
+        binary_cache_hit: :miss,
+        sources_hash: "f1",
+        dependencies: ["Core"]
+      )
+
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: event.id,
+        name: "App",
+        binary_cache_hash: "h-app",
+        binary_cache_hit: :miss,
+        sources_hash: "a1",
+        dependencies: ["Feature"]
+      )
+
+      got =
+        Analytics.module_invalidations(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      by_name = Map.new(got, &{&1.name, &1})
+
+      assert by_name["Core"].blast_radius == 2
+      assert by_name["Feature"].blast_radius == 1
+      assert by_name["App"].blast_radius == 0
+    end
+
+    test "module_transitive_dependents returns the full downstream set" do
+      edges = %{
+        "Core" => [],
+        "Networking" => ["Core"],
+        "Analytics" => ["Core", "Networking"],
+        "Features" => ["Networking", "Analytics"]
+      }
+
+      assert Enum.sort(Analytics.module_transitive_dependents(edges, "Core")) ==
+               ["Analytics", "Features", "Networking"]
+
+      assert edges |> Analytics.module_transitive_dependents("Networking") |> Enum.sort() ==
+               ["Analytics", "Features"]
+
+      assert Analytics.module_transitive_dependents(edges, "Features") == []
+    end
+
+    test "module_invalidation_timeseries returns daily invalidations and reuses", %{project: project} do
+      build = fn created_at, hit ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: "main",
+            created_at: created_at
+          )
+
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: "Core",
+          binary_cache_hash: "h-#{created_at}",
+          binary_cache_hit: hit,
+          sources_hash: "s1"
+        )
+      end
+
+      build.(~N[2024-04-10 10:00:00], :miss)
+      build.(~N[2024-04-10 12:00:00], :remote)
+      build.(~N[2024-04-11 10:00:00], :miss)
+
+      got =
+        Analytics.module_invalidation_timeseries(
+          project_id: project.id,
+          name: "Core",
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      assert length(got.dates) == 30
+      assert Enum.sum(got.invalidations) == 2
+      assert Enum.sum(got.reuses) == 1
+
+      index = Enum.find_index(got.dates, &(&1 == "2024-04-10"))
+      assert Enum.at(got.invalidations, index) == 1
+      assert Enum.at(got.reuses, index) == 1
+    end
+  end
+
+  describe "module_cache_hit_rate_analytics/1" do
+    test "returns module cache hit rate analytics with correct calculations" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Current period (2024-04-01 to 2024-04-30)
+      # Create events spread across the period
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"],
+        local_cache_target_hits: ["A", "B"],
+        remote_cache_target_hits: ["C"],
+        created_at: ~N[2024-04-01 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["K", "L", "M", "N", "O", "P", "Q"],
+        local_cache_target_hits: ["K", "L", "M"],
+        remote_cache_target_hits: ["N", "O"],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["R", "S", "T", "U", "V", "W", "X"],
+        local_cache_target_hits: ["R", "S", "T"],
+        remote_cache_target_hits: ["U", "V"],
+        created_at: ~N[2024-04-30 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["AA", "BB", "CC", "DD", "EE"],
+        local_cache_target_hits: ["AA"],
+        remote_cache_target_hits: ["BB"],
+        created_at: ~N[2024-03-15 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["ZZ"],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-03-10 10:00:00]
+      )
+
+      # When
+      got =
+        Analytics.module_cache_hit_rate_analytics(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      # Total: 24 targets, 13 hits = 54.2%
+      assert_in_delta got.avg_hit_rate, 54.2, 0.1
+      assert_in_delta got.trend, 62.8, 0.1
+      assert length(got.dates) == 30
+      assert Enum.at(got.dates, 0) == "2024-04-01"
+      assert Enum.at(got.dates, 14) == "2024-04-15"
+      assert Enum.at(got.dates, 29) == "2024-04-30"
+      assert_in_delta Enum.at(got.values, 0), 30.0, 0.1
+      assert_in_delta Enum.at(got.values, 14), 71.4, 0.1
+      assert_in_delta Enum.at(got.values, 29), 71.4, 0.1
+      assert Enum.at(got.values, 1) == 0.0
+      assert Enum.at(got.values, 13) == 0.0
+    end
+
+    test "returns zero hit rate when no cacheable targets exist" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When - no command events created
+      got =
+        Analytics.module_cache_hit_rate_analytics(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.avg_hit_rate == 0.0
+      assert got.trend == 0.0
+    end
+  end
+
+  describe "module_cache_hits_analytics/1" do
+    test "returns module cache hits analytics with correct totals" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Current period events
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A", "B", "C"],
+        local_cache_target_hits: ["A", "B"],
+        remote_cache_target_hits: ["C"],
+        created_at: ~N[2024-04-01 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["D", "E", "F", "G"],
+        local_cache_target_hits: ["D", "E"],
+        remote_cache_target_hits: ["F", "G"],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["H", "I", "J", "K", "L"],
+        local_cache_target_hits: ["H", "I", "J"],
+        remote_cache_target_hits: ["K", "L"],
+        created_at: ~N[2024-04-30 10:00:00]
+      )
+
+      # Previous period events (need 5 total hits for 140% trend: (12-5)/5*100 = 140%)
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["M", "N"],
+        local_cache_target_hits: ["M"],
+        remote_cache_target_hits: ["N"],
+        created_at: ~N[2024-03-15 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["O", "P", "Q"],
+        local_cache_target_hits: ["O", "P"],
+        remote_cache_target_hits: ["Q"],
+        created_at: ~N[2024-03-10 10:00:00]
+      )
+
+      # When
+      got =
+        Analytics.module_cache_hits_analytics(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.total_count == 12
+      assert_in_delta got.trend, 140.0, 0.1
+      assert length(got.dates) == 30
+      # Values at specific dates: April 1 = 3, April 15 = 4, April 30 = 5
+      assert Enum.at(got.values, 0) == 3
+      assert Enum.at(got.values, 14) == 4
+      assert Enum.at(got.values, 29) == 5
+      assert Enum.at(got.values, 1) == 0
+      assert Enum.at(got.values, 13) == 0
+    end
+
+    test "returns zero when no hits exist" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When - no events created
+      got =
+        Analytics.module_cache_hits_analytics(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.total_count == 0
+      assert got.trend == 0.0
+    end
+  end
+
+  describe "module_cache_misses_analytics/1" do
+    test "returns module cache misses analytics with correct calculations" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Current period: varying miss rates
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A", "B", "C", "D", "E"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: ["B"],
+        created_at: ~N[2024-04-01 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["F", "G", "H", "I"],
+        local_cache_target_hits: ["F"],
+        remote_cache_target_hits: ["G"],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["J", "K", "L", "M", "N", "O"],
+        local_cache_target_hits: ["J", "K"],
+        remote_cache_target_hits: ["L", "M"],
+        created_at: ~N[2024-04-30 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["P", "Q", "R"],
+        local_cache_target_hits: ["P"],
+        remote_cache_target_hits: ["Q"],
+        created_at: ~N[2024-03-15 10:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["S", "T", "U"],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-03-10 10:00:00]
+      )
+
+      # When
+      got =
+        Analytics.module_cache_misses_analytics(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.total_count == 7
+      assert_in_delta got.trend, 75.0, 0.1
+      assert length(got.dates) == 30
+      # Values at specific dates: April 1 = 3, April 15 = 2, April 30 = 2
+      assert Enum.at(got.values, 0) == 3
+      assert Enum.at(got.values, 14) == 2
+      assert Enum.at(got.values, 29) == 2
+      assert Enum.at(got.values, 1) == 0
+      assert Enum.at(got.values, 13) == 0
+    end
+
+    test "returns zero when no misses exist" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # All targets have cache hits
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A", "B", "C"],
+        local_cache_target_hits: ["A", "B"],
+        remote_cache_target_hits: ["C"],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
+
+      # When
+      got =
+        Analytics.module_cache_misses_analytics(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.total_count == 0
+      assert length(got.values) == 30
+      assert Enum.all?(got.values, &(&1 == 0))
+    end
+  end
+
+  describe "module_cache_hit_rate_percentile/3" do
+    test "returns module cache hit rate percentile analytics with descending order calculation" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # Current period: Create multiple events with varying hit rates for p99 calculation
+      # Events on 2024-04-01
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["A1", "A2", "A3", "A4"],
+        local_cache_target_hits: ["A1", "A2"],
+        remote_cache_target_hits: ["A3"],
+        created_at: ~N[2024-04-01 10:00:00]
+      )
+
+      # Events on 2024-04-15
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["B1", "B2", "B3", "B4"],
+        local_cache_target_hits: ["B1", "B2", "B3"],
+        remote_cache_target_hits: [],
+        created_at: ~N[2024-04-15 10:00:00]
+      )
+
+      # Events on 2024-04-30
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["C1", "C2", "C3", "C4"],
+        local_cache_target_hits: ["C1", "C2", "C3"],
+        remote_cache_target_hits: ["C4"],
+        created_at: ~N[2024-04-30 10:00:00]
+      )
+
+      # Previous period
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["D1", "D2", "D3"],
+        local_cache_target_hits: ["D1"],
+        remote_cache_target_hits: ["D2"],
+        created_at: ~N[2024-03-15 10:00:00]
+      )
+
+      # When
+      got =
+        Analytics.module_cache_hit_rate_percentile(
+          project.id,
+          0.99,
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert_in_delta got.avg_hit_rate, 75.0, 0.1
+      assert_in_delta got.trend, 12.5, 0.1
+      assert length(got.dates) == 30
+      assert Enum.at(got.values, 0) != 0.0
+      assert Enum.at(got.values, 14) != 0.0
+      assert Enum.at(got.values, 29) != 0.0
+      assert Enum.at(got.values, 1) == 0.0
+    end
+
+    test "returns zero percentile when no data exists" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      stub(Date, :utc_today, fn -> ~D[2024-04-30] end)
+      project = ProjectsFixtures.project_fixture()
+
+      # When - no events created
+      got =
+        Analytics.module_cache_hit_rate_percentile(
+          project.id,
+          0.99,
+          project_id: project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-04-30 23:59:59Z]
+        )
+
+      # Then
+      assert got.avg_hit_rate == 0.0
+      assert got.trend == 0.0
+    end
+  end
+
+  describe "build_duration_metric_by_count/3" do
+    test "returns average duration for last N builds" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Create builds with different durations (newest first)
+      for {duration, i} <- [{1200, 1}, {1000, 2}, {800, 3}, {600, 4}, {400, 5}] do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            duration: duration,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # When - get average of last 3 builds (1200, 1000, 800)
+      result = Analytics.build_duration_metric_by_count(project.id, :average, limit: 3)
+
+      # Then
+      assert result == 1000.0
+    end
+
+    test "returns p90 duration for last N builds" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Create 10 builds with durations 100, 200, ..., 1000
+      for i <- 1..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            duration: (11 - i) * 100,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # When - get p90 of all 10 builds
+      result = Analytics.build_duration_metric_by_count(project.id, :p90, limit: 10)
+
+      # Then - p90 of sorted [100, 200, ..., 1000] at index trunc(10*0.9)=9 is 1000
+      assert result == 1000
+    end
+
+    test "returns nil when no builds exist" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      result = Analytics.build_duration_metric_by_count(project.id, :average, limit: 5)
+
+      # Then
+      assert result == nil
+    end
+
+    test "respects offset parameter" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Create 6 builds: current (1200, 1200, 1200) and previous (1000, 1000, 1000)
+      for {duration, i} <- [{1200, 1}, {1200, 2}, {1200, 3}, {1000, 4}, {1000, 5}, {1000, 6}] do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            duration: duration,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # When - get average of builds 4-6 (offset: 3)
+      result = Analytics.build_duration_metric_by_count(project.id, :average, limit: 3, offset: 3)
+
+      # Then - average of [1000, 1000, 1000]
+      assert result == 1000.0
+    end
+  end
+
+  describe "build_cache_hit_rate_metric_by_count/3" do
+    test "returns average cache hit rate for last N builds" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Create builds with different cache hit rates
+      # Build 1: 80% hit rate (80/100)
+      {:ok, _} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          duration: 1000,
+          cacheable_tasks_count: 100,
+          cacheable_task_local_hits_count: 50,
+          cacheable_task_remote_hits_count: 30,
+          inserted_at: DateTime.add(DateTime.utc_now(), -1, :minute)
+        )
+
+      # Build 2: 60% hit rate (60/100)
+      {:ok, _} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          duration: 1000,
+          cacheable_tasks_count: 100,
+          cacheable_task_local_hits_count: 40,
+          cacheable_task_remote_hits_count: 20,
+          inserted_at: DateTime.add(DateTime.utc_now(), -2, :minute)
+        )
+
+      # When - get average of both builds
+      result = Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 2)
+
+      # Then - average of [0.8, 0.6] = 0.7
+      assert result == 0.7
+    end
+
+    test "excludes builds without cacheable tasks" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Build with cache data
+      {:ok, _} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          duration: 1000,
+          cacheable_tasks_count: 100,
+          cacheable_task_local_hits_count: 70,
+          cacheable_task_remote_hits_count: 0,
+          inserted_at: DateTime.add(DateTime.utc_now(), -1, :minute)
+        )
+
+      # Build without cache data (cacheable_tasks_count = 0)
+      {:ok, _} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          duration: 1000,
+          cacheable_tasks_count: 0,
+          inserted_at: DateTime.add(DateTime.utc_now(), -2, :minute)
+        )
+
+      # When - get average (should only include build with cache data)
+      result = Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 10)
+
+      # Then - only the 70% hit rate build is included
+      assert result == 0.7
+    end
+
+    test "returns nil when no builds with cache data exist" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Build without cache data
+      {:ok, _} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          duration: 1000,
+          cacheable_tasks_count: 0
+        )
+
+      # When
+      result = Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 5)
+
+      # Then
+      assert result == nil
+    end
+
+    test "returns p90 cache hit rate" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Create 10 builds with hit rates: 10%, 20%, ..., 100%
+      for i <- 1..10 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            duration: 1000,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: (11 - i) * 10,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # When - get p90 of all 10 builds
+      result = Analytics.build_cache_hit_rate_metric_by_count(project.id, :p90, limit: 10)
+
+      # Then - p90 of sorted [0.1, 0.2, ..., 1.0] at index trunc(10*0.1)=1 is 0.2
+      # (for cache hit rate, higher is better, so p90 gives the lower 10th percentile)
+      assert result == 0.2
+    end
+
+    test "respects offset parameter for comparing current vs previous" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Current builds: 90% hit rate
+      for i <- 1..3 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            duration: 1000,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 90,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # Previous builds: 70% hit rate
+      for i <- 4..6 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            duration: 1000,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 70,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # When - get current (offset: 0) and previous (offset: 3)
+      current =
+        Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 3, offset: 0)
+
+      previous =
+        Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 3, offset: 3)
+
+      # Then (use assert_in_delta for floating point comparison)
+      assert_in_delta current, 0.9, 0.001
+      assert_in_delta previous, 0.7, 0.001
+    end
+
+    test "only includes builds on the given branch when git_branch is set" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # main: 80% hit rate
+      {:ok, _} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          duration: 1000,
+          git_branch: "main",
+          cacheable_tasks_count: 100,
+          cacheable_task_local_hits_count: 80,
+          cacheable_task_remote_hits_count: 0,
+          inserted_at: DateTime.add(DateTime.utc_now(), -1, :minute)
+        )
+
+      # feature branch: 20% hit rate
+      {:ok, _} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          duration: 1000,
+          git_branch: "feature",
+          cacheable_tasks_count: 100,
+          cacheable_task_local_hits_count: 20,
+          cacheable_task_remote_hits_count: 0,
+          inserted_at: DateTime.add(DateTime.utc_now(), -2, :minute)
+        )
+
+      # When
+      result =
+        Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 10, git_branch: "main")
+
+      # Then
+      assert_in_delta result, 0.8, 0.001
+    end
+
+    test "returns nil when the window holds fewer builds than min_sample_size" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for i <- 1..2 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            duration: 1000,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 80,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # When
+      result = Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 3, min_sample_size: 3)
+
+      # Then
+      assert result == nil
+    end
+
+    test "returns the metric when the window fills min_sample_size" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for i <- 1..3 do
+        {:ok, _} =
+          RunsFixtures.build_fixture(
+            project_id: project.id,
+            duration: 1000,
+            cacheable_tasks_count: 100,
+            cacheable_task_local_hits_count: 80,
+            cacheable_task_remote_hits_count: 0,
+            inserted_at: DateTime.add(DateTime.utc_now(), -i, :minute)
+          )
+      end
+
+      # When
+      result = Analytics.build_cache_hit_rate_metric_by_count(project.id, :average, limit: 3, min_sample_size: 3)
+
+      # Then
+      assert_in_delta result, 0.8, 0.001
+    end
+  end
+
+  describe "build_duration_scatter_data/2" do
+    test "returns individual build data points grouped by scheme by default" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      build_id_1 = UUIDv7.generate()
+      build_id_2 = UUIDv7.generate()
+
+      RunsFixtures.build_fixture(
+        id: build_id_1,
+        project_id: project.id,
+        duration: 3000,
+        scheme: "App",
+        status: "success",
+        is_ci: false,
+        category: "clean",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: build_id_2,
+        project_id: project.id,
+        duration: 1500,
+        scheme: "Tests",
+        status: "failure",
+        is_ci: true,
+        category: "incremental",
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      got =
+        Analytics.build_duration_scatter_data(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day)
+        )
+
+      assert got.truncated == false
+      assert got.oldest_entry == nil
+
+      series = Enum.sort_by(got.series, & &1.name)
+
+      assert [app_series, tests_series] = series
+      assert app_series.name == "App"
+      assert [data_point] = app_series.data
+      assert data_point.id == build_id_1
+      assert [_ts, duration] = data_point.value
+      assert duration == Decimal.new("3.0")
+      assert data_point.meta.scheme == "App"
+      assert data_point.meta.status == "success"
+
+      assert tests_series.name == "Tests"
+      assert [data_point_2] = tests_series.data
+      assert data_point_2.id == build_id_2
+      assert [_ts2, duration_2] = data_point_2.value
+      assert duration_2 == Decimal.new("1.5")
+      assert data_point_2.meta.status == "failure"
+      assert data_point_2.meta.is_ci == true
+    end
+
+    test "groups by environment when group_by: :environment is set" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        scheme: "App",
+        is_ci: true,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        scheme: "Tests",
+        is_ci: false,
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      got =
+        Analytics.build_duration_scatter_data(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day),
+          group_by: :environment
+        )
+
+      series_names = got.series |> Enum.map(& &1.name) |> Enum.sort()
+      assert series_names == [false, true]
+    end
+
+    test "groups by category when group_by: :category is set" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        category: "clean",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        category: "incremental",
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      got =
+        Analytics.build_duration_scatter_data(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day),
+          group_by: :category
+        )
+
+      series_names = got.series |> Enum.map(& &1.name) |> Enum.sort()
+      assert series_names == ["clean", "incremental"]
+    end
+
+    test "applies scheme filter" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        scheme: "App",
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        scheme: "Tests",
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      got =
+        Analytics.build_duration_scatter_data(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day),
+          scheme: "App"
+        )
+
+      assert length(got.series) == 1
+      assert hd(got.series).name == "App"
+    end
+  end
+
+  describe "build_cache_hit_rate_scatter_data/2" do
+    test "returns individual build cache hit rates grouped by scheme" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      build_id = UUIDv7.generate()
+
+      RunsFixtures.build_fixture(
+        id: build_id,
+        project_id: project.id,
+        duration: 2000,
+        scheme: "App",
+        status: "success",
+        is_ci: true,
+        cacheable_tasks_count: 10,
+        cacheable_task_local_hits_count: 3,
+        cacheable_task_remote_hits_count: 5,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      got =
+        Analytics.build_cache_hit_rate_scatter_data(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day)
+        )
+
+      assert got.truncated == false
+      assert [series] = got.series
+      assert series.name == "App"
+      assert [data_point] = series.data
+      assert data_point.id == build_id
+      assert [_ts, hit_rate] = data_point.value
+      assert hit_rate == Decimal.new("80.0")
+      assert data_point.meta.scheme == "App"
+      assert data_point.meta.is_ci == true
+    end
+
+    test "only includes builds with cacheable_tasks_count > 0" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        cacheable_tasks_count: 0,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        cacheable_tasks_count: 5,
+        cacheable_task_local_hits_count: 2,
+        cacheable_task_remote_hits_count: 1,
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      got =
+        Analytics.build_cache_hit_rate_scatter_data(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day)
+        )
+
+      total_data_points =
+        got.series
+        |> Enum.flat_map(& &1.data)
+        |> length()
+
+      assert total_data_points == 1
+    end
+
+    test "groups by environment when group_by: :environment is set" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 2000,
+        is_ci: true,
+        cacheable_tasks_count: 10,
+        cacheable_task_local_hits_count: 5,
+        cacheable_task_remote_hits_count: 3,
+        inserted_at: ~U[2024-04-30 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        id: UUIDv7.generate(),
+        project_id: project.id,
+        duration: 1000,
+        is_ci: false,
+        cacheable_tasks_count: 4,
+        cacheable_task_local_hits_count: 2,
+        cacheable_task_remote_hits_count: 0,
+        inserted_at: ~U[2024-04-29 10:00:00Z]
+      )
+
+      got =
+        Analytics.build_cache_hit_rate_scatter_data(
+          project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day),
+          group_by: :environment
+        )
+
+      series_names = got.series |> Enum.map(& &1.name) |> Enum.sort()
+      assert series_names == [false, true]
+    end
+  end
+
+  describe "module_cache_hit_rate_scatter_data/1" do
+    test "returns individual command event hit rates grouped by environment" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        cacheable_targets: ["A", "B", "C", "D"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: ["B"],
+        is_ci: false,
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        cacheable_targets: ["A", "B"],
+        local_cache_target_hits: ["A"],
+        remote_cache_target_hits: ["B"],
+        is_ci: true,
+        created_at: ~N[2024-04-29 10:00:00]
+      )
+
+      got =
+        Analytics.module_cache_hit_rate_scatter_data(
+          project_id: project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day),
+          end_datetime: DateTime.utc_now()
+        )
+
+      assert got.truncated == false
+      series = Enum.sort_by(got.series, & &1.name)
+      assert [local_series, ci_series] = series
+      assert ci_series.name == true
+      assert local_series.name == false
+
+      assert [ci_point] = ci_series.data
+      assert [_ts, ci_hit_rate] = ci_point.value
+      assert ci_hit_rate == Decimal.new("100.0")
+      assert ci_point.meta.is_ci == true
+
+      assert [local_point] = local_series.data
+      assert [_ts2, local_hit_rate] = local_point.value
+      assert local_hit_rate == Decimal.new("50.0")
+    end
+
+    test "only includes events with cacheable_targets_count > 0" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        cacheable_targets: [],
+        local_cache_target_hits: [],
+        remote_cache_target_hits: [],
+        is_ci: false,
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      got =
+        Analytics.module_cache_hit_rate_scatter_data(
+          project_id: project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day),
+          end_datetime: DateTime.utc_now()
+        )
+
+      assert got.series == []
+    end
+  end
+
+  describe "selective_testing_scatter_data/1" do
+    test "returns individual event hit rates grouped by environment" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B", "C", "D"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: ["B"],
+        is_ci: false,
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: ["B"],
+        is_ci: true,
+        created_at: ~N[2024-04-29 10:00:00]
+      )
+
+      got =
+        Analytics.selective_testing_scatter_data(
+          project_id: project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day),
+          end_datetime: DateTime.utc_now()
+        )
+
+      assert got.truncated == false
+      series = Enum.sort_by(got.series, & &1.name)
+      assert [local_series, ci_series] = series
+      assert ci_series.name == true
+      assert local_series.name == false
+
+      assert [ci_point] = ci_series.data
+      assert [_ts, ci_hit_rate] = ci_point.value
+      assert ci_hit_rate == Decimal.new("100.0")
+      assert ci_point.meta.is_ci == true
+
+      assert [local_point] = local_series.data
+      assert [_ts2, local_hit_rate] = local_point.value
+      assert local_hit_rate == Decimal.new("50.0")
+    end
+
+    test "only includes events with test_targets_count > 0" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: [],
+        local_test_target_hits: [],
+        remote_test_target_hits: [],
+        is_ci: false,
+        created_at: ~N[2024-04-30 03:00:00]
+      )
+
+      got =
+        Analytics.selective_testing_scatter_data(
+          project_id: project.id,
+          start_datetime: DateTime.add(DateTime.utc_now(), -30, :day),
+          end_datetime: DateTime.utc_now()
+        )
+
+      assert got.series == []
+    end
+  end
+
+  describe "cas_uploads_analytics/2" do
+    test "returns CAS upload analytics aggregated by month for a range spanning 60+ days" do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-06-30 10:00:00Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      build_one = UUIDv7.generate()
+      build_two = UUIDv7.generate()
+      build_three = UUIDv7.generate()
+      build_four = UUIDv7.generate()
+
+      IngestRepo.query!(
+        """
+        INSERT INTO build_runs (id, project_id, inserted_at, status)
+        VALUES
+          ({b1:UUID}, {pid:Int64}, toDateTime('2024-04-15 12:00:00'), 'success'),
+          ({b2:UUID}, {pid:Int64}, toDateTime('2024-05-15 12:00:00'), 'success'),
+          ({b3:UUID}, {pid:Int64}, toDateTime('2024-06-15 12:00:00'), 'success'),
+          ({b4:UUID}, {pid:Int64}, toDateTime('2024-05-15 12:00:00'), 'success')
+        """,
+        %{pid: project.id, b1: build_one, b2: build_two, b3: build_three, b4: build_four}
+      )
+
+      IngestRepo.query!(
+        """
+        INSERT INTO cas_outputs
+          (node_id, checksum, size, duration, compressed_size, operation, project_id, build_run_id, inserted_at)
+        VALUES
+          ('n1', 'c1', 1024, 100, 1024, 'upload',   {pid:Int64}, {b1:UUID}, toDateTime('2024-04-15 12:00:00')),
+          ('n2', 'c2', 2048, 200, 2048, 'upload',   {pid:Int64}, {b2:UUID}, toDateTime('2024-05-15 12:00:00')),
+          ('n3', 'c3', 4096, 400, 4096, 'upload',   {pid:Int64}, {b3:UUID}, toDateTime('2024-06-15 12:00:00')),
+          ('n4', 'c4', 9999, 999, 9999, 'download', {pid:Int64}, {b4:UUID}, toDateTime('2024-05-15 12:00:00'))
+        """,
+        %{pid: project.id, b1: build_one, b2: build_two, b3: build_three, b4: build_four}
+      )
+
+      # When
+      got =
+        Analytics.cas_uploads_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-01 00:00:00Z],
+          end_datetime: ~U[2024-06-30 00:00:00Z]
+        )
+
+      # Then
+      assert got.total_size == 7168
+      assert got.values == [1024, 2048, 4096]
+      assert Enum.map(got.dates, &Date.to_iso8601/1) == ["2024-04-01", "2024-05-01", "2024-06-01"]
+    end
+  end
+end

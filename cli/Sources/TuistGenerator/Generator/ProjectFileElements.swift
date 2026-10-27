@@ -1,6 +1,8 @@
 import Foundation
 import Path
+import TuistConstants
 import TuistCore
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 import XcodeProj
@@ -24,10 +26,11 @@ public enum GroupFileElement: Hashable {
         }
     }
 
-    init(_ copyFileElement: CopyFileElement, group: ProjectGroup) {
+    init?(_ copyFileElement: CopyFileElement, group: ProjectGroup) {
         switch copyFileElement {
         case let .file(path, _, _): self = .file(path: path, group: group)
         case let .folderReference(path, _, _): self = .folder(path: path, group: group)
+        case .buildProduct: return nil
         }
     }
 
@@ -68,19 +71,23 @@ class ProjectFileElements {
     // MARK: - Attributes
 
     var elements: [AbsolutePath: PBXFileElement] = [:]
+    var folderReferences: [AbsolutePath: PBXFileReference] = [:]
     var products: [String: PBXFileReference] = [:]
     var compiled: [AbsolutePath: PBXFileReference] = [:]
     var knownRegions: Set<String> = Set([])
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
+    private var swiftPackageManagerScratchDirectories: Set<AbsolutePath>
 
     // MARK: - Init
 
     init(
         _ elements: [AbsolutePath: PBXFileElement] = [:],
-        cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider()
+        cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
+        swiftPackageManagerScratchDirectories: Set<AbsolutePath> = []
     ) {
         self.elements = elements
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
+        self.swiftPackageManagerScratchDirectories = swiftPackageManagerScratchDirectories
     }
 
     func generateProjectFiles(
@@ -89,6 +96,9 @@ class ProjectFileElements {
         groups: ProjectGroups,
         pbxproj: PBXProj
     ) throws {
+        swiftPackageManagerScratchDirectories.formUnion(
+            graphTraverser.projects.values.compactMap(\.swiftPackageManagerScratchDirectory)
+        )
         var files = Set<GroupFileElement>()
 
         for target in project.targets.values.sorted() {
@@ -117,7 +127,9 @@ class ProjectFileElements {
         }
 
         // Dependencies
+        Logger.current.debug("Fetching all project dependencies for \(project.name)")
         let dependencies = try graphTraverser.allProjectDependencies(path: project.path).sorted()
+        Logger.current.debug("Fetched \(dependencies.count) dependencies for \(project.name)")
 
         try generate(
             dependencyReferences: Set(directProducts + dependencies),
@@ -132,7 +144,11 @@ class ProjectFileElements {
         var fileElements = Set<GroupFileElement>()
 
         // Config files
+        // xcconfigs inside a buildable folder are referenced through an anchored baseConfigurationReference, so a flat
+        // file reference would duplicate them at the project root (see `targetFiles`).
+        let buildableFolderPaths = project.targets.values.flatMap { $0.buildableFolders.map(\.path) }
         let configFiles = project.settings.configurations.values.compactMap { $0?.xcconfig }
+            .filter { xcconfig in !buildableFolderPaths.contains { xcconfig.isDescendant(of: $0) } }
 
         fileElements.formUnion(
             configFiles.map {
@@ -200,16 +216,21 @@ class ProjectFileElements {
         }
 
         // Support files
-        if let infoPlist = target.infoPlist, let path = infoPlist.path {
+        // Info.plist, entitlements and xcconfig paths are surfaced to Xcode through build settings
+        // (INFOPLIST_FILE, CODE_SIGN_ENTITLEMENTS) or an anchored baseConfigurationReference, so when they live inside
+        // a buildable folder they are already visible nested in the synchronized group. Adding a flat file reference
+        // here would duplicate them at the project root.
+        if let infoPlist = target.infoPlist, let path = infoPlist.path, !isInsideBuildableFolder(path, of: target) {
             files.insert(path)
         }
 
-        if let entitlements = target.entitlements, let path = entitlements.path {
+        if let entitlements = target.entitlements, let path = entitlements.path, !isInsideBuildableFolder(path, of: target) {
             files.insert(path)
         }
 
         // Config files
         target.settings?.configurations.xcconfigs().forEach { configFilePath in
+            guard !isInsideBuildableFolder(configFilePath, of: target) else { return }
             files.insert(configFilePath)
         }
 
@@ -228,7 +249,7 @@ class ProjectFileElements {
 
         for copyFile in target.copyFiles {
             elements.formUnion(
-                copyFile.files.map {
+                copyFile.files.compactMap {
                     GroupFileElement(
                         $0,
                         group: target.filesGroup
@@ -317,6 +338,14 @@ class ProjectFileElements {
                     groups: groups,
                     pbxproj: pbxproj
                 )
+            case let .foreignBuildOutput(path, _, _):
+                try generatePrecompiledDependency(
+                    path,
+                    groups: groups,
+                    pbxproj: pbxproj,
+                    group: filesGroup,
+                    sourceRootPath: sourceRootPath
+                )
             case .packageProduct:
                 break
             }
@@ -333,6 +362,13 @@ class ProjectFileElements {
     ) throws {
         // Pre-compiled artifact from the cache
         let cacheDirectory = cacheDirectoriesProvider.cacheDirectory()
+        let defaultSwiftPackageManagerScratchDirectory = sourceRootPath.appending(
+            component: Constants.SwiftPackageManager.packageBuildDirectoryName
+        )
+        let isSwiftPackageManagerArtifact = swiftPackageManagerScratchDirectories.contains(where: {
+            path.isDescendantOfOrEqual(to: $0)
+        })
+            || path.isDescendantOfOrEqual(to: defaultSwiftPackageManagerScratchDirectory)
         if path.pathString.contains(cacheDirectory.pathString) {
             guard compiled[path] == nil else {
                 return
@@ -343,6 +379,19 @@ class ProjectFileElements {
                 name: path.basename,
                 expectedSignature: expectedSignature,
                 toGroup: groups.cachedFrameworks,
+                pbxproj: pbxproj
+            )
+            compiled[path] = fileElement
+        } else if isSwiftPackageManagerArtifact {
+            guard compiled[path] == nil else {
+                return
+            }
+            let fileElement = addFileElementWithAbsolutePath(
+                from: sourceRootPath,
+                fileAbsolutePath: path,
+                name: path.basename,
+                expectedSignature: expectedSignature,
+                toGroup: groups.frameworks,
                 pbxproj: pbxproj
             )
             compiled[path] = fileElement
@@ -388,7 +437,11 @@ class ProjectFileElements {
         sourceRootPath: AbsolutePath
     ) throws {
         // The file already exists
-        if elements[fileElement.path] != nil { return }
+        if elements[fileElement.path] != nil,
+           !(fileElement.isFolderReference && folderReferences[fileElement.path] == nil)
+        {
+            return
+        }
 
         let fileElementRelativeToSourceRoot = fileElement.path.relative(to: sourceRootPath)
         let closestRelativeRelativePath =
@@ -402,38 +455,42 @@ class ProjectFileElements {
         case let .group(name: groupName):
             group = try groups.projectGroup(named: groupName)
         }
-        guard let firstElement = addElement(
-            fileElement,
-            relativePath: closestRelativeRelativePath,
-            isLeaf: closestRelativeRelativePath == fileElementRelativeToSourceRoot,
-            from: sourceRootPath,
-            toGroup: group,
-            pbxproj: pbxproj
-        )
-        else {
-            return
+        let remainingRelativePaths = if closestRelativeAbsolutePath == fileElement.path {
+            [RelativePath]()
+        } else {
+            try fileElement.path.relative(to: closestRelativeAbsolutePath).components
+                .map { try RelativePath(validating: $0) }
         }
-
-        // If it matches the file that we are adding or it's not a group we can exit.
-        if (closestRelativeAbsolutePath == fileElement.path) || !(firstElement.element is PBXGroup) {
-            return
-        }
-
-        var lastGroup: PBXGroup! = firstElement.element as? PBXGroup
-        var lastPath: AbsolutePath = firstElement.path
-        let components = fileElement.path.relative(to: lastPath).components
-        for component in components.enumerated() {
+        let relativePaths = [closestRelativeRelativePath] + remainingRelativePaths
+        var lastGroup: PBXGroup! = group
+        var lastPath = sourceRootPath
+        for relativePath in relativePaths.enumerated() {
             if lastGroup == nil { return }
             guard let element = addElement(
                 fileElement,
-                relativePath: try RelativePath(validating: component.element),
+                relativePath: relativePath.element,
                 expectedSignature: expectedSignature,
-                isLeaf: component.offset == components.count - 1,
+                isLeaf: relativePath.offset == relativePaths.count - 1,
                 from: lastPath,
                 toGroup: lastGroup!,
                 pbxproj: pbxproj
             )
             else {
+                return
+            }
+            if element.path == fileElement.path {
+                return
+            }
+            if element.element is PBXFileSystemSynchronizedRootGroup {
+                addFileElementRelativeToGroup(
+                    from: lastPath,
+                    fileAbsolutePath: fileElement.path,
+                    fileRelativePath: fileElement.path.relative(to: lastPath),
+                    name: fileElement.path.basename,
+                    expectedSignature: expectedSignature,
+                    toGroup: lastGroup!,
+                    pbxproj: pbxproj
+                )
                 return
             }
             lastGroup = element.element as? PBXGroup
@@ -453,7 +510,16 @@ class ProjectFileElements {
         pbxproj: PBXProj
     ) -> (element: PBXFileElement, path: AbsolutePath)? {
         let absolutePath = from.appending(relativePath)
-        if elements[absolutePath] != nil {
+        let isFolderReferenceLeaf = if isLeaf,
+                                       case let GroupFileElement.folder(path: folderPath, _) = element,
+                                       folderPath == absolutePath
+        {
+            true
+        } else {
+            false
+        }
+
+        if !isFolderReferenceLeaf, elements[absolutePath] != nil {
             return (element: elements[absolutePath]!, path: from.appending(relativePath))
         }
 
@@ -507,6 +573,19 @@ class ProjectFileElements {
                 toGroup: toGroup,
                 pbxproj: pbxproj
             )
+        } else if isFolderReferenceLeaf {
+            if let fileReference = folderReferences[absolutePath] {
+                return (element: fileReference, path: absolutePath)
+            }
+            addFolderReferenceElementRelativeToGroup(
+                from: from,
+                folderAbsolutePath: absolutePath,
+                folderRelativePath: relativePath,
+                name: name,
+                toGroup: toGroup,
+                pbxproj: pbxproj
+            )
+            return nil
         } else {
             addFileElementRelativeToGroup(
                 from: from,
@@ -678,6 +757,24 @@ class ProjectFileElements {
         elements[fileAbsolutePath] = file
     }
 
+    func addFolderReferenceElementRelativeToGroup(
+        from _: AbsolutePath,
+        folderAbsolutePath: AbsolutePath,
+        folderRelativePath: RelativePath,
+        name: String?,
+        toGroup: PBXGroup,
+        pbxproj: PBXProj
+    ) {
+        let file = PBXFileReference(
+            sourceTree: .group,
+            name: name,
+            path: folderRelativePath.pathString
+        )
+        pbxproj.add(object: file)
+        toGroup.children.append(file)
+        folderReferences[folderAbsolutePath] = file
+    }
+
     @discardableResult
     func addFileElementWithAbsolutePath(
         from _: AbsolutePath,
@@ -754,7 +851,30 @@ class ProjectFileElements {
     }
 
     func file(path: AbsolutePath) -> PBXFileReference? {
-        elements[path] as? PBXFileReference
+        elements[path] as? PBXFileReference ?? folderReferences[path]
+    }
+
+    /// Returns the synchronized root group (buildable folder) that contains the given path, together with the path of
+    /// the file relative to that group. When the path is contained in nested buildable folders, the most specific
+    /// (deepest) one is returned. Used to reference xcconfig files through an anchored `baseConfigurationReference`
+    /// instead of a flat file reference.
+    func synchronizedRootGroup(containing path: AbsolutePath)
+        -> (group: PBXFileSystemSynchronizedRootGroup, relativePath: String)?
+    {
+        var match: (folderPath: AbsolutePath, group: PBXFileSystemSynchronizedRootGroup)?
+        for (folderPath, element) in elements {
+            guard let group = element as? PBXFileSystemSynchronizedRootGroup,
+                  path.isDescendant(of: folderPath) else { continue }
+            if match == nil || folderPath.pathString.count > match!.folderPath.pathString.count {
+                match = (folderPath, group)
+            }
+        }
+        guard let match else { return nil }
+        return (match.group, path.relative(to: match.folderPath).pathString)
+    }
+
+    private func isInsideBuildableFolder(_ path: AbsolutePath, of target: Target) -> Bool {
+        target.buildableFolders.contains { path.isDescendant(of: $0.path) }
     }
 
     func isLocalized(path: AbsolutePath) -> Bool {
@@ -877,5 +997,12 @@ class ProjectFileElements {
         .flatMap { $0 }
 
         return gpxFiles
+    }
+}
+
+extension GroupFileElement {
+    fileprivate var isFolderReference: Bool {
+        if case .folder = self { return true }
+        return false
     }
 }

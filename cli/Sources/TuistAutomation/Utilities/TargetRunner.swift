@@ -3,7 +3,11 @@ import Foundation
 import Path
 import struct TSCUtility.Version
 import TuistCore
+import TuistLogging
+import TuistOpener
+import TuistProcess
 import TuistSupport
+import TuistXcodeBuildProducts
 import XcodeGraph
 
 public protocol TargetRunning {
@@ -52,25 +56,28 @@ public enum TargetRunnerError: LocalizedError, Equatable {
     }
 }
 
-public final class TargetRunner: TargetRunning {
+public struct TargetRunner: TargetRunning {
     private let xcodeBuildController: XcodeBuildControlling
     private let xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating
     private let simulatorController: SimulatorControlling
     private let fileSystem: FileSysteming
     private let opener: Opening
+    private let commandRunner: CommandRunning
 
     public init(
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
         xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating = XcodeProjectBuildDirectoryLocator(),
         simulatorController: SimulatorControlling = SimulatorController(),
         fileSystem: FileSysteming = FileSystem(),
-        opener: Opening = Opener()
+        opener: Opening = Opener(),
+        commandRunner: CommandRunning = CommandRunner()
     ) {
         self.xcodeBuildController = xcodeBuildController
         self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator
         self.simulatorController = simulatorController
         self.fileSystem = fileSystem
         self.opener = opener
+        self.commandRunner = commandRunner
     }
 
     public func runTarget(
@@ -101,7 +108,7 @@ public final class TargetRunner: TargetRunning {
 
         switch (platform, target.target.product) {
         case (.macOS, .commandLineTool):
-            try runExecutable(runnablePath, arguments: arguments)
+            try await runExecutable(runnablePath, arguments: arguments)
         case let (platform, .app):
             try await runApp(
                 target: target,
@@ -131,10 +138,10 @@ public final class TargetRunner: TargetRunning {
         }
     }
 
-    private func runExecutable(_ executablePath: AbsolutePath, arguments: [String]) throws {
+    private func runExecutable(_ executablePath: AbsolutePath, arguments: [String]) async throws {
         Logger.current.notice("Running executable \(executablePath.basename)", metadata: .section)
         Logger.current.debug("Forwarding arguments: \(arguments.joined(separator: ", "))")
-        try System.shared.runAndPrint([executablePath.pathString] + arguments)
+        try await commandRunner.runAndPrint(arguments: [executablePath.pathString] + arguments)
     }
 
     private func runApp(
@@ -166,7 +173,7 @@ public final class TargetRunner: TargetRunning {
             Logger.current
                 .debug("Running app \(appPath.pathString) with arguments [\(arguments.joined(separator: ", "))]")
             Logger.current.notice("Running app \(bundleId) on \(simulator.device.name)", metadata: .section)
-            try simulatorController.installApp(at: appPath, device: simulator.device)
+            try await simulatorController.installApp(at: appPath, device: simulator.device)
             try await simulatorController.launchApp(bundleId: bundleId, device: simulator.device, arguments: arguments)
         }
     }

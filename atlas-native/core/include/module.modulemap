@@ -1,0 +1,4 @@
+module AtlasCoreFFI {
+    header "atlas_core.h"
+    export *
+}

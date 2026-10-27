@@ -23,6 +23,55 @@ public struct TargetScript: Codable, Equatable, Sendable { // swiftlint:disable:
         case embedded(String)
     }
 
+    /// A target script file list path.
+    public enum FileListPath: ExpressibleByStringInterpolation, Codable, Hashable, Sendable {
+        /// File list is already present on disk before building the project.
+        case path(Path)
+
+        /// File list is generated, meaning Tuist creates an empty placeholder during generation.
+        case generated(Path)
+
+        /// File list path.
+        public var path: Path {
+            switch self {
+            case let .path(path), let .generated(path):
+                return path
+            }
+        }
+
+        /// Reference an existing file list path relative to the manifest directory.
+        public static func path(_ pathString: String) -> FileListPath {
+            FileListPath.path(Path.path(pathString))
+        }
+
+        /// Have Tuist create an empty file list placeholder relative to the manifest directory.
+        public static func generated(_ pathString: String) -> FileListPath {
+            FileListPath.generated(Path.relativeToManifest(pathString))
+        }
+
+        /// Reference a file list path relative to the file that defines the path.
+        public static func relativeToCurrentFile(
+            _ pathString: String,
+            callerPath: StaticString = #file
+        ) -> FileListPath {
+            FileListPath.path(Path.relativeToCurrentFile(pathString, callerPath: callerPath))
+        }
+
+        /// Reference a file list path relative to the manifest directory.
+        public static func relativeToManifest(_ pathString: String) -> FileListPath {
+            FileListPath.path(Path.relativeToManifest(pathString))
+        }
+
+        /// Reference a file list path relative to the closest directory that contains a Tuist or a .git directory.
+        public static func relativeToRoot(_ pathString: String) -> FileListPath {
+            FileListPath.path(Path.relativeToRoot(pathString))
+        }
+
+        public init(stringLiteral: String) {
+            self = .path(Path(stringLiteral: stringLiteral))
+        }
+    }
+
     /// Name of the build phase when the project gets generated.
     public var name: String
 
@@ -36,13 +85,13 @@ public struct TargetScript: Codable, Equatable, Sendable { // swiftlint:disable:
     public var inputPaths: [FileListGlob]
 
     /// List of input filelist paths
-    public var inputFileListPaths: [Path]
+    public var inputFileListPaths: [FileListPath]
 
     /// List of output file paths
     public var outputPaths: [Path]
 
     /// List of output filelist paths
-    public var outputFileListPaths: [Path]
+    public var outputFileListPaths: [FileListPath]
 
     /// Whether to skip running this script in incremental builds, if nothing has changed
     public var basedOnDependencyAnalysis: Bool?
@@ -75,9 +124,9 @@ public struct TargetScript: Codable, Equatable, Sendable { // swiftlint:disable:
         script: Script = .embedded(""),
         order: Order,
         inputPaths: [FileListGlob] = [],
-        inputFileListPaths: [Path] = [],
+        inputFileListPaths: [FileListPath] = [],
         outputPaths: [Path] = [],
-        outputFileListPaths: [Path] = [],
+        outputFileListPaths: [FileListPath] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
         shellPath: String = "/bin/sh",
@@ -118,9 +167,9 @@ public struct TargetScript: Codable, Equatable, Sendable { // swiftlint:disable:
         arguments: String...,
         name: String,
         inputPaths: [FileListGlob] = [],
-        inputFileListPaths: [Path] = [],
+        inputFileListPaths: [FileListPath] = [],
         outputPaths: [Path] = [],
-        outputFileListPaths: [Path] = [],
+        outputFileListPaths: [FileListPath] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
         shellPath: String = "/bin/sh",
@@ -161,9 +210,9 @@ public struct TargetScript: Codable, Equatable, Sendable { // swiftlint:disable:
         arguments: [String],
         name: String,
         inputPaths: [FileListGlob] = [],
-        inputFileListPaths: [Path] = [],
+        inputFileListPaths: [FileListPath] = [],
         outputPaths: [Path] = [],
-        outputFileListPaths: [Path] = [],
+        outputFileListPaths: [FileListPath] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
         shellPath: String = "/bin/sh",
@@ -204,9 +253,9 @@ public struct TargetScript: Codable, Equatable, Sendable { // swiftlint:disable:
         arguments: String...,
         name: String,
         inputPaths: [FileListGlob] = [],
-        inputFileListPaths: [Path] = [],
+        inputFileListPaths: [FileListPath] = [],
         outputPaths: [Path] = [],
-        outputFileListPaths: [Path] = [],
+        outputFileListPaths: [FileListPath] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
         shellPath: String = "/bin/sh",
@@ -247,9 +296,9 @@ public struct TargetScript: Codable, Equatable, Sendable { // swiftlint:disable:
         arguments: [String],
         name: String,
         inputPaths: [FileListGlob] = [],
-        inputFileListPaths: [Path] = [],
+        inputFileListPaths: [FileListPath] = [],
         outputPaths: [Path] = [],
-        outputFileListPaths: [Path] = [],
+        outputFileListPaths: [FileListPath] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
         shellPath: String = "/bin/sh",
@@ -292,9 +341,9 @@ public struct TargetScript: Codable, Equatable, Sendable { // swiftlint:disable:
         arguments: String...,
         name: String,
         inputPaths: [FileListGlob] = [],
-        inputFileListPaths: [Path] = [],
+        inputFileListPaths: [FileListPath] = [],
         outputPaths: [Path] = [],
-        outputFileListPaths: [Path] = [],
+        outputFileListPaths: [FileListPath] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
         shellPath: String = "/bin/sh",
@@ -335,9 +384,9 @@ public struct TargetScript: Codable, Equatable, Sendable { // swiftlint:disable:
         arguments: [String],
         name: String,
         inputPaths: [FileListGlob] = [],
-        inputFileListPaths: [Path] = [],
+        inputFileListPaths: [FileListPath] = [],
         outputPaths: [Path] = [],
-        outputFileListPaths: [Path] = [],
+        outputFileListPaths: [FileListPath] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
         shellPath: String = "/bin/sh",
@@ -378,9 +427,9 @@ public struct TargetScript: Codable, Equatable, Sendable { // swiftlint:disable:
         arguments: String...,
         name: String,
         inputPaths: [FileListGlob] = [],
-        inputFileListPaths: [Path] = [],
+        inputFileListPaths: [FileListPath] = [],
         outputPaths: [Path] = [],
-        outputFileListPaths: [Path] = [],
+        outputFileListPaths: [FileListPath] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
         shellPath: String = "/bin/sh",
@@ -421,9 +470,9 @@ public struct TargetScript: Codable, Equatable, Sendable { // swiftlint:disable:
         arguments: [String],
         name: String,
         inputPaths: [FileListGlob] = [],
-        inputFileListPaths: [Path] = [],
+        inputFileListPaths: [FileListPath] = [],
         outputPaths: [Path] = [],
-        outputFileListPaths: [Path] = [],
+        outputFileListPaths: [FileListPath] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
         shellPath: String = "/bin/sh",
@@ -465,9 +514,9 @@ public struct TargetScript: Codable, Equatable, Sendable { // swiftlint:disable:
         script: String,
         name: String,
         inputPaths: [FileListGlob] = [],
-        inputFileListPaths: [Path] = [],
+        inputFileListPaths: [FileListPath] = [],
         outputPaths: [Path] = [],
-        outputFileListPaths: [Path] = [],
+        outputFileListPaths: [FileListPath] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
         shellPath: String = "/bin/sh",
@@ -506,9 +555,9 @@ public struct TargetScript: Codable, Equatable, Sendable { // swiftlint:disable:
         script: String,
         name: String,
         inputPaths: [FileListGlob] = [],
-        inputFileListPaths: [Path] = [],
+        inputFileListPaths: [FileListPath] = [],
         outputPaths: [Path] = [],
-        outputFileListPaths: [Path] = [],
+        outputFileListPaths: [FileListPath] = [],
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,
         shellPath: String = "/bin/sh",
@@ -522,6 +571,360 @@ public struct TargetScript: Codable, Equatable, Sendable { // swiftlint:disable:
             inputFileListPaths: inputFileListPaths,
             outputPaths: outputPaths,
             outputFileListPaths: outputFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly,
+            shellPath: shellPath,
+            dependencyFile: dependencyFile
+        )
+    }
+}
+
+extension [Path] {
+    fileprivate var targetScriptFileListPaths: [TargetScript.FileListPath] {
+        map(TargetScript.FileListPath.path)
+    }
+}
+
+extension TargetScript {
+    /// Returns a target script that gets executed before the sources and resources build phase.
+    @_disfavoredOverload
+    @available(
+        *,
+        deprecated,
+        message: "Pass [TargetScript.FileListPath] instead - wrap each path with `.path(...)`, use a string literal, or use `.generated(...)`."
+    )
+    public static func pre(
+        path: Path,
+        arguments: String...,
+        name: String,
+        inputPaths: [FileListGlob] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh",
+        dependencyFile: Path? = nil
+    ) -> TargetScript {
+        pre(
+            path: path,
+            arguments: arguments,
+            name: name,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths.targetScriptFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths.targetScriptFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly,
+            shellPath: shellPath,
+            dependencyFile: dependencyFile
+        )
+    }
+
+    /// Returns a target script that gets executed before the sources and resources build phase.
+    @_disfavoredOverload
+    @available(
+        *,
+        deprecated,
+        message: "Pass [TargetScript.FileListPath] instead - wrap each path with `.path(...)`, use a string literal, or use `.generated(...)`."
+    )
+    public static func pre(
+        path: Path,
+        arguments: [String],
+        name: String,
+        inputPaths: [FileListGlob] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh",
+        dependencyFile: Path? = nil
+    ) -> TargetScript {
+        pre(
+            path: path,
+            arguments: arguments,
+            name: name,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths.targetScriptFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths.targetScriptFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly,
+            shellPath: shellPath,
+            dependencyFile: dependencyFile
+        )
+    }
+
+    /// Returns a target script that gets executed after the sources and resources build phase.
+    @_disfavoredOverload
+    @available(
+        *,
+        deprecated,
+        message: "Pass [TargetScript.FileListPath] instead - wrap each path with `.path(...)`, use a string literal, or use `.generated(...)`."
+    )
+    public static func post(
+        path: Path,
+        arguments: String...,
+        name: String,
+        inputPaths: [FileListGlob] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh",
+        dependencyFile: Path? = nil
+    ) -> TargetScript {
+        post(
+            path: path,
+            arguments: arguments,
+            name: name,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths.targetScriptFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths.targetScriptFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly,
+            shellPath: shellPath,
+            dependencyFile: dependencyFile
+        )
+    }
+
+    /// Returns a target script that gets executed after the sources and resources build phase.
+    @_disfavoredOverload
+    @available(
+        *,
+        deprecated,
+        message: "Pass [TargetScript.FileListPath] instead - wrap each path with `.path(...)`, use a string literal, or use `.generated(...)`."
+    )
+    public static func post(
+        path: Path,
+        arguments: [String],
+        name: String,
+        inputPaths: [FileListGlob] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh",
+        dependencyFile: Path? = nil
+    ) -> TargetScript {
+        post(
+            path: path,
+            arguments: arguments,
+            name: name,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths.targetScriptFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths.targetScriptFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly,
+            shellPath: shellPath,
+            dependencyFile: dependencyFile
+        )
+    }
+
+    /// Returns a target script that gets executed before the sources and resources build phase.
+    @_disfavoredOverload
+    @available(
+        *,
+        deprecated,
+        message: "Pass [TargetScript.FileListPath] instead - wrap each path with `.path(...)`, use a string literal, or use `.generated(...)`."
+    )
+    public static func pre(
+        tool: String,
+        arguments: String...,
+        name: String,
+        inputPaths: [FileListGlob] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh",
+        dependencyFile: Path? = nil
+    ) -> TargetScript {
+        pre(
+            tool: tool,
+            arguments: arguments,
+            name: name,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths.targetScriptFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths.targetScriptFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly,
+            shellPath: shellPath,
+            dependencyFile: dependencyFile
+        )
+    }
+
+    /// Returns a target script that gets executed before the sources and resources build phase.
+    @_disfavoredOverload
+    @available(
+        *,
+        deprecated,
+        message: "Pass [TargetScript.FileListPath] instead - wrap each path with `.path(...)`, use a string literal, or use `.generated(...)`."
+    )
+    public static func pre(
+        tool: String,
+        arguments: [String],
+        name: String,
+        inputPaths: [FileListGlob] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh",
+        dependencyFile: Path? = nil
+    ) -> TargetScript {
+        pre(
+            tool: tool,
+            arguments: arguments,
+            name: name,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths.targetScriptFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths.targetScriptFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly,
+            shellPath: shellPath,
+            dependencyFile: dependencyFile
+        )
+    }
+
+    /// Returns a target script that gets executed after the sources and resources build phase.
+    @_disfavoredOverload
+    @available(
+        *,
+        deprecated,
+        message: "Pass [TargetScript.FileListPath] instead - wrap each path with `.path(...)`, use a string literal, or use `.generated(...)`."
+    )
+    public static func post(
+        tool: String,
+        arguments: String...,
+        name: String,
+        inputPaths: [FileListGlob] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh",
+        dependencyFile: Path? = nil
+    ) -> TargetScript {
+        post(
+            tool: tool,
+            arguments: arguments,
+            name: name,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths.targetScriptFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths.targetScriptFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly,
+            shellPath: shellPath,
+            dependencyFile: dependencyFile
+        )
+    }
+
+    /// Returns a target script that gets executed after the sources and resources build phase.
+    @_disfavoredOverload
+    @available(
+        *,
+        deprecated,
+        message: "Pass [TargetScript.FileListPath] instead - wrap each path with `.path(...)`, use a string literal, or use `.generated(...)`."
+    )
+    public static func post(
+        tool: String,
+        arguments: [String],
+        name: String,
+        inputPaths: [FileListGlob] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh",
+        dependencyFile: Path? = nil
+    ) -> TargetScript {
+        post(
+            tool: tool,
+            arguments: arguments,
+            name: name,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths.targetScriptFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths.targetScriptFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly,
+            shellPath: shellPath,
+            dependencyFile: dependencyFile
+        )
+    }
+
+    /// Returns a target script that gets executed before the sources and resources build phase.
+    @_disfavoredOverload
+    @available(
+        *,
+        deprecated,
+        message: "Pass [TargetScript.FileListPath] instead - wrap each path with `.path(...)`, use a string literal, or use `.generated(...)`."
+    )
+    public static func pre(
+        script: String,
+        name: String,
+        inputPaths: [FileListGlob] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh",
+        dependencyFile: Path? = nil
+    ) -> TargetScript {
+        pre(
+            script: script,
+            name: name,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths.targetScriptFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths.targetScriptFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly,
+            shellPath: shellPath,
+            dependencyFile: dependencyFile
+        )
+    }
+
+    /// Returns a target script that gets executed after the sources and resources build phase.
+    @_disfavoredOverload
+    @available(
+        *,
+        deprecated,
+        message: "Pass [TargetScript.FileListPath] instead - wrap each path with `.path(...)`, use a string literal, or use `.generated(...)`."
+    )
+    public static func post(
+        script: String,
+        name: String,
+        inputPaths: [FileListGlob] = [],
+        inputFileListPaths: [Path] = [],
+        outputPaths: [Path] = [],
+        outputFileListPaths: [Path] = [],
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh",
+        dependencyFile: Path? = nil
+    ) -> TargetScript {
+        post(
+            script: script,
+            name: name,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths.targetScriptFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths.targetScriptFileListPaths,
             basedOnDependencyAnalysis: basedOnDependencyAnalysis,
             runForInstallBuildsOnly: runForInstallBuildsOnly,
             shellPath: shellPath,

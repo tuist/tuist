@@ -1,0 +1,38 @@
+// Wire-compatible REAPI capability fields used for module-cache negotiation.
+syntax = "proto3";
+
+package build.bazel.remote.execution.v2;
+import "cache.proto";
+
+option java_multiple_files = true;
+option java_package = "build.bazel.remote.execution.v2";
+option java_outer_classname = "RemoteExecutionProto";
+
+// The Capabilities service may be used by remote execution clients to query
+// various server properties, in order to self-configure or return meaningful
+// error messages.
+service Capabilities {
+  rpc GetCapabilities(GetCapabilitiesRequest) returns (ServerCapabilities) {}
+}
+
+message GetCapabilitiesRequest {
+  // The instance of the execution system to operate against. The probe sends
+  // the project handle here so the server can authorize the request against the
+  // matching instance namespace, mirroring what Bazel does via
+  // --remote_instance_name.
+  string instance_name = 1;
+}
+
+message ServerCapabilities { CacheCapabilities cache_capabilities = 1; }
+message CacheCapabilities {
+  repeated DigestFunction.Value digest_functions = 1;
+  ActionCacheUpdateCapabilities action_cache_update_capabilities = 2;
+  int64 max_batch_total_size_bytes = 4;
+  repeated Compressor.Value supported_compressors = 6;
+  repeated Compressor.Value supported_batch_update_compressors = 7;
+  bool split_blob_support = 9;
+  bool splice_blob_support = 10;
+  FastCdc2020Params fast_cdc_2020_params = 11;
+}
+message ActionCacheUpdateCapabilities { bool update_enabled = 1; }
+message FastCdc2020Params { uint64 avg_chunk_size_bytes = 1; uint32 seed = 2; }

@@ -44,7 +44,7 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
         conn
         |> put_req_header("content-type", "application/json")
         |> post("/api/accounts/#{organization.account.name}/tokens", %{
-          scopes: ["account:registry:read"],
+          scopes: ["project:cache:read"],
           name: "org-token"
         })
 
@@ -52,7 +52,7 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
       response = json_response(conn, :ok)
       {:ok, token} = Accounts.account_token(response["token"], preload: [:account])
       assert token.account == organization.account
-      assert token.scopes == ["account:registry:read"]
+      assert token.scopes == ["project:cache:read"]
     end
 
     test "generates token name when name is not provided", %{conn: conn} do
@@ -77,27 +77,6 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
       assert String.length(token.name) == 14
     end
 
-    test "transforms legacy scope registry_read to account:registry:read", %{conn: conn} do
-      # Given
-      user = AccountsFixtures.user_fixture(preload: [:account])
-
-      conn = TuistWeb.Authentication.put_current_user(conn, user)
-
-      # When
-      conn =
-        conn
-        |> put_req_header("content-type", "application/json")
-        |> post("/api/accounts/#{user.account.name}/tokens", %{
-          scopes: ["registry_read"],
-          name: "legacy-token"
-        })
-
-      # Then
-      response = json_response(conn, :ok)
-      {:ok, token} = Accounts.account_token(response["token"], preload: [:account])
-      assert token.scopes == ["account:registry:read"]
-    end
-
     test "returns bad_request when scopes are invalid", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture(preload: [:account])
@@ -118,6 +97,23 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
       assert response["message"] != nil || response["errors"] != nil
     end
 
+    test "returns bad_request for scopes that can't be created from the dashboard either", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      conn = TuistWeb.Authentication.put_current_user(conn, user)
+
+      for scope <- ["mcp", "account:scim:write"] do
+        response =
+          conn
+          |> put_req_header("content-type", "application/json")
+          |> post("/api/accounts/#{user.account.name}/tokens", %{scopes: [scope], name: "my-token"})
+          |> json_response(:bad_request)
+
+        assert response["message"] != nil || response["errors"] != nil
+      end
+
+      assert {[], _meta} = Accounts.list_account_tokens(user.account)
+    end
+
     test "returns not_found when an account does not exist", %{conn: conn} do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -135,7 +131,7 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
           })
         end
 
-      assert Jason.decode!(response_json_string) == %{
+      assert JSON.decode!(response_json_string) == %{
                "message" => "The account tuist was not found."
              }
     end
@@ -159,6 +155,27 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
         })
 
       # Then
+      response = json_response(conn, :forbidden)
+      assert response["message"] =~ "not authorized"
+    end
+
+    test "returns forbidden when an organization member tries to create an account token", %{conn: conn} do
+      owner = AccountsFixtures.user_fixture()
+      member = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: owner, preload: [:account])
+
+      Accounts.add_user_to_organization(member, organization, role: :user)
+
+      conn = TuistWeb.Authentication.put_current_user(conn, member)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/accounts/#{organization.account.name}/tokens", %{
+          scopes: ["account:members:write"],
+          name: "member-token"
+        })
+
       response = json_response(conn, :forbidden)
       assert response["message"] =~ "not authorized"
     end
@@ -242,6 +259,45 @@ defmodule TuistWeb.API.AccountTokensControllerTest do
       # Then
       response = json_response(conn, :forbidden)
       assert response["message"] =~ "not authorized"
+    end
+  end
+
+  describe "GET /accounts/:account_handle/tokens/:token_id" do
+    test "returns the account token", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+
+      token =
+        AccountsFixtures.account_token_fixture(
+          account: user.account,
+          name: "dashboard-token",
+          scopes: ["project:cache:read"]
+        )
+
+      conn =
+        conn
+        |> TuistWeb.Authentication.put_current_user(user)
+        |> get("/api/accounts/#{user.account.name}/tokens/#{token.id}")
+
+      token_id = token.id
+
+      assert %{
+               "id" => ^token_id,
+               "name" => "dashboard-token",
+               "scopes" => ["project:cache:read"]
+             } = json_response(conn, :ok)
+    end
+
+    test "returns not found when the token belongs to another account", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      other_user = AccountsFixtures.user_fixture(preload: [:account])
+      token = AccountsFixtures.account_token_fixture(account: other_user.account)
+
+      conn =
+        conn
+        |> TuistWeb.Authentication.put_current_user(user)
+        |> get("/api/accounts/#{user.account.name}/tokens/#{token.id}")
+
+      assert %{"message" => "Account token not found"} = json_response(conn, :not_found)
     end
   end
 

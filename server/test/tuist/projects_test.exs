@@ -3,11 +3,14 @@ defmodule Tuist.ProjectsTest do
   use TuistTestSupport.Cases.StubCase, billing: true
   use Mimic
 
+  import ExUnit.CaptureLog
+
   alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.ProjectAccount
+  alias Tuist.Automations
   alias Tuist.Base64
-  alias Tuist.CommandEvents
+  alias Tuist.Kura.Workers.SeedProjectCacheDemandWorker
   alias Tuist.Projects
   alias Tuist.Projects.ProjectToken
   alias Tuist.VCS
@@ -46,6 +49,21 @@ defmodule Tuist.ProjectsTest do
 
       # Then
       assert got == 2
+    end
+
+    test "counts only public projects when filtered by visibility" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      ProjectsFixtures.project_fixture(account_id: account.id, visibility: :public)
+      ProjectsFixtures.project_fixture(account_id: account.id, visibility: :private)
+
+      # When
+      got = Projects.get_project_count_for_account(account, visibility: :public)
+
+      # Then
+      assert got == 1
     end
 
     test "returns 0 when account has no projects" do
@@ -100,10 +118,13 @@ defmodule Tuist.ProjectsTest do
 
   test "returns all projects associated with a user's based on a google hosted domain" do
     # Given
+    domain = "tuist-#{TuistTestSupport.Utilities.unique_integer(6)}.io"
+
     organization =
       AccountsFixtures.organization_fixture(
         sso_provider: :google,
-        sso_organization_id: "tuist.io"
+        sso_organization_id: domain,
+        sso_automatic_enrollment: true
       )
 
     account = Accounts.get_account_from_organization(organization)
@@ -112,14 +133,14 @@ defmodule Tuist.ProjectsTest do
     user =
       Accounts.find_or_create_user_from_oauth2(%{
         provider: :google,
-        uid: 123,
+        uid: System.unique_integer([:positive]),
         info: %{
-          email: "tuist@tuist.dev"
+          email: "tuist-#{TuistTestSupport.Utilities.unique_integer(6)}@#{domain}"
         },
         extra: %{
           raw_info: %{
             user: %{
-              "hd" => "tuist.io"
+              "hd" => domain
             }
           }
         }
@@ -174,6 +195,131 @@ defmodule Tuist.ProjectsTest do
     end
   end
 
+  describe "create_project/2" do
+    test "seeds a default 'Flaky test detection' alert" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      # When
+      {:ok, project} =
+        Projects.create_project(%{name: "flaky-demo", account: %{id: account.id}})
+
+      # Then
+      alerts = Automations.list_alerts(project.id)
+      assert [alert] = alerts
+      assert alert.name == "Flaky test detection"
+      assert alert.enabled == true
+      assert alert.monitor_type == "flaky_run_count"
+      assert alert.trigger_actions == [%{"type" => "add_label", "label" => "flaky"}]
+      assert alert.recovery_enabled == true
+      assert alert.recovery_actions == [%{"type" => "remove_label", "label" => "flaky"}]
+
+      assert [%{event: "created", source: "system", changes: %{}}] =
+               Automations.list_alert_revisions(alert.id)
+    end
+
+    test "rolls back the project insert if alert seeding fails" do
+      # Given: simulate a seeding failure by stubbing default_alert_attrs
+      # with an invalid monitor type so the changeset is rejected. The whole
+      # transaction must roll back — we don't want a project created without
+      # its alert.
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      count_before = Projects.get_projects_count()
+
+      Mimic.stub(Automations, :default_alert_attrs, fn project_id ->
+        %{project_id: project_id, name: "Bad", monitor_type: "nope", trigger_actions: []}
+      end)
+
+      # When
+      assert {:error, _changeset} =
+               Projects.create_project(%{name: "flaky-demo", account: %{id: account.id}})
+
+      # Then: no new project was persisted
+      assert Projects.get_projects_count() == count_before
+    end
+
+    test "enqueues a Kura cache-demand seed for the account" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      # When
+      {:ok, _project} = Projects.create_project(%{name: "flaky-demo", account: %{id: account.id}})
+
+      # Then
+      assert_enqueued(worker: SeedProjectCacheDemandWorker, args: %{"account_id" => account.id})
+    end
+
+    test "passes where the project was created from to the cache-demand seed" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      # When
+      {:ok, _project} =
+        Projects.create_project(%{name: "flaky-demo", account: %{id: account.id}}, origin: "FR")
+
+      # Then
+      assert_enqueued(
+        worker: SeedProjectCacheDemandWorker,
+        args: %{"account_id" => account.id, "origin" => "FR"}
+      )
+    end
+
+    test "does not enqueue a cache-demand seed when the project is not created" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      Mimic.stub(Automations, :default_alert_attrs, fn project_id ->
+        %{project_id: project_id, name: "Bad", monitor_type: "nope", trigger_actions: []}
+      end)
+
+      # When
+      assert {:error, _changeset} =
+               Projects.create_project(%{name: "flaky-demo", account: %{id: account.id}})
+
+      # Then
+      refute_enqueued(worker: SeedProjectCacheDemandWorker)
+    end
+
+    test "creates the project and logs when the cache-demand seed is rejected" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      Mimic.stub(Oban, :insert, fn _changeset -> {:error, :queue_not_running} end)
+
+      # When
+      log =
+        capture_log(fn ->
+          assert {:ok, %{name: "flaky-demo"}} =
+                   Projects.create_project(%{name: "flaky-demo", account: %{id: account.id}})
+        end)
+
+      # Then
+      assert log =~ "could not seed Kura cache demand for account #{account.id}"
+      assert log =~ "queue_not_running"
+    end
+  end
+
+  describe "create_project!/2" do
+    test "seeds a default 'Flaky test detection' alert" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      # When
+      project =
+        Projects.create_project!(%{name: "flaky-demo", account: %{id: account.id}})
+
+      # Then
+      assert [_alert] = Automations.list_alerts(project.id)
+    end
+  end
+
   describe "delete_project/1" do
     test "deletes a project" do
       # Given
@@ -181,18 +327,16 @@ defmodule Tuist.ProjectsTest do
       account = Accounts.get_account_from_organization(organization)
       project = ProjectsFixtures.project_fixture(account_id: account.id)
 
-      command_event =
-        CommandEventsFixtures.command_event_fixture(
-          name: "generate",
-          project_id: project.id
-        )
+      CommandEventsFixtures.command_event_fixture(
+        name: "generate",
+        project_id: project.id
+      )
 
       # When
       Projects.delete_project(project)
 
       # Then
       assert nil == Projects.get_project_by_id(project.id)
-      assert {:error, :not_found} == CommandEvents.get_command_event_by_id(command_event.id)
     end
   end
 
@@ -221,7 +365,12 @@ defmodule Tuist.ProjectsTest do
       project_one = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
       project_two = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
 
-      got = Projects.get_all_project_accounts(%AuthenticatedAccount{account: account, scopes: []})
+      got =
+        Projects.get_all_project_accounts(%AuthenticatedAccount{
+          account: account,
+          scopes: [],
+          all_projects: true
+        })
 
       assert Enum.sort_by(got, & &1.handle) ==
                Enum.sort_by(
@@ -239,6 +388,55 @@ defmodule Tuist.ProjectsTest do
                  ],
                  & &1.handle
                )
+    end
+
+    test "get all project accounts for an authenticated account with all_projects only includes projects under the token account" do
+      user = AccountsFixtures.user_fixture()
+      user_account = Accounts.get_account_from_user(user)
+
+      organization = AccountsFixtures.organization_fixture()
+      org_account = Accounts.get_account_from_organization(organization)
+      Accounts.add_user_to_organization(user, organization, role: :user)
+
+      personal_project =
+        ProjectsFixtures.project_fixture(account_id: user_account.id, preload: [:account])
+
+      org_project =
+        ProjectsFixtures.project_fixture(account_id: org_account.id, preload: [:account])
+
+      got =
+        Projects.get_all_project_accounts(%AuthenticatedAccount{
+          account: user_account,
+          scopes: [],
+          all_projects: true
+        })
+
+      got_handles = got |> Enum.map(& &1.handle) |> Enum.sort()
+
+      assert got_handles == ["#{user_account.name}/#{personal_project.name}"]
+      refute "#{org_account.name}/#{org_project.name}" in got_handles
+    end
+
+    test "get all project accounts for an authenticated account with project_ids only includes the permitted projects" do
+      account = AccountsFixtures.account_fixture()
+      allowed_project = ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
+      ProjectsFixtures.project_fixture(account_id: account.id, preload: [:account])
+
+      got =
+        Projects.get_all_project_accounts(%AuthenticatedAccount{
+          account: account,
+          scopes: [],
+          all_projects: false,
+          project_ids: [allowed_project.id]
+        })
+
+      assert got == [
+               %ProjectAccount{
+                 handle: "#{account.name}/#{allowed_project.name}",
+                 account: account,
+                 project: allowed_project
+               }
+             ]
     end
 
     test "get all project accounts for a project subject" do
@@ -342,6 +540,37 @@ defmodule Tuist.ProjectsTest do
 
       # Then
       assert got == project
+      assert Ecto.assoc_loaded?(got.account)
+      assert got.account.id == account.id
+    end
+
+    test "preloads extra associations" do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+
+      ProjectsFixtures.project_fixture(
+        account_id: account.id,
+        name: "tuist",
+        vcs_connection: [
+          provider: :github,
+          repository_full_handle: "tuist/tuist"
+        ]
+      )
+
+      # When
+      got =
+        Projects.get_project_by_account_and_project_handles(
+          account.name,
+          "tuist",
+          preload: [:account, :vcs_connection]
+        )
+
+      # Then
+      assert Ecto.assoc_loaded?(got.account)
+      assert Ecto.assoc_loaded?(got.vcs_connection)
+      assert got.account.id == account.id
+      assert got.vcs_connection.repository_full_handle == "tuist/tuist"
     end
   end
 
@@ -432,6 +661,22 @@ defmodule Tuist.ProjectsTest do
       assert got["#{account1.name}/project1"].id == project1.id
       assert got["#{account1.name}/project2"].id == project2.id
       assert got["#{account2.name}/project3"].id == project3.id
+    end
+
+    test "resolves retained account handles to their owner's projects after repeated renames" do
+      account = AccountsFixtures.organization_fixture(name: "original-#{System.unique_integer([:positive])}").account
+      project = ProjectsFixtures.project_fixture(account_id: account.id, name: "shared-name")
+      other = ProjectsFixtures.project_fixture(name: project.name)
+      {:ok, middle} = Accounts.update_account(account, %{name: "middle-#{account.id}"})
+      {:ok, renamed} = Accounts.update_account(middle, %{name: "renamed-#{account.id}"})
+      aliases = [account.name, middle.name, renamed.name, String.upcase(account.name)]
+      full_handles = Enum.map(aliases, &"#{&1}/#{project.name}")
+      other_handle = "#{other.account.name}/#{other.name}"
+      missing_handle = "missing-account/#{project.name}"
+      result = Projects.projects_by_full_handles(full_handles ++ [other_handle, missing_handle])
+      for handle <- full_handles, do: assert(result[handle].id == project.id)
+      assert result[other_handle].id == other.id
+      refute Map.has_key?(result, missing_handle)
     end
 
     test "returns empty map when no full handles provided" do
@@ -1010,6 +1255,38 @@ defmodule Tuist.ProjectsTest do
     end
   end
 
+  describe "list_accessible_projects/2 visibility filtering" do
+    test "returns only public projects when filtered" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      public_project = ProjectsFixtures.project_fixture(account_id: account.id, visibility: :public)
+      ProjectsFixtures.project_fixture(account_id: account.id, visibility: :private)
+
+      # When
+      got = Projects.list_accessible_projects(account, visibility: :public)
+
+      # Then
+      assert Enum.map(got, & &1.id) == [public_project.id]
+    end
+
+    test "returns every project when unfiltered" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      ProjectsFixtures.project_fixture(account_id: account.id, visibility: :public)
+      ProjectsFixtures.project_fixture(account_id: account.id, visibility: :private)
+
+      # When
+      got = Projects.list_accessible_projects(account)
+
+      # Then
+      assert length(got) == 2
+    end
+  end
+
   describe "get_recent_projects_for_account/2" do
     test "returns the most recently interacted projects for an account" do
       # Given
@@ -1199,6 +1476,27 @@ defmodule Tuist.ProjectsTest do
 
       # Then
       assert projects |> Enum.map(& &1.id) |> Enum.sort() == [project_one.id, project_two.id]
+    end
+
+    test "matches the repository handle case-insensitively" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      project =
+        ProjectsFixtures.project_fixture(
+          account_id: account.id,
+          vcs_connection: [
+            repository_full_handle: "Tuist/Tuist",
+            provider: :github
+          ]
+        )
+
+      # When
+      projects = Projects.projects_by_vcs_repository_full_handle("tuist/tuist")
+
+      # Then
+      assert Enum.map(projects, & &1.id) == [project.id]
     end
 
     test "returns projects with preloaded associations" do
@@ -1400,6 +1698,182 @@ defmodule Tuist.ProjectsTest do
 
       # Then
       assert got == {:error, :not_found}
+    end
+  end
+
+  describe "has_vcs_connection?/1" do
+    test "returns true when project has VCS connection with GitHub app installation" do
+      project =
+        ProjectsFixtures.project_fixture(
+          vcs_connection: [
+            repository_full_handle: "org/repo",
+            provider: :github
+          ]
+        )
+
+      project = Repo.preload(project, vcs_connection: :github_app_installation)
+
+      assert Projects.has_vcs_connection?(project)
+    end
+
+    test "returns false when project has no VCS connection" do
+      project = ProjectsFixtures.project_fixture()
+      project = Repo.preload(project, vcs_connection: :github_app_installation)
+
+      refute Projects.has_vcs_connection?(project)
+    end
+
+    test "returns false when VCS connection has no GitHub app installation" do
+      project = ProjectsFixtures.project_fixture()
+
+      Projects.create_vcs_connection(%{
+        project_id: project.id,
+        provider: :github,
+        repository_full_handle: "org/repo",
+        github_app_installation_id: nil
+      })
+
+      project = Repo.preload(project, vcs_connection: :github_app_installation)
+
+      refute Projects.has_vcs_connection?(project)
+    end
+  end
+
+  describe "set_project_logo/3" do
+    test "stores the binary and persists the storage key on the project" do
+      project = ProjectsFixtures.project_fixture()
+      binary = "png-bytes"
+
+      expect(Tuist.Storage, :put_object, fn key, ^binary, :project_logos ->
+        assert String.starts_with?(key, "project-logos/#{project.id}/")
+        assert String.ends_with?(key, ".png")
+        :ok
+      end)
+
+      assert {:ok, updated} = Projects.set_project_logo(project, binary, "image/png")
+      assert String.starts_with?(updated.logo_storage_key, "project-logos/#{project.id}/")
+      assert String.ends_with?(updated.logo_storage_key, ".png")
+
+      reloaded = Projects.get_project_by_id(project.id)
+      assert reloaded.logo_storage_key == updated.logo_storage_key
+    end
+
+    test "replacing a logo deletes the previous object" do
+      project = ProjectsFixtures.project_fixture()
+      stub(Tuist.Storage, :put_object, fn _key, _binary, _actor -> :ok end)
+
+      {:ok, first} = Projects.set_project_logo(project, "first", "image/png")
+      previous_key = first.logo_storage_key
+
+      expect(Tuist.Storage, :put_object, fn _key, _binary, _actor -> :ok end)
+      expect(Tuist.Storage, :delete_object, fn ^previous_key, :project_logos -> :ok end)
+
+      assert {:ok, second} = Projects.set_project_logo(first, "second", "image/jpeg")
+      assert second.logo_storage_key != previous_key
+      assert String.ends_with?(second.logo_storage_key, ".jpg")
+    end
+
+    test "rejects unsupported content types without writing to storage" do
+      project = ProjectsFixtures.project_fixture()
+      reject(&Tuist.Storage.put_object/3)
+
+      assert {:error, :unsupported_logo_content_type} =
+               Projects.set_project_logo(project, "gif-bytes", "image/gif")
+
+      assert is_nil(Projects.get_project_by_id(project.id).logo_storage_key)
+    end
+  end
+
+  describe "prepare_project_logo_upload/2 + finalize_project_logo_upload/2" do
+    test "finalizing commits the storage_key returned by prepare" do
+      project = ProjectsFixtures.project_fixture()
+
+      stub(Tuist.Storage, :generate_upload_url, fn key, :project_logos, _opts ->
+        assert String.starts_with?(key, "project-logos/#{project.id}/")
+        assert String.ends_with?(key, ".webp")
+        "https://storage.example.com/#{key}"
+      end)
+
+      assert {:ok, prepared} = Projects.prepare_project_logo_upload(project, "image/webp")
+      assert String.starts_with?(prepared.upload_url, "https://storage.example.com/")
+      assert is_binary(prepared.upload_token)
+      assert prepared.method == "PUT"
+      assert prepared.content_type == "image/webp"
+
+      stub(Tuist.Storage, :object_exists?, fn key, :project_logos ->
+        assert key == prepared.storage_key
+        true
+      end)
+
+      reject(&Tuist.Storage.delete_object/2)
+
+      assert {:ok, updated} = Projects.finalize_project_logo_upload(project, prepared.upload_token)
+      assert updated.logo_storage_key == prepared.storage_key
+    end
+
+    test "finalizing rejects unsupported content type at prepare time" do
+      project = ProjectsFixtures.project_fixture()
+      reject(&Tuist.Storage.generate_upload_url/3)
+
+      assert {:error, :unsupported_logo_content_type} =
+               Projects.prepare_project_logo_upload(project, "image/gif")
+    end
+
+    test "finalizing errors when the object is missing" do
+      project = ProjectsFixtures.project_fixture()
+      stub(Tuist.Storage, :generate_upload_url, fn _key, _actor, _opts -> "https://x/y" end)
+
+      {:ok, prepared} = Projects.prepare_project_logo_upload(project, "image/png")
+
+      stub(Tuist.Storage, :object_exists?, fn _key, _actor -> false end)
+
+      assert {:error, :logo_object_not_found} =
+               Projects.finalize_project_logo_upload(project, prepared.upload_token)
+
+      assert is_nil(Projects.get_project_by_id(project.id).logo_storage_key)
+    end
+
+    test "finalizing refuses a token issued for another project" do
+      project_a = ProjectsFixtures.project_fixture()
+      project_b = ProjectsFixtures.project_fixture()
+      stub(Tuist.Storage, :generate_upload_url, fn _key, _actor, _opts -> "https://x/y" end)
+
+      {:ok, prepared} = Projects.prepare_project_logo_upload(project_b, "image/png")
+
+      assert {:error, :logo_upload_token_project_mismatch} =
+               Projects.finalize_project_logo_upload(project_a, prepared.upload_token)
+    end
+
+    test "finalizing refuses garbage tokens" do
+      project = ProjectsFixtures.project_fixture()
+
+      assert {:error, :invalid_logo_upload_token} =
+               Projects.finalize_project_logo_upload(project, "not-a-token")
+    end
+  end
+
+  describe "clear_project_logo/1" do
+    test "clears the key and deletes the object" do
+      project = ProjectsFixtures.project_fixture()
+      stub(Tuist.Storage, :put_object, fn _key, _binary, _actor -> :ok end)
+
+      {:ok, with_logo} = Projects.set_project_logo(project, "bytes", "image/webp")
+      key = with_logo.logo_storage_key
+
+      expect(Tuist.Storage, :delete_object, fn ^key, :project_logos -> :ok end)
+
+      assert {:ok, cleared} = Projects.clear_project_logo(with_logo)
+      assert is_nil(cleared.logo_storage_key)
+      assert is_nil(Projects.get_project_by_id(project.id).logo_storage_key)
+    end
+
+    test "is a no-op when the project has no logo" do
+      project = ProjectsFixtures.project_fixture()
+      reject(&Tuist.Storage.delete_object/2)
+
+      assert {:ok, unchanged} = Projects.clear_project_logo(project)
+      assert unchanged.id == project.id
+      assert is_nil(unchanged.logo_storage_key)
     end
   end
 end

@@ -1,0 +1,2312 @@
+defmodule TuistWeb.RunnerJobLiveTest do
+  use TuistTestSupport.Cases.ConnCase, async: false
+  use TuistTestSupport.Cases.LiveCase
+  use Mimic
+
+  import Phoenix.LiveViewTest
+
+  alias Tuist.Accounts
+  alias Tuist.Environment
+  alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Repo
+  alias Tuist.Runners.Buildkite
+  alias Tuist.Runners.CacheVolumes.Usage
+  alias Tuist.Runners.CacheVolumes.Volume
+  alias Tuist.Runners.Catalog
+  alias Tuist.Runners.InteractiveSession
+  alias Tuist.Runners.InteractiveSessions
+  alias Tuist.Runners.JobLogs
+  alias Tuist.Runners.JobMetrics
+  alias Tuist.Runners.Jobs
+  alias Tuist.Runners.JobSteps
+  alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
+  alias Tuist.Runners.WorkflowJobs
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistWeb.Errors.NotFoundError
+
+  setup %{conn: conn} do
+    stub(K8sClient, :patch_pod, fn _namespace, _pod_name, _patch -> {:ok, %{}} end)
+
+    stub(K8sClient, :get_pod, fn _namespace, _pod_name ->
+      {:ok, %{"metadata" => %{"annotations" => %{}}}}
+    end)
+
+    user = AccountsFixtures.user_fixture()
+
+    %{account: account} =
+      AccountsFixtures.organization_fixture(
+        name: "test-runner-job-org-#{System.unique_integer([:positive])}",
+        creator: user,
+        preload: [:account]
+      )
+
+    conn =
+      conn
+      |> assign(:selected_account, account)
+      |> log_in_user(user)
+
+    %{conn: conn, user: user, account: account}
+  end
+
+  test "renders metadata for a queued job", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_001,
+        account_id: account.id,
+        fleet_name: Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}),
+        repository: "tuist/tuist",
+        workflow_run_id: 310_010,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Docker build",
+        head_branch: "main",
+        head_sha: "abcdef1234567890"
+      })
+
+    flush_outbox!()
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/310010/jobs/31001")
+
+    assert html =~ "Server · Docker build"
+    assert html =~ "tuist/tuist"
+    assert html =~ "macOS"
+    assert html =~ "Queued"
+    # short_sha takes the first 7 chars
+    assert html =~ "abcdef1"
+  end
+
+  test "renders timeline durations once a job has run", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_101,
+        account_id: account.id,
+        fleet_name: Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16}),
+        repository: "tuist/cli",
+        workflow_run_id: 311_010,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Unit Tests",
+        head_branch: "main",
+        head_sha: "1234567"
+      })
+
+    {:ok, candidate} =
+      Jobs.pick_queued(Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16}), [])
+
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_101, "tuist-runner-x", claimed_at)
+    {:ok, _completed} = Jobs.complete(31_101, "success")
+
+    flush_outbox!()
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/311010/jobs/31101")
+
+    assert html =~ "CLI · Unit Tests"
+    assert html =~ "Linux"
+    assert html =~ "tuist-runner-x"
+    # status_badge_props maps conclusion=success → "Passed"
+    assert html =~ "Passed"
+  end
+
+  test "does not keep counting queue time for a job skipped before a runner claimed it", %{
+    conn: conn,
+    account: account
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_151,
+        account_id: account.id,
+        fleet_name: Catalog.pool_name(%{platform: :linux, vcpus: 4, memory_gb: 16}),
+        repository: "tuist/cli",
+        workflow_run_id: 311_510,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Test Shard",
+        head_branch: "main",
+        head_sha: "1234567",
+        enqueued_at: DateTime.add(DateTime.utc_now(), -3, :day)
+      })
+
+    {:ok, _completed} = Jobs.complete(31_151, "skipped")
+
+    flush_outbox!()
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/311510/jobs/31151")
+
+    assert html =~ ~r|Queue time</div>\s*<span data-part="label">\s*<svg.*?</svg>\s*0ms\s*</span>|s
+  end
+
+  test "surfaces linked build and test insights for the runner workflow run", %{
+    conn: conn,
+    account: account
+  } do
+    project =
+      ProjectsFixtures.project_fixture(
+        name: "mobile-app-#{System.unique_integer([:positive])}",
+        account: account,
+        vcs_connection: [repository_full_handle: "tuist/tuist"]
+      )
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_301,
+        account_id: account.id,
+        fleet_name: "macos-xcode-26.4",
+        repository: "tuist/tuist",
+        workflow_run_id: 313_010,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Build and test",
+        head_branch: "main",
+        head_sha: "abcdef1234567890"
+      })
+
+    build_run_id = UUIDv7.generate()
+
+    {:ok, _stale_build_run} =
+      RunsFixtures.build_fixture(
+        id: build_run_id,
+        project_id: project.id,
+        user_id: account.id,
+        scheme: "StaleApp",
+        duration: 10_000,
+        inserted_at: ~N[2026-05-28 10:01:00.000000],
+        status: "failure",
+        ci_provider: "github",
+        ci_project_handle: "tuist/tuist",
+        ci_run_id: "313010"
+      )
+
+    {:ok, build_run} =
+      RunsFixtures.build_fixture(
+        id: build_run_id,
+        project_id: project.id,
+        user_id: account.id,
+        scheme: "App",
+        duration: 120_000,
+        inserted_at: ~N[2026-05-28 10:03:00.000000],
+        ci_provider: "github",
+        ci_project_handle: "tuist/tuist",
+        ci_run_id: "313010",
+        cacheable_tasks_count: 4,
+        cacheable_task_local_hits_count: 1,
+        cacheable_task_remote_hits_count: 1
+      )
+
+    {:ok, second_build_run} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        user_id: account.id,
+        scheme: "AppClip",
+        duration: 60_000,
+        inserted_at: ~N[2026-05-28 10:02:00.000000],
+        ci_provider: "github",
+        ci_project_handle: "tuist/tuist",
+        ci_run_id: "313010",
+        cacheable_tasks_count: 2,
+        cacheable_task_local_hits_count: 1,
+        cacheable_task_remote_hits_count: 1
+      )
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: project.id,
+      name: "xcodebuild",
+      is_ci: true,
+      build_run_id: build_run.id,
+      ran_at: ~N[2026-05-28 10:01:00.000000],
+      created_at: ~N[2026-05-28 10:03:00.000000],
+      duration: 120_000,
+      cacheable_targets: ["App", "Core", "UI", "Networking"],
+      local_cache_target_hits: ["App"],
+      remote_cache_target_hits: ["Core", "UI"]
+    )
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: project.id,
+      name: "xcodebuild",
+      is_ci: true,
+      build_run_id: second_build_run.id,
+      ran_at: ~N[2026-05-28 10:01:00.000000],
+      created_at: ~N[2026-05-28 10:02:00.000000],
+      duration: 60_000,
+      cacheable_targets: ["AppClip", "AppClipCore"],
+      local_cache_target_hits: ["AppClip"],
+      remote_cache_target_hits: []
+    )
+
+    test_run_id = UUIDv7.generate()
+
+    {:ok, _stale_test_run} =
+      RunsFixtures.test_fixture(
+        id: test_run_id,
+        project_id: project.id,
+        account_id: account.id,
+        scheme: "StaleAppTests",
+        duration: 10_000,
+        status: "failure",
+        ran_at: ~N[2026-05-28 10:01:15.000000],
+        inserted_at: ~N[2026-05-28 10:01:15.000000],
+        ci_provider: "github",
+        ci_project_handle: "tuist/tuist",
+        ci_run_id: "313010"
+      )
+
+    {:ok, test_run} =
+      RunsFixtures.test_fixture(
+        id: test_run_id,
+        project_id: project.id,
+        account_id: account.id,
+        scheme: "AppTests",
+        duration: 90_000,
+        ran_at: ~N[2026-05-28 10:03:15.000000],
+        inserted_at: ~N[2026-05-28 10:03:15.000000],
+        ci_provider: "github",
+        ci_project_handle: "tuist/tuist",
+        ci_run_id: "313010"
+      )
+
+    {:ok, second_test_run} =
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        account_id: account.id,
+        scheme: "AppClipTests",
+        duration: 30_000,
+        ran_at: ~N[2026-05-28 10:02:15.000000],
+        ci_provider: "github",
+        ci_project_handle: "tuist/tuist",
+        ci_run_id: "313010"
+      )
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: project.id,
+      name: "test",
+      is_ci: true,
+      test_run_id: test_run.id,
+      test_targets: ["AppTests", "CoreTests", "UITests", "NetworkingTests"],
+      local_test_target_hits: ["AppTests"],
+      remote_test_target_hits: ["CoreTests", "UITests"]
+    )
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: project.id,
+      name: "test",
+      is_ci: true,
+      test_run_id: second_test_run.id,
+      test_targets: ["AppClipTests", "AppClipUITests"],
+      local_test_target_hits: ["AppClipTests"],
+      remote_test_target_hits: []
+    )
+
+    step_started_at = ~U[2026-05-28 10:00:00.000000Z]
+    step_completed_at = ~U[2026-05-28 10:05:00.000000Z]
+
+    :ok =
+      JobSteps.record([
+        %{
+          workflow_job_id: 31_301,
+          account_id: account.id,
+          number: 1,
+          name: "Run CI commands",
+          status: "completed",
+          conclusion: "success",
+          started_at: step_started_at,
+          completed_at: step_completed_at
+        },
+        %{
+          workflow_job_id: 31_301,
+          account_id: account.id,
+          number: 2,
+          name: "Build release notes",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 10:10:00.000000Z],
+          completed_at: ~U[2026-05-28 10:11:00.000000Z]
+        }
+      ])
+
+    :ok =
+      JobMetrics.record(31_301, account.id, [
+        %{
+          timestamp: DateTime.to_unix(step_started_at, :second) / 1,
+          cpu_usage_percent: 55.0,
+          memory_used_bytes: 8_000_000_000,
+          memory_total_bytes: 16_000_000_000,
+          network_bytes_in: 1_048_576,
+          network_bytes_out: 524_288
+        },
+        %{
+          timestamp: DateTime.to_unix(step_completed_at, :second) / 1,
+          cpu_usage_percent: 80.0,
+          memory_used_bytes: 10_000_000_000,
+          memory_total_bytes: 16_000_000_000,
+          network_bytes_in: 2_048_576,
+          network_bytes_out: 1_524_288
+        }
+      ])
+
+    flush_outbox!()
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/313010/jobs/31301")
+    document = Floki.parse_fragment!(html)
+
+    overview_html = document |> Floki.find("#runner-job-overview") |> Floki.raw_html()
+    step_start_ms = step_started_at |> DateTime.to_unix(:millisecond) |> Integer.to_string()
+    step_end_ms = step_completed_at |> DateTime.to_unix(:millisecond) |> Integer.to_string()
+
+    index = fn needle ->
+      case :binary.match(overview_html, needle) do
+        {index, _length} -> index
+        :nomatch -> flunk("Expected #{inspect(needle)} to be present in the runner overview")
+      end
+    end
+
+    ci_details_index = index.(~s(data-part="ci-details"))
+    summary_index = index.(~s(data-part="ci-details-section"))
+    insights_card_index = index.(~s(data-part="insights-card"))
+    insights_index = index.(~s(data-part="insights-grid"))
+    metrics_card_index = index.(~s(data-part="overview-metrics-card"))
+    metrics_index = index.(~s(data-part="overview"))
+    steps_index = index.(~s(data-part="steps-card"))
+
+    assert html =~ "Insights"
+    assert html =~ "Builds"
+    assert html =~ "Tests"
+    assert html =~ "Metrics"
+    assert ci_details_index < steps_index
+    assert summary_index < insights_index
+    assert summary_index < insights_card_index
+    assert insights_card_index < metrics_card_index
+    assert insights_index < metrics_index
+    assert metrics_index < steps_index
+    refute html =~ "Build runs"
+    refute html =~ "Test runs"
+    refute html =~ "Open builds"
+    refute html =~ "Open tests"
+    assert html =~ "App"
+    assert html =~ "AppClip"
+    assert html =~ "AppTests"
+    assert html =~ "AppClipTests"
+    refute html =~ "StaleApp"
+    refute html =~ "StaleAppTests"
+    assert html =~ "67%"
+    assert html =~ "Module cache"
+    assert html =~ "Selective testing"
+    refute html =~ "4/6 hits"
+    refute html =~ "Xcode cache 50%"
+    refute html =~ "2 runs"
+
+    build_chips = Floki.find(document, "a[data-part='step-insight-chip'][data-kind='build']")
+
+    test_chips = Floki.find(document, "a[data-part='step-insight-chip'][data-kind='test']")
+
+    assert length(build_chips) == 1
+    assert length(test_chips) == 1
+
+    build_chip = List.first(build_chips)
+    test_chip = List.first(test_chips)
+    assert build_chip
+    assert test_chip
+
+    assert build_chip |> Floki.find("[data-part='step-insight-chip-kind']") |> Floki.text() |> String.trim() ==
+             "Build"
+
+    assert build_chip |> Floki.find("[data-part='step-insight-chip-label']") |> Floki.text() |> String.trim() ==
+             "App"
+
+    assert test_chip |> Floki.find("[data-part='step-insight-chip-kind']") |> Floki.text() |> String.trim() ==
+             "Test"
+
+    assert test_chip |> Floki.find("[data-part='step-insight-chip-label']") |> Floki.text() |> String.trim() ==
+             "AppTests"
+
+    assert Floki.find(build_chip, "[data-part='step-insight-chip-status']") == []
+    assert Floki.find(test_chip, "[data-part='step-insight-chip-status']") == []
+    refute Floki.text(build_chip) =~ "Passed"
+    refute Floki.text(test_chip) =~ "Passed"
+
+    {"a", build_chip_attrs, _} = build_chip
+    {"a", test_chip_attrs, _} = test_chip
+
+    assert {"href", "/#{account.name}/#{project.name}/builds/build-runs/#{build_run.id}"} in build_chip_attrs
+
+    assert {"href", "/#{account.name}/#{project.name}/tests/test-runs/#{test_run.id}"} in test_chip_attrs
+
+    for {"a", attrs, _} <- Floki.find(document, "[data-part='insights-run-row']") do
+      assert {"data-step-start", step_start_ms} in attrs
+      assert {"data-step-end", step_end_ms} in attrs
+    end
+
+    lv |> element(~s{[data-part="step-header"][phx-value-number="1"]}) |> render_click()
+    render_async(lv)
+    expanded = lv |> element(~s{[data-part="step-expanded"]}) |> render()
+
+    refute expanded =~ ~s(data-part="step-insight-detail")
+    assert expanded =~ "No logs were captured for this step."
+  end
+
+  test "attributes a build only to the step it ran in when steps share a second", %{
+    conn: conn,
+    account: account
+  } do
+    project =
+      ProjectsFixtures.project_fixture(
+        name: "mobile-app-#{System.unique_integer([:positive])}",
+        account: account,
+        vcs_connection: [repository_full_handle: "tuist/tuist"]
+      )
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_401,
+        account_id: account.id,
+        fleet_name: "macos-xcode-26.4",
+        repository: "tuist/tuist",
+        workflow_run_id: 314_010,
+        workflow_name: "Release",
+        run_attempt: 1,
+        job_name: "Archive",
+        head_branch: "main",
+        head_sha: "abcdef1234567890"
+      })
+
+    # Geometry taken from a real archive job: two sequential archive steps
+    # followed by a fan of packaging steps that all start within the same
+    # second, and one skipped step with no timestamps.
+    {:ok, app_build} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        user_id: account.id,
+        scheme: "App",
+        duration: 389_939,
+        inserted_at: ~N[2026-08-19 05:59:30.248190],
+        ci_provider: "github",
+        ci_project_handle: "tuist/tuist",
+        ci_run_id: "314010"
+      )
+
+    {:ok, beta_build} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        user_id: account.id,
+        scheme: "AppBeta",
+        duration: 39_405,
+        inserted_at: ~N[2026-08-19 06:00:18.133027],
+        ci_provider: "github",
+        ci_project_handle: "tuist/tuist",
+        ci_run_id: "314010"
+      )
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: project.id,
+      name: "xcodebuild",
+      is_ci: true,
+      build_run_id: app_build.id,
+      ran_at: ~N[2026-08-19 05:52:52.000000],
+      created_at: ~N[2026-08-19 05:59:30.248631],
+      duration: 397_553
+    )
+
+    CommandEventsFixtures.command_event_fixture(
+      project_id: project.id,
+      name: "xcodebuild",
+      is_ci: true,
+      build_run_id: beta_build.id,
+      ran_at: ~N[2026-08-19 05:59:32.000000],
+      created_at: ~N[2026-08-19 06:00:16.558430],
+      duration: 43_750
+    )
+
+    steps = [
+      {16, "Archive App", ~U[2026-08-19 05:52:52.000000Z], ~U[2026-08-19 05:59:32.000000Z]},
+      {17, "Archive AppBeta", ~U[2026-08-19 05:59:32.000000Z], ~U[2026-08-19 06:00:17.000000Z]},
+      {18, "Validate archive outputs", ~U[2026-08-19 06:00:17.000000Z], ~U[2026-08-19 06:00:18.000000Z]},
+      {19, "Collect asset catalog outputs", ~U[2026-08-19 06:00:18.000000Z], ~U[2026-08-19 06:00:18.000000Z]},
+      {20, "Save asset catalog output cache", nil, ~U[2026-08-19 06:00:18.000000Z]},
+      {21, "Package distribution artifacts", ~U[2026-08-19 06:00:18.000000Z], ~U[2026-08-19 06:00:28.000000Z]},
+      {22, "Create build manifest", ~U[2026-08-19 06:00:18.000000Z], ~U[2026-08-19 06:00:18.000000Z]},
+      {23, "Wait for distribution artifacts", ~U[2026-08-19 06:00:18.000000Z], ~U[2026-08-19 06:00:28.000000Z]},
+      {24, "Upload build manifest", ~U[2026-08-19 06:00:28.000000Z], ~U[2026-08-19 06:00:30.000000Z]}
+    ]
+
+    :ok =
+      JobSteps.record(
+        Enum.map(steps, fn {number, name, started_at, completed_at} ->
+          %{
+            workflow_job_id: 31_401,
+            account_id: account.id,
+            number: number,
+            name: name,
+            status: "completed",
+            conclusion: if(started_at, do: "success", else: "skipped"),
+            started_at: started_at,
+            completed_at: completed_at
+          }
+        end)
+      )
+
+    flush_outbox!()
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/314010/jobs/31401")
+    document = Floki.parse_fragment!(html)
+
+    chip_schemes = fn number ->
+      document
+      |> Floki.find("#runner-step-#{number} a[data-part='step-insight-chip'][data-kind='build']")
+      |> Enum.map(fn chip ->
+        chip |> Floki.find("[data-part='step-insight-chip-label']") |> Floki.text() |> String.trim()
+      end)
+    end
+
+    assert chip_schemes.(16) == ["App"]
+    assert chip_schemes.(17) == ["AppBeta"]
+
+    # The build ended before any of these ran; they only shared a second with
+    # the moment its result reached the server.
+    for number <- [18, 19, 20, 21, 22, 23, 24] do
+      assert chip_schemes.(number) == [], "step #{number} should not be attributed a build"
+    end
+
+    assert document
+           |> Floki.find("a[data-part='step-insight-chip'][data-kind='build']")
+           |> length() == 2
+  end
+
+  test "renders the captured steps for a completed job", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_401,
+        account_id: account.id,
+        fleet_name: "macos-xcode-26.4",
+        repository: "tuist/tuist",
+        workflow_run_id: 314_010,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abcdef1"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("macos-xcode-26.4", [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_401, "tuist-runner-x", claimed_at)
+
+    {:ok, _completed} = Jobs.complete(31_401, "failure")
+
+    :ok =
+      JobSteps.record([
+        %{
+          workflow_job_id: 31_401,
+          account_id: account.id,
+          number: 1,
+          name: "Set up job",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 10:00:00.000000Z],
+          completed_at: ~U[2026-05-28 10:00:05.000000Z]
+        },
+        %{
+          workflow_job_id: 31_401,
+          account_id: account.id,
+          number: 2,
+          name: "Run tests",
+          status: "completed",
+          conclusion: "failure",
+          started_at: ~U[2026-05-28 10:00:05.000000Z],
+          completed_at: ~U[2026-05-28 10:00:35.000000Z]
+        },
+        %{
+          workflow_job_id: 31_401,
+          account_id: account.id,
+          number: 3,
+          name: "Complete job",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 10:00:35.000000Z],
+          completed_at: ~U[2026-05-28 10:00:35.000000Z]
+        },
+        %{
+          workflow_job_id: 31_401,
+          account_id: account.id,
+          number: 4,
+          name: "Upload artifacts",
+          status: "completed",
+          conclusion: "skipped",
+          started_at: nil,
+          completed_at: nil
+        }
+      ])
+
+    flush_outbox!()
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/314010/jobs/31401")
+
+    assert html =~ "Steps"
+    assert html =~ "Set up job"
+    assert html =~ "Run tests"
+    assert has_element?(lv, ~s|#runner-step-1 [data-part="step-timeline-bar"][data-kind="success"]|)
+    assert has_element?(lv, ~s|#runner-step-2 [data-part="step-timeline-bar"][data-kind="failure"]|)
+    assert has_element?(lv, ~s|#runner-step-3 [data-part="step-timeline-bar"]|)
+    assert has_element?(lv, ~s|#runner-step-4 [data-part="step-duration"]|)
+    refute has_element?(lv, ~s|#runner-step-4 [data-part="step-timeline-bar"]|)
+
+    # 30-second duration for the failing step (no fractional seconds)
+    assert html =~ "30s"
+    refute html =~ "30.0s"
+  end
+
+  test "expands the requested step from the URL", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_402,
+        account_id: account.id,
+        fleet_name: "macos-xcode-26.4",
+        repository: "tuist/tuist",
+        workflow_run_id: 314_020,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abcdef1"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("macos-xcode-26.4", [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_402, "tuist-runner-x", claimed_at)
+    {:ok, _completed} = Jobs.complete(31_402, "failure")
+
+    :ok =
+      JobSteps.record([
+        %{
+          workflow_job_id: 31_402,
+          account_id: account.id,
+          number: 1,
+          name: "Set up job",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 10:00:00.000000Z],
+          completed_at: ~U[2026-05-28 10:00:05.000000Z]
+        },
+        %{
+          workflow_job_id: 31_402,
+          account_id: account.id,
+          number: 2,
+          name: "Run tests",
+          status: "completed",
+          conclusion: "failure",
+          started_at: ~U[2026-05-28 10:00:05.000000Z],
+          completed_at: ~U[2026-05-28 10:00:35.000000Z]
+        }
+      ])
+
+    flush_outbox!()
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{account.name}/runners/runs/314020/jobs/31402?tab=overview&step=2")
+
+    assert has_element?(lv, ~s|#runner-step-1[data-expanded="false"]|, "Set up job")
+    assert has_element?(lv, ~s|#runner-step-2[data-expanded="true"]|, "Run tests")
+    assert has_element?(lv, ~s|a[href="?tab=metrics"]|, "Metrics")
+    refute render(lv) =~ "step=2"
+  end
+
+  test "renders the steps empty state for a job without captured steps", %{
+    conn: conn,
+    account: account
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_501,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/cli",
+        workflow_run_id: 315_010,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Lint",
+        head_branch: "main",
+        head_sha: "1234567"
+      })
+
+    flush_outbox!()
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/315010/jobs/31501")
+
+    assert html =~ "Steps will appear here once the job finishes."
+  end
+
+  test "hides insights when no project matches the job repository", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_502,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "unmatched/repository",
+        workflow_run_id: 315_020,
+        job_name: "test"
+      })
+
+    flush_outbox!()
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/315020/jobs/31502")
+    refute has_element?(lv, ~s([data-part="insights-card"]))
+    refute html =~ "No matching project was found"
+  end
+
+  test "GitLab jobs link to their instance and do not show GitHub steps", %{conn: conn, account: account} do
+    ProjectsFixtures.project_fixture(account_id: account.id)
+
+    mapping =
+      Repo.insert!(%Tuist.Runners.GitLab.Job{
+        account_id: account.id,
+        url: "https://gitlab.example.com",
+        job_id: 42,
+        project_path: "acme/mobile",
+        pipeline_id: 900
+      })
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: mapping.workflow_job_id,
+        account_id: account.id,
+        provider: "gitlab",
+        fleet_name: "linux-amd64",
+        repository: "acme/mobile",
+        workflow_run_id: 900,
+        workflow_name: "pipeline",
+        job_name: "test",
+        head_branch: "main"
+      })
+
+    flush_outbox!()
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/900/jobs/#{mapping.workflow_job_id}")
+    assert has_element?(lv, ~s(a[href="https://gitlab.example.com/acme/mobile/-/jobs/42"]), "GitLab")
+    refute has_element?(lv, ~s([data-part="insights-card"]))
+    refute html =~ "https://github.com/acme/mobile"
+    refute html =~ "steps-card"
+    refute html =~ "job-secret"
+  end
+
+  describe "Buildkite jobs" do
+    defp buildkite_job!(account, workflow_run_id, job_name) do
+      {:ok, mapping} =
+        %Buildkite.Job{}
+        |> Buildkite.Job.changeset(%{
+          job_uuid: Ecto.UUID.generate(),
+          account_id: account.id,
+          organization_slug: "acme",
+          pipeline_slug: "ios-app",
+          build_number: workflow_run_id,
+          queue_key: "tuist-macos"
+        })
+        |> Repo.insert(returning: true)
+
+      # `repository` holds the pipeline slug on this lane, exactly as
+      # `Buildkite.lifecycle_attrs/4` fills it.
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: mapping.workflow_job_id,
+          account_id: account.id,
+          fleet_name: "linux-amd64",
+          repository: "ios-app",
+          workflow_run_id: workflow_run_id,
+          workflow_name: "ios-app",
+          run_attempt: 1,
+          job_name: job_name,
+          head_branch: "main",
+          head_sha: ""
+        })
+
+      flush_outbox!()
+      mapping
+    end
+
+    test "links to the Buildkite build instead of a non-existent GitHub repository", %{
+      conn: conn,
+      account: account
+    } do
+      mapping = buildkite_job!(account, 4821, "test")
+
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/runners/runs/4821/jobs/#{mapping.workflow_job_id}")
+
+      assert html =~ "https://buildkite.com/acme/ios-app/builds/4821"
+      # The GitHub deep link would be built from the pipeline slug and 404.
+      refute html =~ "https://github.com/ios-app"
+    end
+
+    test "omits the steps card, which this lane never populates", %{conn: conn, account: account} do
+      mapping = buildkite_job!(account, 4822, "test")
+
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/runners/runs/4822/jobs/#{mapping.workflow_job_id}")
+
+      refute html =~ "Steps will appear here once the job finishes."
+    end
+
+    test "still offers insights, which resolve through the pipeline handle", %{
+      conn: conn,
+      account: account
+    } do
+      mapping = buildkite_job!(account, 4823, "test")
+      project = ProjectsFixtures.project_fixture(account: account)
+
+      {:ok, build_run} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account.id,
+          ci_provider: "buildkite",
+          ci_project_handle: "acme/ios-app",
+          ci_run_id: "4823"
+        )
+
+      flush_outbox!()
+
+      {:ok, _lv, html} =
+        live(conn, ~p"/#{account.name}/runners/runs/4823/jobs/#{mapping.workflow_job_id}")
+
+      assert html =~ "Insights"
+      assert html =~ build_run.id
+    end
+  end
+
+  test "renders captured logs on mount", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_601,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 316_010,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    :ok =
+      JobLogs.append([
+        %{
+          workflow_job_id: 31_601,
+          account_id: account.id,
+          line_number: 1,
+          ts: ~U[2026-05-28 12:00:00.000000Z],
+          message: "compiling project"
+        }
+      ])
+
+    flush_outbox!()
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/316010/jobs/31601")
+
+    assert html =~ "Logs"
+    assert html =~ "compiling project"
+  end
+
+  test "refreshes the Logs tab when FetchLogsWorker broadcasts :runner_job_logs_ready",
+       %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_610,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 316_100,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    flush_outbox!()
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/316100/jobs/31610?tab=logs")
+    assert html =~ "No logs have been captured for this job yet."
+
+    :ok =
+      JobLogs.append([
+        %{
+          workflow_job_id: 31_610,
+          account_id: account.id,
+          line_number: 1,
+          ts: ~U[2026-05-28 12:00:00.000000Z],
+          message: "after-broadcast line"
+        }
+      ])
+
+    Tuist.PubSub.broadcast(
+      %{workflow_job_id: 31_610},
+      JobLogs.topic(31_610),
+      :runner_job_logs_ready
+    )
+
+    html = render(lv)
+    assert html =~ "after-broadcast line"
+    refute html =~ "No logs have been captured for this job yet."
+  end
+
+  test "shows the Download logs button after ArchiveLogsWorker broadcasts :runner_job_log_archived",
+       %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_620,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 316_200,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    :ok =
+      JobLogs.append([
+        %{
+          workflow_job_id: 31_620,
+          account_id: account.id,
+          line_number: 1,
+          ts: ~U[2026-05-28 12:00:00.000000Z],
+          message: "hi"
+        }
+      ])
+
+    flush_outbox!()
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/316200/jobs/31620?tab=logs")
+    refute html =~ "Download logs"
+
+    Tuist.PubSub.broadcast(
+      %{workflow_job_id: 31_620, archived_at: DateTime.utc_now()},
+      JobLogs.topic(31_620),
+      :runner_job_log_archived
+    )
+
+    assert render(lv) =~ "Download logs"
+  end
+
+  test "expanding a step reveals only that step's logs", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_602,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 316_020,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_602, "runner-x", claimed_at)
+
+    {:ok, _} = Jobs.complete(31_602, "success")
+
+    # Three GH-shaped steps: an auto "Set up job" head, a single
+    # user "Build" step delimited by `##[group]Run`, and an auto
+    # "Complete job" tail starting at the runner's cleanup line.
+    # Slicing walks those markers, not the timestamps — see
+    # Tuist.Runners.JobLogs.
+    :ok =
+      JobSteps.record([
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          number: 1,
+          name: "Set up job",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 12:00:00.000000Z],
+          completed_at: ~U[2026-05-28 12:00:00.000000Z]
+        },
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          number: 2,
+          name: "Build",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 12:00:30.000000Z],
+          completed_at: ~U[2026-05-28 12:01:00.000000Z]
+        },
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          number: 3,
+          name: "Complete job",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 12:02:00.000000Z],
+          completed_at: ~U[2026-05-28 12:02:00.000000Z]
+        }
+      ])
+
+    :ok =
+      JobLogs.append([
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          line_number: 1,
+          ts: ~U[2026-05-28 12:00:00.000000Z],
+          message: "Current runner version"
+        },
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          line_number: 2,
+          ts: ~U[2026-05-28 12:00:30.000000Z],
+          message: "##[group]Run build.sh"
+        },
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          line_number: 3,
+          ts: ~U[2026-05-28 12:00:30.000000Z],
+          message: "##[endgroup]"
+        },
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          line_number: 4,
+          ts: ~U[2026-05-28 12:00:45.000000Z],
+          message: "inside the build step"
+        },
+        %{
+          workflow_job_id: 31_602,
+          account_id: account.id,
+          line_number: 5,
+          ts: ~U[2026-05-28 12:02:00.000000Z],
+          message: "Cleaning up orphan processes"
+        }
+      ])
+
+    flush_outbox!()
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316020/jobs/31602")
+
+    # Expanding the Build step (number 2) shows the in-step lines
+    # but not the teardown content.
+    lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+    render_async(lv)
+    panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
+
+    assert panel =~ "inside the build step"
+    refute panel =~ "Cleaning up orphan processes"
+    refute panel =~ "Current runner version"
+  end
+
+  test "renders a composite action's steps as nested step headers", %{conn: conn, account: account} do
+    complete_job_with_logs!(account, 31_603, 316_030, ["Set up job", "Apply Simulator Workaround", "Complete job"], [
+      "Current runner version",
+      "##[group]Run ./.github/actions/simulator-workaround",
+      "##[endgroup]",
+      "##[start-action display=Apply workaround;id=__self.__run]",
+      "##[group]Run echo workaround",
+      "##[endgroup]",
+      "##[error]Process completed with exit code 26.",
+      "##[end-action id=__self.__run;outcome=failure;conclusion=failure;duration_ms=204]",
+      "Cleaning up orphan processes"
+    ])
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316030/jobs/31603")
+
+    lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+    render_async(lv)
+    panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
+
+    assert has_element?(lv, ~s{[data-kind="action"][open] [data-part="log-action-name"]}, "Apply workaround")
+    assert has_element?(lv, ~s{[data-kind="action"] [data-part="log-action-icon"][data-status="failure"]})
+    assert panel =~ "Process completed with exit code 26."
+    assert has_element?(lv, ~s{[data-part="log-line"][data-annotation="error"] .log-annotation-label}, "Error:")
+    refute panel =~ "##[error]"
+    refute panel =~ "##[start-action"
+    refute panel =~ "##[end-action"
+  end
+
+  test "explains when a step's output can't be separated from the job log", %{conn: conn, account: account} do
+    # Two `##[group]Run` lines for a single user step: the boundaries
+    # don't line up with the steps, so no step gets a slice.
+    complete_job_with_logs!(account, 31_604, 316_040, ["Set up job", "Test", "Complete job"], [
+      "Current runner version",
+      "##[group]Run make test",
+      "##[endgroup]",
+      "##[group]Run tests",
+      "##[endgroup]",
+      "Cleaning up orphan processes"
+    ])
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316040/jobs/31604")
+
+    lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+    render_async(lv)
+    panel = lv |> element(~s{[data-part="step-logs"]}) |> render()
+
+    assert panel =~ "be separated from the rest of the job"
+    refute panel =~ "No logs were captured for this step."
+    assert has_element?(lv, ~s{[data-part="log-empty-link"][href*="tab=logs"]}, "View the full log")
+  end
+
+  test "shows a loading state while a step's logs are fetched", %{conn: conn, account: account} do
+    complete_job_with_logs!(account, 31_605, 316_050, ["Set up job", "Build", "Complete job"], [
+      "Current runner version",
+      "##[group]Run build.sh",
+      "##[endgroup]",
+      "inside the build step",
+      "Cleaning up orphan processes"
+    ])
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316050/jobs/31605")
+
+    html = lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+
+    step_logs = html |> Floki.parse_document!() |> Floki.find(~s{[data-part="step-logs"]})
+
+    assert Floki.find(step_logs, ~s{[data-part="step-logs-loading"]}) != []
+    refute Floki.text(step_logs) =~ "inside the build step"
+
+    render_async(lv)
+
+    refute has_element?(lv, ~s{[data-part="step-logs-loading"]})
+    assert has_element?(lv, ~s{[data-part="step-logs"]}, "inside the build step")
+    assert has_element?(lv, ~s{[data-part="step-logs"][data-scroll-to-tail-active="false"]})
+  end
+
+  test "expands failed steps on load and opens their logs at the end", %{conn: conn, account: account} do
+    complete_job_with_logs!(
+      account,
+      31_607,
+      316_070,
+      ["Set up job", "Build", "Complete job"],
+      [
+        "Current runner version",
+        "##[group]Run build.sh",
+        "##[endgroup]",
+        "##[error]Process completed with exit code 65.",
+        "Cleaning up orphan processes"
+      ],
+      failed_steps: [2]
+    )
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316070/jobs/31607")
+
+    assert has_element?(lv, ~s|#runner-step-1[data-expanded="false"]|)
+    assert has_element?(lv, ~s|#runner-step-2[data-expanded="true"]|)
+
+    render_async(lv)
+
+    assert has_element?(lv, ~s{#runner-step-2 [data-part="step-logs"]}, "Process completed with exit code 65.")
+    assert has_element?(lv, ~s{#runner-step-2 [data-part="step-logs"][data-scroll-to-tail-active="true"]})
+  end
+
+  test "renders the tail of a long step and loads earlier lines on demand", %{conn: conn, account: account} do
+    build_lines = Enum.map(1..1_005, &"build line #{String.pad_leading(Integer.to_string(&1), 4, "0")}")
+
+    complete_job_with_logs!(
+      account,
+      31_606,
+      316_060,
+      ["Set up job", "Build", "Complete job"],
+      ["Current runner version", "##[group]Run build.sh", "##[endgroup]"] ++
+        build_lines ++ ["Cleaning up orphan processes"]
+    )
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/316060/jobs/31606")
+
+    lv |> element(~s{[data-part="step-header"][phx-value-number="2"]}) |> render_click()
+    render_async(lv)
+
+    displayed = fn ->
+      lv
+      |> element(~s{[data-part="step-logs"]})
+      |> render()
+      |> Floki.parse_fragment!()
+      |> Floki.find(~s{[data-part="log-line"]})
+      |> Enum.map(fn line ->
+        {line |> Floki.find(~s{[data-part="log-ln"]}) |> Floki.text(),
+         line |> Floki.find(~s{[data-part="log-message"]}) |> Floki.text()}
+      end)
+    end
+
+    tail = displayed.()
+    assert length(tail) == 1_000
+    assert List.first(tail) == {"7", "build line 0006"}
+    assert List.last(tail) == {"1006", "build line 1005"}
+    assert has_element?(lv, ~s{[data-part="step-logs"][data-scroll-to-tail-active="true"]})
+    assert has_element?(lv, ~s{#runner-step-2-line-7[data-part="log-line"]}, "build line 0006")
+    refute has_element?(lv, ~s{[data-part="log-group-label"]}, "Run build.sh")
+
+    lv |> element(~s{[data-part="step-logs-load-earlier"]}) |> render_click()
+    render_async(lv)
+
+    all = displayed.()
+    assert length(all) == 1_005
+    assert List.first(all) == {"2", "build line 0001"}
+    assert has_element?(lv, ~s{[data-part="log-group-label"]}, "Run build.sh")
+    refute has_element?(lv, ~s{[data-part="step-logs-load-earlier"]})
+  end
+
+  test "defaults to the Overview tab and selects Logs via ?tab=logs", %{
+    conn: conn,
+    account: account
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_701,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 317_010,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    flush_outbox!()
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/runs/317010/jobs/31701")
+    assert has_element?(lv, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
+    refute has_element?(lv, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Logs")
+
+    flush_outbox!()
+
+    {:ok, lv2, _html} = live(conn, ~p"/#{account.name}/runners/runs/317010/jobs/31701?tab=logs")
+    assert has_element?(lv2, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Logs")
+    refute has_element?(lv2, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
+  end
+
+  test "automatically requests a VNC session from the VNC tab", %{
+    conn: conn,
+    account: account
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_750,
+        account_id: account.id,
+        fleet_name: Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}),
+        repository: "tuist/tuist",
+        workflow_run_id: 317_500,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "UI Tests",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} =
+      Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
+
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "macos-pod-vnc", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_750, "tuist-runner-vnc", claimed_at)
+
+    flush_outbox!()
+
+    {:ok, lv, html} =
+      live(conn, ~p"/#{account.name}/runners/runs/317500/jobs/31750?tab=vnc")
+
+    assert html =~ "VNC"
+    assert html =~ "Waiting for runner relay"
+    refute html =~ "macOS desktop"
+    refute html =~ "VNC session for the live runner desktop."
+    refute html =~ "Terminal sessions are not available in this rollout."
+    refute html =~ "Not requested"
+    refute html =~ "Requested"
+    refute has_element?(lv, ~s{#close-vnc-session-button})
+    assert has_element?(lv, ~s{#runner-vnc-session})
+
+    refute has_element?(lv, ~s{#runner-vnc-fullscreen-button})
+    refute html =~ "Full screen"
+    refute has_element?(lv, ~s{#runner-vnc-viewport button[data-fullscreen-toggle]})
+    refute has_element?(lv, ~s{#request-vnc-session-button})
+
+    session = Repo.get_by!(InteractiveSession, workflow_job_id: 31_750, kind: :vnc)
+    assert session.state == :requested
+    assert session.pod_name == "macos-pod-vnc"
+    assert session.requested_by_user_id
+  end
+
+  test "shows the full screen action only after the VNC relay is ready", %{
+    conn: conn,
+    account: account,
+    user: user
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_752,
+        account_id: account.id,
+        fleet_name: Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}),
+        repository: "tuist/tuist",
+        workflow_run_id: 317_520,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Ready VNC",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} =
+      Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
+
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "macos-pod-ready-vnc", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_752, "tuist-runner-ready-vnc", claimed_at)
+
+    flush_outbox!()
+    {:ok, job} = Jobs.get_for_account(account.id, 31_752)
+    {:ok, session} = InteractiveSessions.request_vnc(job, account, user)
+
+    session
+    |> InteractiveSession.changeset(%{state: :ready})
+    |> Repo.update!()
+
+    flush_outbox!()
+
+    {:ok, lv, html} =
+      live(conn, ~p"/#{account.name}/runners/runs/317520/jobs/31752?tab=vnc")
+
+    refute html =~ "VNC session ready"
+
+    assert has_element?(
+             lv,
+             ~s{#runner-vnc-fullscreen-button[phx-hook="RunnerVNCFullscreen"][data-fullscreen-target="#runner-vnc-card"][data-fullscreen-enter-label="Full screen"][data-fullscreen-exit-label="Exit full screen"][data-variant="secondary"]}
+           )
+
+    assert has_element?(
+             lv,
+             ~s{#runner-vnc-client[phx-hook="RunnerVNCClient"][data-vnc-path="/#{account.name}/runners/interactive/vnc"][data-vnc-token][data-framebuffer-color-order="bgr"]}
+           )
+
+    refute html =~ "/runners/interactive/vnc/"
+  end
+
+  test "closes the VNC session when the browser client disconnects", %{
+    conn: conn,
+    account: account,
+    user: user
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_757,
+        account_id: account.id,
+        fleet_name: Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}),
+        repository: "tuist/tuist",
+        workflow_run_id: 317_570,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Disconnecting VNC",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} =
+      Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
+
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "macos-pod-disconnecting-vnc", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_757, "tuist-runner-disconnecting-vnc", claimed_at)
+
+    flush_outbox!()
+    {:ok, job} = Jobs.get_for_account(account.id, 31_757)
+    {:ok, session} = InteractiveSessions.request_vnc(job, account, user)
+
+    session
+    |> InteractiveSession.changeset(%{state: :ready})
+    |> Repo.update!()
+
+    flush_outbox!()
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{account.name}/runners/runs/317570/jobs/31757?tab=vnc")
+
+    lv
+    |> element(~s{#runner-vnc-client})
+    |> render_hook("interactive_vnc_disconnected", %{})
+
+    closed = Repo.reload!(session)
+    assert closed.state == :closed
+    assert closed.close_reason == "browser_disconnect"
+    refute has_element?(lv, ~s{#runner-vnc-client})
+    assert has_element?(lv, ~s{#request-vnc-session-button})
+  end
+
+  test "does not let a signed-out visitor on a public account close an open VNC session", %{
+    account: account,
+    user: user
+  } do
+    {:ok, account} = Accounts.update_account_visibility(account, :public)
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_758,
+        account_id: account.id,
+        fleet_name: Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}),
+        repository: "tuist/tuist",
+        workflow_run_id: 317_580,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Public VNC",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} =
+      Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
+
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "macos-pod-public-vnc", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_758, "tuist-runner-public-vnc", claimed_at)
+
+    flush_outbox!()
+    {:ok, job} = Jobs.get_for_account(account.id, 31_758)
+    {:ok, session} = InteractiveSessions.request_vnc(job, account, user)
+
+    session
+    |> InteractiveSession.changeset(%{state: :ready})
+    |> Repo.update!()
+
+    flush_outbox!()
+
+    # A signed-out visitor can reach the page, but never the VNC client.
+    {:ok, lv, _html} =
+      live(build_conn(), ~p"/#{account.name}/runners/runs/317580/jobs/31758?tab=vnc")
+
+    refute has_element?(lv, ~s{#runner-vnc-client})
+
+    # Forging the event a rendered client would have pushed must not close
+    # the member's session.
+    render_hook(lv, "interactive_vnc_disconnected", %{})
+
+    still_open = Repo.reload!(session)
+    assert still_open.state == :ready
+    assert is_nil(still_open.closed_at)
+  end
+
+  # Opening the VNC tab deliberately takes the session over (`refresh_token/2`
+  # reassigns `requested_by_user_id`), so this covers the member who never
+  # opened it and forges the event straight from the overview tab.
+  test "does not let a member who does not hold the session close it", %{account: account, user: user} do
+    other_member = AccountsFixtures.user_fixture()
+    organization = Repo.preload(account, :organization).organization
+    Accounts.add_user_to_organization(other_member, organization, role: :user)
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_759,
+        account_id: account.id,
+        fleet_name: Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}),
+        repository: "tuist/tuist",
+        workflow_run_id: 317_590,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Contended VNC",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} =
+      Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
+
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "macos-pod-contended-vnc", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_759, "tuist-runner-contended-vnc", claimed_at)
+
+    flush_outbox!()
+    {:ok, job} = Jobs.get_for_account(account.id, 31_759)
+    {:ok, session} = InteractiveSessions.request_vnc(job, account, user)
+
+    session
+    |> InteractiveSession.changeset(%{state: :ready})
+    |> Repo.update!()
+
+    flush_outbox!()
+
+    {:ok, lv, _html} =
+      build_conn()
+      |> log_in_user(other_member)
+      |> live(~p"/#{account.name}/runners/runs/317590/jobs/31759")
+
+    render_hook(lv, "interactive_vnc_disconnected", %{})
+
+    still_open = Repo.reload!(session)
+    assert still_open.state == :ready
+    assert is_nil(still_open.closed_at)
+  end
+
+  test "renders a local development VNC placeholder with a fake ready session", %{
+    conn: conn,
+    account: account
+  } do
+    stub(Environment, :dev?, fn -> true end)
+    reject(&K8sClient.patch_pod/3)
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_753,
+        account_id: account.id,
+        fleet_name: Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}),
+        repository: "tuist/tuist",
+        workflow_run_id: 317_530,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Dev VNC",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} =
+      Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
+
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "macos-pod-dev-vnc", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_753, "tuist-runner-dev-vnc", claimed_at)
+
+    flush_outbox!()
+
+    {:ok, lv, html} =
+      live(conn, ~p"/#{account.name}/runners/runs/317530/jobs/31753?tab=vnc")
+
+    assert html =~ "VNC"
+    refute has_element?(lv, ~s{[data-part="interactive-dev-preview"]})
+    assert has_element?(lv, ~s{[data-part="interactive-viewport-frame"]})
+    assert html =~ "VNC session ready"
+    assert has_element?(lv, ~s{#runner-vnc-fullscreen-button})
+    refute has_element?(lv, ~s{#request-vnc-session-button})
+    refute has_element?(lv, ~s{#runner-vnc-client})
+
+    session = Repo.get_by!(InteractiveSession, workflow_job_id: 31_753, kind: :vnc)
+    assert session.state == :ready
+    assert session.relay_host == "127.0.0.1"
+    assert session.relay_port == 5900
+    assert session.relay_ready_at
+  end
+
+  test "does not show interactive access tabs for queued macOS jobs", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_751,
+        account_id: account.id,
+        fleet_name: Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}),
+        repository: "tuist/tuist",
+        workflow_run_id: 317_510,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Queued UI Tests",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    flush_outbox!()
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{account.name}/runners/runs/317510/jobs/31751?tab=interactive")
+
+    refute has_element?(lv, ~s{.noora-tab-menu-horizontal-item}, "Terminal")
+    refute has_element?(lv, ~s{.noora-tab-menu-horizontal-item}, "VNC")
+    assert has_element?(lv, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
+  end
+
+  test "automatically requests a shell session from the Terminal tab for Linux jobs and waits for the runner", %{
+    conn: conn,
+    account: account
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_754,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 317_540,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Linux shell",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "linux-pod-shell", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_754, "tuist-runner-linux-shell", claimed_at)
+
+    flush_outbox!()
+
+    {:ok, lv, html} =
+      live(conn, ~p"/#{account.name}/runners/runs/317540/jobs/31754?tab=terminal")
+
+    assert html =~ "Terminal"
+    assert html =~ "Waiting for runner shell"
+    assert has_element?(lv, ~s{#runner-shell-session})
+    refute has_element?(lv, ~s{#runner-shell-terminal[phx-hook="RunnerShellTerminal"]})
+
+    refute has_element?(lv, ~s{#runner-vnc-session})
+    refute has_element?(lv, ~s{#request-vnc-session-button})
+
+    session = Repo.get_by!(InteractiveSession, workflow_job_id: 31_754, kind: :shell)
+    assert session.state == :requested
+    assert session.pod_name == "linux-pod-shell"
+    assert session.requested_by_user_id
+  end
+
+  test "renders the shell terminal once the runner shell is ready", %{
+    conn: conn,
+    account: account,
+    user: user
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_756,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 317_560,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Ready Linux shell",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "linux-pod-shell-ready", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_756, "tuist-runner-linux-shell-ready", claimed_at)
+
+    flush_outbox!()
+    {:ok, job} = Jobs.get_for_account(account.id, 31_756)
+    {:ok, session} = InteractiveSessions.request_shell(job, account, user)
+    {:ok, _session} = InteractiveSessions.mark_shell_ready(session)
+
+    flush_outbox!()
+
+    {:ok, lv, html} =
+      live(conn, ~p"/#{account.name}/runners/runs/317560/jobs/31756?tab=terminal")
+
+    refute html =~ "Waiting for runner shell"
+
+    assert has_element?(
+             lv,
+             ~s{#runner-shell-terminal[phx-hook="RunnerShellTerminal"][data-shell-path="/#{account.name}/runners/interactive/shell"][data-shell-token]}
+           )
+  end
+
+  test "refuses a shell session to a member demoted while the page is open", %{
+    conn: conn,
+    account: account,
+    user: user
+  } do
+    # Given — a job whose shell is requestable, with the page already open while
+    # the member could still attach.
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_999,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 319_990,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Demoted Linux shell",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "linux-pod-demoted", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_999, "tuist-runner-linux-demoted", claimed_at)
+
+    flush_outbox!()
+
+    # Mounted away from the terminal tab, which auto-requests a session on
+    # connect and would create one before the demotion lands.
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{account.name}/runners/runs/319990/jobs/31999")
+
+    # When — demoted without reloading. `InteractiveSessions` mints tokens
+    # without authorizing, so the socket's cached answer must not be what
+    # decides this.
+    {:ok, organization} = Accounts.get_organization_by_id(account.organization_id)
+    {:ok, _} = Accounts.update_user_role_in_organization(user, organization, :viewer)
+
+    render_hook(lv, "request_shell_session", %{})
+
+    # Then
+    assert is_nil(InteractiveSessions.current_for_job(account.id, 31_999, :shell))
+  end
+
+  test "closes the shell session when the browser terminal disconnects", %{
+    conn: conn,
+    account: account,
+    user: user
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_758,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 317_580,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Disconnecting Linux shell",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "linux-pod-shell-disconnecting", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_758, "tuist-runner-linux-shell-disconnecting", claimed_at)
+
+    flush_outbox!()
+    {:ok, job} = Jobs.get_for_account(account.id, 31_758)
+    {:ok, session} = InteractiveSessions.request_shell(job, account, user)
+    {:ok, _session} = InteractiveSessions.mark_shell_ready(session)
+
+    flush_outbox!()
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{account.name}/runners/runs/317580/jobs/31758?tab=terminal")
+
+    lv
+    |> element(~s{#runner-shell-terminal})
+    |> render_hook("interactive_shell_disconnected", %{})
+
+    closed = Repo.reload!(session)
+    assert closed.state == :closed
+    assert closed.close_reason == "browser_disconnect"
+    refute has_element?(lv, ~s{#runner-shell-terminal})
+    assert has_element?(lv, ~s{#request-shell-session-button})
+  end
+
+  test "renders a local terminal simulation without requesting a shell session", %{
+    conn: conn,
+    account: account
+  } do
+    stub(Environment, :dev?, fn -> true end)
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_755,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 317_550,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Local shell simulation",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    flush_outbox!()
+
+    {:ok, lv, html} =
+      live(
+        conn,
+        ~p"/#{account.name}/runners/runs/317550/jobs/31755?tab=terminal&terminal_simulation=1"
+      )
+
+    assert html =~ "Terminal"
+    assert has_element?(lv, ~s{#runner-shell-terminal[data-shell-simulation="true"]})
+    refute has_element?(lv, ~s{#request-shell-session-button})
+    refute Repo.get_by(InteractiveSession, workflow_job_id: 31_755, kind: :shell)
+  end
+
+  test "renders the machine metrics charts on the Metrics tab", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_810,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 318_010,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Test",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    :ok =
+      JobMetrics.record(31_810, account.id, [
+        %{
+          timestamp: 1_750_000_000.0,
+          cpu_usage_percent: 70.0,
+          cpu_iowait_percent: 3.0,
+          memory_used_bytes: 8_000_000_000,
+          memory_total_bytes: 16_000_000_000,
+          network_bytes_in: 1_048_576,
+          network_bytes_out: 524_288,
+          disk_used_bytes: 40_000_000_000,
+          disk_total_bytes: 64_000_000_000
+        }
+      ])
+
+    flush_outbox!()
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/318010/jobs/31810?tab=metrics")
+
+    assert html =~ "CPU I/O Wait"
+    assert html =~ "Storage"
+    assert html =~ "runner-job-metrics-cpu"
+  end
+
+  test "shows the metrics empty state when a job has no samples", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_820,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 318_020,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Test",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    flush_outbox!()
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/318020/jobs/31820?tab=metrics")
+
+    assert html =~ "Machine metrics will appear here"
+    refute html =~ "runner-job-metrics-cpu"
+  end
+
+  test "loads only the tail and pages older logs on demand", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_801,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 318_010,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    # More than one page (page size is 200), so the oldest line is not
+    # in the initial tail.
+    :ok =
+      JobLogs.append(
+        for n <- 1..250 do
+          %{
+            workflow_job_id: 31_801,
+            account_id: account.id,
+            line_number: n,
+            ts: DateTime.add(~U[2026-05-28 12:00:00.000000Z], n, :second),
+            message: if(n == 1, do: "FIRST_LINE_MARKER", else: "line #{n}")
+          }
+        end
+      )
+
+    flush_outbox!()
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/318010/jobs/31801?tab=logs")
+
+    refute html =~ "FIRST_LINE_MARKER"
+    assert has_element?(lv, ~s{[phx-click="load_older"]})
+
+    html_after = lv |> element(~s{[phx-click="load_older"]}) |> render_click()
+
+    assert html_after =~ "FIRST_LINE_MARKER"
+    refute has_element?(lv, ~s{[phx-click="load_older"]})
+  end
+
+  test "searches the full log, including lines outside the loaded tail", %{
+    conn: conn,
+    account: account
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_901,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 319_010,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    # 250 lines (> page size). The match is on line 1, which is NOT in
+    # the initially-loaded tail — search must hit the server.
+    :ok =
+      JobLogs.append(
+        for n <- 1..250 do
+          %{
+            workflow_job_id: 31_901,
+            account_id: account.id,
+            line_number: n,
+            ts: DateTime.add(~U[2026-05-28 12:00:00.000000Z], n, :second),
+            message: if(n == 1, do: "DEEP_MATCH_TOKEN", else: "line #{n}")
+          }
+        end
+      )
+
+    flush_outbox!()
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/319010/jobs/31901?tab=logs")
+
+    refute html =~ "DEEP_MATCH_TOKEN"
+
+    results =
+      lv
+      |> form(~s{[data-part="logs-search-form"]}, %{search: "DEEP_MATCH_TOKEN"})
+      |> render_change()
+
+    assert results =~ "DEEP_MATCH_TOKEN"
+
+    scoped = lv |> element("#runner-log-search-results") |> render()
+    assert scoped =~ "DEEP_MATCH_TOKEN"
+    refute scoped =~ "line 200"
+  end
+
+  test "toggles timestamp visibility", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_902,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 319_020,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    :ok =
+      JobLogs.append([
+        %{
+          workflow_job_id: 31_902,
+          account_id: account.id,
+          line_number: 1,
+          ts: ~U[2026-05-28 12:00:00.000000Z],
+          message: "a line"
+        }
+      ])
+
+    flush_outbox!()
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/319020/jobs/31902?tab=logs")
+    # Hidden by default; the icon points to the action (show) — a plain
+    # hourglass, so the hourglass-off variant is absent.
+    assert html =~ ~s(data-show-timestamps="false")
+    assert html =~ "Timestamps"
+    refute html =~ "icon-tabler-hourglass-off"
+
+    toggled = lv |> element("#logs-timestamps-button") |> render_click()
+    # Now visible; the action becomes "hide", so the icon is hourglass-off.
+    assert toggled =~ ~s(data-show-timestamps="true")
+    assert toggled =~ "icon-tabler-hourglass-off"
+  end
+
+  test "the Steps card also has a timestamps button toggling per-step timestamps", %{
+    conn: conn,
+    account: account
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_950,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 319_500,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(31_950, "runner-x", claimed_at)
+
+    {:ok, _} = Jobs.complete(31_950, "success")
+
+    :ok =
+      JobSteps.record([
+        %{
+          workflow_job_id: 31_950,
+          account_id: account.id,
+          number: 1,
+          name: "Build",
+          status: "completed",
+          conclusion: "success",
+          started_at: ~U[2026-05-28 12:00:00.000000Z],
+          completed_at: ~U[2026-05-28 12:01:00.000000Z]
+        }
+      ])
+
+    # Overview tab is the default, where the Steps card lives.
+    flush_outbox!()
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/runners/runs/319500/jobs/31950")
+
+    assert has_element?(lv, "#steps-timestamps-button")
+    assert html =~ ~s(data-show-timestamps="false")
+
+    toggled = lv |> element("#steps-timestamps-button") |> render_click()
+    assert toggled =~ ~s(data-show-timestamps="true")
+  end
+
+  test "raises 404 when the workflow_job_id belongs to another account", %{
+    conn: conn,
+    account: account
+  } do
+    other = AccountsFixtures.user_fixture().account
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_201,
+        account_id: other.id,
+        fleet_name: "fleet-x",
+        repository: "evil/corp",
+        workflow_run_id: 312_010,
+        workflow_name: "Evil",
+        run_attempt: 1,
+        job_name: "hidden",
+        head_branch: "main",
+        head_sha: "dead"
+      })
+
+    assert_raise NotFoundError, fn ->
+      live(conn, ~p"/#{account.name}/runners/runs/312010/jobs/31201")
+    end
+  end
+
+  test "raises 404 when the workflow_run_id in the URL doesn't match the job's run", %{
+    conn: conn,
+    account: account
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_301,
+        account_id: account.id,
+        fleet_name: "fleet-y",
+        repository: "tuist/tuist",
+        workflow_run_id: 313_010,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "build",
+        head_branch: "main",
+        head_sha: "deadbeef"
+      })
+
+    assert_raise NotFoundError, fn ->
+      # Job exists under run 313010, URL claims 999999 — 404 the
+      # same way GitHub would.
+      live(conn, ~p"/#{account.name}/runners/runs/999999/jobs/31301")
+    end
+  end
+
+  test "raises 404 for a non-integer workflow_job_id", %{conn: conn, account: account} do
+    assert_raise NotFoundError, fn ->
+      live(conn, ~p"/#{account.name}/runners/runs/312010/jobs/notanumber")
+    end
+  end
+
+  describe "step_window/1" do
+    test "spans the first step's start to the last step's end in epoch ms" do
+      steps = [
+        %{started_at: ~U[2026-05-28 10:00:00Z], completed_at: ~U[2026-05-28 10:00:05Z]},
+        %{started_at: ~U[2026-05-28 10:00:05Z], completed_at: ~U[2026-05-28 10:01:00Z]}
+      ]
+
+      assert TuistWeb.RunnerJobLive.step_window(steps) == %{
+               min: DateTime.to_unix(~U[2026-05-28 10:00:00Z], :millisecond),
+               max: DateTime.to_unix(~U[2026-05-28 10:01:00Z], :millisecond)
+             }
+    end
+
+    test "returns nil when there are no steps with timestamps" do
+      assert TuistWeb.RunnerJobLive.step_window([]) == nil
+      assert TuistWeb.RunnerJobLive.step_window([%{started_at: nil, completed_at: nil}]) == nil
+    end
+  end
+
+  describe "step timeline geometry" do
+    test "positions sequential steps on the same time axis" do
+      steps = [
+        %{started_at: ~U[2026-05-28 10:00:00Z], completed_at: ~U[2026-05-28 10:00:15Z]},
+        %{started_at: ~U[2026-05-28 10:00:15Z], completed_at: ~U[2026-05-28 10:01:00Z]}
+      ]
+
+      window = TuistWeb.RunnerJobLive.step_window(steps)
+      [first, last] = steps
+
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(first, window) == "0.0%"
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(first, window) == "25.0%"
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(last, window) == "25.0%"
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(last, window) == "75.0%"
+    end
+
+    test "keeps zero-length steps drawable, including a zero-length job" do
+      step = %{started_at: ~U[2026-05-28 10:00:00Z], completed_at: ~U[2026-05-28 10:00:00Z]}
+      timestamp = TuistWeb.RunnerJobLive.step_epoch_ms(step.started_at)
+
+      for window <- [%{min: timestamp, max: timestamp + 60_000}, %{min: timestamp, max: timestamp}] do
+        assert TuistWeb.RunnerJobLive.step_bar_offset_percent(step, window) == "0.0%"
+        assert TuistWeb.RunnerJobLive.step_bar_width_percent(step, window) == "0.0%"
+      end
+    end
+
+    test "omits geometry when timestamps or a valid window are missing" do
+      step = %{started_at: nil, completed_at: nil}
+      window = %{min: 0, max: 60_000}
+
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(step, window) == nil
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(step, window) == nil
+
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(%{step | started_at: ~U[2026-05-28 10:00:00Z]}, window) ==
+               nil
+
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(step, nil) == nil
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(step, nil) == nil
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(step, %{min: 1, max: 0}) == nil
+    end
+
+    test "clamps out-of-window starts and negative durations" do
+      step = %{started_at: ~U[2026-05-28 10:00:10Z], completed_at: ~U[2026-05-28 10:00:00Z]}
+      timestamp = TuistWeb.RunnerJobLive.step_epoch_ms(step.started_at)
+
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(step, %{min: timestamp + 1, max: timestamp + 2}) == "0.0%"
+      assert TuistWeb.RunnerJobLive.step_bar_offset_percent(step, %{min: timestamp - 2, max: timestamp - 1}) == "100.0%"
+      assert TuistWeb.RunnerJobLive.step_bar_width_percent(step, %{min: timestamp, max: timestamp + 1}) == "0.0%"
+    end
+  end
+
+  test "flags a volume that a failed job filled as the likely cause" do
+    volume = %Volume{id: Ecto.UUID.generate(), key: "gradle-deps"}
+
+    usage = %Usage{
+      volume_id: volume.id,
+      volume: volume,
+      warm: true,
+      size_bytes: 19_427_938_304,
+      capacity_bytes: 19_503_599_616
+    }
+
+    html = render_component(&TuistWeb.RunnerJobLive.job_volumes/1, volumes: [usage], account_name: "org", failed: true)
+    assert html =~ ~s(id="runner-job-volume-full-alert-#{volume.id}")
+    assert html =~ "gradle-deps ran out of space"
+
+    succeeded =
+      render_component(&TuistWeb.RunnerJobLive.job_volumes/1, volumes: [usage], account_name: "org", failed: false)
+
+    refute succeeded =~ ~s(id="runner-job-volume-full-alert-#{volume.id}")
+
+    roomy = %{usage | size_bytes: 10_000_000_000}
+    html = render_component(&TuistWeb.RunnerJobLive.job_volumes/1, volumes: [roomy], account_name: "org", failed: true)
+    refute html =~ ~s(id="runner-job-volume-full-alert-#{volume.id}")
+  end
+
+  test "names managed volumes after the caches they hold" do
+    xcode = %Volume{id: Ecto.UUID.generate(), key: "tuist-xcode"}
+    gradle = %Volume{id: Ecto.UUID.generate(), key: "tuist-gradle"}
+
+    usages =
+      for volume <- [xcode, gradle] do
+        %Usage{
+          volume_id: volume.id,
+          volume: volume,
+          warm: true,
+          size_bytes: 19_427_938_304,
+          capacity_bytes: 19_503_599_616
+        }
+      end
+
+    html = render_component(&TuistWeb.RunnerJobLive.job_volumes/1, volumes: usages, account_name: "org", failed: true)
+
+    assert html =~ "Xcode cache"
+    assert html =~ "Gradle cache ran out of space"
+    refute html =~ "tuist-xcode"
+    refute html =~ "tuist-gradle"
+  end
+
+  defp complete_job_with_logs!(account, workflow_job_id, workflow_run_id, step_names, messages, opts \\ []) do
+    failed_steps = Keyword.get(opts, :failed_steps, [])
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: workflow_job_id,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: workflow_run_id,
+        workflow_name: "CLI",
+        run_attempt: 1,
+        job_name: "Build",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    claimed_at = DateTime.utc_now()
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-x", claimed_at)
+    :ok = WorkflowJobs.transition_running(workflow_job_id, "runner-x", claimed_at)
+    {:ok, _} = Jobs.complete(workflow_job_id, "success")
+
+    :ok =
+      step_names
+      |> Enum.with_index(1)
+      |> Enum.map(fn {name, number} ->
+        %{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          number: number,
+          name: name,
+          status: "completed",
+          conclusion: if(number in failed_steps, do: "failure", else: "success"),
+          started_at: ~U[2026-05-28 12:00:00.000000Z],
+          completed_at: ~U[2026-05-28 12:00:01.000000Z]
+        }
+      end)
+      |> JobSteps.record()
+
+    :ok =
+      messages
+      |> Enum.with_index(1)
+      |> Enum.map(fn {message, line_number} ->
+        %{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          line_number: line_number,
+          ts: ~U[2026-05-28 12:00:00.000000Z],
+          message: message
+        }
+      end)
+      |> JobLogs.append()
+
+    flush_outbox!()
+  end
+
+  defp flush_outbox! do
+    :ok = FlushJobTransitionEventsWorker.perform(%Oban.Job{})
+  end
+end

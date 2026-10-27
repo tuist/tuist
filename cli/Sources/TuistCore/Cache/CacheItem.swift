@@ -1,6 +1,3 @@
-import Foundation
-import Path
-
 public struct CacheItem: Hashable, Equatable, Codable {
     /// Cache items can either come from a local or a remote cache
     public enum Source: Hashable, Equatable, Codable {
@@ -11,44 +8,48 @@ public struct CacheItem: Hashable, Equatable, Codable {
     public let hash: String
     public let source: Source
     public let cacheCategory: RemoteCacheCategory
-    public let buildDuration: TimeInterval?
+    /// Whether a binary taken from the cache carries coverage counters, so a run collecting
+    /// coverage measures its code; nil for a miss, and until the binary has been looked at.
+    public let instrumented: Bool?
 
     public init(
         name: String,
         hash: String,
         source: Source,
         cacheCategory: RemoteCacheCategory,
-        buildDuration: TimeInterval? = nil
+        instrumented: Bool? = nil
     ) {
         self.name = name
         self.hash = hash
         self.source = source
         self.cacheCategory = cacheCategory
-        self.buildDuration = buildDuration
+        self.instrumented = instrumented
+    }
+
+    public func with(instrumented: Bool?) -> CacheItem {
+        CacheItem(name: name, hash: hash, source: source, cacheCategory: cacheCategory, instrumented: instrumented)
     }
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine("cache-item")
         hasher.combine(hash)
     }
-}
 
-#if DEBUG
-    extension CacheItem {
+    #if DEBUG
         public static func test(
             name: String = "Target",
             hash: String = "cache-item-hash",
             source: Source = .local,
             cacheCategory: RemoteCacheCategory = .selectiveTests,
-            buildDuration: TimeInterval? = nil
+            instrumented: Bool? = nil
         ) -> Self {
             .init(
                 name: name,
                 hash: hash,
                 source: source,
                 cacheCategory: cacheCategory,
-                buildDuration: buildDuration
+                instrumented: instrumented
             )
         }
-    }
-#endif
+    #endif
+}

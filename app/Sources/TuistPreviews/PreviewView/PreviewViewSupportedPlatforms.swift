@@ -45,6 +45,8 @@ struct PreviewViewSupportedPlatforms: View {
             return platform.caseValue
         case let .simulator(platform):
             return "\(platform.caseValue) Simulator"
+        case .android:
+            return "Android"
         }
     }
 
@@ -59,6 +61,7 @@ struct PreviewViewSupportedPlatforms: View {
         case .simulator(.visionOS): .deviceVisionProShare
         case .device(.watchOS): .deviceWatch
         case .simulator(.watchOS): .deviceWatchShare
+        case .android: .deviceMobile
         }
     }
 }

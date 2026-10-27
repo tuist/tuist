@@ -5,6 +5,7 @@ import XcodeGraph
 public enum DestinationType: Hashable, Sendable, Codable, Equatable, CustomStringConvertible {
     case simulator(Platform)
     case device(Platform)
+    case android
 
     public func buildProductDestinationPathComponent(
         for configuration: String
@@ -16,6 +17,8 @@ public enum DestinationType: Hashable, Sendable, Codable, Equatable, CustomStrin
             return "\(configuration)-\(platform.xcodeDeviceSDK)"
         case let .simulator(platform):
             return "\(configuration)-\(platform.xcodeSimulatorSDK!)"
+        case .android:
+            return configuration
         }
     }
 
@@ -23,6 +26,8 @@ public enum DestinationType: Hashable, Sendable, Codable, Equatable, CustomStrin
         switch self {
         case let .device(platform), let .simulator(platform):
             return platform.caseValue
+        case .android:
+            return "Android"
         }
     }
 }

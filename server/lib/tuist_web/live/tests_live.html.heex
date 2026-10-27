@@ -1,132 +1,179 @@
 <div id="tests">
-  <.card title={dgettext("dashboard_tests", "Analytics")} icon="chart_arcs" data-part="analytics">
-    <:actions>
-      <.dropdown
-        id="tests-analytics-environment-dropdown"
-        label={@analytics_environment_label}
-        secondary_text={dgettext("dashboard_tests", "Environment:")}
+  <div data-part="filters">
+    <.dropdown
+      :if={schemes?(@selected_project)}
+      id="tests-analytics-scheme-dropdown"
+      label={TuistWeb.TestsLive.test_scheme_label(@analytics_test_scheme)}
+      secondary_text={"#{scheme_label(@selected_project)}:"}
+    >
+      <:search>
+        <input
+          type="text"
+          placeholder={dgettext("dashboard_tests", "Search...")}
+          data-part="search-input"
+        />
+      </:search>
+      <.dropdown_item
+        value="any"
+        label={dgettext("dashboard_tests", "Any")}
+        patch={"?#{Query.put(@uri.query, "analytics-test-scheme", "any")}"}
+        data-selected={@analytics_test_scheme == "any"}
       >
-        <.dropdown_item
-          value="any"
-          label={dgettext("dashboard_tests", "Any")}
-          patch={"?#{Query.put(@uri.query, "analytics-environment", "any")}"}
-          data-selected={@analytics_environment == "any"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
-          value="local"
-          label={dgettext("dashboard_tests", "Local")}
-          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
-          data-selected={@analytics_environment == "local"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
-          value="ci"
-          label={dgettext("dashboard_tests", "CI")}
-          patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
-          data-selected={@analytics_environment == "ci"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-      </.dropdown>
-      <.date_picker
-        id="tests-analytics-date-range-picker"
-        name="analytics-date-range"
-        presets={[
-          %{
-            id: "last-24-hours",
-            label: dgettext("dashboard_tests", "Last 24 hours"),
-            period: {24, :hour}
-          },
-          %{
-            id: "last-7-days",
-            label: dgettext("dashboard_tests", "Last 7 days"),
-            period: {7, :day}
-          },
-          %{
-            id: "last-30-days",
-            label: dgettext("dashboard_tests", "Last 30 days"),
-            period: {30, :day}
-          },
-          %{
-            id: "last-12-months",
-            label: dgettext("dashboard_tests", "Last 12 months"),
-            period: {12, :month}
-          },
-          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
-        ]}
-        selected_preset={@analytics_preset}
-        period={@analytics_period}
-        on_period_change="analytics_period_changed"
-        max={Date.utc_today()}
+        <:right_icon :if={@analytics_test_scheme == "any"}><.check /></:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
+        :for={test_scheme <- @test_schemes}
+        value={test_scheme}
+        label={test_scheme}
+        patch={"?#{Query.put(@uri.query, "analytics-test-scheme", test_scheme)}"}
+        data-selected={@analytics_test_scheme == test_scheme}
       >
-        <:actions>
-          <.button
-            label={dgettext("dashboard_tests", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel",
-                detail: %{id: "tests-analytics-date-range-picker"}
-              )
-            }
-          />
-          <.button
-            label={dgettext("dashboard_tests", "Apply")}
-            phx-click={
-              JS.dispatch("phx:date-picker-apply",
-                detail: %{id: "tests-analytics-date-range-picker"}
-              )
-            }
-          />
-        </:actions>
-      </.date_picker>
-    </:actions>
+        <:right_icon :if={@analytics_test_scheme == test_scheme}><.check /></:right_icon>
+      </.dropdown_item>
+    </.dropdown>
+    <.dropdown
+      id="tests-analytics-environment-dropdown"
+      label={@analytics_environment_label}
+      secondary_text={dgettext("dashboard_tests", "Environment:")}
+    >
+      <.dropdown_item
+        value="any"
+        label={dgettext("dashboard_tests", "Any")}
+        patch={"?#{Query.put(@uri.query, "analytics-environment", "any")}"}
+        data-selected={@analytics_environment == "any"}
+      >
+        <:right_icon :if={@analytics_environment == "any"}><.check /></:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
+        value="ci"
+        label={dgettext("dashboard_tests", "CI")}
+        patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
+        data-selected={@analytics_environment == "ci"}
+      >
+        <:right_icon :if={@analytics_environment == "ci"}><.check /></:right_icon>
+      </.dropdown_item>
+      <.dropdown_item
+        value="local"
+        label={dgettext("dashboard_tests", "Local")}
+        patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
+        data-selected={@analytics_environment == "local"}
+      >
+        <:right_icon :if={@analytics_environment == "local"}><.check /></:right_icon>
+      </.dropdown_item>
+    </.dropdown>
+    <.date_picker
+      id="tests-analytics-date-range-picker"
+      name="analytics-date-range"
+      presets={[
+        %{
+          id: "last-24-hours",
+          label: dgettext("dashboard_tests", "Last 24 hours"),
+          period: {24, :hour}
+        },
+        %{
+          id: "last-7-days",
+          label: dgettext("dashboard_tests", "Last 7 days"),
+          period: {7, :day}
+        },
+        %{
+          id: "last-30-days",
+          label: dgettext("dashboard_tests", "Last 30 days"),
+          period: {30, :day}
+        },
+        %{
+          id: "last-12-months",
+          label: dgettext("dashboard_tests", "Last 12 months"),
+          period: {12, :month}
+        },
+        %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+      ]}
+      selected_preset={@analytics_preset}
+      period={@analytics_period}
+      on_period_change="analytics_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_tests", "Cancel")}
+          variant="secondary"
+          phx-click={
+            JS.dispatch("phx:date-picker-cancel",
+              detail: %{id: "tests-analytics-date-range-picker"}
+            )
+          }
+        />
+        <.button
+          label={dgettext("dashboard_tests", "Apply")}
+          phx-click={
+            JS.dispatch("phx:date-picker-apply",
+              detail: %{id: "tests-analytics-date-range-picker"}
+            )
+          }
+        />
+      </:actions>
+    </.date_picker>
+  </div>
+  <.async_card
+    :let={ready?}
+    results={[
+      @analytics_chart_data,
+      @failed_test_runs_analytics,
+      @flaky_test_runs_analytics,
+      @test_runs_analytics,
+      @test_runs_duration_analytics
+    ]}
+    title={dgettext("dashboard_tests", "Analytics")}
+    icon="chart_arcs"
+    data-part="analytics"
+  >
     <div data-part="widgets">
       <.widget
         title={dgettext("dashboard_tests", "Test runs")}
         legend_color="primary"
         description={dgettext("dashboard_tests", "The total number of test runs.")}
-        value={@test_runs_analytics.count}
+        value={if ready?, do: @test_runs_analytics.result.count}
+        loading={!ready?}
         id="widget-test-runs"
         phx_click="select_widget"
         phx_value_widget="test_run_count"
         selected={@analytics_selected_widget == "test_run_count"}
-        trend_value={@test_runs_analytics.trend}
+        trend_value={if ready?, do: @test_runs_analytics.result.trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
-        empty={@test_runs_analytics.count == 0}
+        empty={ready? && @test_runs_analytics.result.count == 0}
       />
       <.widget
         title={dgettext("dashboard_tests", "Flaky test runs")}
         legend_color="flaky"
         description={dgettext("dashboard_tests", "The number of test runs with flaky tests.")}
-        value={@flaky_test_runs_analytics.count}
+        value={if ready?, do: @flaky_test_runs_analytics.result.count}
+        loading={!ready?}
         id="widget-flaky-test-runs"
         phx_click="select_widget"
         phx_value_widget="flaky_test_run_count"
         selected={@analytics_selected_widget == "flaky_test_run_count"}
-        trend_value={@flaky_test_runs_analytics.trend}
+        trend_value={if ready?, do: @flaky_test_runs_analytics.result.trend}
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
-        empty={@flaky_test_runs_analytics.count == 0}
+        empty={ready? && @flaky_test_runs_analytics.result.count == 0}
       />
       <.widget
         title={dgettext("dashboard_tests", "Failed test runs")}
         legend_color="destructive"
         description={dgettext("dashboard_tests", "The number of test runs that failed.")}
-        value={@failed_test_runs_analytics.count}
+        value={if ready?, do: @failed_test_runs_analytics.result.count}
+        loading={!ready?}
         id="widget-failed-test-runs"
         phx_click="select_widget"
         phx_value_widget="failed_test_run_count"
         selected={@analytics_selected_widget == "failed_test_run_count"}
-        trend_value={@failed_test_runs_analytics.trend}
+        trend_value={if ready?, do: @failed_test_runs_analytics.result.trend}
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
-        empty={@failed_test_runs_analytics.count == 0}
+        empty={ready? && @failed_test_runs_analytics.result.count == 0}
       />
       <.percentile_dropdown_widget
+        loading={!ready?}
         id="widget-test-run-duration"
         title={
           case @selected_duration_type do
@@ -151,52 +198,108 @@
           )
         }
         value={
-          Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-            case @selected_duration_type do
-              "p99" -> @test_runs_duration_analytics.p99
-              "p90" -> @test_runs_duration_analytics.p90
-              "p50" -> @test_runs_duration_analytics.p50
-              _ -> @test_runs_duration_analytics.total_average_duration
-            end
-          )
+          if ready? do
+            Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+              case @selected_duration_type do
+                "p99" -> @test_runs_duration_analytics.result.p99
+                "p90" -> @test_runs_duration_analytics.result.p90
+                "p50" -> @test_runs_duration_analytics.result.p50
+                _ -> @test_runs_duration_analytics.result.total_average_duration
+              end
+            )
+          end
         }
         metrics={
-          %{
-            avg:
-              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @test_runs_duration_analytics.total_average_duration
-              ),
-            p99:
-              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @test_runs_duration_analytics.p99
-              ),
-            p90:
-              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @test_runs_duration_analytics.p90
-              ),
-            p50:
-              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                @test_runs_duration_analytics.p50
-              )
-          }
+          if ready? do
+            %{
+              avg:
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @test_runs_duration_analytics.result.total_average_duration
+                ),
+              p99:
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @test_runs_duration_analytics.result.p99
+                ),
+              p90:
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @test_runs_duration_analytics.result.p90
+                ),
+              p50:
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @test_runs_duration_analytics.result.p50
+                )
+            }
+          end
         }
         selected_type={@selected_duration_type}
         event_name="select_duration_type"
         phx_click="select_widget"
         phx_value_widget="test_run_duration"
         selected={@analytics_selected_widget == "test_run_duration"}
-        trend_value={@test_runs_duration_analytics.trend}
+        trend_value={if ready?, do: @test_runs_duration_analytics.result.trend}
         trend_type={:inverse}
         trend_label={@analytics_trend_label}
-        empty={@test_runs_duration_analytics.total_average_duration == 0}
+        empty={
+          ready? &&
+            @test_runs_duration_analytics.result.total_average_duration == 0
+        }
       />
     </div>
     <.card_section
-      :if={@test_runs_duration_analytics.total_average_duration != 0}
+      :if={!ready?}
       data-part="analytics-card-chart-section"
+      data-chart-frame="standard"
     >
-      <.chart
+      <.skeleton_chart />
+    </.card_section>
+    <.card_section
+      :if={
+        ready? and
+          ((@analytics_selected_widget == "test_run_duration" and
+              @test_runs_duration_analytics.result.total_average_duration != 0) or
+             (@analytics_selected_widget == "test_run_count" and
+                @test_runs_analytics.result.count != 0) or
+             (@analytics_selected_widget == "flaky_test_run_count" and
+                @flaky_test_runs_analytics.result.count != 0) or
+             (@analytics_selected_widget == "failed_test_run_count" and
+                @failed_test_runs_analytics.result.count != 0))
+      }
+      data-part="analytics-card-chart-section"
+      data-chart-frame="standard"
+    >
+      <.chart_type_toggle
         :if={@analytics_selected_widget == "test_run_duration"}
+        id="test-duration"
+        chart_type={@duration_chart_type}
+        chart_type_event="select_duration_chart_type"
+        group_by_options={
+          Enum.filter(
+            [
+              %{value: "scheme", label: scheme_label(@selected_project)},
+              %{value: "environment", label: dgettext("dashboard_tests", "Environment")}
+            ],
+            &(&1.value != "scheme" or schemes?(@selected_project))
+          )
+        }
+        selected_group_by={@duration_scatter_group_by}
+        group_by_query_param="duration-scatter-group-by"
+        uri={@uri}
+      />
+      <div
+        :if={
+          @analytics_selected_widget == "test_run_duration" and
+            (!@test_run_duration_chart.ok? && !@test_run_duration_chart.failed)
+        }
+        data-part="analytics-chart"
+      >
+        <.skeleton_chart />
+      </div>
+      <.chart
+        :if={
+          @analytics_selected_widget == "test_run_duration" and
+            @test_run_duration_chart.ok? and
+            !@test_run_duration_chart.failed and @test_run_duration_chart.result == :line
+        }
         id="test-run-duration-chart"
         type="line"
         extra_options={
@@ -230,8 +333,8 @@
                 color: "var:noora-surface-label-secondary",
                 formatter: "fn:toLocaleDate",
                 customValues: [
-                  @test_runs_duration_analytics.dates |> List.first(),
-                  @test_runs_duration_analytics.dates |> List.last()
+                  @analytics_chart_data.result.dates |> List.first(),
+                  @analytics_chart_data.result.dates |> List.last()
                 ],
                 padding: [10, 0, 0, 0]
               }
@@ -261,8 +364,8 @@
             color: "var:noora-chart-secondary",
             data:
               Enum.zip(
-                @test_runs_duration_analytics.dates,
-                @test_runs_duration_analytics.values
+                @test_runs_duration_analytics.result.dates,
+                @test_runs_duration_analytics.result.values
               )
               |> Enum.map(&Tuple.to_list/1),
             name: dgettext("dashboard_tests", "Average"),
@@ -274,8 +377,8 @@
             color: "var:noora-chart-p99",
             data:
               Enum.zip(
-                @test_runs_duration_analytics.dates,
-                @test_runs_duration_analytics.p99_values
+                @test_runs_duration_analytics.result.dates,
+                @test_runs_duration_analytics.result.p99_values
               )
               |> Enum.map(&Tuple.to_list/1),
             name: dgettext("dashboard_tests", "p99"),
@@ -287,8 +390,8 @@
             color: "var:noora-chart-p90",
             data:
               Enum.zip(
-                @test_runs_duration_analytics.dates,
-                @test_runs_duration_analytics.p90_values
+                @test_runs_duration_analytics.result.dates,
+                @test_runs_duration_analytics.result.p90_values
               )
               |> Enum.map(&Tuple.to_list/1),
             name: dgettext("dashboard_tests", "p90"),
@@ -300,8 +403,8 @@
             color: "var:noora-chart-p50",
             data:
               Enum.zip(
-                @test_runs_duration_analytics.dates,
-                @test_runs_duration_analytics.p50_values
+                @test_runs_duration_analytics.result.dates,
+                @test_runs_duration_analytics.result.p50_values
               )
               |> Enum.map(&Tuple.to_list/1),
             name: dgettext("dashboard_tests", "p50"),
@@ -311,6 +414,25 @@
           }
         ]}
         y_axis_min={0}
+      />
+      <.scatter_chart
+        :if={@analytics_selected_widget == "test_run_duration"}
+        id="test-run-duration-scatter-chart"
+        chart={@test_run_duration_chart}
+        period={@analytics_period}
+        value_format="fn:formatMilliseconds"
+        url_fn={
+          fn point ->
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs/#{point.id}"
+          end
+        }
+        truncation_title={
+          dgettext(
+            "dashboard_tests",
+            "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering by scheme or other properties to narrow down the dataset.",
+            date: scatter_oldest_entry_formatted(@test_run_duration_chart.result)
+          )
+        }
       />
       <.chart
         :if={@analytics_selected_widget == "test_run_count"}
@@ -331,8 +453,8 @@
                 color: "var:noora-surface-label-secondary",
                 formatter: "fn:toLocaleDate",
                 customValues: [
-                  @test_runs_analytics.dates |> List.first(),
-                  @test_runs_analytics.dates |> List.last()
+                  @analytics_chart_data.result.dates |> List.first(),
+                  @analytics_chart_data.result.dates |> List.last()
                 ],
                 padding: [10, 0, 0, 0]
               }
@@ -364,8 +486,8 @@
             color: "var:noora-chart-primary",
             data:
               Enum.zip(
-                @test_runs_analytics.dates,
-                @test_runs_analytics.values
+                @analytics_chart_data.result.dates,
+                @analytics_chart_data.result.values
               )
               |> Enum.map(&Tuple.to_list/1),
             name: dgettext("dashboard_tests", "Test runs"),
@@ -395,8 +517,8 @@
                 color: "var:noora-surface-label-secondary",
                 formatter: "fn:toLocaleDate",
                 customValues: [
-                  @flaky_test_runs_analytics.dates |> List.first(),
-                  @flaky_test_runs_analytics.dates |> List.last()
+                  @analytics_chart_data.result.dates |> List.first(),
+                  @analytics_chart_data.result.dates |> List.last()
                 ],
                 padding: [10, 0, 0, 0]
               }
@@ -428,8 +550,8 @@
             color: "var:noora-chart-flaky",
             data:
               Enum.zip(
-                @flaky_test_runs_analytics.dates,
-                @flaky_test_runs_analytics.values
+                @analytics_chart_data.result.dates,
+                @analytics_chart_data.result.values
               )
               |> Enum.map(&Tuple.to_list/1),
             name: dgettext("dashboard_tests", "Flaky test runs"),
@@ -459,8 +581,8 @@
                 color: "var:noora-surface-label-secondary",
                 formatter: "fn:toLocaleDate",
                 customValues: [
-                  @failed_test_runs_analytics.dates |> List.first(),
-                  @failed_test_runs_analytics.dates |> List.last()
+                  @analytics_chart_data.result.dates |> List.first(),
+                  @analytics_chart_data.result.dates |> List.last()
                 ],
                 padding: [10, 0, 0, 0]
               }
@@ -492,8 +614,8 @@
             color: "var:noora-chart-destructive",
             data:
               Enum.zip(
-                @failed_test_runs_analytics.dates,
-                @failed_test_runs_analytics.values
+                @analytics_chart_data.result.dates,
+                @analytics_chart_data.result.values
               )
               |> Enum.map(&Tuple.to_list/1),
             name: dgettext("dashboard_tests", "Failed test runs"),
@@ -506,123 +628,87 @@
       />
     </.card_section>
     <.empty_card_section
-      :if={@test_runs_duration_analytics.total_average_duration == 0}
+      :if={
+        ready? &&
+          @test_runs_duration_analytics.result.total_average_duration == 0
+      }
       title={dgettext("dashboard_tests", "No data yet")}
+      data-chart-frame="standard"
     >
       <:image>
-        <img src="/images/empty_line_chart_light.png" data-theme="light" />
-        <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+        <img
+          src={~p"/images/empty_line_chart_light.png"}
+          data-theme="light"
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          src={~p"/images/empty_line_chart_dark.png"}
+          data-theme="dark"
+          loading="lazy"
+          decoding="async"
+        />
       </:image>
     </.empty_card_section>
-  </.card>
+  </.async_card>
 
-  <.card
+  <.async_card
+    :let={ready?}
+    :if={Tuist.Projects.Project.xcode_project?(@selected_project)}
+    results={[@selective_testing_analytics]}
     title={dgettext("dashboard_tests", "Selective Testing")}
     icon="subtask"
     data-part="selective-testing"
   >
-    <:actions>
-      <.dropdown
-        id="selective_testing_environment-dropdown"
-        label={@selective_testing_environment_label}
-        secondary_text={dgettext("dashboard_tests", "Environment:")}
-      >
-        <.dropdown_item
-          value="any"
-          label={dgettext("dashboard_tests", "Any")}
-          patch={"?#{Query.put(@uri.query, "selective_testing_environment", "any")}"}
-          data-selected={@selective_testing_environment == "any"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
-          value="local"
-          label={dgettext("dashboard_tests", "Local")}
-          patch={"?#{Query.put(@uri.query, "selective_testing_environment", "local")}"}
-          data-selected={@selective_testing_environment == "local"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-        <.dropdown_item
-          value="ci"
-          label={dgettext("dashboard_tests", "CI")}
-          patch={"?#{Query.put(@uri.query, "selective_testing_environment", "ci")}"}
-          data-selected={@selective_testing_environment == "ci"}
-        >
-          <:right_icon><.check /></:right_icon>
-        </.dropdown_item>
-      </.dropdown>
-      <.date_picker
-        id="selective-testing-date-range-picker"
-        name="selective-testing-date-range"
-        presets={[
-          %{
-            id: "last-24-hours",
-            label: dgettext("dashboard_tests", "Last 24 hours"),
-            period: {24, :hour}
-          },
-          %{
-            id: "last-7-days",
-            label: dgettext("dashboard_tests", "Last 7 days"),
-            period: {7, :day}
-          },
-          %{
-            id: "last-30-days",
-            label: dgettext("dashboard_tests", "Last 30 days"),
-            period: {30, :day}
-          },
-          %{
-            id: "last-12-months",
-            label: dgettext("dashboard_tests", "Last 12 months"),
-            period: {12, :month}
-          },
-          %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
-        ]}
-        selected_preset={@selective_testing_preset}
-        period={@selective_testing_period}
-        on_period_change="selective_testing_period_changed"
-        max={Date.utc_today()}
-      >
-        <:actions>
-          <.button
-            label={dgettext("dashboard_tests", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel",
-                detail: %{id: "selective-testing-date-range-picker"}
-              )
-            }
-          />
-          <.button
-            label={dgettext("dashboard_tests", "Apply")}
-            phx-click={
-              JS.dispatch("phx:date-picker-apply",
-                detail: %{id: "selective-testing-date-range-picker"}
-              )
-            }
-          />
-        </:actions>
-      </.date_picker>
-    </:actions>
     <.card_section
-      :if={@selective_testing_analytics.hit_rate != 0.0}
+      :if={!ready?}
       data-part="selective-testing-chart-section"
+      data-chart-frame="large"
     >
       <div data-part="legends">
-        <.legend
-          title={dgettext("dashboard_tests", "Selective test effectiveness")}
-          value={
-            dgettext("dashboard_tests", "%{selective_test_effectiveness}%",
-              selective_test_effectiveness:
-                (@selective_testing_analytics.hit_rate * 100)
-                |> Decimal.from_float()
-                |> Decimal.round(1)
-            )
-          }
-          style="primary"
+        <.skeleton_legend />
+      </div>
+      <.skeleton_chart />
+    </.card_section>
+    <.card_section
+      :if={ready? && @selective_testing_analytics.result.hit_rate != 0.0}
+      data-part="selective-testing-chart-section"
+      data-chart-frame="large"
+    >
+      <div data-part="legends-and-toggle">
+        <div data-part="legends">
+          <.legend
+            title={dgettext("dashboard_tests", "Selective test effectiveness")}
+            value={
+              dgettext("dashboard_tests", "%{selective_test_effectiveness}%",
+                selective_test_effectiveness:
+                  (@selective_testing_analytics.result.hit_rate * 100)
+                  |> Decimal.from_float()
+                  |> Decimal.round(1)
+              )
+            }
+            style="primary"
+          />
+        </div>
+        <.chart_type_toggle
+          id="selective-testing"
+          chart_type={@selective_testing_chart_type}
+          chart_type_event="select_selective_testing_chart_type"
+          group_by_options={[]}
+          uri={@uri}
         />
       </div>
+      <div
+        :if={!@selective_testing_chart.ok? && !@selective_testing_chart.failed}
+        data-part="analytics-chart"
+      >
+        <.skeleton_chart />
+      </div>
       <.chart
+        :if={
+          @selective_testing_chart.ok? and !@selective_testing_chart.failed and
+            @selective_testing_chart.result == :line
+        }
         id="selective-testing-effectiveness-chart"
         type="line"
         extra_options={
@@ -644,9 +730,8 @@
               itemHeight: 4
             },
             grid: %{
-              width: "93%",
-              left: "0%",
-              right: "7%",
+              width: "97%",
+              left: "0.4%",
               height: "60%",
               top: "10%"
             },
@@ -657,8 +742,8 @@
                 color: "var:noora-surface-label-secondary",
                 formatter: "fn:toLocaleDate",
                 customValues: [
-                  @selective_testing_analytics.dates |> hd(),
-                  @selective_testing_analytics.dates |> List.last()
+                  @selective_testing_analytics.result.dates |> hd(),
+                  @selective_testing_analytics.result.dates |> List.last()
                 ],
                 padding: [10, 0, 0, 0]
               }
@@ -672,7 +757,7 @@
               axisLabel: %{color: "var:noora-surface-label-secondary", formatter: "{value}%"}
             },
             tooltip:
-              if @selective_testing_preset == "last-24-hours" do
+              if @analytics_preset == "last-24-hours" do
                 %{valueFormat: "{value}%", dateFormat: "hour"}
               else
                 %{valueFormat: "{value}%"}
@@ -684,8 +769,8 @@
             color: "var:noora-chart-primary",
             data:
               Enum.zip(
-                @selective_testing_analytics.dates,
-                @selective_testing_analytics.values
+                @selective_testing_analytics.result.dates,
+                @selective_testing_analytics.result.values
                 |> Enum.map(&(&1 * 100))
                 |> Enum.map(&Decimal.from_float/1)
                 |> Enum.map(&Decimal.round(&1, 1))
@@ -700,8 +785,8 @@
             color: "var:noora-chart-p99",
             data:
               Enum.zip(
-                @selective_testing_analytics.dates,
-                @selective_testing_analytics.p99_values
+                @selective_testing_analytics.result.dates,
+                @selective_testing_analytics.result.p99_values
                 |> Enum.map(&(&1 * 100))
                 |> Enum.map(&Decimal.from_float/1)
                 |> Enum.map(&Decimal.round(&1, 1))
@@ -716,8 +801,8 @@
             color: "var:noora-chart-p90",
             data:
               Enum.zip(
-                @selective_testing_analytics.dates,
-                @selective_testing_analytics.p90_values
+                @selective_testing_analytics.result.dates,
+                @selective_testing_analytics.result.p90_values
                 |> Enum.map(&(&1 * 100))
                 |> Enum.map(&Decimal.from_float/1)
                 |> Enum.map(&Decimal.round(&1, 1))
@@ -732,8 +817,8 @@
             color: "var:noora-chart-p50",
             data:
               Enum.zip(
-                @selective_testing_analytics.dates,
-                @selective_testing_analytics.p50_values
+                @selective_testing_analytics.result.dates,
+                @selective_testing_analytics.result.p50_values
                 |> Enum.map(&(&1 * 100))
                 |> Enum.map(&Decimal.from_float/1)
                 |> Enum.map(&Decimal.round(&1, 1))
@@ -748,20 +833,53 @@
         y_axis_min={0}
         y_axis_max={100}
       />
+      <.scatter_chart
+        id="selective-testing-scatter-chart"
+        chart={@selective_testing_chart}
+        period={@analytics_period}
+        value_format="{value}%"
+        y_axis_max={100}
+        narrow_grid
+        truncation_title={
+          dgettext(
+            "dashboard_tests",
+            "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset.",
+            date: scatter_oldest_entry_formatted(@selective_testing_chart.result)
+          )
+        }
+      />
     </.card_section>
     <.empty_card_section
-      :if={@selective_testing_analytics.hit_rate == 0.0}
+      :if={ready? && @selective_testing_analytics.result.hit_rate == 0.0}
       title={dgettext("dashboard_tests", "Selective testing: no data yet")}
-      get_started_href="https://docs.tuist.dev/en/guides/develop/selective-testing"
+      get_started_href="https://tuist.dev/en/docs/guides/features/selective-testing"
+      data-chart-frame="large"
     >
       <:image>
-        <img src="/images/empty_line_chart_light.png" data-theme="light" />
-        <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+        <img
+          src={~p"/images/empty_line_chart_light.png"}
+          data-theme="light"
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          src={~p"/images/empty_line_chart_dark.png"}
+          data-theme="dark"
+          loading="lazy"
+          decoding="async"
+        />
       </:image>
     </.empty_card_section>
-  </.card>
+  </.async_card>
 
-  <.card
+  <.async_card
+    :let={ready?}
+    results={[
+      @failed_test_runs_count,
+      @passed_test_runs_count,
+      @recent_test_runs,
+      @recent_test_runs_chart_data
+    ]}
     title={dgettext("dashboard_tests", "Recent Test Runs")}
     icon="dashboard"
     data-part="recent-test-runs"
@@ -772,20 +890,32 @@
         label={dgettext("dashboard_tests", "View more")}
         size="medium"
         navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
-        disabled={Enum.empty?(@recent_test_runs)}
+        disabled={!@recent_test_runs.ok? || Enum.empty?(@recent_test_runs.result)}
       />
     </:actions>
-    <.card_section :if={not Enum.empty?(@recent_test_runs)} data-part="recent-test-runs-section">
+    <.card_section :if={!ready?} data-part="recent-test-runs-section" data-chart-frame="standard">
+      <div data-part="test-runs-chart">
+        <div data-part="legends">
+          <.skeleton_legend />
+          <.skeleton_legend />
+        </div>
+        <.skeleton_chart />
+      </div>
+    </.card_section>
+    <.card_section
+      :if={ready? && not Enum.empty?(@recent_test_runs.result)}
+      data-part="recent-test-runs-section"
+    >
       <div data-part="test-runs-chart">
         <div data-part="legends">
           <.legend
             title={dgettext("dashboard_tests", "Passed runs")}
-            value={@passed_test_runs_count}
+            value={@passed_test_runs_count.result}
             style="primary"
           />
           <.legend
             title={dgettext("dashboard_tests", "Failed runs")}
-            value={@failed_test_runs_count}
+            value={@failed_test_runs_count.result}
             style="destructive"
           />
         </div>
@@ -807,7 +937,7 @@
               },
               xAxis: %{
                 axisLabel: %{show: false},
-                data: @recent_test_runs_chart_data |> Enum.map(& &1.date)
+                data: @recent_test_runs_chart_data.result |> Enum.map(& &1.date)
               },
               yAxis: %{
                 splitLine: %{
@@ -827,7 +957,7 @@
           }
           series={[
             %{
-              data: @recent_test_runs_chart_data,
+              data: @recent_test_runs_chart_data.result,
               name: "Test Run",
               type: "bar"
             }
@@ -840,7 +970,7 @@
       </div>
       <.table
         id="recent-test-runs-table"
-        rows={@recent_test_runs |> Enum.reverse() |> Enum.take(7)}
+        rows={@recent_test_runs.result |> Enum.reverse() |> Enum.take(7)}
         row_navigate={
           fn test_run ->
             url(
@@ -849,10 +979,8 @@
           end
         }
       >
-        <:col :let={test_run} label={dgettext("dashboard_tests", "Scheme")}>
-          <.text_and_description_cell label={
-            (test_run.scheme !== "" && test_run.scheme) || dgettext("dashboard_tests", "Unknown")
-          } />
+        <:col :let={test_run} label={scheme_label(@selected_project)}>
+          <.text_and_description_cell label={test_run_label(@selected_project, test_run.scheme)} />
         </:col>
         <:col :let={test_run} label="Status">
           <.status_badge_cell
@@ -898,39 +1026,81 @@
       </.table>
     </.card_section>
     <.empty_card_section
-      :if={Enum.empty?(@recent_test_runs)}
+      :if={ready? && Enum.empty?(@recent_test_runs.result)}
       title={dgettext("dashboard_tests", "No data yet")}
-      get_started_href="https://docs.tuist.dev/en/guides/features/insights#tests"
+      get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#tests"
+      data-chart-frame="standard"
     >
       <:image>
-        <img src="/images/empty_bar_chart_light.png" data-theme="light" />
-        <img src="/images/empty_bar_chart_dark.png" data-theme="dark" />
+        <img
+          src={~p"/images/empty_bar_chart_light.png"}
+          data-theme="light"
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          src={~p"/images/empty_bar_chart_dark.png"}
+          data-theme="dark"
+          loading="lazy"
+          decoding="async"
+        />
       </:image>
     </.empty_card_section>
-  </.card>
+  </.async_card>
 
-  <.card title={dgettext("dashboard_tests", "Test Cases")} icon="exchange" data-part="test-cases">
+  <.async_card
+    :let={ready?}
+    results={[@slowest_test_cases, @unranked_test_cases, @most_flaky_test_cases]}
+    title={dgettext("dashboard_tests", "Test Cases")}
+    icon="exchange"
+    data-part="test-cases"
+  >
     <div
-      :if={not Enum.empty?(@slowest_test_cases) or not Enum.empty?(@most_flaky_test_cases)}
+      :if={
+        !ready? or
+          not Enum.empty?(@slowest_test_cases.result) or
+          not Enum.empty?(@unranked_test_cases.result) or
+          not Enum.empty?(@most_flaky_test_cases.result)
+      }
       data-part="test-cases-sections"
     >
       <.card_section
-        :if={not Enum.empty?(@slowest_test_cases)}
+        :if={!ready?}
+        data-part="slowest-test-cases-section"
+        data-chart-frame="standard"
+      >
+        <.skeleton_chart />
+      </.card_section>
+      <.card_section
+        :if={
+          ready? and
+            (@slowest_test_cases.result != [] or @unranked_test_cases.result != [])
+        }
         data-part="slowest-test-cases-section"
       >
         <div data-part="header">
-          <span data-part="title">{dgettext("dashboard_tests", "Slowest test cases")}</span>
+          <span data-part="title">
+            {if @slowest_test_cases.result == [],
+              do: dgettext("dashboard_tests", "Test cases"),
+              else: dgettext("dashboard_tests", "Slowest test cases")}
+          </span>
           <.button
             variant="secondary"
             label={dgettext("dashboard_tests", "View more")}
             size="small"
             navigate={
-              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases?sort_by=avg_duration&sort_order=desc"
+              ~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-cases?sort_by=duration_p50&sort_order=desc"
             }
           />
         </div>
         <div data-part="slowest-test-cases-list">
-          <div :for={test_case <- Enum.take(@slowest_test_cases, 4)} class="test-case-card">
+          <div
+            :for={
+              test_case <-
+                Enum.take(@slowest_test_cases.result ++ @unranked_test_cases.result, 4)
+            }
+            class="test-case-card"
+          >
             <div data-part="header">
               <div data-part="icon">
                 <.clock_hour_4 />
@@ -944,22 +1114,37 @@
                   {Enum.join([test_case.module_name, test_case.suite_name], " • ")}
                 </span>
               </div>
-              <span data-part="duration">
+              <span :if={not is_nil(test_case.duration_p50_ms)} data-part="duration">
                 <.clock_hour_4 />
                 {Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  test_case.avg_duration
+                  test_case.duration_p50_ms
                 )}
               </span>
             </div>
           </div>
-          <div :if={Enum.count(@slowest_test_cases) > 4} data-part="more-card" data-index="two">
+          <div
+            :if={Enum.count(@slowest_test_cases.result ++ @unranked_test_cases.result) > 4}
+            data-part="more-card"
+            data-index="two"
+          >
           </div>
-          <div :if={Enum.count(@slowest_test_cases) > 4} data-part="more-card" data-index="one">
+          <div
+            :if={Enum.count(@slowest_test_cases.result ++ @unranked_test_cases.result) > 4}
+            data-part="more-card"
+            data-index="one"
+          >
           </div>
         </div>
       </.card_section>
       <.card_section
-        :if={not Enum.empty?(@most_flaky_test_cases)}
+        :if={!ready?}
+        data-part="most-flaky-test-cases-section"
+        data-chart-frame="standard"
+      >
+        <.skeleton_chart />
+      </.card_section>
+      <.card_section
+        :if={ready? and not Enum.empty?(@most_flaky_test_cases.result)}
         data-part="most-flaky-test-cases-section"
       >
         <div data-part="header">
@@ -975,7 +1160,7 @@
         </div>
         <div data-part="most-flaky-test-cases-list">
           <div
-            :for={test_case <- Enum.take(@most_flaky_test_cases, 4)}
+            :for={test_case <- Enum.take(@most_flaky_test_cases.result, 4)}
             class="flaky-test-case-card"
           >
             <div data-part="header">
@@ -992,29 +1177,50 @@
                 </span>
               </div>
               <.badge
-                label={to_string(test_case.flaky_runs_count)}
+                label={format_number(test_case.flaky_runs_count)}
                 color="attention"
                 style="light-fill"
                 size="small"
               />
             </div>
           </div>
-          <div :if={Enum.count(@most_flaky_test_cases) > 4} data-part="more-card" data-index="two">
+          <div
+            :if={Enum.count(@most_flaky_test_cases.result) > 4}
+            data-part="more-card"
+            data-index="two"
+          >
           </div>
-          <div :if={Enum.count(@most_flaky_test_cases) > 4} data-part="more-card" data-index="one">
+          <div
+            :if={Enum.count(@most_flaky_test_cases.result) > 4}
+            data-part="more-card"
+            data-index="one"
+          >
           </div>
         </div>
       </.card_section>
     </div>
     <.empty_card_section
-      :if={Enum.empty?(@slowest_test_cases) and Enum.empty?(@most_flaky_test_cases)}
+      :if={
+        ready? and Enum.empty?(@slowest_test_cases.result) and
+          Enum.empty?(@unranked_test_cases.result) and Enum.empty?(@most_flaky_test_cases.result)
+      }
       title={dgettext("dashboard_tests", "No test cases yet")}
-      get_started_href="https://docs.tuist.dev/en/guides/features/insights#tests"
+      get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#tests"
     >
       <:image>
-        <img src="/images/empty_table_light.png" data-theme="light" />
-        <img src="/images/empty_table_dark.png" data-theme="dark" />
+        <img
+          src={~p"/images/empty_table_light.png"}
+          data-theme="light"
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          src={~p"/images/empty_table_dark.png"}
+          data-theme="dark"
+          loading="lazy"
+          decoding="async"
+        />
       </:image>
     </.empty_card_section>
-  </.card>
+  </.async_card>
 </div>

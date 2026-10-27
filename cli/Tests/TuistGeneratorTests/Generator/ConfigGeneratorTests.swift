@@ -65,7 +65,7 @@ struct ConfigGeneratorTests {
             "INFOPLIST_FILE": "$(SRCROOT)/Info.plist",
             "PRODUCT_BUNDLE_IDENTIFIER": "com.test.bundle_id",
             "CODE_SIGN_ENTITLEMENTS": "$(SRCROOT)/Test.entitlements",
-            "SWIFT_VERSION": "5.0",
+            "SWIFT_VERSION": "5",
         ]
 
         let debugSettings: SettingsDictionary = [
@@ -99,6 +99,214 @@ struct ConfigGeneratorTests {
 
         assert(config: customReleaseConfig, contains: commonSettings)
         assert(config: customReleaseConfig, contains: releaseSettings)
+    }
+
+    @Test(.withMockedXcodeController, .inTemporaryDirectory, arguments: [false, true])
+    func generateTargetConfig_excludesPlaceholderFilesOnlyForBuildableFolders(hasBuildableFolders: Bool) async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let target = Target.test(buildableFolders: hasBuildableFolders ? [
+            BuildableFolder(path: directory, exceptions: .init(exceptions: []), resolvedFiles: []),
+        ] : [])
+        let project = Project.test(path: directory, targets: [target])
+
+        try await subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: .default,
+            fileElements: ProjectFileElements(),
+            graphTraverser: GraphTraverser(graph: .test(path: directory)),
+            sourceRootPath: directory
+        )
+
+        let configurations = try #require(pbxTarget.buildConfigurationList).buildConfigurations
+        #expect(!configurations.isEmpty)
+        for configuration in configurations {
+            let expected: BuildSetting? = hasBuildableFolders ? .array(["$(inherited)", ".gitkeep", ".DS_Store"]) : nil
+            #expect(configuration.buildSettings["EXCLUDED_SOURCE_FILE_NAMES"] == expected)
+        }
+    }
+
+    @Test(.withMockedXcodeController, .inTemporaryDirectory)
+    func generateTargetConfig_preservesExistingBuildableFolderExclusions() async throws {
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let target = Target.test(
+            settings: Settings(
+                base: [
+                    "EXCLUDED_SOURCE_FILE_NAMES": "Base.swift",
+                    "EXCLUDED_SOURCE_FILE_NAMES[sdk=iphonesimulator*]": ["Simulator.swift", "Other.swift"],
+                ],
+                configurations: [
+                    .debug: Configuration(settings: ["EXCLUDED_SOURCE_FILE_NAMES": "Debug.swift"]),
+                    .release: Configuration(settings: [:]),
+                ]
+            ),
+            buildableFolders: [BuildableFolder(path: directory, exceptions: .init(exceptions: []), resolvedFiles: [])]
+        )
+        let project = Project.test(path: directory, targets: [target])
+
+        try await subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: .default,
+            fileElements: ProjectFileElements(),
+            graphTraverser: GraphTraverser(graph: .test(path: directory)),
+            sourceRootPath: directory
+        )
+
+        let configurations = try #require(pbxTarget.buildConfigurationList)
+        #expect(configurations.configuration(name: "Debug")?.buildSettings["EXCLUDED_SOURCE_FILE_NAMES"] == .array([
+            "$(inherited)", "Debug.swift", ".gitkeep", ".DS_Store",
+        ]))
+        #expect(configurations.configuration(name: "Release")?.buildSettings["EXCLUDED_SOURCE_FILE_NAMES"] == .array([
+            "$(inherited)", "Base.swift", ".gitkeep", ".DS_Store",
+        ]))
+        for configuration in configurations.buildConfigurations {
+            #expect(configuration.buildSettings["EXCLUDED_SOURCE_FILE_NAMES[sdk=iphonesimulator*]"] == .array([
+                "$(inherited)", "Simulator.swift", "Other.swift", ".gitkeep", ".DS_Store",
+            ]))
+        }
+    }
+
+    @Test(.withMockedXcodeController, .inTemporaryDirectory)
+    func generateTargetConfig_whenXcconfigInsideBuildableFolder_usesAnchoredReference() async throws {
+        // Given
+        let dir = try #require(FileSystem.temporaryTestDirectory)
+        let buildableFolder = dir.appending(component: "App")
+        let configurationsDir = buildableFolder.appending(components: "Supporting", "Configurations")
+        try FileManager.default.createDirectory(at: configurationsDir.url, withIntermediateDirectories: true)
+        let debugXcconfig = configurationsDir.appending(component: "App-Debug.xcconfig")
+        let releaseXcconfig = configurationsDir.appending(component: "App-Release.xcconfig")
+        try "".write(to: debugXcconfig.url, atomically: true, encoding: .utf8)
+        try "".write(to: releaseXcconfig.url, atomically: true, encoding: .utf8)
+
+        let target = Target.test(
+            name: "App",
+            product: .app,
+            settings: Settings(
+                base: [:],
+                configurations: [
+                    .debug: Configuration(settings: [:], xcconfig: debugXcconfig),
+                    .release: Configuration(settings: [:], xcconfig: releaseXcconfig),
+                ]
+            ),
+            buildableFolders: [
+                BuildableFolder(
+                    path: buildableFolder,
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: []
+                ),
+            ]
+        )
+        let project = Project.test(
+            path: dir,
+            sourceRootPath: dir,
+            xcodeProjPath: dir.appending(component: "Project.xcodeproj"),
+            name: "App",
+            settings: .default,
+            targets: [target]
+        )
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
+        let fileElements = ProjectFileElements()
+        let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
+        try fileElements.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // When
+        try await subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: project.settings,
+            fileElements: fileElements,
+            graphTraverser: graphTraverser,
+            sourceRootPath: dir
+        )
+
+        // Then
+        let debugConfig = pbxTarget.buildConfigurationList?.configuration(name: "Debug")
+        #expect(debugConfig?.baseConfiguration == nil)
+        #expect(debugConfig?.baseConfigurationReferenceRelativePath == "Supporting/Configurations/App-Debug.xcconfig")
+        #expect(try #require(debugConfig?.baseConfigurationAnchor).path == "App")
+
+        let releaseConfig = pbxTarget.buildConfigurationList?.configuration(name: "Release")
+        #expect(releaseConfig?.baseConfiguration == nil)
+        #expect(releaseConfig?.baseConfigurationReferenceRelativePath == "Supporting/Configurations/App-Release.xcconfig")
+        #expect(try #require(releaseConfig?.baseConfigurationAnchor).path == "App")
+
+        // No flat file reference is created for the xcconfigs.
+        #expect(fileElements.file(path: debugXcconfig) == nil)
+        #expect(fileElements.file(path: releaseXcconfig) == nil)
+    }
+
+    @Test(.withMockedXcodeController, .inTemporaryDirectory)
+    func generateTargetConfig_whenAggregateTarget_clearsVersioningSystem() async throws {
+        // Given
+        let dir = try #require(FileSystem.temporaryTestDirectory)
+        let target = Target.test(
+            name: "SharedKMP",
+            settings: nil,
+            foreignBuild: ForeignBuild(
+                script: "gradle build",
+                inputs: [],
+                output: .xcframework(
+                    path: dir.appending(component: "SharedKMP.xcframework"),
+                    linking: .dynamic
+                )
+            )
+        )
+        let aggregateTarget = PBXAggregateTarget(
+            name: "SharedKMP",
+            buildConfigurationList: nil,
+            buildPhases: [],
+            buildRules: [],
+            dependencies: [],
+            productName: nil
+        )
+        pbxproj.add(object: aggregateTarget)
+        let projectSettings = Settings.test(
+            configurations: [
+                .debug: Configuration(settings: ["VERSIONING_SYSTEM": "apple-generic"]),
+                .release: Configuration(settings: ["VERSIONING_SYSTEM": "apple-generic"]),
+            ]
+        )
+        let project = Project.test(
+            path: dir,
+            sourceRootPath: dir,
+            xcodeProjPath: dir.appending(component: "Project.xcodeproj"),
+            settings: projectSettings,
+            targets: [target]
+        )
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try await subject.generateTargetConfig(
+            target,
+            project: project,
+            pbxTarget: aggregateTarget,
+            pbxproj: pbxproj,
+            projectSettings: project.settings,
+            fileElements: .init(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: dir
+        )
+
+        // Then
+        let debugConfig = aggregateTarget.buildConfigurationList?.configuration(name: "Debug")
+        #expect(debugConfig?.buildSettings["VERSIONING_SYSTEM"]?.stringValue == "")
+        #expect(debugConfig?.buildSettings["PRODUCT_NAME"] == nil)
+        #expect(debugConfig?.buildSettings["PRODUCT_BUNDLE_IDENTIFIER"] == nil)
+        #expect(debugConfig?.buildSettings["SDKROOT"] == nil)
     }
 
     @Test(
@@ -300,6 +508,66 @@ struct ConfigGeneratorTests {
 
         let testHostSettings: SettingsDictionary = [
             "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/App_dash.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/App_dash",
+            "BUNDLE_LOADER": "$(TEST_HOST)",
+        ]
+
+        assert(config: debugConfig, contains: testHostSettings)
+        assert(config: releaseConfig, contains: testHostSettings)
+    }
+
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func generateTestTargetConfiguration_crossProjectHost() async throws {
+        // Given: Unit test in one project depends on a host app in another project
+        let dir = try #require(FileSystem.temporaryTestDirectory)
+
+        let hostAppTarget = Target.test(
+            name: "SharedTestHost",
+            destinations: .iOS,
+            product: .app
+        )
+        let testTarget = Target.test(name: "Test", destinations: .iOS, product: .unitTests)
+
+        let hostProjectPath = dir.appending(component: "SharedTestHost")
+        let featureProjectPath = dir.appending(component: "FeatureA")
+
+        let hostProject = Project.test(path: hostProjectPath, name: "SharedTestHost", targets: [hostAppTarget])
+        let featureProject = Project.test(path: featureProjectPath, name: "FeatureA", targets: [testTarget])
+
+        let graph = Graph.test(
+            name: featureProject.name,
+            path: featureProject.path,
+            projects: [hostProjectPath: hostProject, featureProjectPath: featureProject],
+            dependencies: [
+                GraphDependency.target(
+                    name: testTarget.name,
+                    path: featureProjectPath
+                ): Set([.target(name: hostAppTarget.name, path: hostProjectPath)]),
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        _ = try await subject.generateTargetConfig(
+            testTarget,
+            project: featureProject,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: featureProject.settings,
+            fileElements: .init(),
+            graphTraverser: graphTraverser,
+            sourceRootPath: featureProjectPath
+        )
+
+        // Then
+        let configurationList = pbxTarget.buildConfigurationList
+        let debugConfig = configurationList?.configuration(name: "Debug")
+        let releaseConfig = configurationList?.configuration(name: "Release")
+
+        let testHostSettings: SettingsDictionary = [
+            "TEST_HOST":
+                "$(BUILT_PRODUCTS_DIR)/SharedTestHost.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SharedTestHost",
             "BUNDLE_LOADER": "$(TEST_HOST)",
         ]
 
@@ -582,7 +850,6 @@ struct ConfigGeneratorTests {
             "TARGETED_DEVICE_FAMILY": "1,2,6",
             "IPHONEOS_DEPLOYMENT_TARGET": "13.1",
             "SUPPORTS_MACCATALYST": "YES",
-            "DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER": "YES",
             "SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD": "NO",
             "SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD": "NO",
         ]
@@ -999,7 +1266,7 @@ struct ConfigGeneratorTests {
     @Test(
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateTargetConfig_addsTheLoadPluginExecutableSwiftFlag_when_tagetDependsOnMacroStaticFramework(
+    ) func generateTargetConfig_doesntAddExplicitCompilerFlags_when_targetDependsOnSourceMacro(
     ) async throws {
         // Given
         let projectSettings = Settings.default
@@ -1031,18 +1298,89 @@ struct ConfigGeneratorTests {
         )
 
         // Then
-        let targetSettingsResult = pbxTarget
+        let targetSettings = pbxTarget
             .buildConfigurationList?
             .buildConfigurations
             .first { $0.name == "Debug" }?
             .buildSettings
-            .toSettings()["OTHER_SWIFT_FLAGS"]
+            .toSettings()
+        #expect(targetSettings?["OTHER_SWIFT_FLAGS"] == nil)
+        #expect(targetSettings?["SWIFT_LOAD_BINARY_MACROS"] == nil)
+    }
+
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func generateTargetConfig_addsNativeMacroImplementationSettings_toMacroTarget() async throws {
+        // Given
+        let projectSettings = Settings.default
+        let macro = Target.test(name: "MacroImplementation", platform: .macOS, product: .macro)
+        let project = Project.test(targets: [macro])
+        let graph = Graph.test(path: project.path, projects: [project.path: project])
+
+        // When
+        try await subject.generateTargetConfig(
+            macro,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: projectSettings,
+            fileElements: ProjectFileElements(),
+            graphTraverser: GraphTraverser(graph: graph),
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let targetSettings = pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()
+        #expect(targetSettings?["EAGER_COMPILATION_DISABLE"] == "YES")
+        #expect(targetSettings?["SDKROOT"] == "auto")
+        #expect(targetSettings?["SKIP_BUILDING_DOCUMENTATION"] == "YES")
+        #expect(targetSettings?["SUPPORTED_PLATFORMS"] == "$(HOST_PLATFORM)")
+        #expect(targetSettings?["SWIFT_IMPLEMENTS_MACROS_FOR_MODULE_NAMES"] == "$(PRODUCT_MODULE_NAME)")
+        #expect(targetSettings?["SWIFT_INSTALL_MODULE"] == "NO")
+    }
+
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func generateTargetConfig_usesNativeBinaryMacroSetting_when_targetDependsOnPrecompiledMacro() async throws {
+        // Given
+        let projectSettings = Settings.default
+        let app = Target.test(name: "app", platform: .iOS, product: .app)
+        let project = Project.test(targets: [app])
+        let macroPath = try AbsolutePath(validating: "/cache/MacroImplementation.macro")
+        let graph = Graph.test(path: project.path, projects: [project.path: project], dependencies: [
+            .target(name: app.name, path: project.path): Set([.macro(path: macroPath)]),
+        ])
+
+        // When
+        try await subject.generateTargetConfig(
+            app,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: projectSettings,
+            fileElements: ProjectFileElements(),
+            graphTraverser: GraphTraverser(graph: graph),
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let targetSettings = pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()
+        #expect(targetSettings?["OTHER_SWIFT_FLAGS"] == nil)
         #expect(
-            targetSettingsResult ==
-                .array([
-                    "-load-plugin-executable",
-                    "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)#\(macroExecutable.productName)",
-                ])
+            targetSettings?["SWIFT_LOAD_BINARY_MACROS"] ==
+                "\(macroPath.pathString)#MacroImplementation"
         )
     }
 
@@ -1396,7 +1734,7 @@ struct ConfigGeneratorTests {
     private func generateProjectConfig(config _: BuildConfiguration) async throws {
         let dir = try #require(FileSystem.temporaryTestDirectory)
         let xcconfigsDir = dir.appending(component: "xcconfigs")
-        try FileHandler.shared.createFolder(xcconfigsDir)
+        try await FileSystem().makeDirectory(at: xcconfigsDir)
         try "".write(to: xcconfigsDir.appending(component: "debug.xcconfig").url, atomically: true, encoding: .utf8)
         try "".write(to: xcconfigsDir.appending(component: "release.xcconfig").url, atomically: true, encoding: .utf8)
 
@@ -1430,7 +1768,7 @@ struct ConfigGeneratorTests {
     private func generateTargetConfig() async throws {
         let dir = try #require(FileSystem.temporaryTestDirectory)
         let xcconfigsDir = dir.appending(component: "xcconfigs")
-        try FileHandler.shared.createFolder(xcconfigsDir)
+        try await FileSystem().makeDirectory(at: xcconfigsDir)
         try "".write(to: xcconfigsDir.appending(component: "debug.xcconfig").url, atomically: true, encoding: .utf8)
         try "".write(to: xcconfigsDir.appending(component: "release.xcconfig").url, atomically: true, encoding: .utf8)
         let configurations: [BuildConfiguration: Configuration?] = [

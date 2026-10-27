@@ -46,7 +46,7 @@ struct SettingsMapper {
 
         return try map(
             settings: platformSettings,
-            headerSearchPaths: headerSearchPaths
+            headerSearchPaths: platform == nil ? headerSearchPaths : []
         )
     }
 
@@ -68,12 +68,13 @@ struct SettingsMapper {
         for setting in settings {
             switch (setting.tool, setting.name) {
             case (.swift, .defaultIsolation):
-                // Map SPM defaultIsolation to SWIFT_DEFAULT_ACTOR_ISOLATION
-                // nil -> "nonisolated", MainActor.self -> "main-actor"
-                if setting.value == ["nonisolated"] || setting.value == ["nil"] {
+                switch setting.value {
+                case ["nonisolated"], ["nil"]:
                     settingsDictionary["SWIFT_DEFAULT_ACTOR_ISOLATION"] = "nonisolated"
-                } else if setting.value.contains("MainActor") || setting.value == ["main-actor"] {
-                    settingsDictionary["SWIFT_DEFAULT_ACTOR_ISOLATION"] = "main-actor"
+                case ["MainActor"], ["MainActor.self"], ["main-actor"]:
+                    settingsDictionary["SWIFT_DEFAULT_ACTOR_ISOLATION"] = "MainActor"
+                default:
+                    break
                 }
             case (_, .defaultIsolation):
                 break
@@ -104,6 +105,25 @@ struct SettingsMapper {
                 swiftFlags.append(contentsOf: setting.value)
             case (.swift, .disableWarning):
                 swiftFlags.append("-Wno-\(setting.value[0])")
+            case (.c, .treatAllWarnings):
+                cFlags.append(setting.treatAllWarningsFlag(errorFlag: "-Werror", warningFlag: "-Wno-error"))
+            case (.cxx, .treatAllWarnings):
+                cxxFlags.append(setting.treatAllWarningsFlag(errorFlag: "-Werror", warningFlag: "-Wno-error"))
+            case (.swift, .treatAllWarnings):
+                swiftFlags.append(setting.treatAllWarningsFlag(
+                    errorFlag: "-warnings-as-errors",
+                    warningFlag: "-no-warnings-as-errors"
+                ))
+            case (.c, .treatWarning):
+                cFlags.append(setting.treatWarningFlag(errorPrefix: "-Werror=", warningPrefix: "-Wno-error="))
+            case (.cxx, .treatWarning):
+                cxxFlags.append(setting.treatWarningFlag(errorPrefix: "-Werror=", warningPrefix: "-Wno-error="))
+            case (.swift, .treatWarning):
+                swiftFlags.append(contentsOf: setting.treatSwiftWarningFlags())
+            case (.c, .enableWarning):
+                cFlags.append("-W\(setting.value[0])")
+            case (.cxx, .enableWarning):
+                cxxFlags.append("-W\(setting.value[0])")
             case (.swift, .enableUpcomingFeature):
                 swiftFlags.append("-enable-upcoming-feature \"\(setting.value[0])\"")
             case (.swift, .enableExperimentalFeature):
@@ -115,11 +135,10 @@ struct SettingsMapper {
                     swiftFlags.append("-Werror=StrictMemorySafety")
                 }
             case (.swift, .swiftLanguageMode):
-                // TODO: Use -language-mode instead of -swift-version when Xcode 15 support is removed.
-                // https://github.com/swiftlang/swift-evolution/blob/main/proposals/0441-formalize-language-mode-terminology.md#swift-compiler-option
-                swiftFlags.append("-swift-version \(setting.value[0])")
-
-                // Control the language mode for an Xcode project or target by setting the XCConfig SWIFT_VERSION
+                // Control the language mode by setting SWIFT_VERSION. Passing -swift-version alongside it is
+                // redundant and triggers a warning in Xcode 27 (SR / Swift evolution SE-0441):
+                // "language mode was overridden by extra Swift flags and may be inconsistent with code
+                // generated during the build".
                 // https://www.swift.org/migration/documentation/swift-6-concurrency-migration-guide/swift6mode
                 settingsDictionary["SWIFT_VERSION"] = "\(setting.value[0])"
             case (.linker, .unsafeFlags):
@@ -131,7 +150,8 @@ struct SettingsMapper {
                  (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
                  (.linker, .headerSearchPath), (.linker, .define), (.linker, .disableWarning),
                  (_, .enableUpcomingFeature), (_, .enableExperimentalFeature), (_, .swiftLanguageMode),
-                 (_, .strictMemorySafety):
+                 (_, .strictMemorySafety), (.linker, .treatAllWarnings), (.linker, .treatWarning),
+                 (.swift, .enableWarning), (.linker, .enableWarning):
                 throw PackageInfoMapperError.unsupportedSetting(setting.tool, setting.name)
             }
         }
@@ -177,18 +197,19 @@ struct SettingsMapper {
         -> [PackageInfo.Target.TargetBuildSettingDescription.Setting]
     {
         settings.filter { setting in
-            if let platformName, setting.hasConditions {
-                let hasMacCatalystPlatform = setting.condition?.platformNames.contains("maccatalyst") == true
-                let platformNames: [String]
-                if hasMacCatalystPlatform {
-                    platformNames = (setting.condition?.platformNames ?? []) + ["ios"]
-                } else {
-                    platformNames = setting.condition?.platformNames ?? []
-                }
-                return platformNames.contains(platformName)
-            } else {
+            guard let platformName else {
                 return !setting.hasConditions
             }
+            guard setting.hasConditions else { return false }
+
+            let hasMacCatalystPlatform = setting.condition?.platformNames.contains("maccatalyst") == true
+            let platformNames: [String]
+            if hasMacCatalystPlatform {
+                platformNames = (setting.condition?.platformNames ?? []) + ["ios"]
+            } else {
+                platformNames = setting.condition?.platformNames ?? []
+            }
+            return platformNames.contains(platformName)
         }
     }
 }
@@ -202,5 +223,19 @@ extension PackageInfo.Target.TargetBuildSettingDescription.Setting {
         } else {
             return (name: define, value: "1")
         }
+    }
+
+    fileprivate func treatAllWarningsFlag(errorFlag: String, warningFlag: String) -> String {
+        value[0] == "error" ? errorFlag : warningFlag
+    }
+
+    fileprivate func treatWarningFlag(errorPrefix: String, warningPrefix: String) -> String {
+        let prefix = value[1] == "error" ? errorPrefix : warningPrefix
+        return "\(prefix)\(value[0])"
+    }
+
+    fileprivate func treatSwiftWarningFlags() -> [String] {
+        let flag = value[1] == "error" ? "-Werror" : "-Wwarning"
+        return [flag, value[0]]
     }
 }

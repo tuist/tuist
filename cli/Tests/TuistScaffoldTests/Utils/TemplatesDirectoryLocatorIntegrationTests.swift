@@ -24,7 +24,7 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
     func test_locate_when_a_templates_and_git_directory_exists() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Templates", "this/.git"])
+        try await createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Templates", "this/.git"])
 
         // When
         let got = try await subject
@@ -40,7 +40,7 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
     func test_locate_when_a_templates_directory_exists() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Templates"])
+        try await createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Templates"])
 
         // When
         let got = try await subject
@@ -56,7 +56,7 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
     func test_locate_when_a_git_directory_exists() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/directory", "this/.git", "this/Tuist/Templates"])
+        try await createFolders(["this/is/a/very/nested/directory", "this/.git", "this/Tuist/Templates"])
 
         // When
         let got = try await subject
@@ -72,7 +72,7 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
     func test_locate_when_multiple_tuist_directories_exists() async throws {
         // Given
         let temporaryDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/Tuist/Templates", "this/is/Tuist/Templates"])
+        try await createFolders(["this/is/a/very/nested/Tuist/Templates", "this/is/Tuist/Templates"])
         let paths = [
             "this/is/a/very/directory",
             "this/is/a/very/nested/directory",

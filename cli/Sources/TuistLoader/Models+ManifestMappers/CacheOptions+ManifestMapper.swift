@@ -1,5 +1,7 @@
 import ProjectDescription
+import TuistConfig
 import TuistCore
+import TuistLogging
 import TuistSupport
 
 enum CacheOptionsManifestMapperError: FatalError, Equatable {
@@ -34,11 +36,11 @@ enum CacheOptionsManifestMapperError: FatalError, Equatable {
     }
 }
 
-extension TuistCore.CacheOptions {
+extension TuistConfig.CacheOptions {
     static func from(
         manifest: ProjectDescription.Config.CacheOptions
     ) throws -> Self {
-        let profiles = TuistCore.CacheProfiles.from(manifest: manifest.profiles)
+        let profiles = TuistConfig.CacheProfiles.from(manifest: manifest.profiles)
 
         // Validate that custom profile names don't use reserved built-in names
         let reservedNames = Set(BaseCacheProfile.allCases.map(\.rawValue))
@@ -54,14 +56,17 @@ extension TuistCore.CacheOptions {
             )
         }
 
+        let storages = manifest.storages.map { TuistConfig.CacheStorageOption.from(manifest: $0) }
+
         return .init(
             keepSourceTargets: manifest.keepSourceTargets,
-            profiles: profiles
+            profiles: profiles,
+            storages: storages
         )
     }
 }
 
-extension TuistCore.CacheProfiles {
+extension TuistConfig.CacheProfiles {
     static func from(
         manifest: ProjectDescription.CacheProfiles
     ) -> Self {
@@ -72,7 +77,7 @@ extension TuistCore.CacheProfiles {
     }
 }
 
-extension TuistCore.CacheProfile {
+extension TuistConfig.CacheProfile {
     static func from(
         manifest: ProjectDescription.CacheProfile
     ) -> Self {
@@ -84,7 +89,7 @@ extension TuistCore.CacheProfile {
     }
 }
 
-extension TuistCore.BaseCacheProfile {
+extension TuistConfig.BaseCacheProfile {
     static func from(
         manifest: ProjectDescription.BaseCacheProfile
     ) -> Self {
@@ -96,7 +101,7 @@ extension TuistCore.BaseCacheProfile {
     }
 }
 
-extension TuistCore.CacheProfileType {
+extension TuistConfig.CacheProfileType {
     static func from(
         manifest: ProjectDescription.CacheProfileType
     ) -> Self {
@@ -109,7 +114,18 @@ extension TuistCore.CacheProfileType {
     }
 }
 
-extension TuistCore.TargetQuery {
+extension TuistConfig.CacheStorageOption {
+    static func from(
+        manifest: ProjectDescription.Tuist.CacheStorageOption
+    ) -> Self {
+        switch manifest {
+        case .local: return .local
+        case .remote: return .remote
+        }
+    }
+}
+
+extension TuistConfig.TargetQuery {
     static func from(
         manifest: ProjectDescription.TargetQuery
     ) -> Self {

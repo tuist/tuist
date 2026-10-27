@@ -1,0 +1,381 @@
+---
+{
+  "title": "Self-hosting",
+  "titleTemplate": ":title | Cache | Guides | Tuist",
+  "description": "Learn how to self-host Tuist cache nodes and replicate with the Tuist-hosted mesh."
+}
+---
+
+# Self-host Cache {#self-host-cache}
+
+Tuist's cache runs as a **mesh of nodes** that replicate artifacts to each other. You can run your own cache nodes on your infrastructure so the cache sits next to your developers and CI, cutting the network distance that would otherwise eat into the speed caching is meant to provide.
+
+A self-hosted node is a single container (`ghcr.io/tuist/kura`) that stores artifacts on local disk and, when it joins a peer mesh, talks to the rest of that mesh over the internal peer port. Tuist acts as the **control plane**: it authenticates traffic, provisions managed cache capacity, and meters usage. It never reaches into your nodes.
+
+> [!NOTE]
+> Self-hosting cache nodes requires an **Enterprise plan**.
+>
+> Nodes connect to either the hosted Tuist server (`https://tuist.dev`) or a self-hosted Tuist server. Self-hosting the Tuist server itself requires a separate server license. See the <.localized_link href="/guides/server/self-host/server">server self-hosting guide</.localized_link>.
+
+## Two topologies {#topologies}
+
+There are two ways to run self-hosted nodes, and which one you get depends entirely on whether your account also runs a **Tuist-managed** cache region.
+
+### Bridged: Tuist-hosted mesh + your nodes {#topology-bridged}
+
+Your account runs at least one Tuist-managed cache region, and your self-hosted nodes **join that mesh**. Writes against your nodes propagate continuously into the managed mesh, and a node warms from the managed mesh's existing cache when it joins. This puts a low-latency cache next to your runners (which do most of the writing) while their writes feed the shared cache. Note that new artifacts written elsewhere in the managed mesh **after** a node has joined are not yet continuously propagated back to it; that is a planned enhancement.
+
+This is the right choice when you want the speed of an on-prem cache without giving up the shared, always-on managed cache.
+
+### Standalone: your nodes only {#topology-standalone}
+
+Your account runs **no** managed cache region. Your nodes form their own isolated mesh on your infrastructure. Tuist still knows your nodes exist (so usage is metered), but **no data is exchanged with any Tuist-managed mesh**, because there isn't one. Peer membership and replication happen entirely within your own nodes.
+
+```mermaid
+graph LR
+  subgraph Bridged
+    direction LR
+    M[Tuist-managed mesh] <-->|replicate| N1[Your node]
+  end
+  subgraph Standalone
+    direction LR
+    N2[Your node] <-->|replicate| N3[Your node]
+  end
+```
+
+The key difference in configuration is that the **bridged** topology uses **enrollment**, where the node generates its keypair on boot and Tuist issues its mesh certificate, while the **standalone** topology has no Tuist-issued mesh certificate. A single standalone node can run with peer TLS disabled; a multi-node standalone mesh uses peer TLS material that you provide.
+
+## Configure the CLI endpoint {#cli-endpoint}
+
+Tuist’s managed cache uses `https://<account>.cache.tuist.dev`. With a self-hosted Tuist server, the CLI retrieves the cache URL from the server’s `TUIST_CACHE_ENDPOINTS` setting. Set it to the URL of your main cache server or load balancer. If it contains multiple URLs, the first is used.
+
+When connecting private/custom cache nodes to the **hosted Tuist server**, configure an explicit endpoint in developer shells and CI:
+
+```sh
+export TUIST_CACHE_ENDPOINT=https://cache.example.com
+```
+
+This override takes precedence on either server type and is optional for a self-hosted Tuist server. For the Xcode cache daemon, rerun `tuist setup cache` after setting it so the LaunchAgent receives the updated environment. For multiple nodes, use your load balancer or DNS routing name.
+
+## Prerequisites {#prerequisites}
+
+
+- Docker and Docker Compose (or any container runtime)
+- A running Tuist server (hosted or self-hosted)
+- Disk for the cache. A bridged node pulls the account's **entire** mesh on first join, so size the data volume accordingly.
+
+## Provide a control-plane client {#control-plane-client}
+
+A node uses a control-plane client credential to authenticate cache requests (token introspection), report to the dashboard, and deliver usage. It is **not** how clients are routed to your nodes on a self-hosted Tuist server (see [How clients reach your nodes](#routing)).
+
+For a fully self-hosted deployment, generate a **UUID client ID** and a random secret, then configure the same pair on the Tuist server and on each Kura node:
+
+```bash
+KURA_CONTROL_PLANE_CLIENT_ID="$(uuidgen | tr '[:upper:]' '[:lower:]')"
+KURA_CONTROL_PLANE_CLIENT_SECRET="$(openssl rand -base64 32)"
+```
+
+Set those values as `KURA_CONTROL_PLANE_CLIENT_ID` and `KURA_CONTROL_PLANE_CLIENT_SECRET` in the Tuist server environment, then use the same values in the Kura configuration below. Registration heartbeats include `KURA_TENANT_ID`, the account's permanent cache identity, so the server can attach the node to the right account even after an account rename.
+
+> [!WARNING]
+> The client ID must be a UUID without a `kura_` prefix. Non-UUID IDs cause token introspection to fail with HTTP `400`, even when the credentials match on both services.
+
+If you are connecting to the hosted `tuist.dev` server, or if you want a per-account credential that can be rotated from the UI, open the account's **Cache** page, choose **Generate credential**, and copy the `client_id` plus the one-time `secret`. On the hosted server, generating a self-hosted-node credential requires an Enterprise plan.
+
+## Choose the permanent tenant {#permanent-tenant}
+
+`KURA_TENANT_ID` is a permanent storage and peer identity, initially derived from the account's original handle. For an account that has never been renamed, it matches the current handle. **Keep its original value after an account rename**, including when adding replacement nodes or another node to the same mesh. For example, renaming `original` to `renamed` leaves `KURA_TENANT_ID=original` on every node. Changing it selects a different object-key namespace; renaming the account does not migrate stored artifacts or peer identity.
+
+Replace `<permanent-kura-tenant>` in the examples below with this value. Reuse the tenant from an existing correctly configured node, or the `tenant_id` returned by enrollment. An operator of a self-hosted Tuist server can inspect the account's `kura_tenant_id` database field. Do not infer the value from a renamed account's URL.
+
+With a valid deployment-level control-plane credential, registration and peer discovery return **409 Conflict** with `error: "tenant_mismatch"` and `expected_tenant_id` if the node supplies a current or retained handle that differs from its permanent tenant. They do not register the node or silently substitute a different storage identity. Invalid credentials and unknown tenants still return **401 Unauthorized** without disclosing a tenant. If a node has already written data with a different tenant, review its configuration and storage history before changing it; the error response does not perform a storage migration.
+
+## How clients reach your nodes {#routing}
+
+Configure the cache URL [above](#cli-endpoint) so developer machines and CI can reach your nodes. To report each node’s address and readiness in the dashboard, set `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL` on the node.
+
+## Bridged setup {#bridged-setup}
+
+The node enrolls on boot: it generates a keypair locally (the private key never leaves your infrastructure), sends a certificate signing request, and receives its signed certificate, the account CA, and the managed mesh's gateway address. **You do not provide any TLS material**. Enrollment writes it into the mounted volume.
+
+```yaml
+# docker-compose.yml
+services:
+  kura:
+    image: ghcr.io/tuist/kura:<version>
+    restart: unless-stopped
+    ports:
+      - "4000:4000"   # HTTP cache: your developers and CI point here
+      - "7443:7443"   # mesh peer port
+    environment:
+      # Enroll and join the managed mesh
+      KURA_ENROLL_ON_BOOT: "1"
+      KURA_CONTROL_PLANE_URL: "https://tuist.dev"
+      KURA_CONTROL_PLANE_CLIENT_ID: "<client_id>"
+      KURA_CONTROL_PLANE_CLIENT_SECRET: "<secret>"
+      KURA_TENANT_ID: "<permanent-kura-tenant>"
+
+      # Report the node’s address and readiness to the dashboard
+      KURA_REGISTRATION_URL: "https://tuist.dev/_internal/kura/mesh/registrations"
+      KURA_ADVERTISED_HTTP_URL: "https://kura.acme.internal"   # where your CLI/CI reach the cache
+      KURA_NODE_URL: "https://kura.acme.internal:7443"         # this node's peer identity on your network
+      KURA_REGION: "office"
+
+      # Ports and storage. KURA_PORT serves both the HTTP cache API and REAPI
+      # gRPC (h2c) on one listener. Enrollment writes the TLS files into
+      # KURA_INTERNAL_TLS_* on first boot.
+      KURA_PORT: "4000"
+      KURA_INTERNAL_PORT: "7443"
+      KURA_INTERNAL_TLS_CA_CERT_PATH: "/tls/ca.pem"
+      KURA_INTERNAL_TLS_CERT_PATH: "/tls/tls.crt"
+      KURA_INTERNAL_TLS_KEY_PATH: "/tls/tls.key"
+      KURA_DATA_DIR: "/var/cache/kura"
+      KURA_TMP_DIR: "/var/cache/kura/tmp"
+      KURA_OTEL_SERVICE_NAME: "kura-acme"
+      KURA_OTEL_DEPLOYMENT_ENVIRONMENT: "onprem"
+
+      # Authenticate the HTTP cache API. The Tuist hook ships in the image at
+      # this path; it introspects each token against the control plane using the
+      # control-plane client above, so only valid Tuist tokens for this account
+      # can read or write. No JWT verifier secret is involved.
+      KURA_AUTH_ENABLED: "1"
+      KURA_AUTH_TUIST_URL: "https://tuist.dev"
+    volumes:
+      - kura-tls:/tls            # empty; enrollment populates it
+      - kura-data:/var/cache/kura
+volumes:
+  kura-tls: {}
+  kura-data: {}
+```
+
+What you provide: the control-plane client, the two addresses (`KURA_NODE_URL`, `KURA_ADVERTISED_HTTP_URL`) on your network, and two empty writable volumes. Everything else (the keypair, the certificate, the account CA, and the managed mesh's address) is provisioned automatically on boot.
+
+## Standalone setup {#standalone-setup}
+
+With no managed region there is no Tuist-issued mesh CA, so enrollment does not apply (the enroll endpoint returns `503 ca_unavailable`). The node uses your Tuist server for token authentication, dashboard registration heartbeats, and usage reporting.
+
+```yaml
+# docker-compose.yml for a single node connected to a self-hosted Tuist server
+services:
+  kura:
+    image: ghcr.io/tuist/kura:<version>
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+      - "7443:7443"
+    environment:
+      KURA_TENANT_ID: "<permanent-kura-tenant>"
+      KURA_NODE_URL: "http://kura-1.acme.internal:7443"
+      KURA_PEERS: ""   # single node: disable static peer discovery
+      KURA_REGION: "office"
+
+      # Authenticate cache requests against the self-hosted Tuist server.
+      # Use the same values configured on the Tuist server, or a per-account
+      # credential from the Cache page.
+      KURA_CONTROL_PLANE_CLIENT_ID: "<client_id>"
+      KURA_CONTROL_PLANE_CLIENT_SECRET: "<secret>"
+      KURA_AUTH_ENABLED: "1"
+      KURA_AUTH_TUIST_URL: "https://tuist.acme.internal"
+
+      # Register the client-facing cache URL with the Tuist server.
+      KURA_REGISTRATION_URL: "https://tuist.acme.internal/_internal/kura/mesh/registrations"
+      KURA_ADVERTISED_HTTP_URL: "https://kura.acme.internal"
+
+      KURA_PORT: "4000"
+      KURA_INTERNAL_PORT: "7443"
+      KURA_DATA_DIR: "/var/cache/kura"
+      KURA_TMP_DIR: "/var/cache/kura/tmp"
+      KURA_OTEL_SERVICE_NAME: "kura-acme"
+      KURA_OTEL_DEPLOYMENT_ENVIRONMENT: "onprem"
+    volumes:
+      - kura-data:/var/cache/kura
+volumes:
+  kura-data: {}
+```
+
+For a single node, leave peer TLS unset and set `KURA_PEERS` to an empty string. When `KURA_PEERS` is unset, Kura seeds static peer discovery from `KURA_NODE_URL` and periodically checks that URL's `/_internal/status` endpoint. With peer TLS disabled, `KURA_NODE_URL` must use the `http://` scheme even when the node is reachable through a private network name.
+
+`KURA_CONTROL_PLANE_URL` is not needed in this example because authorization and the usage reporter both use `KURA_AUTH_TUIST_URL` as the Tuist base URL. `KURA_ADVERTISED_HTTP_URL` identifies the node’s client-facing address in the dashboard. Set `TUIST_CACHE_ENDPOINTS=https://kura.acme.internal` on the Tuist server so the CLI uses that address for cache requests.
+
+### Kubernetes with Helm {#standalone-helm}
+
+If your self-hosted Tuist server runs on Kubernetes, install Kura with the standalone Kura chart and pass the same control-plane settings through `extraEnv`. The Tuist server chart does not install this Kura chart as a subchart.
+
+First, configure the Tuist server chart with the deployment-level Kura credential:
+
+```yaml
+# tuist-values.yaml
+server:
+  extraEnv:
+    - name: KURA_CONTROL_PLANE_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: kura-control-plane
+          key: client-id
+    - name: KURA_CONTROL_PLANE_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: kura-control-plane
+          key: client-secret
+```
+
+Then install Kura in the same namespace with the same Secret:
+
+```yaml
+# kura-values.yaml
+replicaCount: 1
+
+config:
+  tenantId: "<permanent-kura-tenant>"
+  region: "office"
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: kura.acme.internal
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - kura.acme.internal
+      secretName: kura-tls
+
+extraEnv:
+  - name: KURA_CONTROL_PLANE_CLIENT_ID
+    valueFrom:
+      secretKeyRef:
+        name: kura-control-plane
+        key: client-id
+  - name: KURA_CONTROL_PLANE_CLIENT_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: kura-control-plane
+        key: client-secret
+  - name: KURA_AUTH_ENABLED
+    value: "1"
+  - name: KURA_AUTH_TUIST_URL
+    value: "https://tuist.acme.internal"
+  - name: KURA_REGISTRATION_URL
+    value: "https://tuist.acme.internal/_internal/kura/mesh/registrations"
+  - name: KURA_ADVERTISED_HTTP_URL
+    value: "https://kura.acme.internal"
+```
+
+```bash
+kubectl create namespace tuist
+kubectl -n tuist create secret generic kura-control-plane \
+  --from-literal=client-id="<client_id>" \
+  --from-literal=client-secret="<secret>"
+
+helm upgrade --install kura oci://ghcr.io/tuist/charts/kura \
+  --namespace tuist \
+  -f kura-values.yaml
+```
+
+If Kura runs in a different namespace than the Tuist server, create or sync the `kura-control-plane` Secret into both namespaces.
+
+Leave `extension.enabled` unset when using the bundled Tuist hook from the image; that chart value is for mounting a custom hook from a ConfigMap. The chart renders `KURA_NODE_URL`, `KURA_PEERS`, the headless service, persistence, and probes for you. With `replicaCount: 1`, the generated peer URL is the pod's own stable DNS name, so it remains reachable inside the cluster and does not produce the single-node warning described above. For multiple replicas, the chart generates the peer list from StatefulSet DNS; enable `peerTls` and provide a TLS Secret when you want mTLS on the internal peer plane.
+
+To run more than one standalone node, add your **own peer TLS** mounted at `/tls` (a CA plus a leaf certificate and key per node, sharing a CA so the nodes trust each other), switch `KURA_NODE_URL` to `https://...:<KURA_INTERNAL_PORT>`, and add `KURA_PEERS`:
+
+```yaml
+environment:
+  KURA_NODE_URL: "https://kura-1.acme.internal:7443"
+  KURA_PEERS: "https://kura-2.acme.internal:7443,https://kura-3.acme.internal:7443"
+  KURA_INTERNAL_TLS_CA_CERT_PATH: "/tls/ca.pem"
+  KURA_INTERNAL_TLS_CERT_PATH: "/tls/tls.crt"
+  KURA_INTERNAL_TLS_KEY_PATH: "/tls/tls.key"
+volumes:
+  - ./tls:/tls:ro
+```
+
+## What each topology requires {#requirements-summary}
+
+| You provide | Bridged | Standalone |
+|---|---|---|
+| Control-plane client (`client_id` / `secret`) | Yes | Yes |
+| `KURA_NODE_URL` | Yes | Yes |
+| `KURA_ADVERTISED_HTTP_URL` | Yes | For dashboard registration; routing is separate (see below) |
+| Routing to the CLI | Automatic (registration) | Automatic from ready registration heartbeats |
+| Data + temp volume | Yes | Yes |
+| `KURA_ENROLL_ON_BOOT` | Yes | No (would return `ca_unavailable`) |
+| Peer TLS (`/tls` CA + leaf) | No, enrollment writes it | Only for a multi-node mesh |
+| `KURA_PEERS` (peer list) | No, enrollment seeds the gateway | Empty for one node; peer URLs for more than one node |
+
+## Required configuration {#required-config}
+
+These variables configure every node, regardless of topology (peer TLS is the exception noted below):
+
+| Variable | Description |
+|---|---|
+| `KURA_TENANT_ID` | Your account's permanent Kura tenant. Keep its original value after renaming the account; see [Choose the permanent tenant](#permanent-tenant). |
+| `KURA_NODE_URL` | This node's peer URL on your network. |
+| `KURA_PEERS` | Static peer discovery list. Set it to an empty string for a single standalone node; set reachable peer URLs for a multi-node mesh. |
+| `KURA_REGION` | A free-form region label (e.g. `office`, `ci`). |
+| `KURA_PORT` / `KURA_INTERNAL_PORT` | Cache port (HTTP cache API and REAPI gRPC co-hosted on one listener) and mesh peer port (`4000` / `7443`). |
+| `KURA_DATA_DIR` / `KURA_TMP_DIR` | On-disk artifact storage and scratch directory. |
+| `KURA_INTERNAL_TLS_CA_CERT_PATH` / `KURA_INTERNAL_TLS_CERT_PATH` / `KURA_INTERNAL_TLS_KEY_PATH` | Peer TLS files. Written by enrollment (bridged) or provided by you (multi-node standalone). Not needed for a single node; omit them and use an `http://` `KURA_NODE_URL`. |
+| `KURA_OTEL_SERVICE_NAME` / `KURA_OTEL_DEPLOYMENT_ENVIRONMENT` | Service name and environment label for telemetry. |
+
+Bridged nodes additionally set `KURA_ENROLL_ON_BOOT`, `KURA_CONTROL_PLANE_URL`, and the control-plane client credentials. `KURA_REGISTRATION_URL` and `KURA_ADVERTISED_HTTP_URL` register a node so it appears on the **Cache** page and so Kura-enabled CLI clients can be routed to it (see [How clients reach your nodes](#routing)).
+
+## Storage and eviction {#storage}
+
+A node stores artifacts under `KURA_DATA_DIR` up to a CAS storage budget, which you can set with an optional variable:
+
+| Variable | Description |
+|---|---|
+| `KURA_CAS_CAPACITY_BYTES` | The node's CAS storage budget in bytes. Must be a positive integer. When unset, the budget is 50% of the size of the filesystem that holds `KURA_DATA_DIR`. |
+
+Whether you set it or not, the budget is capped at 80% of the filesystem that holds `KURA_DATA_DIR`, so that rotation, which writes a new segment before evicting the oldest one, cannot fill the disk. The budget is rounded to whole 512 MiB segments, with a minimum of 2.5 GiB. The node logs the resolved budget at startup (`resolved CAS segment ring limits`).
+
+Eviction is automatic. Artifacts are stored in a ring of segments, and once the budget is reached the oldest segment is evicted. Artifacts read from older segments are promoted into the current one, so frequently used artifacts are kept and eviction behaves close to least-recently-used.
+
+Put `KURA_DATA_DIR` on a dedicated volume. Both the default budget and the cap are percentages of the filesystem's total size, not its free space, so other data on the same filesystem can leave less room than the budget assumes.
+
+## Authentication of cache requests {#cache-auth}
+
+By default a node serves its HTTP cache API to anything that can reach it on your network. To require that callers present a valid Tuist token, so that only authenticated members of your organization can read and write, point the node at your Tuist server. The standalone setup above does this.
+
+| Variable | Value |
+|---|---|
+| `KURA_AUTH_ENABLED` | `1` |
+| `KURA_AUTH_TUIST_URL` | Your Tuist server URL |
+
+Authorization reuses the control-plane client you already set (`KURA_CONTROL_PLANE_CLIENT_ID` / `KURA_CONTROL_PLANE_CLIENT_SECRET`) to introspect tokens, so no extra credential is needed. A self-hosted node runs **introspection-only**: it never holds the symmetric Guardian JWT verifier secret, which could mint tokens for any tenant and is never shared, so every request is authorized against your server. A node that cannot reach it denies rather than serves, and there is no setting that changes that. Tuist-managed nodes run the same authorization; the only difference is that they also hold the verification key, which lets them settle most requests from the token alone.
+
+## Networking {#networking}
+
+A node makes **outbound** connections depending on which integrations you enable:
+
+- your Tuist server for token introspection (`KURA_AUTH_TUIST_URL`), registration heartbeats (`KURA_REGISTRATION_URL`), usage (`KURA_CONTROL_PLANE_URL` or `KURA_AUTH_TUIST_URL`), and enrollment in the bridged topology, and
+- in the bridged topology, the managed mesh's peer gateway, for replication.
+
+Your developers and CI reach the node's `KURA_ADVERTISED_HTTP_URL` (and, for a multi-node mesh, the nodes reach each other on the peer port). These addresses only need to be reachable **within your network**. They do not need to be exposed to the public internet.
+
+## How it behaves {#behavior}
+
+- **Bridged.** On boot the node enrolls, pulls the managed mesh's full cache, and transitions to a serving member of the ring. The initial pull happens once and can take a while over a WAN, sized to your cache. From then on, writes on the node propagate continuously to the managed mesh. New artifacts written elsewhere in the managed mesh after the node joins are not yet continuously propagated to it (a planned enhancement), so treat the join-time pull as a snapshot rather than a live mirror.
+- **Standalone.** The node(s) run as an isolated mesh on your infrastructure. Replication, if any, happens only among your own nodes. When configured, Tuist's role is limited to the control plane: dashboard visibility, cache endpoint advertising, usage metering, and token introspection. It never provisions, upgrades, peers with, or reaches into your nodes.
+
+## Verify {#verify}
+
+```bash
+curl --fail-with-body http://localhost:4000/ready   # 200 once the node has joined and is serving
+curl --fail-with-body http://localhost:4000/up      # liveness + mesh membership
+```
+
+A bridged node reports `state: joining` while it pulls the mesh and `state: serving` once it has caught up. Your node also appears under **Registered nodes** on the account's **Cache** page once registration heartbeats start.
+
+To verify remote caching, run `tuist cache` with uncached, cacheable targets and confirm successful uploads in the Kura logs. A zero exit status alone does not confirm that artifacts were stored.
+
+## Upgrading {#upgrading}
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Nodes are designed to run side by side across one version skew, so a rolling upgrade across multiple nodes is safe.

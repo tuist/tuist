@@ -5,9 +5,10 @@ struct AppPreview: Identifiable, Codable, Equatable {
     let displayName: String
     let bundleIdentifier: String
     let iconURL: URL
+    let platformName: String?
 
     var id: String {
-        bundleIdentifier
+        "\(fullHandle)/\(bundleIdentifier)"
     }
 }
 
@@ -18,14 +19,16 @@ struct AppPreview: Identifiable, Codable, Equatable {
             displayName: String = "App",
             bundleIdentifier: String = "dev.tuist.app",
             iconURL: URL =
-                URL(string: "https://tuist.dev/tuist/tuist/previews/preview-id/icon.png")!
+                URL(string: "https://tuist.dev/tuist/tuist/previews/preview-id/icon.png")!,
             // swiftlint:disable:this force_try
+            platformName: String? = "iOS"
         ) -> Self {
             .init(
                 fullHandle: fullHandle,
                 displayName: displayName,
                 bundleIdentifier: bundleIdentifier,
-                iconURL: iconURL
+                iconURL: iconURL,
+                platformName: platformName
             )
         }
     }

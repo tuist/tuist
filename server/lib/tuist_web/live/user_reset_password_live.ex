@@ -3,7 +3,11 @@ defmodule TuistWeb.UserResetPasswordLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.AppAuthComponents
+
   alias Tuist.Accounts
+  alias Tuist.Environment
+  alias TuistWeb.Endpoint
 
   def render(assigns) do
     ~H"""
@@ -17,11 +21,7 @@ defmodule TuistWeb.UserResetPasswordLive do
       <div data-part="wrapper">
         <div data-part="frame">
           <div data-part="content">
-            <img
-              src="/images/tuist_logo_32x32@2x.png"
-              alt={dgettext("dashboard_auth", "Tuist Logo")}
-              data-part="logo"
-            />
+            <.tuist_mark data-part="logo" aria-label={dgettext("dashboard_auth", "Tuist Logo")} />
             <div data-part="dots">
               <.dots_light />
               <.dots_dark />
@@ -38,18 +38,18 @@ defmodule TuistWeb.UserResetPasswordLive do
             <.form data-part="form" for={@form} id="reset_password_form" phx-submit="reset_password">
               <.text_input
                 field={@form[:password]}
+                type="password"
                 input_type="password"
                 label={dgettext("dashboard_auth", "New password")}
                 show_prefix={false}
-                show_suffix={false}
                 required
               />
               <.text_input
                 field={@form[:password_confirmation]}
+                type="password"
                 input_type="password"
                 label={dgettext("dashboard_auth", "Confirm password")}
                 show_prefix={false}
-                show_suffix={false}
                 required
               />
               <.button
@@ -67,28 +67,35 @@ defmodule TuistWeb.UserResetPasswordLive do
         <div data-part="bottom-left-gradient"></div>
         <div data-part="shell"><.shell /></div>
       </div>
+      <.terms_and_privacy />
     </div>
     """
   end
 
   def mount(params, _session, socket) do
-    password = Phoenix.Flash.get(socket.assigns.flash, :password)
-    form = to_form(%{"password" => password}, as: "user")
+    if Environment.email_auth_enabled?() do
+      password = Phoenix.Flash.get(socket.assigns.flash, :password)
+      form = to_form(%{"password" => password}, as: "user")
 
-    {
-      :ok,
-      socket
-      |> assign_user_and_token(params)
-      |> assign(:form, form),
-      temporary_assigns: [form: form]
-    }
+      {
+        :ok,
+        socket
+        |> assign_user_and_token(params)
+        |> assign(:form, form),
+        temporary_assigns: [form: form]
+      }
+    else
+      {:ok, redirect(socket, to: ~p"/users/log_in")}
+    end
   end
 
   # Do not log in the user after reset password to avoid a
   # leaked token giving the user access to the account.
   def handle_event("reset_password", %{"user" => user_params}, socket) do
     case Accounts.reset_user_password(socket.assigns.user, user_params) do
-      {:ok, _} ->
+      {:ok, %{revoked_session_live_socket_ids: live_socket_ids}} ->
+        Enum.each(live_socket_ids, &Endpoint.broadcast(&1, "disconnect", %{}))
+
         {:noreply,
          socket
          |> put_flash(:info, dgettext("dashboard_auth", "Password reset successfully."))

@@ -1,0 +1,144 @@
+.tuist-module-cache-tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-6);
+
+  & [data-part="optimization-summary-section"] {
+    display: flex;
+    flex-direction: row;
+    gap: var(--noora-spacing-4);
+
+    & > * {
+      flex: 1;
+    }
+  }
+
+  & [data-part="binary-cache-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-8);
+    padding: var(--noora-spacing-8);
+
+    & > [data-part="throughput-widgets"] {
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-4);
+
+      & > * {
+        flex: 1;
+      }
+    }
+
+    & [data-part="filters"] {
+      display: flex;
+      gap: var(--noora-spacing-6);
+    }
+
+    & [data-part="active-filters"] {
+      display: flex;
+      gap: var(--noora-spacing-4);
+    }
+
+    & .noora-text-input {
+      width: 330px;
+    }
+
+    /* Escape the noora-table default (`min-width: max-content`, which sizes to
+     * the widest cell content) so long binary cache hashes cannot inflate the
+     * Hash column and push Module + Hit into an unnecessary horizontal
+     * scroll. A fixed layout with explicit column proportions keeps the row
+     * inside the container and lets the Hash text truncate with the ellipsis
+     * that noora's text_cell already declares. */
+    & #binary-cache-table table {
+      min-width: 640px;
+      table-layout: fixed;
+    }
+
+    & #binary-cache-table {
+      & th:nth-child(1),
+      & td:nth-child(1) {
+        width: 50%;
+      }
+
+      & th:nth-child(2),
+      & td:nth-child(2) {
+        width: 15%;
+      }
+
+      & th:nth-child(3),
+      & td:nth-child(3) {
+        width: 35%;
+      }
+
+      /* Flex items default to `min-width: auto` (their content's intrinsic
+       * width), which defeats `text-overflow: ellipsis`. Zero it so the Hash
+       * label truncates inside its column instead of spilling out. */
+      & td [data-part="cell"] > [data-part="label"] {
+        min-width: 0;
+      }
+    }
+
+    & > [data-part="cacheable-targets-card-section"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+
+      & > [data-part="title"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-3);
+
+        & > [data-part="label"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & > [data-part="value"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-semibold) var(--noora-font-body-medium);
+        }
+      }
+
+      & > .noora-chart {
+        height: 62px;
+      }
+    }
+
+    & [data-part="dependency-list"] {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--noora-spacing-2) var(--noora-spacing-5);
+    }
+
+    & [data-part="dependency-link"] {
+      color: var(--noora-surface-label-primary);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    & [data-part="subhashes-list"] {
+      display: flex;
+      flex-direction: column;
+
+      & > [data-part="subhash-item"] {
+        display: flex;
+        flex-direction: row;
+        gap: var(--noora-spacing-2);
+        background-color: var(--noora-surface-background-secondary);
+        padding: var(--noora-spacing-3) var(--noora-spacing-5);
+
+        & > [data-part="subhash-value"] {
+          min-width: 0;
+          overflow-wrap: anywhere;
+        }
+
+        & > [data-part="subhash-label"],
+        & > [data-part="subhash-value"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+        }
+      }
+    }
+  }
+}

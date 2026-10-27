@@ -1,13 +1,13 @@
 ---
-title: "Selective testing for all Xcode projects"
+title: "Tuist Selective Testing for all Xcode projects"
 category: "product"
 tags: ["product", "test"] 
-excerpt: "Run only tests that have changed, regardless of your setup, using Tuist's selective testing."
+excerpt: "Run only the tests affected by your changes with Tuist Selective Testing for Xcode projects."
 author: fortmarek
 highlighted: true
 ---
 
-Re-running all tests on the CI or locally is a waste of time, resources, and money, especially as your codebase grows and your test suite suddenly has thousands of tests. Wouldn't it be great if you could run your tests _selectively_ and skip all those that were not impacted by your changes?
+Re-running all tests on the CI or locally is a waste of time, resources, and money, especially as your codebase grows and your test suite suddenly has thousands of tests. Tuist Selective Testing lets you run tests selectively and skip those that were not impacted by your changes.
 
 While Tuist has had support for selective testing for a while now, it has been available only to those organizations that used Tuist to generate their Xcode projects and used the `tuist test` command to run their tests. 
 
@@ -23,7 +23,7 @@ That's really almost all you need to do to dramatically speed up running your te
 If you want to see selective testing of Xcode projects in action, check out the video below:
 <iframe title="Selective testing" width="560" height="315" src="https://videos.tuist.dev/videos/embed/9ac56b06-130f-4b76-af75-3b55545c4851" frameborder="0" allowfullscreen="" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>
 
-To get started with selective testing, you need to first [install Tuist](https://docs.tuist.dev/en/guides/quick-start/install-tuist). Once installed, you can run your tests almost as if you were using the `xcodebuild` CLI. The only difference being that you need to prefix the `xcodebuild` command with `tuist`:
+To get started with selective testing, you need to first [install Tuist](https://tuist.dev/en/docs/guides/install-tuist). Once installed, you can run your tests almost as if you were using the `xcodebuild` CLI. The only difference being that you need to prefix the `xcodebuild` command with `tuist`:
 ```sh
 tuist xcodebuild test -scheme App -destination "name=iPhone 16"
 ```
@@ -54,9 +54,9 @@ The important dependency relations are:
 - `AppFrameworkTests` depends on `AppFramework`
 - `AppTests` depends on `App` and transitively on `AppFramework`
 
-When we run the tests for the first time, Tuist first converts your Xcode project to an internal representation called `XcodeGraph` (for more details, see our previous [blog post](https://tuist.dev/blog/2025/02/11/mapping-xcodeproj-to-xcodegraph) on this topic). Then Tuist computes the hashes using the same mechanism as we do for [binary cache](https://docs.tuist.dev/en/guides/develop/cache#cache), which has been battle-tested by now.
+When we run the tests for the first time, Tuist first converts your Xcode project to an internal representation called `XcodeGraph` (for more details, see our previous [blog post](https://tuist.dev/blog/2025/02/11/mapping-xcodeproj-to-xcodegraph) on this topic). Then Tuist computes the hashes using the same mechanism as we do for [binary cache](https://tuist.dev/en/docs/guides/features/cache#cache), which has been battle-tested by now.
 
-On the first successful run, we store the hashes we just computed – locally and remotely (if you have a [Tuist project](https://docs.tuist.dev/en/server/introduction/accounts-and-projects#projects) set up). On a subsequent run, Tuist can skip all tests if nothing changes. But what if something _did_ change?
+On the first successful run, we store the hashes we just computed – locally and remotely (if you have a [Tuist project](https://tuist.dev/en/docs/guides/server/accounts-and-projects#projects) set up). On a subsequent run, Tuist can skip all tests if nothing changes. But what if something _did_ change?
 
 Let's say we change something in the `App` module. When we run the tests again, Tuist will recompute the hashes and compare them with the stored ones. Since the `App` module has changed and `AppTests` depends on this module, Tuist will run the tests for `AppTests` – but _not_ for `AppFrameworkTests` as the hash for that module has not been impacted by our changes! 
 
@@ -79,7 +79,7 @@ You can expect these kinds of insights to be soon available in our Tuist dashboa
 
 ## Wrapping up
 
-Selective testing is a powerful feature that can save you a lot of time and resources. It's available for all Xcode projects, regardless of your setup, and can be used both locally and on the CI. To learn more about how to use it, check out our [documentation](https://docs.tuist.dev/en/guides/develop/selective-testing).
+Selective testing is a powerful feature that can save you a lot of time and resources. It's available for all Xcode projects, regardless of your setup, and can be used both locally and on the CI. To learn more about how to use it, check out our [documentation](https://tuist.dev/en/docs/guides/features/selective-testing).
 
 We're also always keen to hear your feedback – if you take selective testing for a spin, let us know how it goes at:
 - [Our community forum](https://community.tuist.dev/)

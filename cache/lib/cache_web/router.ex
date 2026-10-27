@@ -7,7 +7,12 @@ defmodule CacheWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :api_registry_swift do
+    plug :accepts, ["swift-registry-v1-json", "swift-registry-v1-zip", "swift-registry-v1-api"]
+  end
+
   pipeline :project_auth do
+    plug CacheWeb.Plugs.ObservabilityContextPlug
     plug CacheWeb.Plugs.AuthPlug
   end
 
@@ -51,16 +56,37 @@ defmodule CacheWeb.Router do
 
     get "/keyvalue/:cas_id", KeyValueController, :get_value
     put "/keyvalue", KeyValueController, :put_value
-    get "/cas/:id", CASController, :download
-    post "/cas/:id", CASController, :save
+    get "/cas/:id", XcodeController, :download
+    post "/cas/:id", XcodeController, :save
 
-    head "/module/:id", ModuleCacheController, :exists
-    get "/module/:id", ModuleCacheController, :download
+    head "/module/:id", XcodeModuleController, :exists
+    get "/module/:id", XcodeModuleController, :download
 
-    post "/module/start", ModuleCacheController, :start_multipart
-    post "/module/part", ModuleCacheController, :upload_part
-    post "/module/complete", ModuleCacheController, :complete_multipart
+    post "/module/start", XcodeModuleController, :start_multipart
+    post "/module/part", XcodeModuleController, :upload_part
+    post "/module/complete", XcodeModuleController, :complete_multipart
 
     delete "/clean", CleanController, :clean
+
+    get "/gradle/:cache_key", GradleController, :download
+    put "/gradle/:cache_key", GradleController, :save
+  end
+
+  scope "/api/registry/swift", CacheWeb do
+    pipe_through [:api_registry_swift]
+
+    get "/", RegistryController, :availability
+    head "/", RegistryController, :availability
+    get "/availability", RegistryController, :availability
+    head "/availability", RegistryController, :availability
+    get "/identifiers", RegistryController, :identifiers
+    head "/identifiers", RegistryController, :identifiers
+    post "/login", RegistryController, :login
+    get "/:scope/:name", RegistryController, :list_releases
+    head "/:scope/:name", RegistryController, :list_releases
+    get "/:scope/:name/:version", RegistryController, :show_release
+    head "/:scope/:name/:version", RegistryController, :show_release
+    get "/:scope/:name/:version/Package.swift", RegistryController, :show_manifest
+    head "/:scope/:name/:version/Package.swift", RegistryController, :show_manifest
   end
 end

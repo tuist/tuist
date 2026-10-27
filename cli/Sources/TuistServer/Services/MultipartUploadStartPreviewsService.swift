@@ -1,7 +1,6 @@
 import Foundation
 import Mockable
 import TuistHTTP
-import TuistSimulator
 
 @Mockable
 public protocol MultipartUploadStartPreviewsServicing {
@@ -11,14 +10,15 @@ public protocol MultipartUploadStartPreviewsServicing {
         version: String?,
         buildVersion: String,
         bundleIdentifier: String?,
-        supportedPlatforms: [DestinationType],
+        supportedPlatforms: [Components.Schemas.PreviewSupportedPlatform],
         gitBranch: String?,
         gitCommitSHA: String?,
         gitRef: String?,
         binaryId: String?,
         fullHandle: String,
         serverURL: URL,
-        track: String?
+        track: String?,
+        releaseNotes: String?
     ) async throws -> AppBuildUpload
 }
 
@@ -39,10 +39,10 @@ public enum MultipartUploadStartPreviewsServiceError: LocalizedError, Equatable 
     }
 }
 
-public final class MultipartUploadStartPreviewsService: MultipartUploadStartPreviewsServicing {
+public struct MultipartUploadStartPreviewsService: MultipartUploadStartPreviewsServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
+    public init() {
         self.init(
             fullHandleService: FullHandleService()
         )
@@ -60,14 +60,15 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
         version: String?,
         buildVersion: String,
         bundleIdentifier: String?,
-        supportedPlatforms: [DestinationType],
+        supportedPlatforms: [Components.Schemas.PreviewSupportedPlatform],
         gitBranch: String?,
         gitCommitSHA: String?,
         gitRef: String?,
         binaryId: String?,
         fullHandle: String,
         serverURL: URL,
-        track: String?
+        track: String?,
+        releaseNotes: String? = nil
     ) async throws -> AppBuildUpload {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
@@ -78,6 +79,8 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
             .app_bundle
         case .ipa:
             .ipa
+        case .apk:
+            .apk
         }
         let response = try await client.startPreviewsMultipartUpload(
             .init(
@@ -94,7 +97,8 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
                         git_branch: gitBranch,
                         git_commit_sha: gitCommitSHA,
                         git_ref: gitRef,
-                        supported_platforms: supportedPlatforms.map(Components.Schemas.PreviewSupportedPlatform.init),
+                        release_notes: releaseNotes,
+                        supported_platforms: supportedPlatforms,
                         track: track,
                         _type: type,
                         version: version
@@ -128,6 +132,10 @@ public final class MultipartUploadStartPreviewsService: MultipartUploadStartPrev
             case let .json(error):
                 throw MultipartUploadStartPreviewsServiceError.unauthorized(error.message)
             }
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .conflict(conflictResponse):
             switch conflictResponse.body {
             case let .json(error):

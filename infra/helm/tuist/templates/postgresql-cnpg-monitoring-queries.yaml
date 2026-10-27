@@ -1,0 +1,61 @@
+{{- if and (or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg")) .Values.postgresql.cnpg.queryStats.enabled }}
+# Custom CNPG monitoring query: exposes pg_stat_statements as per-query
+# latency metrics (cnpg_tuist_query_stats_*) so the dashboard can chart
+# read/write query latency, the signal that was missing during the
+# oban_jobs bloat incident.
+#
+# Prerequisites:
+#   * pg_stat_statements preloaded (postgresql.cnpg.sharedPreloadLibraries).
+#   * The extension created in the `postgres` database, one-time via
+#     infra/cnpg/pg-stat-statements.sql (see infra/cnpg/README.md). Until
+#     then the exporter query errors and the metric is simply absent.
+#
+# The exporter runs this against `postgres` (target_databases). Because
+# pg_stat_statements is instance-global, a single target database yields
+# cluster-wide stats; the query filters to the application database by dbid
+# and buckets statements read/write/other, so the metric has 3 series (low
+# cardinality). Mean latency is derived in the dashboard as
+# rate(total_exec_time_ms) / rate(calls).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "pg-monitoring-queries") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+    # CNPG watches ConfigMaps/Secrets carrying this label and reloads the
+    # instances when they change, so edits to the query below propagate
+    # without a manual `kubectl cnpg reload`.
+    cnpg.io/reload: "true"
+data:
+  queries: |
+    tuist_query_stats:
+      query: |
+        SELECT
+          CASE
+            WHEN query ILIKE 'select%' THEN 'read'
+            WHEN query ~* '^(insert|update|delete)' THEN 'write'
+            ELSE 'other'
+          END AS op,
+          sum(calls)::bigint AS calls,
+          sum(total_exec_time) AS total_exec_time_ms,
+          sum(rows)::bigint AS rows
+        FROM pg_stat_statements
+        WHERE dbid = (SELECT oid FROM pg_database WHERE datname = '{{ .Values.postgresql.cnpg.database }}')
+        GROUP BY 1
+      metrics:
+        - op:
+            usage: "LABEL"
+            description: "Statement class derived from the normalized query text"
+        - calls:
+            usage: "COUNTER"
+            description: "Cumulative statement executions"
+        - total_exec_time_ms:
+            usage: "COUNTER"
+            description: "Cumulative statement execution time in milliseconds"
+        - rows:
+            usage: "COUNTER"
+            description: "Cumulative rows processed by the statements"
+      target_databases:
+        - postgres
+{{- end }}

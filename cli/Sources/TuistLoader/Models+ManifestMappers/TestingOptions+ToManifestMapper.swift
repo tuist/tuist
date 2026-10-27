@@ -18,6 +18,10 @@ extension ProjectDescription.TestingOptions {
             options.insert(.randomExecutionOrdering)
         }
 
+        if manifest.contains(.swiftTestingOnlyParallelizable) {
+            options.insert(.swiftTestingOnlyParallelizable)
+        }
+
         return options
     }
 }

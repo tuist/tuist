@@ -70,7 +70,7 @@ final class MultipleConfigurationsIntegrationTests {
         .inTemporaryDirectory
     ) func generateWhenConfigurationSettingsOverrideXCConfig() async throws {
         // Given
-        let debugFilePath = try createFile(path: "Configs/debug.xcconfig", content: """
+        let debugFilePath = try await createFile(path: "Configs/debug.xcconfig", content: """
         A=A_XCCONFIG
         B=B_XCCONFIG
         """)
@@ -157,7 +157,7 @@ final class MultipleConfigurationsIntegrationTests {
         .inTemporaryDirectory
     ) func generateWhenTargetSettingsOverrideTargetXCConfig() async throws {
         // Given
-        let debugFilePath = try createFile(path: "Configs/debug.xcconfig", content: """
+        let debugFilePath = try await createFile(path: "Configs/debug.xcconfig", content: """
         A=A_XCCONFIG
         B=B_XCCONFIG
         """)
@@ -243,7 +243,7 @@ final class MultipleConfigurationsIntegrationTests {
         .inTemporaryDirectory
     ) func generateWhenTargetSettingsOverrideProjectBaseSettingsAndXCConfig() async throws {
         // Given
-        let projectDebugFilePath = try createFile(path: "Configs/project_debug.xcconfig", content: """
+        let projectDebugFilePath = try await createFile(path: "Configs/project_debug.xcconfig", content: """
         A=A_PROJECT_XCCONFIG
         B=B_PROJECT_XCCONFIG
         C=C_PROJECT_XCCONFIG
@@ -275,7 +275,7 @@ final class MultipleConfigurationsIntegrationTests {
             configurations: [.debug: projectDebugConfiguration]
         )
 
-        let targetDebugFilePath = try createFile(path: "Configs/target_debug.xcconfig", content: """
+        let targetDebugFilePath = try await createFile(path: "Configs/target_debug.xcconfig", content: """
         D=D_TARGET_XCCONFIG
         E=E_TARGET_XCCONFIG
         F=F_TARGET_XCCONFIG
@@ -395,10 +395,11 @@ final class MultipleConfigurationsIntegrationTests {
     }
 
     @discardableResult
-    private func createFile(path relativePath: String, content: String) throws -> Path.AbsolutePath {
+    private func createFile(path relativePath: String, content: String) async throws -> Path.AbsolutePath {
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let absolutePath = temporaryPath.appending(try RelativePath(validating: relativePath))
-        try FileHandler.shared.touch(absolutePath)
+        try await FileSystem().makeDirectory(at: absolutePath.parentDirectory)
+        try await FileSystem().touch(absolutePath)
         try content.data(using: .utf8)!.write(to: URL(fileURLWithPath: absolutePath.pathString))
         return absolutePath
     }

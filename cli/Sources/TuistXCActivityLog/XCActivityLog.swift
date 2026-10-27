@@ -10,10 +10,8 @@ public struct XCActivityLog {
     public let targets: [XCActivityTarget]
     public let cacheableTasks: [CacheableTask]
     public let casOutputs: [CASOutput]
-}
 
-#if DEBUG
-    extension XCActivityLog {
+    #if DEBUG
         public static func test(
             version: Int8 = 1,
             mainSection: XCActivityLogSection = .test(),
@@ -37,5 +35,5 @@ public struct XCActivityLog {
                 casOutputs: casOutputs
             )
         }
-    }
-#endif
+    #endif
+}

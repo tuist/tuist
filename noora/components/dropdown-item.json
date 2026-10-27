@@ -1,0 +1,148 @@
+{
+  "name": "DropdownItem",
+  "tagName": "noora-dropdown-item",
+  "elementClassName": "NooraDropdownItem",
+  "className": "noora-dropdown-item",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Describes one declarative item inside a dropdown or breadcrumb menu.",
+  "usage": "<noora-dropdown-item value=\"edit\" icon=\"edit\">Edit</noora-dropdown-item>",
+  "standalone": false,
+  "attributes": [
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Sets the item label instead of using its text content."
+    },
+    {
+      "name": "value",
+      "property": "value",
+      "type": "string",
+      "description": "Sets the value emitted when the item is selected."
+    },
+    {
+      "name": "icon",
+      "property": "icon",
+      "type": "string",
+      "description": "Shows an icon before the label."
+    },
+    {
+      "name": "right-icon",
+      "property": "rightIcon",
+      "type": "string",
+      "description": "Shows an icon after the label."
+    },
+    {
+      "name": "size",
+      "property": "size",
+      "type": "string",
+      "values": ["small", "large"],
+      "default": "small",
+      "description": "Controls the item dimensions."
+    },
+    {
+      "name": "href",
+      "property": "href",
+      "type": "string",
+      "description": "Renders the item as a link."
+    },
+    {
+      "name": "secondary-text",
+      "property": "secondaryText",
+      "type": "string",
+      "description": "Adds compact secondary text beside the label."
+    },
+    {
+      "name": "description",
+      "property": "description",
+      "type": "string",
+      "description": "Adds supporting text below the label."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Disables selection."
+    },
+    {
+      "name": "checkable",
+      "property": "checkable",
+      "type": "boolean",
+      "default": false,
+      "description": "Shows a checkbox indicator."
+    },
+    {
+      "name": "checked",
+      "property": "checked",
+      "type": "boolean",
+      "default": false,
+      "description": "Marks a checkable item as selected."
+    },
+    {
+      "name": "selected",
+      "property": "selected",
+      "type": "boolean",
+      "default": false,
+      "description": "Marks a breadcrumb menu item as selected."
+    },
+    {
+      "name": "avatar",
+      "property": "avatar",
+      "type": "boolean",
+      "default": false,
+      "description": "Shows an avatar before the label."
+    },
+    {
+      "name": "avatar-name",
+      "property": "avatarName",
+      "type": "string",
+      "description": "Sets the avatar name."
+    },
+    {
+      "name": "avatar-color",
+      "property": "avatarColor",
+      "type": "string",
+      "description": "Sets the avatar color."
+    },
+    {
+      "name": "avatar-image-href",
+      "property": "avatarImageHref",
+      "type": "string",
+      "description": "Sets the avatar image address."
+    },
+    {
+      "name": "badge-label",
+      "property": "badgeLabel",
+      "type": "string",
+      "description": "Shows a badge with this label."
+    },
+    {
+      "name": "badge-color",
+      "property": "badgeColor",
+      "type": "string",
+      "description": "Sets the badge color."
+    }
+  ],
+  "properties": [],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "The item label."
+    }
+  ],
+  "cssParts": [],
+  "notes": [
+    "Use this element inside noora-dropdown, noora-inline-dropdown, noora-button-dropdown, or noora-breadcrumb-item."
+  ],
+  "examples": [
+    {
+      "id": "item",
+      "title": "Item",
+      "description": "Describe a selectable menu item.",
+      "markup": "<noora-dropdown-item value=\"edit\" icon=\"edit\">Edit</noora-dropdown-item>"
+    }
+  ]
+}

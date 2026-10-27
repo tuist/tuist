@@ -1,0 +1,1208 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "count(kura_node_info)",
+          "refId": "A"
+        }
+      ],
+      "title": "Nodes Up",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 4,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "kura_process_resident_memory_bytes",
+          "legendFormat": "{{region}} rss",
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_process_virtual_memory_bytes",
+          "legendFormat": "{{region}} virtual",
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_current_bytes",
+          "legendFormat": "{{region}} container",
+          "refId": "C"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_working_set_bytes",
+          "legendFormat": "{{region}} working set",
+          "refId": "J"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_pressure_bytes",
+          "legendFormat": "{{region}} pressure signal",
+          "refId": "P"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_reclaimable_inactive_file_bytes",
+          "legendFormat": "{{region}} reclaimable inactive file",
+          "refId": "O"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_limit_bytes",
+          "legendFormat": "{{region}} container limit",
+          "refId": "K"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_anon_bytes",
+          "legendFormat": "{{region}} anonymous",
+          "refId": "D"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_file_bytes",
+          "legendFormat": "{{region}} file cache",
+          "refId": "E"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_kernel_bytes",
+          "legendFormat": "{{region}} kernel",
+          "refId": "F"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_shmem_bytes",
+          "legendFormat": "{{region}} shared memory",
+          "refId": "L"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_file_dirty_bytes",
+          "legendFormat": "{{region}} dirty file",
+          "refId": "M"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_file_writeback_bytes",
+          "legendFormat": "{{region}} file writeback",
+          "refId": "N"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_memory_soft_limit_bytes",
+          "legendFormat": "{{region}} soft watermark",
+          "refId": "G"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_memory_hard_limit_bytes",
+          "legendFormat": "{{region}} hard watermark",
+          "refId": "H"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_memory_transient_reserved_bytes",
+          "legendFormat": "{{region}} transient reserved",
+          "refId": "I"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_memory_transient_capacity_bytes",
+          "legendFormat": "{{region}} transient capacity",
+          "refId": "Q"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_response_stream_pool_capacity_bytes",
+          "legendFormat": "{{region}} stream pool capacity",
+          "refId": "S"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum by (region) (kura_response_stream_reserved_bytes)",
+          "legendFormat": "{{region}} stream pool reserved",
+          "refId": "T"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_response_stream_foreground_pool_capacity_bytes",
+          "legendFormat": "{{region}} stream pool public ceiling",
+          "refId": "U"
+        }
+      ],
+      "title": "Container and Process Memory",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
+      "id": 22,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "kura_memory_pressure_state",
+          "legendFormat": "{{region}}",
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_foreground_memory_waiters",
+          "legendFormat": "{{region}} foreground waiters",
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, protocol) (kura_response_stream_active)",
+          "legendFormat": "{{region}} {{protocol}} active streams",
+          "refId": "D"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, protocol) (kura_response_stream_waiters)",
+          "legendFormat": "{{region}} {{protocol}} stream waiters",
+          "refId": "E"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, protocol, outcome) (rate(kura_response_stream_admissions_total{outcome=~\"timeout|queue_full\"}[5m]))",
+          "legendFormat": "{{region}} {{protocol}} {{outcome}} rate",
+          "refId": "F"
+        }
+      ],
+      "title": "Memory Pressure State",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "time() - kura_process_start_time_seconds",
+          "legendFormat": "{{region}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Process Uptime",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, route) (rate(kura_http_requests_total[5m]))",
+          "legendFormat": "{{region}} {{route}}",
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, path) (rate(kura_artifact_serving_paths_total[5m]))",
+          "legendFormat": "{{region}} artifact {{path}}",
+          "refId": "B"
+        }
+      ],
+      "title": "HTTP Request Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 4
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le, region) (rate(kura_http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{region}}",
+          "refId": "A"
+        }
+      ],
+      "title": "HTTP p95 Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 4
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, route, kind) (rate(kura_http_exceptions_total[5m]))",
+          "legendFormat": "{{region}} {{route}} {{kind}}",
+          "refId": "A"
+        }
+      ],
+      "title": "HTTP Exceptions",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, producer, result) (rate(kura_artifact_write_bytes_total[5m]))",
+          "legendFormat": "{{region}} {{producer}} {{result}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Artifact Write Throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, producer, result) (rate(kura_artifact_read_bytes_total[5m]))",
+          "legendFormat": "{{region}} {{producer}} {{result}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Artifact Read Throughput",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 10,
+        "x": 0,
+        "y": 16
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, target, operation, result) (rate(kura_replication_requests_total[5m]))",
+          "legendFormat": "{{region}} -> {{target}} {{operation}} {{result}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Replication Requests",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 7,
+        "x": 10,
+        "y": 16
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le, region, operation) (rate(kura_replication_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{region}} {{operation}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Replication p95 Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 7,
+        "x": 17,
+        "y": 16
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, target, operation) (rate(kura_replication_requests_total{result=\"error\"}[5m]))",
+          "legendFormat": "{{region}} -> {{target}} {{operation}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Replication Errors",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 22
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "kura_file_descriptor_in_use",
+          "legendFormat": "{{region}} in use",
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_file_descriptor_available",
+          "legendFormat": "{{region}} available",
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_file_descriptor_waiting",
+          "legendFormat": "{{region}} waiting",
+          "refId": "C"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_file_descriptor_capacity",
+          "legendFormat": "{{region}} capacity",
+          "refId": "D"
+        }
+      ],
+      "title": "File Descriptor Pool State",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 22
+      },
+      "id": 14,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le, region) (rate(kura_file_descriptor_wait_seconds_bucket{result=\"ok\"}[5m])))",
+          "legendFormat": "{{region}}",
+          "refId": "A"
+        }
+      ],
+      "title": "FD Wait p95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 22
+      },
+      "id": 15,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "kura_segment_handles_cached",
+          "legendFormat": "{{region}} cached",
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_segment_handle_cache_capacity",
+          "legendFormat": "{{region}} capacity",
+          "refId": "B"
+        }
+      ],
+      "title": "Segment Handle Cache",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "max": 1,
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 28
+      },
+      "id": 16,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum by (region) (rate(kura_segment_handle_cache_lookups_total{result=\"hit\"}[5m])) / clamp_min(sum by (region) (rate(kura_segment_handle_cache_lookups_total[5m])), 0.000001)",
+          "legendFormat": "{{region}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Segment Handle Hit Ratio",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 28
+      },
+      "id": 17,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "kura_manifest_cache_bytes",
+          "legendFormat": "{{region}} bytes",
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_manifest_cache_capacity_bytes",
+          "legendFormat": "{{region}} capacity",
+          "refId": "B"
+        }
+      ],
+      "title": "Manifest Cache",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 28
+      },
+      "id": 18,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "kura_background_work_paused",
+          "legendFormat": "{{region}} {{worker}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Background Work Paused",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 28
+      },
+      "id": 19,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, producer, result, trigger) (rate(kura_segment_refreshes_total[5m]))",
+          "legendFormat": "{{region}} {{producer}} {{result}} {{trigger}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Segment Refresh Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 34
+      },
+      "id": 20,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, generation) (kura_segment_generation_count)",
+          "legendFormat": "{{region}} {{generation}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Segment Generations",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 41
+      },
+      "id": 21,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": true,
+        "showCommonLabels": false,
+        "showLabels": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "expr": "{service=~\"kura-us|kura-eu|kura-ap\"} | json",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Kura Node Logs",
+      "type": "logs"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 51
+      },
+      "id": 23,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, trigger) (rate(kura_promotion_drops_total[5m]))",
+          "legendFormat": "{{region}} {{trigger}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Promotion Drops",
+      "type": "timeseries",
+      "description": "Promotions the queue had no room for. A nonzero find_missing or action_cache rate means read-triggered lifetime extension is not keeping up: those RPCs already told a client the blob is present, so a dropped refresh can let the blob be evicted before the client's follow-up read, which surfaces to the build as a missing object. A nonzero serve rate is benign by comparison, since that read already succeeded and the promotion only speeds up later ones. Vouched triggers have reserved queue headroom and their own drain lane, so they should be the last to drop."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 9,
+        "x": 6,
+        "y": 51
+      },
+      "id": 24,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, route) (rate(kura_public_request_latency_seconds_count{transport=\"grpc\",route=~\".*/(SplitBlob|SpliceBlob)\"}[5m]))",
+          "legendFormat": "{{region}} {{route}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Chunking Request Rate",
+      "type": "timeseries",
+      "description": "Rate of logical blob split and splice requests. Splice performs bounded server-side digest verification before storing a recipe."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 9,
+        "x": 15,
+        "y": 51
+      },
+      "id": 25,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le, region, route) (rate(kura_public_request_latency_seconds_bucket{transport=\"grpc\",route=~\".*/(SplitBlob|SpliceBlob)\"}[5m])))",
+          "legendFormat": "{{region}} {{route}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Chunking p95 Latency",
+      "type": "timeseries",
+      "description": "95th percentile latency for logical blob split and splice requests."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 14,
+        "x": 0,
+        "y": 57
+      },
+      "id": 26,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, operation, outcome) (rate(kura_reapi_chunking_events_total_total[5m]))",
+          "legendFormat": "{{region}} {{operation}} {{outcome}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Chunking Rollout Outcomes",
+      "type": "timeseries",
+      "description": "Recipe lookup, splice, composite-read, cleanup, and probe-budget outcomes. Invalid recipes, unexplained missing chunks, or sustained resource shedding are rollout stop signals."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 10,
+        "x": 14,
+        "y": 57
+      },
+      "id": 27,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, kind) (rate(kura_reapi_chunking_bytes_total_total[5m]))",
+          "legendFormat": "{{region}} {{kind}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Chunking Logical and Recipe Bytes",
+      "type": "timeseries",
+      "description": "Logical bytes accepted or served compared with compact recipe bytes. Use alongside physical artifact write bytes when deciding whether the feature earns its storage and request overhead."
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 41,
+  "style": "dark",
+  "tags": [
+    "kura"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "Kura Cluster",
+  "uid": "kura-cluster",
+  "version": 1
+}

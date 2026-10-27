@@ -7,123 +7,31 @@ import Config
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.
 
-# Base watchers for esbuild
+noora_source_path = Path.expand("../../noora", __DIR__)
+server_source_path = Path.expand("..", __DIR__)
+escaped_noora_source_path = Regex.escape(noora_source_path)
+deps_path = Path.expand("../deps", __DIR__)
+node_modules_path = Path.expand("../node_modules", __DIR__)
+build_path = Mix.Project.build_path()
+code_reloader_enabled = System.get_env("TUIST_DEV_DISABLE_CODE_RELOADER") not in ["1", "true"]
+# Plug.Debugger replaces the real error pages (TuistWeb.ErrorHTML) with its
+# stack-trace page on every raised exception. Disable it to preview the 404 and
+# other error pages the way production renders them. Phoenix bakes this option
+# into TuistWeb.Endpoint at compile time, so flipping it needs that module
+# recompiled: `rm _build/dev/lib/tuist/ebin/Elixir.TuistWeb.Endpoint.beam`
+# before starting (or `mix compile --force`).
+debug_errors_enabled = System.get_env("TUIST_DEV_DISABLE_DEBUG_ERRORS") not in ["1", "true"]
+
+# Base watchers for esbuild. Source maps are emitted as separate .map files
+# (devtools fetch them on demand) rather than inlined: inline maps made the
+# marketing bundle ~25 MB, which every page navigation on a phone had to
+# download and parse before its hooks could mount.
 base_watchers = [
-  esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap=inline --watch)]},
-  esbuild_marketing: {Esbuild, :install_and_run, [:marketing, ~w(--sourcemap=inline --watch)]},
-  esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap=inline --watch)]}
+  esbuild_app: {Esbuild, :install_and_run, [:app, ~w(--sourcemap --watch)]},
+  esbuild_marketing: {Esbuild, :install_and_run, [:marketing, ~w(--sourcemap --watch)]},
+  esbuild_docs: {Esbuild, :install_and_run, [:docs, ~w(--sourcemap --watch)]},
+  esbuild_apidocs: {Esbuild, :install_and_run, [:apidocs, ~w(--sourcemap --watch)]}
 ]
-
-# Do not include metadata nor timestamps in development logs
-config :logger, :console, format: "[$level] $message\n"
-
-# Disable caching of OpenAPI Spex as suggested in the docs
-config :open_api_spex, :cache_adapter, OpenApiSpex.Plug.NoneCache
-
-# Initialize plugs at runtime for faster development compilation
-config :phoenix, :plug_init_mode, :runtime
-
-# Set a higher stacktrace during development. Avoid configuring such
-# in production as building large stacktraces may be expensive.
-config :phoenix, :stacktrace_depth, 20
-
-# Include HEEx debug annotations as HTML comments in rendered markup
-config :phoenix_live_view, :debug_heex_annotations, true
-
-config :tuist, Tuist.ClickHouseRepo,
-  hostname: "localhost",
-  port: 8123,
-  database: "tuist_development",
-  settings: [readonly: 1]
-
-config :tuist, Tuist.IngestRepo,
-  hostname: "localhost",
-  port: 8123,
-  database: "tuist_development",
-  flush_interval_ms: 5000,
-  # Bytes
-  max_buffer_size: 100_000,
-  pool_size: 5
-
-config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
-
-# Configure your database
-config :tuist, Tuist.Repo,
-  hostname: "localhost",
-  database: "tuist_development",
-  stacktrace: true,
-  show_sensitive_data_on_connection_error: true,
-  pool_size: 10
-
-# When NOORA_LOCAL is set, override esbuild config to use local noora path via alias
-# and add a noora_local profile for watching/rebuilding noora assets
-if System.get_env("NOORA_LOCAL") do
-  noora_static_path = Path.expand("../../../noora/web/priv/static", __DIR__)
-  noora_web_path = Path.expand("../../../noora/web", __DIR__)
-  deps_path = Path.expand("../deps", __DIR__)
-
-  config :esbuild,
-    app: [
-      args: [
-        "app.js",
-        "--bundle",
-        "--target=es2017",
-        "--outfile=../../priv/static/app/assets/bundle.js",
-        "--external:/fonts/*",
-        "--external:/images/*",
-        "--alias:noora=#{noora_static_path}/noora.js",
-        "--alias:noora/noora.css=#{noora_static_path}/noora.css"
-      ],
-      cd: Path.expand("../assets/app", __DIR__),
-      env: %{"NODE_PATH" => deps_path}
-    ],
-    marketing: [
-      args: [
-        "marketing.js",
-        "--bundle",
-        "--loader:.svg=dataurl",
-        "--loader:.jpg=dataurl",
-        "--loader:.png=dataurl",
-        "--loader:.webp=dataurl",
-        "--target=es2017",
-        "--outfile=../../priv/static/marketing/assets/bundle.js",
-        "--external:/fonts/*",
-        "--external:/images/*",
-        "--alias:noora=#{noora_static_path}/noora.js",
-        "--alias:noora/noora.css=#{noora_static_path}/noora.css"
-      ],
-      cd: Path.expand("../assets/marketing", __DIR__),
-      env: %{"NODE_PATH" => deps_path}
-    ],
-    apidocs: [
-      args:
-        ~w(apidocs.js --bundle --target=es2017 --outfile=../../priv/static/apidocs/assets/bundle.js --external:/fonts/* --external:/images/*),
-      cd: Path.expand("../assets/apidocs", __DIR__),
-      env: %{"NODE_PATH" => deps_path}
-    ],
-    noora_local: [
-      args: ~w(js/index.js --bundle --sourcemap --format=esm --outfile=./priv/static/noora.js),
-      cd: noora_web_path
-    ]
-end
-
-# When NOORA_LOCAL is set, add a watcher to rebuild noora JS assets
-noora_watchers =
-  if System.get_env("NOORA_LOCAL") do
-    [
-      esbuild_noora: {Esbuild, :install_and_run, [:noora_local, ~w(--watch)]}
-    ]
-  else
-    []
-  end
-
-# Reloadable apps for Elixir code hot-reloading
-reloadable_apps =
-  if System.get_env("NOORA_LOCAL") do
-    [:tuist, :noora]
-  else
-    [:tuist]
-  end
 
 # ## SSL Support
 #
@@ -154,41 +62,159 @@ base_live_reload_patterns = [
   ~r"priv/gettext/.*(po)$",
   ~r"lib/tuist_web/(controllers|live|components)/.*(ex|heex)$",
   ~r"lib/tuist_web/marketing/(controllers|live|components)/.*(ex|heex)$",
-  ~r"priv/marketing/blog/*/.*(md)$"
+  ~r"lib/tuist_web/docs/.*(ex|heex)$",
+  ~r"priv/marketing/blog/.*\\.md$",
+  ~r"#{escaped_noora_source_path}/lib/noora/.*(ex|heex)$",
+  ~r"#{escaped_noora_source_path}/js/.*(js)$",
+  ~r"#{escaped_noora_source_path}/css/.*(css)$",
+  ~r"#{escaped_noora_source_path}/priv/static/.*(js|css)$"
 ]
 
-# When NOORA_LOCAL is set, also watch noora source files
-noora_live_reload_patterns =
-  if System.get_env("NOORA_LOCAL") do
-    [
-      ~r"../../noora/web/lib/noora/.*(ex|heex)$",
-      ~r"../../noora/web/priv/static/.*(js|css)$"
-    ]
-  else
-    []
-  end
+config :esbuild,
+  app: [
+    args: [
+      "app.js",
+      "--bundle",
+      "--target=es2017",
+      "--outfile=../../priv/static/app/assets/bundle.js",
+      "--external:/fonts/*",
+      "--external:/images/*",
+      "--alias:noora=#{noora_source_path}/js/index.js",
+      "--alias:noora/noora.css=#{noora_source_path}/css/noora.css"
+    ],
+    cd: Path.expand("../assets/app", __DIR__),
+    env: %{
+      # Noora's JS depends on @zag-js/* packages that live in the sibling
+      # noora package's node_modules; include that directory so esbuild
+      # resolves them without requiring the caller to symlink or duplicate.
+      "NODE_PATH" => "#{deps_path}:#{noora_source_path}/node_modules:#{node_modules_path}"
+    }
+  ],
+  marketing: [
+    args: [
+      "marketing.js",
+      "--bundle",
+      "--loader:.svg=dataurl",
+      "--loader:.jpg=dataurl",
+      "--loader:.png=dataurl",
+      "--loader:.webp=dataurl",
+      "--loader:.woff=file",
+      "--loader:.woff2=file",
+      "--loader:.ttf=file",
+      # ES modules with code splitting: the script tag is type="module", and
+      # dynamic import() (KaTeX, the cytoscape blog lab) lands in its own
+      # chunk under chunks/ instead of every page paying for it. Chunk names
+      # carry a content hash; the entry keeps its bundle.js / bundle.css
+      # names. es2020 is the floor for import() syntax.
+      "--target=es2020",
+      "--format=esm",
+      "--splitting",
+      "--outdir=../../priv/static/marketing/assets",
+      "--entry-names=bundle",
+      "--chunk-names=chunks/[name]-[hash]",
+      "--external:/fonts/*",
+      "--external:/images/*",
+      "--external:/marketing/*",
+      "--alias:@=.",
+      "--alias:noora/hooks=#{noora_source_path}/js",
+      "--alias:noora=#{noora_source_path}/js/index.js",
+      "--alias:noora/noora.css=#{noora_source_path}/css/noora.css"
+    ],
+    cd: Path.expand("../assets/marketing", __DIR__),
+    env: %{"NODE_PATH" => "#{deps_path}:#{build_path}"}
+  ],
+  docs: [
+    args: [
+      "docs.js",
+      "--bundle",
+      "--loader:.svg=dataurl",
+      "--loader:.jpg=dataurl",
+      "--loader:.png=dataurl",
+      "--loader:.webp=dataurl",
+      "--target=es2017",
+      "--outfile=../../priv/static/docs/assets/bundle.js",
+      "--external:/fonts/*",
+      "--external:/images/*",
+      "--alias:noora=#{noora_source_path}/js/index.js",
+      "--alias:noora/noora.css=#{noora_source_path}/css/noora.css"
+    ],
+    cd: Path.expand("../assets/docs", __DIR__),
+    env: %{"NODE_PATH" => "#{deps_path}:#{node_modules_path}"}
+  ],
+  apidocs: [
+    args:
+      ~w(apidocs.js --bundle --target=es2017 --outfile=../../priv/static/apidocs/assets/bundle.js --external:/fonts/* --external:/images/*),
+    cd: Path.expand("../assets/apidocs", __DIR__),
+    env: %{"NODE_PATH" => "#{deps_path}:#{node_modules_path}"}
+  ]
 
-# Configure phoenix_live_reload dirs when NOORA_LOCAL is set
-if System.get_env("NOORA_LOCAL") do
-  config :phoenix_live_reload,
-    dirs: [
-      "../../noora/web/lib",
-      "../../noora/web/priv/static"
-    ]
-end
+# Do not include metadata nor timestamps in development logs
+config :logger, :console, format: "[$level] $message\n"
+
+# Disable caching of OpenAPI Spex as suggested in the docs
+config :open_api_spex, :cache_adapter, OpenApiSpex.Plug.NoneCache
+
+# Initialize plugs at runtime for faster development compilation
+config :phoenix, :plug_init_mode, :runtime
+
+# Set a higher stacktrace during development. Avoid configuring such
+# in production as building large stacktraces may be expensive.
+config :phoenix, :stacktrace_depth, 20
+
+config :phoenix_live_reload,
+  dirs: [
+    server_source_path,
+    Path.join(noora_source_path, "lib"),
+    Path.join(noora_source_path, "js"),
+    Path.join(noora_source_path, "css"),
+    Path.join(noora_source_path, "priv/static")
+  ]
+
+# Include HEEx debug annotations as HTML comments in rendered markup
+config :phoenix_live_view, :debug_heex_annotations, true
+
+config :tuist, Tuist.ClickHouseRepo,
+  hostname: "localhost",
+  port: 8123,
+  database: "tuist_development",
+  settings: [readonly: 1]
+
+config :tuist, Tuist.IngestRepo,
+  hostname: "localhost",
+  port: 8123,
+  database: "tuist_development",
+  flush_interval_ms: 5000,
+  # Bytes
+  max_buffer_size: 100_000,
+  pool_size: 5
+
+config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
+
+config :tuist, Tuist.OpsClickHouseRepo,
+  hostname: "localhost",
+  port: 8123,
+  database: "tuist_development",
+  pool_size: 2,
+  settings: [readonly: 1]
+
+# Configure your database
+config :tuist, Tuist.Repo,
+  hostname: "localhost",
+  database: "tuist_development",
+  stacktrace: true,
+  show_sensitive_data_on_connection_error: true,
+  pool_size: 10
 
 config :tuist, TuistWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
   http: [ip: {127, 0, 0, 1}, port: 8080],
   check_origin: false,
-  code_reloader: true,
-  debug_errors: true,
-  reloadable_apps: reloadable_apps,
-  watchers: base_watchers ++ noora_watchers,
-  live_reload: [
-    patterns: base_live_reload_patterns ++ noora_live_reload_patterns
-  ]
+  code_reloader: code_reloader_enabled,
+  debug_errors: debug_errors_enabled,
+  reloadable_apps: [:tuist, :noora],
+  watchers: if(code_reloader_enabled, do: base_watchers, else: []),
+  live_reload: if(code_reloader_enabled, do: [patterns: base_live_reload_patterns], else: [])
 
 # Enable dev routes for dashboard and mailbox
 config :tuist, dev_routes: true
@@ -198,3 +224,8 @@ config :tuist,
   generators: [timestamp_type: :utc_datetime],
   api_pipeline_producer_module: OffBroadwayMemory.Producer,
   api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer]
+
+# One session cookie per dev server. See `@session_options` in
+# `TuistWeb.Endpoint`: cookies ignore the port, so a shared name lets
+# concurrent worktree servers clobber each other's sessions.
+config :tuist, session_cookie_key: "_tuist_key_" <> (System.get_env("TUIST_SERVER_PORT") || "8080")

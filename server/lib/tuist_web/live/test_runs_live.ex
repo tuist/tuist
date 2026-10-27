@@ -5,16 +5,20 @@ defmodule TuistWeb.TestRunsLive do
 
   import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.Skeleton
+  import TuistWeb.Helpers.TestLabels
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
   alias Noora.Filter
   alias Tuist.Accounts
-  alias Tuist.Runs
-  alias Tuist.Runs.Analytics
+  alias Tuist.Tests
+  alias Tuist.Tests.Analytics
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
+
+  @analytics_widgets ~w(test_run_count failed_test_run_count test_run_duration)
 
   def mount(_params, _session, %{assigns: %{selected_project: project, selected_account: account}} = socket) do
     slug = "#{account.name}/#{project.name}"
@@ -22,12 +26,13 @@ defmodule TuistWeb.TestRunsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Runs")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("test-runs"))
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_tests", "Test Runs"),
+          fallback: "test-runs"
+        )
+      )
       |> assign(:available_filters, define_filters(project))
-
-    if connected?(socket) do
-      Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
-    end
 
     {:ok, socket}
   end
@@ -49,6 +54,14 @@ defmodule TuistWeb.TestRunsLive do
         value: nil
       },
       %Filter.Filter{
+        id: "claimed_actor_id",
+        field: :claimed_actor_id,
+        display_name: dgettext("dashboard_tests", "Reported name"),
+        type: :text,
+        operator: :==,
+        value: ""
+      },
+      %Filter.Filter{
         id: "git_branch",
         field: :git_branch,
         display_name: dgettext("dashboard_tests", "Branch"),
@@ -61,6 +74,7 @@ defmodule TuistWeb.TestRunsLive do
     organization =
       if Accounts.organization?(project.account) do
         {:ok, organization} = Accounts.get_organization_by_id(project.account.organization_id)
+
         users = Accounts.get_organization_members(organization)
 
         [
@@ -69,6 +83,7 @@ defmodule TuistWeb.TestRunsLive do
             field: :ran_by,
             display_name: dgettext("dashboard_tests", "Ran by"),
             type: :option,
+            searchable: true,
             options: [:ci] ++ Enum.map(users, fn user -> user.account.id end),
             options_display_names:
               Map.merge(
@@ -86,13 +101,8 @@ defmodule TuistWeb.TestRunsLive do
     base ++ organization
   end
 
-  def handle_params(params, _uri, socket) do
-    params =
-      if not Map.has_key?(socket.assigns, :current_params) and Query.has_cursor?(params) do
-        Query.clear_cursors(params)
-      else
-        params
-      end
+  def handle_params(_params, uri, socket) do
+    params = uri |> Query.query_params() |> Query.clear_cursors_on_initial_load(socket.assigns)
 
     {
       :noreply,
@@ -136,38 +146,35 @@ defmodule TuistWeb.TestRunsLive do
      |> push_event("close-popover", %{all: true})}
   end
 
-  def handle_event(
-        "select_widget",
-        %{"widget" => widget},
-        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
-      ) do
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    widget = analytics_widget(widget)
+
+    query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
+    uri = URI.new!("?" <> query)
+
     socket =
-      push_patch(
-        socket,
-        to:
-          "/#{selected_account.name}/#{selected_project.name}/tests/test-runs?#{Query.put(uri.query, "analytics-selected-widget", widget)}",
-        replace: true
-      )
+      socket
+      |> assign(:analytics_selected_widget, widget)
+      |> assign(:uri, uri)
+      |> push_event("replace-url", %{url: "?" <> query})
 
     {:noreply, socket}
   end
 
-  def handle_event(
-        "select_duration_type",
-        %{"type" => type},
-        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
-      ) do
+  def handle_event("select_duration_type", %{"type" => type}, socket) do
     query =
-      uri.query
+      socket.assigns.uri.query
       |> Query.put("duration-type", type)
       |> Query.put("analytics-selected-widget", "test_run_duration")
 
+    uri = URI.new!("?" <> query)
+
     socket =
-      push_patch(
-        socket,
-        to: "/#{selected_account.name}/#{selected_project.name}/tests/test-runs?#{query}",
-        replace: true
-      )
+      socket
+      |> assign(:selected_duration_type, type)
+      |> assign(:analytics_selected_widget, "test_run_duration")
+      |> assign(:uri, uri)
+      |> push_event("replace-url", %{url: "?" <> query})
 
     {:noreply, socket}
   end
@@ -186,6 +193,11 @@ defmodule TuistWeb.TestRunsLive do
       else
         Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
       end
+
+    query_params =
+      query_params
+      |> Query.drop("before")
+      |> Query.drop("after")
 
     {:noreply,
      push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/tests/test-runs?#{query_params}")}
@@ -212,18 +224,6 @@ defmodule TuistWeb.TestRunsLive do
     {:noreply, socket}
   end
 
-  def handle_info({:test_created, %{name: "test"}}, socket) do
-    # Only update when pagination is inactive
-    if Query.has_pagination_params?(socket.assigns.uri.query) do
-      {:noreply, socket}
-    else
-      {:noreply,
-       socket
-       |> assign_analytics(socket.assigns.current_params)
-       |> assign_test_runs(socket.assigns.current_params)}
-    end
-  end
-
   def handle_info(_event, socket) do
     {:noreply, socket}
   end
@@ -233,8 +233,19 @@ defmodule TuistWeb.TestRunsLive do
     analytics_environment = params["analytics-environment"] || "any"
     selected_duration_type = params["duration-type"] || "avg"
 
-    %{preset: preset, period: {start_datetime, end_datetime} = period} =
+    query_key =
+      {project.id, analytics_environment,
+       Map.take(params, ["analytics-date-range", "analytics-start-date", "analytics-end-date"])}
+
+    %{preset: preset, period: period} =
       DatePicker.date_picker_params(params, "analytics")
+
+    period =
+      if socket.assigns[:analytics_query_key] == query_key,
+        do: socket.assigns.analytics_period,
+        else: period
+
+    {start_datetime, end_datetime} = period
 
     opts = [
       project_id: project.id,
@@ -251,73 +262,103 @@ defmodule TuistWeb.TestRunsLive do
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
-    [test_runs_analytics, failed_test_runs_analytics, test_runs_duration_analytics] =
-      Task.await_many(
+    analytics_selected_widget = analytics_widget(params["analytics-selected-widget"])
+
+    socket =
+      socket
+      |> assign(:analytics_preset, preset)
+      |> assign(:analytics_period, period)
+      |> assign(:analytics_trend_label, analytics_trend_label(preset))
+      |> assign(:analytics_environment, analytics_environment)
+      |> assign(:analytics_environment_label, analytics_environment_label(analytics_environment))
+      |> assign(:analytics_selected_widget, analytics_selected_widget)
+      |> assign(:selected_duration_type, selected_duration_type)
+      |> assign(:uri, uri)
+
+    result = socket.assigns[:test_runs_analytics]
+
+    if socket.assigns[:analytics_query_key] == query_key && result && !result.failed &&
+         (result.ok? || result.loading) do
+      socket
+    else
+      socket
+      |> assign(:analytics_query_key, query_key)
+      |> assign_async(
         [
-          Task.async(fn -> Analytics.test_run_analytics(project.id, opts) end),
-          Task.async(fn -> Analytics.test_run_analytics(project.id, Keyword.put(opts, :status, "failure")) end),
-          Task.async(fn -> Analytics.test_run_duration_analytics(project.id, opts) end)
+          :test_runs_analytics,
+          :failed_test_runs_analytics,
+          :test_runs_duration_analytics
         ],
-        30_000
+        fn ->
+          test_runs_analytics = Analytics.test_run_analytics(project.id, opts)
+
+          failed_test_runs_analytics =
+            Analytics.test_run_analytics(project.id, Keyword.put(opts, :status, "failure"))
+
+          test_runs_duration_analytics = Analytics.test_run_duration_analytics(project.id, opts)
+
+          {:ok,
+           %{
+             test_runs_analytics: test_runs_analytics,
+             failed_test_runs_analytics: failed_test_runs_analytics,
+             test_runs_duration_analytics: test_runs_duration_analytics
+           }}
+        end
       )
+    end
+  end
 
-    analytics_selected_widget = params["analytics-selected-widget"] || "test_run_count"
+  # A bookmarked link may name a widget the page no longer has, like `coverage`.
+  defp analytics_widget(widget) when widget in @analytics_widgets, do: widget
+  defp analytics_widget(_widget), do: "test_run_count"
 
-    analytics_chart_data =
-      case analytics_selected_widget do
-        "test_run_count" ->
-          %{
-            dates: test_runs_analytics.dates,
-            values: test_runs_analytics.values,
-            name: dgettext("dashboard_tests", "Test run count"),
-            value_formatter: "{value}"
-          }
+  defp analytics_chart_data(
+         analytics_selected_widget,
+         selected_duration_type,
+         test_runs_analytics,
+         failed_test_runs_analytics,
+         test_runs_duration_analytics
+       ) do
+    case analytics_selected_widget do
+      "test_run_count" ->
+        %{
+          dates: test_runs_analytics.dates,
+          values: test_runs_analytics.values,
+          name: dgettext("dashboard_tests", "Test run count"),
+          value_formatter: "{value}"
+        }
 
-        "failed_test_run_count" ->
-          %{
-            dates: failed_test_runs_analytics.dates,
-            values: failed_test_runs_analytics.values,
-            name: dgettext("dashboard_tests", "Failed run count"),
-            value_formatter: "{value}"
-          }
+      "failed_test_run_count" ->
+        %{
+          dates: failed_test_runs_analytics.dates,
+          values: failed_test_runs_analytics.values,
+          name: dgettext("dashboard_tests", "Failed run count"),
+          value_formatter: "{value}"
+        }
 
-        "test_run_duration" ->
-          {values, name} =
-            case selected_duration_type do
-              "p99" ->
-                {test_runs_duration_analytics.p99_values, dgettext("dashboard_tests", "p99 test run duration")}
+      "test_run_duration" ->
+        {values, name} =
+          case selected_duration_type do
+            "p99" ->
+              {test_runs_duration_analytics.p99_values, dgettext("dashboard_tests", "p99 test run duration")}
 
-              "p90" ->
-                {test_runs_duration_analytics.p90_values, dgettext("dashboard_tests", "p90 test run duration")}
+            "p90" ->
+              {test_runs_duration_analytics.p90_values, dgettext("dashboard_tests", "p90 test run duration")}
 
-              "p50" ->
-                {test_runs_duration_analytics.p50_values, dgettext("dashboard_tests", "p50 test run duration")}
+            "p50" ->
+              {test_runs_duration_analytics.p50_values, dgettext("dashboard_tests", "p50 test run duration")}
 
-              _ ->
-                {test_runs_duration_analytics.values, dgettext("dashboard_tests", "Avg. test run duration")}
-            end
+            _ ->
+              {test_runs_duration_analytics.values, dgettext("dashboard_tests", "Avg. test run duration")}
+          end
 
-          %{
-            dates: test_runs_duration_analytics.dates,
-            values: values,
-            name: name,
-            value_formatter: "fn:formatMilliseconds"
-          }
-      end
-
-    socket
-    |> assign(:analytics_preset, preset)
-    |> assign(:analytics_period, period)
-    |> assign(:analytics_trend_label, analytics_trend_label(preset))
-    |> assign(:analytics_environment, analytics_environment)
-    |> assign(:analytics_environment_label, analytics_environment_label(analytics_environment))
-    |> assign(:analytics_selected_widget, analytics_selected_widget)
-    |> assign(:selected_duration_type, selected_duration_type)
-    |> assign(:test_runs_analytics, test_runs_analytics)
-    |> assign(:failed_test_runs_analytics, failed_test_runs_analytics)
-    |> assign(:test_runs_duration_analytics, test_runs_duration_analytics)
-    |> assign(:analytics_chart_data, analytics_chart_data)
-    |> assign(:uri, uri)
+        %{
+          dates: test_runs_duration_analytics.dates,
+          values: values,
+          name: name,
+          value_formatter: "fn:formatMilliseconds"
+        }
+    end
   end
 
   defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_tests", "since yesterday")
@@ -326,9 +367,9 @@ defmodule TuistWeb.TestRunsLive do
   defp analytics_trend_label("custom"), do: dgettext("dashboard_tests", "since last period")
   defp analytics_trend_label(_), do: dgettext("dashboard_tests", "since last month")
 
-  defp analytics_environment_label("any"), do: dgettext("dashboard_tests", "Any")
   defp analytics_environment_label("local"), do: dgettext("dashboard_tests", "Local")
   defp analytics_environment_label("ci"), do: dgettext("dashboard_tests", "CI")
+  defp analytics_environment_label(_), do: dgettext("dashboard_tests", "Any")
 
   defp assign_test_runs(%{assigns: %{selected_project: project}} = socket, params) do
     filters =
@@ -336,10 +377,15 @@ defmodule TuistWeb.TestRunsLive do
 
     search = params["search"] || ""
 
-    flop_filters = [
-      %{field: :project_id, op: :==, value: project.id}
-      | build_flop_filters(filters, search)
-    ]
+    {start_datetime, end_datetime} = socket.assigns.analytics_period
+
+    flop_filters =
+      [
+        %{field: :project_id, op: :==, value: project.id},
+        %{field: :status, op: :!=, value: "in_progress"},
+        %{field: :ran_at, op: :>=, value: start_datetime},
+        %{field: :ran_at, op: :<=, value: end_datetime}
+      ] ++ build_flop_filters(filters, search) ++ page_level_environment_filters(socket.assigns)
 
     options = %{
       filters: flop_filters,
@@ -363,7 +409,8 @@ defmodule TuistWeb.TestRunsLive do
           Map.put(options, :first, 20)
       end
 
-    {test_runs, test_runs_meta} = Runs.list_test_runs(options)
+    {test_runs, test_runs_meta} =
+      Tests.list_test_runs(options)
 
     socket
     |> assign(:active_filters, filters)
@@ -374,6 +421,7 @@ defmodule TuistWeb.TestRunsLive do
 
   defp build_flop_filters(filters, search) do
     {ran_by, filters} = Enum.split_with(filters, &(&1.id == "ran_by"))
+
     flop_filters = Filter.Operations.convert_filters_to_flop(filters)
 
     ran_by_flop_filters =
@@ -381,8 +429,14 @@ defmodule TuistWeb.TestRunsLive do
         %{value: :ci, operator: op} ->
           [%{field: :is_ci, op: op, value: true}]
 
+        %{value: value, operator: :==} when not is_nil(value) ->
+          [
+            %{field: :is_ci, op: :==, value: false},
+            %{field: :verified_actor, op: :==, value: value}
+          ]
+
         %{value: value, operator: op} when not is_nil(value) ->
-          [%{field: :account_id, op: op, value: value}]
+          [%{field: :verified_actor, op: op, value: value}]
 
         _ ->
           []
@@ -397,4 +451,8 @@ defmodule TuistWeb.TestRunsLive do
 
     flop_filters ++ ran_by_flop_filters ++ search_filters
   end
+
+  defp page_level_environment_filters(%{analytics_environment: "ci"}), do: [%{field: :is_ci, op: :==, value: true}]
+  defp page_level_environment_filters(%{analytics_environment: "local"}), do: [%{field: :is_ci, op: :==, value: false}]
+  defp page_level_environment_filters(_), do: []
 end

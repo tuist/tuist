@@ -1,0 +1,103 @@
+# Overlay for the staging cluster's tailscale-operator install.
+# Matches the chart-default tag set in values.yaml — included
+# explicitly so the env-overlay shape is symmetric with canary +
+# production.
+
+tailscale-operator:
+  operatorConfig:
+    hostname: tuist-k8s-staging
+    defaultTags:
+      - "tag:tuist-k8s-staging"
+
+  # Staging is the one env where human kubectl runs over the tailnet
+  # instead of through Pomerium. Being on the tailnet IS the
+  # authentication; the impersonated tier comes from the
+  # `tailscale.com/cap/kubernetes` grants in
+  # infra/tailscale/acls.json. Reachable at
+  # `https://tuist-k8s-staging.taild6d7bb.ts.net` — the operator's
+  # own MagicDNS name, per `operatorConfig.hostname` above.
+  #
+  # Staging can afford this because its write tier is standing
+  # access, not a per-request elevation, so nothing here needs the
+  # per-request PolicyController lookup Pomerium exists to carry.
+  # Read the CAUTION in values.yaml before copying this into another
+  # env: auth mode brings an unrestricted impersonation ClusterRole
+  # with it.
+  #
+  # Pomerium stays deployed in staging. It still owns the
+  # `tuist-admins` / `tuist-eng` / `tuist-staging-write` →
+  # ClusterRole bindings this path depends on, and it remains a
+  # working door for anyone off the tailnet.
+  apiServerProxyConfig:
+    mode: "true"
+    allowImpersonation: "true"
+
+connector:
+  hostname: tuist-cluster-router-staging
+  tags:
+    - "tag:tuist-k8s-staging"
+  # Overrides the chart default to additionally advertise the staging
+  # cluster's Service CIDR (infra/k8s/clusters/cluster-staging.yaml)
+  # into the tailnet. This is the cluster half of the macOS
+  # runner-cache path: staging Mac minis run `tailscale up
+  # --accept-routes`, so their Tart runner VMs can dial the in-cluster
+  # Kura runner-cache Service (`kura-<account>-staging.kura.svc...`,
+  # a ClusterIP in this range) through this Connector. Auto-approved
+  # via the `autoApprovers.routes` entry in infra/tailscale/acls.json;
+  # the macmini->cluster grants there scope what can actually be
+  # dialed (the co-hosted Kura cache port 4000 + cluster DNS 53).
+  #
+  # Staging is deliberately the ONLY env advertising this prefix --
+  # all envs share the 10.128.0.0/12 Service CIDR and the tailnet is
+  # shared, so a second advertiser would create ambiguous routing
+  # (see the chart values.yaml caution).
+  advertiseRoutes:
+    - "100.64.0.0/10"
+    - "10.128.0.0/12"
+  # Pin the router to the Scaleway fr-par kura pool: the only
+  # consumer of the Service-CIDR route is the Mac mini fleet (also
+  # in fr-par), and their hot path is Mac -> router -> kura Pod on
+  # this same pool. On a Hetzner node the router would hairpin that
+  # path across the WAN twice.
+  proxyClass:
+    enabled: true
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-scw-fr-par
+    # The pool's nodes register with `tuist.dev/runner-cache=true:NoSchedule`
+    # (infra/helm/tuist/templates/kura-fleet.yaml). Without this the router
+    # has no schedulable node.
+    tolerations:
+      - key: tuist.dev/runner-cache
+        operator: Exists
+        effect: NoSchedule
+
+# A ProxyGroup with static UDP endpoints on md-0's public IPs, so the macOS
+# xcresult VMs reach the Services it serves over a direct path instead of a
+# DERP relay, as in production. See `tailnetIngress` in values.yaml.
+tailnetIngress:
+  enabled: true
+  proxyGroup:
+    hostnamePrefix: tailnet-ingress-staging
+    tags:
+      - "tag:tuist-k8s-staging"
+
+macminiEgress:
+  enabled: true
+  proxyGroup:
+    hostnamePrefix: macmini-egress-staging
+    tags:
+      - "tag:tuist-k8s-staging"
+    # For a BER1 rack host production lends this env (RackHost `lendTo`):
+    # this env's operator dials it at its address on the rack's machines
+    # segment, which the rack's edges advertise as subnet routes. A proxy
+    # that does not accept routes answers `no matching peer` for it. See
+    # values-production.yaml.
+    acceptRoutes: true
+  # Per-machine Services are created dynamically by the CAPI
+  # provider's ScalewayAppleSiliconMachine reconciler — see
+  # macosFleet.tailscaleEgress in the main tuist chart's
+  # values-managed-common.yaml. The `machines:` list below stays
+  # as an escape hatch for Mac minis that aren't managed by CAPI
+  # (e.g. a one-off bare-metal host on the tailnet); leave empty
+  # for the standard case.
+  machines: []

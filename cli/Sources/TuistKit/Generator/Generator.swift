@@ -3,10 +3,12 @@ import Foundation
 import Mockable
 import Path
 import ProjectDescription
+import TuistConfig
+import TuistConfigLoader
 import TuistCore
 import TuistDependencies
 import TuistGenerator
-import TuistLoader
+import TuistLogging
 import TuistPlugin
 import TuistRootDirectoryLocator
 import TuistSupport
@@ -16,6 +18,10 @@ import XcodeGraph
 public protocol Generating {
     @discardableResult
     func load(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws -> Graph
+    func loadWithEnvironment(
+        path: AbsolutePath,
+        options: TuistGeneratedProjectOptions.GenerationOptions?
+    ) async throws -> (Graph, MapperEnvironment)
     func generate(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws -> AbsolutePath
     func generateWithGraph(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws
         -> (AbsolutePath, Graph, MapperEnvironment)
@@ -24,25 +30,20 @@ public protocol Generating {
 public class Generator: Generating {
     private let graphLinter: GraphLinting = GraphLinter()
     private let environmentLinter: EnvironmentLinting = EnvironmentLinter()
-    private let generator: DescriptorGenerating = DescriptorGenerator()
     private let writer: XcodeProjWriting = XcodeProjWriter()
     private let swiftPackageManagerInteractor: TuistGenerator.SwiftPackageManagerInteracting = TuistGenerator
         .SwiftPackageManagerInteractor()
+    private let registryConfigurationGenerator: RegistryConfigurationGenerating = RegistryConfigurationGenerator()
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
     private let configLoader: ConfigLoading
     private let manifestGraphLoader: ManifestGraphLoading
     private var lintingIssues: [LintingIssue] = []
 
     public init(
-        manifestLoader: ManifestLoading,
         manifestGraphLoader: ManifestGraphLoading
     ) {
         sideEffectDescriptorExecutor = SideEffectDescriptorExecutor()
-        configLoader = ConfigLoader(
-            manifestLoader: manifestLoader,
-            rootDirectoryLocator: RootDirectoryLocator(),
-            fileSystem: FileSystem()
-        )
+        configLoader = ConfigLoader()
         self.manifestGraphLoader = manifestGraphLoader
     }
 
@@ -70,10 +71,17 @@ public class Generator: Generating {
         try await lint(graphTraverser: GraphTraverser(graph: environment.initialGraphWithSources ?? graph))
 
         // Generate
+        let defaultSwiftVersion = options?.defaultSwiftVersion
+            ?? TuistGeneratedProjectOptions.GenerationOptions.defaultSwiftVersionValue
+        let generator = DescriptorGenerator(
+            defaultSettingsProvider: DefaultSettingsProvider(defaultSwiftVersion: defaultSwiftVersion)
+        )
         let workspaceDescriptor = try await generator.generateWorkspace(graphTraverser: graphTraverser)
 
-        // Write
-        try await writer.write(workspace: workspaceDescriptor)
+        // Write. `projectFormat` opts into Xcode 27.2's experimental JSON5 format when set to
+        // `.xcproj`; the default `.pbxproj` keeps the classic OpenStep plist output.
+        let projectFormat: XcodeProjectFormat = (options?.projectFormat ?? .pbxproj) == .xcproj ? .xcproj : .pbxproj
+        try await writer.write(workspace: workspaceDescriptor, projectFormat: projectFormat)
 
         // Mapper side effects
         try await sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
@@ -91,6 +99,14 @@ public class Generator: Generating {
 
     public func load(path: AbsolutePath, options: TuistGeneratedProjectOptions.GenerationOptions?) async throws -> Graph {
         try await load(path: path, options: options).0
+    }
+
+    public func loadWithEnvironment(
+        path: AbsolutePath,
+        options: TuistGeneratedProjectOptions.GenerationOptions?
+    ) async throws -> (Graph, MapperEnvironment) {
+        let (graph, _, environment) = try await load(path: path, options: options)
+        return (graph, environment)
     }
 
     func load(
@@ -117,6 +133,12 @@ public class Generator: Generating {
             return
         }
 
+        // Promote and check already-accumulated issues (e.g., outdatedDependencies from load)
+        lintingIssues = lintingIssues.promotingWarnings(
+            with: configGeneratedProjectOptions.generationOptions.warningsAsErrors
+        )
+        try lintingIssues.printAndThrowErrorsIfNeeded()
+
         let environmentIssues = try await environmentLinter.lint(configGeneratedProjectOptions: configGeneratedProjectOptions)
         try environmentIssues.printAndThrowErrorsIfNeeded()
         lintingIssues.append(contentsOf: environmentIssues)
@@ -130,10 +152,20 @@ public class Generator: Generating {
     }
 
     private func postGenerationActions(graphTraverser: GraphTraversing, workspaceName: String) async throws {
-        guard let configGeneratedProjectOptions = (try await configLoader.loadConfig(path: graphTraverser.path)).project
-            .generatedProject
+        let config = try await configLoader.loadConfig(path: graphTraverser.path)
+        guard let configGeneratedProjectOptions = config.project.generatedProject
         else {
             return
+        }
+
+        if configGeneratedProjectOptions.generationOptions.registryEnabled {
+            let configurationPath = graphTraverser.path
+                .appending(component: workspaceName)
+                .appending(components: "xcshareddata", "swiftpm", "configuration")
+            try await registryConfigurationGenerator.generate(
+                at: configurationPath,
+                serverURL: config.url
+            )
         }
 
         try await swiftPackageManagerInteractor.install(
@@ -144,7 +176,6 @@ public class Generator: Generating {
     }
 
     private func printAndFlushPendingLintWarnings() {
-        // Print out warnings, if any
         lintingIssues.printWarningsIfNeeded()
         lintingIssues.removeAll()
     }

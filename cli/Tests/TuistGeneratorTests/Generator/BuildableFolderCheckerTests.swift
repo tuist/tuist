@@ -70,4 +70,12 @@ enum ResourceExtension: String, CaseIterable {
     case txt
     case json
     case js
+    // Files with these extensions used to slip through the legacy resource allowlist —
+    // covered here to lock in Xcode's "anything not source/header is a resource" behavior.
+    case jpg
+    case png
+    case ttf
+    case heic
+    case aar
+    case weirdext
 }

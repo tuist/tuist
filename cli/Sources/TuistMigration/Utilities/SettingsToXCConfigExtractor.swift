@@ -2,6 +2,8 @@ import FileSystem
 import Foundation
 import Path
 import PathKit
+import TuistAlert
+import TuistLogging
 import TuistSupport
 import XcodeProj
 
@@ -40,7 +42,7 @@ public enum SettingsToXCConfigExtractorError: FatalError, Equatable {
     }
 }
 
-public final class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
+public struct SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
     private let fileSystem: FileSysteming
 
     public init(
@@ -92,13 +94,13 @@ public final class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
         }
 
         if try await !fileSystem.exists(xcconfigPath.parentDirectory) {
-            try FileHandler.shared.createFolder(xcconfigPath.parentDirectory)
+            try await fileSystem.makeDirectory(at: xcconfigPath.parentDirectory)
         }
         let buildSettingsContent = [
             commonBuildSettingsLines.sorted().joined(separator: "\n"),
             buildSettingsLines.sorted().joined(separator: "\n"),
         ].joined(separator: "\n\n")
-        try FileHandler.shared.write(buildSettingsContent, path: xcconfigPath, atomically: true)
+        try await fileSystem.writeText(buildSettingsContent, at: xcconfigPath)
 
         AlertController.current
             .success(.alert("Build settings successfully extracted into \(xcconfigPath.pathString)"))

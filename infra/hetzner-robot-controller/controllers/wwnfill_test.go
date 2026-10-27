@@ -1,0 +1,345 @@
+package controllers
+
+import (
+	"context"
+	"testing"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+)
+
+// makeHostWithHardwareDetails builds a HetznerBareMetalHost CR
+// with optional `spec.status.hardwareDetails.storage` populated.
+// `wwns` is the list of disk WWNs in scan order — empty entries
+// become storage rows without a `wwn` field (caph-permitted but
+// not useful for this reconciler).
+func makeHostWithHardwareDetails(name string, managed bool, wwns []string, existingHints map[string]any) *unstructured.Unstructured {
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(hetznerBareMetalHostGVK)
+	obj.SetName(name)
+	obj.SetNamespace("org-tuist")
+	if managed {
+		obj.SetLabels(map[string]string{ManagedByLabel: ManagedByValue})
+	}
+	storage := make([]interface{}, 0, len(wwns))
+	for _, w := range wwns {
+		entry := map[string]interface{}{"sizeBytes": int64(512110190592), "model": "SAMSUNG"}
+		if w != "" {
+			entry["wwn"] = w
+		}
+		storage = append(storage, entry)
+	}
+	_ = unstructured.SetNestedSlice(obj.Object, storage, "spec", "status", "hardwareDetails", "storage")
+	if existingHints != nil {
+		_ = unstructured.SetNestedField(obj.Object, existingHints, "spec", "rootDeviceHints")
+	}
+	return obj
+}
+
+func reconcileOnce(t *testing.T, obj *unstructured.Unstructured) (*unstructured.Unstructured, ctrl.Result, error) {
+	t.Helper()
+	cli := fake.NewClientBuilder().WithObjects(obj).Build()
+	r := &WWNFillReconciler{Client: cli, Scheme: cli.Scheme()}
+	res, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Namespace: "org-tuist", Name: obj.GetName()},
+	})
+	out := &unstructured.Unstructured{}
+	out.SetGroupVersionKind(hetznerBareMetalHostGVK)
+	_ = cli.Get(context.Background(), types.NamespacedName{Namespace: "org-tuist", Name: obj.GetName()}, out)
+	return out, res, err
+}
+
+func TestWWNFill_FillsFromHardwareDetails(t *testing.T) {
+	obj := makeHostWithHardwareDetails("bm-1", true,
+		[]string{"eui.001", "eui.002"}, nil /* no existing hints */)
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	wwns, ok, _ := unstructured.NestedStringSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn")
+	if !ok {
+		t.Fatal("expected spec.rootDeviceHints.raid.wwn to be set")
+	}
+	if got, want := len(wwns), 2; got != want {
+		t.Fatalf("wwn count: got %d want %d", got, want)
+	}
+	if wwns[0] != "eui.001" || wwns[1] != "eui.002" {
+		t.Errorf("unexpected wwn ordering: %v", wwns)
+	}
+}
+
+func TestWWNFill_SkipsNonManagedHosts(t *testing.T) {
+	obj := makeHostWithHardwareDetails("bm-1", false, /* not managed */
+		[]string{"eui.001", "eui.002"}, nil)
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	_, ok, _ := unstructured.NestedSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn")
+	if ok {
+		t.Error("unmanaged host should not be patched")
+	}
+}
+
+func TestWWNFill_SkipsAlreadyPopulated(t *testing.T) {
+	// Operator has pre-filled a single-disk wwn; we shouldn't
+	// clobber it with a RAID layout.
+	obj := makeHostWithHardwareDetails("bm-1", true,
+		[]string{"eui.001", "eui.002"},
+		map[string]any{"wwn": "eui.999" /* pre-set single-disk */})
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	// Existing wwn unchanged.
+	w, _, _ := unstructured.NestedString(got.Object, "spec", "rootDeviceHints", "wwn")
+	if w != "eui.999" {
+		t.Errorf("existing wwn was clobbered: got %q want eui.999", w)
+	}
+	// RAID block NOT added.
+	if _, ok, _ := unstructured.NestedSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn"); ok {
+		t.Error("raid.wwn must not be set when single-disk wwn is already present")
+	}
+}
+
+func TestWWNFill_WaitsForEnoughDisks(t *testing.T) {
+	obj := makeHostWithHardwareDetails("bm-1", true,
+		[]string{"eui.001"} /* only one disk visible */, nil)
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if _, ok, _ := unstructured.NestedSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn"); ok {
+		t.Error("raid.wwn must not be set when fewer than 2 disks are visible")
+	}
+}
+
+func TestWWNFill_SkipsHardwareDetailsAbsent(t *testing.T) {
+	// caph hasn't registered yet — `spec.status.hardwareDetails`
+	// is empty. Reconciler is a no-op; the next caph status update
+	// will trigger us again via the watch.
+	obj := makeHostWithHardwareDetails("bm-1", true, nil /* no disks scanned */, nil)
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if _, ok, _ := unstructured.NestedSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn"); ok {
+		t.Error("reconciler should not write hints before caph populates hardwareDetails")
+	}
+}
+
+func TestWWNFill_DeduplicatesAndKeepsEveryDisk(t *testing.T) {
+	obj := makeHostWithHardwareDetails("bm-1", true,
+		[]string{"eui.001", "eui.001" /* dup */, "eui.002", "eui.003"}, nil)
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	wwns, ok, _ := unstructured.NestedStringSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn")
+	if !ok {
+		t.Fatal("expected raid.wwn to be set")
+	}
+	want := []string{"eui.001", "eui.002", "eui.003"}
+	if len(wwns) != len(want) {
+		t.Fatalf("wwn count: got %d want %d (%v)", len(wwns), len(want), wwns)
+	}
+	for i := range want {
+		if wwns[i] != want[i] {
+			t.Errorf("expected every unique WWN in scan order; got %v", wwns)
+			break
+		}
+	}
+}
+
+// The case this exists for. A four-disk box truncated to two would install
+// across half its disks and leave the rest out of the array, and the layout is
+// fixed at install, so the only way back is a reinstall.
+func TestWWNFill_FourDiskHostKeepsAllFour(t *testing.T) {
+	obj := makeHostWithHardwareDetails("bm-1", true,
+		[]string{"eui.001", "eui.002", "eui.003", "eui.004"}, nil)
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	wwns, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn")
+	if got, want := len(wwns), 4; got != want {
+		t.Fatalf("wwn count: got %d want %d (%v)", got, want, wwns)
+	}
+}
+
+// Unchanged for the shape every Hetzner bare-metal host we run today has.
+func TestWWNFill_TwoDiskHostIsUnaffected(t *testing.T) {
+	obj := makeHostWithHardwareDetails("bm-1", true, []string{"eui.001", "eui.002"}, nil)
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	wwns, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn")
+	if got, want := len(wwns), 2; got != want {
+		t.Fatalf("wwn count: got %d want %d (%v)", got, want, wwns)
+	}
+}
+
+func TestExtractWWNs_SkipsEntriesWithoutWWN(t *testing.T) {
+	storage := []interface{}{
+		map[string]interface{}{"model": "no-wwn-disk"},
+		map[string]interface{}{"wwn": "eui.001"},
+		"unexpected-shape", // should be skipped, not crash
+		map[string]interface{}{"wwn": "eui.002"},
+	}
+	got := extractWWNs(storage)
+	if got, want := len(got), 2; got != want {
+		t.Fatalf("len: got %d want %d", got, want)
+	}
+	if got[0] != "eui.001" || got[1] != "eui.002" {
+		t.Errorf("unexpected wwns: %v", got)
+	}
+}
+
+// disk is a storage row as caph reports it: a WWN and the size the
+// array member would contribute.
+type disk struct {
+	wwn  string
+	size int64
+}
+
+func makeHostWithDisks(name string, disks []disk) *unstructured.Unstructured {
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(hetznerBareMetalHostGVK)
+	obj.SetName(name)
+	obj.SetNamespace("org-tuist")
+	obj.SetLabels(map[string]string{ManagedByLabel: ManagedByValue})
+	storage := make([]interface{}, 0, len(disks))
+	for _, d := range disks {
+		entry := map[string]interface{}{"model": "SAMSUNG"}
+		if d.wwn != "" {
+			entry["wwn"] = d.wwn
+		}
+		if d.size != 0 {
+			entry["sizeBytes"] = d.size
+		}
+		storage = append(storage, entry)
+	}
+	_ = unstructured.SetNestedSlice(obj.Object, storage, "spec", "status", "hardwareDetails", "storage")
+	return obj
+}
+
+const (
+	tb192 = int64(1920383410176)
+	tb384 = int64(3840755982336)
+	tb768 = int64(7681501126656)
+)
+
+// The AX102-4 production box: a pair of small disks beside the pair it was
+// bought for. An array over all four sizes every member to the smallest, so
+// 15.36 TB of flash would install as 3.84, and the layout is fixed at install.
+func TestWWNFill_MixedSizesKeepsOnlyTheLargestPair(t *testing.T) {
+	obj := makeHostWithDisks("bm-1", []disk{
+		{"eui.small1", tb192},
+		{"eui.small2", tb192},
+		{"eui.big1", tb768},
+		{"eui.big2", tb768},
+	})
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	wwns, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn")
+	want := []string{"eui.big1", "eui.big2"}
+	if len(wwns) != len(want) || wwns[0] != want[0] || wwns[1] != want[1] {
+		t.Fatalf("got %v want %v", wwns, want)
+	}
+}
+
+// Capacity decides, not disk count: four small disks hold less than two big
+// ones, and the array is worth more than the spindle count.
+func TestWWNFill_PrefersTheGroupHoldingMoreCapacity(t *testing.T) {
+	obj := makeHostWithDisks("bm-1", []disk{
+		{"eui.s1", tb192}, {"eui.s2", tb192}, {"eui.s3", tb192}, {"eui.s4", tb192},
+		{"eui.b1", tb768}, {"eui.b2", tb768},
+	})
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	wwns, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn")
+	want := []string{"eui.b1", "eui.b2"}
+	if len(wwns) != len(want) || wwns[0] != want[0] || wwns[1] != want[1] {
+		t.Fatalf("got %v want %v", wwns, want)
+	}
+}
+
+// A lone big disk cannot be mirrored, so the pair wins even though the single
+// disk is larger.
+func TestWWNFill_IgnoresAGroupThatCannotBeMirrored(t *testing.T) {
+	obj := makeHostWithDisks("bm-1", []disk{
+		{"eui.big", tb768},
+		{"eui.pair1", tb192},
+		{"eui.pair2", tb192},
+	})
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	wwns, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn")
+	want := []string{"eui.pair1", "eui.pair2"}
+	if len(wwns) != len(want) || wwns[0] != want[0] || wwns[1] != want[1] {
+		t.Fatalf("got %v want %v", wwns, want)
+	}
+}
+
+// Four identical disks stay one array, which is what a RAID 10 cluster
+// expects of its four-disk boxes.
+func TestWWNFill_FourIdenticalDisksStayOneArray(t *testing.T) {
+	obj := makeHostWithDisks("bm-1", []disk{
+		{"eui.1", tb384}, {"eui.2", tb384}, {"eui.3", tb384}, {"eui.4", tb384},
+	})
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	wwns, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn")
+	if got, want := len(wwns), 4; got != want {
+		t.Fatalf("wwn count: got %d want %d (%v)", got, want, wwns)
+	}
+}
+
+// caph has always populated sizeBytes, but a host that reports none should
+// keep the old behaviour rather than install across one disk.
+func TestWWNFill_WithoutSizesKeepsEveryDisk(t *testing.T) {
+	obj := makeHostWithDisks("bm-1", []disk{{"eui.1", 0}, {"eui.2", 0}, {"eui.3", 0}})
+
+	got, _, err := reconcileOnce(t, obj)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	wwns, _, _ := unstructured.NestedStringSlice(got.Object, "spec", "rootDeviceHints", "raid", "wwn")
+	if got, want := len(wwns), 3; got != want {
+		t.Fatalf("wwn count: got %d want %d (%v)", got, want, wwns)
+	}
+}

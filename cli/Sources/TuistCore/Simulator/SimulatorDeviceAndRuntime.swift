@@ -10,10 +10,8 @@ public struct SimulatorDeviceAndRuntime: Codable, Identifiable, Hashable, Equata
 
     /// Device's runtime.
     public let runtime: SimulatorRuntime
-}
 
-#if DEBUG
-    extension SimulatorDeviceAndRuntime {
+    #if DEBUG
         public static func test(
             device: SimulatorDevice = .test(),
             runtime: SimulatorRuntime = .test()
@@ -23,5 +21,5 @@ public struct SimulatorDeviceAndRuntime: Codable, Identifiable, Hashable, Equata
                 runtime: runtime
             )
         }
-    }
-#endif
+    #endif
+}

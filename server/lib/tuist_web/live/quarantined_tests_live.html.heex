@@ -1,0 +1,479 @@
+<div id="quarantined-tests">
+  <div data-part="filters">
+    <.date_picker
+      id="quarantined-tests-analytics-date-range-picker"
+      name="analytics-date-range"
+      presets={[
+        %{
+          id: "last-24-hours",
+          label: dgettext("dashboard_tests", "Last 24 hours"),
+          period: {24, :hour}
+        },
+        %{
+          id: "last-7-days",
+          label: dgettext("dashboard_tests", "Last 7 days"),
+          period: {7, :day}
+        },
+        %{
+          id: "last-30-days",
+          label: dgettext("dashboard_tests", "Last 30 days"),
+          period: {30, :day}
+        },
+        %{
+          id: "last-12-months",
+          label: dgettext("dashboard_tests", "Last 12 months"),
+          period: {12, :month}
+        },
+        %{id: "custom", label: dgettext("dashboard_tests", "Custom")}
+      ]}
+      selected_preset={@analytics_preset}
+      period={@analytics_period}
+      on_period_change="analytics_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_tests", "Cancel")}
+          variant="secondary"
+          phx-click={
+            JS.dispatch("phx:date-picker-cancel",
+              detail: %{id: "quarantined-tests-analytics-date-range-picker"}
+            )
+          }
+        />
+        <.button
+          label={dgettext("dashboard_tests", "Apply")}
+          phx-click={
+            JS.dispatch("phx:date-picker-apply",
+              detail: %{id: "quarantined-tests-analytics-date-range-picker"}
+            )
+          }
+        />
+      </:actions>
+    </.date_picker>
+  </div>
+  <.async_card
+    :let={ready?}
+    results={[@quarantined_analytics]}
+    title={dgettext("dashboard_tests", "Analytics")}
+    icon="chart_arcs"
+    data-part="analytics"
+  >
+    <div data-part="analytics-content">
+      <div data-part="widgets">
+        <.widget
+          loading={!ready?}
+          title={dgettext("dashboard_tests", "Quarantined tests")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "Number of test cases currently quarantined at the end of the period. Combines both muted and skipped tests."
+            )
+          }
+          value={if ready?, do: @quarantined_analytics.result.count}
+          id="widget-quarantined-tests"
+          legend_color="primary"
+          trend_value={if ready?, do: @quarantined_analytics.result.trend}
+          trend_label={@analytics_trend_label}
+          trend_type={:inverse}
+          phx_click="select_widget"
+          phx_value_widget="quarantined"
+          selected={@analytics_selected_widget == "quarantined"}
+          empty={
+            ready? &&
+              @quarantined_analytics.result.count == 0 &&
+              Enum.all?(@quarantined_analytics.result.values, &(&1 == 0))
+          }
+        />
+        <.widget
+          loading={!ready?}
+          title={dgettext("dashboard_tests", "Muted tests")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "Number of muted test cases at the end of the period. Muted tests still execute but their failures are ignored."
+            )
+          }
+          value={if ready?, do: @quarantined_analytics.result.muted_count}
+          id="widget-muted-tests"
+          legend_color="flaky"
+          trend_value={if ready?, do: @quarantined_analytics.result.muted_trend}
+          trend_label={@analytics_trend_label}
+          trend_type={:inverse}
+          phx_click="select_widget"
+          phx_value_widget="muted"
+          selected={@analytics_selected_widget == "muted"}
+          empty={
+            ready? &&
+              @quarantined_analytics.result.muted_count == 0 &&
+              Enum.all?(@quarantined_analytics.result.muted_values, &(&1 == 0))
+          }
+        />
+        <.widget
+          loading={!ready?}
+          title={dgettext("dashboard_tests", "Skipped tests")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "Number of skipped test cases at the end of the period. Skipped tests are not executed at all."
+            )
+          }
+          value={if ready?, do: @quarantined_analytics.result.skipped_count}
+          id="widget-skipped-tests"
+          legend_color="destructive"
+          trend_value={if ready?, do: @quarantined_analytics.result.skipped_trend}
+          trend_label={@analytics_trend_label}
+          trend_type={:inverse}
+          phx_click="select_widget"
+          phx_value_widget="skipped"
+          selected={@analytics_selected_widget == "skipped"}
+          empty={
+            ready? &&
+              @quarantined_analytics.result.skipped_count == 0 &&
+              Enum.all?(@quarantined_analytics.result.skipped_values, &(&1 == 0))
+          }
+        />
+      </div>
+      <.card_section :if={!ready?} data-chart-frame="standard">
+        <div data-part="analytics-chart">
+          <.skeleton_chart />
+        </div>
+      </.card_section>
+      <.card_section
+        :if={
+          ready? &&
+            (selected_count(@quarantined_analytics.result, @analytics_selected_widget) != 0 or
+               Enum.any?(
+                 selected_values(@quarantined_analytics.result, @analytics_selected_widget),
+                 &(&1 > 0)
+               ))
+        }
+        data-chart-frame="standard"
+      >
+        <div data-part="analytics-chart">
+          <.chart
+            id="quarantined-tests-chart"
+            type="line"
+            extra_options={
+              %{
+                grid: %{
+                  width: "93%",
+                  left: "0.4%",
+                  right: "7%",
+                  height: "88%",
+                  top: "5%"
+                },
+                xAxis: %{
+                  boundaryGap: false,
+                  type: "category",
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:toLocaleDate",
+                    customValues: [
+                      @quarantined_analytics.result.dates |> List.first(),
+                      @quarantined_analytics.result.dates |> List.last()
+                    ],
+                    padding: [10, 0, 0, 0]
+                  }
+                },
+                yAxis: %{
+                  splitNumber: 4,
+                  splitLine: %{
+                    lineStyle: %{
+                      color: "var:noora-chart-lines"
+                    }
+                  },
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary"
+                  }
+                },
+                legend: %{
+                  show: false
+                },
+                tooltip:
+                  if @analytics_preset == "last-24-hours" do
+                    %{dateFormat: "hour"}
+                  else
+                    %{}
+                  end
+              }
+            }
+            series={[
+              %{
+                color:
+                  case @analytics_selected_widget do
+                    "quarantined" -> "var:noora-chart-primary"
+                    "muted" -> "var:noora-chart-flaky"
+                    "skipped" -> "var:noora-chart-destructive"
+                  end,
+                data:
+                  @quarantined_analytics.result.dates
+                  |> Enum.zip(
+                    selected_values(@quarantined_analytics.result, @analytics_selected_widget)
+                  )
+                  |> Enum.map(&Tuple.to_list/1),
+                name:
+                  case @analytics_selected_widget do
+                    "quarantined" -> dgettext("dashboard_tests", "Quarantined tests")
+                    "muted" -> dgettext("dashboard_tests", "Muted tests")
+                    "skipped" -> dgettext("dashboard_tests", "Skipped tests")
+                  end,
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              }
+            ]}
+            y_axis_min={0}
+          />
+        </div>
+      </.card_section>
+      <.empty_card_section
+        :if={
+          (ready? &&
+             selected_count(@quarantined_analytics.result, @analytics_selected_widget) == 0) and
+            Enum.all?(
+              selected_values(@quarantined_analytics.result, @analytics_selected_widget),
+              &(&1 == 0)
+            )
+        }
+        title={dgettext("dashboard_tests", "No data yet")}
+        data-chart-frame="standard"
+      >
+        <:image>
+          <img
+            src={~p"/images/empty_line_chart_light.png"}
+            data-theme="light"
+            loading="lazy"
+            decoding="async"
+          />
+          <img
+            src={~p"/images/empty_line_chart_dark.png"}
+            data-theme="dark"
+            loading="lazy"
+            decoding="async"
+          />
+        </:image>
+      </.empty_card_section>
+    </div>
+  </.async_card>
+
+  <.card
+    title={dgettext("dashboard_tests", "Quarantined Tests")}
+    icon="lock"
+    data-part="quarantined-tests"
+  >
+    <.card_section data-part="quarantined-tests-section">
+      <div data-part="filters">
+        <.form for={%{}} phx-change="search-quarantined-tests" phx-debounce="200">
+          <.text_input
+            type="search"
+            id="search-quarantined-tests"
+            name="search"
+            placeholder={dgettext("dashboard_tests", "Search...")}
+            show_suffix={false}
+            data-part="search"
+            value={@quarantined_tests_filter}
+          />
+        </.form>
+        <.dropdown
+          id="quarantined-tests-sort-by"
+          label={
+            case @quarantined_tests_sort_by do
+              "name" -> dgettext("dashboard_tests", "Test Case")
+              "quarantined_at" -> dgettext("dashboard_tests", "Quarantined at")
+              _ -> dgettext("dashboard_tests", "Last run")
+            end
+          }
+          secondary_text={dgettext("dashboard_tests", "Sort by:")}
+        >
+          <.dropdown_item
+            value="last_ran_at"
+            label={dgettext("dashboard_tests", "Last run")}
+            patch={sort_by_patch(@uri, "last_ran_at")}
+            data-selected={@quarantined_tests_sort_by == "last_ran_at"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="name"
+            label={dgettext("dashboard_tests", "Test Case")}
+            patch={sort_by_patch(@uri, "name")}
+            data-selected={@quarantined_tests_sort_by == "name"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+          <.dropdown_item
+            value="quarantined_at"
+            label={dgettext("dashboard_tests", "Quarantined at")}
+            patch={sort_by_patch(@uri, "quarantined_at")}
+            data-selected={@quarantined_tests_sort_by == "quarantined_at"}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+        <.filter_dropdown
+          id="filter-dropdown"
+          label={dgettext("dashboard_tests", "Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
+      </div>
+      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
+      </div>
+
+      <div :if={not Enum.empty?(@quarantined_tests)} data-part="quarantined-tests-table">
+        <.table
+          id="quarantined-tests-table"
+          rows={@quarantined_tests}
+          row_navigate={
+            fn test_case ->
+              url(
+                ~p"/#{@selected_project.account.name}/#{@selected_project.name}/tests/test-cases/#{test_case.id}"
+              )
+            end
+          }
+        >
+          <:col
+            :let={test_case}
+            label={dgettext("dashboard_tests", "Test Case")}
+            patch={
+              @quarantined_tests_sort_by == "name" &&
+                column_sort_patch(assigns, "name")
+            }
+            sort_order={@quarantined_tests_sort_by == "name" && @quarantined_tests_sort_order}
+          >
+            <.text_and_description_cell
+              label={test_case.name}
+              description={
+                case {test_case.module_name, test_case.suite_name} do
+                  {module_name, suite_name} when module_name != "" and suite_name != "" ->
+                    "#{module_name} \u2022 #{suite_name}"
+
+                  {module_name, _} when module_name != "" ->
+                    module_name
+
+                  _ ->
+                    nil
+                end
+              }
+            />
+          </:col>
+          <:col :let={test_case} label={dgettext("dashboard_tests", "Mode")}>
+            <.badge
+              :if={test_case.state == "muted"}
+              label={dgettext("dashboard_tests", "Muted")}
+              color="attention"
+              style="light-fill"
+              size="large"
+            />
+            <.badge
+              :if={test_case.state == "skipped"}
+              label={dgettext("dashboard_tests", "Skipped")}
+              color="destructive"
+              style="light-fill"
+              size="large"
+            />
+          </:col>
+          <:col :let={test_case} label={dgettext("dashboard_tests", "Quarantined by")}>
+            <%= if is_nil(test_case.quarantined_by_account_id) do %>
+              <.badge
+                label={dgettext("dashboard_tests", "Tuist")}
+                color="primary"
+                style="light-fill"
+                size="large"
+              />
+            <% else %>
+              <.badge
+                label={"@#{test_case.quarantined_by_account_name || "unknown"}"}
+                color="information"
+                style="light-fill"
+                size="large"
+              />
+            <% end %>
+          </:col>
+          <:col
+            :let={test_case}
+            label={dgettext("dashboard_tests", "Quarantined at")}
+            patch={
+              @quarantined_tests_sort_by == "quarantined_at" &&
+                column_sort_patch(assigns, "quarantined_at")
+            }
+            sort_order={
+              @quarantined_tests_sort_by == "quarantined_at" && @quarantined_tests_sort_order
+            }
+          >
+            <.text_cell
+              :if={test_case.quarantined_at}
+              sublabel={Tuist.Utilities.DateFormatter.from_now(test_case.quarantined_at)}
+            />
+            <span :if={is_nil(test_case.quarantined_at)}>—</span>
+          </:col>
+          <:col :let={test_case} label={dgettext("dashboard_tests", "Last status")}>
+            <.status_badge_cell
+              :if={test_case.last_status == "success"}
+              label={dgettext("dashboard_tests", "Passed")}
+              status="success"
+            />
+            <.status_badge_cell
+              :if={test_case.last_status == "failure"}
+              label={dgettext("dashboard_tests", "Failed")}
+              status="error"
+            />
+            <.status_badge_cell
+              :if={test_case.last_status == "skipped"}
+              label={dgettext("dashboard_tests", "Skipped")}
+              status="warning"
+            />
+          </:col>
+          <:col
+            :let={test_case}
+            label={dgettext("dashboard_tests", "Last run")}
+            patch={
+              @quarantined_tests_sort_by == "last_ran_at" &&
+                column_sort_patch(assigns, "last_ran_at")
+            }
+            sort_order={
+              @quarantined_tests_sort_by == "last_ran_at" && @quarantined_tests_sort_order
+            }
+          >
+            <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(test_case.last_ran_at)} />
+          </:col>
+        </.table>
+        <.pagination_group
+          :if={@quarantined_tests_meta.total_pages > 1}
+          current_page={@quarantined_tests_page}
+          number_of_pages={@quarantined_tests_meta.total_pages}
+          page_patch={
+            fn page ->
+              "?#{Query.put(@uri.query, "page", page)}"
+            end
+          }
+        />
+      </div>
+
+      <div :if={Enum.empty?(@quarantined_tests)} data-part="empty-quarantined-tests">
+        <.empty_card_section
+          title={dgettext("dashboard_tests", "No quarantined tests")}
+          get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#tests"
+          data-part="empty-quarantined-tests-table-card-section"
+        >
+          <:image>
+            <img
+              src={~p"/images/empty_table_light.png"}
+              data-theme="light"
+              loading="lazy"
+              decoding="async"
+            />
+            <img
+              src={~p"/images/empty_table_dark.png"}
+              data-theme="dark"
+              loading="lazy"
+              decoding="async"
+            />
+          </:image>
+        </.empty_card_section>
+      </div>
+    </.card_section>
+  </.card>
+</div>

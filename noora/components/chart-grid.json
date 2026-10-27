@@ -1,0 +1,44 @@
+{
+  "name": "ChartGrid",
+  "tagName": "noora-chart-grid",
+  "elementClassName": "NooraChartGrid",
+  "className": "noora-chart-grid",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Describes declarative chart-grid dimensions.",
+  "usage": "<noora-chart-grid contain-label height=\"76\" width=\"400\"></noora-chart-grid>",
+  "standalone": false,
+  "attributes": [
+    {
+      "name": "contain-label",
+      "property": "containLabel",
+      "type": "boolean",
+      "default": false,
+      "description": "Includes axis labels within the grid dimensions."
+    },
+    {
+      "name": "height",
+      "property": "height",
+      "type": "number",
+      "description": "Sets the grid height."
+    },
+    {
+      "name": "width",
+      "property": "width",
+      "type": "number",
+      "description": "Sets the grid width."
+    }
+  ],
+  "properties": [],
+  "readonlyProperties": [],
+  "slots": [],
+  "cssParts": [],
+  "notes": ["Use this element inside noora-chart."],
+  "examples": [
+    {
+      "id": "grid",
+      "title": "Grid",
+      "description": "Keep labels within a fixed drawing grid.",
+      "markup": "<noora-chart-grid contain-label height=\"76\" width=\"400\"></noora-chart-grid>"
+    }
+  ]
+}

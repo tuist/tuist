@@ -1,0 +1,294 @@
+{{- if include "tuist.rendersXcresultProcessor" . }}
+{{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
+{{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "xcresult-processor") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: xcresult-processor
+spec:
+  replicas: {{ .Values.xcresultProcessor.replicaCount }}
+  # maxSurge: 0 (below) replaces one Tart VM at a time: terminate the
+  # old VM to free hostPort 9091, then boot a fresh one. A full macOS
+  # VM teardown + boot routinely overruns the 600s k8s default, which
+  # would flip the Deployment to Progress-deadline-exceeded mid-roll.
+  # Give a single VM cycle ample headroom.
+  progressDeadlineSeconds: 1800
+  strategy:
+    {{- toYaml .Values.xcresultProcessor.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "xcresult-processor") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "xcresult-processor") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- if and .Values.clickhouse.managed.enabled .Values.clickhouse.managed.tailscale.enabled }}
+        # The processor reads `url-tailnet` only at startup, so a change to the
+        # name it dials has to restart it to take effect.
+        tuist.dev/clickhouse-tailnet-host: {{ include "tuist.clickhouseTailnetHost" . | quote }}
+        {{- end }}
+        {{- if and .Values.postgresql.cnpg.pooler.enabled .Values.postgresql.cnpg.pooler.tailscale.enabled }}
+        # Likewise for the database URL it reads at startup.
+        tuist.dev/pg-pooler-tailnet-host: {{ include "tuist.poolerTailnetHost" . | quote }}
+        {{- end }}
+        # tart-kubelet honours these by spinning up a host-side HTTP
+        # reverse proxy on <node_ip>:9091 → <vm_ip>:9091 for the Tart
+        # VM and rewriting Pod.Status.PodIP to the Mac mini's host
+        # IP, so the in-cluster Linux Alloy DaemonSet's annotation
+        # autodiscovery works without a route into the VM's NAT-
+        # private network. See infra/tart-kubelet/internal/podagent.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        # Pairs with the metricsPortName mapping in
+        # helm/k8s-monitoring/values.yaml so Alloy's keepequal filter
+        # only retains the metrics target — keeps targets stable when
+        # the container declares more than one named port.
+        prometheus.io/port-name: metrics
+    spec:
+      # Schedule onto a Mac mini in the xcresult fleet specifically —
+      # not the customer-runner fleet. tart-kubelet stamps each Node
+      # with `tuist.dev/fleet=<fleetName>` from the --fleet flag the
+      # CAPI provider's bootstrap step renders into the launchd
+      # plist. Pinning the nodeSelector to the xcresult fleet's name
+      # is the load-bearing isolation primitive: customer-runner
+      # Pods (which live in the tuist-runners namespace and select
+      # on `tuist.dev/fleet=<runnersFleetName>`) physically can't
+      # land on the same Mac mini, so a runaway customer build can't
+      # preempt the xcresult queue consumer.
+      #
+      # The taint `tuist.dev/macos=true:NoSchedule` is set by
+      # tart-kubelet at Node registration so stray Linux Pods don't
+      # land here.
+      nodeSelector:
+        kubernetes.io/os: darwin
+        tuist.dev/runtime: tart
+        tuist.dev/fleet: {{ include "tuist.macosFleetName" . | quote }}
+      tolerations:
+        - key: tuist.dev/macos
+          operator: Exists
+          effect: NoSchedule
+      # When replicaCount > 1, force replicas onto distinct hosts.
+      # DoNotSchedule (not ScheduleAnyway) here because two scrape-
+      # opted-in Pods on the same Mac mini would race to bind the
+      # host-side metrics forwarder on hostPort 9091 — see
+      # infra/tart-kubelet/internal/podagent. Spread + hostPort + the
+      # rollout strategy below all lean on the same invariant: at
+      # most one xcresult-processor Pod per Node at any moment.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              {{- include "tuist.componentLabels" (dict "root" . "component" "xcresult-processor") | nindent 14 }}
+      # Sized for a Tuist.Tests.Workers.ProcessXcresultWorker parse
+      # tail plus the ingestion buffers' final flush; see the values
+      # comment for the rationale. Ingestion buffers use
+      # `shutdown: :infinity` and rely on this as the outer wall.
+      terminationGracePeriodSeconds: {{ .Values.xcresultProcessor.terminationGracePeriodSeconds }}
+      # No init containers, no sidecars — tart-kubelet maps Pod ↔
+      # Tart VM 1:1 and rejects multi-container Pods at admission.
+      # The first (and only) container's image is the Tart VM image;
+      # env flows through to /etc/tuist.env inside the VM via the
+      # tart-kubelet `--dir env:<host-path>:ro` mount, which the guest
+      # sees at /Volumes/My Shared Files/env.
+      containers:
+        - name: xcresult-processor
+          image: "{{ .Values.xcresultProcessor.image.repository }}:{{ .Values.xcresultProcessor.image.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.xcresultProcessor.image.pullPolicy }}
+          # Declared so the kube-scheduler enforces hostPort
+          # uniqueness across Pods on the same Mac mini Node — two
+          # xcresult-processor Pods can't land on the same host
+          # because the second wouldn't be able to reserve hostPort
+          # 9091. tart-kubelet doesn't implement port forwarding for
+          # containerPort itself (Pods talk to the host via NAT, not
+          # via kube-proxy); the hostPort declaration is purely a
+          # scheduler constraint here, paired with the Deployment
+          # rollout strategy below (maxSurge=0) so a deploy doesn't
+          # try to surge a Pod onto an already-occupied host.
+          ports:
+            - name: metrics
+              containerPort: 9091
+              hostPort: 9091
+              protocol: TCP
+            # Tuist.Readiness.Plug, served in xcresult_processor mode. No
+            # hostPort: tart-kubelet probes the guest IP from the host.
+            - name: readiness
+              containerPort: 9092
+              protocol: TCP
+          {{- with .Values.xcresultProcessor.readinessProbe }}
+          {{- if .enabled }}
+          # tart-kubelet runs this against the guest and holds the Pod
+          # NotReady until Postgres (via the pooler), ClickHouse (including
+          # the in-cluster server over the tailnet, when configured) and the
+          # :process_xcresult Oban queue all answer. That is what lets the
+          # rolling update stop on a processor that boots but cannot reach
+          # its dependencies.
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: readiness
+            initialDelaySeconds: {{ .initialDelaySeconds }}
+            periodSeconds: {{ .periodSeconds }}
+            timeoutSeconds: {{ .timeoutSeconds }}
+            successThreshold: {{ .successThreshold }}
+            failureThreshold: {{ .failureThreshold }}
+          {{- end }}
+          {{- end }}
+          env:
+            # Boot mode: queue-only consumer for :process_xcresult.
+            # Tuist.Environment.mode/0 reads TUIST_MODE (collapse-
+            # renamed from the legacy TUIST_XCRESULT_PROCESSOR_MODE).
+            # Without this set, the BEAM falls through to :web mode:
+            # binds Phoenix on :8080, runs license validation, and
+            # generally claims a wider Oban queue set than it can
+            # actually serve under the tuist_processor DB role —
+            # leaving ProcessXcresultWorker's queue starved.
+            - name: TUIST_MODE
+              value: "xcresult_processor"
+            # Read by the guest's fetch-release.sh, which installs this
+            # release before the BEAM starts.
+            - name: TUIST_XCRESULT_PROCESSOR_RELEASE_REPOSITORY
+              value: {{ .Values.xcresultProcessor.release.repository | quote }}
+            - name: TUIST_XCRESULT_PROCESSOR_RELEASE_DIGEST
+              value: {{ required "xcresultProcessor.release.digest is required: the processor image carries no server release" .Values.xcresultProcessor.release.digest | quote }}
+            - name: TUIST_HOSTED
+              value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            # Tuist.License.assert_valid!/0 runs unconditionally at boot
+            # (application.ex), so the xcresult processor needs the license key.
+            # It used to come from the encrypted blob; with the blob gone it must
+            # be wired like the server Deployment, or boot crashes "license missing".
+            {{- include "tuist.licenseEnv" . | nindent 12 }}
+            - name: TUIST_LOG_LEVEL
+              value: {{ .Values.server.logLevel | quote }}
+            - name: TUIST_PROCESS_XCRESULT_QUEUE_CONCURRENCY
+              value: {{ .Values.xcresultProcessor.queueConcurrency | quote }}
+            # Route Postgres through the transaction-mode pooler. Same
+            # tuist_processor role + connection params the build processor
+            # uses (see `postgresql.cnpg.roles.processor` for the role's
+            # grant surface).
+            - name: TUIST_DATABASE_POOLED
+              value: "1"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (include "tuist.componentName" (dict "root" . "component" "processor-external-secrets")) .Values.xcresultProcessor.databaseUrlSecretName }}
+                  key: {{ .Values.xcresultProcessor.databaseUrlSecretKey | default "processor-database-url" }}
+            - name: TUIST_DATABASE_SCHEMA
+              value: {{ .Values.postgresql.schema | quote }}
+            # Object storage: the xcresult archive is downloaded to be parsed.
+            # Same wiring as the build processor — S3 creds come from the
+            # object-storage ESO Secret (managed) or app-secrets (self-hosted);
+            # Azure Blob creds come from the server Azure Blob settings.
+            {{- include "tuist.serverObjectStorageEnv" . | nindent 12 }}
+            - name: TUIST_S3_BUCKET_NAME
+              value: {{ include "tuist.objectStorageBucketDefault" . | quote }}
+            - name: TUIST_S3_ENDPOINT
+              value: {{ include "tuist.objectStorageEndpoint" . | quote }}
+            - name: TUIST_S3_REGION
+              value: {{ include "tuist.objectStorageRegion" . | quote }}
+            - name: TUIST_S3_VIRTUAL_HOST
+              value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
+            - name: TUIST_S3_BUCKET_AS_HOST
+              value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
+            {{- if and (eq .Values.objectStorage.mode "external") .Values.objectStorage.external.managedSecrets }}
+            - name: TUIST_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
+                  key: object-storage-access-key
+            - name: TUIST_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
+                  key: object-storage-secret-key
+            {{- else if and $objectStorageAccessKey $objectStorageSecretKey }}
+            - name: TUIST_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: object-storage-access-key
+            - name: TUIST_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+                  key: object-storage-secret-key
+            {{- end }}
+            # Per-Pod identity for error reports and Oban bookkeeping.
+            # Every VM booted from the Tart image carries the image's
+            # hostname, and the release runs with distribution disabled
+            # (no POD_IP reaches rel/env.sh.eex through the tart-kubelet
+            # env mount), so both Sentry's default server_name and Oban's
+            # `attempted_by` fall back to that one shared string and
+            # collapse the fleet into a single identity.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            {{- if .Values.xcresultProcessor.tailscale.enabled }}
+            # Per-VM tailnet identity. tailscale-up.sh inside the VM
+            # reads TAILSCALE_AUTH_KEY at boot and joins the tailnet
+            # before the BEAM starts so Postgrex's first dial of the
+            # operator-managed pooler proxy hostname resolves. See
+            # infra/xcresult-processor-image/tailscale-up.sh.
+            #
+            # We share the macOS-fleet Tailscale credential (same
+            # `tag:tuist-macmini-<env>` ACL binding the bootstrap
+            # uses for the Mac mini hosts) rather than minting a
+            # separate VM one, since the ACL grants the same outbound
+            # surface either way and one credential per env keeps the
+            # rotation surface small.
+            - name: TAILSCALE_AUTH_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.xcresultProcessor.tailscale.authKeySecretName | default (include "tuist.componentName" (dict "root" . "component" "capi-scaleway-applesilicon-tailscale")) }}
+                  key: {{ .Values.xcresultProcessor.tailscale.authKeySecretKey | default "auth-key" }}
+            {{- with .Values.macosFleet.tailscale.tags }}
+            # Keys minted through an OAuth client are always tagged and
+            # carry no default tag, so the tag has to be named at join
+            # time; see tailscale-up.sh. Sourced from the fleet's tags
+            # because the VM shares the fleet's credential and ACL
+            # binding; a pre-auth key ignores this and applies the tag
+            # baked into the key instead.
+            - name: TAILSCALE_TAGS
+              value: {{ join "," . | quote }}
+            {{- end }}
+            # Identity stamp on the tailnet device the VM registers
+            # — defaults to the K8s Pod name (Downward API), which
+            # the chart's Deployment template already binds to the
+            # ReplicaSet hash + Pod ordinal. Roll a Pod → new device
+            # name → fresh tailnet registration.
+            - name: TAILSCALE_HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            {{- end }}
+            {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
+            # The tailnet variant of the in-cluster ClickHouse URL, because this
+            # is the one writer that is not on the pod network: it runs in a
+            # Tart VM with a tailnet address, so the in-cluster Service name
+            # every other writer uses does not resolve here.
+            {{- include "tuist.clickhouseManagedTailnetEnv" . | nindent 12 }}
+            {{- with .Values.xcresultProcessor.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- $serverConfigEnvFrom := include "tuist.serverConfigEnvFrom" . | trim }}
+          {{- if $serverConfigEnvFrom }}
+          # Bulk runtime config (ClickHouse URL, Sentry, the Phoenix/Cloak/
+          # Guardian secret keys, etc.) from the consolidated config Secret —
+          # the kubelet resolves envFrom and inject-env.sh handles multi-line
+          # values, so this replaces what the removed MASTER_KEY blob unlocked.
+          envFrom:
+            {{- $serverConfigEnvFrom | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.xcresultProcessor.resources | nindent 12 }}
+{{- end }}

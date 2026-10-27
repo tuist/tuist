@@ -1,0 +1,684 @@
+package tart
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+)
+
+// Regression for the warm-path miss: `tart list` encodes Size as an
+// integer while `tart get` encodes it as a quoted decimal string. A plain
+// int64 field errored on the latter, which made Get() fail on every golden
+// and forced a re-pull each recycle. VM must unmarshal both forms.
+func TestVMUnmarshalSizeAcceptsListAndGetEncodings(t *testing.T) {
+	cases := map[string]string{
+		"tart list (integer)":       `{"Name":"tuist-golden-abc","Source":"local","Size":72}`,
+		"tart get (quoted decimal)": `{"Name":"tuist-golden-abc","Source":"local","Size":"72.660"}`,
+		"tart get (quoted integer)": `{"Name":"tuist-golden-abc","Source":"local","Size":"72"}`,
+		"bare decimal (defensive)":  `{"Name":"tuist-golden-abc","Source":"local","Size":72.66}`,
+	}
+	for name, payload := range cases {
+		t.Run(name, func(t *testing.T) {
+			var vm VM
+			if err := json.Unmarshal([]byte(payload), &vm); err != nil {
+				t.Fatalf("unmarshal %s failed: %v", name, err)
+			}
+			if vm.Name != "tuist-golden-abc" {
+				t.Fatalf("Name = %q, want tuist-golden-abc", vm.Name)
+			}
+		})
+	}
+}
+
+// Regression for the same warm-path miss from the other direction: Tart
+// reports an absent VM as `the specified VM "x" does not exist`, which the
+// not-found matcher did not recognize. Get surfaced that as an error rather
+// than (nil, nil), so ensureGolden logged every first materialization of a
+// digest as a warm-path probe failure — erasing the distinction those lines
+// exist to draw, between a golden that was never here and one that should
+// have been.
+func TestGetReportsMissingVMAsNotFound(t *testing.T) {
+	cases := map[string]string{
+		"tart 2.x":          `the specified VM "tuist-golden-abc" does not exist`,
+		"older phrasing":    `VM not found`,
+		"bare not found":    `tuist-golden-abc: not found`,
+		"trailing newline":  "the specified VM \"tuist-golden-abc\" does not exist\n",
+		"capitalized start": `The specified VM "tuist-golden-abc" does not exist`,
+	}
+	for name, stderr := range cases {
+		t.Run(name, func(t *testing.T) {
+			c := &Client{Binary: fakeTart(t, stderr, 2)}
+
+			vm, err := c.Get(context.Background(), "tuist-golden-abc")
+			if err != nil {
+				t.Fatalf("Get(%q) returned error %v, want nil", stderr, err)
+			}
+			if vm != nil {
+				t.Fatalf("Get(%q) returned %+v, want nil", stderr, vm)
+			}
+		})
+	}
+}
+
+// The cold path re-pulls a multi-GB image, so a probe that failed for any
+// other reason must stay an error: reading it as "absent" would turn a
+// transient `tart get` failure into a needless pull on a host that already
+// holds the golden.
+func TestGetSurfacesProbeFailuresOtherThanNotFound(t *testing.T) {
+	c := &Client{Binary: fakeTart(t, "tart: could not acquire lock", 1)}
+
+	if _, err := c.Get(context.Background(), "tuist-golden-abc"); err == nil {
+		t.Fatal("Get returned nil error for a failed probe, want the failure surfaced")
+	}
+}
+
+// fakeTart writes a stub `tart` that prints stderr and exits with code.
+func fakeTart(t *testing.T, stderr string, code int) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "faketart")
+	script := fmt.Sprintf("#!/bin/sh\nprintf '%%s' %s >&2\nexit %d\n", shellEscape(stderr), code)
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// TestCloneTimeoutKillsHungProcess verifies the per-op watchdog: a
+// `tart` invocation that hangs (here a fake binary that sleeps well
+// past the deadline) is killed by the derived timeout context so the
+// caller gets an error promptly instead of the reconcile worker
+// wedging — the prod failure mode where a stalled clone left Pods
+// Pending for minutes with no events.
+func TestCloneTimeoutKillsHungProcess(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "faketart")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\nsleep 30\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	orig := cloneTimeout
+	cloneTimeout = 150 * time.Millisecond
+	defer func() { cloneTimeout = orig }()
+
+	c := &Client{Binary: script}
+	start := time.Now()
+	err := c.Clone(context.Background(), "src", "dst")
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("expected a timeout error from a hung tart clone, got nil")
+	}
+	if elapsed > 5*time.Second {
+		t.Fatalf("clone was not killed by the per-op timeout: ran for %v", elapsed)
+	}
+}
+
+// TestRegenerateIdentityRunsRandomSerial pins the exact tart invocation the
+// clone path relies on to break the shared-golden ECID. `tart set
+// --random-serial` (arm64) mints a fresh VZMacMachineIdentifier, from which the
+// serial and IOPlatformUUID derive, so concurrent clones stop colliding at
+// Apple's MobileAsset personalization.
+func TestRegenerateIdentityRunsRandomSerial(t *testing.T) {
+	dir := t.TempDir()
+	argsPath := filepath.Join(dir, "args.txt")
+	script := filepath.Join(dir, "faketart")
+	body := "#!/bin/sh\nprintf '%s\\n' \"$@\" > '" + argsPath + "'\n"
+	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	c := &Client{Binary: script}
+	if err := c.RegenerateIdentity(context.Background(), "vm-1"); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "set\nvm-1\n--random-serial\n"; string(got) != want {
+		t.Fatalf("tart args = %q, want %q", string(got), want)
+	}
+}
+
+func TestStageEnvFile(t *testing.T) {
+	dir := t.TempDir()
+	c := &Client{UserDataDir: dir}
+
+	staged, err := c.StageEnvFile("vm-1", map[string]string{
+		"DATABASE_URL": "postgres://u:p@h/db",
+		"WITH_NEWLINE": "line1\nline2",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if staged != filepath.Join(dir, "vm-1") {
+		t.Fatalf("staged = %q", staged)
+	}
+
+	body, err := os.ReadFile(filepath.Join(staged, "tuist.env"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(body)
+
+	if !strings.Contains(got, "DATABASE_URL=postgres://u:p@h/db\n") {
+		t.Errorf("missing DATABASE_URL line: %q", got)
+	}
+	// Newlines in values must be escaped so the file stays parseable.
+	if !strings.Contains(got, `WITH_NEWLINE=line1\nline2`+"\n") {
+		t.Errorf("newline not escaped: %q", got)
+	}
+}
+
+func TestCleanupVMUserData(t *testing.T) {
+	dir := t.TempDir()
+	c := &Client{UserDataDir: dir}
+
+	target := filepath.Join(dir, "vm-1")
+	if err := os.MkdirAll(target, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.CleanupVMUserData("vm-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Fatalf("expected target removed, got err=%v", err)
+	}
+}
+
+// Regression for the substring liveness bug: pgrep -f matches over the
+// whole command line, so an unanchored `tart run <name>` query would also
+// match a running `tart run <name>-2` — reporting a stopped VM as live and,
+// in the GC, pinning its disk forever. Both names are valid VMNameForPod
+// outputs. IsRunning must anchor the name to an argument boundary.
+func TestIsRunningRequiresExactNameBoundary(t *testing.T) {
+	if _, err := exec.LookPath("pgrep"); err != nil {
+		t.Skip("pgrep not available on this host")
+	}
+
+	const base = "tuist-runners-runner-team-job"
+	const longer = base + "-2"
+
+	decoyCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// Command line: `/bin/sh -c 'sleep 30; :' tart run <longer>`. The
+	// compound `-c` body keeps sh from exec-replacing itself with `sleep`,
+	// so the `tart run …` argv survives for pgrep to read.
+	decoy := exec.CommandContext(decoyCtx, "/bin/sh", "-c", "sleep 30; :", "tart", "run", longer)
+	if err := decoy.Start(); err != nil {
+		t.Fatalf("start decoy: %v", err)
+	}
+	defer func() {
+		cancel()
+		_ = decoy.Wait()
+	}()
+
+	c := &Client{}
+	ctx := context.Background()
+
+	// Wait until the decoy is visible to pgrep — this also asserts the
+	// exact longer name is correctly found (the positive boundary case).
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		running, err := c.IsRunning(ctx, longer)
+		if err != nil {
+			t.Fatalf("IsRunning(%q): %v", longer, err)
+		}
+		if running {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("decoy %q never became visible to pgrep", longer)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	// The core regression: the shorter name must NOT match the running
+	// longer-named process.
+	running, err := c.IsRunning(ctx, base)
+	if err != nil {
+		t.Fatalf("IsRunning(%q): %v", base, err)
+	}
+	if running {
+		t.Fatalf("IsRunning(%q) reported live, but only %q is running", base, longer)
+	}
+}
+
+func TestShellEscape(t *testing.T) {
+	cases := map[string]string{
+		"simple":      `'simple'`,
+		"with space":  `'with space'`,
+		`with 'quote`: `'with '\''quote'`,
+	}
+	for in, want := range cases {
+		if got := shellEscape(in); got != want {
+			t.Errorf("shellEscape(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestEscapeEnvValue(t *testing.T) {
+	if got := escapeEnvValue("a\nb\rc"); got != `a\nb\rc` {
+		t.Fatalf("got %q", got)
+	}
+}
+
+// TestRunHandleExitedAfterSanityWindow simulates the case the
+// reviewer flagged: `tart run` returns from the 5s sanity window,
+// then the underlying process exits later. The handle must report
+// that exit so the reconciler can transition the Pod to Failed
+// instead of stranding helm on an indefinite IP poll.
+func TestRunHandleExitedAfterSanityWindow(t *testing.T) {
+	dir := t.TempDir()
+	// Substitute a tiny shell script for the `tart` binary that
+	// exits ~0.5s after launch — long enough to pass Run's 5s
+	// sanity check would be nicer, but we don't want to slow tests
+	// to multi-seconds. Use a 100ms exit, then assert handle
+	// eventually reports Exited.
+	binPath := filepath.Join(dir, "fake-tart")
+	if err := os.WriteFile(binPath, []byte("#!/bin/sh\nsleep 0.1\nexit 7\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	c := &Client{
+		Binary:      binPath,
+		UserDataDir: filepath.Join(dir, "userdata"),
+		LogDir:      filepath.Join(dir, "logs"),
+	}
+
+	// Patch the sanity-check window so the test doesn't sleep 5s.
+	// We can't override the const without touching production code,
+	// so we rely on the script exiting WITHIN the 5s window — which
+	// means Run will surface it as an immediate-exit error rather
+	// than returning a handle. To exercise the post-window exit
+	// path we'd need DI on the timeout; for now lock in the
+	// immediate-exit contract, which is the lower bound of the
+	// behaviour the reviewer asked us to preserve.
+	handle, err := c.Run(context.Background(), "test-vm", nil)
+	if err == nil {
+		t.Fatalf("expected immediate-exit error, got handle=%v", handle)
+	}
+	if !strings.Contains(err.Error(), "exited immediately") {
+		t.Fatalf("expected immediate-exit error, got %q", err)
+	}
+}
+
+// TestRunHandleExitedTracksProcess covers the post-sanity-window
+// path: Run returns a handle, and a later cmd.Wait result is
+// observable through handle.Exited().
+func TestRunHandleExitedTracksProcess(t *testing.T) {
+	dir := t.TempDir()
+	// `sleep 6` outlives the 5s sanity window — Run will return a
+	// handle. The script then exits with code 0, which the
+	// launcher goroutine must surface through handle.Exited().
+	binPath := filepath.Join(dir, "fake-tart")
+	if err := os.WriteFile(binPath, []byte("#!/bin/sh\nsleep 6\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	c := &Client{
+		Binary:      binPath,
+		UserDataDir: filepath.Join(dir, "userdata"),
+		LogDir:      filepath.Join(dir, "logs"),
+	}
+
+	handle, err := c.Run(context.Background(), "test-vm", nil)
+	if err != nil {
+		t.Fatalf("unexpected immediate-exit: %v", err)
+	}
+	if handle == nil {
+		t.Fatal("expected non-nil handle")
+	}
+	if _, exited := handle.Exited(); exited {
+		t.Fatal("handle reported exited inside sanity window")
+	}
+
+	// Wait for the script's `sleep 6` plus a small margin, then
+	// confirm the handle has flipped.
+	select {
+	case <-handle.Done():
+	case <-time.After(10 * time.Second):
+		t.Fatal("handle.Done() never closed")
+	}
+	if _, exited := handle.Exited(); !exited {
+		t.Fatal("handle did not report exited after process death")
+	}
+}
+
+// TestRunInvokesEnsureGUISessionBeforeStartingTart locks in that the
+// preflight runs before `tart run`. Without it the kubelet ships
+// VMs straight into `Failed to create new HostKey` on hosts whose
+// Aqua session got torn down post-bootstrap.
+func TestRunInvokesEnsureGUISessionBeforeStartingTart(t *testing.T) {
+	dir := t.TempDir()
+	binPath := filepath.Join(dir, "fake-tart")
+	// Long-lived stub so Run returns a handle (process outlives the
+	// 5s sanity window) — we want to assert the preflight ran, not
+	// the immediate-exit path which already has coverage above.
+	if err := os.WriteFile(binPath, []byte("#!/bin/sh\nsleep 30\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	called := 0
+	c := &Client{
+		Binary:      binPath,
+		UserDataDir: filepath.Join(dir, "userdata"),
+		LogDir:      filepath.Join(dir, "logs"),
+		EnsureGUISession: func(_ context.Context) error {
+			called++
+			return nil
+		},
+	}
+	if _, err := c.Run(context.Background(), "test-vm", nil); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+	if called != 1 {
+		t.Fatalf("EnsureGUISession called %d times, want 1", called)
+	}
+}
+
+func TestRunWithOptionsAddsVNCGraphicsFlags(t *testing.T) {
+	dir := t.TempDir()
+	argsPath := filepath.Join(dir, "args")
+	binPath := filepath.Join(dir, "fake-tart")
+	if err := os.WriteFile(binPath, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > '"+argsPath+"'\nprintf 'CI=%s\\n' \"$CI\" >> '"+argsPath+"'\nprintf 'VNC server is running at vnc://:alpha-bravo@127.0.0.1:5901\\n'\nsleep 6\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	c := &Client{
+		Binary:      binPath,
+		UserDataDir: filepath.Join(dir, "userdata"),
+		LogDir:      filepath.Join(dir, "logs"),
+	}
+	handle, err := c.RunWithOptions(context.Background(), "test-vm", RunOptions{
+		SharedDirs: []string{"env:/tmp/env:ro"},
+		VNC:        true,
+	})
+	if err != nil {
+		t.Fatalf("RunWithOptions failed: %v", err)
+	}
+	if handle == nil {
+		t.Fatal("expected non-nil handle")
+	}
+	t.Cleanup(func() { <-handle.Done() })
+
+	vncCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	info, err := handle.WaitVNCInfo(vncCtx)
+	if err != nil {
+		t.Fatalf("WaitVNCInfo: %v", err)
+	}
+	if info.Host != "127.0.0.1" || info.Port != 5901 || info.Password != "alpha-bravo" {
+		t.Fatalf("VNC info = %+v, want host=127.0.0.1 port=5901 password=alpha-bravo", info)
+	}
+
+	body, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(body)
+	for _, want := range []string{"run\n", "test-vm\n", "--vnc-experimental\n", "--graphics\n", "--root-disk-opts\n", "caching=cached\n", "--dir\n", "env:/tmp/env:ro\n", "CI=1\n"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("args missing %q in:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "--no-graphics\n") {
+		t.Fatalf("VNC run should not include --no-graphics when --graphics is required:\n%s", got)
+	}
+
+	<-handle.Done()
+	logBody, err := os.ReadFile(handle.LogPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(logBody), "alpha-bravo") {
+		t.Fatalf("VM log leaked generated VNC password:\n%s", string(logBody))
+	}
+	if !strings.Contains(string(logBody), "vnc://:REDACTED@127.0.0.1:5901") {
+		t.Fatalf("VM log missing redacted VNC URL:\n%s", string(logBody))
+	}
+}
+
+func TestParseTartVNCURLRequiresGeneratedPassword(t *testing.T) {
+	_, err := parseTartVNCURL("vnc://127.0.0.1:5901")
+	if err == nil {
+		t.Fatal("parseTartVNCURL accepted a URL without Tart's generated password")
+	}
+}
+
+// TestRunSurfacesEnsureGUISessionFailure locks in that a preflight
+// failure short-circuits Run before `tart run` is started. Without
+// this, the kubelet would launch the VM into a wall and surface a
+// less-actionable error from Tart.
+func TestRunSurfacesEnsureGUISessionFailure(t *testing.T) {
+	dir := t.TempDir()
+	// Sentinel binary that should never run — assert it didn't by
+	// checking no log file was created.
+	binPath := filepath.Join(dir, "fake-tart-must-not-run")
+	if err := os.WriteFile(binPath, []byte("#!/bin/sh\ntouch \"$0.ran\"\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	sentinel := errors.New("preflight rejected")
+	c := &Client{
+		Binary:      binPath,
+		UserDataDir: filepath.Join(dir, "userdata"),
+		LogDir:      filepath.Join(dir, "logs"),
+		EnsureGUISession: func(_ context.Context) error {
+			return sentinel
+		},
+	}
+	_, err := c.Run(context.Background(), "test-vm", nil)
+	if err == nil {
+		t.Fatal("expected preflight error, got nil")
+	}
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("error chain doesn't wrap sentinel: %v", err)
+	}
+	if _, statErr := os.Stat(binPath + ".ran"); statErr == nil {
+		t.Fatal("fake tart was executed despite preflight failure")
+	}
+}
+
+func TestParseDFCapacityPercent(t *testing.T) {
+	tests := []struct {
+		name    string
+		out     string
+		want    int
+		wantErr bool
+	}{
+		{
+			name: "returns block capacity not inode usage",
+			// macOS `df -k /` — Capacity (100%) precedes %iused (31%).
+			out: "Filesystem     1024-blocks      Used Available Capacity iused   ifree %iused  Mounted on\n" +
+				"/dev/disk3s1s1   136318784  11534336    102400     100%  453000 1048576   31%   /",
+			want: 100,
+		},
+		{
+			name: "mid-range capacity",
+			out: "Filesystem     1024-blocks     Used Available Capacity iused   ifree %iused  Mounted on\n" +
+				"/dev/disk3s1s1   136318784 60000000  76318784      44%  100000 2000000    5%   /",
+			want: 44,
+		},
+		{
+			name:    "no data line",
+			out:     "Filesystem 1024-blocks Used Available Capacity iused ifree %iused Mounted on",
+			wantErr: true,
+		},
+		{
+			name:    "empty",
+			out:     "",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseDFCapacityPercent([]byte(tt.out))
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got %d", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("capacity = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+// scriptedTart writes a stub `tart` from body, which can append its argv to
+// $CALLS, and returns the stub's path and the calls file.
+func scriptedTart(t *testing.T, body string) (string, string) {
+	t.Helper()
+	dir := t.TempDir()
+	calls := filepath.Join(dir, "calls")
+	path := filepath.Join(dir, "faketart")
+	script := "#!/bin/sh\nCALLS='" + calls + "'\necho \"$*\" >> \"$CALLS\"\n" + body
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path, calls
+}
+
+func recordedCalls(t *testing.T, calls string) []string {
+	t.Helper()
+	out, err := os.ReadFile(calls)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Split(strings.TrimSpace(string(out)), "\n")
+}
+
+// Tart 2.40.1 refuses to clone over an existing directory, including a
+// leftover too incomplete for `tart delete` to remove. Without the retry such
+// a name could never be cloned again, and for a runner clone the reconciler
+// would also drop the golden and re-pull it on every attempt.
+func TestCloneFromReplacesALeftoverOnTartThatRefusesOverwrites(t *testing.T) {
+	bin, calls := scriptedTart(t, `case " $* " in
+  *" --overwrite "*) exit 0 ;;
+esac
+echo 'Error: VM "dst" already exists, use --overwrite to replace it' >&2
+exit 64
+`)
+	c := &Client{Binary: bin}
+	if err := c.CloneFrom(context.Background(), "ghcr.io/tuist/runner@sha256:abc", "dst", true); err != nil {
+		t.Fatalf("clone over a leftover: %v", err)
+	}
+	want := []string{
+		"clone --insecure ghcr.io/tuist/runner@sha256:abc dst",
+		"clone --overwrite --insecure ghcr.io/tuist/runner@sha256:abc dst",
+	}
+	if got := recordedCalls(t, calls); strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("tart calls = %q, want %q", got, want)
+	}
+}
+
+// Tart before 2.40.1 rejects `--overwrite` outright, so it must only ever be
+// passed after a refusal that names it.
+func TestCloneFromNeverPassesOverwriteToTartThatLacksIt(t *testing.T) {
+	bin, calls := scriptedTart(t, `case " $* " in
+  *" --overwrite "*) echo "Error: Unknown option '--overwrite'" >&2; exit 64 ;;
+esac
+exit 0
+`)
+	c := &Client{Binary: bin}
+	if err := c.Clone(context.Background(), "golden", "dst"); err != nil {
+		t.Fatalf("clone: %v", err)
+	}
+	if got := recordedCalls(t, calls); len(got) != 1 || got[0] != "clone golden dst" {
+		t.Fatalf("tart calls = %q, want one plain clone", got)
+	}
+}
+
+func TestCloneFromSurfacesOtherFailuresWithoutRetrying(t *testing.T) {
+	bin, calls := scriptedTart(t, "echo 'Error: no space left on device' >&2\nexit 1\n")
+	c := &Client{Binary: bin}
+	if err := c.Clone(context.Background(), "golden", "dst"); err == nil {
+		t.Fatal("clone succeeded")
+	}
+	if got := recordedCalls(t, calls); len(got) != 1 {
+		t.Fatalf("tart calls = %q, want no retry", got)
+	}
+}
+
+func TestVersion(t *testing.T) {
+	bin, _ := scriptedTart(t, "echo 2.41.1\n")
+	c := &Client{Binary: bin}
+	got, err := c.Version(context.Background())
+	if err != nil || got != "2.41.1" {
+		t.Fatalf("Version() = %q, %v; want 2.41.1", got, err)
+	}
+}
+
+// Output captured from `tart list --format json` and `tart get --format json`
+// on 2.32.1 and 2.41.1. 2.39.0 also reports Disk as null while a running VM
+// holds an ASIF disk open; nothing here reads Disk, but the documents must
+// still decode.
+func TestVMUnmarshalAcrossTartVersions(t *testing.T) {
+	for name, payload := range map[string]string{
+		"list 2.32.1":    `[{"Disk":1,"Name":"base","Source":"local","Size":0,"Accessed":"2026-10-19T15:27:11Z","Running":false,"State":"stopped"}]`,
+		"list 2.41.1":    `[{"Disk":1,"Name":"base","Source":"local","Size":0,"Running":false,"State":"stopped","Accessed":"2026-10-19T15:27:13Z"}]`,
+		"list ASIF busy": `[{"Disk":null,"Name":"base","Source":"local","Size":0,"Running":true,"State":"running","Accessed":"2026-10-19T15:27:13Z"}]`,
+	} {
+		var vms []VM
+		if err := json.Unmarshal([]byte(payload), &vms); err != nil || len(vms) != 1 || vms[0].Name != "base" || vms[0].Source != "local" {
+			t.Errorf("%s: decoded %+v, %v", name, vms, err)
+		}
+	}
+	for name, payload := range map[string]string{
+		"get 2.32.1": `{"Running":false,"CPU":4,"OS":"linux","Size":"0.000","Memory":4096,"DiskFormat":"raw","Disk":1,"State":"stopped","Display":"1024x768"}`,
+		"get 2.41.1": `{"MACAddress":"ee:60:8f:30:86:76","Memory":4096,"Running":false,"DiskFormat":"raw","OS":"linux","Disk":null,"Display":"1024x768","CPU":4,"Size":"0.000","State":"stopped"}`,
+	} {
+		var vm VM
+		if err := json.Unmarshal([]byte(payload), &vm); err != nil || vm.CPU != 4 {
+			t.Errorf("%s: decoded %+v, %v", name, vm, err)
+		}
+	}
+}
+
+// A pull ahead of the Pods that clone it runs under BackgroundPull with less
+// network concurrency, so it does not slow the jobs the host is running; any
+// other pull runs as before.
+func TestBackgroundPullRunsUnderBackgroundPolicy(t *testing.T) {
+	dir := t.TempDir()
+	calls := filepath.Join(dir, "calls")
+	tartBin := filepath.Join(dir, "faketart")
+	policy := filepath.Join(dir, "policy")
+	if err := os.WriteFile(tartBin, []byte("#!/bin/sh\necho \"tart $*\" >> "+shellEscape(calls)+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(policy, []byte("#!/bin/sh\necho \"policy $1\" >> "+shellEscape(calls)+"\nshift\nexec \"$@\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	c := &Client{Binary: tartBin, BackgroundPull: []string{policy, "-b"}}
+
+	if err := c.PullFrom(context.Background(), "ghcr.io/tuist/tuist-runner@sha256:1", false); err != nil {
+		t.Fatalf("PullFrom: %v", err)
+	}
+	if err := c.PullFrom(InBackground(context.Background()), "ghcr.io/tuist/tuist-runner@sha256:2", true); err != nil {
+		t.Fatalf("background PullFrom: %v", err)
+	}
+
+	got, err := os.ReadFile(calls)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "tart pull ghcr.io/tuist/tuist-runner@sha256:1\n" +
+		"policy -b\n" +
+		"tart pull --insecure ghcr.io/tuist/tuist-runner@sha256:2 --concurrency 2\n"
+	if string(got) != want {
+		t.Fatalf("calls:\n%s\nwant:\n%s", got, want)
+	}
+}

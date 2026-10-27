@@ -1,0 +1,845 @@
+defmodule TuistWeb.API.BuildsControllerTest do
+  use TuistTestSupport.Cases.ConnCase, async: false
+  use Mimic
+
+  alias Tuist.Builds
+  alias Tuist.Builds.Build
+  alias Tuist.Builds.Workers.ProcessBuildWorker
+  alias Tuist.Storage
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
+  alias TuistWeb.Authentication
+
+  describe "GET /api/projects/:account_handle/:project_handle/xcode/builds" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "returns an empty list when there are no builds", %{conn: conn, user: user, project: project} do
+      stub(Builds, :list_build_runs, fn _attrs, _opts ->
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 0,
+           total_pages: 0
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds")
+
+      assert %{
+               "builds" => [],
+               "pagination_metadata" => %{
+                 "has_next_page" => false,
+                 "has_previous_page" => false,
+                 "current_page" => 1,
+                 "page_size" => 20,
+                 "total_count" => 0,
+                 "total_pages" => 0
+               }
+             } = json_response(conn, 200)
+    end
+
+    test "returns builds for the project", %{conn: conn, user: user, project: project} do
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          status: "success",
+          duration: 5000,
+          scheme: "MyApp",
+          configuration: "Debug",
+          inserted_at: ~N[2026-10-14 09:30:15.123456]
+        )
+
+      stub(Builds, :list_build_runs, fn _attrs, _opts ->
+        {[build],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds")
+
+      response = json_response(conn, 200)
+      assert length(response["builds"]) == 1
+
+      first_build = hd(response["builds"])
+      assert first_build["id"] == build.id
+      assert first_build["status"] == "success"
+      assert first_build["duration"] == 5000
+      assert first_build["scheme"] == "MyApp"
+      assert first_build["configuration"] == "Debug"
+      assert first_build["cacheable_tasks_count"] == build.cacheable_tasks_count
+      assert first_build["cacheable_task_local_hits_count"] == build.cacheable_task_local_hits_count
+      assert first_build["cacheable_task_remote_hits_count"] == build.cacheable_task_remote_hits_count
+      assert first_build["inserted_at"] == "2026-10-14T09:30:15Z"
+    end
+
+    test "filters builds by status", %{conn: conn, user: user, project: project} do
+      {:ok, failure_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          status: "failure",
+          duration: 3000
+        )
+
+      expect(Builds, :list_build_runs, fn attrs, _opts ->
+        assert %{field: :status, op: :==, value: "failure"} in attrs.filters
+
+        {[failure_build],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds?status=failure")
+
+      response = json_response(conn, 200)
+      assert length(response["builds"]) == 1
+      assert hd(response["builds"])["status"] == "failure"
+    end
+
+    test "supports pagination", %{conn: conn, user: user, project: project} do
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id
+        )
+
+      expect(Builds, :list_build_runs, fn attrs, _opts ->
+        assert attrs.page == 2
+        assert attrs.page_size == 10
+
+        {[build],
+         %{
+           has_next_page?: false,
+           has_previous_page?: true,
+           current_page: 2,
+           page_size: 10,
+           total_count: 11,
+           total_pages: 2
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds?page=2&page_size=10")
+
+      response = json_response(conn, 200)
+      assert length(response["builds"]) == 1
+      assert response["pagination_metadata"]["current_page"] == 2
+      assert response["pagination_metadata"]["page_size"] == 10
+      assert response["pagination_metadata"]["total_count"] == 11
+      assert response["pagination_metadata"]["total_pages"] == 2
+    end
+
+    test "returns 403 when user is not authorized", %{conn: conn, project: project} do
+      other_user = AccountsFixtures.user_fixture(preload: [:account])
+      conn = Authentication.put_current_user(conn, other_user)
+
+      conn = get(conn, "/api/projects/#{project.account.name}/#{project.name}/xcode/builds")
+
+      assert json_response(conn, :forbidden)
+    end
+
+    test "returns custom_metadata in response", %{conn: conn, user: user, project: project} do
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          custom_tags: ["nightly", "release"],
+          custom_values: %{"ticket" => "PROJ-1234"}
+        )
+
+      stub(Builds, :list_build_runs, fn _attrs, _opts ->
+        {[build],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds")
+
+      response = json_response(conn, 200)
+      first_build = hd(response["builds"])
+      assert first_build["custom_metadata"]["tags"] == ["nightly", "release"]
+      assert first_build["custom_metadata"]["values"] == %{"ticket" => "PROJ-1234"}
+    end
+
+    test "filters builds by tags", %{conn: conn, user: user, project: project} do
+      {:ok, tagged_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          custom_tags: ["nightly", "release"]
+        )
+
+      expect(Builds, :list_build_runs, fn attrs, _opts ->
+        assert %{field: :custom_tags, op: :contains, value: "nightly"} in attrs.filters
+
+        {[tagged_build],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds?tags[]=nightly")
+
+      response = json_response(conn, 200)
+      assert length(response["builds"]) == 1
+    end
+
+    test "filters builds by multiple tags", %{conn: conn, user: user, project: project} do
+      {:ok, tagged_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          custom_tags: ["nightly", "release"]
+        )
+
+      expect(Builds, :list_build_runs, fn attrs, _opts ->
+        assert %{field: :custom_tags, op: :contains, value: "nightly"} in attrs.filters
+        assert %{field: :custom_tags, op: :contains, value: "release"} in attrs.filters
+
+        {[tagged_build],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds?tags[]=nightly&tags[]=release")
+
+      response = json_response(conn, 200)
+      assert length(response["builds"]) == 1
+    end
+
+    test "filters builds by custom values", %{conn: conn, user: user, project: project} do
+      {:ok, build_with_values} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          custom_values: %{"ticket" => "PROJ-1234", "runner" => "macos-14"}
+        )
+
+      expect(Builds, :list_build_runs, fn _attrs, opts ->
+        assert Keyword.get(opts, :custom_values) == %{"ticket" => "PROJ-1234"}
+
+        {[build_with_values],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds?values[]=ticket:PROJ-1234")
+
+      response = json_response(conn, 200)
+      assert length(response["builds"]) == 1
+    end
+
+    test "filters builds by multiple custom values", %{conn: conn, user: user, project: project} do
+      {:ok, build_with_values} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          custom_values: %{"ticket" => "PROJ-1234", "runner" => "macos-14"}
+        )
+
+      expect(Builds, :list_build_runs, fn _attrs, opts ->
+        assert Keyword.get(opts, :custom_values) == %{"ticket" => "PROJ-1234", "runner" => "macos-14"}
+
+        {[build_with_values],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 1,
+           total_pages: 1
+         }}
+      end)
+
+      conn =
+        get(
+          conn,
+          "/api/projects/#{user.account.name}/#{project.name}/xcode/builds?values[]=ticket:PROJ-1234&values[]=runner:macos-14"
+        )
+
+      response = json_response(conn, 200)
+      assert length(response["builds"]) == 1
+    end
+  end
+
+  describe "GET /api/projects/:account_handle/:project_handle/xcode/builds/:build_id" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "returns a build by ID", %{conn: conn, user: user, project: project} do
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          status: "success",
+          duration: 5000,
+          scheme: "MyApp",
+          configuration: "Release",
+          xcode_version: "15.0",
+          macos_version: "14.0",
+          cacheable_tasks_count: 10,
+          cacheable_task_local_hits_count: 3,
+          cacheable_task_remote_hits_count: 5,
+          inserted_at: ~N[2026-10-14 09:30:15.123456]
+        )
+
+      stub(Builds, :get_build, fn _id, _opts ->
+        {:ok, build}
+      end)
+
+      stub(Builds, :cas_output_metrics, fn _build_run_id -> zero_cas_output_metrics() end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}")
+
+      response = json_response(conn, 200)
+      assert response["id"] == build.id
+      assert response["status"] == "success"
+      assert response["duration"] == 5000
+      assert response["scheme"] == "MyApp"
+      assert response["configuration"] == "Release"
+      assert response["xcode_version"] == "15.0"
+      assert response["macos_version"] == "14.0"
+      assert response["cacheable_tasks_count"] == 10
+      assert response["cacheable_task_local_hits_count"] == 3
+      assert response["cacheable_task_remote_hits_count"] == 5
+      assert response["inserted_at"] == "2026-10-14T09:30:15Z"
+    end
+
+    test "returns the CAS transfer totals for the build", %{conn: conn, user: user, project: project} do
+      {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
+
+      stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
+
+      expect(Builds, :cas_output_metrics, fn build_run_id ->
+        assert build_run_id == build.id
+
+        %{
+          download_count: 90,
+          upload_count: 10,
+          download_bytes: 9000,
+          upload_bytes: 1000,
+          time_weighted_avg_download_throughput: 0,
+          time_weighted_avg_upload_throughput: 0
+        }
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}")
+
+      assert %{
+               "cas_output_download_count" => 90,
+               "cas_output_upload_count" => 10,
+               "cas_output_download_bytes" => 9000,
+               "cas_output_upload_bytes" => 1000
+             } = json_response(conn, 200)
+    end
+
+    test "returns zeroed CAS transfer totals for a build that transferred nothing", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      {:ok, build} = RunsFixtures.build_fixture(project_id: project.id, user_id: user.account.id)
+
+      stub(Builds, :get_build, fn _id, _opts -> {:ok, build} end)
+
+      expect(Builds, :cas_output_metrics, fn _build_run_id ->
+        %{
+          download_count: 0,
+          upload_count: 0,
+          download_bytes: 0,
+          upload_bytes: 0,
+          time_weighted_avg_download_throughput: 0,
+          time_weighted_avg_upload_throughput: 0
+        }
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}")
+
+      assert %{
+               "cas_output_download_count" => 0,
+               "cas_output_upload_count" => 0,
+               "cas_output_download_bytes" => 0,
+               "cas_output_upload_bytes" => 0
+             } = json_response(conn, 200)
+    end
+
+    test "returns 404 when build is not found", %{conn: conn, user: user, project: project} do
+      stub(Builds, :get_build, fn _id, _opts ->
+        {:error, :not_found}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{UUIDv7.generate()}")
+
+      assert %{"message" => "Build not found."} = json_response(conn, 404)
+    end
+
+    test "returns 404 when build belongs to a different project", %{conn: conn, user: user, project: project} do
+      other_project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: other_project.id,
+          user_id: user.account.id
+        )
+
+      stub(Builds, :get_build, fn _id, _opts ->
+        {:ok, build}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}")
+
+      assert %{"message" => "Build not found."} = json_response(conn, 404)
+    end
+
+    test "returns 403 when user is not authorized", %{conn: conn, project: project} do
+      other_user = AccountsFixtures.user_fixture(preload: [:account])
+      conn = Authentication.put_current_user(conn, other_user)
+
+      conn = get(conn, "/api/projects/#{project.account.name}/#{project.name}/xcode/builds/#{UUIDv7.generate()}")
+
+      assert json_response(conn, :forbidden)
+    end
+
+    test "returns custom_metadata in response", %{conn: conn, user: user, project: project} do
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          custom_tags: ["nightly", "staging"],
+          custom_values: %{"runner" => "macos-14", "jira" => "https://jira.example.com/PROJ-123"}
+        )
+
+      stub(Builds, :get_build, fn _id, _opts ->
+        {:ok, build}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/xcode/builds/#{build.id}")
+
+      response = json_response(conn, 200)
+      assert response["custom_metadata"]["tags"] == ["nightly", "staging"]
+
+      assert response["custom_metadata"]["values"] == %{
+               "runner" => "macos-14",
+               "jira" => "https://jira.example.com/PROJ-123"
+             }
+    end
+  end
+
+  describe "GET /api/projects/:account_handle/:project_handle/builds (deprecated)" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "returns builds using the deprecated route", %{conn: conn, user: user, project: project} do
+      stub(Builds, :list_build_runs, fn _attrs, _opts ->
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           current_page: 1,
+           page_size: 20,
+           total_count: 0,
+           total_pages: 0
+         }}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds")
+
+      assert %{"builds" => []} = json_response(conn, 200)
+    end
+  end
+
+  describe "GET /api/projects/:account_handle/:project_handle/builds/:build_id (deprecated)" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "returns a build by ID using the deprecated route", %{conn: conn, user: user, project: project} do
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: user.account.id,
+          status: "success",
+          duration: 5000
+        )
+
+      stub(Builds, :get_build, fn _id, _opts ->
+        {:ok, build}
+      end)
+
+      conn = get(conn, "/api/projects/#{user.account.name}/#{project.name}/builds/#{build.id}")
+
+      response = json_response(conn, 200)
+      assert response["id"] == build.id
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/builds (deprecated)" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      conn = Authentication.put_current_user(conn, user)
+
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "creates a build using the deprecated route", %{conn: conn, user: user, project: project} do
+      build_id = UUIDv7.generate()
+
+      stub(Builds, :get_build, fn _id, _opts -> {:error, :not_found} end)
+
+      stub(Builds, :create_build, fn _attrs ->
+        {:ok,
+         %Build{
+           id: build_id,
+           status: "success",
+           duration: 1000,
+           project_id: project.id,
+           project: %{project | account: user.account}
+         }}
+      end)
+
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn _params -> :ok end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/builds", %{
+          id: build_id,
+          is_ci: false
+        })
+
+      response = json_response(conn, 200)
+      assert response["id"] == build_id
+    end
+
+    test "does not return a build from another project after an identifier conflict", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      build_id = UUIDv7.generate()
+
+      expect(Builds, :get_build, 2, fn ^build_id, opts ->
+        assert opts == [project_id: project.id]
+        {:error, :not_found}
+      end)
+
+      stub(Builds, :create_build, fn _attrs ->
+        {:error,
+         %Ecto.Changeset{
+           errors: [id: {"has already been taken", [constraint: :unique]}],
+           valid?: false
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/builds", %{
+          id: build_id,
+          is_ci: false
+        })
+
+      assert json_response(conn, :bad_request) == %{
+               "message" => "The request parameters are invalid"
+             }
+    end
+
+    test "attributes the run to the authenticated user while keeping storage under the project account", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      conn = Authentication.put_current_user(conn, user)
+      build_id = UUIDv7.generate()
+
+      stub(Builds, :get_build, fn _id, _opts -> {:error, :not_found} end)
+
+      stub(Builds, :create_build, fn attrs ->
+        assert attrs.account_id == user.account.id
+
+        {:ok,
+         %Build{
+           id: build_id,
+           status: "processing",
+           duration: 0,
+           project_id: project.id,
+           account_id: attrs.account_id,
+           project: %{project | account: organization.account}
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{organization.account.name}/#{project.name}/builds", %{
+          id: build_id,
+          status: "processing",
+          is_ci: false
+        })
+
+      assert json_response(conn, 200)
+
+      assert_enqueued(
+        worker: ProcessBuildWorker,
+        args: %{
+          "build_id" => build_id,
+          "account_id" => user.account.id,
+          "project_id" => project.id,
+          "storage_key" => "#{organization.account.name}/#{project.name}/builds/#{build_id}/build.zip"
+        }
+      )
+    end
+
+    test "strips credentials from the remote URL in the processing job args", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      conn = Authentication.put_current_user(conn, user)
+      build_id = UUIDv7.generate()
+
+      stub(Builds, :get_build, fn _id, _opts -> {:error, :not_found} end)
+      stub(Tuist.VCS, :enqueue_vcs_pull_request_comment, fn _ -> :ok end)
+
+      stub(Builds, :create_build, fn attrs ->
+        {:ok,
+         %Build{
+           id: build_id,
+           status: "processing",
+           duration: 0,
+           project_id: project.id,
+           account_id: attrs.account_id,
+           project: project
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/builds", %{
+          id: build_id,
+          status: "processing",
+          is_ci: true,
+          git_ref: "refs/pull/42/merge",
+          git_remote_url_origin: "https://x-access-token:fake-token@github.com/tuist/tuist.git"
+        })
+
+      assert json_response(conn, 200)
+
+      assert_enqueued(
+        worker: ProcessBuildWorker,
+        args: %{
+          "build_id" => build_id,
+          "build_metadata" => %{"git_remote_url_origin" => "https://github.com/tuist/tuist.git"},
+          "vcs_comment_params" => %{"git_remote_url_origin" => "https://github.com/tuist/tuist.git"}
+        }
+      )
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/builds/upload/start" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      conn = Authentication.put_current_user(conn, user)
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "starts a multipart upload for a build", %{conn: conn, user: user, project: project} do
+      build_id = Ecto.UUID.generate()
+
+      stub(Storage, :multipart_start, fn _key, _account ->
+        {:ok, "multipart-upload-id-123"}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/builds/upload/start", %{
+          build_id: build_id
+        })
+
+      response = json_response(conn, 200)
+      assert response["status"] == "success"
+      assert response["data"]["upload_id"] == "multipart-upload-id-123"
+    end
+
+    test "returns 403 when user is not authorized", %{conn: conn, project: project} do
+      other_user = AccountsFixtures.user_fixture(preload: [:account])
+      conn = Authentication.put_current_user(conn, other_user)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{project.account.name}/#{project.name}/builds/upload/start", %{
+          build_id: Ecto.UUID.generate()
+        })
+
+      assert json_response(conn, :forbidden)
+    end
+
+    test "starts the upload against the project's account, not the authenticated subject's", %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: organization.account.id)
+      conn = Authentication.put_current_user(conn, user)
+
+      test_pid = self()
+
+      stub(Storage, :multipart_start, fn _key, account ->
+        send(test_pid, {:multipart_start_account, account.id})
+        {:ok, "multipart-upload-id-123"}
+      end)
+
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/projects/#{organization.account.name}/#{project.name}/builds/upload/start", %{
+        build_id: Ecto.UUID.generate()
+      })
+
+      assert_received {:multipart_start_account, account_id}
+      assert account_id == organization.account.id
+      refute account_id == user.account.id
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/builds/upload/generate-url" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      conn = Authentication.put_current_user(conn, user)
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "generates a signed URL for a part", %{conn: conn, user: user, project: project} do
+      build_id = Ecto.UUID.generate()
+
+      stub(Storage, :multipart_generate_url, fn _key, _upload_id, _part_number, _account, _opts ->
+        "https://s3.example.com/part-upload-url"
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/builds/upload/generate-url", %{
+          build_id: build_id,
+          multipart_upload_part: %{
+            part_number: 1,
+            upload_id: "multipart-upload-id-123"
+          }
+        })
+
+      response = json_response(conn, 200)
+      assert response["status"] == "success"
+      assert response["data"]["url"] == "https://s3.example.com/part-upload-url"
+    end
+  end
+
+  describe "POST /api/projects/:account_handle/:project_handle/builds/upload/complete" do
+    setup %{conn: conn} do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      conn = Authentication.put_current_user(conn, user)
+      %{conn: conn, user: user, project: project}
+    end
+
+    test "completes a multipart upload", %{conn: conn, user: user, project: project} do
+      build_id = Ecto.UUID.generate()
+
+      stub(Storage, :multipart_complete_upload, fn _key, _upload_id, _parts, _account ->
+        :ok
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/builds/upload/complete", %{
+          build_id: build_id,
+          multipart_upload_parts: %{
+            upload_id: "multipart-upload-id-123",
+            parts: [
+              %{part_number: 1, etag: "etag1"},
+              %{part_number: 2, etag: "etag2"}
+            ]
+          }
+        })
+
+      response = json_response(conn, 200)
+      assert response["status"] == "success"
+      assert response["data"] == %{}
+    end
+  end
+
+  defp zero_cas_output_metrics do
+    %{
+      download_count: 0,
+      upload_count: 0,
+      download_bytes: 0,
+      upload_bytes: 0,
+      time_weighted_avg_download_throughput: 0,
+      time_weighted_avg_upload_throughput: 0
+    }
+  end
+end

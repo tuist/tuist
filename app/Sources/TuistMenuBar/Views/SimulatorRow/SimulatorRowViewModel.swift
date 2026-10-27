@@ -1,6 +1,6 @@
-import Command
 import Foundation
 import TuistCore
+import TuistProcess
 import TuistSupport
 
 @Observable
@@ -17,7 +17,7 @@ final class SimulatorRowViewModel {
     }
 
     func launchSimulator(_ simulator: SimulatorDeviceAndRuntime) async throws {
-        _ = try simulatorController.booted(device: simulator.device, forced: true)
+        _ = try await simulatorController.booted(device: simulator.device, forced: true)
         _ = try await commandRunner.run(arguments: ["open", "-a", "Simulator"]).concatenatedString()
     }
 }

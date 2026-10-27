@@ -2,16 +2,29 @@ import Foundation
 import HTTPTypes
 import OpenAPIRuntime
 
-#if os(macOS)
-    import TuistSupport
-#endif
+import TuistLogging
 
 /// A middleware that outputs in debug mode the request and responses sent and received from the server
 public struct VerboseLoggingMiddleware: ClientMiddleware {
     private let serviceName: String
+    private let maxBodyBytesToLog: Int64
 
-    public init(serviceName: String = "Tuist") {
+    private static let sensitiveHeaders: Set<String> = [
+        "authorization",
+        "cookie",
+        "set-cookie",
+        "x-api-key",
+        "x-auth-token",
+        "x-access-token",
+        "proxy-authorization",
+        "www-authenticate",
+        "x-amz-security-token",
+        "x-amz-credential",
+    ]
+
+    public init(serviceName: String = "Tuist", maxBodyBytesToLog: Int64 = 64 * 1024) {
         self.serviceName = serviceName
+        self.maxBodyBytesToLog = maxBodyBytesToLog
     }
 
     public func intercept(
@@ -22,30 +35,26 @@ public struct VerboseLoggingMiddleware: ClientMiddleware {
         next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
     ) async throws -> (HTTPResponse, HTTPBody?) {
         let (requestBodyToLog, requestBodyForNext) = try await process(body)
-        #if os(macOS)
-            Logger.current.debug("""
-            Sending HTTP request to \(serviceName):
-              - Method: \(request.method.rawValue)
-              - URL: \(baseURL.absoluteString)
-              - Path: \(request.path ?? "")
-              - Body: \(requestBodyToLog)
-              - Headers: \(request.headerFields)
-            """)
-        #endif
+        Logger.current.debug("""
+        Sending HTTP request to \(serviceName):
+          - Method: \(request.method.rawValue)
+          - URL: \(baseURL.absoluteString)
+          - Path: \(request.path ?? "")
+          - Body: \(requestBodyToLog)
+          - Headers: \(Self.redactSensitiveHeaders(request.headerFields))
+        """)
 
         let (response, responseBody) = try await next(request, requestBodyForNext, baseURL)
         let (responseBodyToLog, responseBodyForNext) = try await process(responseBody)
 
-        #if os(macOS)
-            Logger.current.debug("""
-            Received HTTP response from \(serviceName):
-              - URL: \(baseURL.absoluteString)
-              - Path: \(request.path ?? "")
-              - Status: \(response.status.code)
-              - Body: \(responseBodyToLog)
-              - Headers: \(response.headerFields)
-            """)
-        #endif
+        Logger.current.debug("""
+        Received HTTP response from \(serviceName):
+          - URL: \(baseURL.absoluteString)
+          - Path: \(request.path ?? "")
+          - Status: \(response.status.code)
+          - Body: \(responseBodyToLog)
+          - Headers: \(Self.redactSensitiveHeaders(response.headerFields))
+        """)
 
         return (response, responseBodyForNext)
     }
@@ -75,11 +84,24 @@ public struct VerboseLoggingMiddleware: ClientMiddleware {
         }
     }
 
+    static func redactSensitiveHeaders(_ headers: HTTPFields) -> String {
+        let redacted = headers.map { field in
+            if sensitiveHeaders.contains(field.name.rawName.lowercased()) {
+                return "\(field.name.rawName): [REDACTED]"
+            }
+            return "\(field.name.rawName): \(field.value)"
+        }
+        return "[\(redacted.joined(separator: ", "))]"
+    }
+
     public func process(_ body: HTTPBody?) async throws -> (bodyToLog: BodyLog, bodyForNext: HTTPBody?) {
         switch body?.length {
         case .none: return (.none, body)
         case .unknown: return (.unknownLength, body)
         case let .known(length):
+            guard length <= maxBodyBytesToLog else {
+                return (.tooManyBytesToLog(length), body)
+            }
             let bodyData = try await Data(collecting: body!, upTo: Int(length))
             return (.complete(bodyData), HTTPBody(bodyData))
         }

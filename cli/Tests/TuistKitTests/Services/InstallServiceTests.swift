@@ -1,6 +1,8 @@
 import Foundation
 import Mockable
-import TSCUtility
+import TuistConfig
+import TuistConfigLoader
+import TuistConstants
 import TuistCore
 import TuistLoader
 import TuistPlugin
@@ -57,26 +59,25 @@ final class InstallServiceTests: TuistUnitTestCase {
             .update(at: .any, arguments: .any, printOutput: .any)
             .willReturn()
 
-        let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
-                .test(project: .generated(.test(swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description))))
+                .test(project: .generated(.test()))
             )
 
         pluginService.fetchRemotePluginsStub = { _ in
             _ = Plugins.test()
         }
 
-        try fileHandler.touch(
+        try await fileSystem.touch(
             stubbedPath.appending(
                 component: Manifest.package.fileName(stubbedPath)
             )
         )
 
         // Package.resolved
-        try fileHandler.touch(expectedPackageResolvedPath)
-        try fileHandler.write("resolved", path: expectedPackageResolvedPath, atomically: true)
+        try await fileSystem.makeDirectory(at: expectedPackageResolvedPath.parentDirectory)
+        try await fileSystem.writeText("resolved", at: expectedPackageResolvedPath)
 
         // When
         try await subject.run(
@@ -86,7 +87,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         )
 
         let savedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", ".build", "Derived", "Package.resolved"])
-        let savedPackageResolvedContents = try fileHandler.readTextFile(savedPackageResolvedPath)
+        let savedPackageResolvedContents = try await fileSystem.readTextFile(at: savedPackageResolvedPath)
 
         // Then
         verify(swiftPackageManagerController)
@@ -139,24 +140,23 @@ final class InstallServiceTests: TuistUnitTestCase {
             .resolve(at: .any, arguments: .any, printOutput: .any)
             .willReturn()
 
-        let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
-                Tuist.test(project: .generated(.test(swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description))))
+                Tuist.test(project: .generated(.test()))
             )
 
         pluginService.fetchRemotePluginsStub = { _ in }
 
-        try fileHandler.touch(
+        try await fileSystem.touch(
             stubbedPath.appending(
                 component: Manifest.package.fileName(stubbedPath)
             )
         )
 
         // Package.resolved
-        try fileHandler.touch(expectedPackageResolvedPath)
-        try fileHandler.write("resolved", path: expectedPackageResolvedPath, atomically: true)
+        try await fileSystem.makeDirectory(at: expectedPackageResolvedPath.parentDirectory)
+        try await fileSystem.writeText("resolved", at: expectedPackageResolvedPath)
 
         // When
         try await subject.run(
@@ -166,7 +166,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         )
 
         let savedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", ".build", "Derived", "Package.resolved"])
-        let savedPackageResolvedContents = try fileHandler.readTextFile(savedPackageResolvedPath)
+        let savedPackageResolvedContents = try await fileSystem.readTextFile(at: savedPackageResolvedPath)
 
         // Then
         verify(swiftPackageManagerController)
@@ -190,24 +190,23 @@ final class InstallServiceTests: TuistUnitTestCase {
             .resolve(at: .any, arguments: .any, printOutput: .any)
             .willReturn()
 
-        let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
-                Tuist.test(project: .generated(.test(swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description))))
+                Tuist.test(project: .generated(.test()))
             )
 
         pluginService.fetchRemotePluginsStub = { _ in }
 
-        try fileHandler.touch(
+        try await fileSystem.touch(
             stubbedPath.appending(
                 component: Manifest.package.fileName(stubbedPath)
             )
         )
 
         // Package.resolved
-        try fileHandler.touch(expectedPackageResolvedPath)
-        try fileHandler.write("resolved", path: expectedPackageResolvedPath, atomically: true)
+        try await fileSystem.makeDirectory(at: expectedPackageResolvedPath.parentDirectory)
+        try await fileSystem.writeText("resolved", at: expectedPackageResolvedPath)
 
         // When
         try await subject.run(
@@ -217,7 +216,7 @@ final class InstallServiceTests: TuistUnitTestCase {
         )
 
         let savedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", ".build", "Derived", "Package.resolved"])
-        let savedPackageResolvedContents = try fileHandler.readTextFile(savedPackageResolvedPath)
+        let savedPackageResolvedContents = try await fileSystem.readTextFile(at: savedPackageResolvedPath)
 
         // Then
         verify(swiftPackageManagerController)
@@ -225,6 +224,60 @@ final class InstallServiceTests: TuistUnitTestCase {
             .called(0)
         verify(swiftPackageManagerController)
             .resolve(at: .any, arguments: .value(["--force-resolved-versions"]), printOutput: .any)
+            .called(1)
+        XCTAssertEqual(savedPackageResolvedContents, "resolved")
+    }
+
+    func test_run_when_installing_dependencies_with_scratchPath_savesPackageResolvedInScratchDirectory() async throws {
+        // Given
+        let stubbedPath = try temporaryPath()
+        let scratchDirectory = try temporaryPath()
+        let expectedPackageResolvedPath = stubbedPath.appending(components: ["Tuist", "Package.resolved"])
+
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(stubbedPath.appending(components: "Tuist", "Package.swift"))
+        given(swiftPackageManagerController)
+            .resolve(at: .any, arguments: .any, printOutput: .any)
+            .willReturn()
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                Tuist.test(project: .generated(.test()))
+            )
+
+        pluginService.fetchRemotePluginsStub = { _ in }
+
+        try await fileSystem.touch(
+            stubbedPath.appending(
+                component: Manifest.package.fileName(stubbedPath)
+            )
+        )
+
+        try await fileSystem.makeDirectory(at: expectedPackageResolvedPath.parentDirectory)
+        try await fileSystem.writeText("resolved", at: expectedPackageResolvedPath)
+
+        // When
+        try await subject.run(
+            path: stubbedPath.pathString,
+            update: false,
+            passthroughArguments: ["--scratch-path", scratchDirectory.pathString]
+        )
+
+        let savedPackageResolvedPath = scratchDirectory.appending(components: [
+            "Derived",
+            "Package.resolved",
+        ])
+        let savedPackageResolvedContents = try await fileSystem.readTextFile(at: savedPackageResolvedPath)
+
+        // Then
+        verify(swiftPackageManagerController)
+            .resolve(
+                at: .any,
+                arguments: .value(["--scratch-path", scratchDirectory.pathString]),
+                printOutput: .any
+            )
             .called(1)
         XCTAssertEqual(savedPackageResolvedContents, "resolved")
     }
@@ -248,11 +301,11 @@ final class InstallServiceTests: TuistUnitTestCase {
             .willReturn()
 
         // Dependencies.swift in root
-        try fileHandler.touch(expectedFoundPackageLocation)
+        try await fileSystem.makeDirectory(at: expectedFoundPackageLocation.parentDirectory)
+        try await fileSystem.touch(expectedFoundPackageLocation)
 
         // Package.resolved
-        try fileHandler.touch(expectedPackageResolvedPath)
-        try fileHandler.write("resolved", path: expectedPackageResolvedPath, atomically: true)
+        try await fileSystem.writeText("resolved", at: expectedPackageResolvedPath)
 
         // When - This will cause the `loadDependenciesStub` closure to be called and assert if needed
         try await subject.run(
@@ -267,7 +320,7 @@ final class InstallServiceTests: TuistUnitTestCase {
             "Derived",
             "Package.resolved",
         ])
-        let savedPackageResolvedContents = try fileHandler.readTextFile(savedPackageResolvedPath)
+        let savedPackageResolvedContents = try await fileSystem.readTextFile(at: savedPackageResolvedPath)
 
         // Then
         XCTAssertEqual(savedPackageResolvedContents, "resolved")
@@ -281,14 +334,15 @@ final class InstallServiceTests: TuistUnitTestCase {
             .locatePackageManifest(at: .any)
             .willReturn(stubbedPath.appending(components: "Tuist", "Package.swift"))
 
-        let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
                 Tuist.test(project: .generated(.test(
-                    swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description),
                     installOptions: .test(
-                        passthroughSwiftPackageManagerArguments: ["--replace-scm-with-registry"]
+                        passthroughSwiftPackageManagerArguments: [
+                            "--cached-directory-materialization",
+                            "symlink",
+                        ]
                     )
                 )))
             )
@@ -297,7 +351,7 @@ final class InstallServiceTests: TuistUnitTestCase {
             _ = Plugins.test()
         }
 
-        try fileHandler.touch(
+        try await fileSystem.touch(
             stubbedPath.appending(
                 component: Manifest.package.fileName(stubbedPath)
             )
@@ -319,7 +373,14 @@ final class InstallServiceTests: TuistUnitTestCase {
             .resolve(at: .any, arguments: .any, printOutput: .any)
             .called(1)
         verify(swiftPackageManagerController)
-            .resolve(at: .any, arguments: .value(["--replace-scm-with-registry"]), printOutput: .any)
+            .resolve(
+                at: .any,
+                arguments: .value([
+                    "--cached-directory-materialization",
+                    "symlink",
+                ]),
+                printOutput: .any
+            )
             .called(1)
     }
 
@@ -331,12 +392,10 @@ final class InstallServiceTests: TuistUnitTestCase {
             .locatePackageManifest(at: .any)
             .willReturn(stubbedPath.appending(components: "Tuist", "Package.swift"))
 
-        let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
                 Tuist.test(project: .generated(.test(
-                    swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description),
                     installOptions: .test(
                         passthroughSwiftPackageManagerArguments: ["--replace-scm-with-registry"]
                     )
@@ -347,7 +406,7 @@ final class InstallServiceTests: TuistUnitTestCase {
             _ = Plugins.test()
         }
 
-        try fileHandler.touch(
+        try await fileSystem.touch(
             stubbedPath.appending(
                 component: Manifest.package.fileName(stubbedPath)
             )
@@ -381,12 +440,10 @@ final class InstallServiceTests: TuistUnitTestCase {
             .locatePackageManifest(at: .any)
             .willReturn(stubbedPath.appending(components: "Tuist", "Package.swift"))
 
-        let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(
                 Tuist.test(project: .generated(.test(
-                    swiftVersion: .init(stringLiteral: stubbedSwiftVersion.description),
                     installOptions: .test(
                         passthroughSwiftPackageManagerArguments: ["--replace-scm-with-registry"]
                     )
@@ -397,7 +454,7 @@ final class InstallServiceTests: TuistUnitTestCase {
             _ = Plugins.test()
         }
 
-        try fileHandler.touch(
+        try await fileSystem.touch(
             stubbedPath.appending(
                 component: Manifest.package.fileName(stubbedPath)
             )

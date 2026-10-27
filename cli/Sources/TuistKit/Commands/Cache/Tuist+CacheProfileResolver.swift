@@ -1,5 +1,6 @@
 import Foundation
 import Logging
+import TuistConfig
 import TuistCore
 
 enum CacheProfileError: LocalizedError, Equatable {

@@ -44,6 +44,18 @@ defmodule Tuist.KeyValueStoreTest do
       assert result == expected_value
     end
 
+    test "treats unsafe terms returned by redis as cache misses" do
+      stub(Tuist.Environment, :redis_url, fn -> "redis://localhost:6379" end)
+      atom_name = "uncached_atom_#{System.unique_integer([:positive])}"
+      encoded_atom = <<131, 118, byte_size(atom_name)::16, atom_name::binary>>
+
+      expect(Redix, :command, fn _conn, ["GET", "redis-unsafe_key"] ->
+        {:ok, encoded_atom}
+      end)
+
+      assert KeyValueStore.get([:redis, "unsafe_key"], persist_across_deployments: true) == nil
+    end
+
     test "returns nil from redis when key is not found" do
       # Given
       cache_key = [:redis, "missing_key"]
@@ -81,6 +93,20 @@ defmodule Tuist.KeyValueStoreTest do
       assert result == expected_value
     end
 
+    test "falls back to the selected Cachex cache on returned Redis connection errors" do
+      cache = :"redis_read_fallback_#{System.unique_integer([:positive])}"
+      start_supervised!({Cachex, [cache, []]})
+      value = %{data: "fallback"}
+      Cachex.put(cache, "fallback", value)
+      stub(Tuist.Environment, :redis_url, fn -> "redis://localhost:6379" end)
+
+      expect(Redix, :command, fn _conn, ["GET", "fallback"] ->
+        {:error, %Redix.ConnectionError{reason: :closed}}
+      end)
+
+      assert KeyValueStore.get("fallback", cache: cache, persist_across_deployments: true) == value
+    end
+
     test "uses custom cache when specified" do
       # Given
       cache_key = [:custom, "cache_key"]
@@ -92,6 +118,267 @@ defmodule Tuist.KeyValueStoreTest do
 
       # Then
       assert result == expected_value
+    end
+  end
+
+  describe "put/3" do
+    test "stores a value in cachex" do
+      cache_key = [:put, "cachex_key"]
+      value = %{data: "cachex_value"}
+
+      assert {:ok, true} = KeyValueStore.put(cache_key, value)
+      assert KeyValueStore.get(cache_key) == value
+    end
+
+    test "supports atom keys documented in the examples" do
+      cache_key = :key_value_store_atom_key
+      value = "atom-key-value"
+      Cachex.del(:tuist, "key_value_store_atom_key")
+
+      assert {:ok, true} = KeyValueStore.put(cache_key, value)
+      assert KeyValueStore.get(cache_key) == value
+    end
+
+    test "uses a custom cache when specified" do
+      cache = :"key_value_store_put_#{System.unique_integer([:positive])}"
+      {:ok, _pid} = Cachex.start_link(name: cache)
+      cache_key = [:put, "custom_cache_key"]
+      value = "custom-cache-value"
+
+      assert {:ok, true} = KeyValueStore.put(cache_key, value, cache: cache)
+      assert KeyValueStore.get(cache_key, cache: cache) == value
+    end
+
+    test "writes through to the selected Cachex cache on returned Redis connection errors" do
+      cache = :"redis_write_fallback_#{System.unique_integer([:positive])}"
+      start_supervised!({Cachex, [cache, []]})
+      value = %{data: "fallback"}
+      stub(Tuist.Environment, :redis_url, fn -> "redis://localhost:6379" end)
+
+      expect(Redix, :command, fn _conn, ["SET", "fallback", _value, "EX", 120] ->
+        {:error, %Redix.ConnectionError{reason: :closed}}
+      end)
+
+      assert {:ok, true} =
+               KeyValueStore.put("fallback", value, cache: cache, ttl: 120_000, persist_across_deployments: true)
+
+      assert KeyValueStore.get("fallback", cache: cache) == value
+      assert Cachex.ttl(cache, "fallback") > 60_000
+    end
+
+    test "stores a value in redis when persistence is enabled" do
+      cache_key = [:redis, "put_key"]
+      value = %{data: "redis_value"}
+
+      stub(Tuist.Environment, :redis_url, fn -> "redis://localhost:6379" end)
+
+      expect(Redix, :command, fn _conn, ["SET", "redis-put_key", serialized_value, "EX", 2] ->
+        assert :erlang.binary_to_term(serialized_value) == value
+        {:ok, "OK"}
+      end)
+
+      assert {:ok, "OK"} =
+               KeyValueStore.put(cache_key, value, persist_across_deployments: true, ttl: 2000)
+    end
+
+    test "falls back to cachex when redis connection fails" do
+      cache_key = [:redis, "put_fallback_key"]
+      value = %{data: "cachex_fallback"}
+
+      stub(Tuist.Environment, :redis_url, fn -> "redis://localhost:6379" end)
+
+      expect(Redix, :command, fn _conn, ["SET", "redis-put_fallback_key", _value, "EX", 60] ->
+        raise Redix.ConnectionError, reason: :closed
+      end)
+
+      assert {:ok, true} = KeyValueStore.put(cache_key, value, persist_across_deployments: true)
+      assert KeyValueStore.get(cache_key) == value
+    end
+  end
+
+  describe "get_or_update/3" do
+    for locking <- [true, false] do
+      @locking locking
+      test "does not store opted-out error results with locking=#{locking}" do
+        cache = :"ignored_callback_#{System.unique_integer([:positive])}"
+        start_supervised!({Cachex, [cache, []]})
+        opts = [cache: cache, locking: @locking, cache_errors: false]
+        assert KeyValueStore.get_or_update(:ignored, opts, fn -> {:error, :retry} end) == {:error, :retry}
+        assert KeyValueStore.get(:ignored, opts) == nil
+        assert KeyValueStore.get_or_update(:ignored, opts, fn -> :recovered end) == :recovered
+      end
+    end
+
+    test "returns error results when the selected cache is unavailable" do
+      cache = :"missing_cache_#{System.unique_integer([:positive])}"
+
+      assert KeyValueStore.get_or_update(:ignored, [cache: cache, cache_errors: false], fn -> {:error, :retry} end) ==
+               {:error, :retry}
+    end
+
+    test "does not store opted-out error results on a persistent miss or malformed value" do
+      stub(Tuist.Environment, :redis_url, fn -> "redis://unused" end)
+
+      for cached <- [nil, "invalid external term"] do
+        expect(Redix, :command, fn _conn, ["GET", "ignored"] -> {:ok, cached} end)
+
+        assert KeyValueStore.get_or_update(
+                 :ignored,
+                 [persist_across_deployments: true, locking: false, cache_errors: false],
+                 fn -> {:error, :retry} end
+               ) == {:error, :retry}
+      end
+    end
+
+    test "rebuilds an unsafe redis value instead of crashing" do
+      stub(Tuist.Environment, :redis_url, fn -> "redis://localhost:6379" end)
+      atom_name = "uncached_atom_#{System.unique_integer([:positive])}"
+      encoded_atom = <<131, 118, byte_size(atom_name)::16, atom_name::binary>>
+
+      expect(Redix, :command, 2, fn
+        _conn, ["GET", "redis-unsafe_key"] ->
+          {:ok, encoded_atom}
+
+        _conn, ["SET", "redis-unsafe_key", encoded_value, "EX", 60] ->
+          assert :erlang.binary_to_term(encoded_value) == "rebuilt"
+          {:ok, "OK"}
+      end)
+
+      assert KeyValueStore.get_or_update(
+               [:redis, "unsafe_key"],
+               [persist_across_deployments: true, locking: false],
+               fn -> "rebuilt" end
+             ) == "rebuilt"
+    end
+
+    test "does not confuse a safely cached nil with an invalid value" do
+      stub(Tuist.Environment, :redis_url, fn -> "redis://localhost:6379" end)
+
+      expect(Redix, :command, fn _conn, ["GET", "redis-nil_key"] ->
+        {:ok, :erlang.term_to_binary(nil)}
+      end)
+
+      assert KeyValueStore.get_or_update(
+               [:redis, "nil_key"],
+               [persist_across_deployments: true, locking: false],
+               fn -> flunk("a valid cached nil must not be rebuilt") end
+             ) == nil
+    end
+
+    test "a slow miss does not block callers of other keys" do
+      test_process = self()
+      slow_key = [:slow, System.unique_integer([:positive])]
+
+      slow =
+        Task.async(fn ->
+          KeyValueStore.get_or_update(slow_key, fn ->
+            send(test_process, {:slow_started, self()})
+
+            receive do
+              :release -> "slow"
+            end
+          end)
+        end)
+
+      assert_receive {:slow_started, worker}
+
+      other =
+        Task.async(fn ->
+          KeyValueStore.get_or_update([:other, System.unique_integer([:positive])], fn -> "other" end)
+        end)
+
+      assert Task.yield(other, 1_000) == {:ok, "other"}
+
+      send(worker, :release)
+      assert Task.await(slow) == "slow"
+    end
+
+    test "concurrent callers of one key run the function once" do
+      test_process = self()
+      key = [:shared, System.unique_integer([:positive])]
+
+      callers =
+        for _ <- 1..5 do
+          Task.async(fn ->
+            KeyValueStore.get_or_update(key, fn ->
+              send(test_process, :computed)
+              Process.sleep(100)
+              "value"
+            end)
+          end)
+        end
+
+      assert Enum.map(callers, &Task.await/1) == List.duplicate("value", 5)
+      assert_received :computed
+      refute_received :computed
+    end
+
+    for {label, value, cache_errors} <- [
+          {"literal ignore tuple", {:ignore, "value"}, true},
+          {"literal internal-shaped tuple", {:ignore, {KeyValueStore, :uncached, {:error, :literal}}}, true},
+          {"uncached error", {:error, :retry}, false}
+        ] do
+      @callback_value value
+      @cache_errors cache_errors
+      test "concurrent waiters retain #{label}" do
+        cache = :"concurrent_shape_#{System.unique_integer([:positive])}"
+        start_supervised!({Cachex, [cache, []]})
+        parent = self()
+        value = @callback_value
+        opts = [cache: cache, cache_errors: @cache_errors]
+
+        owner =
+          Task.async(fn ->
+            KeyValueStore.get_or_update(:shape, opts, fn ->
+              send(parent, {:computing_shape, self()})
+
+              receive do
+                :release -> value
+              end
+            end)
+          end)
+
+        assert_receive {:computing_shape, worker}
+        on_exit(fn -> send(worker, :release) end)
+
+        waiter =
+          Task.async(fn ->
+            KeyValueStore.get_or_update(:shape, opts, fn -> flunk("duplicate computation") end)
+          end)
+
+        courier = String.to_existing_atom("#{cache}_courier")
+
+        assert Enum.reduce_while(1..100, false, fn _, _ ->
+                 {_cache, tasks} = :sys.get_state(courier)
+
+                 if match?({_worker, [_, _ | _]}, Map.get(tasks, "shape")) do
+                   {:halt, true}
+                 else
+                   Process.sleep(10)
+                   {:cont, false}
+                 end
+               end)
+
+        send(worker, :release)
+        assert Task.await(owner) == value
+        assert Task.await(waiter) == value
+      end
+    end
+
+    test "caches the value the function returns, whatever its shape" do
+      for value <- [{:error, :unavailable}, {:ignore, "value"}] do
+        key = [:shape, System.unique_integer([:positive])]
+
+        assert KeyValueStore.get_or_update(key, fn -> value end) == value
+        assert KeyValueStore.get_or_update(key, fn -> flunk("#{inspect(value)} was not cached") end) == value
+      end
+    end
+
+    test "does not cache nil" do
+      key = [:uncached, System.unique_integer([:positive])]
+
+      assert KeyValueStore.get_or_update(key, fn -> nil end) == nil
+      assert KeyValueStore.get_or_update(key, fn -> "computed" end) == "computed"
     end
   end
 end

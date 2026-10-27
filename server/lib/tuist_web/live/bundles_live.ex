@@ -19,6 +19,13 @@ defmodule TuistWeb.BundlesLive do
   alias TuistWeb.Utilities.SHA
 
   def mount(_params, _session, %{assigns: %{selected_project: project}} = socket) do
+    {type_options, type_display_names} = bundle_type_options(project)
+
+    bundle_type_items =
+      Enum.map(type_options, fn type ->
+        %{value: Atom.to_string(type), label: Map.get(type_display_names, type)}
+      end)
+
     socket =
       socket
       |> assign(
@@ -26,39 +33,58 @@ defmodule TuistWeb.BundlesLive do
         "#{dgettext("dashboard_cache", "Bundles")} · #{Projects.get_project_slug_from_id(project.id)} · Tuist"
       )
       |> assign(:available_filters, define_filters(project))
-      |> assign(OpenGraph.og_image_assigns("bundles"))
+      |> assign(:bundle_type_items, bundle_type_items)
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_cache", "Bundles"),
+          fallback: "bundles"
+        )
+      )
 
     {:ok, socket}
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
-  def handle_params(params, _uri, %{assigns: %{selected_project: project}} = socket) do
+  def handle_params(_params, uri, %{assigns: %{selected_project: project}} = socket) do
+    params = uri |> Query.query_params() |> Query.clear_cursors_on_initial_load(socket.assigns)
     uri = URI.new!("?" <> URI.encode_query(params))
 
     bundles_sort_order = params["bundles-sort-order"] || "desc"
     bundles_sort_by = params["bundles-sort-by"] || "created-at"
     bundles_type = params["bundles-type"] || "any"
 
-    params =
-      if not Map.has_key?(socket.assigns, :current_params) and Query.has_cursor?(params) do
-        Query.clear_cursors(params)
-      else
-        params
-      end
-
     bundle_size_apps = Bundles.distinct_project_app_bundles(project)
     bundle_size_selected_app = params["bundle-size-app"] || Bundles.default_app(project)
 
     bundle_size_branch =
       case params["bundle-size-branch"] do
-        "any" -> "any"
-        _ -> "default-branch"
+        "any" ->
+          "any"
+
+        _ ->
+          if Bundles.has_bundles_in_project_default_branch?(project, name: bundle_size_selected_app) do
+            "default-branch"
+          else
+            "any"
+          end
       end
 
     bundle_size_selected_widget = params["bundle-size-selected-widget"] || "install-size"
 
     %{preset: preset, period: {bundle_start_date, _} = period} =
       DatePicker.date_picker_params(params, "bundle-size")
+
+    effective_git_branch =
+      cond do
+        bundle_size_branch == "any" ->
+          nil
+
+        Bundles.has_bundles_in_project_default_branch?(project) ->
+          project.default_branch
+
+        true ->
+          nil
+      end
 
     {
       :noreply,
@@ -76,12 +102,15 @@ defmodule TuistWeb.BundlesLive do
       |> assign(:bundle_size_preset, preset)
       |> assign(:bundle_size_period, period)
       |> assign(:bundle_size_branch, bundle_size_branch)
+      |> assign(:bundle_size_effective_branch, effective_git_branch)
       |> assign(
         :bundle_size_last_bundle,
         Bundles.last_project_bundle(project,
           name: bundle_size_selected_app,
-          git_branch: bundle_size_git_branch(bundle_size_branch, project),
-          type: string_to_bundle_type(bundles_type)
+          git_branch: effective_git_branch,
+          type: string_to_bundle_type(bundles_type),
+          period: period,
+          fallback: false
         )
       )
       |> assign(
@@ -89,24 +118,26 @@ defmodule TuistWeb.BundlesLive do
         Bundles.last_project_bundle(project,
           name: bundle_size_selected_app,
           inserted_before: bundle_start_date,
-          git_branch: bundle_size_git_branch(bundle_size_branch, project),
-          type: string_to_bundle_type(bundles_type)
+          git_branch: effective_git_branch,
+          type: string_to_bundle_type(bundles_type),
+          fallback: false
         )
       )
       |> assign(:bundle_size_selected_widget, bundle_size_selected_widget)
       |> assign(:show_branch_dropdown, Bundles.has_bundles_in_project_default_branch?(project))
       |> assign(:has_any_bundles, Bundles.has_bundles_in_project?(project))
-      |> assign_bundle_size_analytics()
+      |> assign_async(:bundle_size_analytics, fn ->
+        fetch_bundle_size_analytics_data(
+          project,
+          bundle_size_selected_widget,
+          effective_git_branch,
+          bundles_type,
+          bundle_size_selected_app,
+          params
+        )
+      end)
       |> assign_bundles(params)
     }
-  end
-
-  # Returns actual git branch based on the branch dropdown value.
-  defp bundle_size_git_branch(bundle_size_branch, project) do
-    case bundle_size_branch do
-      "default-branch" -> project.default_branch
-      value -> value
-    end
   end
 
   defp assign_bundles(
@@ -122,9 +153,17 @@ defmodule TuistWeb.BundlesLive do
        ) do
     filters = Filter.Operations.decode_filters_from_query(params, available_filters)
 
-    base_flop_filters = [
-      %{field: :project_id, op: :==, value: project.id}
-    ]
+    {start_datetime, end_datetime} = socket.assigns.bundle_size_period
+
+    base_flop_filters =
+      [
+        %{field: :project_id, op: :==, value: project.id},
+        %{field: :inserted_at, op: :>=, value: start_datetime},
+        %{field: :inserted_at, op: :<=, value: end_datetime}
+      ]
+      |> maybe_add_type_filter(socket.assigns.bundles_type)
+      |> maybe_add_name_filter(socket.assigns.bundle_size_selected_app)
+      |> maybe_add_branch_filter(socket.assigns.bundle_size_effective_branch)
 
     filter_flop_filters = build_flop_filters(filters)
     flop_filters = base_flop_filters ++ filter_flop_filters
@@ -201,24 +240,14 @@ defmodule TuistWeb.BundlesLive do
     size_filters ++ platform_filters ++ other_filters
   end
 
-  defp assign_bundle_size_analytics(
-         %{
-           assigns: %{
-             selected_project: project,
-             bundle_size_selected_widget: bundle_size_selected_widget,
-             bundle_size_branch: bundle_size_branch,
-             bundles_type: bundles_type,
-             current_params: params
-           }
-         } = socket
+  defp fetch_bundle_size_analytics_data(
+         project,
+         bundle_size_selected_widget,
+         git_branch,
+         bundles_type,
+         bundle_size_selected_app,
+         params
        ) do
-    git_branch =
-      cond do
-        bundle_size_branch == "any" -> nil
-        Bundles.has_bundles_in_project_default_branch?(project) -> project.default_branch
-        true -> nil
-      end
-
     bundle_type = string_to_bundle_type(bundles_type)
 
     %{period: {start_datetime, end_datetime}} =
@@ -229,7 +258,8 @@ defmodule TuistWeb.BundlesLive do
       start_datetime: start_datetime,
       end_datetime: end_datetime,
       git_branch: git_branch,
-      type: bundle_type
+      type: bundle_type,
+      name: bundle_size_selected_app
     ]
 
     bundle_size_analytics =
@@ -237,25 +267,15 @@ defmodule TuistWeb.BundlesLive do
         "download-size" ->
           project
           |> Bundles.bundle_download_size_analytics(opts)
-          |> Enum.map(
-            &[
-              &1.date,
-              &1.bundle_download_size
-            ]
-          )
+          |> Enum.map(&[&1.date, &1.bundle_download_size])
 
         _ ->
           project
           |> Bundles.project_bundle_install_size_analytics(opts)
-          |> Enum.map(
-            &[
-              &1.date,
-              &1.bundle_install_size
-            ]
-          )
+          |> Enum.map(&[&1.date, &1.bundle_install_size])
       end
 
-    assign(socket, :bundle_size_analytics, bundle_size_analytics)
+    {:ok, %{bundle_size_analytics: bundle_size_analytics}}
   end
 
   defp bundle_size_trend_label("last-7-days"), do: dgettext("dashboard_cache", "since last week")
@@ -302,14 +322,6 @@ defmodule TuistWeb.BundlesLive do
       |> Map.delete("bundles-sort-order")
 
     "?#{URI.encode_query(query_params)}"
-  end
-
-  def sort_icon("desc") do
-    "square_rounded_arrow_down"
-  end
-
-  def sort_icon("asc") do
-    "square_rounded_arrow_up"
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
@@ -386,16 +398,31 @@ defmodule TuistWeb.BundlesLive do
   def format_bundle_type(:ipa), do: dgettext("dashboard_cache", "IPA")
   def format_bundle_type(:app), do: dgettext("dashboard_cache", "App bundle")
   def format_bundle_type(:xcarchive), do: dgettext("dashboard_cache", "XCArchive")
+  def format_bundle_type(:aab), do: dgettext("dashboard_cache", "AAB")
+  def format_bundle_type(:apk), do: dgettext("dashboard_cache", "APK")
   def format_bundle_type(_), do: dgettext("dashboard_cache", "Unknown")
 
   def bundles_type_label("ipa"), do: dgettext("dashboard_cache", "IPA")
   def bundles_type_label("app"), do: dgettext("dashboard_cache", "App bundle")
   def bundles_type_label("xcarchive"), do: dgettext("dashboard_cache", "XCArchive")
+  def bundles_type_label("aab"), do: dgettext("dashboard_cache", "AAB")
+  def bundles_type_label("apk"), do: dgettext("dashboard_cache", "APK")
   def bundles_type_label(_), do: dgettext("dashboard_cache", "Any")
+
+  defp maybe_add_type_filter(filters, "any"), do: filters
+  defp maybe_add_type_filter(filters, type), do: [%{field: :type, op: :==, value: type} | filters]
+
+  defp maybe_add_name_filter(filters, nil), do: filters
+  defp maybe_add_name_filter(filters, name), do: [%{field: :name, op: :==, value: name} | filters]
+
+  defp maybe_add_branch_filter(filters, nil), do: filters
+  defp maybe_add_branch_filter(filters, branch), do: [%{field: :git_branch, op: :==, value: branch} | filters]
 
   defp string_to_bundle_type("ipa"), do: :ipa
   defp string_to_bundle_type("app"), do: :app
   defp string_to_bundle_type("xcarchive"), do: :xcarchive
+  defp string_to_bundle_type("aab"), do: :aab
+  defp string_to_bundle_type("apk"), do: :apk
   defp string_to_bundle_type(_), do: nil
 
   def empty_state_light_background(assigns) do
@@ -888,20 +915,10 @@ defmodule TuistWeb.BundlesLive do
     """
   end
 
-  defp define_filters(_project) do
-    platform_options = [
-      :ios,
-      :ios_simulator,
-      :macos,
-      :watchos,
-      :watchos_simulator,
-      :tvos,
-      :tvos_simulator,
-      :visionos,
-      :visionos_simulator
-    ]
+  defp define_filters(project) do
+    {type_options, type_display_names} = bundle_type_options(project)
 
-    [
+    base_filters = [
       %Filter.Filter{
         id: "name",
         field: :name,
@@ -923,12 +940,8 @@ defmodule TuistWeb.BundlesLive do
         field: :type,
         display_name: dgettext("dashboard_cache", "Type"),
         type: :option,
-        options: [:app, :ipa, :xcarchive],
-        options_display_names: %{
-          app: dgettext("dashboard_cache", "App bundle"),
-          ipa: dgettext("dashboard_cache", "IPA"),
-          xcarchive: dgettext("dashboard_cache", "XCArchive")
-        },
+        options: type_options,
+        options_display_names: type_display_names,
         operator: :==,
         value: nil
       },
@@ -947,27 +960,73 @@ defmodule TuistWeb.BundlesLive do
         type: :number,
         operator: :>=,
         value: nil
-      },
-      %Filter.Filter{
-        id: "supported_platforms",
-        field: :supported_platforms,
-        display_name: dgettext("dashboard_cache", "Platform"),
-        type: :option,
-        options: platform_options,
-        options_display_names: %{
-          ios: "iOS",
-          ios_simulator: "iOS Simulator",
-          macos: "macOS",
-          watchos: "watchOS",
-          watchos_simulator: "watchOS Simulator",
-          tvos: "tvOS",
-          tvos_simulator: "tvOS Simulator",
-          visionos: "visionOS",
-          visionos_simulator: "visionOS Simulator"
-        },
-        operator: :==,
-        value: nil
       }
     ]
+
+    if Projects.Project.gradle_project?(project) do
+      base_filters
+    else
+      {platform_options, platform_display_names} = bundle_platform_options(project)
+
+      base_filters ++
+        [
+          %Filter.Filter{
+            id: "supported_platforms",
+            field: :supported_platforms,
+            display_name: dgettext("dashboard_cache", "Platform"),
+            type: :option,
+            options: platform_options,
+            options_display_names: platform_display_names,
+            operator: :==,
+            value: nil
+          }
+        ]
+    end
+  end
+
+  defp bundle_type_options(project) do
+    if Projects.Project.gradle_project?(project) do
+      {[:aab, :apk],
+       %{
+         aab: dgettext("dashboard_cache", "AAB"),
+         apk: dgettext("dashboard_cache", "APK")
+       }}
+    else
+      {[:app, :ipa, :xcarchive],
+       %{
+         app: dgettext("dashboard_cache", "App bundle"),
+         ipa: dgettext("dashboard_cache", "IPA"),
+         xcarchive: dgettext("dashboard_cache", "XCArchive")
+       }}
+    end
+  end
+
+  defp bundle_platform_options(project) do
+    if Projects.Project.gradle_project?(project) do
+      {[:android], %{android: "Android"}}
+    else
+      {[
+         :ios,
+         :ios_simulator,
+         :macos,
+         :watchos,
+         :watchos_simulator,
+         :tvos,
+         :tvos_simulator,
+         :visionos,
+         :visionos_simulator
+       ],
+       %{
+         ios: "iOS",
+         ios_simulator: "iOS Simulator",
+         macos: "macOS",
+         watchos: "watchOS",
+         watchos_simulator: "watchOS Simulator",
+         tvos: "tvOS",
+         tvos_simulator: "tvOS Simulator",
+         visionos: "visionOS",
+         visionos_simulator: "visionOS Simulator"
+       }}
+    end
   end
 end

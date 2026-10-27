@@ -5,7 +5,7 @@ import XcodeGraph
 
 /// A mapper that ensures that the list of projects of the workspace is in sync
 /// with the projects available in the graph.
-public final class UpdateWorkspaceProjectsGraphMapper: GraphMapping {
+public struct UpdateWorkspaceProjectsGraphMapper: GraphMapping {
     public init() {}
 
     public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {

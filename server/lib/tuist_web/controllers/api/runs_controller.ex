@@ -1,25 +1,43 @@
 defmodule TuistWeb.API.RunsController do
+  @moduledoc """
+  Controller for the /runs API endpoint.
+
+  `GET /runs` lists a project's command events, covering commands that have no
+  dedicated endpoint of their own, such as `install`.
+
+  `POST /runs` is deprecated: use `POST /builds` for builds and `POST /tests`
+  for test runs.
+  """
   use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
 
   alias OpenApiSpex.Schema
-  alias Tuist.Runs
-  alias Tuist.Runs.CASOutput
+  alias Tuist.Builds
+  alias Tuist.Builds.CASOutput
+  alias Tuist.Tests
+  alias Tuist.VCS.RemoteURL
+  alias TuistWeb.API.Responses
+  alias TuistWeb.API.Schemas.Builds.Build
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.Run
-  alias TuistWeb.API.Schemas.Runs.Build
-  alias TuistWeb.API.Schemas.Runs.Test
+  alias TuistWeb.API.Schemas.Tests.Test
   alias TuistWeb.Authentication
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
 
+  plug(TuistWeb.Plugs.ReportActorPlug when action == :create)
   plug(TuistWeb.Plugs.LoaderPlug)
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :run)
 
   tags ["Runs"]
+
+  # ran_at alone is not unique: the CLI sends it without fractional seconds, so
+  # concurrent runs share a timestamp and a keyset seek on it would skip them.
+  @cursor_order_fields [:ran_at, :id]
 
   operation(:index,
     summary: "List runs associated with a given project.",
@@ -40,7 +58,7 @@ defmodule TuistWeb.API.RunsController do
       name: [
         in: :query,
         type: :string,
-        description: "The name of the run."
+        description: "Filter by command name, such as `install` or `generate`."
       ],
       git_ref: [
         in: :query,
@@ -57,6 +75,26 @@ defmodule TuistWeb.API.RunsController do
         type: :string,
         description: "The git commit SHA of the run."
       ],
+      status: [
+        in: :query,
+        type: %Schema{type: :string, enum: ["success", "failure"]},
+        description: "Filter by run status."
+      ],
+      is_ci: [
+        in: :query,
+        type: :boolean,
+        description: "Filter to runs executed on CI (true) or locally (false)."
+      ],
+      from: [
+        in: :query,
+        type: %Schema{type: :integer, format: :int64},
+        description: "Only return runs that ran at or after this Unix timestamp in seconds."
+      ],
+      to: [
+        in: :query,
+        type: %Schema{type: :integer, format: :int64},
+        description: "Only return runs that ran at or before this Unix timestamp in seconds."
+      ],
       page_size: [
         in: :query,
         type: %Schema{
@@ -65,17 +103,36 @@ defmodule TuistWeb.API.RunsController do
           type: :integer,
           default: 20,
           minimum: 1,
-          maximum: 100
+          maximum: 1000
         }
       ],
       page: [
         in: :query,
+        deprecated: true,
         type: %Schema{
           title: "RunsIndexPage",
-          description: "The page number to return.",
+          description:
+            "Deprecated and ignored. Offset pagination has been removed in favor of cursor pagination; use `after`/`before`. This parameter is still accepted so older clients degrade gracefully instead of erroring.",
           type: :integer,
-          default: 1,
           minimum: 1
+        }
+      ],
+      after: [
+        in: :query,
+        type: %Schema{
+          title: "RunsIndexAfter",
+          description:
+            "Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.",
+          type: :string
+        }
+      ],
+      before: [
+        in: :query,
+        type: %Schema{
+          title: "RunsIndexBefore",
+          description:
+            "Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.",
+          type: :string
         }
       ]
     ],
@@ -88,83 +145,111 @@ defmodule TuistWeb.API.RunsController do
              runs: %Schema{
                type: :array,
                items: Run
-             }
+             },
+             pagination_metadata: PaginationMetadata
            },
-           required: [:runs]
+           required: [:runs, :pagination_metadata]
          }},
-      forbidden: {"You don't have permission to access this resource", "application/json", Error}
+      bad_request: {"The request was invalid", "application/json", Error},
+      forbidden: {"You don't have permission to access this resource", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
-  def index(
-        %{assigns: %{selected_project: selected_project}, params: %{page_size: page_size, page: page} = params} = conn,
-        _params
-      ) do
-    filters =
-      [
-        %{field: :project_id, op: :==, value: selected_project.id}
-      ] ++ filters_from_params(params)
+  def index(%{assigns: %{selected_project: selected_project}, params: %{page_size: page_size} = params} = conn, _params) do
+    with {:ok, time_filters} <- ran_at_filters(params),
+         :ok <- validate_cursors(params) do
+      filters =
+        [%{field: :project_id, op: :==, value: selected_project.id}] ++
+          filters_from_params(params) ++ time_filters
 
-    {command_events, _meta} =
-      Tuist.CommandEvents.list_command_events(%{
-        page: page,
-        page_size: page_size,
-        filters: filters,
-        order_by: [:ran_at],
-        order_directions: [:desc]
+      # Cursor (keyset) pagination only: a seek reads one page regardless of how
+      # far it has walked. Omitting both cursors returns the first page.
+      pagination =
+        if is_nil(Map.get(params, :before)) do
+          %{first: page_size, after: Map.get(params, :after)}
+        else
+          %{last: page_size, before: params.before}
+        end
+
+      {command_events, meta} =
+        Tuist.CommandEvents.list_command_events(
+          Map.merge(pagination, %{
+            filters: filters,
+            order_by: @cursor_order_fields,
+            order_directions: [:desc, :desc]
+          })
+        )
+
+      {start_cursor, end_cursor} = Flop.Cursor.get_cursors(command_events, @cursor_order_fields)
+
+      json(conn, %{
+        runs: Enum.map(Tuist.ReportActor.preload(command_events), &run_json(&1, selected_project)),
+        pagination_metadata: %{
+          has_next_page: meta.has_next_page?,
+          has_previous_page: meta.has_previous_page?,
+          current_page: meta.current_page,
+          page_size: meta.page_size,
+          total_count: meta.total_count,
+          total_pages: meta.total_pages,
+          start_cursor: start_cursor,
+          end_cursor: end_cursor
+        }
       })
+    else
+      {:error, message} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: message})
+    end
+  end
 
-    json(conn, %{
-      runs:
-        Enum.map(command_events, fn event ->
-          ran_by =
-            case Tuist.CommandEvents.get_user_for_command_event(event) do
-              {:ok, user} ->
-                user = Tuist.Repo.preload(user, :account)
-                %{handle: user.account.name}
+  defp run_json(event, selected_project) do
+    ran_by =
+      if event.user_account_name,
+        do: %{handle: event.user_account_name}
 
-              {:error, :not_found} ->
-                nil
-            end
-
-          event
-          |> Map.take([
-            :id,
-            :name,
-            :duration,
-            :subcommand,
-            :command_arguments,
-            :tuist_version,
-            :swift_version,
-            :macos_version,
-            :status,
-            :git_ref,
-            :git_commit_sha,
-            :git_branch,
-            :cacheable_targets,
-            :local_cache_target_hits,
-            :remote_cache_target_hits,
-            :test_targets,
-            :local_test_target_hits,
-            :remote_test_target_hits,
-            :preview_id
-          ])
-          |> Map.put(
-            :url,
-            ~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{event.id}"
-          )
-          |> Map.put(
-            :ran_at,
-            event.created_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix()
-          )
-          |> Map.put(:ran_by, ran_by)
-        end)
-    })
+    event
+    |> Map.take([
+      :id,
+      :name,
+      :duration,
+      :subcommand,
+      :command_arguments,
+      :tuist_version,
+      :swift_version,
+      :macos_version,
+      :error_message,
+      :git_ref,
+      :git_commit_sha,
+      :git_branch,
+      :cacheable_targets,
+      :local_cache_target_hits,
+      :remote_cache_target_hits,
+      :test_targets,
+      :local_test_target_hits,
+      :remote_test_target_hits,
+      :preview_id
+    ])
+    |> Map.put(:status, status_to_string(event.status))
+    |> Map.put(:is_ci, event.is_ci)
+    |> Map.put(
+      :url,
+      ~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{event.id}"
+    )
+    |> Map.put(
+      :ran_at,
+      event.ran_at |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix()
+    )
+    |> Map.put(:ran_by, ran_by)
+    |> Map.put(:actor, Tuist.ReportActor.actor(event, event.user_account_name))
   end
 
   operation(:create,
-    summary: "Create a new run.",
+    summary: "Create a new run. DEPRECATED: Use POST /builds or POST /tests instead.",
+    deprecated: true,
     parameters: [
+      "x-tuist-actor-id": TuistWeb.API.Schemas.ReportActor.header(),
       account_handle: [
         in: :path,
         type: :string,
@@ -229,12 +314,12 @@ defmodule TuistWeb.API.RunsController do
                status: %Schema{
                  type: :string,
                  description: "The status of the build run.",
-                 enum: [:success, :failure]
+                 enum: ["success", "failure"]
                },
                category: %Schema{
                  type: :string,
                  description: "The category of the build run, can be clean or incremental.",
-                 enum: [:clean, :incremental]
+                 enum: ["clean", "incremental"]
                },
                git_commit_sha: %Schema{
                  type: :string,
@@ -267,7 +352,7 @@ defmodule TuistWeb.API.RunsController do
                ci_provider: %Schema{
                  type: :string,
                  description: "The CI provider.",
-                 enum: [:github, :gitlab, :bitrise, :circleci, :buildkite, :codemagic]
+                 enum: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
                },
                issues: %Schema{
                  type: :array,
@@ -421,7 +506,7 @@ defmodule TuistWeb.API.RunsController do
                      status: %Schema{
                        type: :string,
                        description: "The status of the target's build.",
-                       enum: [:success, :failure]
+                       enum: ["success", "failure"]
                      }
                    },
                    required: [
@@ -513,6 +598,23 @@ defmodule TuistWeb.API.RunsController do
                    },
                    required: [:node_id, :checksum, :size, :duration, :compressed_size, :operation]
                  }
+               },
+               custom_metadata: %Schema{
+                 type: :object,
+                 description: "Custom metadata for the build run.",
+                 properties: %{
+                   tags: %Schema{
+                     type: :array,
+                     items: %Schema{type: :string, maxLength: 50, pattern: "^[a-zA-Z0-9_-]+$"},
+                     maxItems: 10,
+                     description: "Simple string labels for filtering/grouping (e.g., 'nightly', 'release')."
+                   },
+                   values: %Schema{
+                     type: :object,
+                     additionalProperties: %Schema{type: :string, maxLength: 500},
+                     description: "Key-value pairs for structured data. URL values will auto-link in the UI."
+                   }
+                 }
                }
              },
              required: [
@@ -594,7 +696,7 @@ defmodule TuistWeb.API.RunsController do
                ci_provider: %Schema{
                  type: :string,
                  description: "The CI provider.",
-                 enum: Runs.valid_ci_providers()
+                 enum: Builds.valid_ci_providers()
                },
                test_modules: %Schema{
                  type: :array,
@@ -744,33 +846,30 @@ defmodule TuistWeb.API.RunsController do
       },
       unauthorized: {"You need to be authenticated to create a run", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       bad_request: {"The request parameters are invalid", "application/json", Error}
     }
   )
 
   def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
+    body_params = RemoteURL.strip_credentials_from_params(body_params)
+
     run_params =
       body_params
       |> Map.put(:project, selected_project)
-      |> Map.put(:account, Authentication.authenticated_subject_account(conn))
+      |> Map.put(:ran_by_account, Authentication.authenticated_subject_account(conn))
+      |> Map.merge(Tuist.ReportActor.attributes(conn))
 
     case Map.get(body_params, :type, "build") do
       "build" ->
         case get_or_create_build(run_params) do
           {:ok, build} ->
             Tuist.VCS.enqueue_vcs_pull_request_comment(%{
-              build_id: build.id,
               git_commit_sha: build.git_commit_sha,
               git_ref: build.git_ref,
               git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
-              project_id: selected_project.id,
-              preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
-              preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
-              command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
-              test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
-              bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
-              build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
+              project_id: selected_project.id
             })
 
             conn
@@ -778,6 +877,7 @@ defmodule TuistWeb.API.RunsController do
             |> json(%{
               type: "build",
               id: build.id,
+              actor: build |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor(),
               duration: build.duration,
               project_id: build.project_id,
               url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}")
@@ -795,6 +895,7 @@ defmodule TuistWeb.API.RunsController do
             |> json(%{
               type: "test",
               id: test_run.id,
+              actor: test_run |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor(),
               duration: test_run.duration,
               project_id: test_run.project_id,
               url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run.id}")
@@ -810,11 +911,13 @@ defmodule TuistWeb.API.RunsController do
   end
 
   defp get_or_create_build(params) do
-    case Runs.get_build(params.id) do
-      %Runs.Build{} = build ->
+    case Builds.get_build(params.id, project_id: params.project.id) do
+      {:ok, build} ->
         {:ok, build}
 
-      nil ->
+      {:error, :not_found} ->
+        custom_metadata = Map.get(params, :custom_metadata, %{})
+
         build_attrs = %{
           id: params.id,
           duration: params.duration,
@@ -825,8 +928,11 @@ defmodule TuistWeb.API.RunsController do
           scheme: Map.get(params, :scheme),
           configuration: Map.get(params, :configuration),
           project_id: params.project.id,
-          account_id: params.account.id,
-          status: Map.get(params, :status, :success),
+          account_id: params.ran_by_account.id,
+          actor_account_id: params.actor_account_id,
+          claimed_actor_id: params.claimed_actor_id,
+          submission_auth: params.submission_auth,
+          status: Map.get(params, :status, "success"),
           category: Map.get(params, :category),
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),
@@ -839,22 +945,24 @@ defmodule TuistWeb.API.RunsController do
           files: Map.get(params, :files, []),
           targets: Map.get(params, :targets, []),
           cacheable_tasks: Map.get(params, :cacheable_tasks, []),
-          cas_outputs: Map.get(params, :cas_outputs, [])
+          cas_outputs: Map.get(params, :cas_outputs, []),
+          custom_tags: Map.get(custom_metadata, :tags, []),
+          custom_values: Map.get(custom_metadata, :values, %{})
         }
 
         build_attrs
-        |> Runs.create_build()
-        |> handle_build_creation_result(params.id)
+        |> Builds.create_build()
+        |> handle_build_creation_result(params.id, params.project.id)
     end
   end
 
-  defp handle_build_creation_result({:ok, build}, _build_id), do: {:ok, build}
+  defp handle_build_creation_result({:ok, build}, _build_id, _project_id), do: {:ok, build}
 
-  defp handle_build_creation_result({:error, changeset}, build_id) do
+  defp handle_build_creation_result({:error, changeset}, build_id, project_id) do
     if Keyword.has_key?(changeset.errors, :id) do
-      case Runs.get_build(build_id) do
-        %Runs.Build{} = build -> {:ok, build}
-        nil -> {:error, :creation_failed}
+      case Builds.get_build(build_id, project_id: project_id) do
+        {:ok, build} -> {:ok, build}
+        {:error, :not_found} -> {:error, :creation_failed}
       end
     else
       {:error, changeset}
@@ -864,12 +972,12 @@ defmodule TuistWeb.API.RunsController do
   defp get_or_create_test(params) do
     test_id = Map.get(params, :id, UUIDv7.generate())
 
-    case Runs.get_test(test_id) do
+    case Tests.get_test(test_id) do
       {:ok, test_run} ->
         {:ok, test_run}
 
       {:error, :not_found} ->
-        Runs.create_test(%{
+        Tests.create_test(%{
           id: test_id,
           duration: params.duration,
           macos_version: Map.get(params, :macos_version),
@@ -878,7 +986,10 @@ defmodule TuistWeb.API.RunsController do
           model_identifier: Map.get(params, :model_identifier),
           scheme: Map.get(params, :scheme),
           project_id: params.project.id,
-          account_id: params.account.id,
+          account_id: params.ran_by_account.id,
+          actor_account_id: params.actor_account_id,
+          claimed_actor_id: params.claimed_actor_id,
+          submission_auth: params.submission_auth,
           status: Map.get(params, :status),
           git_branch: Map.get(params, :git_branch),
           git_commit_sha: Map.get(params, :git_commit_sha),
@@ -896,8 +1007,69 @@ defmodule TuistWeb.API.RunsController do
   end
 
   defp filters_from_params(params) do
-    [:name, :git_ref, :git_branch, :git_commit_sha]
-    |> Enum.map(&%{field: &1, op: :==, value: Map.get(params, &1)})
-    |> Enum.filter(&(&1.value != nil))
+    equality_filters =
+      [:name, :git_ref, :git_branch, :git_commit_sha, :is_ci]
+      |> Enum.map(&%{field: &1, op: :==, value: Map.get(params, &1)})
+      |> Enum.filter(&(&1.value != nil))
+
+    equality_filters ++ status_filters(Map.get(params, :status))
   end
+
+  defp status_filters(nil), do: []
+  defp status_filters("success"), do: [%{field: :status, op: :==, value: 0}]
+  defp status_filters("failure"), do: [%{field: :status, op: :==, value: 1}]
+
+  defp validate_cursors(params) do
+    if Enum.all?([:after, :before], &valid_cursor?(Map.get(params, &1))) do
+      :ok
+    else
+      {:error, "`after` and `before` must be cursors returned by a previous response."}
+    end
+  end
+
+  defp valid_cursor?(nil), do: true
+
+  defp valid_cursor?(cursor) do
+    case Flop.Cursor.decode(cursor) do
+      {:ok, decoded} -> Enum.sort(Map.keys(decoded)) == Enum.sort(@cursor_order_fields)
+      :error -> false
+    end
+  end
+
+  defp ran_at_filters(params) do
+    from = Map.get(params, :from)
+    to = Map.get(params, :to)
+
+    with :ok <- validate_range_order(from, to),
+         {:ok, start_datetime} <- unix_to_datetime(from),
+         {:ok, end_datetime} <- unix_to_datetime(to) do
+      {:ok, ran_at_filter(:>=, start_datetime) ++ ran_at_filter(:<=, end_datetime)}
+    else
+      {:error, message} -> {:error, message}
+      :error -> {:error, "`from` and `to` must be valid Unix timestamps."}
+    end
+  end
+
+  defp validate_range_order(from, to) when is_integer(from) and is_integer(to) and to < from,
+    do: {:error, "`to` must be greater than or equal to `from`."}
+
+  defp validate_range_order(_from, _to), do: :ok
+
+  defp unix_to_datetime(nil), do: {:ok, nil}
+
+  defp unix_to_datetime(unix) do
+    case DateTime.from_unix(unix) do
+      {:ok, datetime} -> {:ok, datetime}
+      {:error, _reason} -> :error
+    end
+  end
+
+  defp ran_at_filter(_op, nil), do: []
+  defp ran_at_filter(op, datetime), do: [%{field: :ran_at, op: op, value: datetime}]
+
+  defp status_to_string(0), do: "success"
+  defp status_to_string(1), do: "failure"
+  defp status_to_string(nil), do: "success"
+  defp status_to_string(status) when is_atom(status), do: Atom.to_string(status)
+  defp status_to_string(status), do: to_string(status)
 end

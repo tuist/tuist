@@ -2,22 +2,18 @@ import CryptoKit
 import FileSystem
 import Foundation
 import Path
-import TuistSupport
 
 /// `ContentHasher`
 /// is the single source of truth for hashing content.
 /// It uses md5 checksum to uniquely hash strings and data
 /// Consider using CacheContentHasher to avoid computing the same hash twice
 public struct ContentHasher: ContentHashing {
-    private let fileHandler: FileHandling
     private let fileSystem: FileSysteming
     private let filesFilter = HashingFilesFilter()
 
     public init(
-        fileHandler: FileHandling = FileHandler.shared,
         fileSystem: FileSysteming = FileSystem()
     ) {
-        self.fileHandler = fileHandler
         self.fileSystem = fileSystem
     }
 
@@ -62,10 +58,12 @@ public struct ContentHasher: ContentHashing {
             return try await fileSystem.glob(directory: filePath, include: ["*"])
                 .collect()
                 .filter { filesFilter($0) }
-                .concurrentMap(maxConcurrentTasks: 100) { filePath -> String? in
-                    guard try await fileSystem.exists(filePath) else { return nil }
-                    let filePath = try await fileSystem.resolveSymbolicLink(filePath)
-                    return try await hash(path: filePath)
+                .concurrentMap { childPath -> String? in
+                    guard try await fileSystem.exists(childPath) else { return nil }
+                    let resolvedPath = try await fileSystem.resolveSymbolicLink(childPath)
+                    let contentHash = try await hash(path: resolvedPath)
+                    let relativePath = childPath.relative(to: filePath).pathString
+                    return try hash("path-\(relativePath)-content-\(contentHash)")
                 }
                 .compactMap { $0 }
                 .sorted()
@@ -73,7 +71,7 @@ public struct ContentHasher: ContentHashing {
         }
 
         guard try await fileSystem.exists(filePath) else {
-            throw FileHandlerError.fileNotFound(filePath)
+            throw ContentHashingError.fileHashingFailed(filePath)
         }
         guard let sourceData = try? await fileSystem.readFile(at: filePath) else {
             throw ContentHashingError.failedToReadFile(filePath)

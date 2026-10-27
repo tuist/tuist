@@ -1,12 +1,21 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
+import Testing
 import TuistCache
+import TuistCAS
+import TuistConfig
+import TuistConfigLoader
+import TuistConstants
 import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
 import TuistLoader
 import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport
+import TuistTesting
 import XCTest
 
 @testable import TuistKit
@@ -21,7 +30,7 @@ final class CleanServiceTests: TuistUnitTestCase {
     private var serverEnvironmentService: MockServerEnvironmentServicing!
     private var cleanCacheService: MockCleanCacheServicing!
     private var cleanProjectCacheService: MockCleanProjectCacheServicing!
-    private var getCacheEndpointsService: MockGetCacheEndpointsServicing!
+    private var cacheURLStore: MockCacheURLStoring!
     private var serverAuthenticationController: MockServerAuthenticationControlling!
 
     override func setUpWithError() throws {
@@ -33,11 +42,15 @@ final class CleanServiceTests: TuistUnitTestCase {
         serverEnvironmentService = .init()
         cleanCacheService = .init()
         cleanProjectCacheService = .init()
-        getCacheEndpointsService = .init()
+        cacheURLStore = .init()
         serverAuthenticationController = .init()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                .test(project: .generated(.test()))
+            )
 
         subject = CleanService(
-            fileHandler: FileHandler.shared,
             rootDirectoryLocator: rootDirectoryLocator,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             manifestFilesLocator: manifestFilesLocator,
@@ -45,7 +58,7 @@ final class CleanServiceTests: TuistUnitTestCase {
             serverEnvironmentService: serverEnvironmentService,
             cleanCacheService: cleanCacheService,
             cleanProjectCacheService: cleanProjectCacheService,
-            getCacheEndpointsService: getCacheEndpointsService,
+            cacheURLStore: cacheURLStore,
             serverAuthenticationController: serverAuthenticationController,
             fileSystem: FileSystem()
         )
@@ -59,10 +72,25 @@ final class CleanServiceTests: TuistUnitTestCase {
         serverEnvironmentService = nil
         cleanCacheService = nil
         cleanProjectCacheService = nil
-        getCacheEndpointsService = nil
+        cacheURLStore = nil
         serverAuthenticationController = nil
         subject = nil
         super.tearDown()
+    }
+
+    private func makeSubject(configLoader: MockConfigLoading? = nil) -> CleanService {
+        CleanService(
+            rootDirectoryLocator: rootDirectoryLocator,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            manifestFilesLocator: manifestFilesLocator,
+            configLoader: configLoader ?? self.configLoader,
+            serverEnvironmentService: serverEnvironmentService,
+            cleanCacheService: cleanCacheService,
+            cleanProjectCacheService: cleanProjectCacheService,
+            cacheURLStore: cacheURLStore,
+            serverAuthenticationController: serverAuthenticationController,
+            fileSystem: FileSystem()
+        )
     }
 
     func test_run_with_category_cleans_category() async throws {
@@ -174,6 +202,57 @@ final class CleanServiceTests: TuistUnitTestCase {
         XCTAssertTrue(localPathsExists[1])
     }
 
+    func test_run_with_dependencies_cleans_custom_scratch_directory() async throws {
+        // Given
+        let rootDirectory = try temporaryPath()
+        let customScratchDirectory = rootDirectory.appending(components: "custom", "scratch")
+        let localPaths = try await createFiles([
+            "custom/scratch/file", "Tuist/ProjectDescriptionHelpers/File.swift",
+        ])
+        let customConfigLoader = MockConfigLoading()
+
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(rootDirectory)
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(
+                rootDirectory
+                    .appending(components: "Tuist", Constants.SwiftPackageManager.packageSwiftName)
+            )
+        given(customConfigLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                .test(
+                    project: .generated(
+                        .test(
+                            installOptions: .test(
+                                passthroughSwiftPackageManagerArguments: [
+                                    "--scratch-path",
+                                    customScratchDirectory.pathString,
+                                ]
+                            )
+                        )
+                    )
+                )
+            )
+        let subject = makeSubject(configLoader: customConfigLoader)
+
+        // When
+        try await subject.run(
+            categories: [TuistCleanCategory.dependencies],
+            remote: false,
+            path: nil
+        )
+
+        // Then
+        let localPathsExists = try await localPaths.concurrentMap {
+            try await self.fileSystem.exists($0)
+        }
+        XCTAssertFalse(localPathsExists[0])
+        XCTAssertTrue(localPathsExists[1])
+    }
+
     func test_run_without_category_cleans_all() async throws {
         // Given
         let cachePaths = try await createFiles(["tuist/Manifests/hash"])
@@ -195,7 +274,7 @@ final class CleanServiceTests: TuistUnitTestCase {
         let swiftPackageManagerBuildPath = projectPath.appending(
             components: Constants.SwiftPackageManager.packageBuildDirectoryName
         )
-        try fileHandler.createFolder(swiftPackageManagerBuildPath)
+        try await fileSystem.makeDirectory(at: swiftPackageManagerBuildPath)
         let swiftPackageManagerBuildFile = swiftPackageManagerBuildPath.appending(component: "file")
         try await fileSystem.touch(swiftPackageManagerBuildFile)
 
@@ -221,8 +300,9 @@ final class CleanServiceTests: TuistUnitTestCase {
                 Environment.mocked?.variables["TUIST_LEGACY_MODULE_CACHE"] = "1"
                 // Given
                 let url = URL(string: "https://cloud.com")!
+                let customConfigLoader = MockConfigLoading()
 
-                given(configLoader)
+                given(customConfigLoader)
                     .loadConfig(path: .any)
                     .willReturn(
                         Tuist.test(
@@ -253,6 +333,7 @@ final class CleanServiceTests: TuistUnitTestCase {
                 given(manifestFilesLocator)
                     .locatePackageManifest(at: .any)
                     .willReturn(nil)
+                let subject = makeSubject(configLoader: customConfigLoader)
 
                 // When
                 try await subject.run(
@@ -269,73 +350,100 @@ final class CleanServiceTests: TuistUnitTestCase {
             }
         }
     }
+}
 
-    func test_run_with_remote() async throws {
-        try await withMockedEnvironment {
-            try await withMockedDependencies {
-                Environment.mocked?.variables["TUIST_LEGACY_MODULE_CACHE"] = "0"
-                // Given
-                let serverURL = URL(string: "https://cloud.com")!
-                let cacheEndpoint = "https://cache1.cloud.com"
+struct CleanServiceRemoteTests {
+    private let rootDirectoryLocator = MockRootDirectoryLocating()
+    private let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+    private let manifestFilesLocator = MockManifestFilesLocating()
+    private let configLoader = MockConfigLoading()
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
+    private let cleanCacheService = MockCleanCacheServicing()
+    private let cleanProjectCacheService = MockCleanProjectCacheServicing()
+    private let cacheURLStore = MockCacheURLStoring()
+    private let serverAuthenticationController = MockServerAuthenticationControlling()
 
-                given(configLoader)
-                    .loadConfig(path: .any)
-                    .willReturn(
-                        Tuist.test(
-                            fullHandle: "tuist/tuist",
-                            url: serverURL
-                        )
-                    )
+    private func makeSubject() -> CleanService {
+        CleanService(
+            rootDirectoryLocator: rootDirectoryLocator,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            manifestFilesLocator: manifestFilesLocator,
+            configLoader: configLoader,
+            serverEnvironmentService: serverEnvironmentService,
+            cleanCacheService: cleanCacheService,
+            cleanProjectCacheService: cleanProjectCacheService,
+            cacheURLStore: cacheURLStore,
+            serverAuthenticationController: serverAuthenticationController,
+            fileSystem: FileSystem()
+        )
+    }
 
-                given(serverEnvironmentService)
-                    .url(configServerURL: .any)
-                    .willReturn(serverURL)
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDependencies())
+    func cleans_the_remote_cache_for_the_resolved_endpoint() async throws {
+        // Given
+        Environment.mocked?.variables["TUIST_LEGACY_MODULE_CACHE"] = "0"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let serverURL = URL(string: "https://cloud.com")!
+        let cacheEndpoint = "https://cache1.cloud.com"
 
-                given(getCacheEndpointsService)
-                    .getCacheEndpoints(serverURL: .value(serverURL), accountHandle: .value("tuist"))
-                    .willReturn([cacheEndpoint])
-
-                given(cleanProjectCacheService)
-                    .cleanProjectCache(
-                        accountHandle: .value("tuist"),
-                        projectHandle: .value("tuist"),
-                        serverURL: .any,
-                        authenticationURL: .value(serverURL),
-                        serverAuthenticationController: .any
-                    )
-                    .willReturn(())
-
-                given(cacheDirectoriesProvider)
-                    .cacheDirectory(for: .any)
-                    .willReturn(try temporaryPath())
-
-                let projectPath = try temporaryPath()
-                given(rootDirectoryLocator)
-                    .locate(from: .any)
-                    .willReturn(projectPath)
-                given(manifestFilesLocator)
-                    .locatePackageManifest(at: .any)
-                    .willReturn(nil)
-
-                // When
-                try await subject.run(
-                    categories: TuistCleanCategory.allCases,
-                    remote: true,
-                    path: nil
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(
+                Tuist.test(
+                    fullHandle: "tuist/tuist",
+                    url: serverURL
                 )
+            )
 
-                // Then
-                verify(cleanProjectCacheService)
-                    .cleanProjectCache(
-                        accountHandle: .any,
-                        projectHandle: .any,
-                        serverURL: .any,
-                        authenticationURL: .any,
-                        serverAuthenticationController: .any
-                    )
-                    .called(1)
-                XCTAssertStandardOutput(pattern: "Successfully cleaned the remote storage.")
-            }
-        }
+        given(serverEnvironmentService)
+            .url(configServerURL: .any)
+            .willReturn(serverURL)
+
+        given(cacheURLStore)
+            .getCacheURL(
+                for: .value(serverURL),
+                accountHandle: .value("tuist")
+            )
+            .willReturn(URL(string: cacheEndpoint)!)
+
+        given(cleanProjectCacheService)
+            .cleanProjectCache(
+                accountHandle: .value("tuist"),
+                projectHandle: .value("tuist"),
+                serverURL: .any,
+                authenticationURL: .value(serverURL),
+                serverAuthenticationController: .any
+            )
+            .willReturn(())
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .any)
+            .willReturn(temporaryDirectory)
+
+        given(rootDirectoryLocator)
+            .locate(from: .any)
+            .willReturn(temporaryDirectory)
+        given(manifestFilesLocator)
+            .locatePackageManifest(at: .any)
+            .willReturn(nil)
+
+        // When
+        try await makeSubject().run(
+            categories: TuistCleanCategory.allCases,
+            remote: true,
+            path: nil
+        )
+
+        // Then
+        verify(cleanProjectCacheService)
+            .cleanProjectCache(
+                accountHandle: .any,
+                projectHandle: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .called(1)
+        TuistTest.expectLogs("Successfully cleaned the remote storage.")
     }
 }

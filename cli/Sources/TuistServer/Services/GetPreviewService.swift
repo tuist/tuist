@@ -8,7 +8,7 @@ public protocol GetPreviewServicing: Sendable {
         _ previewId: String,
         fullHandle: String,
         serverURL: URL
-    ) async throws -> ServerPreview
+    ) async throws -> Components.Schemas.Preview
 }
 
 public enum GetPreviewServiceError: LocalizedError, Equatable {
@@ -16,7 +16,6 @@ public enum GetPreviewServiceError: LocalizedError, Equatable {
     case notFound(String)
     case forbidden(String)
     case unauthorized(String)
-    case invalidPreview(String)
     case badRequest(String)
 
     public var errorDescription: String? {
@@ -25,16 +24,14 @@ public enum GetPreviewServiceError: LocalizedError, Equatable {
             return "The preview could not be downloaded due to an unknown Tuist server response of \(statusCode)."
         case let .notFound(message), let .forbidden(message), let .unauthorized(message), let .badRequest(message):
             return message
-        case let .invalidPreview(id):
-            return "The preview \(id) is invalid."
         }
     }
 }
 
-public final class GetPreviewService: GetPreviewServicing {
+public struct GetPreviewService: GetPreviewServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
+    public init() {
         self.init(
             fullHandleService: FullHandleService()
         )
@@ -50,10 +47,10 @@ public final class GetPreviewService: GetPreviewServicing {
         _ previewId: String,
         fullHandle: String,
         serverURL: URL
-    ) async throws -> ServerPreview {
+    ) async throws -> Components.Schemas.Preview {
         let client = Client.authenticated(serverURL: serverURL)
         let handles = try fullHandleService.parse(fullHandle)
-        let response = try await client.downloadPreview(
+        let response = try await client.getPreview(
             .init(
                 path: .init(
                     account_handle: handles.accountHandle,
@@ -66,11 +63,12 @@ public final class GetPreviewService: GetPreviewServicing {
         case let .ok(okResponse):
             switch okResponse.body {
             case let .json(preview):
-                guard let preview = ServerPreview(preview) else {
-                    throw GetPreviewServiceError.invalidPreview(previewId)
-                }
                 return preview
             }
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .undocumented(statusCode: statusCode, _):
             throw GetPreviewServiceError.unknownError(statusCode)
         case let .forbidden(forbiddenResponse):

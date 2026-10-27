@@ -97,9 +97,7 @@ public enum DefaultSettings: Codable, Equatable, Sendable {
     case essential(excluding: Set<String> = [])
     /// Tuist won't generate any build settings for the target or project.
     case none
-}
 
-extension DefaultSettings {
     public static var recommended: DefaultSettings {
         .recommended(excluding: [])
     }

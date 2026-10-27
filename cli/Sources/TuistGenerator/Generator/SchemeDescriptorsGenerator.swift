@@ -2,6 +2,7 @@ import Foundation
 import Path
 import TSCUtility
 import TuistCore
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 import XcodeProj
@@ -15,12 +16,14 @@ protocol SchemeDescriptorsGenerating {
     ///   - xcworkspacePath: Path to the workspace.
     ///   - generatedProjects: Generated Xcode projects.
     ///   - graphTraverser: Graph traverser.
+    /// - Returns: The generated scheme descriptors and any side effects (for example, generated
+    ///   `.xctestplan` files) that need to run alongside the workspace write.
     /// - Throws: A FatalError if the generation of the schemes fails.
     func generateWorkspaceSchemes(
         workspace: Workspace,
         generatedProjects: [AbsolutePath: GeneratedProject],
         graphTraverser: GraphTraversing
-    ) throws -> [SchemeDescriptor]
+    ) throws -> ([SchemeDescriptor], [SideEffectDescriptor])
 
     /// Generates the schemes for the project targets.
     ///
@@ -29,12 +32,14 @@ protocol SchemeDescriptorsGenerating {
     ///   - xcprojectPath: Path to the Xcode project.
     ///   - generatedProject: Generated Xcode project.
     ///   - graphTraverser: Graph traverser.
+    /// - Returns: The generated scheme descriptors and any side effects that need to run
+    ///   alongside the project write.
     /// - Throws: A FatalError if the generation of the schemes fails.
     func generateProjectSchemes(
         project: Project,
         generatedProject: GeneratedProject,
         graphTraverser: GraphTraversing
-    ) throws -> [SchemeDescriptor]
+    ) throws -> ([SchemeDescriptor], [SideEffectDescriptor])
 }
 
 extension XCScheme {
@@ -42,7 +47,7 @@ extension XCScheme {
 }
 
 // swiftlint:disable:next type_body_length
-final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
+struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     private enum Constants {
         /// Default last upgrade version for generated schemes.
         static let defaultLastUpgradeVersion = "1010"
@@ -77,33 +82,62 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         workspace: Workspace,
         generatedProjects: [AbsolutePath: GeneratedProject],
         graphTraverser: GraphTraversing
-    ) throws -> [SchemeDescriptor] {
-        let schemes = try workspace.schemes.map { scheme in
-            return try generateScheme(
+    ) throws -> ([SchemeDescriptor], [SideEffectDescriptor]) {
+        Logger.current.debug("SchemeDescriptorsGenerator: Generating \(workspace.schemes.count) workspace schemes")
+        let rootPath = workspace.xcWorkspacePath.parentDirectory
+        var schemes: [SchemeDescriptor] = []
+        var sideEffects: [SideEffectDescriptor] = []
+        for scheme in workspace.schemes {
+            Logger.current.debug("SchemeDescriptorsGenerator: Generating workspace scheme \(scheme.name)")
+            let (descriptor, schemeSideEffects) = try generateScheme(
                 scheme: scheme,
-                path: workspace.xcWorkspacePath.parentDirectory,
+                path: rootPath,
                 graphTraverser: graphTraverser,
                 generatedProjects: generatedProjects,
                 lastUpgradeCheck: workspace.generationOptions.lastXcodeUpgradeCheck
             )
+            schemes.append(descriptor)
+            sideEffects.append(contentsOf: schemeSideEffects)
         }
-
-        return schemes
+        try validateNoDuplicateTestPlanPaths(in: sideEffects)
+        Logger.current.debug("SchemeDescriptorsGenerator: Finished generating workspace schemes")
+        return (schemes, sideEffects)
     }
 
     func generateProjectSchemes(
         project: Project,
         generatedProject: GeneratedProject,
         graphTraverser: GraphTraversing
-    ) throws -> [SchemeDescriptor] {
-        try project.schemes.map { scheme in
-            try generateScheme(
+    ) throws -> ([SchemeDescriptor], [SideEffectDescriptor]) {
+        Logger.current
+            .debug("SchemeDescriptorsGenerator: Generating \(project.schemes.count) project schemes for \(project.name)")
+        var schemes: [SchemeDescriptor] = []
+        var sideEffects: [SideEffectDescriptor] = []
+        for scheme in project.schemes {
+            Logger.current.debug("SchemeDescriptorsGenerator: Generating project scheme \(scheme.name)")
+            let (descriptor, schemeSideEffects) = try generateScheme(
                 scheme: scheme,
                 path: project.xcodeProjPath.parentDirectory,
                 graphTraverser: graphTraverser,
                 generatedProjects: [project.xcodeProjPath: generatedProject],
                 lastUpgradeCheck: project.lastUpgradeCheck
             )
+            schemes.append(descriptor)
+            sideEffects.append(contentsOf: schemeSideEffects)
+        }
+        try validateNoDuplicateTestPlanPaths(in: sideEffects)
+        Logger.current.debug("SchemeDescriptorsGenerator: Finished generating project schemes for \(project.name)")
+        return (schemes, sideEffects)
+    }
+
+    /// Two schemes targeting the same generated `.xctestplan` path would silently overwrite each
+    /// other at side-effect execution time. Fail fast with a clear error instead.
+    private func validateNoDuplicateTestPlanPaths(in sideEffects: [SideEffectDescriptor]) throws {
+        var seen: Set<AbsolutePath> = []
+        for case let .testPlan(descriptor) in sideEffects {
+            guard seen.insert(descriptor.path).inserted else {
+                throw SchemeDescriptorsGeneratorError.duplicateGeneratedTestPlanPath(descriptor.path)
+            }
         }
     }
 
@@ -122,7 +156,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         graphTraverser: GraphTraversing,
         generatedProjects: [AbsolutePath: GeneratedProject],
         lastUpgradeCheck: XcodeGraph.Version?
-    ) throws -> SchemeDescriptor {
+    ) throws -> (SchemeDescriptor, [SideEffectDescriptor]) {
         let generatedBuildAction = try schemeBuildAction(
             scheme: scheme,
             graphTraverser: graphTraverser,
@@ -135,6 +169,14 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             rootPath: path,
             generatedProjects: generatedProjects
         )
+        let testPlanSideEffects: [SideEffectDescriptor] = scheme.testAction?.testPlans?.compactMap { plan in
+            TestPlanDescriptor.from(
+                testPlan: plan,
+                graphTraverser: graphTraverser,
+                generatedProjects: generatedProjects,
+                rootPath: path
+            ).map(SideEffectDescriptor.testPlan)
+        } ?? []
         let generatedLaunchAction = try schemeLaunchAction(
             scheme: scheme,
             graphTraverser: graphTraverser,
@@ -180,7 +222,10 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             wasCreatedForAppExtension: wasCreatedForAppExtension
         )
 
-        return SchemeDescriptor(xcScheme: xcscheme, shared: scheme.shared, hidden: scheme.hidden)
+        return (
+            SchemeDescriptor(xcScheme: xcscheme, shared: scheme.shared, hidden: scheme.hidden),
+            testPlanSideEffects
+        )
     } // swiftlint:enable function_body_length
 
     /// Generates the scheme build action.
@@ -198,10 +243,6 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         generatedProjects: [AbsolutePath: GeneratedProject]
     ) throws -> XCScheme.BuildAction? {
         guard let buildAction = scheme.buildAction else { return nil }
-
-        let buildFor: [XCScheme.BuildAction.Entry.BuildFor] = [
-            .analyzing, .archiving, .profiling, .running, .testing,
-        ]
 
         var entries: [XCScheme.BuildAction.Entry] = []
         var preActions: [XCScheme.ExecutionAction] = []
@@ -221,6 +262,15 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             else {
                 continue
             }
+            let buildFor: [XCScheme.BuildAction.Entry.BuildFor]
+            if let selectedBuildForOptions = buildAction.buildFor[buildActionTarget] {
+                buildFor = BuildAction.BuildFor.allCases
+                    .filter(selectedBuildForOptions.contains)
+                    .map(\.xcodeProjBuildFor)
+            } else {
+                buildFor = BuildAction.BuildFor.allCases.map(\.xcodeProjBuildFor)
+            }
+
             entries.append(
                 XCScheme.BuildAction.Entry(
                     buildableReference: buildableReference, buildFor: buildFor
@@ -283,11 +333,14 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         var preActions: [XCScheme.ExecutionAction] = []
         var postActions: [XCScheme.ExecutionAction] = []
 
-        let testPlans: [XCScheme.TestPlanReference]? = testAction.testPlans?.map {
-            XCScheme.TestPlanReference(
-                reference: "container:\($0.path.relative(to: rootPath))",
-                default: $0.isDefault
-            )
+        let testPlans: [XCScheme.TestPlanReference]? = testAction.testPlans.flatMap { plans in
+            guard !plans.isEmpty else { return nil }
+            return plans.map {
+                XCScheme.TestPlanReference(
+                    reference: "container:\($0.path.relative(to: rootPath))",
+                    default: $0.isDefault
+                )
+            }
         }
 
         let skippedTests =
@@ -317,7 +370,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
                 if case let .gpxFile(gpxPath) = locationScenario {
                     let fileRelativePath = gpxPath.relative(
-                        to: graphTraverser.workspace.xcWorkspacePath
+                        to: graphTraverser.workspace.xcWorkspacePath.parentDirectory
                     )
                     identifier = fileRelativePath.pathString
                 }
@@ -372,18 +425,27 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             environments = environmentVariables(arguments.environmentVariables)
         }
 
+        let localPackageProducts = graphTraverser.consumedLocalPackageProducts()
         let codeCoverageTargets = try testAction.codeCoverageTargets
             .compactMap { (target: TargetReference) -> XCScheme.BuildableReference? in
-                guard let graphTarget = graphTraverser.target(
+                if let graphTarget = graphTraverser.target(
                     path: target.projectPath, name: target.name
-                )
-                else { return nil }
-                return try testCoverageTargetReferences(
-                    graphTarget: graphTarget,
-                    graphTraverser: graphTraverser,
-                    generatedProjects: generatedProjects,
-                    rootPath: rootPath
-                )
+                ) {
+                    return try testCoverageTargetReferences(
+                        graphTarget: graphTarget,
+                        graphTraverser: graphTraverser,
+                        generatedProjects: generatedProjects,
+                        rootPath: rootPath
+                    )
+                }
+                // Coverage targets can reference products of local Swift packages, which are
+                // not part of the graph. Xcode resolves them through the package directory
+                // used as the referenced container. Only names matching a consumed package
+                // product are emitted; other names would produce an empty coverage report.
+                if localPackageProducts[target.projectPath]?.contains(target.name) == true {
+                    return packageTargetBuildableReference(target: target, rootPath: rootPath)
+                }
+                return nil
             }
 
         var macroExpansion: XCScheme.BuildableReference?
@@ -425,6 +487,18 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                     return .screenRecording
                 }
             }
+        let customLLDBInitFile: String? = if let customLLDBInitFile = testAction.customLLDBInitFile,
+                                             let targetReference = testAction.expandVariableFromTarget
+                                             ?? testAction.targets.first?.target,
+                                             let graphTarget = graphTraverser.target(
+                                                 path: targetReference.projectPath,
+                                                 name: targetReference.name
+                                             )
+        {
+            "$(SRCROOT)/\(customLLDBInitFile.relative(to: graphTarget.project.path).pathString)"
+        } else {
+            testAction.customLLDBInitFile?.pathString
+        }
 
         return XCScheme.TestAction(
             buildConfiguration: testAction.configurationName,
@@ -448,7 +522,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             environmentVariables: environments,
             language: language,
             region: region,
-            preferredScreenCaptureFormat: preferredScreenCaptureFormat
+            preferredScreenCaptureFormat: preferredScreenCaptureFormat,
+            customLLDBInitFile: customLLDBInitFile
         )
     } // swiftlint:enable function_body_length
 
@@ -578,13 +653,29 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         let launchActionConstants: Constants.LaunchAction
         let launcherIdentifier: String
         let debuggerIdentifier: String
+        let hasExplicitExecutable = scheme.runAction?.executable != nil
         let isSchemeForAppExtension = isSchemeForAppExtension(
             scheme: scheme, graphTraverser: graphTraverser
         )
-        if isSchemeForAppExtension == true {
+        if isSchemeForAppExtension == true, !hasExplicitExecutable {
             launchActionConstants = .extension
             debuggerIdentifier = ""
             launcherIdentifier = launchActionConstants.launcher
+        } else if scheme.runAction?.askForAppToLaunch == true {
+            launchActionConstants = Constants.LaunchAction(
+                launcher: XCScheme.defaultLauncher,
+                askForAppToLaunch: true,
+                launchAutomaticallySubstyle: "2"
+            )
+            if let runAction = scheme.runAction {
+                debuggerIdentifier = runAction.attachDebugger ? XCScheme.defaultDebugger : ""
+                launcherIdentifier =
+                    runAction.attachDebugger
+                        ? launchActionConstants.launcher : XCScheme.posixSpawnLauncher
+            } else {
+                debuggerIdentifier = XCScheme.defaultDebugger
+                launcherIdentifier = launchActionConstants.launcher
+            }
         } else {
             launchActionConstants = .default
             if let runAction = scheme.runAction {
@@ -608,7 +699,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         }
 
         if let storeKitFilePath = scheme.runAction?.options.storeKitConfigurationPath {
-            // the identifier is the relative path between the storekit file, and the xcode project
+            // Xcode resolves this path relative to the .xcworkspace bundle path.
             let fileRelativePath = storeKitFilePath.relative(
                 to: graphTraverser.workspace.xcWorkspacePath
             )
@@ -620,7 +711,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
             if case let .gpxFile(gpxPath) = locationScenario {
                 let fileRelativePath = gpxPath.relative(
-                    to: graphTraverser.workspace.xcWorkspacePath
+                    to: graphTraverser.workspace.xcWorkspacePath.parentDirectory
                 )
                 identifier = fileRelativePath.pathString
             }
@@ -790,6 +881,9 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                 )
             } ?? []
 
+        let askForAppToLaunch: Bool? = scheme.profileAction?.askForAppToLaunch == true ? true : nil
+        let launchAutomaticallySubstyle: String? = scheme.profileAction?.askForAppToLaunch == true ? "2" : nil
+
         return XCScheme.ProfileAction(
             buildableProductRunnable: buildableProductRunnable,
             buildConfiguration: buildConfiguration,
@@ -797,8 +891,10 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             postActions: postActions,
             macroExpansion: macroExpansion,
             shouldUseLaunchSchemeArgsEnv: shouldUseLaunchSchemeArgsEnv,
+            askForAppToLaunch: askForAppToLaunch,
             commandlineArguments: commandlineArguments,
-            environmentVariables: environments
+            environmentVariables: environments,
+            launchAutomaticallySubstyle: launchAutomaticallySubstyle
         )
     }
 
@@ -1014,7 +1110,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     /// - Returns: Buildable reference.
     private func targetBuildableReference(
         target: Target,
-        pbxTarget: PBXNativeTarget,
+        pbxTarget: PBXTarget,
         projectPath: String
     ) -> XCScheme.BuildableReference {
         XCScheme.BuildableReference(
@@ -1023,6 +1119,26 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             buildableName: target.productNameWithExtension,
             blueprintName: target.name,
             buildableIdentifier: "primary"
+        )
+    }
+
+    /// Creates a buildable reference for a product of a local Swift package.
+    /// Package products are not part of the generated projects, so the reference points to
+    /// the package directory the same way Xcode does when the product is selected manually.
+    ///
+    /// - Parameters:
+    ///     - target: The target reference, with the package directory as its project path
+    ///       and a package product as its name.
+    ///     - rootPath: Path to the project or workspace.
+    private func packageTargetBuildableReference(
+        target: TargetReference,
+        rootPath: AbsolutePath
+    ) -> XCScheme.BuildableReference {
+        XCScheme.BuildableReference(
+            referencedContainer: "container:\(target.projectPath.relative(to: rootPath).pathString)",
+            blueprintIdentifier: target.name,
+            buildableName: target.name,
+            blueprintName: target.name
         )
     }
 
@@ -1066,6 +1182,23 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     }
 }
 
+extension BuildAction.BuildFor {
+    fileprivate var xcodeProjBuildFor: XCScheme.BuildAction.Entry.BuildFor {
+        switch self {
+        case .analyzing:
+            return .analyzing
+        case .archiving:
+            return .archiving
+        case .profiling:
+            return .profiling
+        case .running:
+            return .running
+        case .testing:
+            return .testing
+        }
+    }
+}
+
 extension TestAction {
     fileprivate static func empty(withConfigurationName configurationName: String) -> Self {
         .init(
@@ -1084,5 +1217,21 @@ extension TestAction {
             preferredScreenCaptureFormat: nil,
             testPlans: nil
         )
+    }
+}
+
+enum SchemeDescriptorsGeneratorError: FatalError, Equatable {
+    case duplicateGeneratedTestPlanPath(AbsolutePath)
+
+    var type: ErrorType { .abort }
+
+    var description: String {
+        switch self {
+        case let .duplicateGeneratedTestPlanPath(path):
+            """
+            Multiple generated test plans resolve to the same path \(path.pathString). \
+            Give each plan a distinct name or pin one of them to an explicit path.
+            """
+        }
     }
 }

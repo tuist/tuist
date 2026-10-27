@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 #if canImport(TuistSupport)
+    import TuistEnvironment
     import TuistSupport
 #endif
 
@@ -22,7 +23,7 @@ public protocol ServerEnvironmentServicing: Sendable {
     func url(configServerURL: URL) throws -> URL
 }
 
-public final class ServerEnvironmentService: ServerEnvironmentServicing {
+public struct ServerEnvironmentService: ServerEnvironmentServicing {
     public init() {}
 
     public func url() -> URL {

@@ -3,49 +3,41 @@ defmodule Tuist.Marketing.Blog do
   This module loads the blog posts and authors to be used in the blog section of the marketing website.
   The content is included in the compiled Erlang binary.
   """
-  use NimblePublisher,
+
+  use Tuist.Marketing.NimblePublisher.Content,
     build: Tuist.Marketing.Blog.Post,
-    from: Application.app_dir(:tuist, "priv/marketing/blog/**/*.md"),
+    dev_from: Path.expand("../../../priv/marketing/blog/**/*.md", __DIR__),
+    prod_from: Application.app_dir(:tuist, "priv/marketing/blog/**/*.md"),
     as: :posts,
     parser: Tuist.Marketing.Blog.PostParser,
     highlighters: [],
-    earmark_options: [
-      smartypants: false,
-      postprocessor: &Tuist.Earmark.ASTProcessor.process/1
-    ]
+    html_converter: Tuist.Marketing.MDExConverter
 
-  @posts Enum.reverse(@posts)
-  @categories @posts |> Enum.map(& &1.category) |> Enum.uniq()
+  def get_posts do
+    Enum.reverse(content_entries())
+  end
 
-  def get_posts, do: @posts
-  def get_categories, do: @categories
+  def get_categories do
+    get_posts() |> Enum.map(& &1.category) |> Enum.uniq()
+  end
+
   def get_post_author(post), do: get_authors()[post.author]
 
   def get_post_author_name(post), do: post |> get_post_author() |> author_name_or_fallback(post.author)
 
   @doc """
-  Returns the image URL for a blog post, using the og_image_path if available,
-  otherwise falling back to the generated OG image.
+  The author's public profile URL, or `nil` when the author has no handle on
+  file. Used both as the `author.url` in structured data and as the Open Graph
+  `article:author`, which is typed as a profile rather than a name.
   """
-  def get_post_image_url(post) do
-    if post.og_image_path do
-      Tuist.Environment.app_url(
-        path: post.og_image_path,
-        marketing: true
-      )
-    else
-      Tuist.Environment.app_url(
-        path: "/marketing/images/og/generated#{post.slug}.jpg",
-        marketing: true
-      )
-    end
-  end
+  def get_post_author_url(post) do
+    case get_post_author(post) do
+      %{"github_handle" => handle} when is_binary(handle) and handle != "" ->
+        "https://github.com/#{handle}"
 
-  @doc """
-  Processes blog post content to extract components and HTML chunks.
-  """
-  def process_content(content) do
-    Tuist.Marketing.BlogContentProcessor.process_content(content)
+      _ ->
+        nil
+    end
   end
 
   def get_authors do

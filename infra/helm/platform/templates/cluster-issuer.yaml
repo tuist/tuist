@@ -1,0 +1,32 @@
+{{- if .Values.clusterIssuer.enabled }}
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ .Values.clusterIssuer.name }}
+spec:
+  acme:
+    email: {{ .Values.letsencrypt.email | quote }}
+    server: {{ .Values.clusterIssuer.server | quote }}
+    privateKeySecretRef:
+      name: {{ .Values.clusterIssuer.name }}-account
+    solvers:
+      {{- if .Values.cacheDNS.enabled }}
+      - selector:
+          dnsZones: [cache.tuist.dev]
+        dns01:
+          route53:
+            region: us-east-1
+            hostedZoneID: {{ required "cacheDNS.hostedZoneId is required" .Values.cacheDNS.hostedZoneId | quote }}
+            accessKeyIDSecretRef:
+              name: {{ .Values.cacheDNS.solverSecretName }}
+              key: AWS_ACCESS_KEY_ID
+            secretAccessKeySecretRef:
+              name: {{ .Values.cacheDNS.solverSecretName }}
+              key: AWS_SECRET_ACCESS_KEY
+      {{- end }}
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: {{ .Values.cloudflare.apiTokenSecret.name }}
+              key: {{ .Values.cloudflare.apiTokenSecret.key }}
+{{- end }}

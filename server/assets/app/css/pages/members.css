@@ -1,4 +1,10 @@
 #members {
+  & > [data-part="members-section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+  }
+
   & #members-tabs {
     & .noora-tab-menu-horizontal {
       padding: var(--noora-spacing-0);
@@ -7,6 +13,10 @@
     & > [data-part="root"] {
       & > [data-part="content"] {
         margin-top: var(--noora-spacing-9);
+
+        & .noora-pagination-group {
+          margin-top: var(--noora-spacing-7);
+        }
       }
     }
   }
@@ -16,7 +26,9 @@
       display: none;
     }
 
-    & .noora-modal [data-part="body"] {
+    /* The role modal sizes to its dropdown rather than to the width the other
+       modals on this page share. */
+    & .noora-modal > [data-part="positioner"] > [data-part="content"] > [data-part="body"] {
       min-width: unset;
     }
 
@@ -74,6 +86,86 @@
     }
   }
 
+  /* Invite-member modal: padded form body and the post-create invite-link
+     reveal, mirroring the webhook signing-secret disclosure. */
+  & .noora-modal {
+    /* Sized like the manage-role modal rather than the wider default the other
+       modals on this page share, since both are a single role control. */
+    &:has([data-part="invite-role"]) > [data-part="positioner"] > [data-part="content"] > [data-part="body"] {
+      min-width: unset;
+    }
+
+    & [data-part="modal-content-wrapper"] {
+      display: flex;
+      flex-direction: column;
+
+      & > .noora-line-divider {
+        flex-shrink: 0;
+      }
+    }
+
+    & [data-part="modal-body"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+      padding: var(--noora-spacing-7) var(--noora-spacing-4);
+      width: 303px;
+
+      /* Mirrors the role control in the manage-role modal: the tick marks the
+         current role, so it is drawn on the selected row only. */
+      & [data-part="invite-role"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-3);
+
+        & .noora-dropdown-item:not([data-selected]) svg {
+          visibility: hidden;
+        }
+      }
+
+      & [data-part="modal-message"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & > [data-part="subtitle"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        }
+      }
+    }
+
+    & [data-part="read-only-value"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+      border-radius: var(--noora-radius-3);
+      background: var(--noora-surface-background-tertiary);
+      padding: var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-5);
+      min-width: 0;
+
+      & > code {
+        flex-grow: 1;
+        overflow: hidden;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        font-family: "Geist Mono", monospace;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      & > .noora-button {
+        flex-shrink: 0;
+      }
+    }
+  }
+
   /* & #invite-members-input { */
   /*   display: flex; */
   /*   width: 280px; */
@@ -83,7 +175,7 @@
   /*     flex-wrap: wrap; */
   /*     gap: var(--noora-spacing-4); */
   /*     box-shadow: var(--noora-border-light-default); */
-  /*     border-radius: var(--noora-radius-medium); */
+  /*     border-radius: var(--noora-radius-3); */
   /*     background: var(--noora-surface-background-primary); */
   /*     padding: var(--noora-spacing-3) var(--noora-spacing-4); */
   /*     width: 100%; */

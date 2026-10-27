@@ -1,0 +1,163 @@
+import FileSystem
+import Foundation
+import Noora
+import Path
+import TuistCAS
+import TuistConfigLoader
+import TuistEnvironment
+import TuistREAPI
+import TuistServer
+import TuistSupport
+
+public protocol BazelCredentialHelperCommandServicing {
+    func run(
+        helperCommand: String,
+        directory: String?
+    ) async throws
+}
+
+public struct BazelCredentialHelperCommandService: BazelCredentialHelperCommandServicing {
+    private let serverEnvironmentService: ServerEnvironmentServicing
+    private let serverAuthenticationController: ServerAuthenticationControlling
+    private let configLoader: ConfigLoading
+    private let getCacheTokenService: GetCacheTokenServicing
+    private let cacheURLStore: CacheURLStoring
+    private let fileSystem: FileSysteming
+    private let date: () -> Date
+
+    /// How far before a token's real expiry Bazel is asked to come back for a fresh
+    /// credential. Bazel caches the credential we return until `expires` and only
+    /// re-invokes this helper lazily, on the first request issued after that
+    /// timestamp. Each invocation exchanges a fresh cache token; bringing its reported
+    /// expiry forward leaves a margin for in-flight requests and clock skew.
+    private static let expirySafetyMargin: TimeInterval = 60
+    private static let endpointResolutionTimeout: Duration = .seconds(2)
+
+    public init(
+        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
+        configLoader: ConfigLoading = ConfigLoader(),
+        cacheURLStore: CacheURLStoring = CacheURLStore(),
+        getCacheTokenService: GetCacheTokenServicing = GetCacheTokenService(),
+        fileSystem: FileSysteming = FileSystem(),
+        date: @escaping () -> Date = { Date() }
+    ) {
+        self.serverEnvironmentService = serverEnvironmentService
+        self.serverAuthenticationController = serverAuthenticationController
+        self.configLoader = configLoader
+        self.cacheURLStore = cacheURLStore
+        self.getCacheTokenService = getCacheTokenService
+        self.fileSystem = fileSystem
+        self.date = date
+    }
+
+    public func run(
+        helperCommand: String,
+        directory: String?
+    ) async throws {
+        try await run(
+            helperCommand: helperCommand,
+            directory: directory,
+            bazelrcDirectory: nil
+        )
+    }
+
+    public func run(
+        helperCommand: String,
+        directory: String?,
+        bazelrcDirectory: String?
+    ) async throws {
+        let response = try await credentials(helperCommand: helperCommand, directory: directory)
+        try Noora.current.json(response)
+        await refreshBazelrcEndpoint(
+            directory: directory,
+            bazelrcDirectory: bazelrcDirectory
+        )
+    }
+
+    /// Refreshes managed or custom routing configuration without activating capacity.
+    /// The first cache request activates cold managed capacity.
+    /// Bazel reads this file at startup, so changes take effect on the next build.
+    private func refreshBazelrcEndpoint(
+        directory: String?,
+        bazelrcDirectory: String?
+    ) async {
+        do {
+            let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
+            let bazelrcDirectoryPath = try await Environment.current.pathRelativeToWorkingDirectory(
+                bazelrcDirectory ?? directory
+            )
+            let bazelrcPath = bazelrcDirectoryPath.appending(component: BazelrcFile.name)
+            guard try await fileSystem.exists(bazelrcPath) else { return }
+
+            let config = try await configLoader.loadConfig(path: directoryPath)
+            guard let fullHandle = config.fullHandle else { return }
+            let accountHandle = String(fullHandle.split(separator: "/")[0])
+            let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+
+            var resolved: URL?
+            try? await withTimeout(Self.endpointResolutionTimeout, onTimeout: {}, action: {
+                resolved = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
+            })
+            guard let cacheURL = resolved, let host = cacheURL.host else { return }
+            let endpoint = GRPCEndpoint(host: host, explicitPort: cacheURL.port, isTLS: cacheURL.scheme != "http")
+
+            let contents = try await fileSystem.readTextFile(at: bazelrcPath)
+            guard let rewritten = BazelrcFile.replacingRemoteCache(in: contents, with: endpoint) else { return }
+
+            try await fileSystem.writeText(
+                rewritten,
+                at: bazelrcPath,
+                encoding: .utf8,
+                options: Set([.overwrite])
+            )
+        } catch {
+            // Best-effort by design; see above.
+        }
+    }
+
+    func credentials(
+        helperCommand: String,
+        directory: String?
+    ) async throws -> BazelCredentialHelperResponse {
+        guard helperCommand == "get" else {
+            throw BazelCredentialHelperCommandServiceError.unsupportedCommand(helperCommand)
+        }
+
+        let directoryPath = try await Environment.current.pathRelativeToWorkingDirectory(directory)
+        let config = try await configLoader.loadConfig(path: directoryPath)
+        let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+
+        guard try await serverAuthenticationController.authenticationToken(serverURL: serverURL) != nil else {
+            throw BazelCredentialHelperCommandServiceError.notAuthenticated
+        }
+
+        let cacheToken = try await getCacheTokenService.getCacheToken(serverURL: serverURL, fullHandle: config.fullHandle)
+        return BazelCredentialHelperResponse(
+            headers: ["Authorization": ["Bearer \(cacheToken.token)"]],
+            expires: ISO8601DateFormatter().string(from: date().addingTimeInterval(
+                max(0, TimeInterval(cacheToken.expiresIn) - Self.expirySafetyMargin)
+            ))
+        )
+    }
+}
+
+struct BazelCredentialHelperResponse: Codable, Equatable {
+    let headers: [String: [String]]
+    let expires: String?
+}
+
+public enum BazelCredentialHelperCommandServiceError: LocalizedError, Equatable {
+    case unsupportedCommand(String)
+    case notAuthenticated
+
+    public var errorDescription: String? {
+        switch self {
+        case let .unsupportedCommand(command):
+            return "The credential helper command '\(command)' is not supported. Only 'get' is supported."
+        case .notAuthenticated:
+            return
+                "You are not authenticated. Refer to the documentation for authentication options: https://tuist.dev/en/docs/guides/server/authentication"
+        }
+    }
+}

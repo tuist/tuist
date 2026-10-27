@@ -3,9 +3,24 @@ import Path
 import TuistCore
 import XcodeGraph
 import XCTest
-
 @testable import TuistCacheEE
 @testable import TuistTesting
+
+private struct UnexpectedArtifactLoadError: Error, CustomStringConvertible {
+    let path: AbsolutePath?
+
+    init(path: AbsolutePath? = nil) {
+        self.path = path
+    }
+
+    var description: String {
+        if let path {
+            return "Unexpected load call for \(path)"
+        } else {
+            return "Unexpected load call"
+        }
+    }
+}
 
 // To generate the ASCII graphs: http://asciiflow.com/
 // Alternative: https://dot-to-ascii.ggerganov.com/
@@ -115,7 +130,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == cXCFrameworkPath {
                 return cXCFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -152,6 +167,287 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             [
                 .testXCFramework(path: bXCFrameworkPath),
                 .testXCFramework(path: cXCFrameworkPath),
+            ]
+        )
+    }
+
+    func test_map_keeps_external_bundles_as_source_when_reachable_from_source_framework() async throws {
+        let path = try temporaryPath()
+
+        let externalBundle = Target.test(name: "ExternalResources", destinations: [.iPhone], product: .bundle)
+        let externalProject = Project.test(
+            path: path.appending(component: "ExternalPackage"),
+            name: "ExternalPackage",
+            targets: [externalBundle],
+            type: .external()
+        )
+        let externalBundleGraphTarget = GraphTarget.test(
+            path: externalProject.path,
+            target: externalBundle,
+            project: externalProject
+        )
+
+        let theme = Target.test(name: "Theme", destinations: [.iPhone], product: .framework)
+        let themeProject = Project.test(path: path.appending(component: "Theme"), name: "Theme", targets: [theme])
+        let themeGraphTarget = GraphTarget.test(path: themeProject.path, target: theme, project: themeProject)
+
+        let account = Target.test(name: "Account", destinations: [.iPhone], product: .framework)
+        let accountProject = Project.test(
+            path: path.appending(component: "Account"),
+            name: "Account",
+            targets: [account]
+        )
+        let accountGraphTarget = GraphTarget.test(path: accountProject.path, target: account, project: accountProject)
+
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let appProject = Project.test(path: path.appending(component: "App"), name: "App", targets: [app])
+        let appGraphTarget = GraphTarget.test(path: appProject.path, target: app, project: appProject)
+
+        let graph = Graph.test(
+            projects: [
+                appProject.path: appProject,
+                accountProject.path: accountProject,
+                themeProject.path: themeProject,
+                externalProject.path: externalProject,
+            ],
+            dependencies: [
+                .target(name: app.name, path: appGraphTarget.path): [
+                    .target(name: account.name, path: accountGraphTarget.path),
+                ],
+                .target(name: account.name, path: accountGraphTarget.path): [
+                    .target(name: theme.name, path: themeGraphTarget.path),
+                ],
+                .target(name: theme.name, path: themeGraphTarget.path): [
+                    .target(name: externalBundle.name, path: externalBundleGraphTarget.path),
+                ],
+                .target(name: externalBundle.name, path: externalBundleGraphTarget.path): [],
+            ]
+        )
+
+        let themeXCFrameworkPath = path.appending(component: "Theme.xcframework")
+        let externalBundlePath = path.appending(component: "ExternalResources.bundle")
+        let precompiledArtifacts = [
+            themeGraphTarget: themeXCFrameworkPath,
+            externalBundleGraphTarget: externalBundlePath,
+        ]
+
+        artifactLoader.loadStub = { path in
+            if path == themeXCFrameworkPath {
+                return .testXCFramework(path: themeXCFrameworkPath, linking: .dynamic)
+            } else {
+                throw UnexpectedArtifactLoadError(path: path)
+            }
+        }
+
+        let got = try await subject.map(
+            graph: graph,
+            precompiledArtifacts: precompiledArtifacts,
+            sources: Set(["Account"]),
+            keepSourceTargets: false
+        )
+
+        XCTAssertEqual(
+            got.dependencies[.testXCFramework(path: themeXCFrameworkPath, linking: .dynamic), default: Set()],
+            [
+                .target(name: externalBundle.name, path: externalBundleGraphTarget.path),
+            ]
+        )
+        XCTAssertEqual(
+            got.projects[externalProject.path]?.targets[externalBundle.name]?.metadata.tags.contains("tuist:prunable"),
+            false
+        )
+
+        let graphTraverser = GraphTraverser(graph: got)
+        XCTAssertEqual(
+            graphTraverser.resourceBundleDependencies(path: accountGraphTarget.path, name: account.name),
+            []
+        )
+        XCTAssertEqual(
+            graphTraverser.resourceBundleDependencies(path: appGraphTarget.path, name: app.name),
+            [
+                .product(target: externalBundle.name, productName: externalBundle.productNameWithExtension),
+            ]
+        )
+    }
+
+    func test_map_replaces_external_bundles_when_reachable_from_source_app() async throws {
+        let path = try temporaryPath()
+
+        let externalBundle = Target.test(name: "ExternalResources", destinations: [.iPhone], product: .bundle)
+        let externalProject = Project.test(
+            path: path.appending(component: "ExternalPackage"),
+            name: "ExternalPackage",
+            targets: [externalBundle],
+            type: .external()
+        )
+        let externalBundleGraphTarget = GraphTarget.test(
+            path: externalProject.path,
+            target: externalBundle,
+            project: externalProject
+        )
+
+        let theme = Target.test(name: "Theme", destinations: [.iPhone], product: .staticFramework)
+        let themeProject = Project.test(path: path.appending(component: "Theme"), name: "Theme", targets: [theme])
+        let themeGraphTarget = GraphTarget.test(path: themeProject.path, target: theme, project: themeProject)
+
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let appProject = Project.test(path: path.appending(component: "App"), name: "App", targets: [app])
+        let appGraphTarget = GraphTarget.test(path: appProject.path, target: app, project: appProject)
+
+        let graph = Graph.test(
+            projects: [
+                appProject.path: appProject,
+                themeProject.path: themeProject,
+                externalProject.path: externalProject,
+            ],
+            dependencies: [
+                .target(name: app.name, path: appGraphTarget.path): [
+                    .target(name: theme.name, path: themeGraphTarget.path),
+                ],
+                .target(name: theme.name, path: themeGraphTarget.path): [
+                    .target(name: externalBundle.name, path: externalBundleGraphTarget.path),
+                ],
+                .target(name: externalBundle.name, path: externalBundleGraphTarget.path): [],
+            ]
+        )
+
+        let themeXCFrameworkPath = path.appending(component: "Theme.xcframework")
+        let externalBundlePath = path.appending(component: "ExternalResources.bundle")
+        let precompiledArtifacts = [
+            themeGraphTarget: themeXCFrameworkPath,
+            externalBundleGraphTarget: externalBundlePath,
+        ]
+
+        artifactLoader.loadStub = { path in
+            if path == themeXCFrameworkPath {
+                return .testXCFramework(path: themeXCFrameworkPath, linking: .static)
+            } else if path == externalBundlePath {
+                return .bundle(path: externalBundlePath)
+            } else {
+                throw UnexpectedArtifactLoadError(path: path)
+            }
+        }
+
+        let got = try await subject.map(
+            graph: graph,
+            precompiledArtifacts: precompiledArtifacts,
+            sources: Set(["App"]),
+            keepSourceTargets: false
+        )
+
+        XCTAssertEqual(
+            got.dependencies[.testXCFramework(path: themeXCFrameworkPath, linking: .static), default: Set()],
+            [
+                .bundle(path: externalBundlePath),
+            ]
+        )
+
+        let graphTraverser = GraphTraverser(graph: got)
+        XCTAssertEqual(
+            graphTraverser.resourceBundleDependencies(path: appGraphTarget.path, name: app.name),
+            [
+                .bundle(path: externalBundlePath),
+            ]
+        )
+    }
+
+    func test_map_keeps_external_bundles_as_source_when_reachable_from_cached_dynamic_framework() async throws {
+        let path = try temporaryPath()
+
+        let externalBundle = Target.test(name: "ExternalResources", destinations: [.iPhone], product: .bundle)
+        let externalLibrary = Target.test(name: "ExternalLibrary", destinations: [.iPhone], product: .staticFramework)
+        let externalProject = Project.test(
+            path: path.appending(component: "ExternalPackage"),
+            name: "ExternalPackage",
+            targets: [externalLibrary, externalBundle],
+            type: .external()
+        )
+        let externalBundleGraphTarget = GraphTarget.test(
+            path: externalProject.path,
+            target: externalBundle,
+            project: externalProject
+        )
+        let externalLibraryGraphTarget = GraphTarget.test(
+            path: externalProject.path,
+            target: externalLibrary,
+            project: externalProject
+        )
+
+        let framework = Target.test(name: "Framework", destinations: [.iPhone], product: .framework)
+        let frameworkTests = Target.test(name: "FrameworkTests", destinations: [.iPhone], product: .unitTests)
+        let project = Project.test(
+            path: path.appending(component: "Project"),
+            name: "Project",
+            targets: [framework, frameworkTests]
+        )
+        let frameworkGraphTarget = GraphTarget.test(path: project.path, target: framework, project: project)
+        let frameworkTestsGraphTarget = GraphTarget.test(path: project.path, target: frameworkTests, project: project)
+
+        let graph = Graph.test(
+            projects: [
+                project.path: project,
+                externalProject.path: externalProject,
+            ],
+            dependencies: [
+                .target(name: frameworkTests.name, path: frameworkTestsGraphTarget.path): [
+                    .target(name: framework.name, path: frameworkGraphTarget.path),
+                    .target(name: externalLibrary.name, path: externalLibraryGraphTarget.path),
+                ],
+                .target(name: framework.name, path: frameworkGraphTarget.path): [
+                    .target(name: externalLibrary.name, path: externalLibraryGraphTarget.path),
+                ],
+                .target(name: externalLibrary.name, path: externalLibraryGraphTarget.path): [
+                    .target(name: externalBundle.name, path: externalBundleGraphTarget.path),
+                ],
+                .target(name: externalBundle.name, path: externalBundleGraphTarget.path): [],
+            ]
+        )
+
+        let frameworkXCFrameworkPath = path.appending(component: "Framework.xcframework")
+        let externalLibraryXCFrameworkPath = path.appending(component: "ExternalLibrary.xcframework")
+        let externalBundlePath = path.appending(component: "ExternalResources.bundle")
+        let precompiledArtifacts = [
+            frameworkGraphTarget: frameworkXCFrameworkPath,
+            externalLibraryGraphTarget: externalLibraryXCFrameworkPath,
+            externalBundleGraphTarget: externalBundlePath,
+        ]
+
+        artifactLoader.loadStub = { path in
+            if path == frameworkXCFrameworkPath {
+                return .testXCFramework(path: frameworkXCFrameworkPath, linking: .dynamic)
+            } else if path == externalLibraryXCFrameworkPath {
+                return .testXCFramework(path: externalLibraryXCFrameworkPath, linking: .static)
+            } else if path == externalBundlePath {
+                return .bundle(path: externalBundlePath)
+            } else {
+                throw UnexpectedArtifactLoadError(path: path)
+            }
+        }
+
+        let got = try await subject.map(
+            graph: graph,
+            precompiledArtifacts: precompiledArtifacts,
+            sources: Set(["FrameworkTests"]),
+            keepSourceTargets: false
+        )
+
+        XCTAssertEqual(
+            got.dependencies[.testXCFramework(path: externalLibraryXCFrameworkPath, linking: .static), default: Set()],
+            [
+                .target(name: externalBundle.name, path: externalBundleGraphTarget.path),
+            ]
+        )
+        XCTAssertEqual(
+            got.projects[externalProject.path]?.targets[externalBundle.name]?.metadata.tags.contains("tuist:prunable"),
+            false
+        )
+        XCTAssertEqual(
+            GraphTraverser(graph: got).resourceBundleDependencies(
+                path: frameworkTestsGraphTarget.path,
+                name: frameworkTests.name
+            ),
+            [
+                .product(target: externalBundle.name, productName: externalBundle.productNameWithExtension),
             ]
         )
     }
@@ -234,7 +530,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == dFrameworkPath {
                 return dFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -356,7 +652,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == dFrameworkPath {
                 return dFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -475,7 +771,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == dFrameworkPath {
                 return dFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -666,7 +962,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == cCachedFrameworkPath {
                 return cCachedFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -785,7 +1081,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == dFrameworkPath {
                 return dFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -909,7 +1205,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             } else if path == eXCFrameworkPath {
                 return eXCFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -1026,7 +1322,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == cCachedFrameworkPath {
                 return cCachedFramework
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -1117,7 +1413,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
                 GraphEdge(
                     from: .target(name: bFramework.name, path: bGraphTarget.path), to: cFramework
                 ):
-                    .when(Set([.ios]))!,
+                    try XCTUnwrap(.when(Set([.ios]))),
             ]
         )
 
@@ -1131,7 +1427,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == bFrameworkPath {
                 return GraphDependency.testFramework(path: bFrameworkPath)
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -1152,7 +1448,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
                 GraphEdge(
                     from: GraphDependency.testFramework(path: bFrameworkPath), to: cFramework
                 ):
-                    .when(Set([.ios]))!,
+                    try XCTUnwrap(.when(Set([.ios]))),
             ]
         )
 
@@ -1181,7 +1477,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
     ///          ┌────▼───┐     ┌───▼──┐
     ///          │  Macro │     │ Macro│
     ///          └────────┘     └──────┘
-    func test_map_when_tenth_scenario() async throws {
+    func test_map_when_tenth_scenario() {
         // TODO: Adjust with the new macro mutation logic
         //        let path = try temporaryPath()
         //
@@ -1265,7 +1561,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         //        artifactLoader.loadStub = { path in
         //            if path == bMacroXCFrameworkPath { return GraphDependency.testFramework(path: bMacroXCFrameworkPath) }
         //            if path == cMacroXCFrameworkPath { return GraphDependency.testFramework(path: cMacroXCFrameworkPath) }
-        //            else { fatalError("Unexpected load call") }
+        //            else { throw UnexpectedArtifactLoadError() }
         //        }
         //
         //        // When
@@ -1335,7 +1631,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         artifactLoader.loadStub = { _ in
-            fatalError("Unexpected load call")
+            throw UnexpectedArtifactLoadError()
         }
 
         // When
@@ -1401,7 +1697,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == staticXCFrameworkPath {
                 return GraphDependency.testXCFramework(path: staticXCFrameworkPath)
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -1465,7 +1761,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == dynamicXCFrameworkPath {
                 return GraphDependency.testXCFramework(path: dynamicXCFrameworkPath)
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -1524,7 +1820,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             if path == dynamicXCFrameworkPath {
                 return GraphDependency.testXCFramework(path: dynamicXCFrameworkPath)
             } else {
-                fatalError("Unexpected load call")
+                throw UnexpectedArtifactLoadError()
             }
         }
 
@@ -1624,6 +1920,557 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
                 .target(name: b.name, path: project.path): [.testXCFramework(path: cXCFrameworkPath)],
                 .target(name: c.name, path: project.path): [],
                 .testXCFramework(path: cXCFrameworkPath): [],
+            ]
+        )
+    }
+
+    /// Fifteenth scenario - reproduces https://github.com/tuist/tuist/issues/9594
+    /// A unit test target depends on a dynamic framework that transitively depends
+    /// on static libraries. When all are cached, the static dependencies should be
+    /// pruned from the dynamic xcframework's edges to avoid duplicate symbols.
+    ///
+    /// ┌──────────────────┐   ┌──────────────────┐   ┌──────────────────┐
+    /// │ SharedCounterTest├──►│ SharedCounter     ├──►│ TCALib (static)  │
+    /// │ (unitTests)      │   │ (framework, dyn.) │   │ (staticFw, cached)│
+    /// └──────────────────┘   └──────────────────┘   └────────┬─────────┘
+    ///                                                         │
+    ///                                                ┌────────▼─────────┐
+    ///                                                │ DepLib (static)  │
+    ///                                                │ (staticFw, cached)│
+    ///                                                └──────────────────┘
+    func test_map_when_unit_test_depends_on_cached_dynamic_framework_with_static_deps() async throws {
+        let path = try temporaryPath()
+
+        // Given: DepLib (static framework, cached)
+        let depLib = Target.test(name: "DepLib", destinations: [.iPhone], product: .staticFramework)
+        let depLibProject = Project.test(
+            path: path.appending(component: "DepLib"), name: "DepLib", targets: [depLib]
+        )
+        let depLibGraphTarget = GraphTarget.test(
+            path: depLibProject.path, target: depLib, project: depLibProject
+        )
+
+        // Given: TCALib (static framework, cached, depends on DepLib)
+        let tcaLib = Target.test(name: "TCALib", destinations: [.iPhone], product: .staticFramework)
+        let tcaLibProject = Project.test(
+            path: path.appending(component: "TCALib"), name: "TCALib", targets: [tcaLib]
+        )
+        let tcaLibGraphTarget = GraphTarget.test(
+            path: tcaLibProject.path, target: tcaLib, project: tcaLibProject
+        )
+
+        // Given: SharedCounter (dynamic framework, cached, depends on TCALib)
+        let sharedCounter = Target.test(name: "SharedCounter", destinations: [.iPhone], product: .framework)
+        let sharedCounterProject = Project.test(
+            path: path.appending(component: "SharedCounter"), name: "SharedCounter", targets: [sharedCounter]
+        )
+        let sharedCounterGraphTarget = GraphTarget.test(
+            path: sharedCounterProject.path, target: sharedCounter, project: sharedCounterProject
+        )
+
+        // Given: SharedCounterTests (unit tests, NOT cached)
+        let tests = Target.test(name: "SharedCounterTests", destinations: [.iPhone], product: .unitTests)
+        let testsProject = Project.test(
+            path: path.appending(component: "Tests"), name: "Tests", targets: [tests]
+        )
+        let testsGraphTarget = GraphTarget.test(
+            path: testsProject.path, target: tests, project: testsProject
+        )
+
+        // Given: Graph
+        let graph = Graph.test(
+            projects: [
+                depLibProject.path: depLibProject,
+                tcaLibProject.path: tcaLibProject,
+                sharedCounterProject.path: sharedCounterProject,
+                testsProject.path: testsProject,
+            ],
+            dependencies: [
+                .target(name: tests.name, path: testsGraphTarget.path): [
+                    .target(name: sharedCounter.name, path: sharedCounterGraphTarget.path),
+                ],
+                .target(name: sharedCounter.name, path: sharedCounterGraphTarget.path): [
+                    .target(name: tcaLib.name, path: tcaLibGraphTarget.path),
+                ],
+                .target(name: tcaLib.name, path: tcaLibGraphTarget.path): [
+                    .target(name: depLib.name, path: depLibGraphTarget.path),
+                ],
+            ]
+        )
+
+        // Given: xcframeworks for all cacheable targets
+        let depLibXCFrameworkPath = path.appending(component: "DepLib.xcframework")
+        let tcaLibXCFrameworkPath = path.appending(component: "TCALib.xcframework")
+        let sharedCounterXCFrameworkPath = path.appending(component: "SharedCounter.xcframework")
+
+        let xcframeworks = [
+            depLibGraphTarget: depLibXCFrameworkPath,
+            tcaLibGraphTarget: tcaLibXCFrameworkPath,
+            sharedCounterGraphTarget: sharedCounterXCFrameworkPath,
+        ]
+
+        artifactLoader.loadStub = { path in
+            if path == depLibXCFrameworkPath {
+                return GraphDependency.testXCFramework(path: depLibXCFrameworkPath, linking: .static)
+            } else if path == tcaLibXCFrameworkPath {
+                return GraphDependency.testXCFramework(path: tcaLibXCFrameworkPath, linking: .static)
+            } else if path == sharedCounterXCFrameworkPath {
+                return GraphDependency.testXCFramework(path: sharedCounterXCFrameworkPath, linking: .dynamic)
+            } else {
+                throw UnexpectedArtifactLoadError(path: path)
+            }
+        }
+
+        // When
+        let got = try await subject.map(
+            graph: graph,
+            precompiledArtifacts: xcframeworks,
+            sources: Set(["SharedCounterTests"]),
+            keepSourceTargets: false
+        )
+
+        // Then: the test target should depend only on the dynamic xcframework.
+        // The static xcframeworks (TCALib, DepLib) should NOT appear as deps of
+        // SharedCounter.xcframework because they are baked into the dynamic binary.
+        let testDependencies = got.dependencies[
+            .target(name: tests.name, path: testsGraphTarget.path), default: Set()
+        ]
+        XCTAssertEqual(
+            testDependencies,
+            [
+                .testXCFramework(path: sharedCounterXCFrameworkPath, linking: .dynamic),
+            ]
+        )
+
+        let sharedCounterDeps = got.dependencies[
+            .testXCFramework(path: sharedCounterXCFrameworkPath, linking: .dynamic), default: Set()
+        ]
+        XCTAssertEqual(
+            sharedCounterDeps,
+            [],
+            "Dynamic xcframework should not have static deps as edges (they are baked in)"
+        )
+
+        // TCALib is a static framework so it does NOT bake in its static deps.
+        // Its edge to DepLib should be preserved in the graph.
+        let tcaLibDeps = got.dependencies[
+            .testXCFramework(path: tcaLibXCFrameworkPath, linking: .static), default: Set()
+        ]
+        XCTAssertEqual(tcaLibDeps, [
+            .testXCFramework(path: depLibXCFrameworkPath, linking: .static),
+        ])
+
+        let depLibDeps = got.dependencies[
+            .testXCFramework(path: depLibXCFrameworkPath, linking: .static), default: Set()
+        ]
+        XCTAssertEqual(depLibDeps, [])
+    }
+
+    /// Sixteenth scenario - hostless unit tests still need external static xcframework deps
+    /// to remain behind the cached dynamic xcframework for module visibility.
+    ///
+    /// ┌──────────────────┐   ┌──────────────────┐   ┌────────────────────┐
+    /// │ FeatureTests     ├──►│ Feature          ├──►│ GoogleMaps         │
+    /// │ (unitTests)      │   │ (framework, dyn.)│   │ (static xcframework)│
+    /// └──────────────────┘   └──────────────────┘   └────────────────────┘
+    func test_map_when_unit_test_depends_on_cached_dynamic_framework_with_external_static_xcframework() async throws {
+        let path = try temporaryPath()
+
+        // Given: Feature (dynamic framework, cached, depends on GoogleMaps)
+        let feature = Target.test(name: "Feature", destinations: [.iPhone], product: .framework)
+        let featureProject = Project.test(
+            path: path.appending(component: "Feature"), name: "Feature", targets: [feature]
+        )
+        let featureGraphTarget = GraphTarget.test(
+            path: featureProject.path, target: feature, project: featureProject
+        )
+
+        // Given: FeatureTests (unit tests, NOT cached)
+        let tests = Target.test(name: "FeatureTests", destinations: [.iPhone], product: .unitTests)
+        let testsProject = Project.test(
+            path: path.appending(component: "Tests"), name: "Tests", targets: [tests]
+        )
+        let testsGraphTarget = GraphTarget.test(
+            path: testsProject.path, target: tests, project: testsProject
+        )
+
+        let googleMapsPath = path.appending(component: "GoogleMaps.xcframework")
+        let googleMaps = GraphDependency.testXCFramework(
+            path: googleMapsPath,
+            linking: .static,
+            moduleMaps: [
+                googleMapsPath.appending(component: "GoogleMaps.modulemap"),
+            ]
+        )
+
+        // Given: Graph
+        let graph = Graph.test(
+            projects: [
+                featureProject.path: featureProject,
+                testsProject.path: testsProject,
+            ],
+            dependencies: [
+                .target(name: tests.name, path: testsGraphTarget.path): [
+                    .target(name: feature.name, path: featureGraphTarget.path),
+                ],
+                .target(name: feature.name, path: featureGraphTarget.path): [
+                    googleMaps,
+                ],
+                googleMaps: [],
+            ]
+        )
+
+        let featureXCFrameworkPath = path.appending(component: "Feature.xcframework")
+        let xcframeworks = [
+            featureGraphTarget: featureXCFrameworkPath,
+        ]
+
+        artifactLoader.loadStub = { path in
+            if path == featureXCFrameworkPath {
+                return GraphDependency.testXCFramework(path: featureXCFrameworkPath, linking: .dynamic)
+            } else {
+                throw UnexpectedArtifactLoadError(path: path)
+            }
+        }
+
+        // When
+        let got = try await subject.map(
+            graph: graph,
+            precompiledArtifacts: xcframeworks,
+            sources: Set(["FeatureTests"]),
+            keepSourceTargets: false
+        )
+
+        // Then: external static xcframework deps should remain behind the cached dynamic binary.
+        XCTAssertEqual(
+            got.dependencies[
+                .target(name: tests.name, path: testsGraphTarget.path),
+                default: Set()
+            ],
+            [
+                .testXCFramework(path: featureXCFrameworkPath, linking: .dynamic),
+            ]
+        )
+        XCTAssertEqual(
+            got.dependencies[
+                .testXCFramework(path: featureXCFrameworkPath, linking: .dynamic),
+                default: Set()
+            ],
+            [
+                googleMaps,
+            ]
+        )
+    }
+
+    /// Seventeenth scenario - when a cached dynamic framework is shared between hostless tests
+    /// and non-test targets, external static xcframework deps should stay on the dynamic node
+    /// rather than being re-added directly to the app target.
+    ///
+    /// ┌─────┐              ┌──────────────────┐   ┌────────────────────┐
+    /// │ App ├─────────────►│ Feature          ├──►│ GoogleMaps         │
+    /// └─────┘              │ (framework, dyn.)│   │ (static xcframework)│
+    /// ┌──────────────────┐ └──────────────────┘   └────────────────────┘
+    /// │ FeatureTests     ├───────────────────────►
+    /// │ (unitTests)      │
+    /// └──────────────────┘
+    func test_map_when_non_test_and_hostless_test_share_cached_dynamic_framework_with_external_static_xcframework(
+    ) async throws {
+        let path = try temporaryPath()
+
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let feature = Target.test(name: "Feature", destinations: [.iPhone], product: .framework)
+        let tests = Target.test(name: "FeatureTests", destinations: [.iPhone], product: .unitTests)
+        let project = Project.test(
+            path: path.appending(component: "Project"),
+            name: "Project",
+            targets: [app, feature, tests]
+        )
+        let featureGraphTarget = GraphTarget.test(
+            path: project.path, target: feature, project: project
+        )
+
+        let googleMapsPath = path.appending(component: "GoogleMaps.xcframework")
+        let googleMaps = GraphDependency.testXCFramework(
+            path: googleMapsPath,
+            linking: .static,
+            moduleMaps: [
+                googleMapsPath.appending(component: "GoogleMaps.modulemap"),
+            ]
+        )
+
+        // Given: Graph
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: app.name, path: project.path): [
+                    .target(name: feature.name, path: project.path),
+                ],
+                .target(name: tests.name, path: project.path): [
+                    .target(name: feature.name, path: project.path),
+                ],
+                .target(name: feature.name, path: project.path): [
+                    googleMaps,
+                ],
+                googleMaps: [],
+            ]
+        )
+
+        let featureXCFrameworkPath = path.appending(component: "Feature.xcframework")
+        let xcframeworks = [
+            featureGraphTarget: featureXCFrameworkPath,
+        ]
+
+        artifactLoader.loadStub = { path in
+            if path == featureXCFrameworkPath {
+                return GraphDependency.testXCFramework(path: featureXCFrameworkPath, linking: .dynamic)
+            } else {
+                throw UnexpectedArtifactLoadError(path: path)
+            }
+        }
+
+        // When
+        let got = try await subject.map(
+            graph: graph,
+            precompiledArtifacts: xcframeworks,
+            sources: Set(["App", "FeatureTests"]),
+            keepSourceTargets: false
+        )
+
+        // Then: the app should keep depending only on the cached dynamic framework.
+        XCTAssertEqual(
+            got.dependencies[
+                .target(name: app.name, path: project.path),
+                default: Set()
+            ],
+            [
+                .testXCFramework(path: featureXCFrameworkPath, linking: .dynamic),
+            ]
+        )
+        XCTAssertEqual(
+            got.dependencies[
+                .target(name: tests.name, path: project.path),
+                default: Set()
+            ],
+            [
+                .testXCFramework(path: featureXCFrameworkPath, linking: .dynamic),
+            ]
+        )
+        XCTAssertEqual(
+            got.dependencies[
+                .testXCFramework(path: featureXCFrameworkPath, linking: .dynamic),
+                default: Set()
+            ],
+            [
+                googleMaps,
+            ]
+        )
+    }
+
+    /// Eighteenth scenario - preserve the current behaviour for cached static target deps that
+    /// are baked into the shared dynamic xcframework but re-added to non-test consumers.
+    ///
+    /// ┌─────┐              ┌──────────────────┐   ┌──────────────────┐
+    /// │ App ├─────────────►│ Feature          ├──►│ SupportLib       │
+    /// └─────┘              │ (framework, dyn.)│   │ (static, cached) │
+    /// ┌──────────────────┐ └──────────────────┘   └──────────────────┘
+    /// │ FeatureTests     ├───────────────────────►
+    /// │ (unitTests)      │
+    /// └──────────────────┘
+    func test_map_when_non_test_and_hostless_test_share_cached_dynamic_framework_with_cached_static_dep() async throws {
+        let path = try temporaryPath()
+
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPhone], product: .app)
+        let feature = Target.test(name: "Feature", destinations: [.iPhone], product: .framework)
+        let supportLib = Target.test(name: "SupportLib", destinations: [.iPhone], product: .staticFramework)
+        let tests = Target.test(name: "FeatureTests", destinations: [.iPhone], product: .unitTests)
+        let project = Project.test(
+            path: path.appending(component: "Project"),
+            name: "Project",
+            targets: [app, feature, supportLib, tests]
+        )
+        let featureGraphTarget = GraphTarget.test(
+            path: project.path, target: feature, project: project
+        )
+        let supportLibGraphTarget = GraphTarget.test(
+            path: project.path, target: supportLib, project: project
+        )
+
+        // Given: Graph
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: app.name, path: project.path): [
+                    .target(name: feature.name, path: project.path),
+                ],
+                .target(name: tests.name, path: project.path): [
+                    .target(name: feature.name, path: project.path),
+                ],
+                .target(name: feature.name, path: project.path): [
+                    .target(name: supportLib.name, path: project.path),
+                ],
+            ]
+        )
+
+        let featureXCFrameworkPath = path.appending(component: "Feature.xcframework")
+        let supportLibXCFrameworkPath = path.appending(component: "SupportLib.xcframework")
+        let xcframeworks = [
+            featureGraphTarget: featureXCFrameworkPath,
+            supportLibGraphTarget: supportLibXCFrameworkPath,
+        ]
+
+        artifactLoader.loadStub = { path in
+            if path == featureXCFrameworkPath {
+                return GraphDependency.testXCFramework(path: featureXCFrameworkPath, linking: .dynamic)
+            } else if path == supportLibXCFrameworkPath {
+                return GraphDependency.testXCFramework(path: supportLibXCFrameworkPath, linking: .static)
+            } else {
+                throw UnexpectedArtifactLoadError(path: path)
+            }
+        }
+
+        // When
+        let got = try await subject.map(
+            graph: graph,
+            precompiledArtifacts: xcframeworks,
+            sources: Set(["App", "FeatureTests"]),
+            keepSourceTargets: false
+        )
+
+        // Then: cached static deps remain pruned from the shared dynamic binary
+        // and are re-added only to non-test consumers.
+        XCTAssertEqual(
+            got.dependencies[
+                .target(name: app.name, path: project.path),
+                default: Set()
+            ],
+            [
+                .testXCFramework(path: featureXCFrameworkPath, linking: .dynamic),
+                .testXCFramework(path: supportLibXCFrameworkPath, linking: .static),
+            ]
+        )
+        XCTAssertEqual(
+            got.dependencies[
+                .target(name: tests.name, path: project.path),
+                default: Set()
+            ],
+            [
+                .testXCFramework(path: featureXCFrameworkPath, linking: .dynamic),
+            ]
+        )
+        XCTAssertEqual(
+            got.dependencies[
+                .testXCFramework(path: featureXCFrameworkPath, linking: .dynamic),
+                default: Set()
+            ],
+            []
+        )
+    }
+
+    /// Nineteenth scenario - a hostless test target explicitly imports a cached dynamic
+    /// transitive dependency of a source dynamic framework. External static xcframework deps
+    /// must remain behind the cached dynamic node rather than being re-added to the source framework.
+    ///
+    /// ┌──────────────────┐   ┌──────────────────┐   ┌──────────────────┐
+    /// │ FeatureTests     ├──►│ Feature          ├──►│ Library          │
+    /// │ (unitTests)      │   │ (framework, dyn.)│   │ (framework, dyn.)│
+    /// └────────┬─────────┘   └──────────────────┘   └────────┬─────────┘
+    ///          │                                              │
+    ///          └──────────────────────────────────────────────►│
+    ///                                                         ▼
+    ///                                                ┌────────────────────┐
+    ///                                                │ GoogleMaps         │
+    ///                                                │ (static xcframework)│
+    ///                                                └────────────────────┘
+    func test_map_when_hostless_test_explicitly_imports_cached_dynamic_framework_with_external_static_xcframework(
+    ) async throws {
+        let path = try temporaryPath()
+
+        let feature = Target.test(name: "Feature", destinations: [.iPhone], product: .framework)
+        let library = Target.test(name: "Library", destinations: [.iPhone], product: .framework)
+        let tests = Target.test(name: "FeatureTests", destinations: [.iPhone], product: .unitTests)
+        let project = Project.test(
+            path: path.appending(component: "Project"),
+            name: "Project",
+            targets: [feature, library, tests]
+        )
+        let libraryGraphTarget = GraphTarget.test(
+            path: project.path, target: library, project: project
+        )
+
+        let googleMapsPath = path.appending(component: "GoogleMaps.xcframework")
+        let googleMaps = GraphDependency.testXCFramework(
+            path: googleMapsPath,
+            linking: .static,
+            moduleMaps: [
+                googleMapsPath.appending(component: "GoogleMaps.modulemap"),
+            ]
+        )
+
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: feature.name, path: project.path): [
+                    .target(name: library.name, path: project.path),
+                ],
+                .target(name: tests.name, path: project.path): [
+                    .target(name: feature.name, path: project.path),
+                    .target(name: library.name, path: project.path),
+                ],
+                .target(name: library.name, path: project.path): [
+                    googleMaps,
+                ],
+                googleMaps: [],
+            ]
+        )
+
+        let libraryXCFrameworkPath = path.appending(component: "Library.xcframework")
+        let xcframeworks = [
+            libraryGraphTarget: libraryXCFrameworkPath,
+        ]
+
+        artifactLoader.loadStub = { path in
+            if path == libraryXCFrameworkPath {
+                return GraphDependency.testXCFramework(path: libraryXCFrameworkPath, linking: .dynamic)
+            } else {
+                throw UnexpectedArtifactLoadError(path: path)
+            }
+        }
+
+        let got = try await subject.map(
+            graph: graph,
+            precompiledArtifacts: xcframeworks,
+            sources: Set(["Feature", "FeatureTests"]),
+            keepSourceTargets: false
+        )
+
+        XCTAssertEqual(
+            got.dependencies[
+                .target(name: feature.name, path: project.path),
+                default: Set()
+            ],
+            [
+                .testXCFramework(path: libraryXCFrameworkPath, linking: .dynamic),
+            ]
+        )
+        XCTAssertEqual(
+            got.dependencies[
+                .target(name: tests.name, path: project.path),
+                default: Set()
+            ],
+            [
+                .target(name: feature.name, path: project.path),
+                .testXCFramework(path: libraryXCFrameworkPath, linking: .dynamic),
+            ]
+        )
+        XCTAssertEqual(
+            got.dependencies[
+                .testXCFramework(path: libraryXCFrameworkPath, linking: .dynamic),
+                default: Set()
+            ],
+            [
+                googleMaps,
             ]
         )
     }

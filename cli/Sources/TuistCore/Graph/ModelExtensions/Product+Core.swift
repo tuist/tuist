@@ -26,6 +26,8 @@ extension Product {
         //            return .watchApp
         case .watch2App:
             return .watch2App
+        case .watch2AppContainer:
+            return .watch2AppContainer
         //        case .watchExtension:
         //            return .watchExtension
         case .watch2Extension:
@@ -43,7 +45,7 @@ extension Product {
         case .commandLineTool:
             return .commandLineTool
         case .macro:
-            return .commandLineTool
+            return .hostBuildTool
         case .appClip:
             return .onDemandInstallCapableApplication
         case .xpc:

@@ -1,8 +1,9 @@
 import ArgumentParser
 import Foundation
+import TuistSupport
 
 /// A command to install the remote content the project depends on.
-public struct InstallCommand: AsyncParsableCommand {
+public struct InstallCommand: AsyncParsableCommand, ProjectPathProviding {
     public init() {}
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
@@ -17,7 +18,7 @@ public struct InstallCommand: AsyncParsableCommand {
         completion: .directory,
         envKey: .installPath
     )
-    var path: String?
+    public var path: String?
 
     @Flag(
         name: .shortAndLong,

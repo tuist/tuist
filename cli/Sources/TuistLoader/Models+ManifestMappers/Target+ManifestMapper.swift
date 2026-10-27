@@ -2,20 +2,38 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
+import TuistAlert
 import TuistCore
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 
 public enum TargetManifestMapperError: FatalError, Equatable {
     case nonSpecificGeneratedResource(targetName: String, generatedSource: AbsolutePath)
+    case missingLocalPackageTestDependency(target: String, product: String)
 
     public var type: ErrorType { .abort }
 
     public var description: String {
         switch self {
+        case let .missingLocalPackageTestDependency(target, product):
+            return """
+            The local package test target `\(target)` depends on `\(product)`, which is not a configured external dependency. \
+            Add the package providing `\(product)` to `Tuist/Package.swift` and run `tuist install`. \
+            Dependencies used only by tests of a dependency package are not resolved automatically by SwiftPM.
+            """
         case let .nonSpecificGeneratedResource(targetName: targetName, generatedSource: generatedSource):
             return "Generated source files must be explicit. The target \(targetName) has a generated source file at \(generatedSource.pathString) that has a glob pattern."
         }
+    }
+}
+
+extension XcodeGraph.TargetDependency {
+    fileprivate var isXCFrameworkDependency: Bool {
+        if case .xcframework = self {
+            return true
+        }
+        return false
     }
 }
 
@@ -43,12 +61,35 @@ extension XcodeGraph.Target {
         let productName = manifest.productName
         let deploymentTargets = manifest.deploymentTargets.map { XcodeGraph.DeploymentTargets.from(manifest: $0) } ?? .empty()
 
-        let dependencies = try manifest.dependencies.flatMap {
-            try XcodeGraph.TargetDependency.from(
-                manifest: $0,
-                generatorPaths: generatorPaths,
-                externalDependencies: externalDependencies
-            )
+        var dependencies: [XcodeGraph.TargetDependency] = []
+        var externalXCFrameworkDependencies = Set<XcodeGraph.TargetDependency>()
+        for manifestDependency in manifest.dependencies {
+            let mappedDependencies: [XcodeGraph.TargetDependency]
+            do {
+                mappedDependencies = try XcodeGraph.TargetDependency.from(
+                    manifest: manifestDependency,
+                    generatorPaths: generatorPaths,
+                    externalDependencies: externalDependencies
+                )
+            } catch let TargetDependencyMapperError.invalidExternalDependency(product)
+                where manifest.metadata.tags.contains(TargetTags.localSwiftPackageTest)
+            {
+                throw TargetManifestMapperError.missingLocalPackageTestDependency(target: name, product: product)
+            }
+
+            if case .external = manifestDependency {
+                for mappedDependency in mappedDependencies {
+                    guard !mappedDependency.isXCFrameworkDependency else {
+                        if externalXCFrameworkDependencies.insert(mappedDependency).inserted {
+                            dependencies.append(mappedDependency)
+                        }
+                        continue
+                    }
+                    dependencies.append(mappedDependency)
+                }
+            } else {
+                dependencies.append(contentsOf: mappedDependencies)
+            }
         }
 
         let infoPlist = try XcodeGraph.InfoPlist.from(manifest: manifest.infoPlist, generatorPaths: generatorPaths)
@@ -113,6 +154,12 @@ extension XcodeGraph.Target {
             )
         }
 
+        let additionalHashingInputs = try await additionalHashingInputs(
+            from: manifest.additionalHashingInputs,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
+
         let environmentVariables = manifest.environmentVariables.mapValues(EnvironmentVariable.from)
         let launchArguments = manifest.launchArguments.map(LaunchArgument.from)
 
@@ -137,10 +184,19 @@ extension XcodeGraph.Target {
         }
 
         let metadata = XcodeGraph.TargetMetadata(tags: Set(manifest.metadata.tags))
-        let buildableFolders = try await manifest.buildableFolders.concurrentMap { try await XcodeGraph.BuildableFolder.from(
-            manifest: $0,
-            generatorPaths: generatorPaths
-        ) }
+        let buildableFolders = try await manifest.buildableFolders.concurrentCompactMap {
+            try await XcodeGraph.BuildableFolder.from(
+                manifest: $0,
+                generatorPaths: generatorPaths,
+                targetName: name
+            )
+        }
+
+        let foreignBuild = try await foreignBuildInfo(
+            from: manifest.foreignBuild,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
 
         return XcodeGraph.Target(
             name: name,
@@ -158,6 +214,7 @@ extension XcodeGraph.Target {
             headers: headers,
             coreDataModels: coreDataModels,
             scripts: scripts,
+            additionalHashingInputs: additionalHashingInputs,
             environmentVariables: environmentVariables,
             launchArguments: launchArguments,
             filesGroup: .group(name: "Project"),
@@ -170,11 +227,80 @@ extension XcodeGraph.Target {
             onDemandResourcesTags: onDemandResourcesTags,
             metadata: metadata,
             type: type,
-            buildableFolders: buildableFolders
+            buildableFolders: buildableFolders,
+            foreignBuild: foreignBuild
         )
     }
 
     // MARK: - Fileprivate
+
+    private static func additionalHashingInputs(
+        from manifestInputs: [ProjectDescription.Target.HashingInput],
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming
+    ) async throws -> [TargetHashingInput] {
+        var inputs: [TargetHashingInput] = []
+
+        for manifestInput in manifestInputs {
+            switch manifestInput {
+            case let .glob(path):
+                let resolvedPath = try generatorPaths.resolve(path: path)
+                let isDeclaredAbsolute = (try? AbsolutePath(validating: path.pathString)) != nil
+                guard fileSystem.isGlobPattern(path) else {
+                    inputs.append(.path(resolvedPath, isDeclaredAbsolute: isDeclaredAbsolute))
+                    continue
+                }
+
+                let pattern = String(resolvedPath.pathString.dropFirst())
+                let matchedPaths = try await fileSystem
+                    .manifestGlob(directory: AbsolutePath.root, include: [pattern])
+                    .collect()
+                    .sorted()
+
+                if matchedPaths.isEmpty {
+                    AlertController.current.warning(.alert(
+                        "Additional hashing input '\(resolvedPath.pathString)' matched no files. Verify that the path is correct."
+                    ))
+                }
+                inputs.append(contentsOf: matchedPaths.map {
+                    .path($0, isDeclaredAbsolute: isDeclaredAbsolute)
+                })
+            case let .string(value):
+                inputs.append(.string(value))
+            case let .environmentVariable(name):
+                inputs.append(.environmentVariable(name))
+            case let .script(script):
+                inputs.append(.script(script))
+            }
+        }
+
+        return inputs
+    }
+
+    private static func foreignBuildInfo(
+        from manifest: ProjectDescription.Target.ForeignBuild?,
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming
+    ) async throws -> XcodeGraph.ForeignBuild? {
+        guard let manifest else { return nil }
+        var mappedInputs: [XcodeGraph.ForeignBuild.Input] = []
+        for input in manifest.inputs {
+            let resolved = try await XcodeGraph.ForeignBuild.Input.from(
+                manifest: input,
+                generatorPaths: generatorPaths,
+                fileSystem: fileSystem
+            )
+            mappedInputs.append(contentsOf: resolved)
+        }
+        return XcodeGraph.ForeignBuild(
+            script: manifest.script,
+            inputs: mappedInputs,
+            output: try XcodeGraph.ForeignBuild.Artifact.from(
+                manifest: manifest.output,
+                generatorPaths: generatorPaths
+            )
+        )
+    }
 
     fileprivate static func resourcesAndOthers(
         manifest: ProjectDescription.Target,
@@ -186,8 +312,8 @@ extension XcodeGraph.Target {
         playgrounds: [AbsolutePath],
         coreDataModels: [AbsolutePath]
     ) {
-        let resourceFilter = { (path: AbsolutePath) -> Bool in
-            XcodeGraph.Target.isResource(path: path)
+        let resourceFilter = { (path: AbsolutePath) async throws -> Bool in
+            try await XcodeGraph.Target.isResource(path: path, fileSystem: fileSystem)
         }
 
         let privacyManifest: XcodeGraph.PrivacyManifest? = manifest.resources?.privacyManifest.map {
@@ -281,13 +407,15 @@ extension XcodeGraph.Target {
                 // Generated files don't exist during project generation, so we provide a
                 // deterministic hash based on the file path to avoid file system access
                 let generatedFileHash = try contentHasher.hash("generated-file-\(generated.glob.pathString)")
-                return XcodeGraph.SourceFile(
+                var source = XcodeGraph.SourceFile(
                     path: path,
                     compilerFlags: generated.compilerFlags,
                     contentHash: generatedFileHash,
                     codeGen: mappedCodeGen,
                     compilationCondition: generated.compilationCondition?.asGraphCondition
                 )
+                source.contentHashIsPlaceholder = true
+                return source
             }
 
         let allSources = globSources + (scriptGeneratedSources ?? [])

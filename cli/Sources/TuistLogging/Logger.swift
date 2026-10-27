@@ -1,0 +1,302 @@
+import Foundation
+@_exported import Logging
+import Path
+import TuistConstants
+import TuistEnvironment
+
+#if canImport(LoggingOSLog)
+    import LoggingOSLog
+#endif
+
+extension Logger {
+    @TaskLocal public static var current: Logger = .init(label: "dev.tuist.logger")
+}
+
+// MARK: - LoggingConfig
+
+public struct LoggingConfig {
+    public init(loggerType: LoggerType, verbose: Bool) {
+        self.loggerType = loggerType
+        self.verbose = verbose
+    }
+
+    public enum LoggerType {
+        case console
+        case detailed
+        case json
+        case quiet
+    }
+
+    public var loggerType: LoggerType
+    public var verbose: Bool
+
+    public static func `default`() -> LoggingConfig {
+        let env = Environment.current.variables
+
+        let quiet = env[Constants.EnvironmentVariables.quiet] != nil
+        let detailed = env[Constants.EnvironmentVariables.detailedLog] != nil
+        let verbose = quiet ? false : Environment.current.isVerbose
+
+        if quiet {
+            return .init(loggerType: .quiet, verbose: verbose)
+        }
+        if detailed {
+            return .init(loggerType: .detailed, verbose: verbose)
+        }
+        return .init(loggerType: .console, verbose: verbose)
+    }
+}
+
+// MARK: - SimpleFileLogHandler
+
+/// A simple cross-platform file log handler that writes to a file.
+public struct SimpleFileLogHandler: LogHandler, @unchecked Sendable {
+    private let backend: SimpleFileLogBackend
+    private let label: String
+    private let lineTransformer: @Sendable (String) -> String
+    private let shouldLog: @Sendable (Logger.Level, Logger.Message, String) -> Bool
+    public var metadata: Logger.Metadata = [:]
+    public var logLevel: Logger.Level = .info
+
+    public init(
+        label: String,
+        fileURL: URL,
+        maximumFileSize: UInt64? = nil,
+        lineTransformer: @escaping @Sendable (String) -> String = { $0 },
+        shouldLog: @escaping @Sendable (Logger.Level, Logger.Message, String) -> Bool = { _, _, _ in true }
+    ) throws {
+        self.label = label
+        backend = try SimpleFileLogBackend(fileURL: fileURL, maximumFileSize: maximumFileSize)
+        self.lineTransformer = lineTransformer
+        self.shouldLog = shouldLog
+    }
+
+    public subscript(metadataKey key: String) -> Logger.Metadata.Value? {
+        get { metadata[key] }
+        set { metadata[key] = newValue }
+    }
+
+    public func log(
+        level: Logger.Level,
+        message: Logger.Message,
+        metadata: Logger.Metadata?,
+        source: String,
+        file _: String,
+        function _: String,
+        line _: UInt
+    ) {
+        guard shouldLog(level, message, source) else { return }
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let mergedMetadata = self.metadata.merging(metadata ?? [:]) { _, new in new }
+        let metadataString = mergedMetadata.isEmpty ? "" : " \(mergedMetadata)"
+        let logMessage = lineTransformer("[\(timestamp)] [\(level)] [\(source)] \(message)\(metadataString)\n")
+        if let data = logMessage.data(using: .utf8) {
+            backend.write(data)
+        }
+    }
+
+    var fileURL: URL {
+        backend.fileURL
+    }
+
+    func contents() async throws -> String {
+        try await backend.contents()
+    }
+}
+
+private final class SimpleFileLogBackend: @unchecked Sendable {
+    let fileURL: URL
+
+    private let fileHandle: FileHandle
+    private let queue = DispatchQueue(label: "dev.tuist.logging.file-backend")
+    private let maximumFileSize: UInt64?
+    private var currentSize: UInt64
+
+    init(fileURL: URL, maximumFileSize: UInt64?) throws {
+        self.fileURL = fileURL
+        self.maximumFileSize = maximumFileSize
+        if !FileManager.default.fileExists(atPath: fileURL.path) {
+            FileManager.default.createFile(atPath: fileURL.path, contents: nil)
+        }
+        fileHandle = try FileHandle(forWritingTo: fileURL)
+        currentSize = (try FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? NSNumber)?
+            .uint64Value ?? 0
+        try fileHandle.seekToEnd()
+    }
+
+    func write(_ data: Data) {
+        queue.async {
+            self.writeToFile(data)
+        }
+    }
+
+    private func writeToFile(_ data: Data) {
+        do {
+            if let maximumFileSize, currentSize + UInt64(data.count) > maximumFileSize {
+                try fileHandle.truncate(atOffset: 0)
+                try fileHandle.seek(toOffset: 0)
+                currentSize = 0
+            }
+            try fileHandle.write(contentsOf: data)
+            currentSize += UInt64(data.count)
+        } catch {}
+    }
+
+    func contents() async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async {
+                do {
+                    try self.fileHandle.synchronize()
+                    continuation.resume(returning: try String(contentsOf: self.fileURL, encoding: .utf8))
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - VerboseLogHandler
+
+/// A `VerboseLogHandler` allows for a LogHandler to be initialised with the `debug` logLevel.
+public protocol VerboseLogHandler: LogHandler {
+    @Sendable static func verbose(label: String) -> LogHandler
+    @Sendable init(label: String)
+}
+
+extension DetailedLogHandler: VerboseLogHandler {
+    public static func verbose(label: String) -> LogHandler {
+        DetailedLogHandler(label: label, logLevel: .debug)
+    }
+}
+
+extension StandardLogHandler: VerboseLogHandler {
+    public static func verbose(label: String) -> LogHandler {
+        StandardLogHandler(label: label, logLevel: .debug)
+    }
+}
+
+extension JSONLogHandler: VerboseLogHandler {
+    public static func verbose(label: String) -> LogHandler {
+        StandardLogHandler(label: label, logLevel: .debug)
+    }
+}
+
+@Sendable private func quietLogHandler(label: String) -> LogHandler {
+    return StandardLogHandler(label: label, logLevel: .notice)
+}
+
+// MARK: - OSLog support
+
+#if canImport(LoggingOSLog)
+    public struct OSLogHandler: LogHandler, VerboseLogHandler {
+        private var osLogHandler: LoggingOSLog
+        public var metadata: Logger.Metadata = [:]
+        public var logLevel: Logger.Level
+
+        public init(label: String) {
+            osLogHandler = LoggingOSLog(label: label)
+            logLevel = .info
+        }
+
+        public init(label: String, logLevel: Logger.Level) {
+            osLogHandler = LoggingOSLog(label: label)
+            self.logLevel = logLevel
+        }
+
+        public static func verbose(label: String) -> LogHandler {
+            OSLogHandler(label: label, logLevel: .debug)
+        }
+
+        public subscript(metadataKey key: String) -> Logger.Metadata.Value? {
+            get { metadata[key] }
+            set { metadata[key] = newValue }
+        }
+
+        public func log(
+            level: Logger.Level,
+            message: Logger.Message,
+            metadata: Logger.Metadata?,
+            source: String,
+            file: String,
+            function: String,
+            line: UInt
+        ) {
+            osLogHandler.log(
+                level: level,
+                message: message,
+                metadata: metadata,
+                source: source,
+                file: file,
+                function: function,
+                line: line
+            )
+        }
+    }
+#endif
+
+// MARK: - Logger extensions
+
+extension Logger {
+    public static func loggerHandlerForNoora(logFilePath: AbsolutePath) throws -> @Sendable (String) -> any LogHandler {
+        let fileURL = URL(fileURLWithPath: logFilePath.pathString)
+        let fileLogHandler = try SimpleFileLogHandler(label: "dev.tuist.cli", fileURL: fileURL)
+        let isVerbose = Environment.current.isVerbose
+        return { label in
+            var handler = fileLogHandler
+            handler.logLevel = .debug
+            var loggers: [any LogHandler] = [handler]
+            #if canImport(LoggingOSLog)
+                loggers.append(OSLogHandler.verbose(label: label))
+            #endif
+            if isVerbose {
+                loggers.append(StandardLogHandler.verbose(label: label))
+            }
+            return MultiplexLogHandler(loggers)
+        }
+    }
+
+    public static func defaultLoggerHandler(
+        config: LoggingConfig,
+        logFilePath: AbsolutePath
+    ) throws -> @Sendable (String) -> any LogHandler {
+        let handler: VerboseLogHandler.Type
+
+        switch config.loggerType {
+        case .detailed:
+            handler = DetailedLogHandler.self
+        case .console:
+            handler = StandardLogHandler.self
+        case .json:
+            handler = JSONLogHandler.self
+        case .quiet:
+            return quietLogHandler
+        }
+
+        let fileURL = URL(fileURLWithPath: logFilePath.pathString)
+        let fileLogHandler = try SimpleFileLogHandler(label: "dev.tuist.cli", fileURL: fileURL)
+
+        let baseLoggers = { (label: String) -> [any LogHandler] in
+            var handler = fileLogHandler
+            handler.logLevel = .debug
+            var loggers: [any LogHandler] = [handler]
+            #if canImport(LoggingOSLog) && RELEASE
+                loggers.append(LoggingOSLog(label: label))
+            #endif
+            return loggers
+        }
+        if config.verbose {
+            return { label in
+                var loggers = baseLoggers(label)
+                loggers.append(handler.verbose(label: label))
+                return MultiplexLogHandler(loggers)
+            }
+        } else {
+            return { label in
+                var loggers = baseLoggers(label)
+                loggers.append(handler.init(label: label))
+                return MultiplexLogHandler(loggers)
+            }
+        }
+    }
+}

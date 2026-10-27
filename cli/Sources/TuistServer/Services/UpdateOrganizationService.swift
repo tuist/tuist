@@ -1,13 +1,14 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 
 @Mockable
 public protocol UpdateOrganizationServicing {
     func updateOrganization(
         organizationName: String,
         serverURL: URL,
-        ssoOrganization: SSOOrganization?
+        ssoOrganization: SSOOrganization?,
+        ssoAutomaticEnrollment: Bool?
     ) async throws -> ServerOrganization
 }
 
@@ -28,13 +29,14 @@ enum UpdateOrganizationServiceError: LocalizedError {
     }
 }
 
-public final class UpdateOrganizationService: UpdateOrganizationServicing {
+public struct UpdateOrganizationService: UpdateOrganizationServicing {
     public init() {}
 
     public func updateOrganization(
         organizationName: String,
         serverURL: URL,
-        ssoOrganization: SSOOrganization?
+        ssoOrganization: SSOOrganization?,
+        ssoAutomaticEnrollment: Bool?
     ) async throws -> ServerOrganization {
         let client = Client.authenticated(serverURL: serverURL)
         let ssoProvider: Operations.updateOrganization
@@ -62,6 +64,7 @@ public final class UpdateOrganizationService: UpdateOrganizationServicing {
                 ),
                 body: .json(
                     .init(
+                        sso_automatic_enrollment: ssoAutomaticEnrollment,
                         sso_organization_id: ssoOrganizationId,
                         sso_provider: ssoProvider
                     )

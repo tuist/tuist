@@ -1,0 +1,36 @@
+{
+  "name": "ChartCategory",
+  "tagName": "noora-chart-category",
+  "elementClassName": "NooraChartCategory",
+  "className": "noora-chart-category",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Describes one declarative category on a chart axis.",
+  "usage": "<noora-chart-category>Monday</noora-chart-category>",
+  "standalone": false,
+  "attributes": [
+    {
+      "name": "value",
+      "property": "value",
+      "type": "string",
+      "description": "Sets the category value instead of using text content."
+    }
+  ],
+  "properties": [],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "The category value."
+    }
+  ],
+  "cssParts": [],
+  "notes": ["Use this element inside noora-chart-axis."],
+  "examples": [
+    {
+      "id": "category",
+      "title": "Category",
+      "description": "Describe one axis category.",
+      "markup": "<noora-chart-category>Monday</noora-chart-category>"
+    }
+  ]
+}

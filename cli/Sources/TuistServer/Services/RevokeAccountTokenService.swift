@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 
 @Mockable
 public protocol RevokeAccountTokenServicing {
@@ -27,7 +27,7 @@ enum RevokeAccountTokenServiceError: LocalizedError {
     }
 }
 
-public final class RevokeAccountTokenService: RevokeAccountTokenServicing {
+public struct RevokeAccountTokenService: RevokeAccountTokenServicing {
     public init() {}
 
     public func revokeAccountToken(

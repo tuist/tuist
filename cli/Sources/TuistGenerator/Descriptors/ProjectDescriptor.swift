@@ -40,10 +40,8 @@ public struct ProjectDescriptor {
         self.schemeDescriptors = schemeDescriptors
         self.sideEffectDescriptors = sideEffectDescriptors
     }
-}
 
-#if DEBUG
-    extension ProjectDescriptor {
+    #if DEBUG
         public static func test(
             path: AbsolutePath = try! AbsolutePath(validating: "/Test"), // swiftlint:disable:this force_try
             xcodeprojPath: AbsolutePath? = nil,
@@ -77,5 +75,5 @@ public struct ProjectDescriptor {
                 sideEffectDescriptors: sideEffects
             )
         }
-    }
-#endif
+    #endif
+}

@@ -1,0 +1,165 @@
+defmodule Tuist.URLTest do
+  use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
+
+  alias Tuist.Environment
+  alias Tuist.OAuth2.SSRFGuard
+  alias Tuist.URL
+
+  describe "public_url?/1" do
+    test "accepts valid public URLs" do
+      assert URL.public_url?("https://auth.example.com/authorize")
+      assert URL.public_url?("https://login.okta.com/oauth2/token")
+    end
+
+    test "accepts http URLs in dev and test environments" do
+      assert URL.public_url?("http://sso.company.org/userinfo")
+    end
+
+    test "rejects http URLs outside of dev and test environments" do
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+
+      refute URL.public_url?("http://sso.company.org/userinfo")
+      assert URL.public_url?("https://sso.company.org/userinfo")
+    end
+
+    test "rejects non-URL values" do
+      refute URL.public_url?("not-a-url")
+      refute URL.public_url?("")
+      refute URL.public_url?(nil)
+      refute URL.public_url?("ftp://example.com")
+    end
+
+    test "rejects URLs with query strings or fragments" do
+      refute URL.public_url?("https://example.com?foo=bar")
+      refute URL.public_url?("https://example.com#section")
+    end
+
+    test "rejects localhost" do
+      refute URL.public_url?("https://localhost/authorize")
+      refute URL.public_url?("https://LOCALHOST/authorize")
+    end
+
+    test "rejects .localhost subdomains" do
+      refute URL.public_url?("https://app.localhost/authorize")
+    end
+
+    test "rejects .local hostnames" do
+      refute URL.public_url?("https://service.local/authorize")
+    end
+
+    test "rejects .internal hostnames" do
+      refute URL.public_url?("https://metadata.internal/authorize")
+    end
+
+    test "rejects loopback IPs" do
+      refute URL.public_url?("https://127.0.0.1/authorize")
+      refute URL.public_url?("https://127.255.255.255/authorize")
+    end
+
+    test "rejects private class A IPs (10.x.x.x)" do
+      refute URL.public_url?("https://10.0.0.1/authorize")
+    end
+
+    test "rejects private class B IPs (172.16-31.x.x)" do
+      refute URL.public_url?("https://172.16.0.1/authorize")
+      refute URL.public_url?("https://172.31.255.255/authorize")
+    end
+
+    test "rejects private class C IPs (192.168.x.x)" do
+      refute URL.public_url?("https://192.168.1.1/authorize")
+    end
+
+    test "rejects link-local IPs (169.254.x.x)" do
+      refute URL.public_url?("https://169.254.169.254/authorize")
+    end
+
+    test "rejects carrier-grade NAT IPs (100.64-127.x.x)" do
+      refute URL.public_url?("https://100.64.0.1/authorize")
+      refute URL.public_url?("https://100.127.255.255/authorize")
+    end
+
+    test "rejects benchmark testing IPs (198.18-19.x.x)" do
+      refute URL.public_url?("https://198.18.0.1/authorize")
+      refute URL.public_url?("https://198.19.255.255/authorize")
+    end
+
+    test "rejects unspecified address" do
+      refute URL.public_url?("https://0.0.0.0/authorize")
+    end
+  end
+
+  describe "public_host_url?/1" do
+    test "accepts a public host with a presigned-style query string" do
+      assert URL.public_host_url?(
+               "https://bucket.fly.storage.tigris.dev/runner-volume-masters/1/tuist-cache.zip?X-Amz-Signature=abc&X-Amz-Expires=60"
+             )
+    end
+
+    test "rejects private, loopback, and link-local hosts even with a query" do
+      refute URL.public_host_url?("https://localhost/x?sig=1")
+      refute URL.public_host_url?("http://127.0.0.1/x?sig=1")
+      refute URL.public_host_url?("https://10.0.0.5/x?sig=1")
+      refute URL.public_host_url?("https://169.254.169.254/latest/meta-data?sig=1")
+    end
+
+    test "rejects non-https outside dev/test and non-URL values" do
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+
+      refute URL.public_host_url?("http://bucket.example.com/x?sig=1")
+      refute URL.public_host_url?("not-a-url")
+      refute URL.public_host_url?(nil)
+    end
+  end
+
+  describe "embedded and reserved IP addresses" do
+    test "mapped, compatible and NAT64 IPv6 cannot bypass private IPv4 checks" do
+      for address <- [
+            "::ffff:127.0.0.1",
+            "::ffff:10.0.0.5",
+            "::ffff:169.254.169.254",
+            "::10.0.0.5",
+            "64:ff9b::a00:5",
+            "64:ff9b:1::1",
+            "ff02::1",
+            "fec0::1"
+          ] do
+        {:ok, ip} = :inet.parse_address(String.to_charlist(address))
+        refute URL.public_ip?(ip), address
+        assert {:error, _} = SSRFGuard.pin("https://[#{address}]/keys")
+      end
+    end
+
+    test "unspecified, multicast and reserved IPv4 ranges are not public" do
+      for ip <- [{0, 1, 2, 3}, {224, 0, 0, 1}, {239, 255, 255, 255}, {240, 1, 2, 3}, {255, 255, 255, 255}] do
+        refute URL.public_ip?(ip)
+      end
+    end
+
+    test "public embedded IPv4 addresses retain their public classification" do
+      for address <- ["::ffff:8.8.8.8", "::8.8.8.8", "64:ff9b::808:808"] do
+        {:ok, ip} = :inet.parse_address(String.to_charlist(address))
+        assert URL.public_ip?(ip)
+      end
+    end
+  end
+
+  describe "sso_url?/1" do
+    test "uses public URL validation on Tuist-hosted installations" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+
+      assert URL.sso_url?("https://keycloak.example.com/realms/master")
+      refute URL.sso_url?("https://10.0.0.1/realms/master")
+    end
+
+    test "allows private SSO URLs on self-hosted installations" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+
+      assert URL.sso_url?("https://10.0.0.1/realms/master")
+      refute URL.sso_url?("ftp://10.0.0.1/realms/master")
+      refute URL.sso_url?("https://10.0.0.1/realms/master?tenant=acme")
+    end
+  end
+end

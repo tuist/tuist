@@ -10,6 +10,7 @@ defmodule Tuist.Accounts.User do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.DeviceCode
   alias Tuist.Accounts.Oauth2Identity
+  alias Tuist.Accounts.Organization
   alias Tuist.Accounts.UserRole
   alias Tuist.Projects.Project
 
@@ -22,7 +23,21 @@ defmodule Tuist.Accounts.User do
     field :encrypted_password, :string, default: ""
     field :confirmed_at, :naive_datetime
     field :last_sign_in_at, :naive_datetime
+    field :preferred_locale, :string
+    field :active, :boolean, default: true
+    field :disabled_at, :utc_datetime
+    # Operator access grant claims (verified, from ops.tuist.dev),
+    # attached per-request by TuistWeb.OperatorGrant. Never persisted
+    # or cast; nil = no grant = fail closed.
+    field :operator_grant, :map, virtual: true
+    # Organization roles resolved up front by callers that check membership
+    # against many resources in a row (resolving cache grants walks every
+    # accessible project). Maps organization id to the role names the user holds
+    # there. Never persisted or cast; nil = not resolved = read it per check.
+    field :organization_roles, :map, virtual: true
     belongs_to :last_visited_project, Project, foreign_key: :last_visited_project_id
+    # The organization whose SCIM provisioning created the account, if any.
+    belongs_to :provisioned_by_organization, Organization, foreign_key: :provisioned_by_organization_id
 
     has_one(:account, Account, foreign_key: :user_id, on_delete: :delete_all)
     has_many(:oauth2_identities, Oauth2Identity, foreign_key: :user_id, on_delete: :delete_all)
@@ -34,7 +49,15 @@ defmodule Tuist.Accounts.User do
 
   def create_user_changeset(user, attrs) do
     user
-    |> cast(attrs, [:token, :email, :password, :encrypted_password, :confirmed_at, :created_at])
+    |> cast(attrs, [
+      :token,
+      :email,
+      :password,
+      :encrypted_password,
+      :confirmed_at,
+      :created_at,
+      :provisioned_by_organization_id
+    ])
     |> update_change(:email, &String.downcase/1)
     |> validate_required([:token, :email])
     |> validate_format(:email, @valid_email_regex, message: "must be a valid email address")
@@ -123,6 +146,25 @@ defmodule Tuist.Accounts.User do
   def confirm_changeset(user) do
     now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
     change(user, confirmed_at: now)
+  end
+
+  def active_changeset(user, active) when is_boolean(active) do
+    change(user, active: active)
+  end
+
+  def email_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:email])
+    |> update_change(:email, &String.downcase/1)
+    |> validate_required([:email])
+    |> validate_format(:email, @valid_email_regex, message: "must be a valid email address")
+    |> unique_constraint(:email, name: "index_users_on_email")
+  end
+
+  def preferred_locale_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:preferred_locale])
+    |> validate_inclusion(:preferred_locale, Tuist.Locale.supported_locales())
   end
 
   def gravatar_url(%__MODULE__{email: email}) do

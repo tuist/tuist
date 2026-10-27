@@ -1,0 +1,1429 @@
+msgid ""
+msgstr ""
+"Language: ka\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:950
+#, elixir-autogen, elixir-format
+msgid "%{average_build_time}s"
+msgstr "%{average_build_time}წმ"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:102
+#: lib/tuist_web/live/xcode_overview_live.html.heex:229
+#, elixir-autogen, elixir-format
+msgid "%{binary_cache_effectiveness}%"
+msgstr "%{binary_cache_effectiveness}%"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:164
+#, elixir-autogen, elixir-format
+msgid "%{duration}s"
+msgstr "%{duration}წმ"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:241
+#, elixir-autogen, elixir-format
+msgid "%{selective_test_effectiveness}%"
+msgstr "%{selective_test_effectiveness}%"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:133
+#, elixir-autogen, elixir-format
+msgid "%{selective_tests_effectiveness}%"
+msgstr "%{selective_tests_effectiveness}%"
+
+#: lib/tuist_web/live/projects_live.ex:242
+#, elixir-autogen, elixir-format
+msgid "All projects"
+msgstr "ყველა პროექტი"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:3
+#, elixir-autogen, elixir-format
+msgid "Analytics"
+msgstr "ანალიტიკა"
+
+#: lib/tuist_web/live/project_notifications_live.ex:699
+#: lib/tuist_web/live/project_notifications_live.ex:702
+#: lib/tuist_web/live/xcode_overview_live.ex:222
+#: lib/tuist_web/live/xcode_overview_live.html.heex:15
+#: lib/tuist_web/live/xcode_overview_live.html.heex:755
+#, elixir-autogen, elixir-format
+msgid "Any"
+msgstr "ნებისმიერი"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:55
+#: lib/tuist_web/live/project_settings_live.html.heex:79
+#, elixir-autogen, elixir-format
+msgid "Anyone with the link"
+msgstr "ყველა, ვისაც ამ ლინკი აქვს"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:599
+#, elixir-autogen, elixir-format
+msgid "App:"
+msgstr "აპლიკაცია:"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:176
+#, elixir-autogen, elixir-format
+msgid "Are you sure you want to delete this?"
+msgstr "დარწმუნებული ხართ, რომ გინდათ მისი წაშლა?"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:154
+#: lib/tuist_web/live/xcode_overview_live.html.heex:948
+#: lib/tuist_web/live/xcode_overview_live.html.heex:1017
+#, elixir-autogen, elixir-format
+msgid "Average build time"
+msgstr "მშენებლობის საშუალო დრო"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:156
+#, elixir-autogen, elixir-format
+msgid "Average time it takes to build a project as reported from Xcode post actions."
+msgstr "პროექტის აშენების საშუალო დრო, როგორც ეს აისახება Xcode-ის შემდგომი მოქმედებებიდან."
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:439
+#, elixir-autogen, elixir-format
+msgid "Binary cache and selective testing: no data yet"
+msgstr "ბინარული ქეში და შერჩევითი ტესტირება: ჯერ მონაცემები არ არსებობს"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:383
+#, elixir-autogen, elixir-format
+msgid "Build time"
+msgstr "აშენების დრო"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:346
+#, elixir-autogen, elixir-format
+msgid "Build time saved"
+msgstr "შენახული აშენების დრო"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:743
+#, elixir-autogen, elixir-format
+msgid "Builds"
+msgstr "შენადებები"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:720
+#, elixir-autogen, elixir-format
+msgid "Bundle install size"
+msgstr "ბუნდინების ინსტალაციის ზომა"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:25
+#: lib/tuist_web/live/project_bundle_settings_live.ex:23
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:25
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:32
+#: lib/tuist_web/live/project_notifications_live.html.heex:25
+#: lib/tuist_web/live/project_settings_live.html.heex:25
+#: lib/tuist_web/live/xcode_overview_live.html.heex:591
+#, elixir-autogen, elixir-format
+msgid "Bundles"
+msgstr "ბუნდინები"
+
+#: lib/tuist_web/live/project_notifications_live.ex:701
+#: lib/tuist_web/live/xcode_overview_live.ex:224
+#: lib/tuist_web/live/xcode_overview_live.html.heex:23
+#: lib/tuist_web/live/xcode_overview_live.html.heex:763
+#, elixir-autogen, elixir-format
+msgid "CI"
+msgstr "CI"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:92
+#: lib/tuist_web/live/xcode_overview_live.html.heex:227
+#: lib/tuist_web/live/xcode_overview_live.html.heex:309
+#, elixir-autogen, elixir-format
+msgid "Cache effectiveness"
+msgstr "ქეშის ეფექტურობა"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:94
+#, elixir-autogen, elixir-format
+msgid "Cache effectiveness represents the combined hit rate of both Module cache and Xcode cache, showing the percentage of cacheable items that were resolved from cache rather than being rebuilt."
+msgstr "ქეშის ეფექტურობა გამოხატავს მოდულის ქეშისა და Xcode-ის ქეშის გაერთიანებულ დარტყმის მაჩვენებელს, რაც აჩვენებს ქეშირებული ელემენტების პროცენტს, რომლებიც ქეშიდან განისაზღვრება, ხელახლა აშენების ნაცვლად."
+
+#: lib/tuist_web/live/project_automations_live.html.heex:839
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:190
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:349
+#: lib/tuist_web/live/project_notifications_live.html.heex:168
+#: lib/tuist_web/live/project_notifications_live.html.heex:491
+#: lib/tuist_web/live/project_notifications_live.html.heex:835
+#: lib/tuist_web/live/project_settings_live.html.heex:140
+#: lib/tuist_web/live/project_settings_live.html.heex:212
+#: lib/tuist_web/live/xcode_overview_live.html.heex:71
+#: lib/tuist_web/live/xcode_overview_live.html.heex:639
+#: lib/tuist_web/live/xcode_overview_live.html.heex:811
+#, elixir-autogen, elixir-format
+msgid "Cancel"
+msgstr "გაუქმება"
+
+#: lib/tuist_web/live/create_project_live.ex:108
+#, elixir-autogen, elixir-format
+msgid "Continue"
+msgstr "გაგრძელება"
+
+#: lib/tuist_web/live/projects_live.ex:351
+#, elixir-autogen, elixir-format
+msgid "Create a new project"
+msgstr "ახალი პროექტის შექმნა"
+
+#: lib/tuist_web/live/create_project_live.ex:57
+#, elixir-autogen, elixir-format
+msgid "Create a project"
+msgstr "პროექტის შექმნა"
+
+#: lib/tuist_web/live/projects_live.ex:337
+#, elixir-autogen, elixir-format
+msgid "Create project"
+msgstr "პროექტის შექმნა"
+
+#: lib/tuist_web/live/projects_live.ex:183
+#: lib/tuist_web/live/projects_live.ex:232
+#: lib/tuist_web/live/projects_live.ex:306
+#, elixir-autogen, elixir-format
+msgid "Created %{time}"
+msgstr "შექმენილია %{time}"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:220
+#, elixir-autogen, elixir-format
+msgid "Delete"
+msgstr "წაშლა"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:161
+#: lib/tuist_web/live/project_settings_live.html.heex:182
+#, elixir-autogen, elixir-format
+msgid "Delete project"
+msgstr "პროექტის წაშლა"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:194
+#, elixir-autogen, elixir-format
+msgid "Deleting the project will permanently remove all of its data"
+msgstr "პროექტის წაშლა სამუდამოდ წაშლის მის ყველა მონაცემს"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:201
+#, elixir-autogen, elixir-format
+msgid "Enter this project's name to confirm"
+msgstr "დაასახელეთ პროექტი დასადასტურებლად"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:11
+#: lib/tuist_web/live/xcode_overview_live.html.heex:751
+#, elixir-autogen, elixir-format
+msgid "Environment:"
+msgstr "გარემო:"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:855
+#, elixir-autogen, elixir-format
+msgid "Failed builds"
+msgstr "შეცდომით დასრულებული შენადებები"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:477
+#, elixir-autogen, elixir-format
+msgid "Failed runs"
+msgstr "შეცდომით დასრულებული გაშვებები"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:8
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:8
+#: lib/tuist_web/live/project_notifications_live.html.heex:8
+#: lib/tuist_web/live/project_settings_live.html.heex:8
+#: lib/tuist_web/live/project_settings_live.html.heex:31
+#, elixir-autogen, elixir-format
+msgid "General"
+msgstr "ძირითადი"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "General access"
+msgstr "საერთო წვდომა"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:213
+#: lib/tuist_web/live/project_notifications_live.ex:726
+#: lib/tuist_web/live/xcode_overview_live.html.heex:671
+#, elixir-autogen, elixir-format
+msgid "Install size"
+msgstr "ინსტალაციის ზომა"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:907
+#, elixir-autogen, elixir-format
+msgid "Last 30 runs"
+msgstr "ბოლო 30 გაშვება"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:530
+#, elixir-autogen, elixir-format
+msgid "Last 40 runs"
+msgstr "ბოლო 40 გაშვება"
+
+#: lib/tuist_web/live/projects_live.ex:178
+#: lib/tuist_web/live/projects_live.ex:227
+#: lib/tuist_web/live/projects_live.ex:301
+#, elixir-autogen, elixir-format
+msgid "Last interacted with %{time}"
+msgstr "ბოლო ინტერაქცია მოხდა %{time} წინ"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:571
+#, elixir-autogen, elixir-format
+msgid "Latest app previews"
+msgstr "ბოლო აპლიკაციების პრევიუ"
+
+#: lib/tuist_web/live/project_notifications_live.ex:700
+#: lib/tuist_web/live/xcode_overview_live.ex:223
+#: lib/tuist_web/live/xcode_overview_live.html.heex:31
+#: lib/tuist_web/live/xcode_overview_live.html.heex:771
+#, elixir-autogen, elixir-format
+msgid "Local"
+msgstr "ლოკალური"
+
+#: lib/tuist_web/live/create_project_live.ex:86
+#: lib/tuist_web/live/project_automations_live.html.heex:73
+#: lib/tuist_web/live/project_automations_live.html.heex:880
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:107
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:171
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:216
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:265
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:330
+#: lib/tuist_web/live/project_notifications_live.html.heex:278
+#: lib/tuist_web/live/project_notifications_live.html.heex:422
+#: lib/tuist_web/live/project_notifications_live.html.heex:516
+#: lib/tuist_web/live/project_notifications_live.html.heex:583
+#: lib/tuist_web/live/project_notifications_live.html.heex:755
+#: lib/tuist_web/live/projects_live.ex:360
+#, elixir-autogen, elixir-format
+msgid "Name"
+msgstr "სახელი"
+
+#: lib/tuist_web/live/projects_live.ex:344
+#, elixir-autogen, elixir-format
+msgid "New project"
+msgstr "ახალი პროექტი"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:1032
+#, elixir-autogen, elixir-format
+msgid "No builds yet"
+msgstr "ჯერ კიდევ არ არის შენადებები"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:734
+#, elixir-autogen, elixir-format
+msgid "No bundles yet"
+msgstr "ჯერ კიდევ არ არის ბუნდინები"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:581
+#, elixir-autogen, elixir-format
+msgid "No previews yet"
+msgstr "ჯერ არ არის პრევიუები"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:912
+#, elixir-autogen, elixir-format
+msgid "No recent builds yet"
+msgstr "აქამდე არ არის გამოშვებული შენადებები"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:53
+#: lib/tuist_web/live/project_settings_live.html.heex:67
+#, elixir-autogen, elixir-format
+msgid "Only organization members"
+msgstr "მხოლოდ ორგანიზაციის წევრებს"
+
+#: lib/tuist_web/live/overview_live.ex:15
+#, elixir-autogen, elixir-format
+msgid "Overview"
+msgstr "ზედამხედველობა"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:850
+#, elixir-autogen, elixir-format
+msgid "Passed builds"
+msgstr "წარმატებული შენადებები"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:472
+#, elixir-autogen, elixir-format
+msgid "Passed runs"
+msgstr "წარმატებული გაშვებები"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:39
+#, elixir-autogen, elixir-format
+msgid "Preview access"
+msgstr "პრევიუების წვდომა"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:544
+#, elixir-autogen, elixir-format
+msgid "Previews"
+msgstr "პრევიუები"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:132
+#: lib/tuist_web/live/project_settings_live.html.heex:204
+#, elixir-autogen, elixir-format
+msgid "Project name"
+msgstr "პროექტის სახელი"
+
+#: lib/tuist_web/live/projects_live.ex:34
+#: lib/tuist_web/live/projects_live.ex:125
+#, elixir-autogen, elixir-format
+msgid "Projects"
+msgstr "პროექტები"
+
+#: lib/tuist_web/live/projects_live.ex:193
+#, elixir-autogen, elixir-format
+msgid "Recent projects"
+msgstr "უახლესი პროექტები"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:148
+#, elixir-autogen, elixir-format
+msgid "Rename"
+msgstr "სახელის შეცვლა"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:95
+#: lib/tuist_web/live/project_settings_live.html.heex:116
+#, elixir-autogen, elixir-format
+msgid "Rename project"
+msgstr "პროექტის სახელის შეცვლა"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:110
+#, elixir-autogen, elixir-format
+msgid "Rename your project?"
+msgstr "გასწორად კლავ პროექტს?"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:127
+#, elixir-autogen, elixir-format
+msgid "Renaming can have unexpected consequences"
+msgstr "სახელის შეცვლას შესაძლოა მოყოლილი ჰქონდეს გაუთვალისწინებელი შედეგები"
+
+#: lib/tuist_web/live/project_settings_live.html.heex:98
+#, elixir-autogen, elixir-format
+msgid "Renaming your project can have unintended side effects."
+msgstr "პროექტის სახელის შეცვლას შესაძლოა მოყოლილი ჰქონდეს გაუთვალისწინებელი გვერდითი ეფექტები."
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:535
+#, elixir-autogen, elixir-format
+msgid "Runs: no data yet"
+msgstr "გაშვებები: მონაცემები არ არის"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:409
+#, elixir-autogen, elixir-format
+msgid "Saved"
+msgstr "შენახული"
+
+#: lib/tuist_web/live/projects_live.ex:254
+#, elixir-autogen, elixir-format
+msgid "Search projects..."
+msgstr "ძებნა პროექტებში..."
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:123
+#: lib/tuist_web/live/xcode_overview_live.html.heex:239
+#: lib/tuist_web/live/xcode_overview_live.html.heex:324
+#, elixir-autogen, elixir-format
+msgid "Selective test effectiveness"
+msgstr "შერჩევითი ტესტების ეფექტურობა"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:125
+#, elixir-autogen, elixir-format
+msgid "Selective test effectiveness represents the ratio of selective test hits compared to selective test misses."
+msgstr "შერჩევითი ტესტების ეფექტურობა წარმოადგენს შერჩევითი ტესტების შემოსხმებისა და გამოტოვების თანაფარდობას."
+
+#: lib/tuist_web/live/project_settings_live.html.heex:42
+#, elixir-autogen, elixir-format
+msgid "Set your previews to be public or private by default."
+msgstr "დააყენეთ პრევიუები საჯარო ან პირად სახით, როგორც ნაგულისხმევი."
+
+#: lib/tuist_web/live/project_settings_live.ex:25
+#, elixir-autogen, elixir-format
+msgid "Settings"
+msgstr "პარამეტრები"
+
+#: lib/tuist_web/live/projects_live.ex:215
+#, elixir-autogen, elixir-format
+msgid "Supported platforms"
+msgstr "მხარდომილი პლატფორმები"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:449
+#, elixir-autogen, elixir-format
+msgid "Tests"
+msgstr "ტესტები"
+
+#: lib/tuist_web/live/projects_live.ex:24
+#, elixir-autogen, elixir-format
+msgid "The page you are looking for doesn't exist or has been moved."
+msgstr "পৃষ্ঠা, რომელსაც ეძებთ, არ არსებობს ან გადაიტანეს."
+
+#: lib/tuist_web/live/project_settings_live.html.heex:164
+#, elixir-autogen, elixir-format
+msgid "This action cannot be undone."
+msgstr "ეს ქმედება გაუქმებადი არ არის."
+
+#: lib/tuist_web/live/create_project_live.ex:49
+#, elixir-autogen, elixir-format
+msgid "Tuist Logo"
+msgstr "Tuist-ის ლოგო"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:453
+#: lib/tuist_web/live/xcode_overview_live.html.heex:548
+#: lib/tuist_web/live/xcode_overview_live.html.heex:941
+#, elixir-autogen, elixir-format
+msgid "View more"
+msgstr "დამატებითი ნახვა"
+
+#: lib/tuist_web/live/project_automations_live.ex:24
+#: lib/tuist_web/live/project_bundle_settings_live.ex:15
+#: lib/tuist_web/live/project_notifications_live.ex:26
+#: lib/tuist_web/live/project_settings_live.ex:15
+#, elixir-autogen, elixir-format
+msgid "You are not authorized to perform this action."
+msgstr "თქვენ არ გაქვთ უფლებები ამ მოქმედების შესასრულებლად."
+
+#: lib/tuist_web/live/xcode_overview_live.ex:220
+#, elixir-autogen, elixir-format
+msgid "since last month"
+msgstr "წინა თვის შემდეგ"
+
+#: lib/tuist_web/live/xcode_overview_live.ex:217
+#, elixir-autogen, elixir-format
+msgid "since last week"
+msgstr "წინა კვირის შემდეგ"
+
+#: lib/tuist_web/live/xcode_overview_live.ex:218
+#, elixir-autogen, elixir-format
+msgid "since last year"
+msgstr "წინა წლის შემდეგ"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:80
+#: lib/tuist_web/live/xcode_overview_live.html.heex:648
+#: lib/tuist_web/live/xcode_overview_live.html.heex:818
+#, elixir-autogen, elixir-format
+msgid "Apply"
+msgstr "გამოსაყენებელი"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:62
+#: lib/tuist_web/live/xcode_overview_live.html.heex:630
+#: lib/tuist_web/live/xcode_overview_live.html.heex:802
+#, elixir-autogen, elixir-format
+msgid "Custom"
+msgstr "მორგებული"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:59
+#: lib/tuist_web/live/xcode_overview_live.html.heex:627
+#: lib/tuist_web/live/xcode_overview_live.html.heex:799
+#, elixir-autogen, elixir-format
+msgid "Last 12 months"
+msgstr "ბოლო 12 თვე"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:44
+#: lib/tuist_web/live/xcode_overview_live.html.heex:784
+#, elixir-autogen, elixir-format
+msgid "Last 24 hours"
+msgstr "ბოლო 24 საათი"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:54
+#: lib/tuist_web/live/xcode_overview_live.html.heex:622
+#: lib/tuist_web/live/xcode_overview_live.html.heex:794
+#, elixir-autogen, elixir-format
+msgid "Last 30 days"
+msgstr "ბოლო 30 დღე"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:49
+#: lib/tuist_web/live/xcode_overview_live.html.heex:617
+#: lib/tuist_web/live/xcode_overview_live.html.heex:789
+#, elixir-autogen, elixir-format
+msgid "Last 7 days"
+msgstr "ბოლო 7 დღე"
+
+#: lib/tuist_web/live/xcode_overview_live.ex:219
+#, elixir-autogen, elixir-format
+msgid "since last period"
+msgstr "წინა პერიოდიდან"
+
+#: lib/tuist_web/live/xcode_overview_live.ex:216
+#, elixir-autogen, elixir-format
+msgid "since yesterday"
+msgstr "გუშინიდან"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:539
+#, elixir-autogen, elixir-format
+msgid "Channel"
+msgstr "არხი"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:75
+#, elixir-autogen, elixir-format
+msgid "Configure"
+msgstr "კონფიგურაცია"
+
+#: lib/tuist_web/live/project_notifications_live.ex:580
+#: lib/tuist_web/live/project_notifications_live.html.heex:92
+#: lib/tuist_web/live/project_notifications_live.html.heex:109
+#, elixir-autogen, elixir-format
+msgid "Daily"
+msgstr "დღიური"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:85
+#, elixir-autogen, elixir-format
+msgid "Frequency"
+msgstr "ხშირობა"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:91
+#: lib/tuist_web/live/project_notifications_live.html.heex:98
+#, elixir-autogen, elixir-format
+msgid "Never"
+msgstr "არასოდეს"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:849
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:358
+#: lib/tuist_web/live/project_notifications_live.html.heex:176
+#, elixir-autogen, elixir-format
+msgid "Save"
+msgstr "შენახვა"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:46
+#, elixir-autogen, elixir-format
+msgid "Send test report"
+msgstr "გაგზავნეთ ტესტის ანგარიში"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:141
+#, elixir-autogen, elixir-format
+msgid "Time"
+msgstr "ვადა"
+
+#: lib/tuist_web/live/project_notifications_live.ex:566
+#, elixir-autogen, elixir-format
+msgid "All days"
+msgstr "ყველა დღე"
+
+#: lib/tuist_web/live/project_notifications_live.ex:564
+#, elixir-autogen, elixir-format
+msgid "Select days"
+msgstr "აირჩიეთ დღეები"
+
+#: lib/tuist_web/live/project_notifications_live.ex:608
+#, elixir-autogen, elixir-format
+msgid "Average"
+msgstr "საშუალო"
+
+#: lib/tuist_web/live/project_notifications_live.ex:600
+#, elixir-autogen, elixir-format
+msgid "Build duration"
+msgstr "აშენების ხანგრძლივობა"
+
+#: lib/tuist_web/live/project_notifications_live.ex:602
+#, elixir-autogen, elixir-format
+msgid "Cache hit rate"
+msgstr "ქეშის დარტყმის მაჩვენებელი"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:292
+#: lib/tuist_web/live/project_notifications_live.html.heex:519
+#: lib/tuist_web/live/project_notifications_live.html.heex:598
+#, elixir-autogen, elixir-format
+msgid "Category"
+msgstr "კატეგორია"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:237
+#, elixir-autogen, elixir-format
+msgid "Get notified when metrics regress"
+msgstr "მიიღეთ შეტყობინებები, როცა მეტრიკები დეგრადირდება"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:121
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:219
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:279
+#: lib/tuist_web/live/project_notifications_live.html.heex:321
+#: lib/tuist_web/live/project_notifications_live.html.heex:522
+#: lib/tuist_web/live/project_notifications_live.html.heex:631
+#, elixir-autogen, elixir-format
+msgid "Metric"
+msgstr "მეტრიკა"
+
+#: lib/tuist_web/live/project_notifications_live.ex:601
+#, elixir-autogen, elixir-format
+msgid "Test duration"
+msgstr "ტესტის ხანგრძლივობა"
+
+#: lib/tuist_web/live/project_automations_live.ex:714
+#: lib/tuist_web/live/project_automations_live.html.heex:221
+#: lib/tuist_web/live/project_automations_live.html.heex:627
+#: lib/tuist_web/live/project_notifications_live.html.heex:392
+#: lib/tuist_web/live/project_notifications_live.html.heex:532
+#: lib/tuist_web/live/project_notifications_live.html.heex:715
+#, elixir-autogen, elixir-format
+msgid "Rolling window"
+msgstr "გლდანის ფანჯარა"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:255
+#, elixir-autogen, elixir-format
+msgid "Add alert rule"
+msgstr "შეტყობინების წესის დამატება"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:285
+#: lib/tuist_web/live/project_notifications_live.html.heex:590
+#, elixir-autogen, elixir-format
+msgid "Alert name"
+msgstr "შეტყობინების სახელი"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:234
+#, elixir-autogen, elixir-format
+msgid "Alert rules"
+msgstr "შეტყობინების წესები"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:69
+#, elixir-autogen, elixir-format
+msgid "Configure schedule"
+msgstr "გრაფიკის კონფიგურაცია"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:42
+#, elixir-autogen, elixir-format
+msgid "Configure your report notifications"
+msgstr "დაყენეთ შეტყობინებების პარამეტრები"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:379
+#: lib/tuist_web/live/project_notifications_live.html.heex:698
+#, elixir-autogen, elixir-format
+msgid "Deviation (%)"
+msgstr "შეცდომა (%)"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:14
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:14
+#: lib/tuist_web/live/project_notifications_live.ex:32
+#: lib/tuist_web/live/project_notifications_live.html.heex:14
+#: lib/tuist_web/live/project_notifications_live.html.heex:32
+#: lib/tuist_web/live/project_settings_live.html.heex:14
+#, elixir-autogen, elixir-format
+msgid "Notifications"
+msgstr "შეტყობინებები"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:122
+#, elixir-autogen, elixir-format
+msgid "Repeat"
+msgstr "გაიმეოროს"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:39
+#, elixir-autogen, elixir-format
+msgid "Reports"
+msgstr "ანგარიშები"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:57
+#, elixir-autogen, elixir-format
+msgid "Schedule"
+msgstr "გრაფიკი"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:195
+#, elixir-autogen, elixir-format
+msgid "Slack"
+msgstr "Slack"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:438
+#: lib/tuist_web/live/project_automations_live.html.heex:744
+#: lib/tuist_web/live/project_notifications_live.html.heex:206
+#: lib/tuist_web/live/project_notifications_live.html.heex:216
+#: lib/tuist_web/live/project_notifications_live.html.heex:472
+#: lib/tuist_web/live/project_notifications_live.html.heex:809
+#: lib/tuist_web/live/project_notifications_live.html.heex:821
+#, elixir-autogen, elixir-format
+msgid "Select channel"
+msgstr "არხის არჩევა"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:437
+#: lib/tuist_web/live/project_automations_live.html.heex:743
+#: lib/tuist_web/live/project_notifications_live.html.heex:215
+#: lib/tuist_web/live/project_notifications_live.html.heex:471
+#: lib/tuist_web/live/project_notifications_live.html.heex:808
+#, elixir-autogen, elixir-format
+msgid "Update channel"
+msgstr "არხის განახლება"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:461
+#: lib/tuist_web/live/project_notifications_live.html.heex:797
+#, elixir-autogen, elixir-format
+msgid "Slack channel"
+msgstr "Slack არხი"
+
+#: lib/tuist_web/live/project_notifications_live.ex:723
+#, elixir-autogen, elixir-format
+msgid "average"
+msgstr "საშუალო"
+
+#: lib/tuist_web/live/project_notifications_live.ex:708
+#, elixir-autogen, elixir-format
+msgid "build time"
+msgstr "აშენების დრო"
+
+#: lib/tuist_web/live/project_notifications_live.ex:716
+#: lib/tuist_web/live/project_notifications_live.ex:718
+#, elixir-autogen, elixir-format
+msgid "builds"
+msgstr "შენადებები"
+
+#: lib/tuist_web/live/project_notifications_live.ex:714
+#, elixir-autogen, elixir-format
+msgid "cache hit rate"
+msgstr "ქეშის დარტყმის რაოდენობა"
+
+#: lib/tuist_web/live/project_notifications_live.ex:711
+#, elixir-autogen, elixir-format
+msgid "test time"
+msgstr "ტესტის დრო"
+
+#: lib/tuist_web/live/project_notifications_live.ex:717
+#, elixir-autogen, elixir-format
+msgid "tests"
+msgstr "ტესტები"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:850
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:198
+#: lib/tuist_web/live/project_notifications_live.html.heex:499
+#: lib/tuist_web/live/projects_live.ex:391
+#, elixir-autogen, elixir-format
+msgid "Create"
+msgstr "შექმენა"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:249
+#, elixir-autogen, elixir-format
+msgid "Create alert rule"
+msgstr "შეტყობინების წესის შექმნა"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:222
+#: lib/tuist_web/live/project_notifications_live.html.heex:529
+#, elixir-autogen, elixir-format
+msgid "Deviation"
+msgstr "გამორჩევა"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:542
+#, elixir-autogen, elixir-format
+msgid "None"
+msgstr "ცარიელი"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:844
+#, elixir-autogen, elixir-format
+msgid "Update"
+msgstr "განახლება"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:557
+#, elixir-autogen, elixir-format
+msgid "Update alert rule"
+msgstr "შეტყობინების წესის განახლება"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:245
+#, elixir-autogen, elixir-format
+msgid "Metrics"
+msgstr "მეტრიკები"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:872
+#, elixir-autogen, elixir-format
+msgid "Create an alert rule to get notified when metrics regress"
+msgstr "შექმენით შეტყობინების წესი, რომ მიიღოთ შეტყობინებები მეტრიკების რეგრესის დროს"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:870
+#, elixir-autogen, elixir-format
+msgid "No alert rules"
+msgstr "შეტყობინების წესები არ არის"
+
+#: lib/tuist_web/live/project_automations_live.ex:30
+#: lib/tuist_web/live/project_automations_live.html.heex:20
+#: lib/tuist_web/live/project_automations_live.html.heex:32
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:20
+#: lib/tuist_web/live/project_notifications_live.html.heex:20
+#: lib/tuist_web/live/project_settings_live.html.heex:20
+#, elixir-autogen, elixir-format
+msgid "Automations"
+msgstr "ავტომატიზაციები"
+
+#: lib/tuist_web/live/create_project_live.ex:98
+#: lib/tuist_web/live/projects_live.ex:370
+#, elixir-autogen, elixir-format
+msgid "Build system"
+msgstr "აშენების სისტემა"
+
+#: lib/tuist_web/live/create_project_live.ex:92
+#: lib/tuist_web/live/projects_live.ex:364
+#, elixir-autogen, elixir-format
+msgid "Select build system"
+msgstr "აირჩიეთ აშენების სისტემა"
+
+#: lib/tuist_web/live/project_notifications_live.ex:620
+#, elixir-autogen, elixir-format
+msgid "Alert when the <strong>%{size_label}</strong> of the latest bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle."
+msgstr "გაფრთხილება, როდესაც ბოლო ბუნდინის <strong>%{size_label}</strong> განშტოება <strong>%{git_branch}</strong> შტამზე გაიზარდა <strong>%{deviation}%</strong> წინა ბუნდინთან შედარებით."
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:365
+#: lib/tuist_web/live/project_notifications_live.html.heex:683
+#, elixir-autogen, elixir-format
+msgid "Branch"
+msgstr "შტამი"
+
+#: lib/tuist_web/live/project_notifications_live.ex:603
+#, elixir-autogen, elixir-format
+msgid "Bundle size"
+msgstr "ბუნდინის ზომა"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:214
+#: lib/tuist_web/live/project_notifications_live.ex:727
+#, elixir-autogen, elixir-format
+msgid "Download size"
+msgstr "ჩამოსატვირთი ზომა"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:343
+#: lib/tuist_web/live/project_notifications_live.html.heex:657
+#, elixir-autogen, elixir-format
+msgid "Size metric"
+msgstr "ზომის მეტრიკა"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:372
+#: lib/tuist_web/live/project_notifications_live.html.heex:690
+#, elixir-autogen, elixir-format
+msgid "e.g. main"
+msgstr "მაგ., მთავარი"
+
+#: lib/tuist_web/live/project_notifications_live.ex:686
+#, elixir-autogen, elixir-format
+msgid "%{scheme} %{unit}"
+msgstr "%{scheme} %{unit}"
+
+#: lib/tuist_web/live/project_notifications_live.ex:650
+#, elixir-autogen, elixir-format
+msgid "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>."
+msgstr "გაფრთხილება, როდესაც ბოლო <strong>%{rolling_window_size} %{current_unit}</strong> პერიოდში <strong>%{metric_category}</strong> შემცირდა <strong>%{deviation}%</strong> წინა <strong>%{rolling_window_size} %{unit}</strong> პერიოდთან შედარებით."
+
+#: lib/tuist_web/live/project_notifications_live.ex:661
+#, elixir-autogen, elixir-format
+msgid "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>."
+msgstr "გაფრთხილება, როდესაც ბოლო <strong>%{rolling_window_size} %{current_unit}</strong> პერიოდში <strong>%{metric_category}</strong> გაიზარდა <strong>%{deviation}%</strong> წინა <strong>%{rolling_window_size} %{unit}</strong> პერიოდთან შედარებით."
+
+#: lib/tuist_web/live/project_notifications_live.ex:628
+#, elixir-autogen, elixir-format
+msgid "Alert when the <strong>%{size_label}</strong> of the latest <strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle."
+msgstr "გაფრთხილება, როდესაც ბოლო <strong>%{bundle_name}</strong> ბუნდინის <strong>%{size_label}</strong> <strong>%{git_branch}</strong> შტამზე გაიზარდა <strong>%{deviation}%</strong> წინა ბუნდინთან შედარებით."
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:408
+#: lib/tuist_web/live/project_notifications_live.html.heex:737
+#, elixir-autogen, elixir-format
+msgid "Scheme"
+msgstr "სქემა"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:178
+#: lib/tuist_web/live/project_notifications_live.html.heex:415
+#: lib/tuist_web/live/project_notifications_live.html.heex:429
+#: lib/tuist_web/live/project_notifications_live.html.heex:744
+#: lib/tuist_web/live/project_notifications_live.html.heex:762
+#, elixir-autogen, elixir-format
+msgid "e.g. MyApp (optional)"
+msgstr "მაგ., MyApp (არასავალდებულო)"
+
+#: lib/tuist_web/live/project_notifications_live.ex:689
+#, elixir-autogen, elixir-format
+msgid "%{environment} %{unit}"
+msgstr "%{environment} %{unit}"
+
+#: lib/tuist_web/live/project_notifications_live.ex:679
+#, elixir-autogen, elixir-format
+msgid "%{scheme} %{environment} %{unit}"
+msgstr "%{scheme} %{environment} %{unit}"
+
+#: lib/tuist_web/live/project_notifications_live.html.heex:439
+#: lib/tuist_web/live/project_notifications_live.html.heex:773
+#, elixir-autogen, elixir-format
+msgid "Environment"
+msgstr "გარემო"
+
+#: lib/tuist_web/live/project_notifications_live.ex:704
+#, elixir-autogen, elixir-format
+msgid "local"
+msgstr "ლოკალური"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:87
+#, elixir-autogen, elixir-format
+msgid "Add threshold"
+msgstr "პარამეტრის დამატება"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:235
+#, elixir-autogen, elixir-format
+msgid "All"
+msgstr "ყველა"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:157
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:225
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:316
+#, elixir-autogen, elixir-format
+msgid "Baseline branch"
+msgstr "საფუძვლის შტამი"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:42
+#, elixir-autogen, elixir-format
+msgid "Block PRs when bundle size exceeds a threshold compared to a baseline branch"
+msgstr "PR-ების დაბლოკვა, როდესაც ბუნდინის ზომა დაფუძნებული შტამისთან შედარებით გადაცდება პარამეტრს"
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:221
+#, elixir-autogen, elixir-format
+msgid "Block PRs when the <strong>%{size_label}</strong> increases by more than <strong>%{deviation}%</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
+msgstr "PR-ების დაბლოკვა, როდესაც ბუნდინის <strong>%{size_label}</strong> იზრდება <strong>%{deviation}%</strong>-ზე მეტი ბოლო ბუნდინთან შედარებით <strong>%{baseline_branch}</strong> შტამზე."
+
+#: lib/tuist_web/live/project_bundle_settings_live.ex:229
+#, elixir-autogen, elixir-format
+msgid "Block PRs when the <strong>%{size_label}</strong> of <strong>%{bundle_name}</strong> increases by more than <strong>%{deviation}%</strong> compared to the latest bundle on <strong>%{baseline_branch}</strong>."
+msgstr "PR-ების დაბლოკვა, როდესაც ბუნდინის <strong>%{bundle_name}</strong>-ის <strong>%{size_label}</strong> იზრდება <strong>%{deviation}%</strong>-ს გადააჭარბებს ბოლო ბუნდინთან შედარებით <strong>%{baseline_branch}</strong> შტამზე."
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:228
+#, elixir-autogen, elixir-format
+msgid "Bundle name"
+msgstr "ბუნდინის სახელი"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:386
+#, elixir-autogen, elixir-format
+msgid "Create a threshold to block PRs when bundle size exceeds a limit"
+msgstr "შექმენით პარამეტრი PR-ების დაბლოკვისთვის, როცა ბუნდინის ზომა გადაცდება ლიმიტს"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:81
+#, elixir-autogen, elixir-format
+msgid "Create size threshold"
+msgstr "ზომის პარამეტრის შექმნა"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:143
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:302
+#, elixir-autogen, elixir-format
+msgid "Deviation %"
+msgstr "შეცდომა %"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:384
+#, elixir-autogen, elixir-format
+msgid "No size thresholds"
+msgstr "ზომის პარამეტრები არ არის"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:39
+#, elixir-autogen, elixir-format
+msgid "Size thresholds"
+msgstr "ზომის პარამეტრები"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:114
+#, elixir-autogen, elixir-format
+msgid "Threshold name"
+msgstr "პარამეტრის სახელი"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:77
+#, elixir-autogen, elixir-format
+msgid "Thresholds"
+msgstr "პარამეტრები"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:244
+#, elixir-autogen, elixir-format
+msgid "Update size threshold"
+msgstr "ზომის პარამეტრის განახლება"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:67
+#, elixir-autogen, elixir-format
+msgid "Connect GitHub"
+msgstr "GitHub-ს დაკავშირება"
+
+#: lib/tuist_web/live/project_bundle_settings_live.html.heex:57
+#, elixir-autogen, elixir-format
+msgid "Connect the Tuist GitHub App to enable bundle size check runs on PRs."
+msgstr "დააკავშირეთ Tuist-ის GitHub აპი, რომ PR-ებზე ბუნდინის ზომის შემოწმება ჩაატაროთ."
+
+#: lib/tuist_web/live/create_project_live.ex:59
+#, elixir-autogen, elixir-format
+msgid "Create a Tuist project"
+msgstr "Tuist პროექტის შექმნა"
+
+#: lib/tuist_web/live/create_project_live.ex:71
+#, elixir-autogen, elixir-format
+msgid "Organization"
+msgstr "ორგანიზაცია"
+
+#: lib/tuist_web/live/create_project_live.ex:65
+#, elixir-autogen, elixir-format
+msgid "Select organization"
+msgstr "ორგანიზაციის არჩევა"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:311
+#, elixir-autogen, elixir-format
+msgid "Action"
+msgstr "მოქმედება"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:322
+#, elixir-autogen, elixir-format
+msgid "Add action"
+msgstr "მოქმედების დამატება"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:60
+#, elixir-autogen, elixir-format
+msgid "Add automation"
+msgstr "ავტომატიზაციის დამატება"
+
+#: lib/tuist_web/live/project_automations_live.ex:630
+#, elixir-autogen, elixir-format
+msgid "Add label"
+msgstr "ნიშნის დამატება"
+
+#: lib/tuist_web/live/project_automations_live.ex:651
+#, elixir-autogen, elixir-format
+msgid "Add label: %{label}"
+msgstr "ნიშნის დამატება: %{label}"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:551
+#, elixir-autogen, elixir-format
+msgid "Add recovery action"
+msgstr "აღდგენის მოქმედების დამატება"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:492
+#: lib/tuist_web/live/project_automations_live.html.heex:798
+#, elixir-autogen, elixir-format
+msgid "Available variables:"
+msgstr "ხელმისაწვდომი ცვლადები:"
+
+#: lib/tuist_web/live/project_automations_live.ex:628
+#: lib/tuist_web/live/project_automations_live.html.heex:332
+#: lib/tuist_web/live/project_automations_live.html.heex:561
+#, elixir-autogen, elixir-format
+msgid "Change state"
+msgstr "შედეგის შეცვლა"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:386
+#: lib/tuist_web/live/project_automations_live.html.heex:692
+#, elixir-autogen, elixir-format
+msgid "Change state to"
+msgstr "შედეგის შეცვლა შემდეგზე"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:91
+#, elixir-autogen, elixir-format
+msgid "Condition"
+msgstr "პირობა"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:42
+#, elixir-autogen, elixir-format
+msgid "Continuously monitor tests and respond with automated actions."
+msgstr "დაუჯერებლად დააკვირდით ტესტებს და იმოქმედეთ ავტომატიზირებული მოქმედებებით."
+
+#: lib/tuist_web/live/project_automations_live.html.heex:53
+#, elixir-autogen, elixir-format
+msgid "Create automation"
+msgstr "ავტომატიზაციის შექმნა"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:906
+#, elixir-autogen, elixir-format
+msgid "Delete this automation?"
+msgstr "გსურთ ეს ავტომატიზაცია წაშალოთ?"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:52
+#, elixir-autogen, elixir-format
+msgid "Edit automation"
+msgstr "ავტომატიზაციის შეცვლა"
+
+#: lib/tuist_web/live/project_automations_live.ex:620
+#, elixir-autogen, elixir-format
+msgid "Enable"
+msgstr "ჩაერთეთ"
+
+#: lib/tuist_web/live/project_automations_live.ex:625
+#: lib/tuist_web/live/project_automations_live.html.heex:412
+#: lib/tuist_web/live/project_automations_live.html.heex:700
+#, elixir-autogen, elixir-format
+msgid "Enabled"
+msgstr "ჩართულია"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:484
+#: lib/tuist_web/live/project_automations_live.html.heex:790
+#, elixir-autogen, elixir-format
+msgid "Enter message template..."
+msgstr "შეიყვანეთ შეტყობინების შაბლონი..."
+
+#: lib/tuist_web/live/project_automations_live.ex:569
+#: lib/tuist_web/live/project_automations_live.html.heex:111
+#, elixir-autogen, elixir-format
+msgid "Flakiness rate"
+msgstr "არასაკონტროლოობის მაჩვენებელი"
+
+#: lib/tuist_web/live/project_automations_live.ex:570
+#: lib/tuist_web/live/project_automations_live.html.heex:119
+#, elixir-autogen, elixir-format
+msgid "Flaky runs"
+msgstr "არამდგრადი გაშვებები"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:349
+#: lib/tuist_web/live/project_automations_live.html.heex:595
+#, elixir-autogen, elixir-format
+msgid "Mark as flaky"
+msgstr "მიიჩნიე არამდგრადად"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:504
+#: lib/tuist_web/live/project_automations_live.html.heex:810
+#, elixir-autogen, elixir-format
+msgid "Mark test as flaky"
+msgstr "ტესტის არამდგრადად შესრულების ნიშნვა"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:462
+#: lib/tuist_web/live/project_automations_live.html.heex:768
+#, elixir-autogen, elixir-format
+msgid "Message template"
+msgstr "შეტყობინების შაბლონი"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:868
+#, elixir-autogen, elixir-format
+msgid "No automations yet. Add one to start automatically managing test case state based on conditions."
+msgstr "ჯერ არ არის ავტომატიზაციები. დაამატეთ ერთი, რათა ავტომატურად მართოთ ტესტის სტატუსი პირობების მიხედვით."
+
+#: lib/tuist_web/live/project_automations_live.html.heex:539
+#, elixir-autogen, elixir-format
+msgid "Recovery"
+msgstr "აღდგენა"
+
+#: lib/tuist_web/live/project_automations_live.ex:631
+#, elixir-autogen, elixir-format
+msgid "Remove label"
+msgstr "ნიშნის წაშლა"
+
+#: lib/tuist_web/live/project_automations_live.ex:654
+#, elixir-autogen, elixir-format
+msgid "Remove label: %{label}"
+msgstr "ნიშნის წაშლა: %{label}"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:542
+#, elixir-autogen, elixir-format
+msgid "Run actions when the conditions no longer hold"
+msgstr "ჩაატარეთ მოქმედებები, როცა პირობები არ შევა ძალაში"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:314
+#, elixir-autogen, elixir-format
+msgid "Run these actions for each test case that meets the condition"
+msgstr "ჩაატარეთ ეს მოქმედებები ყველა ტესტზე, რომელიც აკმაყოფილებს პირობას"
+
+#: lib/tuist_web/live/project_automations_live.ex:629
+#: lib/tuist_web/live/project_automations_live.html.heex:371
+#: lib/tuist_web/live/project_automations_live.html.heex:425
+#: lib/tuist_web/live/project_automations_live.html.heex:600
+#: lib/tuist_web/live/project_automations_live.html.heex:731
+#, elixir-autogen, elixir-format
+msgid "Send Slack notification"
+msgstr "გზავნა Slack შეტყობინება"
+
+#: lib/tuist_web/live/project_automations_live.ex:648
+#, elixir-autogen, elixir-format
+msgid "Slack: not configured"
+msgstr "Slack: არ არის კონფიგურირებული"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:465
+#: lib/tuist_web/live/project_automations_live.html.heex:771
+#, elixir-autogen, elixir-format
+msgid "Supports Slack"
+msgstr "მხარდამჭერი Slack"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:39
+#, elixir-autogen, elixir-format
+msgid "Test case automations"
+msgstr "ტესტის ავტომატიზაციები"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:883
+#, elixir-autogen, elixir-format
+msgid "Trigger"
+msgstr "ტრიგერი"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:94
+#, elixir-autogen, elixir-format
+msgid "Trigger the automation when this condition is met"
+msgstr "ავტომატიზაციის გამოწვევა ამ პირობის შესრულებისას"
+
+#: lib/tuist_web/live/project_automations_live.ex:572
+#: lib/tuist_web/live/project_automations_live.ex:583
+#: lib/tuist_web/live/project_automations_live.ex:606
+#: lib/tuist_web/live/project_automations_live.ex:621
+#: lib/tuist_web/live/project_automations_live.ex:626
+#: lib/tuist_web/live/project_automations_live.ex:632
+#, elixir-autogen, elixir-format
+msgid "Unknown"
+msgstr "არ არის ცნობილი"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:366
+#: lib/tuist_web/live/project_automations_live.html.heex:578
+#, elixir-autogen, elixir-format
+msgid "Unmark as flaky"
+msgstr "გადაააჩერეთ ნიშნვა არამდგრადად"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:508
+#: lib/tuist_web/live/project_automations_live.html.heex:814
+#, elixir-autogen, elixir-format
+msgid "Unmark test as flaky"
+msgstr "ტესტის არამდგრადად ნიშნვის გაუქმება"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:103
+#, elixir-autogen, elixir-format
+msgid "When"
+msgstr "როდესაც"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:609
+#, elixir-autogen, elixir-format
+msgid "Without trigger for"
+msgstr "ტრიგერის გარეშე"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:80
+#, elixir-autogen, elixir-format
+msgid "e.g. Auto-quarantine flaky tests"
+msgstr "მაგ., ავტომატური კარანტინი დაუზუსტებელ ტესტებზე"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:473
+#: lib/tuist_web/live/project_automations_live.html.heex:779
+#, elixir-autogen, elixir-format
+msgid "formatting."
+msgstr "ფორმატირება."
+
+#: lib/tuist_web/live/project_automations_live.ex:618
+#, elixir-autogen, elixir-format
+msgid "Mute"
+msgstr "დამუნტვა"
+
+#: lib/tuist_web/live/project_automations_live.ex:623
+#: lib/tuist_web/live/project_automations_live.html.heex:394
+#: lib/tuist_web/live/project_automations_live.html.heex:709
+#, elixir-autogen, elixir-format
+msgid "Muted"
+msgstr "დამუნტულია"
+
+#: lib/tuist_web/live/project_automations_live.ex:619
+#, elixir-autogen, elixir-format
+msgid "Skip"
+msgstr "გამოტოვება"
+
+#: lib/tuist_web/live/project_automations_live.ex:624
+#: lib/tuist_web/live/project_automations_live.html.heex:403
+#: lib/tuist_web/live/project_automations_live.html.heex:718
+#, elixir-autogen, elixir-format
+msgid "Skipped"
+msgstr "გამოტოვებულია"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:141
+#, elixir-autogen, elixir-format
+msgid "Comparison"
+msgstr "შედარება"
+
+#: lib/tuist_web/live/project_automations_live.ex:615
+#, elixir-autogen, elixir-format
+msgid "Count"
+msgstr "რაოდენობა"
+
+#: lib/tuist_web/live/project_automations_live.ex:602
+#: lib/tuist_web/live/project_automations_live.html.heex:149
+#, elixir-autogen, elixir-format
+msgid "Greater or equal"
+msgstr "მეტია ან ტოლი"
+
+#: lib/tuist_web/live/project_automations_live.ex:603
+#: lib/tuist_web/live/project_automations_live.html.heex:157
+#, elixir-autogen, elixir-format
+msgid "Greater than"
+msgstr "მეტია ვიდრე"
+
+#: lib/tuist_web/live/project_automations_live.ex:605
+#: lib/tuist_web/live/project_automations_live.html.heex:173
+#, elixir-autogen, elixir-format
+msgid "Less or equal"
+msgstr "ნაკლები ან ტოლი"
+
+#: lib/tuist_web/live/project_automations_live.ex:604
+#: lib/tuist_web/live/project_automations_live.html.heex:165
+#, elixir-autogen, elixir-format
+msgid "Less than"
+msgstr "ნაკლებია ვიდრე"
+
+#: lib/tuist_web/live/project_automations_live.ex:614
+#, elixir-autogen, elixir-format
+msgid "Percent"
+msgstr "პროცენტი"
+
+#: lib/tuist_web/live/project_automations_live.ex:616
+#, elixir-autogen, elixir-format
+msgid "Threshold"
+msgstr "პარამეტრი"
+
+#: lib/tuist_web/live/project_automations_live.ex:662
+#, elixir-autogen, elixir-format
+msgid "When flakiness rate %{symbol} %{threshold}% over %{window}"
+msgstr "როდესაც არამდგრადობის მაჩვენებელი %{symbol} არის %{threshold}% %{window} პერიოდში"
+
+#: lib/tuist_web/live/project_automations_live.ex:675
+#, elixir-autogen, elixir-format
+msgid "When flaky runs %{symbol} %{threshold} over %{window}"
+msgstr "როდესაც არამდგრადი გაშვებების რაოდენობა %{symbol} არის %{threshold} %{window} პერიოდში"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:259
+#: lib/tuist_web/live/project_automations_live.html.heex:661
+#, elixir-autogen, elixir-format
+msgid "Last N runs"
+msgstr "ბოლო N გაშვება"
+
+#: lib/tuist_web/live/project_automations_live.ex:715
+#: lib/tuist_web/live/project_automations_live.html.heex:213
+#: lib/tuist_web/live/project_automations_live.html.heex:617
+#, elixir-autogen, elixir-format
+msgid "Last days"
+msgstr "ბოლო დღეები"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:205
+#, elixir-autogen, elixir-format
+msgid "Over"
+msgstr "მხრზედ"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:238
+#: lib/tuist_web/live/project_automations_live.html.heex:643
+#, elixir-autogen, elixir-format
+msgid "Window"
+msgstr "ფანჯარა"
+
+#: lib/tuist_web/live/project_automations_live.ex:702
+#, elixir-autogen, elixir-format
+msgid "the last %{size} runs"
+msgstr "ბოლო %{size} გაშვება"
+
+#: lib/tuist_web/live/project_automations_live.ex:748
+#, elixir-autogen, elixir-format
+msgid "1–%{max}"
+msgstr "1–%{max}"
+
+#: lib/tuist_web/live/project_automations_live.ex:586
+#, elixir-autogen, elixir-format
+msgid "Fires when a test is manually flagged as flaky."
+msgstr "აქტიურდება, როდესაც ტესტი მონიშნულია როგორც არამდგრადი ხელით."
+
+#: lib/tuist_web/live/project_automations_live.ex:595
+#, elixir-autogen, elixir-format
+msgid "Fires when a test is muted (still runs, failures ignored)."
+msgstr "აქტიურდება, როდესაც ტესტი დამუნტულია (ველის გაშვებულია, შეცდომები იგნორირებულია)."
+
+#: lib/tuist_web/live/project_automations_live.ex:598
+#, elixir-autogen, elixir-format
+msgid "Fires when a test is skipped entirely."
+msgstr "აქტიურდება, როდესაც ტესტი მთლიანად გამოტოვებულია."
+
+#: lib/tuist_web/live/project_automations_live.ex:592
+#, elixir-autogen, elixir-format
+msgid "Fires when a test returns to the default enabled state."
+msgstr "აქტიურდება, როცა ტესტი ბრუნდება ნაგულისხმევ ჩართულ მდგომარეობაში."
+
+#: lib/tuist_web/live/project_automations_live.ex:589
+#, elixir-autogen, elixir-format
+msgid "Fires when the flaky flag is manually removed."
+msgstr "აქტიურდება, როდესაც არამდგრადობის ნიშნი ხელით მოიხსნება."
+
+#: lib/tuist_web/live/project_automations_live.ex:574
+#, elixir-autogen, elixir-format
+msgid "Marked as flaky"
+msgstr "ნიშნულია, როგორც არამდგრადი"
+
+#: lib/tuist_web/live/project_automations_live.html.heex:283
+#, elixir-autogen, elixir-format
+msgid "On these events"
+msgstr "ამ მოვლენებზე"
+
+#: lib/tuist_web/live/project_automations_live.ex:577
+#, elixir-autogen, elixir-format
+msgid "State changed to Enabled"
+msgstr "მდგომარეობა შეიცვლება ჩართულობაზე"
+
+#: lib/tuist_web/live/project_automations_live.ex:579
+#, elixir-autogen, elixir-format
+msgid "State changed to Muted"
+msgstr "მდგომარეობა შეიცვლება დამუნტულზე"
+
+#: lib/tuist_web/live/project_automations_live.ex:581
+#, elixir-autogen, elixir-format
+msgid "State changed to Skipped"
+msgstr "მდგომარეობა შეიცვლება გამოტოვებულზე"
+
+#: lib/tuist_web/live/project_automations_live.ex:571
+#: lib/tuist_web/live/project_automations_live.html.heex:127
+#, elixir-autogen, elixir-format
+msgid "Test updated"
+msgstr "ტესტი განახლდა"
+
+#: lib/tuist_web/live/project_automations_live.ex:575
+#, elixir-autogen, elixir-format
+msgid "Unmarked as flaky"
+msgstr "ნიშნის გაუქმება არამდგრადად"
+
+#: lib/tuist_web/live/project_automations_live.ex:689
+#, elixir-autogen, elixir-format
+msgid "When a test is updated"
+msgstr "როდესაც ტესტი განახლდა"
+
+#: lib/tuist_web/live/project_automations_live.ex:693
+#, elixir-autogen, elixir-format
+msgid "When a test is updated: %{events}"
+msgstr "როდესაც ტესტი განახლდა: %{events}"

@@ -13,7 +13,7 @@
       <item>
         <title><![CDATA[ <%= entry.title %> ]]></title>
         <description><![CDATA[ <%= entry.body %> ]]></description>
-        <link><%= Tuist.Environment.app_url(path: "#{~p"/changelog"}\##{entry.id}") %></link>
+        <link><%= Tuist.Environment.app_url(path: ~p"/changelog/#{entry.id}") %></link>
         <guid isPermaLink="false"><%= entry.id %></guid>
         <pubDate><%= entry.date |> Timex.format!("{RFC1123}")  %></pubDate>
       </item>

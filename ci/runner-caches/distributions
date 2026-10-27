@@ -1,0 +1,9 @@
+xcode-cache	.github/actions/xcode-cache/scripts/package.sh
+module-cache	.github/actions/module-cache/scripts/package.sh
+gradle-cache	.github/actions/gradle-cache/scripts/package.sh
+xcode-cache-buildkite-plugin	ci/runner-caches/xcode-cache/buildkite/package.sh
+module-cache-buildkite-plugin	ci/runner-caches/module-cache/buildkite/package.sh
+gradle-cache-buildkite-plugin	ci/runner-caches/gradle-cache/buildkite/package.sh
+xcode-cache-gitlab	ci/runner-caches/xcode-cache/gitlab/package.sh
+module-cache-gitlab	ci/runner-caches/module-cache/gitlab/package.sh
+gradle-cache-gitlab	ci/runner-caches/gradle-cache/gitlab/package.sh

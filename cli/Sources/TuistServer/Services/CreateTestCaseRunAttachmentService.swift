@@ -1,0 +1,161 @@
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
+import FileSystem
+import Foundation
+import Mockable
+import OpenAPIRuntime
+import Path
+import TuistHTTP
+
+@Mockable
+public protocol CreateTestCaseRunAttachmentServicing {
+    func createAttachment(
+        fullHandle: String,
+        serverURL: URL,
+        testCaseRunId: String,
+        fileName: String,
+        filePath: AbsolutePath,
+        repetitionNumber: Int?,
+        testCaseRunArgumentId: String?
+    ) async throws -> String
+}
+
+enum CreateTestCaseRunAttachmentServiceError: LocalizedError {
+    case unknownError(Int)
+    case forbidden(String)
+    case notFound(String)
+    case unauthorized(String)
+    case badRequest(String)
+    case uploadFailed
+
+    var errorDescription: String? {
+        switch self {
+        case let .unknownError(statusCode):
+            return
+                "The attachment could not be uploaded due to an unknown server response of \(statusCode)."
+        case let .forbidden(message), let .notFound(message), let .unauthorized(message),
+             let .badRequest(message):
+            return message
+        case .uploadFailed:
+            return "The attachment upload to storage failed."
+        }
+    }
+}
+
+public struct CreateTestCaseRunAttachmentService: CreateTestCaseRunAttachmentServicing {
+    private let fileSystem: FileSystem
+    private let fullHandleService: FullHandleServicing
+    private let urlSession: URLSession?
+    private let retryProvider: RetryProviding
+
+    public init(
+        fileSystem: FileSystem = FileSystem(),
+        fullHandleService: FullHandleServicing = FullHandleService(),
+        urlSession: URLSession? = nil,
+        retryProvider: RetryProviding = RetryProvider()
+    ) {
+        self.fileSystem = fileSystem
+        self.fullHandleService = fullHandleService
+        self.urlSession = urlSession
+        self.retryProvider = retryProvider
+    }
+
+    public func createAttachment(
+        fullHandle: String,
+        serverURL: URL,
+        testCaseRunId: String,
+        fileName: String,
+        filePath: AbsolutePath,
+        repetitionNumber: Int?,
+        testCaseRunArgumentId: String? = nil
+    ) async throws -> String {
+        let client = Client.authenticated(serverURL: serverURL)
+        let handles = try fullHandleService.parse(fullHandle)
+
+        let response = try await client.createTestCaseRunAttachment(
+            .init(
+                path: .init(
+                    account_handle: handles.accountHandle,
+                    project_handle: handles.projectHandle
+                ),
+                body: .json(
+                    .init(
+                        file_name: fileName,
+                        repetition_number: repetitionNumber,
+                        test_case_run_argument_id: testCaseRunArgumentId,
+                        test_case_run_id: testCaseRunId
+                    )
+                )
+            )
+        )
+
+        switch response {
+        case let .created(createdResponse):
+            switch createdResponse.body {
+            case let .json(json):
+                guard let url = URL(string: json.upload_url) else {
+                    throw CreateTestCaseRunAttachmentServiceError.uploadFailed
+                }
+                var request = URLRequest(url: url)
+                request.httpMethod = "PUT"
+                request.setValue(Self.contentType(for: fileName), forHTTPHeaderField: "Content-Type")
+                request.httpBody = try await fileSystem.readFile(at: filePath)
+                request.addAzureBlobTypeHeaderIfNeeded()
+
+                let (_, uploadResponse) = try await RetryingURLTransfer(
+                    urlSession: urlSession ?? .tuistShared,
+                    retryProvider: retryProvider
+                ).data(for: request)
+                guard let httpResponse = uploadResponse as? HTTPURLResponse,
+                      (200 ..< 300).contains(httpResponse.statusCode)
+                else {
+                    throw CreateTestCaseRunAttachmentServiceError.uploadFailed
+                }
+                return json.id
+            }
+        case let .forbidden(forbiddenResponse):
+            switch forbiddenResponse.body {
+            case let .json(error):
+                throw CreateTestCaseRunAttachmentServiceError.forbidden(error.message)
+            }
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
+        case let .undocumented(statusCode, _):
+            throw CreateTestCaseRunAttachmentServiceError.unknownError(statusCode)
+        case let .unauthorized(unauthorized):
+            switch unauthorized.body {
+            case let .json(error):
+                throw CreateTestCaseRunAttachmentServiceError.unauthorized(error.message)
+            }
+        case let .notFound(notFoundResponse):
+            switch notFoundResponse.body {
+            case let .json(error):
+                throw CreateTestCaseRunAttachmentServiceError.notFound(error.message)
+            }
+        case let .badRequest(badRequestResponse):
+            switch badRequestResponse.body {
+            case let .json(error):
+                throw CreateTestCaseRunAttachmentServiceError.badRequest(error.message)
+            }
+        }
+    }
+
+    private static func contentType(for fileName: String) -> String {
+        switch (try? RelativePath(validating: fileName))?.extension?.lowercased() ?? "" {
+        case "png": return "image/png"
+        case "jpg", "jpeg": return "image/jpeg"
+        case "gif": return "image/gif"
+        case "webp": return "image/webp"
+        case "heic": return "image/heic"
+        case "txt", "log": return "text/plain"
+        case "json": return "application/json"
+        case "xml": return "application/xml"
+        case "csv": return "text/csv"
+        case "ips": return "application/json"
+        default: return "application/octet-stream"
+        }
+    }
+}

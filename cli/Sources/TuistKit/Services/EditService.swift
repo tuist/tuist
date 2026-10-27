@@ -1,8 +1,14 @@
 import Foundation
 import Path
+import TuistAlert
+import TuistConfigLoader
+import TuistConstants
 import TuistCore
+import TuistEnvironment
 import TuistGenerator
 import TuistLoader
+import TuistLogging
+import TuistOpener
 import TuistPlugin
 import TuistSupport
 
@@ -24,7 +30,7 @@ enum EditServiceError: FatalError {
     }
 }
 
-final class EditService {
+struct EditService {
     private let projectEditor: ProjectEditing
     private let opener: Opening
     private let configLoader: ConfigLoading
@@ -50,7 +56,7 @@ final class EditService {
         permanent: Bool,
         onlyCurrentDirectory: Bool
     ) async throws {
-        let path = try self.path(path)
+        let path = try await self.path(path)
         let plugins = await loadPlugins(at: path)
 
         if !permanent {
@@ -80,12 +86,8 @@ final class EditService {
 
     // MARK: - Helpers
 
-    private func path(_ path: String?) throws -> AbsolutePath {
-        if let path {
-            return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-        } else {
-            return FileHandler.shared.currentPath
-        }
+    private func path(_ path: String?) async throws -> AbsolutePath {
+        try await Environment.current.pathRelativeToWorkingDirectory(path)
     }
 
     private func loadPlugins(at path: AbsolutePath) async -> Plugins {

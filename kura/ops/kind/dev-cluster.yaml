@@ -1,0 +1,21 @@
+# kind cluster definition used by `Tuist.Kura.Workers.RolloutWorker` when
+# auto-creating the local dev cluster (see `Tuist.Kura.Clusters.local_kind_cluster_name/0`).
+#
+# Three nodes (1 control-plane + 2 workers) so the chart's
+# `topologySpreadConstraints` (whenUnsatisfiable: DoNotSchedule across
+# kubernetes.io/hostname) can place multi-replica Kura StatefulSets
+# without leaving pods Pending. This mirrors what a small managed
+# cluster looks like in production and lets developers exercise DNS
+# peer discovery against multiple real endpoints.
+#
+# To recreate the cluster after editing this file:
+#
+#   kind delete cluster --name kura-dev
+#
+# The next /ops "Provision server" run will rebuild it from this config.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+  - role: worker
+  - role: worker

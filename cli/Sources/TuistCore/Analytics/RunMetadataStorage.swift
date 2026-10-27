@@ -1,16 +1,41 @@
+import FileSystem
 import Foundation
 import Path
+import TuistEnvironment
+import TuistLogging
 import TuistSupport
 import XcodeGraph
+
+public struct AnalyticsCommandMetadata: Equatable, Sendable {
+    public let name: String
+    public let subcommand: String?
+    public let commandArguments: [String]
+
+    public init(
+        name: String,
+        subcommand: String?,
+        commandArguments: [String]
+    ) {
+        self.name = name
+        self.subcommand = subcommand
+        self.commandArguments = commandArguments
+    }
+}
 
 /// Storage for run metadata, such as binary cache.
 public actor RunMetadataStorage {
     @TaskLocal public static var current: RunMetadataStorage = .init()
 
-    public init() {}
+    private let fileSystem: FileSysteming
+
+    public init(fileSystem: FileSysteming = FileSystem()) {
+        self.fileSystem = fileSystem
+    }
 
     /// A unique ID associated with a specific run
-    public var runId: String { Environment.current.processId }
+    public var runId: String {
+        Environment.current.processId
+    }
 
     /// Graph associated with the current run
     public private(set) var graph: Graph?
@@ -24,10 +49,18 @@ public actor RunMetadataStorage {
         self.graphBinaryBuildDuration = graphBinaryBuildDuration
     }
 
-    /// Binar cache-specific cache items
+    /// Binary cache lookups performed by the current command. Results from an earlier
+    /// build must not be restored here, since each test shard would report them again.
     public private(set) var binaryCacheItems: [AbsolutePath: [String: CacheItem]] = [:]
     public func update(binaryCacheItems: [AbsolutePath: [String: CacheItem]]) {
         self.binaryCacheItems = binaryCacheItems
+    }
+
+    /// Tests the run skipped because they are quarantined. They are left out on every run, so they
+    /// aren't reported as skipped: a run that skips only them still runs its whole selection.
+    public private(set) var skippedQuarantinedTestIdentifiers: Set<String> = []
+    public func update(skippedQuarantinedTestIdentifiers: Set<String>) {
+        self.skippedQuarantinedTestIdentifiers = skippedQuarantinedTestIdentifiers
     }
 
     /// Selective testing-specific cache items
@@ -36,10 +69,21 @@ public actor RunMetadataStorage {
         self.selectiveTestingCacheItems = selectiveTestingCacheItems
     }
 
-    /// Target content hash subhashes keyed by hash
+    /// Per-artifact module (binary) cache transfer operations captured during the run. Populated by
+    /// the remote cache storage for every artifact downloaded from or uploaded to the remote cache,
+    /// and reported so the server can surface module cache network analytics (transfer, latency,
+    /// throughput) alongside the compilation cache.
+    public private(set) var moduleCacheOutputs: [ModuleCacheOutput] = []
+    public func add(moduleCacheOutput: ModuleCacheOutput) {
+        moduleCacheOutputs.append(moduleCacheOutput)
+    }
+
+    /// Target content hash subhashes keyed by hash. Multiple graph mappers (binary cache, selective
+    /// testing, cache warm) each contribute their own entries, so updates merge into the existing
+    /// dictionary rather than replacing it.
     public private(set) var targetContentHashSubhashes: [String: TargetContentHashSubhashes] = [:]
     public func update(targetContentHashSubhashes: [String: TargetContentHashSubhashes]) {
-        self.targetContentHashSubhashes = targetContentHashSubhashes
+        self.targetContentHashSubhashes.merge(targetContentHashSubhashes, uniquingKeysWith: { _, new in new })
     }
 
     /// Preview associated with the current run
@@ -48,7 +92,8 @@ public actor RunMetadataStorage {
         self.previewId = previewId
     }
 
-    /// Path to the result bundle that should be uploaded when running commands like `tuist xcodebuild test`
+    /// Path to the result bundle that should be uploaded when running commands like `tuist xcodebuild test`.
+    /// Leave `nil` to signal that no result bundle should be uploaded (e.g. when `--inspect-mode local` processes it locally).
     public private(set) var resultBundlePath: AbsolutePath?
     public func update(resultBundlePath: AbsolutePath?) {
         self.resultBundlePath = resultBundlePath
@@ -66,9 +111,121 @@ public actor RunMetadataStorage {
         self.testRunId = testRunId
     }
 
+    /// The generate command event's id, minted client-side. `tuist generate` sends it as the command
+    /// event id (so the server stores the graph under it) and persists it; a later local Xcode build
+    /// references it so the build page can resolve the generation's graph for its Module Cache breakdown.
+    public private(set) var generationId: String?
+    public func update(generationId: String?) {
+        self.generationId = generationId
+    }
+
+    /// The URL of the uploaded build run.
+    public private(set) var buildRunURL: URL?
+    public func update(buildRunURL: URL?) {
+        self.buildRunURL = buildRunURL
+    }
+
     /// Cache endpoint used for the current run (regional module cache)
     public private(set) var cacheEndpoint: String = ""
     public func update(cacheEndpoint: String) {
         self.cacheEndpoint = cacheEndpoint
+    }
+
+    /// Per-scheme test run summaries captured locally, used to render the GitHub Actions job
+    /// summary without waiting for the server to finish processing the uploaded result bundle.
+    public private(set) var testRunReports: [RunReportTestRun] = []
+    public func add(testRunReport: RunReportTestRun) {
+        testRunReports.append(testRunReport)
+    }
+
+    /// Per-scheme build run summaries captured locally, used to render the GitHub Actions job
+    /// summary without waiting for the server to finish processing the uploaded activity log.
+    public private(set) var buildRunReports: [RunReportBuildRun] = []
+    public func add(buildRunReport: RunReportBuildRun) {
+        buildRunReports.append(buildRunReport)
+    }
+
+    /// Canonical command metadata derived during command execution.
+    public private(set) var resolvedCommandMetadata: AnalyticsCommandMetadata?
+    public func update(resolvedCommandMetadata: AnalyticsCommandMetadata?) {
+        self.resolvedCommandMetadata = resolvedCommandMetadata
+    }
+
+    /// Writes a `RunMetadata` snapshot of the current storage to the `.xctestproducts`
+    /// bundle at `testProductsPath`. Used by the build phase of the split build/test
+    /// topology (`tuist test --build-only`) so the test phase can restore the same
+    /// graph, selective-testing state, and build link when it runs as a separate process.
+    ///
+    /// Failures are logged as warnings; persistence is best-effort and never blocks the
+    /// caller's run.
+    public func writeMetadata(to testProductsPath: AbsolutePath) async {
+        let runMetadata = RunMetadata(
+            graph: graph,
+            binaryCacheItems: binaryCacheItems,
+            selectiveTestingCacheItems: selectiveTestingCacheItems,
+            targetContentHashSubhashes: targetContentHashSubhashes,
+            buildRunId: buildRunId
+        )
+        let runMetadataPath = testProductsPath.appending(component: RunMetadata.fileName)
+        do {
+            try await fileSystem.writeAsJSON(runMetadata, at: runMetadataPath)
+        } catch {
+            Logger.current.warning("Failed to persist run metadata: \(error.localizedDescription)")
+        }
+    }
+
+    /// Restores run metadata from a `RunMetadata` JSON file previously written to the
+    /// `.xctestproducts` bundle at `testProductsPath`. Used by the test phase of the split
+    /// build/test topology (`tuist test --without-building -testProductsPath …`).
+    /// Binary cache results belong to the original build and are not restored as lookups
+    /// for this command. Any fresh lookups already recorded by this command are preserved.
+    ///
+    /// No-op when the file is absent (bundles produced by older Tuist versions). Failures
+    /// are logged as warnings and never block the caller's run.
+    public func restoreMetadata(from testProductsPath: AbsolutePath) async {
+        let runMetadataPath = testProductsPath.appending(component: RunMetadata.fileName)
+        guard (try? await fileSystem.exists(runMetadataPath)) == true else { return }
+        do {
+            let runMetadata: RunMetadata = try await fileSystem.readJSONFile(at: runMetadataPath)
+            if let graph = runMetadata.graph {
+                update(graph: graph)
+            }
+            if !runMetadata.selectiveTestingCacheItems.isEmpty {
+                update(selectiveTestingCacheItems: runMetadata.selectiveTestingCacheItems)
+            }
+            if !runMetadata.targetContentHashSubhashes.isEmpty {
+                update(targetContentHashSubhashes: runMetadata.targetContentHashSubhashes)
+            }
+            if let buildRunId = runMetadata.buildRunId {
+                update(buildRunId: buildRunId)
+            }
+        } catch {
+            Logger.current.warning("Failed to restore run metadata: \(error.localizedDescription)")
+        }
+        await restoreCoverageBuildSources(from: testProductsPath)
+    }
+
+    /// The checkout the test products were compiled in, when the build recorded it. Coverage
+    /// paths and Git blob ids are resolved against it rather than against the current checkout.
+    public private(set) var coverageBuildSources: CoverageBuildSources?
+    public func update(coverageBuildSources: CoverageBuildSources?) {
+        self.coverageBuildSources = coverageBuildSources
+    }
+
+    /// Restores the build's `CoverageBuildSources` from the `.xctestproducts` bundle at
+    /// `testProductsPath`. No-op when the build did not record them.
+    /// The `.xctestproducts` bundle a run tests without building, when it restored anything
+    /// from one: where the products the coverage export reads live.
+    public private(set) var testProductsPath: AbsolutePath?
+
+    public func restoreCoverageBuildSources(from testProductsPath: AbsolutePath) async {
+        self.testProductsPath = testProductsPath
+        let sourcesPath = testProductsPath.appending(component: CoverageBuildSources.fileName)
+        guard (try? await fileSystem.exists(sourcesPath)) == true else { return }
+        do {
+            update(coverageBuildSources: try await fileSystem.readJSONFile(at: sourcesPath))
+        } catch {
+            Logger.current.warning("Failed to restore the build's coverage sources: \(error.localizedDescription)")
+        }
     }
 }

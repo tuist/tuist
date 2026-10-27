@@ -1,20 +1,24 @@
 import FileSystem
 import Foundation
 import Path
+import TuistLogging
 
 public enum XcodeError: FatalError, Equatable {
     case infoPlistNotFound(AbsolutePath)
+    case versionPlistNotFound(AbsolutePath)
 
     public var description: String {
         switch self {
         case let .infoPlistNotFound(path):
             return "Couldn't find Xcode's Info.plist at \(path.pathString). Make sure your Xcode installation is selected by running: sudo xcode-select -s /Applications/Xcode.app"
+        case let .versionPlistNotFound(path):
+            return "Couldn't find Xcode's version.plist at \(path.pathString). Make sure your Xcode installation is selected by running: sudo xcode-select -s /Applications/Xcode.app"
         }
     }
 
     public var type: ErrorType {
         switch self {
-        case .infoPlistNotFound:
+        case .infoPlistNotFound, .versionPlistNotFound:
             return .abort
         }
     }
@@ -36,6 +40,12 @@ public struct Xcode {
         enum CodingKeys: String, CodingKey {
             case version = "CFBundleShortVersionString"
         }
+
+        #if DEBUG
+            public static func test(version: String = "3.2.1") -> Xcode.InfoPlist {
+                Xcode.InfoPlist(version: version)
+            }
+        #endif
     }
 
     /// Path to the Xcode app bundle.
@@ -74,22 +84,13 @@ public struct Xcode {
         self.path = path
         self.infoPlist = infoPlist
     }
-}
 
-#if DEBUG
-    extension Xcode {
+    #if DEBUG
         public static func test(
             path: AbsolutePath = try! AbsolutePath(validating: "/Applications/Xcode.app"), // swiftlint:disable:this force_try
             infoPlist: Xcode.InfoPlist = .test()
         ) -> Xcode {
             Xcode(path: path, infoPlist: infoPlist)
         }
-    }
-
-    extension Xcode.InfoPlist {
-        public static func test(version: String = "3.2.1") -> Xcode.InfoPlist {
-            Xcode.InfoPlist(version: version)
-        }
-    }
-
-#endif
+    #endif
+}

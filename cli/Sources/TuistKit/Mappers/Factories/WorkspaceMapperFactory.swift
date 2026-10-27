@@ -1,5 +1,6 @@
 import Foundation
 import TSCUtility
+import TuistConfig
 import TuistCore
 import TuistDependencies
 import TuistGenerator
@@ -23,7 +24,7 @@ protocol WorkspaceMapperFactorying {
     ) -> [WorkspaceMapping]
 }
 
-public final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
+public struct WorkspaceMapperFactory: WorkspaceMapperFactorying {
     private let projectMapper: ProjectMapping
 
     public init(projectMapper: ProjectMapping) {
@@ -42,13 +43,19 @@ public final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
     }
 
     public func `default`(
-        tuist _: Tuist
+        tuist: Tuist
     ) -> [WorkspaceMapping] {
         var mappers: [WorkspaceMapping] = []
 
         mappers.append(
             ProjectWorkspaceMapper(mapper: projectMapper)
         )
+
+        mappers.append(XcodeCachePrefixMappingWorkspaceMapper(tuist: tuist))
+
+        mappers.append(InheritedCoverageSchemesWorkspaceMapper(
+            enabled: tuist.project.generatedProject?.generationOptions.coverage.enabled ?? false
+        ))
 
         mappers.append(
             TuistWorkspaceIdentifierMapper()
@@ -93,7 +100,7 @@ public final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
         func automation(tuist: Tuist) -> [WorkspaceMapping]
     }
 
-    public final class CacheWorkspaceMapperFactory: CacheWorkspaceMapperFactorying {
+    public struct CacheWorkspaceMapperFactory: CacheWorkspaceMapperFactorying {
         private let projectMapper: ProjectMapping
 
         public init(projectMapper: ProjectMapping) {

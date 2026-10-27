@@ -4,11 +4,11 @@ import TuistCore
 import TuistSupport
 import XcodeGraph
 
-protocol TargetLinting: AnyObject {
+protocol TargetLinting {
     func lint(target: Target, options: Project.Options) async throws -> [LintingIssue]
 }
 
-class TargetLinter: TargetLinting {
+struct TargetLinter: TargetLinting {
     // MARK: - Attributes
 
     private let settingsLinter: SettingsLinting
@@ -152,7 +152,7 @@ class TargetLinter: TargetLinting {
     private func validateCoreDataModelsExist(target: Target) async throws -> [LintingIssue] {
         try await target.coreDataModels.map(\.path)
             .concurrentCompactMap { path in
-                if try await !self.fileSystem.exists(path) {
+                if try await !fileSystem.exists(path) {
                     let reason = "The Core Data model at path \(path.pathString) does not exist"
                     return LintingIssue(reason: reason, severity: .error)
                 } else {
@@ -166,7 +166,7 @@ class TargetLinter: TargetLinting {
             let versionFileName = "\(coreDataModel.currentVersion).xcdatamodel"
             let versionPath = coreDataModel.path.appending(component: versionFileName)
 
-            if try await !self.fileSystem.exists(versionPath) {
+            if try await !fileSystem.exists(versionPath) {
                 let reason =
                     "The default version of the Core Data model at path \(coreDataModel.path.pathString), \(coreDataModel.currentVersion), does not exist. There should be a file at \(versionPath.pathString)"
                 return LintingIssue(reason: reason, severity: .error)

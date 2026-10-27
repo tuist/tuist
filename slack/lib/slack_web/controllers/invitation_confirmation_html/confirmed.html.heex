@@ -1,0 +1,25 @@
+<section id="invitation-confirmed">
+  <div data-part="content">
+    <div data-part="logos">
+      <img src={~p"/images/tuist_logo_32x32@2x.png"} alt="Tuist" data-part="logo" />
+      <span data-part="logo-separator" aria-hidden="true">+</span>
+      <img src={~p"/images/slack_logo.svg"} alt="Slack" data-part="logo" />
+    </div>
+
+    <header data-part="header">
+      <h1 data-part="title">Your email is confirmed</h1>
+      <p data-part="subtitle">
+        Thanks! An admin will review your request and send you a Slack invite shortly.
+      </p>
+    </header>
+
+    <.alert
+      id="invitation-confirmed-alert"
+      type="secondary"
+      status="success"
+      size="medium"
+      title="You're all set"
+      description="You can close this tab — we'll reach out via email when your invitation is ready."
+    />
+  </div>
+</section>

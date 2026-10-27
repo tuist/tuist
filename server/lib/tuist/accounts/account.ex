@@ -5,29 +5,60 @@ defmodule Tuist.Accounts.Account do
   use Ecto.Schema
 
   import Ecto.Changeset
+  import Ecto.Query, only: [from: 2]
 
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.User
   alias Tuist.Billing.Subscription
+  alias Tuist.Kura.AccountRegionPolicy
   alias Tuist.Projects.Project
+  alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Slack.Installation, as: SlackInstallation
   alias Tuist.Vault.Binary
   alias Tuist.VCS.GitHubAppInstallation
 
   @derive {
     Flop.Schema,
-    filterable: [:customer_id, :current_month_remote_cache_hits_count_updated_at], sortable: [:name]
+    filterable: [:customer_id, :current_month_remote_cache_hits_count_updated_at, :search],
+    sortable: [:name],
+    adapter_opts: [
+      custom_fields: [
+        search: [
+          filter: {__MODULE__, :search_filter, []},
+          ecto_type: :string
+        ]
+      ]
+    ]
   }
+
+  # Flop dispatches `:search` custom-field filters here via the MFA declared
+  # in `adapter_opts` above; the function is public because Flop calls it
+  # with `apply/3`, but it's not meant to be invoked directly. Use Flop
+  # filters — `%{field: :search, op: :==, value: "foo"}` — from callers.
+  @doc false
+  def search_filter(query, %Flop.Filter{value: value}, _opts) when is_binary(value) and value != "" do
+    like = "%#{value}%"
+    from a in query, where: ilike(a.name, ^like)
+  end
+
+  def search_filter(query, _filter, _opts), do: query
 
   schema "accounts" do
     field :name, :string
+    field :kura_tenant_id, :string, read_after_writes: true
     field :billing_email, :string
     field :customer_id, :string
-    field :current_month_remote_cache_hits_count, :integer
     field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
-    field :namespace_tenant_id, :string
+    field :current_month_cache_egress_megabytes, :integer
+    field :current_month_cache_requests, :integer
+    field :free_tier_reset_at, :utc_datetime
     field :region, Ecto.Enum, values: [all: 0, europe: 1, usa: 2], default: :all
+    field :visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
+
+    field :cache_write_policy, Ecto.Enum,
+      values: [members_and_tokens: 0, tokens_only: 1],
+      default: :members_and_tokens
 
     field :s3_bucket_name, :string
     field :s3_access_key_id, Binary
@@ -36,13 +67,17 @@ defmodule Tuist.Accounts.Account do
     field :s3_endpoint, :string
 
     field :custom_cache_endpoints_enabled, :boolean, default: false
+    field :runner_trial_started_at, :utc_datetime
+    field :runner_trial_ended_at, :utc_datetime
 
     belongs_to :organization, Organization
     belongs_to :user, User
 
     has_many(:projects, Project, on_delete: :delete_all)
+    has_many(:runner_concurrency_limits, ConcurrencyLimit, on_delete: :delete_all)
     has_many(:subscriptions, Subscription, on_delete: :delete_all)
     has_many(:cache_endpoints, AccountCacheEndpoint, on_delete: :delete_all)
+    has_many(:kura_account_region_policies, AccountRegionPolicy, on_delete: :delete_all)
     has_one(:github_app_installation, GitHubAppInstallation, on_delete: :delete_all)
     has_one(:slack_installation, SlackInstallation, on_delete: :delete_all)
 
@@ -66,7 +101,6 @@ defmodule Tuist.Accounts.Account do
         :user_id,
         :organization_id,
         :customer_id,
-        :current_month_remote_cache_hits_count,
         :current_month_remote_cache_hits_count_updated_at
       ])
 
@@ -95,17 +129,42 @@ defmodule Tuist.Accounts.Account do
   def billing_changeset(account, attrs) do
     cast(account, attrs, [
       :customer_id,
-      :current_month_remote_cache_hits_count,
-      :current_month_remote_cache_hits_count_updated_at
+      :current_month_remote_cache_hits_count_updated_at,
+      :current_month_cache_egress_megabytes,
+      :current_month_cache_requests
+    ])
+  end
+
+  def runner_trial_changeset(account, attrs) do
+    cast(account, attrs, [:runner_trial_started_at, :runner_trial_ended_at])
+  end
+
+  def free_tier_reset_changeset(account, attrs) do
+    cast(account, attrs, [
+      :free_tier_reset_at,
+      :current_month_cache_egress_megabytes,
+      :current_month_cache_requests
     ])
   end
 
   def update_changeset(account, attrs) do
     account
-    |> cast(attrs, [:name, :namespace_tenant_id, :region, :billing_email, :custom_cache_endpoints_enabled])
+    |> cast(attrs, [:name, :region, :billing_email, :cache_write_policy, :custom_cache_endpoints_enabled])
     |> validate_handle()
     |> validate_inclusion(:region, [:all, :europe, :usa])
-    |> unique_constraint(:namespace_tenant_id)
+    |> validate_inclusion(:cache_write_policy, [:members_and_tokens, :tokens_only])
+  end
+
+  @doc """
+  Toggles whether the account's non-admin dashboards are readable by
+  signed-out visitors. Kept out of `update_changeset/2` so the account
+  update API can't flip it: the toggle is operator-only.
+  """
+  def visibility_changeset(account, attrs) do
+    account
+    |> cast(attrs, [:visibility])
+    |> validate_required([:visibility])
+    |> validate_inclusion(:visibility, [:private, :public])
   end
 
   @s3_fields [:s3_bucket_name, :s3_access_key_id, :s3_secret_access_key, :s3_region, :s3_endpoint]
@@ -115,6 +174,15 @@ defmodule Tuist.Accounts.Account do
     |> cast(attrs, @s3_fields)
     |> validate_s3_configuration()
   end
+
+  def custom_s3_storage_configured?(%__MODULE__{
+        s3_bucket_name: bucket,
+        s3_access_key_id: access_key,
+        s3_secret_access_key: secret_key
+      })
+      when not is_nil(bucket) and not is_nil(access_key) and not is_nil(secret_key), do: true
+
+  def custom_s3_storage_configured?(_account), do: false
 
   defp validate_s3_configuration(changeset) do
     bucket_name = get_field(changeset, :s3_bucket_name)
@@ -158,8 +226,12 @@ defmodule Tuist.Accounts.Account do
   defp validate_handle(changeset) do
     changeset
     |> validate_format(:name, ~r/^[a-zA-Z0-9-]+$/, message: "must contain only alphanumeric characters")
+    |> validate_format(:name, ~r/^[a-zA-Z0-9](?:.*[a-zA-Z0-9])?$/s, message: "must start and end with a letter or number")
+    |> validate_format(:name, ~r/^(?!.*-(?:staging|canary)$)/i, message: "must not end in -staging or -canary")
     |> validate_length(:name, min: 1, max: 32)
     |> validate_exclusion(:name, Application.get_env(:tuist, :blocked_handles))
     |> unique_constraint(:name, name: "index_accounts_on_name")
+    |> unique_constraint(:name, name: "accounts_name_reserved", message: "is reserved by another account")
+    |> unique_constraint(:name, name: "accounts_kura_tenant_id_index", message: "is reserved by another account")
   end
 end

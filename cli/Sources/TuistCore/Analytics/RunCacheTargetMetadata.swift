@@ -1,20 +1,19 @@
-import Foundation
-
 public struct RunCacheTargetMetadata: Codable, Hashable {
     public let hash: String
     public let hit: RunCacheHit
-    public let buildDuration: TimeInterval?
     public let subhashes: TargetContentHashSubhashes?
+    /// Whether a binary taken from the cache carries coverage counters; nil for a miss or when unknown.
+    public let instrumented: Bool?
 
     public init(
         hash: String,
         hit: RunCacheHit,
-        buildDuration: TimeInterval? = nil,
-        subhashes: TargetContentHashSubhashes? = nil
+        subhashes: TargetContentHashSubhashes? = nil,
+        instrumented: Bool? = nil
     ) {
         self.hash = hash
         self.hit = hit
-        self.buildDuration = buildDuration
         self.subhashes = subhashes
+        self.instrumented = instrumented
     }
 }

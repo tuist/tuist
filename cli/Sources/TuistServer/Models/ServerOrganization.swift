@@ -24,7 +24,7 @@ public struct ServerOrganization: Codable {
 
     public struct Member: Codable {
         public enum Role: Codable, RawRepresentable {
-            case user, admin
+            case user, admin, viewer
 
             public init?(rawValue: String) {
                 switch rawValue {
@@ -32,6 +32,8 @@ public struct ServerOrganization: Codable {
                     self = .user
                 case "admin":
                     self = .admin
+                case "viewer":
+                    self = .viewer
                 default:
                     self = .user
                 }
@@ -43,6 +45,8 @@ public struct ServerOrganization: Codable {
                     return "user"
                 case .admin:
                     return "admin"
+                case .viewer:
+                    return "viewer"
                 }
             }
         }
@@ -63,6 +67,36 @@ public struct ServerOrganization: Codable {
             self.email = email
             self.role = role
         }
+
+        init(_ organizationMember: Components.Schemas.OrganizationMember) {
+            id = Int(organizationMember.id)
+            name = organizationMember.name
+            email = organizationMember.email
+            switch organizationMember.role {
+            case .admin:
+                role = .admin
+            case .user:
+                role = .user
+            case .viewer:
+                role = .viewer
+            }
+        }
+
+        #if MOCKING
+            public static func test(
+                id: Int = 0,
+                name: String = "test",
+                email: String = "test@email.io",
+                role: Role = .user
+            ) -> Self {
+                .init(
+                    id: id,
+                    name: name,
+                    email: email,
+                    role: role
+                )
+            }
+        #endif
     }
 
     public let id: Int
@@ -87,9 +121,7 @@ public struct ServerOrganization: Codable {
         self.invitations = invitations
         self.ssoOrganization = ssoOrganization
     }
-}
 
-extension ServerOrganization {
     init(_ organization: Components.Schemas.Organization) {
         id = Int(organization.id)
         name = organization.name
@@ -109,24 +141,8 @@ extension ServerOrganization {
             ssoOrganization = nil
         }
     }
-}
 
-extension ServerOrganization.Member {
-    init(_ organizationMember: Components.Schemas.OrganizationMember) {
-        id = Int(organizationMember.id)
-        name = organizationMember.name
-        email = organizationMember.email
-        switch organizationMember.role {
-        case .admin:
-            role = .admin
-        case .user:
-            role = .user
-        }
-    }
-}
-
-#if MOCKING
-    extension ServerOrganization {
+    #if MOCKING
         public static func test(
             id: Int = 0,
             name: String = "test",
@@ -144,21 +160,5 @@ extension ServerOrganization.Member {
                 ssoOrganization: ssoOrganization
             )
         }
-    }
-
-    extension ServerOrganization.Member {
-        public static func test(
-            id: Int = 0,
-            name: String = "test",
-            email: String = "test@email.io",
-            role: Role = .user
-        ) -> Self {
-            .init(
-                id: id,
-                name: name,
-                email: email,
-                role: role
-            )
-        }
-    }
-#endif
+    #endif
+}

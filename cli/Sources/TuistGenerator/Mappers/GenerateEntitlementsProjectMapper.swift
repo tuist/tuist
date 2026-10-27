@@ -1,11 +1,13 @@
 import Foundation
+import TuistConstants
 import TuistCore
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 import XcodeProj
 
 /// A project mapper that generates derived entitlements files for targets that define it as a dictonary.
-public final class GenerateEntitlementsProjectMapper: ProjectMapping {
+public struct GenerateEntitlementsProjectMapper: ProjectMapping {
     private let derivedDirectoryName: String
     private let entitlementsDirectoryName: String
 

@@ -23,66 +23,134 @@ import { LiveSocket } from "phoenix_live_view";
 import topbar from "./js/vendor/topbar.js";
 import Noora from "noora";
 import "./app.css";
-import ThemeSwitcher, { observeThemeChanges } from "./js/ThemeSwitcher.js";
+import ThemeSwitcher, { ThemeToggle, observeThemeChanges } from "./js/ThemeSwitcher.js";
 import ImageFallback from "./js/ImageFallback.js";
+import JSONInput from "./js/JSONInput.mjs";
 import DeeplinkValidation from "./js/DeeplinkValidation.js";
 import Clipboard from "./js/Clipboard.js";
 import BundleSizeSunburstChartLegend from "./js/BundleSizeSunburstChartLegend.js";
 import VideoPlayer from "./js/VideoPlayer.js";
+import BuildTimeline from "./js/BuildTimeline.js";
 import TimelineSeek from "./js/TimelineSeek.js";
 import BlurOnClick from "./js/BlurOnClick.js";
 import ScrollIntoView from "./js/ScrollIntoView.js";
 import StopPropagationOnDrag from "./js/StopPropagationOnDrag.js";
+import StopRowNavigate from "./js/StopRowNavigate.js";
 import SelectSlackChannelPopup from "./js/SelectSlackChannelPopup.js";
 import PublicProjectCTABanner from "./js/PublicProjectCTABanner.js";
+import TextAttachmentContent from "./js/hooks/TextAttachmentContent.js";
+import SubmitOnCmdEnter from "./js/SubmitOnCmdEnter.js";
+import CopyToClipboard from "./js/CopyToClipboard.js";
+import DownloadAsFile from "./js/DownloadAsFile.js";
+import ScrollToTail from "./js/ScrollToTail.js";
+import RunnerMetricsHighlight from "./js/RunnerMetricsHighlight.js";
+import RunnerShellTerminal from "./js/RunnerShellTerminal.js";
+import RunnerVNCClient from "./js/RunnerVNCClient.js";
+import RunnerVNCFullscreen from "./js/RunnerVNCFullscreen.js";
+import Turnstile from "./js/Turnstile.js";
+import { setupQueryMemory } from "./js/QueryMemory.js";
+import { getUserLocale } from "./js/UserLocale.js";
 import { getUserTimezone } from "./js/UserTimezone.js";
+import { GoogleOneTap } from "../shared/js/hooks/google-one-tap.js";
+import { initAnalytics } from "../shared/js/analytics.js";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
 
 let Hooks = {};
+Hooks.GoogleOneTap = GoogleOneTap;
 Hooks.ImageFallback = ImageFallback;
+Hooks.JSONInput = JSONInput;
 Hooks.Clipboard = Clipboard;
 Hooks.DeeplinkValidation = DeeplinkValidation;
 Hooks.BundleSizeSunburstChartLegend = BundleSizeSunburstChartLegend;
 Hooks.VideoPlayer = VideoPlayer;
 Hooks.TimelineSeek = TimelineSeek;
+Hooks.BuildTimeline = BuildTimeline;
 Hooks.BlurOnClick = BlurOnClick;
 Hooks.ScrollIntoView = ScrollIntoView;
 Hooks.StopPropagationOnDrag = StopPropagationOnDrag;
+Hooks.StopRowNavigate = StopRowNavigate;
 Hooks.SelectSlackChannelPopup = SelectSlackChannelPopup;
 Hooks.PublicProjectCTABanner = PublicProjectCTABanner;
+Hooks.TextAttachmentContent = TextAttachmentContent;
+Hooks.SubmitOnCmdEnter = SubmitOnCmdEnter;
+Hooks.CopyToClipboard = CopyToClipboard;
+Hooks.DownloadAsFile = DownloadAsFile;
+Hooks.ScrollToTail = ScrollToTail;
+Hooks.RunnerMetricsHighlight = RunnerMetricsHighlight;
+Hooks.RunnerShellTerminal = RunnerShellTerminal;
+Hooks.RunnerVNCClient = RunnerVNCClient;
+Hooks.RunnerVNCFullscreen = RunnerVNCFullscreen;
+Hooks.Turnstile = Turnstile;
 
 observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
+Hooks.ThemeToggle = ThemeToggle;
 
+// Give WebSocket connections enough time to outlive the ingress timeout and
+// retry before falling back. Matching the two timeouts creates a race where a
+// slow connection gets permanently pinned to long polling.
+const liveSocketFallbackMs = 30000;
+
+// On localhost, the WebSocket drops every time the dev server restarts or the
+// live reloader fires. With longpoll fallback enabled, the client gives
+// up on WebSocket too quickly and pins itself to longpoll, which then loops
+// into `exceeded 10 consecutive reloads. Entering failsafe mode`. See
+// https://elixirforum.com/t/liveview-falls-back-to-longpoll-after-dev-server-restart/61736
 let liveSocket = new LiveSocket("/live", Socket, {
-  longPollFallbackMs: 2500,
+  longPollFallbackMs: window.location.host.startsWith("localhost") ? undefined : liveSocketFallbackMs,
   params: {
     _csrf_token: csrfToken,
     _csp_nonce: cspNonce,
+    user_locale: getUserLocale(),
     user_timezone: getUserTimezone(),
   },
   hooks: { ...Hooks, ...Noora.Hooks },
 });
 
 // Show progress bar on live navigation and form submits
+// topbar draws on a canvas and can't resolve var() or light-dark(), so
+// resolve the color through a probe element, which the browser evaluates
+// against the current color scheme. Resolved on every show so runtime theme
+// switches are picked up.
+function loadingBarColor() {
+  const probe = document.createElement("div");
+  probe.style.color = "light-dark(var(--noora-purple-500), var(--noora-purple-400))";
+  document.body.appendChild(probe);
+  const color = getComputedStyle(probe).color;
+  probe.remove();
+  return color || "#29d";
+}
+
 topbar.config({
-  barColors: { 0: "#29d" },
   shadowColor: "rgba(0, 0, 0, .3)",
 });
-window.addEventListener("phx:page-loading-start", (_info) => topbar.show(300));
-window.addEventListener("phx:page-loading-stop", (_info) => topbar.hide());
+window.addEventListener("phx:page-loading-start", (_info) => {
+  topbar.config({ barColors: { 0: loadingBarColor() } });
+  topbar.show(300);
+});
+window.addEventListener("phx:page-loading-stop", (info) => {
+  topbar.hide();
+  // The content pane is its own scroll container, so LiveView's document
+  // scroll reset on live navigation doesn't reach it. Patches keep their
+  // scroll position, matching document behavior.
+  if (info.detail?.kind === "redirect") {
+    document.querySelector(".layout__content")?.scrollTo(0, 0);
+  }
+});
 
 // connect if there are any LiveViews on the page
 liveSocket.connect();
 
-// Analytics
-window.addEventListener("phx:navigate", (info) => {
-  if (globalThis.analytics.enabled) {
-    // https://hexdocs.pm/phoenix_live_view/js-interop.html#live-navigation-events
-    posthog.capture("$pageview");
-  }
+setupQueryMemory();
+
+initAnalytics();
+
+// Replace the browser URL without triggering handle_params (which push_patch would do),
+// avoiding unnecessary assign_async re-fetches when switching widgets.
+window.addEventListener("phx:replace-url", (e) => {
+  history.replaceState(history.state, "", e.detail.url);
 });
 
 // expose liveSocket on window for web console debug logs and latency simulation:

@@ -5,10 +5,12 @@ defmodule TuistWeb.FlakyTestsLive do
 
   import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.Skeleton
+  import TuistWeb.Helpers.TestLabels
 
   alias Noora.Filter
-  alias Tuist.Runs
-  alias Tuist.Runs.Analytics
+  alias Tuist.Tests
+  alias Tuist.Tests.Analytics
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -19,8 +21,13 @@ defmodule TuistWeb.FlakyTestsLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Flaky Tests")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("flaky-tests"))
-      |> assign(:available_filters, define_filters())
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_tests", "Flaky Tests"),
+          fallback: "flaky-tests"
+        )
+      )
+      |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
@@ -29,12 +36,12 @@ defmodule TuistWeb.FlakyTestsLive do
     {:ok, socket}
   end
 
-  defp define_filters do
+  defp define_filters(project) do
     [
       %Filter.Filter{
         id: "module_name",
         field: "module_name",
-        display_name: dgettext("dashboard_tests", "Module"),
+        display_name: module_label(project),
         type: :text,
         operator: :=~,
         value: ""
@@ -42,7 +49,7 @@ defmodule TuistWeb.FlakyTestsLive do
       %Filter.Filter{
         id: "suite_name",
         field: "suite_name",
-        display_name: dgettext("dashboard_tests", "Suite"),
+        display_name: suite_label(project),
         type: :text,
         operator: :=~,
         value: ""
@@ -50,7 +57,8 @@ defmodule TuistWeb.FlakyTestsLive do
     ]
   end
 
-  def handle_params(params, _uri, socket) do
+  def handle_params(_params, uri, socket) do
+    params = Query.query_params(uri)
     uri = URI.new!("?" <> URI.encode_query(params))
 
     {
@@ -64,7 +72,10 @@ defmodule TuistWeb.FlakyTestsLive do
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+    updated_params =
+      filter_id
+      |> Filter.Operations.add_filter_to_query(socket)
+      |> Map.put("page", "1")
 
     {:noreply,
      socket
@@ -77,7 +88,10 @@ defmodule TuistWeb.FlakyTestsLive do
   end
 
   def handle_event("update_filter", params, socket) do
-    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
+    updated_query_params =
+      params
+      |> Filter.Operations.update_filters_in_query(socket)
+      |> Map.put("page", "1")
 
     {:noreply,
      socket
@@ -124,8 +138,23 @@ defmodule TuistWeb.FlakyTestsLive do
         Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
       end
 
+    query_params = Query.drop(query_params, "page")
+
     {:noreply,
      push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/tests/flaky-tests?#{query_params}")}
+  end
+
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
+    uri = URI.new!("?" <> query)
+
+    socket =
+      socket
+      |> assign(:analytics_selected_widget, widget)
+      |> assign(:uri, uri)
+      |> push_event("replace-url", %{url: "?" <> query})
+
+    {:noreply, socket}
   end
 
   def handle_info({:test_created, %{name: "test"}}, socket) do
@@ -143,7 +172,7 @@ defmodule TuistWeb.FlakyTestsLive do
     {:noreply, socket}
   end
 
-  @allowed_sort_fields ~w(name flaky_runs_count last_flaky_at)
+  @allowed_sort_fields ~w(name flaky_runs_count last_flaky_at marked_flaky_at)
   @default_sort_field "flaky_runs_count"
 
   defp assign_flaky_tests(%{assigns: %{selected_project: project}} = socket, params) do
@@ -168,7 +197,21 @@ defmodule TuistWeb.FlakyTestsLive do
       page_size: 20
     }
 
-    {flaky_tests, flaky_tests_meta} = Runs.list_flaky_test_cases(project.id, options)
+    analytics_environment = params["analytics-environment"] || "any"
+
+    %{period: {start_datetime, end_datetime}} =
+      DatePicker.date_picker_params(params, "analytics")
+
+    opts = [start_datetime: start_datetime, end_datetime: end_datetime]
+
+    opts =
+      case analytics_environment do
+        "ci" -> Keyword.put(opts, :is_ci, true)
+        "local" -> Keyword.put(opts, :is_ci, false)
+        _ -> opts
+      end
+
+    {flaky_tests, flaky_tests_meta} = Tests.list_flaky_test_cases(project.id, options, opts)
 
     socket
     |> assign(:active_filters, filters)
@@ -200,6 +243,7 @@ defmodule TuistWeb.FlakyTestsLive do
 
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
+    analytics_selected_widget = normalize_selected_widget(params["analytics-selected-widget"])
 
     %{preset: preset, period: {start_datetime, end_datetime} = period} =
       DatePicker.date_picker_params(params, "analytics")
@@ -213,22 +257,40 @@ defmodule TuistWeb.FlakyTestsLive do
         _ -> opts
       end
 
-    flaky_runs_analytics = Analytics.test_run_analytics(project.id, Keyword.put(opts, :is_flaky, true))
-
     socket
-    |> assign(:flaky_runs_analytics, flaky_runs_analytics)
     |> assign(:analytics_environment, analytics_environment)
     |> assign(:analytics_environment_label, environment_label(analytics_environment))
     |> assign(:analytics_preset, preset)
     |> assign(:analytics_period, period)
+    |> assign(:analytics_trend_label, analytics_trend_label(preset))
+    |> assign(:analytics_selected_widget, analytics_selected_widget)
+    |> assign_async(:flaky_test_cases_analytics, fn ->
+      {:ok, %{flaky_test_cases_analytics: Analytics.flaky_tests_analytics(project.id, opts)}}
+    end)
+    |> assign_async(:flaky_test_case_runs_analytics, fn ->
+      {:ok, %{flaky_test_case_runs_analytics: Analytics.flaky_test_case_runs_analytics(project.id, opts)}}
+    end)
+    |> assign_async(:flaky_test_runs_analytics, fn ->
+      {:ok, %{flaky_test_runs_analytics: Analytics.test_run_analytics(project.id, Keyword.put(opts, :is_flaky, true))}}
+    end)
   end
+
+  defp normalize_selected_widget(widget) when widget in ["flaky_test_cases", "flaky_test_case_runs", "flaky_test_runs"],
+    do: widget
+
+  defp normalize_selected_widget("flaky_tests"), do: "flaky_test_cases"
+  defp normalize_selected_widget("flaky_runs"), do: "flaky_test_runs"
+  defp normalize_selected_widget(_), do: "flaky_test_cases"
+
+  defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_tests", "since yesterday")
+  defp analytics_trend_label("last-7-days"), do: dgettext("dashboard_tests", "since last week")
+  defp analytics_trend_label("last-12-months"), do: dgettext("dashboard_tests", "since last year")
+  defp analytics_trend_label("custom"), do: dgettext("dashboard_tests", "since last period")
+  defp analytics_trend_label(_), do: dgettext("dashboard_tests", "since last month")
 
   defp environment_label("any"), do: dgettext("dashboard_tests", "Any")
   defp environment_label("local"), do: dgettext("dashboard_tests", "Local")
   defp environment_label("ci"), do: dgettext("dashboard_tests", "CI")
-
-  defp sort_icon("asc"), do: "square_rounded_arrow_up"
-  defp sort_icon("desc"), do: "square_rounded_arrow_down"
 
   defp toggle_sort_order("asc"), do: "desc"
   defp toggle_sort_order("desc"), do: "asc"

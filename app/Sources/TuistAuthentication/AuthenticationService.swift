@@ -3,6 +3,8 @@ import CryptoKit
 import Foundation
 import SwiftUI
 import TuistAppStorage
+import TuistHTTP
+import TuistLogging
 import TuistServer
 
 public enum AuthenticationError: LocalizedError {
@@ -36,6 +38,8 @@ public enum AuthenticationError: LocalizedError {
 
 public final class AuthenticationService: ObservableObject {
     @Published public var authenticationState: AuthenticationState
+    @Published public private(set) var isSigningIn = false
+    @Published public private(set) var selfHostedServerURL: String?
 
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let appStorage: AppStoring
@@ -45,15 +49,19 @@ public final class AuthenticationService: ObservableObject {
     private let deleteAccountService: DeleteAccountServicing
 
     public init(
-        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        serverEnvironmentService: ServerEnvironmentServicing? = nil,
         appStorage: AppStoring = AppStorage(),
         deleteAccountService: DeleteAccountServicing = DeleteAccountService()
     ) {
-        self.serverEnvironmentService = serverEnvironmentService
+        self.serverEnvironmentService = serverEnvironmentService ?? AppServerEnvironmentService(appStorage: appStorage)
         self.appStorage = appStorage
         self.deleteAccountService = deleteAccountService
 
         authenticationState = (try? appStorage.get(AuthenticationStateKey.self)) ?? .loggedOut
+        selfHostedServerURL = AppServerEnvironmentService(appStorage: appStorage).configuration?.url.absoluteString
+        Logger.current.notice(
+            "Authentication state initialized state=\(authenticationState.logDescription)"
+        )
 
         startCredentialsListener()
     }
@@ -67,8 +75,15 @@ public final class AuthenticationService: ObservableObject {
             for await credentials in ServerCredentialsStore.current.credentialsChanged {
                 await MainActor.run {
                     do {
+                        let expirationDates = tokenExpirationDates(credentials)
+                        Logger.current.notice(
+                            "Credentials changed has_credentials=\(credentials != nil) \(expirationDescription(expirationDates))"
+                        )
                         try updateAuthenticationState(with: credentials)
                     } catch {
+                        Logger.current.error(
+                            "Failed to update authentication state from credentials change: \(error.localizedDescription)"
+                        )
                         authenticationState = .loggedOut
                         try? appStorage.set(AuthenticationStateKey.self, value: .loggedOut)
                     }
@@ -80,9 +95,13 @@ public final class AuthenticationService: ObservableObject {
     private func updateAuthenticationState(with credentials: ServerCredentials?) throws {
         if let credentials {
             let account = try extractAccount(from: credentials.accessToken)
-            authenticationState = .loggedIn(account: account)
+            // Signing in captures the selected server; refreshes keep the session's own server.
+            let sessionServer = AppServerEnvironmentService(appStorage: appStorage).configuration
+            authenticationState = .loggedIn(account: account, server: sessionServer)
+            Logger.current.notice("Authentication state updated to logged in")
         } else {
             authenticationState = .loggedOut
+            Logger.current.notice("Authentication state updated to logged out")
         }
 
         try? appStorage.set(AuthenticationStateKey.self, value: authenticationState)
@@ -101,7 +120,17 @@ public final class AuthenticationService: ObservableObject {
     }
 
     public func signOut() async {
-        try! await ServerCredentialsStore.current.delete(serverURL: serverEnvironmentService.url())
+        Logger.current.notice(
+            "Signing out and deleting credentials for server: \(serverEnvironmentService.url().absoluteString)"
+        )
+        do {
+            try await ServerCredentialsStore.current.delete(serverURL: serverEnvironmentService.url())
+        } catch {
+            Logger.current.error(
+                "Failed to delete credentials when signing out: \(error.localizedDescription)"
+            )
+        }
+
         await MainActor.run {
             try? updateAuthenticationState(with: nil)
         }
@@ -115,32 +144,48 @@ public final class AuthenticationService: ObservableObject {
         await signOut()
     }
 
-    public func signIn() async throws {
-        try await startOAuth2Flow(with: "/oauth2/authorize")
-    }
-
-    public func signInWithGitHub() async throws {
-        try await startOAuth2Flow(with: "/oauth2/github")
-    }
-
-    public func signInWithGoogle() async throws {
-        try await startOAuth2Flow(with: "/oauth2/google")
-    }
-
-    public func signInWithApple(authorization: ASAuthorization) async throws {
-        guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential,
-              let identityToken = appleIDCredential.identityToken,
-              let identityTokenString = String(data: identityToken, encoding: .utf8),
-              let authorizationCode = appleIDCredential.authorizationCode,
-              let authorizationCodeString = String(data: authorizationCode, encoding: .utf8)
-        else {
-            throw AuthenticationError.missingAppleCredentials
+    /// Persists the server the app signs in to. Passing `nil` selects Tuist-hosted.
+    @MainActor
+    public func selectServer(_ serverURL: String?) async throws {
+        try await whileSigningIn {
+            let environment = AppServerEnvironmentService(appStorage: appStorage)
+            try await environment.selectServer(serverURL)
+            selfHostedServerURL = environment.configuration?.url.absoluteString
         }
+    }
 
-        try await exchangeAppleTokenForServerToken(
-            identityToken: identityTokenString,
-            authorizationCode: authorizationCodeString
-        )
+    @MainActor
+    public func signIn() async throws {
+        try await whileSigningIn { try await startOAuth2Flow(with: "/oauth2/authorize") }
+    }
+
+    @MainActor
+    public func signInWithGitHub() async throws {
+        try await whileSigningIn { try await startOAuth2Flow(with: "/oauth2/github") }
+    }
+
+    @MainActor
+    public func signInWithGoogle() async throws {
+        try await whileSigningIn { try await startOAuth2Flow(with: "/oauth2/google") }
+    }
+
+    @MainActor
+    public func signInWithApple(authorization: ASAuthorization) async throws {
+        try await whileSigningIn {
+            guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential,
+                  let identityToken = appleIDCredential.identityToken,
+                  let identityTokenString = String(data: identityToken, encoding: .utf8),
+                  let authorizationCode = appleIDCredential.authorizationCode,
+                  let authorizationCodeString = String(data: authorizationCode, encoding: .utf8)
+            else {
+                throw AuthenticationError.missingAppleCredentials
+            }
+
+            try await exchangeAppleTokenForServerToken(
+                identityToken: identityTokenString,
+                authorizationCode: authorizationCodeString
+            )
+        }
     }
 
     public func signInWithEmailAndPassword(email: String, password: String) async throws {
@@ -149,6 +194,8 @@ public final class AuthenticationService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addRequestIDHeader()
+        ClientFeatureFlags.addHeader(to: &request)
 
         let parameters = [
             "email": email,
@@ -167,6 +214,13 @@ public final class AuthenticationService: ObservableObject {
         if httpResponse.statusCode == 200 {
             try await handleTokenResponse(data)
         } else {
+            Logger.current.error(
+                """
+                Email and password sign in token exchange failed with status code: \(httpResponse.statusCode), \
+                requestID: \(request.requestID ?? "unknown"), \
+                responseRequestID: \(httpResponse.requestID ?? "unknown")
+                """
+            )
             throw AuthenticationError.tokenExchangeFailed(statusCode: httpResponse.statusCode)
         }
     }
@@ -180,6 +234,8 @@ public final class AuthenticationService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addRequestIDHeader()
+        ClientFeatureFlags.addHeader(to: &request)
 
         let parameters = [
             "identity_token": identityToken,
@@ -198,6 +254,13 @@ public final class AuthenticationService: ObservableObject {
         if httpResponse.statusCode == 200 {
             try await handleTokenResponse(data)
         } else {
+            Logger.current.error(
+                """
+                Apple sign in token exchange failed with status code: \(httpResponse.statusCode), \
+                requestID: \(request.requestID ?? "unknown"), \
+                responseRequestID: \(httpResponse.requestID ?? "unknown")
+                """
+            )
             throw AuthenticationError.tokenExchangeFailed(statusCode: httpResponse.statusCode)
         }
     }
@@ -209,18 +272,20 @@ public final class AuthenticationService: ObservableObject {
         )!
 
         let codeVerifier = codeVerifier()
+        let state = UUID().uuidString
         urlComponents.queryItems = [
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "client_id", value: serverEnvironmentService.oauthClientId()),
             URLQueryItem(name: "redirect_uri", value: redirectURI),
-            URLQueryItem(name: "state", value: UUID().uuidString),
+            URLQueryItem(name: "state", value: state),
             URLQueryItem(name: "code_challenge", value: codeChallenge(from: codeVerifier)),
             URLQueryItem(name: "code_challenge_method", value: "S256"),
         ]
 
         try await authenticate(
             with: urlComponents.url!,
-            codeVerifier: codeVerifier
+            codeVerifier: codeVerifier,
+            state: state
         )
     }
 
@@ -238,7 +303,8 @@ public final class AuthenticationService: ObservableObject {
 
     private func authenticate(
         with authURL: URL,
-        codeVerifier: String
+        codeVerifier: String,
+        state: String
     ) async throws {
         let code: String? = try await withCheckedThrowingContinuation { continuation in
             let authSession = ASWebAuthenticationSession(
@@ -253,7 +319,12 @@ public final class AuthenticationService: ObservableObject {
                     return
                 }
 
-                guard let callbackURL else {
+                guard let callbackURL,
+                      callbackURL.scheme == "tuist",
+                      callbackURL.host == "oauth-callback",
+                      URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?
+                      .queryItems?.first(where: { $0.name == "state" })?.value == state
+                else {
                     continuation.resume(throwing: AuthenticationError.invalidCallbackURL)
                     return
                 }
@@ -290,6 +361,8 @@ public final class AuthenticationService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.addRequestIDHeader()
+        ClientFeatureFlags.addHeader(to: &request)
 
         let parameters = [
             "grant_type": "authorization_code",
@@ -312,13 +385,20 @@ public final class AuthenticationService: ObservableObject {
         }
 
         if httpResponse.statusCode == 200 {
-            try await handleTokenResponse(data)
+            try await handleTokenResponse(data, oauthClientID: serverEnvironmentService.oauthClientId())
         } else {
+            Logger.current.error(
+                """
+                OAuth token exchange failed with status code: \(httpResponse.statusCode), \
+                requestID: \(request.requestID ?? "unknown"), \
+                responseRequestID: \(httpResponse.requestID ?? "unknown")
+                """
+            )
             throw AuthenticationError.tokenExchangeFailed(statusCode: httpResponse.statusCode)
         }
     }
 
-    private func handleTokenResponse(_ data: Data) async throws {
+    private func handleTokenResponse(_ data: Data, oauthClientID: String? = nil) async throws {
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw AuthenticationError.invalidTokenResponse
         }
@@ -332,10 +412,48 @@ public final class AuthenticationService: ObservableObject {
         try await ServerCredentialsStore.current.store(
             credentials: ServerCredentials(
                 accessToken: accessToken,
-                refreshToken: refreshToken
+                refreshToken: refreshToken,
+                oauthClientID: oauthClientID
             ),
             serverURL: serverEnvironmentService.url()
         )
+        let expirationDates = tokenExpirationDates(
+            ServerCredentials(accessToken: accessToken, refreshToken: refreshToken)
+        )
+        Logger.current.notice(
+            "Stored authentication credentials from token response \(expirationDescription(expirationDates))"
+        )
+    }
+
+    private func tokenExpirationDates(_ credentials: ServerCredentials?) -> (
+        accessToken: Date?,
+        refreshToken: Date?
+    ) {
+        guard let credentials else { return (nil, nil) }
+        return (
+            accessToken: try? JWT.parse(credentials.accessToken).expiryDate,
+            refreshToken: credentials.refreshToken.flatMap { try? JWT.parse($0).expiryDate }
+        )
+    }
+
+    private func expirationDescription(_ expirationDates: (accessToken: Date?, refreshToken: Date?)) -> String {
+        "access_token_expires_at=\(expirationDates.accessToken.map(format) ?? "unknown") "
+            + "refresh_token_expires_at=\(expirationDates.refreshToken.map(format) ?? "unknown")"
+    }
+
+    private func format(_ date: Date) -> String {
+        ISO8601DateFormatter().string(from: date)
+    }
+}
+
+extension AuthenticationState {
+    fileprivate var logDescription: String {
+        switch self {
+        case .loggedIn:
+            return "loggedIn"
+        case .loggedOut:
+            return "loggedOut"
+        }
     }
 }
 
@@ -353,5 +471,15 @@ extension Data {
             .replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "=", with: "")
+    }
+}
+
+extension AuthenticationService {
+    @MainActor
+    private func whileSigningIn(_ action: () async throws -> Void) async throws {
+        guard !isSigningIn, authenticationState == .loggedOut else { return }
+        isSigningIn = true
+        defer { isSigningIn = false }
+        try await action()
     }
 }

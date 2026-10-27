@@ -1,11 +1,14 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
+
+public typealias ServerProjectBuildSystem = Operations.createProject.Input.Body.jsonPayload.build_systemPayload
 
 @Mockable
 public protocol CreateProjectServicing {
     func createProject(
         fullHandle: String,
+        buildSystem: ServerProjectBuildSystem?,
         serverURL: URL
     ) async throws -> ServerProject
 }
@@ -26,11 +29,12 @@ enum CreateProjectServiceError: LocalizedError {
     }
 }
 
-public final class CreateProjectService: CreateProjectServicing {
+public struct CreateProjectService: CreateProjectServicing {
     public init() {}
 
     public func createProject(
         fullHandle: String,
+        buildSystem: ServerProjectBuildSystem?,
         serverURL: URL
     ) async throws -> ServerProject {
         let client = Client.authenticated(serverURL: serverURL)
@@ -39,6 +43,7 @@ public final class CreateProjectService: CreateProjectServicing {
             .init(
                 body: .json(
                     .init(
+                        build_system: buildSystem,
                         full_handle: fullHandle
                     )
                 )

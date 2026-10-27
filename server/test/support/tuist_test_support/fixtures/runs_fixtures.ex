@@ -3,15 +3,36 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   Fixtures for runs.
   """
   alias Ecto.Adapters.SQL
+  alias Tuist.Builds
   alias Tuist.IngestRepo
-  alias Tuist.Runs
-  alias Tuist.Runs.TestCase
-  alias Tuist.Runs.TestCaseRun
+  alias Tuist.Tests
+  alias Tuist.Tests.CrashReport
+  alias Tuist.Tests.TestCase
+  alias Tuist.Tests.TestCaseEvent
+  alias Tuist.Tests.TestCaseFailure
+  alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.TestCaseRunAttachment
+  alias Tuist.Tests.TestCaseRunRepetition
+  alias Tuist.Tests.TestCaseState
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   def optimize_test_case_runs do
-    SQL.query!(IngestRepo, "OPTIMIZE TABLE test_case_runs FINAL", [])
+    IngestRepo.with_retry(fn ->
+      SQL.query!(IngestRepo, "OPTIMIZE TABLE test_case_runs FINAL", [])
+    end)
+  end
+
+  def optimize_test_runs do
+    IngestRepo.with_retry(fn ->
+      SQL.query!(IngestRepo, "OPTIMIZE TABLE test_runs FINAL", [])
+    end)
+  end
+
+  def optimize_shard_runs do
+    IngestRepo.with_retry(fn ->
+      SQL.query!(IngestRepo, "OPTIMIZE TABLE shard_runs FINAL", [])
+    end)
   end
 
   def build_fixture(attrs \\ []) do
@@ -25,36 +46,49 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         AccountsFixtures.user_fixture(preload: [:account]).account.id
       end)
 
-    Runs.create_build(%{
-      id: Keyword.get(attrs, :id, UUIDv7.generate()),
-      duration: Keyword.get(attrs, :duration, 1000),
-      macos_version: Keyword.get(attrs, :macos_version, "11.2.3"),
-      xcode_version: Keyword.get(attrs, :xcode_version, "12.4"),
-      is_ci: Keyword.get(attrs, :is_ci, false),
-      model_identifier: Keyword.get(attrs, :model_identifier, "Mac15,6"),
-      scheme: Keyword.get(attrs, :scheme, "App"),
-      configuration: Keyword.get(attrs, :configuration, "Debug"),
-      project_id: project_id,
-      account_id: account_id,
-      inserted_at: Keyword.get(attrs, :inserted_at),
-      status: Keyword.get(attrs, :status, :success),
-      category: Keyword.get(attrs, :category, :incremental),
-      git_commit_sha: Keyword.get(attrs, :git_commit_sha),
-      git_branch: Keyword.get(attrs, :git_branch),
-      git_ref: Keyword.get(attrs, :git_ref),
-      ci_run_id: Keyword.get(attrs, :ci_run_id),
-      ci_project_handle: Keyword.get(attrs, :ci_project_handle),
-      ci_host: Keyword.get(attrs, :ci_host),
-      ci_provider: Keyword.get(attrs, :ci_provider),
-      issues: Keyword.get(attrs, :issues, []),
-      files: Keyword.get(attrs, :files, []),
-      targets: Keyword.get(attrs, :targets, []),
-      cacheable_tasks: Keyword.get(attrs, :cacheable_tasks, []),
-      cas_outputs: Keyword.get(attrs, :cas_outputs, []),
-      cacheable_tasks_count: Keyword.get(attrs, :cacheable_tasks_count),
-      cacheable_task_local_hits_count: Keyword.get(attrs, :cacheable_task_local_hits_count),
-      cacheable_task_remote_hits_count: Keyword.get(attrs, :cacheable_task_remote_hits_count)
-    })
+    result =
+      Builds.create_build(%{
+        id: Keyword.get(attrs, :id, UUIDv7.generate()),
+        duration: Keyword.get(attrs, :duration, 1000),
+        macos_version: Keyword.get(attrs, :macos_version, "11.2.3"),
+        xcode_version: Keyword.get(attrs, :xcode_version, "12.4"),
+        is_ci: Keyword.get(attrs, :is_ci, false),
+        model_identifier: Keyword.get(attrs, :model_identifier, "Mac15,6"),
+        scheme: Keyword.get(attrs, :scheme, "App"),
+        configuration: Keyword.get(attrs, :configuration, "Debug"),
+        project_id: project_id,
+        account_id: account_id,
+        actor_account_id: Keyword.get(attrs, :actor_account_id, 0),
+        claimed_actor_id: Keyword.get(attrs, :claimed_actor_id, ""),
+        submission_auth: Keyword.get(attrs, :submission_auth, ""),
+        inserted_at: Keyword.get(attrs, :inserted_at),
+        started_at: Keyword.get(attrs, :started_at),
+        status: Keyword.get(attrs, :status, "success"),
+        category: Keyword.get(attrs, :category, "incremental"),
+        git_commit_sha: Keyword.get(attrs, :git_commit_sha),
+        git_branch: Keyword.get(attrs, :git_branch),
+        git_ref: Keyword.get(attrs, :git_ref),
+        ci_run_id: Keyword.get(attrs, :ci_run_id),
+        ci_project_handle: Keyword.get(attrs, :ci_project_handle),
+        ci_host: Keyword.get(attrs, :ci_host),
+        ci_provider: Keyword.get(attrs, :ci_provider),
+        issues: Keyword.get(attrs, :issues, []),
+        files: Keyword.get(attrs, :files, []),
+        targets: Keyword.get(attrs, :targets, []),
+        build_steps: Keyword.get(attrs, :build_steps, []),
+        machine_metrics: Keyword.get(attrs, :machine_metrics, []),
+        cacheable_tasks: Keyword.get(attrs, :cacheable_tasks, []),
+        cas_outputs: Keyword.get(attrs, :cas_outputs, []),
+        cacheable_tasks_count: Keyword.get(attrs, :cacheable_tasks_count),
+        cacheable_task_local_hits_count: Keyword.get(attrs, :cacheable_task_local_hits_count),
+        cacheable_task_remote_hits_count: Keyword.get(attrs, :cacheable_task_remote_hits_count),
+        custom_tags: Keyword.get(attrs, :custom_tags, []),
+        custom_values: Keyword.get(attrs, :custom_values, %{}),
+        generation_id: Keyword.get(attrs, :generation_id)
+      })
+
+    Tuist.Builds.Build.Buffer.flush()
+    result
   end
 
   def test_fixture(attrs \\ []) do
@@ -89,38 +123,75 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         }
       ])
 
-    Runs.create_test(%{
-      id: Keyword.get(attrs, :id, UUIDv7.generate()),
-      project_id: project_id,
-      account_id: account_id,
-      duration: Keyword.get(attrs, :duration, 2000),
-      status: Keyword.get(attrs, :status, "success"),
-      scheme: Keyword.get(attrs, :scheme),
-      model_identifier: Keyword.get(attrs, :model_identifier, "Mac15,6"),
-      macos_version: Keyword.get(attrs, :macos_version, "11.2.3"),
-      xcode_version: Keyword.get(attrs, :xcode_version, "12.4"),
-      git_branch: Keyword.get(attrs, :git_branch, "main"),
-      git_ref: Keyword.get(attrs, :git_ref),
-      git_commit_sha: Keyword.get(attrs, :git_commit_sha, "abc123"),
-      ran_at: Keyword.get(attrs, :ran_at, NaiveDateTime.utc_now()),
-      is_ci: Keyword.get(attrs, :is_ci, false),
-      build_run_id: Keyword.get(attrs, :build_run_id),
-      ci_run_id: Keyword.get(attrs, :ci_run_id),
-      ci_project_handle: Keyword.get(attrs, :ci_project_handle),
-      ci_host: Keyword.get(attrs, :ci_host),
-      ci_provider: Keyword.get(attrs, :ci_provider),
-      test_modules: test_modules
-    })
+    result =
+      Tests.create_test(%{
+        id: Keyword.get(attrs, :id, UUIDv7.generate()),
+        project_id: project_id,
+        account_id: account_id,
+        actor_account_id: Keyword.get(attrs, :actor_account_id, 0),
+        claimed_actor_id: Keyword.get(attrs, :claimed_actor_id, ""),
+        submission_auth: Keyword.get(attrs, :submission_auth, ""),
+        duration: Keyword.get(attrs, :duration, 2000),
+        status: Keyword.get(attrs, :status, "success"),
+        scheme: Keyword.get(attrs, :scheme),
+        model_identifier: Keyword.get(attrs, :model_identifier, "Mac15,6"),
+        macos_version: Keyword.get(attrs, :macos_version, "11.2.3"),
+        xcode_version: Keyword.get(attrs, :xcode_version, "12.4"),
+        git_branch: Keyword.get(attrs, :git_branch, "main"),
+        git_ref: Keyword.get(attrs, :git_ref),
+        git_commit_sha: Keyword.get(attrs, :git_commit_sha, "abc123"),
+        git_remote_url_origin: Keyword.get(attrs, :git_remote_url_origin),
+        git_dirty: Keyword.get(attrs, :git_dirty),
+        ran_at: Keyword.get(attrs, :ran_at, NaiveDateTime.utc_now()),
+        inserted_at: Keyword.get(attrs, :inserted_at),
+        is_ci: Keyword.get(attrs, :is_ci, false),
+        build_run_id: Keyword.get(attrs, :build_run_id),
+        gradle_build_id: Keyword.get(attrs, :gradle_build_id),
+        bazel_invocation_id: Keyword.get(attrs, :bazel_invocation_id, ""),
+        build_system: Keyword.get(attrs, :build_system, "xcode"),
+        ci_run_id: Keyword.get(attrs, :ci_run_id),
+        ci_project_handle: Keyword.get(attrs, :ci_project_handle),
+        ci_host: Keyword.get(attrs, :ci_host),
+        ci_provider: Keyword.get(attrs, :ci_provider),
+        shard_plan_id: Keyword.get(attrs, :shard_plan_id),
+        only_test_identifiers: Keyword.get(attrs, :only_test_identifiers, []),
+        coverage_evidence: Keyword.get(attrs, :coverage_evidence),
+        skip_test_identifiers: Keyword.get(attrs, :skip_test_identifiers, []),
+        shard_index: Keyword.get(attrs, :shard_index),
+        base_branch: Keyword.get(attrs, :base_branch),
+        merge_base_sha: Keyword.get(attrs, :merge_base_sha),
+        is_pull_request: Keyword.get(attrs, :is_pull_request),
+        pull_request_number: Keyword.get(attrs, :pull_request_number),
+        git_object_format: Keyword.get(attrs, :git_object_format),
+        history_source: Keyword.get(attrs, :history_source),
+        history_fallback_reason: Keyword.get(attrs, :history_fallback_reason),
+        test_modules: test_modules,
+        run_destinations: Keyword.get(attrs, :run_destinations, [])
+      })
+
+    TestCase.Buffer.flush()
+    TestCaseRun.Buffer.flush()
+    Tuist.Tests.TestModuleRun.Buffer.flush()
+    Tuist.Tests.TestSuiteRun.Buffer.flush()
+    TestCaseFailure.Buffer.flush()
+    TestCaseRunRepetition.Buffer.flush()
+    Tuist.Tests.TestCaseRunArgument.Buffer.flush()
+    TestCaseEvent.Buffer.flush()
+
+    result
   end
 
   def cas_output_fixture(attrs \\ []) do
-    build_run_id =
-      Keyword.get_lazy(attrs, :build_run_id, fn ->
+    {build_run_id, project_id} =
+      if Keyword.has_key?(attrs, :build_run_id) do
+        {Keyword.fetch!(attrs, :build_run_id), Keyword.get(attrs, :project_id, 0)}
+      else
         {:ok, build} = build_fixture()
-        build.id
-      end)
+        {build.id, Keyword.get(attrs, :project_id, build.project_id)}
+      end
 
     cas_output = %{
+      project_id: project_id,
       node_id: Keyword.get(attrs, :node_id, "node1"),
       checksum: Keyword.get(attrs, :checksum, "abc123"),
       size: Keyword.get(attrs, :size, 1000),
@@ -130,7 +201,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       type: Keyword.get(attrs, :type, :swift)
     }
 
-    changeset = Tuist.Runs.CASOutput.changeset(build_run_id, cas_output)
+    changeset = Tuist.Builds.CASOutput.changeset(build_run_id, cas_output)
 
     IngestRepo.insert(changeset)
   end
@@ -141,8 +212,38 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         ProjectsFixtures.project_fixture().id
       end)
 
+    state =
+      cond do
+        Keyword.has_key?(attrs, :state) -> Keyword.get(attrs, :state)
+        Keyword.get(attrs, :is_quarantined, false) -> "muted"
+        true -> "enabled"
+      end
+
+    id = Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end)
+    is_flaky = Keyword.get(attrs, :is_flaky, false)
+    inserted_at = Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
+
+    # Seeds `test_case_states` directly, the same shape the seed migration
+    # writes: one row carrying both columns, standing in for history the
+    # materialized view never saw. Fixtures build a test case in a given state
+    # rather than replaying the events that would have got it there, so there
+    # are no events for the view to project. Callers that explicitly ask for
+    # the default values get a row too, since that's how a fixture expresses an
+    # unmute, which has to out-version the earlier row.
+    if Enum.any?([:state, :is_flaky, :is_quarantined], &Keyword.has_key?(attrs, &1)) do
+      IngestRepo.insert_all(TestCaseState, [
+        %{
+          project_id: project_id,
+          test_case_id: id,
+          state: state,
+          is_flaky: is_flaky,
+          inserted_at: inserted_at
+        }
+      ])
+    end
+
     %TestCase{
-      id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
+      id: id,
       name: Keyword.get(attrs, :name, "testExample"),
       module_name: Keyword.get(attrs, :module_name, "MyTests"),
       suite_name: Keyword.get(attrs, :suite_name, "TestSuite"),
@@ -150,8 +251,9 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       last_status: Keyword.get(attrs, :last_status, "success"),
       last_duration: Keyword.get(attrs, :last_duration, 100),
       last_ran_at: Keyword.get(attrs, :last_ran_at, NaiveDateTime.utc_now()),
-      is_flaky: Keyword.get(attrs, :is_flaky, false),
-      inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now()),
+      is_flaky: is_flaky,
+      state: state,
+      inserted_at: inserted_at,
       avg_duration: Keyword.get(attrs, :avg_duration, 100)
     }
   end
@@ -162,26 +264,144 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         ProjectsFixtures.project_fixture().id
       end)
 
+    git_branch = Keyword.get(attrs, :git_branch, "main")
+
     test_case_run = %{
       id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
       test_run_id: Keyword.get_lazy(attrs, :test_run_id, fn -> UUIDv7.generate() end),
       test_module_run_id: Keyword.get_lazy(attrs, :test_module_run_id, fn -> UUIDv7.generate() end),
       test_case_id: Keyword.get_lazy(attrs, :test_case_id, fn -> UUIDv7.generate() end),
       project_id: project_id,
-      git_branch: Keyword.get(attrs, :git_branch, "main"),
+      account_id: Keyword.get(attrs, :account_id),
+      is_ci: Keyword.get(attrs, :is_ci, false),
+      scheme: Keyword.get(attrs, :scheme, ""),
+      git_branch: git_branch,
+      is_default_branch: Keyword.get_lazy(attrs, :is_default_branch, fn -> default_branch?(project_id, git_branch) end),
+      git_commit_sha: Keyword.get(attrs, :git_commit_sha, ""),
       module_name: Keyword.get(attrs, :module_name, "MyTests"),
       suite_name: Keyword.get(attrs, :suite_name, "TestSuite"),
       name: Keyword.get(attrs, :name, "testExample"),
       status: Keyword.get(attrs, :status, 0),
       is_flaky: Keyword.get(attrs, :is_flaky, false),
       is_new: Keyword.get(attrs, :is_new, false),
+      is_quarantined: Keyword.get(attrs, :is_quarantined, false),
       duration: Keyword.get(attrs, :duration, 100),
       ran_at: Keyword.get(attrs, :ran_at, NaiveDateTime.utc_now()),
       inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
     }
 
-    {1, _} = IngestRepo.insert_all(TestCaseRun, [test_case_run])
+    IngestRepo.insert_all(TestCaseRun, [test_case_run])
 
     test_case_run
+  end
+
+  def test_case_failure_fixture(attrs \\ []) do
+    test_case_failure = %{
+      id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
+      test_case_run_id: Keyword.fetch!(attrs, :test_case_run_id),
+      message: Keyword.get(attrs, :message, "Expected true, got false"),
+      path: Keyword.get(attrs, :path, "Tests/MyTests.swift"),
+      line_number: Keyword.get(attrs, :line_number, 42),
+      issue_type: Keyword.get(attrs, :issue_type, "assertion_failure"),
+      inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
+    }
+
+    IngestRepo.insert_all(TestCaseFailure, [test_case_failure])
+
+    test_case_failure
+  end
+
+  def test_case_run_repetition_fixture(attrs \\ []) do
+    test_case_run_repetition = %{
+      id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
+      test_case_run_id: Keyword.fetch!(attrs, :test_case_run_id),
+      repetition_number: Keyword.get(attrs, :repetition_number, 1),
+      name: Keyword.get(attrs, :name, "testExample"),
+      status: Keyword.get(attrs, :status, "success"),
+      duration: Keyword.get(attrs, :duration, 100),
+      inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
+    }
+
+    IngestRepo.insert_all(TestCaseRunRepetition, [test_case_run_repetition])
+
+    test_case_run_repetition
+  end
+
+  def crash_report_fixture(attrs \\ []) do
+    test_case_run_id = Keyword.fetch!(attrs, :test_case_run_id)
+
+    crash_report = %{
+      id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
+      test_case_run_id: test_case_run_id,
+      exception_type: Keyword.get(attrs, :exception_type, "EXC_CRASH"),
+      signal: Keyword.get(attrs, :signal, "SIGABRT"),
+      exception_subtype: Keyword.get(attrs, :exception_subtype, "KERN_INVALID_ADDRESS"),
+      triggered_thread_frames:
+        Keyword.get(attrs, :triggered_thread_frames, "0  libswiftCore.dylib  _assertionFailure + 156"),
+      test_case_run_attachment_id:
+        Keyword.get_lazy(attrs, :test_case_run_attachment_id, fn ->
+          attachment = test_case_run_attachment_fixture(test_case_run_id: test_case_run_id)
+          attachment.id
+        end),
+      inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
+    }
+
+    IngestRepo.insert_all(CrashReport, [crash_report])
+
+    crash_report
+  end
+
+  def test_case_run_attachment_fixture(attrs \\ []) do
+    attachment = %{
+      id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
+      test_case_run_id: Keyword.fetch!(attrs, :test_case_run_id),
+      test_run_id: Keyword.get(attrs, :test_run_id, nil),
+      file_name: Keyword.get(attrs, :file_name, "crash-report.ips"),
+      repetition_number: Keyword.get(attrs, :repetition_number, nil),
+      inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
+    }
+
+    IngestRepo.insert_all(TestCaseRunAttachment, [attachment])
+
+    attachment
+  end
+
+  def test_case_event_fixture(attrs \\ []) do
+    test_case_event = %{
+      id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
+      test_case_id: Keyword.fetch!(attrs, :test_case_id),
+      # Pass `project_id` whenever the test asserts on resolved state. Reads of
+      # `test_case_states` are project-scoped, so a state or flaky event left at
+      # 0 projects a row that `list_test_cases(project.id, ...)` will never
+      # find, and the test case reads back as `enabled` with nothing to debug.
+      # Audit-log-only events (`first_run`) don't project and don't need it.
+      project_id: Keyword.get(attrs, :project_id, 0),
+      event_type: Keyword.get(attrs, :event_type, "muted"),
+      actor_id: Keyword.get(attrs, :actor_id, nil),
+      inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
+    }
+
+    # Not asserted as a single row: state and flaky events also fan out through
+    # `test_case_states_mv` into `test_case_states`, so the write count depends
+    # on the event type.
+    IngestRepo.insert_all(TestCaseEvent, [test_case_event])
+
+    test_case_event
+  end
+
+  # This fixture writes straight to ClickHouse, so it has to classify the run
+  # against the project's default branch the way `Tuist.Tests.create_test_modules/4`
+  # does at ingestion. Without it every fixture row reads as off-default, and
+  # aggregates that key on the classification see an empty project.
+  defp default_branch?(nil, _git_branch), do: false
+
+  defp default_branch?(project_id, git_branch) do
+    case Tuist.Repo.get(Tuist.Projects.Project, project_id) do
+      %{default_branch: default_branch} when is_binary(default_branch) and default_branch != "" ->
+        git_branch == default_branch
+
+      _ ->
+        false
+    end
   end
 end

@@ -15,6 +15,13 @@ defmodule Tuist.AppBuilds do
     |> Repo.insert()
   end
 
+  @doc """
+  Finds an existing preview with matching identifying metadata or creates
+  a new one. Returns `{:ok, preview, :created}` when a new row was
+  inserted and `{:ok, preview, :reused}` when an existing one was
+  returned, so callers (e.g. webhook dispatch) can differentiate the two
+  cases.
+  """
   def find_or_create_preview(
         %{
           project_id: project_id,
@@ -26,6 +33,9 @@ defmodule Tuist.AppBuilds do
         } = attrs
       ) do
     track = Map.get(attrs, :track) || ""
+
+    release_notes = normalize_release_notes(Map.get(attrs, :release_notes))
+    attrs = Map.put(attrs, :release_notes, release_notes)
 
     preview =
       from(p in Preview)
@@ -55,9 +65,11 @@ defmodule Tuist.AppBuilds do
       |> Repo.one()
 
     if is_nil(preview) do
-      create_preview(Map.put(attrs, :track, track))
+      with {:ok, created} <- create_preview(Map.put(attrs, :track, track)) do
+        {:ok, created, :created}
+      end
     else
-      {:ok, preview}
+      reuse_preview_with_release_notes(preview, release_notes)
     end
   end
 
@@ -98,6 +110,11 @@ defmodule Tuist.AppBuilds do
           &Ecto.Enum.mappings(AppBuild, :supported_platforms)[&1]
         )
 
+      git_branch_filter =
+        if is_nil(git_branch),
+          do: dynamic([p], is_nil(p.git_branch)),
+          else: dynamic([p], p.git_branch == ^git_branch)
+
       preview =
         Repo.one(
           from(p in Preview,
@@ -105,7 +122,7 @@ defmodule Tuist.AppBuilds do
             on: ab.preview_id == p.id,
             where: p.project_id == ^project.id,
             where: p.bundle_identifier == ^bundle_identifier,
-            where: p.git_branch == ^git_branch,
+            where: ^git_branch_filter,
             where: p.track == ^normalized_track,
             where: fragment("? && ?", ab.supported_platforms, ^supported_platforms_as_integers),
             order_by: [desc: p.inserted_at],
@@ -153,11 +170,32 @@ defmodule Tuist.AppBuilds do
     |> Repo.update!()
   end
 
+  def has_previews?(%Project{id: project_id}) do
+    Repo.exists?(from(p in Preview, where: p.project_id == ^project_id))
+  end
+
+  def list_preview_tracks(%Project{id: project_id}) do
+    tracks =
+      Repo.all(
+        from p in Preview,
+          where: p.project_id == ^project_id and not is_nil(p.bundle_identifier) and p.bundle_identifier != "",
+          group_by: p.track,
+          order_by: p.track,
+          select: %{name: min(fragment("?::text", p.track)), count: count(p.id)}
+      )
+
+    %{
+      total_count: Enum.sum(Enum.map(tracks, & &1.count)),
+      tracks: Enum.reject(tracks, &(&1.name in [nil, ""]))
+    }
+  end
+
   def list_previews(attrs, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 
     Preview
     |> preload(^preload)
+    |> query_with_search_when_needed(opts)
     |> query_with_supported_platforms_when_needed(opts)
     |> query_with_distinct_bundle_identifier_when_needed(attrs, opts)
     |> Flop.validate_and_run!(attrs, for: Preview)
@@ -193,6 +231,21 @@ defmodule Tuist.AppBuilds do
     previews
   end
 
+  defp query_with_search_when_needed(query, opts) do
+    opts
+    |> Keyword.get(:search)
+    |> List.wrap()
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.reduce(query, fn search, query ->
+      where(
+        query,
+        [p],
+        fragment("strpos(lower(?), lower(?)) > 0", p.display_name, ^search) or
+          fragment("strpos(lower(?), lower(?)) > 0", p.release_notes, ^search)
+      )
+    end)
+  end
+
   defp query_with_distinct_bundle_identifier_when_needed(query, attrs, opts) do
     distinct_bundle_identifier =
       opts
@@ -211,7 +264,8 @@ defmodule Tuist.AppBuilds do
 
     if distinct_bundle_identifier do
       preview_ids =
-        from(p in Preview)
+        query
+        |> exclude(:preload)
         |> Flop.query(%Flop{filters: filters}, for: Preview)
         |> order_by({^order_direction, ^order_by})
         |> distinct([p], p.bundle_identifier)
@@ -260,19 +314,27 @@ defmodule Tuist.AppBuilds do
   def preview_by_id(id, opts \\ []) do
     if Tuist.UUIDv7.valid?(id) do
       preload = Keyword.get(opts, :preload, [])
-      preview = Preview |> Repo.get_by(id: id) |> Repo.preload(preload)
+      project_id = Keyword.get(opts, :project_id)
 
-      case preview do
+      query = from(p in Preview, where: p.id == ^id)
+
+      query =
+        if is_nil(project_id),
+          do: query,
+          else: where(query, [p], p.project_id == ^project_id)
+
+      case Repo.one(query) do
         nil -> {:error, :not_found}
-        %Preview{} = preview -> {:ok, preview}
+        %Preview{} = preview -> {:ok, Repo.preload(preview, preload)}
       end
     else
       {:error, "The provided preview ID #{id} doesn't have a valid format."}
     end
   end
 
-  def storage_key(%{account_handle: account_handle, project_handle: project_handle, app_build_id: app_build_id}) do
-    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/previews/#{app_build_id}.zip"
+  def storage_key(%{account_handle: account_handle, project_handle: project_handle, app_build: app_build}) do
+    extension = if app_build.type == :apk, do: "apk", else: "zip"
+    "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/previews/#{app_build.id}.#{extension}"
   end
 
   def icon_storage_key(%{account_handle: account_handle, project_handle: project_handle, preview_id: preview_id}) do
@@ -299,7 +361,14 @@ defmodule Tuist.AppBuilds do
       :visionos -> "visionOS"
       :visionos_simulator -> "visionOS Simulator"
       :macos -> "macOS"
+      :android -> "Android"
     end
+  end
+
+  def latest_apk_app_build_for_preview(%Preview{} = preview) do
+    preview.app_builds
+    |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
+    |> Enum.find(&(&1.type == :apk))
   end
 
   def latest_ipa_app_build_for_preview(%Preview{} = preview) do
@@ -311,11 +380,7 @@ defmodule Tuist.AppBuilds do
   def latest_app_build(git_ref, %Project{} = project, opts \\ []) do
     supported_platform = Keyword.get(opts, :supported_platform)
 
-    enum_el_type =
-      case AppBuild.__schema__(:type, :supported_platforms) do
-        {:array, el_type} -> el_type
-        other -> raise "Unexpected type for supported_platforms: #{inspect(other)}"
-      end
+    {:array, enum_el_type} = AppBuild.__schema__(:type, :supported_platforms)
 
     latest_preview =
       from p in Preview,
@@ -349,6 +414,37 @@ defmodule Tuist.AppBuilds do
   end
 
   def delete_preview!(%Preview{} = preview) do
-    Repo.delete!(preview)
+    deleted = Repo.delete!(preview)
+    # `preview` retains its in-memory fields and project_id post-delete, so the
+    # dispatcher can resolve the owning account before the row is gone for good.
+    Tuist.Webhooks.Dispatcher.dispatch_preview_deleted(preview)
+    deleted
+  end
+
+  defp normalize_release_notes(notes) when is_binary(notes) do
+    if String.trim(notes) == "", do: nil, else: notes
+  end
+
+  defp normalize_release_notes(notes), do: notes
+
+  defp reuse_preview_with_release_notes(preview, nil), do: {:ok, preview, :reused}
+
+  defp reuse_preview_with_release_notes(preview, notes) do
+    changeset = Preview.create_changeset(preview, %{release_notes: notes})
+
+    if changeset.valid? do
+      query =
+        from(p in Preview,
+          where: p.id == ^preview.id and is_nil(p.release_notes),
+          select: p
+        )
+
+      case Repo.update_all(query, set: [release_notes: notes, updated_at: DateTime.utc_now(:second)]) do
+        {1, [updated]} -> {:ok, updated, :reused}
+        {0, []} -> {:ok, Repo.reload!(preview), :reused}
+      end
+    else
+      {:error, changeset}
+    end
   end
 end

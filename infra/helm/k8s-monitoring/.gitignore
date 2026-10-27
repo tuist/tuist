@@ -1,0 +1,4 @@
+# Subchart tarballs are pulled by `helm dependency update` before install
+# (see README). Chart.lock pins the exact version, so the tarball is a
+# reproducible build artifact — no need to vendor it in git.
+charts/*.tgz

@@ -1,7 +1,7 @@
 import FileSystem
 import Foundation
 import Path
-import TSCBasic
+import TuistLogging
 import TuistSupport
 import XcodeProj
 
@@ -47,7 +47,7 @@ public struct TargetDependencyCount: Encodable {
     public let linkedFrameworksCount: Int
 }
 
-public final class TargetsExtractor: TargetsExtracting {
+public struct TargetsExtractor: TargetsExtracting {
     private let fileSystem: FileSysteming
 
     // MARK: - Init

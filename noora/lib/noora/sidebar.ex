@@ -1,0 +1,175 @@
+defmodule Noora.Sidebar do
+  @moduledoc """
+  A flexible sidebar.
+
+  ## Example
+
+  ```elixir
+  <.sidebar>
+    <.sidebar_item
+      label="Dashboard"
+      icon="home"
+      patch={~p"/dashboard"}
+      selected={@live_action == :dashboard}
+    />
+    <.sidebar_group
+      id="products-group"
+      label="Products"
+      icon="package"
+      collapsible={true}
+      default_open={true}
+    >
+      <.sidebar_item
+        label="All Products"
+        icon="list"
+        patch={~p"/products"}
+      />
+      <.sidebar_item
+        label="Add Product"
+        icon="plus"
+        patch={~p"/products/new"}
+      />
+    </.sidebar_group>
+  </.sidebar>
+  ```
+  """
+
+  use Phoenix.Component
+
+  import Noora.Icon
+  import Noora.TabMenu
+
+  attr(:id, :string, default: "sidebar")
+
+  attr(:persist_scroll, :boolean,
+    default: true,
+    doc: "Remember the scroll position per sidebar ID within this browser tab."
+  )
+
+  slot(:inner_block, required: true)
+
+  def sidebar(assigns) do
+    ~H"""
+    <div
+      class="noora-sidebar"
+      data-part="sidebar"
+      id={@id}
+      phx-hook="NooraScrollArea"
+      data-scroll-persist-key={@persist_scroll && @id}
+    >
+      <div data-part="viewport">
+        {render_slot(@inner_block)}
+      </div>
+      <div id={@id <> "-scrollbar"} data-part="scrollbar" phx-update="ignore">
+        <div data-part="thumb"></div>
+      </div>
+    </div>
+    """
+  end
+
+  attr(:id, :string, required: true)
+  attr(:icon, :string, required: true, doc: "The icon of the group.")
+  attr(:label, :string, required: true, doc: "The label of the group.")
+  attr(:collapsible, :boolean, default: true, doc: "Whether the group is collapsible.")
+  attr(:default_open, :boolean, default: false, doc: "Whether the group is open by default.")
+  attr(:navigate, :string, default: nil, doc: "Navigates to a LiveView")
+  attr(:patch, :string, default: nil, doc: "Patches the current LiveView")
+  attr(:href, :any, default: nil, doc: "Uses traditional browser navigation to the new location")
+  attr(:selected, :boolean, default: false, doc: "Whether the item is selected.")
+  attr(:disabled, :boolean, default: false, doc: "Whether the item is disabled.")
+
+  attr(:rest, :global)
+  slot(:inner_block)
+
+  def sidebar_group(assigns) do
+    ~H"""
+    <%= if @collapsible do %>
+      <div
+        id={@id}
+        data-part="collapsible-group"
+        phx-hook="NooraCollapsible"
+        data-open={@default_open}
+        data-persist-key={@id}
+        data-disabled={@disabled}
+        {@rest}
+      >
+        <div data-part="root">
+          <%= if @navigate || @patch || @href do %>
+            <div class="noora-tab-menu-vertical" data-part="header" data-selected={@selected}>
+              <.link navigate={@navigate} patch={@patch} href={@href} data-part="link">
+                <div data-part="icon-left"><.icon name={@icon} /></div>
+                <span data-part="label">{@label}</span>
+              </.link>
+              <button type="button" data-part="trigger" aria-label={"Toggle #{@label}"}>
+                <div data-part="indicator">
+                  <.icon
+                    id={@id <> "-indicator"}
+                    name="chevron_right"
+                    active_name="chevron_down"
+                    transition="crossfade_rotate"
+                    active_state="open"
+                  />
+                </div>
+              </button>
+            </div>
+          <% else %>
+            <button
+              type="button"
+              class="noora-tab-menu-vertical"
+              data-part="trigger"
+              data-selected={@selected}
+              disabled={@disabled}
+            >
+              <div data-part="icon-left"><.icon name={@icon} /></div>
+              <span data-part="label">{@label}</span>
+              <div data-part="icon-right">
+                <div data-part="indicator">
+                  <.icon
+                    id={@id <> "-indicator"}
+                    name="chevron_right"
+                    active_name="chevron_down"
+                    transition="crossfade_rotate"
+                    active_state="open"
+                  />
+                </div>
+              </div>
+            </button>
+          <% end %>
+          <div data-part="content" hidden={!@default_open}>
+            {render_slot(@inner_block)}
+          </div>
+        </div>
+      </div>
+    <% else %>
+      <div id={@id} data-part="group" {@rest}>
+        <span data-part="group-label">{@label}</span>
+        {render_slot(@inner_block)}
+      </div>
+    <% end %>
+    """
+  end
+
+  attr(:label, :string, required: true, doc: "The label of the item.")
+  attr(:icon, :string, required: true, doc: "The icon of the item.")
+  attr(:selected, :boolean, default: false, doc: "Whether the item is selected.")
+  attr(:navigate, :string, default: nil, doc: "Navigates to a LiveView")
+  attr(:patch, :string, default: nil, doc: "Patches the current LiveView")
+  attr(:href, :any, default: nil, doc: "Uses traditional browser navigation to the new location")
+  attr(:external, :boolean, default: false, doc: "Whether the item points to an external resource.")
+  attr(:rest, :global, include: ~w(target rel))
+
+  def sidebar_item(assigns) do
+    ~H"""
+    <.link navigate={@navigate} patch={@patch} href={@href} data-part="item" {@rest}>
+      <.tab_menu_vertical label={@label} data-selected={@selected}>
+        <:icon_left>
+          <.icon name={@icon} />
+        </:icon_left>
+        <:icon_right :if={@external}>
+          <.external_link />
+        </:icon_right>
+      </.tab_menu_vertical>
+    </.link>
+    """
+  end
+end

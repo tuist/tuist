@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 import TuistHTTP
 
 @Mockable
@@ -31,10 +31,10 @@ enum ListBundlesServiceError: LocalizedError {
     }
 }
 
-public final class ListBundlesService: ListBundlesServicing {
+public struct ListBundlesService: ListBundlesServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
+    public init() {
         self.init(
             fullHandleService: FullHandleService()
         )
@@ -64,8 +64,8 @@ public final class ListBundlesService: ListBundlesServicing {
                 ),
                 query: .init(
                     page: page,
-                    page_size: pageSize,
-                    git_branch: gitBranch
+                    git_branch: gitBranch,
+                    page_size: pageSize
                 )
             )
         )
@@ -86,6 +86,10 @@ public final class ListBundlesService: ListBundlesServicing {
             case let .json(error):
                 throw ListBundlesServiceError.forbidden(error.message)
             }
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .undocumented(statusCode: statusCode, _):
             throw ListBundlesServiceError.unknownError(statusCode)
         }

@@ -37,7 +37,7 @@ struct NodeStyleAttributes {
 extension GraphTarget {
     var styleAttributes: NodeStyleAttributes {
         switch target.product {
-        case .app, .watch2App, .commandLineTool, .macro, .appClip, .xpc, .systemExtension:
+        case .app, .watch2App, .watch2AppContainer, .commandLineTool, .macro, .appClip, .xpc, .systemExtension:
             return .init(fillColorName: .deepskyblue, strokeWidth: 1.5, shape: .box3d)
         case .appExtension, .watch2Extension, .tvTopShelfExtension, .extensionKitExtension:
             return .init(fillColorName: .deepskyblue2, shape: .component)
@@ -78,6 +78,8 @@ extension GraphDependency {
             return .init(fillColorName: .tan4, textColorName: .white, shape: .tab)
         case .xcframework:
             return .init(fillColorName: .lightskyblue1, shape: .trapezium)
+        case .foreignBuildOutput:
+            return .init(fillColorName: .darkgoldenrod3, shape: .trapezium)
         case let .target(name: name, path: path, status: _):
             return graphTraverser.target(path: path, name: name)
                 .map(\.styleAttributes)

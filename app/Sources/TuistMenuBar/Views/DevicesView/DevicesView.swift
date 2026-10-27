@@ -1,6 +1,7 @@
 import Combine
 import Path
 import SwiftUI
+import TuistAndroid
 import TuistAutomation
 import TuistCore
 import TuistServer
@@ -65,6 +66,7 @@ struct DevicesView: View, ErrorViewHandling {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         simulators(viewModel.unpinnedSimulators)
+                        androidDevices(viewModel.unpinnedAndroidEmulators)
                     }
                     .padding(.horizontal, 8)
                 }
@@ -76,7 +78,9 @@ struct DevicesView: View, ErrorViewHandling {
 
     @ViewBuilder
     private func pinnedDevicesSection() -> some View {
-        if !viewModel.devices.isEmpty || !viewModel.pinnedSimulators.isEmpty {
+        if !viewModel.devices.isEmpty || !viewModel.androidPhysicalDevices.isEmpty
+            || !viewModel.pinnedSimulators.isEmpty || !viewModel.pinnedAndroidEmulators.isEmpty
+        {
             HStack {
                 Text("Devices")
                     .font(.headline)
@@ -108,7 +112,7 @@ struct DevicesView: View, ErrorViewHandling {
             Divider()
 
             VStack(alignment: .leading, spacing: 0) {
-                deviceList("Connected", devices: viewModel.connectedDevices)
+                connectedDevicesList()
                 deviceList("Disconnected", devices: viewModel.disconnectedDevices)
 
                 if !viewModel.pinnedSimulators.isEmpty {
@@ -119,10 +123,61 @@ struct DevicesView: View, ErrorViewHandling {
 
                     simulators(viewModel.pinnedSimulators)
                 }
+
+                if !viewModel.pinnedAndroidEmulators.isEmpty {
+                    Text("Android Emulators")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .padding(4)
+
+                    androidDevices(viewModel.pinnedAndroidEmulators)
+                }
             }
             .padding(.bottom, 2)
 
             Divider()
+        }
+    }
+
+    @ViewBuilder
+    private func connectedDevicesList() -> some View {
+        let connected = viewModel.connectedDevices
+        let androidPhysical = viewModel.androidPhysicalDevices
+        if !connected.isEmpty || !androidPhysical.isEmpty {
+            Text("Connected")
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .padding(4)
+
+            ForEach(connected) { device in
+                let selected = switch viewModel.selectedDevice {
+                case let .device(selectedDevice):
+                    selectedDevice.id == device.id
+                case .simulator, .androidDevice, .none:
+                    false
+                }
+
+                PhysicalDeviceRow(
+                    device: device,
+                    selected: selected,
+                    onSelected: viewModel.selectPhysicalDevice
+                )
+            }
+
+            ForEach(androidPhysical, id: \.id) { device in
+                let selected = switch viewModel.selectedDevice {
+                case let .androidDevice(selectedDevice):
+                    device.id == selectedDevice.id
+                case .simulator, .device, .none:
+                    false
+                }
+
+                AndroidDeviceRow(
+                    device: device,
+                    selected: selected,
+                    onSelected: { viewModel.selectAndroidDevice($0) }
+                )
+            }
         }
     }
 
@@ -138,7 +193,7 @@ struct DevicesView: View, ErrorViewHandling {
                 let selected = switch viewModel.selectedDevice {
                 case let .device(selectedDevice):
                     selectedDevice.id == device.id
-                case .simulator, .none:
+                case .simulator, .androidDevice, .none:
                     false
                 }
 
@@ -156,7 +211,7 @@ struct DevicesView: View, ErrorViewHandling {
             let selected = switch viewModel.selectedDevice {
             case let .simulator(selectedSimulator):
                 simulator.device.udid == selectedSimulator.device.udid
-            case .device, .none:
+            case .device, .androidDevice, .none:
                 false
             }
 
@@ -168,6 +223,27 @@ struct DevicesView: View, ErrorViewHandling {
                 viewModel.selectSimulator(simulator)
             } onPinned: { simulator, pinned in
                 viewModel.simulatorPinned(simulator, pinned: pinned)
+            }
+        }
+    }
+
+    private func androidDevices(_ devices: [AndroidDevice]) -> some View {
+        ForEach(devices, id: \.id) { device in
+            let selected = switch viewModel.selectedDevice {
+            case let .androidDevice(selectedDevice):
+                device.id == selectedDevice.id
+            case .simulator, .device, .none:
+                false
+            }
+
+            return AndroidDeviceRow(
+                device: device,
+                selected: selected,
+                pinned: viewModel.pinnedAndroidEmulators.contains(where: { $0.id == device.id })
+            ) { device in
+                viewModel.selectAndroidDevice(device)
+            } onPinned: { device, pinned in
+                viewModel.androidEmulatorPinned(device, pinned: pinned)
             }
         }
     }

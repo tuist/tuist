@@ -1,0 +1,16 @@
+{{- if .Values.ingressCertificate.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ default (required "ingressCertificate.secretName is required" .Values.ingressCertificate.secretName) .Values.ingressCertificate.name | quote }}
+  namespace: {{ .Release.Namespace | quote }}
+spec:
+  secretName: {{ required "ingressCertificate.secretName is required" .Values.ingressCertificate.secretName | quote }}
+  dnsNames:
+    {{- range .Values.ingressCertificate.dnsNames }}
+    - {{ . | quote }}
+    {{- end }}
+  issuerRef:
+    kind: {{ .Values.ingressCertificate.issuerRef.kind | quote }}
+    name: {{ .Values.ingressCertificate.issuerRef.name | quote }}
+{{- end }}

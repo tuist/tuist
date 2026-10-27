@@ -1,30 +1,70 @@
 import FileSystem
 import Foundation
+import Path
 import ProjectDescription
-import TuistCore
+import TuistAlert
+import TuistLogging
+import TuistSupport
 import XcodeGraph
+
+enum BuildableFolderManifestMapperError: FatalError, Equatable {
+    case folderNotFound(targetName: String, path: AbsolutePath)
+
+    var type: ErrorType { .abort }
+
+    var description: String {
+        switch self {
+        case let .folderNotFound(targetName: targetName, path: path):
+            return "The target \(targetName) has a buildableFolder at \(path.pathString) that does not exist."
+        }
+    }
+}
 
 extension XcodeGraph.BuildableFolder {
     static func from(
         manifest: ProjectDescription.BuildableFolder,
-        generatorPaths: GeneratorPaths
-    ) async throws -> XcodeGraph.BuildableFolder {
+        generatorPaths: GeneratorPaths,
+        targetName: String
+    ) async throws -> XcodeGraph.BuildableFolder? {
         let path = try generatorPaths.resolve(path: manifest.path)
-        let exceptions = try XcodeGraph.BuildableFolderExceptions.from(
+        let fileSystem = FileSystem()
+
+        if try await !fileSystem.exists(path) {
+            if manifest.optional {
+                AlertController.current.warning(
+                    .alert(
+                        "The target \(targetName) has an optional buildableFolder at \(path.pathString) that does not exist. It will be skipped."
+                    )
+                )
+                return nil
+            }
+            throw BuildableFolderManifestMapperError.folderNotFound(targetName: targetName, path: path)
+        }
+
+        let exceptions = try await XcodeGraph.BuildableFolderExceptions.from(
             manifest: manifest.exceptions,
-            buildableFolder: path
+            buildableFolder: path,
+            fileSystem: fileSystem
         )
         let exclusions = Set(exceptions.flatMap(\.excluded))
         let compilerFlagsByPath = Dictionary(uniqueKeysWithValues: exceptions.flatMap(\.compilerFlags))
 
-        let fileSystem = FileSystem()
-        let resolvedFiles = try await fileSystem
-            .glob(directory: path, include: ["**/*"]).collect()
-            .compactMap { path -> BuildableFolderFile? in
-                if exclusions.contains(path) { return nil }
+        let allPaths = try await fileSystem
+            .manifestGlob(directory: path, include: ["**/*"]).collect()
+            .filter { !exclusions.contains($0) }
+        let resolvedFiles = try await allPaths
+            .concurrentCompactMap { filePath -> BuildableFolderFile? in
+                if filePath.isInOpaqueDirectory { return nil }
+                if filePath.isOpaqueDirectory {
+                    return BuildableFolderFile(
+                        path: filePath,
+                        compilerFlags: compilerFlagsByPath[filePath]
+                    )
+                }
+                if try await fileSystem.exists(filePath, isDirectory: true) { return nil }
                 return BuildableFolderFile(
-                    path: path,
-                    compilerFlags: compilerFlagsByPath[path]
+                    path: filePath,
+                    compilerFlags: compilerFlagsByPath[filePath]
                 )
             }
 

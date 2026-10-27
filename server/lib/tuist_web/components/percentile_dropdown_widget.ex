@@ -36,15 +36,17 @@ defmodule TuistWeb.PercentileDropdownWidget do
   attr(:id, :string, required: true)
   attr(:title, :string, required: true)
   attr(:description, :string, required: true)
-  attr(:value, :string, required: true)
-  attr(:metrics, :map, required: true, doc: "Map containing the metric values (avg, p99, p90, p50)")
+  attr(:value, :string, default: nil)
+  attr(:metrics, :map, default: nil, doc: "Map containing the metric values (avg, p99, p90, p50)")
   attr(:selected_type, :string, required: true, values: ~w(avg p99 p90 p50))
   attr(:event_name, :string, required: true, doc: "Phoenix event name for selection changes")
+  attr(:loading, :boolean, default: false)
   attr(:empty, :boolean, default: false)
   attr(:empty_label, :string, default: nil)
   attr(:legend_color, :string, default: nil)
   attr(:selected, :boolean, default: false)
   attr(:trend_value, :any, default: nil)
+  attr(:trend_value_label, :string, default: nil)
   attr(:trend_type, :atom, default: :regular, values: [:regular, :inverse, :neutral])
   attr(:trend_label, :string, default: nil)
   attr(:phx_click, :string, default: nil, doc: "Phoenix event to trigger on widget click")
@@ -57,11 +59,13 @@ defmodule TuistWeb.PercentileDropdownWidget do
       description={@description}
       value={@value}
       id={@id}
+      loading={@loading}
       empty={@empty}
       empty_label={@empty_label}
       legend_color={@legend_color}
       selected={@selected}
       trend_value={@trend_value}
+      trend_value_label={@trend_value_label}
       trend_type={@trend_type}
       trend_label={@trend_label}
       phx_click={@phx_click}
@@ -112,7 +116,7 @@ defmodule TuistWeb.PercentileDropdownWidget do
       <span data-part="label">{percentile_label(@type)}</span>
       <span data-part="separator">-</span>
       <span data-part="value">
-        {Map.get(@metrics, String.to_atom(@type), dgettext("dashboard", "N/A"))}
+        {Map.get(@metrics || %{}, String.to_atom(@type), dgettext("dashboard", "N/A"))}
       </span>
     </div>
     """

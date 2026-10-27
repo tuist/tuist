@@ -1,0 +1,135 @@
+{
+  "name": "Checkbox",
+  "tagName": "noora-checkbox",
+  "elementClassName": "NooraCheckbox",
+  "className": "noora-checkbox",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Lets a user select one or more independent options.",
+  "usage": "<noora-checkbox label=\"Send notifications\" name=\"notifications\"></noora-checkbox>",
+  "attributes": [
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Sets the visible label."
+    },
+    {
+      "name": "description",
+      "property": "description",
+      "type": "string",
+      "description": "Sets supporting text."
+    },
+    {
+      "name": "checked",
+      "property": "checked",
+      "type": "boolean",
+      "default": false,
+      "reflect": true,
+      "description": "Controls the checked state."
+    },
+    {
+      "name": "indeterminate",
+      "property": "indeterminate",
+      "type": "boolean",
+      "default": false,
+      "reflect": true,
+      "description": "Controls the mixed state."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "reflect": true,
+      "description": "Disables interaction."
+    },
+    {
+      "name": "name",
+      "property": "name",
+      "type": "string",
+      "default": "",
+      "description": "Sets the submitted field name."
+    },
+    {
+      "name": "value",
+      "property": "value",
+      "type": "string",
+      "default": "on",
+      "description": "Sets the submitted field value."
+    },
+    {
+      "name": "required",
+      "property": "required",
+      "type": "boolean",
+      "default": false,
+      "description": "Marks the field as required."
+    }
+  ],
+  "readonlyProperties": [
+    {
+      "name": "control",
+      "type": "HTMLInputElement | null",
+      "description": "The native checkbox input."
+    },
+    {
+      "name": "form",
+      "type": "HTMLFormElement | null",
+      "description": "The associated form."
+    }
+  ],
+  "slots": [],
+  "cssParts": [
+    {
+      "name": "root",
+      "description": "The checkbox label."
+    },
+    {
+      "name": "control",
+      "description": "The visual checkbox control."
+    },
+    {
+      "name": "label",
+      "description": "The label text."
+    }
+  ],
+  "events": [
+    {
+      "name": "input",
+      "type": "InputEvent",
+      "description": "Emitted while the checked state changes."
+    },
+    {
+      "name": "change",
+      "type": "Event",
+      "description": "Emitted after the checked state changes."
+    }
+  ],
+  "notes": ["The component emits standard input and change events."],
+  "examples": [
+    {
+      "id": "basic-states",
+      "title": "Basic states",
+      "description": "Checkboxes support unchecked, checked, and indeterminate states.",
+      "markup": "<noora-checkbox label=\"Enable notifications\"></noora-checkbox>\n<noora-checkbox checked label=\"Email alerts\"></noora-checkbox>\n<noora-checkbox indeterminate label=\"Select all items\"></noora-checkbox>"
+    },
+    {
+      "id": "disabled-states",
+      "title": "Disabled states",
+      "description": "Every selection state has a disabled presentation.",
+      "markup": "<noora-checkbox disabled label=\"Disabled unchecked\"></noora-checkbox>\n<noora-checkbox disabled checked label=\"Disabled checked\"></noora-checkbox>\n<noora-checkbox disabled indeterminate label=\"Disabled indeterminate\"></noora-checkbox>"
+    },
+    {
+      "id": "descriptions",
+      "title": "Descriptions",
+      "description": "Add supporting context below the label.",
+      "markup": "<noora-checkbox label=\"Marketing emails\" description=\"Receive updates about new features and promotions\"></noora-checkbox>\n<noora-checkbox checked label=\"Remember my preferences\" description=\"Save your settings for future visits\"></noora-checkbox>"
+    },
+    {
+      "id": "practical",
+      "title": "Practical examples",
+      "description": "Use checkboxes for agreements, subscriptions, and optional settings.",
+      "markup": "<noora-checkbox required label=\"I agree to the Terms of Service\" description=\"By checking this box, you agree to our terms and conditions\"></noora-checkbox>\n<noora-checkbox label=\"Subscribe to our newsletter\" description=\"Get weekly updates delivered to your inbox\"></noora-checkbox>\n<noora-checkbox checked label=\"Enable dark mode\" description=\"Switch to a darker color scheme\"></noora-checkbox>"
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import XCTest
 
@@ -5,7 +6,7 @@ import XCTest
 @testable import TuistTesting
 
 final class FileManagerExtrasTests: TuistUnitTestCase {
-    func testSubdirectoriesResolvingSymbolicLinks_whenNoSymbolicLinks() throws {
+    func testSubdirectoriesResolvingSymbolicLinks_whenNoSymbolicLinks() async throws {
         // Given
         let fileManager = FileManager.default
 
@@ -22,16 +23,16 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
         let file1Path = folderPath.appending(component: "File1")
         let subfolderPath = folderPath.appending(component: "Subfolder")
         let file2Path = subfolderPath.appending(component: "File2")
-        try fileHandler.createFolder(subfolderPath)
-        try fileHandler.write("Test", path: file1Path, atomically: true)
-        try fileHandler.write("Test", path: file2Path, atomically: true)
+        try await fileSystem.makeDirectory(at: subfolderPath)
+        try await fileSystem.writeText("Test", at: file1Path)
+        try await fileSystem.writeText("Test", at: file2Path)
 
         // Then
         let got = fileManager.subdirectoriesResolvingSymbolicLinks(atPath: folderPath.pathString)
         XCTAssertEqual(got.sorted(), ["Subfolder"])
     }
 
-    func testSubdirectoriesResolvingSymbolicLinks_whenSymbolicLinksToFiles() throws {
+    func testSubdirectoriesResolvingSymbolicLinks_whenSymbolicLinksToFiles() async throws {
         // Given
         let fileManager = FileManager.default
 
@@ -51,17 +52,17 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
         let subfolderPath = folderPath.appending(component: "Subfolder")
         let filePath = subfolderPath.appending(component: "File")
 
-        try fileHandler.createFolder(subfolderPath)
-        try fileHandler.write("Test", path: outsideFile, atomically: true)
-        try fileHandler.write("Test", path: filePath, atomically: true)
-        try fileHandler.createSymbolicLink(at: symlinkPath, destination: outsideFile)
+        try await fileSystem.makeDirectory(at: subfolderPath)
+        try await fileSystem.writeText("Test", at: outsideFile)
+        try await fileSystem.writeText("Test", at: filePath)
+        try await fileSystem.createSymbolicLink(from: symlinkPath, to: outsideFile)
 
         // Then
         let got = fileManager.subdirectoriesResolvingSymbolicLinks(atPath: folderPath.pathString)
         XCTAssertEqual(got.sorted(), ["Subfolder"])
     }
 
-    func testSubdirectoriesResolvingSymbolicLinks_whenSymbolicLinksToDirectory() throws {
+    func testSubdirectoriesResolvingSymbolicLinks_whenSymbolicLinksToDirectory() async throws {
         // Given
         let fileManager = FileManager.default
 
@@ -79,17 +80,17 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
         let folderPath = rootPath.appending(component: "Folder")
         let symlinkPath = folderPath.appending(component: "SymlinkFolder")
 
-        try fileHandler.createFolder(outsideFolderPath)
-        try fileHandler.createFolder(folderPath)
-        try fileHandler.write("Test", path: filePath, atomically: true)
-        try fileHandler.createSymbolicLink(at: symlinkPath, destination: outsideFolderPath)
+        try await fileSystem.makeDirectory(at: outsideFolderPath)
+        try await fileSystem.makeDirectory(at: folderPath)
+        try await fileSystem.writeText("Test", at: filePath)
+        try await fileSystem.createSymbolicLink(from: symlinkPath, to: outsideFolderPath)
 
         // Then
         let got = fileManager.subdirectoriesResolvingSymbolicLinks(atPath: folderPath.pathString)
         XCTAssertEqual(got.sorted(), ["SymlinkFolder"])
     }
 
-    func testSubdirectoriesResolvingSymbolicLinks_whenSymbolicLinkAndOriginalInSameSubtree() throws {
+    func testSubdirectoriesResolvingSymbolicLinks_whenSymbolicLinkAndOriginalInSameSubtree() async throws {
         // Given
         let fileManager = FileManager.default
 
@@ -105,16 +106,16 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
         let subfolderPath = folderPath.appending(component: "Subfolder")
         let symlinkFolderPath = folderPath.appending(component: "SymlinkFolder")
 
-        try fileHandler.createFolder(folderPath)
-        try fileHandler.createFolder(subfolderPath)
-        try fileHandler.createSymbolicLink(at: symlinkFolderPath, destination: subfolderPath)
+        try await fileSystem.makeDirectory(at: folderPath)
+        try await fileSystem.makeDirectory(at: subfolderPath)
+        try await fileSystem.createSymbolicLink(from: symlinkFolderPath, to: subfolderPath)
 
         // Then
         let got = fileManager.subdirectoriesResolvingSymbolicLinks(atPath: folderPath.pathString)
         XCTAssertEqual(got.sorted(), ["Subfolder", "SymlinkFolder"])
     }
 
-    func testSubdirectoriesResolvingSymbolicLinks_whenNestedDirectories() throws {
+    func testSubdirectoriesResolvingSymbolicLinks_whenNestedDirectories() async throws {
         // Given
         let fileManager = FileManager.default
 
@@ -136,12 +137,12 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
         let subSubFolderPath = subFolderPath.appending(component: "SubSubFolder")
         let subSubFilePath = subSubFolderPath.appending(component: "SubSubFile")
 
-        try fileHandler.createFolder(folderPath)
-        try fileHandler.createFolder(subFolderPath)
-        try fileHandler.createFolder(subSubFolderPath)
-        try fileHandler.write("Test", path: filePath, atomically: true)
-        try fileHandler.write("Test", path: subFilePath, atomically: true)
-        try fileHandler.write("Test", path: subSubFilePath, atomically: true)
+        try await fileSystem.makeDirectory(at: folderPath)
+        try await fileSystem.makeDirectory(at: subFolderPath)
+        try await fileSystem.makeDirectory(at: subSubFolderPath)
+        try await fileSystem.writeText("Test", at: filePath)
+        try await fileSystem.writeText("Test", at: subFilePath)
+        try await fileSystem.writeText("Test", at: subSubFilePath)
 
         // Then
         let got = fileManager.subdirectoriesResolvingSymbolicLinks(atPath: rootPath.pathString)
@@ -153,7 +154,7 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
         XCTAssertEqual(got.sorted(), expected)
     }
 
-    func testSubdirectoriesResolvingSymbolicLinks_whenNestedSymlinks() throws {
+    func testSubdirectoriesResolvingSymbolicLinks_whenNestedSymlinks() async throws {
         // Given
         let fileManager = FileManager.default
 
@@ -175,12 +176,12 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
         let folderPath = rootPath.appending(component: "Folder")
         let symlinkFolderPath = folderPath.appending(component: "SymlinkFolder")
 
-        try fileHandler.createFolder(folderPath)
-        try fileHandler.createFolder(outsideFolderPath)
-        try fileHandler.createFolder(otherOutsideFolderPath)
-        try fileHandler.createFolder(subFolderPath)
-        try fileHandler.createSymbolicLink(at: symlinkFolderPath, destination: outsideFolderPath)
-        try fileHandler.createSymbolicLink(at: subSymlinkFolderPath, destination: otherOutsideFolderPath)
+        try await fileSystem.makeDirectory(at: folderPath)
+        try await fileSystem.makeDirectory(at: outsideFolderPath)
+        try await fileSystem.makeDirectory(at: otherOutsideFolderPath)
+        try await fileSystem.makeDirectory(at: subFolderPath)
+        try await fileSystem.createSymbolicLink(from: symlinkFolderPath, to: outsideFolderPath)
+        try await fileSystem.createSymbolicLink(from: subSymlinkFolderPath, to: otherOutsideFolderPath)
 
         // Then
         let got = fileManager.subdirectoriesResolvingSymbolicLinks(atPath: folderPath.pathString)
@@ -192,7 +193,7 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
         XCTAssertEqual(got.sorted(), expected)
     }
 
-    func testSubdirectoriesResolvingSymbolicLinks_whenRelativeSymlink() throws {
+    func testSubdirectoriesResolvingSymbolicLinks_whenRelativeSymlink() async throws {
         // Given
         let fileManager = FileManager.default
 
@@ -210,9 +211,9 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
         let folderPath = rootPath.appending(component: "Folder")
         let symlinkFolderPath = folderPath.appending(component: "SymlinkFolder")
 
-        try fileHandler.createFolder(folderPath)
-        try fileHandler.createFolder(outsideFolderPath)
-        try fileHandler.createFolder(subfolderPath)
+        try await fileSystem.makeDirectory(at: folderPath)
+        try await fileSystem.makeDirectory(at: outsideFolderPath)
+        try await fileSystem.makeDirectory(at: subfolderPath)
         try fileManager.createSymbolicLink(atPath: symlinkFolderPath.pathString, withDestinationPath: "../OutsideFolder")
 
         // Then

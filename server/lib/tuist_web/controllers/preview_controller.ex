@@ -15,6 +15,7 @@ defmodule TuistWeb.PreviewController do
               :download_icon,
               :download_preview,
               :download_archive,
+              :download_apk,
               :manifest
             ]
 
@@ -114,10 +115,26 @@ defmodule TuistWeb.PreviewController do
     end)
   end
 
+  # iOS extracts the software-package URL from the manifest and retries that
+  # exact URL on queued/stuck installs without re-fetching the manifest, so the
+  # presigned url baked into the manifest gets a generous window. A browser
+  # hitting /app.ipa directly re-mints the url on every request, so that path
+  # keeps the shorter default.
+  @manifest_ipa_url_expires_in 24 * 60 * 60
+  @archive_ipa_url_expires_in 60 * 60
+
   def download_archive(
         %{assigns: %{current_preview: preview, selected_account: account}} = conn,
         %{"account_handle" => account_handle, "project_handle" => project_handle} = _params
       ) do
+    url = ipa_download_url(preview, account_handle, project_handle, account, @archive_ipa_url_expires_in)
+
+    conn
+    |> redirect(external: url)
+    |> halt()
+  end
+
+  defp ipa_download_url(preview, account_handle, project_handle, account, expires_in) do
     app_build = AppBuilds.latest_ipa_app_build_for_preview(preview)
 
     storage_key =
@@ -125,20 +142,53 @@ defmodule TuistWeb.PreviewController do
         AppBuilds.storage_key(%{
           account_handle: account_handle,
           project_handle: project_handle,
-          app_build_id: app_build.id
+          app_build: app_build
         })
 
     if is_nil(app_build) or not Storage.object_exists?(storage_key, account) do
       raise NotFoundError, dgettext("dashboard", "The preview ipa doesn't exist or has expired.")
     end
 
-    send_resp(conn, :ok, Storage.get_object_as_string(storage_key, account))
+    Storage.generate_download_url(storage_key, account, expires_in: expires_in)
+  end
+
+  def download_apk(
+        %{assigns: %{current_preview: preview, selected_account: account}} = conn,
+        %{"account_handle" => account_handle, "project_handle" => project_handle} = _params
+      ) do
+    app_build = AppBuilds.latest_apk_app_build_for_preview(preview)
+
+    storage_key =
+      app_build &&
+        AppBuilds.storage_key(%{
+          account_handle: account_handle,
+          project_handle: project_handle,
+          app_build: app_build
+        })
+
+    if is_nil(app_build) or not Storage.object_exists?(storage_key, account) do
+      raise NotFoundError, dgettext("dashboard", "The preview APK doesn't exist or has expired.")
+    end
+
+    url = Storage.generate_download_url(storage_key, account, expires_in: 3600)
+
+    conn
+    |> redirect(external: url)
+    |> halt()
   end
 
   def manifest(
-        %{assigns: %{current_preview: preview}} = conn,
+        %{assigns: %{current_preview: preview, selected_account: account}} = conn,
         %{"account_handle" => account_handle, "project_handle" => project_handle} = _params
       ) do
+    # The manifest points the software-package asset directly at a presigned
+    # storage URL. iOS' install daemon does not follow redirects for this URL,
+    # so it must resolve to the ipa without any indirection through the server.
+    ipa_url =
+      preview
+      |> ipa_download_url(account_handle, project_handle, account, @manifest_ipa_url_expires_in)
+      |> Plug.HTML.html_escape()
+
     plist_content = """
     <?xml version="1.0" encoding="UTF-8"?>
     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -153,7 +203,7 @@ defmodule TuistWeb.PreviewController do
                             <key>kind</key>
                             <string>software-package</string>
                             <key>url</key>
-                            <string>#{url(~p"/#{account_handle}/#{project_handle}/previews/#{preview.id}/app.ipa")}</string>
+                            <string>#{ipa_url}</string>
                           </dict>
                     </array>
                     <key>metadata</key>
@@ -185,38 +235,65 @@ defmodule TuistWeb.PreviewController do
       ) do
     app_builds = preview.app_builds
 
-    conn =
-      conn
-      |> put_resp_content_type("application/zip")
-      |> put_resp_header(
-        "content-disposition",
-        "attachment; filename=\"preview-#{preview.id}.zip\""
-      )
-      |> send_chunked(200)
+    case ensure_preview_objects_exist(app_builds, account_handle, project_handle, account) do
+      :ok ->
+        conn =
+          conn
+          |> put_resp_content_type("application/zip")
+          |> put_resp_header(
+            "content-disposition",
+            "attachment; filename=\"preview-#{preview.id}.zip\""
+          )
+          |> send_chunked(200)
 
-    zip_stream =
-      app_builds
-      |> Enum.map(fn app_build ->
+        zip_stream =
+          app_builds
+          |> Enum.map(fn app_build ->
+            storage_key =
+              AppBuilds.storage_key(%{
+                account_handle: account_handle,
+                project_handle: project_handle,
+                app_build: app_build
+              })
+
+            content_stream = Storage.stream_object(storage_key, account)
+            extension = if app_build.type == :apk, do: "apk", else: "zip"
+            filename = "#{app_build.id}.#{extension}"
+
+            Zstream.entry(filename, content_stream)
+          end)
+          |> Zstream.zip()
+
+        Enum.reduce_while(zip_stream, conn, fn chunk, conn ->
+          case chunk(conn, chunk) do
+            {:ok, conn} -> {:cont, conn}
+            {:error, _reason} -> {:halt, conn}
+          end
+        end)
+
+      {:error, :missing_object} ->
+        raise NotFoundError, "The preview download doesn't exist or has expired."
+    end
+  end
+
+  defp ensure_preview_objects_exist(app_builds, account_handle, project_handle, account) do
+    all_exist? =
+      Enum.all?(app_builds, fn app_build ->
         storage_key =
           AppBuilds.storage_key(%{
             account_handle: account_handle,
             project_handle: project_handle,
-            app_build_id: app_build.id
+            app_build: app_build
           })
 
-        content_stream = Storage.stream_object(storage_key, account)
-        filename = "#{app_build.id}.zip"
-
-        Zstream.entry(filename, content_stream)
+        Storage.object_exists?(storage_key, account)
       end)
-      |> Zstream.zip()
 
-    Enum.reduce_while(zip_stream, conn, fn chunk, conn ->
-      case chunk(conn, chunk) do
-        {:ok, conn} -> {:cont, conn}
-        {:error, _reason} -> {:halt, conn}
-      end
-    end)
+    if all_exist? do
+      :ok
+    else
+      {:error, :missing_object}
+    end
   end
 
   defp assign_current_preview(%{params: %{"id" => preview_id}} = conn, _opts) do

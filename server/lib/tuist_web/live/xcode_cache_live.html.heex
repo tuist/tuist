@@ -1,5 +1,5 @@
 <.empty_state
-  :if={Enum.empty?(@builds)}
+  :if={not @has_builds?}
   command="tuist setup cache"
   id="xcode-cache-empty-state"
   title={dgettext("dashboard_cache", "Set up Xcode cache for your project")}
@@ -11,82 +11,103 @@
   }
 >
   <:light_background>
-    <img src="/images/empty_xcode_cache_light.png" />
+    <img
+      src={~p"/images/empty_xcode_cache_light.png"}
+      loading="lazy"
+      decoding="async"
+    />
   </:light_background>
   <:dark_background>
-    <img src="/images/empty_xcode_cache_dark.png" />
+    <img
+      src={~p"/images/empty_xcode_cache_dark.png"}
+      loading="lazy"
+      decoding="async"
+    />
   </:dark_background>
   <:actions>
     <.button
       label={dgettext("dashboard_cache", "Tuist documentation")}
-      href="https://docs.tuist.dev/en/guides/features/cache/xcode-cache"
+      href="https://tuist.dev/en/docs/guides/features/cache/xcode-cache"
       target="_blank"
     >
       <:icon_right><.chevron_right /></:icon_right>
     </.button>
   </:actions>
 </.empty_state>
-<div :if={not Enum.empty?(@builds)} id="xcode-cache">
-  <.card
+<div :if={@has_builds?} id="xcode-cache">
+  <div data-part="filters">
+    <.date_picker
+      id="xcode-cache-date-range-picker"
+      name="analytics-date-range"
+      presets={[
+        %{
+          id: "last-24-hours",
+          label: dgettext("dashboard_cache", "Last 24 hours"),
+          period: {24, :hour}
+        },
+        %{
+          id: "last-7-days",
+          label: dgettext("dashboard_cache", "Last 7 days"),
+          period: {7, :day}
+        },
+        %{
+          id: "last-30-days",
+          label: dgettext("dashboard_cache", "Last 30 days"),
+          period: {30, :day}
+        },
+        %{
+          id: "last-12-months",
+          label: dgettext("dashboard_cache", "Last 12 months"),
+          period: {12, :month}
+        },
+        %{id: "custom", label: dgettext("dashboard_cache", "Custom")}
+      ]}
+      selected_preset={@analytics_preset}
+      period={@analytics_period}
+      on_period_change="analytics_period_changed"
+      max={Date.utc_today()}
+    >
+      <:actions>
+        <.button
+          label={dgettext("dashboard_cache", "Cancel")}
+          variant="secondary"
+          phx-click={
+            JS.dispatch("phx:date-picker-cancel",
+              detail: %{id: "xcode-cache-date-range-picker"}
+            )
+          }
+        />
+        <.button
+          label={dgettext("dashboard_cache", "Apply")}
+          phx-click={
+            JS.dispatch("phx:date-picker-apply",
+              detail: %{id: "xcode-cache-date-range-picker"}
+            )
+          }
+        />
+      </:actions>
+    </.date_picker>
+  </div>
+  <.async_card
+    :let={ready?}
+    results={[
+      @analytics_chart_data,
+      @hit_rate_analytics,
+      @hit_rate_p50,
+      @hit_rate_p90,
+      @hit_rate_p99,
+      @latency_analytics,
+      @throughput_analytics,
+      @transfer_analytics
+    ]}
     title={dgettext("dashboard_cache", "Analytics")}
     icon="chart_arcs"
     data-part="analytics-card"
+    chart_frame="cache"
   >
-    <:actions>
-      <.date_picker
-        id="xcode-cache-date-range-picker"
-        name="analytics-date-range"
-        presets={[
-          %{
-            id: "last-24-hours",
-            label: dgettext("dashboard_cache", "Last 24 hours"),
-            period: {24, :hour}
-          },
-          %{
-            id: "last-7-days",
-            label: dgettext("dashboard_cache", "Last 7 days"),
-            period: {7, :day}
-          },
-          %{
-            id: "last-30-days",
-            label: dgettext("dashboard_cache", "Last 30 days"),
-            period: {30, :day}
-          },
-          %{
-            id: "last-12-months",
-            label: dgettext("dashboard_cache", "Last 12 months"),
-            period: {12, :month}
-          },
-          %{id: "custom", label: dgettext("dashboard_cache", "Custom")}
-        ]}
-        selected_preset={@analytics_preset}
-        period={@analytics_period}
-        on_period_change="analytics_period_changed"
-        max={Date.utc_today()}
-      >
-        <:actions>
-          <.button
-            label={dgettext("dashboard_cache", "Cancel")}
-            variant="secondary"
-            phx-click={
-              JS.dispatch("phx:date-picker-cancel",
-                detail: %{id: "xcode-cache-date-range-picker"}
-              )
-            }
-          />
-          <.button
-            label={dgettext("dashboard_cache", "Apply")}
-            phx-click={
-              JS.dispatch("phx:date-picker-apply",
-                detail: %{id: "xcode-cache-date-range-picker"}
-              )
-            }
-          />
-        </:actions>
-      </.date_picker>
-    </:actions>
     <div data-part="widgets">
       <.percentile_dropdown_widget
+        loading={!ready?}
         id="widget-cache-hit-rate"
         title={
           case {@selected_hit_rate_type, Enum.empty?(@builds)} do
@@ -112,49 +133,53 @@
           )
         }
         value={
-          dgettext("dashboard_cache", "%{hit_rate}%",
-            hit_rate:
-              case @selected_hit_rate_type do
-                "p99" -> @hit_rate_p99.total_percentile_hit_rate
-                "p90" -> @hit_rate_p90.total_percentile_hit_rate
-                "p50" -> @hit_rate_p50.total_percentile_hit_rate
-                _ -> @hit_rate_analytics.avg_hit_rate
-              end
-              |> Decimal.from_float()
-              |> Decimal.round(1)
-          )
+          if ready? do
+            dgettext("dashboard_cache", "%{hit_rate}%",
+              hit_rate:
+                case @selected_hit_rate_type do
+                  "p99" -> @hit_rate_p99.result.total_percentile_hit_rate
+                  "p90" -> @hit_rate_p90.result.total_percentile_hit_rate
+                  "p50" -> @hit_rate_p50.result.total_percentile_hit_rate
+                  _ -> @hit_rate_analytics.result.avg_hit_rate
+                end
+                |> Decimal.from_float()
+                |> Decimal.round(1)
+            )
+          end
         }
         metrics={
-          %{
-            avg:
-              dgettext("dashboard_cache", "%{hit_rate}%",
-                hit_rate:
-                  @hit_rate_analytics.avg_hit_rate
-                  |> Decimal.from_float()
-                  |> Decimal.round(1)
-              ),
-            p99:
-              dgettext("dashboard_cache", "%{hit_rate}%",
-                hit_rate:
-                  @hit_rate_p99.total_percentile_hit_rate
-                  |> Decimal.from_float()
-                  |> Decimal.round(1)
-              ),
-            p90:
-              dgettext("dashboard_cache", "%{hit_rate}%",
-                hit_rate:
-                  @hit_rate_p90.total_percentile_hit_rate
-                  |> Decimal.from_float()
-                  |> Decimal.round(1)
-              ),
-            p50:
-              dgettext("dashboard_cache", "%{hit_rate}%",
-                hit_rate:
-                  @hit_rate_p50.total_percentile_hit_rate
-                  |> Decimal.from_float()
-                  |> Decimal.round(1)
-              )
-          }
+          if ready? do
+            %{
+              avg:
+                dgettext("dashboard_cache", "%{hit_rate}%",
+                  hit_rate:
+                    @hit_rate_analytics.result.avg_hit_rate
+                    |> Decimal.from_float()
+                    |> Decimal.round(1)
+                ),
+              p99:
+                dgettext("dashboard_cache", "%{hit_rate}%",
+                  hit_rate:
+                    @hit_rate_p99.result.total_percentile_hit_rate
+                    |> Decimal.from_float()
+                    |> Decimal.round(1)
+                ),
+              p90:
+                dgettext("dashboard_cache", "%{hit_rate}%",
+                  hit_rate:
+                    @hit_rate_p90.result.total_percentile_hit_rate
+                    |> Decimal.from_float()
+                    |> Decimal.round(1)
+                ),
+              p50:
+                dgettext("dashboard_cache", "%{hit_rate}%",
+                  hit_rate:
+                    @hit_rate_p50.result.total_percentile_hit_rate
+                    |> Decimal.from_float()
+                    |> Decimal.round(1)
+                )
+            }
+          end
         }
         selected_type={@selected_hit_rate_type}
         event_name="select_hit_rate_type"
@@ -162,62 +187,342 @@
         phx_value_widget="cache_hit_rate"
         selected={@analytics_selected_widget == "cache_hit_rate"}
         trend_value={
-          case @selected_hit_rate_type do
-            "p99" -> @hit_rate_p99.trend
-            "p90" -> @hit_rate_p90.trend
-            "p50" -> @hit_rate_p50.trend
-            _ -> @hit_rate_analytics.trend
+          if ready? do
+            case @selected_hit_rate_type do
+              "p99" -> @hit_rate_p99.result.trend
+              "p90" -> @hit_rate_p90.result.trend
+              "p50" -> @hit_rate_p50.result.trend
+              _ -> @hit_rate_analytics.result.trend
+            end
           end
         }
         trend_label={@analytics_trend_label}
-        empty={@hit_rate_analytics.avg_hit_rate == 0}
+        empty={ready? && @hit_rate_analytics.result.avg_hit_rate == 0}
       />
       <.widget
-        title={dgettext("dashboard_cache", "Cache downloads")}
-        legend_color="secondary"
+        loading={!ready?}
+        title={
+          case @selected_transfer_type do
+            "downloads" -> dgettext("dashboard_cache", "Cache downloads")
+            "uploads" -> dgettext("dashboard_cache", "Cache uploads")
+            _ -> dgettext("dashboard_cache", "Cache transfer")
+          end
+        }
+        legend_color={split_legend_color(@selected_transfer_type, "p50")}
         description={
           dgettext(
             "dashboard_cache",
-            "Cache downloads represents the total size of cache artifacts downloaded from remote storage during the given period."
+            "Cache transfer represents the total size of cache artifacts downloaded from and uploaded to remote storage during the given period."
           )
         }
-        value={ByteFormatter.format_bytes(@downloads_analytics.total_size)}
-        id="widget-cache-downloads"
-        trend_value={@downloads_analytics.trend}
+        value={
+          if ready?,
+            do:
+              ByteFormatter.format_bytes(
+                transfer_value(@transfer_analytics.result, @selected_transfer_type)
+              )
+        }
+        id="widget-cache-transfer"
+        trend_value={if ready?, do: @transfer_analytics.result.trend}
         trend_type={:neutral}
         trend_label={@analytics_trend_label}
         phx_click="select_widget"
-        phx_value_widget="cache_downloads"
-        selected={@analytics_selected_widget == "cache_downloads"}
-        empty={@downloads_analytics.total_size == 0}
-      />
+        phx_value_widget="cache_transfer"
+        selected={@analytics_selected_widget == "cache_transfer"}
+        empty={ready? && @transfer_analytics.result.total == 0}
+      >
+        <:select>
+          <.dropdown_item
+            value="combined"
+            phx-click="select_transfer_type"
+            phx-value-type="combined"
+            data-selected={@selected_transfer_type == "combined"}
+          >
+            <div data-part="percentile-item">
+              <div data-part="dot" data-type="combined-transfer"></div>
+              <span data-part="label">{dgettext("dashboard_cache", "Cache transfer")}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">
+                {if ready?,
+                  do: ByteFormatter.format_bytes(@transfer_analytics.result.total),
+                  else: dgettext("dashboard", "N/A")}
+              </span>
+            </div>
+          </.dropdown_item>
+          <.dropdown_item
+            value="downloads"
+            phx-click="select_transfer_type"
+            phx-value-type="downloads"
+            data-selected={@selected_transfer_type == "downloads"}
+          >
+            <div data-part="percentile-item">
+              <div data-part="dot" data-type="downloads"></div>
+              <span data-part="label">{dgettext("dashboard_cache", "Downloads")}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">
+                {if ready?,
+                  do: ByteFormatter.format_bytes(@transfer_analytics.result.downloads.total),
+                  else: dgettext("dashboard", "N/A")}
+              </span>
+            </div>
+          </.dropdown_item>
+          <.dropdown_item
+            value="uploads"
+            phx-click="select_transfer_type"
+            phx-value-type="uploads"
+            data-selected={@selected_transfer_type == "uploads"}
+          >
+            <div data-part="percentile-item">
+              <div data-part="dot" data-type="uploads"></div>
+              <span data-part="label">{dgettext("dashboard_cache", "Uploads")}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">
+                {if ready?,
+                  do: ByteFormatter.format_bytes(@transfer_analytics.result.uploads.total),
+                  else: dgettext("dashboard", "N/A")}
+              </span>
+            </div>
+          </.dropdown_item>
+        </:select>
+      </.widget>
       <.widget
-        title={dgettext("dashboard_cache", "Cache uploads")}
-        legend_color="p99"
+        loading={!ready?}
+        title={
+          case @selected_latency_type do
+            "read" -> dgettext("dashboard_cache", "Read latency")
+            "write" -> dgettext("dashboard_cache", "Write latency")
+            _ -> dgettext("dashboard_cache", "Cache latency")
+          end
+        }
+        legend_color={split_legend_color(@selected_latency_type, "p90")}
         description={
           dgettext(
             "dashboard_cache",
-            "Cache uploads represents the total size of cache artifacts uploaded to remote storage during the given period."
+            "Average latency of read (download) and write (upload) operations against remote cache storage during the given period."
           )
         }
-        value={ByteFormatter.format_bytes(@uploads_analytics.total_size)}
-        id="widget-cache-uploads"
-        trend_value={@uploads_analytics.trend}
-        trend_type={:neutral}
+        value={
+          if ready?,
+            do:
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                latency_value(@latency_analytics.result, @selected_latency_type)
+              )
+        }
+        id="widget-cache-latency"
+        trend_value={if ready?, do: @latency_analytics.result.trend}
+        trend_type={:inverse}
         trend_label={@analytics_trend_label}
         phx_click="select_widget"
-        phx_value_widget="cache_uploads"
-        selected={@analytics_selected_widget == "cache_uploads"}
-        empty={@uploads_analytics.total_size == 0}
-      />
+        phx_value_widget="cache_latency"
+        selected={@analytics_selected_widget == "cache_latency"}
+        empty={ready? && @latency_analytics.result.total == 0}
+      >
+        <:select>
+          <.dropdown_item
+            value="combined"
+            phx-click="select_latency_type"
+            phx-value-type="combined"
+            data-selected={@selected_latency_type == "combined"}
+          >
+            <div data-part="percentile-item">
+              <div data-part="dot" data-type="combined-latency"></div>
+              <span data-part="label">{dgettext("dashboard_cache", "Cache latency")}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">
+                {if ready?,
+                  do:
+                    Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      @latency_analytics.result.total
+                    ),
+                  else: dgettext("dashboard", "N/A")}
+              </span>
+            </div>
+          </.dropdown_item>
+          <.dropdown_item
+            value="read"
+            phx-click="select_latency_type"
+            phx-value-type="read"
+            data-selected={@selected_latency_type == "read"}
+          >
+            <div data-part="percentile-item">
+              <div data-part="dot" data-type="read"></div>
+              <span data-part="label">{dgettext("dashboard_cache", "Read")}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">
+                {if ready?,
+                  do:
+                    Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      @latency_analytics.result.downloads.total
+                    ),
+                  else: dgettext("dashboard", "N/A")}
+              </span>
+            </div>
+          </.dropdown_item>
+          <.dropdown_item
+            value="write"
+            phx-click="select_latency_type"
+            phx-value-type="write"
+            data-selected={@selected_latency_type == "write"}
+          >
+            <div data-part="percentile-item">
+              <div data-part="dot" data-type="write"></div>
+              <span data-part="label">{dgettext("dashboard_cache", "Write")}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">
+                {if ready?,
+                  do:
+                    Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                      @latency_analytics.result.uploads.total
+                    ),
+                  else: dgettext("dashboard", "N/A")}
+              </span>
+            </div>
+          </.dropdown_item>
+        </:select>
+      </.widget>
+      <.widget
+        loading={!ready?}
+        title={
+          case @selected_throughput_type do
+            "downloads" -> dgettext("dashboard_cache", "Download throughput")
+            "uploads" -> dgettext("dashboard_cache", "Upload throughput")
+            _ -> dgettext("dashboard_cache", "Cache throughput")
+          end
+        }
+        legend_color={split_legend_color(@selected_throughput_type, "flaky")}
+        description={
+          dgettext(
+            "dashboard_cache",
+            "Combined download and upload throughput against remote cache storage during the given period, derived from bytes transferred over time."
+          )
+        }
+        value={
+          if ready?,
+            do:
+              Tuist.Utilities.ThroughputFormatter.format_throughput(
+                throughput_value(@throughput_analytics.result, @selected_throughput_type)
+              )
+        }
+        id="widget-cache-throughput"
+        trend_value={if ready?, do: @throughput_analytics.result.trend}
+        trend_type={:regular}
+        trend_label={@analytics_trend_label}
+        phx_click="select_widget"
+        phx_value_widget="cache_throughput"
+        selected={@analytics_selected_widget == "cache_throughput"}
+        empty={ready? && @throughput_analytics.result.total == 0}
+      >
+        <:select>
+          <.dropdown_item
+            value="combined"
+            phx-click="select_throughput_type"
+            phx-value-type="combined"
+            data-selected={@selected_throughput_type == "combined"}
+          >
+            <div data-part="percentile-item">
+              <div data-part="dot" data-type="combined-throughput"></div>
+              <span data-part="label">{dgettext("dashboard_cache", "Cache throughput")}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">
+                {if ready?,
+                  do:
+                    Tuist.Utilities.ThroughputFormatter.format_throughput(
+                      @throughput_analytics.result.total
+                    ),
+                  else: dgettext("dashboard", "N/A")}
+              </span>
+            </div>
+          </.dropdown_item>
+          <.dropdown_item
+            value="downloads"
+            phx-click="select_throughput_type"
+            phx-value-type="downloads"
+            data-selected={@selected_throughput_type == "downloads"}
+          >
+            <div data-part="percentile-item">
+              <div data-part="dot" data-type="downloads"></div>
+              <span data-part="label">{dgettext("dashboard_cache", "Downloads")}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">
+                {if ready?,
+                  do:
+                    Tuist.Utilities.ThroughputFormatter.format_throughput(
+                      @throughput_analytics.result.downloads.total
+                    ),
+                  else: dgettext("dashboard", "N/A")}
+              </span>
+            </div>
+          </.dropdown_item>
+          <.dropdown_item
+            value="uploads"
+            phx-click="select_throughput_type"
+            phx-value-type="uploads"
+            data-selected={@selected_throughput_type == "uploads"}
+          >
+            <div data-part="percentile-item">
+              <div data-part="dot" data-type="uploads"></div>
+              <span data-part="label">{dgettext("dashboard_cache", "Uploads")}</span>
+              <span data-part="separator">-</span>
+              <span data-part="value">
+                {if ready?,
+                  do:
+                    Tuist.Utilities.ThroughputFormatter.format_throughput(
+                      @throughput_analytics.result.uploads.total
+                    ),
+                  else: dgettext("dashboard", "N/A")}
+              </span>
+            </div>
+          </.dropdown_item>
+        </:select>
+      </.widget>
     </div>
-    <.card_section :if={
-      @hit_rate_analytics.avg_hit_rate != 0 or @downloads_analytics.total_size != 0 or
-        @uploads_analytics.total_size != 0
-    }>
+    <.card_section
+      :if={
+        (@analytics_selected_widget == "cache_hit_rate" and
+           !ready?) or
+          (@analytics_selected_widget != "cache_hit_rate" and !ready?)
+      }
+      data-chart-frame="cache"
+    >
       <div data-part="analytics-chart">
+        <.skeleton_chart />
+      </div>
+    </.card_section>
+    <.card_section
+      :if={
+        @analytics_selected_widget == "cache_hit_rate" and
+          ready? and
+          (@hit_rate_analytics.result.avg_hit_rate != 0 or
+             @transfer_analytics.result.total != 0)
+      }
+      data-chart-frame="cache"
+    >
+      <.chart_type_toggle
+        id="cache-hit-rate"
+        chart_type={@cache_hit_rate_chart_type}
+        chart_type_event="select_cache_hit_rate_chart_type"
+        group_by_options={[
+          %{value: "scheme", label: dgettext("dashboard_cache", "Scheme")},
+          %{value: "environment", label: dgettext("dashboard_cache", "Environment")}
+        ]}
+        selected_group_by={@cache_hit_rate_scatter_group_by}
+        group_by_query_param="cache-hit-rate-scatter-group-by"
+        uri={@uri}
+      />
+      <div
+        :if={!@cache_hit_rate_chart.ok? && !@cache_hit_rate_chart.failed}
+        data-part="analytics-chart"
+      >
+        <.skeleton_chart />
+      </div>
+      <div
+        :if={
+          @cache_hit_rate_chart.ok? and !@cache_hit_rate_chart.failed and
+            @cache_hit_rate_chart.result == :line
+        }
+        data-part="analytics-chart"
+      >
         <.chart
-          :if={@analytics_selected_widget == "cache_hit_rate"}
           id="xcode-cache-hit-rate-chart"
           type="line"
           extra_options={
@@ -251,8 +556,8 @@
                   color: "var:noora-surface-label-secondary",
                   formatter: "fn:toLocaleDate",
                   customValues: [
-                    @hit_rate_analytics.dates |> List.first(),
-                    @hit_rate_analytics.dates |> List.last()
+                    @hit_rate_analytics.result.dates |> List.first(),
+                    @hit_rate_analytics.result.dates |> List.last()
                   ],
                   padding: [10, 0, 0, 0]
                 }
@@ -282,8 +587,8 @@
               color: "var:noora-chart-primary",
               data:
                 Enum.zip(
-                  @hit_rate_analytics.dates,
-                  @hit_rate_analytics.values
+                  @hit_rate_analytics.result.dates,
+                  @hit_rate_analytics.result.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
               name: dgettext("dashboard_cache", "Average"),
@@ -295,8 +600,8 @@
               color: "var:noora-chart-p99",
               data:
                 Enum.zip(
-                  @hit_rate_p99.dates,
-                  @hit_rate_p99.values
+                  @hit_rate_p99.result.dates,
+                  @hit_rate_p99.result.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
               name: dgettext("dashboard_cache", "p99"),
@@ -308,8 +613,8 @@
               color: "var:noora-chart-p90",
               data:
                 Enum.zip(
-                  @hit_rate_p90.dates,
-                  @hit_rate_p90.values
+                  @hit_rate_p90.result.dates,
+                  @hit_rate_p90.result.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
               name: dgettext("dashboard_cache", "p90"),
@@ -321,8 +626,8 @@
               color: "var:noora-chart-p50",
               data:
                 Enum.zip(
-                  @hit_rate_p50.dates,
-                  @hit_rate_p50.values
+                  @hit_rate_p50.result.dates,
+                  @hit_rate_p50.result.values
                 )
                 |> Enum.map(&Tuple.to_list/1),
               name: dgettext("dashboard_cache", "p50"),
@@ -334,8 +639,38 @@
           y_axis_min={0}
           y_axis_max={100}
         />
+      </div>
+      <.scatter_chart
+        id="cache-hit-rate-scatter-chart"
+        chart={@cache_hit_rate_chart}
+        period={@analytics_period}
+        value_format="{value}%"
+        y_axis_max={100}
+        url_fn={
+          fn point ->
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/builds/build-runs/#{point.id}"
+          end
+        }
+        truncation_title={
+          dgettext(
+            "dashboard_cache",
+            "The 10,000 entry limit has been reached, data is only included up to %{date}. Try narrowing the date range to see more recent data.",
+            date: scatter_oldest_entry_formatted(@cache_hit_rate_chart.result)
+          )
+        }
+      />
+    </.card_section>
+    <.card_section
+      :if={
+        @analytics_selected_widget != "cache_hit_rate" and
+          ready? and
+          (@hit_rate_analytics.result.avg_hit_rate != 0 or
+             @transfer_analytics.result.total != 0)
+      }
+      data-chart-frame="cache"
+    >
+      <div data-part="analytics-chart">
         <.chart
-          :if={@analytics_selected_widget != "cache_hit_rate"}
           id="xcode-cache-analytics-chart"
           type="line"
           extra_options={
@@ -344,9 +679,31 @@
                 width: "93%",
                 left: "0.4%",
                 right: "7%",
-                height: "88%",
+                height:
+                  if(length(@analytics_chart_data.result.series) > 1, do: "60%", else: "88%"),
                 top: "5%"
               },
+              legend:
+                if length(@analytics_chart_data.result.series) > 1 do
+                  %{
+                    left: "left",
+                    top: "bottom",
+                    orient: "horizontal",
+                    textStyle: %{
+                      color: "var:noora-surface-label-secondary",
+                      fontFamily: "monospace",
+                      fontWeight: 400,
+                      fontSize: 10,
+                      lineHeight: 12
+                    },
+                    icon:
+                      "path://M0 6C0 4.89543 0.895431 4 2 4H6C7.10457 4 8 4.89543 8 6C8 7.10457 7.10457 8 6 8H2C0.895431 8 0 7.10457 0 6Z",
+                    itemWidth: 8,
+                    itemHeight: 4
+                  }
+                else
+                  %{show: false}
+                end,
               xAxis: %{
                 boundaryGap: false,
                 type: "category",
@@ -354,8 +711,8 @@
                   color: "var:noora-surface-label-secondary",
                   formatter: "fn:toLocaleDate",
                   customValues: [
-                    @analytics_chart_data.dates |> List.first(),
-                    @analytics_chart_data.dates |> List.last()
+                    @analytics_chart_data.result.dates |> List.first(),
+                    @analytics_chart_data.result.dates |> List.last()
                   ],
                   padding: [10, 0, 0, 0]
                 }
@@ -368,51 +725,59 @@
                 },
                 axisLabel: %{
                   color: "var:noora-surface-label-secondary",
-                  formatter: @analytics_chart_data.value_formatter
+                  formatter: @analytics_chart_data.result.value_formatter
                 }
               },
               tooltip:
                 if @analytics_preset == "last-24-hours" do
-                  %{valueFormat: @analytics_chart_data.value_formatter, dateFormat: "hour"}
+                  %{valueFormat: @analytics_chart_data.result.value_formatter, dateFormat: "hour"}
                 else
-                  %{valueFormat: @analytics_chart_data.value_formatter}
-                end,
-              legend: %{
-                show: false
-              }
+                  %{valueFormat: @analytics_chart_data.result.value_formatter}
+                end
             }
           }
-          series={[
-            %{
-              data:
-                Enum.zip(
-                  @analytics_chart_data.dates,
-                  @analytics_chart_data.values
-                )
-                |> Enum.map(&Tuple.to_list/1),
-              name: @analytics_chart_data.name,
-              type: "line",
-              smooth: 0.1,
-              symbol: "none"
-            }
-          ]}
+          series={
+            Enum.map(@analytics_chart_data.result.series, fn series ->
+              %{
+                color: series.color,
+                data:
+                  Enum.zip(@analytics_chart_data.result.dates, series.values)
+                  |> Enum.map(&Tuple.to_list/1),
+                name: series.name,
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              }
+            end)
+          }
           y_axis_min={0}
         />
       </div>
     </.card_section>
     <.empty_card_section
       :if={
-        @hit_rate_analytics.avg_hit_rate == 0 and @downloads_analytics.total_size == 0 and
-          @uploads_analytics.total_size == 0
+        (ready? && @hit_rate_analytics.result.avg_hit_rate == 0) and
+          ready? and @transfer_analytics.result.total == 0
       }
       title={dgettext("dashboard_cache", "No data yet")}
+      data-chart-frame="standard"
     >
       <:image>
-        <img src="/images/empty_line_chart_light.png" data-theme="light" />
-        <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+        <img
+          src={~p"/images/empty_line_chart_light.png"}
+          data-theme="light"
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          src={~p"/images/empty_line_chart_dark.png"}
+          data-theme="dark"
+          loading="lazy"
+          decoding="async"
+        />
       </:image>
     </.empty_card_section>
-  </.card>
+  </.async_card>
   <.card
     title={dgettext("dashboard_cache", "Recent Builds")}
     icon="dashboard"
@@ -507,7 +872,9 @@
           }
         >
           <:col :let={build} label={dgettext("dashboard_cache", "Scheme")}>
-            <.text_and_description_cell label={build.scheme || "None"} />
+            <.text_and_description_cell label={
+              if(build.scheme == "", do: "None", else: build.scheme)
+            } />
           </:col>
           <:col :let={build} label={dgettext("dashboard_cache", "Hit Rate")}>
             <.text_cell label={
@@ -547,12 +914,22 @@
     <div :if={Enum.empty?(@builds)} data-part="empty-builds">
       <.empty_card_section
         title={dgettext("dashboard_cache", "No data yet")}
-        get_started_href="https://docs.tuist.dev/en/guides/develop/build/cache"
+        get_started_href="https://tuist.dev/en/docs/guides/features/cache"
         data-part="empty-builds-table-card-section"
       >
         <:image>
-          <img src="/images/empty_table_light.png" data-theme="light" />
-          <img src="/images/empty_table_dark.png" data-theme="dark" />
+          <img
+            src={~p"/images/empty_table_light.png"}
+            data-theme="light"
+            loading="lazy"
+            decoding="async"
+          />
+          <img
+            src={~p"/images/empty_table_dark.png"}
+            data-theme="dark"
+            loading="lazy"
+            decoding="async"
+          />
         </:image>
       </.empty_card_section>
     </div>

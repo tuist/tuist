@@ -3,35 +3,97 @@ defmodule TuistWeb.AcceptInvitationLive do
   use TuistWeb, :live_view
   use Noora
 
-  alias Tuist.Accounts
+  import TuistWeb.AppAuthComponents
 
-  def mount(params, session, socket) do
-    mount_noora(params, session, socket)
+  alias Tuist.Accounts
+  alias TuistWeb.Authentication
+
+  def mount(%{"token" => token}, session, socket) do
+    user = Authentication.current_user(socket)
+
+    socket =
+      assign(socket,
+        accepted: false,
+        declined: false,
+        invitation: nil,
+        organization: nil,
+        organization_name: nil,
+        invitee_state: resolve(token, user),
+        post_invitation_return_to: post_invitation_return_to(session, user, token)
+      )
+
+    socket = hydrate_invitation(socket, token)
+
+    if socket.assigns.invitee_state in [:expired, :not_found] and
+         is_binary(socket.assigns.post_invitation_return_to) do
+      {:ok, redirect(socket, to: socket.assigns.post_invitation_return_to)}
+    else
+      {:ok, socket}
+    end
   end
 
-  def mount_noora(%{"token" => token}, session, socket) do
-    user = Accounts.get_user_by_session_token(session["user_token"])
+  defp post_invitation_return_to(
+         %{
+           "post_invitation_return_to" => return_to,
+           "post_invitation_user_id" => expected_user_id,
+           "post_invitation_token" => expected_token
+         },
+         %{id: user_id},
+         token
+       )
+       when expected_user_id == user_id and expected_token == token and is_binary(return_to) do
+    return_path = return_to |> URI.parse() |> Map.get(:path) |> decode_path()
+    return_segments = if is_binary(return_path), do: String.split(return_path, "/", trim: true)
 
-    case Accounts.get_invitation_by_token(token, user) do
+    if String.starts_with?(return_to, "/") and
+         not String.starts_with?(return_to, "//") and
+         is_list(return_segments) and
+         return_segments != ["auth", "invitations", token] do
+      return_to
+    end
+  end
+
+  defp post_invitation_return_to(_session, _user, _token), do: nil
+
+  defp decode_path(path) when is_binary(path) do
+    URI.decode(path)
+  rescue
+    ArgumentError -> nil
+  end
+
+  defp decode_path(_path), do: nil
+
+  defp resolve(token, user) do
+    case Accounts.get_invitation_by_token(token) do
+      {:ok, invitation} ->
+        if user.email == invitation.invitee_email do
+          {:ok, invitation}
+        else
+          {:mismatched, invitation.invitee_email}
+        end
+
+      {:error, :not_found} ->
+        :not_found
+
+      {:error, :expired} ->
+        :expired
+    end
+  end
+
+  defp hydrate_invitation(socket, _token) do
+    case socket.assigns.invitee_state do
       {:ok, invitation} ->
         {:ok, organization} = Accounts.get_organization_by_id(invitation.organization_id)
         account = Accounts.get_account_from_organization(organization)
 
-        socket =
-          assign(socket,
-            user: user,
-            invitation: invitation,
-            organization: organization,
-            organization_name: account.name,
-            accepted: false,
-            declined: false
-          )
+        assign(socket,
+          invitation: invitation,
+          organization: organization,
+          organization_name: account.name
+        )
 
-        {:ok, socket}
-
-      {:error, _} ->
-        socket = assign(socket, invitation: nil, accepted: false, declined: false)
-        {:ok, socket}
+      _ ->
+        socket
     end
   end
 
@@ -47,106 +109,148 @@ defmodule TuistWeb.AcceptInvitationLive do
       <div data-part="wrapper">
         <div data-part="frame">
           <div data-part="content">
-            <img
-              src="/images/tuist_logo_32x32@2x.png"
-              alt={dgettext("dashboard_account", "Tuist Logo")}
-              data-part="logo"
-            />
+            <.tuist_mark data-part="logo" aria-label={dgettext("dashboard_account", "Tuist Logo")} />
             <div data-part="dots">
               <.dots_light />
               <.dots_dark />
             </div>
-            <%= if not is_nil(@invitation) and !@declined and !@accepted do %>
-              <div data-part="header">
-                <h1 data-part="title">{dgettext("dashboard_account", "You have been invited")}</h1>
-                <span data-part="subtitle">
-                  {dgettext(
-                    "dashboard_account",
-                    "%{inviter} has invited you to join the %{organization} organization",
-                    inviter: @invitation.inviter.account.name,
-                    organization: @organization_name
-                  )}
-                </span>
-              </div>
-              <div data-part="actions">
-                <.button
-                  variant="primary"
-                  size="large"
-                  label={dgettext("dashboard_account", "Accept invitation")}
-                  phx-click="accept_invitation"
+            <%= cond do %>
+              <% @accepted -> %>
+                <div data-part="header">
+                  <h1 data-part="title">
+                    {dgettext("dashboard_account", "Invitation accepted!")}
+                  </h1>
+                  <span data-part="subtitle">
+                    {dgettext(
+                      "dashboard_account",
+                      "You have accepted the invite to join the organization"
+                    )}
+                  </span>
+                </div>
+                <.alert
+                  id="invitation-accepted"
+                  type="secondary"
+                  status="success"
+                  size="small"
+                  title={
+                    dgettext(
+                      "dashboard_account",
+                      "You are now a part of %{organization} organization",
+                      organization: @organization_name
+                    )
+                  }
                 />
-                <.button
-                  variant="secondary"
-                  size="large"
-                  label={dgettext("dashboard_account", "Decline")}
-                  phx-click="decline_invitation"
+              <% @declined -> %>
+                <div data-part="header">
+                  <h1 data-part="title">
+                    {dgettext("dashboard_account", "Invitation rejected")}
+                  </h1>
+                  <span data-part="subtitle">
+                    {dgettext(
+                      "dashboard_account",
+                      "You have rejected the invite to join the organization"
+                    )}
+                  </span>
+                </div>
+                <.alert
+                  id="invitation-declined"
+                  type="secondary"
+                  status="error"
+                  size="small"
+                  title={
+                    dgettext(
+                      "dashboard_account",
+                      "You won’t be able to access this organization unless invited again."
+                    )
+                  }
                 />
-              </div>
-            <% end %>
-            <%= if is_nil(@invitation) do %>
-              <div data-part="header">
-                <h1 data-part="title">{dgettext("dashboard_account", "Invitation not found")}</h1>
-              </div>
-              <.alert
-                id="invitation-not-found"
-                type="secondary"
-                status="error"
-                size="small"
-                title={
-                  dgettext(
-                    "dashboard_account",
-                    "We could not find the invitation you are trying to accept. Please try again."
-                  )
-                }
-              />
-            <% end %>
-            <%= if @accepted do %>
-              <div data-part="header">
-                <h1 data-part="title">{dgettext("dashboard_account", "Invitation accepted!")}</h1>
-                <span data-part="subtitle">
-                  {dgettext(
-                    "dashboard_account",
-                    "You have accepted the invite to join the organization"
-                  )}
-                </span>
-              </div>
-              <.alert
-                id="invitation-accepted"
-                type="secondary"
-                status="success"
-                size="small"
-                title={
-                  dgettext("dashboard_account", "You are now a part of %{organization} organization",
-                    organization: @organization_name
-                  )
-                }
-              />
-            <% end %>
-            <%= if @declined do %>
-              <div data-part="header">
-                <h1 data-part="title">{dgettext("dashboard_account", "Invitation rejected")}</h1>
-                <span data-part="subtitle">
-                  {dgettext(
-                    "dashboard_account",
-                    "You have rejected the invite to join the organization"
-                  )}
-                </span>
-              </div>
-              <.alert
-                id="invitation-declined"
-                type="secondary"
-                status="error"
-                size="small"
-                title={
-                  dgettext(
-                    "dashboard_account",
-                    "You won’t be able to access this organization unless invited again."
-                  )
-                }
-              />
+              <% match?({:ok, _}, @invitee_state) -> %>
+                <div data-part="header">
+                  <h1 data-part="title">
+                    {dgettext("dashboard_account", "You have been invited")}
+                  </h1>
+                  <span data-part="subtitle">
+                    {dgettext(
+                      "dashboard_account",
+                      "%{inviter} has invited you to join the %{organization} organization",
+                      inviter: @invitation.inviter.account.name,
+                      organization: @organization_name
+                    )}
+                  </span>
+                </div>
+                <div data-part="actions">
+                  <.button
+                    variant="primary"
+                    size="large"
+                    label={dgettext("dashboard_account", "Accept invitation")}
+                    phx-click="accept_invitation"
+                  />
+                  <.button
+                    variant="secondary"
+                    size="large"
+                    label={dgettext("dashboard_account", "Decline")}
+                    phx-click="decline_invitation"
+                  />
+                </div>
+              <% match?({:mismatched, _}, @invitee_state) -> %>
+                <div data-part="header">
+                  <h1 data-part="title">
+                    {dgettext("dashboard_account", "Wrong account")}
+                  </h1>
+                  <span data-part="subtitle">
+                    {dgettext(
+                      "dashboard_account",
+                      "This invitation is addressed to %{email}. Log out and sign in with that account to accept it.",
+                      email: elem(@invitee_state, 1)
+                    )}
+                  </span>
+                </div>
+              <% @invitee_state == :expired -> %>
+                <div data-part="header">
+                  <h1 data-part="title">
+                    {dgettext("dashboard_account", "Invitation expired")}
+                  </h1>
+                </div>
+                <.alert
+                  id="invitation-expired"
+                  type="secondary"
+                  status="error"
+                  size="small"
+                  title={
+                    dgettext(
+                      "dashboard_account",
+                      "This invitation has expired. Please ask the inviter to resend it."
+                    )
+                  }
+                />
+              <% true -> %>
+                <div data-part="header">
+                  <h1 data-part="title">
+                    {dgettext("dashboard_account", "Invitation not found")}
+                  </h1>
+                </div>
+                <.alert
+                  id="invitation-not-found"
+                  type="secondary"
+                  status="error"
+                  size="small"
+                  title={
+                    dgettext(
+                      "dashboard_account",
+                      "We could not find the invitation you are trying to accept. Please ask the inviter to send a new invitation."
+                    )
+                  }
+                />
             <% end %>
 
-            <div :if={is_nil(@invitation) or @accepted or @declined} data-part="actions">
+            <div
+              :if={
+                @invitee_state in [:not_found, :expired] or match?({:mismatched, _}, @invitee_state) or
+                  @accepted or
+                  @declined
+              }
+              data-part="actions"
+            >
               <.button
                 variant="primary"
                 size="large"
@@ -167,23 +271,72 @@ defmodule TuistWeb.AcceptInvitationLive do
         <div data-part="bottom-left-gradient"></div>
         <div data-part="shell"><.shell /></div>
       </div>
+      <.terms_and_privacy />
     </div>
     """
   end
 
-  def handle_event("accept_invitation", _, socket) do
-    Accounts.accept_invitation(%{
-      invitation: socket.assigns.invitation,
-      invitee: socket.assigns.user,
-      organization: socket.assigns.organization
-    })
+  # Both event handlers re-check `@invitee_state` on the server before
+  # mutating. The Accept/Decline buttons are only rendered in the
+  # `{:ok, invitation}` state, but a crafted client could still push the
+  # event from the not-found / mismatched / declined / accepted states.
+  # In those cases `@invitation` and `@organization` are nil and the
+  # `Accounts.*` functions would crash on a pattern-match guard.
+  def handle_event("accept_invitation", _params, %{assigns: %{invitee_state: {:ok, _}}} = socket) do
+    user = Authentication.current_user(socket)
 
-    {:noreply, assign(socket, accepted: true)}
+    result =
+      Accounts.accept_invitation(%{
+        invitation: socket.assigns.invitation,
+        invitee: user,
+        organization: socket.assigns.organization
+      })
+
+    case {result, socket.assigns.post_invitation_return_to} do
+      {{:ok, _invitation}, nil} ->
+        {:noreply, assign(socket, accepted: true)}
+
+      {{:ok, _invitation}, path} when is_binary(path) ->
+        # Resume the flow only when its stored user and invitation context
+        # matched this page during mount.
+        {:noreply, redirect(socket, to: path)}
+
+      {{:error, :expired}, _path} ->
+        resume_or_assign_invitation_state(socket, :expired)
+
+      {{:error, :not_found}, _path} ->
+        resume_or_assign_invitation_state(socket, :not_found)
+    end
   end
 
-  def handle_event("decline_invitation", _, socket) do
-    Accounts.delete_invitation(%{invitation: socket.assigns.invitation})
+  def handle_event("accept_invitation", _params, socket), do: {:noreply, socket}
 
-    {:noreply, assign(socket, declined: true)}
+  def handle_event("decline_invitation", _params, %{assigns: %{invitee_state: {:ok, _}}} = socket) do
+    case Accounts.get_invitation_by_token(socket.assigns.invitation.token) do
+      {:ok, invitation} ->
+        Accounts.delete_invitation(%{invitation: invitation})
+
+        if is_binary(socket.assigns.post_invitation_return_to) do
+          {:noreply, redirect(socket, to: socket.assigns.post_invitation_return_to)}
+        else
+          {:noreply, assign(socket, declined: true)}
+        end
+
+      {:error, :expired} ->
+        resume_or_assign_invitation_state(socket, :expired)
+
+      {:error, :not_found} ->
+        resume_or_assign_invitation_state(socket, :not_found)
+    end
+  end
+
+  def handle_event("decline_invitation", _params, socket), do: {:noreply, socket}
+
+  defp resume_or_assign_invitation_state(socket, state) do
+    if is_binary(socket.assigns.post_invitation_return_to) do
+      {:noreply, redirect(socket, to: socket.assigns.post_invitation_return_to)}
+    else
+      {:noreply, assign(socket, invitee_state: state, invitation: nil, organization: nil)}
+    end
   end
 end

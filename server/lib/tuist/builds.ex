@@ -1,0 +1,736 @@
+defmodule Tuist.Builds do
+  @moduledoc """
+  Module for interacting with build runs.
+  """
+
+  import Ecto.Query
+
+  alias Tuist.BuildEntities
+  alias Tuist.Builds.Build
+  alias Tuist.Builds.BuildFile
+  alias Tuist.Builds.BuildIssue
+  alias Tuist.Builds.BuildMachineMetric
+  alias Tuist.Builds.BuildTarget
+  alias Tuist.Builds.CacheableTask
+  alias Tuist.Builds.CASOutput
+  alias Tuist.Builds.Step
+  alias Tuist.Builds.Timeline
+  alias Tuist.ClickHouseFlop
+  alias Tuist.ClickHouseRepo
+  alias Tuist.Environment
+  alias Tuist.KeyValueStore
+  alias Tuist.MCP.Events.Publisher
+  alias Tuist.Projects.Project
+  alias Tuist.Repo
+
+  require Tuist.BuildMetrics
+
+  @short_cache_ttl to_timeout(second: 10)
+  @build_lookup_recent_window_days 90
+  @task_cas_outputs_page_size 20
+
+  def valid_ci_providers, do: ["github", "gitlab", "bitrise", "circleci", "buildkite", "codemagic"]
+
+  def build_storage_key(account_handle, project_handle, build_id) do
+    "#{account_handle}/#{project_handle}/builds/#{String.downcase(build_id)}/build.zip"
+  end
+
+  def total_count do
+    Build
+    |> from(select: count())
+    |> ClickHouseRepo.one()
+  end
+
+  def last_24h_build_count do
+    cached_count(:last_24h_build_count, &last_24h_build_count_query/0)
+  end
+
+  defp last_24h_build_count_query do
+    twenty_four_hours_ago = DateTime.add(DateTime.utc_now(), -24, :hour)
+
+    ClickHouseRepo.one(from(b in Build, where: b.inserted_at >= ^twenty_four_hours_ago, select: count())) || 0
+  end
+
+  # `ORDER BY updated_at DESC LIMIT 1` picks the latest version of the row
+  # without the multi-part merge `FINAL` would force. `updated_at` is the
+  # table's ReplacingMergeTree version, so a processed row always outranks the
+  # `processing` placeholder it replaces; `inserted_at` cannot order them
+  # because the worker carries it over from the placeholder. The recent lookup
+  # adds an inserted_at bound so ClickHouse can prune monthly partitions for
+  # common detail-page/callback traffic, then falls back to the unbounded
+  # lookup for older build URLs.
+  def get_build(id, opts \\ []) do
+    with {:ok, uuid} <- Ecto.UUID.cast(id),
+         project_id when not is_nil(project_id) <- Keyword.get(opts, :project_id) || unique_build_project(uuid) do
+      build =
+        ClickHouseRepo.one(get_build_query(uuid, project_id, recent_build_lookup_floor())) ||
+          ClickHouseRepo.one(get_build_query(uuid, project_id))
+
+      case build do
+        nil -> {:error, :not_found}
+        build -> {:ok, Tuist.ReportActor.preload(build)}
+      end
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  defp recent_build_lookup_floor do
+    DateTime.add(DateTime.utc_now(), -@build_lookup_recent_window_days, :day)
+  end
+
+  # ID-only MCP references must identify one project, including historical rows.
+  defp unique_build_project(uuid) do
+    case ClickHouseRepo.all(from(b in Build, where: b.id == ^uuid, select: b.project_id, distinct: true, limit: 2)) do
+      [project_id] -> project_id
+      _ -> nil
+    end
+  end
+
+  defp get_build_query(uuid, project_id) do
+    from(b in Build,
+      where: b.project_id == ^project_id and b.id == ^uuid,
+      order_by: [desc: b.updated_at],
+      limit: 1
+    )
+  end
+
+  defp get_build_query(uuid, project_id, inserted_at_floor) do
+    from(b in Build,
+      where: b.project_id == ^project_id and b.id == ^uuid and b.inserted_at >= ^inserted_at_floor,
+      order_by: [desc: b.updated_at],
+      limit: 1
+    )
+  end
+
+  def create_build(attrs) do
+    cacheable_tasks = Map.get(attrs, :cacheable_tasks, [])
+    cas_outputs = Map.get(attrs, :cas_outputs, [])
+    machine_metrics = Map.get(attrs, :machine_metrics, [])
+
+    cacheable_task_counts = %{
+      cacheable_tasks_count: Map.get(attrs, :cacheable_tasks_count) || length(cacheable_tasks),
+      cacheable_task_local_hits_count:
+        Map.get(attrs, :cacheable_task_local_hits_count) ||
+          Enum.count(cacheable_tasks, &(to_string(&1.status) == "hit_local")),
+      cacheable_task_remote_hits_count:
+        Map.get(attrs, :cacheable_task_remote_hits_count) ||
+          Enum.count(cacheable_tasks, &(to_string(&1.status) == "hit_remote"))
+    }
+
+    attrs = Map.merge(attrs, cacheable_task_counts)
+
+    attrs =
+      Map.update(attrs, :status, "success", fn
+        nil -> "success"
+        value when is_atom(value) -> Atom.to_string(value)
+        other -> other
+      end)
+
+    changeset = Build.create_changeset(%Build{}, attrs)
+
+    if changeset.valid? do
+      build = Ecto.Changeset.apply_changes(changeset)
+      build_map = Build.to_buffer_map(build)
+
+      {:ok, build_map} = Build.Buffer.insert(build_map)
+
+      # Summary tables share ingestion buffers. Log-heavy steps stream through
+      # bounded per-worker writes so one build cannot monopolize a global buffer.
+      create_build_issues(build_map, Map.get(attrs, :issues, []))
+      create_build_files(build_map, Map.get(attrs, :files, []))
+      create_build_targets(build_map, Map.get(attrs, :targets, []))
+
+      create_cacheable_tasks(build_map, cacheable_tasks)
+      create_cas_outputs(build_map, cas_outputs)
+      create_machine_metrics(build_map, machine_metrics)
+      create_build_steps(build_map, Map.get(attrs, :build_steps, []))
+
+      project = Project |> Repo.get(build.project_id) |> Repo.preload(:account)
+
+      if project do
+        Tuist.PubSub.broadcast(
+          build,
+          "#{project.account.name}/#{project.name}",
+          :xcode_build_created
+        )
+      end
+
+      if build.status == "failure" and build.submission_auth != "network_trusted",
+        do:
+          Publisher.publish(
+            "build.failed",
+            %{
+              "project_id" => build.project_id,
+              "build_system" => "xcode",
+              "build_id" => build.id,
+              "is_ci" => build.is_ci,
+              "git_branch" => build.git_branch || ""
+            },
+            "xcode:#{build.id}"
+          )
+
+      {:ok, build}
+    else
+      {:error, changeset}
+    end
+  end
+
+  defp create_build_files(build, files) do
+    now = :second |> DateTime.utc_now() |> DateTime.to_naive()
+
+    files =
+      Enum.map(files, fn file_attrs ->
+        %{
+          build_run_id: build.id,
+          type:
+            case file_attrs.type do
+              :swift -> 0
+              "swift" -> 0
+              :c -> 1
+              "c" -> 1
+              _ -> 0
+            end,
+          path: file_attrs.path,
+          target: file_attrs.target,
+          project: file_attrs.project,
+          compilation_duration: file_attrs.compilation_duration,
+          inserted_at: now
+        }
+      end)
+
+    BuildFile.Buffer.insert_all(files)
+  end
+
+  defp create_build_steps(build, steps) do
+    inserted_at = build.inserted_at |> NaiveDateTime.truncate(:second) |> DateTime.from_naive!("Etc/UTC")
+
+    steps
+    |> Stream.map(&build_step_entry(build.id, inserted_at, &1))
+    |> Step.insert_all()
+  end
+
+  defp build_step_entry(build_run_id, inserted_at, step) do
+    %{
+      build_run_id: build_run_id,
+      event_id: step.event_id,
+      title: step.title,
+      target: Map.get(step, :target, ""),
+      project: Map.get(step, :project, ""),
+      category: Map.get(step, :category, ""),
+      start_ms: step.start_ms,
+      duration_ms: step.duration_ms,
+      status: step.status,
+      inserted_at: inserted_at,
+      log: Map.get(step, :log, ""),
+      log_truncated: Map.get(step, :log_truncated, false)
+    }
+  end
+
+  def build_timeline(build_run_id, opts \\ []) do
+    Timeline.load(build_run_id, opts)
+  end
+
+  def neighbor_build_step(build_run_id, event_id, direction, opts),
+    do: Timeline.neighbor(build_run_id, event_id, direction, opts)
+
+  def build_step_log(build_run_id, event_id) when is_integer(event_id) and event_id >= 0 do
+    ClickHouseRepo.one(
+      from(e in Step,
+        hints: ["FINAL"],
+        where: e.build_run_id == ^build_run_id and e.event_id == ^event_id,
+        select: map(e, [:log, :log_truncated]),
+        limit: 1
+      )
+    )
+  end
+
+  defp create_build_targets(build, targets) do
+    targets
+    |> Enum.map(&BuildTarget.changeset(build.id, &1))
+    |> BuildTarget.Buffer.insert_all()
+
+    if targets != [] and BuildEntities.enabled?(build.project_id) do
+      BuildEntities.Producers.xcode_build(build, targets)
+    end
+  end
+
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
+  defp create_build_issues(build, issues) do
+    now = :second |> DateTime.utc_now() |> DateTime.to_naive()
+
+    issues =
+      Enum.map(issues, fn issue_attrs ->
+        %{
+          build_run_id: build.id,
+          type: normalize_issue_type(issue_attrs.type),
+          target: issue_attrs.target,
+          project: issue_attrs.project,
+          title: issue_attrs.title,
+          signature: issue_attrs.signature,
+          step_type: normalize_step_type(issue_attrs.step_type),
+          path: Map.get(issue_attrs, :path),
+          message: Map.get(issue_attrs, :message),
+          starting_line: issue_attrs.starting_line,
+          ending_line: issue_attrs.ending_line,
+          starting_column: issue_attrs.starting_column,
+          ending_column: issue_attrs.ending_column,
+          inserted_at: now
+        }
+      end)
+
+    BuildIssue.Buffer.insert_all(issues)
+  end
+
+  defp normalize_issue_type(:warning), do: 0
+  defp normalize_issue_type("warning"), do: 0
+  defp normalize_issue_type(:error), do: 1
+  defp normalize_issue_type("error"), do: 1
+  defp normalize_issue_type(_), do: 0
+
+  @step_type_map %{
+    c_compilation: 0,
+    swift_compilation: 1,
+    script_execution: 2,
+    create_static_library: 3,
+    linker: 4,
+    copy_swift_libs: 5,
+    compile_assets_catalog: 6,
+    compile_storyboard: 7,
+    write_auxiliary_file: 8,
+    link_storyboards: 9,
+    copy_resource_file: 10,
+    merge_swift_module: 11,
+    xib_compilation: 12,
+    swift_aggregated_compilation: 13,
+    precompile_bridging_header: 14,
+    other: 15,
+    validate_embedded_binary: 16,
+    validate: 17
+  }
+
+  defp normalize_step_type(value) when is_atom(value), do: Map.get(@step_type_map, value, 15)
+
+  defp normalize_step_type(value) when is_binary(value) do
+    atom = String.to_atom(value)
+    Map.get(@step_type_map, atom, 15)
+  end
+
+  defp normalize_step_type(_), do: 15
+
+  defp create_cacheable_tasks(build, tasks) do
+    tasks =
+      tasks
+      |> Enum.map(&CacheableTask.changeset(build.id, &1))
+      |> Enum.map(&Ecto.Changeset.apply_changes/1)
+      |> Enum.map(fn struct ->
+        %{
+          type: struct.type,
+          status: struct.status,
+          key: struct.key,
+          build_run_id: struct.build_run_id,
+          read_duration: struct.read_duration,
+          write_duration: struct.write_duration,
+          description: struct.description,
+          cas_output_node_ids: struct.cas_output_node_ids,
+          inserted_at: struct.inserted_at
+        }
+      end)
+
+    CacheableTask.Buffer.insert_all(tasks)
+  end
+
+  defp create_machine_metrics(build, metrics) when is_list(metrics) do
+    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+
+    entries =
+      Enum.map(metrics, fn metric ->
+        %{
+          build_run_id: build.id,
+          gradle_build_id: nil,
+          mix_build_id: nil,
+          project_id: build.project_id,
+          timestamp: metric.timestamp,
+          offset_ms: Map.get(metric, :offset_ms),
+          cpu_usage_percent: metric.cpu_usage_percent / 1,
+          memory_used_bytes: metric.memory_used_bytes,
+          memory_total_bytes: metric.memory_total_bytes,
+          network_bytes_in: metric.network_bytes_in,
+          network_bytes_out: metric.network_bytes_out,
+          disk_bytes_read: metric.disk_bytes_read,
+          disk_bytes_written: metric.disk_bytes_written,
+          inserted_at: now
+        }
+      end)
+
+    BuildMachineMetric.Buffer.insert_all(entries)
+
+    :ok
+  end
+
+  defp create_cas_outputs(build, outputs) do
+    outputs =
+      outputs
+      |> Enum.map(&CASOutput.changeset(build.id, build.project_id, &1))
+      |> Enum.map(&Ecto.Changeset.apply_changes/1)
+      |> Enum.map(fn struct ->
+        %{
+          project_id: struct.project_id,
+          node_id: struct.node_id,
+          checksum: struct.checksum,
+          size: struct.size,
+          duration: struct.duration,
+          compressed_size: struct.compressed_size,
+          operation: struct.operation,
+          type: struct.type,
+          build_run_id: struct.build_run_id,
+          inserted_at: struct.inserted_at
+        }
+      end)
+
+    CASOutput.Buffer.insert_all(outputs)
+  end
+
+  def list_build_issues(build_run_id) do
+    ClickHouseRepo.all(from(i in BuildIssue, where: i.build_run_id == ^build_run_id))
+  end
+
+  def list_build_issues_paginated(attrs) do
+    ClickHouseFlop.validate_and_run!(BuildIssue, attrs, for: BuildIssue)
+  end
+
+  def list_build_files(attrs) do
+    ClickHouseFlop.validate_and_run!(BuildFile, attrs, for: BuildFile)
+  end
+
+  def list_build_targets(attrs) do
+    ClickHouseFlop.validate_and_run!(BuildTarget, attrs, for: BuildTarget)
+  end
+
+  def list_cacheable_tasks(attrs, opts \\ []) do
+    query =
+      if Keyword.get(opts, :include_cas_output_node_ids, true) do
+        CacheableTask
+      else
+        from(t in CacheableTask,
+          select: %{
+            key: t.key,
+            type: t.type,
+            status: t.status,
+            description: t.description,
+            has_cas_outputs: type(fragment("notEmpty(?)", t.cas_output_node_ids), :boolean)
+          }
+        )
+      end
+
+    case ClickHouseFlop.validate_and_run(query, attrs, for: CacheableTask) do
+      {:ok, result} -> {:ok, result}
+      {:error, %Flop.Meta{errors: errors}} -> {:error, errors}
+    end
+  end
+
+  def list_cas_outputs(attrs) do
+    ClickHouseFlop.validate_and_run!(CASOutput, attrs, for: CASOutput)
+  end
+
+  def list_cacheable_task_cas_outputs(build_run_id, task_key, page) when is_integer(page) and page > 0 do
+    node_ids =
+      from(t in CacheableTask,
+        where: t.build_run_id == ^build_run_id and t.key == ^task_key,
+        select: fragment("arrayJoin(?)", t.cas_output_node_ids)
+      )
+
+    # Resolve membership inside ClickHouse so the request never contains the task's ID array.
+    # Group before paginating to keep retried uploads and download/upload pairs on one page.
+    outputs =
+      ClickHouseRepo.all(
+        from(c in CASOutput,
+          where: c.build_run_id == ^build_run_id and c.node_id in subquery(node_ids),
+          group_by: c.node_id,
+          order_by: c.node_id,
+          select: %{node_id: c.node_id, type: min(c.type)},
+          limit: ^(@task_cas_outputs_page_size + 1),
+          offset: ^((page - 1) * @task_cas_outputs_page_size)
+        )
+      )
+
+    %{outputs: Enum.take(outputs, @task_cas_outputs_page_size), has_next?: length(outputs) > @task_cas_outputs_page_size}
+  end
+
+  def cas_output_metrics(build_run_id) do
+    query = """
+    SELECT
+      countIf(operation = 'download') as download_count,
+      countIf(operation = 'upload') as upload_count,
+      sumIf(size, operation = 'download') as download_bytes,
+      sumIf(size, operation = 'upload') as upload_bytes,
+      if(
+        sumIf(duration, operation = 'download' AND duration > 0) = 0,
+        0,
+        sumIf(size, operation = 'download' AND duration > 0) / sumIf(duration, operation = 'download' AND duration > 0) * 1000
+      ) as time_weighted_avg_download_throughput,
+      if(
+        sumIf(duration, operation = 'upload' AND duration > 0) = 0,
+        0,
+        sumIf(size, operation = 'upload' AND duration > 0) / sumIf(duration, operation = 'upload' AND duration > 0) * 1000
+      ) as time_weighted_avg_upload_throughput
+    FROM cas_outputs
+    WHERE build_run_id = {build_run_id:UUID}
+    """
+
+    {:ok,
+     %{
+       rows: [
+         [
+           download_count,
+           upload_count,
+           download_bytes,
+           upload_bytes,
+           time_weighted_avg_download_throughput,
+           time_weighted_avg_upload_throughput
+         ]
+       ]
+     }} = ClickHouseRepo.query(query, %{build_run_id: build_run_id})
+
+    %{
+      download_count: download_count,
+      upload_count: upload_count,
+      download_bytes: download_bytes || 0,
+      upload_bytes: upload_bytes || 0,
+      time_weighted_avg_download_throughput: time_weighted_avg_download_throughput || 0,
+      time_weighted_avg_upload_throughput: time_weighted_avg_upload_throughput || 0
+    }
+  end
+
+  def cacheable_task_latency_metrics(build_run_id) do
+    query = """
+    SELECT
+      avgOrNull(read_duration) as avg_read_duration,
+      avgOrNull(write_duration) as avg_write_duration,
+      quantileOrNull(0.99)(read_duration) as p99_read_duration,
+      quantileOrNull(0.99)(write_duration) as p99_write_duration,
+      quantileOrNull(0.90)(read_duration) as p90_read_duration,
+      quantileOrNull(0.90)(write_duration) as p90_write_duration,
+      quantileOrNull(0.50)(read_duration) as p50_read_duration,
+      quantileOrNull(0.50)(write_duration) as p50_write_duration
+    FROM cacheable_tasks
+    WHERE build_run_id = {build_run_id:UUID}
+    AND (read_duration IS NOT NULL OR write_duration IS NOT NULL)
+    """
+
+    {:ok,
+     %{
+       rows: [
+         [
+           avg_read_duration,
+           avg_write_duration,
+           p99_read_duration,
+           p99_write_duration,
+           p90_read_duration,
+           p90_write_duration,
+           p50_read_duration,
+           p50_write_duration
+         ]
+       ]
+     }} = ClickHouseRepo.query(query, %{build_run_id: build_run_id})
+
+    %{
+      avg_read_duration: avg_read_duration || 0,
+      avg_write_duration: avg_write_duration || 0,
+      p99_read_duration: p99_read_duration || 0,
+      p99_write_duration: p99_write_duration || 0,
+      p90_read_duration: p90_read_duration || 0,
+      p90_write_duration: p90_write_duration || 0,
+      p50_read_duration: p50_read_duration || 0,
+      p50_write_duration: p50_write_duration || 0
+    }
+  end
+
+  def list_build_runs(attrs, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [])
+    custom_values = Keyword.get(opts, :custom_values)
+    {custom_tag_filters, attrs} = pop_custom_tag_filters(attrs)
+
+    base_query =
+      from(b in Build, hints: ["FINAL"])
+      |> apply_custom_values_filter(custom_values)
+      |> apply_custom_tag_filters(custom_tag_filters)
+
+    base_query =
+      case Keyword.get(opts, :failure_category_project_id) do
+        nil ->
+          base_query
+
+        project_id ->
+          base_query = where(base_query, [b], b.project_id == ^project_id)
+          Tuist.BuildMetrics.with_failure_category(base_query, "xcode", project_id)
+      end
+
+    flop_options = Keyword.merge([for: Build], Keyword.take(opts, [:max_limit]))
+    {results, meta} = ClickHouseFlop.validate_and_run!(base_query, attrs, flop_options)
+
+    results = results |> Repo.preload(preload) |> Tuist.ReportActor.preload()
+
+    {results, meta}
+  end
+
+  defp pop_custom_tag_filters(attrs) do
+    {filters, attrs} = Map.pop(attrs, :filters, [])
+    {custom_tag_filters, filters} = Enum.split_with(filters, &custom_tag_filter?/1)
+    {custom_tag_filters, Map.put(attrs, :filters, filters)}
+  end
+
+  defp custom_tag_filter?(%{field: :custom_tags, op: op}) when op in [:contains, :not_contains], do: true
+
+  defp custom_tag_filter?(_), do: false
+
+  defp apply_custom_tag_filters(query, filters) do
+    Enum.reduce(filters, query, fn
+      %{op: :contains, value: value}, q ->
+        from(b in q, where: fragment("has(?, ?)", b.custom_tags, ^value))
+
+      %{op: :not_contains, value: value}, q ->
+        from(b in q, where: fragment("NOT has(?, ?)", b.custom_tags, ^value))
+    end)
+  end
+
+  def recent_build_status_counts(project_id, opts \\ []) do
+    cache_key = [:builds, :recent_build_status_counts, project_id, :erlang.phash2(opts)]
+
+    cached_count_map(cache_key, fn ->
+      recent_build_status_counts_query(project_id, opts)
+    end)
+  end
+
+  defp recent_build_status_counts_query(project_id, opts) do
+    limit = Keyword.get(opts, :limit, 40)
+    order_direction = if Keyword.get(opts, :order, :desc) == :desc, do: "DESC", else: "ASC"
+
+    query = """
+    SELECT
+      countIf(status = 'success') as successful_count,
+      countIf(status = 'failure') as failed_count
+    FROM (
+      SELECT status
+      FROM build_runs FINAL
+      WHERE project_id = {project_id:Int64}
+      ORDER BY inserted_at #{order_direction}
+      LIMIT {limit:UInt32}
+    )
+    """
+
+    {:ok, %{rows: [[successful_count, failed_count]]}} =
+      ClickHouseRepo.query(query, %{project_id: project_id, limit: limit})
+
+    %{
+      successful_count: successful_count,
+      failed_count: failed_count
+    }
+  end
+
+  @doc """
+  The CI runs among `ci_run_ids` with a build in one of `project_ids`, inserted
+  at or after `since`, that served a cacheable task from the remote cache, as
+  `{project_id, ci_run_id}` pairs. Returns `{:error, reason}` when ClickHouse
+  cannot answer, so a caller can tell "no such runs" from "unknown".
+  """
+  def ci_runs_with_remote_cache_hits([], _ci_run_ids, _since), do: {:ok, []}
+  def ci_runs_with_remote_cache_hits(_project_ids, [], _since), do: {:ok, []}
+
+  def ci_runs_with_remote_cache_hits(project_ids, ci_run_ids, %DateTime{} = since) do
+    query = """
+    SELECT DISTINCT project_id, ci_run_id
+    FROM build_runs
+    WHERE project_id IN {project_ids:Array(Int64)}
+      AND inserted_at >= {since:DateTime64(6)}
+      AND ci_run_id IN {ci_run_ids:Array(String)}
+      AND cacheable_task_remote_hits_count > 0
+    """
+
+    case ClickHouseRepo.query(query, %{project_ids: project_ids, ci_run_ids: ci_run_ids, since: since}) do
+      {:ok, %{rows: rows}} -> {:ok, Enum.map(rows, fn [project_id, ci_run_id] -> {project_id, ci_run_id} end)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp cached_count(key, fun) do
+    if Environment.test?() do
+      fun.()
+    else
+      KeyValueStore.get_or_update([:builds, key], [ttl: @short_cache_ttl], fun)
+    end
+  end
+
+  defp cached_count_map(key, fun) do
+    if Environment.test?() do
+      fun.()
+    else
+      KeyValueStore.get_or_update(key, [ttl: @short_cache_ttl], fun)
+    end
+  end
+
+  def project_build_schemes(%Project{} = project) do
+    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
+
+    ClickHouseRepo.all(
+      from(b in Build,
+        where: b.project_id == ^project.id,
+        where: b.scheme != "",
+        where: b.inserted_at > ^thirty_days_ago,
+        order_by: [asc: b.scheme],
+        distinct: true,
+        select: b.scheme
+      )
+    )
+  end
+
+  def project_build_configurations(%Project{} = project) do
+    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
+
+    ClickHouseRepo.all(
+      from(b in Build,
+        where: b.project_id == ^project.id,
+        where: b.configuration != "",
+        where: b.inserted_at > ^thirty_days_ago,
+        order_by: [asc: b.configuration],
+        distinct: true,
+        select: b.configuration
+      )
+    )
+  end
+
+  def project_build_tags(%Project{} = project) do
+    thirty_days_ago = DateTime.add(DateTime.utc_now(), -30, :day)
+
+    query = """
+    SELECT DISTINCT arrayJoin(custom_tags) as tag
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND length(custom_tags) > 0
+      AND inserted_at > {since:DateTime64(6)}
+    ORDER BY tag
+    """
+
+    {:ok, %{rows: rows}} =
+      ClickHouseRepo.query(query, %{project_id: project.id, since: thirty_days_ago})
+
+    Enum.map(rows, fn [tag] -> tag end)
+  end
+
+  defp apply_custom_values_filter(query, nil), do: query
+  defp apply_custom_values_filter(query, values_map) when values_map == %{}, do: query
+
+  defp apply_custom_values_filter(query, values_map) when is_map(values_map) do
+    Enum.reduce(values_map, query, fn {key, value}, q ->
+      from(b in q, where: fragment("custom_values[?] = ?", ^key, ^value))
+    end)
+  end
+
+  @doc """
+  Constructs a CI run URL based on the CI provider and metadata.
+  Returns nil if the build doesn't have complete CI information.
+  """
+  def build_ci_run_url(%Build{} = build) do
+    Tuist.VCS.ci_run_url(build)
+  end
+end

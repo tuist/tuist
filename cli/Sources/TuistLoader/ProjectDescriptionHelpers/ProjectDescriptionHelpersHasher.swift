@@ -1,16 +1,19 @@
 import FileSystem
 import Foundation
 import Path
+import TuistConstants
+import TuistEnvironment
+import TuistMacOSSDK
 import TuistSupport
 
-public protocol ProjectDescriptionHelpersHashing: AnyObject {
+public protocol ProjectDescriptionHelpersHashing {
     /// Given the path to the directory that contains the helpers, it returns a hash that includes
     /// the hash of the files, the environment, as well as the versions of Swift and Tuist.
     /// - Parameter helpersDirectory: Path to the helpers directory.
     func hash(helpersDirectory: AbsolutePath) async throws -> String
 }
 
-public final class ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing {
+public struct ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing {
     /// Tuist version.
     private let tuistVersion: String
     private let machineEnvironment: MachineEnvironmentRetrieving
@@ -36,15 +39,17 @@ public final class ProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHas
             .compactMap { $0.sha256() }
             .compactMap { $0.compactMap { byte in String(format: "%02x", byte) }.joined() }
         let tuistEnvVariables = Environment.current.manifestLoadingVariables.map { "\($0.key)=\($0.value)" }.sorted()
-        let swiftVersion = try SwiftVersionProvider.current.swiftVersion()
+        let swiftlangVersion = try await SwiftVersionProvider.current.swiftlangVersion()
         let macosVersion = machineEnvironment.macOSVersion
+        let macosSDKVersion = try await MacOSSDKVersionProvider.current.macOSSDKVersion()
         #if DEBUG
             let debug = true
         #else
             let debug = false
         #endif
 
-        let identifiers = [macosVersion, swiftVersion, tuistVersion] + fileHashes + tuistEnvVariables + ["\(debug)"]
+        let identifiers =
+            [macosVersion, macosSDKVersion, swiftlangVersion, tuistVersion] + fileHashes + tuistEnvVariables + ["\(debug)"]
 
         return identifiers.joined(separator: "-").md5
     }

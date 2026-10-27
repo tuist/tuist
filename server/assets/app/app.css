@@ -1,9 +1,11 @@
+/* Self-hosted fonts (loaded before noora to override external font imports) */
+@import "./css/fonts.css";
+@import "noora/noora.css";
+
 @import "./css/layouts.css";
 @import "./css/components.css";
 @import "./css/components/previews/app_preview.css";
 @import "./css/pages.css";
-
-@import "noora/noora.css";
 
 :root * {
   --tuist-app-icon-radius: calc(var(--size) / 2 * 0.4453125);
@@ -11,6 +13,8 @@
 
 body {
   margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 h1,
@@ -26,6 +30,8 @@ html {
   --hits-chart-legend-remote: light-dark(var(--noora-blue-300), var(--noora-blue-700));
   --hits-chart-legend-missed: light-dark(var(--noora-orange-300), var(--noora-orange-700));
   --hits-chart-legend-local: light-dark(var(--noora-pink-300), var(--noora-pink-700));
+  scrollbar-color: light-dark(var(--noora-neutral-light-600), var(--noora-neutral-dark-600)) transparent;
+  scrollbar-width: thin;
 }
 
 html:not(:has([data-theme])) {
@@ -72,7 +78,7 @@ a {
     gap: var(--noora-spacing-3);
 
     & [data-part="indicator"] {
-      border-radius: var(--noora-radius-xsmall);
+      border-radius: var(--noora-radius-1);
       background-color: var(--indicator-color);
       width: 6px;
     }

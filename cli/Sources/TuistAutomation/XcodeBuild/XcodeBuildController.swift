@@ -1,11 +1,13 @@
+import TuistProcess
 import Foundation
 import Path
 import TuistCore
+import TuistEnvironment
+import TuistLogging
 import TuistSupport
-import Command
 import XcodeGraph
 
-public final class XcodeBuildController: XcodeBuildControlling {
+public struct XcodeBuildController: XcodeBuildControlling {
     // MARK: - Attributes
 
     /// Matches lines of the forms:
@@ -19,25 +21,22 @@ public final class XcodeBuildController: XcodeBuildControlling {
 
     private let formatter: Formatting
     private let simulatorController: SimulatorController
-    private let system: Systeming
     private let commandRunner: CommandRunning
+    private static let showBuildSettingsTimeout: Duration = .seconds(60)
 
-    public convenience init() {
+    public init() {
         self.init(
             formatter: Formatter(),
-            commandRunner: CommandRunner(),
-            system: System.shared
+            commandRunner: CommandRunner()
         )
     }
 
     init(
         formatter: Formatting,
-        commandRunner: CommandRunning,
-        system: Systeming
+        commandRunner: CommandRunning
     ) {
         self.formatter = formatter
         self.simulatorController = SimulatorController()
-        self.system = system
         self.commandRunner = commandRunner
     }
 
@@ -114,6 +113,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
     ) async throws {
         let extraArguments = arguments.flatMap(\.arguments)
         var arguments: [String] = []
+        let usesXCTestRun = action == .testWithoutBuilding && passthroughXcodeBuildArguments.contains("-xctestrun")
 
         // Action
         if clean {
@@ -129,11 +129,13 @@ public final class XcodeBuildController: XcodeBuildControlling {
             arguments.append("test-without-building")
         }
 
-        // Scheme
-        arguments.append(contentsOf: ["-scheme", scheme])
+        if !usesXCTestRun {
+            // Scheme
+            arguments.append(contentsOf: ["-scheme", scheme])
 
-        // Target
-        arguments.append(contentsOf: target.xcodebuildArguments)
+            // Target
+            arguments.append(contentsOf: target.xcodebuildArguments)
+        }
 
         // Arguments
         arguments.append(contentsOf: extraArguments)
@@ -180,7 +182,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             arguments.append(contentsOf: ["-skip-testing", test.description])
         }
 
-        if let testPlanConfiguration {
+        if let testPlanConfiguration, !usesXCTestRun {
             arguments.append(contentsOf: ["-testPlan", testPlanConfiguration.testPlan])
             for configuration in testPlanConfiguration.configurations {
                 arguments.append(contentsOf: ["-only-test-configuration", configuration])
@@ -341,15 +343,21 @@ public final class XcodeBuildController: XcodeBuildControlling {
         let command = ["/usr/bin/xcrun", "xcodebuild"] + arguments
         
         logger.debug("Running xcodebuild command: \(command.joined(separator: " "))")
-        
-        try system.run(command,
-                       verbose: false,
-                       environment: Environment.current.variables,
-                       redirection: .stream(stdout: { bytes in
-            log(bytes)
-        }, stderr: { bytes in
-            log(bytes, isError: true)
-        }))
+
+        // With parallel testing enabled, xcodebuild checks isatty(stdout) and buffers all of its
+        // output until the process exits when stdout is a pipe, which makes CI runners hit their
+        // no-output timeout. NSUnbufferedIO makes it flush in real time.
+        var environment = Environment.current.variables
+        environment["NSUnbufferedIO"] = "YES"
+        environment.merge(XcodeBuildEnvironment.additionalVariables) { _, new in new }
+        for try await event in commandRunner.run(arguments: command, environment: environment) {
+            switch event {
+            case let .standardOutput(bytes):
+                log(bytes)
+            case let .standardError(bytes):
+                log(bytes, isError: true)
+            }
+        }
     }
     
     public func version() async throws -> Version? {
@@ -373,26 +381,24 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // share any schemes, so automatically bail out if it looks
         // like that's happening.
         return try await Task.retrying(maxRetryCount: 5) {
-            let systemTask = Task {
-                return try await self.system.runAndCollectOutput(command).standardOutput
+            let commandTask = Task {
+                return try await self.commandRunner.runAndCollectOutput(arguments: command).standardOutput
             }
             
             let timeoutTask = Task {
-                try await Task.sleep(nanoseconds: 20_000_000)
-                systemTask.cancel()
+                try await Task.sleep(for: Self.showBuildSettingsTimeout)
+                commandTask.cancel()
             }
             
-            let result = try await systemTask.value
+            let result = try await commandTask.value
             timeoutTask.cancel()
             return result
         }.value
     }
-}
 
-// MARK: - Helpers
+    // MARK: - Helpers
 
-fileprivate extension XcodeBuildController {
-    func format(_ multiLineText: String) -> String {
+    fileprivate func format(_ multiLineText: String) -> String {
         multiLineText.split(separator: "\n").map {
             let line = String($0)
             let formattedLine = formatter.format(line)

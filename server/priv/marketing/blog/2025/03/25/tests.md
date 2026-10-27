@@ -112,13 +112,13 @@ Running an entire test suite for every commit is not necessary. If you change a 
 
 Solutions have emerged in this ecosystem and others to solve this problem, often referred to as selective test running. One such solution is [XcodeSelectiveTesting](https://github.com/mikeger/XcodeSelectiveTesting) by [Mike Gerasymenko](https://github.com/mikeger), which uses the Git repository to determine changes in files and combines that information with the project's graph to identify the tests that need to run. By default, it compares against a baseline branch, but it can alternatively compare against a locally persisted changeset.
 
-We also [provide a solution](https://docs.tuist.dev/en/guides/develop/selective-testing) that takes a different approach. Instead of relying on Git, we use fingerprinting to obtain a hash of the modules that have changed. We also handle persisting the information for you, ensuring that the incrementality of selective testing works across branches and commits, not just from a branch and the base reference. You can use it with [generated projects](https://docs.tuist.dev/en/guides/develop/projects) as well as standard Xcode projects.
+We also [provide a solution](https://tuist.dev/en/docs/guides/features/selective-testing) that takes a different approach. Instead of relying on Git, we use fingerprinting to obtain a hash of the modules that have changed. We also handle persisting the information for you, ensuring that the incrementality of selective testing works across branches and commits, not just from a branch and the base reference. You can use it with [generated projects](https://tuist.dev/en/docs/guides/features/projects) as well as standard Xcode projects.
 
 
 
 ## Speed up compilation
 
-Before tests can run, the code must be compiled—a costly step in clean CI environments. Optimize this with build systems like [Bazel](https://bazel.build/) or [Tuist Cache](https://docs.tuist.dev/en/guides/develop/cache), which cache build artifacts to skip redundant compilation in clean builds.
+Before tests can run, the code must be compiled—a costly step in clean CI environments. Optimize this with build systems like [Bazel](https://bazel.build/) or [Tuist Cache](https://tuist.dev/en/docs/guides/features/cache), which cache build artifacts to skip redundant compilation in clean builds.
 
 ## Closing words
 

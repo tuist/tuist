@@ -1,0 +1,1146 @@
+<div class="overview">
+  <.async_card
+    :let={ready?}
+    results={[
+      @binary_cache_hit_rate_analytics,
+      @build_analytics,
+      @build_time_analytics,
+      @selective_testing_analytics,
+      @test_analytics
+    ]}
+    title={dgettext("dashboard_projects", "Analytics")}
+    icon="chart_arcs"
+    data-part="analytics"
+  >
+    <:actions>
+      <.dropdown
+        id="overview-analytics-environment-dropdown"
+        label={@analytics_environment_label}
+        secondary_text={dgettext("dashboard_projects", "Environment:")}
+      >
+        <.dropdown_item
+          value="any"
+          label={dgettext("dashboard_projects", "Any")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "any")}"}
+          data-selected={@analytics_environment == "any"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="ci"
+          label={dgettext("dashboard_projects", "CI")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "ci")}"}
+          data-selected={@analytics_environment == "ci"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="local"
+          label={dgettext("dashboard_projects", "Local")}
+          patch={"?#{Query.put(@uri.query, "analytics-environment", "local")}"}
+          data-selected={@analytics_environment == "local"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+      <.date_picker
+        id="analytics-date-range-picker"
+        name="analytics-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_projects", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_projects", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_projects", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_projects", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_projects", "Custom")}
+        ]}
+        selected_preset={@analytics_preset}
+        period={@analytics_period}
+        on_period_change="analytics_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_projects", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel",
+                detail: %{id: "analytics-date-range-picker"}
+              )
+            }
+          />
+          <.button
+            label={dgettext("dashboard_projects", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply", detail: %{id: "analytics-date-range-picker"})
+            }
+          />
+        </:actions>
+      </.date_picker>
+    </:actions>
+    <div data-part="analytics-content">
+      <div data-part="widgets">
+        <.widget
+          loading={!ready?}
+          title={dgettext("dashboard_projects", "Cache effectiveness")}
+          description={
+            dgettext(
+              "dashboard_projects",
+              "Cache effectiveness represents the combined hit rate of both Module cache and Xcode cache, showing the percentage of cacheable items that were resolved from cache rather than being rebuilt."
+            )
+          }
+          value={
+            if ready?,
+              do:
+                dgettext("dashboard_projects", "%{binary_cache_effectiveness}%",
+                  binary_cache_effectiveness:
+                    (@binary_cache_hit_rate_analytics.result.cache_hit_rate * 100)
+                    |> Decimal.from_float()
+                    |> Decimal.round(1)
+                )
+          }
+          id="widget-binary-cache-effectiveness"
+          trend_value={
+            if ready?,
+              do: @binary_cache_hit_rate_analytics.result.trend,
+              else: nil
+          }
+          trend_label={@analytics_trend_label}
+          empty={
+            ready? &&
+              @binary_cache_hit_rate_analytics.result.cache_hit_rate == 0.0
+          }
+        />
+        <.widget
+          loading={!ready?}
+          title={dgettext("dashboard_projects", "Selective test effectiveness")}
+          description={
+            dgettext(
+              "dashboard_projects",
+              "Selective test effectiveness represents the ratio of selective test hits compared to selective test misses."
+            )
+          }
+          value={
+            if ready?,
+              do:
+                dgettext("dashboard_projects", "%{selective_tests_effectiveness}%",
+                  selective_tests_effectiveness:
+                    (@selective_testing_analytics.result.hit_rate * 100)
+                    |> Decimal.from_float()
+                    |> Decimal.round(1)
+                )
+          }
+          id="widget-selective-tests-effectiveness"
+          trend_value={
+            if ready?,
+              do: @selective_testing_analytics.result.trend,
+              else: nil
+          }
+          trend_label={@analytics_trend_label}
+          empty={
+            ready? &&
+              @selective_testing_analytics.result.hit_rate == 0.0
+          }
+        />
+        <.widget
+          loading={!ready?}
+          title={dgettext("dashboard_projects", "Average build time")}
+          description={
+            dgettext(
+              "dashboard_projects",
+              "Average time it takes to build a project as reported from Xcode post actions."
+            )
+          }
+          value={
+            if ready?,
+              do:
+                dgettext("dashboard_projects", "%{duration}s",
+                  duration: Float.round(@build_analytics.result.total_average_duration / 1000, 1)
+                )
+          }
+          id="widget-average-build-time"
+          trend_value={if ready?, do: @build_analytics.result.trend, else: nil}
+          trend_label={@analytics_trend_label}
+          trend_type={:inverse}
+          empty={ready? && @build_analytics.result.total_average_duration == 0}
+        />
+        <.widget
+          loading={!ready?}
+          title={dgettext("dashboard_tests", "Avg. test run duration")}
+          description={
+            dgettext(
+              "dashboard_tests",
+              "The average test run duration."
+            )
+          }
+          value={
+            if ready? do
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                @test_analytics.result.total_average_duration
+              )
+            end
+          }
+          id="widget-test-run-duration"
+          trend_value={if ready?, do: @test_analytics.result.trend, else: nil}
+          trend_label={@analytics_trend_label}
+          trend_type={:inverse}
+          empty={ready? && @test_analytics.result.total_average_duration == 0}
+        />
+      </div>
+      <div
+        :if={
+          !ready? ||
+            @binary_cache_hit_rate_analytics.result.cache_hit_rate != 0.0
+        }
+        data-part="cache-cards-section"
+      >
+        <.card_section
+          :if={!ready?}
+          data-part="cache-effectiveness-card-chart-section"
+          data-chart-frame="standard"
+        >
+          <div data-part="effectiveness-chart">
+            <div data-part="legends">
+              <.skeleton_legend />
+              <.skeleton_legend />
+            </div>
+            <.skeleton_chart />
+          </div>
+        </.card_section>
+        <.card_section
+          :if={
+            ready? &&
+              @binary_cache_hit_rate_analytics.result.cache_hit_rate != 0.0
+          }
+          data-part="cache-effectiveness-card-chart-section"
+          data-chart-frame="standard"
+        >
+          <div data-part="effectiveness-chart">
+            <div data-part="legends">
+              <.legend
+                title={dgettext("dashboard_projects", "Cache effectiveness")}
+                value={
+                  dgettext("dashboard_projects", "%{binary_cache_effectiveness}%",
+                    binary_cache_effectiveness:
+                      (@binary_cache_hit_rate_analytics.result.cache_hit_rate * 100)
+                      |> Decimal.from_float()
+                      |> Decimal.round(1)
+                  )
+                }
+                style="primary"
+              />
+              <.legend
+                title={dgettext("dashboard_projects", "Selective test effectiveness")}
+                value={
+                  dgettext("dashboard_projects", "%{selective_test_effectiveness}%",
+                    selective_test_effectiveness:
+                      (@selective_testing_analytics.result.hit_rate * 100)
+                      |> Decimal.from_float()
+                      |> Decimal.round(1)
+                  )
+                }
+                style="secondary"
+              />
+            </div>
+            <.chart
+              data-lazy="true"
+              id="chart-single-multi-series-line"
+              type="line"
+              extra_options={
+                %{
+                  grid: %{
+                    width: "93%",
+                    left: "0%",
+                    right: "7%",
+                    height: "88%",
+                    top: "5%"
+                  },
+                  xAxis: %{
+                    boundaryGap: false,
+                    type: "category",
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      formatter: "fn:toLocaleDate",
+                      customValues: [
+                        @binary_cache_hit_rate_analytics.result.dates |> hd(),
+                        @binary_cache_hit_rate_analytics.result.dates |> List.last()
+                      ],
+                      padding: [10, 0, 0, 0]
+                    }
+                  },
+                  yAxis: %{
+                    splitLine: %{
+                      lineStyle: %{
+                        color: "var:noora-chart-lines"
+                      }
+                    },
+                    axisLabel: %{
+                      color: "var:noora-surface-label-secondary",
+                      formatter: "{value}%"
+                    }
+                  },
+                  tooltip:
+                    if @analytics_preset == "last-24-hours" do
+                      %{valueFormat: "{value}%", dateFormat: "hour"}
+                    else
+                      %{valueFormat: "{value}%"}
+                    end,
+                  legend: %{
+                    show: false
+                  }
+                }
+              }
+              series={[
+                %{
+                  data:
+                    Enum.zip(
+                      @binary_cache_hit_rate_analytics.result.dates,
+                      @binary_cache_hit_rate_analytics.result.values
+                      |> Enum.map(&(&1 * 100))
+                      |> Enum.map(&Decimal.from_float/1)
+                      |> Enum.map(&Decimal.round(&1, 1))
+                    )
+                    |> Enum.map(&Tuple.to_list/1),
+                  name: dgettext("dashboard_projects", "Cache effectiveness"),
+                  type: "line",
+                  smooth: 0.1,
+                  symbol: "none"
+                },
+                %{
+                  data:
+                    Enum.zip(
+                      @selective_testing_analytics.result.dates,
+                      @selective_testing_analytics.result.values
+                      |> Enum.map(&(&1 * 100))
+                      |> Enum.map(&Decimal.from_float/1)
+                      |> Enum.map(&Decimal.round(&1, 1))
+                    )
+                    |> Enum.map(&Tuple.to_list/1),
+                  name: dgettext("dashboard_projects", "Selective test effectiveness"),
+                  type: "line",
+                  smooth: 0.1,
+                  symbol: "none"
+                }
+              ]}
+              y_axis_min={0}
+              y_axis_max={100}
+            />
+          </div>
+        </.card_section>
+        <.card_section
+          :if={
+            ready? &&
+              @analytics_environment == "ci" &&
+              @build_time_analytics.result.total_time_saved != 0 &&
+              @build_time_analytics.result.total_build_time != 0
+          }
+          data-part="time-saved-card-chart-section"
+          data-chart-frame="standard"
+        >
+          <div data-part="legends">
+            <.legend
+              title={dgettext("dashboard_projects", "Build time saved")}
+              value={
+                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                  @build_time_analytics.result.total_time_saved,
+                  include_seconds: false
+                )
+              }
+              style="primary"
+            />
+          </div>
+          <.chart
+            data-lazy="true"
+            id="time-saved-segmented-chart"
+            type="bar"
+            style="height: 100px"
+            extra_options={
+              %{
+                grid: %{
+                  left: "5%",
+                  right: "50px",
+                  top: "15px",
+                  bottom: "15px"
+                },
+                xAxis: %{
+                  type: "value",
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter:
+                      if(@build_time_analytics.result.total_build_time < 3_600_000,
+                        do: "fn:formatSeconds",
+                        else: "fn:formatHours"
+                      ),
+                    hideOverlap: true
+                  },
+                  axisTick: %{show: false}
+                },
+                yAxis: %{
+                  type: "category",
+                  data: [dgettext("dashboard_projects", "Build time")],
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary"
+                  },
+                  axisLine: %{show: false},
+                  axisTick: %{show: false},
+                  splitLine: %{
+                    lineStyle: %{
+                      color: "var:noora-chart-lines"
+                    }
+                  }
+                },
+                legend: %{show: false},
+                tooltip: %{
+                  trigger: "axis",
+                  axisPointer: %{type: "none"},
+                  valueFormat:
+                    if(@build_time_analytics.result.total_build_time < 3_600_000,
+                      do: "fn:formatSeconds",
+                      else: "fn:formatHours"
+                    )
+                }
+              }
+            }
+            series={[
+              %{
+                name: dgettext("dashboard_projects", "Saved"),
+                type: "bar",
+                stack: "total",
+                itemStyle: %{
+                  color: "var:noora-chart-legend-primary",
+                  borderRadius: [0, 4, 4, 0]
+                },
+                data: [
+                  if(@build_time_analytics.result.total_build_time < 3_600_000,
+                    do:
+                      (@build_time_analytics.result.total_time_saved / 1000)
+                      |> Decimal.from_float()
+                      |> Decimal.round(1),
+                    else:
+                      (@build_time_analytics.result.total_time_saved / 3_600_000)
+                      |> Decimal.from_float()
+                      |> Decimal.round(2)
+                  )
+                ]
+              }
+            ]}
+            x_axis_min={0}
+          />
+        </.card_section>
+      </div>
+      <.empty_card_section
+        :if={
+          ready? &&
+            @binary_cache_hit_rate_analytics.result.cache_hit_rate == 0.0
+        }
+        title={dgettext("dashboard_projects", "Binary cache and selective testing: no data yet")}
+        get_started_href="https://tuist.dev/en/docs/"
+        data-chart-frame="standard"
+      >
+        <:image>
+          <img
+            src={~p"/images/empty_line_chart_light.png"}
+            data-theme="light"
+            loading="lazy"
+            decoding="async"
+          />
+          <img
+            src={~p"/images/empty_line_chart_dark.png"}
+            data-theme="dark"
+            loading="lazy"
+            decoding="async"
+          />
+        </:image>
+      </.empty_card_section>
+    </div>
+  </.async_card>
+  <.async_card
+    :let={ready?}
+    results={[@failed_test_runs_count, @passed_test_runs_count, @recent_test_runs]}
+    title={dgettext("dashboard_projects", "Tests")}
+    icon="subtask"
+  >
+    <:actions>
+      <.button
+        variant="secondary"
+        label={dgettext("dashboard_projects", "View more")}
+        size="medium"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/tests/test-runs"}
+        disabled={!@recent_test_runs.ok? || Enum.empty?(@recent_test_runs.result)}
+      />
+    </:actions>
+    <.card_section :if={!ready?} data-chart-frame="standard">
+      <div data-part="test-runs-chart">
+        <div data-part="legends">
+          <.skeleton_legend />
+          <.skeleton_legend />
+        </div>
+        <.skeleton_chart />
+      </div>
+    </.card_section>
+    <.card_section
+      :if={ready? && not Enum.empty?(@recent_test_runs.result)}
+      data-chart-frame="standard"
+    >
+      <div data-part="test-runs-chart">
+        <div data-part="legends">
+          <.legend
+            title={dgettext("dashboard_projects", "Passed runs")}
+            value={@passed_test_runs_count.result}
+            style="primary"
+          />
+          <.legend
+            title={dgettext("dashboard_projects", "Failed runs")}
+            value={@failed_test_runs_count.result}
+            style="destructive"
+          />
+        </div>
+        <.chart
+          data-lazy="true"
+          id="chart-single-test-run-duration"
+          type="bar"
+          extra_options={
+            %{
+              grid: %{
+                width: "93%",
+                left: "0.4%",
+                right: "7%",
+                height: "88%",
+                top: "5%"
+              },
+              tooltip: %{
+                valueFormat: "fn:formatSeconds",
+                dateFormat: "minute"
+              },
+              xAxis: %{
+                axisLabel: %{show: false},
+                data: @recent_test_runs.result |> Enum.map(& &1.date)
+              },
+              yAxis: %{
+                splitLine: %{
+                  lineStyle: %{
+                    color: "var:noora-chart-lines"
+                  }
+                },
+                axisLabel: %{
+                  color: "var:noora-surface-label-secondary",
+                  formatter: "fn:formatSeconds"
+                }
+              },
+              legend: %{
+                show: false
+              }
+            }
+          }
+          series={[
+            %{
+              data: @recent_test_runs.result,
+              name: "Test Run",
+              type: "bar"
+            }
+          ]}
+          y_axis_min={0}
+          grid_lines
+          bar_width={8}
+          bar_radius={2}
+        />
+        <span data-part="label">{dgettext("dashboard_projects", "Last 40 runs")}</span>
+      </div>
+    </.card_section>
+    <.empty_card_section
+      :if={ready? && Enum.empty?(@recent_test_runs.result)}
+      title={dgettext("dashboard_projects", "Runs: no data yet")}
+      get_started_href="https://tuist.dev/en/docs/guides/features/selective-testing"
+      data-chart-frame="standard"
+    >
+      <:image>
+        <img
+          src={~p"/images/empty_bar_chart_light.png"}
+          data-theme="light"
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          src={~p"/images/empty_bar_chart_dark.png"}
+          data-theme="dark"
+          loading="lazy"
+          decoding="async"
+        />
+      </:image>
+    </.empty_card_section>
+  </.async_card>
+  <.card title={dgettext("dashboard_projects", "Previews")} icon="devices" data-part="previews">
+    <:actions>
+      <.button
+        variant="secondary"
+        label={dgettext("dashboard_projects", "View more")}
+        size="medium"
+        navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/previews"}
+        disabled={!@latest_app_previews.ok? || Enum.empty?(@latest_app_previews.result)}
+      />
+    </:actions>
+    <.card_section :if={!@latest_app_previews.ok?} data-part="latest-app-previews">
+      <span data-part="title" class="tuist-loading-skeleton">
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+      </span>
+      <div data-part="apps">
+        <.skeleton_box
+          :for={_ <- 1..3}
+          width="64px"
+          height="64px"
+          border_radius="var(--noora-radius-4)"
+        />
+      </div>
+    </.card_section>
+    <.card_section
+      :if={@latest_app_previews.ok? && not Enum.empty?(@latest_app_previews.result)}
+      data-part="latest-app-previews"
+    >
+      <span data-part="title">{dgettext("dashboard_projects", "Latest app previews")}</span>
+      <div data-part="apps">
+        <%= for preview <- @latest_app_previews.result do %>
+          <.app_preview preview={preview} user_agent={@user_agent} />
+        <% end %>
+      </div>
+    </.card_section>
+    <.empty_card_section
+      :if={@latest_app_previews.ok? && Enum.empty?(@latest_app_previews.result)}
+      data-part="empty-previews-card-section"
+      title={dgettext("dashboard_projects", "No previews yet")}
+      get_started_href="https://tuist.dev/en/docs/guides/features/previews"
+    >
+      <:image>
+        <img
+          src={~p"/images/empty_previews_light.png"}
+          data-theme="light"
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          src={~p"/images/empty_previews_dark.png"}
+          data-theme="dark"
+          loading="lazy"
+          decoding="async"
+        />
+      </:image>
+    </.empty_card_section>
+  </.card>
+  <.async_card
+    :let={ready?}
+    results={[@bundle_size_analytics]}
+    title={dgettext("dashboard_projects", "Bundles")}
+    icon="chart_donut_4"
+    data-part="bundle-size-card"
+  >
+    <:actions>
+      <.dropdown
+        id="bundle-size-app-dropdown"
+        label={@bundle_size_selected_app}
+        secondary_text={dgettext("dashboard_projects", "App:")}
+      >
+        <.dropdown_item
+          :for={app <- if(@bundle_size_apps.ok?, do: @bundle_size_apps.result, else: [])}
+          value={app}
+          label={app}
+          patch={"?#{Query.put(@uri.query, "bundle-size-app", app)}"}
+          data-selected={@bundle_size_selected_app == app}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+      <.date_picker
+        id="bundle-size-date-range-picker"
+        name="bundle-size-date-range"
+        presets={[
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_projects", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_projects", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_projects", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_projects", "Custom")}
+        ]}
+        selected_preset={@bundle_size_preset}
+        period={@bundle_size_period}
+        on_period_change="bundle_size_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_projects", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel",
+                detail: %{id: "bundle-size-date-range-picker"}
+              )
+            }
+          />
+          <.button
+            label={dgettext("dashboard_projects", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply",
+                detail: %{id: "bundle-size-date-range-picker"}
+              )
+            }
+          />
+        </:actions>
+      </.date_picker>
+    </:actions>
+    <.card_section
+      :if={!ready?}
+      data-part="bundle-size-chart-card-section"
+      data-chart-frame="standard"
+    >
+      <span data-part="legend" class="tuist-loading-skeleton">
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+      </span>
+      <.skeleton_chart />
+    </.card_section>
+    <.card_section
+      :if={
+        ready? &&
+          Enum.any?(@bundle_size_analytics.result, fn [_date, value] -> value != 0 end)
+      }
+      data-part="bundle-size-chart-card-section"
+      data-chart-frame="standard"
+    >
+      <span data-part="legend">{dgettext("dashboard_projects", "Install size")}</span>
+      <.chart
+        data-lazy="true"
+        id="average-bundle-size-chart"
+        type="line"
+        extra_options={
+          %{
+            grid: %{
+              width: "93%",
+              left: "0.4%",
+              height: "88%",
+              top: "5%"
+            },
+            xAxis: %{
+              boundaryGap: false,
+              type: "category",
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:toLocaleDate",
+                customValues: [
+                  @bundle_size_analytics.result |> List.first() |> List.first(),
+                  @bundle_size_analytics.result |> List.last() |> List.first()
+                ],
+                padding: [10, 0, 0, 0]
+              }
+            },
+            yAxis: %{
+              splitNumber: 4,
+              splitLine: %{
+                lineStyle: %{
+                  color: "var:noora-chart-lines"
+                }
+              },
+              axisLabel: %{
+                color: "var:noora-surface-label-secondary",
+                formatter: "fn:formatBytes"
+              }
+            },
+            tooltip: %{
+              valueFormat: "fn:formatBytes"
+            },
+            legend: %{
+              show: false
+            }
+          }
+        }
+        series={[
+          %{
+            color: "var:noora-chart-primary",
+            data: @bundle_size_analytics.result,
+            name: dgettext("dashboard_projects", "Bundle install size"),
+            type: "line",
+            smooth: 0.1,
+            symbol: "none"
+          }
+        ]}
+        y_axis_min={0}
+      />
+    </.card_section>
+    <.empty_card_section
+      :if={
+        ready? &&
+          Enum.all?(@bundle_size_analytics.result, fn [_date, value] -> value == 0 end)
+      }
+      title={dgettext("dashboard_projects", "No bundles yet")}
+      data-chart-frame="standard"
+    >
+      <:image>
+        <img
+          src={~p"/images/empty_line_chart_light.png"}
+          data-theme="light"
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          src={~p"/images/empty_line_chart_dark.png"}
+          data-theme="dark"
+          loading="lazy"
+          decoding="async"
+        />
+      </:image>
+    </.empty_card_section>
+  </.async_card>
+  <.async_card
+    :let={ready?}
+    results={[
+      @builds_duration_analytics,
+      @failed_build_runs_count,
+      @passed_build_runs_count,
+      @recent_build_runs
+    ]}
+    title={dgettext("dashboard_projects", "Builds")}
+    icon="subtask"
+    data-part="builds-card-section"
+  >
+    <:actions>
+      <.dropdown
+        id="overview-builds-environment-dropdown"
+        label={@builds_environment_label}
+        secondary_text={dgettext("dashboard_projects", "Environment:")}
+      >
+        <.dropdown_item
+          value="any"
+          label={dgettext("dashboard_projects", "Any")}
+          patch={"?#{Query.put(@uri.query, "builds-environment", "any")}"}
+          data-selected={@builds_environment == "any"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="ci"
+          label={dgettext("dashboard_projects", "CI")}
+          patch={"?#{Query.put(@uri.query, "builds-environment", "ci")}"}
+          data-selected={@builds_environment == "ci"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="local"
+          label={dgettext("dashboard_projects", "Local")}
+          patch={"?#{Query.put(@uri.query, "builds-environment", "local")}"}
+          data-selected={@builds_environment == "local"}
+        >
+          <:right_icon><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+      <.date_picker
+        id="builds-date-range-picker"
+        name="builds-date-range"
+        presets={[
+          %{
+            id: "last-24-hours",
+            label: dgettext("dashboard_projects", "Last 24 hours"),
+            period: {24, :hour}
+          },
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_projects", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_projects", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_projects", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_projects", "Custom")}
+        ]}
+        selected_preset={@builds_preset}
+        period={@builds_period}
+        on_period_change="builds_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_projects", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel", detail: %{id: "builds-date-range-picker"})
+            }
+          />
+          <.button
+            label={dgettext("dashboard_projects", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply", detail: %{id: "builds-date-range-picker"})
+            }
+          />
+        </:actions>
+      </.date_picker>
+    </:actions>
+    <div data-part="builds-card-sections">
+      <.card_section
+        :if={!ready?}
+        data-chart-frame="large"
+      >
+        <div data-part="build-runs-chart">
+          <div data-part="legends">
+            <.skeleton_legend />
+            <.skeleton_legend />
+          </div>
+          <.skeleton_chart />
+        </div>
+      </.card_section>
+      <.card_section
+        :if={
+          ready? &&
+            not Enum.empty?(@recent_build_runs.result)
+        }
+        data-chart-frame="large"
+      >
+        <div data-part="build-runs-chart">
+          <div data-part="legends">
+            <.legend
+              title={dgettext("dashboard_projects", "Passed builds")}
+              value={@passed_build_runs_count.result}
+              style="primary"
+            />
+            <.legend
+              title={dgettext("dashboard_projects", "Failed builds")}
+              value={@failed_build_runs_count.result}
+              style="destructive"
+            />
+          </div>
+          <.chart
+            data-lazy="true"
+            id="chart-recent-build-runs"
+            type="bar"
+            extra_options={
+              %{
+                grid: %{
+                  width: "100%",
+                  left: "0.4%",
+                  height: "88%",
+                  top: "5%"
+                },
+                tooltip: %{
+                  valueFormat: "fn:formatSeconds",
+                  dateFormat: "minute"
+                },
+                xAxis: %{
+                  axisLabel: %{show: false},
+                  data: @recent_build_runs.result |> Enum.map(& &1.date)
+                },
+                yAxis: %{
+                  splitLine: %{
+                    lineStyle: %{
+                      color: "var:noora-chart-lines"
+                    }
+                  },
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:formatSeconds"
+                  }
+                },
+                legend: %{
+                  show: false
+                }
+              }
+            }
+            series={[
+              %{
+                data: @recent_build_runs.result,
+                name: "Build",
+                type: "bar"
+              }
+            ]}
+            y_axis_min={0}
+            grid_lines
+            bar_width={8}
+            bar_radius={2}
+          />
+          <span data-part="label">{dgettext("dashboard_projects", "Last 30 runs")}</span>
+        </div>
+      </.card_section>
+      <.empty_card_section
+        :if={ready? && Enum.empty?(@recent_build_runs.result)}
+        title={dgettext("dashboard_projects", "No recent builds yet")}
+        get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#builds"
+        data-chart-frame="large"
+      >
+        <:image>
+          <img
+            src={~p"/images/empty_bar_chart_light.png"}
+            data-theme="light"
+            loading="lazy"
+            decoding="async"
+          />
+          <img
+            src={~p"/images/empty_bar_chart_dark.png"}
+            data-theme="dark"
+            loading="lazy"
+            decoding="async"
+          />
+        </:image>
+      </.empty_card_section>
+      <.card_section
+        :if={!ready?}
+        data-part="average-build-time-card-section"
+        data-chart-frame="large"
+      >
+        <div data-part="average-build-time-chart">
+          <div data-part="legends">
+            <.skeleton_legend />
+          </div>
+          <.skeleton_chart />
+        </div>
+      </.card_section>
+      <.card_section
+        :if={
+          ready? &&
+            @builds_duration_analytics.result.total_average_duration != 0
+        }
+        data-part="average-build-time-card-section"
+        data-chart-frame="large"
+      >
+        <div data-part="average-build-time-chart">
+          <.button
+            data-part="view-more"
+            label={dgettext("dashboard_projects", "View more")}
+            size="small"
+            variant="secondary"
+            navigate={~p"/#{@selected_account.name}/#{@selected_project.name}/builds"}
+          />
+          <div data-part="legends">
+            <.legend
+              title={dgettext("dashboard_projects", "Average build time")}
+              value={
+                dgettext("dashboard_projects", "%{average_build_time}s",
+                  average_build_time:
+                    (@builds_duration_analytics.result.total_average_duration / 1000)
+                    |> Decimal.from_float()
+                    |> Decimal.round(1)
+                )
+              }
+              style="secondary"
+            />
+          </div>
+          <.chart
+            data-lazy="true"
+            id="average-build-time-chart"
+            type="line"
+            extra_options={
+              %{
+                grid: %{
+                  width: "95%",
+                  left: "0.4%",
+                  height: "88%",
+                  top: "5%"
+                },
+                xAxis: %{
+                  boundaryGap: false,
+                  type: "category",
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:toLocaleDate",
+                    customValues: [
+                      @builds_duration_analytics.result.dates |> List.first(),
+                      @builds_duration_analytics.result.dates |> List.last()
+                    ],
+                    padding: [10, 0, 0, 0]
+                  }
+                },
+                yAxis: %{
+                  splitNumber: 4,
+                  splitLine: %{
+                    lineStyle: %{
+                      color: "var:noora-chart-lines"
+                    }
+                  },
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:formatSeconds"
+                  }
+                },
+                tooltip:
+                  if @builds_preset == "last-24-hours" do
+                    %{valueFormat: "fn:formatSeconds", dateFormat: "hour"}
+                  else
+                    %{valueFormat: "fn:formatSeconds"}
+                  end,
+                legend: %{
+                  show: false
+                }
+              }
+            }
+            series={[
+              %{
+                color: "var:noora-chart-secondary",
+                data:
+                  Enum.zip(
+                    @builds_duration_analytics.result.dates,
+                    @builds_duration_analytics.result.values
+                    |> Enum.map(&((&1 / 1000) |> Decimal.from_float() |> Decimal.round(1)))
+                  )
+                  |> Enum.map(&Tuple.to_list/1),
+                name: dgettext("dashboard_projects", "Average build time"),
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              }
+            ]}
+            y_axis_min={0}
+          />
+        </div>
+      </.card_section>
+      <.empty_card_section
+        :if={
+          ready? &&
+            @builds_duration_analytics.result.total_average_duration == 0
+        }
+        title={dgettext("dashboard_projects", "No builds yet")}
+        get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#builds"
+        data-chart-frame="large"
+      >
+        <:image>
+          <img
+            src={~p"/images/empty_line_chart_light.png"}
+            data-theme="light"
+            loading="lazy"
+            decoding="async"
+          />
+          <img
+            src={~p"/images/empty_line_chart_dark.png"}
+            data-theme="dark"
+            loading="lazy"
+            decoding="async"
+          />
+        </:image>
+      </.empty_card_section>
+    </div>
+  </.async_card>
+</div>

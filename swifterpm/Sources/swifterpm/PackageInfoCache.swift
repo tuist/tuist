@@ -1,0 +1,216 @@
+import Foundation
+
+private struct PackageInfoIndex: Codable {
+    let schemaVersion: Int
+    let generatedAtUnix: UInt64
+    let root: PackageInfoEntry
+    let packages: [PackageInfoEntry]
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case generatedAtUnix = "generated_at_unix"
+        case root
+        case packages
+    }
+}
+
+private struct PackageInfoEntry: Codable, Sendable {
+    let identity: String
+    let kind: String
+    let location: String
+    let version: String?
+    let revision: String?
+    let packagePath: String
+    let packageInfoPath: String
+
+    enum CodingKeys: String, CodingKey {
+        case identity
+        case kind
+        case location
+        case version
+        case revision
+        case packagePath = "package_path"
+        case packageInfoPath = "package_info_path"
+    }
+}
+
+enum PackageInfoCacheWriter {
+    static func write(
+        packageDir: URL,
+        scratchDir: URL,
+        resolved: ResolvedPins,
+        mirrors: MirrorConfig,
+        cacheDir customCacheDir: URL?,
+        disableSandbox: Bool,
+        quiet: Bool
+    ) async throws {
+        let cacheDir = customCacheDir ?? scratchDir.appendingPathComponent("swifterpm/package-info")
+        let scratchLock = try await PathLock.acquire(
+            at: scratchDir.appendingPathComponent(".swifterpm.lock"))
+        let cacheLock = try await PathLock.acquire(
+            at: cacheDir.appendingPathComponent(".swifterpm.lock"))
+        _ = scratchLock
+        _ = cacheLock
+
+        try await fileSystem.makeDirectory(
+            at: cacheDir.appendingPathComponent("packages").absolutePath,
+            options: [.createTargetParentDirectories]
+        )
+
+        let rootPath = cacheDir.appendingPathComponent("root.json")
+        let rootManifestData = try await cachedOrDumpPackageJSON(
+            packageDir: packageDir, destination: rootPath, disableSandbox: disableSandbox)
+        let rootManifest = try JSONSerialization.jsonObject(
+            with: rootManifestData)
+
+        let packagePins = resolved.pins
+            .filter { PinKind.isSourceControl($0.kind) || PinKind.isRegistry($0.kind) }
+            .sorted { $0.identity < $1.identity }
+
+        let packages = try await ConcurrentTasks.map(packagePins) { pin in
+            let packagePath = try packagePathForPin(scratchDir: scratchDir, pin: pin, mirrors: mirrors)
+            let packageInfoPath =
+                cacheDir
+                .appendingPathComponent("packages")
+                .appendingPathComponent(
+                    "\(SafeFileName.make(pin.identity))-\(entryHash(pin)).json")
+            do {
+                _ = try await cachedOrDumpPackageJSON(
+                    packageDir: packagePath, destination: packageInfoPath,
+                    disableSandbox: disableSandbox)
+            } catch {
+                throw ToolError.message(
+                    "failed to load the manifest for \(pin.identity): \(error)"
+                )
+            }
+            return packageEntry(
+                pin: pin, packagePath: packagePath, packageInfoPath: packageInfoPath)
+        }.sorted { $0.identity < $1.identity }
+
+        var allPackages = packages
+        let localDependencies = try await ManifestFileSystemDependencyGraph.collect(
+            rootPackageDir: packageDir,
+            rootManifest: rootManifest,
+            disableSandbox: disableSandbox
+        )
+        let unsortedLocalPackages: [PackageInfoEntry] = try await ConcurrentTasks.map(localDependencies) {
+            localPackage -> PackageInfoEntry in
+            let packagePath = localPackage.packagePath
+            let dependency = localPackage.dependency
+            let dependencyHashInput = Hashing.stable(packagePath.path)
+            let dependencyHash = String(dependencyHashInput.prefix(16))
+            let safeIdentity = SafeFileName.make(dependency.identity)
+            let packageInfoFileName = "\(safeIdentity)-\(dependencyHash).json"
+            let packageInfoPath =
+                cacheDir
+                .appendingPathComponent("packages")
+                .appendingPathComponent(packageInfoFileName)
+            do {
+                _ = try await cachedOrDumpPackageJSON(
+                    packageDir: packagePath, destination: packageInfoPath,
+                    disableSandbox: disableSandbox,
+                    manifestCacheFile: ManifestLoader.localCacheFilePath(rootPackageDir: packageDir, packageDir: packagePath)
+                )
+            } catch {
+                throw ToolError.message(
+                    """
+                    failed to load the manifest for the local package \
+                    \(dependency.identity), declared as "\(dependency.path)": \(error)
+                    """
+                )
+            }
+            let entry = PackageInfoEntry(
+                identity: dependency.identity,
+                kind: "fileSystem",
+                location: packagePath.path,
+                version: nil,
+                revision: nil,
+                packagePath: packagePath.path,
+                packageInfoPath: packageInfoPath.path
+            )
+            return entry
+        }
+        let localPackages = unsortedLocalPackages.sorted {
+            $0.identity == $1.identity
+                ? $0.packagePath < $1.packagePath
+                : $0.identity < $1.identity
+        }
+        allPackages.append(contentsOf: localPackages)
+
+        let index = PackageInfoIndex(
+            schemaVersion: 1,
+            generatedAtUnix: UInt64(Date().timeIntervalSince1970),
+            root: PackageInfoEntry(
+                identity: "root",
+                kind: "root",
+                location: packageDir.path,
+                version: nil,
+                revision: resolved.originHash,
+                packagePath: packageDir.path,
+                packageInfoPath: rootPath.path
+            ),
+            packages: allPackages
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try await fileSystem.atomicWrite(
+            try encoder.encode(index) + Data("\n".utf8),
+            to: cacheDir.appendingPathComponent("index.json")
+        )
+
+        if !quiet {
+            print("cached package manifest JSON into \(cacheDir.path)")
+        }
+    }
+
+    private static func packagePathForPin(
+        scratchDir: URL,
+        pin: ResolvedPin,
+        mirrors: MirrorConfig
+    ) throws -> URL {
+        if PinKind.isRegistry(pin.kind) {
+            return
+                scratchDir
+                .appendingPathComponent("registry/downloads")
+                .appendingPathComponent(try PinKind.registryDownloadSubpath(pin))
+        }
+        return
+            scratchDir
+            .appendingPathComponent("checkouts")
+            .appendingPathComponent(PinKind.checkoutDirectoryName(pin, mirrors: mirrors))
+    }
+
+    private static func cachedOrDumpPackageJSON(
+        packageDir: URL, destination: URL, disableSandbox: Bool, manifestCacheFile: URL? = nil
+    ) async throws -> Data {
+        let inputs = try? await ManifestCache.inputs(packageDir: packageDir, disableSandbox: disableSandbox)
+        if let inputs, let cached = await ManifestCache.read(at: destination, inputs: inputs) {
+            return cached
+        }
+        let evaluation = try await ManifestLoader.dumpPackageJSON(
+            packageDir: packageDir, disableSandbox: disableSandbox, cacheFile: manifestCacheFile, inputs: inputs
+        )
+        try await ManifestCache.write(evaluation.data, at: destination, inputs: evaluation.inputs)
+        return evaluation.data
+    }
+
+    private static func packageEntry(pin: ResolvedPin, packagePath: URL, packageInfoPath: URL)
+        -> PackageInfoEntry
+    {
+        PackageInfoEntry(
+            identity: pin.identity,
+            kind: pin.kind,
+            location: pin.location,
+            version: pin.state.version,
+            revision: pin.state.revision,
+            packagePath: packagePath.path,
+            packageInfoPath: packageInfoPath.path
+        )
+    }
+
+    private static func entryHash(_ pin: ResolvedPin) -> String {
+        let location = SourceControlLocations.canonicalLocation(pin.location)
+        let input = "\(location):\(pin.state.version ?? ""):\(pin.state.revision ?? "")"
+        return String(Hashing.stable(input).prefix(16))
+    }
+}

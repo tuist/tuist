@@ -1,0 +1,169 @@
+import "phoenix_html";
+import { Socket } from "phoenix";
+import { LiveSocket } from "phoenix_live_view";
+import topbar from "../app/js/vendor/topbar.js";
+import Noora from "noora";
+import ThemeSwitcher, { ThemeToggle, observeThemeChanges } from "../app/js/ThemeSwitcher.js";
+import DocsContentHook from "./hooks/docs-content-hook.js";
+import DocsCopyPageButtonHook, { dispatchCopyPageButtonFlash } from "./hooks/docs-copy-page-button-hook.js";
+import DocsInstallTabsHook from "./hooks/docs-install-tabs-hook.js";
+import MermaidDiagramHook from "./hooks/mermaid-diagram-hook.js";
+import { initDocsSearch } from "./hooks/docs-search-hook.js";
+import { copyTextToClipboard } from "../shared/js/clipboard.js";
+import { initAnalytics } from "../shared/js/analytics.js";
+
+import "./docs.css";
+
+let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
+let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
+
+observeThemeChanges();
+
+// Keep this aligned with nginx.ingress.kubernetes.io/proxy-connect-timeout.
+const liveSocketFallbackMs = 10000;
+
+let liveSocket = new LiveSocket("/live", Socket, {
+  longPollFallbackMs: liveSocketFallbackMs,
+  params: { _csrf_token: csrfToken, _csp_nonce: cspNonce },
+  hooks: {
+    ...Noora.Hooks,
+    DocsContent: DocsContentHook,
+    DocsCopyPageButton: DocsCopyPageButtonHook,
+    DocsInstallTabs: DocsInstallTabsHook,
+    MermaidDiagram: MermaidDiagramHook,
+    ThemeToggle,
+    ThemeSwitcher,
+  },
+});
+
+// topbar draws on a canvas and can't resolve var() or light-dark(), so
+// resolve the color through a probe element, which the browser evaluates
+// against the current color scheme. Resolved on every show so runtime theme
+// switches are picked up.
+function loadingBarColor() {
+  const probe = document.createElement("div");
+  probe.style.color = "light-dark(var(--noora-purple-500), var(--noora-purple-400))";
+  document.body.appendChild(probe);
+  const color = getComputedStyle(probe).color;
+  probe.remove();
+  return color || "#29d";
+}
+
+topbar.config({
+  shadowColor: "rgba(0, 0, 0, .3)",
+});
+function closeMobileSidebar() {
+  document.body.removeAttribute("data-sidebar-open");
+  document.getElementById("docs-sidebar")?.removeAttribute("data-mobile-open");
+}
+
+function closeMobileNav({ restoreFocus = false } = {}) {
+  document.body.removeAttribute("data-mobile-nav-open");
+  document.getElementById("docs-mobile-nav")?.removeAttribute("data-open");
+  const trigger = document.getElementById("docs-nav-mobile-menu");
+  trigger?.setAttribute("aria-expanded", "false");
+  if (restoreFocus) trigger?.focus();
+}
+
+// Capture phase, so the nested language dropdown is still open when we look:
+// the first Escape belongs to it, and only a later one closes the menu itself.
+document.addEventListener(
+  "keydown",
+  (event) => {
+    if (event.key !== "Escape") return;
+    const nav = document.getElementById("docs-mobile-nav");
+    if (!nav?.hasAttribute("data-open")) return;
+    if (nav.querySelector('[data-part="content"][data-state="open"]')) return;
+    closeMobileNav({ restoreFocus: true });
+  },
+  { capture: true },
+);
+
+// page-loading-stop also fires for the initial join, which can land after the
+// reader has already opened the menu, so only a real navigation closes it.
+function maybeCloseMobileNavForNavigation({ kind, to } = {}) {
+  if (!to || kind === "initial") return;
+  closeMobileNav();
+}
+
+function maybeScrollToTopForNavigation({ kind, to } = {}) {
+  if (!to || kind === "initial") return;
+
+  const destination = new URL(to, window.location.origin);
+  if (destination.hash) return;
+
+  requestAnimationFrame(() => {
+    window.scrollTo(0, 0);
+  });
+}
+
+window.addEventListener("phx:page-loading-start", (_info) => {
+  topbar.config({ barColors: { 0: loadingBarColor() } });
+  topbar.show(300);
+});
+window.addEventListener("phx:page-loading-stop", (info) => {
+  topbar.hide();
+  maybeScrollToTopForNavigation(info.detail);
+  closeMobileSidebar();
+  maybeCloseMobileNavForNavigation(info.detail);
+  initDocsSearch();
+});
+
+liveSocket.connect();
+
+initAnalytics();
+
+window.liveSocket = liveSocket;
+
+initDocsSearch();
+
+window.addEventListener("phx:docs:copy-to-clipboard", ({ detail }) => {
+  copyTextToClipboard(detail.text)
+    .then(() => dispatchCopyPageButtonFlash())
+    .catch((error) => console.error("Failed to copy page:", error));
+});
+
+// TOC scroll spy
+function setupTocScrollSpy() {
+  const toc = document.getElementById("docs-toc");
+  if (!toc) return;
+
+  const tocLinks = toc.querySelectorAll('[data-part="list"] a');
+  if (!tocLinks.length) return;
+
+  const headingIds = Array.from(tocLinks).map((a) => a.getAttribute("href")?.replace("#", ""));
+  const headings = headingIds.map((id) => document.getElementById(id)).filter(Boolean);
+
+  if (!headings.length) return;
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          tocLinks.forEach((link) => link.removeAttribute("data-active"));
+          const active = toc.querySelector(`[data-part="list"] a[href="#${entry.target.id}"]`);
+          active?.setAttribute("data-active", "");
+          break;
+        }
+      }
+    },
+    { rootMargin: "0px 0px -80% 0px", threshold: 0 },
+  );
+
+  headings.forEach((h) => observer.observe(h));
+  return observer;
+}
+
+let tocObserver = null;
+window.addEventListener("phx:page-loading-stop", () => {
+  tocObserver?.disconnect();
+  requestAnimationFrame(() => {
+    tocObserver = setupTocScrollSpy();
+  });
+});
+
+window.addEventListener("phx:js-exec", ({ detail }) => {
+  document.querySelectorAll(detail.to).forEach((el) => {
+    liveSocket.execJS(el, el.getAttribute(detail.attr));
+  });
+});

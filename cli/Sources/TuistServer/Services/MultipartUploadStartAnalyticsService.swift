@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TuistHTTP
 
 @Mockable
 public protocol MultipartUploadStartAnalyticsServicing {
@@ -29,7 +30,7 @@ public enum MultipartUploadStartAnalyticsServiceError: LocalizedError, Equatable
     }
 }
 
-public final class MultipartUploadStartAnalyticsService: MultipartUploadStartAnalyticsServicing {
+public struct MultipartUploadStartAnalyticsService: MultipartUploadStartAnalyticsServicing {
     public init() {}
 
     public func uploadAnalyticsArtifact(
@@ -69,6 +70,10 @@ public final class MultipartUploadStartAnalyticsService: MultipartUploadStartAna
             case let .json(error):
                 throw MultipartUploadStartAnalyticsServiceError.unauthorized(error.message)
             }
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         }
     }
 }

@@ -2,10 +2,16 @@ import ArgumentParser
 import Path
 import TuistSupport
 
-struct CacheStartCommand: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(
+/// Machines set up for the Xcode cache before the machine-wide CAS proxy have a
+/// per-project LaunchAgent that runs this command. It no longer serves the cache:
+/// it removes that LaunchAgent so it is not started again.
+public struct CacheStartCommand: AsyncParsableCommand, HARRecordingCommand {
+    public var shouldRecordHAR: Bool { false }
+
+    public init() {}
+    public static let configuration = CommandConfiguration(
         commandName: "cache-start",
-        abstract: "Start a proxy server to listen for Xcode Compilation Cache requests",
+        abstract: "Remove the LaunchAgent of the retired per-project Xcode cache daemon",
         shouldDisplay: false
     )
 
@@ -16,14 +22,17 @@ struct CacheStartCommand: AsyncParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The server URL. Defaults to production URL if not specified."
+        help: "Unused. Accepted so that existing LaunchAgents keep parsing."
     )
     var url: String?
 
-    func run() async throws {
-        try await CacheStartCommandService().run(
-            fullHandle: fullHandle,
-            url: url
-        )
+    @Flag(
+        inversion: .prefixedNo,
+        help: "Unused. Accepted so that existing LaunchAgents keep parsing."
+    )
+    var upload: Bool = true
+
+    public func run() async throws {
+        try await CacheStartCommandService().run(fullHandle: fullHandle)
     }
 }

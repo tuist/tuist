@@ -1,0 +1,426 @@
+{
+  "clientRevision": "58f1f9f3e3d8a66c20d0e90441f05912babcd50e",
+  "privateCacheRevision": "383ad7e13dec045efc584dd2fc70b14bed068e27",
+  "endpoint": "https://tuist-eu-west-1.kura.tuist.dev",
+  "project": "tuist/reapi-bench-20260918",
+  "machine": {
+    "macOS": "26.3",
+    "xcode": "27.0 (27A266a)",
+    "configuration": "Release; only IssueReporting dependency built without optimization",
+    "cpu": "Apple M3 Pro",
+    "memoryGiB": 36
+  },
+  "serverVersion": null,
+  "serverChangesOrDeployments": false,
+  "capabilitiesObservedAtCampaignStart": {
+    "cacheCapabilities": {
+      "digestFunctions": [
+        "SHA256"
+      ],
+      "actionCacheUpdateCapabilities": {
+        "updateEnabled": true
+      },
+      "maxBatchTotalSizeBytes": "2147483648",
+      "supportedCompressors": [
+        "ZSTD"
+      ],
+      "supportedBatchUpdateCompressors": [
+        "ZSTD"
+      ]
+    }
+  },
+  "corpusProvenance": {
+    "runID": "7cfe4229-d851-4c9d-9113-674be73da98c",
+    "repetitions": 3,
+    "corpora": {
+      "many-mixed": {
+        "modules": 100,
+        "payloadMiBPerSDK": 1,
+        "randomFraction": 0.5,
+        "samples": [
+          {
+            "regularFileBytes": 339437220,
+            "regularFileCount": 8400
+          },
+          {
+            "regularFileBytes": 339437220,
+            "regularFileCount": 8400
+          },
+          {
+            "regularFileBytes": 339437220,
+            "regularFileCount": 8400
+          }
+        ]
+      },
+      "large-mixed": {
+        "modules": 4,
+        "payloadMiBPerSDK": 32,
+        "randomFraction": 0.5,
+        "samples": [
+          {
+            "regularFileBytes": 403647780,
+            "regularFileCount": 336
+          },
+          {
+            "regularFileBytes": 403647780,
+            "regularFileCount": 336
+          },
+          {
+            "regularFileBytes": 403647780,
+            "regularFileCount": 336
+          }
+        ]
+      },
+      "large-incompressible": {
+        "modules": 4,
+        "payloadMiBPerSDK": 32,
+        "randomFraction": 1.0,
+        "samples": [
+          {
+            "regularFileBytes": 403649508,
+            "regularFileCount": 336
+          },
+          {
+            "regularFileBytes": 403649508,
+            "regularFileCount": 336
+          },
+          {
+            "regularFileBytes": 403649508,
+            "regularFileCount": 336
+          }
+        ]
+      }
+    }
+  },
+  "methodology": {
+    "phases": [
+      "cold-pull",
+      "ios-pull"
+    ],
+    "repetitions": 3,
+    "modelOrder": "archive/reapi, reapi/archive, archive/reapi",
+    "source": "Locally built Release test executable invoking real storage clients; no complete CLI invocation",
+    "remoteCache": "Existing objects from the original production benchmark; same runID, inputs, and action keys",
+    "localCache": "Fresh empty cache for every phase; no configured disk budget",
+    "includes": [
+      "Action lookup",
+      "Transfer",
+      "Decompression",
+      "Digest verification",
+      "Local publication",
+      "Signing",
+      "XCFramework assembly"
+    ],
+    "excludes": [
+      "Client/capability/credential setup",
+      "Input compilation",
+      "Post-restore correctness verification",
+      "Cleanup"
+    ],
+    "correctness": "Expected SDK coverage and SHA-256/size of every expected regular payload file; regenerated root Info.plist excluded from byte comparison",
+    "archiveBaseline": "Existing AppleArchive/LZFSE storage implementation in the same executable; no unused REAPI client during archive phases",
+    "iosBaseline": "Archive uses its original exact key and fetches all three SDKs; REAPI requests only iOS device and simulator",
+    "profilingInstrumentation": false,
+    "wireCounters": false,
+    "serverMetrics": false,
+    "limitations": [
+      "Synthetic scaling/compression corpora around compiled fixtures",
+      "Uncontrolled WAN/server load and OS caches",
+      "Runner disk-budget performance and full CLI commands not measured",
+      "Upload performance not rerun for these restore changes"
+    ],
+    "excludedRuns": "Development profiles and the earlier final run are excluded. The earlier run overlapped brief automatic Git housekeeping. All final samples were repeated after it ended; this task ran no builds, Git housekeeping, or profiling alongside them.",
+    "benchmarkCredential": "Temporary project-only credential revoked and confirmed absent after the run"
+  },
+  "measurements": [
+    {
+      "repetition": 0,
+      "model": "archive",
+      "counters": {},
+      "seconds": 8.190089792,
+      "corpus": "large-incompressible",
+      "phase": "cold-pull"
+    },
+    {
+      "repetition": 0,
+      "model": "archive",
+      "counters": {},
+      "seconds": 8.039948458,
+      "corpus": "large-incompressible",
+      "phase": "ios-pull"
+    },
+    {
+      "repetition": 0,
+      "model": "reapi",
+      "counters": {},
+      "seconds": 7.183868917,
+      "corpus": "large-incompressible",
+      "phase": "cold-pull"
+    },
+    {
+      "repetition": 0,
+      "model": "reapi",
+      "counters": {},
+      "seconds": 4.764096084,
+      "corpus": "large-incompressible",
+      "phase": "ios-pull"
+    },
+    {
+      "repetition": 1,
+      "model": "reapi",
+      "counters": {},
+      "seconds": 7.003302375,
+      "corpus": "large-incompressible",
+      "phase": "cold-pull"
+    },
+    {
+      "repetition": 1,
+      "model": "reapi",
+      "counters": {},
+      "seconds": 4.681803667,
+      "corpus": "large-incompressible",
+      "phase": "ios-pull"
+    },
+    {
+      "repetition": 1,
+      "model": "archive",
+      "counters": {},
+      "seconds": 7.918691584,
+      "corpus": "large-incompressible",
+      "phase": "cold-pull"
+    },
+    {
+      "repetition": 1,
+      "model": "archive",
+      "counters": {},
+      "seconds": 7.843898083,
+      "corpus": "large-incompressible",
+      "phase": "ios-pull"
+    },
+    {
+      "repetition": 2,
+      "model": "archive",
+      "counters": {},
+      "seconds": 7.8685575,
+      "corpus": "large-incompressible",
+      "phase": "cold-pull"
+    },
+    {
+      "repetition": 2,
+      "model": "archive",
+      "counters": {},
+      "seconds": 8.039743042,
+      "corpus": "large-incompressible",
+      "phase": "ios-pull"
+    },
+    {
+      "repetition": 2,
+      "model": "reapi",
+      "counters": {},
+      "seconds": 7.098370083,
+      "corpus": "large-incompressible",
+      "phase": "cold-pull"
+    },
+    {
+      "repetition": 2,
+      "model": "reapi",
+      "counters": {},
+      "seconds": 4.706695167,
+      "corpus": "large-incompressible",
+      "phase": "ios-pull"
+    },
+    {
+      "repetition": 0,
+      "model": "archive",
+      "counters": {},
+      "seconds": 4.568960875,
+      "corpus": "large-mixed",
+      "phase": "cold-pull"
+    },
+    {
+      "repetition": 0,
+      "model": "archive",
+      "counters": {},
+      "seconds": 4.250840958,
+      "corpus": "large-mixed",
+      "phase": "ios-pull"
+    },
+    {
+      "repetition": 0,
+      "model": "reapi",
+      "counters": {},
+      "seconds": 3.703551166,
+      "corpus": "large-mixed",
+      "phase": "cold-pull"
+    },
+    {
+      "repetition": 0,
+      "model": "reapi",
+      "counters": {},
+      "seconds": 2.441084292,
+      "corpus": "large-mixed",
+      "phase": "ios-pull"
+    },
+    {
+      "repetition": 1,
+      "model": "reapi",
+      "counters": {},
+      "seconds": 3.7137395,
+      "corpus": "large-mixed",
+      "phase": "cold-pull"
+    },
+    {
+      "repetition": 1,
+      "model": "reapi",
+      "counters": {},
+      "seconds": 2.492341417,
+      "corpus": "large-mixed",
+      "phase": "ios-pull"
+    },
+    {
+      "repetition": 1,
+      "model": "archive",
+      "counters": {},
+      "seconds": 4.497691416,
+      "corpus": "large-mixed",
+      "phase": "cold-pull"
+    },
+    {
+      "repetition": 1,
+      "model": "archive",
+      "counters": {},
+      "seconds": 4.159659083,
+      "corpus": "large-mixed",
+      "phase": "ios-pull"
+    },
+    {
+      "repetition": 2,
+      "model": "archive",
+      "counters": {},
+      "seconds": 4.373217292,
+      "corpus": "large-mixed",
+      "phase": "cold-pull"
+    },
+    {
+      "repetition": 2,
+      "model": "archive",
+      "counters": {},
+      "seconds": 4.5726890000000004,
+      "corpus": "large-mixed",
+      "phase": "ios-pull"
+    },
+    {
+      "repetition": 2,
+      "model": "reapi",
+      "counters": {},
+      "seconds": 3.7145020840000003,
+      "corpus": "large-mixed",
+      "phase": "cold-pull"
+    },
+    {
+      "repetition": 2,
+      "model": "reapi",
+      "counters": {},
+      "seconds": 2.43271675,
+      "corpus": "large-mixed",
+      "phase": "ios-pull"
+    },
+    {
+      "repetition": 0,
+      "model": "archive",
+      "counters": {},
+      "seconds": 3.175719791,
+      "corpus": "many-mixed",
+      "phase": "cold-pull"
+    },
+    {
+      "repetition": 0,
+      "model": "archive",
+      "counters": {},
+      "seconds": 3.999559875,
+      "corpus": "many-mixed",
+      "phase": "ios-pull"
+    },
+    {
+      "repetition": 0,
+      "model": "reapi",
+      "counters": {},
+      "seconds": 3.459816709,
+      "corpus": "many-mixed",
+      "phase": "cold-pull"
+    },
+    {
+      "repetition": 0,
+      "model": "reapi",
+      "counters": {},
+      "seconds": 2.5193995,
+      "corpus": "many-mixed",
+      "phase": "ios-pull"
+    },
+    {
+      "repetition": 1,
+      "model": "reapi",
+      "counters": {},
+      "seconds": 3.418276209,
+      "corpus": "many-mixed",
+      "phase": "cold-pull"
+    },
+    {
+      "repetition": 1,
+      "model": "reapi",
+      "counters": {},
+      "seconds": 2.5120115,
+      "corpus": "many-mixed",
+      "phase": "ios-pull"
+    },
+    {
+      "repetition": 1,
+      "model": "archive",
+      "counters": {},
+      "seconds": 3.450434209,
+      "corpus": "many-mixed",
+      "phase": "cold-pull"
+    },
+    {
+      "repetition": 1,
+      "model": "archive",
+      "counters": {},
+      "seconds": 3.913918917,
+      "corpus": "many-mixed",
+      "phase": "ios-pull"
+    },
+    {
+      "repetition": 2,
+      "model": "archive",
+      "counters": {},
+      "seconds": 3.592733208,
+      "corpus": "many-mixed",
+      "phase": "cold-pull"
+    },
+    {
+      "repetition": 2,
+      "model": "archive",
+      "counters": {},
+      "seconds": 3.6027433330000003,
+      "corpus": "many-mixed",
+      "phase": "ios-pull"
+    },
+    {
+      "repetition": 2,
+      "model": "reapi",
+      "counters": {},
+      "seconds": 3.48446,
+      "corpus": "many-mixed",
+      "phase": "cold-pull"
+    },
+    {
+      "repetition": 2,
+      "model": "reapi",
+      "counters": {},
+      "seconds": 2.506251125,
+      "corpus": "many-mixed",
+      "phase": "ios-pull"
+    }
+  ],
+  "benchmarkRunID": "46fe7c8a-b1d7-4514-ab03-8d9d96fb348c"
+}

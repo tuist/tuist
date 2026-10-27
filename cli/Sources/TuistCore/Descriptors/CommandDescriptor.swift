@@ -4,7 +4,7 @@
 /// generating a project or workspace.
 ///
 /// - seealso: `SideEffectsDescriptor`
-public struct CommandDescriptor: Equatable {
+public struct CommandDescriptor: Equatable, CustomStringConvertible {
     public var command: [String]
 
     /// Creates a command descriptor
@@ -16,9 +16,7 @@ public struct CommandDescriptor: Equatable {
     public init(command: String...) {
         self.init(command: command)
     }
-}
 
-extension CommandDescriptor: CustomStringConvertible {
     public var description: String {
         "execute \(command.joined(separator: " "))"
     }

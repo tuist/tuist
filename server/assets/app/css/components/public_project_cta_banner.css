@@ -8,7 +8,7 @@
   container-type: inline-size;
   margin: var(--noora-spacing-7) var(--noora-spacing-5) 0;
   box-shadow: var(--noora-light-border-default);
-  border-radius: var(--noora-radius-xlarge);
+  border-radius: var(--noora-radius-6);
   padding: var(--noora-spacing-6) var(--noora-spacing-5);
   overflow: hidden;
 

@@ -4,7 +4,7 @@
     id="bundles-empty-state"
     title={dgettext("dashboard_cache", "Explore bundle analysis")}
     subtitle={dgettext("dashboard_cache", "Run the following command to analyze a bundle.")}
-    learn_more_href="https://docs.tuist.dev/en/guides/develop/bundle-size"
+    learn_more_href="https://tuist.dev/en/docs/guides/features/bundle-insights"
   >
     <:light_background>
       <.empty_state_light_background />
@@ -15,268 +15,289 @@
   </.empty_state>
 <% else %>
   <div id="bundles">
-    <.card
+    <div data-part="filters">
+      <.dropdown
+        id="bundle-size-app-dropdown"
+        label={@bundle_size_selected_app}
+        secondary_text={dgettext("dashboard_cache", "App:")}
+      >
+        <%= for app <- @bundle_size_apps do %>
+          <.dropdown_item
+            value={app}
+            label={app}
+            patch={"?#{Query.put(@uri.query, "bundle-size-app", app)}"}
+            data-selected={@bundle_size_selected_app == app}
+          >
+            <:right_icon :if={@bundle_size_selected_app == app}><.check /></:right_icon>
+          </.dropdown_item>
+        <% end %>
+      </.dropdown>
+      <.dropdown
+        :if={@show_branch_dropdown}
+        id="bundle-size-branch-dropdown"
+        label={
+          if @bundle_size_branch == "any",
+            do: dgettext("dashboard_cache", "Any"),
+            else: @selected_project.default_branch
+        }
+        secondary_text={dgettext("dashboard_cache", "Branch:")}
+      >
+        <.dropdown_item
+          value="default-branch"
+          label={@selected_project.default_branch}
+          patch={"?#{Query.put(@uri.query, "bundle-size-branch", @selected_project.default_branch)}"}
+          data-selected={@bundle_size_branch == "default-branch"}
+        >
+          <:right_icon :if={@bundle_size_branch == "default-branch"}><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          value="any"
+          label={dgettext("dashboard_cache", "Any")}
+          patch={"?#{Query.put(@uri.query, "bundle-size-branch", "any")}"}
+          data-selected={@bundle_size_branch == "any"}
+        >
+          <:right_icon :if={@bundle_size_branch == "any"}><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+      <.dropdown
+        id="bundle-size-type-dropdown"
+        label={bundles_type_label(@bundles_type)}
+        secondary_text={dgettext("dashboard_cache", "Type:")}
+      >
+        <.dropdown_item
+          value="any"
+          label={dgettext("dashboard_cache", "Any")}
+          patch={"?#{Query.put(@uri.query, "bundles-type", "any")}"}
+          data-selected={@bundles_type == "any"}
+        >
+          <:right_icon :if={@bundles_type == "any"}><.check /></:right_icon>
+        </.dropdown_item>
+        <.dropdown_item
+          :for={item <- @bundle_type_items}
+          value={item.value}
+          label={item.label}
+          patch={"?#{Query.put(@uri.query, "bundles-type", item.value)}"}
+          data-selected={@bundles_type == item.value}
+        >
+          <:right_icon :if={@bundles_type == item.value}><.check /></:right_icon>
+        </.dropdown_item>
+      </.dropdown>
+      <.date_picker
+        id="bundles-date-range-picker"
+        name="bundle-size-date-range"
+        presets={[
+          %{
+            id: "last-7-days",
+            label: dgettext("dashboard_cache", "Last 7 days"),
+            period: {7, :day}
+          },
+          %{
+            id: "last-30-days",
+            label: dgettext("dashboard_cache", "Last 30 days"),
+            period: {30, :day}
+          },
+          %{
+            id: "last-12-months",
+            label: dgettext("dashboard_cache", "Last 12 months"),
+            period: {12, :month}
+          },
+          %{id: "custom", label: dgettext("dashboard_cache", "Custom")}
+        ]}
+        selected_preset={@bundle_size_preset}
+        period={@bundle_size_period}
+        on_period_change="bundle_size_period_changed"
+        max={Date.utc_today()}
+      >
+        <:actions>
+          <.button
+            label={dgettext("dashboard_cache", "Cancel")}
+            variant="secondary"
+            phx-click={
+              JS.dispatch("phx:date-picker-cancel", detail: %{id: "bundles-date-range-picker"})
+            }
+          />
+          <.button
+            label={dgettext("dashboard_cache", "Apply")}
+            phx-click={
+              JS.dispatch("phx:date-picker-apply", detail: %{id: "bundles-date-range-picker"})
+            }
+          />
+        </:actions>
+      </.date_picker>
+    </div>
+    <.async_card
+      :let={ready?}
+      results={[@bundle_size_analytics]}
       title={dgettext("dashboard_cache", "Bundle Size")}
       icon="device_desktop_analytics"
       data-part="bundle-size-card"
     >
-      <:actions>
-        <.dropdown
-          id="bundle-size-app-dropdown"
-          label={@bundle_size_selected_app}
-          secondary_text={dgettext("dashboard_cache", "App:")}
+      <div data-part="analytics-content">
+        <div data-part="widgets">
+          <.widget
+            loading={!ready?}
+            title={dgettext("dashboard_cache", "Install size (MB)")}
+            description={
+              dgettext(
+                "dashboard_cache",
+                "The bundle install size. This is the uncompressed app size and represents how much space the app takes on the device."
+              )
+            }
+            value={
+              @bundle_size_last_bundle && format_bytes(@bundle_size_last_bundle.install_size)
+            }
+            id="widget-install-size"
+            phx_click="select_widget"
+            phx_value_widget="install-size"
+            selected={@bundle_size_selected_widget == "install-size"}
+            trend_value={
+              (@bundle_size_last_bundle && @bundle_size_previous_bundle &&
+                 (1 -
+                    @bundle_size_previous_bundle.install_size /
+                      @bundle_size_last_bundle.install_size) *
+                   100) ||
+                0.0
+            }
+            trend_type={:inverse}
+            trend_label={bundle_size_trend_label(@bundle_size_preset)}
+            empty={ready? && is_nil(@bundle_size_last_bundle)}
+          />
+          <.widget
+            loading={!ready?}
+            title={dgettext("dashboard_cache", "Download size (MB)")}
+            description={
+              dgettext(
+                "dashboard_cache",
+                "The bundle download size. This is the compressed app size that the user ends up downloading from the App Store."
+              )
+            }
+            value={
+              (@bundle_size_last_bundle && @bundle_size_last_bundle.download_size &&
+                 format_bytes(@bundle_size_last_bundle.download_size)) ||
+                dgettext("dashboard_cache", "0 MB")
+            }
+            id="widget-download-size"
+            phx_click="select_widget"
+            phx_value_widget="download-size"
+            selected={@bundle_size_selected_widget == "download-size"}
+            trend_value={
+              bundle_size_trend_value(@bundle_size_last_bundle, @bundle_size_previous_bundle)
+            }
+            trend_type={:inverse}
+            trend_label={bundle_size_trend_label(@bundle_size_preset)}
+            empty={ready? && is_nil(@bundle_size_last_bundle)}
+          />
+        </div>
+        <.card_section
+          :if={!ready?}
+          data-part="bundle-size-chart-card-section"
+          data-chart-frame="standard"
         >
-          <%= for app <- @bundle_size_apps do %>
-            <.dropdown_item
-              value={app}
-              label={app}
-              patch={"?#{Query.put(@uri.query, "bundle-size-app", app)}"}
-              data-selected={@bundle_size_selected_app == app}
-            >
-              <:right_icon><.check /></:right_icon>
-            </.dropdown_item>
-          <% end %>
-        </.dropdown>
-        <.dropdown
-          :if={@show_branch_dropdown}
-          id="bundle-size-branch-dropdown"
-          label={
-            if @bundle_size_branch == "any",
-              do: dgettext("dashboard_cache", "Any"),
-              else: @selected_project.default_branch
+          <span data-part="legend" class="tuist-loading-skeleton">
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+          </span>
+          <.skeleton_chart />
+        </.card_section>
+        <.card_section
+          :if={
+            ready? &&
+              Enum.any?(@bundle_size_analytics.result, fn [_date, value] -> value != 0 end)
           }
-          secondary_text={dgettext("dashboard_cache", "Branch:")}
+          data-part="bundle-size-chart-card-section"
+          data-chart-frame="standard"
         >
-          <.dropdown_item
-            value="default-branch"
-            label={@selected_project.default_branch}
-            patch={"?#{Query.put(@uri.query, "bundle-size-branch", @selected_project.default_branch)}"}
-            data-selected={@bundle_size_branch == "default-branch"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="any"
-            label={dgettext("dashboard_cache", "Any")}
-            patch={"?#{Query.put(@uri.query, "bundle-size-branch", "any")}"}
-            data-selected={@bundle_size_branch == "any"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-        </.dropdown>
-        <.dropdown
-          id="bundle-size-type-dropdown"
-          label={bundles_type_label(@bundles_type)}
-          secondary_text={dgettext("dashboard_cache", "Type:")}
-        >
-          <.dropdown_item
-            value="any"
-            label={dgettext("dashboard_cache", "Any")}
-            patch={"?#{Query.put(@uri.query, "bundles-type", "any")}"}
-            data-selected={@bundles_type == "any"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="ipa"
-            label={dgettext("dashboard_cache", "IPA")}
-            patch={"?#{Query.put(@uri.query, "bundles-type", "ipa")}"}
-            data-selected={@bundles_type == "ipa"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="app"
-            label={dgettext("dashboard_cache", "App bundle")}
-            patch={"?#{Query.put(@uri.query, "bundles-type", "app")}"}
-            data-selected={@bundles_type == "app"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="xcarchive"
-            label={dgettext("dashboard_cache", "XCArchive")}
-            patch={"?#{Query.put(@uri.query, "bundles-type", "xcarchive")}"}
-            data-selected={@bundles_type == "xcarchive"}
-          >
-            <:right_icon><.check /></:right_icon>
-          </.dropdown_item>
-        </.dropdown>
-        <.date_picker
-          id="bundles-date-range-picker"
-          name="bundle-size-date-range"
-          presets={[
-            %{
-              id: "last-7-days",
-              label: dgettext("dashboard_cache", "Last 7 days"),
-              period: {7, :day}
-            },
-            %{
-              id: "last-30-days",
-              label: dgettext("dashboard_cache", "Last 30 days"),
-              period: {30, :day}
-            },
-            %{
-              id: "last-12-months",
-              label: dgettext("dashboard_cache", "Last 12 months"),
-              period: {12, :month}
-            },
-            %{id: "custom", label: dgettext("dashboard_cache", "Custom")}
-          ]}
-          selected_preset={@bundle_size_preset}
-          period={@bundle_size_period}
-          on_period_change="bundle_size_period_changed"
-          max={Date.utc_today()}
-        >
-          <:actions>
-            <.button
-              label={dgettext("dashboard_cache", "Cancel")}
-              variant="secondary"
-              phx-click={
-                JS.dispatch("phx:date-picker-cancel", detail: %{id: "bundles-date-range-picker"})
-              }
-            />
-            <.button
-              label={dgettext("dashboard_cache", "Apply")}
-              phx-click={
-                JS.dispatch("phx:date-picker-apply", detail: %{id: "bundles-date-range-picker"})
-              }
-            />
-          </:actions>
-        </.date_picker>
-      </:actions>
-      <div data-part="widgets">
-        <.widget
-          title={dgettext("dashboard_cache", "Install size (MB)")}
-          description={
-            dgettext(
-              "dashboard_cache",
-              "The bundle install size. This is the uncompressed app size and represents how much space the app takes on the device."
-            )
-          }
-          value={@bundle_size_last_bundle && format_bytes(@bundle_size_last_bundle.install_size)}
-          id="widget-install-size"
-          phx_click="select_widget"
-          phx_value_widget="install-size"
-          selected={@bundle_size_selected_widget == "install-size"}
-          trend_value={
-            (@bundle_size_last_bundle && @bundle_size_previous_bundle &&
-               (1 -
-                  @bundle_size_previous_bundle.install_size /
-                    @bundle_size_last_bundle.install_size) *
-                 100) ||
-              0.0
-          }
-          trend_type={:inverse}
-          trend_label={bundle_size_trend_label(@bundle_size_preset)}
-          empty={is_nil(@bundle_size_last_bundle)}
-        />
-        <.widget
-          title={dgettext("dashboard_cache", "Download size (MB)")}
-          description={
-            dgettext(
-              "dashboard_cache",
-              "The bundle download size. This is the compressed app size that the user ends up downloading from the App Store."
-            )
-          }
-          value={
-            (@bundle_size_last_bundle && @bundle_size_last_bundle.download_size &&
-               format_bytes(@bundle_size_last_bundle.download_size)) ||
-              dgettext("dashboard_cache", "0 MB")
-          }
-          id="widget-download-size"
-          phx_click="select_widget"
-          phx_value_widget="download-size"
-          selected={@bundle_size_selected_widget == "download-size"}
-          trend_value={
-            bundle_size_trend_value(@bundle_size_last_bundle, @bundle_size_previous_bundle)
-          }
-          trend_type={:inverse}
-          trend_label={bundle_size_trend_label(@bundle_size_preset)}
-          empty={is_nil(@bundle_size_last_bundle)}
-        />
-      </div>
-      <.card_section
-        :if={Enum.any?(@bundle_size_analytics, fn [_date, value] -> value != 0 end)}
-        data-part="bundle-size-chart-card-section"
-      >
-        <span data-part="legend">
-          {case @bundle_size_selected_widget do
-            "download-size" -> dgettext("dashboard_cache", "Download size (MB)")
-            _ -> dgettext("dashboard_cache", "Install size (MB)")
-          end}
-        </span>
-        <.chart
-          id="average-bundle-size-chart"
-          type="line"
-          extra_options={
-            %{
-              grid: %{
-                width: "93%",
-                left: "0.4%",
-                height: "88%",
-                top: "5%"
-              },
-              xAxis: %{
-                boundaryGap: false,
-                type: "category",
-                axisLabel: %{
-                  color: "var:noora-surface-label-secondary",
-                  formatter: "fn:toLocaleDate",
-                  customValues: [
-                    @bundle_size_analytics |> List.first() |> List.first(),
-                    @bundle_size_analytics |> List.last() |> List.first()
-                  ],
-                  padding: [10, 0, 0, 0]
-                }
-              },
-              yAxis: %{
-                splitNumber: 4,
-                splitLine: %{
-                  lineStyle: %{
-                    color: "var:noora-chart-lines"
+          <span data-part="legend">
+            {case @bundle_size_selected_widget do
+              "download-size" -> dgettext("dashboard_cache", "Download size (MB)")
+              _ -> dgettext("dashboard_cache", "Install size (MB)")
+            end}
+          </span>
+          <.chart
+            id="average-bundle-size-chart"
+            type="line"
+            extra_options={
+              %{
+                grid: %{
+                  width: "93%",
+                  left: "0.4%",
+                  height: "88%",
+                  top: "5%"
+                },
+                xAxis: %{
+                  boundaryGap: false,
+                  type: "category",
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:toLocaleDate",
+                    customValues: [
+                      @bundle_size_analytics.result |> List.first() |> List.first(),
+                      @bundle_size_analytics.result |> List.last() |> List.first()
+                    ],
+                    padding: [10, 0, 0, 0]
                   }
                 },
-                axisLabel: %{
-                  color: "var:noora-surface-label-secondary",
-                  formatter: "fn:formatBytes"
+                yAxis: %{
+                  splitNumber: 4,
+                  splitLine: %{
+                    lineStyle: %{
+                      color: "var:noora-chart-lines"
+                    }
+                  },
+                  axisLabel: %{
+                    color: "var:noora-surface-label-secondary",
+                    formatter: "fn:formatBytes"
+                  }
+                },
+                tooltip: %{
+                  valueFormat: "fn:formatBytes"
+                },
+                legend: %{
+                  show: false
                 }
-              },
-              tooltip: %{
-                valueFormat: "fn:formatBytes"
-              },
-              legend: %{
-                show: false
               }
             }
+            series={[
+              %{
+                color: "var:noora-chart-primary",
+                data: @bundle_size_analytics.result,
+                name:
+                  case @bundles_sort_by do
+                    "install-size" -> dgettext("dashboard_cache", "Install size")
+                    _ -> dgettext("dashboard_cache", "Donwload size")
+                  end,
+                type: "line",
+                smooth: 0.1,
+                symbol: "none"
+              }
+            ]}
+            y_axis_min={0}
+          />
+        </.card_section>
+        <.empty_card_section
+          :if={
+            ready? &&
+              Enum.all?(@bundle_size_analytics.result, fn [_date, value] -> value == 0 end)
           }
-          series={[
-            %{
-              color: "var:noora-chart-primary",
-              data: @bundle_size_analytics,
-              name:
-                case @bundles_sort_by do
-                  "install-size" -> dgettext("dashboard_cache", "Install size")
-                  _ -> dgettext("dashboard_cache", "Donwload size")
-                end,
-              type: "line",
-              smooth: 0.1,
-              symbol: "none"
-            }
-          ]}
-          y_axis_min={0}
-        />
-      </.card_section>
-      <.empty_card_section
-        :if={Enum.all?(@bundle_size_analytics, fn [_date, value] -> value == 0 end)}
-        title={dgettext("dashboard_cache", "No bundles yet")}
-      >
-        <:image>
-          <img src="/images/empty_line_chart_light.png" data-theme="light" />
-          <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
-        </:image>
-      </.empty_card_section>
-    </.card>
+          title={dgettext("dashboard_cache", "No bundles yet")}
+          data-chart-frame="standard"
+        >
+          <:image>
+            <img
+              src={~p"/images/empty_line_chart_light.png"}
+              data-theme="light"
+              loading="lazy"
+              decoding="async"
+            />
+            <img
+              src={~p"/images/empty_line_chart_dark.png"}
+              data-theme="dark"
+              loading="lazy"
+              decoding="async"
+            />
+          </:image>
+        </.empty_card_section>
+      </div>
+    </.async_card>
     <.card
       title={dgettext("dashboard_cache", "Bundles")}
       icon="chart_cohort"
@@ -357,10 +378,7 @@
               patch={
                 @bundles_sort_by == "install-size" && column_patch_sort(assigns, "install-size")
               }
-              icon={
-                @bundles_sort_by == "install-size" &&
-                  sort_icon(@bundles_sort_order)
-              }
+              sort_order={@bundles_sort_by == "install-size" && @bundles_sort_order}
             >
               <.text_cell label={format_bytes(bundle.install_size)} />
             </:col>
@@ -370,10 +388,7 @@
               patch={
                 @bundles_sort_by == "download-size" && column_patch_sort(assigns, "download-size")
               }
-              icon={
-                @bundles_sort_by == "download-size" &&
-                  sort_icon(@bundles_sort_order)
-              }
+              sort_order={@bundles_sort_by == "download-size" && @bundles_sort_order}
             >
               <.text_cell label={
                 if bundle.download_size,
@@ -394,10 +409,7 @@
               :let={bundle}
               label={dgettext("dashboard_cache", "Created at")}
               patch={@bundles_sort_by == "created-at" && column_patch_sort(assigns, "created-at")}
-              icon={
-                @bundles_sort_by == "created-at" &&
-                  sort_icon(@bundles_sort_order)
-              }
+              sort_order={@bundles_sort_by == "created-at" && @bundles_sort_order}
             >
               <.text_cell sublabel={DateFormatter.from_now(bundle.inserted_at)} />
             </:col>
@@ -416,8 +428,18 @@
           data-part="empty-bundles-table-card-section"
         >
           <:image>
-            <img src="/images/empty_table_light.png" data-theme="light" />
-            <img src="/images/empty_table_dark.png" data-theme="dark" />
+            <img
+              src={~p"/images/empty_table_light.png"}
+              data-theme="light"
+              loading="lazy"
+              decoding="async"
+            />
+            <img
+              src={~p"/images/empty_table_dark.png"}
+              data-theme="dark"
+              loading="lazy"
+              decoding="async"
+            />
           </:image>
         </.empty_card_section>
       </.card_section>

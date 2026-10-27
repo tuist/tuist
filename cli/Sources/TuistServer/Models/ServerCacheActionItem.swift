@@ -9,16 +9,12 @@ public struct ServerCacheActionItem: Equatable {
     }
 
     public let hash: String
-}
 
-extension ServerCacheActionItem {
     init(_ cacheActionItem: Components.Schemas.CacheActionItem) {
         hash = cacheActionItem.hash
     }
-}
 
-#if DEBUG
-    extension ServerCacheActionItem {
+    #if DEBUG
         public static func test(
             hash: String = "hash"
         ) -> Self {
@@ -26,5 +22,5 @@ extension ServerCacheActionItem {
                 hash: hash
             )
         }
-    }
-#endif
+    #endif
+}

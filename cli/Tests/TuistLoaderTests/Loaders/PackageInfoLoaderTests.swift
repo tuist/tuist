@@ -13,7 +13,7 @@ final class PackageInfoLoaderTests: TuistUnitTestCase {
         super.setUp()
 
         subject = PackageInfoLoader(
-            system: system,
+            commandRunner: mockCommandRunner,
             fileSystem: fileSystem
         )
     }
@@ -24,10 +24,10 @@ final class PackageInfoLoaderTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_loadPackageInfo() throws {
+    func test_loadPackageInfo() async throws {
         // Given
         let path = try temporaryPath()
-        system.succeedCommand(
+        mockCommandRunner.succeedCommand(
             [
                 "swift",
                 "package",
@@ -40,16 +40,16 @@ final class PackageInfoLoaderTests: TuistUnitTestCase {
         )
 
         // When
-        let packageInfo = try subject.loadPackageInfo(at: path, disableSandbox: true)
+        let packageInfo = try await subject.loadPackageInfo(at: path, disableSandbox: true)
 
         // Then
         XCTAssertBetterEqual(packageInfo, PackageInfo.test)
     }
 
-    func test_loadPackageInfo_Xcode14() throws {
+    func test_loadPackageInfo_Xcode14() async throws {
         // Given
         let path = try temporaryPath()
-        system.succeedCommand(
+        mockCommandRunner.succeedCommand(
             [
                 "swift",
                 "package",
@@ -62,16 +62,16 @@ final class PackageInfoLoaderTests: TuistUnitTestCase {
         )
 
         // When
-        let packageInfo = try subject.loadPackageInfo(at: path, disableSandbox: true)
+        let packageInfo = try await subject.loadPackageInfo(at: path, disableSandbox: true)
 
         // Then
         XCTAssertEqual(packageInfo, PackageInfo.test)
     }
 
-    func test_loadPackageInfo_alamofire() throws {
+    func test_loadPackageInfo_alamofire() async throws {
         // Given
         let path = try temporaryPath()
-        system.succeedCommand(
+        mockCommandRunner.succeedCommand(
             [
                 "swift",
                 "package",
@@ -84,16 +84,16 @@ final class PackageInfoLoaderTests: TuistUnitTestCase {
         )
 
         // When
-        let packageInfo = try subject.loadPackageInfo(at: path, disableSandbox: true)
+        let packageInfo = try await subject.loadPackageInfo(at: path, disableSandbox: true)
 
         // Then
         XCTAssertEqual(packageInfo, PackageInfo.alamofire)
     }
 
-    func test_loadPackageInfo_googleAppMeasurement() throws {
+    func test_loadPackageInfo_googleAppMeasurement() async throws {
         // Given
         let path = try temporaryPath()
-        system.succeedCommand(
+        mockCommandRunner.succeedCommand(
             [
                 "swift",
                 "package",
@@ -106,9 +106,32 @@ final class PackageInfoLoaderTests: TuistUnitTestCase {
         )
 
         // When
-        let packageInfo = try subject.loadPackageInfo(at: path, disableSandbox: true)
+        let packageInfo = try await subject.loadPackageInfo(at: path, disableSandbox: true)
 
         // Then
         XCTAssertEqual(packageInfo, PackageInfo.googleAppMeasurement)
+    }
+
+    func test_loadPackageInfo_doesNotOverrideWorkingDirectory() async throws {
+        // Given
+        let path = try temporaryPath()
+        mockCommandRunner.succeedCommand(
+            [
+                "swift",
+                "package",
+                "--package-path",
+                path.pathString,
+                "--disable-sandbox",
+                "dump-package",
+            ],
+            output: PackageInfo.testJSON
+        )
+
+        // When
+        _ = try await subject.loadPackageInfo(at: path, disableSandbox: true)
+
+        // Then
+        XCTAssertEqual(mockCommandRunner.workingDirectories.count, 1)
+        XCTAssertNil(mockCommandRunner.workingDirectories[0])
     }
 }

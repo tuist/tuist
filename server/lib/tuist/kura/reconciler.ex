@@ -1,0 +1,1072 @@
+defmodule Tuist.Kura.Reconciler do
+  @moduledoc """
+  Primary reconciliation loop for Kura servers.
+
+  Postgres owns intent (`kura_servers` rows for which regions a server
+  should exist, `kura_deployments` for the deployment history and
+  audit) plus the latest released Kura runtime image tag. The backing
+  `KuraInstance`, owned by the Go controller, owns observed runtime
+  state.
+
+  `kura_servers.status` is a **projection of observed state**, not an
+  independently-mutated state machine. Each tick:
+
+    1. schedule runtime-image drift for active servers,
+    2. schedule teardown for servers stranded in retired regions,
+    3. finalise destroys after the custom resource disappears,
+    4. drain the source of completed moves,
+    5. apply open deployments (the rollout fast path), and
+    6. project every other present-intent server: observe the backing
+       `KuraInstance`, record the observation (`observed_image_tag` /
+       `last_observed_at`), and re-derive `status` from
+       `(latest deployment intent, observed image, endpoint readiness)`.
+
+  Because step 6 re-derives `status` from observation every tick,
+  `:failed` is never a sticky terminal sink: a server whose backing
+  resource recovers and reports the intended image with a serving
+  endpoint heals back to `:active` in place, with no new deployment row
+  and no manifest re-apply, so a still-serving endpoint is never
+  trampled. The desired image is the latest deployment's image (the
+  recorded intent), so a rollout the controller eventually applied
+  heals even though it differs from what the server used to serve.
+  `Kura.fail_server/1` is only a same-tick fast path for the UI; this
+  projection is the authority. Re-rolling onto a different image stays
+  the operator's explicit retry/destroy decision.
+
+  Endpoint readiness is end-to-end: `Kura.activate_server/2` only marks
+  a server `:active` after the regional public endpoint answers `/up`.
+  The controller's `status.phase` attests workload readiness only, not
+  public reachability, so the projection deliberately keeps the live
+  probe as the readiness authority.
+
+  User actions only mutate Postgres intent. If a BEAM dies mid-action,
+  this loop observes the same rows on the next tick and converges again.
+  """
+
+  use Oban.Worker,
+    queue: :default,
+    max_attempts: 3,
+    unique: [
+      fields: [:worker],
+      period: :infinity,
+      states: :incomplete
+    ]
+
+  import Ecto.Query
+
+  alias Oban.Job
+  alias Tuist.Billing
+  alias Tuist.Billing.Subscription
+  alias Tuist.Kura
+  alias Tuist.Kura.Deployment
+  alias Tuist.Kura.Lifecycle
+  alias Tuist.Kura.Provisioner
+  alias Tuist.Kura.Regions
+  alias Tuist.Kura.RunnerCache
+  alias Tuist.Kura.Server
+  alias Tuist.Kura.StableEndpoint
+  alias Tuist.Kura.Workers.AwaitActivationWorker
+  alias Tuist.Repo
+
+  require Logger
+
+  @deployment_statuses [:pending, :running]
+  # Hard ceiling on how much converge work the reconciler does in one
+  # tick. The cron fires every minute; bigger fan-outs are rare enough in
+  # practice that one or two extra ticks are fine, and the ceiling
+  # guards against a runaway query if a regression ever leaks
+  # `:running` rows.
+  @reconcile_batch_size 200
+  @peer_role_observation_concurrency 8
+  @peer_role_observation_timeout_ms 4_000
+
+  @impl Oban.Worker
+  def perform(%Job{}) do
+    reconcile()
+  end
+
+  def reconcile do
+    if Tuist.Environment.kura_control_plane?() do
+      # Version scheduling runs before runner-cache convergence so that on
+      # the first tick after a tag change the rollout record already
+      # exists when a runner-cache node is created or retried — otherwise
+      # `Rollouts.provisioning_image_tag/2` sees no active rollout and
+      # hands the node the target tag outside its account's wave. A
+      # freshly enabled account's node is created one step later in the
+      # same tick and joins its wave on the next one.
+      schedule_runtime_rollout_safely()
+      RunnerCache.reconcile()
+      # Converge account-region instances with cache demand next, for the same
+      # reason: an account that just asked for cache enters the provisioning
+      # path this tick, and an instance that just reached its inactivity window
+      # unpublishes its endpoint before anything else observes it.
+      Lifecycle.reconcile()
+      StableEndpoint.reconcile()
+      reconcile_retired_region_servers()
+      reconcile_destroying_servers()
+      reconcile_moving_out_servers()
+      handled = reconcile_deployments()
+      reconcile_observed_servers(handled)
+    else
+      Logger.info("[Kura.Reconciler] skipping: not the Kura control plane (no TUIST_KURA_RUNTIME_IMAGE_TAG in env)")
+
+      :ok
+    end
+  end
+
+  @doc """
+  Drives one server's open deployment now, exactly as the tick would, so an
+  instance a request has just asked for is applied without waiting for it.
+  """
+  def reconcile_server(%Server{id: server_id}) do
+    if Tuist.Environment.kura_control_plane?() do
+      case open_deployment(server_id) do
+        nil -> :ok
+        %Deployment{} = deployment -> reconcile_deployment(deployment)
+      end
+    else
+      :ok
+    end
+  end
+
+  @doc """
+  Activates a server whose open deployment the controller reports running,
+  through the same endpoint-gated path as the tick, and never applies anything:
+  that stays with the tick and `reconcile_server/1`, so polling this every
+  second does not re-apply a manifest the controller is still acting on.
+
+  Returns `{:waiting, deployment}` while the deployment is still open, and
+  `:done` once there is nothing left to wait for, whether the server activated,
+  its deployment closed some other way, or it is no longer one this path acts
+  on.
+  """
+  def activate_when_ready(server_id) do
+    case open_deployment(server_id) do
+      nil ->
+        :done
+
+      %Deployment{kura_server: %Server{status: status}}
+      when status in [:destroying, :destroyed, :drain_pending, :archived] ->
+        :done
+
+      %Deployment{kura_server: %Server{move_phase: move_phase}} when move_phase != :none ->
+        :done
+
+      %Deployment{kura_server: %Server{} = server} = deployment ->
+        activate_observed(deployment, server)
+
+        case open_deployment(server_id) do
+          nil -> :done
+          %Deployment{} = deployment -> {:waiting, deployment}
+        end
+    end
+  end
+
+  defp activate_observed(%Deployment{image_tag: image_tag} = deployment, %Server{} = server) do
+    case Provisioner.current_image_tag(server) do
+      {:ok, ^image_tag} -> activate_and_mark_succeeded(deployment, server)
+      _ -> :ok
+    end
+  end
+
+  defp open_deployment(server_id) do
+    Deployment
+    |> where([d], d.kura_server_id == ^server_id and d.status in ^@deployment_statuses)
+    |> join(:inner, [d], s in assoc(d, :kura_server))
+    |> order_by([d, _s], desc: d.inserted_at, desc: d.id)
+    |> limit(1)
+    |> preload([_d, s], kura_server: {s, :account})
+    |> Repo.one()
+  end
+
+  # Rollout scheduling is the first step of the tick, so a raise here would
+  # skip every step after it — including the observation projection that
+  # server status is derived from. A stalled rollout is visible on
+  # /ops/kura; a stalled reconciler is not, so the rollout is contained
+  # rather than allowed to take the control plane down with it.
+  defp schedule_runtime_rollout_safely do
+    schedule_runtime_rollout()
+  rescue
+    error ->
+      Logger.error("[Kura.Reconciler] runtime rollout scheduling raised: #{Exception.message(error)}")
+
+      Sentry.capture_exception(error, stacktrace: __STACKTRACE__)
+      :ok
+  end
+
+  # Version scheduling has two paths (spec #79): the rollout
+  # orchestration — durable rollout records, account-grouped waves with
+  # the health gate in production, expedited fan-out elsewhere — on by
+  # default, and the interim-paced scheduler behind the kill-switch flag
+  # as the no-deploy rollback path.
+  defp schedule_runtime_rollout do
+    if Tuist.FeatureFlags.kura_rollout_orchestration_enabled?() do
+      Tuist.Kura.Rollouts.sync()
+    else
+      schedule_runtime_image_deployments()
+    end
+  end
+
+  defp schedule_runtime_image_deployments do
+    {:ok, %{scheduled: scheduled, failures: failures}} = Kura.schedule_runtime_image_deployments()
+    log_scheduled_deployments(scheduled)
+    Enum.each(failures, &report_scheduling_failure/1)
+
+    :ok
+  end
+
+  defp report_scheduling_failure(failure) do
+    detail = inspect(failure.reason)
+    kind = failure_kind(failure.reason)
+
+    Logger.error(
+      "[Kura.Reconciler] could not schedule runtime image deployment for server #{failure.server_id} in #{failure.region}: #{detail}"
+    )
+
+    Sentry.capture_message("Kura deployment scheduling failed",
+      level: :error,
+      tags: %{failure_kind: kind, region: failure.region},
+      extra: %{
+        account_id: failure.account_id,
+        failure_detail: detail,
+        failure_kind: kind,
+        region: failure.region,
+        server_id: failure.server_id
+      }
+    )
+  end
+
+  # Tears down the source of a completed move once it has drained. `move_server`
+  # promoted the target and re-rendered the source without the customer host, so
+  # the box no longer receives new traffic; after the drain window the source's
+  # StatefulSet/PVC/CR are destroyed, leaving the account solely on the target.
+  # Move rows are excluded from the observation projection, so a moving-out row's
+  # updated_at stays at its promotion time and clocks the drain.
+  defp reconcile_moving_out_servers do
+    cutoff = DateTime.add(DateTime.utc_now(), -Kura.drain_seconds(), :second)
+
+    Server
+    |> where([s], s.move_phase == :moving_out and s.status not in [:destroying, :destroyed])
+    |> where([s], s.updated_at <= ^cutoff)
+    |> order_by([s], asc: s.updated_at, asc: s.id)
+    |> limit(^@reconcile_batch_size)
+    |> Repo.all()
+    |> Enum.each(&drain_moving_out_server/1)
+
+    :ok
+  end
+
+  defp drain_moving_out_server(%Server{} = server) do
+    case Kura.destroy_server(server) do
+      {:ok, _} ->
+        Logger.info("[Kura.Reconciler] drained and destroyed move source #{server.id}")
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not destroy drained move source #{server.id}: #{inspect(reason)}")
+
+        :ok
+    end
+  end
+
+  defp log_scheduled_deployments([]), do: :ok
+
+  defp log_scheduled_deployments(deployments) do
+    Logger.info("[Kura.Reconciler] scheduled #{length(deployments)} runtime image deployment(s)")
+    :ok
+  end
+
+  # Retiring a region leaves its servers stranded. The catalog tombstone exists
+  # so the reconciler can still resolve their cluster identity, but nothing ever
+  # scheduled their teardown, so the rows kept their status, their KuraInstances
+  # kept being reconciled, and their pods sat unschedulable forever against a
+  # node pool that was deleted with the region. Scheduling destruction here is
+  # what the tombstone was always for; `reconcile_destroying_servers` then runs
+  # the same teardown an operator-initiated destroy uses.
+  defp reconcile_retired_region_servers do
+    case Regions.retired_ids() do
+      [] ->
+        :ok
+
+      retired_ids ->
+        Server
+        |> where([s], s.region in ^retired_ids)
+        |> where([s], s.status not in [:destroying, :destroyed])
+        |> order_by([s], asc: s.updated_at, asc: s.id)
+        |> limit(^@reconcile_batch_size)
+        |> Repo.all()
+        |> Enum.each(&destroy_retired_region_server/1)
+
+        :ok
+    end
+  end
+
+  defp destroy_retired_region_server(%Server{} = server) do
+    case Kura.destroy_server(server) do
+      {:ok, _server} ->
+        Logger.info("[Kura.Reconciler] scheduled destruction of server #{server.id} in retired region #{server.region}")
+
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "[Kura.Reconciler] could not schedule destruction of server #{server.id} in retired region #{server.region}: #{inspect(reason)}"
+        )
+
+        :ok
+    end
+  end
+
+  defp reconcile_destroying_servers do
+    Server
+    |> where([s], s.status == :destroying)
+    |> order_by([s], asc: s.updated_at, asc: s.id)
+    |> limit(^@reconcile_batch_size)
+    |> Repo.all()
+    |> Enum.each(&reconcile_destroying_server/1)
+
+    :ok
+  end
+
+  defp reconcile_destroying_server(%Server{} = server) do
+    case Provisioner.current_image_tag(server) do
+      {:error, :not_found} ->
+        {:ok, _} = Kura.mark_destroyed(server)
+        :ok
+
+      {:ok, _image_tag} ->
+        case Provisioner.destroy(server) do
+          :ok ->
+            :ok
+
+          {:error, reason} ->
+            Logger.warning("[Kura.Reconciler] destroy failed for server #{server.id}: #{inspect(reason)}")
+            :ok
+        end
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not observe destroying server #{server.id}: #{inspect(reason)}")
+        :ok
+    end
+  end
+
+  # Returns the set of server ids whose open deployment was processed
+  # this tick. The projection pass skips them so a server is observed
+  # at most once per tick (keeps the rollout fast path and the
+  # projection from racing or double-probing the same server).
+  defp reconcile_deployments do
+    MapSet.new(latest_open_deployments(), fn deployment ->
+      reconcile_deployment(deployment)
+      deployment.kura_server_id
+    end)
+  end
+
+  defp latest_open_deployments do
+    Deployment
+    |> where([d], d.status in ^@deployment_statuses)
+    |> join(:inner, [d], s in assoc(d, :kura_server))
+    |> order_by([d, _s], desc: d.inserted_at, desc: d.id)
+    |> limit(^@reconcile_batch_size)
+    |> preload([_d, s], kura_server: {s, :account})
+    |> Repo.all()
+    |> Enum.uniq_by(& &1.kura_server_id)
+  end
+
+  # No rollout may act on a server that is being torn down. `:destroying` and
+  # `:destroyed` are operator teardown; `:drain_pending` and `:archived` are the
+  # demand-driven lifecycle's equivalents, and are just as unsafe to roll: an
+  # activation would drag a draining server back to `:active` outside the
+  # lifecycle's own transitions, and a re-apply would recreate the resource an
+  # archival has already reclaimed. A cold return is not affected, because it
+  # leaves the row `:provisioning` before scheduling its deployment.
+  defp reconcile_deployment(%Deployment{kura_server: %Server{status: status} = server} = deployment)
+       when status in [:destroying, :destroyed, :drain_pending, :archived] do
+    cancel(deployment, "server #{server.id} is #{server.status}; skipping rollout")
+  end
+
+  # A `:moving_in` target warms with no public endpoint, so its readiness is the
+  # peer-plane backfill gate (the pod's /ready probe surfaced as caught_up?),
+  # not a public /up probe. Once it is up on the desired image and caught up, it
+  # is promoted (source -> :moving_out, target -> :none). Its deployment stays
+  # open across the promotion so the now-`:none` row activates through the normal
+  # endpoint-gated path on the next tick.
+  defp reconcile_deployment(%Deployment{kura_server: %Server{move_phase: :moving_in} = server} = deployment) do
+    with {:ok, deployment} <- ensure_running(deployment) do
+      case Provisioner.current_image_tag(server) do
+        {:ok, image_tag} when image_tag == deployment.image_tag ->
+          promote_when_caught_up(server, image_tag)
+
+        {:ok, _other_image_tag} ->
+          apply_deployment(deployment, server)
+
+        {:error, :not_found} ->
+          apply_deployment(deployment, server)
+
+        {:error, reason} ->
+          fail(deployment, server, reason)
+      end
+    end
+  end
+
+  defp reconcile_deployment(%Deployment{kura_server: %Server{} = server} = deployment) do
+    case Provisioner.current_image_tag(server) do
+      {:ok, image_tag} when image_tag == deployment.image_tag ->
+        activate_and_mark_succeeded(deployment, server)
+
+      {:ok, _other_image_tag} ->
+        refresh_private_endpoint(server)
+        apply_deployment(deployment, server)
+
+      {:error, :not_found} ->
+        apply_deployment(deployment, server)
+
+      {:error, reason} ->
+        fail(deployment, server, reason)
+    end
+  end
+
+  defp activate_and_mark_succeeded(%Deployment{} = deployment, %Server{} = server) do
+    with {:ok, deployment} <- ensure_running(deployment) do
+      case Kura.activate_server(server, deployment.image_tag) do
+        {:ok, _server} ->
+          {:ok, _deployment} = Kura.mark_succeeded(deployment)
+          Lifecycle.record_ready(server, deployment)
+          :ok
+
+        {:error, status} when status in [:server_destroying, :server_destroyed, :server_reclaimed] ->
+          cancel(deployment, "server #{server.id} became #{server_status(status)} during rollout; skipping activation")
+
+        {:error, {:public_host_not_resolvable, host, reason} = detail} ->
+          # external-dns has not propagated yet. Leave the deployment in
+          # `:running` so the next reconciler tick retries instead of
+          # marking the server failed for what's a benign delay.
+          wait_or_stall(
+            server,
+            deployment,
+            detail,
+            "waiting on DNS for server #{server.id} (#{host}): #{inspect(reason)}"
+          )
+
+        {:error, {:public_endpoint_not_ready, host, reason} = detail} ->
+          # The workload is up on the desired image but the endpoint is not
+          # serving yet: the pod is typically still replicating from mesh peers
+          # behind the /ready backfill gate, so it offers no healthy upstream to
+          # the gateway. Surface :replicating so the dashboard shows progress
+          # instead of a stuck "Deploying" for the whole catch-up — but only
+          # when there is actually a peer to catch up from. An account
+          # returning from archive in its only region has none, and neither
+          # does a first-ever deploy, so calling that state "replicating" would
+          # attribute the wait to a catch-up that can never complete and leave
+          # the instance sitting there. Those are cold starts and stay
+          # `:provisioning` until the endpoint answers.
+          #
+          # A catch-up has a peer feeding it and a size that justifies a long
+          # wait, so it is left to run and the stalled gauge is what reports it
+          # if it never finishes. A cold start has neither, so it is the one
+          # this escalates.
+          if Kura.replication_source?(server) do
+            record(server, :replicating, deployment.image_tag, now())
+          else
+            wait_or_stall(
+              server,
+              deployment,
+              detail,
+              "waiting on public endpoint for server #{server.id} (#{host}): #{inspect(reason)}"
+            )
+          end
+
+        {:error, :private_endpoint_not_ready = detail} ->
+          # Gateway DNS/TLS may converge after the pods.
+          wait_or_stall(server, deployment, detail, "waiting on private endpoint for server #{server.id}")
+
+        {:error, reason} ->
+          fail(deployment, server, reason)
+      end
+    end
+  end
+
+  defp apply_deployment(%Deployment{} = deployment, %Server{} = server) do
+    with {:ok, deployment} <- ensure_running(deployment) do
+      inputs = %{
+        image_tag: deployment.image_tag,
+        account: server.account,
+        server: server
+      }
+
+      case Provisioner.rollout(server, inputs) do
+        :ok ->
+          await_activation(server)
+
+        {:error, :not_found} ->
+          fail(deployment, server, "region #{server.region} is no longer in the catalog")
+
+        {:error, reason} ->
+          fail(deployment, server, reason)
+      end
+    end
+  end
+
+  # An instance coming up for the first time, or back from archive, is checked
+  # twice a second until it activates instead of on this minute's tick. Rollouts
+  # of serving instances are left to the tick: they reach the whole fleet at
+  # once, and a serving instance is not waiting on its activation.
+  defp await_activation(%Server{status: :provisioning, move_phase: :none} = server) do
+    {:ok, _job} = AwaitActivationWorker.enqueue(server)
+    :ok
+  end
+
+  defp await_activation(%Server{}), do: :ok
+
+  defp promote_when_caught_up(%Server{} = server, image_tag) do
+    case Provisioner.caught_up?(server) do
+      {:ok, true} ->
+        case Kura.promote_move(server) do
+          {:ok, _promoted} ->
+            Logger.info("[Kura.Reconciler] promoted move target #{server.id} (caught up)")
+            :ok
+
+          {:error, reason} ->
+            Logger.warning("[Kura.Reconciler] could not promote move target #{server.id}: #{inspect(reason)}")
+
+            :ok
+        end
+
+      {:ok, false} ->
+        # Up on the desired image but still replicating from the source behind
+        # the backfill gate. Surface :replicating so the move shows progress.
+        record(server, :replicating, image_tag, now())
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not observe readiness of move target #{server.id}: #{inspect(reason)}")
+
+        :ok
+    end
+  end
+
+  defp ensure_running(%Deployment{status: :running} = deployment), do: {:ok, deployment}
+  defp ensure_running(%Deployment{} = deployment), do: Kura.mark_running(deployment)
+
+  # Every live status, `:replicating` included: its workload is up on the
+  # desired image and catching up from its mesh peers behind the backfill
+  # gate. This pass is the only thing that reaches such a server once its open
+  # deployment is closed, because the rollout fast path drives open deployments
+  # alone and a rollout mints one only for a server that is off the target tag.
+  @present_intent_statuses [:provisioning, :replicating, :active, :failed]
+  @open_deployment_statuses [:pending, :running]
+
+  # Projects observed cluster state onto present-intent servers the
+  # deployment loop did not handle this tick: failed servers heal,
+  # drifted ones surface the drift. Bounded by the same converge
+  # ceiling as the rest of the loop; the rest is picked up next tick.
+  defp reconcile_observed_servers(handled_server_ids) do
+    active_subscriptions_query =
+      from(s in Subscription,
+        where: s.status in ^Billing.live_subscription_statuses(),
+        order_by: [desc: s.inserted_at, desc: s.id]
+      )
+
+    servers =
+      Server
+      |> where([s], s.status in ^@present_intent_statuses)
+      # Move rows are driven by the move paths (moving_in via the deployment
+      # intercept, moving_out via the drain), never the public-endpoint
+      # projection: a moving_in has no public host to probe, and a moving_out's
+      # updated_at must stay at its promotion time to clock the drain window.
+      |> where([s], s.move_phase == :none)
+      |> order_by([s], asc: s.updated_at, asc: s.id)
+      |> limit(^@reconcile_batch_size)
+      |> preload([s], account: [subscriptions: ^active_subscriptions_query])
+      |> Repo.all()
+
+    latest = latest_deployments(Enum.map(servers, & &1.id))
+
+    observe_peer_roles(servers, latest)
+
+    servers
+    |> Enum.reject(&MapSet.member?(handled_server_ids, &1.id))
+    |> Enum.each(&project_server(&1, Map.get(latest, &1.id)))
+
+    :ok
+  end
+
+  # Newest deployment per server in one query; the
+  # (kura_server_id, inserted_at) index backs the DISTINCT ON.
+  defp latest_deployments([]), do: %{}
+
+  defp latest_deployments(server_ids) do
+    Deployment
+    |> where([d], d.kura_server_id in ^server_ids)
+    |> distinct([d], d.kura_server_id)
+    |> order_by([d], asc: d.kura_server_id, desc: d.inserted_at, desc: d.id)
+    |> Repo.all()
+    |> Map.new(&{&1.kura_server_id, &1})
+  end
+
+  defp project_server(%Server{}, nil), do: :ok
+
+  defp project_server(%Server{}, %Deployment{status: status}) when status in @open_deployment_statuses do
+    # Open deployment not in this tick's batch (ceiling/uniq). The
+    # rollout fast path owns it; don't race.
+    :ok
+  end
+
+  defp project_server(%Server{} = server, %Deployment{image_tag: desired, status: latest_status}) do
+    case Provisioner.current_image_tag(server) do
+      {:ok, observed} when observed == desired ->
+        reconcile_manifest_revision(server, desired)
+
+      {:ok, observed} ->
+        refresh_private_endpoint(server)
+        record(server, derived_status(server, latest_status), observed, now())
+
+      {:error, :not_found} ->
+        # A present-intent server (provisioning/active/failed) whose backing
+        # KuraInstance has vanished is drift to correct on its own, regardless
+        # of the latest deployment's status. Gating recreation on a `:succeeded`
+        # latest deployment let a transient control-plane error — e.g. an
+        # apiserver 401 during a rollout that marked the deployment `:failed` —
+        # silently and permanently disable self-heal: a failed latest deployment
+        # never flips back to `:succeeded` on its own, so a CR later deleted
+        # out-of-band was never recreated and the instance stranded. Re-applying
+        # is idempotent; a genuinely broken rollout surfaces its own error each
+        # tick instead of the instance disappearing.
+        apply_current_manifest(server, desired)
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not observe server #{server.id}: #{inspect(reason)}")
+        :ok
+    end
+  end
+
+  # Role reads are independent across regions and each can consume its full
+  # cross-cluster timeout. Running a bounded group prevents one slow regional
+  # cluster from serially delaying observation of every account in the batch.
+  # The ordinary server projection stays ordered below this step.
+  defp observe_peer_roles(servers, latest) do
+    observable = Enum.filter(servers, &peer_roles_observable?(&1, Map.get(latest, &1.id)))
+
+    observable
+    |> Task.async_stream(&observe_server_peer_roles/1,
+      max_concurrency: @peer_role_observation_concurrency,
+      ordered: true,
+      timeout: @peer_role_observation_timeout_ms,
+      on_timeout: :kill_task
+    )
+    |> Enum.zip(observable)
+    |> Enum.each(fn
+      {{:ok, :ok}, _server} ->
+        :ok
+
+      {{:exit, reason}, server} ->
+        Logger.warning(
+          "[Kura.Reconciler] peer-role observation task exited for server #{server.id} in #{server.region}: #{inspect(reason)}"
+        )
+    end)
+  end
+
+  defp peer_roles_observable?(_server, nil), do: false
+
+  defp peer_roles_observable?(%Server{status: :provisioning}, %Deployment{status: status})
+       when status in @open_deployment_statuses, do: false
+
+  defp peer_roles_observable?(_server, %Deployment{}), do: true
+
+  # Refreshes `kura_servers.peer_roles` from the backing KuraInstance's
+  # `status.peerRoles`. The mesh view (`Tuist.Kura.Mesh.peer_roles/1`) used to
+  # read the apiserver itself, on the request path of `/_internal/kura/mesh/peers`
+  # — an unbounded, un-rate-limited endpoint every managed pod polls at heartbeat
+  # cadence, whose slowest region decided whether a node made its own 5 s deadline.
+  # The roles change only when the controller moves one, so observing them on the
+  # loop that already observes the instance costs a tick of staleness and takes a
+  # cross-cluster read off every request. Roles are an optimisation over the local
+  # lowest-URL rule (kura/docs/replication-design.md §2.2), so a tick of lag is
+  # only a late role move, never a stalled region.
+  #
+  # Only mesh regions have peers to have roles, and a read that fails leaves the
+  # last known roles in place rather than blanking a live topology on one
+  # unreachable apiserver.
+  #
+  # Servers with an open deployment are observed too, including the ones the
+  # deployment loop drove this tick. Nodes obey a published role whenever it
+  # names a peer they can see, so a role kept from before a held rollout keeps
+  # cross-region replication on whichever pod held it then, even after the
+  # controller has moved it. A server that is still provisioning has no
+  # instance to read yet.
+  defp observe_server_peer_roles(%Server{} = server) do
+    if mesh_region?(server) do
+      case Provisioner.peer_roles(server) do
+        {:ok, roles} ->
+          persist_peer_roles(server, roles)
+
+        {:error, reason} ->
+          Logger.warning("[Kura.Reconciler] could not observe peer roles for server #{server.id}: #{inspect(reason)}")
+
+          :ok
+      end
+    else
+      :ok
+    end
+  end
+
+  defp persist_peer_roles(%Server{} = server, roles) do
+    case Kura.record_peer_roles(server, roles) do
+      {:ok, _server} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not record peer roles for server #{server.id}: #{inspect(reason)}")
+
+        :ok
+    end
+  end
+
+  defp mesh_region?(%Server{region: region_id}) do
+    case Regions.fetch(region_id) do
+      {:ok, region} -> Regions.mesh?(region) and not Regions.retired?(region)
+      _ -> false
+    end
+  end
+
+  defp reconcile_manifest_revision(%Server{} = server, desired) do
+    case {Provisioner.manifest_revision(server), Provisioner.current_manifest_revision(server)} do
+      {{:ok, nil}, _} ->
+        converge(server, desired)
+
+      {{:ok, desired_revision}, {:ok, desired_revision}} ->
+        converge(server, desired)
+
+      {{:ok, _desired_revision}, {:ok, _observed_revision}} ->
+        apply_current_manifest(server, desired)
+
+      {{:error, reason}, _} ->
+        Logger.warning(
+          "[Kura.Reconciler] could not resolve desired manifest revision for server #{server.id}: #{inspect(reason)}"
+        )
+
+        converge(server, desired)
+
+      {_, {:error, reason}} ->
+        Logger.warning(
+          "[Kura.Reconciler] could not observe manifest revision for server #{server.id}: #{inspect(reason)}"
+        )
+
+        converge(server, desired)
+    end
+  end
+
+  defp apply_current_manifest(%Server{} = server, image_tag) do
+    inputs = %{
+      image_tag: image_tag,
+      account: server.account,
+      server: server
+    }
+
+    case Provisioner.rollout(server, inputs) do
+      :ok ->
+        converge(server, image_tag)
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not re-apply manifest for server #{server.id}: #{inspect(reason)}")
+        converge(server, image_tag)
+    end
+  end
+
+  defp converge(%Server{} = server, desired) do
+    cond do
+      not converged?(server, desired) ->
+        do_converge(server, desired)
+
+      url_matches_rendered_host?(server) ->
+        clear_public_host_drift(server)
+        refresh_private_endpoint(server)
+
+      true ->
+        converge_public_host_drift(server, desired)
+    end
+  end
+
+  # A converged server reaches this branch on the same tick its instance
+  # re-renders, so `activate_server/2` would resolve the new host ahead of the
+  # record for it (`Kura.public_host_publication_seconds/0`). The tick that
+  # notices the change only records it; the probe runs on a later one.
+  defp converge_public_host_drift(%Server{} = server, desired) do
+    case server.public_host_drift_observed_at do
+      nil ->
+        Logger.info(
+          "[Kura.Reconciler] public host changed for server #{server.id}; holding the endpoint probe for #{Kura.public_host_publication_seconds()}s"
+        )
+
+        record_public_host_drift(server)
+
+      observed_at ->
+        if DateTime.diff(DateTime.utc_now(), observed_at) >= Kura.public_host_publication_seconds() do
+          do_converge(server, desired)
+        else
+          Logger.info("[Kura.Reconciler] still holding the endpoint probe for server #{server.id}")
+
+          :ok
+        end
+    end
+  end
+
+  defp record_public_host_drift(%Server{} = server) do
+    case Kura.record_public_host_drift(server, now()) do
+      {:ok, _server} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "[Kura.Reconciler] could not record the public host change for server #{server.id}: #{inspect(reason)}"
+        )
+
+        :ok
+    end
+  end
+
+  defp clear_public_host_drift(%Server{} = server) do
+    case Kura.clear_public_host_drift(server) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "[Kura.Reconciler] could not clear the public host change for server #{server.id}: #{inspect(reason)}"
+        )
+
+        :ok
+    end
+  end
+
+  # Availability is independent of image convergence; refresh active private
+  # instances during a rollout as well as after convergence.
+  # This also moves legacy node-address URLs to the gateway once it is ready.
+  defp refresh_private_endpoint(%Server{} = server) do
+    case Kura.refresh_private_server_url(server) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not refresh private endpoint for server #{server.id}: #{inspect(reason)}")
+
+        :ok
+    end
+  end
+
+  defp converged?(%Server{status: :active, current_image_tag: tag, observed_image_tag: tag}, tag), do: true
+
+  defp converged?(%Server{}, _desired), do: false
+
+  # The URL the region template renders can change without the image changing
+  # (e.g. an environment-scoped public-host rename). `kura_servers.url` and the
+  # `account_cache_endpoints` mirror are derived from it, but `converged?` only
+  # tracks the image, so a healthy node would otherwise never re-derive them.
+  # Treating a drifted URL as out of sync routes the server back through the
+  # endpoint-gated `activate_server`, which re-probes the new host and rewrites
+  # the mirror; once they match this is a no-op, so steady-state nodes are still
+  # not re-written every tick. A non-binary render (e.g. unknown region) leaves
+  # the existing `converged?` behaviour untouched.
+  #
+  # Private gateway and NodePort regions use an
+  # observed endpoint, which can differ from the template during a gateway
+  # migration or a legacy NodePort move. The refresh path owns both the URL
+  # change and its readiness heartbeat, so rendered URL equality must not
+  # bypass those checks.
+  defp url_matches_rendered_host?(%Server{} = server) do
+    if observed_endpoint_region?(server) do
+      true
+    else
+      case Provisioner.public_url(server.account, server) do
+        url when url == server.url -> true
+        rendered when is_binary(rendered) -> false
+        _ -> true
+      end
+    end
+  end
+
+  defp observed_endpoint_region?(%Server{region: region_id}) do
+    case Regions.fetch(region_id) do
+      {:ok, region} -> Regions.observed_private_endpoint?(region)
+      _ -> false
+    end
+  end
+
+  # Already active on the observed image: a no-op. Skip the write and
+  # broadcast so a healthy server is not re-locked, re-written, and
+  # pushed to every open settings LiveView every tick. Anything else
+  # heals through the endpoint-gated activation.
+  defp do_converge(%Server{} = server, desired) do
+    case Kura.activate_server(server, desired) do
+      {:ok, _server} ->
+        Logger.info("[Kura.Reconciler] converged server #{server.id} to #{desired}")
+        :ok
+
+      {:error, status} when status in [:server_destroying, :server_destroyed, :server_reclaimed] ->
+        :ok
+
+      {:error, {:public_host_not_resolvable, host, reason}} ->
+        Logger.info("[Kura.Reconciler] waiting on DNS for server #{server.id} (#{host}): #{inspect(reason)}")
+        record(server, server.status, desired, now())
+
+      {:error, {:public_endpoint_not_ready, host, reason}} ->
+        Logger.info("[Kura.Reconciler] waiting on public endpoint for server #{server.id} (#{host}): #{inspect(reason)}")
+
+        record(server, server.status, desired, now())
+
+      {:error, :private_endpoint_not_ready} ->
+        Logger.info("[Kura.Reconciler] waiting on private endpoint for server #{server.id}")
+
+        record(server, server.status, desired, now())
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not converge server #{server.id}: #{inspect(reason)}")
+        record(server, server.status, desired, now())
+    end
+  end
+
+  # A failed latest deployment projects to `:failed`; otherwise the
+  # stored status stands, so a serving server is not flapped by a
+  # transient observation gap.
+  defp derived_status(%Server{}, :failed), do: :failed
+  defp derived_status(%Server{status: status}, _latest_status), do: status
+
+  defp record(%Server{} = server, status, observed_image_tag, observed_at) do
+    attrs = %{status: status, observed_image_tag: observed_image_tag, last_observed_at: observed_at}
+
+    case Kura.record_observation(server, attrs) do
+      {:ok, _server} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not record observation for server #{server.id}: #{inspect(reason)}")
+
+        :ok
+    end
+  end
+
+  defp now, do: DateTime.truncate(DateTime.utc_now(), :second)
+
+  defp cancel(deployment, message) do
+    {:ok, _} = Kura.mark_cancelled(deployment, message)
+    :ok
+  end
+
+  # Every readiness wait above is benign at first and indistinguishable from a
+  # permanent one afterwards: the branch logs at info, returns `:ok` and writes
+  # nothing, so the row keeps the `:provisioning` it was inserted with and its
+  # `updated_at` stays at its insert time. That shape is identical whether the
+  # endpoint is thirty seconds from serving or will never serve at all (an ACME
+  # order that errored, a host that never got a certificate, a node-port chain
+  # that never completes), which is how an instance can hold an
+  # allocation for hours while its account silently builds against the legacy
+  # cache lane, looking exactly like one that is half a minute old.
+  #
+  # Past the stall threshold the wait is recorded instead of swallowed: the
+  # server goes `:failed`, which the dashboard renders as a failure with a
+  # Retry rather than an endless "Deploying", and the reason reaches Sentry.
+  #
+  # The deployment is deliberately left open. `:failed` is a projection here,
+  # not a terminal sink (see the module doc), so the fast path keeps probing
+  # every tick and the instance still activates on its own the moment its
+  # endpoint comes up, with no operator retry.
+  defp wait_or_stall(%Server{} = server, %Deployment{} = deployment, reason, message) do
+    cond do
+      not stalled?(deployment) ->
+        Logger.info("[Kura.Reconciler] #{message}")
+        :ok
+
+      # Already reported. Keep retrying quietly rather than re-reporting the
+      # same stall every tick for as long as it lasts.
+      server.status == :failed ->
+        Logger.info("[Kura.Reconciler] #{message}")
+        :ok
+
+      true ->
+        report_stall(server, deployment, reason, message)
+    end
+  end
+
+  defp stalled?(%Deployment{inserted_at: inserted_at}) do
+    stalled_seconds(inserted_at) >= Kura.provisioning_stall_seconds()
+  end
+
+  defp stalled_seconds(inserted_at), do: DateTime.diff(DateTime.utc_now(), inserted_at)
+
+  defp report_stall(%Server{} = server, %Deployment{} = deployment, reason, message) do
+    age = stalled_seconds(deployment.inserted_at)
+    kind = failure_kind(reason)
+
+    Logger.error(
+      "[Kura.Reconciler] server #{server.id} has been provisioning for #{age}s with no routable endpoint: #{message}"
+    )
+
+    Sentry.capture_message("Kura provisioning stalled",
+      level: :error,
+      tags: %{failure_kind: kind, region: server.region},
+      extra: %{
+        account_id: server.account_id,
+        deployment_id: deployment.id,
+        failure_detail: message,
+        failure_kind: kind,
+        region: server.region,
+        server_id: server.id,
+        stalled_seconds: age
+      }
+    )
+
+    case Kura.fail_server(server) do
+      {:ok, _server} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Kura.Reconciler] could not record stall for server #{server.id}: #{inspect(reason)}")
+
+        :ok
+    end
+  end
+
+  defp fail(deployment, server, reason) do
+    message = if is_binary(reason), do: reason, else: inspect(reason)
+
+    # Logged as well as Sentry-captured: environments without a DSN
+    # would otherwise fail deployments with no trace outside the DB.
+    Logger.error(
+      "[Kura.Reconciler] deployment #{deployment.id} (#{deployment.image_tag}) failed for server #{(server && server.id) || "unknown"}: #{message}"
+    )
+
+    capture_deploy_failure(deployment, server, reason, message)
+
+    {:ok, _} = Kura.mark_failed(deployment, message)
+    if server, do: Kura.fail_server(server)
+    :ok
+  end
+
+  defp capture_deploy_failure(deployment, server, reason, message) do
+    kind = failure_kind(reason)
+
+    Sentry.capture_message("Kura deploy failed",
+      level: :error,
+      tags: %{failure_kind: kind, region: server && server.region},
+      extra: %{
+        deployment_id: deployment.id,
+        image_tag: deployment.image_tag,
+        server_id: server && server.id,
+        account_id: server && server.account_id,
+        region: server && server.region,
+        failure_detail: message,
+        failure_kind: kind
+      }
+    )
+  end
+
+  defp failure_kind(:not_found), do: "not_found"
+  defp failure_kind(kind) when is_atom(kind) and not is_nil(kind), do: Atom.to_string(kind)
+  defp failure_kind({kind, _}) when is_atom(kind), do: Atom.to_string(kind)
+  defp failure_kind({kind, _, _}) when is_atom(kind), do: Atom.to_string(kind)
+  defp failure_kind(%{__struct__: module}), do: module |> Module.split() |> List.last() |> Macro.underscore()
+  defp failure_kind(reason) when is_binary(reason), do: "provisioner_error"
+  defp failure_kind(_reason), do: "unknown"
+
+  defp server_status(:server_destroying), do: "destroying"
+  defp server_status(:server_destroyed), do: "destroyed"
+  defp server_status(:server_reclaimed), do: "drain-pending or archived"
+end

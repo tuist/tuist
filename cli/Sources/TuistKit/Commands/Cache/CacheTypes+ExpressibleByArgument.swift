@@ -1,4 +1,5 @@
 import ArgumentParser
+import TuistConfig
 import TuistCore
 
 extension TargetQuery: @retroactive ExpressibleByArgument {

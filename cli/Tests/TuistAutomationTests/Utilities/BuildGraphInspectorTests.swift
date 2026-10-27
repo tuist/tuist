@@ -1,5 +1,7 @@
+import FileSystem
 import Foundation
 import TSCBasic
+import TuistConstants
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -364,6 +366,53 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         XCTAssertEqual(got?.target, target2)
     }
 
+    func test_testableTarget_withTestPlan_testCaseLevelSkip_keepsTargetBuildable() throws {
+        // Given
+        let path = try temporaryPath()
+        let projectPath = path.appending(component: "Project.xcodeproj")
+        let target1 = Target.test(name: "Test1")
+        let targetReference1 = TargetReference(projectPath: projectPath, name: target1.name)
+
+        let testPlan = TestPlan(
+            path: path.appending(component: "Test.testplan"),
+            testTargets: [
+                TestableTarget(target: targetReference1, skipped: false),
+            ],
+            isDefault: true
+        )
+        let scheme = Scheme.test(
+            testAction: .test(
+                testPlans: [testPlan]
+            )
+        )
+        let project = Project.test(
+            path: projectPath,
+            targets: [
+                target1,
+            ]
+        )
+        let graph = Graph.test(
+            projects: [projectPath: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.testableTarget(
+            scheme: scheme,
+            testPlan: testPlan.name,
+            testTargets: [],
+            skipTestTargets: [
+                TestIdentifier(target: targetReference1.name, class: "Test1Tests", method: "test_example"),
+            ],
+            graphTraverser: graphTraverser,
+            action: .build
+        )
+
+        // Then
+        XCTAssertEqual(got?.project, project)
+        XCTAssertEqual(got?.target, target1)
+    }
+
     func test_testableTarget_withTestPlan_filtersIncludedDisabledTarget_returnsNil() throws {
         // Given
         let path = try temporaryPath()
@@ -644,8 +693,8 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
-        try FileHandler.shared.createFolder(workspacePath)
-        try FileHandler.shared.touch(workspacePath.appending(component: Constants.tuistGeneratedFileName))
+        try await FileSystem().makeDirectory(at: workspacePath)
+        try await FileSystem().touch(workspacePath.appending(component: Constants.tuistGeneratedFileName))
 
         // When
         let got = try await subject.workspacePath(directory: path)
@@ -658,7 +707,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
-        try FileHandler.shared.createFolder(workspacePath)
+        try await FileSystem().makeDirectory(at: workspacePath)
 
         // When
         let got = try await subject.workspacePath(directory: path)
@@ -671,10 +720,10 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let nonTuistWorkspacePath = path.appending(components: "SPM.xcworkspace")
-        try FileHandler.shared.createFolder(nonTuistWorkspacePath)
+        try await FileSystem().makeDirectory(at: nonTuistWorkspacePath)
         let workspacePath = path.appending(component: "TuistServer.xcworkspace")
-        try FileHandler.shared.createFolder(workspacePath)
-        try FileHandler.shared.touch(workspacePath.appending(component: Constants.tuistGeneratedFileName))
+        try await FileSystem().makeDirectory(at: workspacePath)
+        try await FileSystem().touch(workspacePath.appending(component: Constants.tuistGeneratedFileName))
 
         // When
         let got = try await subject.workspacePath(directory: path)

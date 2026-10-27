@@ -3,6 +3,16 @@ import Mockable
 import Path
 import XcodeGraph
 
+public struct StaticXCFrameworkAppIntentsMetadata: Hashable, Sendable {
+    public let frameworkName: String
+    public let metadataPath: AbsolutePath
+
+    public init(frameworkName: String, metadataPath: AbsolutePath) {
+        self.frameworkName = frameworkName
+        self.metadataPath = metadataPath
+    }
+}
+
 @Mockable
 public protocol GraphTraversing {
     /// Graph name
@@ -34,6 +44,9 @@ public protocol GraphTraversing {
 
     /// - Returns: All the schemes of the graph
     func schemes() -> [Scheme]
+
+    /// Returns the test targets referenced by a scheme's test action.
+    func testTargets(for schemeName: String) -> Set<GraphTarget>
 
     /// Returns the targets from the project that lives in the directory from which the graph has been loaded.
     func rootTargets() -> Set<GraphTarget>
@@ -79,6 +92,20 @@ public protocol GraphTraversing {
     /// - Returns: All direct and transitive target dependencies, traversing from the passed targets
     func allTargetDependencies(traversingFromTargets: [GraphTarget]) -> Set<GraphTarget>
 
+    /// Returns App Intents metadata directories declared by transitive static XCFramework dependencies.
+    ///
+    /// This is specific to static XCFrameworks because they are the ones that need extra project-generation
+    /// help for Xcode's App Intents pipeline. Dynamic frameworks keep their metadata in the normal framework
+    /// bundle layout, which Xcode already handles through the regular dependency metadata flow. Static
+    /// XCFrameworks, on the other hand, need their metadata surfaced explicitly so Tuist can recreate the
+    /// sibling `<Name>.appintents` layout and populate the dependency metadata file lists.
+    ///
+    /// We traverse through both target and binary edges because static XCFrameworks can depend on
+    /// other binaries, and Xcode resolves the final slice from the copied XCFramework graph at build time.
+    func staticXCFrameworkAppIntentsMetadata(path: AbsolutePath, name: String) throws -> Set<
+        StaticXCFrameworkAppIntentsMetadata
+    >
+
     /// Given a project directory and target name, it returns **all** its direct target dependencies (including external
     /// dependencies).
     /// If you want only direct target dependencies present in the same project as the target, use `directLocalTargetDependencies`
@@ -118,6 +145,15 @@ public protocol GraphTraversing {
     ///   - name: Name of the target.
     func resourceBundleDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference>
 
+    /// Returns the same bundles as `resourceBundleDependencies`, but only the ones produced by a target,
+    /// and retaining the project and target that produce each one. `resourceBundleDependencies` reduces a
+    /// bundle to its product name, which is not enough to reference the producer across projects.
+    /// Precompiled bundles have no producing target and are omitted.
+    /// - Parameters:
+    ///   - path: Path to the directory where the project that defines the target is located.
+    ///   - name: Name of the target.
+    func resourceBundleTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference>
+
     /// It returns true if the given target can be compiled for Mac Catalyst. To be able to compile it for Catalyst, itself and
     /// all its
     /// dependencies need to support Mac Catalyst. Otherwise it'll yield a "X not found" error.
@@ -151,6 +187,13 @@ public protocol GraphTraversing {
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
     func linkableDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference>
+
+    /// Returns the package products a static target needs built to compile: the ones reachable through its static
+    /// dependency chain, including through the xcframeworks of targets replaced with cached binaries.
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the target's project.
+    ///   - name: Name of the target.
+    func packageProductsLinkedThroughStaticTargets(path: AbsolutePath, name: String) -> Set<GraphDependencyReference>
 
     /// Given a project directory and a target name, it returns the list of dependencies that need to be added to the searchable
     /// path from the target.
@@ -192,7 +235,7 @@ public protocol GraphTraversing {
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
-    func librariesSwiftIncludePaths(path: AbsolutePath, name: String) -> Set<AbsolutePath>
+    func librariesSwiftIncludePaths(path: AbsolutePath, name: String) -> Set<SwiftIncludePath>
 
     /// Returns all runpath search paths of the given target
     /// Currently applied only to test targets with no host application
@@ -285,6 +328,9 @@ public protocol GraphTraversing {
     /// as values
     func externalTargetSupportedDestinations() -> [GraphTarget: Set<Destination>]
 
+    /// Propagates destinations from production consumers and additional roots with inferred effective destinations.
+    func externalTargetSupportedDestinations(including additionalRoots: Set<GraphTarget>) -> [GraphTarget: Set<Destination>]
+
     /// Given a target's project path and name, it returns its target dependencies that are external.
     /// - Parameters:
     ///   - path: Project path.
@@ -292,16 +338,11 @@ public protocol GraphTraversing {
     /// - Returns: A set containing all the direct target dependencies that are external.
     func directTargetExternalDependencies(path: AbsolutePath, name: String) -> Set<GraphTargetReference>
 
-    /// It returns all the plugin executables to use for a given target. A plugin executable can represent a Swift Macro
-    /// executable to resolve macros.
-    ///
-    /// Executables are passed through the build setting "OTHER_SWIFT_FLAGS" and the flag "-load-plugin-executable {value}"
-    ///
-    ///
+    /// Returns all precompiled Swift macro executables used by a target or its transitive dependencies.
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
-    func allSwiftPluginExecutables(path: AbsolutePath, name: String) -> Set<String>
+    func allPrecompiledSwiftMacroExecutables(path: AbsolutePath, name: String) -> Set<String>
 
     /// Given a target's project path and name, it returns all XCFramework dependencies that linked by a dynamic XCFramework.
     /// - Parameters:
@@ -310,6 +351,37 @@ public protocol GraphTraversing {
     func staticObjcXCFrameworksLinkedByDynamicXCFrameworkDependencies(
         path: AbsolutePath,
         name: String
+    ) -> Set<GraphDependency>
+
+    /// Given a target's project path and name, it returns all static XCFramework
+    /// dependencies with Swift modules that are reached through a dynamic XCFramework.
+    /// These need module visibility (FRAMEWORK_SEARCH_PATHS) at the consumer level
+    /// but must NOT be relinked, since the dynamic xcframework already absorbed them.
+    /// - Parameters:
+    ///   - path: Project path.
+    ///   - name: Target name.
+    func staticXCFrameworksLinkedByDynamicXCFrameworkDependencies(
+        path: AbsolutePath,
+        name: String
+    ) -> Set<GraphDependency>
+
+    /// Static Objective-C xcframeworks (that ship their own module map) reachable in this graph
+    /// from the target through targets that no longer exist in `currentGraph`. Used to recover
+    /// module visibility after a binary-cache substitution drops the graph edge to the static
+    /// xcframework a cached dynamic dependency still imports in its `.swiftmodule`.
+    func staticObjcXCFrameworksReachableViaCachedTargets(
+        path: AbsolutePath,
+        name: String,
+        currentGraph: Graph
+    ) -> Set<GraphDependency>
+
+    /// Static Swift xcframeworks reachable in this graph from the target through targets
+    /// that no longer exist in `currentGraph`. Sister to
+    /// `staticObjcXCFrameworksReachableViaCachedTargets` for the Swift-module flavour.
+    func staticSwiftXCFrameworksReachableViaCachedTargets(
+        path: AbsolutePath,
+        name: String,
+        currentGraph: Graph
     ) -> Set<GraphDependency>
 
     /// Given a scheme, it returns the runnable target.

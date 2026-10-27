@@ -17,12 +17,6 @@ defmodule Tuist.Repo.Migrations.AddBuildRunssTable do
     end
 
     flush()
-
-    # excellent_migrations:safety-assured-for-next-line operation_timescale_available?
-    if Tuist.Repo.timescale_available?() do
-      # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-      execute("SELECT create_hypertable('build_runs', 'inserted_at');")
-    end
   end
 
   def down do

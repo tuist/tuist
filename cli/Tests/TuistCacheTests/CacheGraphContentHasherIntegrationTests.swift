@@ -65,7 +65,45 @@ struct ContentHashingIntegrationTests {
         given(xcodeControllerMock)
             .selectedVersion()
             .willReturn(Version(15, 3, 0))
+        given(xcodeControllerMock)
+            .selectedBuildVersion()
+            .willReturn("15E204a")
         subject = CacheGraphContentHasher(contentHasher: CachedContentHasher())
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedSwiftVersionProvider, .withMockedXcodeController)
+    func artifactFormatSeparatesExactAndSDKKeysFromEarlierDebuggingProducts() async throws {
+        let root = try #require(FileSystem.temporaryTestDirectory)
+        let target = Target.test(name: "Feature", destinations: [.iPhone, .mac], product: .framework, sources: [source1])
+        let project = Project.test(
+            path: root, sourceRootPath: root,
+            settings: Settings(configurations: [.debug("Debug"): nil, .release("Release"): nil]), targets: [target]
+        )
+        let graphTarget = GraphTarget(path: root, target: target, project: project)
+        let graph = Graph.test(projects: [root: project])
+        var hashes: [TargetContentHash] = []
+        for version in [CacheVersion.version7, .version8, .version9] {
+            let content = CachedContentHasher()
+            let hasher = CacheGraphContentHasher(
+                graphContentHasher: GraphContentHasher(contentHasher: content), contentHasher: content,
+                versionFetcher: FixedArtifactVersion(value: version), defaultConfigurationFetcher: DefaultConfigurationFetcher()
+            )
+            let result = try await hasher.contentHashes(
+                for: graph, configuration: nil, defaultConfiguration: nil, excludedTargets: [], destination: nil, coverage: .off
+            )
+            hashes.append(try #require(result[graphTarget]))
+        }
+        #expect(Set(hashes.map(\.hash)).count == 3)
+        let sdks = try #require(hashes.first?.binaryCacheFingerprints.keys)
+        #expect(!sdks.isEmpty)
+        for sdk in sdks {
+            #expect(Set(hashes.compactMap { $0.binaryCacheFingerprints[sdk] }).count == 3)
+        }
+    }
+
+    private struct FixedArtifactVersion: CacheVersionFetching {
+        let value: CacheVersion
+        func version() -> CacheVersion { value }
     }
 
     // MARK: - Sources
@@ -105,7 +143,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -147,11 +186,465 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
         #expect(contentHash[framework1] != contentHash[framework2])
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
+    ) func contentHashes_xctestSupportFrameworkUsedByTestsIsComputed() async throws {
+        // Given
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let testSupportTarget = makeFramework(
+            name: "TestSupport",
+            sources: [source1],
+            dependencies: [.xctest]
+        )
+        let featureTarget = makeFramework(
+            name: "Feature",
+            sources: [source2]
+        )
+        let testsTarget = Target.test(
+            name: "FeatureTests",
+            product: .unitTests,
+            dependencies: [
+                .target(name: featureTarget.name),
+                .target(name: testSupportTarget.name),
+            ]
+        )
+        let project = Project.test(
+            path: temporaryPath.appending(component: "Project"),
+            settings: .default,
+            targets: [testSupportTarget, featureTarget, testsTarget]
+        )
+        let testSupport = GraphTarget(
+            path: project.path,
+            target: project.targets["TestSupport"]!,
+            project: project
+        )
+        let feature = GraphTarget(
+            path: project.path,
+            target: project.targets["Feature"]!,
+            project: project
+        )
+        let tests = GraphTarget(
+            path: project.path,
+            target: project.targets["FeatureTests"]!,
+            project: project
+        )
+        let graph = Graph.test(
+            projects: [
+                project.path: project,
+            ],
+            dependencies: [
+                .target(name: testSupportTarget.name, path: project.path): [
+                    .testSDK(name: "XCTest.framework"),
+                ],
+                .target(name: testsTarget.name, path: project.path): [
+                    .target(name: featureTarget.name, path: project.path),
+                    .target(name: testSupportTarget.name, path: project.path),
+                ],
+            ]
+        )
+
+        // When
+        let contentHash = try await subject.contentHashes(
+            for: graph,
+            configuration: "Debug",
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            coverage: .off
+        )
+
+        // Then
+        #expect(contentHash[testSupport] != nil)
+        #expect(contentHash[feature] != nil)
+        #expect(contentHash[tests] == nil)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
+    ) func contentHashes_librariesAreComputed() async throws {
+        // Given
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let staticLibraryTarget = makeLibrary(
+            name: "StaticLibrary",
+            product: .staticLibrary,
+            sources: [source1]
+        )
+        let dynamicLibraryTarget = makeLibrary(
+            name: "DynamicLibrary",
+            product: .dynamicLibrary,
+            sources: [source2]
+        )
+        let project = Project.test(
+            path: temporaryPath.appending(component: "Project"),
+            settings: .default,
+            targets: [staticLibraryTarget, dynamicLibraryTarget]
+        )
+        let staticLibrary = GraphTarget(
+            path: project.path,
+            target: project.targets["StaticLibrary"]!,
+            project: project
+        )
+        let dynamicLibrary = GraphTarget(
+            path: project.path,
+            target: project.targets["DynamicLibrary"]!,
+            project: project
+        )
+        let graph = Graph.test(
+            projects: [
+                project.path: project,
+            ]
+        )
+
+        // When
+        let contentHash = try await subject.contentHashes(
+            for: graph,
+            configuration: "Debug",
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            coverage: .off
+        )
+
+        // Then
+        #expect(contentHash[staticLibrary] != nil)
+        #expect(contentHash[dynamicLibrary] != nil)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
+    ) func contentHashes_scopeFollowsTheResolvedConfiguration() async throws {
+        // Given
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let selectedConfiguration = BuildConfiguration.debug("Debug-SharedCache")
+        let unrelatedConfiguration = BuildConfiguration.debug("Debug-AppVariant-B")
+        let selectedSettings = Configuration(settings: ["SWIFT_VERSION": "5.10"])
+        let settingsWithUnrelatedConfiguration = Settings.test(
+            configurations: [
+                selectedConfiguration: selectedSettings,
+                unrelatedConfiguration: Configuration(settings: ["UNRELATED": "YES"]),
+            ]
+        )
+        let settingsWithoutUnrelatedConfiguration = Settings.test(
+            configurations: [
+                selectedConfiguration: selectedSettings,
+            ]
+        )
+        let frameworkWithUnrelatedConfiguration = makeFramework(
+            settings: settingsWithUnrelatedConfiguration,
+            sources: [source1]
+        )
+        let frameworkWithoutUnrelatedConfiguration = makeFramework(
+            settings: settingsWithoutUnrelatedConfiguration,
+            sources: [source1]
+        )
+        let projectWithUnrelatedConfiguration = Project.test(
+            path: temporaryPath.appending(component: "with-unrelated-configuration"),
+            settings: settingsWithUnrelatedConfiguration,
+            targets: [frameworkWithUnrelatedConfiguration]
+        )
+        let projectWithoutUnrelatedConfiguration = Project.test(
+            path: temporaryPath.appending(component: "without-unrelated-configuration"),
+            settings: settingsWithoutUnrelatedConfiguration,
+            targets: [frameworkWithoutUnrelatedConfiguration]
+        )
+        let graphWithUnrelatedConfiguration = Graph.test(
+            projects: [projectWithUnrelatedConfiguration.path: projectWithUnrelatedConfiguration]
+        )
+        let graphWithoutUnrelatedConfiguration = Graph.test(
+            projects: [projectWithoutUnrelatedConfiguration.path: projectWithoutUnrelatedConfiguration]
+        )
+        let graphTargetWithUnrelatedConfiguration = GraphTarget(
+            path: projectWithUnrelatedConfiguration.path,
+            target: frameworkWithUnrelatedConfiguration,
+            project: projectWithUnrelatedConfiguration
+        )
+        let graphTargetWithoutUnrelatedConfiguration = GraphTarget(
+            path: projectWithoutUnrelatedConfiguration.path,
+            target: frameworkWithoutUnrelatedConfiguration,
+            project: projectWithoutUnrelatedConfiguration
+        )
+
+        // When
+        let hashesWithUnrelatedConfiguration = try await subject.contentHashes(
+            for: graphWithUnrelatedConfiguration,
+            configuration: selectedConfiguration.name,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            coverage: .off
+        )
+        let hashesWithoutUnrelatedConfiguration = try await subject.contentHashes(
+            for: graphWithoutUnrelatedConfiguration,
+            configuration: selectedConfiguration.name,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            coverage: .off
+        )
+        let implicitHashesWithUnrelatedConfiguration = try await subject.contentHashes(
+            for: graphWithUnrelatedConfiguration,
+            configuration: nil,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            coverage: .off
+        )
+        let implicitHashesWithoutUnrelatedConfiguration = try await subject.contentHashes(
+            for: graphWithoutUnrelatedConfiguration,
+            configuration: nil,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            coverage: .off
+        )
+
+        // Then
+        #expect(
+            hashesWithUnrelatedConfiguration[graphTargetWithUnrelatedConfiguration]?.hash
+                == hashesWithoutUnrelatedConfiguration[graphTargetWithoutUnrelatedConfiguration]?.hash
+        )
+        #expect(
+            implicitHashesWithUnrelatedConfiguration[graphTargetWithUnrelatedConfiguration]?.hash
+                != implicitHashesWithoutUnrelatedConfiguration[graphTargetWithoutUnrelatedConfiguration]?.hash
+        )
+    }
+
+    /// Cache hashes must be a function of the *resolved* configuration, never of how it was resolved.
+    /// `tuist cache --configuration Debug` and an unflagged `generate --binary-cache` on a project whose
+    /// first debug configuration is `Debug` both build `Debug`, so they must agree on hashes; the same
+    /// holds when the configuration comes from `generationOptions.defaultConfiguration`. Regression test
+    /// for #12012, which scoped settings only when the configuration was named explicitly, leaving the
+    /// unflagged side hashing every configuration and missing 100% of the cache the flagged side filled.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
+    ) func contentHashes_areIndependentOfHowTheConfigurationIsResolved() async throws {
+        // Given
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let debugConfiguration = BuildConfiguration.debug("Debug")
+        let releaseConfiguration = BuildConfiguration.release("Release")
+        let settings = Settings.test(
+            configurations: [
+                debugConfiguration: Configuration(settings: ["SWIFT_VERSION": "5.10"]),
+                releaseConfiguration: Configuration(settings: ["UNRELATED": "YES"]),
+            ]
+        )
+        let framework = makeFramework(settings: settings, sources: [source1])
+        let project = Project.test(
+            path: temporaryPath.appending(component: "project"),
+            settings: settings,
+            targets: [framework]
+        )
+        let graph = Graph.test(projects: [project.path: project])
+        let graphTarget = GraphTarget(path: project.path, target: framework, project: project)
+
+        // When
+        let explicitHashes = try await subject.contentHashes(
+            for: graph,
+            configuration: debugConfiguration.name,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            coverage: .off
+        )
+        let implicitHashes = try await subject.contentHashes(
+            for: graph,
+            configuration: nil,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            coverage: .off
+        )
+        let defaultConfigurationHashes = try await subject.contentHashes(
+            for: graph,
+            configuration: nil,
+            defaultConfiguration: debugConfiguration.name,
+            excludedTargets: [],
+            destination: nil,
+            coverage: .off
+        )
+
+        // Then
+        #expect(
+            explicitHashes[graphTarget]?.hash
+                == implicitHashes[graphTarget]?.hash
+        )
+        #expect(
+            explicitHashes[graphTarget]?.hash
+                == defaultConfigurationHashes[graphTarget]?.hash
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
+    ) func contentHashes_changingSelectedConfigurationChangesHash() async throws {
+        // Given
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let selectedConfiguration = BuildConfiguration.debug("Debug-SharedCache")
+        let firstSettings = Settings.test(
+            configurations: [
+                selectedConfiguration: Configuration(settings: ["SWIFT_VERSION": "5.9"]),
+            ]
+        )
+        let secondSettings = Settings.test(
+            configurations: [
+                selectedConfiguration: Configuration(settings: ["SWIFT_VERSION": "6.0"]),
+            ]
+        )
+        let firstFramework = makeFramework(settings: firstSettings, sources: [source1])
+        let secondFramework = makeFramework(settings: secondSettings, sources: [source1])
+        let firstProject = Project.test(
+            path: temporaryPath.appending(component: "first-selected-configuration"),
+            settings: firstSettings,
+            targets: [firstFramework]
+        )
+        let secondProject = Project.test(
+            path: temporaryPath.appending(component: "second-selected-configuration"),
+            settings: secondSettings,
+            targets: [secondFramework]
+        )
+        let firstGraph = Graph.test(projects: [firstProject.path: firstProject])
+        let secondGraph = Graph.test(projects: [secondProject.path: secondProject])
+        let firstGraphTarget = GraphTarget(path: firstProject.path, target: firstFramework, project: firstProject)
+        let secondGraphTarget = GraphTarget(path: secondProject.path, target: secondFramework, project: secondProject)
+
+        // When
+        let firstHashes = try await subject.contentHashes(
+            for: firstGraph,
+            configuration: selectedConfiguration.name,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            coverage: .off
+        )
+        let secondHashes = try await subject.contentHashes(
+            for: secondGraph,
+            configuration: selectedConfiguration.name,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            coverage: .off
+        )
+
+        // Then
+        #expect(firstHashes[firstGraphTarget]?.hash != secondHashes[secondGraphTarget]?.hash)
+    }
+
+    /// Xcode releases can ship the same compiler with different SDKs (e.g. Xcode 27.0 and 27.1 beta 1 both
+    /// ship `swiftlang-6.4.0.34.1`). Binaries built against one SDK fail to import under the other with
+    /// "SDK does not match", so the hashes must change with the Xcode build even when the compiler doesn't.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
+    ) func contentHashes_changingXcodeBuildWithTheSameCompilerChangesHash() async throws {
+        // Given
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let framework = makeFramework(sources: [source1])
+        let project = Project.test(
+            path: temporaryPath.appending(component: "project"),
+            settings: .default,
+            targets: [framework]
+        )
+        let graph = Graph.test(projects: [project.path: project])
+        let graphTarget = GraphTarget(path: project.path, target: framework, project: project)
+
+        // When
+        let firstHashes = try await contentHashes(for: graph, xcodeBuildVersion: "27A266a")
+        let secondHashes = try await contentHashes(for: graph, xcodeBuildVersion: "27A9269")
+
+        // Then
+        let firstHash = try #require(firstHashes[graphTarget])
+        let secondHash = try #require(secondHashes[graphTarget])
+        #expect(firstHash.hash != secondHash.hash)
+        #expect(firstHash.binaryCacheFingerprints != secondHash.binaryCacheFingerprints)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController
+    ) func contentHashes_baseDebugSettingsOnlyAffectDebugConfiguration() async throws {
+        // Given
+        let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
+        let projectSettings = Settings.default
+        let firstTargetSettings = Settings.test(
+            baseDebug: ["ENABLE_TESTING_SEARCH_PATHS": "YES"]
+        )
+        let secondTargetSettings = Settings.test(
+            baseDebug: ["ENABLE_TESTING_SEARCH_PATHS": "NO"]
+        )
+        let firstFramework = makeFramework(settings: firstTargetSettings, sources: [source1])
+        let secondFramework = makeFramework(settings: secondTargetSettings, sources: [source1])
+        let firstProject = Project.test(
+            path: temporaryPath.appending(component: "first-base-debug"),
+            settings: projectSettings,
+            targets: [firstFramework]
+        )
+        let secondProject = Project.test(
+            path: temporaryPath.appending(component: "second-base-debug"),
+            settings: projectSettings,
+            targets: [secondFramework]
+        )
+        let firstGraph = Graph.test(projects: [firstProject.path: firstProject])
+        let secondGraph = Graph.test(projects: [secondProject.path: secondProject])
+        let firstGraphTarget = GraphTarget(path: firstProject.path, target: firstFramework, project: firstProject)
+        let secondGraphTarget = GraphTarget(path: secondProject.path, target: secondFramework, project: secondProject)
+
+        // When
+        let firstDebugHashes = try await subject.contentHashes(
+            for: firstGraph,
+            configuration: BuildConfiguration.debug.name,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            coverage: .off
+        )
+        let secondDebugHashes = try await subject.contentHashes(
+            for: secondGraph,
+            configuration: BuildConfiguration.debug.name,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            coverage: .off
+        )
+        let firstReleaseHashes = try await subject.contentHashes(
+            for: firstGraph,
+            configuration: BuildConfiguration.release.name,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            coverage: .off
+        )
+        let secondReleaseHashes = try await subject.contentHashes(
+            for: secondGraph,
+            configuration: BuildConfiguration.release.name,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            coverage: .off
+        )
+
+        // Then
+        #expect(firstDebugHashes[firstGraphTarget]?.hash != secondDebugHashes[secondGraphTarget]?.hash)
+        #expect(firstReleaseHashes[firstGraphTarget]?.hash == secondReleaseHashes[secondGraphTarget]?.hash)
     }
 
     @Test(
@@ -184,17 +677,29 @@ struct ContentHashingIntegrationTests {
         )
 
         // When
-        let contentHash = try await subject.contentHashes(
+        let firstRun = try await subject.contentHashes(
             for: graph,
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
+        )
+        let secondRun = try await subject.contentHashes(
+            for: graph,
+            configuration: "Debug",
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            coverage: .off
         )
 
         // Then
-        #expect(contentHash[framework1]?.hash == "ace0e66fd16d8b768bd58c35244a3209")
-        #expect(contentHash[framework2]?.hash == "d11f8c71245010ac65117b425d1c0c80")
+        #expect(firstRun[framework1]?.hash == "98eabc6075e21d340bd96c24197d9a21")
+        #expect(firstRun[framework2]?.hash == "c32f18144e8065a67c0f90a5c6f4aae5")
+        #expect(firstRun[framework1]?.hash == secondRun[framework1]?.hash)
+        #expect(firstRun[framework2]?.hash == secondRun[framework2]?.hash)
+        #expect(firstRun[framework1]?.hash != firstRun[framework2]?.hash)
     }
 
     // MARK: - Resources
@@ -234,7 +739,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -276,7 +782,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -319,7 +826,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -363,7 +871,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -405,7 +914,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         // Then
@@ -451,7 +961,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         #expect(contentHash[framework1] != contentHash[framework2])
@@ -494,7 +1005,8 @@ struct ContentHashingIntegrationTests {
             configuration: "Debug",
             defaultConfiguration: nil,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: .off
         )
 
         #expect(contentHash[framework1] != contentHash[framework2])
@@ -502,14 +1014,28 @@ struct ContentHashingIntegrationTests {
 
     // MARK: - Private helpers
 
+    private func contentHashes(for graph: Graph, xcodeBuildVersion: String) async throws -> [GraphTarget: TargetContentHash] {
+        let xcodeController = MockXcodeControlling()
+        given(xcodeController).selectedBuildVersion().willReturn(xcodeBuildVersion)
+        return try await XcodeController.$current.withValue(xcodeController) {
+            try await subject.contentHashes(
+                for: graph,
+                configuration: "Debug",
+                defaultConfiguration: nil,
+                excludedTargets: [],
+                destination: nil,
+                coverage: .off
+            )
+        }
+    }
+
     private func createTemporarySourceFile(
         on temporaryDirectoryPath: AbsolutePath,
         name: String,
         content: String
     ) throws -> SourceFile {
         let filePath = temporaryDirectoryPath.appending(component: name)
-        try FileHandler.shared.touch(filePath)
-        try FileHandler.shared.write(content, path: filePath, atomically: true)
+        try Data(content.utf8).write(to: filePath.url)
         return SourceFile(path: filePath, compilerFlags: nil)
     }
 
@@ -519,8 +1045,7 @@ struct ContentHashingIntegrationTests {
         content: String
     ) throws -> ResourceFileElement {
         let filePath = temporaryDirectoryPath.appending(component: name)
-        try FileHandler.shared.touch(filePath)
-        try FileHandler.shared.write(content, path: filePath, atomically: true)
+        try Data(content.utf8).write(to: filePath.url)
         return ResourceFileElement.file(path: filePath)
     }
 
@@ -530,27 +1055,44 @@ struct ContentHashingIntegrationTests {
         content: String
     ) throws -> ResourceFileElement {
         let filePath = temporaryDirectoryPath.appending(component: name)
-        try FileHandler.shared.touch(filePath)
-        try FileHandler.shared.write(content, path: filePath, atomically: true)
+        try Data(content.utf8).write(to: filePath.url)
         return ResourceFileElement.folderReference(path: filePath)
     }
 
     private func makeFramework(
+        name: String = "Target",
         platform: Platform = .iOS,
         productName: String? = nil,
+        settings: Settings? = .test(),
         sources: [SourceFile] = [],
         resources: ResourceFileElements = .init([]),
         coreDataModels: [CoreDataModel] = [],
-        targetScripts: [TargetScript] = []
+        targetScripts: [TargetScript] = [],
+        dependencies: [TargetDependency] = []
     ) -> Target {
         .test(
+            name: name,
             platform: platform,
             product: .framework,
             productName: productName,
+            settings: settings,
             sources: sources,
             resources: resources,
             coreDataModels: coreDataModels,
-            scripts: targetScripts
+            scripts: targetScripts,
+            dependencies: dependencies
+        )
+    }
+
+    private func makeLibrary(
+        name: String,
+        product: Product,
+        sources: [SourceFile] = []
+    ) -> Target {
+        .test(
+            name: name,
+            product: product,
+            sources: sources
         )
     }
 }

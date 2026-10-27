@@ -4,12 +4,16 @@ import Mockable
 import OpenAPIRuntime
 import Path
 import TuistHTTP
+import TuistLogging
 
 #if canImport(TuistProcess)
     import TuistProcess
 #endif
 
 #if canImport(TuistSupport)
+    import TuistAlert
+    import TuistConstants
+    import TuistEnvironment
     import TuistSupport
 #endif
 
@@ -37,6 +41,8 @@ public enum ServerAuthenticationControllerError: LocalizedError, Equatable {
 @Mockable
 public protocol ServerAuthenticationControlling: Sendable {
     func authenticationToken(serverURL: URL) async throws -> AuthenticationToken?
+    func authenticationToken(serverURL: URL, refreshIfNeeded: Bool) async throws
+        -> AuthenticationToken?
     func refreshToken(serverURL: URL) async throws
     func refreshToken(serverURL: URL, inBackground: Bool, locking: Bool, forceInProcessLock: Bool)
         async throws
@@ -58,8 +64,8 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
     /// in CI environments where limited scopes are desired for security reasons.
     case project(String)
 
-    /// The token represents an account session, typically obtained via OIDC from a CI provider.
-    /// These tokens cannot be refreshed and are valid until expiry.
+    /// The token represents an account session without a refresh token, typically obtained via OIDC
+    /// from a CI provider. These tokens cannot be refreshed and are valid until expiry.
     case account(JWT)
 
     /// It returns the value of the token
@@ -98,7 +104,7 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
         func withLock<T>(
             lockfilePath: AbsolutePath,
             serverURL: URL,
-            maxAttempts: Int = 10,
+            maxAttempts: Int = 30,
             retryInterval: UInt64 = 500, // Milliseconds
             action: (_ complete: () async throws -> Void) async throws -> Void,
             fetchActionResult: () async throws -> T?
@@ -191,6 +197,7 @@ public enum AuthenticationToken: Equatable, CustomStringConvertible {
 // swiftlint:disable:next type_body_length
 public struct ServerAuthenticationController: ServerAuthenticationControlling {
     private let refreshAuthTokenService: RefreshAuthTokenServicing
+    private let refreshOAuthTokenService: RefreshOAuthTokenServicing
     private let fileSystem: FileSysteming
     private let cachedValueStore: CachedValueStoring
     #if canImport(TuistSupport)
@@ -198,18 +205,22 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         private static let fileSystemLockActor: FileSystemLockActor = .init(
             fileSystem: FileSystem()
         )
+    #endif
 
+    #if canImport(TuistProcess)
         private let backgroundProcessRunner: BackgroundProcessRunning
     #endif
 
-    #if canImport(TuistSupport)
+    #if canImport(TuistProcess)
         public init(
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
+            refreshOAuthTokenService: RefreshOAuthTokenServicing = RefreshOAuthTokenService(),
             fileSystem: FileSysteming = FileSystem(),
             backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
             cachedValueStore: CachedValueStoring = CachedValueStore.current
         ) {
             self.refreshAuthTokenService = refreshAuthTokenService
+            self.refreshOAuthTokenService = refreshOAuthTokenService
             self.fileSystem = fileSystem
             self.backgroundProcessRunner = backgroundProcessRunner
             self.cachedValueStore = cachedValueStore
@@ -217,10 +228,12 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     #else
         public init(
             refreshAuthTokenService: RefreshAuthTokenServicing = RefreshAuthTokenService(),
+            refreshOAuthTokenService: RefreshOAuthTokenServicing = RefreshOAuthTokenService(),
             fileSystem: FileSysteming = FileSystem(),
             cachedValueStore: CachedValueStoring = CachedValueStore.current
         ) {
             self.refreshAuthTokenService = refreshAuthTokenService
+            self.refreshOAuthTokenService = refreshOAuthTokenService
             self.fileSystem = fileSystem
             self.cachedValueStore = cachedValueStore
         }
@@ -229,37 +242,104 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
     @discardableResult public func authenticationToken(serverURL: URL)
         async throws -> AuthenticationToken?
     {
+        try await authenticationToken(serverURL: serverURL, refreshIfNeeded: true)
+    }
+
+    @discardableResult public func authenticationToken(
+        serverURL: URL,
+        refreshIfNeeded: Bool
+    ) async throws -> AuthenticationToken? {
         #if canImport(TuistSupport)
             if let environmentToken = try await environmentToken() {
                 return environmentToken
-            } else {
-                return try await authenticationTokenRefreshingIfNeeded(
-                    serverURL: serverURL,
-                    forceRefresh: false,
-                    inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
-                    locking: true
-                )
             }
-        #else
-            return try await authenticationTokenRefreshingIfNeeded(
-                serverURL: serverURL, forceRefresh: false,
-                inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
-                locking: false
-            )
         #endif
+
+        if !refreshIfNeeded {
+            switch try await tokenStatus(serverURL: serverURL, forceRefresh: false) {
+            case let .valid(token):
+                return token
+            case .expired, .absent:
+                return nil
+            }
+        }
+
+        // Memoize the resolved token in the shared value store, bounded by the
+        // token's own expiry, so hot callers — chiefly `tuist auth token`, which
+        // the CAS proxy shells out to for its bearer — don't re-resolve (a keychain
+        // read on macOS, which serializes through securityd) on every call. The
+        // refresh/rotation flow still runs whenever the memoized entry lapses
+        // shortly before the token expires. Keyed distinctly from the refresh
+        // lock so the two do not collide.
+        return try await cachedValueStore.getValue(
+            key: "authentication-token-\(serverURL.absoluteString)"
+        ) { () -> (value: AuthenticationToken, expiresAt: Date?)? in
+            guard let token = try await authenticationTokenRefreshingIfNeeded(
+                serverURL: serverURL,
+                forceRefresh: false,
+                inBackground: ServerAuthenticationConfig.current.backgroundRefresh,
+                locking: true
+            ) else {
+                // An absent result is not memoized, so a fresh login is picked up
+                // on the next call.
+                return nil
+            }
+            return (value: token, expiresAt: Self.memoizationExpiry(for: token))
+        }
     }
 
-    private func deletingCredentialsOnUnauthorizedError<T>(
+    /// In-memory memoization horizon for a resolved token. User/account tokens are
+    /// cached until shortly before their JWT expiry so the refresh path re-runs in
+    /// time; project tokens carry no refreshable expiry so they get a short TTL.
+    private static func memoizationExpiry(for token: AuthenticationToken) -> Date? {
+        switch token {
+        case let .user(accessToken, _):
+            return accessToken.expiryDate.addingTimeInterval(-60)
+        case let .account(accessToken):
+            return accessToken.expiryDate.addingTimeInterval(-60)
+        case .project:
+            return Date().addingTimeInterval(300)
+        }
+    }
+
+    private func preservingCredentialsOnUnauthorizedError<T>(
         serverURL: URL, action: () async throws -> T
     ) async throws -> T {
+        // Snapshot the refresh token before the action so we can detect a peer
+        // process rotating it while our refresh request was in flight. Without
+        // this, two parallel `tuist` invocations can race: the slower one POSTs
+        // a now-revoked refresh token, the server responds 401, and we used to
+        // wipe the credentials file even though the on-disk credentials had
+        // already been refreshed by the peer.
+        let refreshTokenBeforeAction = try? await ServerCredentialsStore.current
+            .read(serverURL: serverURL)?.refreshToken
         do {
             return try await action()
         } catch let error as RefreshAuthTokenServiceError {
             if case .unauthorized = error {
-                #if canImport(TuistSupport)
-                    Logger.current.debug("Deleting the credentials for \(serverURL)")
-                #endif
-                try? await ServerCredentialsStore.current.delete(serverURL: serverURL)
+                let refreshTokenAfterAction = try? await ServerCredentialsStore.current
+                    .read(serverURL: serverURL)?.refreshToken
+                let credentialsChangedDuringRefresh = refreshTokenBeforeAction != refreshTokenAfterAction
+                Logger.current.debug(
+                    "Unauthorized refresh handled credentials_changed_during_refresh=\(credentialsChangedDuringRefresh)"
+                )
+                if credentialsChangedDuringRefresh {
+                    #if canImport(TuistSupport)
+                        Logger.current.debug(
+                            "Refresh token for \(serverURL) was rotated by another process; preserving credentials"
+                        )
+                    #endif
+                } else {
+                    if let credentials = try await ServerCredentialsStore.current.read(serverURL: serverURL),
+                       credentials.refreshToken == refreshTokenBeforeAction
+                    {
+                        try await ServerCredentialsStore.current.store(credentials: ServerCredentials(
+                            accessToken: credentials.accessToken, refreshToken: credentials.refreshToken,
+                            oauthClientID: credentials.oauthClientID, rejected: true
+                        ), serverURL: serverURL)
+                    }
+                    Logger.current.debug("Marked rejected credentials for \(serverURL); sign in again or sign out explicitly")
+                }
             }
             throw error
         } catch {
@@ -301,6 +381,14 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             Logger.current.debug("Refreshing authentication token for \(serverURL) if needed")
         #endif
 
+        if forceRefresh, locking {
+            return try await cachedValueStore.getValue(
+                key: forceRefreshLockKey(serverURL: serverURL)
+            ) {
+                try await executeRefresh(serverURL: serverURL, forceRefresh: true)
+            }
+        }
+
         let fetchActionResult = { () async throws -> AuthenticationToken? in
             switch try await tokenStatus(serverURL: serverURL, forceRefresh: false) {
             case let .valid(token):
@@ -330,19 +418,22 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                         let token = try await fileSystemLocked(
                             serverURL: serverURL,
                             action: { deleteLockfile in
-                                _ = try await executeRefresh(
-                                    serverURL: serverURL, forceRefresh: forceRefresh
-                                )
-                                try await deleteLockfile()
+                                do {
+                                    _ = try await executeRefresh(serverURL: serverURL, forceRefresh: forceRefresh)
+                                    try await deleteLockfile()
+                                } catch {
+                                    try await deleteLockfile()
+                                    throw error
+                                }
                             }, fetchActionResult: fetchActionResult
                         )
                         switch token {
                         case .project:
                             return (token, nil as Date?)
                         case let .account(accessToken):
-                            return (token, accessToken.expiryDate)
-                        case let .user(accessToken: _, refreshToken: refreshToken):
-                            return (token, refreshToken.expiryDate)
+                            return (token, cacheExpirationDate(for: accessToken))
+                        case let .user(accessToken: accessToken, refreshToken: _):
+                            return (token, cacheExpirationDate(for: accessToken))
                         }
                     }
                 #else
@@ -354,7 +445,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         case (.expired, false, false): // Foreground without locking
             return try await executeRefresh(serverURL: serverURL, forceRefresh: forceRefresh)?.value
         case (.expired, true, true): // Background with locking
-            #if canImport(TuistSupport)
+            #if canImport(TuistProcess)
                 return try await cachedValueStore.getValue(key: lockKey(serverURL: serverURL)) {
                     let token = try await Self.fileSystemLockActor.withLock(
                         lockfilePath: lockFilePath(serverURL: serverURL),
@@ -368,9 +459,9 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                     case .project:
                         return (token, nil as Date?)
                     case let .account(accessToken):
-                        return (token, accessToken.expiryDate)
-                    case let .user(accessToken: _, refreshToken: refreshToken):
-                        return (token, refreshToken.expiryDate)
+                        return (token, cacheExpirationDate(for: accessToken))
+                    case let .user(accessToken: accessToken, refreshToken: _):
+                        return (token, cacheExpirationDate(for: accessToken))
                     }
                 }
             #else
@@ -453,6 +544,9 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             )
         }
 
+    #endif
+
+    #if canImport(TuistProcess)
         func spawnRefreshProcess(serverURL: URL) async throws {
             try backgroundProcessRunner.runInBackground(
                 [Environment.current.currentExecutablePath()?.pathString ?? ""] + [
@@ -466,16 +560,22 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
 
     func tokenStatus(serverURL: URL, forceRefresh: Bool) async throws -> AuthenticationTokenStatus {
         guard let token = try await fetchTokenFromStore(serverURL: serverURL) else {
+            recordTokenStatus("absent")
             return .absent
         }
 
         switch token {
         case .project:
+            recordTokenStatus("valid_project")
             return .valid(token)
         case let .account(accessToken):
             let now = Date.now()
             let expiresIn = accessToken.expiryDate.timeIntervalSince(now)
-            if expiresIn < 30 { return .expired }
+            if expiresIn < 30 {
+                recordTokenStatus("expired_account", accessToken: accessToken)
+                return .expired
+            }
+            recordTokenStatus("valid_account", accessToken: accessToken)
             return .valid(token)
         case let .user(
             accessToken, refreshToken
@@ -485,7 +585,11 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
             let expiresIn = accessToken.expiryDate
                 .timeIntervalSince(now)
             let refresh = expiresIn < 30 || forceRefresh
-            if refresh { return .expired }
+            if refresh {
+                recordTokenStatus("expired_user", accessToken: accessToken, refreshToken: refreshToken)
+                return .expired
+            }
+            recordTokenStatus("valid_user", accessToken: accessToken, refreshToken: refreshToken)
             return .valid(
                 .user(
                     accessToken: accessToken,
@@ -495,10 +599,20 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         }
     }
 
+    private func recordTokenStatus(
+        _ status: String,
+        accessToken: JWT? = nil,
+        refreshToken: JWT? = nil
+    ) {
+        Logger.current.debug(
+            "Token status evaluated status=\(status) \(expirationDescription(accessToken: accessToken, refreshToken: refreshToken))"
+        )
+    }
+
     func executeRefresh(serverURL: URL, forceRefresh: Bool) async throws -> (
         value: AuthenticationToken, expiresAt: Date?
     )? {
-        return try await deletingCredentialsOnUnauthorizedError(serverURL: serverURL) {
+        return try await preservingCredentialsOnUnauthorizedError(serverURL: serverURL) {
             guard let token = try await fetchTokenFromStore(serverURL: serverURL) else {
                 return nil
             }
@@ -511,7 +625,7 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                 upToDateToken = token
             case let .account(accessToken):
                 upToDateToken = token
-                expiresAt = accessToken.expiryDate
+                expiresAt = cacheExpirationDate(for: accessToken)
             case let .user(
                 accessToken, refreshToken
             ):
@@ -533,29 +647,30 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
                     }
                 #endif
                 if refresh {
-                    #if canImport(TuistSupport)
-                        Logger.current.debug("Refreshing access token for \(serverURL)")
-                    #endif
+                    Logger.current.debug(
+                        "Token refresh started \(expirationDescription(accessToken: accessToken, refreshToken: refreshToken))"
+                    )
                     let tokens = try await refreshTokens(
                         serverURL: serverURL, refreshToken: refreshToken
                     )
                     #if canImport(TuistSupport)
                         Logger.current.debug("Access token refreshed for \(serverURL)")
                     #endif
+                    let accessToken = try JWT.parse(tokens.accessToken)
                     upToDateToken = .user(
-                        accessToken: try JWT.parse(tokens.accessToken),
+                        accessToken: accessToken,
                         refreshToken: try JWT.parse(tokens.refreshToken)
                     )
-                    expiresAt = try JWT.parse(tokens.accessToken)
-                        .expiryDate
+                    expiresAt = cacheExpirationDate(for: accessToken)
                 } else {
                     upToDateToken = .user(
                         accessToken: accessToken,
                         refreshToken: refreshToken
                     )
-                    expiresAt = accessToken.expiryDate
+                    expiresAt = cacheExpirationDate(for: accessToken)
                 }
             }
+
             return (value: upToDateToken, expiresAt: expiresAt)
         }
     }
@@ -578,21 +693,49 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         "token_\(serverURL.absoluteString)"
     }
 
+    private func forceRefreshLockKey(serverURL: URL) async throws -> String {
+        guard let token = try await fetchTokenFromStore(serverURL: serverURL) else {
+            return "\(lockKey(serverURL: serverURL))_force_refresh_absent"
+        }
+
+        return "\(lockKey(serverURL: serverURL))_force_refresh_\(stableHash(token.value))"
+    }
+
     private func fetchTokenFromStore(serverURL: URL) async throws -> AuthenticationToken? {
         let credentials: ServerCredentials? = try await ServerCredentialsStore.current.read(
             serverURL: serverURL
         )
         return try credentials.map {
+            guard $0.rejected != true else { throw ServerReportPublishingError.invalidCredentials }
             let accessToken = try JWT.parse($0.accessToken)
             if accessToken.type == "account" {
-                return .account(accessToken)
+                // Account tokens issued by the OAuth authorization server, such as the ones the Tuist app
+                // signs in with, carry an account refresh token and go through the same refresh flow as user tokens.
+                guard let refreshToken = $0.refreshToken.flatMap({ try? JWT.parse($0) }),
+                      refreshToken.type == "account"
+                else { return .account(accessToken) }
+                return .user(accessToken: accessToken, refreshToken: refreshToken)
             } else {
+                guard let refreshToken = $0.refreshToken else {
+                    throw ServerReportPublishingError.invalidCredentials
+                }
                 return .user(
                     accessToken: accessToken,
-                    refreshToken: try JWT.parse($0.refreshToken!)
+                    refreshToken: try JWT.parse(refreshToken)
                 )
             }
         }
+    }
+
+    private func stableHash(_ value: String) -> String {
+        let hash = value.utf8.reduce(UInt64(14_695_981_039_346_656_037)) { hash, byte in
+            (hash ^ UInt64(byte)) &* 1_099_511_628_211
+        }
+        return String(hash, radix: 16)
+    }
+
+    private func cacheExpirationDate(for token: JWT) -> Date {
+        token.expiryDate.addingTimeInterval(-30)
     }
 
     private func environmentToken() async throws -> AuthenticationToken? {
@@ -639,34 +782,83 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         refreshToken: JWT
     ) async throws -> ServerAuthenticationTokens {
         do {
-            let newTokens = try await RetryProvider()
-                .runWithRetries {
-                    return try await refreshAuthTokenService.refreshTokens(
-                        serverURL: serverURL,
-                        refreshToken: refreshToken.token
-                    )
-                }
+            let credentials = try await ServerCredentialsStore.current.read(serverURL: serverURL)
+            let newTokens = if refreshToken.type == "account" {
+                try await refreshOAuthTokenService.refreshTokens(
+                    serverURL: serverURL,
+                    refreshToken: refreshToken.token
+                )
+            } else {
+                try await refreshAuthTokenService.refreshTokens(
+                    serverURL: serverURL,
+                    refreshToken: refreshToken.token
+                )
+            }
+            // The server answers a refresh token spent within the last minute with the pair that first
+            // exchange minted, which a peer process may have rotated since. Storing it would replace the
+            // peer's live pair with a revoked one, so the stored pair wins once it no longer holds the
+            // refresh token this exchange spent.
+            if let storedCredentials = try await ServerCredentialsStore.current.read(serverURL: serverURL),
+               let storedRefreshToken = storedCredentials.refreshToken,
+               storedRefreshToken != refreshToken.token,
+               storedCredentials.rejected != true
+            {
+                Logger.current.debug("Refresh token for \(serverURL) was rotated by another process; keeping its credentials")
+                return ServerAuthenticationTokens(
+                    accessToken: storedCredentials.accessToken,
+                    refreshToken: storedRefreshToken
+                )
+            }
             try await ServerCredentialsStore.current
                 .store(
                     credentials: ServerCredentials(
                         accessToken: newTokens.accessToken,
-                        refreshToken: newTokens.refreshToken
+                        refreshToken: newTokens.refreshToken,
+                        oauthClientID: credentials?.oauthClientID
                     ),
                     serverURL: serverURL
                 )
+            let accessToken = try? JWT.parse(newTokens.accessToken)
+            let refreshToken = try? JWT.parse(newTokens.refreshToken)
+            Logger.current.debug(
+                "Token refresh succeeded \(expirationDescription(accessToken: accessToken, refreshToken: refreshToken))"
+            )
             return newTokens
         } catch let error as ClientError {
-            let underlyingError = error.underlyingError as NSError
-            switch URLError.Code(rawValue: underlyingError.code) {
-            case .notConnectedToInternet:
+            if ServerErrorClassifier.isTransient(error) {
+                Logger.current.debug(
+                    "Token refresh deferred for transient error_type=\(String(reflecting: type(of: error.underlyingError)))"
+                )
                 throw error
-            default:
-                throw ClientAuthenticationError.notAuthenticated
             }
+            Logger.current.error(
+                "Token refresh failed error_type=\(String(reflecting: type(of: error.underlyingError)))"
+            )
+            throw ClientAuthenticationError.notAuthenticated
         } catch let error as RefreshAuthTokenServiceError {
+            Logger.current.error(
+                "Token refresh failed error_type=\(String(reflecting: type(of: error)))"
+            )
+            throw error
+        } catch where ServerErrorClassifier.isTransient(error) {
+            Logger.current.debug(
+                "Token refresh deferred for transient error_type=\(String(reflecting: type(of: error)))"
+            )
             throw error
         } catch {
+            Logger.current.error(
+                "Token refresh failed error_type=\(String(reflecting: type(of: error)))"
+            )
             throw ClientAuthenticationError.notAuthenticated
         }
+    }
+
+    private func expirationDescription(accessToken: JWT?, refreshToken: JWT?) -> String {
+        "access_token_expires_at=\(accessToken.map { format($0.expiryDate) } ?? "unknown") "
+            + "refresh_token_expires_at=\(refreshToken.map { format($0.expiryDate) } ?? "unknown")"
+    }
+
+    private func format(_ date: Date) -> String {
+        ISO8601DateFormatter().string(from: date)
     }
 }

@@ -3,7 +3,7 @@ import TuistCore
 import XcodeGraph
 import XcodeProj
 
-final class SettingsHelper {
+struct SettingsHelper {
     /// - Parameters:
     ///     - inherit: Forces the new settings to inherit the old settings
     func extend(
@@ -36,8 +36,9 @@ final class SettingsHelper {
     }
 
     func settingsProviderProduct(_ target: Target) -> BuildSettingsProvider.Product? {
+        if target.isAggregate { return nil }
         switch target.product {
-        case .app, .watch2App, .appClip:
+        case .app, .watch2App, .watch2AppContainer, .appClip:
             return .application
         case .dynamicLibrary:
             return .dynamicLibrary

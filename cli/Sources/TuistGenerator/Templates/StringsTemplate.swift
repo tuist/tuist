@@ -56,7 +56,7 @@ extension SynthesizedResourceInterfaceTemplates {
       {% for child in item.children %}
 
       {{accessModifier}} enum {{child.name|swiftIdentifier:"pretty"|escapeReservedKeywords}}: Sendable {
-        {% filter indent:2 %}{% call recursiveBlock table child %}{% endfilter %}
+        {% filter indent:2," ",true %}{% call recursiveBlock table child %}{% endfilter %}
       }
       {% endfor %}
     {% endmacro %}
@@ -67,7 +67,7 @@ extension SynthesizedResourceInterfaceTemplates {
       {% if tables.count > 1 or param.forceFileNameEnum %}
       {% for table in tables %}
       {{accessModifier}} enum {{table.name|swiftIdentifier:"pretty"|escapeReservedKeywords}} {
-        {% filter indent:2 %}{% call recursiveBlock table.name table.levels %}{% endfilter %}
+        {% filter indent:2," ",true %}{% call recursiveBlock table.name table.levels %}{% endfilter %}
       }
       {% endfor %}
       {% else %}

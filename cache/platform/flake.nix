@@ -11,9 +11,12 @@
     opnix,
     ...
   }: let
-    machines = [
+    hetznerMachines = [
       "cache-eu-central"
+      "cache-eu-north"
       "cache-us-east"
+      "cache-us-east-2"
+      "cache-us-east-3"
       "cache-us-west"
       "cache-ap-southeast"
       "cache-eu-central-staging"
@@ -28,22 +31,38 @@
       ./users.nix
     ];
 
-    mkColmenaNode = hostname: {
-      deployment = {
-        targetHost = "${hostname}.tuist.dev";
-        buildOnTarget = true;
-      };
-      imports = sharedModules ++ [
+    mkModules = diskConfig: hostname:
+      sharedModules
+      ++ [
+        diskConfig
         {
           networking.hostName = hostname;
         }
       ];
-    };
-  in {
-    colmena = {
-      meta = {
-        nixpkgs = import nixpkgs {system = "x86_64-linux";};
+
+    mkColmenaNode = diskConfig: hostname: {
+      deployment = {
+        targetHost = "${hostname}.tuist.dev";
+        buildOnTarget = true;
       };
-    } // nixpkgs.lib.genAttrs machines mkColmenaNode;
+      imports = mkModules diskConfig hostname;
+    };
+
+    mkNixosConfig = diskConfig: hostname:
+      nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = mkModules diskConfig hostname;
+      };
+  in {
+    nixosConfigurations =
+      nixpkgs.lib.genAttrs hetznerMachines (mkNixosConfig ./disk-config-hetzner.nix);
+
+    colmena =
+      {
+        meta = {
+          nixpkgs = import nixpkgs {system = "x86_64-linux";};
+        };
+      }
+      // nixpkgs.lib.genAttrs hetznerMachines (mkColmenaNode ./disk-config-hetzner.nix);
   };
 }

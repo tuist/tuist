@@ -283,6 +283,128 @@ defmodule Tuist.Alerts.AlertRuleTest do
       assert "does not exist" in errors_on(changeset_with_error).project_id
     end
 
+    test "is invalid when bundle_size category has a non-bundle-size metric" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for metric <- [:p50, :p90, :p99, :average] do
+        # When
+        changeset =
+          AlertRule.changeset(%AlertRule{}, %{
+            project_id: project.id,
+            name: "Test Alert",
+            category: :bundle_size,
+            metric: metric,
+            deviation_percentage: 20.0,
+            git_branch: "main",
+            slack_channel_id: "C123456",
+            slack_channel_name: "test-channel"
+          })
+
+        # Then
+        assert changeset.valid? == false,
+               "Expected metric #{metric} to be invalid for bundle_size category"
+
+        assert "is invalid for bundle_size category" in errors_on(changeset).metric
+      end
+    end
+
+    test "is valid when bundle_size category has install_size or download_size metric" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for metric <- [:install_size, :download_size] do
+        # When
+        changeset =
+          AlertRule.changeset(%AlertRule{}, %{
+            project_id: project.id,
+            name: "Test Alert",
+            category: :bundle_size,
+            metric: metric,
+            deviation_percentage: 20.0,
+            git_branch: "main",
+            slack_channel_id: "C123456",
+            slack_channel_name: "test-channel"
+          })
+
+        # Then
+        assert changeset.valid?, "Expected metric #{metric} to be valid for bundle_size category"
+      end
+    end
+
+    test "is invalid when non-bundle-size category has a bundle-size metric" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for category <- [:build_run_duration, :test_run_duration, :cache_hit_rate],
+          metric <- [:install_size, :download_size] do
+        # When
+        changeset =
+          AlertRule.changeset(%AlertRule{}, %{
+            project_id: project.id,
+            name: "Test Alert",
+            category: category,
+            metric: metric,
+            deviation_percentage: 20.0,
+            rolling_window_size: 100,
+            slack_channel_id: "C123456",
+            slack_channel_name: "test-channel"
+          })
+
+        # Then
+        assert changeset.valid? == false,
+               "Expected metric #{metric} to be invalid for #{category} category"
+
+        assert "is invalid for #{category} category" in errors_on(changeset).metric
+      end
+    end
+
+    test "accepts scheme for build_run_duration category" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      changeset =
+        AlertRule.changeset(%AlertRule{}, %{
+          project_id: project.id,
+          name: "Test Alert",
+          category: :build_run_duration,
+          metric: :p90,
+          deviation_percentage: 20.0,
+          rolling_window_size: 100,
+          scheme: "MyApp",
+          slack_channel_id: "C123456",
+          slack_channel_name: "test-channel"
+        })
+
+      # Then
+      assert changeset.valid?
+      assert Ecto.Changeset.get_change(changeset, :scheme) == "MyApp"
+    end
+
+    test "accepts bundle_name for bundle_size category" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      changeset =
+        AlertRule.changeset(%AlertRule{}, %{
+          project_id: project.id,
+          name: "Test Alert",
+          category: :bundle_size,
+          metric: :install_size,
+          deviation_percentage: 20.0,
+          git_branch: "main",
+          bundle_name: "MyApp",
+          slack_channel_id: "C123456",
+          slack_channel_name: "test-channel"
+        })
+
+      # Then
+      assert changeset.valid?
+      assert Ecto.Changeset.get_change(changeset, :bundle_name) == "MyApp"
+    end
+
     test "defaults name to Untitled" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -303,6 +425,151 @@ defmodule Tuist.Alerts.AlertRuleTest do
       assert changeset.valid?
       {:ok, alert_rule} = Repo.insert(changeset)
       assert alert_rule.name == "Untitled"
+    end
+
+    test "defaults environment to :any" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      changeset =
+        AlertRule.changeset(%AlertRule{}, %{
+          project_id: project.id,
+          name: "Test Alert",
+          category: :build_run_duration,
+          metric: :p90,
+          deviation_percentage: 20.0,
+          rolling_window_size: 100,
+          slack_channel_id: "C123456",
+          slack_channel_name: "test-channel"
+        })
+
+      # Then
+      assert changeset.valid?
+      {:ok, alert_rule} = Repo.insert(changeset)
+      assert alert_rule.environment == :any
+    end
+
+    test "accepts all valid environment values as atoms" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for env <- [:any, :ci, :local] do
+        # When
+        changeset =
+          AlertRule.changeset(%AlertRule{}, %{
+            project_id: project.id,
+            name: "Test Alert",
+            category: :build_run_duration,
+            metric: :p90,
+            deviation_percentage: 20.0,
+            rolling_window_size: 100,
+            environment: env,
+            slack_channel_id: "C123456",
+            slack_channel_name: "test-channel"
+          })
+
+        # Then
+        assert changeset.valid?, "Expected environment #{env} to be valid"
+        assert Ecto.Changeset.get_field(changeset, :environment) == env
+      end
+    end
+
+    test "accepts environment as a string (cast from form)" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for {str, atom} <- [{"any", :any}, {"ci", :ci}, {"local", :local}] do
+        # When
+        changeset =
+          AlertRule.changeset(%AlertRule{}, %{
+            project_id: project.id,
+            name: "Test Alert",
+            category: :build_run_duration,
+            metric: :p90,
+            deviation_percentage: 20.0,
+            rolling_window_size: 100,
+            environment: str,
+            slack_channel_id: "C123456",
+            slack_channel_name: "test-channel"
+          })
+
+        # Then
+        assert changeset.valid?, "Expected string environment \"#{str}\" to be cast successfully"
+        assert Ecto.Changeset.get_field(changeset, :environment) == atom
+      end
+    end
+
+    test "is invalid with an unknown environment value" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      changeset =
+        AlertRule.changeset(%AlertRule{}, %{
+          project_id: project.id,
+          name: "Test Alert",
+          category: :build_run_duration,
+          metric: :p90,
+          deviation_percentage: 20.0,
+          rolling_window_size: 100,
+          environment: "unknown",
+          slack_channel_id: "C123456",
+          slack_channel_name: "test-channel"
+        })
+
+      # Then
+      assert changeset.valid? == false
+      assert "is invalid" in errors_on(changeset).environment
+    end
+
+    test "trims whitespace around the scoping fields" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      changeset =
+        AlertRule.changeset(%AlertRule{}, %{
+          project_id: project.id,
+          name: "Test Alert",
+          category: :cache_hit_rate,
+          metric: :p90,
+          deviation_percentage: 20.0,
+          rolling_window_size: 100,
+          git_branch: "  main\n",
+          scheme: " App ",
+          bundle_name: " App.ipa ",
+          slack_channel_id: "C123456",
+          slack_channel_name: "test-channel"
+        })
+
+      # Then
+      assert changeset.valid?
+      assert Ecto.Changeset.get_field(changeset, :git_branch) == "main"
+      assert Ecto.Changeset.get_field(changeset, :scheme) == "App"
+      assert Ecto.Changeset.get_field(changeset, :bundle_name) == "App.ipa"
+    end
+
+    test "is invalid when a bundle_size branch is only whitespace" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      changeset =
+        AlertRule.changeset(%AlertRule{}, %{
+          project_id: project.id,
+          name: "Test Alert",
+          category: :bundle_size,
+          metric: :install_size,
+          deviation_percentage: 20.0,
+          git_branch: "   ",
+          slack_channel_id: "C123456",
+          slack_channel_name: "test-channel"
+        })
+
+      # Then
+      assert changeset.valid? == false
+      assert "can't be blank" in errors_on(changeset).git_branch
     end
   end
 end

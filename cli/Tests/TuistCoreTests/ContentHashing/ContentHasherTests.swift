@@ -1,3 +1,4 @@
+import FileSystem
 import Path
 import TuistSupport
 import XCTest
@@ -6,17 +7,14 @@ import XCTest
 
 final class ContentHasherTests: TuistUnitTestCase {
     private var subject: ContentHasher!
-    private var mockFileHandler: MockFileHandler!
 
     override func setUp() {
         super.setUp()
-        mockFileHandler = MockFileHandler(temporaryDirectory: { try self.temporaryPath() })
-        subject = ContentHasher(fileHandler: mockFileHandler)
+        subject = ContentHasher()
     }
 
     override func tearDown() {
         subject = nil
-        mockFileHandler = nil
         super.tearDown()
     }
 
@@ -56,7 +54,7 @@ final class ContentHasherTests: TuistUnitTestCase {
 
     func test_hashFile_hashesTheExpectedFile() async throws {
         // Given
-        let path = try writeToTemporaryPath(content: "foo")
+        let path = try await writeToTemporaryPath(content: "foo")
 
         // When
         let hash = try await subject.hash(path: path)
@@ -67,7 +65,7 @@ final class ContentHasherTests: TuistUnitTestCase {
 
     func test_hashFile_isNotHarcoded() async throws {
         // Given
-        let path = try writeToTemporaryPath(content: "bar")
+        let path = try await writeToTemporaryPath(content: "bar")
 
         // When
         let hash = try await subject.hash(path: path)
@@ -83,14 +81,14 @@ final class ContentHasherTests: TuistUnitTestCase {
         // Then
         await XCTAssertThrowsSpecific(
             try await subject.hash(path: wrongPath),
-            FileHandlerError.fileNotFound(wrongPath)
+            ContentHashingError.fileHashingFailed(wrongPath)
         )
     }
 
     func test_hash_sortedContentsOfADirectorySkippingDSStore() async throws {
         // given
         let folderPath = try temporaryPath().appending(component: "assets.xcassets")
-        try mockFileHandler.createFolder(folderPath)
+        try await fileSystem.makeDirectory(at: folderPath)
 
         let files = [
             "foo": "bar",
@@ -99,15 +97,17 @@ final class ContentHasherTests: TuistUnitTestCase {
             ".DS_STORE": "should be ignored too",
         ]
 
-        try writeFiles(to: folderPath, files: files)
+        try await writeFiles(to: folderPath, files: files)
 
         // When
         let hash = try await subject.hash(path: folderPath)
 
         // Then
-        XCTAssertEqual(hash, "224e2539f52203eb33728acd228b4432-37b51d194a7513e45b56f6524f2d51f2")
-        // This is the md5 of "bar", a dash, md5 of "bar2", in sorted order according to the file name
-        // and .DS_STORE should be ignored
+        let expectedHashes = try [
+            subject.hash("path-foo-content-\(subject.hash("bar"))"),
+            subject.hash("path-foo2-content-\(subject.hash("bar2"))"),
+        ]
+        XCTAssertEqual(hash, expectedHashes.sorted().joined(separator: "-"))
     }
 
     func test_hash_ContentsOfADirectoryIncludingSymbolicLinksWithRelativePaths() async throws {
@@ -127,24 +127,31 @@ final class ContentHasherTests: TuistUnitTestCase {
             let hash = try await subject.hash(path: temporaryDirectory)
 
             // Then
-            XCTAssertEqual(
-                hash,
-                "6990a54322d9232390a784c5c9247dd6-6990a54322d9232390a784c5c9247dd6-acbd18db4cc2f85cedef654fccc4a4d8"
-            )
+            let destinationContentHash = try subject.hash("destination")
+            let expectedHashes = try [
+                subject.hash("path-destination-content-\(destinationContentHash)"),
+                subject.hash("path-foo.txt-content-\(subject.hash("foo"))"),
+                subject.hash("path-symbolic-content-\(destinationContentHash)"),
+            ]
+            XCTAssertEqual(hash, expectedHashes.sorted().joined(separator: "-"))
         }
     }
 
     // MARK: - Private
 
-    private func writeToTemporaryPath(fileName: String = "foo", content: String = "foo") throws -> AbsolutePath {
+    private func writeToTemporaryPath(fileName: String = "foo", content: String = "foo") async throws -> AbsolutePath {
         let path = try temporaryPath().appending(component: fileName)
-        try mockFileHandler.write(content, path: path, atomically: true)
+        try await fileSystem.writeText(content, at: path)
         return path
     }
 
-    private func writeFiles(to folder: AbsolutePath, files: [String: String]) throws {
+    private func writeFiles(to folder: AbsolutePath, files: [String: String]) async throws {
         for file in files {
-            try mockFileHandler.write(file.value, path: folder.appending(component: file.key), atomically: true)
+            let filePath = folder.appending(component: file.key)
+            if try await fileSystem.exists(filePath) {
+                try await fileSystem.remove(filePath)
+            }
+            try await fileSystem.writeText(file.value, at: filePath)
         }
     }
 }

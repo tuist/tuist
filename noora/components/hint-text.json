@@ -1,0 +1,49 @@
+{
+  "name": "HintText",
+  "tagName": "noora-hint-text",
+  "elementClassName": "NooraHintText",
+  "className": "noora-hint-text",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Provides supporting or validation text for a form field.",
+  "usage": "<noora-hint-text label=\"Use at least 12 characters\"></noora-hint-text>",
+  "attributes": [
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Sets the hint text."
+    },
+    {
+      "name": "variant",
+      "property": "variant",
+      "type": "string",
+      "values": ["default", "destructive", "disabled"],
+      "default": "default",
+      "description": "Controls the semantic presentation."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [],
+  "cssParts": [
+    {
+      "name": "hint",
+      "description": "The hint container."
+    }
+  ],
+  "notes": [],
+  "examples": [
+    {
+      "id": "variants",
+      "title": "Variants",
+      "description": "Communicate default, destructive, and disabled supporting text.",
+      "markup": "<noora-hint-text label=\"Use at least eight characters\"></noora-hint-text>\n<noora-hint-text variant=\"destructive\" label=\"This field is required\"></noora-hint-text>\n<noora-hint-text variant=\"disabled\" label=\"Available after setup\"></noora-hint-text>"
+    },
+    {
+      "id": "content",
+      "title": "Content examples",
+      "description": "Support validation, guidance, limits, and availability messages.",
+      "markup": "<noora-hint-text label=\"Your profile is visible to teammates\"></noora-hint-text>\n<noora-hint-text label=\"Maximum 200 characters\"></noora-hint-text>\n<noora-hint-text variant=\"destructive\" label=\"Enter a valid email address\"></noora-hint-text>\n<noora-hint-text variant=\"disabled\" label=\"Connect a project to continue\"></noora-hint-text>"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 
@@ -54,6 +55,7 @@ public struct ExplicitDependencyGraphMapper: GraphMapping {
             name: graphTarget.target.name
         )
         let frameworkSearchPaths = allTargetDependencies
+            .sorted()
             .map(\.target.productName).map {
                 "$(CONFIGURATION_BUILD_DIR)$(TARGET_BUILD_SUBPATH)/\($0)"
             }

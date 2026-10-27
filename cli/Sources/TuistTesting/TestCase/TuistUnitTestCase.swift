@@ -1,29 +1,24 @@
-import FileSystem
-import Foundation
-import XCTest
+#if os(macOS)
+    import FileSystem
+    import Foundation
+    import XCTest
 
-@testable import TuistSupport
+    open class TuistUnitTestCase: TuistTestCase {
+        public var mockCommandRunner: MockCommandRunner!
+        public var fileSystem: FileSysteming!
 
-open class TuistUnitTestCase: TuistTestCase {
-    public var system: MockSystem!
-    public var fileSystem: FileSysteming!
+        override open func setUp() {
+            super.setUp()
+            mockCommandRunner = MockCommandRunner()
 
-    override open func setUp() {
-        super.setUp()
-        // System
-        system = MockSystem()
-        System._shared.mutate { $0 = system }
+            fileSystem = FileSystem()
+        }
 
-        fileSystem = FileSystem()
+        override open func tearDown() {
+            mockCommandRunner = nil
+            fileSystem = nil
+
+            super.tearDown()
+        }
     }
-
-    override open func tearDown() {
-        // System
-        system = nil
-        System._shared.mutate { $0 = System() }
-
-        fileSystem = nil
-
-        super.tearDown()
-    }
-}
+#endif

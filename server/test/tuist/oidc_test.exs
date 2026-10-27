@@ -14,12 +14,22 @@ defmodule Tuist.OIDCTest do
     test "successfully verifies a valid GitHub Actions OIDC token" do
       {token, jwks} = generate_test_token_and_jwks()
 
-      stub(Req, :get, fn _url ->
+      stub(Req, :get, fn _url, _opts ->
         {:ok, %{status: 200, body: jwks}}
       end)
 
       assert {:ok, claims} = OIDC.claims(token)
       assert claims.repository == "tuist/tuist"
+    end
+
+    test "returns error for GitHub Actions token with invalid audience" do
+      {token, jwks} = generate_test_token_and_jwks(claims: %{"aud" => "other-service"})
+
+      stub(Req, :get, fn _url, _opts ->
+        {:ok, %{status: 200, body: jwks}}
+      end)
+
+      assert {:error, :invalid_audience} = OIDC.claims(token)
     end
 
     test "returns error for invalid token format" do
@@ -31,7 +41,7 @@ defmodule Tuist.OIDCTest do
       {token, jwks} =
         generate_test_token_and_jwks(exp: DateTime.utc_now() |> DateTime.add(-3600) |> DateTime.to_unix())
 
-      stub(Req, :get, fn _url ->
+      stub(Req, :get, fn _url, _opts ->
         {:ok, %{status: 200, body: jwks}}
       end)
 
@@ -41,7 +51,7 @@ defmodule Tuist.OIDCTest do
     test "returns error when JWKS fetch fails" do
       {token, _jwks} = generate_test_token_and_jwks()
 
-      stub(Req, :get, fn _url ->
+      stub(Req, :get, fn _url, _opts ->
         {:error, %Req.TransportError{reason: :timeout}}
       end)
 
@@ -64,7 +74,7 @@ defmodule Tuist.OIDCTest do
         ]
       }
 
-      stub(Req, :get, fn _url ->
+      stub(Req, :get, fn _url, _opts ->
         {:ok, %{status: 200, body: different_jwks}}
       end)
 
@@ -74,7 +84,7 @@ defmodule Tuist.OIDCTest do
     test "returns error for unsupported CI provider" do
       {token, _jwks} = generate_test_token_and_jwks(issuer: "https://gitlab.com")
 
-      assert {:error, :unsupported_provider, "https://gitlab.com"} = OIDC.claims(token)
+      assert {:error, :oidc_account_required} = OIDC.claims(token)
     end
 
     test "successfully verifies a valid CircleCI OIDC token" do
@@ -84,7 +94,7 @@ defmodule Tuist.OIDCTest do
           claims: %{"oidc.circleci.com/vcs-origin" => "github.com/tuist/tuist"}
         )
 
-      stub(Req, :get, fn url ->
+      stub(Req, :get, fn url, _opts ->
         assert url == "https://oidc.circleci.com/org/abc-123/.well-known/jwks-pub.json"
         {:ok, %{status: 200, body: jwks}}
       end)
@@ -100,7 +110,7 @@ defmodule Tuist.OIDCTest do
           claims: %{"oidc.circleci.com/vcs-origin" => "bitbucket.org/tuist/tuist"}
         )
 
-      stub(Req, :get, fn _url ->
+      stub(Req, :get, fn _url, _opts ->
         {:ok, %{status: 200, body: jwks}}
       end)
 
@@ -118,7 +128,7 @@ defmodule Tuist.OIDCTest do
           }
         )
 
-      stub(Req, :get, fn url ->
+      stub(Req, :get, fn url, _opts ->
         assert url == "https://token.builds.bitrise.io/.well-known/jwks"
         {:ok, %{status: 200, body: jwks}}
       end)
@@ -138,11 +148,46 @@ defmodule Tuist.OIDCTest do
           }
         )
 
-      stub(Req, :get, fn _url ->
+      stub(Req, :get, fn _url, _opts ->
         {:ok, %{status: 200, body: jwks}}
       end)
 
       assert {:error, :missing_repository_claim} = OIDC.claims(token)
+    end
+
+    test "successfully verifies a GitHub Actions token from an enterprise-scoped issuer" do
+      {token, jwks} =
+        generate_test_token_and_jwks(issuer: "https://token.actions.githubusercontent.com/my-enterprise")
+
+      stub(Req, :get, fn url, _opts ->
+        assert url == "https://token.actions.githubusercontent.com/.well-known/jwks"
+        {:ok, %{status: 200, body: jwks}}
+      end)
+
+      assert {:ok, claims} = OIDC.claims(token)
+      assert claims.repository == "tuist/tuist"
+    end
+
+    test "returns error for an enterprise-scoped GitHub Actions token with invalid audience" do
+      {token, jwks} =
+        generate_test_token_and_jwks(
+          issuer: "https://token.actions.githubusercontent.com/my-enterprise",
+          claims: %{"aud" => "other-service"}
+        )
+
+      stub(Req, :get, fn _url, _opts ->
+        {:ok, %{status: 200, body: jwks}}
+      end)
+
+      assert {:error, :invalid_audience} = OIDC.claims(token)
+    end
+
+    test "returns error for a GitHub Actions issuer with a multi-segment path" do
+      {token, _jwks} =
+        generate_test_token_and_jwks(issuer: "https://token.actions.githubusercontent.com/my-enterprise/evil")
+
+      assert {:error, :unsupported_provider, "https://token.actions.githubusercontent.com/my-enterprise/evil"} =
+               OIDC.claims(token)
     end
   end
 
@@ -152,6 +197,7 @@ defmodule Tuist.OIDCTest do
     base_claims = %{
       "iss" => Keyword.get(opts, :issuer, "https://token.actions.githubusercontent.com"),
       "exp" => Keyword.get(opts, :exp, DateTime.utc_now() |> DateTime.add(3600) |> DateTime.to_unix()),
+      "aud" => "tuist",
       "repository" => Keyword.get(opts, :repository, "tuist/tuist")
     }
 

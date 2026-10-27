@@ -1,16 +1,18 @@
 import Foundation
+import TuistConstants
 import TuistCore
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 import XcodeProj
 
 /// A project mapper that generates derived Info.plist files for targets that define it as a dictonary.
-public final class GenerateInfoPlistProjectMapper: ProjectMapping {
+public struct GenerateInfoPlistProjectMapper: ProjectMapping {
     private let infoPlistContentProvider: InfoPlistContentProviding
     private let derivedDirectoryName: String
     private let infoPlistsDirectoryName: String
 
-    public convenience init(
+    public init(
         derivedDirectoryName: String = Constants.DerivedDirectory.name,
         infoPlistsDirectoryName: String = Constants.DerivedDirectory.infoPlists
     ) {

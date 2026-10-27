@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import PathKit
 import TuistCore
 import TuistSupport
 import XcodeProj
@@ -10,9 +11,35 @@ public protocol XcodeProjWriting {
     func write(workspace: WorkspaceDescriptor) async throws
 }
 
+/// Format used to serialize each `.xcodeproj` bundle to disk.
+///
+/// Mirrors `XcodeProj.ProjectFormat` at the `TuistGenerator` boundary so callers don't need to
+/// `import XcodeProj` just to opt into the JSON5 project format that Xcode 27.2 introduced.
+public enum XcodeProjectFormat: String, Sendable, Equatable {
+    case pbxproj
+    case xcproj
+}
+
+extension XcodeProjWriting {
+    /// Sets the given format on every project inside `workspace` before delegating to
+    /// `write(workspace:)`. `XcodeProj` is a class and `projectFormat` is a `var`, so mutating
+    /// each descriptor here is enough for the writer to dispatch to the right serializer.
+    public func write(workspace: WorkspaceDescriptor, projectFormat: XcodeProjectFormat) async throws {
+        let format: ProjectFormat
+        switch projectFormat {
+        case .pbxproj: format = .pbxproj
+        case .xcproj: format = .xcproj
+        }
+        for descriptor in workspace.projectDescriptors {
+            descriptor.xcodeProj.projectFormat = format
+        }
+        try await write(workspace: workspace)
+    }
+}
+
 // MARK: -
 
-public final class XcodeProjWriter: XcodeProjWriting {
+public struct XcodeProjWriter: XcodeProjWriting {
     public struct Config {
         /// The execution context to use when writing
         /// the project descriptors within a workspace descriptor
@@ -48,7 +75,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
         let allSchemes = workspace.schemeDescriptors + workspace.projectDescriptors.flatMap(\.schemeDescriptors)
         let schemesOrderHint = schemesOrderHint(schemes: allSchemes)
         try await workspace.projectDescriptors.forEach(context: config.projectDescriptorWritingContext) { projectDescriptor in
-            try await self.write(project: projectDescriptor, schemesOrderHint: schemesOrderHint)
+            try await write(project: projectDescriptor, schemesOrderHint: schemesOrderHint)
         }
         try workspace.xcworkspace.write(path: workspace.xcworkspacePath.path, override: true)
 
@@ -82,7 +109,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
 
         // XcodeProj can manage writing of shared schemes, we have to manually manage the user schemes
         let project = enrichingXcodeProjWithSharedSchemes(descriptor: project)
-        try project.xcodeProj.write(path: project.xcodeprojPath.path)
+        try writePBXProj(project.xcodeProj, at: project.xcodeprojPath)
 
         // Write user schemes only
         try await writeSchemes(
@@ -96,7 +123,58 @@ public final class XcodeProjWriter: XcodeProjWriting {
             schemesOrderHint: schemesOrderHint
         )
 
+        // Side effects run last so that anything depending on a written `.xcodeproj` — including
+        // `.xctestplan` files that reference now-stable PBX blueprint identifiers — runs against
+        // finalized state.
         try await sideEffectDescriptorExecutor.execute(sideEffects: project.sideEffectDescriptors)
+    }
+
+    /// Writes the `.xcodeproj`, mirroring `XcodeProj.write` (workspace → project body → shared data → user
+    /// data). The body is serialized as either `project.pbxproj` (OpenStep plist) or `project.xcproj`
+    /// (Xcode 27.2 JSON5) depending on `xcodeProj.projectFormat`.
+    ///
+    /// The body is only written when its freshly serialized bytes differ from what's already on disk.
+    /// Tuist's generation is byte-deterministic for an unchanged input (PBX references are stable
+    /// hashes of identity and output is sorted), so an unchanged regeneration produces identical bytes;
+    /// leaving the file untouched preserves its modification time and avoids the inode/mtime churn an
+    /// unconditional rewrite would cause. The serialized bytes are computed once and reused for the
+    /// write, so the only added cost is a single read + compare.
+    ///
+    /// When switching formats between generations, the file for the previous format is removed so the
+    /// bundle only contains the format currently in use (`XcodeProj` picks up the first one it finds
+    /// when re-reading).
+    private func writePBXProj(_ xcodeProj: XcodeProj, at xcodeprojPath: AbsolutePath) throws {
+        let path = xcodeprojPath.path
+        try path.mkpath()
+        try xcodeProj.writeWorkspace(path: path, override: true)
+
+        switch xcodeProj.projectFormat {
+        case .pbxproj:
+            let outputSettings = PBXOutputSettings()
+            let pbxprojPath = XcodeProj.pbxprojPath(path)
+            if let output = try xcodeProj.pbxproj.dataRepresentation(outputSettings: outputSettings) {
+                let existing = pbxprojPath.exists ? try? pbxprojPath.read() : nil
+                if existing != output {
+                    if pbxprojPath.exists { try pbxprojPath.delete() }
+                    try pbxprojPath.write(output)
+                }
+            }
+            let staleXCProj = XcodeProj.xcprojPath(path)
+            if staleXCProj.exists { try staleXCProj.delete() }
+        case .xcproj:
+            let xcprojPath = XcodeProj.xcprojPath(path)
+            let output = try xcodeProj.pbxproj.xcprojData()
+            let existing = xcprojPath.exists ? try? xcprojPath.read() : nil
+            if existing != output {
+                if xcprojPath.exists { try xcprojPath.delete() }
+                try xcprojPath.write(output)
+            }
+            let stalePBXProj = XcodeProj.pbxprojPath(path)
+            if stalePBXProj.exists { try stalePBXProj.delete() }
+        }
+
+        try xcodeProj.writeSharedData(path: path, override: true)
+        try xcodeProj.writeUserData(path: path, override: true)
     }
 
     private func writeSchemes(
@@ -108,7 +186,9 @@ public final class XcodeProjWriter: XcodeProjWriting {
         if wipeSharedSchemesBeforeWriting, try await fileSystem.exists(sharedSchemesPath) {
             try await fileSystem.remove(sharedSchemesPath)
         }
-        try schemeDescriptors.forEach { try write(scheme: $0, xccontainerPath: xccontainerPath) }
+        for schemeDescriptor in schemeDescriptors {
+            try await write(scheme: schemeDescriptor, xccontainerPath: xccontainerPath)
+        }
     }
 
     private func schemesOrderHint(schemes: [SchemeDescriptor]) -> [String: Int] {
@@ -145,6 +225,37 @@ public final class XcodeProjWriter: XcodeProjWriting {
         }
         try workspaceSettingsDescriptor.settings
             .write(path: settingsPath.path, override: true)
+
+        try await writePerUserWorkspaceSettings(
+            workspaceSettingsDescriptor: workspaceSettingsDescriptor,
+            xccontainerPath: xccontainerPath
+        )
+    }
+
+    private func writePerUserWorkspaceSettings(
+        workspaceSettingsDescriptor: WorkspaceSettingsDescriptor,
+        xccontainerPath: AbsolutePath
+    ) async throws {
+        let settings = workspaceSettingsDescriptor.settings
+        guard settings.derivedDataLocationStyle != nil else { return }
+
+        let username = NSUserName()
+        let perUserSettingsPath = xccontainerPath
+            .appending(try RelativePath(validating: "xcuserdata/\(username).xcuserdatad/WorkspaceSettings.xcsettings"))
+        let parentFolder = perUserSettingsPath.removingLastComponent()
+        if try await !fileSystem.exists(parentFolder) {
+            try await fileSystem.makeDirectory(at: parentFolder)
+        }
+
+        let perUserSettings: WorkspaceSettings
+        if try await fileSystem.exists(perUserSettingsPath) {
+            perUserSettings = try WorkspaceSettings.at(path: perUserSettingsPath.path)
+        } else {
+            perUserSettings = WorkspaceSettings()
+        }
+        perUserSettings.derivedDataLocationStyle = settings.derivedDataLocationStyle
+        perUserSettings.derivedDataCustomLocation = settings.derivedDataCustomLocation
+        try perUserSettings.write(path: perUserSettingsPath.path, override: true)
     }
 
     private func deleteWorkspaceSettingsIfNeeded(xccontainerPath: AbsolutePath) async throws {
@@ -173,7 +284,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
         if try await fileSystem.exists(xcschememanagementPath) {
             try await fileSystem.remove(xcschememanagementPath)
         }
-        try FileHandler.shared.createFolder(xcschememanagementPath.parentDirectory)
+        try await fileSystem.makeDirectory(at: xcschememanagementPath.parentDirectory)
         try XCSchemeManagement(schemeUserState: userStateSchemes, suppressBuildableAutocreation: nil)
             .write(path: xcschememanagementPath.path)
     }
@@ -181,10 +292,10 @@ public final class XcodeProjWriter: XcodeProjWriting {
     private func write(
         scheme: SchemeDescriptor,
         xccontainerPath: AbsolutePath
-    ) throws {
+    ) async throws {
         let schemeDirectory = try schemeDirectory(path: xccontainerPath, shared: scheme.shared)
         let schemePath = schemeDirectory.appending(component: "\(scheme.xcScheme.name).xcscheme")
-        try FileHandler.shared.createFolder(schemeDirectory)
+        try await fileSystem.makeDirectory(at: schemeDirectory)
         try scheme.xcScheme.write(path: schemePath.path, override: true)
     }
 

@@ -1,12 +1,50 @@
+[env]
+_.source = "{{config_root}}/../mise/utilities/dev_instance_env.sh"
+TUIST_SECRET_KEY_BASE = "rpux4+W/oBey0drSFOctyIbppOG2A9VUUuTMC1WaM8xZgYxA6gg4yryG/LkOoqkj"
+# Stripe price IDs for local dev (test-mode identifiers, not secrets — the keys
+# come from fnox/1Password). Environment.stripe_prices/1 reads TUIST_STRIPE_PRICES
+# The `runners` map mirrors the managed envs: a macOS Price whose first tier
+# covers the free allowance, and Linux left empty because it has no agreed rate.
+# as a JSON string; dev has no chart to render it, so it's inlined here.
+TUIST_STRIPE_PRICES = '{"air":{"usage":["price_1PVY2kLWue9IBlPSHCmPX1jp"],"flat_monthly":["price_1PVY21LWue9IBlPSLksRxRos"]},"pro":{"usage":["price_1QMtp7LWue9IBlPSImRePMKa"],"flat_monthly":["price_1QMtzQLWue9IBlPSoRg6kBhr"]},"enterprise":{"flat_monthly":["price_1PWfxuLWue9IBlPSDbc3osiV"],"flat_yearly":[]},"runners":{"runner_linux_compute_unit_milliseconds":"","runner_macos_compute_unit_milliseconds":"price_1U6aJjLWue9IBlPSyDe2GHqs"},"runner_prepaid_minutes":"price_1UGDu3LWue9IBlPSLC8i76PJ","usage_meters":{"cache_egress_megabytes":"price_1UUl2sLWue9IBlPSoYt4ICsM","cache_requests":"price_1UISgOLWue9IBlPSA1FagFUz","passing_test_cases":"price_1UISgPLWue9IBlPSV8Z7plhm"}}'
+
+[hooks]
+  postinstall = "{{config_root}}/mise/tasks/install.sh"
+  enter = { task = "clickhouse:start" }
+
 [tools]
-  pnpm = "10.17.1"
+  # Injects dev-only secrets (e.g. the license) from 1Password at runtime via
+  # `fnox exec` in the dev task — see server/fnox.toml. Installed for everyone,
+  # but the dev task only invokes it when 1Password access is present, so
+  # contributors without a 1Password account still run the server locally.
+  fnox = "latest"
+  aube = "1.6.2"
   node = "24.11.0"
   sops = "3.9.3"
   age = "1.2.1"
-  "ubi:aquasecurity/trivy" = "0.63.0"
-  "clickhouse" = "25.5.1"
+  trivy = "0.69.3"
+  helm = "3.16.3"
+  kubectl = "1.31.3"
   "npm:prettier" = "3.4.2"
-  "elixir" = "1.19.1"
-  "erlang" = "28.1"
-  "asdf:aeons/asdf-minio" = "latest"
   "npm:appium" = "3.0.1"
+
+[tools."github:minio/minio"]
+version = "2025-09-07T16-13-09Z"
+version_prefix = "RELEASE."
+bin = "minio"
+
+[tools."github:minio/minio".platforms]
+macos-arm64 = { asset_pattern = "minio.darwin-arm64.RELEASE.*Z" }
+macos-x64 = { asset_pattern = "minio.darwin-amd64.RELEASE.*Z" }
+linux-x64 = { asset_pattern = "minio.linux-amd64.RELEASE.*Z" }
+linux-arm64 = { asset_pattern = "minio.linux-arm64.RELEASE.*Z" }
+
+[tools."github:ClickHouse/ClickHouse"]
+version = "26.1.2.11-stable"
+version_prefix = "v"
+
+[tools."github:ClickHouse/ClickHouse".platforms]
+macos-arm64 = { asset_pattern = "clickhouse-macos-aarch64" }
+macos-x64 = { asset_pattern = "clickhouse-macos" }
+linux-x64 = { asset_pattern = "clickhouse-common-static-*-amd64.tgz" }
+linux-arm64 = { asset_pattern = "clickhouse-common-static-*-arm64.tgz" }

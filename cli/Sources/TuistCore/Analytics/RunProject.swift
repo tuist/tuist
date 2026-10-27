@@ -16,10 +16,8 @@ public struct RunProject: Codable, Hashable {
         self.path = path
         self.targets = targets
     }
-}
 
-#if DEBUG
-    extension RunProject {
+    #if DEBUG
         public static func test(
             name: String = "Project",
             // swiftlint:disable:next force_try
@@ -32,5 +30,5 @@ public struct RunProject: Codable, Hashable {
                 targets: targets
             )
         }
-    }
-#endif
+    #endif
+}

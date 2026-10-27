@@ -1,17 +1,19 @@
+import FileSystem
 import FileSystemTesting
 import Foundation
+import Mockable
 import Path
 import Testing
+import TuistTestSupport
+import XCResultParser
 @testable import TuistXCResultService
 
 struct XCResultServiceTests {
-    private let subject = XCResultService()
-
-    @Test
+    @Test(.inTemporaryDirectory)
     func parseTestXCResult() async throws {
         // Given
-        let xcresult = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../Fixtures/test.xcresult"))
+        let xcresult = try await fixtureXCResult("test.xcresult")
+        let subject = XCResultService()
         let cet = TimeZone(identifier: "Europe/Berlin")!
 
         // When
@@ -22,7 +24,7 @@ struct XCResultServiceTests {
         // Then
         #expect(got.status == .failed)
         #expect(got.testModules.map(\.name) == ["AppTests"])
-        #expect(got.testModules.map(\.duration) == [2902])
+        #expect(got.testModules.map(\.duration) == [2923])
         #expect(got.testModules.map(\.status) == [.failed])
         #expect(got.testModules.flatMap(\.testSuites).map(\.duration).sorted() == [5, 104, 111])
         #expect(got.testCases.compactMap(\.duration).sorted() == [3, 4, 101, 108, 108, 110])
@@ -39,11 +41,11 @@ struct XCResultServiceTests {
         )
     }
 
-    @Test
+    @Test(.inTemporaryDirectory)
     func parseTestWithCustomLabelXCResult() async throws {
         // Given
-        let xcresult = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../Fixtures/test-with-custom-label.xcresult"))
+        let xcresult = try await fixtureXCResult("test-with-custom-label.xcresult")
+        let subject = XCResultService()
         let cet = TimeZone(identifier: "Europe/Berlin")!
 
         // When
@@ -57,11 +59,11 @@ struct XCResultServiceTests {
         #expect(got.testCases.compactMap(\.duration).sorted() == [103])
     }
 
-    @Test
+    @Test(.inTemporaryDirectory)
     func parseTestWithRepetitionsXCResult() async throws {
         // Given
-        let xcresult = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../Fixtures/test-with-repetitions.xcresult"))
+        let xcresult = try await fixtureXCResult("test-with-repetitions.xcresult")
+        let subject = XCResultService()
 
         // When
         let got = try #require(try await subject.parse(path: xcresult, rootDirectory: nil))
@@ -92,5 +94,145 @@ struct XCResultServiceTests {
         #expect(nonFlakyTest.repetitions[0].status == .passed)
         #expect(nonFlakyTest.repetitions[1].status == .passed)
         #expect(nonFlakyTest.failures.isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func parseTestWithArgumentsXCResult() async throws {
+        // Given
+        let xcresult = try await fixtureXCResult("test-with-arguments.xcresult")
+        let subject = XCResultService()
+
+        // When
+        let got = try #require(try await subject.parse(path: xcresult, rootDirectory: nil))
+
+        // Then
+        #expect(got.status == .failed)
+
+        // Find the parameterized test case
+        let parameterizedTest = try #require(got.testCases.first { $0.name == "parameterized(value:)" })
+        #expect(parameterizedTest.status == .failed)
+        #expect(parameterizedTest.arguments.count == 3)
+
+        // Top-level failures should be empty (failures live in arguments)
+        #expect(parameterizedTest.failures.isEmpty)
+
+        // Verify each argument variant
+        let helloArg = try #require(parameterizedTest.arguments.first { $0.name.contains("hello") })
+        #expect(helloArg.status == .passed)
+        #expect(helloArg.failures.isEmpty)
+
+        let testArg = try #require(parameterizedTest.arguments.first { $0.name.contains("test") })
+        #expect(testArg.status == .failed)
+        #expect(testArg.failures.count == 1)
+        #expect(testArg.failures[0].message?.contains("Expected long string") == true)
+
+        let worldArg = try #require(parameterizedTest.arguments.first { $0.name.contains("world") })
+        #expect(worldArg.status == .passed)
+        #expect(worldArg.failures.isEmpty)
+
+        // Non-parameterized test should have no arguments
+        let regularTest = try #require(got.testCases.first { $0.name == "example()" })
+        #expect(regularTest.status == .passed)
+        #expect(regularTest.arguments.isEmpty)
+    }
+
+    // MARK: - parseTestStatuses
+
+    @Test(.inTemporaryDirectory)
+    func parseTestStatuses_returnsCorrectStatuses() async throws {
+        let xcresult = try await fixtureXCResult("test.xcresult")
+        let subject = XCResultService()
+
+        let got = try await subject.parseTestStatuses(path: xcresult)
+
+        #expect(got.hasFailures == true)
+        let passed = got.testCases.filter { $0.status == .passed }
+        let failed = got.testCases.filter { $0.status == .failed }
+        #expect(passed.count == 2)
+        #expect(failed.count == 4)
+        #expect(got.testCases.allSatisfy { $0.module == "AppTests" })
+    }
+
+    @Test(.inTemporaryDirectory)
+    func parseTestStatuses_returnsPassingModuleNames() async throws {
+        let xcresult = try await fixtureXCResult("test-with-custom-label.xcresult")
+        let subject = XCResultService()
+
+        let got = try await subject.parseTestStatuses(path: xcresult)
+
+        #expect(got.hasFailures == false)
+        #expect(got.passingModuleNames().contains("AppTests"))
+    }
+
+    @Test(.inTemporaryDirectory)
+    func parseTestStatuses_extractsModuleAndSuiteNames() async throws {
+        let xcresult = try await fixtureXCResult("test.xcresult")
+        let subject = XCResultService()
+
+        let got = try await subject.parseTestStatuses(path: xcresult)
+
+        let modules = Set(got.testCases.compactMap(\.module))
+        #expect(modules == ["AppTests"])
+        #expect(got.testCases.contains { $0.testSuite != nil })
+    }
+
+    @Test(.inTemporaryDirectory)
+    func parseCoverageReturnsTheBundlesSummary() async throws {
+        // Given
+        let xcresult = try await fixtureXCResult("test.xcresult")
+        let output = try #require(FileSystem.temporaryTestDirectory).appending(component: "coverage.ndjson")
+        let coverageParser = MockXcodeCoverageParsing()
+        let manifest = XcodeCoverageManifest(rootDirectories: ["/repo"], partial: false, files: [])
+        let summary = XcodeCoverageSummary(partial: false, fileCount: 3)
+        given(coverageParser)
+            .parse(resultBundlePath: .value(xcresult), manifest: .value(manifest), into: .value(output))
+            .willReturn(summary)
+        let subject = XCResultService(coverageParser: coverageParser)
+
+        // When
+        let got = try await subject.parseCoverage(path: xcresult, manifest: manifest, into: output)
+
+        // Then
+        #expect(got == summary)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func parseDoesNotReadCoverage() async throws {
+        // Given: a coverage parser with no expectations, which Mockable fails on if called.
+        let xcresult = try await fixtureXCResult("test.xcresult")
+        let subject = XCResultService(coverageParser: MockXcodeCoverageParsing())
+
+        // When
+        let got = try #require(await subject.parse(path: xcresult, rootDirectory: nil))
+
+        // Then
+        #expect(got.coverage == nil)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func parseCoverageSwallowsAReportItCannotRead() async throws {
+        // Given
+        let xcresult = try await fixtureXCResult("test.xcresult")
+        let coverageParser = MockXcodeCoverageParsing()
+        given(coverageParser)
+            .parse(resultBundlePath: .any, manifest: .any, into: .any)
+            .willThrow(NSError(domain: "xccov", code: 1))
+        let subject = XCResultService(coverageParser: coverageParser)
+
+        // When / Then
+        #expect(try await subject.parseCoverage(
+            path: xcresult,
+            manifest: XcodeCoverageManifest(rootDirectories: [], partial: false, files: []),
+            into: try #require(FileSystem.temporaryTestDirectory).appending(component: "coverage.ndjson")
+        ) == nil)
+    }
+
+    private func fixtureXCResult(_ name: String) async throws -> AbsolutePath {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let source = TestPaths.fixturesDirectory.appending(component: name)
+        let destination = temporaryDirectory.appending(component: name)
+
+        try await FileSystem().copy(source, to: destination)
+        return destination
     }
 }

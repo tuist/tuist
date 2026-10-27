@@ -1,12 +1,15 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 import TuistHTTP
 
-#if canImport(TuistSupport)
+#if canImport(TuistXCActivityLog)
     import TuistCI
+    import TuistMachineMetrics
     import TuistSupport
     import TuistXCActivityLog
+
+    public typealias BuildCustomMetadata = Operations.createBuild.Input.Body.jsonPayload.custom_metadataPayload
 
     @Mockable
     public protocol CreateBuildServicing {
@@ -14,8 +17,10 @@ import TuistHTTP
             fullHandle: String,
             serverURL: URL,
             id: String,
+            generationId: String?,
             category: XCActivityBuildCategory,
             configuration: String?,
+            customMetadata: BuildCustomMetadata?,
             duration: Int,
             files: [XCActivityBuildFile],
             gitBranch: String?,
@@ -28,6 +33,7 @@ import TuistHTTP
             macOSVersion: String,
             scheme: String?,
             targets: [XCActivityTarget],
+            xcodeCacheUploadEnabled: Bool,
             xcodeVersion: String?,
             status: ServerBuildRunStatus,
             ciRunId: String?,
@@ -35,7 +41,8 @@ import TuistHTTP
             ciHost: String?,
             ciProvider: CIProvider?,
             cacheableTasks: [CacheableTask],
-            casOutputs: [CASOutput]
+            casOutputs: [CASOutput],
+            machineMetrics: [MachineMetricSample]
         ) async throws -> ServerBuild
     }
 
@@ -46,7 +53,6 @@ import TuistHTTP
         case unauthorized(String)
         case badRequest(String)
         case invalidURL(String)
-        case unexpectedResponseType
 
         var errorDescription: String? {
             switch self {
@@ -58,23 +64,30 @@ import TuistHTTP
                 return message
             case let .invalidURL(url):
                 return "Invalid URL for the build: \(url)."
-            case .unexpectedResponseType:
-                return "The server returned an unexpected response type. Expected a build run but received a different type."
             }
         }
     }
 
     public enum ServerBuildRunStatus {
-        case success, failure
+        case success, failure, processing
     }
 
-    public final class CreateBuildService: CreateBuildServicing {
+    public struct CreateBuildService: CreateBuildServicing {
         private let fullHandleService: FullHandleServicing
+        private let makeClient: @Sendable (URL, Bool) -> Client
 
         public init(
             fullHandleService: FullHandleServicing = FullHandleService()
         ) {
+            self.init(fullHandleService: fullHandleService, makeClient: { Client.reporting(serverURL: $0, networkTrusted: $1) })
+        }
+
+        init(
+            fullHandleService: FullHandleServicing = FullHandleService(),
+            makeClient: @escaping @Sendable (URL, Bool) -> Client
+        ) {
             self.fullHandleService = fullHandleService
+            self.makeClient = makeClient
         }
 
         // swiftlint:disable:next function_body_length
@@ -82,8 +95,10 @@ import TuistHTTP
             fullHandle: String,
             serverURL: URL,
             id: String,
+            generationId: String?,
             category: XCActivityBuildCategory,
             configuration: String?,
+            customMetadata: BuildCustomMetadata?,
             duration: Int,
             files: [XCActivityBuildFile],
             gitBranch: String?,
@@ -96,6 +111,7 @@ import TuistHTTP
             macOSVersion: String,
             scheme: String?,
             targets: [XCActivityTarget],
+            xcodeCacheUploadEnabled: Bool,
             xcodeVersion: String?,
             status: ServerBuildRunStatus,
             ciRunId: String?,
@@ -103,19 +119,23 @@ import TuistHTTP
             ciHost: String?,
             ciProvider: CIProvider?,
             cacheableTasks: [CacheableTask],
-            casOutputs: [CASOutput]
+            casOutputs: [CASOutput],
+            machineMetrics: [MachineMetricSample]
         ) async throws -> ServerBuild {
-            let client = Client.authenticated(serverURL: serverURL)
+            let networkTrusted = try await ServerReportPublishingMode.usesNetworkTrust(serverURL: serverURL)
+            let client = makeClient(serverURL, networkTrusted)
             let handles = try fullHandleService.parse(fullHandle)
-            let status: Operations.createRun.Input.Body.jsonPayload.Case1Payload.statusPayload? =
+            let status: Operations.createBuild.Input.Body.jsonPayload.statusPayload? =
                 switch status {
                 case .success:
                     .success
                 case .failure:
                     .failure
+                case .processing:
+                    .processing
                 }
 
-            let category: Operations.createRun.Input.Body.jsonPayload.Case1Payload.categoryPayload =
+            let category: Operations.createBuild.Input.Body.jsonPayload.categoryPayload =
                 switch category {
                 case .clean:
                     .clean
@@ -123,7 +143,7 @@ import TuistHTTP
                     .incremental
                 }
 
-            let ciProviderPayload: Operations.createRun.Input.Body.jsonPayload.Case1Payload.ci_providerPayload? =
+            let ciProviderPayload: Operations.createBuild.Input.Body.jsonPayload.ci_providerPayload? =
                 switch ciProvider {
                 case .github:
                     .github
@@ -141,47 +161,49 @@ import TuistHTTP
                     nil
                 }
 
-            let response = try await client.createRun(
+            let response = try await client.createBuild(
                 .init(
                     path: .init(
                         account_handle: handles.accountHandle,
                         project_handle: handles.projectHandle
                     ),
                     body: .json(
-                        .case1(
-                            .init(
-                                cacheable_tasks: cacheableTasks
-                                    .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload
-                                        .init
-                                    ),
-                                cas_outputs: casOutputs
-                                    .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.cas_outputsPayloadPayload.init),
-                                category: category,
-                                ci_host: ciHost,
-                                ci_project_handle: ciProjectHandle,
-                                ci_provider: ciProviderPayload,
-                                ci_run_id: ciRunId,
-                                configuration: configuration,
-                                duration: duration,
-                                files: files
-                                    .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayloadPayload.init),
-                                git_branch: gitBranch,
-                                git_commit_sha: gitCommitSHA,
-                                git_ref: gitRef,
-                                git_remote_url_origin: gitRemoteURLOrigin,
-                                id: id,
-                                is_ci: isCI,
-                                issues: issues
-                                    .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.issuesPayloadPayload.init),
-                                macos_version: macOSVersion,
-                                model_identifier: modelIdentifier,
-                                scheme: scheme,
-                                status: status,
-                                targets: targets
-                                    .map(Operations.createRun.Input.Body.jsonPayload.Case1Payload.targetsPayloadPayload.init),
-                                _type: .build,
-                                xcode_version: xcodeVersion
-                            )
+                        .init(
+                            cacheable_tasks: cacheableTasks
+                                .map(Operations.createBuild.Input.Body.jsonPayload.cacheable_tasksPayloadPayload
+                                    .init
+                                ),
+                            cas_outputs: casOutputs
+                                .map(Operations.createBuild.Input.Body.jsonPayload.cas_outputsPayloadPayload.init),
+                            category: category,
+                            ci_host: ciHost,
+                            ci_project_handle: ciProjectHandle,
+                            ci_provider: ciProviderPayload,
+                            ci_run_id: ciRunId,
+                            configuration: configuration,
+                            custom_metadata: customMetadata,
+                            duration: duration,
+                            files: files
+                                .map(Operations.createBuild.Input.Body.jsonPayload.filesPayloadPayload.init),
+                            generation_id: networkTrusted ? nil : generationId,
+                            git_branch: gitBranch,
+                            git_commit_sha: gitCommitSHA,
+                            git_ref: gitRef,
+                            git_remote_url_origin: networkTrusted ? nil : gitRemoteURLOrigin,
+                            id: id,
+                            is_ci: isCI,
+                            issues: issues
+                                .map(Operations.createBuild.Input.Body.jsonPayload.issuesPayloadPayload.init),
+                            machine_metrics: machineMetrics
+                                .map(Operations.createBuild.Input.Body.jsonPayload.machine_metricsPayloadPayload.init),
+                            macos_version: macOSVersion,
+                            model_identifier: modelIdentifier,
+                            scheme: scheme,
+                            status: status,
+                            targets: targets
+                                .map(Operations.createBuild.Input.Body.jsonPayload.targetsPayloadPayload.init),
+                            xcode_cache_upload_enabled: networkTrusted ? false : xcodeCacheUploadEnabled,
+                            xcode_version: xcodeVersion
                         )
                     )
                 )
@@ -189,20 +211,19 @@ import TuistHTTP
             switch response {
             case let .ok(okResponse):
                 switch okResponse.body {
-                case let .json(run):
-                    switch run {
-                    case .RunsTest:
-                        throw CreateBuildServiceError.unexpectedResponseType
-                    case let .RunsBuild(build):
-                        guard let build = ServerBuild(build) else { throw CreateBuildServiceError.invalidURL(build.url) }
-                        return build
-                    }
+                case let .json(build):
+                    guard let serverBuild = ServerBuild(build) else { throw CreateBuildServiceError.invalidURL(build.url) }
+                    return serverBuild
                 }
             case let .forbidden(forbiddenResponse):
                 switch forbiddenResponse.body {
                 case let .json(error):
                     throw CreateBuildServiceError.forbidden(error.message)
                 }
+            case let .tooManyRequests(tooManyRequests):
+                throw AuthorizationThrottledError(
+                    retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+                )
             case let .undocumented(statusCode: statusCode, _):
                 throw CreateBuildServiceError.unknownError(statusCode)
             case let .unauthorized(unauthorized):
@@ -224,10 +245,10 @@ import TuistHTTP
         }
     }
 
-    extension Operations.createRun.Input.Body.jsonPayload.Case1Payload.issuesPayloadPayload {
+    extension Operations.createBuild.Input.Body.jsonPayload.issuesPayloadPayload {
         fileprivate init(_ issue: XCActivityIssue) {
             let stepType:
-                Operations.createRun.Input.Body.jsonPayload.Case1Payload.issuesPayloadPayload
+                Operations.createBuild.Input.Body.jsonPayload.issuesPayloadPayload
                 .step_typePayload =
                     switch issue.stepType {
                     case .XIBCompilation: .xib_compilation
@@ -249,7 +270,7 @@ import TuistHTTP
                     case .validate: .validate
                     case .other: .other
                     }
-            let type: Operations.createRun.Input.Body.jsonPayload.Case1Payload.issuesPayloadPayload
+            let type: Operations.createBuild.Input.Body.jsonPayload.issuesPayloadPayload
                 ._typePayload = switch issue.type
             {
             case .warning: .warning
@@ -272,7 +293,7 @@ import TuistHTTP
         }
     }
 
-    extension Operations.createRun.Input.Body.jsonPayload.Case1Payload.filesPayloadPayload {
+    extension Operations.createBuild.Input.Body.jsonPayload.filesPayloadPayload {
         fileprivate init(_ file: XCActivityBuildFile) {
             let fileType: Self._typePayload = switch file.type {
             case .c: .c
@@ -288,7 +309,7 @@ import TuistHTTP
         }
     }
 
-    extension Operations.createRun.Input.Body.jsonPayload.Case1Payload.targetsPayloadPayload {
+    extension Operations.createBuild.Input.Body.jsonPayload.targetsPayloadPayload {
         fileprivate init(_ target: XCActivityTarget) {
             let status: Self.statusPayload = switch target.status {
             case .failure: .failure
@@ -304,7 +325,7 @@ import TuistHTTP
         }
     }
 
-    extension Operations.createRun.Input.Body.jsonPayload.Case1Payload.cacheable_tasksPayloadPayload {
+    extension Operations.createBuild.Input.Body.jsonPayload.cacheable_tasksPayloadPayload {
         fileprivate init(_ cacheableTask: CacheableTask) {
             let taskType: Self._typePayload = switch cacheableTask.type {
             case .swift: .swift
@@ -327,7 +348,7 @@ import TuistHTTP
         }
     }
 
-    extension Operations.createRun.Input.Body.jsonPayload.Case1Payload.cas_outputsPayloadPayload {
+    extension Operations.createBuild.Input.Body.jsonPayload.cas_outputsPayloadPayload {
         fileprivate init(_ casOutput: CASOutput) {
             let operation: Self.operationPayload = switch casOutput.operation {
             case .download: .download
@@ -395,6 +416,21 @@ import TuistHTTP
                 operation: operation,
                 size: casOutput.size,
                 _type: type
+            )
+        }
+    }
+
+    extension Operations.createBuild.Input.Body.jsonPayload.machine_metricsPayloadPayload {
+        fileprivate init(_ sample: MachineMetricSample) {
+            self.init(
+                cpu_usage_percent: sample.cpuUsagePercent,
+                disk_bytes_read: sample.diskBytesRead,
+                disk_bytes_written: sample.diskBytesWritten,
+                memory_total_bytes: sample.memoryTotalBytes,
+                memory_used_bytes: sample.memoryUsedBytes,
+                network_bytes_in: sample.networkBytesIn,
+                network_bytes_out: sample.networkBytesOut,
+                timestamp: sample.timestamp
             )
         }
     }

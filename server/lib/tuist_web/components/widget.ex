@@ -87,7 +87,7 @@ defmodule TuistWeb.Widget do
   attr(:title, :string, required: true, doc: "The title of the widget.")
 
   attr(:legend_color, :string,
-    values: ~w(primary secondary destructive flaky p99 p90 p50),
+    values: ~w(amber primary secondary tertiary destructive flaky p99 p90 p50),
     required: false,
     doc: "The color of the legend. The legend is hidden if the value is `nil`."
   )
@@ -98,12 +98,17 @@ defmodule TuistWeb.Widget do
     default: nil
   )
 
-  attr(:value, :string, required: true, doc: "The value of the widget.")
+  attr(:value, :any, default: nil, doc: "The value of the widget.")
 
   attr(:trend_value, :integer,
     required: false,
     default: nil,
     doc: "The trend value of the widget."
+  )
+
+  attr(:trend_value_label, :string,
+    default: nil,
+    doc: "Optional formatted trend value for an absolute change instead of a percentage."
   )
 
   attr(:trend_label, :string, required: false, doc: "The trend label of the widget.")
@@ -121,6 +126,8 @@ defmodule TuistWeb.Widget do
   )
 
   attr(:empty, :boolean, default: false, doc: "Whether the widget is empty")
+
+  attr(:loading, :boolean, default: false, doc: "Whether the widget is in a loading state")
 
   attr(:empty_label, :string, default: nil, doc: "Custom label to display when widget is empty")
 
@@ -164,7 +171,7 @@ defmodule TuistWeb.Widget do
 
   defp static_widget(assigns) do
     ~H"""
-    <.card_section class="tuist-widget" id={@id}>
+    <.card_section class="tuist-widget" id={@id} data-loading={@loading}>
       <div data-part="header">
         <div
           :if={not is_nil(Map.get(assigns, :legend_color))}
@@ -199,11 +206,24 @@ defmodule TuistWeb.Widget do
           </:trigger>
         </.tooltip>
       </div>
-      <span data-part="value">{@value}</span>
-      <div :if={@trend_value} data-part="trend">
-        <.trend_badge trend_value={@trend_value} trend_type={@trend_type} />
-        <span data-part="label">{@trend_label}</span>
-      </div>
+      <%= if @loading do %>
+        <span data-part="value" class="tuist-loading-skeleton">&nbsp;</span>
+        <div data-part="trend">
+          <span class="tuist-loading-skeleton tuist-loading-skeleton--small">&nbsp;</span>
+        </div>
+      <% else %>
+        <span data-part="value">{if is_number(@value) and abs(@value) >= 10_000,
+          do: TuistWeb.CldrHelpers.format_number(@value),
+          else: @value}</span>
+        <div :if={@trend_value} data-part="trend">
+          <.trend_badge
+            trend_value={@trend_value}
+            trend_type={@trend_type}
+            label={@trend_value_label}
+          />
+          <span data-part="label">{@trend_label}</span>
+        </div>
+      <% end %>
     </.card_section>
     """
   end

@@ -1,8 +1,9 @@
 import Foundation
 import Path
 import ProjectDescription
-import TSCUtility
+import TuistConfig
 import TuistCore
+import TuistLogging
 import TuistSupport
 
 enum ConfigManifestMapperError: FatalError {
@@ -25,18 +26,27 @@ enum ConfigManifestMapperError: FatalError {
     }
 }
 
-extension TuistCore.Tuist {
+extension TuistConfig.Tuist {
     /// Maps a ProjectDescription.Config instance into a XcodeGraph.Config model.
     /// - Parameters:
     ///   - manifest: Manifest representation of Tuist config.
     ///   - path: The path of the config file.
-    static func from(
+    public static func from(
         manifest: ProjectDescription.Config,
         rootDirectory: AbsolutePath,
         at path: AbsolutePath
-    ) async throws -> TuistCore.Tuist {
+    ) async throws -> TuistConfig.Tuist {
         let fullHandle = manifest.fullHandle
         let inspectOptions = InspectOptions.from(manifest: manifest.inspectOptions)
+        let generatorPaths = GeneratorPaths(manifestDirectory: path, rootDirectory: rootDirectory)
+        let network = try makeNetwork(from: manifest, generatorPaths: generatorPaths)
+        let xcodeCache = TuistConfig.Tuist.XcodeCache(
+            upload: manifest.xcodeCache.upload,
+            storeSizeLimit: manifest.xcodeCache.storeSizeLimit?.bytes
+        )
+        let testInsights = TuistConfig.Tuist.TestInsights(
+            coverage: .init(upload: manifest.testInsights.coverage.upload)
+        )
         let urlString = manifest.url
 
         guard let url = URL(string: urlString.dropSuffix("/")) else {
@@ -46,38 +56,29 @@ extension TuistCore.Tuist {
         switch manifest.project {
         case let .tuist(
             compatibleXcodeVersions,
-            manifestSwiftVersion,
             plugins,
             generationOptions,
             installOptions,
             cacheOptions
         ):
-            let generatorPaths = GeneratorPaths(manifestDirectory: path, rootDirectory: rootDirectory)
-            let generationOptions = try TuistCore.TuistGeneratedProjectOptions.GenerationOptions.from(
+            let generationOptions = try TuistConfig.TuistGeneratedProjectOptions.GenerationOptions.from(
                 manifest: generationOptions,
                 generatorPaths: generatorPaths,
                 fullHandle: manifest.fullHandle
             )
-            let cacheOptions = try TuistCore.CacheOptions.from(manifest: cacheOptions)
+            let cacheOptions = try TuistConfig.CacheOptions.from(manifest: cacheOptions)
 
-            let compatibleXcodeVersions = TuistCore.CompatibleXcodeVersions.from(manifest: compatibleXcodeVersions)
+            let compatibleXcodeVersions = TuistConfig.CompatibleXcodeVersions.from(manifest: compatibleXcodeVersions)
             let plugins = try plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
-            let swiftVersion: TSCUtility.Version?
-            if let configuredVersion = manifestSwiftVersion {
-                swiftVersion = TSCUtility.Version(configuredVersion.major, configuredVersion.minor, configuredVersion.patch)
-            } else {
-                swiftVersion = nil
-            }
 
-            let installOptions = TuistCore.TuistGeneratedProjectOptions.InstallOptions.from(
+            let installOptions = TuistConfig.TuistGeneratedProjectOptions.InstallOptions.from(
                 manifest: installOptions
             )
 
-            return TuistCore.Tuist(
+            return TuistConfig.Tuist(
                 project: .generated(
                     TuistGeneratedProjectOptions(
                         compatibleXcodeVersions: compatibleXcodeVersions,
-                        swiftVersion: swiftVersion.map { .init(stringLiteral: $0.description) },
                         plugins: plugins,
                         generationOptions: generationOptions,
                         installOptions: installOptions,
@@ -86,20 +87,36 @@ extension TuistCore.Tuist {
                 ),
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
-                url: url
+                xcodeCache: xcodeCache,
+                testInsights: testInsights,
+                url: url,
+                network: network
             )
         case .xcode:
-            return TuistCore.Tuist(
+            return TuistConfig.Tuist(
                 project: .xcode(TuistXcodeProjectOptions()),
                 fullHandle: fullHandle,
                 inspectOptions: inspectOptions,
-                url: url
+                xcodeCache: xcodeCache,
+                testInsights: testInsights,
+                url: url,
+                network: network
             )
         }
     }
 }
 
-extension TuistCore.InspectOptions {
+extension TuistConfig.Tuist {
+    fileprivate static func makeNetwork(
+        from manifest: ProjectDescription.Config,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistConfig.Tuist.Network {
+        let caCertificate = try manifest.network.caCertificate.map { try generatorPaths.resolve(path: $0).pathString }
+        return .init(proxy: manifest.network.proxy, caCertificate: caCertificate)
+    }
+}
+
+extension TuistConfig.InspectOptions {
     static func from(
         manifest: ProjectDescription.Config.InspectOptions
     ) -> Self {
@@ -109,7 +126,7 @@ extension TuistCore.InspectOptions {
     }
 }
 
-extension TuistCore.InspectOptions.RedundantDependencies {
+extension TuistConfig.InspectOptions.RedundantDependencies {
     static func from(
         manifest: ProjectDescription.Config.InspectOptions.RedundantDependencies
     ) -> Self {

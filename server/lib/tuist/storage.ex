@@ -2,9 +2,32 @@ defmodule Tuist.Storage do
   @moduledoc ~S"""
   A module that provides functions for storing and retrieving files from cloud storages
   """
+  import SweetXml, only: [sigil_x: 2]
+
+  alias ExAws.S3.Upload
   alias Tuist.Accounts.Account
   alias Tuist.Environment
   alias Tuist.Performance
+  alias Tuist.Storage.AzureBlob
+
+  require Logger
+
+  @delete_objects_max_concurrency 4
+  @file_upload_chunk_max_attempts 3
+  @file_upload_chunk_attempt_timeout 30_000
+  # ExAws only retries a stalled ranged GET once the HTTP receive timeout fires,
+  # so it has to be well below the per-chunk task timeout; with both at 60s a
+  # single stall killed the whole download before any retry could run.
+  @file_download_chunk_timeout to_timeout(minute: 3)
+  @file_download_http_opts [receive_timeout: 15_000, pool_timeout: 5_000]
+  # `object_exists?/2` collapses every error into `false`, so the pool timeout
+  # stays at the global default rather than turning pool contention into
+  # "object not found".
+  @metadata_http_opts [receive_timeout: 5_000, pool_timeout: 5_000]
+  @object_transfer_http_opts [receive_timeout: 30_000, pool_timeout: 5_000]
+  # S3 may take minutes to assemble a multipart object and only keeps the
+  # connection alive with whitespace in the meantime.
+  @multipart_complete_http_opts [receive_timeout: 60_000, pool_timeout: 5_000]
 
   def multipart_generate_url(object_key, upload_id, part_number, actor, opts \\ []) do
     opts =
@@ -15,8 +38,7 @@ defmodule Tuist.Storage do
       ])
       |> Keyword.put(:actor, actor)
 
-    url =
-      presigned_url(:put, object_key, opts)
+    url = presigned_url(:put, object_key, opts)
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_multipart_generate_upload_part_presigned_url(),
@@ -28,32 +50,88 @@ defmodule Tuist.Storage do
   end
 
   defp presigned_url(method, object_key, opts) do
-    query_params = Keyword.get(opts, :query_params, [])
+    query_params =
+      case Keyword.get(opts, :content_disposition) do
+        nil ->
+          Keyword.get(opts, :query_params, [])
+
+        content_disposition ->
+          Keyword.get(opts, :query_params, []) ++
+            [{"response-content-disposition", content_disposition}]
+      end
+
     actor = Keyword.fetch!(opts, :actor)
 
-    {config, bucket_name} = s3_config_and_bucket(actor)
+    case storage_provider(actor) do
+      :azure_blob when method == :get ->
+        AzureBlob.generate_download_url(object_key, opts)
 
-    presigned_url_opts = [
-      query_params: query_params,
-      expires_in: Keyword.get(opts, :expires_in, 3600)
-    ]
+      :azure_blob when method == :put and query_params == [] ->
+        AzureBlob.generate_upload_url(object_key, opts)
 
-    {:ok, url} =
-      ExAws.S3.presigned_url(config, method, bucket_name, object_key, presigned_url_opts)
+      :azure_blob when method == :put ->
+        upload_id = query_params |> Enum.find(fn {key, _value} -> key == "uploadId" end) |> elem(1)
+        part_number = query_params |> Enum.find(fn {key, _value} -> key == "partNumber" end) |> elem(1)
+        AzureBlob.multipart_generate_url(object_key, upload_id, part_number, opts)
 
-    url
+      :s3 ->
+        {config, bucket_name} = s3_config_and_bucket(actor)
+
+        presigned_url_opts =
+          [
+            query_params: query_params,
+            expires_in: Keyword.get(opts, :expires_in, 3600)
+          ] ++ signed_headers_opt(opts)
+
+        {:ok, url} =
+          ExAws.S3.presigned_url(config, method, bucket_name, object_key, presigned_url_opts)
+
+        url
+    end
+  end
+
+  # Passed only when there is something to sign, so a URL that signs no headers
+  # is generated exactly as it was before signed headers existed.
+  defp signed_headers_opt(opts) do
+    case Keyword.get(opts, :signed_headers, []) do
+      [] -> []
+      signed_headers -> [headers: signed_headers]
+    end
+  end
+
+  @doc """
+  Whether presigned upload URLs for this actor's storage can carry signed
+  request headers (e.g. `x-amz-checksum-sha256`, which makes the object store
+  verify the received bytes at ingest). True for S3-compatible providers, whose
+  SigV4 query URLs sign header names into the signature; false for Azure Blob,
+  where the SAS-based URLs carry no signed headers. Callers that would tell a
+  client to send such a header must check this first — an unsigned checksum
+  header on a URL that did not cover it fails the request outright.
+  """
+  def supports_signed_upload_headers?(actor) do
+    storage_provider(actor) == :s3
   end
 
   def multipart_complete_upload(object_key, upload_id, parts, actor) do
     {time, result} =
       Performance.measure_time_in_milliseconds(fn ->
-        {config, bucket_name} = s3_config_and_bucket(actor)
+        case storage_provider(actor) do
+          :azure_blob ->
+            AzureBlob.multipart_complete_upload(object_key, upload_id, parts)
 
-        bucket_name
-        |> ExAws.S3.complete_multipart_upload(object_key, upload_id, parts)
-        |> ExAws.request!(Map.merge(config, fast_api_req_opts()))
+          :s3 ->
+            {config, bucket_name} = s3_config_and_bucket(actor)
 
-        :ok
+            result =
+              bucket_name
+              |> ExAws.S3.complete_multipart_upload(object_key, upload_id, parts)
+              |> ExAws.request(with_http_opts(config, @multipart_complete_http_opts))
+
+            case result do
+              {:ok, _response} -> :ok
+              {:error, reason} -> {:error, multipart_complete_upload_error(reason)}
+            end
+        end
       end)
 
     :telemetry.execute(
@@ -62,7 +140,56 @@ defmodule Tuist.Storage do
       %{object_key: object_key, upload_id: upload_id}
     )
 
+    report_multipart_complete_failure(object_key, upload_id, result)
+
     result
+  end
+
+  @doc """
+  Discards the parts of an unfinished multipart upload. An upload that no
+  longer exists, because it completed or was already aborted, is not an error.
+  """
+  def multipart_abort(object_key, upload_id, actor) do
+    case storage_provider(actor) do
+      # Azure discards uncommitted blocks on its own.
+      :azure_blob ->
+        :ok
+
+      :s3 ->
+        {config, bucket_name} = s3_config_and_bucket(actor)
+
+        bucket_name
+        |> ExAws.S3.abort_multipart_upload(object_key, upload_id)
+        |> ExAws.request(with_http_opts(config, @metadata_http_opts))
+        |> case do
+          {:ok, _response} -> :ok
+          {:error, {:http_error, 404, _}} -> :ok
+          {:error, reason} -> {:error, reason}
+        end
+    end
+  end
+
+  defp report_multipart_complete_failure(_object_key, _upload_id, :ok), do: :ok
+
+  defp report_multipart_complete_failure(_object_key, _upload_id, {:error, :multipart_upload_not_found}), do: :ok
+
+  defp report_multipart_complete_failure(object_key, upload_id, {:error, reason}) do
+    Logger.error("Could not complete the multipart upload #{upload_id} for #{object_key}: #{inspect(reason)}")
+
+    Sentry.capture_message("Object storage rejected the completion of a multipart upload",
+      level: :error,
+      extra: %{object_key: object_key, upload_id: upload_id, reason: inspect(reason)}
+    )
+  end
+
+  defp multipart_complete_upload_error({:http_error, 404, %{body: body}} = reason) when is_binary(body) do
+    if multipart_upload_not_found?(body), do: :multipart_upload_not_found, else: reason
+  end
+
+  defp multipart_complete_upload_error(reason), do: reason
+
+  defp multipart_upload_not_found?(body) do
+    Regex.match?(~r/<(?:\w+:)?Code>\s*NoSuchUpload\s*<\/(?:\w+:)?Code>/, body)
   end
 
   def generate_download_url(object_key, actor, opts \\ []) do
@@ -92,12 +219,18 @@ defmodule Tuist.Storage do
   end
 
   def stream_object(object_key, actor) do
-    {config, bucket_name} = s3_config_and_bucket(actor)
-
     stream =
-      bucket_name
-      |> ExAws.S3.download_file(object_key, :memory)
-      |> ExAws.stream!(config)
+      case storage_provider(actor) do
+        :azure_blob ->
+          AzureBlob.stream_object(object_key)
+
+        :s3 ->
+          {config, bucket_name} = s3_config_and_bucket(actor)
+
+          bucket_name
+          |> ExAws.S3.download_file(object_key, :memory)
+          |> ExAws.stream!(config)
+      end
 
     :telemetry.execute(
       Tuist.Telemetry.event_name_storage_stream_object(),
@@ -109,35 +242,102 @@ defmodule Tuist.Storage do
   end
 
   def upload(source, object_key, actor) do
-    {config, bucket_name} = s3_config_and_bucket(actor)
+    case storage_provider(actor) do
+      :azure_blob ->
+        AzureBlob.upload(source, object_key)
 
-    source
-    |> ExAws.S3.upload(bucket_name, object_key)
-    |> ExAws.request!(config)
+      :s3 ->
+        {config, bucket_name} = s3_config_and_bucket(actor)
+
+        source
+        |> ExAws.S3.upload(bucket_name, object_key)
+        |> ExAws.request!(config)
+    end
+  end
+
+  def upload_file(file_path, object_key, actor, opts \\ []) do
+    result =
+      case storage_provider(actor) do
+        :azure_blob ->
+          AzureBlob.upload_file(file_path, object_key, opts)
+
+        :s3 ->
+          bucket_name = Keyword.get(opts, :bucket_name)
+          s3_upload_file(file_path, object_key, actor, bucket_name)
+      end
+
+    normalize_upload_file_result(result)
   end
 
   def put_object(object_key, content, actor) do
-    {config, bucket_name} = s3_config_and_bucket(actor)
-    headers = region_headers(actor)
+    result =
+      case storage_provider(actor) do
+        :azure_blob ->
+          AzureBlob.put_object(object_key, content)
 
-    operation =
-      bucket_name
-      |> ExAws.S3.put_object(object_key, content)
-      |> Map.update(:headers, Map.new(headers), &Map.merge(&1, Map.new(headers)))
+        :s3 ->
+          {config, bucket_name} = s3_config_and_bucket(actor)
+          headers = region_headers(actor)
 
-    ExAws.request!(operation, Map.merge(config, fast_api_req_opts()))
+          operation =
+            bucket_name
+            |> ExAws.S3.put_object(object_key, content)
+            |> Map.update(:headers, Map.new(headers), &Map.merge(&1, Map.new(headers)))
+
+          ExAws.request(operation, with_http_opts(config, @object_transfer_http_opts))
+      end
+
+    case result do
+      {:ok, _response} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def get_object(object_key, actor) do
+    {time, result} =
+      Performance.measure_time_in_milliseconds(fn ->
+        case storage_provider(actor) do
+          :azure_blob ->
+            AzureBlob.get_object(object_key)
+
+          :s3 ->
+            {config, bucket_name} = s3_config_and_bucket(actor)
+
+            bucket_name
+            |> ExAws.S3.get_object(object_key)
+            |> ExAws.request(with_http_opts(config, @object_transfer_http_opts))
+        end
+      end)
+
+    :telemetry.execute(
+      Tuist.Telemetry.event_name_storage_get_object(),
+      %{duration: time},
+      %{object_key: object_key}
+    )
+
+    case result do
+      {:ok, %{body: content}} -> {:ok, content}
+      {:error, {:http_error, 404, _response}} -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   def object_exists?(object_key, actor) do
     {time, exists} =
       Performance.measure_time_in_milliseconds(fn ->
-        {config, bucket_name} = s3_config_and_bucket(actor)
+        case storage_provider(actor) do
+          :azure_blob ->
+            AzureBlob.object_exists?(object_key)
 
-        case bucket_name
-             |> ExAws.S3.head_object(object_key)
-             |> ExAws.request(Map.merge(config, fast_api_req_opts())) do
-          {:ok, _} -> true
-          {:error, _} -> false
+          :s3 ->
+            {config, bucket_name} = s3_config_and_bucket(actor)
+
+            case bucket_name
+                 |> ExAws.S3.head_object(object_key)
+                 |> ExAws.request(with_http_opts(config, @metadata_http_opts)) do
+              {:ok, _} -> true
+              {:error, _} -> false
+            end
         end
       end)
 
@@ -150,14 +350,53 @@ defmodule Tuist.Storage do
     exists
   end
 
-  def get_object_as_string(object_key, actor) do
-    {time, result} =
-      Performance.measure_time_in_milliseconds(fn ->
+  def download_to_file(object_key, file_path, actor) do
+    case storage_provider(actor) do
+      :azure_blob ->
+        AzureBlob.download_to_file(object_key, file_path)
+
+      :s3 ->
         {config, bucket_name} = s3_config_and_bucket(actor)
 
         bucket_name
-        |> ExAws.S3.get_object(object_key)
-        |> ExAws.request(Map.merge(config, fast_api_req_opts()))
+        |> ExAws.S3.download_file(object_key, file_path, timeout: @file_download_chunk_timeout)
+        |> ExAws.request(Map.put(config, :http_opts, @file_download_http_opts))
+        |> normalize_download_error()
+    end
+  catch
+    # ExAws downloads each chunk in a Task.async_stream whose per-chunk timeout
+    # exits rather than raising, so a stalled S3 chunk escapes ExAws' own rescue
+    # and would crash the calling job. Surface it as a retryable error instead.
+    :exit, reason -> {:error, reason}
+  end
+
+  # `ExAws.S3.Download` sizes the object with `head_object` through
+  # `ExAws.request!` and rescues the raised `ExAws.Error` itself, so a missing
+  # object reaches callers as an opaque struct whose only trace of the status
+  # code is the inspected message. Callers need to tell "not there (yet)" apart
+  # from a transport failure, so collapse it into a named reason here.
+  defp normalize_download_error({:error, %ExAws.Error{message: message}} = error) when is_binary(message) do
+    if String.contains?(message, "{:http_error, 404,"), do: {:error, :object_not_found}, else: error
+  end
+
+  defp normalize_download_error({:error, {:http_error, 404, _response}}), do: {:error, :object_not_found}
+
+  defp normalize_download_error(result), do: result
+
+  def get_object_as_string(object_key, actor) do
+    {time, result} =
+      Performance.measure_time_in_milliseconds(fn ->
+        case storage_provider(actor) do
+          :azure_blob ->
+            {:ok, %{body: AzureBlob.get_object_as_string(object_key)}}
+
+          :s3 ->
+            {config, bucket_name} = s3_config_and_bucket(actor)
+
+            bucket_name
+            |> ExAws.S3.get_object(object_key)
+            |> ExAws.request(with_http_opts(config, @object_transfer_http_opts))
+        end
       end)
 
     :telemetry.execute(
@@ -172,56 +411,95 @@ defmodule Tuist.Storage do
     end
   end
 
-  def multipart_start(object_key, actor) do
-    {time, upload_id} =
+  def get_object_range(object_key, first..last//1 = range, actor) do
+    {time, result} =
       Performance.measure_time_in_milliseconds(fn ->
-        {config, bucket_name} = s3_config_and_bucket(actor)
-        headers = region_headers(actor)
+        case storage_provider(actor) do
+          :azure_blob ->
+            AzureBlob.get_object_range(object_key, range)
 
-        operation =
-          bucket_name
-          |> ExAws.S3.initiate_multipart_upload(object_key)
-          |> Map.put(:headers, Map.new(headers))
+          :s3 ->
+            {config, bucket_name} = s3_config_and_bucket(actor)
 
-        %{body: %{upload_id: upload_id}} = ExAws.request!(operation, Map.merge(config, fast_api_req_opts()))
-
-        upload_id
+            bucket_name
+            |> ExAws.S3.get_object(object_key, range: "bytes=#{first}-#{last}")
+            |> ExAws.request(with_http_opts(config, @object_transfer_http_opts))
+        end
       end)
 
     :telemetry.execute(
-      Tuist.Telemetry.event_name_storage_multipart_start_upload(),
+      Tuist.Telemetry.event_name_storage_get_object_range(),
       %{duration: time},
-      %{object_key: object_key}
+      %{object_key: object_key, range: range}
     )
 
-    upload_id
+    case result do
+      {:ok, %{body: content}} -> {:ok, content}
+      {:error, {:http_error, 404, _}} -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def multipart_start(object_key, actor) do
+    {time, result} =
+      Performance.measure_time_in_milliseconds(fn ->
+        case storage_provider(actor) do
+          :azure_blob ->
+            {:ok, AzureBlob.multipart_start(object_key)}
+
+          :s3 ->
+            s3_multipart_start(object_key, actor)
+        end
+      end)
+
+    case result do
+      {:ok, _upload_id} ->
+        :telemetry.execute(
+          Tuist.Telemetry.event_name_storage_multipart_start_upload(),
+          %{duration: time},
+          %{object_key: object_key}
+        )
+
+      {:error, reason} ->
+        report_multipart_start_failure(object_key, reason)
+    end
+
+    result
+  end
+
+  defp s3_multipart_start(object_key, actor) do
+    {config, bucket_name} = s3_config_and_bucket(actor)
+    headers = region_headers(actor)
+
+    operation =
+      bucket_name
+      |> ExAws.S3.initiate_multipart_upload(object_key)
+      |> Map.put(:headers, Map.new(headers))
+
+    case ExAws.request(operation, with_http_opts(config, @metadata_http_opts)) do
+      {:ok, %{body: %{upload_id: upload_id}}} -> {:ok, upload_id}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp report_multipart_start_failure(object_key, reason) do
+    Logger.error("Could not start a multipart upload for #{object_key}: #{inspect(reason)}")
+
+    Sentry.capture_message("Object storage rejected the start of a multipart upload",
+      level: :error,
+      extra: %{object_key: object_key, reason: inspect(reason)}
+    )
   end
 
   def delete_all_objects(prefix, actor) do
-    {time, _} =
+    {time, result} =
       Performance.measure_time_in_milliseconds(fn ->
-        {config, bucket_name} = s3_config_and_bucket(actor)
+        case storage_provider(actor) do
+          :azure_blob ->
+            AzureBlob.delete_all_objects(prefix)
 
-        # Check if there are any objects with the given prefix
-        any_objects? =
-          bucket_name
-          |> ExAws.S3.list_objects_v2(prefix: prefix, max_keys: 1)
-          |> ExAws.request!(config)
-          |> Map.get(:body)
-          |> Map.get(:contents)
-          |> Enum.any?()
-
-        if any_objects? do
-          stream =
-            bucket_name
-            |> ExAws.S3.list_objects_v2(prefix: prefix, max_keys: 1000)
-            |> ExAws.stream!(config)
-            |> Stream.map(& &1.key)
-
-          {:ok, _} =
-            bucket_name |> ExAws.S3.delete_all_objects(stream) |> ExAws.request(config)
-        else
-          :ok
+          :s3 ->
+            s3_delete_all_objects(prefix, actor)
         end
       end)
 
@@ -231,24 +509,205 @@ defmodule Tuist.Storage do
       %{project_slug: prefix}
     )
 
-    :ok
+    log_object_deletion("delete_all_objects", actor, result, storage_prefix: prefix)
+
+    result
   end
 
-  def get_object_size(object_key, actor) do
-    {config, bucket_name} = s3_config_and_bucket(actor)
+  def delete_object(object_key, actor) do
+    delete_objects([object_key], actor)
+  end
 
-    case bucket_name
-         |> ExAws.S3.head_object(object_key)
-         |> ExAws.request(Map.merge(config, fast_api_req_opts())) do
+  def delete_objects(object_keys, actor, opts \\ [])
+
+  def delete_objects([], _actor, _opts), do: :ok
+
+  def delete_objects(object_keys, actor, opts) do
+    result =
+      case storage_provider(actor) do
+        :azure_blob ->
+          AzureBlob.delete_objects(object_keys, opts)
+
+        :s3 ->
+          {config, bucket_name} = s3_config_and_bucket(actor)
+          delete_objects_from_bucket(object_keys, bucket_name, config, opts)
+      end
+
+    log_object_deletion("delete_objects", actor, result, storage_object_count: length(object_keys))
+
+    result
+  end
+
+  def delete_objects_from_bucket(object_keys, bucket_name, opts \\ [])
+
+  def delete_objects_from_bucket([], _bucket_name, _opts), do: :ok
+
+  def delete_objects_from_bucket(object_keys, bucket_name, opts) do
+    result =
+      case Keyword.get(opts, :storage_provider, :s3) do
+        :azure_blob -> AzureBlob.delete_objects(object_keys, Keyword.put(opts, :container_name, bucket_name))
+        :s3 -> delete_objects_from_bucket(object_keys, bucket_name, ExAws.Config.new(:s3), opts)
+      end
+
+    # This path carries no account, because retention sweeps delete across
+    # accounts in one call. The leading key segment is what identifies whose
+    # data went, so a bounded sample of distinct prefixes goes in rather than
+    # leaving the record unable to answer that at all.
+    log_object_deletion("delete_objects_from_bucket", nil, result,
+      storage_bucket: bucket_name,
+      storage_object_count: length(object_keys),
+      storage_key_prefixes: key_prefixes(object_keys)
+    )
+
+    result
+  end
+
+  def list_objects_from_bucket(bucket_name, opts \\ []) do
+    case Keyword.get(opts, :storage_provider, :s3) do
+      :azure_blob ->
+        AzureBlob.list_objects(bucket_name, opts)
+
+      :s3 ->
+        prefix = Keyword.get(opts, :prefix, "")
+        max_keys = Keyword.get(opts, :max_keys, 1000)
+        continuation_token = Keyword.get(opts, :continuation_token)
+
+        list_opts = maybe_put_continuation_token([prefix: prefix, max_keys: max_keys], continuation_token)
+
+        bucket_name
+        |> ExAws.S3.list_objects_v2(list_opts)
+        |> ExAws.request(with_http_opts(ExAws.Config.new(:s3), @object_transfer_http_opts))
+    end
+  end
+
+  def list_objects(prefix, actor, opts \\ []) do
+    max_keys = Keyword.get(opts, :max_keys, 1000)
+    continuation_token = Keyword.get(opts, :continuation_token)
+
+    case storage_provider(actor) do
+      :azure_blob ->
+        AzureBlob.list_objects(Environment.azure_blob_container_name(),
+          prefix: prefix,
+          max_keys: max_keys,
+          continuation_token: continuation_token
+        )
+
+      :s3 ->
+        {config, bucket_name} = s3_config_and_bucket(actor)
+
+        list_opts =
+          maybe_put_continuation_token(
+            [prefix: prefix, max_keys: max_keys],
+            continuation_token
+          )
+
+        bucket_name
+        |> ExAws.S3.list_objects_v2(list_opts)
+        |> ExAws.request(with_http_opts(config, @metadata_http_opts))
+    end
+  end
+
+  defp delete_objects_from_bucket(object_keys, bucket_name, config, opts) do
+    max_concurrency = Keyword.get(opts, :max_concurrency, @delete_objects_max_concurrency)
+    http_opts = Keyword.merge(@metadata_http_opts, Keyword.take(opts, [:receive_timeout, :pool_timeout]))
+    task_timeout = Keyword.get(opts, :task_timeout, request_timeout(http_opts))
+
+    object_keys
+    |> Enum.chunk_every(1000)
+    |> Task.async_stream(
+      fn object_keys_chunk ->
+        bucket_name
+        |> ExAws.S3.delete_multiple_objects(object_keys_chunk)
+        |> ExAws.request(with_http_opts(config, http_opts))
+        |> handle_delete_objects_response()
+      end,
+      max_concurrency: max_concurrency,
+      ordered: false,
+      timeout: task_timeout,
+      on_timeout: :kill_task
+    )
+    |> Enum.reduce_while(:ok, fn
+      {:ok, :ok}, :ok ->
+        {:cont, :ok}
+
+      {:ok, {:error, reason}}, :ok ->
+        {:halt, {:error, reason}}
+
+      {:exit, reason}, :ok ->
+        {:halt, {:error, reason}}
+    end)
+  end
+
+  defp handle_delete_objects_response({:ok, response}) do
+    case delete_object_errors(response) do
+      [] ->
+        if successful_delete_objects_response?(response) do
+          :ok
+        else
+          {:error, {:unexpected_response, response}}
+        end
+
+      errors ->
+        {:error, {:delete_objects_failed, errors}}
+    end
+  end
+
+  defp handle_delete_objects_response({:error, reason}), do: {:error, reason}
+
+  defp successful_delete_objects_response?(%{status_code: status_code}) when status_code in 200..299, do: true
+  defp successful_delete_objects_response?(%{status_code: _status_code}), do: false
+  defp successful_delete_objects_response?(%{body: %{deleted: _deleted}}), do: true
+  defp successful_delete_objects_response?(%{body: %{"Deleted" => _deleted}}), do: true
+  defp successful_delete_objects_response?(_response), do: false
+
+  defp delete_object_errors(%{body: body}), do: delete_object_errors(body)
+  defp delete_object_errors(%{errors: errors}), do: normalize_delete_errors(errors)
+  defp delete_object_errors(%{error: error}), do: normalize_delete_errors(error)
+  defp delete_object_errors(%{"Errors" => errors}), do: normalize_delete_errors(errors)
+  defp delete_object_errors(%{"Error" => error}), do: normalize_delete_errors(error)
+  defp delete_object_errors(%{"errors" => errors}), do: normalize_delete_errors(errors)
+  defp delete_object_errors(%{"error" => error}), do: normalize_delete_errors(error)
+
+  defp delete_object_errors(body) when is_binary(body) do
+    SweetXml.xpath(body, ~x"//Error"l,
+      key: ~x"./Key/text()"s,
+      version_id: ~x"./VersionId/text()"s,
+      code: ~x"./Code/text()"s,
+      message: ~x"./Message/text()"s
+    )
+  rescue
+    _error -> []
+  end
+
+  defp delete_object_errors(_body), do: []
+
+  defp normalize_delete_errors(nil), do: []
+  defp normalize_delete_errors([]), do: []
+
+  defp normalize_delete_errors(errors) when is_list(errors) do
+    Enum.reject(errors, &empty_delete_error?/1)
+  end
+
+  defp normalize_delete_errors(error) do
+    if empty_delete_error?(error), do: [], else: [error]
+  end
+
+  defp empty_delete_error?(nil), do: true
+  defp empty_delete_error?(""), do: true
+  defp empty_delete_error?(%{} = error), do: map_size(error) == 0
+  defp empty_delete_error?(_error), do: false
+
+  defp maybe_put_continuation_token(opts, nil), do: opts
+
+  defp maybe_put_continuation_token(opts, continuation_token),
+    do: Keyword.put(opts, :continuation_token, continuation_token)
+
+  def get_object_size(object_key, actor) do
+    case get_object_size_result(object_key, actor) do
       {:ok, response} ->
         {time, size} =
           Performance.measure_time_in_milliseconds(fn ->
-            response
-            |> Map.get(:headers)
-            |> Enum.find(fn {key, _value} -> key == "content-length" end)
-            |> elem(1)
-            |> List.first()
-            |> String.to_integer()
+            object_size_from_response(response, actor)
           end)
 
         :telemetry.execute(
@@ -267,6 +726,36 @@ defmodule Tuist.Storage do
     end
   end
 
+  defp get_object_size_result(object_key, actor) do
+    case storage_provider(actor) do
+      :azure_blob ->
+        AzureBlob.get_object_size(object_key)
+
+      :s3 ->
+        {config, bucket_name} = s3_config_and_bucket(actor)
+
+        bucket_name
+        |> ExAws.S3.head_object(object_key)
+        |> ExAws.request(with_http_opts(config, @metadata_http_opts))
+    end
+  end
+
+  defp object_size_from_response(response, actor) do
+    case storage_provider(actor) do
+      :azure_blob -> response
+      :s3 -> s3_object_size_from_response(response)
+    end
+  end
+
+  defp s3_object_size_from_response(response) do
+    response
+    |> Map.get(:headers)
+    |> Enum.find(fn {key, _value} -> key == "content-length" end)
+    |> elem(1)
+    |> List.first()
+    |> String.to_integer()
+  end
+
   defp s3_config_and_bucket(actor) do
     if has_custom_storage?(actor) do
       {custom_s3_config(actor), actor.s3_bucket_name}
@@ -275,14 +764,184 @@ defmodule Tuist.Storage do
     end
   end
 
-  defp has_custom_storage?(%Account{
-         s3_bucket_name: bucket,
-         s3_access_key_id: access_key,
-         s3_secret_access_key: secret_key
-       })
-       when not is_nil(bucket) and not is_nil(access_key) and not is_nil(secret_key), do: true
+  defp storage_provider(actor) do
+    if has_custom_storage?(actor) do
+      :s3
+    else
+      Environment.object_storage_provider()
+    end
+  end
 
-  defp has_custom_storage?(_), do: false
+  defp normalize_upload_file_result({:ok, _response} = result), do: result
+  defp normalize_upload_file_result({:error, _reason} = result), do: result
+  defp normalize_upload_file_result(:ok), do: {:ok, :done}
+  defp normalize_upload_file_result(response), do: {:ok, response}
+
+  defp s3_delete_all_objects(prefix, actor) do
+    {config, bucket_name} = s3_config_and_bucket(actor)
+
+    if s3_objects_with_prefix?(bucket_name, prefix, config) do
+      s3_delete_all_objects_with_prefix(bucket_name, prefix, config)
+    else
+      :ok
+    end
+  end
+
+  defp s3_objects_with_prefix?(bucket_name, prefix, config) do
+    bucket_name
+    |> ExAws.S3.list_objects_v2(prefix: prefix, max_keys: 1)
+    |> ExAws.request!(config)
+    |> Map.get(:body)
+    |> Map.get(:contents)
+    |> Enum.any?()
+  end
+
+  defp s3_delete_all_objects_with_prefix(bucket_name, prefix, config) do
+    stream =
+      bucket_name
+      |> ExAws.S3.list_objects_v2(prefix: prefix, max_keys: 1000)
+      |> ExAws.stream!(config)
+      |> Stream.map(& &1.key)
+
+    case bucket_name |> ExAws.S3.delete_all_objects(stream) |> ExAws.request(config) do
+      {:ok, _response} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp s3_upload_file(file_path, object_key, actor, bucket_name_override) do
+    {config, bucket_name} = s3_config_and_bucket(actor)
+    bucket_name = bucket_name_override || bucket_name
+
+    with {:ok, %{body: %{upload_id: upload_id}}} <-
+           bucket_name
+           |> ExAws.S3.initiate_multipart_upload(object_key)
+           |> ExAws.request(config),
+         {:ok, parts} <- s3_upload_file_parts(file_path, bucket_name, object_key, upload_id, config) do
+      bucket_name
+      |> ExAws.S3.complete_multipart_upload(object_key, upload_id, parts)
+      |> ExAws.request(config)
+    end
+  end
+
+  defp s3_upload_file_parts(file_path, bucket_name, object_key, upload_id, config) do
+    results =
+      file_path
+      |> Upload.stream_file()
+      |> Stream.with_index(1)
+      |> Task.async_stream(
+        fn chunk -> s3_upload_file_part_with_retry(chunk, bucket_name, object_key, upload_id, config, 1) end,
+        max_concurrency: 4,
+        timeout: @file_upload_chunk_attempt_timeout * @file_upload_chunk_max_attempts + 5_000,
+        on_timeout: :kill_task
+      )
+      |> Enum.map(fn
+        {:ok, value} -> value
+        {:exit, reason} -> {:error, {:chunk_task_exit, reason}}
+      end)
+
+    cond do
+      results == [] ->
+        s3_upload_empty_file_part(bucket_name, object_key, upload_id, config)
+
+      error = Enum.find(results, &match?({:error, _}, &1)) ->
+        bucket_name
+        |> ExAws.S3.abort_multipart_upload(object_key, upload_id)
+        |> ExAws.request(config)
+
+        error
+
+      true ->
+        {:ok, results}
+    end
+  end
+
+  defp s3_upload_empty_file_part(bucket_name, object_key, upload_id, config) do
+    case s3_upload_file_part_with_retry({"", 1}, bucket_name, object_key, upload_id, config, 1) do
+      {:error, _reason} = error ->
+        bucket_name
+        |> ExAws.S3.abort_multipart_upload(object_key, upload_id)
+        |> ExAws.request(config)
+
+        error
+
+      part ->
+        {:ok, [part]}
+    end
+  end
+
+  defp s3_upload_file_part_with_retry({chunk, index}, bucket_name, object_key, upload_id, config, attempt)
+       when attempt < @file_upload_chunk_max_attempts do
+    case s3_attempt_file_part_upload(chunk, index, bucket_name, object_key, upload_id, config) do
+      {:ok, etag} -> {index, etag}
+      _error -> s3_upload_file_part_with_retry({chunk, index}, bucket_name, object_key, upload_id, config, attempt + 1)
+    end
+  end
+
+  defp s3_upload_file_part_with_retry({chunk, index}, bucket_name, object_key, upload_id, config, _attempt) do
+    case s3_attempt_file_part_upload(chunk, index, bucket_name, object_key, upload_id, config) do
+      {:ok, etag} -> {index, etag}
+      other -> {:error, other}
+    end
+  end
+
+  defp s3_attempt_file_part_upload(chunk, index, bucket_name, object_key, upload_id, config) do
+    task =
+      Task.async(fn ->
+        bucket_name
+        |> ExAws.S3.upload_part(object_key, upload_id, index, chunk)
+        |> ExAws.request(config)
+      end)
+
+    case Task.yield(task, @file_upload_chunk_attempt_timeout) || Task.shutdown(task) do
+      nil ->
+        :timeout
+
+      {:ok, {:ok, %{headers: headers}}} ->
+        etag = Enum.find_value(headers, fn {key, value} -> if String.downcase(key) == "etag", do: value end)
+        {:ok, etag}
+
+      {:ok, {:error, reason}} ->
+        {:error, reason}
+
+      {:exit, reason} ->
+        {:exit, reason}
+    end
+  end
+
+  # Deleting an object destroys customer data, and most deletions run from
+  # background workers (retention sweeps, project cleanup, log pruning) where
+  # there is no request record to attribute them to. Without this the only
+  # trace of a deletion is the absence of the object.
+  defp log_object_deletion(operation, actor, result, fields) do
+    Logger.info(
+      "object storage deletion",
+      [
+        storage_operation: operation,
+        storage_account: account_handle(actor),
+        storage_outcome: deletion_outcome(result)
+      ] ++ fields
+    )
+  end
+
+  @key_prefix_sample 10
+
+  defp key_prefixes(object_keys) do
+    object_keys
+    |> Enum.map(&(&1 |> String.split("/", parts: 2) |> hd()))
+    |> Enum.uniq()
+    |> Enum.take(@key_prefix_sample)
+  end
+
+  defp account_handle(%Account{name: name}), do: name
+  defp account_handle(_), do: nil
+
+  defp deletion_outcome(:ok), do: "success"
+  defp deletion_outcome({:ok, _}), do: "success"
+  defp deletion_outcome({:error, _}), do: "failure"
+  defp deletion_outcome(_), do: "success"
+
+  defp has_custom_storage?(actor), do: Account.custom_s3_storage_configured?(actor)
 
   defp custom_s3_config(%Account{} = account) do
     base_config = %{
@@ -303,11 +962,18 @@ defmodule Tuist.Storage do
     end
   end
 
-  defp fast_api_req_opts do
-    %{
-      receive_timeout: 5_000,
-      pool_timeout: 1_000
-    }
+  # ExAws only hands `config[:http_opts]` to the HTTP client; timeouts set as
+  # top-level config keys are silently dropped.
+  defp with_http_opts(config, http_opts) do
+    Map.update(config, :http_opts, http_opts, &Keyword.merge(&1, http_opts))
+  end
+
+  defp request_timeout(http_opts) do
+    case {Keyword.fetch!(http_opts, :receive_timeout), Keyword.fetch!(http_opts, :pool_timeout)} do
+      {:infinity, _pool_timeout} -> :infinity
+      {_receive_timeout, :infinity} -> :infinity
+      {receive_timeout, pool_timeout} -> receive_timeout + pool_timeout + 1_000
+    end
   end
 
   defp region_headers(actor) do

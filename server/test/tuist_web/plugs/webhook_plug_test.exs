@@ -14,6 +14,14 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
     end
   end
 
+  defmodule TimeoutBodyReader do
+    @moduledoc false
+
+    def read_body(_conn, _opts) do
+      raise Bandit.HTTPError, message: "Body read timeout", plug_status: :request_timeout
+    end
+  end
+
   defp generate_signature(payload, secret, prefix \\ nil) do
     signature = :hmac |> :crypto.mac(:sha256, secret, payload) |> Base.encode16(case: :lower)
 
@@ -31,7 +39,7 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
     |> conn(path, payload)
     |> put_req_header("content-type", "application/json")
     |> put_req_header(header_name, signature)
-    |> Map.update!(:body_params, fn _ -> Jason.decode!(payload) end)
+    |> Map.update!(:body_params, fn _ -> JSON.decode!(payload) end)
     |> assign(:raw_body, [payload])
   end
 
@@ -52,7 +60,7 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
       conn = webhook_request(:post, "/webhook/github", payload, secret, "x-hub-signature-256", "sha256=")
 
       # When
-      result = WebhookPlug.call(conn, options)
+      result = WebhookPlug.call(conn, WebhookPlug.init(options))
 
       # Then
       assert result.status == 200
@@ -79,7 +87,7 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
       conn = webhook_request(:post, "/webhook/github", payload, invalid_secret, "x-hub-signature-256", "sha256=")
 
       # When
-      result = WebhookPlug.call(conn, options)
+      result = WebhookPlug.call(conn, WebhookPlug.init(options))
 
       # Then
       assert result.status == 403
@@ -110,14 +118,173 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
         |> conn("/webhook", tampered_payload)
         |> put_req_header("content-type", "application/json")
         |> put_req_header("x-hub-signature-256", signature)
-        |> Map.update!(:body_params, fn _ -> Jason.decode!(tampered_payload) end)
+        |> Map.update!(:body_params, fn _ -> JSON.decode!(tampered_payload) end)
         |> assign(:raw_body, [tampered_payload])
+
+      # When
+      result = WebhookPlug.call(conn, WebhookPlug.init(options))
+
+      # Then
+      assert result.status == 403
+    end
+
+    test "processes payload split across multiple body reads" do
+      # Given
+      secret = "my-secret"
+      payload = ~s({"action": "opened", "body": "chunked-payload"})
+
+      parser_opts =
+        Plug.Parsers.init(
+          parsers: [:json],
+          body_reader: {WebhookPlug.CacheBodyReader, :read_body, []},
+          json_decoder: Phoenix.json_library(),
+          read_length: 8
+        )
+
+      options = [
+        at: "/webhook/github",
+        secret: secret,
+        handler: TestHandler,
+        signature_header: "x-hub-signature-256",
+        signature_prefix: "sha256=",
+        parser_opts: parser_opts
+      ]
+
+      signature = generate_signature(payload, secret, "sha256=")
+
+      conn =
+        :post
+        |> conn("/webhook/github", payload)
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-hub-signature-256", signature)
 
       # When
       result = WebhookPlug.call(conn, options)
 
       # Then
-      assert result.status == 403
+      assert result.status == 200
+      assert result.resp_body == "OK"
+      assert result.halted == true
+
+      assert_receive {:handled, _conn, %{"action" => "opened", "body" => "chunked-payload"}}
+    end
+
+    test "returns 408 when the body read times out" do
+      # Given
+      secret = "my-secret"
+      payload = ~s({"action": "opened"})
+
+      parser_opts =
+        Plug.Parsers.init(
+          parsers: [:json],
+          body_reader: {TimeoutBodyReader, :read_body, []},
+          json_decoder: Phoenix.json_library()
+        )
+
+      options = [
+        at: "/webhook/github",
+        secret: secret,
+        handler: TestHandler,
+        signature_header: "x-hub-signature-256",
+        signature_prefix: "sha256=",
+        parser_opts: parser_opts
+      ]
+
+      signature = generate_signature(payload, secret, "sha256=")
+
+      conn =
+        :post
+        |> conn("/webhook/github", payload)
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-hub-signature-256", signature)
+
+      # When
+      result = WebhookPlug.call(conn, options)
+
+      # Then
+      assert result.status == 408
+      assert result.resp_body == "Request Timeout"
+      assert result.halted == true
+
+      refute_receive {:handled, _conn, _payload}
+    end
+
+    test "returns 401 before reading the body when signature header is missing" do
+      # Given
+      secret = "my-secret"
+      payload = ~s({"action": "opened"})
+
+      parser_opts =
+        Plug.Parsers.init(
+          parsers: [:json],
+          body_reader: {TimeoutBodyReader, :read_body, []},
+          json_decoder: Phoenix.json_library()
+        )
+
+      options = [
+        at: "/webhook/github",
+        secret: secret,
+        handler: TestHandler,
+        signature_header: "x-hub-signature-256",
+        signature_prefix: "sha256=",
+        parser_opts: parser_opts
+      ]
+
+      conn =
+        :post
+        |> conn("/webhook/github", payload)
+        |> put_req_header("content-type", "application/json")
+
+      # When
+      result = WebhookPlug.call(conn, options)
+
+      # Then
+      assert result.status == 401
+      assert result.resp_body == "Missing x-hub-signature-256 header"
+      assert result.halted == true
+
+      refute_receive {:handled, _conn, _payload}
+    end
+
+    test "returns 413 when the payload exceeds the configured body limit" do
+      # Given
+      secret = "my-secret"
+      payload = ~s({"action":"opened"})
+
+      parser_opts =
+        Plug.Parsers.init(
+          parsers: [:json],
+          body_reader: {WebhookPlug.CacheBodyReader, :read_body, []},
+          json_decoder: Phoenix.json_library(),
+          length: 10
+        )
+
+      options = [
+        at: "/webhook/github",
+        secret: secret,
+        handler: TestHandler,
+        signature_header: "x-hub-signature-256",
+        signature_prefix: "sha256=",
+        parser_opts: parser_opts
+      ]
+
+      signature = generate_signature(payload, secret, "sha256=")
+
+      conn =
+        :post
+        |> conn("/webhook/github", payload)
+        |> put_req_header("content-type", "application/json")
+        |> put_req_header("x-hub-signature-256", signature)
+
+      # When
+      result = WebhookPlug.call(conn, options)
+
+      # Then
+      assert result.status == 413
+      assert result.resp_body == "Payload Too Large"
+      assert result.halted == true
+
+      refute_receive {:handled, _conn, _payload}
     end
   end
 
@@ -137,7 +304,7 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
       conn = webhook_request(:post, "/webhooks/cache", payload, secret, "x-cache-signature")
 
       # When
-      result = WebhookPlug.call(conn, options)
+      result = WebhookPlug.call(conn, WebhookPlug.init(options))
 
       # Then
       assert result.status == 200
@@ -163,7 +330,7 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
       conn = webhook_request(:post, "/webhooks/cache", payload, invalid_secret, "x-cache-signature")
 
       # When
-      result = WebhookPlug.call(conn, options)
+      result = WebhookPlug.call(conn, WebhookPlug.init(options))
 
       # Then
       assert result.status == 403
@@ -189,11 +356,11 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
         :post
         |> conn("/webhooks/cache", payload)
         |> put_req_header("content-type", "application/json")
-        |> Map.update!(:body_params, fn _ -> Jason.decode!(payload) end)
+        |> Map.update!(:body_params, fn _ -> JSON.decode!(payload) end)
         |> assign(:raw_body, [payload])
 
       # When
-      result = WebhookPlug.call(conn, options)
+      result = WebhookPlug.call(conn, WebhookPlug.init(options))
 
       # Then
       assert result.status == 401
@@ -223,11 +390,11 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
         |> conn("/webhooks/cache", tampered_payload)
         |> put_req_header("content-type", "application/json")
         |> put_req_header("x-cache-signature", signature)
-        |> Map.update!(:body_params, fn _ -> Jason.decode!(tampered_payload) end)
+        |> Map.update!(:body_params, fn _ -> JSON.decode!(tampered_payload) end)
         |> assign(:raw_body, [tampered_payload])
 
       # When
-      result = WebhookPlug.call(conn, options)
+      result = WebhookPlug.call(conn, WebhookPlug.init(options))
 
       # Then
       assert result.status == 403
@@ -254,7 +421,7 @@ defmodule TuistWeb.Plugs.WebhookPlugTest do
       conn = webhook_request(:post, "/other/path", payload, secret, "x-hub-signature-256")
 
       # When
-      result = WebhookPlug.call(conn, options)
+      result = WebhookPlug.call(conn, WebhookPlug.init(options))
 
       # Then
       refute result.halted

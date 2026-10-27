@@ -1,16 +1,36 @@
 import FileSystem
 import Foundation
 import Mockable
+import Path
+import TuistAndroid
 import TuistAppStorage
 import TuistAutomation
 import TuistCore
+import TuistLogging
 import TuistServer
 import TuistSimulator
 import TuistSupport
+import TuistXcodeBuildProducts
+
+private enum DownloadedApp {
+    case appBundle(AppBundle)
+    case apk(path: AbsolutePath, packageName: String, displayName: String)
+
+    var displayName: String {
+        switch self {
+        case let .appBundle(appBundle):
+            return appBundle.infoPlist.name
+        case let .apk(_, _, displayName):
+            return displayName
+        }
+    }
+}
 
 enum DeviceServiceError: FatalError, Equatable {
     case appDownloadFailed(String)
     case appBundleNotFoundInArchive
+    case apkNotFoundInArchive
+    case missingPackageName(String)
 
     var description: String {
         switch self {
@@ -18,6 +38,10 @@ enum DeviceServiceError: FatalError, Equatable {
             return "The app preview \(id) was not found."
         case .appBundleNotFoundInArchive:
             return "Could not find app bundle in the downloaded archive"
+        case .apkNotFoundInArchive:
+            return "Could not find APK file in the downloaded archive"
+        case let .missingPackageName(id):
+            return "The preview \(id) does not have a package name set."
         }
     }
 
@@ -25,7 +49,7 @@ enum DeviceServiceError: FatalError, Equatable {
         switch self {
         case .appDownloadFailed:
             return .abort
-        case .appBundleNotFoundInArchive:
+        case .appBundleNotFoundInArchive, .apkNotFoundInArchive, .missingPackageName:
             return .bug
         }
     }
@@ -37,6 +61,7 @@ protocol DeviceServicing: ObservableObject {
     var selectedDevice: Device? { get }
     var devices: [PhysicalDevice] { get }
     var simulators: [SimulatorDeviceAndRuntime] { get }
+    var androidDevices: [AndroidDevice] { get }
     func launchPreview(
         with previewId: String,
         fullHandle: String,
@@ -56,10 +81,14 @@ final class DeviceService: DeviceServicing {
     @Published
     private(set) var simulators: [SimulatorDeviceAndRuntime] = []
 
+    @Published
+    private(set) var androidDevices: [AndroidDevice] = []
+
     private let taskStatusReporter: any TaskStatusReporting
     private let appStorage: AppStoring
     private let deviceController: DeviceControlling
     private let simulatorController: SimulatorControlling
+    private let adbController: AdbControlling
     private let getPreviewService: GetPreviewServicing
     private let fileArchiverFactory: FileArchivingFactorying
     private let remoteArtifactDownloader: RemoteArtifactDownloading
@@ -72,6 +101,7 @@ final class DeviceService: DeviceServicing {
         appStorage: AppStoring = AppStorage(),
         deviceController: DeviceControlling = DeviceController(),
         simulatorController: SimulatorControlling = SimulatorController(),
+        adbController: AdbControlling = AdbController(),
         getPreviewService: GetPreviewServicing = GetPreviewService(),
         fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory(),
         remoteArtifactDownloader: RemoteArtifactDownloading = RemoteArtifactDownloader(),
@@ -83,6 +113,7 @@ final class DeviceService: DeviceServicing {
         self.appStorage = appStorage
         self.deviceController = deviceController
         self.simulatorController = simulatorController
+        self.adbController = adbController
         self.getPreviewService = getPreviewService
         self.fileArchiverFactory = fileArchiverFactory
         self.remoteArtifactDownloader = remoteArtifactDownloader
@@ -98,6 +129,8 @@ final class DeviceService: DeviceServicing {
             try? appStorage.set(SelectedDeviceKey.self, value: .simulator(id: simulator.id))
         case let .device(physicalDevice):
             try? appStorage.set(SelectedDeviceKey.self, value: .device(id: physicalDevice.id))
+        case let .androidDevice(androidDevice):
+            try? appStorage.set(SelectedDeviceKey.self, value: .androidDevice(id: androidDevice.id))
         case .none:
             try? appStorage.set(SelectedDeviceKey.self, value: nil)
         }
@@ -107,13 +140,20 @@ final class DeviceService: DeviceServicing {
         let devices = try await deviceController.findAvailableDevices()
         let simulators = try await simulatorController.devicesAndRuntimes().sorted()
 
+        var androidDevices: [AndroidDevice] = []
+        if await adbController.isAdbAvailable() {
+            androidDevices = try await adbController.findAvailableDevices()
+        }
+
         let selectedDevice =
             storedSelectedDevice(
-                simulators: simulators
+                simulators: simulators,
+                androidDevices: androidDevices
             ) ?? simulators.first(where: { !$0.device.isShutdown }).map { .simulator($0) }
         await MainActor.run {
             self.devices = devices
             self.simulators = simulators
+            self.androidDevices = androidDevices
             self.selectedDevice = selectedDevice
         }
     }
@@ -155,10 +195,12 @@ final class DeviceService: DeviceServicing {
         )
 
         do {
-            let preview = try await getPreviewService.getPreview(
-                previewId,
-                fullHandle: fullHandle,
-                serverURL: serverURL
+            let preview = try await ServerPreview(
+                getPreviewService.getPreview(
+                    previewId,
+                    fullHandle: fullHandle,
+                    serverURL: serverURL
+                )
             )
 
             let app = try await downloadApp(
@@ -171,12 +213,14 @@ final class DeviceService: DeviceServicing {
             )
 
             try await launchApp(app, on: selectedDevice)
+
+            let displayName = app.displayName
             if let gitCommitSHA = preview.gitCommitSHA {
                 await status.markAsDone(
-                    message: "Installed \(app.infoPlist.name)@\(gitCommitSHA.prefix(7))"
+                    message: "Installed \(displayName)@\(gitCommitSHA.prefix(7))"
                 )
             } else {
-                await status.markAsDone(message: "Installed \(app.infoPlist.name)")
+                await status.markAsDone(message: "Installed \(displayName)")
             }
         } catch {
             await status.markAsDone(message: "Installation failed")
@@ -187,13 +231,15 @@ final class DeviceService: DeviceServicing {
     private func downloadApp(
         for preview: ServerPreview,
         selectedDevice: Device
-    ) async throws -> AppBundle {
+    ) async throws -> DownloadedApp {
         let destination: DestinationType
         switch selectedDevice {
         case let .device(physicalDevice):
             destination = .device(physicalDevice.platform)
         case let .simulator(simulator):
             destination = .simulator(try simulator.runtime.platform())
+        case .androidDevice:
+            destination = .android
         }
         guard let url = preview.appBuilds.first(where: { $0.supportedPlatforms.contains(destination) })?.url
         else {
@@ -206,39 +252,65 @@ final class DeviceService: DeviceServicing {
         guard let archivePath = try await remoteArtifactDownloader.download(url: url)
         else { throw DeviceServiceError.appDownloadFailed(preview.id) }
         let fileUnarchiver = try fileArchiverFactory.makeFileUnarchiver(for: archivePath)
-        let unarchivedDirectory = try fileUnarchiver.unzip()
+        let unarchivedDirectory = try await fileUnarchiver.unzip()
 
-        guard let appPath = try await fileSystem.glob(
-            directory: unarchivedDirectory, include: ["*.app", "Payload/*.app"]
-        )
-        .collect()
-        .first
-        else { throw DeviceServiceError.appBundleNotFoundInArchive }
+        switch selectedDevice {
+        case .device, .simulator:
+            guard let appPath = try await fileSystem.glob(
+                directory: unarchivedDirectory, include: ["*.app", "Payload/*.app"]
+            )
+            .collect()
+            .first
+            else { throw DeviceServiceError.appBundleNotFoundInArchive }
 
-        return try await appBundleLoader.load(appPath)
+            return .appBundle(try await appBundleLoader.load(appPath))
+
+        case .androidDevice:
+            guard let packageName = preview.bundleIdentifier else {
+                throw DeviceServiceError.missingPackageName(preview.id)
+            }
+            guard let apkPath = try await fileSystem.glob(
+                directory: unarchivedDirectory, include: ["**/*.apk"]
+            )
+            .collect()
+            .first
+            else { throw DeviceServiceError.apkNotFoundInArchive }
+
+            return .apk(
+                path: apkPath,
+                packageName: packageName,
+                displayName: preview.displayName ?? packageName
+            )
+        }
     }
 
     private func launchApp(
-        _ app: AppBundle,
+        _ app: DownloadedApp,
         on device: Device
     ) async throws {
-        switch device {
-        case let .simulator(simulator):
-            let bootedDevice = try simulatorController.booted(
+        switch (app, device) {
+        case let (.appBundle(appBundle), .simulator(simulator)):
+            let bootedDevice = try await simulatorController.booted(
                 device: simulator.device, forced: true
             )
-            try simulatorController.installApp(at: app.path, device: bootedDevice)
+            try await simulatorController.installApp(at: appBundle.path, device: bootedDevice)
             try await simulatorController.launchApp(
-                bundleId: app.infoPlist.bundleId, device: bootedDevice, arguments: []
+                bundleId: appBundle.infoPlist.bundleId, device: bootedDevice, arguments: []
             )
-        case let .device(device):
-            try await deviceController.installApp(at: app.path, device: device)
-            try await deviceController.launchApp(bundleId: app.infoPlist.bundleId, device: device)
+        case let (.appBundle(appBundle), .device(device)):
+            try await deviceController.installApp(at: appBundle.path, device: device)
+            try await deviceController.launchApp(bundleId: appBundle.infoPlist.bundleId, device: device)
+        case let (.apk(apkPath, packageName, _), .androidDevice(androidDevice)):
+            try await adbController.installApp(at: apkPath, device: androidDevice)
+            try await adbController.launchApp(packageName: packageName, device: androidDevice)
+        default:
+            break
         }
     }
 
     private func storedSelectedDevice(
-        simulators: [SimulatorDeviceAndRuntime]
+        simulators: [SimulatorDeviceAndRuntime],
+        androidDevices: [AndroidDevice]
     ) -> Device? {
         guard let selectedDevice = try? appStorage.get(SelectedDeviceKey.self) else { return nil }
         switch selectedDevice {
@@ -246,6 +318,8 @@ final class DeviceService: DeviceServicing {
             return simulators.first(where: { $0.id == id }).map { .simulator($0) }
         case let .device(id):
             return devices.first(where: { $0.id == id }).map { .device($0) }
+        case let .androidDevice(id):
+            return androidDevices.first(where: { $0.id == id }).map { .androidDevice($0) }
         }
     }
 }

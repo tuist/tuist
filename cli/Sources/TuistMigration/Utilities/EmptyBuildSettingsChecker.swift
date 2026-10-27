@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import PathKit
+import TuistLogging
 import TuistSupport
 import XcodeProj
 
@@ -43,7 +44,7 @@ enum EmptyBuildSettingsCheckerError: FatalError, Equatable {
     }
 }
 
-public class EmptyBuildSettingsChecker: EmptyBuildSettingsChecking {
+public struct EmptyBuildSettingsChecker: EmptyBuildSettingsChecking {
     private let fileSystem: FileSysteming
 
     // MARK: - Init

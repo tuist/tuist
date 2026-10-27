@@ -1,0 +1,742 @@
+defmodule Tuist.Runners.RunnerSessions do
+  @moduledoc """
+  Open/close the per-Pod billing record in Postgres.
+
+  Two write paths:
+
+    * **Open** — `open/1`, called from `Tuist.Runners` after runner
+      dispatch commits. Using the claim timestamp as the start
+      keeps the warm pool's idle-poll time out of billing, while
+      delaying the insert until dispatch succeeds avoids billing a
+      failed runner registration.
+
+    * **Close** — `close_by_pod_name/2`, called from the
+      runners-controller via `POST /api/internal/runners/pods/stopped`
+      when the controller observes a Pod transition into a terminal
+      phase. `ended_at` is K8s's
+      `containerStatuses[runner].state.terminated.finishedAt` —
+      the moment the container process actually exited.
+
+  Both paths are fire-and-forget — they don't block the hot dispatch
+  path and they swallow Postgres errors with a warning rather than
+  failing the caller. A missed insert / update means we under-bill
+  that customer for one Pod; a hard failure here would mean a
+  missed claim or a missed controller report, which is much worse.
+  Track failures via the warning log line; the operator should be
+  alerted on sustained noise.
+
+  ## Under-bill bias on re-emits
+
+  Both writes are idempotent and biased so a duplicate delivery can
+  never *extend* the billed window:
+
+    * Re-emit on a still-open session → `started_at` becomes
+      `MAX(existing, new)` (later start = shorter window).
+    * Re-emit on an already-closed session → `ended_at` becomes
+      `MIN(existing, new)` (earlier end = shorter window).
+
+  Combined with the billing-query's `started_at + max_lifetime`
+  safety clamp, the worst-case is "lost stopped event, session
+  bills at most max_lifetime" — never "duplicate stopped event,
+  session bills longer than it ran."
+
+  Runner sessions also back the autoscaler's capacity signals. Unlike
+  the GitHub workflow-job lifecycle, a session stays open through
+  post-job cache work and Pod teardown, so it represents how long the
+  runner actually occupies a host.
+  """
+  import Ecto.Query
+  import Tuist.Runners.Catalog, only: [valid_machine_resources: 3]
+
+  alias Tuist.Repo
+  alias Tuist.Runners.Catalog
+  alias Tuist.Runners.RunnerSession
+  alias Tuist.Runners.WorkflowJob
+
+  require Logger
+
+  # Upper bound on how long a session may be assumed to have run when its
+  # close was never reported. Six hours matches GitHub's own workflow_job
+  # ceiling, so it never trims a real session. It used to live in
+  # `Tuist.Runners.Billing` as an invoice clamp; billing now meters
+  # GitHub's job window instead, so the bound is only about not recording
+  # an absurd Pod lifetime on the row.
+  @max_session_lifetime_seconds 6 * 60 * 60
+
+  @doc """
+  The six-hour bound above, for callers that reconstruct how long a
+  runner held its slot from records that may be missing their close.
+  """
+  def max_session_lifetime_seconds, do: @max_session_lifetime_seconds
+
+  @doc """
+  Open a billing session once dispatch has committed and the runner
+  is recorded as running. `started_at` is the claim timestamp, the
+  moment we bound the warm Pod to this workflow job. Opening at this
+  point instead of at claim-win keeps failed dispatches from leaving
+  billable sessions behind.
+  """
+  def open(
+        %{
+          workflow_job_id: workflow_job_id,
+          account_id: account_id,
+          fleet_name: fleet_name,
+          platform: platform,
+          vcpus: vcpus,
+          memory_gb: memory_gb,
+          pod_name: pod_name,
+          started_at: started_at
+        } = attrs
+      )
+      when valid_machine_resources(platform, vcpus, memory_gb) do
+    now = DateTime.utc_now()
+
+    attrs = %{
+      workflow_job_id: workflow_job_id,
+      account_id: account_id,
+      fleet_name: fleet_name,
+      platform: platform,
+      vcpus: vcpus,
+      memory_gb: memory_gb,
+      # Freeze the rate card the session was admitted under. Deriving this
+      # at invoice time instead would let a catalog edit reprice sessions
+      # that already ran.
+      billing_multiplier: Catalog.billing_multiplier(platform, vcpus, memory_gb),
+      pod_name: pod_name,
+      # Optional: a dispatch that could not resolve the node still bills
+      # correctly, it just cannot be attributed to a machine afterwards.
+      node_name: Map.get(attrs, :node_name),
+      runner_name: Map.get(attrs, :runner_name, ""),
+      # Set at open time only by the Buildkite lane, where an acquisition
+      # token is minted for one job UUID and the runner can take no other.
+      # The GitHub lane leaves it nil and learns the binding later from
+      # the `workflow_job.in_progress` webhook, because GitHub, not us,
+      # decides which job a label-bound runner receives.
+      executed_workflow_job_id: Map.get(attrs, :executed_workflow_job_id),
+      repository: Map.get(attrs, :repository, ""),
+      workflow_name: Map.get(attrs, :workflow_name, ""),
+      started_at: started_at,
+      inserted_at: DateTime.truncate(now, :second),
+      updated_at: DateTime.truncate(now, :second)
+    }
+
+    case Repo.insert(struct(RunnerSession, attrs)) do
+      {:ok, session} ->
+        {:ok, session}
+
+      {:error, changeset} ->
+        Logger.warning("runners: failed to open billing session",
+          workflow_job_id: workflow_job_id,
+          account_id: account_id,
+          changeset_errors: inspect(changeset.errors)
+        )
+
+        {:error, changeset}
+    end
+  end
+
+  @doc """
+  Close the most recent open session for `pod_name` with the K8s-
+  reported container termination time. Invoked when the
+  runners-controller observes a Pod transition to a terminal
+  phase.
+
+  Under-bill bias:
+
+    * No open session for that `pod_name` → `{:ok, :no_open_session}`
+      (re-delivery of a stopped event after we already closed; or
+      a stopped event for a Pod whose claim never landed —
+      either way nothing to do, and silently ignoring is the
+      right move under "under-bill rather than over-bill").
+    * Session already has `ended_at` set → take `MIN(existing, new)`
+      so a late-arriving event with a *later* timestamp can
+      never extend the billed window.
+    * Session is open → set `ended_at = new`.
+
+  Returns `{:ok, session}` on success, `{:ok, :no_open_session}`
+  when no open row matches, `{:error, changeset}` on persistence
+  failure (logged with a warning before returning).
+  """
+  def close_by_pod_name(pod_name, %DateTime{} = ended_at) when is_binary(pod_name) and pod_name != "" do
+    case latest_for_pod(pod_name) do
+      nil ->
+        {:ok, :no_open_session}
+
+      %RunnerSession{} = session ->
+        # Under-bill bias: if a previous close raced in with an
+        # earlier timestamp, keep it. A late re-delivery with a
+        # later `ended_at` should never extend the billed window.
+        effective_end =
+          case session.ended_at do
+            nil -> ended_at
+            %DateTime{} = existing -> earlier(existing, ended_at)
+          end
+
+        session
+        |> Ecto.Changeset.cast(
+          %{ended_at: effective_end, updated_at: DateTime.truncate(DateTime.utc_now(), :second)},
+          [:ended_at, :updated_at]
+        )
+        |> Repo.update()
+        |> case do
+          {:ok, updated} ->
+            {:ok, updated}
+
+          {:error, changeset} ->
+            Logger.warning("runners: failed to close billing session",
+              pod_name: pod_name,
+              changeset_errors: inspect(changeset.errors)
+            )
+
+            {:error, changeset}
+        end
+    end
+  end
+
+  @doc """
+  Counts runner Pods currently occupying capacity, grouped by fleet.
+
+  A claim covers the dispatch window before the durable session is
+  opened. An open session covers the running job plus cache inventory,
+  upload, and Pod teardown after the claim has been released. The
+  `UNION` deduplicates the normal overlap where both rows describe the
+  same Pod.
+
+  Session-only occupancy is capped at six hours, matching the billing
+  safety bound. A live claim still keeps a genuinely long-running Pod
+  counted after that point; only an orphaned open session is ignored.
+  """
+  def occupied_counts_per_fleet do
+    query = """
+    WITH occupied_pods AS (
+      SELECT fleet_name, pod_name
+      FROM runner_claims
+      WHERE pod_name <> ''
+
+      UNION
+
+      SELECT fleet_name, pod_name
+      FROM runner_sessions
+      WHERE ended_at IS NULL
+        AND pod_name <> ''
+        AND started_at >= CURRENT_TIMESTAMP - INTERVAL '6 hours'
+    )
+    SELECT fleet_name, COUNT(*)::integer AS occupied
+    FROM occupied_pods
+    GROUP BY fleet_name
+    """
+
+    query
+    |> Repo.query!()
+    |> Map.fetch!(:rows)
+    |> Map.new(fn [fleet_name, occupied] -> {fleet_name, occupied} end)
+  end
+
+  @doc """
+  Computes the discrete 95th percentile of occupied runner capacity
+  over active one-minute buckets in the last hour.
+
+  The interval is the complete runner session, from committed dispatch
+  through cache work and Pod teardown. Buckets with no demand are
+  excluded deliberately: this is conditional peak forecasting for the
+  next burst, not average wall-clock utilization. Including 60 zero
+  buckets makes sparse but real demand collapse to zero.
+
+  Open or abnormally long sessions are capped at six hours so a missed
+  Pod-stopped event cannot keep speculative capacity warm forever.
+  Returns zero on an empty fleet or a query failure; current occupied
+  and queued demand still drive safe scale-up in that case.
+
+  The clamp is a last line of defence, not the mechanism: sessions whose
+  Pod is gone are closed by `Tuist.Runners.Workers.PodReconciliationWorker`
+  long before six hours. `clamped_open_session_counts_per_fleet/0` exports
+  how many rows still reach it, which is the signal that the reaper has
+  stopped working.
+  """
+  def p95_concurrent_last_hour(fleet_name) when is_binary(fleet_name) do
+    query = """
+    WITH minute_buckets AS (
+      SELECT generate_series(
+        date_trunc('minute', CURRENT_TIMESTAMP) - INTERVAL '59 minutes',
+        date_trunc('minute', CURRENT_TIMESTAMP),
+        INTERVAL '1 minute'
+      ) AS bucket_start
+    ),
+    recent_sessions AS (
+      SELECT
+        started_at,
+        LEAST(
+          COALESCE(ended_at, CURRENT_TIMESTAMP),
+          started_at + INTERVAL '6 hours'
+        ) AS effective_end
+      FROM runner_sessions
+      WHERE fleet_name = $1
+        AND started_at >= CURRENT_TIMESTAMP - INTERVAL '7 hours'
+    ),
+    active_buckets AS (
+      SELECT
+        minute_buckets.bucket_start,
+        COUNT(*)::integer AS concurrent_count
+      FROM minute_buckets
+      INNER JOIN recent_sessions
+        ON recent_sessions.started_at < minute_buckets.bucket_start + INTERVAL '1 minute'
+        AND recent_sessions.effective_end > minute_buckets.bucket_start
+      GROUP BY minute_buckets.bucket_start
+    )
+    SELECT
+      COALESCE(
+        percentile_disc(0.95) WITHIN GROUP (ORDER BY concurrent_count),
+        0
+      )::integer AS p95
+    FROM active_buckets
+    """
+
+    case Repo.query(query, [fleet_name]) do
+      {:ok, %{rows: [[p95]]}} when is_integer(p95) ->
+        p95
+
+      {:error, reason} ->
+        Logger.warning("runners: failed to compute session concurrency forecast",
+          fleet: fleet_name,
+          reason: inspect(reason)
+        )
+
+        0
+
+      unexpected ->
+        Logger.warning("runners: unexpected session concurrency forecast result",
+          fleet: fleet_name,
+          reason: inspect(unexpected)
+        )
+
+        0
+    end
+  end
+
+  @doc """
+  Open sessions per fleet that have already passed the six-hour safety
+  bound — the rows `p95_concurrent_last_hour/1` clamps out of the
+  forecast and that `occupied_counts_per_fleet/0` has stopped counting.
+
+  Every row here is a Pod-stopped signal we never received *and* a Pod
+  the reaper never managed to confirm gone, so a non-zero value is the
+  leak detector for both paths at once. It is exported as a polled gauge
+  rather than emitted from the forecast: the forecast only runs for
+  fleets the autoscaler happens to be polling, on whichever replica
+  serves that request, which is exactly how the signal stayed invisible
+  while sessions leaked in production.
+
+  Zero-valued fleets are omitted; the caller decides which fleets need
+  an explicit zero (see `Tuist.Runners.PromExPlugin`).
+  """
+  def clamped_open_session_counts_per_fleet do
+    bound = DateTime.add(DateTime.utc_now(), -@max_session_lifetime_seconds, :second)
+
+    RunnerSession
+    |> where([s], is_nil(s.ended_at) and s.started_at < ^bound)
+    |> group_by([s], s.fleet_name)
+    |> select([s], {s.fleet_name, count(s.id)})
+    |> Repo.all()
+    |> Map.new(fn {fleet_name, count} -> {fleet_name || "", count} end)
+  end
+
+  @doc """
+  Open sessions old enough to be judged against the observed Pod set,
+  oldest first so a capped batch drains the longest-standing leaks.
+
+  `threshold` keeps young sessions out. The Pod is already running and
+  polling when it wins a claim, so it is listable before this row is
+  written — the window is not waiting for the Pod to appear. It keeps the
+  arm away from the dispatch and teardown churn entirely, so a session is
+  only ever judged once it is well outside the normal lifecycle, and a
+  read taken either side of a close cannot be mistaken for an orphan.
+
+  Both job ids come back because either can carry the completion the
+  caller resolves an end time from: `executed_workflow_job_id` is what
+  GitHub proved ran on the runner, `workflow_job_id` is what the claim
+  was minted for, and a runner handed a sibling's job has them differ.
+  """
+  def list_open_for_pod_reconciliation(%DateTime{} = threshold) do
+    RunnerSession
+    |> where([s], is_nil(s.ended_at) and s.pod_name != "" and s.started_at < ^threshold)
+    |> order_by([s], asc: s.started_at)
+    |> select([s], %{
+      id: s.id,
+      pod_name: s.pod_name,
+      workflow_job_id: s.workflow_job_id,
+      executed_workflow_job_id: s.executed_workflow_job_id
+    })
+    |> Repo.all()
+  end
+
+  @doc """
+  Closes one session whose Pod the caller has confirmed absent.
+
+  `is_nil(ended_at)` is the race guard: if the controller's pod-stopped
+  report lands between the caller's listing and this write, it sets
+  `ended_at` and the row stops matching, so the accurate timestamp always
+  beats this estimate. That direction is the one that matters — the close
+  is one-way, since `close_by_pod_name/2` only ever moves `ended_at`
+  earlier.
+
+  ## Which `ended_at` gets written
+
+  With `:completed_at` — the terminal completion the caller resolved
+  from ClickHouse — the write is
+  `GREATEST(started_at, LEAST(completed_at, now, started_at + max_session_lifetime))`.
+  That is the runner's real end: the Pod stopped because its job
+  finished, so the customer is billed for the work rather than for how
+  long the reaper took to notice. `LEAST` against `now` keeps the
+  under-bill bias, so a late or bogus completion can never extend the
+  window; `GREATEST` against `started_at` floors it, because GitHub and
+  Postgres clocks can disagree and a `completed_at` before `started_at`
+  would otherwise write an inverted interval the billing query reads as
+  negative time.
+
+  Without it — the job never reached a terminal state, or ClickHouse was
+  unavailable — the write falls back to
+  `LEAST(now, started_at + max_session_lifetime)`, the exact instant the
+  billing query already clamps an open session to. That is
+  billing-neutral for a long-leaked row and the conservative answer when
+  we have no evidence of a real end.
+
+  Returns `:ok` when the row was closed, `{:error, :stale_session}` when
+  it no longer matches.
+  """
+  def close_pod_missing(id, %DateTime{} = now, opts \\ []) when is_integer(id) do
+    {count, _} =
+      RunnerSession
+      |> where([s], s.id == ^id and is_nil(s.ended_at))
+      |> orphan_close_update(Keyword.get(opts, :completed_at), now)
+      |> Repo.update_all([])
+
+    if count == 1, do: :ok, else: {:error, :stale_session}
+  end
+
+  defp orphan_close_update(query, nil, now) do
+    update(query, [s],
+      set: [
+        ended_at:
+          fragment(
+            "LEAST(?, ? + make_interval(secs => ?))",
+            ^now,
+            s.started_at,
+            ^@max_session_lifetime_seconds
+          ),
+        updated_at: ^DateTime.truncate(now, :second)
+      ]
+    )
+  end
+
+  defp orphan_close_update(query, %DateTime{} = completed_at, now) do
+    update(query, [s],
+      set: [
+        ended_at:
+          fragment(
+            "GREATEST(?, LEAST(?, ?, ? + make_interval(secs => ?)))",
+            s.started_at,
+            ^completed_at,
+            ^now,
+            s.started_at,
+            ^@max_session_lifetime_seconds
+          ),
+        updated_at: ^DateTime.truncate(now, :second)
+      ]
+    )
+  end
+
+  @doc """
+  Resolves `pod_name` to the workflow_job GitHub **proved** is running
+  on it, plus the owning `account_id`. Returns `:error` when execution
+  hasn't been proven for this Pod.
+
+  This is the read side of the attribution binding, and it deliberately
+  refuses to guess. Resolving through the claim instead would attribute
+  samples to the job the Pod was *minted for*, which is wrong twice
+  over:
+
+    * Before GitHub assigns a job (or on a runner it never assigns one
+      to), the Pod's idle CPU/memory would be charted on a job that is
+      running on a different Pod entirely.
+    * A Pod executing a job it didn't claim can have no live claim at
+      all — the claim is released by whichever runner finished — so its
+      real samples would be dropped.
+
+  The session is keyed to the Pod and outlives it, so it answers both
+  cases correctly: samples land only once `in_progress` (or the
+  `completed` backstop) names this Pod's runner, and they land on the
+  job that actually ran.
+
+  Scoped to the open session: a Pod between jobs (warm, or torn down)
+  is not sampling for anyone.
+  """
+  def executed_job_for_pod(pod_name) when is_binary(pod_name) and pod_name != "" do
+    RunnerSession
+    |> where([s], s.pod_name == ^pod_name and is_nil(s.ended_at) and not is_nil(s.executed_workflow_job_id))
+    |> order_by([s], desc: s.started_at)
+    |> select([s], %{
+      workflow_job_id: s.executed_workflow_job_id,
+      account_id: s.account_id,
+      runner_name: s.runner_name
+    })
+    |> limit(1)
+    |> Repo.one()
+    |> case do
+      nil -> :error
+      session -> {:ok, session}
+    end
+  end
+
+  def executed_job_for_pod(_pod_name), do: :error
+
+  @doc """
+  Records the workflow_job GitHub actually ran on the runner named
+  `runner_name`, on the durable session row (which outlives the pod).
+  Called from the `workflow_job.in_progress` / `completed` webhook.
+
+  The session is the attribution backstop for `Claims.record_execution/2`:
+  a fast job whose pod is already gone still has its session row, so a
+  late `completed` webhook can still bind the runner. Prefers the open
+  session, falling back to the most recent closed one.
+
+  Scoped to `account_id` (resolved from the webhook's App installation):
+  a runner name is only ours to trust within the account that minted it,
+  and a customer's own self-hosted runners carry names that account
+  controls, so an unscoped lookup would let one account's webhook bind a
+  colliding runner name belonging to another.
+
+  Idempotent. Returns `:matched` / `:mismatch` / `:unknown_runner`
+  mirroring `Claims.record_execution/3`, or `{:error, changeset}` when the
+  write itself failed.
+
+  A caller must not swallow that error. This is the only path that records
+  the billable job window, and a session missing either bound bills
+  nothing, so a dropped write silently loses that job's usage rather than
+  merely losing attribution.
+  """
+  def record_execution(runner_name, executed_workflow_job_id, account_id, job_window \\ %{})
+
+  def record_execution(runner_name, executed_workflow_job_id, account_id, job_window)
+      when is_binary(runner_name) and runner_name != "" and is_integer(executed_workflow_job_id) and
+             is_integer(account_id) do
+    case session_for_runner(runner_name, account_id) do
+      nil -> :unknown_runner
+      %RunnerSession{} = session -> bind_execution(session, executed_workflow_job_id, job_window)
+    end
+  end
+
+  def record_execution(_runner_name, _executed_workflow_job_id, _account_id, _job_window), do: :unknown_runner
+
+  @doc """
+  The workflow_job that ran on the runner named `runner_name` within
+  `account_id`: the one `record_execution/4` bound, or, until GitHub reports
+  it, the one the runner was minted for.
+
+  Reads the session because it is the one record of a runner that a later
+  mint never rewrites. `runner_workflow_jobs.runner_name` is overwritten each
+  time a job's row is minted again, so it cannot say which runner ran a job.
+  """
+  def workflow_job_id_for_runner(runner_name, account_id)
+      when is_binary(runner_name) and runner_name != "" and is_integer(account_id) do
+    case session_for_runner(runner_name, account_id) do
+      nil -> :error
+      %RunnerSession{} = session -> {:ok, session.executed_workflow_job_id || session.workflow_job_id}
+    end
+  end
+
+  def workflow_job_id_for_runner(_runner_name, _account_id), do: :error
+
+  # Prefer the open session; fall back to the most recent closed one so a
+  # `completed` backstop can still bind after a fast job's pod is gone.
+  # Same policy as `latest_for_pod/1`, expressed once — see
+  # `prefer_open_then_latest/1`.
+  defp session_for_runner(runner_name, account_id) do
+    RunnerSession
+    |> where([s], s.runner_name == ^runner_name and s.account_id == ^account_id)
+    |> prefer_open_then_latest()
+    |> Repo.one()
+  end
+
+  # Only a complete, forward-ordered window is billable. A partial pair
+  # (one timestamp present) or an inverted one is treated as no evidence
+  # of execution at all rather than half a window.
+  defp billable_job_window(%{started_at: %DateTime{} = started_at, ended_at: %DateTime{} = ended_at}) do
+    if DateTime.before?(ended_at, started_at) do
+      %{}
+    else
+      %{job_started_at: started_at, job_ended_at: ended_at}
+    end
+  end
+
+  defp billable_job_window(_job_window), do: %{}
+
+  # "Prefer the row still open, else the most recent closed one." Both the
+  # runner_name and pod_name lookups want exactly this ordering.
+  defp prefer_open_then_latest(query) do
+    query
+    |> order_by([s], desc: is_nil(s.ended_at), desc: s.started_at)
+    |> limit(1)
+  end
+
+  # GitHub's own `started_at` / `completed_at` for the job, when the
+  # completion payload carried both. This is the billable window: the
+  # session's own bounds include VM boot before the job and teardown
+  # after it, neither of which is the customer's to pay for. Absent or
+  # partial timestamps are left NULL and bill nothing rather than
+  # falling back to the Pod's wall clock.
+  defp bind_execution(%RunnerSession{workflow_job_id: claimed_job_id} = session, executed_workflow_job_id, job_window) do
+    attrs =
+      Map.merge(
+        %{
+          executed_workflow_job_id: executed_workflow_job_id,
+          updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+        },
+        billable_job_window(job_window)
+      )
+
+    session
+    |> Ecto.Changeset.cast(attrs, [:executed_workflow_job_id, :updated_at, :job_started_at, :job_ended_at])
+    |> Repo.update()
+    |> case do
+      {:ok, _updated} ->
+        if claimed_job_id == executed_workflow_job_id, do: :matched, else: :mismatch
+
+      {:error, changeset} ->
+        Logger.warning("runners: failed to record session execution",
+          runner_name: session.runner_name,
+          changeset_errors: inspect(changeset.errors)
+        )
+
+        {:error, changeset}
+    end
+  end
+
+  defp latest_for_pod(pod_name) do
+    # Prefer the open row if one exists; otherwise return whichever
+    # closed row is most recent — the close path may need to clamp
+    # its `ended_at` down on a duplicate delivery.
+    open =
+      RunnerSession
+      |> where([s], s.pod_name == ^pod_name and is_nil(s.ended_at))
+      |> order_by([s], desc: s.started_at)
+      |> limit(1)
+      |> Repo.one()
+
+    open || most_recent_closed(pod_name)
+  end
+
+  defp most_recent_closed(pod_name) do
+    RunnerSession
+    |> where([s], s.pod_name == ^pod_name and not is_nil(s.ended_at))
+    |> order_by([s], desc: s.started_at)
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  defp earlier(%DateTime{} = a, %DateTime{} = b) do
+    if DateTime.before?(a, b), do: a, else: b
+  end
+
+  @doc """
+  Returns the set of `pod_name`s that currently hold an *open*
+  billing session (`is_nil(ended_at)`).
+
+  Used by `OrphanedStampedPodsWorker` as a shape-independent proof
+  that dispatch fully committed for a Pod: `open/1` is only called
+  inside `Tuist.Runners.serve_claim/5`'s success branch, after every
+  step that could trigger `release_safely/3`. So a Pod with an open
+  session can never be the wedge that worker exists to clean up —
+  it received its JIT and is (or just was) running a customer job.
+
+  Closes happen via `close_by_pod_name/2` from the runners-controller
+  reporting pod-stop, so a closed session means the Pod actually
+  stopped — at which point reaping it is harmless.
+  """
+  def live_pod_names do
+    RunnerSession
+    |> where([s], is_nil(s.ended_at))
+    |> select([s], s.pod_name)
+    |> distinct(true)
+    |> Repo.all()
+    |> MapSet.new()
+  end
+
+  @doc """
+  Resolves the currently open billing session for `pod_name`.
+
+  Interactive runner access uses this as a fallback live binding when
+  the shorter-lived `runner_claims` row is already gone but the Pod is
+  still running the workflow job.
+  """
+  def live_for_pod(pod_name) when is_binary(pod_name) and pod_name != "" do
+    RunnerSession
+    |> where([s], s.pod_name == ^pod_name and is_nil(s.ended_at))
+    |> order_by([s], desc: s.started_at)
+    |> select([s], %{
+      workflow_job_id: s.workflow_job_id,
+      account_id: s.account_id,
+      fleet_name: s.fleet_name,
+      pod_name: s.pod_name
+    })
+    |> limit(1)
+    |> Repo.one()
+    |> case do
+      nil -> :error
+      session -> {:ok, session}
+    end
+  end
+
+  @doc """
+  Resolves the currently open billing session for a workflow job.
+  """
+  def live_for_workflow_job(workflow_job_id, account_id) when is_integer(workflow_job_id) and is_integer(account_id) do
+    RunnerSession
+    |> where(
+      [s],
+      s.workflow_job_id == ^workflow_job_id and s.account_id == ^account_id and is_nil(s.ended_at)
+    )
+    |> order_by([s], desc: s.started_at)
+    |> select([s], %{
+      workflow_job_id: s.workflow_job_id,
+      account_id: s.account_id,
+      fleet_name: s.fleet_name,
+      pod_name: s.pod_name,
+      runner_name: s.runner_name
+    })
+    |> limit(1)
+    |> Repo.one()
+    |> case do
+      nil -> :error
+      session -> {:ok, session}
+    end
+  end
+
+  @doc """
+  The jobs whose runners still occupy `node_names`: one per open session, from
+  committed dispatch through post-job cache work and Pod teardown, so it covers
+  a job before it attaches its cache volumes and while it publishes them. Each
+  is the job the runner executed, or the one it was dispatched for until GitHub
+  says which it ran.
+  """
+  def open_jobs_on_nodes([]), do: []
+
+  def open_jobs_on_nodes(node_names) when is_list(node_names) do
+    since = DateTime.add(DateTime.utc_now(), -@max_session_lifetime_seconds, :second)
+
+    Repo.all(
+      from(s in RunnerSession,
+        left_join: j in WorkflowJob,
+        on: j.workflow_job_id == coalesce(s.executed_workflow_job_id, s.workflow_job_id) and j.account_id == s.account_id,
+        where: is_nil(s.ended_at) and s.node_name in ^node_names and s.started_at >= ^since,
+        select: %{
+          node_name: s.node_name,
+          account_id: s.account_id,
+          workflow_job_id: coalesce(s.executed_workflow_job_id, s.workflow_job_id),
+          repository: coalesce(j.repository, s.repository),
+          workflow_name: coalesce(j.workflow_name, s.workflow_name),
+          job_name: j.job_name
+        }
+      )
+    )
+  end
+end

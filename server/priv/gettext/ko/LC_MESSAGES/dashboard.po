@@ -1,458 +1,1306 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-12-24 14:30+0000\n"
-"PO-Revision-Date: 2025-12-24 20:47+0000\n"
-"Last-Translator: DeepL <noreply-mt-deepl@weblate.org>\n"
-"Language-Team: Korean <https://translate.tuist.dev/projects/tuist/dashboard-"
-"1/ko/>\n"
 "Language: ko\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Weblate 5.15.1\n"
 
-## This file is a PO Template file.
-##
-## "msgid"s here are often extracted from source code.
-## Add new messages manually only if they're dynamic
-## messages that can't be statically extracted.
-##
-## Run "mix gettext.extract" to bring this file up to
-## date. Leave "msgstr"s empty as changing them here has no
-## effect: edit them in PO (.po) files instead.
-#
 #: lib/tuist_web/components/previews/app_preview.ex:24
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "%{app_name} icon"
-msgstr "%{app_name} icon"
+msgstr "%{app_name} 아이콘"
 
 #: lib/tuist_web/controllers/error_html.ex:22
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "400"
 msgstr "400"
 
-#: lib/tuist_web/controllers/error_html.ex:37
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:34
+#: lib/tuist_web/controllers/error_html.ex:49
+#, elixir-autogen, elixir-format
 msgid "401"
 msgstr "401"
 
-#: lib/tuist_web/controllers/error_html.ex:58
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:70
+#, elixir-autogen, elixir-format
 msgid "404"
 msgstr "404"
 
-#: lib/tuist_web/controllers/error_html.ex:79
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:91
+#, elixir-autogen, elixir-format
 msgid "429"
 msgstr "429"
 
-#: lib/tuist_web/controllers/error_html.ex:94
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:106
+#, elixir-autogen, elixir-format
 msgid "500"
 msgstr "500"
 
-#: lib/tuist_web/components/account_dropdown.ex:60
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/account_dropdown.ex:65
+#, elixir-autogen, elixir-format
 msgid "Account settings"
 msgstr "계정 설정"
 
-#: lib/tuist_web/components/percentile_dropdown_widget.ex:121
-#: lib/tuist_web/components/percentile_dropdown_widget.ex:125
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:123
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:127
+#, elixir-autogen, elixir-format
 msgid "Avg."
 msgstr "평균"
 
 #: lib/tuist_web/controllers/error_html.ex:16
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Bad request"
-msgstr "잘못된 요청 입니다"
+msgstr "잘못된 요청"
 
 #: lib/tuist_web/components/layouts/account.html.heex:32
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Billing"
 msgstr "청구"
 
-#: lib/tuist_web/components/app_layout_components.ex:45
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:48
+#: lib/tuist_web/components/app_layout_components.ex:223
+#, elixir-autogen, elixir-format
 msgid "Build Runs"
-msgstr "빌드 실행 내역"
+msgstr "빌드 실행"
 
-#: lib/tuist_web/components/app_layout_components.ex:28
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:31
+#: lib/tuist_web/components/app_layout_components.ex:206
+#, elixir-autogen, elixir-format
 msgid "Builds"
 msgstr "빌드"
 
-#: lib/tuist_web/components/app_layout_components.ex:180
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:341
+#, elixir-autogen, elixir-format
 msgid "Bundles"
 msgstr "번들"
 
 #: lib/tuist_web/components/runs/ran_by_badge.ex:15
 #: lib/tuist_web/components/runs/ran_by_badge.ex:42
 #: lib/tuist_web/components/runs/ran_by_badge.ex:63
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/runs/ran_by_badge.ex:90
+#, elixir-autogen, elixir-format
 msgid "CI"
 msgstr "CI"
 
-#: lib/tuist_web/components/app_layout_components.ex:122
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:168
+#, elixir-autogen, elixir-format
 msgid "Cache Runs"
-msgstr "캐시 실행 내역"
+msgstr "캐시 실행"
 
 #: lib/tuist_web/live/layout_live.ex:96
-#: lib/tuist_web/live/layout_live.ex:165
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/layout_live.ex:176
+#, elixir-autogen, elixir-format
 msgid "Create organization"
 msgstr "조직 생성"
 
-#: lib/tuist_web/components/account_dropdown.ex:75
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/account_dropdown.ex:91
+#, elixir-autogen, elixir-format
 msgid "Download macOS app"
 msgstr "macOS 앱 다운로드"
 
-#: lib/tuist_web/components/layouts/ops.html.heex:37
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:405
+#, elixir-autogen, elixir-format
 msgid "Emails"
 msgstr "이메일"
 
-#: lib/tuist_web/controllers/error_html.ex:121
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:133
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:42
+#, elixir-autogen, elixir-format
 msgid "Error"
 msgstr "오류"
 
-#: lib/tuist_web/components/layouts/ops.html.heex:51
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:420
+#, elixir-autogen, elixir-format
 msgid "Errors"
-msgstr "오류"
+msgstr "오류들"
 
-#: lib/tuist_web/components/layouts/ops.html.heex:31
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:398
+#, elixir-autogen, elixir-format
 msgid "Flags"
 msgstr "플래그"
 
-#: lib/tuist_web/components/app_layout_components.ex:134
-#, elixir-autogen, elixir-format, fuzzy
-msgid "Generate Runs"
-msgstr "실행 생성"
-
 #: lib/tuist_web/components/empty_card_section.ex:29
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/public_project_cta_banner.ex:40
+#, elixir-autogen, elixir-format
 msgid "Get started"
 msgstr "시작하기"
 
-#: lib/tuist_web/controllers/error_html.ex:143
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:155
+#, elixir-autogen, elixir-format
 msgid "Go to dashboard"
-msgstr "상환판으로 이동"
+msgstr "대시보드로 이동"
 
-#: lib/tuist_web/components/layouts/ops.html.heex:61
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:428
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:52
+#, elixir-autogen, elixir-format
 msgid "Grafana"
 msgstr "Grafana"
 
 #: lib/tuist_web/components/layouts/account.html.heex:44
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Integrations"
-msgstr "Integrations"
+msgstr "통합"
 
-#: lib/tuist_web/controllers/github_app_setup_controller.ex:26
-#: lib/tuist_web/controllers/github_app_setup_controller.ex:29
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:38
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:41
+#, elixir-autogen, elixir-format
 msgid "Invalid GitHub app installation. Please try again."
-msgstr "GitHub 앱 설치가 잘못 되었습니다. 다시 시도하세요."
+msgstr "잘못된 GitHub 앱 설치입니다. 다시 시도해주세요."
 
-#: lib/tuist_web/controllers/github_app_setup_controller.ex:32
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:44
+#, elixir-autogen, elixir-format
 msgid "Invalid installation request. Please try again."
-msgstr "잘못된 설치 요청입니다. 다시 시도해 주세요."
+msgstr "잘못된 설치 요청입니다. 다시 시도해주세요."
 
-#: lib/tuist_web/components/layouts/ops.html.heex:26
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:392
+#, elixir-autogen, elixir-format
 msgid "Jobs"
-msgstr "채용"
+msgstr "작업"
 
-#: lib/tuist_web/components/empty_state.ex:42
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/empty_state.ex:43
+#, elixir-autogen, elixir-format
 msgid "Learn more"
 msgstr "자세히 알아보기"
 
-#: lib/tuist_web/components/layouts/ops.html.heex:21
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:386
+#, elixir-autogen, elixir-format
 msgid "LiveDashboard"
-msgstr "실시간 상황판"
+msgstr "라이브대시보드"
 
-#: lib/tuist_web/components/account_dropdown.ex:93
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/account_dropdown.ex:109
+#, elixir-autogen, elixir-format
 msgid "Log out"
 msgstr "로그아웃"
 
 #: lib/tuist_web/components/layouts/account.html.heex:20
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Members"
-msgstr "회원"
+msgstr "구성원"
 
-#: lib/tuist_web/components/app_layout_components.ex:99
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:145
+#, elixir-autogen, elixir-format
 msgid "Module Cache"
 msgstr "모듈 캐시"
 
-#: lib/tuist_web/components/percentile_dropdown_widget.ex:115
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:117
+#, elixir-autogen, elixir-format
 msgid "N/A"
-msgstr "N/A"
+msgstr "해당사항 없음"
 
 #: lib/tuist_web/components/app_components.ex:60
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Next"
 msgstr "다음"
 
-#: lib/tuist_web/components/widget.ex:144
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/widget.ex:146
+#, elixir-autogen, elixir-format
 msgid "No data yet"
-msgstr "아직 데이터 없음"
+msgstr "데이터 없음"
 
-#: lib/tuist_web/controllers/error_html.ex:52
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:64
+#, elixir-autogen, elixir-format
 msgid "Not found"
 msgstr "찾을 수 없음"
 
 #: lib/tuist_web/authorization.ex:27
 #: lib/tuist_web/authorization.ex:46
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Only operations roles can access this page."
-msgstr "운영 권한으로만 이 페이지에 액세스할 수 있습니다."
+msgstr "운영 역할만 이 페이지에 접근할 수 있습니다."
 
-#: lib/tuist_web/controllers/error_html.ex:86
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:98
+#, elixir-autogen, elixir-format
 msgid "Oops! Something went wrong"
-msgstr "죄송합니다! 문제가 발생했습니다"
+msgstr "앗! 문제가 발생했습니다"
 
-#: lib/tuist_web/controllers/error_html.ex:53
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:65
+#, elixir-autogen, elixir-format
 msgid "Oops, we couldn't find that page"
-msgstr "해당 페이지를 찾을 수 없습니다"
+msgstr "앗, 해당 페이지를 찾을 수 없습니다"
 
-#: lib/tuist_web/components/account_dropdown.ex:68
-#: lib/tuist_web/components/layouts/ops.html.heex:11
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/account_dropdown.ex:81
+#, elixir-autogen, elixir-format
 msgid "Operations"
 msgstr "운영"
 
-#: lib/tuist_web/components/app_layout_components.ex:21
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:23
+#, elixir-autogen, elixir-format
 msgid "Overview"
 msgstr "개요"
 
-#: lib/tuist_web/controllers/error_html.ex:32
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:44
+#, elixir-autogen, elixir-format
 msgid "Please, make sure you are accessing the right resource and that you have the permissions to access it."
-msgstr ""
-"올바른 리소스에 액세스하고 있는지, 해당 리소스에 액세스할 수 있는 권한이 "
-"있는지 확인하세요."
+msgstr "올바른 리소스에 접근 중인지, 접근 권한이 있는지 확인해주세요."
 
 #: lib/tuist_web/components/app_components.ex:51
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Prev"
 msgstr "이전"
 
-#: lib/tuist_web/components/app_layout_components.ex:157
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:330
+#, elixir-autogen, elixir-format
 msgid "Previews"
 msgstr "미리보기"
 
 #: lib/tuist_web/components/layouts/account.html.heex:14
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "Projects"
 msgstr "프로젝트"
 
-#: lib/tuist_web/components/app_layout_components.ex:169
-#: lib/tuist_web/components/layouts/ops.html.heex:16
-#, elixir-autogen, elixir-format, fuzzy
-msgid "QA"
-msgstr "자주하는 질문"
-
-#: lib/tuist_web/controllers/error_html.ex:85
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:97
+#, elixir-autogen, elixir-format
 msgid "Server error"
 msgstr "서버 오류"
 
-#: lib/tuist_web/components/app_layout_components.ex:192
-#: lib/tuist_web/components/layouts/account.html.heex:56
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/layouts/account.html.heex:69
+#, elixir-autogen, elixir-format
 msgid "Settings"
 msgstr "설정"
 
-#: lib/tuist_web/controllers/error_html.ex:89
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:353
+#, elixir-autogen, elixir-format
+msgid "Project Settings"
+msgstr "프로젝트 설정"
+
+#: lib/tuist_web/controllers/error_html.ex:101
+#, elixir-autogen, elixir-format
 msgid "Sorry, something went wrong on our side. Contact us at contact@tuist.dev and we'll look into it."
-msgstr ""
-"죄송합니다. 저희 측에 문제가 발생했습니다. contact@tuist.dev 으로 문의해 "
-"주시면 조치하겠습니다."
+msgstr "죄송합니다. 당사 측에서 문제가 발생했습니다. contact@tuist.dev로 연락 주시면 확인하겠습니다."
 
-#: lib/tuist_web/controllers/error_html.ex:46
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:58
+#, elixir-autogen, elixir-format
 msgid "Sorry, the page you are looking for doesn't exist or has been moved."
-msgstr "찾고 계신 페이지가 존재하지 않거나 이동 되었습니다."
+msgstr "죄송합니다, 찾으시는 페이지가 없거나 이동되었습니다."
 
-#: lib/tuist_web/controllers/error_html.ex:67
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:79
+#, elixir-autogen, elixir-format
 msgid "Sorry, you made too many requests. Please try again later."
-msgstr "요청이 너무 많아서 죄송합니다. 나중에 다시 시도해 주세요."
+msgstr "죄송합니다, 요청이 너무 많습니다. 나중에 다시 시도해주세요."
 
-#: lib/tuist_web/components/layouts/ops.html.heex:44
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:412
+#, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr "저장소"
 
-#: lib/tuist_web/components/account_dropdown.ex:84
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/account_dropdown.ex:100
+#, elixir-autogen, elixir-format
 msgid "Switch to your preferred theme"
-msgstr "원하는 테마로 전환"
+msgstr "선호하는 테마로 전환"
 
-#: lib/tuist_web/components/app_layout_components.ex:86
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:94
+#: lib/tuist_web/components/app_layout_components.ex:269
+#, elixir-autogen, elixir-format
 msgid "Test Cases"
-msgstr "테스트 시나리오"
+msgstr "테스트 케이스"
 
-#: lib/tuist_web/components/app_layout_components.ex:75
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:79
+#: lib/tuist_web/components/app_layout_components.ex:254
+#, elixir-autogen, elixir-format
 msgid "Test Runs"
-msgstr "테스트 실행 내역"
+msgstr "테스트 실행"
 
-#: lib/tuist_web/components/app_layout_components.ex:58
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:62
+#: lib/tuist_web/components/app_layout_components.ex:237
+#, elixir-autogen, elixir-format
 msgid "Tests"
 msgstr "테스트"
 
 #: lib/tuist_web/plugs/loader_plug.ex:52
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "The account %{account_handle} was not found."
-msgstr "%{account_handle} 계정을 찾을 수 없습니다."
+msgstr "계정 %{account_handle}을(를) 찾을 수 없습니다."
 
-#: lib/tuist_web/live/layout_live.ex:142
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/layout_live.ex:153
+#, elixir-autogen, elixir-format
 msgid "The account you are looking for doesn't exist or has been moved."
-msgstr "찾고자 하는 계정이 존재하지 않거나 이전 되었습니다."
+msgstr "찾으시는 계정이 없거나 이동되었습니다."
 
-#: lib/tuist_web/controllers/auth_controller.ex:23
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/auth_controller.ex:29
+#, elixir-autogen, elixir-format
 msgid "The authentication URL is not supported"
 msgstr "인증 URL이 지원되지 않습니다"
 
 #: lib/tuist_web/authorization.ex:63
 #: lib/tuist_web/authorization.ex:79
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "The page you are looking for doesn't exist or has been moved."
-msgstr "찾고 계신 페이지가 존재하지 않거나 이동 되었습니다."
+msgstr "찾으시는 페이지가 없거나 이동되었습니다."
 
-#: lib/tuist_web/controllers/preview_controller.ex:132
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/preview_controller.ex:133
+#, elixir-autogen, elixir-format
 msgid "The preview ipa doesn't exist or has expired."
-msgstr "미리보기 IPA가 존재하지 않거나 만료되었습니다."
+msgstr "미리보기 ipa가 없거나 만료되었습니다."
 
-#: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:34
-#: lib/tuist_web/plugs/loader_plug.ex:112
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:36
+#: lib/tuist_web/plugs/loader_plug.ex:115
+#, elixir-autogen, elixir-format
 msgid "The project %{project_slug} was not found."
-msgstr "%{project_slug} 프로젝트를 찾을 수 없습니다."
+msgstr "프로젝트 %{project_slug}을(를) 찾을 수 없습니다."
 
-#: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:43
-#: lib/tuist_web/plugs/loader_plug.ex:116
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/api/cache/plugs/loader_query_plug.ex:45
+#: lib/tuist_web/plugs/loader_plug.ex:119
+#, elixir-autogen, elixir-format
 msgid "The project full handle %{project_slug} is invalid. It should follow the convention 'account_handle/project_handle'."
-msgstr ""
-"프로젝트 Handle %{project_slug}가 유효하지 않습니다. 'account_handle/"
-"project_handle'의 형식을 따라야 합니다."
+msgstr "프로젝트 전체 핸들 %{project_slug}이(가) 유효하지 않습니다. 'account_handle/project_handle' 형식을 따라야 합니다."
 
 #: lib/tuist_web/live/layout_live.ex:61
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "The project you are looking for doesn't exist or has been moved."
-msgstr "찾고 있는 프로젝트가 존재하지 않거나 이동 되었습니다."
+msgstr "찾으시는 프로젝트가 없거나 이동되었습니다."
 
-#: lib/tuist_web/plugs/loader_plug.ex:93
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/plugs/loader_plug.ex:95
+#, elixir-autogen, elixir-format
 msgid "The run with ID %{run_id} was not found."
-msgstr "ID가 %{run_id}인 실행 내역을 찾을 수 없습니다."
+msgstr "ID가 %{run_id}인 실행을 찾을 수 없습니다."
 
-#: lib/tuist_web/live/layout_live.ex:242
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/live/layout_live.ex:260
+#, elixir-autogen, elixir-format
 msgid "The run you are looking for doesn't exist or has been moved."
-msgstr "찾고 있는 실행 내역이 존재하지 않거나 이동 되었습니다."
+msgstr "찾으시는 실행이 없거나 이동되었습니다."
 
-#: lib/tuist_web/controllers/error_html.ex:73
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:85
+#, elixir-autogen, elixir-format
 msgid "Too many requests"
 msgstr "너무 많은 요청"
 
-#: lib/tuist_web/controllers/error_html.ex:74
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:86
+#, elixir-autogen, elixir-format
 msgid "Too many requests."
-msgstr "요청이 너무 많습니다."
+msgstr "너무 많은 요청입니다."
 
-#: lib/tuist_web/components/app_layout_components.ex:219
-#: lib/tuist_web/components/app_layout_components.ex:246
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:453
+#: lib/tuist_web/components/app_layout_components.ex:490
+#, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr "Tuist 아이콘"
 
-#: lib/tuist_web/components/layout_components.ex:56
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/layout_components.ex:64
+#, elixir-autogen, elixir-format
 msgid "Tuist extends Apple's tools, helping you ship apps that stand out."
-msgstr "Tuist는 Apple의 도구를 확장하여 돋보이는 앱을 출시할 수 있도록 지원합니다."
+msgstr "Tuist는 Apple의 도구를 확장하여 돋보이는 앱을 배포하도록 도와줍니다."
 
-#: lib/tuist_web/controllers/error_html.ex:28
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:40
+#, elixir-autogen, elixir-format
 msgid "Unauthorized"
-msgstr "승인되지 않음"
+msgstr "권한 없음"
 
 #: lib/tuist_web/components/runs/ran_by_badge.ex:29
 #: lib/tuist_web/components/runs/ran_by_badge.ex:77
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/runs/ran_by_badge.ex:104
+#: lib/tuist_web/live/ops_account_helpers.ex:15
+#: lib/tuist_web/live/ops_account_helpers.ex:24
+#, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr "알 수 없음"
 
-#: lib/tuist_web/components/app_layout_components.ex:149
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/app_layout_components.ex:196
+#, elixir-autogen, elixir-format
 msgid "Xcode Cache"
 msgstr "Xcode 캐시"
 
-#: lib/tuist_web/controllers/error_html.ex:29
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/controllers/error_html.ex:41
+#, elixir-autogen, elixir-format
 msgid "You are not authorized to view this page"
-msgstr "이 페이지를 볼 수 있는 권한이 없습니다"
+msgstr "이 페이지를 볼 권한이 없습니다"
 
 #: lib/tuist_web/authorization.ex:21
 #: lib/tuist_web/authorization.ex:40
 #: lib/tuist_web/authorization.ex:56
 #: lib/tuist_web/authorization.ex:72
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "You need to be authenticated to access this page."
-msgstr "이 페이지에 접근하려면 인증을 받아야 합니다."
+msgstr "이 페이지에 접근하려면 인증이 필요합니다."
 
 #: lib/tuist_web/controllers/user_session_controller.ex:28
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "You've exceeded the rate limit. Try again later."
-msgstr "요금 한도를 초과했습니다. 나중에 다시 시도하세요."
+msgstr "요청 한도를 초과했습니다. 나중에 다시 시도해주세요."
 
 #: lib/tuist_web/components/terminal.ex:10
-#, elixir-autogen, elixir-format, fuzzy
+#, elixir-autogen, elixir-format
 msgid "bash"
 msgstr "bash"
 
-#: lib/tuist_web/components/percentile_dropdown_widget.ex:124
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:126
+#, elixir-autogen, elixir-format
 msgid "p50"
 msgstr "p50"
 
-#: lib/tuist_web/components/percentile_dropdown_widget.ex:123
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:125
+#, elixir-autogen, elixir-format
 msgid "p90"
 msgstr "p90"
 
-#: lib/tuist_web/components/percentile_dropdown_widget.ex:122
-#, elixir-autogen, elixir-format, fuzzy
+#: lib/tuist_web/components/percentile_dropdown_widget.ex:124
+#, elixir-autogen, elixir-format
 msgid "p99"
 msgstr "p99"
+
+#: lib/tuist_web/components/app_layout_components.ex:109
+#: lib/tuist_web/components/app_layout_components.ex:284
+#, elixir-autogen, elixir-format
+msgid "Flaky Tests"
+msgstr "불안정한 테스트"
+
+#: lib/tuist_web/components/public_project_cta_banner.ex:33
+#, elixir-autogen, elixir-format
+msgid "Ready to speed up your builds and unlock insights for your app?"
+msgstr "빌드 속도를 높이고 앱 인사이트를 해제할 준비가 되셨나요?"
+
+#: lib/tuist_web/components/public_project_cta_banner.ex:47
+#, elixir-autogen, elixir-format
+msgid "Talk to us"
+msgstr "문의하기"
+
+#: lib/tuist_web/components/public_project_cta_banner.ex:26
+#, elixir-autogen, elixir-format
+msgid "This is a public dashboard for the %{account_name}/%{project_name} project."
+msgstr "이 대시보드는 %{account_name}/%{project_name} 프로젝트의 공개 대시보드입니다."
+
+#: lib/tuist_web/components/app_layout_components.ex:120
+#: lib/tuist_web/components/app_layout_components.ex:295
+#, elixir-autogen, elixir-format
+msgid "Quarantined Tests"
+msgstr "격리된 테스트"
+
+#: lib/tuist_web/components/app_layout_components.ex:180
+#, elixir-autogen, elixir-format
+msgid "Generations"
+msgstr "세대"
+
+#: lib/tuist_web/components/app_layout_components.ex:319
+#, elixir-autogen, elixir-format
+msgid "Gradle Cache"
+msgstr "Gradle 캐시"
+
+#: lib/tuist_web/live/layout_live.ex:119
+#, elixir-autogen, elixir-format
+msgid "Create project"
+msgstr "프로젝트 생성"
+
+#: lib/tuist_web/components/app_layout_components.ex:373
+#: lib/tuist_web/live/ops_cache_live.html.heex:3
+#, elixir-autogen, elixir-format
+msgid "Cache"
+msgstr "캐시"
+
+#: lib/tuist_web/controllers/preview_controller.ex:154
+#, elixir-autogen, elixir-format
+msgid "The preview APK doesn't exist or has expired."
+msgstr "미리보기 APK가 없거나 만료되었습니다."
+
+#: lib/tuist_web/live/components/machine_metrics_charts.ex:73
+#, elixir-autogen, elixir-format
+msgid "Metrics"
+msgstr "측정항목"
+
+#: lib/tuist_web/controllers/error_html.ex:28
+#, elixir-autogen, elixir-format
+msgid "Authentication failed"
+msgstr "인증 실패"
+
+#: lib/tuist_web/controllers/auth_controller.ex:343
+#: lib/tuist_web/controllers/auth_controller.ex:515
+#, elixir-autogen, elixir-format
+msgid "Your identity provider denied access. Please ask your organization admin to assign you to the Tuist application."
+msgstr "아이덴티티 공급자가 접근을 거부했습니다. 조직 관리자에게 Tuist 애플리케이션에 할당해달라고 요청하세요."
+
+#: lib/tuist_web/components/app_layout_components.ex:131
+#: lib/tuist_web/components/app_layout_components.ex:306
+#, elixir-autogen, elixir-format
+msgid "Shards"
+msgstr "샤드"
+
+#: lib/tuist_web/controllers/auth_controller.ex:352
+#, elixir-autogen, elixir-format
+msgid "Authentication with the identity provider failed. Please try again."
+msgstr "아이덴티티 공급자 인증에 실패했습니다. 다시 시도해주세요."
+
+#: lib/tuist_web/controllers/auth_controller.ex:599
+#, elixir-autogen, elixir-format
+msgid "Failed to authenticate with the SSO provider. Please try again."
+msgstr "SSO 공급자 인증에 실패했습니다. 다시 시도해주세요."
+
+#: lib/tuist_web/controllers/auth_controller.ex:494
+#, elixir-autogen, elixir-format
+msgid "SSO is not fully configured for this organization. Ask an organization admin to review the SSO settings."
+msgstr "이 조직에 대해 SSO가 완전히 구성되지 않았습니다. 조직 관리자에게 SSO 설정을 검토하도록 요청하세요."
+
+#: lib/tuist_web/controllers/auth_controller.ex:557
+#, elixir-autogen, elixir-format
+msgid "The SSO authorization code is invalid or expired. Please restart the sign-in flow."
+msgstr "SSO 승인 코드가 유효하지 않거나 만료되었습니다. 로그인 과정을 다시 시작하세요."
+
+#: lib/tuist_web/controllers/auth_controller.ex:529
+#, elixir-autogen, elixir-format
+msgid "The SSO provider callback is missing an authorization code. Please restart the sign-in flow."
+msgstr "SSO 공급자 콜백에 승인 코드가 없습니다. 로그인 과정을 다시 시작하세요."
+
+#: lib/tuist_web/controllers/auth_controller.ex:480
+#, elixir-autogen, elixir-format
+msgid "The SSO request is missing an organization identifier. Please start the sign-in flow again from the login page."
+msgstr "SSO 요청에 조직 식별자가 없습니다. 로그인 페이지에서 로그인 과정을 다시 시작하세요."
+
+#: lib/tuist_web/controllers/auth_controller.ex:508
+#, elixir-autogen, elixir-format
+msgid "The SSO response could not be validated because the request state did not match. Please try again."
+msgstr "요청 상태가 일치하지 않아 SSO 응답을 검증할 수 없습니다. 다시 시도해주세요."
+
+#: lib/tuist_web/controllers/auth_controller.ex:536
+#, elixir-autogen, elixir-format
+msgid "The configured SSO endpoints are invalid. Ask your organization admin to review the SSO settings."
+msgstr "구성된 SSO 엔드포인트가 유효하지 않습니다. 조직 관리자에게 SSO 설정을 검토하도록 요청하세요."
+
+#: lib/tuist_web/components/layouts/ops.html.heex:8
+#, elixir-autogen, elixir-format
+msgid "Tuist Ops"
+msgstr "Tuist 운영"
+
+#: lib/tuist_web/controllers/auth_controller.ex:543
+#, elixir-autogen, elixir-format
+msgid "Tuist couldn't exchange the authorization code with your identity provider. Ask your organization admin to verify the SSO credentials and callback URL."
+msgstr "Tuist가 아이덴티티 공급자와 승인 코드를 교환하지 못했습니다. 조직 관리자에게 SSO 자격증명과 콜백 URL을 확인하도록 요청하세요."
+
+#: lib/tuist_web/controllers/auth_controller.ex:550
+#, elixir-autogen, elixir-format
+msgid "Tuist couldn't fetch your profile from your identity provider. Ask your organization admin to verify the user info endpoint and configured scopes."
+msgstr "Tuist가 아이덴티티 공급자에서 프로필을 가져오지 못했습니다. 조직 관리자에게 사용자 정보 엔드포인트와 설정된 권한 범위를 확인하도록 요청하세요."
+
+#: lib/tuist_web/controllers/auth_controller.ex:592
+#, elixir-autogen, elixir-format
+msgid "We couldn't complete the SSO callback for this request. Please try again."
+msgstr "이 요청에 대한 SSO 콜백을 완료하지 못했습니다. 다시 시도해주세요."
+
+#: lib/tuist_web/controllers/auth_controller.ex:487
+#, elixir-autogen, elixir-format
+msgid "We couldn't find the organization for this SSO request. Please verify that you are using the correct SSO link."
+msgstr "이 SSO 요청에 해당하는 조직을 찾을 수 없습니다. 올바른 SSO 링크를 사용 중인지 확인하세요."
+
+#: lib/tuist_web/controllers/auth_controller.ex:585
+#, elixir-autogen, elixir-format
+msgid "We couldn't start the SSO flow for this organization. Please verify the SSO configuration and try again."
+msgstr "이 조직에 대한 SSO 흐름을 시작하지 못했습니다. SSO 구성을 확인하고 다시 시도하세요."
+
+#: lib/tuist_web/controllers/auth_controller.ex:501
+#, elixir-autogen, elixir-format
+msgid "Your SSO session has expired. Please restart the sign-in flow from the login page."
+msgstr "SSO 세션이 만료되었습니다. 로그인 페이지에서 로그인 과정을 다시 시작하세요."
+
+#: lib/tuist_web/controllers/auth_controller.ex:578
+#, elixir-autogen, elixir-format
+msgid "Your Tuist account already exists, but it isn't a member of this organization. Ask an organization admin to add you, then sign in with SSO again."
+msgstr "Tuist 계정은 이미 존재하지만 이 조직의 구성원이 아닙니다. 조직 관리자에게 추가를 요청한 후 SSO로 다시 로그인하세요."
+
+#: lib/tuist_web/controllers/auth_controller.ex:564
+#, elixir-autogen, elixir-format
+msgid "Your identity provider response is missing a stable user identifier. Ask your organization admin to review the user info claims."
+msgstr "아이덴티티 공급자 응답에 안정적인 사용자 식별자가 없습니다. 조직 관리자에게 사용자 정보 클레임을 검토하도록 요청하세요."
+
+#: lib/tuist_web/controllers/auth_controller.ex:571
+#, elixir-autogen, elixir-format
+msgid "Your identity provider response is missing an email address. Ask your organization admin to include the email claim."
+msgstr "아이덴티티 공급자 응답에 이메일 주소가 없습니다. 조직 관리자에게 이메일 클레임 포함을 요청하세요."
+
+#: lib/tuist_web/controllers/auth_controller.ex:522
+#, elixir-autogen, elixir-format
+msgid "Your identity provider returned an authentication error. Please try again or contact your organization admin."
+msgstr "아이덴티티 공급자가 인증 오류를 반환했습니다. 다시 시도하거나 조직 관리자에게 문의하세요."
+
+#: lib/tuist_web/components/account_dropdown.ex:73
+#, elixir-autogen, elixir-format
+msgid "Dashboard"
+msgstr "대시보드"
+
+#: lib/tuist_web/components/app_layout_components.ex:380
+#: lib/tuist_web/live/ops_accounts_live.ex:18
+#: lib/tuist_web/live/ops_accounts_live.html.heex:3
+#: lib/tuist_web/live/ops_accounts_live.html.heex:5
+#, elixir-autogen, elixir-format
+msgid "Accounts"
+msgstr "계정"
+
+#: lib/tuist_web/components/layouts/account.html.heex:57
+#, elixir-autogen, elixir-format
+msgid "Authentication"
+msgstr "인증"
+
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:47
+#, elixir-autogen, elixir-format
+msgid "This GitHub app installation is already connected."
+msgstr "이 GitHub 앱 설치는 이미 연결되어 있습니다."
+
+#: lib/tuist_web/live/ops_account_live.ex:129
+#, elixir-autogen, elixir-format
+msgid "%{account} plan set to cancel at the end of the current period."
+msgstr "%{account} 플랜이 현재 기간 종료 시 취소되도록 설정되었습니다."
+
+#: lib/tuist_web/live/ops_account_live.ex:78
+#: lib/tuist_web/live/ops_account_live.ex:106
+#, elixir-autogen, elixir-format
+msgid "%{account} upgraded to Enterprise. Stripe will send an invoice for the first period."
+msgstr "%{account}이 Enterprise로 업그레이드되었습니다. Stripe가 첫 기간 인보이스를 발송할 예정입니다."
+
+#: lib/tuist_web/live/ops_account_live.html.heex:5
+#, elixir-autogen, elixir-format
+msgid "Account ID"
+msgstr "계정 ID"
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:88
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:23
+#: lib/tuist_web/live/ops_account_live.ex:36
+#, elixir-autogen, elixir-format
+msgid "Account not found."
+msgstr "계정을 찾을 수 없습니다."
+
+#: lib/tuist_web/live/ops_account_helpers.ex:40
+#, elixir-autogen, elixir-format
+msgid "Active"
+msgstr "활성"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:152
+#, elixir-autogen, elixir-format
+msgid "Address line 1"
+msgstr "주소 1"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:160
+#, elixir-autogen, elixir-format
+msgid "Address line 2 (optional)"
+msgstr "주소 2 (선택사항)"
+
+#: lib/tuist_web/live/ops_account_helpers.ex:20
+#, elixir-autogen, elixir-format
+msgid "Air"
+msgstr "Air"
+
+#: lib/tuist_web/live/ops_account_live.ex:211
+#, elixir-autogen, elixir-format
+msgid "Argentina"
+msgstr "아르헨티나"
+
+#: lib/tuist_web/live/ops_account_live.ex:212
+#, elixir-autogen, elixir-format
+msgid "Australia"
+msgstr "호주"
+
+#: lib/tuist_web/live/ops_account_live.ex:213
+#, elixir-autogen, elixir-format
+msgid "Austria"
+msgstr "오스트리아"
+
+#: lib/tuist_web/live/ops_account_live.ex:214
+#, elixir-autogen, elixir-format
+msgid "Belgium"
+msgstr "벨기에"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:198
+#, elixir-autogen, elixir-format
+msgid "Billing cadence"
+msgstr "청구 주기"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:61
+#: lib/tuist_web/live/ops_account_live.html.heex:144
+#: lib/tuist_web/live/ops_accounts_live.html.heex:30
+#, elixir-autogen, elixir-format
+msgid "Billing email"
+msgstr "청구 이메일"
+
+#: lib/tuist_web/live/ops_account_live.ex:215
+#, elixir-autogen, elixir-format
+msgid "Brazil"
+msgstr "브라질"
+
+#: lib/tuist_web/live/ops_account_live.ex:216
+#, elixir-autogen, elixir-format
+msgid "Bulgaria"
+msgstr "불가리아"
+
+#: lib/tuist_web/live/ops_account_live.ex:217
+#, elixir-autogen, elixir-format
+msgid "Canada"
+msgstr "캐나다"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:215
+#, elixir-autogen, elixir-format
+msgid "Cancel"
+msgstr "취소"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:94
+#, elixir-autogen, elixir-format
+msgid "Cancel %{account}'s subscription at the end of the current billing period? Access is kept until then."
+msgstr "현재 청구 기간 종료 시 %{account}의 구독을 취소하시겠습니까? 그때까지 접근이 유지됩니다."
+
+#: lib/tuist_web/live/ops_account_live.ex:136
+#, elixir-autogen, elixir-format
+msgid "Cancel failed: %{reason}"
+msgstr "취소 실패: %{reason}"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:91
+#, elixir-autogen, elixir-format
+msgid "Cancel plan"
+msgstr "플랜 취소"
+
+#: lib/tuist_web/live/ops_account_helpers.ex:42
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:77
+#, elixir-autogen, elixir-format
+msgid "Cancelled"
+msgstr "취소됨"
+
+#: lib/tuist_web/live/ops_account_live.ex:218
+#, elixir-autogen, elixir-format
+msgid "Chile"
+msgstr "칠레"
+
+#: lib/tuist_web/live/ops_account_live.ex:219
+#, elixir-autogen, elixir-format
+msgid "China"
+msgstr "중국"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:166
+#, elixir-autogen, elixir-format
+msgid "City"
+msgstr "도시"
+
+#: lib/tuist_web/live/ops_account_live.ex:220
+#, elixir-autogen, elixir-format
+msgid "Colombia"
+msgstr "콜롬비아"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:186
+#, elixir-autogen, elixir-format
+msgid "Country"
+msgstr "국가"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:114
+#, elixir-autogen, elixir-format
+msgid "Creates a Stripe customer (if missing), sets the billing address, and starts an invoice-billed Enterprise subscription. The customer receives an invoice by email; no card is collected here."
+msgstr "Stripe 고객을 생성(없을 경우), 청구 주소를 설정하고, 인보이스 청구되는 Enterprise 구독을 시작합니다. 고객은 이메일로 인보이스를 받으며, 카드 정보는 수집되지 않습니다."
+
+#: lib/tuist_web/live/ops_account_live.ex:221
+#, elixir-autogen, elixir-format
+msgid "Croatia"
+msgstr "크로아티아"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:25
+#, elixir-autogen, elixir-format
+msgid "Current version"
+msgstr "현재 버전"
+
+#: lib/tuist_web/live/ops_account_live.ex:222
+#, elixir-autogen, elixir-format
+msgid "Cyprus"
+msgstr "키프로스"
+
+#: lib/tuist_web/live/ops_account_live.ex:223
+#, elixir-autogen, elixir-format
+msgid "Czechia"
+msgstr "체코"
+
+#: lib/tuist_web/live/ops_account_live.ex:224
+#, elixir-autogen, elixir-format
+msgid "Denmark"
+msgstr "덴마크"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:38
+#, elixir-autogen, elixir-format
+msgid "Deployment"
+msgstr "배포"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:30
+#, elixir-autogen, elixir-format
+msgid "Deployment not found."
+msgstr "배포를 찾을 수 없습니다."
+
+#: lib/tuist_web/live/ops_account_helpers.ex:22
+#, elixir-autogen, elixir-format
+msgid "Enterprise"
+msgstr "Enterprise"
+
+#: lib/tuist_web/live/ops_account_live.ex:225
+#, elixir-autogen, elixir-format
+msgid "Estonia"
+msgstr "에스토니아"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:76
+#, elixir-autogen, elixir-format
+msgid "Failed"
+msgstr "실패"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:33
+#, elixir-autogen, elixir-format
+msgid "Finished"
+msgstr "완료됨"
+
+#: lib/tuist_web/live/ops_account_live.ex:226
+#, elixir-autogen, elixir-format
+msgid "Finland"
+msgstr "핀란드"
+
+#: lib/tuist_web/live/ops_account_live.ex:227
+#, elixir-autogen, elixir-format
+msgid "France"
+msgstr "프랑스"
+
+#: lib/tuist_web/live/ops_account_live.ex:228
+#, elixir-autogen, elixir-format
+msgid "Germany"
+msgstr "독일"
+
+#: lib/tuist_web/live/ops_account_live.ex:229
+#, elixir-autogen, elixir-format
+msgid "Greece"
+msgstr "그리스"
+
+#: lib/tuist_web/live/ops_account_live.ex:230
+#, elixir-autogen, elixir-format
+msgid "Hong Kong"
+msgstr "홍콩"
+
+#: lib/tuist_web/live/ops_account_live.ex:231
+#, elixir-autogen, elixir-format
+msgid "Hungary"
+msgstr "헝가리"
+
+#: lib/tuist_web/live/ops_account_live.ex:232
+#, elixir-autogen, elixir-format
+msgid "Iceland"
+msgstr "아이슬란드"
+
+#: lib/tuist_web/live/ops_account_live.ex:233
+#, elixir-autogen, elixir-format
+msgid "India"
+msgstr "인도"
+
+#: lib/tuist_web/live/ops_account_live.ex:234
+#, elixir-autogen, elixir-format
+msgid "Indonesia"
+msgstr "인도네시아"
+
+#: lib/tuist_web/live/ops_account_live.ex:235
+#, elixir-autogen, elixir-format
+msgid "Ireland"
+msgstr "아일랜드"
+
+#: lib/tuist_web/live/ops_account_live.ex:236
+#, elixir-autogen, elixir-format
+msgid "Israel"
+msgstr "이스라엘"
+
+#: lib/tuist_web/live/ops_account_live.ex:237
+#, elixir-autogen, elixir-format
+msgid "Italy"
+msgstr "이탈리아"
+
+#: lib/tuist_web/live/ops_account_live.ex:238
+#, elixir-autogen, elixir-format
+msgid "Japan"
+msgstr "일본"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:9
+#, elixir-autogen, elixir-format
+msgid "Kura"
+msgstr "Kura"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Kura deployment"
+msgstr "Kura 배포"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:30
+#, elixir-autogen, elixir-format
+msgid "Latest deployment"
+msgstr "최신 배포"
+
+#: lib/tuist_web/live/ops_account_live.ex:239
+#, elixir-autogen, elixir-format
+msgid "Latvia"
+msgstr "라트비아"
+
+#: lib/tuist_web/live/ops_account_live.ex:240
+#, elixir-autogen, elixir-format
+msgid "Lithuania"
+msgstr "리투아니아"
+
+#: lib/tuist_web/live/ops_account_live.ex:241
+#, elixir-autogen, elixir-format
+msgid "Luxembourg"
+msgstr "룩셈부르크"
+
+#: lib/tuist_web/live/ops_account_live.ex:242
+#, elixir-autogen, elixir-format
+msgid "Malaysia"
+msgstr "말레이시아"
+
+#: lib/tuist_web/live/ops_account_live.ex:243
+#, elixir-autogen, elixir-format
+msgid "Malta"
+msgstr "몰타"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:74
+#, elixir-autogen, elixir-format
+msgid "Manage on Stripe"
+msgstr "Stripe에서 관리"
+
+#: lib/tuist_web/live/ops_account_live.ex:244
+#, elixir-autogen, elixir-format
+msgid "Mexico"
+msgstr "멕시코"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:201
+#: lib/tuist_web/live/ops_account_live.html.heex:205
+#, elixir-autogen, elixir-format
+msgid "Monthly"
+msgstr "월별"
+
+#: lib/tuist_web/live/ops_accounts_live.html.heex:24
+#, elixir-autogen, elixir-format
+msgid "Name"
+msgstr "이름"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:136
+#, elixir-autogen, elixir-format
+msgid "Name on invoice"
+msgstr "인보이스 이름"
+
+#: lib/tuist_web/live/ops_account_live.ex:245
+#, elixir-autogen, elixir-format
+msgid "Netherlands"
+msgstr "네덜란드"
+
+#: lib/tuist_web/live/ops_account_live.ex:246
+#, elixir-autogen, elixir-format
+msgid "New Zealand"
+msgstr "뉴질랜드"
+
+#: lib/tuist_web/live/ops_accounts_live.html.heex:53
+#, elixir-autogen, elixir-format
+msgid "No accounts"
+msgstr "계정 없음"
+
+#: lib/tuist_web/live/ops_accounts_live.html.heex:54
+#, elixir-autogen, elixir-format
+msgid "No accounts match the current filter."
+msgstr "현재 필터와 일치하는 계정이 없습니다."
+
+#: lib/tuist_web/live/ops_account_live.ex:119
+#, elixir-autogen, elixir-format
+msgid "No active subscription to cancel."
+msgstr "취소할 활성 구독이 없습니다."
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:85
+#: lib/tuist_web/live/ops_account_live.html.heex:23
+#: lib/tuist_web/live/ops_account_live.html.heex:27
+#: lib/tuist_web/live/ops_account_live.html.heex:33
+#: lib/tuist_web/live/ops_account_live.html.heex:62
+#: lib/tuist_web/live/ops_accounts_live.html.heex:31
+#, elixir-autogen, elixir-format
+msgid "None"
+msgstr "없음"
+
+#: lib/tuist_web/live/ops_account_live.ex:247
+#, elixir-autogen, elixir-format
+msgid "Norway"
+msgstr "노르웨이"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:65
+#: lib/tuist_web/live/ops_accounts_live.html.heex:48
+#, elixir-autogen, elixir-format
+msgid "Not created"
+msgstr "생성되지 않음"
+
+#: lib/tuist_web/live/ops_account_helpers.ex:23
+#, elixir-autogen, elixir-format
+msgid "Open Source"
+msgstr "오픈 소스"
+
+#: lib/tuist_web/live/ops_account_helpers.ex:12
+#, elixir-autogen, elixir-format
+msgid "Organization"
+msgstr "조직"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:73
+#, elixir-autogen, elixir-format
+msgid "Pending"
+msgstr "대기 중"
+
+#: lib/tuist_web/live/ops_account_live.ex:248
+#, elixir-autogen, elixir-format
+msgid "Philippines"
+msgstr "필리핀"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:47
+#: lib/tuist_web/live/ops_accounts_live.html.heex:33
+#, elixir-autogen, elixir-format
+msgid "Plan"
+msgstr "플랜"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:44
+#, elixir-autogen, elixir-format
+msgid "Plan & billing"
+msgstr "플랜 및 청구"
+
+#: lib/tuist_web/live/ops_account_live.ex:249
+#, elixir-autogen, elixir-format
+msgid "Poland"
+msgstr "폴란드"
+
+#: lib/tuist_web/live/ops_account_live.ex:250
+#, elixir-autogen, elixir-format
+msgid "Portugal"
+msgstr "포르투갈"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:180
+#, elixir-autogen, elixir-format
+msgid "Postal code"
+msgstr "우편번호"
+
+#: lib/tuist_web/live/ops_account_helpers.ex:21
+#, elixir-autogen, elixir-format
+msgid "Pro"
+msgstr "Pro"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:12
+#, elixir-autogen, elixir-format
+msgid "Region"
+msgstr "지역"
+
+#: lib/tuist_web/live/ops_account_live.ex:251
+#, elixir-autogen, elixir-format
+msgid "Romania"
+msgstr "루마니아"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:74
+#, elixir-autogen, elixir-format
+msgid "Running"
+msgstr "실행 중"
+
+#: lib/tuist_web/live/ops_accounts_live.html.heex:13
+#, elixir-autogen, elixir-format
+msgid "Search by name"
+msgstr "이름으로 검색"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:189
+#, elixir-autogen, elixir-format
+msgid "Select a country"
+msgstr "국가 선택"
+
+#: lib/tuist_web/live/ops_account_live.ex:252
+#, elixir-autogen, elixir-format
+msgid "Singapore"
+msgstr "싱가포르"
+
+#: lib/tuist_web/live/ops_account_live.ex:253
+#, elixir-autogen, elixir-format
+msgid "Slovakia"
+msgstr "슬로바키아"
+
+#: lib/tuist_web/live/ops_account_live.ex:254
+#, elixir-autogen, elixir-format
+msgid "Slovenia"
+msgstr "슬로베니아"
+
+#: lib/tuist_web/live/ops_account_live.ex:255
+#, elixir-autogen, elixir-format
+msgid "South Africa"
+msgstr "남아프리카공화국"
+
+#: lib/tuist_web/live/ops_account_live.ex:256
+#, elixir-autogen, elixir-format
+msgid "South Korea"
+msgstr "대한민국"
+
+#: lib/tuist_web/live/ops_account_live.ex:257
+#, elixir-autogen, elixir-format
+msgid "Spain"
+msgstr "스페인"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:29
+#, elixir-autogen, elixir-format
+msgid "Started"
+msgstr "시작됨"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:174
+#, elixir-autogen, elixir-format
+msgid "State / region (optional)"
+msgstr "주/지역 (선택사항)"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:13
+#: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:18
+#: lib/tuist_web/live/ops_account_live.html.heex:15
+#: lib/tuist_web/live/ops_account_live.html.heex:54
+#: lib/tuist_web/live/ops_accounts_live.html.heex:40
+#, elixir-autogen, elixir-format
+msgid "Status"
+msgstr "상태"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:64
+#: lib/tuist_web/live/ops_accounts_live.html.heex:47
+#, elixir-autogen, elixir-format
+msgid "Stripe customer"
+msgstr "Stripe 고객"
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:75
+#, elixir-autogen, elixir-format
+msgid "Succeeded"
+msgstr "성공"
+
+#: lib/tuist_web/live/ops_account_live.ex:258
+#, elixir-autogen, elixir-format
+msgid "Sweden"
+msgstr "스웨덴"
+
+#: lib/tuist_web/live/ops_account_live.ex:259
+#, elixir-autogen, elixir-format
+msgid "Switzerland"
+msgstr "스위스"
+
+#: lib/tuist_web/live/ops_account_live.ex:260
+#, elixir-autogen, elixir-format
+msgid "Taiwan"
+msgstr "대만"
+
+#: lib/tuist_web/live/ops_account_live.ex:261
+#, elixir-autogen, elixir-format
+msgid "Thailand"
+msgstr "태국"
+
+#: lib/tuist_web/live/ops_account_helpers.ex:41
+#, elixir-autogen, elixir-format
+msgid "Trialing"
+msgstr "체험 중"
+
+#: lib/tuist_web/live/ops_account_live.ex:262
+#, elixir-autogen, elixir-format
+msgid "Turkey"
+msgstr "터키"
+
+#: lib/tuist_web/live/ops_accounts_live.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Type"
+msgstr "유형"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:22
+#, elixir-autogen, elixir-format
+msgid "URL"
+msgstr "URL"
+
+#: lib/tuist_web/live/ops_account_live.ex:263
+#, elixir-autogen, elixir-format
+msgid "Ukraine"
+msgstr "우크라이나"
+
+#: lib/tuist_web/live/ops_account_live.ex:264
+#, elixir-autogen, elixir-format
+msgid "United Arab Emirates"
+msgstr "아랍에미리트"
+
+#: lib/tuist_web/live/ops_account_live.ex:265
+#, elixir-autogen, elixir-format
+msgid "United Kingdom"
+msgstr "영국"
+
+#: lib/tuist_web/live/ops_account_live.ex:266
+#, elixir-autogen, elixir-format
+msgid "United States"
+msgstr "미국"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:109
+#, elixir-autogen, elixir-format
+msgid "Upgrade %{account} to Enterprise"
+msgstr "%{account}을(를) Enterprise로 업그레이드"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:82
+#: lib/tuist_web/live/ops_account_live.html.heex:223
+#, elixir-autogen, elixir-format
+msgid "Upgrade to Enterprise"
+msgstr "Enterprise로 업그레이드"
+
+#: lib/tuist_web/live/ops_account_live.ex:267
+#, elixir-autogen, elixir-format
+msgid "Uruguay"
+msgstr "우루과이"
+
+#: lib/tuist_web/live/ops_account_helpers.ex:14
+#, elixir-autogen, elixir-format
+msgid "User"
+msgstr "사용자"
+
+#: lib/tuist_web/live/ops_account_live.ex:268
+#, elixir-autogen, elixir-format
+msgid "Vietnam"
+msgstr "베트남"
+
+#: lib/tuist_web/live/ops_account_live.html.heex:206
+#, elixir-autogen, elixir-format
+msgid "Yearly"
+msgstr "연별"
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:290
+#, elixir-autogen, elixir-format
+msgid "Could not complete the GitHub App registration."
+msgstr "GitHub App 등록을 완료할 수 없습니다."
+
+#: lib/tuist_web/controllers/github_app_setup_controller.ex:51
+#, elixir-autogen, elixir-format
+msgid "GitHub Enterprise Server installations must go through the App registration flow first."
+msgstr "GitHub Enterprise Server 설치는 먼저 앱 등록 과정을 거쳐야 합니다."
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:99
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:120
+#, elixir-autogen, elixir-format
+msgid "GitHub Enterprise Server is only available on the Enterprise plan."
+msgstr "GitHub Enterprise Server는 Enterprise 플랜에서만 사용할 수 있습니다."
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:66
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:85
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:110
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:126
+#, elixir-autogen, elixir-format
+msgid "Invalid manifest registration request."
+msgstr "유효하지 않은 매니페스트 등록 요청입니다."
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:51
+#, elixir-autogen, elixir-format
+msgid "Manifest flow is only available for GitHub Enterprise Server."
+msgstr "매니페스트 흐름은 GitHub Enterprise Server에서만 사용할 수 있습니다."
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:71
+#, elixir-autogen, elixir-format
+msgid "Missing manifest registration state."
+msgstr "매니페스트 등록 상태가 없습니다."
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:92
+#, elixir-autogen, elixir-format
+msgid "This account already has a GitHub app installation. Uninstall it before registering a new one."
+msgstr "이 계정에는 이미 GitHub 앱이 설치되어 있습니다. 새로 등록하기 전에 제거하세요."
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:276
+#, elixir-autogen, elixir-format
+msgid "%{url} resolves to a non-public IP address, so Tuist refuses to connect to it. Either expose the GitHub Enterprise Server API on a public address (allowlisting Tuist's egress IPs is enough), or self-host Tuist inside your network."
+msgstr "%{url}이(가) 비공개 IP 주소로 확인되어 Tuist가 연결을 거부했습니다. GitHub Enterprise Server API를 공용 주소에 노출하거나(Tuist의 송신 IP를 허용 목록에 추가하면 충분합니다), 네트워크 내에서 Tuist를 자체 호스팅하세요."
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:336
+#, elixir-autogen, elixir-format
+msgid "GitHub Enterprise Server rejected the manifest with HTTP %{status}. The registration code is no longer usable — start the flow again from the integrations page."
+msgstr "GitHub Enterprise Server가 HTTP %{status}로 매니페스트를 거부했습니다. 등록 코드는 더 이상 사용할 수 없습니다 — 통합 페이지에서 흐름을 다시 시작하세요."
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:330
+#, elixir-autogen, elixir-format
+msgid "GitHub Enterprise Server returned 404 when converting the manifest. The temporary registration code may have expired (it's valid for one hour) — start the flow again from the integrations page."
+msgstr "GitHub Enterprise Server가 매니페스트 변환 시 404를 반환했습니다. 임시 등록 코드가 만료되었을 수 있습니다(1시간 동안 유효) — 통합 페이지에서 흐름을 다시 시작하세요."
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:343
+#, elixir-autogen, elixir-format
+msgid "GitHub Enterprise Server returned HTTP %{status} when converting the manifest. Check the server logs for the request body and retry."
+msgstr "GitHub Enterprise Server가 매니페스트 변환 시 HTTP %{status}를 반환했습니다. 서버 로그에서 요청 본문을 확인하고 다시 시도하세요."
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:305
+#, elixir-autogen, elixir-format
+msgid "Tuist could not reach %{url}. Confirm the instance is reachable from the public internet, or self-host Tuist if it's internal-only."
+msgstr "Tuist가 %{url}에 도달할 수 없습니다. 인스턴스가 공개 인터넷에서 접근 가능한지 확인하거나, 내부 전용이라면 Tuist를 자체 호스팅하세요."
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:283
+#, elixir-autogen, elixir-format
+msgid "Tuist could not resolve %{url}. Double-check the GitHub Enterprise Server URL is correct and publicly resolvable."
+msgstr "Tuist가 %{url}을(를) 확인할 수 없습니다. GitHub Enterprise Server URL이 올바르고 공개적으로 해결 가능한지 다시 확인하세요."

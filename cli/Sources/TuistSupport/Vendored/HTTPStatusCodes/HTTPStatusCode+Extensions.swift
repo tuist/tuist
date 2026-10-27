@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 extension HTTPStatusCode {
     /// Informational - Request received, continuing process.
@@ -72,18 +75,21 @@ extension HTTPStatusCode {
 }
 
 extension HTTPURLResponse {
+    #if canImport(ObjectiveC)
     /// Marked internal to expose (as `statusCodeValue`) for Objective-C interoperability only.
     ///
-    /// - returns: the receiver’s HTTP status code.
+    /// - returns: the receiver's HTTP status code.
     @objc(statusCodeValue) public var statusCodeEnum: HTTPStatusCode {
         HTTPStatusCode(HTTPResponse: self)!
     }
+    #endif
 
-    /// - returns: the receiver’s HTTP status code.
+    /// - returns: the receiver's HTTP status code.
     public var statusCodeValue: HTTPStatusCode? {
         HTTPStatusCode(HTTPResponse: self)
     }
 
+    #if canImport(ObjectiveC)
     /// Initializer for `NSHTTPURLResponse` objects.
     ///
     /// - parameter url: the URL from which the response was generated.
@@ -97,6 +103,7 @@ extension HTTPURLResponse {
     public convenience init?(url: URL, statusCode: HTTPStatusCode, httpVersion: String?, headerFields: [String: String]?) {
         self.init(url: url, statusCode: statusCode.rawValue, httpVersion: httpVersion, headerFields: headerFields)
     }
+    #endif
 }
 
 // MARK: - Remove cases

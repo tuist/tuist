@@ -10,6 +10,49 @@ defmodule TuistTestSupport.Fixtures.BundlesFixtures do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   @doc """
+  Generates a bundle threshold.
+  """
+  def bundle_threshold_fixture(opts \\ []) do
+    project = Keyword.get(opts, :project, ProjectsFixtures.project_fixture())
+
+    {:ok, threshold} =
+      Bundles.create_bundle_threshold(%{
+        project_id: project.id,
+        name: Keyword.get(opts, :name, "Default threshold"),
+        metric: Keyword.get(opts, :metric, :install_size),
+        deviation_percentage: Keyword.get(opts, :deviation_percentage, if(opts[:deviation_bytes], do: nil, else: 5.0)),
+        deviation_bytes: Keyword.get(opts, :deviation_bytes),
+        baseline_branch: Keyword.get(opts, :baseline_branch, "main"),
+        bundle_name: Keyword.get(opts, :bundle_name)
+      })
+
+    threshold
+  end
+
+  @doc """
+  Generates a bundle size approver.
+
+  Inserts directly so callers that only need an approver to exist do not have
+  to stand up a VCS connection and stub the GitHub lookup that
+  `Bundles.add_bundle_size_approver/2` performs.
+  """
+  def bundle_size_approver_fixture(opts \\ []) do
+    project = Keyword.get(opts, :project, ProjectsFixtures.project_fixture())
+    handle = Keyword.get(opts, :github_handle, "octocat")
+
+    {:ok, approver} =
+      %Bundles.BundleSizeApprover{id: UUIDv7.generate()}
+      |> Bundles.BundleSizeApprover.changeset(%{
+        project_id: project.id,
+        github_handle: handle,
+        github_id: Keyword.get(opts, :github_id, "#{TuistTestSupport.Utilities.unique_integer()}")
+      })
+      |> Repo.insert()
+
+    approver
+  end
+
+  @doc """
   Generates a bundle.
   """
   def bundle_fixture(opts \\ []) do
@@ -28,7 +71,7 @@ defmodule TuistTestSupport.Fixtures.BundlesFixtures do
       Bundles.create_bundle(%{
         id: id,
         name: Keyword.get(opts, :name, "App"),
-        app_bundle_id: "dev.tuist.app",
+        app_bundle_id: Keyword.get(opts, :app_bundle_id, "dev.tuist.app"),
         install_size: Keyword.get(opts, :install_size, 1024),
         download_size: Keyword.get(opts, :download_size, 1024),
         supported_platforms:

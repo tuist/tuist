@@ -1,0 +1,660 @@
+/* Public POC brief.
+ *
+ * Built on Noora tokens so it looks like the Tuist marketing site — same
+ * purple accent (`--noora-purple-500`), same neutral surface palette,
+ * same font stack, same spacing scale. `--poc-accent` defaults to Tuist
+ * purple; a customer's brand color, when set on the POC, overrides it via
+ * an inline style on the root element. Everything is scoped inside
+ * `#poc-public` so it cannot leak into the admin dashboard.
+ */
+
+body[data-part="poc-public-body"] {
+  margin: 0;
+  padding: 0;
+  background: var(--noora-surface-background-primary);
+  color: var(--noora-surface-label-primary);
+  font-family: var(--noora-font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-wrap: pretty;
+}
+
+#poc-public,
+#poc-public-not-found {
+  --poc-accent: var(--noora-purple-500);
+  --poc-accent-soft: color-mix(in oklch, var(--noora-purple-500) 12%, transparent);
+  --poc-page-margin: var(--noora-spacing-8);
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100dvh;
+  padding-inline: var(--poc-page-margin);
+  padding-block: var(--noora-spacing-14) var(--noora-spacing-15);
+  color: var(--noora-surface-label-primary);
+  line-height: 1.5;
+
+  & > article {
+    width: 100%;
+    max-width: 780px;
+  }
+
+  & [data-part="article"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-14);
+  }
+
+  /* ---------- Hero ---------- */
+
+  & [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+  }
+
+  & [data-part="brand"] {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    padding: var(--noora-spacing-2) var(--noora-spacing-4) var(--noora-spacing-2)
+      var(--noora-spacing-2);
+    border: 1px solid var(--noora-surface-border-primary);
+    border-radius: 999px;
+    background: var(--noora-surface-background-secondary);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    align-self: flex-start;
+
+    & img {
+      display: block;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      object-fit: cover;
+      background: var(--noora-surface-background-primary);
+    }
+
+    & [data-part="brand-domain"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+  }
+
+  & [data-part="eyebrow"] {
+    display: inline-block;
+    align-self: flex-start;
+    padding: var(--noora-spacing-1) var(--noora-spacing-3);
+    border-radius: 999px;
+    background: var(--poc-accent-soft);
+    color: var(--poc-accent);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  & h1 {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-regular) var(--noora-font-display-small);
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  & [data-part="lede"] {
+    max-width: 62ch;
+    margin: 0;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+  }
+
+  & [data-part="status-row"] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--noora-spacing-2) var(--noora-spacing-4);
+    padding-top: var(--noora-spacing-2);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+    & > * + *::before {
+      content: "·";
+      margin-right: var(--noora-spacing-4);
+      color: var(--noora-surface-label-tertiary);
+    }
+  }
+
+  & [data-part="status-chip"] {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--noora-spacing-2);
+    color: var(--poc-accent);
+    font-weight: var(--noora-font-weight-medium);
+
+    &::before {
+      content: "";
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--poc-accent);
+    }
+  }
+
+  /* ---------- Sections ---------- */
+
+  & [data-part="section"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+
+    & > header {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      padding-bottom: var(--noora-spacing-5);
+      border-bottom: 1px solid var(--noora-surface-border-primary);
+
+      & h2 {
+        margin: 0;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-heading-xlarge);
+        letter-spacing: -0.015em;
+      }
+
+      & p {
+        margin: 0;
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+  }
+
+  /* ---------- Context grid ---------- */
+
+  & [data-part="context-grid"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--noora-spacing-3);
+    margin: 0;
+    padding: 0;
+  }
+
+  & [data-part="context-item"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-1);
+    padding: var(--noora-spacing-5);
+    border: 1px solid var(--noora-surface-border-primary);
+    border-radius: var(--noora-radius-3);
+    background: var(--noora-surface-background-primary);
+
+    & dt {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    & dd {
+      margin: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+    }
+  }
+
+  & [data-part="context-notes"] {
+    margin: 0;
+    padding: var(--noora-spacing-5) var(--noora-spacing-6);
+    border: 1px solid var(--noora-surface-border-primary);
+    border-radius: var(--noora-radius-3);
+    background: var(--noora-surface-background-secondary);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+    white-space: pre-wrap;
+  }
+
+  /* ---------- Scope ---------- */
+
+  & [data-part="scope-features"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--noora-spacing-2);
+    padding: 0;
+    margin: 0;
+    list-style: none;
+
+    & li {
+      display: inline-flex;
+      align-items: center;
+      padding: var(--noora-spacing-2) var(--noora-spacing-4);
+      border: 1px solid var(--noora-surface-border-primary);
+      border-radius: 999px;
+      background: var(--noora-surface-background-primary);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+  }
+
+  /* ---------- Timeline ---------- */
+
+  & [data-part="timeline"] {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+    border-left: 1px solid var(--noora-surface-border-primary);
+  }
+
+  & [data-part="timeline-entry"] {
+    display: block;
+    position: relative;
+    padding: 0 0 var(--noora-spacing-8) var(--noora-spacing-6);
+
+    &:last-child {
+      padding-bottom: 0;
+    }
+
+    &::before {
+      content: "";
+      position: absolute;
+      top: var(--noora-spacing-2);
+      left: -5px;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--noora-surface-background-primary);
+      border: 2px solid var(--poc-accent);
+    }
+  }
+
+  /* Synthesized "POC begins" / "POC ends" markers, shown when the milestone
+   * is still in the future. The dot stays a clean ring so it doesn't look
+   * broken at 9px, and the kind chip is dropped in favour of a single
+   * accent-colored countdown line. */
+  & [data-part="timeline-entry"][data-future="true"] {
+    &::before {
+      background: var(--noora-surface-background-primary);
+      border-color: var(--poc-accent);
+    }
+
+    & [data-part="timeline-date"] {
+      color: var(--poc-accent);
+    }
+
+    & [data-part="timeline-kind"] {
+      display: none;
+    }
+
+    & [data-part="timeline-title"] {
+      color: var(--poc-accent);
+    }
+  }
+
+  & [data-part="timeline-date"] {
+    display: block;
+    margin-bottom: var(--noora-spacing-1);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  & [data-part="timeline-kind"] {
+    display: inline-block;
+    margin-bottom: var(--noora-spacing-2);
+    padding: var(--noora-spacing-1) var(--noora-spacing-3);
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: var(--poc-accent-soft);
+    color: var(--poc-accent);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  & [data-part="timeline-title"] {
+    margin: 0 0 var(--noora-spacing-2);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+    letter-spacing: -0.01em;
+  }
+
+  & [data-part="timeline-note"] {
+    margin: 0;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+    line-height: 1.6;
+  }
+
+  /* ---------- Markdown overrides ----------
+   * Rendered content (lede, notes, timeline body) comes through
+   * `<AtlasWeb.Markdown.content>`, which wraps everything in `.markdown`. The
+   * base styles use body-medium (14px) sized for dashboard density; on the
+   * public brief we bump paragraphs/lists to body-large so the reading measure
+   * feels marketing-native. */
+
+  & [data-part="lede"].markdown,
+  & [data-part="context-notes"].markdown,
+  & [data-part="timeline-note"].markdown {
+    & p,
+    & li {
+      font: var(--noora-font-weight-regular) var(--noora-font-body-large);
+      line-height: 1.6;
+    }
+
+    & > * + * {
+      margin-top: var(--noora-spacing-3);
+    }
+
+    & a {
+      color: var(--poc-accent);
+      text-decoration: underline;
+      text-underline-offset: 0.15em;
+    }
+
+    & code {
+      padding: 0 var(--noora-spacing-1);
+      border-radius: var(--noora-radius-1);
+      background: var(--noora-surface-background-tertiary);
+      font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
+    }
+  }
+
+  & [data-part="lede"].markdown p {
+    color: var(--noora-surface-label-secondary);
+  }
+
+  /* ---------- Utility ---------- */
+
+  & [data-part="empty"] {
+    padding: var(--noora-spacing-5);
+    border: 1px dashed var(--noora-surface-border-primary);
+    border-radius: var(--noora-radius-3);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    text-align: center;
+  }
+
+  & [data-part="footer"] {
+    padding-top: var(--noora-spacing-6);
+    border-top: 1px solid var(--noora-surface-border-primary);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+  }
+}
+
+#poc-public-not-found {
+  justify-content: center;
+  gap: var(--noora-spacing-4);
+
+  & h1 {
+    text-align: center;
+  }
+
+  & p {
+    max-width: 52ch;
+    color: var(--noora-surface-label-secondary);
+    text-align: center;
+  }
+}
+
+/* ---------- Access gate ---------- */
+
+/* ---------- Access gate ----------
+ *
+ * Matches the server's login page skeleton (see server/assets/app/css/pages/auth.css):
+ * a flex-centered root, a framed card with a slightly inset content well,
+ * and two soft purple radial gradients painted behind everything. Uses
+ * Noora primitives for the form controls so it inherits the exact look and
+ * feel a customer would see if they ever landed on a dashboard auth screen.
+ */
+
+#poc-public-gate {
+  --poc-accent: var(--noora-purple-500);
+
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100dvh;
+  padding: var(--noora-spacing-10) var(--noora-spacing-4);
+  background-color: var(--noora-surface-background-primary);
+  color: var(--noora-surface-label-primary);
+
+  @media (max-width: 768px) {
+    & {
+      padding: var(--noora-spacing-6);
+    }
+  }
+
+  & * {
+    box-sizing: border-box;
+  }
+
+  & > [data-part="frame"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: var(--noora-z-index-4);
+    max-width: 100%;
+    padding: var(--noora-spacing-4);
+    box-shadow: var(--noora-border-heavy);
+    border-radius: var(--noora-radius-8);
+    background: var(--noora-surface-background-primary);
+    overflow: hidden;
+  }
+
+  & > [data-part="frame"] > [data-part="content"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--noora-spacing-8);
+    padding: var(--noora-spacing-10) var(--noora-spacing-11);
+    max-width: 438px;
+
+    @media (max-width: 768px) {
+      & {
+        padding-inline: var(--noora-spacing-5);
+        width: 100%;
+        max-width: 100%;
+      }
+    }
+  }
+
+  & [data-part="brand"] {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    padding: var(--noora-spacing-2) var(--noora-spacing-4) var(--noora-spacing-2)
+      var(--noora-spacing-2);
+    border-radius: 999px;
+    background: var(--noora-surface-background-secondary);
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+    & img {
+      display: block;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      object-fit: cover;
+      background: var(--noora-surface-background-primary);
+    }
+
+    & [data-part="brand-domain"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+  }
+
+  & [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+
+    & > [data-part="title"] {
+      margin: 0;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+    }
+
+    & > [data-part="subtitle"] {
+      max-width: 44ch;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-small);
+      text-align: center;
+      line-height: 1.55;
+    }
+  }
+
+  & [data-part="form"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    width: 100%;
+
+    & .noora-button {
+      width: 100%;
+    }
+  }
+
+  & [data-part="status-card"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+    width: 100%;
+    padding: var(--noora-spacing-5) var(--noora-spacing-6);
+    border-radius: var(--noora-radius-4);
+    background: var(--noora-surface-background-secondary);
+    box-shadow: var(--noora-border-section);
+    text-align: left;
+  }
+
+  & [data-part="status-title"] {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--noora-spacing-2);
+    color: var(--poc-accent);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+    &::before {
+      content: "";
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--poc-accent);
+      animation: poc-pulse 1.6s ease-in-out infinite;
+    }
+  }
+
+  & [data-part="status-card"] p {
+    margin: 0;
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+    line-height: 1.55;
+  }
+
+  & [data-part="status-steps"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+    padding: 0;
+    margin: 0;
+    list-style: none;
+    counter-reset: poc-step;
+
+    & li {
+      display: flex;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      counter-increment: poc-step;
+
+      &::before {
+        content: counter(poc-step);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 1px solid var(--noora-surface-border-primary);
+        background: var(--noora-surface-background-primary);
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+      }
+
+      &[data-checked="true"] {
+        color: var(--poc-accent);
+
+        &::before {
+          content: "✓";
+          background: var(--poc-accent);
+          border-color: var(--poc-accent);
+          color: white;
+        }
+      }
+    }
+  }
+
+  & [data-part="background"] {
+    /* iOS Safari treats `filter: blur()` as a main-thread bottleneck,
+       so the auth pages skip these gradients there; we do the same. */
+    @supports (-webkit-touch-callout: none) {
+      display: none;
+    }
+
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: -1;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+
+    & [data-part="top-right-gradient"] {
+      position: absolute;
+      top: 0;
+      right: 0;
+      translate: 50% -50%;
+      z-index: var(--noora-z-index-2);
+      filter: blur(150px);
+      border-radius: 1000px;
+      background: light-dark(
+        oklch(53.2% 0.276 286.9 / 0.15),
+        oklch(53.2% 0.276 286.9 / 0.3)
+      );
+      width: 80%;
+      height: 50%;
+    }
+
+    & [data-part="bottom-left-gradient"] {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      translate: -50% 20%;
+      z-index: var(--noora-z-index-2);
+      filter: blur(150px);
+      border-radius: 1000px;
+      background: light-dark(
+        oklch(54.2% 0.27 286.9 / 0.1),
+        oklch(54.2% 0.27 286.9 / 0.15)
+      );
+      width: 90%;
+      height: 40%;
+    }
+  }
+}
+
+@keyframes poc-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}

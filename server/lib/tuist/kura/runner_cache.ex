@@ -1,0 +1,760 @@
+defmodule Tuist.Kura.RunnerCache do
+  @moduledoc """
+  Keeps a private runner-cache Kura node provisioned for exactly the
+  accounts whose hosted runner jobs run beside it.
+
+  The identity rule converges both directions every tick, per private
+  region:
+
+    * an account with at least one Runner Profile whose platform the
+      region serves (`Regions.runner_platforms`) AND
+      `Tuist.FeatureFlags.runners_enabled?/1` returning true AND whose jobs run
+      beside the region should have exactly one non-destroyed Kura server in
+      that region, and
+    * any other account should have none there.
+
+  Whose jobs run beside a region depends on the region. A site's region
+  (`Regions.site/1`) takes the accounts dispatch routes to the rack or the site
+  cache flag enables, once their cache traffic comes from the site: their node
+  there served hits in the last seven days, or a build in one of the CI runs of
+  their jobs claimed at the site (`runner_workflow_jobs.site`) hit the remote
+  cache in that window. A rack pool spans every site whose runners are on, so
+  the site a job was claimed at, not its pool, says where it ran. A region without a site
+  sits beside the rented fleet, and takes the accounts that claimed a job of
+  its platforms on a rented pool in the last seven days. Dispatch sends an account's job to the rented fleet
+  when it is not on a site, when the site racks no pool for the job, or when
+  the site is down, so only the jobs know which accounts the rented fleet
+  serves. An account whose jobs stopped coming has its node torn down, and
+  its next rented job provisions one again.
+
+  Runner Profiles are auto-created for every account, so profiles identify the
+  platform whose cache is needed rather than providing a second entitlement.
+  The reconciler evaluates the same runner-availability function as dispatch,
+  making co-located caching an automatic part of the runner product. A global
+  runner rule therefore provisions caches for every eligible account, while an
+  account whose runner access is removed has its cache torn down.
+
+  Each private region admits new accounts only while fewer than ten servers are
+  unsettled. Failed and destroying servers keep admission closed until they
+  recover or disappear, while active servers free slots for the next accounts.
+  Retries reuse existing server rows and at most ten may converge at once.
+  Teardown is also batched. These limits bound the backing Kubernetes work if
+  runner availability expands or contracts unexpectedly.
+
+  An active node whose account the region no longer serves drains before it
+  goes. Dispatch hands a job the endpoint when the job is claimed, and the
+  runner exports it as a hard override for the job's whole run, so destroying
+  the node at once breaks the remote cache of every job already running beside
+  it. Draining (`Kura.begin_drain/1`) stops dispatch handing the endpoint out
+  and leaves the workload serving. The node is destroyed once it has drained
+  for fifteen minutes and no job of the account claimed on the region's pools
+  before the drain is still claimed or running, or after six hours whatever
+  is in flight. An account the region serves again before then gets the same
+  node back (`Kura.cancel_drain/1`). The drain also absorbs a rolling deploy
+  that changes who is admitted: while the two server versions disagree, the
+  draining row stops the old one from provisioning a second node, and the new
+  one has not yet destroyed the first.
+
+  In canary and production, an actor-only runner flag narrows the account query
+  before the final availability check. Broad gates still evaluate every
+  eligible account. Both steps use one flag snapshot so a concurrent flag update
+  cannot produce a mixed cohort within a reconciliation tick.
+
+  The platform match keeps the node next to the fleet it serves: a region
+  pinned beside the Scaleway Mac mini fleet provisions only for accounts with
+  macOS profiles, and an account that drops its last macOS profile frees that
+  node even while its Linux profiles keep a node in a Linux-serving region.
+
+  This runs inside `Tuist.Kura.Reconciler`'s unique Oban job rather than on its
+  own cron, so production reconciliation is serialized, shares the same cadence,
+  and self-heals after a BEAM restart: enabling runners for an account provisions
+  the node on the next tick; disabling them tears it down. It is a no-op unless a
+  private region is available in this runtime (via
+  `TUIST_KURA_AVAILABLE_REGIONS`) and a Kura runtime image tag is configured, so
+  non-managed and not-yet-wired environments stay inert.
+
+  Provisioning the node does not, by itself, route any traffic to it —
+  `Tuist.Kura.runner_cache_endpoint_url/2` only returns a URL once the
+  node is `:active`, and runner dispatch resolves that lazily.
+  """
+
+  import Ecto.Query
+
+  alias Tuist.Accounts.Account
+  alias Tuist.Builds
+  alias Tuist.Environment
+  alias Tuist.FeatureFlags
+  alias Tuist.Kura
+  alias Tuist.Kura.Deployment
+  alias Tuist.Kura.Regions
+  alias Tuist.Kura.Rollouts
+  alias Tuist.Kura.Server
+  alias Tuist.Kura.StorageRollups
+  alias Tuist.Projects.Project
+  alias Tuist.Repo
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.WorkflowJob
+
+  require Logger
+
+  @max_teardowns_per_reconcile 100
+  @max_unsettled_servers_per_region 10
+  @retry_backoff_seconds [60, 300, 900, 3600]
+  @rented_job_window_days 7
+  @site_traffic_window_days 7
+
+  # Dispatch hands a job the node's endpoint when the job is claimed, and the
+  # job keeps it until it ends, so a node is torn down only once no job of the
+  # account claimed on the region's pools before the drain is still in flight.
+  # The minimum outlasts a rolling deploy, so a server version that still
+  # admits the account never sees the node gone and provisions it again. The
+  # maximum keeps a job row stuck in flight from holding a node forever; it is
+  # the six hours runner billing caps a session at.
+  @min_drain_seconds 15 * 60
+  @max_drain_seconds 6 * 3600
+  @in_flight_job_statuses ["claimed", "running"]
+
+  @doc """
+  Converges runner-cache nodes with runner availability. Safe to call on every
+  reconciler tick; returns `:ok`.
+  """
+  def reconcile do
+    case runner_cache_regions() do
+      [] ->
+        :ok
+
+      regions ->
+        account_ids = runner_enabled_account_ids(regions)
+        Enum.each(regions, &reconcile_region(&1, account_ids))
+    end
+
+    :ok
+  end
+
+  defp reconcile_region(%Regions{id: region_id} = region, account_ids) do
+    case admitted_account_ids(region, account_ids) do
+      {:ok, account_ids} ->
+        converge_region(region, account_ids)
+
+      # Without the evidence a site's region admits on, an empty set would
+      # read as "no account uses the site" and tear every node down, so the
+      # region keeps its nodes until the evidence can be read again.
+      {:error, reason} ->
+        Logger.warning("[Kura.RunnerCache] skipped #{region_id}: site traffic unknown: #{inspect(reason)}")
+        :ok
+    end
+  end
+
+  defp converge_region(%Regions{id: region_id} = region, account_ids) do
+    # Tear down first so an account that flips runners off frees its node
+    # even when no image tag is configured to provision new ones. A draining
+    # node the account is admitted to again returns to service before
+    # anything else looks at it, so it is never provisioned twice.
+    region
+    |> drains_to_cancel(account_ids)
+    |> Enum.each(&cancel_drain/1)
+
+    region
+    |> nodes_to_tear_down(account_ids)
+    |> Enum.each(&retire/1)
+
+    region
+    |> drained_nodes(account_ids)
+    |> Enum.each(&tear_down/1)
+
+    case image_tag() do
+      nil ->
+        :ok
+
+      image_tag ->
+        # A node that failed before its first successful deployment
+        # (transient apiserver error, missing CRD field, ...) would
+        # otherwise strand its account forever: the server row exists,
+        # so provisioning never re-runs, and nothing else retries
+        # failed servers. Self-heal them on the same cadence.
+        retry_failed_servers(region_id, account_ids, image_tag)
+
+        region
+        |> accounts_needing_node(account_ids, provisioning_slots(region_id))
+        |> Enum.each(&provision(&1, region_id, image_tag))
+    end
+
+    :ok
+  end
+
+  # The private (runner-cache) regions available in this runtime —
+  # usually zero or one per environment, but an environment may run one
+  # region per fleet locality (e.g. a Linux-serving node pool in the
+  # umbrella cluster plus a macOS-serving pool in Scaleway fr-par).
+  # Multi-region went from unsupported-and-logged to a first-class
+  # shape when regions gained `runner_platforms`: each region now
+  # reconciles independently against the accounts whose profiles it
+  # serves, so none is ever silently un-reconciled. `available/0` is
+  # env-gated, so this stays empty until a private region is wired
+  # into `TUIST_KURA_AVAILABLE_REGIONS`.
+  defp runner_cache_regions do
+    Enum.filter(Regions.available(), &Regions.private?/1)
+  end
+
+  # A site's region serves only the pools racked there, so it holds nodes for
+  # the accounts whose jobs run there (`runner_site`) or that the site cache
+  # flag enables, and of those only the ones whose cache traffic comes from the
+  # site: a node reserves its full claim on the site's few storage nodes
+  # whether or not anything reads it. An account both flags drop, or whose
+  # traffic from the site stops, has its node torn down. A region without a
+  # site serves the rented fleet, so it holds nodes for the accounts with
+  # recent jobs there.
+  defp admitted_account_ids(%Regions{} = region, account_ids) do
+    case Regions.site(region) do
+      nil ->
+        {:ok, MapSet.intersection(account_ids, rented_job_account_ids(region))}
+
+      site ->
+        account_ids
+        |> MapSet.filter(&site_account?(%Account{id: &1}))
+        |> site_traffic_account_ids(region, site)
+    end
+  end
+
+  # The accounts with cache traffic from the site in the window. An account
+  # whose node served hits there has it. One without such hits (no node yet,
+  # or a node nothing reads) has it when a build in one of its site jobs' CI
+  # runs hit the remote cache, wherever that cache was: before the account has
+  # a node at the site, its site jobs reach the public regions instead. Builds
+  # are matched by CI run, so a build from another job of a run that also ran
+  # at the site counts too.
+  defp site_traffic_account_ids(account_ids, %Regions{id: region_id} = region, site) do
+    since = DateTime.add(DateTime.utc_now(), -@site_traffic_window_days * 86_400, :second)
+    served = served_account_ids(region_id, account_ids, DateTime.to_date(since))
+    site_runs = site_job_runs(MapSet.difference(account_ids, served), region, site, since)
+
+    case remote_cache_run_account_ids(site_runs, since) do
+      {:ok, building} -> {:ok, MapSet.union(served, building)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp served_account_ids(region_id, account_ids, since_date) do
+    region_id
+    |> StorageRollups.for_region(MapSet.to_list(account_ids), since_date)
+    |> Enum.filter(&(&1.hit_count > 0))
+    |> MapSet.new(& &1.account_id)
+  end
+
+  # `{account_id, workflow_run_id}` of the account's jobs claimed at the site
+  # for the region's platforms in the window.
+  defp site_job_runs(account_ids, region, site, since) do
+    platforms = region |> region_platforms() |> Enum.map(&Atom.to_string/1)
+
+    if MapSet.size(account_ids) == 0 or Environment.runners_site_pools() == %{} do
+      []
+    else
+      Repo.all(
+        from(j in WorkflowJob,
+          as: :job,
+          where: j.account_id in ^MapSet.to_list(account_ids),
+          where: j.updated_at >= ^since and j.claimed_at >= ^since,
+          where: j.platform in ^platforms,
+          where: ^claimed_at_site(site),
+          where: j.workflow_run_id > 0,
+          distinct: true,
+          select: {j.account_id, j.workflow_run_id}
+        )
+      )
+    end
+  end
+
+  defp remote_cache_run_account_ids([], _since), do: {:ok, MapSet.new()}
+
+  defp remote_cache_run_account_ids(site_runs, since) do
+    account_ids = site_runs |> Enum.map(&elem(&1, 0)) |> Enum.uniq()
+
+    account_id_by_project_id =
+      from(p in Project, where: p.account_id in ^account_ids, select: {p.id, p.account_id})
+      |> Repo.all()
+      |> Map.new()
+
+    ci_run_ids = site_runs |> Enum.map(&Integer.to_string(elem(&1, 1))) |> Enum.uniq()
+    site_run_set = MapSet.new(site_runs, fn {account_id, run_id} -> {account_id, Integer.to_string(run_id)} end)
+
+    case Builds.ci_runs_with_remote_cache_hits(Map.keys(account_id_by_project_id), ci_run_ids, since) do
+      {:ok, runs} ->
+        {:ok,
+         runs
+         |> Enum.map(fn {project_id, ci_run_id} -> {Map.fetch!(account_id_by_project_id, project_id), ci_run_id} end)
+         |> Enum.filter(&MapSet.member?(site_run_set, &1))
+         |> MapSet.new(&elem(&1, 0))}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  # A job claimed in the window was also updated in it, so `updated_at`, which
+  # is indexed, bounds the scan to the window's jobs.
+  defp rented_job_account_ids(%Regions{} = region) do
+    since = DateTime.add(DateTime.utc_now(), -@rented_job_window_days * 86_400, :second)
+    platforms = region |> region_platforms() |> Enum.map(&Atom.to_string/1)
+    site_pools = Map.keys(Environment.runners_site_pools())
+
+    from(j in WorkflowJob,
+      where: j.updated_at >= ^since and j.claimed_at >= ^since,
+      where: j.platform in ^platforms,
+      where: j.fleet_name not in ^site_pools,
+      distinct: true,
+      select: j.account_id
+    )
+    |> Repo.all()
+    |> MapSet.new()
+  end
+
+  defp site_account?(account) do
+    FeatureFlags.runner_site_enabled?(account) or FeatureFlags.runner_site_cache_enabled?(account)
+  end
+
+  # Platforms a region's nodes serve. Private regions always declare
+  # `runner_platforms`; the fallback keeps a malformed region from
+  # matching every profile.
+  defp region_platforms(%Regions{runner_platforms: platforms}) when is_list(platforms), do: platforms
+  defp region_platforms(_), do: []
+
+  defp image_tag do
+    case Environment.kura_runtime_image_tag() do
+      tag when is_binary(tag) ->
+        case String.trim(tag) do
+          "" -> nil
+          trimmed -> trimmed
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp runner_enabled_account_ids(regions) do
+    availability = runner_availability()
+
+    platforms =
+      regions
+      |> Enum.flat_map(&region_platforms/1)
+      |> Enum.uniq()
+
+    profile_exists =
+      from(p in Profile,
+        where: p.account_id == parent_as(:account).id,
+        where: p.platform in ^platforms,
+        select: 1
+      )
+
+    query =
+      from(a in Account,
+        as: :account,
+        where: exists(profile_exists),
+        order_by: [asc: a.id],
+        select: struct(a, [:id])
+      )
+
+    query
+    |> scope_runner_candidates(availability)
+    |> Repo.all()
+    |> Enum.filter(&runner_enabled?(&1, availability))
+    |> MapSet.new(& &1.id)
+  end
+
+  defp runner_availability do
+    case Environment.env() do
+      env when env in [:can, :prod] -> flagged_runner_availability()
+      _ -> :all
+    end
+  end
+
+  defp flagged_runner_availability do
+    case FunWithFlags.get_flag(:runners) do
+      nil ->
+        %FunWithFlags.Flag{name: :runners, gates: []}
+
+      {:error, reason} ->
+        raise "could not load runner availability: #{inspect(reason)}"
+
+      %FunWithFlags.Flag{} = flag ->
+        flag
+    end
+  end
+
+  defp scope_runner_candidates(query, :all), do: query
+
+  defp scope_runner_candidates(query, %FunWithFlags.Flag{gates: gates}) do
+    if Enum.any?(gates, &broad_runner_gate?/1) do
+      query
+    else
+      account_ids = enabled_account_actor_ids(gates)
+      where(query, [account: account], account.id in ^MapSet.to_list(account_ids))
+    end
+  end
+
+  defp runner_enabled?(_account, :all), do: true
+  defp runner_enabled?(account, flag), do: FeatureFlags.runners_enabled?(account, flag)
+
+  defp broad_runner_gate?(%FunWithFlags.Gate{type: :boolean, enabled: true}), do: true
+  defp broad_runner_gate?(%FunWithFlags.Gate{type: :group, enabled: true}), do: true
+  defp broad_runner_gate?(%FunWithFlags.Gate{type: :percentage_of_time}), do: true
+  defp broad_runner_gate?(%FunWithFlags.Gate{type: :percentage_of_actors}), do: true
+  defp broad_runner_gate?(_gate), do: false
+
+  defp enabled_account_actor_ids(gates) do
+    Enum.reduce(gates, MapSet.new(), fn
+      %FunWithFlags.Gate{type: :actor, for: "account:" <> account_id, enabled: true}, account_ids ->
+        case Integer.parse(account_id) do
+          {parsed_id, ""} -> MapSet.put(account_ids, parsed_id)
+          _ -> account_ids
+        end
+
+      _gate, account_ids ->
+        account_ids
+    end)
+  end
+
+  defp accounts_needing_node(%Regions{id: region_id} = region, account_ids, limit) do
+    platforms = region_platforms(region)
+
+    server_exists =
+      from(s in Server,
+        where:
+          s.account_id == parent_as(:account).id and s.region == ^region_id and
+            s.status != :destroyed,
+        select: 1
+      )
+
+    profile_exists =
+      from(p in Profile,
+        where: p.account_id == parent_as(:account).id,
+        where: p.platform in ^platforms,
+        select: 1
+      )
+
+    Repo.all(
+      from(a in Account,
+        as: :account,
+        where: a.id in ^MapSet.to_list(account_ids),
+        where: exists(profile_exists),
+        where: not exists(server_exists),
+        order_by: [asc: a.id],
+        limit: ^limit,
+        select: a.id
+      )
+    )
+  end
+
+  # A draining node keeps its workload running, so it is settled: the
+  # Kubernetes work admission bounds is already done.
+  defp provisioning_slots(region_id) do
+    unsettled_servers =
+      Repo.aggregate(
+        from(s in Server,
+          where: s.region == ^region_id,
+          where: s.status not in [:active, :drain_pending, :destroyed]
+        ),
+        :count
+      )
+
+    max(@max_unsettled_servers_per_region - unsettled_servers, 0)
+  end
+
+  defp retry_convergence_slots(region_id) do
+    converging_servers =
+      Repo.aggregate(
+        from(s in Server,
+          where: s.region == ^region_id,
+          where: s.status in [:provisioning, :replicating]
+        ),
+        :count
+      )
+
+    max(@max_unsettled_servers_per_region - converging_servers, 0)
+  end
+
+  defp drains_to_cancel(%Regions{id: region_id} = region, account_ids) do
+    cohort_ids = MapSet.to_list(account_ids)
+
+    Repo.all(
+      from(s in Server,
+        as: :server,
+        where: s.region == ^region_id,
+        where: s.status == :drain_pending,
+        where: exists(profile_exists(region)) and s.account_id in ^cohort_ids,
+        order_by: [asc: s.id],
+        select: s
+      )
+    )
+  end
+
+  defp nodes_to_tear_down(%Regions{} = region, account_ids) do
+    region
+    |> unwanted_servers(account_ids)
+    |> where([s], s.status not in [:destroying, :destroyed, :drain_pending])
+    |> order_by([s], asc: s.updated_at, asc: s.id)
+    |> limit(^@max_teardowns_per_reconcile)
+    |> Repo.all()
+  end
+
+  defp drained_nodes(%Regions{} = region, account_ids) do
+    now = DateTime.utc_now()
+    min_drain_cutoff = DateTime.add(now, -@min_drain_seconds, :second)
+    max_drain_cutoff = DateTime.add(now, -@max_drain_seconds, :second)
+    platforms = region |> region_platforms() |> Enum.map(&Atom.to_string/1)
+
+    in_flight_job =
+      from(j in WorkflowJob,
+        as: :job,
+        where: j.account_id == parent_as(:server).account_id,
+        where: j.status in ^@in_flight_job_statuses,
+        where: j.platform in ^platforms,
+        where: j.claimed_at <= parent_as(:server).drain_started_at,
+        where: ^region_pool_condition(region),
+        select: 1
+      )
+
+    region
+    |> unwanted_servers(account_ids)
+    |> where([s], s.status == :drain_pending)
+    |> where([s], is_nil(s.drain_started_at) or s.drain_started_at <= ^min_drain_cutoff)
+    |> where([s], s.drain_started_at <= ^max_drain_cutoff or not exists(in_flight_job))
+    |> order_by([s], asc: s.drain_started_at, asc: s.id)
+    |> limit(^@max_teardowns_per_reconcile)
+    |> Repo.all()
+  end
+
+  # The region's servers whose account it no longer serves.
+  defp unwanted_servers(%Regions{id: region_id} = region, account_ids) do
+    cohort_ids = MapSet.to_list(account_ids)
+
+    from(s in Server,
+      as: :server,
+      where: s.region == ^region_id,
+      where: not exists(profile_exists(region)) or s.account_id not in ^cohort_ids,
+      select: s
+    )
+  end
+
+  defp profile_exists(region) do
+    platforms = region_platforms(region)
+
+    from(p in Profile,
+      where: p.account_id == parent_as(:server).account_id,
+      where: p.platform in ^platforms,
+      select: 1
+    )
+  end
+
+  # The jobs a claim handed the region's endpoint to: a site's region serves the
+  # jobs claimed at the site, a region without a site the jobs of every pool not
+  # racked at a site (`Tuist.Kura.runner_cache_endpoint_url/3`).
+  defp region_pool_condition(%Regions{} = region) do
+    case Regions.site(region) do
+      nil ->
+        pools = Map.keys(Environment.runners_site_pools())
+        dynamic([job: j], j.fleet_name not in ^pools)
+
+      site ->
+        claimed_at_site(site)
+    end
+  end
+
+  # A rack pool spans every site whose runners are on, so a job's site is the
+  # one its claim recorded from the claiming Node. A row claimed before claims
+  # recorded it counts at its pool's site.
+  defp claimed_at_site(site) do
+    site_pools = for {pool, %{site: ^site}} <- Environment.runners_site_pools(), do: pool
+    dynamic([job: j], j.site == ^site or (is_nil(j.site) and j.fleet_name in ^site_pools))
+  end
+
+  defp provision(account_id, region_id, image_tag) do
+    case Kura.create_server(%{account_id: account_id, region: region_id, image_tag: image_tag}) do
+      {:ok, _server} ->
+        Logger.info("[Kura.RunnerCache] provisioned runner-cache node for account #{account_id} in #{region_id}")
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "[Kura.RunnerCache] could not provision runner-cache node for account #{account_id} in #{region_id}: #{inspect(reason)}"
+        )
+
+        :ok
+    end
+  end
+
+  # Failed servers that never had a successful deployment
+  # (`current_image_tag` nil) — the only state `Kura.retry_server/2`
+  # accepts. Failures after a successful deploy keep their node and are
+  # an operator concern, not ours.
+  defp retry_failed_servers(region_id, account_ids, image_tag) do
+    region_id
+    |> nodes_to_retry(account_ids, image_tag)
+    |> Enum.take(retry_convergence_slots(region_id))
+    |> Enum.each(&retry(&1, image_tag))
+  end
+
+  defp nodes_to_retry(region_id, account_ids, image_tag) do
+    servers = failed_first_deploy_servers(region_id, account_ids)
+
+    # The tag each node would actually be retried on. `retry_server/2`
+    # resolves the account's rollout wave state, so a node whose wave is
+    # still pending deploys the rollout's baseline rather than the
+    # configured target. Keying the backoff history on the configured tag
+    # therefore found no failures for it and re-provisioned a hard-failing
+    # node every tick, with the backoff never engaging. Keyed per node on
+    # the tag it will get, a change in that tag still resets the history —
+    # a new image is a new chance — while the history stays about attempts
+    # that actually happened.
+    resolved_tags =
+      Map.new(servers, fn server ->
+        {server.id, Rollouts.provisioning_image_tag(server.account_id, image_tag)}
+      end)
+
+    failure_histories = retry_failure_histories(servers, resolved_tags)
+
+    Enum.filter(servers, &retry_due?(&1, Map.get(failure_histories, &1.id, [])))
+  end
+
+  defp failed_first_deploy_servers(region_id, account_ids) do
+    cohort_ids = MapSet.to_list(account_ids)
+
+    Repo.all(
+      from(s in Server,
+        where: s.region == ^region_id,
+        where: s.account_id in ^cohort_ids,
+        where: s.status == :failed,
+        where: is_nil(s.current_image_tag),
+        order_by: [asc: s.updated_at, asc: s.id],
+        select: s
+      )
+    )
+  end
+
+  defp retry_failure_histories([], _resolved_tags), do: %{}
+
+  defp retry_failure_histories(servers, resolved_tags) do
+    server_ids = Enum.map(servers, & &1.id)
+
+    ranked_failures =
+      from(d in Deployment,
+        where: d.kura_server_id in ^server_ids,
+        where: d.status == :failed,
+        windows: [
+          per_server: [
+            partition_by: d.kura_server_id,
+            order_by: [desc: d.finished_at, desc: d.inserted_at, desc: d.id]
+          ]
+        ],
+        select: %{
+          finished_at: d.finished_at,
+          image_tag: d.image_tag,
+          rank: over(row_number(), :per_server),
+          server_id: d.kura_server_id
+        }
+      )
+
+    ranked_failures
+    |> subquery()
+    |> where([failure], failure.rank <= ^length(@retry_backoff_seconds))
+    |> order_by([failure], asc: failure.server_id, asc: failure.rank)
+    |> select([failure], {failure.server_id, failure.image_tag, failure.finished_at})
+    |> Repo.all()
+    |> Enum.filter(fn {server_id, image_tag, _finished_at} -> resolved_tags[server_id] == image_tag end)
+    |> Enum.group_by(
+      fn {server_id, _image_tag, _finished_at} -> server_id end,
+      fn {_server_id, _image_tag, finished_at} -> finished_at end
+    )
+  end
+
+  defp retry_due?(%Server{} = server, failures) do
+    case failures do
+      [] ->
+        true
+
+      [nil | _] ->
+        false
+
+      [last_failed_at | _] ->
+        delay = retry_delay_seconds(server.id, length(failures))
+        retry_at = DateTime.add(last_failed_at, delay, :second)
+        DateTime.compare(DateTime.utc_now(), retry_at) != :lt
+    end
+  end
+
+  defp retry_delay_seconds(server_id, failure_count) do
+    base_delay = Enum.at(@retry_backoff_seconds, failure_count - 1)
+    jitter_window = div(base_delay, 10)
+    jitter = :erlang.phash2(server_id, jitter_window * 2 + 1) - jitter_window
+    min(base_delay + jitter, List.last(@retry_backoff_seconds))
+  end
+
+  defp retry(%Server{} = server, image_tag) do
+    case Kura.retry_server(server, image_tag) do
+      {:ok, _server} ->
+        Logger.info("[Kura.RunnerCache] retrying failed runner-cache node #{server.id}")
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Kura.RunnerCache] could not retry runner-cache node #{server.id}: #{inspect(reason)}")
+
+        :ok
+    end
+  end
+
+  # Jobs dispatch handed an active node's endpoint keep using it until they
+  # end, so the node drains: dispatch stops handing it out, and it keeps
+  # serving until `drained_nodes/2` lets it go. A node that is not active is
+  # not handed out, so it goes straight away.
+  defp retire(%Server{status: :active} = server) do
+    case Kura.begin_drain(server) do
+      {:ok, _server} ->
+        Logger.info(
+          "[Kura.RunnerCache] draining runner-cache node #{server.id} (its region no longer serves the account)"
+        )
+
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Kura.RunnerCache] could not drain runner-cache node #{server.id}: #{inspect(reason)}")
+
+        :ok
+    end
+  end
+
+  defp retire(%Server{} = server), do: tear_down(server)
+
+  defp cancel_drain(%Server{} = server) do
+    case Kura.cancel_drain(server) do
+      {:ok, _server} ->
+        Logger.info(
+          "[Kura.RunnerCache] returning runner-cache node #{server.id} to service (its region serves the account again)"
+        )
+
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "[Kura.RunnerCache] could not return runner-cache node #{server.id} to service: #{inspect(reason)}"
+        )
+
+        :ok
+    end
+  end
+
+  defp tear_down(%Server{} = server) do
+    case Kura.destroy_server(server) do
+      {:ok, _server} ->
+        Logger.info(
+          "[Kura.RunnerCache] tearing down runner-cache node #{server.id} (its region no longer serves the account)"
+        )
+
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[Kura.RunnerCache] could not tear down runner-cache node #{server.id}: #{inspect(reason)}")
+
+        :ok
+    end
+  end
+end

@@ -2,6 +2,7 @@
     import Foundation
     import Mockable
     import TuistCore
+    import TuistHTTP
 
     @Mockable
     public protocol MultipartUploadStartCacheServicing {
@@ -31,7 +32,19 @@
         }
     }
 
-    public final class MultipartUploadStartCacheService: MultipartUploadStartCacheServicing {
+    extension MultipartUploadStartCacheServiceError: HTTPStatusCodeError {
+        public var httpStatusCode: Int {
+            switch self {
+            case let .unknownError(statusCode): return statusCode
+            case .notFound: return 404
+            case .paymentRequired: return 402
+            case .forbidden: return 403
+            case .unauthorized: return 401
+            }
+        }
+    }
+
+    public struct MultipartUploadStartCacheService: MultipartUploadStartCacheServicing {
         public init() {}
 
         public func uploadCache(
@@ -76,6 +89,10 @@
                 case let .json(error):
                     throw MultipartUploadStartCacheServiceError.unauthorized(error.message)
                 }
+            case let .tooManyRequests(tooManyRequests):
+                throw AuthorizationThrottledError(
+                    retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+                )
             }
         }
     }

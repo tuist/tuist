@@ -1,0 +1,105 @@
+defmodule Tuist.Docs.RedirectsTest do
+  use ExUnit.Case, async: true
+
+  alias Tuist.Docs
+  alias Tuist.Docs.Redirects
+
+  describe "resolve/2" do
+    test "redirects the runners getting-started page to the GitHub Actions guide" do
+      assert Redirects.resolve("/en/docs/guides/features/runners/getting-started") ==
+               {:ok, "/en/docs/guides/features/runners/ci-providers/github-actions"}
+    end
+
+    test "redirects renamed insights pages" do
+      assert Redirects.resolve("/en/docs/guides/features/insights") ==
+               {:ok, "/en/docs/guides/features/build-insights"}
+    end
+
+    test "redirects legacy guide paths to current feature docs" do
+      assert Redirects.resolve("/en/docs/guide/project/dependencies") ==
+               {:ok, "/en/docs/guides/features/projects/dependencies"}
+    end
+
+    test "resolves chained VitePress redirects to the live destination" do
+      assert Redirects.resolve("/en/docs/guides/develop/build/cache") ==
+               {:ok, "/en/docs/guides/features/cache"}
+    end
+
+    test "redirects old SSO guide to authentication SSO guide" do
+      assert Redirects.resolve("/en/docs/guides/integrations/sso") ==
+               {:ok, "/en/docs/guides/integrations/authentication/sso"}
+    end
+
+    test "redirects the old self-host installation route to server" do
+      assert Redirects.resolve("/en/docs/guides/server/self-host/install") ==
+               {:ok, "/en/docs/guides/server/self-host/server"}
+    end
+
+    test "redirects the old self-host control plane route to server" do
+      assert Redirects.resolve("/en/docs/guides/server/self-host/control-plane") ==
+               {:ok, "/en/docs/guides/server/self-host/server"}
+    end
+
+    test "redirects the old Kura self-hosting route to cache self-hosting" do
+      assert Redirects.resolve("/en/docs/guides/server/self-host/kura") ==
+               {:ok, "/en/docs/guides/features/cache/self-hosting"}
+    end
+
+    test "redirects the old translation guide slug to languages" do
+      assert Redirects.resolve("/en/docs/contributors/translate") ==
+               {:ok, "/en/docs/contributors/languages"}
+    end
+
+    test "preserves dynamic suffixes for example redirects" do
+      assert Redirects.resolve("/en/docs/guides/examples/generated-projects/app_with_airship_sdk") ==
+               {:ok, "/en/docs/references/examples/generated-projects/app_with_airship_sdk"}
+    end
+
+    test "redirects project description references to the external docs" do
+      assert Redirects.resolve(
+               "/en/docs/reference/project-description/structs/project",
+               "tab=api"
+             ) ==
+               {:ok, "https://projectdescription.tuist.dev/documentation/projectdescription?tab=api"}
+    end
+
+    test "redirects any legacy automate page to the continuous integration guide" do
+      assert Redirects.resolve("/en/docs/guides/automate/anything") ==
+               {:ok, "/en/docs/guides/integrations/continuous-integration"}
+    end
+
+    test "keeps the suffix for legacy develop pages" do
+      assert Redirects.resolve("/en/docs/guides/develop/projects/manifests") ==
+               {:ok, "/en/docs/guides/features/projects/manifests"}
+    end
+
+    test "returns none when there is no matching redirect" do
+      assert Redirects.resolve("/en/docs/guides/features/cache") == :none
+    end
+  end
+
+  describe "rules/0" do
+    test "every exact and prefix-discard rule lands on an existing docs page" do
+      missing =
+        for {kind, from, _to} <- Redirects.rules(),
+            kind in [:exact, :prefix_discard],
+            request_path = "/en/docs" <> from <> if(kind == :prefix_discard, do: "any-page", else: ""),
+            {:ok, "/en/docs" <> destination} = Redirects.resolve(request_path),
+            destination != "" and is_nil(Docs.get_page("/en" <> destination)),
+            do: {from, destination}
+
+      assert missing == []
+    end
+
+    test "every prefix rule points at a section that contains docs pages" do
+      slugs = Docs.slugs()
+
+      empty =
+        for {:prefix, from, to} <- Redirects.rules(),
+            not Enum.any?(slugs, &String.starts_with?(&1, "/en" <> to)),
+            do: {from, to}
+
+      assert empty == []
+    end
+  end
+end

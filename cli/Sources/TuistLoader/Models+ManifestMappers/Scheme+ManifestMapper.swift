@@ -20,7 +20,8 @@ extension XcodeGraph.Scheme {
         if let manifestTestAction = manifest.testAction {
             testAction = try await XcodeGraph.TestAction.from(
                 manifest: manifestTestAction,
-                generatorPaths: generatorPaths
+                generatorPaths: generatorPaths,
+                schemeName: name
             )
         } else {
             testAction = nil

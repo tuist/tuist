@@ -8,7 +8,7 @@ defmodule TuistWeb.API.Schemas.Project do
 
   OpenApiSpex.schema(%{
     type: :object,
-    required: [:id, :full_name, :token, :default_branch, :visibility],
+    required: [:id, :full_name, :default_branch, :visibility],
     properties: %{
       id: %Schema{
         type: :number,
@@ -17,11 +17,6 @@ defmodule TuistWeb.API.Schemas.Project do
       full_name: %Schema{
         type: :string,
         description: "The full name of the project (e.g. tuist/tuist)"
-      },
-      token: %Schema{
-        type: :string,
-        description: "The token that should be used to authenticate the project. For CI only.",
-        deprecated: true
       },
       default_branch: %Schema{
         type: :string,
@@ -33,10 +28,22 @@ defmodule TuistWeb.API.Schemas.Project do
         description:
           "The URL of the connected git repository, such as https://github.com/tuist/tuist or https://github.com/tuist/tuist.git"
       },
+      token: %Schema{
+        type: :string,
+        deprecated: true,
+        description: "Deprecated. Always returns an empty string."
+      },
       visibility: %Schema{
         type: :string,
         description: "The visibility of the project",
         enum: [:private, :public]
+      },
+      # Not an enum: see the response-enum note in lib/tuist_web/api/AGENTS.md.
+      build_system: %Schema{
+        type: :string,
+        description:
+          "The build system used by the project, such as xcode, gradle, bazel, once, or mix. New values can be added without notice, so clients must accept values they don't recognize.",
+        example: "xcode"
       }
     }
   })

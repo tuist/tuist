@@ -223,9 +223,23 @@ defmodule TuistWeb.PreviewControllerTest do
     test "redirects to presigned preview download url", %{conn: conn} do
       # Given
       preview = Tuist.Repo.preload(AppBuildsFixtures.preview_fixture(), project: :account)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
 
       account_name = preview.project.account.name
       project_name = preview.project.name
+
+      storage_key =
+        Tuist.AppBuilds.storage_key(%{
+          account_handle: account_name,
+          project_handle: project_name,
+          app_build: app_build
+        })
+
+      expect(Storage, :object_exists?, fn ^storage_key, _actor -> true end)
+
+      stub(Storage, :stream_object, fn _object_key, _actor ->
+        Stream.map(["zip-content"], fn chunk -> chunk end)
+      end)
 
       stub(Zstream, :zip, fn _ -> ["zip-stream"] end)
 
@@ -235,6 +249,29 @@ defmodule TuistWeb.PreviewControllerTest do
       # Then
       response = response(conn, :ok)
       assert response == "zip-stream"
+    end
+
+    test "returns not found when a preview object is missing", %{conn: conn} do
+      # Given
+      preview = Tuist.Repo.preload(AppBuildsFixtures.preview_fixture(), project: :account)
+      app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+
+      account_name = preview.project.account.name
+      project_name = preview.project.name
+
+      storage_key =
+        Tuist.AppBuilds.storage_key(%{
+          account_handle: account_name,
+          project_handle: project_name,
+          app_build: app_build
+        })
+
+      expect(Storage, :object_exists?, fn ^storage_key, _actor -> false end)
+
+      # When / Then
+      assert_error_sent :not_found, fn ->
+        get(conn, ~p"/#{account_name}/#{project_name}/previews/#{preview.id}/download")
+      end
     end
   end
 
@@ -260,6 +297,12 @@ defmodule TuistWeb.PreviewControllerTest do
         type: :ipa
       )
 
+      stub(Storage, :object_exists?, fn _object_key, _actor -> true end)
+
+      stub(Storage, :generate_download_url, fn _object_key, _actor, _opts ->
+        "https://storage.tuist.dev/lapse/marquis/previews/build.zip?X-Amz-Signature=abc&X-Amz-Expires=3600"
+      end)
+
       # When
       conn = get(conn, ~p"/#{account_name}/#{project_name}/previews/#{preview.id}/manifest.plist")
 
@@ -268,6 +311,13 @@ defmodule TuistWeb.PreviewControllerTest do
 
       assert plist_response =~ "<string>dev.tuist.app</string>"
       assert plist_response =~ "<string>1.0.0</string>"
+
+      # The presigned url is embedded directly (no redirect through the server)
+      # and XML-escaped so the plist stays valid.
+      assert plist_response =~
+               "<string>https://storage.tuist.dev/lapse/marquis/previews/build.zip?X-Amz-Signature=abc&amp;X-Amz-Expires=3600</string>"
+
+      refute plist_response =~ "/app.ipa</string>"
     end
 
     test "raises not found error when the preview does not exist", %{conn: conn} do
@@ -285,7 +335,7 @@ defmodule TuistWeb.PreviewControllerTest do
   end
 
   describe "download_archive/2" do
-    test "returns archive object when it exists", %{conn: conn} do
+    test "redirects to the presigned archive url when it exists", %{conn: conn} do
       # Given
       preview =
         [
@@ -305,14 +355,16 @@ defmodule TuistWeb.PreviewControllerTest do
         type: :ipa
       )
 
+      presigned_url = "https://storage.tuist.dev/lapse/marquis/previews/build.zip?X-Amz-Signature=abc"
+
       stub(Storage, :object_exists?, fn _object_key, _actor -> true end)
-      stub(Storage, :get_object_as_string, fn _object_key, _actor -> "ipa-contents" end)
+      stub(Storage, :generate_download_url, fn _object_key, _actor, _opts -> presigned_url end)
 
       # When
       conn = get(conn, ~p"/#{account_name}/#{project_name}/previews/#{preview.id}/app.ipa")
 
       # Then
-      assert response(conn, 200) =~ "ipa-contents"
+      assert redirected_to(conn) == presigned_url
     end
 
     test "throws an error when it doesn't exist", %{conn: conn} do

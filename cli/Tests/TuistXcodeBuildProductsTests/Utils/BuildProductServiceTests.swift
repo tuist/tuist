@@ -1,0 +1,214 @@
+import FileSystem
+import Mockable
+import Path
+import Testing
+import TuistSimulator
+import TuistXcodeBuildProducts
+import XcodeGraph
+
+@testable import TuistXcodeBuildProducts
+
+struct BuildProductServiceTests {
+    private let fileSystem = FileSystem()
+    private let xcodeProjectBuildDirectoryLocator = MockXcodeProjectBuildDirectoryLocating()
+    private let appBundleLoader = MockAppBundleLoading()
+    private let subject: BuildProductService
+
+    init() {
+        subject = BuildProductService(
+            fileSystem: fileSystem,
+            xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
+            appBundleLoader: appBundleLoader
+        )
+    }
+
+    @Test(.inTemporaryDirectory)
+    func appBundles_returns_existing_bundles_for_requested_platforms() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcworkspace")
+        let simulatorBuildPath = temporaryDirectory.appending(component: "Debug-iphonesimulator")
+        let deviceBuildPath = temporaryDirectory.appending(component: "Debug-iphoneos")
+        let simulatorBundlePath = simulatorBuildPath.appending(component: "App.app")
+        let deviceBundlePath = deviceBuildPath.appending(component: "App.app")
+
+        try await fileSystem.makeDirectory(at: simulatorBuildPath)
+        try await fileSystem.makeDirectory(at: deviceBuildPath)
+        try await fileSystem.makeDirectory(at: simulatorBundlePath)
+        try await fileSystem.makeDirectory(at: deviceBundlePath)
+
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .value(.simulator(.iOS)),
+                projectPath: .value(projectPath),
+                derivedDataPath: .value(nil),
+                configuration: .value("Debug")
+            )
+            .willReturn(simulatorBuildPath)
+
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .value(.device(.iOS)),
+                projectPath: .value(projectPath),
+                derivedDataPath: .value(nil),
+                configuration: .value("Debug")
+            )
+            .willReturn(deviceBuildPath)
+
+        given(appBundleLoader)
+            .load(.value(simulatorBundlePath), destinationType: .value(.simulator(.iOS)))
+            .willReturn(.test(path: simulatorBundlePath, destinationType: .simulator(.iOS)))
+
+        given(appBundleLoader)
+            .load(.value(deviceBundlePath), destinationType: .value(.device(.iOS)))
+            .willReturn(.test(path: deviceBundlePath, destinationType: .device(.iOS)))
+
+        let bundles = try await subject.appBundles(
+            app: "App",
+            projectPath: projectPath,
+            derivedDataPath: nil,
+            configuration: "Debug",
+            platforms: [.iOS]
+        )
+
+        #expect(bundles.map(\.path) == [simulatorBundlePath, deviceBundlePath])
+        #expect(bundles.map(\.destinationType) == [.simulator(.iOS), .device(.iOS)])
+    }
+
+    @Test
+    func appBundlePath_throws_when_no_built_bundle_exists() async throws {
+        let projectPath = try AbsolutePath(validating: "/Project/App.xcworkspace")
+        let simulatorBuildPath = try AbsolutePath(validating: "/Derived/Build/Products/Debug-iphonesimulator")
+        let deviceBuildPath = try AbsolutePath(validating: "/Derived/Build/Products/Debug-iphoneos")
+
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .value(.simulator(.iOS)),
+                projectPath: .value(projectPath),
+                derivedDataPath: .value(nil),
+                configuration: .value("Debug")
+            )
+            .willReturn(simulatorBuildPath)
+
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .value(.device(.iOS)),
+                projectPath: .value(projectPath),
+                derivedDataPath: .value(nil),
+                configuration: .value("Debug")
+            )
+            .willReturn(deviceBuildPath)
+
+        await #expect(
+            throws: BuildProductServiceError.noAppsFound(app: "App", configuration: "Debug")
+        ) {
+            _ = try await subject.appBundlePath(
+                app: "App",
+                projectPath: projectPath,
+                derivedDataPath: nil,
+                configuration: "Debug",
+                platforms: [.iOS]
+            )
+        }
+    }
+
+    @Test(.inTemporaryDirectory)
+    func appBundlePath_returns_single_unique_bundle_path() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcworkspace")
+        let simulatorBuildPath = temporaryDirectory.appending(component: "Debug-iphonesimulator")
+        let deviceBuildPath = temporaryDirectory.appending(component: "Debug-iphoneos")
+        let bundlePath = simulatorBuildPath.appending(component: "App.app")
+
+        try await fileSystem.makeDirectory(at: simulatorBuildPath)
+        try await fileSystem.makeDirectory(at: deviceBuildPath)
+        try await fileSystem.makeDirectory(at: bundlePath)
+
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .value(.simulator(.iOS)),
+                projectPath: .value(projectPath),
+                derivedDataPath: .value(nil),
+                configuration: .value("Debug")
+            )
+            .willReturn(simulatorBuildPath)
+
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .value(.device(.iOS)),
+                projectPath: .value(projectPath),
+                derivedDataPath: .value(nil),
+                configuration: .value("Debug")
+            )
+            .willReturn(deviceBuildPath)
+
+        given(appBundleLoader)
+            .load(.value(bundlePath), destinationType: .value(.simulator(.iOS)))
+            .willReturn(.test(path: bundlePath, destinationType: .simulator(.iOS)))
+
+        let resolvedPath = try await subject.appBundlePath(
+            app: "App",
+            projectPath: projectPath,
+            derivedDataPath: nil,
+            configuration: "Debug",
+            platforms: [.iOS]
+        )
+
+        #expect(resolvedPath == bundlePath)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func appBundlePath_throws_when_multiple_unique_bundles_exist() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = temporaryDirectory.appending(component: "App.xcworkspace")
+        let simulatorBuildPath = temporaryDirectory.appending(component: "Debug-iphonesimulator")
+        let deviceBuildPath = temporaryDirectory.appending(component: "Debug-iphoneos")
+        let simulatorBundlePath = simulatorBuildPath.appending(component: "App.app")
+        let deviceBundlePath = deviceBuildPath.appending(component: "App.app")
+
+        try await fileSystem.makeDirectory(at: simulatorBuildPath)
+        try await fileSystem.makeDirectory(at: deviceBuildPath)
+        try await fileSystem.makeDirectory(at: simulatorBundlePath)
+        try await fileSystem.makeDirectory(at: deviceBundlePath)
+
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .value(.simulator(.iOS)),
+                projectPath: .value(projectPath),
+                derivedDataPath: .value(nil),
+                configuration: .value("Debug")
+            )
+            .willReturn(simulatorBuildPath)
+
+        given(xcodeProjectBuildDirectoryLocator)
+            .locate(
+                destinationType: .value(.device(.iOS)),
+                projectPath: .value(projectPath),
+                derivedDataPath: .value(nil),
+                configuration: .value("Debug")
+            )
+            .willReturn(deviceBuildPath)
+
+        given(appBundleLoader)
+            .load(.value(simulatorBundlePath), destinationType: .value(.simulator(.iOS)))
+            .willReturn(.test(path: simulatorBundlePath, destinationType: .simulator(.iOS)))
+
+        given(appBundleLoader)
+            .load(.value(deviceBundlePath), destinationType: .value(.device(.iOS)))
+            .willReturn(.test(path: deviceBundlePath, destinationType: .device(.iOS)))
+
+        await #expect(
+            throws: BuildProductServiceError.multipleBuiltBundlesFound(
+                app: "App",
+                paths: [deviceBundlePath.pathString, simulatorBundlePath.pathString]
+            )
+        ) {
+            _ = try await subject.appBundlePath(
+                app: "App",
+                projectPath: projectPath,
+                derivedDataPath: nil,
+                configuration: "Debug",
+                platforms: [.iOS]
+            )
+        }
+    }
+}

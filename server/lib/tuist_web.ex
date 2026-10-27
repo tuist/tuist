@@ -16,12 +16,14 @@ defmodule TuistWeb do
   below. Instead, define additional modules and import
   those modules here.
   """
-  use Boundary, deps: [Tuist], exports: [Endpoint, Router]
+  use Boundary, deps: [Tuist], exports: [Draining, Endpoint, Router]
 
   alias Plug.Conn
   alias TuistWeb.Controller
 
-  def static_paths, do: ~w(assets fonts images favicon.ico robots.txt js css .well-known marketing app apidocs)
+  def static_paths,
+    do:
+      ~w(assets fonts images favicon.ico geofeed.csv favicon.svg favicon-16x16.png favicon-32x32.png apple-touch-icon.png android-chrome-192x192.png android-chrome-512x512.png site.webmanifest browserconfig.xml mstile-150x150.png js css .well-known marketing app apidocs skills docs server)
 
   def router do
     quote do
@@ -74,8 +76,10 @@ defmodule TuistWeb do
 
       import TuistWeb.AppLayoutComponents
 
+      on_mount({TuistWeb.Locale, :assign_locale})
       on_mount(TuistWeb.CSP)
       on_mount({TuistWeb.Timezone, :assign_timezone})
+      on_mount({TuistWeb.LayoutLive, :observability})
 
       unquote(html_helpers())
     end
@@ -120,9 +124,12 @@ defmodule TuistWeb do
       # HTML escaping functionality
       import Phoenix.HTML
       import TuistWeb.AppAuthComponents
-      # Core UI components and translation
       import TuistWeb.AppComponents
+      import TuistWeb.CldrHelpers
+      import TuistWeb.Components.AsyncCard
+      # Core UI components and translation
       import TuistWeb.Components.IconComponents
+      import TuistWeb.Components.Skeleton
       import TuistWeb.Widget
 
       # Shortcut for generating JS commands

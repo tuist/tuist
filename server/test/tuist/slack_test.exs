@@ -1,5 +1,5 @@
 defmodule Tuist.SlackTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.Environment
@@ -10,6 +10,66 @@ defmodule Tuist.SlackTest do
   alias TuistTestSupport.Fixtures.AlertsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.SlackFixtures
+
+  describe "slack_webhook_url?/1" do
+    test "accepts canonical Slack webhook URLs" do
+      assert Slack.slack_webhook_url?("https://hooks.slack.com/services/T0/B0/abc")
+    end
+
+    test "rejects URLs from other hosts" do
+      refute Slack.slack_webhook_url?("https://attacker.example.com/hook")
+      refute Slack.slack_webhook_url?("http://hooks.slack.com/services/T0/B0/abc")
+      refute Slack.slack_webhook_url?(nil)
+      refute Slack.slack_webhook_url?(42)
+    end
+  end
+
+  describe "channel-result token signing" do
+    test "round-trips through sign + verify" do
+      payload = %{
+        channel_id: "C123",
+        channel_name: "general",
+        webhook_url: "https://hooks.slack.com/services/T0/B0/abc"
+      }
+
+      assert {:ok, token} = Slack.sign_channel_result(payload)
+      assert {:ok, ^payload} = Slack.verify_channel_result(token)
+    end
+
+    test "refuses to sign a non-Slack URL" do
+      assert {:error, :invalid_webhook_url} =
+               Slack.sign_channel_result(%{
+                 channel_id: "C1",
+                 channel_name: "general",
+                 webhook_url: "https://attacker.example.com/hook"
+               })
+    end
+
+    test "verify rejects garbage tokens" do
+      assert {:error, _} = Slack.verify_channel_result("not-a-real-token")
+      assert {:error, _} = Slack.verify_channel_result(nil)
+    end
+  end
+
+  describe "encrypt_webhook_url/1 + decrypt_webhook_url/1" do
+    test "round-trips a Slack webhook URL" do
+      url = "https://hooks.slack.com/services/T0/B0/secret"
+
+      assert {:ok, encoded} = Slack.encrypt_webhook_url(url)
+      refute encoded =~ "hooks.slack.com"
+      assert {:ok, ^url} = Slack.decrypt_webhook_url(encoded)
+    end
+
+    test "encrypt refuses non-Slack URLs" do
+      assert {:error, :invalid_webhook_url} =
+               Slack.encrypt_webhook_url("https://attacker.example.com/hook")
+    end
+
+    test "decrypt fails cleanly on garbage" do
+      assert {:error, :invalid_webhook_url} = Slack.decrypt_webhook_url("not-base64!")
+      assert {:error, :invalid_webhook_url} = Slack.decrypt_webhook_url(nil)
+    end
+  end
 
   describe "send_message/2" do
     setup do
@@ -24,7 +84,7 @@ defmodule Tuist.SlackTest do
       stub(Environment, :slack_tuist_token, fn -> token end)
 
       stub(Req, :post, fn _, [headers: _, body: _] ->
-        {:ok, %Req.Response{status: 200, body: %{}}}
+        {:ok, %Req.Response{status: 200, body: %{"ok" => true}}}
       end)
 
       # When
@@ -32,6 +92,28 @@ defmodule Tuist.SlackTest do
 
       # Then
       assert response == :ok
+    end
+
+    test "returns Slack API errors even when the HTTP request succeeds" do
+      stub(Environment, :slack_tuist_token, fn -> "token" end)
+
+      for error <- ["account_inactive", "invalid_auth", "not_in_channel", "channel_not_found"] do
+        expect(Req, :post, fn _, [headers: _, body: _] ->
+          {:ok, %Req.Response{status: 200, body: %{"ok" => false, "error" => error}}}
+        end)
+
+        assert Slack.send_message([], channel: "#gtm") == {:error, "Slack API error: #{error}"}
+      end
+    end
+
+    test "does not accept a response without an explicit success" do
+      stub(Environment, :slack_tuist_token, fn -> "token" end)
+
+      for body <- [%{}, %{"ok" => false}, "invalid response"] do
+        expect(Req, :post, fn _, _ -> {:ok, %Req.Response{status: 200, body: body}} end)
+
+        assert Slack.send_message([]) == {:error, "Unexpected Slack API response"}
+      end
     end
 
     test "when the response is not successful" do
@@ -150,8 +232,8 @@ defmodule Tuist.SlackTest do
       assert updated_project.slack_channel_name == nil
     end
 
-    test "clears slack fields from alert rules when deleting installation" do
-      # Given
+    test "clears slack fields on legacy alert rules (no webhook URL stored)" do
+      # Given - alert rule that still relies on the bot-token fallback
       user = AccountsFixtures.user_fixture()
       installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
@@ -160,7 +242,8 @@ defmodule Tuist.SlackTest do
         AlertsFixtures.alert_rule_fixture(
           project: project,
           slack_channel_id: "C12345",
-          slack_channel_name: "alerts-channel"
+          slack_channel_name: "alerts-channel",
+          slack_webhook_url: nil
         )
 
       # When
@@ -170,6 +253,31 @@ defmodule Tuist.SlackTest do
       {:ok, updated_alert_rule} = Tuist.Alerts.get_alert_rule(alert_rule.id)
       assert updated_alert_rule.slack_channel_id == nil
       assert updated_alert_rule.slack_channel_name == nil
+    end
+
+    test "preserves alert rules that already migrated to a per-channel webhook" do
+      # Given - alert rule already has its own webhook URL, so deleting the
+      # legacy account-level installation must NOT disable it.
+      user = AccountsFixtures.user_fixture()
+      installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          slack_channel_id: "C99999",
+          slack_channel_name: "ops-alerts",
+          slack_webhook_url: "https://hooks.slack.com/services/T0/B0/migrated"
+        )
+
+      # When
+      {:ok, _} = Slack.delete_installation(installation)
+
+      # Then
+      {:ok, updated_alert_rule} = Tuist.Alerts.get_alert_rule(alert_rule.id)
+      assert updated_alert_rule.slack_channel_id == "C99999"
+      assert updated_alert_rule.slack_channel_name == "ops-alerts"
+      assert updated_alert_rule.slack_webhook_url == "https://hooks.slack.com/services/T0/B0/migrated"
     end
   end
 
@@ -272,7 +380,185 @@ defmodule Tuist.SlackTest do
     test "sends alert notification to Slack" do
       # Given
       user = AccountsFixtures.user_fixture()
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :build_run_duration,
+          metric: :p90,
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts",
+          slack_webhook_url: "https://hooks.slack.com/services/T0/B0/abc"
+        )
+
+      alert =
+        AlertsFixtures.alert_fixture(
+          alert_rule: alert_rule,
+          current_value: 1200.0,
+          previous_value: 1000.0
+        )
+
+      expect(Client, :post_to_webhook, fn webhook_url, blocks ->
+        assert webhook_url == "https://hooks.slack.com/services/T0/B0/abc"
+        assert is_list(blocks)
+        assert length(blocks) == 5
+        :ok
+      end)
+
+      # When
+      result = Slack.send_alert(alert)
+
+      # Then
+      assert result == :ok
+    end
+
+    test "falls back to chat.postMessage with the legacy bot token when no webhook URL is set" do
+      # Given - simulates a destination configured before the webhook flow
+      # was introduced: only the account-level bot token + channel id exist.
+      user = AccountsFixtures.user_fixture()
       installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :build_run_duration,
+          metric: :p90,
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts",
+          slack_webhook_url: nil
+        )
+
+      alert =
+        AlertsFixtures.alert_fixture(
+          alert_rule: alert_rule,
+          current_value: 1200.0,
+          previous_value: 1000.0
+        )
+
+      reject(&Client.post_to_webhook/2)
+
+      expect(Client, :post_message, fn token, channel_id, blocks ->
+        assert token == installation.access_token
+        assert channel_id == "C12345"
+        assert is_list(blocks)
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "includes scheme in build_run_duration title and message" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :build_run_duration,
+          metric: :p90,
+          scheme: "MyApp",
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert =
+        AlertsFixtures.alert_fixture(
+          alert_rule: alert_rule,
+          current_value: 1200.0,
+          previous_value: 1000.0
+        )
+
+      expect(Client, :post_to_webhook, fn _webhook_url, blocks ->
+        header_block = Enum.at(blocks, 0)
+        assert header_block.text.text =~ "Alert: MyApp Build Time p90 Increased"
+
+        metric_block = Enum.at(blocks, 3)
+        assert metric_block.text.text =~ "MyApp build time"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "includes scheme in test_run_duration title and message" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :test_run_duration,
+          metric: :average,
+          scheme: "UITests",
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert =
+        AlertsFixtures.alert_fixture(
+          alert_rule: alert_rule,
+          current_value: 3000.0,
+          previous_value: 2000.0
+        )
+
+      expect(Client, :post_to_webhook, fn _webhook_url, blocks ->
+        header_block = Enum.at(blocks, 0)
+        assert header_block.text.text =~ "Alert: UITests Test Time Average Increased"
+
+        metric_block = Enum.at(blocks, 3)
+        assert metric_block.text.text =~ "UITests test time"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "includes bundle_name in bundle_size message" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :bundle_size,
+          metric: :install_size,
+          bundle_name: "MyApp",
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert =
+        AlertsFixtures.alert_fixture(
+          alert_rule: alert_rule,
+          current_value: 1_500_000.0,
+          previous_value: 1_000_000.0
+        )
+
+      expect(Client, :post_to_webhook, fn _webhook_url, blocks ->
+        metric_block = Enum.at(blocks, 3)
+        assert metric_block.text.text =~ "MyApp bundle"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "omits qualifier when scheme is empty" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
       project = ProjectsFixtures.project_fixture(account_id: user.account.id)
 
       alert_rule =
@@ -291,51 +577,323 @@ defmodule Tuist.SlackTest do
           previous_value: 1000.0
         )
 
-      expect(Client, :post_message, fn token, channel_id, blocks ->
-        assert token == installation.access_token
-        assert channel_id == "C12345"
-        assert is_list(blocks)
-        assert length(blocks) == 5
+      expect(Client, :post_to_webhook, fn _webhook_url, blocks ->
+        metric_block = Enum.at(blocks, 3)
+        assert metric_block.text.text =~ "*Build time"
         :ok
       end)
 
-      # When
-      result = Slack.send_alert(alert)
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
 
-      # Then
-      assert result == :ok
+    test "links to /builds for build_run_duration alerts" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :build_run_duration,
+          metric: :p90,
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert = AlertsFixtures.alert_fixture(alert_rule: alert_rule)
+
+      expect(Client, :post_to_webhook, fn _webhook_url, blocks ->
+        footer_block = Enum.at(blocks, 4)
+        footer_text = hd(footer_block.elements).text
+        assert footer_text =~ "/builds|View builds"
+        refute footer_text =~ "?"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "links to /builds with scheme query param when scheme is set" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :build_run_duration,
+          metric: :p90,
+          scheme: "MyApp",
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert = AlertsFixtures.alert_fixture(alert_rule: alert_rule)
+
+      expect(Client, :post_to_webhook, fn _webhook_url, blocks ->
+        footer_block = Enum.at(blocks, 4)
+        footer_text = hd(footer_block.elements).text
+        assert footer_text =~ "/builds?analytics-build-scheme=MyApp|View builds"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "links to /tests for test_run_duration alerts" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :test_run_duration,
+          metric: :p90,
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert = AlertsFixtures.alert_fixture(alert_rule: alert_rule)
+
+      expect(Client, :post_to_webhook, fn _webhook_url, blocks ->
+        footer_block = Enum.at(blocks, 4)
+        footer_text = hd(footer_block.elements).text
+        assert footer_text =~ "/tests|View tests"
+        refute footer_text =~ "?"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "links to /tests with scheme query param when scheme is set" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :test_run_duration,
+          metric: :p90,
+          scheme: "UITests",
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert = AlertsFixtures.alert_fixture(alert_rule: alert_rule)
+
+      expect(Client, :post_to_webhook, fn _webhook_url, blocks ->
+        footer_block = Enum.at(blocks, 4)
+        footer_text = hd(footer_block.elements).text
+        assert footer_text =~ "/tests?analytics-test-scheme=UITests|View tests"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "links to /xcode-cache for cache_hit_rate alerts" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :cache_hit_rate,
+          metric: :average,
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert = AlertsFixtures.alert_fixture(alert_rule: alert_rule)
+
+      expect(Client, :post_to_webhook, fn _webhook_url, blocks ->
+        footer_block = Enum.at(blocks, 4)
+        footer_text = hd(footer_block.elements).text
+        assert footer_text =~ "/xcode-cache"
+        assert footer_text =~ "View cache"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "mentions the branch for branch-scoped cache_hit_rate alerts" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :cache_hit_rate,
+          metric: :average,
+          git_branch: "main",
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert =
+        AlertsFixtures.alert_fixture(alert_rule: alert_rule, current_value: 0.6, previous_value: 0.8)
+
+      expect(Client, :post_to_webhook, fn _webhook_url, blocks ->
+        header_text = Enum.at(blocks, 0).text.text
+        metric_text = Enum.at(blocks, 3).text.text
+        assert header_text =~ "Decreased on main"
+        assert metric_text =~ "on main"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "escapes mrkdwn control characters in a branch name" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :cache_hit_rate,
+          metric: :average,
+          git_branch: "<https://evil.example|click me>",
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert =
+        AlertsFixtures.alert_fixture(alert_rule: alert_rule, current_value: 0.6, previous_value: 0.8)
+
+      expect(Client, :post_to_webhook, fn _webhook_url, blocks ->
+        metric_text = Enum.at(blocks, 3).text.text
+        refute metric_text =~ "<https://evil.example"
+        assert metric_text =~ "&lt;https://evil.example|click me&gt;"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "links to /bundles for bundle_size alerts" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :bundle_size,
+          metric: :install_size,
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert = AlertsFixtures.alert_fixture(alert_rule: alert_rule)
+
+      expect(Client, :post_to_webhook, fn _webhook_url, blocks ->
+        footer_block = Enum.at(blocks, 4)
+        footer_text = hd(footer_block.elements).text
+        assert footer_text =~ "/bundles|View bundles"
+        refute footer_text =~ "?"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
+    end
+
+    test "links to /bundles with bundle_name filter when bundle_name is set" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      stub(Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      alert_rule =
+        AlertsFixtures.alert_rule_fixture(
+          project: project,
+          category: :bundle_size,
+          metric: :install_size,
+          bundle_name: "MyApp",
+          slack_channel_id: "C12345",
+          slack_channel_name: "alerts"
+        )
+
+      alert = AlertsFixtures.alert_fixture(alert_rule: alert_rule)
+
+      expect(Client, :post_to_webhook, fn _webhook_url, blocks ->
+        footer_block = Enum.at(blocks, 4)
+        footer_text = hd(footer_block.elements).text
+        assert footer_text =~ "/bundles?bundle-size-app=MyApp|View bundles"
+        :ok
+      end)
+
+      # When/Then
+      assert Slack.send_alert(alert) == :ok
     end
   end
 
-  describe "send_flaky_test_alert/1" do
+  describe "send_flaky_test_alert/4" do
     test "sends flaky test alert notification to Slack" do
       # Given
       user = AccountsFixtures.user_fixture()
-      installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
-      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
 
-      rule =
-        AlertsFixtures.flaky_test_alert_rule_fixture(
-          project: project,
-          slack_channel_id: "C12345",
-          slack_channel_name: "flaky-alerts"
-        )
+      {:ok, project} =
+        [account_id: user.account.id]
+        |> ProjectsFixtures.project_fixture()
+        |> Projects.update_project(%{
+          flaky_test_alerts_slack_channel_id: "C12345",
+          flaky_test_alerts_slack_channel_name: "flaky-alerts",
+          flaky_test_alerts_slack_webhook_url: "https://hooks.slack.com/services/T0/B0/flaky"
+        })
 
-      test_case_id = Ecto.UUID.generate()
+      test_case = %{
+        id: Ecto.UUID.generate(),
+        name: "testExample",
+        module_name: "MyTests",
+        suite_name: "TestSuite"
+      }
 
-      alert =
-        AlertsFixtures.flaky_test_alert_fixture(
-          flaky_test_alert_rule: rule,
-          flaky_runs_count: 5,
-          test_case_id: test_case_id,
-          test_case_name: "testExample",
-          test_case_module_name: "MyTests",
-          test_case_suite_name: "TestSuite"
-        )
-
-      expect(Client, :post_message, fn token, channel_id, blocks ->
-        assert token == installation.access_token
-        assert channel_id == "C12345"
+      expect(Client, :post_to_webhook, fn webhook_url, blocks ->
+        assert webhook_url == "https://hooks.slack.com/services/T0/B0/flaky"
         assert is_list(blocks)
         assert length(blocks) == 5
 
@@ -346,7 +904,7 @@ defmodule Tuist.SlackTest do
         assert test_case_block.text.text =~ "testExample"
         assert test_case_block.text.text =~ "MyTests"
         assert test_case_block.text.text =~ "TestSuite"
-        assert test_case_block.text.text =~ test_case_id
+        assert test_case_block.text.text =~ test_case.id
 
         metric_block = Enum.at(blocks, 4)
         assert metric_block.text.text =~ "5 flaky runs"
@@ -354,7 +912,7 @@ defmodule Tuist.SlackTest do
       end)
 
       # When
-      result = Slack.send_flaky_test_alert(alert)
+      result = Slack.send_flaky_test_alert(project, test_case, 5)
 
       # Then
       assert result == :ok
@@ -364,22 +922,24 @@ defmodule Tuist.SlackTest do
       # Given
       user = AccountsFixtures.user_fixture()
       _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
-      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
 
-      rule =
-        AlertsFixtures.flaky_test_alert_rule_fixture(
-          project: project,
-          slack_channel_id: "C12345",
-          slack_channel_name: "flaky-alerts"
-        )
+      {:ok, project} =
+        [account_id: user.account.id]
+        |> ProjectsFixtures.project_fixture()
+        |> Projects.update_project(%{
+          flaky_test_alerts_slack_channel_id: "C12345",
+          flaky_test_alerts_slack_channel_name: "flaky-alerts",
+          flaky_test_alerts_slack_webhook_url: "https://hooks.slack.com/services/T0/B0/flaky"
+        })
 
-      alert =
-        AlertsFixtures.flaky_test_alert_fixture(
-          flaky_test_alert_rule: rule,
-          flaky_runs_count: 1
-        )
+      test_case = %{
+        id: Ecto.UUID.generate(),
+        name: "testExample",
+        module_name: "MyTests",
+        suite_name: nil
+      }
 
-      expect(Client, :post_message, fn _token, _channel_id, blocks ->
+      expect(Client, :post_to_webhook, fn _webhook_url, blocks ->
         metric_block = Enum.at(blocks, 4)
         assert metric_block.text.text =~ "1 flaky run"
         refute metric_block.text.text =~ "1 flaky runs"
@@ -387,7 +947,7 @@ defmodule Tuist.SlackTest do
       end)
 
       # When
-      result = Slack.send_flaky_test_alert(alert)
+      result = Slack.send_flaky_test_alert(project, test_case, 1)
 
       # Then
       assert result == :ok
@@ -397,29 +957,67 @@ defmodule Tuist.SlackTest do
       # Given
       user = AccountsFixtures.user_fixture()
       _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
-      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
 
-      rule =
-        AlertsFixtures.flaky_test_alert_rule_fixture(
-          project: project,
-          slack_channel_id: "C12345",
-          slack_channel_name: "flaky-alerts"
-        )
+      {:ok, project} =
+        [account_id: user.account.id]
+        |> ProjectsFixtures.project_fixture()
+        |> Projects.update_project(%{
+          flaky_test_alerts_slack_channel_id: "C12345",
+          flaky_test_alerts_slack_channel_name: "flaky-alerts",
+          flaky_test_alerts_slack_webhook_url: "https://hooks.slack.com/services/T0/B0/flaky"
+        })
 
-      alert =
-        AlertsFixtures.flaky_test_alert_fixture(
-          flaky_test_alert_rule: rule,
-          test_case_suite_name: nil
-        )
+      test_case = %{
+        id: Ecto.UUID.generate(),
+        name: "testExample",
+        module_name: "MyTests",
+        suite_name: nil
+      }
 
-      expect(Client, :post_message, fn _token, _channel_id, blocks ->
+      expect(Client, :post_to_webhook, fn _webhook_url, blocks ->
         test_case_block = Enum.at(blocks, 3)
         refute test_case_block.text.text =~ "Suite:"
         :ok
       end)
 
       # When
-      result = Slack.send_flaky_test_alert(alert)
+      result = Slack.send_flaky_test_alert(project, test_case, 3)
+
+      # Then
+      assert result == :ok
+    end
+
+    test "includes auto-quarantine info when was_auto_quarantined is true" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      _installation = SlackFixtures.slack_installation_fixture(account_id: user.account.id)
+
+      {:ok, project} =
+        [account_id: user.account.id]
+        |> ProjectsFixtures.project_fixture()
+        |> Projects.update_project(%{
+          flaky_test_alerts_slack_channel_id: "C12345",
+          flaky_test_alerts_slack_channel_name: "flaky-alerts",
+          flaky_test_alerts_slack_webhook_url: "https://hooks.slack.com/services/T0/B0/flaky"
+        })
+
+      test_case = %{
+        id: Ecto.UUID.generate(),
+        name: "testExample",
+        module_name: "MyTests",
+        suite_name: nil
+      }
+
+      expect(Client, :post_to_webhook, fn _webhook_url, blocks ->
+        # Should have 6 blocks when auto-quarantined (extra info block)
+        assert length(blocks) == 6
+        quarantine_block = Enum.at(blocks, 5)
+        assert Enum.any?(quarantine_block.elements, fn e -> e.text =~ "automatically quarantined" end)
+        :ok
+      end)
+
+      # When
+      result = Slack.send_flaky_test_alert(project, test_case, 3, true)
 
       # Then
       assert result == :ok

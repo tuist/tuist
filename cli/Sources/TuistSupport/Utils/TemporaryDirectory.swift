@@ -1,4 +1,10 @@
-import Darwin.C
+#if canImport(Glibc)
+    import Glibc
+#elseif canImport(Musl)
+    import Musl
+#elseif canImport(Darwin)
+    import Darwin.C
+#endif
 import Foundation
 import Path
 import TSCBasic

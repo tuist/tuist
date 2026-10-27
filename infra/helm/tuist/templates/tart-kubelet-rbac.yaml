@@ -1,0 +1,105 @@
+{{- if or .Values.macosFleet.enabled .Values.kuraFleet.enabled }}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "tart-kubelet") }}
+{{- /*
+ClusterRole every per-machine tart-kubelet ServiceAccount binds to.
+
+The chart owns the role definition only; the per-machine
+ServiceAccount + service-account-token Secret + ClusterRoleBinding
+that authenticate each Mac mini are created by the CAPI provider's
+credentials.Manager.EnsureNodeIdentity, one set per Machine. Splitting
+identity from role definition lets us tighten the role uniformly later
+(e.g. Node-graph-restricted access via NodeAuthorizer) without
+touching the operator's lifecycle code.
+*/}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tart-kubelet
+rules:
+  # Manage the Node object this kubelet registers itself as.
+  - apiGroups: [""]
+    resources: [nodes, nodes/status]
+    verbs: [get, list, watch, create, update, patch]
+  # Watch + status-update Pods scheduled here, and force-complete
+  # object deletion after the backing Tart VM has been torn down.
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch, update, patch, delete]
+  - apiGroups: [""]
+    resources: [pods/status]
+    verbs: [get, list, watch, update, patch]
+  # The pod agent adds a finalizer before starting the Tart VM and
+  # removes it only after VM teardown, so stale API Pods cannot
+  # disappear while their guest is still running on the Mac host.
+  - apiGroups: [""]
+    resources: [pods/finalizers]
+    verbs: [update, patch]
+  # Resolve `valueFrom` / `envFrom` references in Pod env, exactly the
+  # way a real kubelet does.
+  - apiGroups: [""]
+    resources: [secrets, configmaps]
+    verbs: [get, list, watch]
+  # Read ServiceAccounts to look up the SA tart-kubelet projects
+  # into the VM when AutomountServiceAccountToken=true.
+  - apiGroups: [""]
+    resources: [serviceaccounts]
+    verbs: [get, list, watch]
+  # Mint short-lived projected ServiceAccount tokens for Pods
+  # whose Spec sets AutomountServiceAccountToken=true. tart-kubelet
+  # stages the token alongside tuist.env so the VM can use it as
+  # the dispatch-endpoint Bearer credential.
+  - apiGroups: [""]
+    resources: [serviceaccounts/token]
+    verbs: [create]
+  # A joining host reads the RunnerPools its fleet serves to pull their
+  # images before it takes Pods (tart-kubelet's podagent.Prewarmer).
+  - apiGroups: ["tuist.dev"]
+    resources: [runnerpools]
+    verbs: [get, list]
+  # Emit Events on Pod failures so `kubectl describe pod` shows them.
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+  # A real Linux kubelet (the kura runner-cache node, unlike the macOS
+  # tart-kubelet shim) needs the standard node permissions: its own heartbeat
+  # Lease, Services to build pod env vars (without which every pod fails
+  # CreateContainerConfigError "services have not yet been read"), a CSINode,
+  # RuntimeClasses, and — with webhook auth/authz + serverTLSBootstrap — token/
+  # access reviews and a serving-cert CSR. These mirror the built-in
+  # system:node role; the tart-kubelet shim doesn't exercise most of them.
+  # Both kubelets renew their Node's Lease in kube-node-lease.
+  - apiGroups: ["coordination.k8s.io"]
+    resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [get, list, watch]
+  - apiGroups: ["storage.k8s.io"]
+    resources: [csinodes]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["node.k8s.io"]
+    resources: [runtimeclasses]
+    verbs: [get, list, watch]
+  - apiGroups: ["authentication.k8s.io"]
+    resources: [tokenreviews]
+    verbs: [create]
+  - apiGroups: ["authorization.k8s.io"]
+    resources: [subjectaccessreviews]
+    verbs: [create]
+  - apiGroups: ["certificates.k8s.io"]
+    resources: [certificatesigningrequests]
+    verbs: [get, list, watch, create]
+  # Mounting CSI volumes (the scw-bssd cache PVCs) needs the kubelet to read
+  # the PVC/PV bound to each pod and watch the VolumeAttachment the external
+  # attacher creates.
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims, persistentvolumes]
+    verbs: [get, list, watch]
+  - apiGroups: ["storage.k8s.io"]
+    resources: [volumeattachments, csidrivers]
+    verbs: [get, list, watch]
+{{- end }}

@@ -78,10 +78,8 @@ public struct SimulatorRuntime: Sendable, Equatable, Codable, Hashable, CustomSt
     public var description: String {
         name
     }
-}
 
-#if DEBUG
-    extension SimulatorRuntime {
+    #if DEBUG
         public static func test(
             bundlePath: AbsolutePath =
                 "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS.simruntime",
@@ -103,5 +101,5 @@ public struct SimulatorRuntime: Sendable, Equatable, Codable, Hashable, CustomSt
                 name: name
             )
         }
-    }
-#endif
+    #endif
+}

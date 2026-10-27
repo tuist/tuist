@@ -3,6 +3,8 @@ defmodule TuistWeb.SSOLoginLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.AppAuthComponents
+
   alias Phoenix.Flash
   alias Tuist.Accounts
 
@@ -22,14 +24,31 @@ defmodule TuistWeb.SSOLoginLive do
   def handle_event("submit", %{"user" => %{"email" => email}}, socket) do
     email = String.trim(email)
 
-    case Accounts.okta_organization_for_user_email(email) do
+    case Accounts.sso_organization_for_user_email(email) do
       {:ok, organization} ->
         encoded_email = URI.encode_www_form(email)
-        redirect_url = "/users/auth/okta?organization_id=#{organization.id}&login_hint=#{encoded_email}"
+
+        provider_path =
+          case organization.sso_provider do
+            :okta -> "okta"
+            :oauth2 -> "oauth2"
+          end
+
+        redirect_url = "/users/auth/#{provider_path}?organization_id=#{organization.id}&login_hint=#{encoded_email}"
+
         {:noreply, redirect(socket, to: redirect_url)}
 
       {:error, :not_found} ->
-        socket = put_flash(socket, :error, dgettext("dashboard_auth", "No SSO organization found for this email"))
+        socket =
+          put_flash(
+            socket,
+            :error,
+            dgettext(
+              "dashboard_auth",
+              "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
+            )
+          )
+
         {:noreply, socket}
     end
   end
@@ -39,11 +58,7 @@ defmodule TuistWeb.SSOLoginLive do
     <div id="sso-login">
       <div data-part="frame">
         <div data-part="content">
-          <img
-            src="/images/tuist_logo_32x32@2x.png"
-            alt={dgettext("dashboard_auth", "Tuist Logo")}
-            data-part="logo"
-          />
+          <.tuist_mark data-part="logo" aria-label={dgettext("dashboard_auth", "Tuist Logo")} />
           <div data-part="dots">
             <.dots_light />
             <.dots_dark />
@@ -51,7 +66,7 @@ defmodule TuistWeb.SSOLoginLive do
           <div data-part="header">
             <h1 data-part="title">{dgettext("dashboard_auth", "Log in to Tuist")}</h1>
             <span data-part="subtitle">
-              {dgettext("dashboard_auth", "Log in to your enterprise account via Okta")}
+              {dgettext("dashboard_auth", "Log in to your enterprise account via SSO")}
             </span>
           </div>
           <.form data-part="form" for={@form} id="sso_login_form" phx-submit="submit">
@@ -92,6 +107,7 @@ defmodule TuistWeb.SSOLoginLive do
         <div data-part="bottom-left-gradient"></div>
         <div data-part="shell"><.shell /></div>
       </div>
+      <.terms_and_privacy />
     </div>
     """
   end

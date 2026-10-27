@@ -108,10 +108,48 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
         let got = try await subject.hash(identifier: "resources", resources: resourceFileElements)
 
         // Then
+        // Children are sorted by hash for determinism
         XCTAssertEqual(got, MerkleNode(
-            hash: "b310dc618b8893abc76c9a4b9628e04e",
+            hash: "5684b5bb1f3e485d53b29c9ad8add44e",
             identifier: "resources",
             children: [
+                MerkleNode(
+                    hash: "d8e3e5720f2916804d21060f777499f0",
+                    identifier: resource2.parentDirectory.pathString,
+                    children: [
+                        MerkleNode(
+                            hash: "129ccb8ef5914163bbcc42da1658d73f",
+                            identifier: "name",
+                            children: []
+                        ),
+                        MerkleNode(
+                            hash: "ad466924a9a3254ab4d5280a915e0444",
+                            identifier: "content",
+                            children: []
+                        ),
+                        MerkleNode(
+                            hash: "c4ca4238a0b923820dcc509a6f75849b",
+                            identifier: "isReference",
+                            children: []
+                        ),
+                        MerkleNode(
+                            hash: "f32af7d8e6b19f67a63af85e5e7b8a82",
+                            identifier: "tags",
+                            children: []
+                        ),
+                        MerkleNode(
+                            hash: "12ee3b51be5e4bd87bf7a4c8895cc088",
+                            identifier: "inclusionCondition",
+                            children: [
+                                MerkleNode(
+                                    hash: "9e304d4e8df1b74cfa009913198428ab",
+                                    identifier: "ios",
+                                    children: []
+                                ),
+                            ]
+                        ),
+                    ]
+                ),
                 MerkleNode(
                     hash: "e297e7925b4d0d805f87eb8842081511",
                     identifier: resource1.pathString,
@@ -143,43 +181,6 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
                                 MerkleNode(
                                     hash: "43b9d8ea18c48c3a64c4e37338fc668f",
                                     identifier: "macos",
-                                    children: []
-                                ),
-                            ]
-                        ),
-                    ]
-                ),
-                MerkleNode(
-                    hash: "67a89904e984196e4081300ca5cfa0fa",
-                    identifier: resource2.parentDirectory.pathString,
-                    children: [
-                        MerkleNode(
-                            hash: "129ccb8ef5914163bbcc42da1658d73f",
-                            identifier: "name",
-                            children: []
-                        ),
-                        MerkleNode(
-                            hash: "c81e728d9d4c2f636f067f89cc14862c",
-                            identifier: "content",
-                            children: []
-                        ),
-                        MerkleNode(
-                            hash: "c4ca4238a0b923820dcc509a6f75849b",
-                            identifier: "isReference",
-                            children: []
-                        ),
-                        MerkleNode(
-                            hash: "f32af7d8e6b19f67a63af85e5e7b8a82",
-                            identifier: "tags",
-                            children: []
-                        ),
-                        MerkleNode(
-                            hash: "12ee3b51be5e4bd87bf7a4c8895cc088",
-                            identifier: "inclusionCondition",
-                            children: [
-                                MerkleNode(
-                                    hash: "9e304d4e8df1b74cfa009913198428ab",
-                                    identifier: "ios",
                                     children: []
                                 ),
                             ]

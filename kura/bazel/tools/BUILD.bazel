@@ -1,0 +1,4 @@
+exports_files(
+    ["rust_libtest_junit.sh"],
+    visibility = ["//visibility:public"],
+)

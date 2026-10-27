@@ -25,6 +25,7 @@ defmodule TuistWeb.Previews.AppPreview do
         data-part="icon"
         id={"tuist-app-preview-#{@preview.id}"}
         phx-hook="ImageFallback"
+        decoding="async"
       />
       <div data-part="metadata">
         <%= if assigns[:app_name] do %>
@@ -34,6 +35,9 @@ defmodule TuistWeb.Previews.AppPreview do
             {@preview.display_name}
           </span>
         <% end %>
+        <span :if={release_notes_summary(@preview.release_notes)} data-part="release-notes-summary">
+          {release_notes_summary(@preview.release_notes)}
+        </span>
         <div data-part="extra-metadata">
           <%= for platform <- Enum.sort(@preview.supported_platforms) do %>
             <.platform_badge platform={platform} />
@@ -54,9 +58,17 @@ defmodule TuistWeb.Previews.AppPreview do
           ~p"/#{@preview.project.account.name}/#{@preview.project.name}/previews/#{@preview.id}"
         }
         data-part="link"
-      >
-      </.link>
+      ></.link>
     </div>
     """
+  end
+
+  def release_notes_summary(nil), do: nil
+
+  def release_notes_summary(notes) do
+    case notes |> String.trim() |> String.split(~r/\R/u, parts: 2) |> hd() |> String.trim() do
+      "" -> nil
+      first_line -> first_line
+    end
   end
 end

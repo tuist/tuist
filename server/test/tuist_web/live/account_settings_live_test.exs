@@ -1,11 +1,12 @@
 defmodule TuistWeb.AccountSettingsLiveTest do
-  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.ConnCase, async: false
   use TuistTestSupport.Cases.LiveCase
   use Mimic
 
   import Phoenix.LiveViewTest
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} do
@@ -33,6 +34,26 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     assert html =~ "Settings · #{account.name} · Tuist"
   end
 
+  test "renders cache endpoints but no managed cache section", %{
+    conn: conn,
+    account: account
+  } do
+    # Given
+    stub(Environment, :tuist_hosted?, fn -> true end)
+    stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :enterprise} end)
+
+    # When
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings")
+
+    # Then
+    assert html =~ "Cache endpoints"
+    # Where an account's cache runs is neither asked of it nor reported to it.
+    refute html =~ "Managed cache"
+    refute html =~ "Deploy Kura server"
+    refute html =~ "create_kura_server"
+    refute html =~ "destroy_kura_server"
+  end
+
   test "raises UnauthorizedError when the user is not authorized to update settings", %{
     conn: conn
   } do
@@ -50,6 +71,38 @@ defmodule TuistWeb.AccountSettingsLiveTest do
     assert_raise TuistWeb.Errors.UnauthorizedError, fn ->
       live(conn, ~p"/#{organization.account.name}/settings")
     end
+  end
+
+  test "allows an operator holding an admin grant to access settings for any account", %{
+    conn: conn
+  } do
+    organization =
+      AccountsFixtures.organization_fixture(preload: [:account])
+
+    stub(Environment, :tuist_hosted?, fn -> true end)
+    user = AccountsFixtures.user_fixture(email: "operator-#{System.unique_integer([:positive])}@tuist.dev")
+    AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google)
+    now = System.system_time(:second)
+
+    conn =
+      conn
+      |> log_in_user(user)
+      |> Plug.Conn.put_session("operator_grants", %{
+        organization.account.name => %{
+          tier: :admin,
+          account_id: organization.account.id,
+          account_handle: organization.account.name,
+          sub: user.email,
+          reason: "support",
+          jti: "1",
+          iat: now,
+          exp: now + 600
+        }
+      })
+
+    {:ok, _lv, html} = live(conn, ~p"/#{organization.account.name}/settings")
+
+    assert html =~ "Settings · #{organization.account.name} · Tuist"
   end
 
   test "displays the 'Rename organization' button when the selected account is an organization",

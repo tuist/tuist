@@ -1,0 +1,872 @@
+import ArgumentParser
+import Foundation
+
+public let swifterpmVersion = "0.9.0"
+
+struct CLIPath: Equatable, Sendable {
+    let rawValue: String
+
+    init(_ rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    static func optional(_ path: String?) -> CLIPath? {
+        path.map(CLIPath.init)
+    }
+
+    var path: String {
+        URL(fileURLWithPath: rawValue).path
+    }
+
+    func resolved(relativeTo baseDirectory: URL) -> URL {
+        if rawValue.hasPrefix("/") {
+            return URL(fileURLWithPath: rawValue).standardizedFileURL
+        }
+        return baseDirectory
+            .appendingPathComponent(rawValue)
+            .standardizedFileURL
+    }
+}
+
+struct CLI {
+    var chdir: CLIPath?
+    var packagePath: CLIPath?
+    var cachePath: CLIPath?
+    var scratchPath: CLIPath?
+    var buildPath: CLIPath?
+    var configPath: CLIPath?
+    var securityPath: CLIPath?
+    var netrcFile: CLIPath?
+    var netrc = true
+    var forceNetrc = false
+    var disableKeychain = false
+    var disableSandbox = false
+    var enableDependencyCache = false
+    var disableDependencyCache = false
+    var skipUpdate = false
+    var forceResolvedVersions = false
+    var disableAutomaticResolution = false
+    var onlyUseVersionsFromResolvedFile = false
+    var replaceSCMWithRegistry = false
+    var useRegistryIdentityForSCM = false
+    var defaultRegistryURL: String?
+    var disableSCMToRegistryTransformation = false
+    var quiet = false
+    var disablePackageInfoCache = false
+    var packageInfoCachePath: CLIPath?
+    var cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization?
+    var command: Command
+
+    enum Command {
+        case resolve(ResolveOptions)
+        case update(UpdateOptions)
+        case restore(RestoreOptions)
+    }
+
+    struct ResolveOptions {
+        var packageName: String?
+        var version: String?
+        var branch: String?
+        var revision: String?
+        var packageDir = CLIPath(".")
+        var cacheDir: CLIPath?
+        var write = false
+        var restore = false
+        var printOnly = false
+    }
+
+    struct UpdateOptions {
+        var packageNames: [String] = []
+        var packageDir = CLIPath(".")
+        var cacheDir: CLIPath?
+        var write = false
+        var restore = false
+        var printOnly = false
+    }
+
+    struct RestoreOptions {
+        var packageDir = CLIPath(".")
+        var cacheDir: CLIPath?
+        var scratchDir: CLIPath?
+    }
+}
+
+enum CLIAction: String, ExpressibleByArgument {
+    case resolve
+    case update
+    case restore
+}
+
+public enum SwifterPMParsedCommand: Sendable {
+    case resolve(SwifterPMResolutionRequest)
+    case update(SwifterPMResolutionRequest)
+    case restore(SwifterPMRestoreRequest)
+}
+
+public enum SwifterPMCommandParser {
+    public static func parse(_ args: [String]) async throws -> SwifterPMParsedCommand {
+        let cli = try CLIParser.parse(args)
+        let paths = try await CLIPathResolver(chdir: cli.chdir)
+
+        switch cli.command {
+        case let .resolve(options):
+            try CLIRunner.ensureWholePackageResolution(
+                packageName: options.packageName,
+                version: options.version,
+                branch: options.branch,
+                revision: options.revision
+            )
+            return .resolve(
+                try resolutionRequest(
+                    cli: cli,
+                    paths: paths,
+                    packageDir: options.packageDir,
+                    cacheDir: options.cacheDir,
+                    write: options.write,
+                    restore: options.restore,
+                    printOnly: options.printOnly
+                )
+            )
+        case let .update(options):
+            if !options.packageNames.isEmpty {
+                throw ToolError.message("package-specific update is not supported yet")
+            }
+            return .update(
+                try resolutionRequest(
+                    cli: cli,
+                    paths: paths,
+                    packageDir: options.packageDir,
+                    cacheDir: options.cacheDir,
+                    write: options.write,
+                    restore: options.restore,
+                    printOnly: options.printOnly
+                )
+            )
+        case let .restore(options):
+            let package = CLIRunner.canonicalPackageDir(
+                CLIRunner.commandPackageDir(
+                    cli: cli, paths: paths, commandPackageDir: options.packageDir
+                )
+            )
+            return .restore(
+                SwifterPMRestoreRequest(
+                    packageDirectory: package,
+                    cacheDirectory: CLIRunner.cliCacheDir(
+                        cli: cli, paths: paths, commandCacheDir: options.cacheDir
+                    ),
+                    scratchDirectory: CLIRunner.commandScratchDir(
+                        cli: cli, paths: paths, packageDir: package, commandScratchDir: options.scratchDir
+                    ),
+                    registryConfigurationPath: paths.resolve(cli.configPath),
+                    defaultRegistryURL: cli.defaultRegistryURL,
+                    netrc: CLIRunner.netrcConfiguration(cli: cli, paths: paths),
+                    disableSandbox: cli.disableSandbox,
+                    disablePackageInfoCache: cli.disablePackageInfoCache,
+                    packageInfoCacheDirectory: paths.resolve(cli.packageInfoCachePath),
+                    cachedDirectoryMaterialization: cli.cachedDirectoryMaterialization,
+                    quiet: cli.quiet
+                )
+            )
+        }
+    }
+
+    private static func resolutionRequest(
+        cli: CLI,
+        paths: CLIPathResolver,
+        packageDir: CLIPath,
+        cacheDir: CLIPath?,
+        write: Bool,
+        restore: Bool,
+        printOnly: Bool
+    ) throws -> SwifterPMResolutionRequest {
+        let package = CLIRunner.canonicalPackageDir(
+            CLIRunner.commandPackageDir(cli: cli, paths: paths, commandPackageDir: packageDir)
+        )
+        return SwifterPMResolutionRequest(
+            packageDirectory: package,
+            cacheDirectory: CLIRunner.cliCacheDir(cli: cli, paths: paths, commandCacheDir: cacheDir),
+            scratchDirectory: CLIRunner.commandScratchDir(
+                cli: cli, paths: paths, packageDir: package, commandScratchDir: nil
+            ),
+            registryConfigurationPath: paths.resolve(cli.configPath),
+            defaultRegistryURL: cli.defaultRegistryURL,
+            netrc: CLIRunner.netrcConfiguration(cli: cli, paths: paths),
+            disableSandbox: cli.disableSandbox,
+            forceResolvedVersions: cli.forceResolvedVersions || cli.disableAutomaticResolution
+                || cli.onlyUseVersionsFromResolvedFile,
+            skipUpdate: cli.skipUpdate,
+            writeResolvedFile: CLIRunner.shouldWrite(write: write, printOnly: printOnly),
+            restorePackage: CLIRunner.shouldRestore(restore: restore, printOnly: printOnly),
+            disablePackageInfoCache: cli.disablePackageInfoCache,
+            packageInfoCacheDirectory: paths.resolve(cli.packageInfoCachePath),
+            scmToRegistryTransformation: try CLIRunner.scmToRegistryTransformation(cli),
+            cachedDirectoryMaterialization: cli.cachedDirectoryMaterialization,
+            quiet: cli.quiet
+        )
+    }
+}
+
+public struct SwifterPMCommand: AsyncParsableCommand {
+    public static let configuration = CommandConfiguration(
+        commandName: "swifterpm",
+        abstract: "Resolve and restore Swift package dependencies.",
+        version: swifterpmVersion
+    )
+
+    @Option(name: .customLong("chdir"))
+    var chdir: String?
+
+    @Option(name: .customLong("package-path"))
+    var packagePath: String?
+
+    @Option(name: .customLong("cache-path"))
+    var cachePath: String?
+
+    @Option(name: .customLong("scratch-path"))
+    var scratchPath: String?
+
+    @Option(name: .customLong("build-path"))
+    var buildPath: String?
+
+    @Option(name: .customLong("config-path"))
+    var configPath: String?
+
+    @Option(name: .customLong("security-path"))
+    var securityPath: String?
+
+    @Option(name: .customLong("netrc-file"))
+    var netrcFile: String?
+
+    @Flag(inversion: .prefixedEnableDisable)
+    var netrc = true
+
+    @Flag(name: .customLong("netrc"))
+    var forceNetrc = false
+
+    /// SwiftPM exposes this as `[--enable-keychain|--disable-keychain]`, defaulting
+    /// to enabled on Darwin. Match the same pair here so a caller forwarding either
+    /// spelling verbatim keeps working; the `disableKeychain` computed property below
+    /// is what the rest of the pipeline reads.
+    @Flag(inversion: .prefixedEnableDisable)
+    var keychain: Bool = true
+
+    var disableKeychain: Bool { !keychain }
+
+    @Flag(name: .customLong("disable-sandbox"))
+    var disableSandbox = false
+
+    @Flag(name: .customLong("enable-dependency-cache"))
+    var enableDependencyCache = false
+
+    @Flag(name: .customLong("disable-dependency-cache"))
+    var disableDependencyCache = false
+
+    @Flag(name: .customLong("skip-update"))
+    var skipUpdate = false
+
+    @Flag(name: .customLong("force-resolved-versions"))
+    var forceResolvedVersions = false
+
+    @Flag(name: .customLong("disable-automatic-resolution"))
+    var disableAutomaticResolution = false
+
+    @Flag(name: .customLong("only-use-versions-from-resolved-file"))
+    var onlyUseVersionsFromResolvedFile = false
+
+    @Flag(name: .customLong("replace-scm-with-registry"))
+    var replaceSCMWithRegistry = false
+
+    @Flag(name: .customLong("use-registry-identity-for-scm"))
+    var useRegistryIdentityForSCM = false
+
+    @Option(name: .customLong("default-registry-url"))
+    var defaultRegistryURL: String?
+
+    @Flag(name: .customLong("disable-scm-to-registry-transformation"))
+    var disableSCMToRegistryTransformation = false
+
+    @Flag(name: [.customShort("q"), .customLong("quiet")])
+    var quiet = false
+
+    @Flag(name: .customLong("disable-package-info-cache"))
+    var disablePackageInfoCache = false
+
+    @Option(name: .customLong("package-info-cache-path"))
+    var packageInfoCachePath: String?
+
+    @Option(name: .customLong("cached-directory-materialization"))
+    var cachedDirectoryMaterialization: SwifterPMCachedDirectoryMaterialization?
+
+    @Argument
+    var action: CLIAction
+
+    @Argument(parsing: .allUnrecognized)
+    var commandArguments: [String] = []
+
+    public init() {}
+
+    public mutating func run() async throws {
+        try await runAsync()
+    }
+
+    public mutating func runAsync() async throws {
+        try await CLIRunner.run(try makeCLI())
+    }
+
+    func makeCLI() throws -> CLI {
+        let arguments = DeprecatedSwiftPMOptions.strip(commandArguments)
+        let command: CLI.Command
+        switch action {
+        case .resolve:
+            command = .resolve(try ResolveArguments.parse(arguments).makeOptions())
+        case .update:
+            command = .update(try UpdateArguments.parse(arguments).makeOptions())
+        case .restore:
+            command = .restore(try RestoreArguments.parse(arguments).makeOptions())
+        }
+
+        return CLI(
+            chdir: CLIPath.optional(chdir),
+            packagePath: CLIPath.optional(packagePath),
+            cachePath: CLIPath.optional(cachePath),
+            scratchPath: CLIPath.optional(scratchPath),
+            buildPath: CLIPath.optional(buildPath),
+            configPath: CLIPath.optional(configPath),
+            securityPath: CLIPath.optional(securityPath),
+            netrcFile: CLIPath.optional(netrcFile),
+            netrc: netrc,
+            forceNetrc: forceNetrc,
+            disableKeychain: disableKeychain,
+            disableSandbox: disableSandbox,
+            enableDependencyCache: enableDependencyCache,
+            disableDependencyCache: disableDependencyCache,
+            skipUpdate: skipUpdate,
+            forceResolvedVersions: forceResolvedVersions,
+            disableAutomaticResolution: disableAutomaticResolution,
+            onlyUseVersionsFromResolvedFile: onlyUseVersionsFromResolvedFile,
+            replaceSCMWithRegistry: replaceSCMWithRegistry,
+            useRegistryIdentityForSCM: useRegistryIdentityForSCM,
+            defaultRegistryURL: defaultRegistryURL,
+            disableSCMToRegistryTransformation: disableSCMToRegistryTransformation,
+            quiet: quiet,
+            disablePackageInfoCache: disablePackageInfoCache,
+            packageInfoCachePath: CLIPath.optional(packageInfoCachePath),
+            cachedDirectoryMaterialization: cachedDirectoryMaterialization,
+            command: command
+        )
+    }
+}
+
+extension SwifterPMCachedDirectoryMaterialization: ExpressibleByArgument {
+    public init?(argument: String) {
+        try? self.init(configurationValue: argument)
+    }
+}
+
+enum CLIParser {
+    static func parse(_ args: [String]) throws -> CLI {
+        try SwifterPMCommand.parse(DeprecatedSwiftPMOptions.strip(args)).makeCLI()
+    }
+}
+
+/// Swift Package Manager options that are still accepted but do nothing.
+///
+/// `tuist install` forwards its passthrough arguments here verbatim, so any flag
+/// SwiftPM tolerates has to be tolerated too: rejecting one turns an invocation
+/// that worked for years into a hard `Unknown option` failure the moment
+/// SwifterPM becomes the default resolver. Verified against Swift 6.3.3, where
+/// both of these exit 0 and print nothing, so we drop them silently rather than
+/// warning on every run.
+///
+/// This is deliberately an exact allowlist and not a blanket "ignore anything
+/// unrecognized": genuinely unknown options must still fail, the same way
+/// SwiftPM rejects e.g. `--enable-resolver-trace`.
+///
+/// Stripping happens at every entry point rather than only before the
+/// subcommand parse, because `.allUnrecognized` on `commandArguments` only
+/// collects arguments that trail the `action` positional, and `tuist install`
+/// forwards passthrough arguments ahead of it.
+///
+/// No netrc option belongs in this set. `--netrc` looks like a deprecated spelling
+/// of `--enable-netrc` and is not: SwiftPM's `SecurityOptions.forceNetrc` is a
+/// separate, undeprecated flag that disables the keychain for registry requests, so
+/// swallowing it would quietly invert registry precedence. `--netrc-optional` is
+/// absent for the opposite reason: Swift 6.3.2 rejects it outright, and tolerating
+/// it would make us more permissive than the tool we are standing in for.
+public enum DeprecatedSwiftPMOptions {
+    static let ignored: Set<String> = [
+        "--disable-prefetching",
+        "--enable-prefetching",
+    ]
+
+    public static func strip(_ arguments: [String]) -> [String] {
+        arguments.filter { !ignored.contains($0) }
+    }
+}
+
+private struct ResolveArguments: ParsableArguments {
+    @Argument
+    var packageName: String?
+
+    @Option(name: .customLong("version"))
+    var version: String?
+
+    @Option(name: .customLong("branch"))
+    var branch: String?
+
+    @Option(name: .customLong("revision"))
+    var revision: String?
+
+    @Option(name: .customLong("package-dir"))
+    var packageDir = "."
+
+    @Option(name: .customLong("cache-dir"))
+    var cacheDir: String?
+
+    @Flag(name: .customLong("write"))
+    var write = false
+
+    @Flag(name: .customLong("restore"))
+    var restore = false
+
+    @Flag(name: .customLong("print-only"))
+    var printOnly = false
+
+    func makeOptions() -> CLI.ResolveOptions {
+        CLI.ResolveOptions(
+            packageName: packageName,
+            version: version,
+            branch: branch,
+            revision: revision,
+            packageDir: CLIPath(packageDir),
+            cacheDir: CLIPath.optional(cacheDir),
+            write: write,
+            restore: restore,
+            printOnly: printOnly
+        )
+    }
+}
+
+private struct UpdateArguments: ParsableArguments {
+    @Argument
+    var packageNames: [String] = []
+
+    @Option(name: .customLong("package-dir"))
+    var packageDir = "."
+
+    @Option(name: .customLong("cache-dir"))
+    var cacheDir: String?
+
+    @Flag(name: .customLong("write"))
+    var write = false
+
+    @Flag(name: .customLong("restore"))
+    var restore = false
+
+    @Flag(name: .customLong("print-only"))
+    var printOnly = false
+
+    func makeOptions() -> CLI.UpdateOptions {
+        CLI.UpdateOptions(
+            packageNames: packageNames,
+            packageDir: CLIPath(packageDir),
+            cacheDir: CLIPath.optional(cacheDir),
+            write: write,
+            restore: restore,
+            printOnly: printOnly
+        )
+    }
+}
+
+private struct RestoreArguments: ParsableArguments {
+    @Option(name: .customLong("package-dir"))
+    var packageDir = "."
+
+    @Option(name: .customLong("cache-dir"))
+    var cacheDir: String?
+
+    @Option(name: .customLong("scratch-dir"))
+    var scratchDir: String?
+
+    func makeOptions() -> CLI.RestoreOptions {
+        CLI.RestoreOptions(
+            packageDir: CLIPath(packageDir),
+            cacheDir: CLIPath.optional(cacheDir),
+            scratchDir: CLIPath.optional(scratchDir)
+        )
+    }
+}
+
+struct CLIPathResolver {
+    let baseDirectory: URL
+
+    init(chdir: CLIPath?) async throws {
+        let currentDirectory = URL(
+            fileURLWithPath: try await fileSystem.currentWorkingDirectory().pathString,
+            isDirectory: true
+        )
+        guard let chdir else {
+            baseDirectory = currentDirectory.standardizedFileURL
+            return
+        }
+
+        let resolvedChdir = chdir.resolved(relativeTo: currentDirectory)
+        guard try await fileSystem.exists(resolvedChdir.absolutePath, isDirectory: true) else {
+            throw ToolError.message("failed to change directory to \(resolvedChdir.path)")
+        }
+        baseDirectory = resolvedChdir.standardizedFileURL
+    }
+
+    func resolve(_ path: CLIPath?) -> URL? {
+        path.map(resolve)
+    }
+
+    func resolve(_ path: CLIPath) -> URL {
+        path.resolved(relativeTo: baseDirectory)
+    }
+}
+
+enum CLIRunner {
+    static func netrcConfiguration(cli: CLI, paths: CLIPathResolver)
+        -> SwifterPMNetrcConfiguration
+    {
+        SwifterPMNetrcConfiguration(
+            isEnabled: cli.netrc,
+            path: paths.resolve(cli.netrcFile),
+            forcesNetrc: cli.forceNetrc,
+            disableKeychain: cli.disableKeychain
+        )
+    }
+
+    static func run(_ cli: CLI) async throws {
+        try await Environment.withCachedDirectoryMaterialization(
+            cli.cachedDirectoryMaterialization
+        ) {
+            let paths = try await CLIPathResolver(chdir: cli.chdir)
+            let netrc = try await Netrc.resolve(
+                netrcConfiguration(cli: cli, paths: paths), environment: Environment.current
+            )
+            try await Environment.withNetrc(netrc, quiet: cli.quiet) {
+                let directory: CLIPath
+                let scratchDirectory: CLIPath?
+                let cacheDirectory: CLIPath?
+                switch cli.command {
+                case let .resolve(options):
+                    directory = options.packageDir
+                    scratchDirectory = nil
+                    cacheDirectory = options.cacheDir
+                case let .update(options):
+                    directory = options.packageDir
+                    scratchDirectory = nil
+                    cacheDirectory = options.cacheDir
+                case let .restore(options):
+                    directory = options.packageDir
+                    scratchDirectory = options.scratchDir
+                    cacheDirectory = options.cacheDir
+                }
+                let package = canonicalPackageDir(commandPackageDir(cli: cli, paths: paths, commandPackageDir: directory))
+                let scratch = commandScratchDir(cli: cli, paths: paths, packageDir: package, commandScratchDir: scratchDirectory)
+                try await ManifestCache.withContext(
+                    packageDirectory: package, scratchDirectory: scratch,
+                    sharedCacheDirectory: cliCacheDir(cli: cli, paths: paths, commandCacheDir: cacheDirectory)
+                ) {
+                    try await runCommand(cli: cli, paths: paths, package: package, scratch: scratch)
+                }
+            }
+        }
+    }
+
+    private static func runCommand(cli: CLI, paths: CLIPathResolver, package: URL, scratch: URL) async throws {
+        switch cli.command {
+        case let .resolve(options):
+            try ensureWholePackageResolution(
+                packageName: options.packageName,
+                version: options.version,
+                branch: options.branch,
+                revision: options.revision
+            )
+            try await runResolutionCommand(
+                cli: cli,
+                paths: paths,
+                package: package,
+                scratch: scratch,
+                cacheDir: options.cacheDir,
+                preferResolvedFile: true,
+                write: options.write,
+                restore: options.restore,
+                printOnly: options.printOnly
+            )
+        case let .update(options):
+            if !options.packageNames.isEmpty {
+                throw ToolError.message("package-specific update is not supported yet")
+            }
+            try await runResolutionCommand(
+                cli: cli,
+                paths: paths,
+                package: package,
+                scratch: scratch,
+                cacheDir: options.cacheDir,
+                preferResolvedFile: false,
+                write: options.write,
+                restore: options.restore,
+                printOnly: options.printOnly
+            )
+        case let .restore(options):
+            let cache = try await Cache(
+                root: cliCacheDir(cli: cli, paths: paths, commandCacheDir: options.cacheDir))
+            let registryConfig = try await cliRegistryConfig(
+                cli: cli, paths: paths, package: package
+            )
+            let mirrors = try await MirrorConfig.load(
+                packageDir: package, configPath: paths.resolve(cli.configPath)
+            )
+            let resolved = try await ResolvedFile.read(packageDir: package)
+            try await WorkspaceRestorer.restorePackage(
+                scratchDir: scratch, packageDir: package, cache: cache, registryConfig: registryConfig,
+                mirrors: mirrors,
+                resolved: resolved,
+                progress: cli.quiet ? nil : RestoreProgressReporter(),
+                disableSandbox: cli.disableSandbox
+            )
+            try await maybeWritePackageInfoCache(
+                cli: cli, paths: paths, package: package, scratch: scratch, resolved: resolved,
+                mirrors: mirrors
+            )
+            try await WorkspaceRestorer.writeWorkspaceState(
+                packageDir: package, scratchDir: scratch, mirrors: mirrors, resolved: resolved,
+                disableSandbox: cli.disableSandbox,
+                sourceCacheDirectory: cache.root
+            )
+        }
+    }
+
+    private static func runResolutionCommand(
+        cli: CLI,
+        paths: CLIPathResolver,
+        package: URL,
+        scratch: URL,
+        cacheDir: CLIPath?,
+        preferResolvedFile: Bool,
+        write: Bool,
+        restore: Bool,
+        printOnly: Bool
+    ) async throws {
+        let cacheRoot = try Cache.resolvedRoot(
+            cliCacheDir(cli: cli, paths: paths, commandCacheDir: cacheDir))
+        let readOnly =
+            cli.forceResolvedVersions || cli.disableAutomaticResolution
+                || cli.onlyUseVersionsFromResolvedFile
+        let mirrors = try await MirrorConfig.load(
+            packageDir: package, configPath: paths.resolve(cli.configPath)
+        )
+
+        // On `resolve`, the seed Package.resolved may still list dependencies
+        // that have been removed from the manifest since the last install.
+        // Drop orphan pins before either path handles the file, so SwiftPM
+        // never chases a location that only the previous manifest reached.
+        // `update` and `--force-resolved-versions` bypass this: the former
+        // clears the file outright, the latter must not mutate it.
+        if preferResolvedFile, shouldWrite(write: write, printOnly: printOnly), !readOnly {
+            try await PackageResolver.pruneStalePinsIfNeeded(
+                packageDir: package,
+                scratchDir: scratch,
+                cacheRoot: cacheRoot,
+                mirrors: mirrors,
+                disableSandbox: cli.disableSandbox,
+                scmToRegistryTransformation: try scmToRegistryTransformation(cli)
+            )
+        }
+
+        let registryConfig = try await cliRegistryConfig(
+            cli: cli, paths: paths, package: package
+        )
+
+        // Use the same native cold path as the embeddable API. The direct
+        // invocation is only safe for lockfiles SwiftPM itself understands;
+        // preserve SwifterPM's compatibility path for older custom pin kinds.
+        if try await PackageResolver.shouldUseNativeColdPath(
+            packageDir: package,
+            cacheRoot: cacheRoot,
+            registryConfig: registryConfig
+        ) {
+            let resolved = try await PackageResolver.resolveWithSwiftPackageManagerProcess(
+                packageDir: package,
+                scratchDir: scratch,
+                cacheDir: cacheRoot,
+                registryConfigurationPath: paths.resolve(cli.configPath),
+                defaultRegistryURL: cli.defaultRegistryURL,
+                disableSandbox: cli.disableSandbox,
+                scmToRegistryTransformation: try scmToRegistryTransformation(cli),
+                useExistingResolvedFile: preferResolvedFile,
+                writeResolvedFile: shouldWrite(write: write, printOnly: printOnly),
+                forceResolvedVersions: readOnly,
+                forwardOutput: !cli.quiet
+            )
+            let cache = try await Cache(root: cacheRoot)
+            try await WorkspaceRestorer.cacheNativeSourceCheckouts(
+                scratchDir: scratch,
+                cache: cache,
+                mirrors: mirrors,
+                resolved: resolved
+            )
+            try await WorkspaceRestorer.cacheNativeRegistryDownloads(
+                scratchDir: scratch,
+                cache: cache,
+                registryConfig: registryConfig,
+                resolved: resolved
+            )
+            if !cli.quiet {
+                ResolvedFile.print(resolved)
+            }
+            return
+        }
+
+        let cache = try await Cache(root: cacheRoot)
+
+        let resolved = try await PackageResolver.resolveOrLoad(
+            packageDir: package,
+            scratchDir: scratch,
+            cache: cache,
+            registryConfig: registryConfig,
+            mirrors: mirrors,
+            registryConfigurationPath: paths.resolve(cli.configPath),
+            defaultRegistryURL: cli.defaultRegistryURL,
+            disableSandbox: cli.disableSandbox,
+            scmToRegistryTransformation: try scmToRegistryTransformation(cli),
+            preferResolvedFile: preferResolvedFile,
+            readOnly: readOnly,
+            skipUpdate: cli.skipUpdate,
+            writeResolvedFile: shouldWrite(write: write, printOnly: printOnly),
+            progress: cli.quiet ? nil : ResolutionProgressReporter()
+        )
+
+        if !cli.quiet {
+            ResolvedFile.print(resolved)
+        }
+        if shouldRestore(restore: restore, printOnly: printOnly) {
+            try await WorkspaceRestorer.restorePackage(
+                scratchDir: scratch, packageDir: package, cache: cache, registryConfig: registryConfig,
+                mirrors: mirrors,
+                resolved: resolved,
+                progress: cli.quiet ? nil : RestoreProgressReporter(),
+                disableSandbox: cli.disableSandbox
+            )
+            try await maybeWritePackageInfoCache(
+                cli: cli, paths: paths, package: package, scratch: scratch, resolved: resolved,
+                mirrors: mirrors
+            )
+            try await WorkspaceRestorer.writeWorkspaceState(
+                packageDir: package, scratchDir: scratch, mirrors: mirrors, resolved: resolved,
+                disableSandbox: cli.disableSandbox,
+                sourceCacheDirectory: cache.root
+            )
+
+            // With the pins restored, confirm they still satisfy the manifest the
+            // same way SwiftPM does. SwiftPM reuses the workspace state we just
+            // wrote, so this is a fast precomputation rather than a fresh resolve.
+            if readOnly {
+                try await PackageResolver.assertResolvedFileUpToDate(
+                    packageDir: package,
+                    scratchDir: scratch,
+                    cacheDir: cache.root,
+                    registryConfigurationPath: paths.resolve(cli.configPath),
+                    defaultRegistryURL: cli.defaultRegistryURL,
+                    disableSandbox: cli.disableSandbox,
+                    scmToRegistryTransformation: try scmToRegistryTransformation(cli)
+                )
+            }
+        }
+    }
+
+    private static func maybeWritePackageInfoCache(
+        cli: CLI, paths: CLIPathResolver, package: URL, scratch: URL, resolved: ResolvedPins,
+        mirrors: MirrorConfig
+    ) async throws {
+        if cli.disablePackageInfoCache {
+            return
+        }
+        try await PackageInfoCacheWriter.write(
+            packageDir: package,
+            scratchDir: scratch,
+            resolved: resolved,
+            mirrors: mirrors,
+            cacheDir: paths.resolve(cli.packageInfoCachePath),
+            disableSandbox: cli.disableSandbox,
+            quiet: cli.quiet
+        )
+    }
+
+    static func scmToRegistryTransformation(_ cli: CLI) throws
+        -> SCMToRegistryTransformation
+    {
+        let enabled = [
+            cli.replaceSCMWithRegistry,
+            cli.useRegistryIdentityForSCM,
+            cli.disableSCMToRegistryTransformation,
+        ].filter { $0 }.count
+        if enabled > 1 {
+            throw ToolError.message("source-control to registry transformation flags conflict")
+        }
+        if cli.replaceSCMWithRegistry {
+            return .replaceSCMWithRegistry
+        }
+        if cli.useRegistryIdentityForSCM {
+            return .useRegistryIdentityForSCM
+        }
+        return .disabled
+    }
+
+    static func ensureWholePackageResolution(
+        packageName: String?, version: String?, branch: String?, revision: String?
+    ) throws {
+        if packageName != nil || version != nil || branch != nil || revision != nil {
+            throw ToolError.message("package-specific resolve is not supported yet")
+        }
+    }
+
+    static func shouldWrite(write: Bool, printOnly: Bool) -> Bool {
+        !printOnly || write
+    }
+
+    static func shouldRestore(restore: Bool, printOnly: Bool) -> Bool {
+        !printOnly || restore
+    }
+
+    static func cliCacheDir(cli: CLI, paths: CLIPathResolver, commandCacheDir: CLIPath?)
+        -> URL?
+    {
+        paths.resolve(commandCacheDir ?? cli.cachePath)
+    }
+
+    private static func cliRegistryConfig(
+        cli: CLI, paths: CLIPathResolver, package: URL
+    ) async throws
+        -> RegistryConfig
+    {
+        try await RegistryConfig.load(
+            packageDir: package, configPath: paths.resolve(cli.configPath),
+            defaultRegistryURL: cli.defaultRegistryURL
+        )
+    }
+
+    static func commandPackageDir(
+        cli: CLI, paths: CLIPathResolver, commandPackageDir: CLIPath
+    )
+        -> URL
+    {
+        paths.resolve(cli.packagePath ?? commandPackageDir)
+    }
+
+    static func commandScratchDir(
+        cli: CLI, paths: CLIPathResolver, packageDir: URL, commandScratchDir: CLIPath?
+    ) -> URL {
+        if let scratchDir = commandScratchDir ?? cli.scratchPath ?? cli.buildPath {
+            return paths.resolve(scratchDir)
+        }
+        return packageDir.appendingPathComponent(".build")
+    }
+
+    static func canonicalPackageDir(_ packageDir: URL) -> URL {
+        packageDir.standardizedFileURL
+    }
+}

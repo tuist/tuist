@@ -13,7 +13,10 @@ import Foundation
 ///
 /// - seealso: [Wikipedia page - List of HTTP status codes](http://en.wikipedia.org/wiki/List_of_HTTP_status_codes)
 /// - seealso: [HTTP protocol standard - Status Code Definitions](https://tools.ietf.org/html/rfc2616#section-10)
-@objc public enum HTTPStatusCode: Int, Sendable {
+#if canImport(ObjectiveC)
+@objc
+#endif
+public enum HTTPStatusCode: Int, Sendable {
     /// Continue: 100
     ///
     /// - seealso: [RFC7231, Section 6.2.1](http://www.iana.org/go/rfc7231#section-6.2.1)
@@ -37,7 +40,9 @@ import Foundation
     /// OK: 200
     ///
     /// - seealso: [RFC7231, Section 6.3.1](http://www.iana.org/go/rfc7231#section-6.3.1)
+    #if canImport(ObjectiveC)
     @objc(HTTPStatusCodeOK)
+    #endif
     case ok = 200
 
     /// Created: 201
@@ -83,7 +88,9 @@ import Foundation
     /// IM Used: 226
     ///
     /// - seealso: [RFC3229](http://www.iana.org/go/rfc3229)
+    #if canImport(ObjectiveC)
     @objc(HTTPStatusCodeIMUsed)
+    #endif
     case imUsed = 226
 
     /// Multiple Choices: 300
@@ -200,7 +207,9 @@ import Foundation
     /// URI Too Long: 414
     ///
     /// - seealso: [RFC7231, Section 6.5.12](http://www.iana.org/go/rfc7231#section-6.5.12)
+    #if canImport(ObjectiveC)
     @objc(HTTPStatusCodeURITooLong)
+    #endif
     case uriTooLong = 414
 
     /// Unsupported Media Type: 415
@@ -279,7 +288,9 @@ import Foundation
     ///
     /// - seealso: [Error message when you try to log on to Exchange 2007 by using Outlook Web Access: "440 Login
     /// Timeout"](http://support.microsoft.com/kb/941201/en-us)
+    #if canImport(ObjectiveC)
     @objc(HTTPStatusCodeIISLoginTimeout)
+    #endif
     case iisLoginTimeout = 440
 
     /// nginx No Response: 444
@@ -296,7 +307,9 @@ import Foundation
     /// **Category**: Internet Information Services
     ///
     /// - seealso: [2.2.6 449 Retry With Status Code](https://msdn.microsoft.com/en-us/library/dd891478.aspx)
+    #if canImport(ObjectiveC)
     @objc(HTTPStatusCodeIISRetryWith)
+    #endif
     case iisRetryWith = 449
 
     /// Blocked by Windows Parental Controls: 450
@@ -376,7 +389,9 @@ import Foundation
     /// HTTP Version Not Supported: 505
     ///
     /// - seealso: [RFC7231, Section 6.6.6](http://www.iana.org/go/rfc7231#section-6.6.6)
+    #if canImport(ObjectiveC)
     @objc(HTTPStatusCodeHTTPVersionNotSupported)
+    #endif
     case httpVersionNotSupported = 505
 
     /// Variant Also Negotiates: 506

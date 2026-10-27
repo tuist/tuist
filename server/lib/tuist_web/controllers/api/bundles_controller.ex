@@ -10,6 +10,7 @@ defmodule TuistWeb.API.BundlesController do
   alias Tuist.Bundles
   alias Tuist.Bundles.Bundle
   alias Tuist.Projects.Project
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.Bundle
   alias TuistWeb.API.Schemas.BundleArtifact
   alias TuistWeb.API.Schemas.Error
@@ -20,7 +21,7 @@ defmodule TuistWeb.API.BundlesController do
   plug(TuistWeb.API.Authorization.AuthorizationPlug, :bundle)
 
   plug(
-    OpenApiSpex.Plug.CastAndValidate,
+    TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
@@ -30,7 +31,7 @@ defmodule TuistWeb.API.BundlesController do
   operation(:index,
     summary: "List bundles for a project",
     operation_id: "listBundles",
-    parameters: %{
+    parameters: [
       account_handle: [
         in: :path,
         type: :string,
@@ -43,17 +44,17 @@ defmodule TuistWeb.API.BundlesController do
         required: true,
         description: "The handle of the project."
       ],
-      git_branch: [
-        in: :query,
-        type: :string,
-        required: false,
-        description: "Filter bundles by git branch."
-      ],
       page: [
         in: :query,
         type: :integer,
         required: false,
         description: "Page number for pagination."
+      ],
+      git_branch: [
+        in: :query,
+        type: :string,
+        required: false,
+        description: "Filter bundles by git branch."
       ],
       page_size: [
         in: :query,
@@ -61,7 +62,7 @@ defmodule TuistWeb.API.BundlesController do
         required: false,
         description: "Number of items per page."
       ]
-    },
+    ],
     responses: %{
       ok:
         {"List of bundles", "application/json",
@@ -77,7 +78,8 @@ defmodule TuistWeb.API.BundlesController do
            required: [:bundles, :meta]
          }},
       unauthorized: {"You need to be authenticated to list bundles", "application/json", Error},
-      forbidden: {"You are not authorized to list bundles", "application/json", Error}
+      forbidden: {"You are not authorized to list bundles", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -126,7 +128,7 @@ defmodule TuistWeb.API.BundlesController do
   operation(:show,
     summary: "Get a single bundle by ID",
     operation_id: "getBundle",
-    parameters: %{
+    parameters: [
       account_handle: [
         in: :path,
         type: :string,
@@ -145,13 +147,14 @@ defmodule TuistWeb.API.BundlesController do
         required: true,
         description: "The ID of the bundle."
       ]
-    },
+    ],
     responses: %{
       ok: {"Bundle details", "application/json", Bundle},
       unprocessable_entity: {"Invalid request parameters", "application/json", Error},
       not_found: {"Bundle not found", "application/json", Error},
       unauthorized: {"You need to be authenticated to view this bundle", "application/json", Error},
-      forbidden: {"You are not authorized to view this bundle", "application/json", Error}
+      forbidden: {"You are not authorized to view this bundle", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -227,7 +230,7 @@ defmodule TuistWeb.API.BundlesController do
                },
                type: %Schema{
                  type: :string,
-                 enum: ["ipa", "app", "xcarchive"],
+                 enum: ["ipa", "app", "xcarchive", "aab", "apk"],
                  description: "The type of the bundle"
                },
                artifacts: %Schema{
@@ -248,7 +251,7 @@ defmodule TuistWeb.API.BundlesController do
          },
          required: [:bundle]
        }},
-    parameters: %{
+    parameters: [
       account_handle: [
         in: :path,
         type: :string,
@@ -261,12 +264,13 @@ defmodule TuistWeb.API.BundlesController do
         required: true,
         description: "The handle of the project."
       ]
-    },
+    ],
     responses: %{
       ok: {"The bundle was created successfully", "application/json", Bundle},
       bad_request: {"Validation errors occurred", "application/json", ValidationError},
       unauthorized: {"You need to be authenticated to create a bundle", "application/json", Error},
-      forbidden: {"You are not authorized to create a bundle", "application/json", Error}
+      forbidden: {"You are not authorized to create a bundle", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
@@ -292,29 +296,39 @@ defmodule TuistWeb.API.BundlesController do
       |> Map.get(:artifacts, [])
       |> Enum.map(&struct_to_map/1)
 
-    with {:ok, %Bundles.Bundle{} = bundle} <-
-           Bundles.create_bundle(
-             %{
-               id: id,
-               project_id: selected_project.id,
-               app_bundle_id: Map.get(bundle_params, :app_bundle_id),
-               name: Map.get(bundle_params, :name),
-               install_size: Map.get(bundle_params, :install_size),
-               download_size: Map.get(bundle_params, :download_size),
-               supported_platforms: Map.get(bundle_params, :supported_platforms),
-               version: Map.get(bundle_params, :version),
-               artifacts: artifacts,
-               git_branch: Map.get(bundle_params, :git_branch),
-               git_commit_sha: Map.get(bundle_params, :git_commit_sha),
-               git_ref: Map.get(bundle_params, :git_ref),
-               type: type,
-               uploaded_by_account_id: account_id
-             },
-             preload: [:uploaded_by_account, project: [:account]]
-           ) do
-      conn
-      |> put_status(:ok)
-      |> json(bundle_to_map(bundle))
+    case Bundles.create_bundle(
+           %{
+             id: id,
+             project_id: selected_project.id,
+             app_bundle_id: Map.get(bundle_params, :app_bundle_id),
+             name: Map.get(bundle_params, :name),
+             install_size: Map.get(bundle_params, :install_size),
+             download_size: Map.get(bundle_params, :download_size),
+             supported_platforms: Map.get(bundle_params, :supported_platforms),
+             version: Map.get(bundle_params, :version),
+             artifacts: artifacts,
+             git_branch: Map.get(bundle_params, :git_branch),
+             git_commit_sha: Map.get(bundle_params, :git_commit_sha),
+             git_ref: Map.get(bundle_params, :git_ref),
+             type: type,
+             uploaded_by_account_id: account_id
+           },
+           preload: [:uploaded_by_account, project: [:account]]
+         ) do
+      {:ok, %Bundles.Bundle{} = bundle} ->
+        maybe_enqueue_threshold_check(bundle, selected_project)
+
+        conn
+        |> put_status(:ok)
+        |> json(bundle_to_map(bundle))
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        fields =
+          Ecto.Changeset.traverse_errors(changeset, fn {message, _opts} -> message end)
+
+        conn
+        |> put_status(:bad_request)
+        |> json(%ValidationError{message: "Validation failed", fields: fields})
     end
   end
 
@@ -375,6 +389,24 @@ defmodule TuistWeb.API.BundlesController do
       artifacts: artifacts,
       url: url(~p"/#{bundle.project.account.name}/#{bundle.project.name}/bundles/#{bundle.id}")
     }
+  end
+
+  defp maybe_enqueue_threshold_check(bundle, project) do
+    if bundle.git_commit_sha && bundle.git_ref do
+      %{
+        bundle_id: bundle.id,
+        project_id: project.id,
+        git_commit_sha: bundle.git_commit_sha,
+        bundle_name: bundle.name,
+        git_ref: bundle.git_ref,
+        install_size: bundle.install_size,
+        download_size: bundle.download_size,
+        type: bundle.type,
+        supported_platforms: bundle.supported_platforms
+      }
+      |> Tuist.Bundles.Workers.BundleThresholdWorker.new()
+      |> Oban.insert()
+    end
   end
 
   defp artifact_to_map(artifact) do

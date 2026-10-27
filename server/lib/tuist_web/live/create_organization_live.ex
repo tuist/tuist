@@ -3,13 +3,26 @@ defmodule TuistWeb.CreateOrganizationLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.AppAuthComponents
+
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
 
   @impl true
   def mount(_params, _session, socket) do
     form = to_form(Account.create_changeset(%Account{}, %{}))
-    socket = assign(socket, form: form)
+    current_user = socket.assigns.current_user
+
+    has_organizations =
+      current_user
+      |> Accounts.get_user_organization_accounts()
+      |> Enum.any?()
+
+    socket =
+      assign(socket,
+        form: form,
+        has_organizations: has_organizations
+      )
 
     {:ok, socket}
   end
@@ -21,25 +34,24 @@ defmodule TuistWeb.CreateOrganizationLive do
       <div data-part="wrapper">
         <div data-part="frame">
           <div data-part="content">
-            <img
-              src="/images/tuist_logo_32x32@2x.png"
-              alt={dgettext("dashboard_account", "Tuist Logo")}
-              data-part="logo"
-            />
+            <.tuist_mark data-part="logo" aria-label={dgettext("dashboard_account", "Tuist Logo")} />
             <div data-part="dots">
               <.dots_light />
               <.dots_dark />
             </div>
             <div data-part="header">
+              <h1 data-part="title">{dgettext("dashboard_account", "Create organization")}</h1>
               <span data-part="subtitle">
-                {dgettext("dashboard_account", "Create an organization account to continue")}
+                {dgettext(
+                  "dashboard_account",
+                  "Create an organization to continue. Organizations let you group related projects"
+                )}
               </span>
-              <h1 data-part="title">{dgettext("dashboard_account", "Create a new organization")}</h1>
             </div>
             <.form
               data-part="form"
               for={@form}
-              id="create-project-form"
+              id="create-organization-form"
               phx-submit="create_organization"
             >
               <.text_input
@@ -47,17 +59,22 @@ defmodule TuistWeb.CreateOrganizationLive do
                 field={@form[:name]}
                 type="basic"
                 label={dgettext("dashboard_account", "Name")}
-                show_required
-                required
+                hint={
+                  dgettext(
+                    "dashboard_account",
+                    "What's the name of your company or team? You can change this later in the settings"
+                  )
+                }
               />
               <div data-part="actions">
                 <.button
                   type="submit"
                   variant="primary"
-                  label={dgettext("dashboard_account", "Create organization")}
+                  label={dgettext("dashboard_account", "Continue")}
                 />
                 <.button
-                  navigate={~p"/projects/new"}
+                  :if={@has_organizations}
+                  navigate={~p"/dashboard"}
                   variant="secondary"
                   label={dgettext("dashboard_account", "Cancel")}
                 />
@@ -71,6 +88,7 @@ defmodule TuistWeb.CreateOrganizationLive do
         <div data-part="bottom-left-gradient"></div>
         <div data-part="shell"><.shell /></div>
       </div>
+      <.terms_and_privacy />
     </div>
     """
   end
@@ -80,9 +98,7 @@ defmodule TuistWeb.CreateOrganizationLive do
     case Accounts.create_organization(%{name: name, creator: socket.assigns.current_user}) do
       {:ok, organization} ->
         socket =
-          socket
-          |> put_flash(:organization_id, organization.id)
-          |> push_navigate(to: ~p"/projects/new")
+          push_navigate(socket, to: ~p"/projects/new?account_id=#{organization.account.id}")
 
         {:noreply, socket}
 

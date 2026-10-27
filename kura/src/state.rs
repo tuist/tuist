@@ -1,0 +1,1267 @@
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
+
+use arc_swap::ArcSwap;
+use axum_server::tls_rustls::RustlsConfig;
+use reqwest::Client;
+use tokio::{
+    sync::Mutex,
+    time::{Duration, Instant},
+};
+
+use tracing::info;
+
+use crate::{
+    analytics::Analytics,
+    auth::SharedAuth,
+    backfill::claims::ClaimSet,
+    bandwidth::BandwidthLimiter,
+    bazel_test_artifacts::BazelTestArtifactDelivery,
+    config::Config,
+    io::IoController,
+    memory::MemoryController,
+    metrics::Metrics,
+    peer_tls::PeerClientFactory,
+    reapi::SnapshotCache,
+    runtime::{DataDirLock, HttpTrafficClass, InflightGuard, RuntimeState, TrafficState},
+    store::Store,
+    usage::Usage,
+    utils::TmpBudget,
+};
+
+// How long the membership view must stay unchanged before a joining node may
+// report ready. It exists so a sibling whose address or listener comes up a
+// moment after this node's is discovered, and bootstrapped from, rather than
+// missed. Discovery resolves the peer DNS name afresh on every pass (cluster
+// records are not cached), so the lag it covers is endpoint publication plus
+// one pass; while the view is unsettled a joining node passes every quarter
+// second, so two seconds is eight unchanged passes. Published roles can end it
+// sooner (`published_siblings_linked`).
+const READINESS_SETTLE_WINDOW: Duration = Duration::from_secs(2);
+const MEMBERSHIP_POLL_INTERVAL: Duration = Duration::from_secs(2);
+const JOINING_MEMBERSHIP_POLL_INTERVAL: Duration = Duration::from_millis(250);
+/// How long after start-up a node that has not completed initial discovery
+/// keeps the fast membership cadence. Well past the time a peer needs to
+/// publish its endpoint and answer, and short enough that a node whose peers
+/// never answer is not a sustained amplifier of DNS and mTLS handshakes.
+const JOINING_DISCOVERY_POLL_BUDGET: Duration = Duration::from_secs(60);
+
+/// Whether every other pod the control plane publishes in this node's region
+/// already has a replica link. The settle window exists to wait for a sibling
+/// that may still appear; published roles name them outright, so once each has
+/// a link there is nothing left to wait for, and readiness moves on to the
+/// links' own bootstrap. Roles that do not name this node describe no instance
+/// it belongs to (a self-hosted node, or an instance whose roles the control
+/// plane has not observed yet), so they cannot vouch for its siblings.
+///
+/// A node that is the only pod its roles list in its region has no sibling to
+/// vouch for, so this is false rather than vacuously true: with nothing to
+/// check, the predicate would hold on the very first membership pass, before
+/// discovery has had a chance to find the remote-region gateways the node
+/// replicates with, and `bootstrap_settled` over an empty link set would then
+/// latch it serving with no replication at all. Such a node waits the settle
+/// window out like it did before roles were consulted. Reachable today on any
+/// mesh region that runs a single pod: `replicas` defaults to 1 for private
+/// regions.
+fn published_siblings_linked(
+    roles: &[crate::sync::roles::PublishedRole],
+    own_url: &str,
+    own_region: &str,
+    linked: impl Fn(&str) -> bool,
+) -> bool {
+    let mut named = false;
+    let mut siblings = 0usize;
+    for role in roles.iter().filter(|role| role.region == own_region) {
+        if role.url == own_url {
+            named = true;
+        } else if linked(&role.url) {
+            siblings += 1;
+        } else {
+            return false;
+        }
+    }
+    named && siblings > 0
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AccountIdentity {
+    pub handle: String,
+    pub aliases: Vec<String>,
+    pub endpoint_redirects: BTreeMap<String, String>,
+}
+
+impl AccountIdentity {
+    pub fn new(handle: String) -> Self {
+        Self {
+            handle,
+            aliases: Vec::new(),
+            endpoint_redirects: BTreeMap::new(),
+        }
+    }
+}
+
+pub struct AppState {
+    pub config: Config,
+    pub _data_dir_lock: DataDirLock,
+    pub store: Arc<Store>,
+    pub io: IoController,
+    pub memory: MemoryController,
+    pub snapshot_cache: Arc<SnapshotCache>,
+    pub metrics: Metrics,
+    pub runtime: Arc<RuntimeState>,
+    pub auth: Option<SharedAuth>,
+    pub analytics: Option<Analytics>,
+    /// Bounded, post-write delivery of Bazel's conventional test artifacts.
+    /// This is separate from aggregate cache analytics because it may read one
+    /// small blob under the background memory budget.
+    pub bazel_test_artifacts: Option<BazelTestArtifactDelivery>,
+    pub usage: Option<Usage>,
+    // Outbound peer client, behind an atomic swap so cert rotation can replace
+    // it in place. Read it with `state.client()`.
+    pub client: ArcSwap<Client>,
+    pub peer_client_factory: PeerClientFactory,
+    // The inbound internal mTLS server config, retained so cert rotation can
+    // hot-reload the leaf via `reload_from_config`. `None` when peer TLS is off.
+    pub internal_tls: Option<RustlsConfig>,
+    // The control-plane-authoritative volatile peer view, refreshed at mesh
+    // heartbeat / peers-sync cadence and merged into the discovery targets
+    // on top of the static (platform-stable) `config.peers`.
+    pub dynamic_peers: ArcSwap<Vec<String>>,
+    /// One control-plane snapshot: authorization aliases and ready endpoint targets.
+    pub account_identity: ArcSwap<AccountIdentity>,
+    pub replication_bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
+    pub readiness: Mutex<ReadinessState>,
+    /// Process-wide byte budget shared by every transient disk writer.
+    pub tmp_staging_budget: Arc<TmpBudget>,
+    /// Byte budget for peer catch-up staging: the spool a backfill pass writes
+    /// bodies through, and the reservation the serving side charges a bodies
+    /// response against. Separate from `tmp_staging_budget` so catch-up traffic
+    /// cannot starve in-flight client uploads (or the reverse).
+    pub peer_staging_budget: Arc<TmpBudget>,
+    /// Serving-side per-peer-identity concurrency gate for the backfill bodies
+    /// endpoint (see [`BackfillBodiesPeerSlots`]).
+    pub backfill_bodies_peer_slots: Arc<BackfillBodiesPeerSlots>,
+    /// The node-wide single-flight set every catch-up pass registers with,
+    /// so the replica and region links never fetch one record twice.
+    pub backfill_claims: Arc<ClaimSet>,
+    /// What every reachable peer's `/_internal/status` last said, refreshed
+    /// each membership tick; the role rule's input.
+    pub peer_views: ArcSwap<Vec<crate::sync::roles::PeerView>>,
+    /// Roles the control plane published beside the peer list.
+    pub published_roles: ArcSwap<Vec<crate::sync::roles::PublishedRole>>,
+    /// The pull links (design §3, §4), driven by the membership loop.
+    pub sync: Arc<crate::sync::coordinator::SyncCoordinator>,
+}
+
+/// Serving-side concurrency gate for `POST /_internal/backfill/bodies`
+/// (design §11.1): a per-identity slot count and a node-wide aggregate.
+///
+/// The requester side already limits itself to one in-flight bodies request
+/// per peer, but that bound is politeness: self-hosted peers hold account-CA
+/// client certificates on customer infrastructure, and a hostile or buggy
+/// peer must not be able to pin the shared tmp budget and bandwidth limiter
+/// with parallel bulk requests. The aggregate covers the case the per-peer
+/// count cannot: many well-behaved peers converging on one gateway. Identities
+/// come from the internal mTLS listener's verified client certificate
+/// ([`crate::peer_tls::InternalPeerIdentity`]).
+#[derive(Debug)]
+pub struct BackfillBodiesPeerSlots {
+    active: std::sync::Mutex<BTreeMap<Arc<str>, u64>>,
+    slots_per_peer: u64,
+    /// The aggregate in force; derived from the membership view unless
+    /// `pinned`.
+    max_inflight: std::sync::atomic::AtomicU64,
+    pinned: bool,
+}
+
+/// Which limit refused a bodies request, so the metric can tell "this peer is
+/// greedy" from "this node is saturated".
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BackfillBodiesSlotRejection {
+    PeerBusy,
+    NodeBusy,
+}
+
+impl BackfillBodiesPeerSlots {
+    /// `max_inflight` pins the aggregate; `None` derives it from the
+    /// membership view through [`Self::observe_peer_count`], starting at the
+    /// floor until the first view arrives.
+    pub fn new(slots_per_peer: u64, max_inflight: Option<u64>) -> Self {
+        Self {
+            active: std::sync::Mutex::new(BTreeMap::new()),
+            slots_per_peer: slots_per_peer.max(1),
+            max_inflight: std::sync::atomic::AtomicU64::new(
+                max_inflight
+                    .unwrap_or(crate::constants::SYNC_PEER_SERVING_MIN_INFLIGHT)
+                    .max(1),
+            ),
+            pinned: max_inflight.is_some(),
+        }
+    }
+
+    /// Re-derives the aggregate from the number of peers in the membership
+    /// view: `max(floor, peers × slots per peer)`, so every counted peer can
+    /// hold its slots and the floor covers the ones the view does not count.
+    pub fn observe_peer_count(&self, peers: usize) {
+        if self.pinned {
+            return;
+        }
+        let derived = (peers as u64)
+            .saturating_mul(self.slots_per_peer)
+            .max(crate::constants::SYNC_PEER_SERVING_MIN_INFLIGHT);
+        self.max_inflight
+            .store(derived, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    pub fn max_inflight(&self) -> u64 {
+        self.max_inflight.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Claims a slot for the identity, or names the limit that refused it.
+    /// The returned guard must live for the whole request, response streaming
+    /// included.
+    pub fn try_acquire(
+        self: &Arc<Self>,
+        identity: Arc<str>,
+    ) -> Result<BackfillBodiesPeerSlot, BackfillBodiesSlotRejection> {
+        let mut active = self.active.lock().expect("backfill peer slots lock");
+        let held = active.get(&identity).copied().unwrap_or(0);
+        if held >= self.slots_per_peer {
+            return Err(BackfillBodiesSlotRejection::PeerBusy);
+        }
+        if active.values().sum::<u64>() >= self.max_inflight() {
+            return Err(BackfillBodiesSlotRejection::NodeBusy);
+        }
+        active.insert(identity.clone(), held + 1);
+        drop(active);
+        Ok(BackfillBodiesPeerSlot {
+            slots: self.clone(),
+            identity,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct BackfillBodiesPeerSlot {
+    slots: Arc<BackfillBodiesPeerSlots>,
+    identity: Arc<str>,
+}
+
+impl Drop for BackfillBodiesPeerSlot {
+    fn drop(&mut self) {
+        let mut active = self.slots.active.lock().expect("backfill peer slots lock");
+        if let Some(held) = active.get_mut(&self.identity) {
+            *held -= 1;
+            if *held == 0 {
+                active.remove(&self.identity);
+            }
+        }
+    }
+}
+
+impl AppState {
+    pub fn update_account_identity(
+        &self,
+        handle: Option<&str>,
+        aliases: Option<&[String]>,
+        redirects: Option<&BTreeMap<String, String>>,
+    ) {
+        let Some(handle) = handle.filter(|handle| !handle.is_empty()) else {
+            return;
+        };
+        let previous = self.account_identity.load();
+        let mut next = (**previous).clone();
+        if next.handle != handle {
+            // An older control plane may know the rename but not ready targets.
+            // Do not retain redirects pointing at a superseded canonical name.
+            next.endpoint_redirects.clear();
+            next.aliases.push(next.handle.clone());
+            next.handle = handle.to_owned();
+        }
+        if let Some(aliases) = aliases {
+            next.aliases = aliases.to_vec();
+        }
+        if let Some(redirects) = redirects {
+            next.endpoint_redirects = redirects
+                .iter()
+                .filter(|(source, target)| {
+                    let Ok(url) = reqwest::Url::parse(target) else {
+                        return false;
+                    };
+                    url.scheme() == "https"
+                        && url.username().is_empty()
+                        && url.password().is_none()
+                        && url.path() == "/"
+                        && url.query().is_none()
+                        && url.fragment().is_none()
+                        && url.host_str().is_some_and(|host| host != source.as_str())
+                })
+                .map(|(source, target)| (source.clone(), target.trim_end_matches('/').to_owned()))
+                .collect();
+        }
+        next.aliases
+            .retain(|alias| !alias.is_empty() && !alias.eq_ignore_ascii_case(&next.handle));
+        next.aliases.sort();
+        next.aliases.dedup();
+        if next != **previous {
+            self.account_identity.store(Arc::new(next));
+        }
+    }
+
+    pub fn canonicalize_auth_context(&self, context: &mut crate::auth::RequestContext) {
+        let identity = self.account_identity.load();
+        if identity.aliases.is_empty() && context.server_tenant_id == identity.handle {
+            return;
+        }
+        // Keep original and intermediate names bound to this account's current
+        // grants. Store operations still use the immutable configured tenant.
+        if context.tenant_id.as_deref().is_some_and(|tenant| {
+            let tenant = tenant.trim();
+            tenant.eq_ignore_ascii_case(&self.config.tenant_id)
+                || identity
+                    .aliases
+                    .iter()
+                    .any(|alias| tenant.eq_ignore_ascii_case(alias))
+        }) && context.tenant_id.as_deref() != Some(identity.handle.as_str())
+        {
+            context.tenant_id = Some(identity.handle.clone());
+        }
+        if context.server_tenant_id != identity.handle {
+            context.server_tenant_id = identity.handle.clone();
+        }
+    }
+
+    /// Preserve canonical identities/watermarks while routing every listing,
+    /// forward read, batch and individual body through the selected endpoint.
+    pub fn peer_request(
+        &self,
+        method: reqwest::Method,
+        peer: &str,
+        url: &str,
+    ) -> Result<reqwest::RequestBuilder, String> {
+        let views = self.peer_views.load();
+        let view = views.iter().find(|view| view.url == peer);
+        if self.config.peer_topology.is_some() && view.is_none() {
+            return Err("peer topology is no longer in the membership view".into());
+        }
+        let topology = view.and_then(|view| view.topology.as_ref());
+        let endpoint =
+            crate::peer_topology::endpoint(self.config.peer_topology.as_ref(), topology, peer)?;
+        let suffix = url
+            .strip_prefix(peer)
+            .filter(|suffix| suffix.starts_with('/'))
+            .ok_or_else(|| "peer request must be relative to its canonical endpoint".to_owned())?;
+        Ok(self.client().request(
+            method,
+            format!("{}{suffix}", endpoint.trim_end_matches('/')),
+        ))
+    }
+
+    pub fn prefers_peer(&self, peer: &str) -> bool {
+        let Some(own) = self.config.peer_topology.as_ref() else {
+            return false;
+        };
+        self.peer_views.load().iter().any(|view| {
+            view.url == peer
+                && view.private_healthy
+                && view.serving
+                && !view.draining
+                && view.topology.as_ref().is_some_and(|remote| {
+                    own.same_private_network(remote)
+                        && crate::peer_topology::endpoint(Some(own), Some(remote), peer).is_ok()
+                })
+        })
+    }
+
+    /// The current outbound peer HTTP client (picks up rotated certs).
+    pub fn client(&self) -> arc_swap::Guard<Arc<Client>> {
+        self.client.load()
+    }
+}
+
+pub type SharedState = Arc<AppState>;
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct ReadinessReport {
+    pub generation: u64,
+    pub ready: bool,
+    pub state: TrafficState,
+    pub reasons: Vec<String>,
+    pub draining: bool,
+    pub writer_lock_owned: bool,
+    pub initial_discovery_completed: bool,
+    pub known_peers: Vec<String>,
+    pub http_inflight: usize,
+    pub grpc_inflight: usize,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct RolloutStatusReport {
+    pub generation: u64,
+    pub ready: bool,
+    pub state: TrafficState,
+    pub ring_members: usize,
+    pub initial_discovery_completed: bool,
+    pub writer_lock_owned: bool,
+    pub http_inflight: usize,
+    pub grpc_inflight: usize,
+    pub memory_pressure_state: i64,
+    pub fd_timeout_count: u64,
+    pub peer_connection_failure_count: u64,
+    pub ring_fingerprint: String,
+    pub backfill: BackfillRolloutStatus,
+}
+
+/// The catch-up gate contract `/status/rollout` consumers (gate.sh, the
+/// kura-controller's evacuation check) read: pending | complete | degraded.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CatchUpMode {
+    /// A link readiness waits on is still bootstrapping.
+    Pending,
+    /// Every gating link settled with its bootstrap done.
+    Complete,
+    /// Every gating link settled, but at least one spent its bootstrap
+    /// budget and is serving cold while it retries.
+    Degraded,
+}
+
+impl CatchUpMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Complete => "complete",
+            Self::Degraded => "degraded",
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct BackfillRolloutStatus {
+    pub initial_cycle: CatchUpMode,
+    /// Links still bootstrapping.
+    pub backfilling_peers: usize,
+    /// Links that spent their bootstrap budget on real failures.
+    pub budget_exhausted_real: usize,
+    /// Links whose peer predates pull: settled cold, never degraded.
+    pub budget_exhausted_capability: usize,
+    pub ring_fullness_percent: u64,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct ClusterStatusReport {
+    pub generation: u64,
+    pub peer_regions: Vec<String>,
+    pub connected_nodes: Vec<String>,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub(crate) struct MembershipUpdate {
+    pub discovered_peers: Vec<String>,
+    pub lost_peers: Vec<String>,
+    pub known_peer_count: usize,
+    pub initial_discovery_completed: bool,
+    pub generation_changed: bool,
+}
+
+#[derive(Debug)]
+pub(crate) struct ReadinessState {
+    generation: u64,
+    initial_discovery_completed: bool,
+    settle_until: Instant,
+    // Deadline for the fast membership cadence a node keeps until its first
+    // successful peer status read. See `poll_interval`.
+    discovery_fast_poll_until: Instant,
+    members: BTreeSet<String>,
+    known_peers: BTreeSet<String>,
+    // Every peer ever seen through discovery only (not in the static or
+    // dynamic peer config): in-cluster siblings and cross-region pods. Outbox
+    // pruning never drops their messages — the re-join backfill reaches back
+    // only to the backfill window, so dropping would be silent
+    // under-replication for anything older. Monotone and in-memory:
+    // bounded by the peers a process ever meets, reset by restart.
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ReadinessSnapshot {
+    generation: u64,
+    initial_discovery_completed: bool,
+    readiness_settled: bool,
+    members: Vec<String>,
+    known_peers: Vec<String>,
+}
+
+impl ReadinessState {
+    pub(crate) fn new(now: Instant) -> Self {
+        Self {
+            generation: 0,
+            initial_discovery_completed: false,
+            settle_until: now,
+            discovery_fast_poll_until: now + JOINING_DISCOVERY_POLL_BUDGET,
+            members: BTreeSet::new(),
+            known_peers: BTreeSet::new(),
+        }
+    }
+
+    fn apply_membership(
+        &mut self,
+        members: BTreeSet<String>,
+        known_peers: BTreeSet<String>,
+        discovery_observed: bool,
+        now: Instant,
+    ) -> MembershipUpdate {
+        let discovered_peers = known_peers
+            .difference(&self.known_peers)
+            .cloned()
+            .collect::<Vec<_>>();
+        let lost_peers = self
+            .known_peers
+            .difference(&known_peers)
+            .cloned()
+            .collect::<Vec<_>>();
+        let topology_changed = !discovered_peers.is_empty() || !lost_peers.is_empty();
+        let generation_changed;
+        if !self.initial_discovery_completed {
+            if discovery_observed {
+                self.initial_discovery_completed = true;
+                self.generation += 1;
+                self.settle_until = now + READINESS_SETTLE_WINDOW;
+                generation_changed = true;
+            } else {
+                generation_changed = false;
+            }
+        } else if topology_changed {
+            self.generation += 1;
+            self.settle_until = now + READINESS_SETTLE_WINDOW;
+            generation_changed = true;
+        } else {
+            generation_changed = false;
+        }
+
+        self.members = members;
+        self.known_peers = known_peers;
+
+        MembershipUpdate {
+            discovered_peers,
+            lost_peers,
+            known_peer_count: self.known_peers.len(),
+            initial_discovery_completed: self.initial_discovery_completed,
+            generation_changed,
+        }
+    }
+
+    /// The membership loop's pause before its next pass. A joining node whose
+    /// view has not settled passes every quarter second, so a sibling starting
+    /// alongside it is seen promptly and its readiness is not held back by the
+    /// loop's cadence; everything else keeps the steady two seconds.
+    ///
+    /// The pre-discovery half of that is capped by
+    /// `JOINING_DISCOVERY_POLL_BUDGET` rather than left to run until discovery
+    /// completes. `initial_discovery_completed` only flips on a successful
+    /// peer status read, so a node whose peers resolve in DNS but never answer
+    /// would otherwise stay on the fast cadence for as long as that lasts —
+    /// and each pass costs two blocking `getaddrinfo` calls plus, per peer, a
+    /// freshly built client and a new TCP and TLS handshake. On
+    /// `ECONNREFUSED` every attempt returns at once, so the loop runs at the
+    /// full four passes a second rather than being paced by the connect
+    /// timeout: eight times the steady-state load, sustained, during an
+    /// incident. The budget keeps the join-time benefit and lets a node that
+    /// has never reached anyone fall back.
+    fn poll_interval(&self, serving: bool, now: Instant) -> Duration {
+        let joining_discovery =
+            !self.initial_discovery_completed && now < self.discovery_fast_poll_until;
+        if !serving && (joining_discovery || now < self.settle_until) {
+            JOINING_MEMBERSHIP_POLL_INTERVAL
+        } else {
+            MEMBERSHIP_POLL_INTERVAL
+        }
+    }
+
+    fn snapshot(&self, now: Instant) -> ReadinessSnapshot {
+        ReadinessSnapshot {
+            generation: self.generation,
+            initial_discovery_completed: self.initial_discovery_completed,
+            readiness_settled: now >= self.settle_until,
+            members: self.members.iter().cloned().collect(),
+            known_peers: self.known_peers.iter().cloned().collect(),
+        }
+    }
+}
+
+impl AppState {
+    pub fn start_http_request(&self, traffic_class: HttpTrafficClass) -> InflightGuard {
+        self.runtime
+            .start_http_request(&self.metrics, traffic_class)
+    }
+
+    pub fn start_grpc_request(&self) -> InflightGuard {
+        self.runtime.start_grpc_request(&self.metrics)
+    }
+
+    pub fn enter_draining(&self) -> bool {
+        let entered = self.runtime.request_drain();
+        if entered {
+            // Wake every long-poll so the sibling reads the tail now and
+            // reports its cursor for the drain gate (design §3.5).
+            self.store.sync_feed().notify_commit();
+        }
+        entered
+    }
+
+    #[cfg(test)]
+    pub async fn expire_readiness_settle_window(&self) {
+        self.readiness.lock().await.settle_until = Instant::now();
+    }
+
+    pub async fn apply_membership_view(
+        &self,
+        members: BTreeSet<String>,
+        peer_nodes: BTreeMap<String, String>,
+        discovery_observed: bool,
+    ) -> MembershipUpdate {
+        let known_peers = peer_nodes.keys().cloned().collect::<BTreeSet<_>>();
+
+        let membership_update = {
+            let mut readiness = self.readiness.lock().await;
+            readiness.apply_membership(members, known_peers, discovery_observed, Instant::now())
+        };
+        // Lost peers are routine on rolling deploys and scale-downs, so this
+        // logs at info and the
+        // kura_membership_peer_changes_total{change="lost"} counter carries the
+        // alerting signal.
+        if !membership_update.lost_peers.is_empty() {
+            info!(
+                "membership changed: lost peers {:?} (discovered {:?})",
+                membership_update.lost_peers, membership_update.discovered_peers
+            );
+        } else if !membership_update.discovered_peers.is_empty() {
+            info!(
+                "membership changed: discovered peers {:?}",
+                membership_update.discovered_peers
+            );
+        }
+        self.metrics
+            .record_membership_peer_changes("discovered", membership_update.discovered_peers.len());
+        self.metrics
+            .record_membership_peer_changes("lost", membership_update.lost_peers.len());
+        membership_update
+    }
+
+    pub async fn membership_poll_interval(&self) -> Duration {
+        let serving = self.runtime.is_serving();
+        self.readiness
+            .lock()
+            .await
+            .poll_interval(serving, Instant::now())
+    }
+
+    async fn readiness_snapshot(&self) -> ReadinessSnapshot {
+        self.readiness.lock().await.snapshot(Instant::now())
+    }
+
+    pub async fn cluster_status_report(&self) -> ClusterStatusReport {
+        let snapshot = self.readiness_snapshot().await;
+        ClusterStatusReport {
+            generation: snapshot.generation,
+            peer_regions: snapshot.members,
+            connected_nodes: snapshot.known_peers,
+        }
+    }
+
+    /// Stores what the membership loop saw: the role rule's input.
+    pub fn apply_peer_views(&self, views: Vec<crate::sync::roles::PeerView>) {
+        self.backfill_bodies_peer_slots
+            .observe_peer_count(views.len());
+        self.peer_views.store(Arc::new(views));
+    }
+
+    /// Segment count as a percentage of the ring's desired total, the ring
+    /// term of the backfill readiness gate.
+    pub(crate) fn ring_fullness_percent(&self) -> u64 {
+        let inputs = self.store.backfill_capacity_inputs();
+        if inputs.ring_total_segments == 0 {
+            return 100;
+        }
+        (inputs.segment_count as u64).saturating_mul(100) / inputs.ring_total_segments as u64
+    }
+
+    fn discovery_settled(&self, snapshot: &ReadinessSnapshot) -> bool {
+        snapshot.readiness_settled
+            || published_siblings_linked(
+                &self.published_roles.load(),
+                &self.config.node_url,
+                &self.config.region,
+                |peer| self.sync.has_replica_link(peer),
+            )
+    }
+
+    pub async fn maybe_mark_serving(&self) {
+        if self.runtime.is_draining() || self.runtime.is_serving() {
+            return;
+        }
+        if self.runtime.peer_view_pending() {
+            return;
+        }
+        let snapshot = self.readiness_snapshot().await;
+        if !snapshot.initial_discovery_completed || !self.discovery_settled(&snapshot) {
+            return;
+        }
+
+        // R8: past the discovery gates above, the node is ready when its ring
+        // is at least the configured percent full OR its pull links settled
+        // (design §3.6): the sibling bootstrap, or for a region of one the
+        // initial region passes. No links (zero peers) settles immediately,
+        // and a link that spent its bootstrap budget settles too
+        // (ready-but-cold is intended; background retries continue,
+        // metered). Serving then LATCHES for the process lifetime: this
+        // function only runs while not serving, and no catch-up path clears
+        // the flag — only the orthogonal /ready inputs (writer lock,
+        // draining) can take the node out of rotation.
+        let settled = self.sync.bootstrap_settled();
+        if settled || self.ring_fullness_percent() >= self.config.backfill_ready_ring_percent {
+            self.runtime.mark_serving();
+        }
+    }
+
+    pub async fn readiness_report(&self) -> ReadinessReport {
+        self.maybe_mark_serving().await;
+
+        let snapshot = self.readiness_snapshot().await;
+        let draining = self.runtime.is_draining();
+        let state = self.runtime.traffic_state();
+        let writer_lock_owned = self.runtime.writer_lock_owned();
+        let mut reasons = Vec::new();
+        if !writer_lock_owned {
+            reasons.push("writer lock not held".to_string());
+        }
+        if draining {
+            reasons.push("draining".to_string());
+        }
+        if !snapshot.initial_discovery_completed {
+            reasons.push("initial discovery incomplete".to_string());
+        }
+        if self.runtime.peer_view_pending() {
+            reasons.push("awaiting control-plane peer view".to_string());
+        }
+        if !self.runtime.is_serving()
+            && snapshot.initial_discovery_completed
+            && !self.discovery_settled(&snapshot)
+        {
+            reasons.push("discovery settling".to_string());
+        }
+        if !self.runtime.is_serving() && !self.sync.bootstrap_settled() {
+            let fullness = self.ring_fullness_percent();
+            reasons.push(format!(
+                "replica bootstrap in progress (ring {fullness}% < {}%)",
+                self.config.backfill_ready_ring_percent
+            ));
+        }
+        let awaiting_exit_resume = self.runtime.authority.awaiting_exit_resume();
+        if awaiting_exit_resume {
+            reasons.push("unclean primary volume awaiting its exit resume".to_string());
+        }
+
+        let ready =
+            writer_lock_owned && !draining && self.runtime.is_serving() && !awaiting_exit_resume;
+        ReadinessReport {
+            generation: snapshot.generation,
+            ready,
+            state,
+            reasons,
+            draining,
+            writer_lock_owned,
+            initial_discovery_completed: snapshot.initial_discovery_completed,
+            known_peers: snapshot.known_peers,
+            http_inflight: self.runtime.http_inflight(),
+            grpc_inflight: self.runtime.grpc_inflight(),
+        }
+    }
+
+    pub async fn rollout_status_report(&self) -> RolloutStatusReport {
+        self.maybe_mark_serving().await;
+
+        let snapshot = self.readiness_snapshot().await;
+        let draining = self.runtime.is_draining();
+        let writer_lock_owned = self.runtime.writer_lock_owned();
+        let ready = writer_lock_owned
+            && !draining
+            && self.runtime.is_serving()
+            && !self.runtime.authority.awaiting_exit_resume();
+        let metrics = self.metrics.rollout_metrics_snapshot();
+
+        let mut ring: Vec<String> = snapshot.known_peers.clone();
+        ring.push(self.config.node_url.clone());
+        ring.sort();
+        let backfill = self.catch_up_status();
+
+        RolloutStatusReport {
+            generation: snapshot.generation,
+            ready,
+            state: self.runtime.traffic_state(),
+            ring_members: ring.len(),
+            ring_fingerprint: ring_fingerprint(&ring),
+            initial_discovery_completed: snapshot.initial_discovery_completed,
+            writer_lock_owned,
+            http_inflight: self.runtime.http_inflight(),
+            grpc_inflight: self.runtime.grpc_inflight(),
+            memory_pressure_state: self.memory.pressure().as_i64(),
+            fd_timeout_count: metrics.fd_timeout_count,
+            peer_connection_failure_count: metrics.peer_connection_failure_count,
+            backfill,
+        }
+    }
+
+    /// The pull links' bootstrap state in the shape the rollout gate reads.
+    pub fn catch_up_status(&self) -> BackfillRolloutStatus {
+        let catch_up = self.sync.catch_up();
+        let initial_cycle = if !catch_up.settled() {
+            CatchUpMode::Pending
+        } else if catch_up.abandoned > 0 {
+            CatchUpMode::Degraded
+        } else {
+            CatchUpMode::Complete
+        };
+        BackfillRolloutStatus {
+            initial_cycle,
+            backfilling_peers: catch_up.in_progress,
+            budget_exhausted_real: catch_up.abandoned,
+            budget_exhausted_capability: catch_up.unsupported,
+            ring_fullness_percent: self.ring_fullness_percent(),
+        }
+    }
+
+    pub async fn sync_runtime_metrics(&self) {
+        let report = self.readiness_report().await;
+        self.metrics.update_runtime_state(
+            report.state.as_i64(),
+            report.ready,
+            report.draining,
+            report.initial_discovery_completed,
+            report.writer_lock_owned,
+        );
+        self.metrics.update_membership_generation(report.generation);
+        self.metrics
+            .set_backfill_ring_fullness_percent(self.ring_fullness_percent());
+        self.metrics.update_replication_bandwidth_limits(
+            self.config.replication_bandwidth_limit_bytes_per_second,
+            self.replication_bandwidth_limiter
+                .as_ref()
+                .map_or(0, |limiter| limiter.effective_bytes_per_second()),
+            self.config.replication_public_latency_target_ms,
+        );
+    }
+}
+
+/// Stable digest of the sorted ring member identities. Two pods can report
+/// equal ring sizes while seeing different peer subsets, so the controller's
+/// cross-pod consistency check compares fingerprints, not counts.
+pub fn ring_fingerprint(sorted_members: &[String]) -> String {
+    use sha2::{Digest, Sha256};
+
+    let mut hasher = Sha256::new();
+    for member in sorted_members {
+        hasher.update(member.as_bytes());
+        hasher.update([0u8]);
+    }
+    let digest = hasher.finalize();
+    hex::encode(&digest[..8])
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::test_support::test_context;
+
+    use super::*;
+
+    #[test]
+    fn ring_fingerprint_distinguishes_equal_sized_rings() {
+        let ring_a = vec!["https://a:7443".to_string(), "https://b:7443".to_string()];
+        let ring_b = vec!["https://a:7443".to_string(), "https://c:7443".to_string()];
+
+        assert_eq!(ring_fingerprint(&ring_a), ring_fingerprint(&ring_a));
+        assert_ne!(ring_fingerprint(&ring_a), ring_fingerprint(&ring_b));
+        assert_eq!(ring_fingerprint(&ring_a).len(), 16);
+    }
+
+    #[test]
+    fn readiness_state_advances_generation_and_reconciles_peer_sets() {
+        let now = Instant::now();
+        let mut readiness = ReadinessState::new(now);
+
+        let initial = readiness.apply_membership(
+            BTreeSet::from(["remote-a".to_string(), "remote-b".to_string()]),
+            BTreeSet::from([
+                "http://peer-a.kura.internal:7443".to_string(),
+                "http://peer-b.kura.internal:7443".to_string(),
+            ]),
+            true,
+            now,
+        );
+        assert_eq!(readiness.generation, 1);
+        assert!(initial.initial_discovery_completed);
+        assert!(initial.lost_peers.is_empty());
+        assert_eq!(initial.known_peer_count, 2);
+        assert_eq!(
+            initial.discovered_peers,
+            vec![
+                "http://peer-a.kura.internal:7443".to_string(),
+                "http://peer-b.kura.internal:7443".to_string()
+            ]
+        );
+
+        let topology_change = readiness.apply_membership(
+            BTreeSet::from(["remote-a".to_string(), "remote-c".to_string()]),
+            BTreeSet::from([
+                "http://peer-a.kura.internal:7443".to_string(),
+                "http://peer-c.kura.internal:7443".to_string(),
+            ]),
+            true,
+            now + Duration::from_secs(1),
+        );
+        assert_eq!(readiness.generation, 2);
+        assert_eq!(
+            topology_change.discovered_peers,
+            vec!["http://peer-c.kura.internal:7443".to_string()]
+        );
+        assert_eq!(
+            topology_change.lost_peers,
+            vec!["http://peer-b.kura.internal:7443".to_string()]
+        );
+    }
+
+    #[test]
+    fn readiness_settles_two_seconds_after_the_last_membership_change() {
+        let now = Instant::now();
+        let mut readiness = ReadinessState::new(now);
+
+        readiness.apply_membership(BTreeSet::new(), BTreeSet::new(), true, now);
+        let sibling_seen = now + Duration::from_millis(500);
+        readiness.apply_membership(
+            BTreeSet::from(["eu-west".to_string()]),
+            BTreeSet::from(["http://sibling.kura.internal:7443".to_string()]),
+            true,
+            sibling_seen,
+        );
+
+        assert!(
+            !readiness
+                .snapshot(sibling_seen + Duration::from_millis(1_999))
+                .readiness_settled
+        );
+        assert!(
+            readiness
+                .snapshot(sibling_seen + Duration::from_secs(2))
+                .readiness_settled
+        );
+    }
+
+    #[test]
+    fn membership_polls_every_quarter_second_while_a_joining_view_is_unsettled() {
+        let now = Instant::now();
+        let mut readiness = ReadinessState::new(now);
+
+        // Nothing observed yet: a sibling starting alongside this node is found
+        // on the next quarter-second pass rather than two seconds later.
+        assert_eq!(
+            readiness.poll_interval(false, now),
+            Duration::from_millis(250)
+        );
+
+        readiness.apply_membership(BTreeSet::new(), BTreeSet::new(), true, now);
+        assert_eq!(
+            readiness.poll_interval(false, now),
+            Duration::from_millis(250)
+        );
+
+        let settled = now + Duration::from_secs(2);
+        assert_eq!(
+            readiness.poll_interval(false, settled),
+            Duration::from_secs(2)
+        );
+        assert_eq!(
+            readiness.poll_interval(true, now),
+            Duration::from_secs(2),
+            "a serving node has nothing to become ready for"
+        );
+    }
+
+    #[test]
+    fn membership_stops_polling_fast_for_a_node_whose_peers_never_answer() {
+        // `initial_discovery_completed` only flips on a successful peer status
+        // read, so without a budget a node whose peers resolve but refuse the
+        // connection would hold four passes a second for the whole incident,
+        // each one two `getaddrinfo` calls and a fresh TLS handshake per peer.
+        let now = Instant::now();
+        let mut readiness = ReadinessState::new(now);
+
+        readiness.apply_membership(BTreeSet::new(), BTreeSet::new(), false, now);
+        assert_eq!(
+            readiness.poll_interval(
+                false,
+                now + JOINING_DISCOVERY_POLL_BUDGET - Duration::from_secs(1)
+            ),
+            JOINING_MEMBERSHIP_POLL_INTERVAL
+        );
+
+        let lapsed = now + JOINING_DISCOVERY_POLL_BUDGET;
+        readiness.apply_membership(BTreeSet::new(), BTreeSet::new(), false, lapsed);
+        assert!(!readiness.initial_discovery_completed);
+        assert_eq!(
+            readiness.poll_interval(false, lapsed),
+            MEMBERSHIP_POLL_INTERVAL
+        );
+    }
+
+    #[test]
+    fn readiness_state_keeps_joining_until_discovery_succeeds() {
+        let now = Instant::now();
+        let mut readiness = ReadinessState::new(now);
+
+        let unobserved = readiness.apply_membership(BTreeSet::new(), BTreeSet::new(), false, now);
+        assert!(!unobserved.initial_discovery_completed);
+        assert!(!unobserved.generation_changed);
+        assert_eq!(readiness.generation, 0);
+
+        let observed = readiness.apply_membership(
+            BTreeSet::new(),
+            BTreeSet::new(),
+            true,
+            now + Duration::from_secs(1),
+        );
+        assert!(observed.initial_discovery_completed);
+        assert!(observed.generation_changed);
+        assert_eq!(readiness.generation, 1);
+    }
+
+    /// The membership pass is what re-derives the outbox cap: the store
+    /// cannot see the peer set, and the cap has to count every target a write
+    /// would enqueue for, so it is read from `replication_targets` rather
+    /// than from the discovered set alone.
+    #[tokio::test]
+    async fn app_state_keeps_serving_when_membership_generation_advances() {
+        let context = test_context(|_| {}).await;
+        let peer_a = "http://peer-a.kura.internal:7443".to_string();
+        let peer_b = "http://peer-b.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote-a".to_string()]),
+                BTreeMap::from([(peer_a.clone(), "remote-a".to_string())]),
+                true,
+            )
+            .await;
+        context.state.expire_readiness_settle_window().await;
+        context.state.maybe_mark_serving().await;
+
+        let serving = context.state.readiness_report().await;
+        assert!(serving.ready);
+        assert_eq!(serving.state, TrafficState::Serving);
+
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote-a".to_string(), "remote-b".to_string()]),
+                BTreeMap::from([
+                    (peer_a.clone(), "remote-a".to_string()),
+                    (peer_b.clone(), "remote-b".to_string()),
+                ]),
+                true,
+            )
+            .await;
+
+        let still_serving = context.state.readiness_report().await;
+        assert!(still_serving.ready);
+        assert_eq!(
+            still_serving.state,
+            TrafficState::Serving,
+            "the newly discovered peer reconciles in the background"
+        );
+    }
+
+    fn published_role(url: &str, region: &str) -> crate::sync::roles::PublishedRole {
+        crate::sync::roles::PublishedRole {
+            url: url.to_string(),
+            region: region.to_string(),
+            gateway: false,
+        }
+    }
+
+    #[test]
+    fn published_siblings_are_linked_only_when_every_same_region_pod_has_a_link() {
+        let own = "https://kura-acme-0.kura.svc:7443";
+        let sibling = "https://kura-acme-1.kura.svc:7443";
+        let remote = "https://kura-acme-us-0.kura.svc:7443";
+        let roles = vec![
+            published_role(own, "eu-west"),
+            published_role(sibling, "eu-west"),
+            published_role(remote, "us-east"),
+        ];
+
+        assert!(published_siblings_linked(
+            &roles,
+            own,
+            "eu-west",
+            |peer| peer == sibling
+        ));
+        assert!(
+            !published_siblings_linked(&roles, own, "eu-west", |_| false),
+            "a sibling the roles name but no link reaches yet keeps the window"
+        );
+        assert!(
+            !published_siblings_linked(
+                &[published_role(sibling, "eu-west")],
+                own,
+                "eu-west",
+                |_| true
+            ),
+            "roles that do not name this node say nothing about its instance"
+        );
+        assert!(
+            published_siblings_linked(
+                &[
+                    published_role(own, "eu-west"),
+                    published_role(sibling, "eu-west"),
+                    published_role(remote, "us-east")
+                ],
+                own,
+                "eu-west",
+                |peer| peer == sibling
+            ),
+            "another region's pods never gate readiness"
+        );
+        assert!(
+            !published_siblings_linked(
+                &[
+                    published_role(own, "eu-west"),
+                    published_role(remote, "us-east")
+                ],
+                own,
+                "eu-west",
+                |_| true
+            ),
+            "a node that is the only pod its roles list in its region has no \
+             sibling to vouch for, so the window is what it waits on"
+        );
+        assert!(!published_siblings_linked(&[], own, "eu-west", |_| true));
+    }
+
+    #[tokio::test]
+    async fn a_joining_node_that_is_its_region_s_only_pod_still_waits_out_the_settle_window() {
+        // Its roles name no sibling to check, so the predicate would hold on
+        // the first membership pass — before discovery has found the
+        // remote-region gateways it replicates with — and an empty link set
+        // settles trivially, latching serving with no replication at all.
+        let context = test_context(|_| {}).await;
+        context.state.runtime.require_peer_view();
+        context.state.runtime.mark_peer_view_ready();
+        context
+            .state
+            .published_roles
+            .store(Arc::new(vec![published_role(
+                &context.state.config.node_url,
+                &context.state.config.region,
+            )]));
+        context
+            .state
+            .apply_membership_view(BTreeSet::new(), BTreeMap::new(), true)
+            .await;
+
+        context.state.maybe_mark_serving().await;
+        assert!(!context.state.runtime.is_serving());
+
+        context.state.expire_readiness_settle_window().await;
+        context.state.maybe_mark_serving().await;
+        assert!(context.state.runtime.is_serving());
+    }
+
+    #[tokio::test]
+    async fn a_joining_node_waits_out_the_settle_window_when_its_published_siblings_are_not_linked()
+    {
+        let context = test_context(|_| {}).await;
+        context.state.runtime.require_peer_view();
+        context.state.runtime.mark_peer_view_ready();
+        context.state.published_roles.store(Arc::new(vec![
+            published_role(&context.state.config.node_url, &context.state.config.region),
+            published_role(
+                "https://sibling.kura.internal:7443",
+                &context.state.config.region,
+            ),
+        ]));
+        context
+            .state
+            .apply_membership_view(BTreeSet::new(), BTreeMap::new(), true)
+            .await;
+
+        context.state.maybe_mark_serving().await;
+        assert!(!context.state.runtime.is_serving());
+
+        context.state.expire_readiness_settle_window().await;
+        context.state.maybe_mark_serving().await;
+        assert!(context.state.runtime.is_serving());
+    }
+
+    #[tokio::test]
+    async fn backfill_readiness_with_zero_peers_requires_only_the_discovery_gates() {
+        let context = test_context(|_| {}).await;
+        context.state.runtime.require_peer_view();
+        context
+            .state
+            .apply_membership_view(BTreeSet::new(), BTreeMap::new(), true)
+            .await;
+        context.state.expire_readiness_settle_window().await;
+
+        // Gate two (first control-plane peer view) still withholds serving.
+        context.state.maybe_mark_serving().await;
+        assert!(!context.state.runtime.is_serving());
+
+        context.state.runtime.mark_peer_view_ready();
+        context.state.maybe_mark_serving().await;
+        assert!(
+            context.state.runtime.is_serving(),
+            "an empty cycle settles immediately: zero peers ⇒ ready"
+        );
+    }
+
+    fn rendered_metric_value(rendered: &str, selector: &str) -> Option<u64> {
+        rendered
+            .lines()
+            .filter(|line| !line.starts_with('#'))
+            .find(|line| line.contains(selector))
+            .and_then(|line| line.split_whitespace().last())
+            .and_then(|value| value.parse().ok())
+    }
+
+    #[tokio::test]
+    async fn app_state_records_membership_peer_change_metrics() {
+        let context = test_context(|_| {}).await;
+        let peer_a = "http://peer-a.kura.internal:7443".to_string();
+        let peer_b = "http://peer-b.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote-a".to_string()]),
+                BTreeMap::from([(peer_a.clone(), "remote-a".to_string())]),
+                true,
+            )
+            .await;
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote-b".to_string()]),
+                BTreeMap::from([(peer_b.clone(), "remote-b".to_string())]),
+                true,
+            )
+            .await;
+
+        let rendered = context.state.metrics.render();
+        assert_eq!(
+            rendered_metric_value(&rendered, "change=\"discovered\"}"),
+            Some(2)
+        );
+        assert_eq!(
+            rendered_metric_value(&rendered, "change=\"lost\"}"),
+            Some(1)
+        );
+    }
+}

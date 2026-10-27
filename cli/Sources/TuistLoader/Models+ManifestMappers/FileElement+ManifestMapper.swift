@@ -3,6 +3,7 @@ import Foundation
 import Path
 import ProjectDescription
 import TuistCore
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 
@@ -16,15 +17,19 @@ extension XcodeGraph.FileElement {
         manifest: ProjectDescription.FileElement,
         generatorPaths: GeneratorPaths,
         fileSystem: FileSysteming,
-        includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
+        includeFiles: @escaping (AbsolutePath) async throws -> Bool = { _ in true }
     ) async throws -> [XcodeGraph.FileElement] {
         func globFiles(_ path: AbsolutePath, excluding: [String]) async throws -> [AbsolutePath] {
-            if try await fileSystem.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
+            if try await fileSystem.exists(path, isDirectory: false) { return [path] }
 
             var excluded: Set<AbsolutePath> = []
             for path in excluding {
                 let absolute = try AbsolutePath(validating: path)
-                let globs = try await fileSystem.glob(
+                if let recursiveGlobRoot = absolute.recursiveGlobRoot {
+                    excluded.insert(recursiveGlobRoot)
+                    continue
+                }
+                let globs = try await fileSystem.manifestGlob(
                     directory: .root,
                     include: [String(absolute.pathString.dropFirst())]
                 )
@@ -40,14 +45,16 @@ extension XcodeGraph.FileElement {
                     include: [String(path.pathString.dropFirst())]
                 )
                 .collect()
-                .filter(includeFiles)
-                .filter { !excluded.contains($0) }
+                .filter { path in
+                    !excluded.contains(where: { path.isDescendantOfOrEqual(to: $0) })
+                }
+                .concurrentFilter { try await includeFiles($0) }
             } catch GlobError.nonExistentDirectory {
                 files = []
             }
 
             if files.isEmpty {
-                if FileHandler.shared.isFolder(path) {
+                if try await fileSystem.exists(path, isDirectory: true) {
                     Logger.current
                         .warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
                 } else if !path.isGlobPath {
@@ -66,7 +73,7 @@ extension XcodeGraph.FileElement {
                 return []
             }
 
-            guard FileHandler.shared.isFolder(path) else {
+            guard try await fileSystem.exists(path, isDirectory: true) else {
                 // FIXME: This should be done in a linter.
                 Logger.current
                     .warning("\(path.pathString) is not a directory - folder reference paths need to point to directories")

@@ -1,9 +1,8 @@
-<main class="layout">
+<main class="layout" data-remember-url-query>
   <TuistWeb.AppLayoutComponents.headerbar
     breadcrumbs={Map.get(assigns, :breadcrumbs, [])}
     current_user={@current_user}
     selected_account={@selected_account}
-    latest_cli_release={@latest_cli_release}
     latest_app_release={@latest_app_release}
   />
   <section class="layout__main">
@@ -11,18 +10,23 @@
       :if={Map.get(assigns, :sidebar_enabled?, true)}
       current_path={@current_path}
       selected_project={@selected_project}
+      previews_available={Map.get(assigns, :previews_available, false)}
       selected_account={@selected_account}
       selected_run={@selected_run}
       current_user={@current_user}
     />
     <div class="layout__content">
-      <TuistWeb.Components.PublicProjectCTABanner.public_project_cta_banner :if={
-        TuistWeb.Components.PublicProjectCTABanner.show_banner?(
-          @selected_account.name,
-          @selected_project.name,
-          @current_user
-        )
-      } />
+      <TuistWeb.Components.PublicProjectCTABanner.public_project_cta_banner
+        :if={
+          TuistWeb.Components.PublicProjectCTABanner.show_banner?(
+            @selected_account.name,
+            @selected_project.name,
+            @current_user
+          )
+        }
+        account_name={@selected_account.name}
+        project_name={@selected_project.name}
+      />
       {@inner_content}
     </div>
   </section>

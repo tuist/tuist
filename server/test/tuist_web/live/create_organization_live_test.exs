@@ -1,6 +1,6 @@
 defmodule TuistWeb.CreateOrganizationLiveTest do
-  use TuistTestSupport.Cases.ConnCase
-  use TuistTestSupport.Cases.LiveCase
+  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.LiveCase, async: true
   use Mimic
 
   import Phoenix.LiveViewTest
@@ -15,7 +15,7 @@ defmodule TuistWeb.CreateOrganizationLiveTest do
         |> log_in_user(user)
         |> live(~p"/organizations/new")
 
-      assert html =~ "Create a new organization"
+      assert html =~ "Create organization"
     end
 
     test "handles organization creation form submission with account key", %{conn: conn} do
@@ -27,7 +27,7 @@ defmodule TuistWeb.CreateOrganizationLiveTest do
         |> live(~p"/organizations/new")
 
       lv
-      |> form("#create-project-form",
+      |> form("#create-organization-form",
         account: %{name: "Test Organization"}
       )
       |> render_submit()

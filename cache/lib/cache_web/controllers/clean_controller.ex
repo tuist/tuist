@@ -4,6 +4,7 @@ defmodule CacheWeb.CleanController do
 
   alias Cache.CleanProjectWorker
   alias CacheWeb.API.Schemas.Error
+  alias CacheWeb.API.Schemas.SafePathComponent
 
   require Logger
 
@@ -19,21 +20,23 @@ defmodule CacheWeb.CleanController do
     parameters: [
       account_handle: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "The handle of the account"
       ],
       project_handle: [
         in: :query,
-        type: :string,
+        schema: SafePathComponent.schema(),
         required: true,
         description: "The handle of the project"
       ]
     ],
     responses: %{
       no_content: {"Cache cleaned successfully", nil, nil},
+      unprocessable_entity: {"Invalid request parameters", "application/json", Error},
       unauthorized: {"Unauthorized", "application/json", Error},
       forbidden: {"Forbidden", "application/json", Error},
+      payment_required: {"The account has exhausted its plan's free tier", "application/json", Error},
       internal_server_error: {"Failed to clean cache", "application/json", Error}
     }
   )

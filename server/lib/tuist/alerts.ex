@@ -6,12 +6,13 @@ defmodule Tuist.Alerts do
 
   alias Tuist.Alerts.Alert
   alias Tuist.Alerts.AlertRule
-  alias Tuist.Alerts.FlakyTestAlert
-  alias Tuist.Alerts.FlakyTestAlertRule
+  alias Tuist.Builds.Analytics, as: BuildsAnalytics
+  alias Tuist.Bundles
+  alias Tuist.Bundles.Bundle
   alias Tuist.Cache.Analytics, as: CacheAnalytics
   alias Tuist.Projects.Project
   alias Tuist.Repo
-  alias Tuist.Runs.Analytics
+  alias Tuist.Tests.Analytics, as: TestsAnalytics
 
   def get_project_alert_rules(%Project{id: project_id}) do
     AlertRule
@@ -46,7 +47,7 @@ defmodule Tuist.Alerts do
   def get_all_alert_rules do
     AlertRule
     |> Repo.all()
-    |> Repo.preload(project: [account: :slack_installation])
+    |> Repo.preload(project: [:account])
   end
 
   def create_alert(attrs) do
@@ -70,48 +71,76 @@ defmodule Tuist.Alerts do
   - `:ok` if no alert needed
   """
   def evaluate(%AlertRule{category: :build_run_duration} = alert_rule) do
-    current =
-      Analytics.build_duration_metric_by_count(alert_rule.project_id, alert_rule.metric,
-        limit: alert_rule.rolling_window_size,
-        offset: 0
-      )
+    opts =
+      [limit: alert_rule.rolling_window_size, offset: 0]
+      |> maybe_add_scheme(alert_rule.scheme)
+      |> maybe_add_environment(alert_rule.environment)
 
-    previous =
-      Analytics.build_duration_metric_by_count(alert_rule.project_id, alert_rule.metric,
-        limit: alert_rule.rolling_window_size,
-        offset: alert_rule.rolling_window_size
-      )
+    current = BuildsAnalytics.build_duration_metric_by_count(alert_rule.project_id, alert_rule.metric, opts)
+
+    previous_opts =
+      [limit: alert_rule.rolling_window_size, offset: alert_rule.rolling_window_size]
+      |> maybe_add_scheme(alert_rule.scheme)
+      |> maybe_add_environment(alert_rule.environment)
+
+    previous = BuildsAnalytics.build_duration_metric_by_count(alert_rule.project_id, alert_rule.metric, previous_opts)
 
     check_increase_regression(alert_rule, current, previous)
   end
 
   def evaluate(%AlertRule{category: :test_run_duration} = alert_rule) do
-    current =
-      Analytics.test_duration_metric_by_count(alert_rule.project_id, alert_rule.metric,
-        limit: alert_rule.rolling_window_size,
-        offset: 0
-      )
+    opts =
+      [limit: alert_rule.rolling_window_size, offset: 0]
+      |> maybe_add_scheme(alert_rule.scheme)
+      |> maybe_add_environment(alert_rule.environment)
 
-    previous =
-      Analytics.test_duration_metric_by_count(alert_rule.project_id, alert_rule.metric,
-        limit: alert_rule.rolling_window_size,
-        offset: alert_rule.rolling_window_size
-      )
+    current = TestsAnalytics.test_duration_metric_by_count(alert_rule.project_id, alert_rule.metric, opts)
+
+    previous_opts =
+      [limit: alert_rule.rolling_window_size, offset: alert_rule.rolling_window_size]
+      |> maybe_add_scheme(alert_rule.scheme)
+      |> maybe_add_environment(alert_rule.environment)
+
+    previous = TestsAnalytics.test_duration_metric_by_count(alert_rule.project_id, alert_rule.metric, previous_opts)
 
     check_increase_regression(alert_rule, current, previous)
   end
 
-  def evaluate(%AlertRule{category: :cache_hit_rate} = alert_rule) do
-    current =
-      CacheAnalytics.cache_hit_rate_metric_by_count(alert_rule.project_id, alert_rule.metric,
-        limit: alert_rule.rolling_window_size,
-        offset: 0
-      )
+  def evaluate(%AlertRule{category: :bundle_size} = alert_rule) do
+    project = %Project{id: alert_rule.project_id}
 
-    previous =
-      CacheAnalytics.cache_hit_rate_metric_by_count(alert_rule.project_id, alert_rule.metric,
-        limit: alert_rule.rolling_window_size,
-        offset: alert_rule.rolling_window_size
+    bundle_opts = maybe_add_bundle_name([git_branch: alert_rule.git_branch, fallback: false], alert_rule.bundle_name)
+
+    with %Bundle{} = current_bundle <- Bundles.last_project_bundle(project, bundle_opts),
+         %Bundle{} = previous_bundle <-
+           Bundles.last_project_bundle(project, Keyword.put(bundle_opts, :bundle, current_bundle)) do
+      size_field = bundle_size_field(alert_rule.metric)
+      current_size = Map.get(current_bundle, size_field)
+      previous_size = Map.get(previous_bundle, size_field)
+
+      check_increase_regression(alert_rule, current_size, previous_size)
+    else
+      nil -> :ok
+    end
+  end
+
+  def evaluate(%AlertRule{category: :cache_hit_rate} = alert_rule) do
+    current_opts =
+      [limit: alert_rule.rolling_window_size, offset: 0]
+      |> maybe_add_environment(alert_rule.environment)
+      |> maybe_add_git_branch(alert_rule.git_branch)
+
+    previous_opts =
+      [limit: alert_rule.rolling_window_size, offset: alert_rule.rolling_window_size]
+      |> maybe_add_environment(alert_rule.environment)
+      |> maybe_add_git_branch(alert_rule.git_branch)
+
+    {current, previous} =
+      CacheAnalytics.cache_hit_rate_metric_window_comparison(
+        alert_rule.project_id,
+        alert_rule.metric,
+        current_opts,
+        previous_opts
       )
 
     check_decrease_regression(alert_rule, current, previous)
@@ -145,47 +174,28 @@ defmodule Tuist.Alerts do
     end
   end
 
+  defp bundle_size_field(:install_size), do: :install_size
+  defp bundle_size_field(:download_size), do: :download_size
+
+  defp maybe_add_scheme(opts, ""), do: opts
+  defp maybe_add_scheme(opts, scheme), do: Keyword.put(opts, :scheme, scheme)
+
+  defp maybe_add_git_branch(opts, nil), do: opts
+  defp maybe_add_git_branch(opts, ""), do: opts
+  defp maybe_add_git_branch(opts, git_branch), do: Keyword.put(opts, :git_branch, git_branch)
+
+  defp maybe_add_environment(opts, :ci), do: Keyword.put(opts, :is_ci, true)
+  defp maybe_add_environment(opts, :local), do: Keyword.put(opts, :is_ci, false)
+  defp maybe_add_environment(opts, _), do: opts
+
+  defp maybe_add_bundle_name(opts, ""), do: opts
+  defp maybe_add_bundle_name(opts, bundle_name), do: Keyword.put(opts, :name, bundle_name)
+
   defp get_latest_alert(alert_rule_id) do
     Alert
     |> where([a], a.alert_rule_id == ^alert_rule_id)
     |> order_by([a], desc: a.inserted_at)
     |> limit(1)
     |> Repo.one()
-  end
-
-  def get_project_flaky_test_alert_rules(%Project{id: project_id}) do
-    FlakyTestAlertRule
-    |> where([a], a.project_id == ^project_id)
-    |> order_by([a], asc: a.inserted_at)
-    |> Repo.all()
-  end
-
-  def get_flaky_test_alert_rule(id) do
-    case Repo.get(FlakyTestAlertRule, id) do
-      nil -> {:error, :not_found}
-      rule -> {:ok, rule}
-    end
-  end
-
-  def create_flaky_test_alert_rule(attrs) do
-    %FlakyTestAlertRule{}
-    |> FlakyTestAlertRule.changeset(attrs)
-    |> Repo.insert()
-  end
-
-  def update_flaky_test_alert_rule(%FlakyTestAlertRule{} = rule, attrs) do
-    rule
-    |> FlakyTestAlertRule.changeset(attrs)
-    |> Repo.update()
-  end
-
-  def delete_flaky_test_alert_rule(%FlakyTestAlertRule{} = rule) do
-    Repo.delete(rule)
-  end
-
-  def create_flaky_test_alert(attrs) do
-    %FlakyTestAlert{}
-    |> FlakyTestAlert.changeset(attrs)
-    |> Repo.insert()
   end
 end

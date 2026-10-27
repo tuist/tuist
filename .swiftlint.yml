@@ -1,3 +1,12 @@
+opt_in_rules:
+  - no_grouping_extension
+custom_rules:
+  no_fatal_error_in_tests:
+    included: "cli/Tests/.*\\.swift"
+    name: "No fatalError in tests"
+    regex: "\\bfatalError\\s*\\("
+    message: "Use throwing test helpers or XCTest assertions instead of fatalError in tests."
+    severity: error
 disabled_rules:
   - trailing_whitespace
   - trailing_comma
@@ -22,7 +31,11 @@ type_name:
   min_length:
     error: 1
     warning: 1
+function_body_length:
+  warning: 50
+  error: 200
 excluded:
   - cli/Sources/TuistServer/OpenAPI
   - cli/Sources/TuistCache/OpenAPI
-  - cli/Sources/TuistCAS/Generated
+  - cli/Sources/TuistREAPI/Generated
+  - cli/Sources/Rosalind/Proto/Generated

@@ -1,4 +1,5 @@
 import Foundation
+import TuistConfig
 import TuistCore
 import XcodeGraph
 
@@ -10,9 +11,12 @@ protocol StaticProductsGraphLinting {
     func lint(graphTraverser: GraphTraversing, configGeneratedProjectOptions: TuistGeneratedProjectOptions) -> [LintingIssue]
 }
 
-class StaticProductsGraphLinter: StaticProductsGraphLinting {
+struct StaticProductsGraphLinter: StaticProductsGraphLinting {
     func lint(graphTraverser: GraphTraversing, configGeneratedProjectOptions: TuistGeneratedProjectOptions) -> [LintingIssue] {
-        warnings(
+        if case .none = configGeneratedProjectOptions.generationOptions.staticSideEffectsWarningTargets {
+            return []
+        }
+        return warnings(
             in: Array(graphTraverser.dependencies.keys),
             graphTraverser: graphTraverser,
             configGeneratedProjectOptions: configGeneratedProjectOptions
@@ -36,8 +40,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             let results = buildStaticProductsMap(
                 visiting: dependency,
                 graphTraverser: graphTraverser,
-                cache: cache,
-                configGeneratedProjectOptions: configGeneratedProjectOptions
+                cache: cache
             )
 
             warnings.formUnion(results.linked.flatMap {
@@ -71,28 +74,80 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
     private func buildStaticProductsMap(
         visiting dependency: GraphDependency,
         graphTraverser: GraphTraversing,
-        cache: Cache,
-        configGeneratedProjectOptions: TuistGeneratedProjectOptions
+        cache: Cache
     ) -> StaticProducts {
         if let cachedResult = cache.results(for: dependency) {
             return cachedResult
         }
 
-        // Collect dependency results traversing the graph (dfs)
-        var results = dependencies(for: dependency, graphTraverser: graphTraverser).reduce(StaticProducts()) { results, dep in
-            buildStaticProductsMap(
-                visiting: dep,
-                graphTraverser: graphTraverser,
-                cache: cache,
-                configGeneratedProjectOptions: configGeneratedProjectOptions
-            )
-            .merged(with: results)
+        var activeDependencies = Set<GraphDependency>()
+        var stack = [
+            StaticProductsFrame(
+                dependency: dependency,
+                dependencies: dependencies(for: dependency, graphTraverser: graphTraverser),
+                nextDependencyIndex: 0,
+                results: StaticProducts()
+            ),
+        ]
+        activeDependencies.insert(dependency)
+
+        while let frame = stack.last {
+            let frameIndex = stack.count - 1
+            if frame.nextDependencyIndex < frame.dependencies.count {
+                let childDependency = frame.dependencies[frame.nextDependencyIndex]
+
+                if let cachedResult = cache.results(for: childDependency) {
+                    stack[frameIndex].nextDependencyIndex += 1
+                    stack[frameIndex].results = cachedResult.merged(with: stack[frameIndex].results)
+                    continue
+                }
+
+                if activeDependencies.contains(childDependency) {
+                    stack[frameIndex].nextDependencyIndex += 1
+                    continue
+                }
+
+                activeDependencies.insert(childDependency)
+                stack.append(
+                    StaticProductsFrame(
+                        dependency: childDependency,
+                        dependencies: dependencies(for: childDependency, graphTraverser: graphTraverser),
+                        nextDependencyIndex: 0,
+                        results: StaticProducts()
+                    )
+                )
+            } else {
+                let completedFrame = stack.removeLast()
+                let results = finalize(
+                    results: completedFrame.results,
+                    for: completedFrame.dependency,
+                    graphTraverser: graphTraverser
+                )
+                cache.cache(results: results, for: completedFrame.dependency)
+                activeDependencies.remove(completedFrame.dependency)
+
+                if let parentFrameIndex = stack.indices.last {
+                    stack[parentFrameIndex].nextDependencyIndex += 1
+                    stack[parentFrameIndex].results = results.merged(with: stack[parentFrameIndex].results)
+                } else {
+                    return results
+                }
+            }
         }
+
+        return cache.results(for: dependency) ?? StaticProducts()
+    }
+
+    private func finalize(
+        results: StaticProducts,
+        for dependency: GraphDependency,
+        graphTraverser: GraphTraversing
+    ) -> StaticProducts {
+        var results = results
 
         // Static node case
         if isStaticProduct(dependency, graphTraverser: graphTraverser) {
             results.unlinked.insert(dependency)
-            cache.cache(results: results, for: dependency)
             return results
         }
 
@@ -101,21 +156,12 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
               let dependencyTarget = graphTraverser.target(path: targetPath, name: targetName),
               dependencyTarget.target.canLinkStaticProducts()
         else {
-            cache.cache(
-                results: results,
-                for: dependency
-            )
             return results
         }
 
         while let staticProduct = results.unlinked.popFirst() {
             results.linked[staticProduct, default: Set()].insert(dependency)
         }
-
-        cache.cache(
-            results: results,
-            for: dependency
-        )
 
         return results
     }
@@ -126,6 +172,8 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         graphTraverser: GraphTraversing,
         configGeneratedProjectOptions: TuistGeneratedProjectOptions
     ) -> [StaticDependencyWarning] {
+        guard linkedBy.count > 1 else { return [] }
+
         if shouldSkipDependency(staticProduct, configGeneratedProjectOptions: configGeneratedProjectOptions) {
             return []
         }
@@ -182,6 +230,8 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
 
     private func isStaticProduct(_ dependency: GraphDependency, graphTraverser: GraphTraversing) -> Bool {
         switch dependency {
+        case let .foreignBuildOutput(output):
+            return output.linking == .static
         case let .xcframework(xcframework):
             return xcframework.linking == .static
         case let .framework(_, _, _, _, linking, _, _):
@@ -192,9 +242,10 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             return true
         case let .packageProduct(_, _, type):
             switch type {
-            // Swift package products are currently assumed to be static
+            // Preserve the static assumption for products without a linkage hint.
             case .runtime: return true
             case .runtimeEmbedded: return true
+            case .runtimeDynamic, .runtimeDynamicEmbedded: return false
             case .macro: return false
             case .plugin: return false
             }
@@ -229,7 +280,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             // App Extensions can safely link the same static products as apps
             // as they are an independent product
             return false
-        case (.app, .watch2App):
+        case (.app, .watch2App), (.watch2AppContainer, .watch2App):
             // Watch Apps (and their extension) can safely link the same static products as apps
             // as they are an independent product
             return false
@@ -267,14 +318,20 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         return LintingIssue(
             reason: "\(warning.staticProduct) has been linked from \(names), it is a static product so may introduce unwanted side effects."
                 .uppercasingFirst,
-            severity: .warning
+            severity: .warning,
+            category: .staticSideEffects
         )
     }
-}
 
-// MARK: - Helper Types
+    // MARK: - Helper Types
 
-extension StaticProductsGraphLinter {
+    private struct StaticProductsFrame {
+        let dependency: GraphDependency
+        let dependencies: [GraphDependency]
+        var nextDependencyIndex: Int
+        var results: StaticProducts
+    }
+
     private struct StaticDependencyWarning: Hashable, Comparable {
         var staticProduct: GraphDependency
         var linkingDependencies: [GraphDependency]

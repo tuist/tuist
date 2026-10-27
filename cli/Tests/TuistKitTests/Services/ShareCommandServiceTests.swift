@@ -5,74 +5,79 @@ import Mockable
 import Path
 import SnapshotTesting
 import Testing
+import TuistAndroid
 import TuistAutomation
+import TuistConfigLoader
+import TuistConstants
 import TuistCore
-import TuistLoader
+import TuistGit
+import TuistKit
+import TuistNooraTesting
+import TuistProcess
 import TuistServer
 import TuistSupport
 import TuistTesting
+import TuistTestSupport
+import TuistXcodeBuildProducts
 import XcodeGraph
 
-@testable import TuistKit
+@testable import TuistShareCommand
 
+@Suite(.snapshots)
 struct ShareCommandServiceTests {
     private let subject: ShareCommandService
-    private let xcodeProjectBuildDirectoryLocator: MockXcodeProjectBuildDirectoryLocating
+    private let buildProductService: MockBuildProductServicing
     private let buildGraphInspector: MockBuildGraphInspecting
     private let previewsUploadService: MockPreviewsUploadServicing
     private let configLoader: MockConfigLoading
     private let serverEnvironmentService: MockServerEnvironmentServicing
-    private let manifestLoader: MockManifestLoading
-    private let manifestGraphLoader: MockManifestGraphLoading
-    private let userInputReader: MockUserInputReading
-    private let defaultConfigurationFetcher: MockDefaultConfigurationFetching
+    private let appBundleTargetResolver: MockAppBundleTargetResolving
     private let appBundleLoader: MockAppBundleLoading
     private let fileUnarchiver: MockFileUnarchiving
     private let fileArchiverFactory: MockFileArchivingFactorying
+    private let apkMetadataService: MockAPKMetadataServicing
+    private let gitController: MockGitControlling
     private let fileSystem = FileSystem()
     private let shareURL: URL = .test()
 
     init() {
-        xcodeProjectBuildDirectoryLocator = .init()
+        buildProductService = .init()
         buildGraphInspector = .init()
         previewsUploadService = .init()
         configLoader = .init()
         serverEnvironmentService = .init()
-        manifestLoader = .init()
-        manifestGraphLoader = .init()
-        userInputReader = .init()
-        defaultConfigurationFetcher = .init()
+        appBundleTargetResolver = .init()
         appBundleLoader = .init()
         fileUnarchiver = .init()
         fileArchiverFactory = MockFileArchivingFactorying()
+        apkMetadataService = .init()
+        gitController = .init()
 
         given(fileArchiverFactory)
             .makeFileUnarchiver(for: .any)
             .willReturn(fileUnarchiver)
 
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn(GitInfo(ref: nil, branch: nil, sha: nil, remoteURLOrigin: nil))
+
         subject = ShareCommandService(
-            fileHandler: FileHandler.shared,
             fileSystem: fileSystem,
-            xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
-            buildGraphInspector: buildGraphInspector,
-            previewsUploadService: previewsUploadService,
             configLoader: configLoader,
             serverEnvironmentService: serverEnvironmentService,
-            manifestLoader: manifestLoader,
-            manifestGraphLoader: manifestGraphLoader,
-            userInputReader: userInputReader,
-            defaultConfigurationFetcher: defaultConfigurationFetcher,
-            appBundleLoader: appBundleLoader,
-            fileArchiverFactory: fileArchiverFactory
+            previewsUploadService: previewsUploadService,
+            apkMetadataService: apkMetadataService,
+            fileArchiverFactory: fileArchiverFactory,
+            gitController: gitController,
+            buildProductService: buildProductService,
+            buildGraphInspector: buildGraphInspector,
+            appBundleTargetResolver: appBundleTargetResolver,
+            appBundleLoader: appBundleLoader
         )
 
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
-
-        given(manifestLoader)
-            .hasRootManifest(at: .any)
-            .willReturn(true)
 
         given(serverEnvironmentService)
             .url(configServerURL: .any)
@@ -81,15 +86,16 @@ struct ShareCommandServiceTests {
         given(previewsUploadService)
             .uploadPreview(
                 .any,
-                path: .any,
                 fullHandle: .any,
                 serverURL: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .any,
+                releaseNotes: .any,
                 updateProgress: .any
             )
             .willReturn(.test(url: shareURL))
-
-        Matcher.register([GraphTarget].self)
     }
 
     @Test func share_tuist_project_when_multiple_apps_specified() async throws {
@@ -118,104 +124,38 @@ struct ShareCommandServiceTests {
     func share_tuist_project() async throws {
         // Given
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let workspacePath = projectPath.appending(component: "App.xcworkspace")
 
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist"))
-
-        let appTarget: Target = .test(
-            name: "AppTarget",
-            destinations: [.appleVision, .iPhone],
-            productName: "App"
-        )
-        let appTargetTwo: Target = .test(name: "AppTwo")
-        let project: Project = .test(
-            targets: [
-                appTarget,
-                appTargetTwo,
-            ]
-        )
-        let graphAppTarget = GraphTarget(path: projectPath, target: appTarget, project: project)
-        let graphAppTargetTwo = GraphTarget(
-            path: projectPath, target: appTargetTwo, project: project
-        )
-
-        given(manifestGraphLoader)
-            .load(path: .any, disableSandbox: .any)
-            .willReturn(
-                (
-                    .test(
-                        projects: [
-                            projectPath: project,
-                        ]
-                    ),
-                    [],
-                    MapperEnvironment(),
-                    []
-                )
+        given(appBundleTargetResolver)
+            .resolve(
+                app: .any,
+                path: .any,
+                configuration: .any,
+                platforms: .any,
+                derivedDataPath: .any
             )
+            .willReturn(ResolvedAppBundleTarget(
+                app: "App",
+                workspacePath: workspacePath,
+                configuration: "Debug",
+                platforms: [.iOS, .visionOS],
+                derivedDataPath: nil
+            ))
 
-        given(userInputReader)
-            .readValue(
-                asking: .any,
-                values: .value([
-                    graphAppTarget,
-                    graphAppTargetTwo,
-                ]),
-                valueDescription: .any
-            )
-            .willReturn(graphAppTarget)
+        let iosSimulatorAppPath = projectPath.appending(components: "ios-simulator", "App.app")
+        let iosDeviceAppPath = projectPath.appending(components: "iphoneos", "App.app")
+        let visionOSSimulatorAppPath = projectPath.appending(components: "visionos-simulator", "App.app")
+        try await fileSystem.makeDirectory(at: iosSimulatorAppPath)
+        try await fileSystem.makeDirectory(at: iosDeviceAppPath)
+        try await fileSystem.makeDirectory(at: visionOSSimulatorAppPath)
 
-        given(defaultConfigurationFetcher)
-            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
-            .willReturn("Debug")
-
-        let iosPath = projectPath.appending(component: "ios-simulator")
-        let iosDevicePath = projectPath.appending(component: "iphoneos")
-        try await fileSystem.makeDirectory(at: iosPath)
-        try await fileSystem.makeDirectory(at: iosDevicePath)
-
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.simulator(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosPath)
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.device(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosDevicePath)
-        try await fileSystem.makeDirectory(at: iosPath.appending(component: "App.app"))
-        try await fileSystem.makeDirectory(at: iosDevicePath.appending(component: "App.app"))
-
-        let visionOSPath = projectPath.appending(component: "visionos-simulator")
-        let visionOSDevicePath = projectPath.appending(component: "visionOS")
-        try await fileSystem.makeDirectory(at: visionOSPath)
-        try await fileSystem.makeDirectory(at: visionOSDevicePath)
-
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.simulator(.visionOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(visionOSPath)
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.device(.visionOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(visionOSDevicePath)
-        try await fileSystem.makeDirectory(at: visionOSPath.appending(component: "App.app"))
+        given(buildProductService)
+            .appBundles(app: .any, projectPath: .any, derivedDataPath: .any, configuration: .any, platforms: .any)
+            .willReturn([
+                AppBundle.test(path: iosSimulatorAppPath, destinationType: .simulator(.iOS)),
+                AppBundle.test(path: iosDeviceAppPath, destinationType: .device(.iOS)),
+                AppBundle.test(path: visionOSSimulatorAppPath, destinationType: .simulator(.visionOS)),
+            ])
 
         given(appBundleLoader)
             .load(.any)
@@ -236,88 +176,45 @@ struct ShareCommandServiceTests {
         verify(previewsUploadService)
             .uploadPreview(
                 .any,
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value(nil),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.inTemporaryDirectory)
     func share_tuist_project_when_no_app_found() async throws {
         // Given
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let workspacePath = projectPath.appending(component: "App.xcworkspace")
 
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist"))
-
-        let appTarget: Target = .test(
-            name: "AppTarget",
-            destinations: [.iPhone],
-            productName: "App"
-        )
-        let project: Project = .test(
-            targets: [
-                appTarget,
-            ]
-        )
-        let graphAppTarget = GraphTarget(path: projectPath, target: appTarget, project: project)
-
-        given(manifestGraphLoader)
-            .load(path: .any, disableSandbox: .any)
-            .willReturn(
-                (
-                    .test(
-                        projects: [
-                            projectPath: project,
-                        ]
-                    ),
-                    [],
-                    MapperEnvironment(),
-                    []
-                )
+        given(appBundleTargetResolver)
+            .resolve(
+                app: .any,
+                path: .any,
+                configuration: .any,
+                platforms: .any,
+                derivedDataPath: .any
             )
+            .willReturn(ResolvedAppBundleTarget(
+                app: "App",
+                workspacePath: workspacePath,
+                configuration: "Debug",
+                platforms: [.iOS],
+                derivedDataPath: nil
+            ))
 
-        given(userInputReader)
-            .readValue(
-                asking: .any,
-                values: .value([
-                    graphAppTarget,
-                ]),
-                valueDescription: .any
-            )
-            .willReturn(graphAppTarget)
-
-        given(defaultConfigurationFetcher)
-            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
-            .willReturn("Debug")
-
-        let iosPath = projectPath.appending(component: "ios-simulator")
-        let iosDevicePath = projectPath.appending(component: "iphoneos")
-        try await fileSystem.makeDirectory(at: iosPath)
-        try await fileSystem.makeDirectory(at: iosDevicePath)
-
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.simulator(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosPath)
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.device(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosDevicePath)
+        given(buildProductService)
+            .appBundles(app: .any, projectPath: .any, derivedDataPath: .any, configuration: .any, platforms: .any)
+            .willReturn([])
 
         given(appBundleLoader)
             .load(.any)
@@ -325,7 +222,7 @@ struct ShareCommandServiceTests {
 
         // When / Then
         await #expect(
-            throws: ShareCommandServiceError.noAppsFound(app: "App", configuration: "Debug")
+            throws: AppBundleTargetResolverError.noAppsFound(app: "App", configuration: "Debug")
         ) {
             try await subject.run(
                 path: nil,
@@ -343,77 +240,32 @@ struct ShareCommandServiceTests {
     func share_tuist_project_with_a_specified_app() async throws {
         // Given
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let workspacePath = projectPath.appending(component: "App.xcworkspace")
 
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist"))
-
-        let appTarget: Target = .test(
-            name: "App",
-            destinations: [.appleVision, .iPhone]
-        )
-        let appTargetTwo: Target = .test(name: "AppTwo")
-        let project: Project = .test(
-            targets: [
-                appTarget,
-                appTargetTwo,
-            ]
-        )
-        let graphAppTargetTwo = GraphTarget(
-            path: projectPath, target: appTargetTwo, project: project
-        )
-
-        given(manifestGraphLoader)
-            .load(path: .any, disableSandbox: .any)
-            .willReturn(
-                (
-                    .test(
-                        projects: [
-                            projectPath: project,
-                        ]
-                    ),
-                    [],
-                    MapperEnvironment(),
-                    []
-                )
+        given(appBundleTargetResolver)
+            .resolve(
+                app: .value("AppTwo"),
+                path: .any,
+                configuration: .any,
+                platforms: .any,
+                derivedDataPath: .any
             )
+            .willReturn(ResolvedAppBundleTarget(
+                app: "AppTwo",
+                workspacePath: workspacePath,
+                configuration: "Debug",
+                platforms: [.iOS],
+                derivedDataPath: nil
+            ))
 
-        given(userInputReader)
-            .readValue(
-                asking: .any,
-                values: .value([
-                    graphAppTargetTwo,
-                ]),
-                valueDescription: .any
-            )
-            .willReturn(graphAppTargetTwo)
+        let iosSimulatorAppPath = projectPath.appending(components: "ios-simulator", "AppTwo.app")
+        try await fileSystem.makeDirectory(at: iosSimulatorAppPath)
 
-        given(defaultConfigurationFetcher)
-            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
-            .willReturn("Debug")
-
-        let iosPath = projectPath.appending(component: "ios-simulator")
-        let iosDevicePath = projectPath.appending(component: "iphoneos")
-        try await fileSystem.makeDirectory(at: iosPath)
-        try await fileSystem.makeDirectory(at: iosDevicePath)
-
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.simulator(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosPath)
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.device(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosDevicePath)
-        try await fileSystem.makeDirectory(at: iosPath.appending(component: "AppTwo.app"))
+        given(buildProductService)
+            .appBundles(app: .any, projectPath: .any, derivedDataPath: .any, configuration: .any, platforms: .any)
+            .willReturn([
+                AppBundle.test(path: iosSimulatorAppPath, destinationType: .simulator(.iOS)),
+            ])
 
         given(appBundleLoader)
             .load(.any)
@@ -442,85 +294,54 @@ struct ShareCommandServiceTests {
         verify(previewsUploadService)
             .uploadPreview(
                 .any,
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value(nil),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.withMockedDependencies(), .inTemporaryDirectory)
     func share_tuist_project_with_a_specified_app_and_json_flag() async throws {
         // Given
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let workspacePath = projectPath.appending(component: "App.xcworkspace")
 
-        let appTarget: Target = .test(
-            name: "App"
-        )
-        let project: Project = .test(
-            targets: [
-                appTarget,
-            ]
-        )
-        let graphAppTarget = GraphTarget(path: projectPath, target: appTarget, project: project)
+        given(appBundleTargetResolver)
+            .resolve(
+                app: .any,
+                path: .any,
+                configuration: .any,
+                platforms: .any,
+                derivedDataPath: .any
+            )
+            .willReturn(ResolvedAppBundleTarget(
+                app: "App",
+                workspacePath: workspacePath,
+                configuration: "Debug",
+                platforms: [.iOS],
+                derivedDataPath: nil
+            ))
 
         given(appBundleLoader)
             .load(.any)
             .willReturn(.test())
 
-        given(manifestGraphLoader)
-            .load(path: .any, disableSandbox: .any)
-            .willReturn(
-                (
-                    .test(
-                        projects: [
-                            projectPath: project,
-                        ]
-                    ),
-                    [],
-                    MapperEnvironment(),
-                    []
-                )
-            )
+        let iosSimulatorAppPath = projectPath.appending(components: "ios-simulator", "App.app")
+        try await fileSystem.makeDirectory(at: iosSimulatorAppPath)
 
-        given(userInputReader)
-            .readValue(
-                asking: .any,
-                values: .any,
-                valueDescription: .any
-            )
-            .willReturn(graphAppTarget)
-
-        given(defaultConfigurationFetcher)
-            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
-            .willReturn("Debug")
-
-        let iosPath = projectPath.appending(component: "ios-simulator")
-        let iosDevicePath = projectPath.appending(component: "iphoneos")
-        try await fileSystem.makeDirectory(at: iosPath)
-        try await fileSystem.makeDirectory(at: iosDevicePath)
-
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.simulator(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosPath)
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.device(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosDevicePath)
-        try await fileSystem.makeDirectory(at: iosPath.appending(component: "App.app"))
+        given(buildProductService)
+            .appBundles(app: .any, projectPath: .any, derivedDataPath: .any, configuration: .any, platforms: .any)
+            .willReturn([
+                AppBundle.test(path: iosSimulatorAppPath, destinationType: .simulator(.iOS)),
+            ])
 
         // When
         try await subject.run(
@@ -533,83 +354,40 @@ struct ShareCommandServiceTests {
             track: nil
         )
 
-        TuistTest.expectLogs(#""bundleIdentifier": "dev.tuist.app""#)
-        TuistTest.expectLogs(#""displayName": "App""#)
+        TuistTest.expectLogs(#""bundle_identifier": "dev.tuist.app""#)
+        TuistTest.expectLogs(#""display_name": "App""#)
     }
 
     @Test(.withMockedDependencies(), .inTemporaryDirectory)
     func share_tuist_project_with_a_specified_appclip() async throws {
         // Given
         let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let workspacePath = projectPath.appending(component: "App.xcworkspace")
 
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist"))
-
-        let appClipTarget: Target = .test(
-            name: "AppClip",
-            product: .appClip
-        )
-        let appTarget: Target = .test(name: "App")
-        let project: Project = .test(
-            targets: [
-                appClipTarget,
-                appTarget,
-            ]
-        )
-        let graphAppClipTarget = GraphTarget(
-            path: projectPath, target: appClipTarget, project: project
-        )
-
-        given(manifestGraphLoader)
-            .load(path: .any, disableSandbox: .any)
-            .willReturn(
-                (
-                    .test(
-                        projects: [
-                            projectPath: project,
-                        ]
-                    ),
-                    [],
-                    MapperEnvironment(),
-                    []
-                )
+        given(appBundleTargetResolver)
+            .resolve(
+                app: .value("AppClip"),
+                path: .any,
+                configuration: .any,
+                platforms: .any,
+                derivedDataPath: .any
             )
+            .willReturn(ResolvedAppBundleTarget(
+                app: "AppClip",
+                workspacePath: workspacePath,
+                configuration: "Debug",
+                platforms: [.iOS],
+                derivedDataPath: nil
+            ))
 
-        given(userInputReader)
-            .readValue(
-                asking: .any,
-                values: .any,
-                valueDescription: .any
-            )
-            .willReturn(graphAppClipTarget)
+        let iosSimulatorAppPath = projectPath.appending(components: "ios-simulator", "AppClip.app")
+        try await fileSystem.makeDirectory(at: iosSimulatorAppPath)
 
-        given(defaultConfigurationFetcher)
-            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
-            .willReturn("Debug")
-
-        let iosPath = projectPath.appending(component: "ios-simulator")
-        let iosDevicePath = projectPath.appending(component: "iphoneos")
-        try await fileSystem.makeDirectory(at: iosPath)
-        try await fileSystem.makeDirectory(at: iosDevicePath)
-
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.simulator(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosPath)
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.device(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosDevicePath)
-        try await fileSystem.makeDirectory(at: iosPath.appending(component: "AppClip.app"))
+        given(buildProductService)
+            .appBundles(app: .any, projectPath: .any, derivedDataPath: .any, configuration: .any, platforms: .any)
+            .willReturn([
+                AppBundle.test(path: iosSimulatorAppPath, destinationType: .simulator(.iOS)),
+            ])
 
         given(appBundleLoader)
             .load(.any)
@@ -627,24 +405,24 @@ struct ShareCommandServiceTests {
         )
 
         // Then
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test func share_xcode_app_when_no_app_specified() async throws {
         // Given
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist"))
-
-        manifestLoader.reset()
-
-        given(manifestLoader)
-            .hasRootManifest(at: .any)
-            .willReturn(false)
+        given(appBundleTargetResolver)
+            .resolve(
+                app: .value(nil),
+                path: .any,
+                configuration: .any,
+                platforms: .any,
+                derivedDataPath: .any
+            )
+            .willThrow(AppBundleTargetResolverError.appNotSpecified)
 
         // When / Then
         await #expect(
-            throws: ShareCommandServiceError.appNotSpecified
+            throws: AppBundleTargetResolverError.appNotSpecified
         ) {
             try await subject.run(
                 path: nil,
@@ -664,12 +442,6 @@ struct ShareCommandServiceTests {
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
 
-        manifestLoader.reset()
-
-        given(manifestLoader)
-            .hasRootManifest(at: .any)
-            .willReturn(false)
-
         // When / Then
         await #expect(
             throws: ShareCommandServiceError.multipleAppsSpecified(["AppOne", "AppTwo"])
@@ -688,19 +460,19 @@ struct ShareCommandServiceTests {
 
     @Test func share_xcode_app_when_no_platforms_specified() async throws {
         // Given
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist"))
-
-        manifestLoader.reset()
-
-        given(manifestLoader)
-            .hasRootManifest(at: .any)
-            .willReturn(false)
+        given(appBundleTargetResolver)
+            .resolve(
+                app: .value("App"),
+                path: .any,
+                configuration: .any,
+                platforms: .any,
+                derivedDataPath: .any
+            )
+            .willThrow(AppBundleTargetResolverError.platformsNotSpecified)
 
         // When / Then
         await #expect(
-            throws: ShareCommandServiceError.platformsNotSpecified
+            throws: AppBundleTargetResolverError.platformsNotSpecified
         ) {
             try await subject.run(
                 path: nil,
@@ -719,19 +491,19 @@ struct ShareCommandServiceTests {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
 
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist"))
-
-        manifestLoader.reset()
-
-        given(manifestLoader)
-            .hasRootManifest(at: .any)
-            .willReturn(false)
+        given(appBundleTargetResolver)
+            .resolve(
+                app: .value("App"),
+                path: .any,
+                configuration: .any,
+                platforms: .any,
+                derivedDataPath: .any
+            )
+            .willThrow(AppBundleTargetResolverError.projectOrWorkspaceNotFound(path: path.pathString))
 
         // When / Then
         await #expect(
-            throws: ShareCommandServiceError.projectOrWorkspaceNotFound(path: path.pathString)
+            throws: AppBundleTargetResolverError.projectOrWorkspaceNotFound(path: path.pathString)
         ) {
             try await subject.run(
                 path: path.pathString,
@@ -749,42 +521,32 @@ struct ShareCommandServiceTests {
     func share_xcode_app() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
-
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist"))
-
-        manifestLoader.reset()
-
-        given(manifestLoader)
-            .hasRootManifest(at: .any)
-            .willReturn(false)
-
         let xcodeprojPath = path.appending(component: "App.xcodeproj")
-        try await fileSystem.makeDirectory(at: xcodeprojPath)
 
-        let iosPath = path.appending(component: "ios-simulator")
-        let iosDevicePath = path.appending(component: "iphoneos")
-        try await fileSystem.makeDirectory(at: iosPath)
-        try await fileSystem.makeDirectory(at: iosDevicePath)
+        given(appBundleTargetResolver)
+            .resolve(
+                app: .value("App"),
+                path: .any,
+                configuration: .any,
+                platforms: .any,
+                derivedDataPath: .any
+            )
+            .willReturn(ResolvedAppBundleTarget(
+                app: "App",
+                workspacePath: xcodeprojPath,
+                configuration: "Debug",
+                platforms: [.iOS],
+                derivedDataPath: nil
+            ))
 
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.simulator(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosPath)
-        given(xcodeProjectBuildDirectoryLocator)
-            .locate(
-                destinationType: .value(.device(.iOS)),
-                projectPath: .any,
-                derivedDataPath: .any,
-                configuration: .any
-            )
-            .willReturn(iosDevicePath)
-        try await fileSystem.makeDirectory(at: iosPath.appending(component: "App.app"))
+        let iosSimulatorAppPath = path.appending(components: "ios-simulator", "App.app")
+        try await fileSystem.makeDirectory(at: iosSimulatorAppPath)
+
+        given(buildProductService)
+            .appBundles(app: .any, projectPath: .any, derivedDataPath: .any, configuration: .any, platforms: .any)
+            .willReturn([
+                AppBundle.test(path: iosSimulatorAppPath, destinationType: .simulator(.iOS)),
+            ])
 
         given(appBundleLoader)
             .load(.any)
@@ -805,14 +567,17 @@ struct ShareCommandServiceTests {
         verify(previewsUploadService)
             .uploadPreview(
                 .any,
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value(nil),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.inTemporaryDirectory)
@@ -953,15 +718,18 @@ struct ShareCommandServiceTests {
                         return false
                     }
                 },
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value(nil),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.withMockedDependencies(), .inTemporaryDirectory)
@@ -1020,15 +788,18 @@ struct ShareCommandServiceTests {
                         return false
                     }
                 },
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value(nil),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.inTemporaryDirectory)
@@ -1095,22 +866,26 @@ struct ShareCommandServiceTests {
             platforms: [],
             derivedDataPath: nil,
             json: false,
-            track: "beta"
+            track: "beta",
+            releaseNotes: "Verify the sign-in fix"
         )
 
         // Then
         verify(previewsUploadService)
             .uploadPreview(
                 .any,
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value("beta"),
+                releaseNotes: .value("Verify the sign-in fix"),
                 updateProgress: .any
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
     }
 
     @Test(.withMockedDependencies(), .inTemporaryDirectory)
@@ -1160,14 +935,229 @@ struct ShareCommandServiceTests {
                         return false
                     }
                 },
-                path: .any,
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
                 track: .value("nightly"),
+                releaseNotes: .value(nil),
                 updateProgress: .any
             )
             .called(1)
 
-        assertSnapshot(of: ui(), as: .lines)
+        assertRepositorySnapshot(of: ui(), as: .lines)
+    }
+
+    @Test(.withMockedDependencies(), .inTemporaryDirectory)
+    func share_apk() async throws {
+        // Given
+        let tempPath = try #require(FileSystem.temporaryTestDirectory)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        let apkPath = tempPath.appending(component: "app.apk")
+        try await fileSystem.touch(apkPath)
+
+        let metadata = APKMetadata(
+            packageName: "com.example.app",
+            versionName: "1.0.0",
+            versionCode: "42",
+            displayName: "Example App",
+            iconPath: try RelativePath(validating: "res/mipmap-xxxhdpi-v4/ic_launcher.png")
+        )
+        given(apkMetadataService)
+            .parseMetadata(at: .value(apkPath))
+            .willReturn(metadata)
+
+        // When
+        try await subject.run(
+            path: nil,
+            apps: [apkPath.pathString],
+            configuration: nil,
+            platforms: [],
+            derivedDataPath: nil,
+            json: false,
+            track: nil
+        )
+
+        // Then
+        verify(previewsUploadService)
+            .uploadPreview(
+                .matching {
+                    switch $0 {
+                    case let .apk(path, apkMetadata):
+                        return path == apkPath && apkMetadata == metadata
+                    default:
+                        return false
+                    }
+                },
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                track: .value(nil),
+                releaseNotes: .value(nil),
+                updateProgress: .any
+            )
+            .called(1)
+
+        assertRepositorySnapshot(of: ui(), as: .lines)
+    }
+
+    @Test(.withMockedDependencies(), .inTemporaryDirectory)
+    func share_apk_with_track() async throws {
+        // Given
+        let tempPath = try #require(FileSystem.temporaryTestDirectory)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        let apkPath = tempPath.appending(component: "app.apk")
+        try await fileSystem.touch(apkPath)
+
+        given(apkMetadataService)
+            .parseMetadata(at: .value(apkPath))
+            .willReturn(
+                APKMetadata(
+                    packageName: "com.example.app",
+                    versionName: "2.0.0",
+                    versionCode: "100",
+                    displayName: "My App"
+                )
+            )
+
+        // When
+        try await subject.run(
+            path: nil,
+            apps: [apkPath.pathString],
+            configuration: nil,
+            platforms: [],
+            derivedDataPath: nil,
+            json: false,
+            track: "beta"
+        )
+
+        // Then
+        verify(previewsUploadService)
+            .uploadPreview(
+                .matching {
+                    if case .apk = $0 { return true }
+                    return false
+                },
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .value(Constants.URLs.production),
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                track: .value("beta"),
+                releaseNotes: .value(nil),
+                updateProgress: .any
+            )
+            .called(1)
+
+        assertRepositorySnapshot(of: ui(), as: .lines)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func share_multiple_apks() async throws {
+        // Given
+        let tempPath = try #require(FileSystem.temporaryTestDirectory)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        let apkPath1 = tempPath.appending(component: "app1.apk")
+        let apkPath2 = tempPath.appending(component: "app2.apk")
+        try await fileSystem.touch(apkPath1)
+        try await fileSystem.touch(apkPath2)
+
+        // When / Then
+        await #expect(
+            throws: ShareCommandServiceError.multipleAppsSpecified([
+                apkPath1.pathString, apkPath2.pathString,
+            ])
+        ) {
+            try await subject.run(
+                path: nil,
+                apps: [
+                    apkPath1.pathString,
+                    apkPath2.pathString,
+                ],
+                configuration: nil,
+                platforms: [],
+                derivedDataPath: nil,
+                json: false,
+                track: nil
+            )
+        }
+    }
+
+    @Test(.withMockedDependencies(), .inTemporaryDirectory)
+    func share_apk_with_git_info() async throws {
+        // Given
+        let tempPath = try #require(FileSystem.temporaryTestDirectory)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        let apkPath = tempPath.appending(component: "app.apk")
+        try await fileSystem.touch(apkPath)
+
+        given(apkMetadataService)
+            .parseMetadata(at: .value(apkPath))
+            .willReturn(
+                APKMetadata(
+                    packageName: "com.example.app",
+                    versionName: "1.0.0",
+                    versionCode: "1",
+                    displayName: "App",
+                    iconPath: try RelativePath(validating: "res/mipmap-xxxhdpi-v4/ic_launcher.png")
+                )
+            )
+
+        gitController.reset()
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn(
+                GitInfo(
+                    ref: "refs/heads/feat/android",
+                    branch: "feat/android",
+                    sha: "abc123def456",
+                    remoteURLOrigin: "https://github.com/tuist/tuist.git"
+                )
+            )
+
+        // When
+        try await subject.run(
+            path: nil,
+            apps: [apkPath.pathString],
+            configuration: nil,
+            platforms: [],
+            derivedDataPath: nil,
+            json: false,
+            track: nil
+        )
+
+        // Then
+        verify(previewsUploadService)
+            .uploadPreview(
+                .any,
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .value(Constants.URLs.production),
+                gitBranch: .value("feat/android"),
+                gitCommitSHA: .value("abc123def456"),
+                gitRef: .value("refs/heads/feat/android"),
+                track: .value(nil),
+                releaseNotes: .value(nil),
+                updateProgress: .any
+            )
+            .called(1)
     }
 }

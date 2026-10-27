@@ -1,5 +1,6 @@
 import FileSystem
 import Path
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 
@@ -59,10 +60,10 @@ extension Target {
 
     /// Returns true if the file at the given path is a resource.
     /// - Parameter path: Path to the file to be checked.
-    public static func isResource(path: AbsolutePath) -> Bool {
+    public static func isResource(path: AbsolutePath, fileSystem: FileSysteming) async throws -> Bool {
         if path.isPackage {
             return true
-        } else if !FileHandler.shared.isFolder(path) {
+        } else if try await !fileSystem.exists(path, isDirectory: true) {
             return true
             // We filter out folders that are not Xcode supported bundles such as .app or .framework.
         } else if let `extension` = path.extension, Target.validFolderExtensions.contains(`extension`) {
@@ -90,7 +91,7 @@ extension Target {
             var excluded: [AbsolutePath] = []
             for path in source.excluding {
                 let path = try AbsolutePath(validating: path)
-                let globs = try await fileSystem.glob(
+                let globs = try await fileSystem.manifestGlob(
                     directory: .root,
                     include: [String(path.pathString.dropFirst())]
                 )
@@ -110,29 +111,29 @@ extension Target {
                 invalidGlobs.append(invalidGlob)
             }
 
-            Set(paths)
+            let filteredPaths = try await Set(paths)
                 .subtracting(excluded)
-                .filter { path in
+                .concurrentFilter { path in
                     guard let `extension` = path.extension else { return false }
 
                     let hasValidSourceExtensions = Target.validSourceExtensions
                         .contains(where: { $0.caseInsensitiveCompare(`extension`) == .orderedSame })
 
                     if hasValidSourceExtensions {
-                        // Addition check to prevent folders with name like `Foo.Swift` to be considered as source files.
-                        return !FileHandler.shared.isFolder(path)
+                        return try await !fileSystem.exists(path, isDirectory: true)
                     } else {
-                        // There are extensions should be considered as source files even if they are folders.
                         return Target.validSourceCompatibleFolderExtensions
                             .contains(where: { $0.caseInsensitiveCompare(`extension`) == .orderedSame })
                     }
                 }
-                .forEach { sourceFiles[$0] = SourceFile(
-                    path: $0,
+            for path in filteredPaths {
+                sourceFiles[path] = SourceFile(
+                    path: path,
                     compilerFlags: source.compilerFlags,
                     codeGen: source.codeGen,
                     compilationCondition: source.compilationCondition
-                ) }
+                )
+            }
         }
 
         if !invalidGlobs.isEmpty {
@@ -143,14 +144,15 @@ extension Target {
     }
 
     public var containsResources: Bool {
-        !resources.resources.isEmpty || !coreDataModels.isEmpty
-    }
-
-    public var containsMetalFiles: Bool {
-        sources.contains(where: { $0.path.extension == "metal" }) ||
-            buildableFolders.contains(where: { folder in
-                folder.resolvedFiles.contains(where: { $0.path.extension == "metal" })
-            })
+        if !resources.resources.isEmpty || !coreDataModels.isEmpty { return true }
+        let sourceExtensions = Set(
+            Self.validSourceExtensions
+                + Self.validSourceCompatibleFolderExtensions
+                + Self.validHeaderExtensions
+        )
+        return buildableFolders.contains { folder in
+            folder.resolvedFiles.contains { !sourceExtensions.contains($0.path.extension ?? "") }
+        }
     }
 
     /// Returns if target is a generated resources bundle.

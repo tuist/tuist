@@ -3,6 +3,7 @@
     import Mockable
     import OpenAPIRuntime
     import TuistCore
+    import TuistHTTP
 
     @Mockable
     public protocol MultipartUploadCompleteCacheServicing {
@@ -23,18 +24,33 @@
         case paymentRequired(String)
         case forbidden(String)
         case unauthorized(String)
+        case conflict(String)
 
         public var errorDescription: String? {
             switch self {
             case let .unknownError(statusCode):
                 return "The multi-part upload could not get completed due to an unknown Tuist response of \(statusCode)."
-            case let .notFound(message), let .paymentRequired(message), let .forbidden(message), let .unauthorized(message):
+            case let .notFound(message), let .paymentRequired(message), let .forbidden(message), let .unauthorized(message),
+                 let .conflict(message):
                 return message
             }
         }
     }
 
-    public final class MultipartUploadCompleteCacheService: MultipartUploadCompleteCacheServicing {
+    extension MultipartUploadCompleteCacheServiceError: HTTPStatusCodeError {
+        public var httpStatusCode: Int {
+            switch self {
+            case let .unknownError(statusCode): return statusCode
+            case .notFound: return 404
+            case .paymentRequired: return 402
+            case .forbidden: return 403
+            case .unauthorized: return 401
+            case .conflict: return 409
+            }
+        }
+    }
+
+    public struct MultipartUploadCompleteCacheService: MultipartUploadCompleteCacheServicing {
         public init() {}
 
         public func uploadCache(
@@ -65,6 +81,10 @@
                 case let .json(error):
                     throw MultipartUploadCompleteCacheServiceError.paymentRequired(error.message)
                 }
+            case let .tooManyRequests(tooManyRequests):
+                throw AuthorizationThrottledError(
+                    retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+                )
             case let .undocumented(statusCode: statusCode, _):
                 throw MultipartUploadCompleteCacheServiceError.unknownError(statusCode)
             case let .forbidden(forbiddenResponse):
@@ -81,6 +101,11 @@
                 switch unauthorized.body {
                 case let .json(error):
                     throw MultipartUploadCompleteCacheServiceError.unauthorized(error.message)
+                }
+            case let .conflict(conflict):
+                switch conflict.body {
+                case let .json(error):
+                    throw MultipartUploadCompleteCacheServiceError.conflict(error.message)
                 }
             }
         }

@@ -17,7 +17,7 @@ protocol SynthesizedResourceInterfacesGenerating {
     ) throws -> String
 }
 
-final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating {
+struct SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating {
     func render(
         parser: ResourceSynthesizer.Parser,
         parserOptions: [String: ResourceSynthesizer.Parser.Option],

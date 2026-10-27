@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistConstants
 import TuistCore
 import TuistHTTP
 import TuistServer
@@ -80,7 +81,12 @@ struct UploadAnalyticsServiceTests {
             .cacheDirectory(for: .value(.runs))
             .willReturn(temporaryDirectory)
 
-        let event = CommandEvent.test()
+        let runId = UUID().uuidString
+        let resultBundle = temporaryDirectory
+            .appending(components: runId, "\(Constants.resultBundleName).xcresult")
+        try await fileSystem.makeDirectory(at: resultBundle)
+
+        let event = CommandEvent.test(resultBundlePath: resultBundle)
         let eventID = UUID().uuidString
         let serverCommandEvent: ServerCommandEvent = .test(id: eventID)
 
@@ -96,12 +102,8 @@ struct UploadAnalyticsServiceTests {
             .parse(.value(fullHandle))
             .willReturn(("tuist-org", "tuist"))
 
-        let resultBundle = temporaryDirectory
-            .appending(components: event.runId, "\(Constants.resultBundleName).xcresult")
-        try await fileSystem.makeDirectory(at: resultBundle)
-
         given(analyticsArtifactUploadService)
-            .uploadResultBundle(
+            .uploadAndAnalyzeResultBundle(
                 .value(resultBundle),
                 accountHandle: .value("tuist-org"),
                 projectHandle: .value("tuist"),
@@ -121,6 +123,61 @@ struct UploadAnalyticsServiceTests {
         #expect(got == serverCommandEvent)
         let exists = try await fileSystem.exists(resultBundle)
         #expect(exists == false)
+        // The whole run entry goes, not just the bundle inside it: the run directory is what the
+        // support-cache retention accounts for, and one left behind empty is one it keeps measuring.
+        let runExists = try await fileSystem.exists(temporaryDirectory.appending(component: runId))
+        #expect(runExists == false)
+    }
+
+    @Test(.inTemporaryDirectory) func upload_does_not_upload_result_bundle_when_path_is_nil() async throws {
+        // Given — exercises the "local processing" contract: nil resultBundlePath
+        //         signals that no upload should happen, even if a bundle exists at
+        //         the conventional location.
+        let fileSystem = FileSystem()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory)
+
+        let event = CommandEvent.test(resultBundlePath: nil)
+        let conventionalBundlePath = temporaryDirectory
+            .appending(components: event.runId, "\(Constants.resultBundleName).xcresult")
+        try await fileSystem.makeDirectory(at: conventionalBundlePath)
+
+        let serverCommandEvent: ServerCommandEvent = .test(id: UUID().uuidString)
+
+        given(createCommandEventService)
+            .createCommandEvent(
+                commandEvent: .value(event),
+                projectId: .value(fullHandle),
+                serverURL: .value(serverURL)
+            )
+            .willReturn(serverCommandEvent)
+
+        given(fullHandleService)
+            .parse(.value(fullHandle))
+            .willReturn(("tuist-org", "tuist"))
+
+        // When
+        _ = try await subject.upload(
+            commandEvent: event,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
+
+        // Then
+        verify(analyticsArtifactUploadService)
+            .uploadAndAnalyzeResultBundle(
+                .any,
+                accountHandle: .any,
+                projectHandle: .any,
+                commandEventId: .any,
+                serverURL: .any
+            )
+            .called(0)
+        let exists = try await fileSystem.exists(conventionalBundlePath)
+        #expect(exists == true)
     }
 
     @Test(.inTemporaryDirectory) func upload_does_not_upload_result_bundle_when_not_exists() async throws {
@@ -156,7 +213,7 @@ struct UploadAnalyticsServiceTests {
         // Then
         #expect(got == serverCommandEvent)
         verify(analyticsArtifactUploadService)
-            .uploadResultBundle(
+            .uploadAndAnalyzeResultBundle(
                 .any,
                 accountHandle: .any,
                 projectHandle: .any,
@@ -194,7 +251,7 @@ struct UploadAnalyticsServiceTests {
             .willReturn(("tuist-org", "tuist"))
 
         given(analyticsArtifactUploadService)
-            .uploadResultBundle(
+            .uploadAndAnalyzeResultBundle(
                 .value(customResultBundlePath),
                 accountHandle: .value("tuist-org"),
                 projectHandle: .value("tuist"),
@@ -212,6 +269,155 @@ struct UploadAnalyticsServiceTests {
 
         // Then
         #expect(got == serverCommandEvent)
+    }
+
+    @Test(.inTemporaryDirectory) func upload_uploads_session_when_directory_exists() async throws {
+        // Given
+        let fileSystem = FileSystem()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory)
+
+        let sessionDirectory = temporaryDirectory.appending(component: "session")
+        try await fileSystem.makeDirectory(at: sessionDirectory)
+        try await fileSystem.writeText("log content", at: sessionDirectory.appending(component: "logs.txt"))
+
+        let event = CommandEvent.test()
+        let eventID = UUID().uuidString
+        let serverCommandEvent: ServerCommandEvent = .test(id: eventID)
+
+        given(createCommandEventService)
+            .createCommandEvent(
+                commandEvent: .value(event),
+                projectId: .value(fullHandle),
+                serverURL: .value(serverURL)
+            )
+            .willReturn(serverCommandEvent)
+
+        given(fullHandleService)
+            .parse(.value(fullHandle))
+            .willReturn(("tuist-org", "tuist"))
+
+        given(analyticsArtifactUploadService)
+            .uploadSession(
+                .value(sessionDirectory),
+                accountHandle: .value("tuist-org"),
+                projectHandle: .value("tuist"),
+                commandEventId: .value(eventID),
+                serverURL: .value(serverURL)
+            )
+            .willReturn(())
+
+        // When
+        let got = try await subject.upload(
+            commandEvent: event,
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            sessionDirectory: sessionDirectory
+        )
+
+        // Then
+        #expect(got == serverCommandEvent)
+        verify(analyticsArtifactUploadService)
+            .uploadSession(
+                .any,
+                accountHandle: .any,
+                projectHandle: .any,
+                commandEventId: .any,
+                serverURL: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory) func upload_does_not_upload_session_when_directory_missing() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory)
+
+        let sessionDirectory = temporaryDirectory.appending(component: "nonexistent-session")
+
+        let event = CommandEvent.test()
+        let serverCommandEvent: ServerCommandEvent = .test(id: UUID().uuidString)
+
+        given(createCommandEventService)
+            .createCommandEvent(
+                commandEvent: .value(event),
+                projectId: .value(fullHandle),
+                serverURL: .value(serverURL)
+            )
+            .willReturn(serverCommandEvent)
+
+        given(fullHandleService)
+            .parse(.value(fullHandle))
+            .willReturn(("tuist-org", "tuist"))
+
+        // When
+        let got = try await subject.upload(
+            commandEvent: event,
+            fullHandle: fullHandle,
+            serverURL: serverURL,
+            sessionDirectory: sessionDirectory
+        )
+
+        // Then
+        #expect(got == serverCommandEvent)
+        verify(analyticsArtifactUploadService)
+            .uploadSession(
+                .any,
+                accountHandle: .any,
+                projectHandle: .any,
+                commandEventId: .any,
+                serverURL: .any
+            )
+            .called(0)
+    }
+
+    @Test(.inTemporaryDirectory) func upload_does_not_upload_session_when_nil() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory)
+
+        let event = CommandEvent.test()
+        let serverCommandEvent: ServerCommandEvent = .test(id: UUID().uuidString)
+
+        given(createCommandEventService)
+            .createCommandEvent(
+                commandEvent: .value(event),
+                projectId: .value(fullHandle),
+                serverURL: .value(serverURL)
+            )
+            .willReturn(serverCommandEvent)
+
+        given(fullHandleService)
+            .parse(.value(fullHandle))
+            .willReturn(("tuist-org", "tuist"))
+
+        // When
+        let got = try await subject.upload(
+            commandEvent: event,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
+
+        // Then
+        #expect(got == serverCommandEvent)
+        verify(analyticsArtifactUploadService)
+            .uploadSession(
+                .any,
+                accountHandle: .any,
+                projectHandle: .any,
+                commandEventId: .any,
+                serverURL: .any
+            )
+            .called(0)
     }
 
     @Test(.inTemporaryDirectory) func upload_does_not_delete_result_bundle_outside_runs_directory() async throws {
@@ -245,7 +451,7 @@ struct UploadAnalyticsServiceTests {
             .willReturn(("tuist-org", "tuist"))
 
         given(analyticsArtifactUploadService)
-            .uploadResultBundle(
+            .uploadAndAnalyzeResultBundle(
                 .value(customResultBundlePath),
                 accountHandle: .value("tuist-org"),
                 projectHandle: .value("tuist"),
@@ -264,5 +470,114 @@ struct UploadAnalyticsServiceTests {
         // Then
         let exists = try await fileSystem.exists(customResultBundlePath)
         #expect(exists == true)
+    }
+
+    @Test(.inTemporaryDirectory) func upload_does_not_delete_a_caller_tree_that_sits_under_the_runs_directory() async throws {
+        // Given
+        let fileSystem = FileSystem()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory)
+
+        // A caller who points --result-bundle-path inside the runs cache. Their tree is theirs.
+        let callerTree = temporaryDirectory.appending(component: "my-runs")
+        let resultBundle = callerTree.appending(components: "build-42", "out.xcresult")
+        try await fileSystem.makeDirectory(at: resultBundle)
+
+        let event = CommandEvent.test(resultBundlePath: resultBundle)
+        let eventID = UUID().uuidString
+        let serverCommandEvent: ServerCommandEvent = .test(id: eventID)
+
+        given(createCommandEventService)
+            .createCommandEvent(
+                commandEvent: .value(event),
+                projectId: .value(fullHandle),
+                serverURL: .value(serverURL)
+            )
+            .willReturn(serverCommandEvent)
+
+        given(fullHandleService)
+            .parse(.value(fullHandle))
+            .willReturn(("tuist-org", "tuist"))
+
+        given(analyticsArtifactUploadService)
+            .uploadAndAnalyzeResultBundle(
+                .value(resultBundle),
+                accountHandle: .value("tuist-org"),
+                projectHandle: .value("tuist"),
+                commandEventId: .value(eventID),
+                serverURL: .value(serverURL)
+            )
+            .willReturn(())
+
+        // When
+        _ = try await subject.upload(
+            commandEvent: event,
+            fullHandle: fullHandle,
+            serverURL: serverURL
+        )
+
+        // Then: walking up to whatever child of the runs directory the path descends from would
+        // take the whole tree with it.
+        #expect(try await fileSystem.exists(callerTree))
+        #expect(try await fileSystem.exists(resultBundle))
+    }
+
+    @Test(.inTemporaryDirectory) func upload_removes_the_run_when_the_result_bundle_upload_fails() async throws {
+        // Given
+        let fileSystem = FileSystem()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory)
+
+        let runId = UUID().uuidString
+        let resultBundle = temporaryDirectory
+            .appending(components: runId, "\(Constants.resultBundleName).xcresult")
+        try await fileSystem.makeDirectory(at: resultBundle)
+
+        let event = CommandEvent.test(resultBundlePath: resultBundle)
+        let eventID = UUID().uuidString
+        let serverCommandEvent: ServerCommandEvent = .test(id: eventID)
+
+        given(createCommandEventService)
+            .createCommandEvent(
+                commandEvent: .value(event),
+                projectId: .value(fullHandle),
+                serverURL: .value(serverURL)
+            )
+            .willReturn(serverCommandEvent)
+
+        given(fullHandleService)
+            .parse(.value(fullHandle))
+            .willReturn(("tuist-org", "tuist"))
+
+        struct UploadError: Error {}
+        given(analyticsArtifactUploadService)
+            .uploadAndAnalyzeResultBundle(
+                .value(resultBundle),
+                accountHandle: .value("tuist-org"),
+                projectHandle: .value("tuist"),
+                commandEventId: .value(eventID),
+                serverURL: .value(serverURL)
+            )
+            .willThrow(UploadError())
+
+        // When
+        await #expect(throws: UploadError.self) {
+            try await subject.upload(
+                commandEvent: event,
+                fullHandle: fullHandle,
+                serverURL: serverURL
+            )
+        }
+
+        // Then: nothing retries the upload, so a bundle kept after a failure is a bundle kept
+        // forever, and on a runner's cache volume that is the leak that filled it.
+        let runExists = try await fileSystem.exists(temporaryDirectory.appending(component: runId))
+        #expect(runExists == false)
     }
 }

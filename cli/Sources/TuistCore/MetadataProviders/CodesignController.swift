@@ -1,7 +1,7 @@
-import Command
 import Foundation
 import Mockable
 import Path
+import TuistProcess
 
 /// Utility to interact with the `codesign` CLI.
 @Mockable
@@ -32,7 +32,7 @@ public struct CodesignController: CodesignControlling {
             .concatenatedString()
             .trimmingCharacters(in: .whitespaces)
         } catch let error as CommandError {
-            if case let .terminated(_, stdErr) = error, stdErr.contains("code object is not signed at all") {
+            if case let .terminated(_, stdErr, _) = error, stdErr.contains("code object is not signed at all") {
                 return nil
             } else {
                 throw error

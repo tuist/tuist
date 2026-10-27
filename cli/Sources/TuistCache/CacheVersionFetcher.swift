@@ -24,10 +24,39 @@ enum CacheVersion: String, Equatable, Hashable {
     /// important to bump the cache version to
     /// flag those artifacts as invalid.
     case version3 = "3"
+
+    /// Static frameworks are now copied when generating projects, changing the products structure. We need to invalidate
+    /// previously cached artifacts that relied on the old layout.
+    case version4 = "4"
+
+    /// Reverted static framework resource embedding (resources go back into separate .bundle targets).
+    /// Existing caches from the embedding approach must be invalidated.
+    case version5 = "5"
+
+    /// Cache artifacts switched from uncompressed zip (store) to AppleArchive/LZFSE, which is a
+    /// different, Apple-only archive format that older CLIs cannot read. Bumping the version moves
+    /// the new artifacts into a namespace those clients never resolve, so they fall back to a cache
+    /// miss instead of downloading an archive they can't decompress.
+    case version6 = "6"
+
+    /// Cached resource `.bundle`s are now stripped of their `CFBundleSupportedPlatforms` key, which was
+    /// stamped `[iPhoneSimulator]` because bundles are built for the simulator SDK and caused App Store
+    /// Connect to reject device archives with error 90542. Existing artifacts still carry the key, and
+    /// since the fix changes the stored bundle rather than its content hash, they must be invalidated so
+    /// they get re-warmed and normalized.
+    case version7 = "7"
+
+    /// Debug artifacts now carry linked debug information and source identities in every XCFramework slice.
+    /// Older products can depend on the warming machine's objects/CAS and cannot support restored source debugging.
+    case version8 = "8"
+
+    /// Source metadata now includes generated/buildable-folder identities and multiple verified DWARF spellings.
+    /// Cold-miss experimental version-8 artifacts so unsupported metadata cannot occupy otherwise valid warm keys.
+    case version9 = "9"
 }
 
 struct CacheVersionFetcher: CacheVersionFetching {
     func version() -> CacheVersion {
-        .version3
+        .version9
     }
 }

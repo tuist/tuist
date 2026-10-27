@@ -116,9 +116,7 @@ public struct TextTable<T> {
 
         return widths
     }
-}
 
-extension TextTable {
     public struct Column {
         let title: String
         let value: CustomStringConvertible
@@ -128,9 +126,7 @@ extension TextTable {
             self.value = value
         }
     }
-}
 
-extension TextTable {
     private struct Cell {
         let value: String
 

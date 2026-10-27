@@ -4,7 +4,6 @@ defmodule TuistWeb.WarningsHeaderPlugTest do
 
   import Plug.Test
 
-  alias Tuist.GitHub.Releases
   alias TuistWeb.Headers
   alias TuistWeb.WarningsHeaderPlug
 
@@ -23,10 +22,24 @@ defmodule TuistWeb.WarningsHeaderPlugTest do
   end
 
   describe "call/2" do
+    test "doesn't add warnings when the request has no CLI version" do
+      # Given
+      conn =
+        :get
+        |> conn("/")
+        |> WarningsHeaderPlug.put_warning("warning")
+
+      # When
+      got = WarningsHeaderPlug.call(conn, %{})
+      [before_send_hook] = got.private.before_send
+      got = before_send_hook.(got)
+
+      # Then
+      assert Plug.Conn.get_resp_header(got, "x-tuist-cloud-warnings") == []
+    end
+
     test "it doesn't return the warnings if the version is lower than 4.11.0" do
       # Given
-      Mimic.stub(Releases, :get_latest_cli_release, fn _opts -> %{name: "4.56.1"} end)
-
       conn =
         :get
         |> conn("/")
@@ -44,8 +57,6 @@ defmodule TuistWeb.WarningsHeaderPlugTest do
 
     test "it returns the warnings if the version is higher or equal than 4.11.0" do
       # Given
-      Mimic.stub(Releases, :get_latest_cli_release, fn _opts -> %{name: "4.56.1"} end)
-
       conn =
         :get
         |> conn("/")
@@ -60,20 +71,18 @@ defmodule TuistWeb.WarningsHeaderPlugTest do
       # Then
       warning = got |> Plug.Conn.get_resp_header("x-tuist-cloud-warnings") |> List.first()
 
-      assert Jason.decode!(Base.decode64!(warning)) == [
-               "Your Tuist version 4.11.0 is deprecated. Please upgrade to version 4.56.1 for server-side features to continue working.",
+      assert JSON.decode!(Base.decode64!(warning)) == [
+               "Your Tuist version 4.11.0 is deprecated. Please upgrade to the latest version for server-side features to continue working.",
                "warning"
              ]
     end
 
-    test "it returns a deprecation warning if the version is lower than 4.56.1" do
+    test "it returns a deprecation warning if the version is lower than 4.150.0" do
       # Given
-      Mimic.stub(Releases, :get_latest_cli_release, fn _opts -> %{name: "4.56.1"} end)
-
       conn =
         :get
         |> conn("/")
-        |> Plug.Conn.put_req_header(Headers.cli_version_header(), "4.56.0")
+        |> Plug.Conn.put_req_header(Headers.cli_version_header(), "4.149.0")
 
       # When
       got = WarningsHeaderPlug.call(conn, %{})
@@ -83,19 +92,17 @@ defmodule TuistWeb.WarningsHeaderPlugTest do
       # Then
       warning = got |> Plug.Conn.get_resp_header("x-tuist-cloud-warnings") |> List.first()
 
-      assert Jason.decode!(Base.decode64!(warning)) == [
-               "Your Tuist version 4.56.0 is deprecated. Please upgrade to version 4.56.1 for server-side features to continue working."
+      assert JSON.decode!(Base.decode64!(warning)) == [
+               "Your Tuist version 4.149.0 is deprecated. Please upgrade to the latest version for server-side features to continue working."
              ]
     end
 
-    test "it doesn't return a deprecation warning if the version is higher or equal than 4.56.1" do
+    test "it doesn't return a deprecation warning if the version is higher or equal than 4.150.0" do
       # Given
-      Mimic.stub(Releases, :get_latest_cli_release, fn _opts -> %{name: "4.56.1"} end)
-
       conn =
         :get
         |> conn("/")
-        |> Plug.Conn.put_req_header(Headers.cli_version_header(), "4.56.1")
+        |> Plug.Conn.put_req_header(Headers.cli_version_header(), "4.150.0")
 
       # When
       got = WarningsHeaderPlug.call(conn, %{})

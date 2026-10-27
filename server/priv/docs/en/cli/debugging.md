@@ -1,0 +1,127 @@
+---
+{
+  "title": "Debugging",
+  "titleTemplate": ":title · CLI · Tuist",
+  "description": "Learn how to debug issues with Tuist using logs and network recordings."
+}
+---
+# Debugging {#debugging}
+
+Tuist provides several tools to help you diagnose issues when commands don't behave as expected.
+
+> [!WARNING]
+> Session data may contain sensitive information such as file paths, project names, and request/response bodies. While sensitive headers (like Authorization) are redacted, be mindful when sharing session data with others.
+
+
+## Session data {#session-data}
+
+If a command invocation doesn't yield the intended results, you can diagnose the issue by inspecting the session data. The CLI forwards the logs to [OSLog](https://developer.apple.com/documentation/os/oslog) and the file-system.
+
+In every run, it creates a session directory at `$XDG_STATE_HOME/tuist/sessions/{uuid}/` where `$XDG_STATE_HOME` takes the value `~/.local/state` if the environment variable is not set. You can also use `$TUIST_XDG_STATE_HOME` to set a Tuist-specific state directory, which takes precedence over `$XDG_STATE_HOME`.
+
+Each session directory contains:
+- **`logs.txt`** - Text logs from the CLI session
+- **`network.har`** - [HTTP Archive (HAR)](https://w3c.github.io/web-performance/specs/HAR/Overview.html) file containing all network requests and responses made during the session
+
+### Visualizing HAR files {#visualizing-har-files}
+
+The HAR file records all HTTP requests and responses made during the session, which is useful for debugging server communication issues. You can open HAR files with several tools:
+
+- **[Proxyman](https://proxyman.io/)**: A native macOS app for viewing and analyzing HTTP traffic. Import the HAR file via File > Import.
+- **Browser Developer Tools**: Chrome, Firefox, and Safari all support importing HAR files in their Network tab.
+- **[HAR Viewer](http://www.softwareishard.com/har/viewer/)**: A web-based HAR file viewer.
+
+> [!TIP]
+> Learn more about Tuist's directory organization and how to configure custom directories in the <.localized_link href="/cli/directories">Directories documentation</.localized_link>.
+
+
+By default, the CLI outputs the session path when the execution exits unexpectedly. If it doesn't, you can find the session data in the path mentioned above (i.e., the most recent session directory).
+
+Session directories older than 5 days are automatically cleaned up. Tuist also keeps at most 50 inactive session directories by default, while preserving sessions owned by currently running Tuist processes. In CI environments that run many Tuist commands with the same state directory, you can raise the inactive-session cap with `TUIST_SESSION_MAX_SESSIONS`, for example `TUIST_SESSION_MAX_SESSIONS=200`. Invalid values, zero, and negative values are ignored and Tuist falls back to the default of 50.
+
+### Continuous integration {#diagnose-issues-using-logs-ci}
+
+In CI, where environments are disposable, you might want to configure your CI pipeline to export Tuist session data.
+Exporting artifacts is a common capability across CI services, and the configuration depends on the service you use.
+For example, in GitHub Actions, you can use the `actions/upload-artifact` action to upload the session data as an artifact:
+
+```yaml
+name: Node CI
+
+on: [push]
+
+env:
+  TUIST_XDG_STATE_HOME: /tmp
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      # ... other steps
+      - run: tuist generate
+      # ... do something with the project
+      - name: Export Tuist session data
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tuist-sessions
+          path: /tmp/tuist/sessions/
+```
+
+### Xcode cache debugging {#cache-daemon-debugging}
+
+To debug Xcode cache issues, set `TUIST_CAS_LOG` to a file path both when running `tuist setup cache` and when building. Tuist appends cache statistics and errors to that file:
+
+```bash
+export TUIST_CAS_LOG=$HOME/.local/state/tuist/cas.log
+tuist setup cache
+xcodebuild build -scheme YourScheme
+```
+
+On CI, Tuist writes this log to `~/.local/state/tuist/cas.log` without any configuration.
+
+## Tuning network timeouts and retries {#tuning-network-timeouts}
+
+All of Tuist's [Hypertext Transfer Protocol (HTTP)](https://developer.mozilla.org/en-US/docs/Web/HTTP) traffic, including server calls, the registry, previews, and cache artifact transfers, goes through a shared `URLSession` with sensible defaults. On slow or congested network paths (for example, a self-hosted setup reaching object storage through a corporate proxy), an individual request can starve and hit the resource timeout before it completes. For cache downloads in particular, hitting the timeout makes Tuist fall back to building the module from source, which is far more expensive than waiting a bit longer for the cached binary. You can tune the underlying settings through environment variables, with the defaults applied when they are unset or set to an invalid value:
+
+```bash
+# Maximum time (in seconds) a single resource transfer can take before it's cancelled
+# (default: 90, or 600 for whole-file transfers such as test-product shard artifacts)
+export TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE=600
+
+# Maximum time (in seconds) to wait for new data on an existing request (default: 120)
+export TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST=300
+
+# Maximum number of simultaneous connections per host (default: 20)
+export TUIST_HTTP_MAXIMUM_CONNECTIONS_PER_HOST=40
+
+# Maximum retries after the initial attempt (default: 3, maximum: 10)
+export TUIST_HTTP_MAXIMUM_RETRY_COUNT=1
+
+# Initial exponential backoff delay in milliseconds (default: 100, maximum: 30000)
+export TUIST_HTTP_RETRY_BASE_DELAY_IN_MILLISECONDS=250
+```
+
+The resource timeout is a wall-clock cap on the whole transfer, not a stall guard, so it has to be large enough for the biggest artifact you move. Whole-file transfers, such as the test products a shard downloads, therefore default to 10 minutes instead of 90 seconds, and a stalled transfer still fails after `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST` without new data. Those transfers read `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` only to raise their cap, never to lower it below 10 minutes, so a value chosen to make cache requests fail fast does not also cancel a shard's download of its test products. Raising `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` lets a recoverable but slow download finish instead of timing out. For cache downloads, that means landing a cache hit rather than falling back to a build from source, so raise it deliberately: the same value that keeps a slow cache download alive also delays the fallback to building from source. Lowering `TUIST_HTTP_MAXIMUM_RETRY_COUNT` can keep a longer timeout from multiplying the worst-case wait across several attempts. Retry delays double after every failure, include up to one base delay of random jitter, and never exceed 30 seconds.
+
+## Trusting a custom CA certificate {#trusting-a-custom-ca-certificate}
+
+By default, Tuist validates TLS certificates against the operating system's root store. When you run a self-hosted Tuist or Kura server that uses a private certificate authority, Tuist needs to trust that CA too. Installing the root in the System keychain (and marking it trusted for SSL) is the standard approach, but that's often impractical on headless CI hosts where there's no GUI session or mobile device management (MDM) to set the trust bit.
+
+In those cases you can point Tuist at a CA certificate bundle directly. The bundle can be PEM (one or more concatenated `-----BEGIN CERTIFICATE-----` blocks) or a single DER file. The system root store stays trusted alongside it, so public certificates keep validating normally and certificate evaluation is never bypassed.
+
+```bash
+# Path to a PEM/DER CA bundle to trust on top of the system root store (default: unset)
+export TUIST_CA_CERTIFICATE=/etc/ssl/certs/self-hosted-ca.pem
+```
+
+You can also declare it in your <.localized_link href="/references/tuist-toml">configuration file</.localized_link>:
+
+```toml
+[network]
+ca_certificate = "/etc/ssl/certs/self-hosted-ca.pem"
+```
+
+The `TUIST_CA_CERTIFICATE` environment variable takes precedence over the configuration file, which makes it convenient to provide as a CI secret without changing the committed manifest.

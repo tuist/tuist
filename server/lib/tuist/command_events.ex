@@ -9,17 +9,29 @@ defmodule Tuist.CommandEvents do
   alias Tuist.ClickHouseFlop
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents.Event
+  alias Tuist.CommandEvents.ModuleCacheOutput
   alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
   alias Tuist.Storage
   alias Tuist.Time
 
+  @optimized_list_index_fields [:id, :project_id, :ran_at, :duration, :hit_rate]
+
   def list_command_events(attrs, _opts \\ []) do
-    {results, meta} = ClickHouseFlop.validate_and_run!(Event, attrs, for: Event)
+    optimized_table = sort_optimized_table(attrs)
+
+    queryable =
+      case optimized_table do
+        nil -> Event
+        table -> from(event in {table, Event}, select: struct(event, @optimized_list_index_fields))
+      end
+
+    {results, meta} = ClickHouseFlop.validate_and_run!(queryable, attrs, for: Event)
 
     results =
       results
+      |> hydrate_optimized_list_results(optimized_table)
       |> Enum.map(&Event.normalize_enums/1)
       |> attach_user_account_names()
 
@@ -66,7 +78,7 @@ defmodule Tuist.CommandEvents do
     with {:ok, uuid} <- Ecto.UUID.cast(id),
          event when not is_nil(event) <-
            ClickHouseRepo.one(from(e in Event, where: e.id == ^uuid)) do
-      {:ok, Event.normalize_enums(event)}
+      {:ok, Repo.preload(Event.normalize_enums(event), :actor_account)}
     else
       _ ->
         {:error, :not_found}
@@ -117,7 +129,28 @@ defmodule Tuist.CommandEvents do
 
   def generate_result_bundle_url(command_event) do
     {:ok, project} = get_project_for_command_event(command_event, preload: :account)
-    Storage.generate_download_url(get_result_bundle_key(command_event), project.account)
+    result_bundle_download_url(get_result_bundle_key(command_event), project.account)
+  end
+
+  # Run-scoped variants for remote-processed test runs (`tuist inspect test`),
+  # which store the bundle under the test run id and have no command_event.
+  # `project` must have `:account` preloaded.
+  def has_result_bundle?(run_id, project) when is_binary(run_id) do
+    Storage.object_exists?(get_result_bundle_key(run_id, project), project.account)
+  end
+
+  def generate_result_bundle_url(run_id, project) when is_binary(run_id) do
+    result_bundle_download_url(get_result_bundle_key(run_id, project), project.account)
+  end
+
+  def has_session?(command_event) do
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+    Storage.object_exists?(get_session_key(command_event), project.account)
+  end
+
+  def generate_session_url(command_event) do
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+    Storage.generate_download_url(get_session_key(command_event), project.account)
   end
 
   def get_result_bundle_key(command_event) do
@@ -136,6 +169,16 @@ defmodule Tuist.CommandEvents do
     "#{project.account.name}/#{project.name}/runs/#{command_event.id}/#{result_bundle_object_id}.json"
   end
 
+  def get_stress_result_bundle_key(command_event) do
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+    "#{project.account.name}/#{project.name}/runs/#{command_event.id}/stress_result_bundle.zip"
+  end
+
+  def get_session_key(command_event) do
+    {:ok, project} = get_project_for_command_event(command_event, preload: :account)
+    "#{project.account.name}/#{project.name}/runs/#{command_event.id}/session.zip"
+  end
+
   def get_result_bundle_key(run_id, project) do
     "#{get_command_event_artifact_base_path_key(run_id, project)}/result_bundle.zip"
   end
@@ -148,11 +191,37 @@ defmodule Tuist.CommandEvents do
     "#{get_command_event_artifact_base_path_key(run_id, project)}/#{result_bundle_object_id}.json"
   end
 
+  def get_stress_result_bundle_key(run_id, project) do
+    "#{get_command_event_artifact_base_path_key(run_id, project)}/stress_result_bundle.zip"
+  end
+
+  def get_session_key(run_id, project) do
+    "#{get_command_event_artifact_base_path_key(run_id, project)}/session.zip"
+  end
+
+  defp result_bundle_download_url(object_key, account) do
+    filename =
+      case Storage.get_object_range(object_key, 0..1, account) do
+        {:ok, <<0x50, 0x4B, _rest::binary>>} -> "result_bundle.zip"
+        {:ok, _other_format} -> "result_bundle.aar"
+        {:error, _reason} -> "result_bundle.zip"
+      end
+
+    Storage.generate_download_url(object_key, account, content_disposition: ~s(attachment; filename="#{filename}"))
+  end
+
   def get_command_event_artifact_base_path_key(run_id, project) do
     "#{project.account.name}/#{project.name}/runs/#{run_id}"
   end
 
   def create_command_event(event, _opts \\ []) do
+    case Repo.one(from(p in Project, where: p.id == ^event.project_id, preload: :account)) do
+      nil -> {:error, :not_found}
+      project -> {:ok, insert_command_event(event, project)}
+    end
+  end
+
+  defp insert_command_event(event, project) do
     # Process the command arguments to be a string for both databases
     processed_event =
       Map.merge(event, %{
@@ -167,14 +236,11 @@ defmodule Tuist.CommandEvents do
 
     event_attrs = Event.changeset(processed_event)
     command_event = struct(Event, event_attrs)
-    {:ok, _} = Tuist.CommandEvents.Buffer.insert(command_event)
-
-    project = Repo.get!(Project, command_event.project_id)
-    account = Repo.get!(Account, project.account_id)
+    {:ok, _} = Event.Buffer.insert(command_event)
 
     Tuist.PubSub.broadcast(
       command_event,
-      "#{account.name}/#{project.name}",
+      "#{project.account.name}/#{project.name}",
       :command_event_created
     )
 
@@ -211,6 +277,82 @@ defmodule Tuist.CommandEvents do
     command_event
   end
 
+  @doc """
+  Persists per-artifact module (binary) cache transfer operations for a command event.
+
+  Mirrors `Tuist.Builds.create_cas_outputs/2` but keys the rows by `command_event_id`,
+  since module cache artifacts are fetched during `tuist generate`, before any build run
+  exists. Writes are buffered and flushed asynchronously to ClickHouse.
+  """
+  def create_module_cache_outputs(command_event, transfers) do
+    rows =
+      transfers
+      |> Enum.map(&ModuleCacheOutput.changeset(command_event.id, command_event.project_id, &1))
+      |> Enum.map(&Ecto.Changeset.apply_changes/1)
+      |> Enum.map(fn struct ->
+        %{
+          command_event_id: struct.command_event_id,
+          project_id: struct.project_id,
+          operation: struct.operation,
+          name: struct.name,
+          hash: struct.hash,
+          size: struct.size,
+          compressed_size: struct.compressed_size,
+          duration: struct.duration,
+          inserted_at: struct.inserted_at
+        }
+      end)
+
+    ModuleCacheOutput.Buffer.insert_all(rows)
+  end
+
+  @doc """
+  Returns the module (binary) cache network transfer summary for a single command event: the artifact
+  counts, the bytes transferred over the wire, and the time-weighted average download/upload throughput
+  (bytes per second) downloaded from and uploaded to the remote cache. Byte totals and throughput use
+  `compressed_size` (the on-the-wire payload) rather than `size` (the on-disk artifact), since this is
+  network analytics. Mirrors `Tuist.Builds.cas_output_metrics/1` but keyed by `command_event_id`. Used
+  to surface per-run transfer cost on the run detail page.
+  """
+  def module_cache_output_metrics(command_event_id) do
+    # ClickHouse aggregates the conditional sums (`countIf`/`sumIf`) via fragments; the throughput
+    # division is derived in Elixir. Byte totals cover all rows; throughput only weights rows with a
+    # recorded duration.
+    metrics =
+      ClickHouseRepo.one(
+        from(o in ModuleCacheOutput,
+          where: o.command_event_id == ^command_event_id,
+          select: %{
+            download_count: fragment("countIf(? = 'download')", o.operation),
+            upload_count: fragment("countIf(? = 'upload')", o.operation),
+            download_bytes: fragment("sumIf(?, ? = 'download')", o.compressed_size, o.operation),
+            upload_bytes: fragment("sumIf(?, ? = 'upload')", o.compressed_size, o.operation),
+            download_transferred_bytes:
+              fragment("sumIf(?, ? = 'download' AND ? > 0)", o.compressed_size, o.operation, o.duration),
+            download_transferred_ms: fragment("sumIf(?, ? = 'download' AND ? > 0)", o.duration, o.operation, o.duration),
+            upload_transferred_bytes:
+              fragment("sumIf(?, ? = 'upload' AND ? > 0)", o.compressed_size, o.operation, o.duration),
+            upload_transferred_ms: fragment("sumIf(?, ? = 'upload' AND ? > 0)", o.duration, o.operation, o.duration)
+          }
+        )
+      )
+
+    %{
+      download_count: metrics.download_count || 0,
+      upload_count: metrics.upload_count || 0,
+      download_bytes: metrics.download_bytes || 0,
+      upload_bytes: metrics.upload_bytes || 0,
+      download_throughput:
+        throughput_bytes_per_second(metrics.download_transferred_bytes, metrics.download_transferred_ms),
+      upload_throughput: throughput_bytes_per_second(metrics.upload_transferred_bytes, metrics.upload_transferred_ms)
+    }
+  end
+
+  # Time-weighted average throughput in bytes per second, 0 when nothing with a duration transferred.
+  defp throughput_bytes_per_second(_bytes, ms) when ms in [nil, 0], do: 0
+  defp throughput_bytes_per_second(nil, _ms), do: 0
+  defp throughput_bytes_per_second(bytes, ms), do: bytes / ms * 1000
+
   defp truncate_error_message(error_message) do
     if not is_nil(error_message) and String.length(error_message) > 255 do
       String.slice(error_message, 0, 240) <> "... (truncated)"
@@ -219,24 +361,23 @@ defmodule Tuist.CommandEvents do
     end
   end
 
-  def account_month_usage(account_id, date \\ DateTime.utc_now()) do
+  @doc """
+  The cache counting window shared by monthly usage and Air notifications.
+  A mid-month free-tier reset moves its start forward until the next month.
+  """
+  def usage_counted_from(%Account{free_tier_reset_at: reset_at}, date) do
     beginning_of_month = Timex.beginning_of_month(date)
 
-    project_ids = Repo.all(from(p in Project, where: p.account_id == ^account_id, select: p.id))
-
-    ClickHouseRepo.one(
-      from(c in Event,
-        where: c.project_id in ^project_ids,
-        where: c.ran_at >= ^beginning_of_month,
-        where: c.remote_cache_hits_count > 0 or c.remote_test_hits_count > 0,
-        select: %{remote_cache_hits_count: count(c.id)}
-      )
-    )
+    if is_nil(reset_at) or DateTime.before?(reset_at, beginning_of_month) do
+      beginning_of_month
+    else
+      reset_at
+    end
   end
 
   def delete_account_events(account_id) do
     project_ids = Repo.all(from(p in Project, where: p.account_id == ^account_id, select: p.id))
-    IngestRepo.delete_all(from(c in Event, where: c.project_id in ^project_ids))
+    delete_events_for_project_ids(project_ids)
   end
 
   def list_billable_customers do
@@ -267,52 +408,73 @@ defmodule Tuist.CommandEvents do
     end
   end
 
-  def get_yesterdays_remote_cache_hits_count_for_customer(customer_id) do
-    now = DateTime.utc_now()
-    start_of_yesterday = now |> Timex.shift(days: -1) |> Timex.beginning_of_day()
-    end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
+  def delete_project_events(project_id) do
+    delete_events_for_project_ids([project_id])
+  end
 
-    from(p in Project,
-      join: a in Account,
-      on: p.account_id == a.id,
-      where: a.customer_id == ^customer_id,
-      select: p.id
-    )
-    |> Repo.all()
-    |> case do
-      [] ->
-        0
+  defp delete_events_for_project_ids([]), do: :ok
 
-      project_ids ->
-        ClickHouseRepo.one(
-          from(e in Event,
-            where:
-              e.ran_at >= ^start_of_yesterday and e.ran_at <= ^end_of_yesterday and
-                e.project_id in ^project_ids,
-            select:
-              sum(
-                fragment(
-                  "CASE WHEN COALESCE(length(?), 0) > 0 OR COALESCE(length(?), 0) > 0 THEN 1 ELSE 0 END",
-                  e.remote_cache_target_hits,
-                  e.remote_test_target_hits
-                )
-              )
-          )
-        )
+  defp delete_events_for_project_ids(project_ids) do
+    tables = ["command_events" | materialized_view_tables("command_events")]
+
+    Enum.each(tables, fn table ->
+      IngestRepo.query!(
+        "ALTER TABLE #{table} DELETE WHERE project_id IN ({project_ids:Array(Int64)}) SETTINGS mutations_sync = 0",
+        %{"project_ids" => project_ids}
+      )
+    end)
+  end
+
+  defp materialized_view_tables(source_table) do
+    {:ok, %{rows: rows}} =
+      metadata_repo_query(
+        "SELECT name FROM system.tables WHERE database = currentDatabase() AND engine = 'MaterializedView' AND has(dependencies_table, {source:String})",
+        %{"source" => source_table}
+      )
+
+    List.flatten(rows)
+  end
+
+  defp metadata_repo_query(query, params) do
+    if metadata_queries_bypass_dynamic_repo?() do
+      # ClickHouse system tables do not participate in transactions, so test
+      # metadata introspection has to bypass the sandboxed dynamic repo even
+      # though normal ClickHouse reads and writes stay transaction-backed.
+      previous_dynamic_repo = ClickHouseRepo.get_dynamic_repo()
+
+      try do
+        ClickHouseRepo.put_dynamic_repo(ClickHouseRepo)
+        ClickHouseRepo.query(query, params)
+      after
+        ClickHouseRepo.put_dynamic_repo(previous_dynamic_repo)
+      end
+    else
+      IngestRepo.query(query, params)
     end
   end
 
-  def delete_project_events(project_id) do
-    IngestRepo.delete_all(from(c in Event, where: c.project_id == ^project_id))
+  defp metadata_queries_bypass_dynamic_repo? do
+    :tuist
+    |> Application.get_env(__MODULE__, [])
+    |> Keyword.get(:metadata_queries_bypass_dynamic_repo, false)
   end
 
+  # `project_id in ^project_ids` binds one HTTP parameter per ID, and ClickHouse
+  # rejects requests with more than `http_max_fields` (1,000 by default since
+  # 26.3). Each chunk travels as one `Array(Int64)` parameter instead, sized to
+  # stay under `http_max_field_value_size` (128 KiB) even for 19-digit IDs.
   def get_project_last_interaction_data(project_ids) do
-    from(ce in Event,
-      where: ce.project_id in ^project_ids,
-      group_by: ce.project_id,
-      select: %{project_id: ce.project_id, last_interacted_at: max(ce.ran_at)}
-    )
-    |> ClickHouseRepo.all()
+    project_ids
+    |> Enum.chunk_every(5_000)
+    |> Enum.flat_map(fn ids_chunk ->
+      ClickHouseRepo.all(
+        from(ce in Event,
+          where: fragment("? IN (?)", ce.project_id, type(^ids_chunk, {:array, :integer})),
+          group_by: ce.project_id,
+          select: %{project_id: ce.project_id, last_interacted_at: max(ce.ran_at)}
+        )
+      )
+    end)
     |> Map.new(fn %{project_id: id, last_interacted_at: time} -> {id, time} end)
   end
 
@@ -325,19 +487,51 @@ defmodule Tuist.CommandEvents do
     |> Map.new(fn %{project_id: id, last_interacted_at: time} -> {id, time} end)
   end
 
-  def get_command_event_by_build_run_id(build_run_id) do
-    case ClickHouseRepo.get_by(Event, build_run_id: build_run_id) do
+  # Multiple rows may share the same build_run_id because the ID is derived
+  # from the `.xcactivitylog`. In a split test run, every test execution event
+  # intentionally reuses the build phase's ID to link its test report to the
+  # build. Prefer the event without a test run so build details retain the
+  # command that produced the build, then fall back to the earliest event:
+  # whichever command produced the activity log necessarily ran before anything
+  # that reuses its ID. The fallback carries the decision on its own whenever
+  # `test_run_id` is absent, which is the case for a test execution whose
+  # xcresult upload never completed.
+  #
+  # Pass `project_id:` when known so the lookup hits the
+  # `(project_id, name, ran_at)` primary key instead of relying solely on
+  # the `idx_build_run_id` / `idx_test_run_id` bloom filter to skip granules.
+  def get_command_event_by_build_run_id(build_run_id, opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+
+    Event
+    |> scope_to_project(project_id)
+    |> where([e], e.build_run_id == ^build_run_id)
+    |> order_by([e], desc: is_nil(e.test_run_id), asc: e.ran_at, asc: e.created_at)
+    |> limit(1)
+    |> ClickHouseRepo.one()
+    |> case do
       nil -> {:error, :not_found}
       event -> {:ok, Event.normalize_enums(event)}
     end
   end
 
-  def get_command_event_by_test_run_id(test_run_id) do
-    case ClickHouseRepo.get_by(Event, test_run_id: test_run_id) do
+  def get_command_event_by_test_run_id(test_run_id, opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+
+    Event
+    |> scope_to_project(project_id)
+    |> where([e], e.test_run_id == ^test_run_id)
+    |> order_by([e], desc: e.ran_at, desc: e.created_at)
+    |> limit(1)
+    |> ClickHouseRepo.one()
+    |> case do
       nil -> {:error, :not_found}
       event -> {:ok, Event.normalize_enums(event)}
     end
   end
+
+  defp scope_to_project(query, nil), do: query
+  defp scope_to_project(query, project_id), do: where(query, [e], e.project_id == ^project_id)
 
   def run_events(project_id, start_datetime, end_datetime, opts) do
     query =
@@ -365,13 +559,13 @@ defmodule Tuist.CommandEvents do
       add_filters(
         from(e in Event,
           as: :event,
-          group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+          group_by: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
           where:
             e.ran_at > ^DateTime.to_naive(start_datetime) and
               e.ran_at < ^DateTime.to_naive(end_datetime) and e.name == ^name and
               e.project_id == ^project_id,
           select: %{
-            date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+            date: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
             value: avg(e.duration)
           }
         ),
@@ -398,13 +592,13 @@ defmodule Tuist.CommandEvents do
       add_filters(
         from(e in Event,
           as: :event,
-          group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+          group_by: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
           where:
             e.ran_at > ^DateTime.to_naive(start_datetime) and
               e.ran_at < ^DateTime.to_naive(end_datetime) and
               e.project_id == ^project_id,
           select: %{
-            date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+            date: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
             count: count(e.id)
           }
         ),
@@ -447,13 +641,13 @@ defmodule Tuist.CommandEvents do
     query =
       from(e in Event,
         as: :event,
-        group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+        group_by: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
         where:
           e.ran_at > ^DateTime.to_naive(start_datetime) and
             e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.project_id == ^project_id,
         select: %{
-          date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+          date: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
           cacheable_targets: sum(e.cacheable_targets_count),
           local_cache_target_hits: sum(e.local_cache_hits_count),
           remote_cache_target_hits: sum(e.remote_cache_hits_count)
@@ -475,14 +669,14 @@ defmodule Tuist.CommandEvents do
     query =
       from(e in Event,
         as: :event,
-        group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+        group_by: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
         where:
           e.ran_at > ^DateTime.to_naive(start_datetime) and
             e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.project_id == ^project_id and
             e.cacheable_targets_count > 0,
         select: %{
-          date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+          date: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
           percentile_hit_rate:
             fragment(
               "quantile(?)((? + ?) / ? * 100.0)",
@@ -536,6 +730,13 @@ defmodule Tuist.CommandEvents do
     * `opts` - Options:
       * `:limit` - Number of events to consider (default: 100)
       * `:offset` - Number of events to skip (default: 0)
+      * `:git_branch` - Only consider events run on the given branch
+      * `:is_ci` - Only consider CI (`true`) or local (`false`) events
+      * `:min_sample_size` - Return `nil` unless the window matched at least this
+        many events. The reversed percentiles degenerate to `min(values)` on
+        short windows (the p90 index floors to 0 below 10 rows, p99 below 100),
+        so callers comparing two windows can use this to reject a window that
+        did not fill up.
 
   ## Returns
     The calculated metric value (0.0-1.0), or `nil` if no data available.
@@ -543,28 +744,51 @@ defmodule Tuist.CommandEvents do
   def cache_hit_rate_metric_by_count(project_id, metric, opts \\ []) do
     limit = Keyword.get(opts, :limit, 100)
     offset = Keyword.get(opts, :offset, 0)
+    git_branch = Keyword.get(opts, :git_branch)
+    is_ci = Keyword.get(opts, :is_ci)
 
-    hit_rates =
-      ClickHouseRepo.all(
-        from(e in Event,
-          where:
-            e.project_id == ^project_id and
-              e.cacheable_targets_count > 0,
-          order_by: [desc: e.ran_at],
-          limit: ^limit,
-          offset: ^offset,
-          select:
-            fragment(
-              "(? + ?) / ?",
-              e.local_cache_hits_count,
-              e.remote_cache_hits_count,
-              e.cacheable_targets_count
-            )
-        )
+    query =
+      from(e in Event,
+        where:
+          e.project_id == ^project_id and
+            e.cacheable_targets_count > 0,
+        order_by: [desc: e.ran_at],
+        limit: ^limit,
+        offset: ^offset,
+        select:
+          fragment(
+            "(? + ?) / ?",
+            e.local_cache_hits_count,
+            e.remote_cache_hits_count,
+            e.cacheable_targets_count
+          )
       )
 
-    calculate_metric_from_values(hit_rates, metric)
+    query =
+      if is_binary(git_branch) and git_branch != "" do
+        where(query, [e], e.git_branch == ^git_branch)
+      else
+        query
+      end
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [e], e.is_ci == true)
+        false -> where(query, [e], e.is_ci == false)
+      end
+
+    hit_rates = ClickHouseRepo.all(query)
+
+    if below_min_sample_size?(hit_rates, Keyword.get(opts, :min_sample_size)) do
+      nil
+    else
+      calculate_metric_from_values(hit_rates, metric)
+    end
   end
+
+  defp below_min_sample_size?(_values, nil), do: false
+  defp below_min_sample_size?(values, min_sample_size), do: length(values) < min_sample_size
 
   defp calculate_metric_from_values([], _metric), do: nil
 
@@ -618,14 +842,14 @@ defmodule Tuist.CommandEvents do
     query =
       from(e in Event,
         as: :event,
-        group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+        group_by: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
         where:
           e.ran_at > ^DateTime.to_naive(start_datetime) and
             e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.project_id == ^project_id and
             e.test_targets_count > 0,
         select: %{
-          date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+          date: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
           percentile_hit_rate:
             fragment(
               "quantile(?)((? + ?) / ? * 100.0)",
@@ -676,13 +900,13 @@ defmodule Tuist.CommandEvents do
     query =
       from(e in Event,
         as: :event,
-        group_by: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+        group_by: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
         where:
           e.ran_at > ^DateTime.to_naive(start_datetime) and
             e.ran_at < ^DateTime.to_naive(end_datetime) and
             e.project_id == ^project_id,
         select: %{
-          date: fragment("formatDateTime(?, ?)", e.ran_at, ^date_format),
+          date: fragment("formatDateTime(?, ?, 'UTC')", e.ran_at, ^date_format),
           test_targets: sum(e.test_targets_count),
           local_test_target_hits: sum(e.local_test_hits_count),
           remote_test_target_hits: sum(e.remote_test_hits_count)
@@ -768,10 +992,15 @@ defmodule Tuist.CommandEvents do
   defp apply_is_ci_filter(query, true), do: where(query, [event: e], e.is_ci == true)
   defp apply_is_ci_filter(query, false), do: where(query, [event: e], e.is_ci == false)
 
+  defp apply_git_branch_filter(query, nil), do: query
+  defp apply_git_branch_filter(query, ""), do: query
+  defp apply_git_branch_filter(query, branch), do: where(query, [event: e], e.git_branch == ^branch)
+
   defp apply_scheme_filter(query, nil), do: query
   defp apply_scheme_filter(query, scheme), do: where(query, [event: e], e.scheme == ^scheme)
 
   defp apply_category_filter(query, nil), do: query
+
   defp apply_category_filter(query, category), do: where(query, [event: e], e.category == ^category)
 
   defp apply_status_filter(query, nil), do: query
@@ -794,6 +1023,7 @@ defmodule Tuist.CommandEvents do
   defp add_filters(query, opts) do
     query
     |> query_with_is_ci_filter(opts)
+    |> apply_git_branch_filter(Keyword.get(opts, :git_branch))
     |> apply_scheme_filter(Keyword.get(opts, :scheme))
     |> apply_category_filter(Keyword.get(opts, :category))
     |> apply_status_filter(Keyword.get(opts, :status))
@@ -837,8 +1067,9 @@ defmodule Tuist.CommandEvents do
           d in fragment(
             """
               SELECT formatDateTime(
-                toDateTime(?) + INTERVAL number HOUR,
-                ?
+                toDateTime(?, 'UTC') + INTERVAL number HOUR,
+                ?,
+                'UTC'
               ) AS date
               FROM numbers(?)
             """,
@@ -857,8 +1088,9 @@ defmodule Tuist.CommandEvents do
           d in fragment(
             """
               SELECT formatDateTime(
-                toDateTime(?) + INTERVAL number DAY,
-                ?
+                toDateTime(?, 'UTC') + INTERVAL number DAY,
+                ?,
+                'UTC'
               ) AS date
               FROM numbers(dateDiff('day', toDate(?), toDate(?)) + 1)
             """,
@@ -878,8 +1110,9 @@ defmodule Tuist.CommandEvents do
           d in fragment(
             """
               SELECT formatDateTime(
-                toStartOfMonth(toDateTime(?) + INTERVAL number MONTH),
-                ?
+                toStartOfMonth(toDateTime(?, 'UTC') + INTERVAL number MONTH),
+                ?,
+                'UTC'
               ) AS date
               FROM numbers(dateDiff('month', toDate(?), toDate(?)) + 1)
             """,
@@ -894,6 +1127,8 @@ defmodule Tuist.CommandEvents do
   end
 
   defp attach_user_account_names(events) do
+    events = Tuist.ReportActor.preload(events)
+
     user_ids =
       events
       |> Enum.map(& &1.user_id)
@@ -921,4 +1156,55 @@ defmodule Tuist.CommandEvents do
       {run.id, user_name}
     end)
   end
+
+  defp hydrate_optimized_list_results(results, nil), do: results
+  defp hydrate_optimized_list_results([], _optimized_table), do: []
+
+  defp hydrate_optimized_list_results(results, _optimized_table) do
+    project_ids = results |> Enum.map(& &1.project_id) |> Enum.uniq()
+    ids = Enum.map(results, & &1.id)
+
+    events_by_key =
+      Event
+      |> where([event], event.project_id in ^project_ids and event.id in ^ids)
+      |> order_by([event], asc: event.project_id, asc: event.id, desc: event.updated_at)
+      # The optimized view can be ahead of the replica serving this canonical table read,
+      # so hydrate with sequential consistency.
+      |> ClickHouseRepo.all(settings: [select_sequential_consistency: 1])
+      |> Enum.uniq_by(&{&1.project_id, &1.id})
+      |> Map.new(&{{&1.project_id, &1.id}, &1})
+
+    Enum.map(results, &Map.fetch!(events_by_key, {&1.project_id, &1.id}))
+  end
+
+  defp sort_optimized_table(%{order_by: [field | _]}) when field in [:duration, "duration"],
+    do: "command_events_by_duration"
+
+  defp sort_optimized_table(%{order_by: [field | _]}) when field in [:hit_rate, "hit_rate"],
+    do: "command_events_by_hit_rate"
+
+  defp sort_optimized_table(%{order_by: [field | _]} = attrs) when field in [:ran_at, "ran_at"] do
+    # When a `name` filter is present (cache runs, generate runs, `/runs` with a
+    # name filter), `command_events_by_name_ran_at` sorts by (project_id, name,
+    # ran_at) so the page reads ~one granule regardless of how sparse the command
+    # is. Without a name filter (e.g. ModuleCacheLive, `/runs` unfiltered),
+    # `command_events_by_ran_at` (project_id, ran_at) serves the ran_at scan.
+    if name_filter?(attrs), do: "command_events_by_name_ran_at", else: "command_events_by_ran_at"
+  end
+
+  defp sort_optimized_table(_), do: nil
+
+  defp name_filter?(%{filters: filters}) when is_list(filters), do: Enum.any?(filters, &name_filter_clause?/1)
+  defp name_filter?(%{"filters" => filters}) when is_list(filters), do: Enum.any?(filters, &name_filter_clause?/1)
+  defp name_filter?(_), do: false
+
+  # Matches both plain maps and %Flop.Filter{} structs, which are maps carrying
+  # the same :field/:value keys.
+  defp name_filter_clause?(%{field: field, value: value}), do: name_field?(field) and filter_value_present?(value)
+  defp name_filter_clause?(%{"field" => field, "value" => value}), do: name_field?(field) and filter_value_present?(value)
+  defp name_filter_clause?(_), do: false
+
+  defp name_field?(field), do: field in [:name, "name"]
+
+  defp filter_value_present?(value), do: value not in [nil, [], ""]
 end

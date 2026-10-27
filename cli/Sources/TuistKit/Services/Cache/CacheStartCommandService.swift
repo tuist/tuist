@@ -1,77 +1,42 @@
-@preconcurrency import FileSystem
-import Foundation
-import GRPCCore
-import GRPCNIOTransportHTTP2
+import FileSystem
 import Path
-import TuistCAS
-import TuistCore
-import TuistLoader
-import TuistRootDirectoryLocator
-import TuistServer
-import TuistSupport
+import TuistEnvironment
+import TuistLaunchctl
+import TuistLogging
 
 struct CacheStartCommandService {
-    private let serverEnvironmentService: ServerEnvironmentServicing
     private let fileSystem: FileSysteming
-    private let cacheURLStore: CacheURLStoring
+    private let launchctlController: LaunchctlControlling
 
     init(
-        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
-        cacheURLStore: CacheURLStoring = CacheURLStore(),
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        launchctlController: LaunchctlControlling = LaunchctlController()
     ) {
-        self.serverEnvironmentService = serverEnvironmentService
-        self.cacheURLStore = cacheURLStore
         self.fileSystem = fileSystem
+        self.launchctlController = launchctlController
     }
 
-    func run(
-        fullHandle: String,
-        url: String?
-    ) async throws {
-        // Create a cache-specific logger that only outputs to os_log with debug level
-        let cacheLogger = Logger(label: "dev.tuist.cache", factory: OSLogHandler.verbose)
+    /// Runs as the LaunchAgent being removed. It deletes the plist and the socket first and boots
+    /// the agent out last, because booting out its own job terminates this process. Exiting is not
+    /// enough on its own: agents installed with `KeepAlive` set to `true` are restarted on any exit.
+    func run(fullHandle: String) async throws {
+        let label = Environment.current.cacheLaunchAgentLabel(for: fullHandle)
+        let plistPath = Environment.current.homeDirectory.appending(
+            components: "Library", "LaunchAgents", "\(label).plist"
+        )
+        let socketPath = Environment.current.cacheSocketPath(for: fullHandle)
 
-        // Run the cache server with the cache-specific logger
-        try await Logger.$current.withValue(cacheLogger) {
-            let socketPath = Environment.current.cacheSocketPath(for: fullHandle)
-            if try await !fileSystem.exists(socketPath.parentDirectory, isDirectory: true) {
-                try await fileSystem.makeDirectory(at: socketPath.parentDirectory)
-            }
+        for path in [plistPath, socketPath] {
+            guard try await fileSystem.exists(path) else { continue }
+            try await fileSystem.remove(path)
+            Logger.current.debug("Removed \(path.pathString)")
+        }
 
-            let configURL = url.flatMap { URL(string: $0) }
-            let serverURL = try configURL
-                .map { try serverEnvironmentService.url(configServerURL: $0) } ?? serverEnvironmentService
-                .url()
-
-            Logger.current.debug("Warming cache endpoint URL for \(serverURL.absoluteString)")
-            let accountHandle = fullHandle.split(separator: "/").first.map(String.init)
-            _ = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
-
-            let server = GRPCServer(
-                transport: .http2NIOPosix(
-                    address: .unixDomainSocket(path: socketPath.pathString),
-                    transportSecurity: .plaintext
-                ),
-                services: [
-                    KeyValueService(
-                        fullHandle: fullHandle,
-                        serverURL: serverURL,
-                        cacheURLStore: cacheURLStore
-                    ),
-                    CASService(
-                        fullHandle: fullHandle,
-                        serverURL: serverURL,
-                        cacheURLStore: cacheURLStore
-                    ),
-                ]
-            )
-
-            try await withThrowingDiscardingTaskGroup { group in
-                group.addTask {
-                    try await server.serve()
-                }
-            }
+        // A failure here would only make launchd restart the stub to try again.
+        do {
+            try await launchctlController.bootout(label: label)
+        } catch {
+            Logger.current.debug("Could not boot out \(label): \(error.localizedDescription)")
         }
     }
 }

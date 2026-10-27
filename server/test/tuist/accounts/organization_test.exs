@@ -1,8 +1,29 @@
 defmodule Tuist.OrganizationTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.Accounts.Organization
+  alias Tuist.Environment
+
+  @okta_attrs %{
+    sso_provider: :okta,
+    sso_organization_id: "tuist.okta.com",
+    oauth2_client_id: "client-id",
+    oauth2_encrypted_client_secret: "client-secret",
+    oauth2_authorize_url: "https://tuist.okta.com/oauth2/v1/authorize",
+    oauth2_token_url: "https://tuist.okta.com/oauth2/v1/token",
+    oauth2_user_info_url: "https://tuist.okta.com/oauth2/v1/userinfo"
+  }
+
+  @oauth2_attrs %{
+    sso_provider: :oauth2,
+    sso_organization_id: "https://auth.example.com",
+    oauth2_client_id: "client-id",
+    oauth2_encrypted_client_secret: "client-secret",
+    oauth2_authorize_url: "https://auth.example.com/oauth2/authorize",
+    oauth2_token_url: "https://auth.example.com/oauth2/token",
+    oauth2_user_info_url: "https://auth.example.com/oauth2/userinfo"
+  }
 
   describe "create_changeset/2" do
     test "sso_provider cannot be github" do
@@ -43,13 +64,310 @@ defmodule Tuist.OrganizationTest do
     end
 
     test "changeset is valid when sso_provider is okta" do
+      changeset = Organization.create_changeset(%Organization{}, @okta_attrs)
+
+      assert changeset.valid? == true
+    end
+
+    test "requires client credentials for okta provider but derives endpoint URLs from the domain" do
       changeset =
         Organization.create_changeset(%Organization{}, %{
           sso_provider: :okta,
           sso_organization_id: "tuist.okta.com"
         })
 
+      assert changeset.valid? == false
+      assert "can't be blank" in errors_on(changeset).oauth2_client_id
+      assert "can't be blank" in errors_on(changeset).oauth2_encrypted_client_secret
+      # Endpoint URLs are auto-derived from the Okta domain so they are not required from callers.
+      refute Map.has_key?(errors_on(changeset), :oauth2_authorize_url)
+      refute Map.has_key?(errors_on(changeset), :oauth2_token_url)
+      refute Map.has_key?(errors_on(changeset), :oauth2_user_info_url)
+
+      assert Ecto.Changeset.get_change(changeset, :oauth2_authorize_url) ==
+               "https://tuist.okta.com/oauth2/v1/authorize"
+
+      assert Ecto.Changeset.get_change(changeset, :oauth2_token_url) ==
+               "https://tuist.okta.com/oauth2/v1/token"
+
+      assert Ecto.Changeset.get_change(changeset, :oauth2_user_info_url) ==
+               "https://tuist.okta.com/oauth2/v1/userinfo"
+    end
+
+    test "changeset is valid when sso_provider is oauth2" do
+      changeset = Organization.create_changeset(%Organization{}, @oauth2_attrs)
+
       assert changeset.valid? == true
+    end
+
+    test "requires a verified login domain for automatic enrollment with a custom provider" do
+      changeset =
+        Organization.create_changeset(
+          %Organization{},
+          Map.put(@oauth2_attrs, :sso_automatic_enrollment, true)
+        )
+
+      refute changeset.valid?
+
+      assert "requires a verified login email domain for this provider" in errors_on(changeset).sso_automatic_enrollment
+    end
+
+    test "allows automatic enrollment with a verified login domain" do
+      changeset =
+        Organization.create_changeset(
+          %Organization{},
+          Map.merge(@oauth2_attrs, %{
+            sso_login_domain: "example.com",
+            sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+            sso_automatic_enrollment: true
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "requires a verified login domain before enforcing a new custom-provider configuration" do
+      changeset =
+        Organization.create_changeset(
+          %Organization{},
+          Map.put(@oauth2_attrs, :sso_enforced, true)
+        )
+
+      refute changeset.valid?
+      assert "requires a verified login email domain for this provider" in errors_on(changeset).sso_enforced
+    end
+
+    test "does not allow the retired compatibility flag to enable enforcement" do
+      changeset =
+        Organization.create_changeset(
+          %Organization{},
+          Map.merge(@oauth2_attrs, %{
+            sso_enforced: true,
+            sso_legacy_email_domain_fallback: true
+          })
+        )
+
+      refute changeset.valid?
+    end
+
+    test "does not allow the retired compatibility flag to enable automatic enrollment" do
+      changeset =
+        Organization.create_changeset(
+          %Organization{},
+          Map.merge(@oauth2_attrs, %{
+            sso_automatic_enrollment: true,
+            sso_legacy_email_domain_fallback: true
+          })
+        )
+
+      refute changeset.valid?
+    end
+
+    test "accepts an oauth2 issuer URL with a path" do
+      changeset =
+        Organization.create_changeset(
+          %Organization{},
+          Map.merge(@oauth2_attrs, %{
+            sso_organization_id: "https://keycloak.example.com/realms/master",
+            oauth2_authorize_url: "https://keycloak.example.com/realms/master/protocol/openid-connect/auth",
+            oauth2_token_url: "https://keycloak.example.com/realms/master/protocol/openid-connect/token",
+            oauth2_user_info_url: "https://keycloak.example.com/realms/master/protocol/openid-connect/userinfo"
+          })
+        )
+
+      assert changeset.valid? == true
+    end
+
+    test "accepts private oauth2 URLs on self-hosted installations" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+
+      changeset =
+        Organization.create_changeset(
+          %Organization{},
+          Map.merge(@oauth2_attrs, %{
+            sso_organization_id: "https://10.0.0.1/realms/master",
+            oauth2_authorize_url: "https://10.0.0.1/realms/master/protocol/openid-connect/auth",
+            oauth2_token_url: "https://10.0.0.1/realms/master/protocol/openid-connect/token",
+            oauth2_user_info_url: "https://10.0.0.1/realms/master/protocol/openid-connect/userinfo"
+          })
+        )
+
+      assert changeset.valid? == true
+    end
+
+    test "normalizes the oauth2 site on create" do
+      changeset =
+        Organization.create_changeset(
+          %Organization{},
+          Map.merge(@oauth2_attrs, %{
+            sso_organization_id: " https://auth.example.com/ ",
+            oauth2_authorize_url: " https://auth.example.com/oauth2/authorize ",
+            oauth2_token_url: " https://auth.example.com/oauth2/token ",
+            oauth2_user_info_url: " https://auth.example.com/oauth2/userinfo "
+          })
+        )
+
+      assert Ecto.Changeset.get_change(changeset, :sso_organization_id) == "https://auth.example.com"
+
+      assert Ecto.Changeset.get_change(changeset, :oauth2_authorize_url) ==
+               "https://auth.example.com/oauth2/authorize"
+
+      assert Ecto.Changeset.get_change(changeset, :oauth2_token_url) ==
+               "https://auth.example.com/oauth2/token"
+
+      assert Ecto.Changeset.get_change(changeset, :oauth2_user_info_url) ==
+               "https://auth.example.com/oauth2/userinfo"
+    end
+
+    test "validates the oauth2 site URL on create" do
+      changeset =
+        Organization.create_changeset(
+          %Organization{},
+          Map.put(@oauth2_attrs, :sso_organization_id, "not-a-url")
+        )
+
+      assert changeset.valid? == false
+      assert "must be a valid URL" in errors_on(changeset).sso_organization_id
+    end
+
+    test "validates the oauth2 endpoint URLs on create" do
+      changeset =
+        Organization.create_changeset(
+          %Organization{},
+          Map.put(@oauth2_attrs, :oauth2_authorize_url, "not-a-url")
+        )
+
+      assert changeset.valid? == false
+      assert "must be a valid URL" in errors_on(changeset).oauth2_authorize_url
+    end
+
+    test "rejects private IP addresses in oauth2 URLs" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+
+      for private_url <- [
+            "https://127.0.0.1/authorize",
+            "https://10.0.0.1/authorize",
+            "https://172.16.0.1/authorize",
+            "https://192.168.1.1/authorize",
+            "https://169.254.169.254/authorize",
+            "https://0.0.0.0/authorize",
+            "https://localhost/authorize",
+            "https://service.local/authorize",
+            "https://metadata.internal/authorize"
+          ] do
+        changeset =
+          Organization.create_changeset(
+            %Organization{},
+            Map.put(@oauth2_attrs, :oauth2_authorize_url, private_url)
+          )
+
+        assert changeset.valid? == false,
+               "Expected #{private_url} to be rejected"
+
+        assert "must be a valid URL" in errors_on(changeset).oauth2_authorize_url
+      end
+    end
+
+    test "rejects private addresses in sso_organization_id for oauth2" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+
+      changeset =
+        Organization.create_changeset(
+          %Organization{},
+          Map.put(@oauth2_attrs, :sso_organization_id, "https://localhost")
+        )
+
+      assert changeset.valid? == false
+      assert "must be a valid URL" in errors_on(changeset).sso_organization_id
+    end
+
+    test "requires the oauth2 fields on create" do
+      changeset =
+        Organization.create_changeset(%Organization{}, %{
+          sso_provider: :oauth2
+        })
+
+      assert changeset.valid? == false
+      assert "can't be blank" in errors_on(changeset).sso_organization_id
+      assert "can't be blank" in errors_on(changeset).oauth2_client_id
+      assert "can't be blank" in errors_on(changeset).oauth2_encrypted_client_secret
+      assert "can't be blank" in errors_on(changeset).oauth2_authorize_url
+      assert "can't be blank" in errors_on(changeset).oauth2_token_url
+      assert "can't be blank" in errors_on(changeset).oauth2_user_info_url
+    end
+  end
+
+  describe "sso_configuration_changeset/2 for never-verified organizations" do
+    test "preserves enabled policies while editing settings and rejects new enablement" do
+      organization = struct(Organization, Map.merge(@oauth2_attrs, %{sso_automatic_enrollment: true, sso_enforced: true}))
+
+      changeset =
+        Organization.sso_configuration_changeset(organization, %{
+          oauth2_client_id: "rotated-client",
+          sso_automatic_enrollment: true,
+          sso_enforced: true
+        })
+
+      assert changeset.valid?
+
+      disabled =
+        Organization.sso_configuration_changeset(organization, %{sso_automatic_enrollment: false, sso_enforced: false})
+
+      assert disabled.valid?
+
+      changeset =
+        disabled
+        |> Ecto.Changeset.apply_changes()
+        |> Organization.sso_configuration_changeset(%{sso_automatic_enrollment: true, sso_enforced: true})
+
+      assert "requires a verified login email domain for this provider" in errors_on(changeset).sso_automatic_enrollment
+      assert "requires a verified login email domain for this provider" in errors_on(changeset).sso_enforced
+    end
+  end
+
+  describe "sso_configuration_changeset/2 after the daily re-check lapsed the domain" do
+    setup do
+      lapsed =
+        struct(
+          Organization,
+          Map.merge(@oauth2_attrs, %{
+            sso_login_domain: "example.com",
+            sso_login_domain_verification_token: "verification-token",
+            sso_login_domain_verified_at: nil,
+            sso_login_domain_last_verified_at: ~U[2026-09-01 12:00:00Z],
+            sso_automatic_enrollment: true,
+            sso_enforced: true
+          })
+        )
+
+      %{lapsed: lapsed}
+    end
+
+    test "keeps the settings it was saved with while other fields change", %{lapsed: lapsed} do
+      changeset = Organization.sso_configuration_changeset(lapsed, %{oauth2_client_id: "rotated-client-id"})
+
+      assert changeset.valid?
+    end
+
+    test "still requires verification to turn a setting on", %{lapsed: lapsed} do
+      changeset =
+        lapsed
+        |> Map.put(:sso_automatic_enrollment, false)
+        |> Organization.sso_configuration_changeset(%{sso_automatic_enrollment: true})
+
+      assert "requires a verified login email domain for this provider" in errors_on(changeset).sso_automatic_enrollment
+    end
+
+    test "keeps saved policies when replacing the domain without granting verification", %{lapsed: lapsed} do
+      changeset =
+        Organization.sso_configuration_changeset(lapsed, %{
+          sso_login_domain: "replacement.example",
+          sso_login_domain_verification_token: "replacement-token",
+          sso_login_domain_last_verified_at: nil
+        })
+
+      assert changeset.valid?
+      refute Ecto.Changeset.get_field(changeset, :sso_login_domain_verified_at)
     end
   end
 
@@ -105,10 +423,96 @@ defmodule Tuist.OrganizationTest do
 
     test "changeset is valid when sso_provider is okta" do
       changeset =
+        Organization.update_changeset(%Organization{}, Map.put(@okta_attrs, :sso_organization_id, "dev.okta.com"))
+
+      assert changeset.valid? == true
+    end
+
+    test "changeset is valid when sso_provider is oauth2" do
+      changeset = Organization.update_changeset(%Organization{}, @oauth2_attrs)
+
+      assert changeset.valid? == true
+    end
+
+    test "rejects enabling automatic enrollment without a verified login domain" do
+      changeset =
+        Organization.update_changeset(
+          %Organization{},
+          Map.put(@oauth2_attrs, :sso_automatic_enrollment, true)
+        )
+
+      refute changeset.valid?
+
+      assert "requires a verified login email domain for this provider" in errors_on(changeset).sso_automatic_enrollment
+    end
+
+    test "normalizes the oauth2 site on update" do
+      changeset =
+        Organization.update_changeset(
+          %Organization{},
+          Map.merge(@oauth2_attrs, %{
+            sso_organization_id: " https://auth.example.com/ ",
+            oauth2_authorize_url: " https://auth.example.com/oauth2/authorize ",
+            oauth2_token_url: " https://auth.example.com/oauth2/token ",
+            oauth2_user_info_url: " https://auth.example.com/oauth2/userinfo "
+          })
+        )
+
+      assert Ecto.Changeset.get_change(changeset, :sso_organization_id) == "https://auth.example.com"
+
+      assert Ecto.Changeset.get_change(changeset, :oauth2_authorize_url) ==
+               "https://auth.example.com/oauth2/authorize"
+
+      assert Ecto.Changeset.get_change(changeset, :oauth2_token_url) ==
+               "https://auth.example.com/oauth2/token"
+
+      assert Ecto.Changeset.get_change(changeset, :oauth2_user_info_url) ==
+               "https://auth.example.com/oauth2/userinfo"
+    end
+
+    test "validates the oauth2 site URL on update" do
+      changeset =
+        Organization.update_changeset(
+          %Organization{},
+          Map.put(@oauth2_attrs, :sso_organization_id, "notaurl")
+        )
+
+      assert changeset.valid? == false
+      assert "must be a valid URL" in errors_on(changeset).sso_organization_id
+    end
+
+    test "validates the oauth2 endpoint URLs on update" do
+      changeset =
+        Organization.update_changeset(
+          %Organization{},
+          Map.put(@oauth2_attrs, :oauth2_token_url, "not-a-url")
+        )
+
+      assert changeset.valid? == false
+      assert "must be a valid URL" in errors_on(changeset).oauth2_token_url
+    end
+
+    test "requires the oauth2 fields on update when no secret exists" do
+      changeset =
         Organization.update_changeset(%Organization{}, %{
-          sso_provider: :okta,
-          sso_organization_id: "dev.okta.com"
+          sso_provider: :oauth2
         })
+
+      assert changeset.valid? == false
+      assert "can't be blank" in errors_on(changeset).sso_organization_id
+      assert "can't be blank" in errors_on(changeset).oauth2_client_id
+      assert "can't be blank" in errors_on(changeset).oauth2_encrypted_client_secret
+      assert "can't be blank" in errors_on(changeset).oauth2_authorize_url
+      assert "can't be blank" in errors_on(changeset).oauth2_token_url
+      assert "can't be blank" in errors_on(changeset).oauth2_user_info_url
+    end
+
+    test "does not require the oauth2 secret on update when already persisted" do
+      changeset =
+        Organization.update_changeset(
+          %Organization{oauth2_encrypted_client_secret: "existing-secret"},
+          @oauth2_attrs
+        )
 
       assert changeset.valid? == true
     end

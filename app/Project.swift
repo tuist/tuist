@@ -11,8 +11,11 @@ func tuistMenuBarDependencies() -> [TargetDependency] {
         .project(target: "TuistHTTP", path: "../"),
         .project(target: "TuistAutomation", path: "../"),
         .project(target: "TuistSimulator", path: "../"),
-        .external(name: "XcodeGraph"),
-        .external(name: "Command"),
+        .project(target: "TuistXcodeBuildProducts", path: "../"),
+        .project(target: "TuistAndroid", path: "../"),
+        .project(target: "TuistLogging", path: "../"),
+        .project(target: "TuistProcess", path: "../"),
+        .project(target: "XcodeGraph", path: "../"),
         .external(name: "Sparkle"),
         .external(name: "FileSystem"),
         .external(name: "Mockable"),
@@ -89,7 +92,10 @@ let project = Project(
             product: .app,
             productName: "Tuist",
             bundleId: bundleId,
-            deploymentTargets: .macOS("15.0.0"),
+            deploymentTargets: .multiplatform(
+                iOS: "18.0.0",
+                macOS: "15.0.0"
+            ),
             infoPlist: .extendingDefault(
                 with: [
                     "CFBundleDisplayName": "Tuist",
@@ -105,10 +111,12 @@ let project = Project(
                     "LSUIElement": true,
                     "LSApplicationCategoryType": "public.app-category.developer-tools",
                     "SUPublicEDKey": "XUfguyGrLktmv6E4C/iqfw8p57HWKqx4mJ/hG4/lbMk=",
+                    // Served from a stable GitHub Release asset (tag
+                    // `appcast`, re-uploaded by the app release flow).
                     "SUFeedURL":
-                        "https://raw.githubusercontent.com/tuist/tuist/main/app/appcast.xml",
-                    "CFBundleShortVersionString": "0.24.0",
-                    "CFBundleVersion": "3223",
+                        "https://github.com/tuist/tuist/releases/download/appcast/appcast.xml",
+                    "CFBundleShortVersionString": "0.25.3",
+                    "CFBundleVersion": "14606",
                     "UILaunchStoryboardName": "LaunchScreen.storyboard",
                     "UISupportedInterfaceOrientations": [
                         "UIInterfaceOrientationPortrait",
@@ -122,15 +130,21 @@ let project = Project(
             ],
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
+                .project(target: "TuistLogging", path: "../"),
                 .target(name: "TuistAuthentication"),
                 .target(name: "TuistNoora", condition: .when([.ios])),
                 .target(name: "TuistMenuBar", condition: .when([.macos])),
                 .external(name: "FluidMenuBarExtra", condition: .when([.macos])),
+                .external(name: "Sparkle", condition: .when([.macos])),
                 .target(name: "TuistPreviews", condition: .when([.ios])),
                 .target(name: "TuistOnboarding", condition: .when([.ios])),
                 .target(name: "TuistErrorHandling", condition: .when([.ios])),
                 .target(name: "TuistProfile", condition: .when([.ios])),
-                .external(name: "ArgumentParser", condition: .when([.ios])),
+                // Imported directly only by the iOS sources, but reached on
+                // every platform through TuistSupport -> SwifterPMCore. An
+                // iOS condition here overrides that transitive requirement
+                // and leaves the macOS build unable to resolve the module.
+                .external(name: "ArgumentParser"),
                 .external(name: "TuistSDK"),
             ],
             settings: .settings(
@@ -165,8 +179,24 @@ let project = Project(
                 .target(name: "TuistNoora"),
                 .target(name: "TuistAppStorage"),
                 .target(name: "TuistAuthentication"),
-                .external(name: "XcodeGraph"),
+                .project(target: "XcodeGraph", path: "../"),
                 .external(name: "NukeUI"),
+            ]
+        ),
+        .target(
+            name: "TuistPreviewsTests",
+            destinations: .iOS,
+            product: .unitTests,
+            bundleId: "dev.tuist.previews-tests",
+            deploymentTargets: .iOS("18.0"),
+            infoPlist: .default,
+            sources: ["Tests/TuistPreviewsTests/**"],
+            dependencies: [
+                .target(name: "TuistPreviews"),
+                .target(name: "TuistAppStorage"),
+                .project(target: "TuistServer", path: "../"),
+                .project(target: "TuistSimulator", path: "../"),
+                .external(name: "Mockable"),
             ]
         ),
         .target(
@@ -217,7 +247,9 @@ let project = Project(
             deploymentTargets: .iOS("18.0"),
             sources: ["Sources/TuistErrorHandling/**"],
             dependencies: [
+                .target(name: "TuistAuthentication"),
                 .project(target: "TuistServer", path: "../"),
+                .project(target: "TuistLogging", path: "../"),
                 .project(target: "TuistHTTP", path: "../"),
                 .external(name: "OpenAPIRuntime"),
             ]
@@ -242,6 +274,8 @@ let project = Project(
             sources: ["Sources/TuistAuthentication/**"],
             dependencies: [
                 .project(target: "TuistServer", path: "../"),
+                .project(target: "TuistHTTP", path: "../"),
+                .project(target: "TuistLogging", path: "../"),
                 .target(name: "TuistAppStorage"),
             ]
         ),
@@ -268,10 +302,16 @@ let project = Project(
                 .target(name: "TuistMenuBar"),
                 .target(name: "TuistApp"),
                 .project(target: "TuistTesting", path: "../"),
+                .project(target: "TuistConstants", path: "../"),
             ]
         ),
     ],
     schemes: [
+        .scheme(
+            name: "TuistPreviews",
+            buildAction: .buildAction(targets: [.target("TuistPreviews")]),
+            testAction: .targets([.testableTarget(target: "TuistPreviewsTests")])
+        ),
         .scheme(
             name: "TuistApp",
             buildAction: .buildAction(

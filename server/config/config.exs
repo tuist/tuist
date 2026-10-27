@@ -7,38 +7,109 @@
 # General application configuration
 import Config
 
+# esbuild
+noora_static_path = Path.expand("../../noora/priv/static", __DIR__)
+node_modules_path = Path.expand("../node_modules", __DIR__)
+build_path = Mix.Project.build_path()
+
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,
+  cache_backend: Tuist.OAuth.AuthoritativeCache,
+  max_ttl: [authorization_code: 300],
+  # `access_tokens` is deliberately absent: it defaults to
+  # `Boruta.Ecto.AccessTokens`. A local copy of that adapter used to be
+  # configured here, and copies of it silently rot. Atlas ran the same copy
+  # with `resource` missing from the attributes it persisted, and every OAuth
+  # refresh failed with `invalid_target` for four months. The copy justified
+  # itself by resolving the client through `Tuist.OAuth.Clients`, which the
+  # upstream adapter already does through this `clients` context.
   contexts: [
     resource_owners: Tuist.OAuth.ResourceOwners,
-    clients: Tuist.OAuth.Clients,
-    access_tokens: Tuist.OAuth.AccessTokens
+    clients: Tuist.OAuth.Clients
   ],
   token_generator: Tuist.OAuth.TokenGenerator
 
 config :ecto_ch,
   default_table_engine: "MergeTree"
 
-# esbuild
 config :esbuild,
   version: "0.25.2",
   app: [
-    args:
-      ~w(app.js --bundle --target=es2017 --outfile=../../priv/static/app/assets/bundle.js --external:/fonts/* --external:/images/*),
+    args: [
+      "app.js",
+      "--bundle",
+      "--target=es2017",
+      "--outfile=../../priv/static/app/assets/bundle.js",
+      "--external:/fonts/*",
+      "--external:/images/*",
+      "--alias:noora=#{noora_static_path}/noora.js",
+      "--alias:noora/noora.css=#{noora_static_path}/noora.css"
+    ],
     cd: Path.expand("../assets/app", __DIR__),
     env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
   ],
   marketing: [
-    args:
-      ~w(marketing.js --bundle --loader:.svg=dataurl --loader:.jpg=dataurl --loader:.png=dataurl --loader:.webp=dataurl --target=es2017 --outfile=../../priv/static/marketing/assets/bundle.js --external:/fonts/* --external:/images/*),
+    args: [
+      "marketing.js",
+      "--bundle",
+      "--loader:.svg=dataurl",
+      "--loader:.jpg=dataurl",
+      "--loader:.png=dataurl",
+      "--loader:.webp=dataurl",
+      "--loader:.woff=file",
+      "--loader:.woff2=file",
+      "--loader:.ttf=file",
+      # ES modules with code splitting: the script tag is type="module", and
+      # dynamic import() (KaTeX, the cytoscape blog lab) lands in its own
+      # chunk under chunks/ instead of every page paying for it. Chunk names
+      # carry a content hash; the entry keeps its bundle.js / bundle.css
+      # names. es2020 is the floor for import() syntax.
+      "--target=es2020",
+      "--format=esm",
+      "--splitting",
+      "--outdir=../../priv/static/marketing/assets",
+      "--entry-names=bundle",
+      "--chunk-names=chunks/[name]-[hash]",
+      "--external:/fonts/*",
+      "--external:/images/*",
+      "--external:/marketing/*",
+      "--alias:@=.",
+      "--alias:noora/hooks=#{Path.expand("../../noora/js", __DIR__)}",
+      "--alias:noora=#{noora_static_path}/noora.js",
+      "--alias:noora/noora.css=#{noora_static_path}/noora.css"
+    ],
     cd: Path.expand("../assets/marketing", __DIR__),
-    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
+    env: %{"NODE_PATH" => "#{Path.expand("../deps", __DIR__)}:#{build_path}"}
+  ],
+  docs: [
+    args: [
+      "docs.js",
+      "--bundle",
+      "--loader:.svg=dataurl",
+      "--loader:.jpg=dataurl",
+      "--loader:.png=dataurl",
+      "--loader:.webp=dataurl",
+      "--target=es2017",
+      "--outfile=../../priv/static/docs/assets/bundle.js",
+      "--external:/fonts/*",
+      "--external:/images/*",
+      "--alias:noora=#{noora_static_path}/noora.js",
+      "--alias:noora/noora.css=#{noora_static_path}/noora.css"
+    ],
+    cd: Path.expand("../assets/docs", __DIR__),
+    env: %{"NODE_PATH" => "#{Path.expand("../deps", __DIR__)}:#{node_modules_path}"}
   ],
   apidocs: [
-    args:
-      ~w(apidocs.js --bundle --target=es2017 --outfile=../../priv/static/apidocs/assets/bundle.js --external:/fonts/* --external:/images/*),
+    args: [
+      "apidocs.js",
+      "--bundle",
+      "--target=es2017",
+      "--outfile=../../priv/static/apidocs/assets/bundle.js",
+      "--external:/fonts/*",
+      "--external:/images/*"
+    ],
     cd: Path.expand("../assets/apidocs", __DIR__),
-    env: %{"NODE_PATH" => Path.expand("../deps", __DIR__)}
+    env: %{"NODE_PATH" => "#{Path.expand("../deps", __DIR__)}:#{node_modules_path}"}
   ]
 
 config :excellent_migrations, start_after: "20240926093919"
@@ -60,6 +131,7 @@ config :fun_with_flags, :persistence,
   ecto_primary_key_type: :binary_id
 
 config :guardian, Guardian.DB,
+  adapter: Tuist.GuardianDatabaseAdapter,
   repo: Tuist.Repo,
   schema_name: "guardian_tokens",
   token_types: ["refresh"]
@@ -67,12 +139,162 @@ config :guardian, Guardian.DB,
 # Configures Elixir's Logger
 config :logger, :console,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id]
+  metadata: [
+    :request_id,
+    :request_kind,
+    :method,
+    :route,
+    :request_path,
+    :status,
+    :cache_outcome,
+    :duration_ms,
+    :auth_user_id,
+    :auth_project_id,
+    :auth_account_id,
+    :auth_account_handle,
+    # Source of the request. A failed authentication carries no account, so
+    # this is the only thing it can be attributed to.
+    :client_address,
+    # Explicit sign-in outcome. Every outcome redirects, so the response status
+    # cannot distinguish a failure from a success.
+    :auth_outcome,
+    :selected_account_id,
+    :selected_account_handle,
+    :selected_project_id,
+    :selected_project_handle,
+    :feature_flags,
+    :feature_flag,
+    :feature_flag_enabled,
+    :feature_flag_actor_type,
+    :feature_flag_actor_id,
+    # Operator project-access grant (forensic join key for the audit trail)
+    :operator_grant_jti,
+    :operator_grant_sub,
+    # LiveView an operator opened under a grant (socket navigations have no
+    # request line of their own)
+    :live_view,
+    # Operator reads through Atlas without a grant: who, and which customer
+    # account a read used it for.
+    :atlas_operator_email,
+    :atlas_operator_read_account_id,
+    # Dormant operator account sweep — this line is the evidence record for
+    # the inactivity control, so the ids have to survive into the log output
+    :disabled_user_ids,
+    :scrubbed_user_ids,
+    :disabled_clock_started_user_ids,
+    :unassessable_user_ids,
+    :more_pending,
+    # Object storage deletions destroy customer data and mostly run from
+    # background workers, so these fields are the only attribution they get
+    :storage_operation,
+    :storage_account,
+    :storage_bucket,
+    :storage_prefix,
+    :storage_object_count,
+    :storage_key_prefixes,
+    :storage_outcome,
+    :session_payload_bytes,
+    :warning_threshold_bytes,
+    # Tuist.Runners structured fields
+    :pod_uid,
+    :pod_name,
+    :pool,
+    :pools,
+    :session_id,
+    :runner_name,
+    :repo,
+    :principal_namespace,
+    :principal_name,
+    :action,
+    :labels,
+    :installation_id,
+    :requested_labels,
+    # Tuist.Runners.Buildkite structured fields
+    :queue,
+    :job_uuid,
+    :errors,
+    :requested,
+    :target,
+    :observed,
+    :gap,
+    :image,
+    :pod_image,
+    :pool_image,
+    :fleet,
+    :node,
+    :state,
+    :connection_id,
+    :reported_pod,
+    :reported_pool,
+    :binding,
+    :open_sessions,
+    :reason,
+    :changeset_errors,
+    :account,
+    :account_id,
+    :sa,
+    :runner,
+    :pod,
+    :claim_id,
+    :stopped_pod,
+    :current_pod,
+    :original_reason,
+    :release_error,
+    :owner,
+    :org,
+    :count,
+    :stale_after_seconds,
+    :aged_out,
+    :pod_gone,
+    :verify_after_seconds,
+    :reap_after_seconds,
+    :confirmed_absent_seconds,
+    :absent_after_seconds,
+    :observed_pods,
+    :claims,
+    :sessions,
+    :pods,
+    :missing,
+    :newly_marked,
+    :recovered,
+    :released,
+    :closed,
+    :eligible,
+    :cap,
+    :workflow_job_ids,
+    :enqueued_at,
+    :grace_seconds,
+    :delivery_id,
+    :workflow_job_id,
+    :repository,
+    :conclusion,
+    :ours,
+    :winner,
+    :observed_status,
+    :kind,
+    :ch_error,
+    :stage,
+    :client_url,
+    :status,
+    :body,
+    :url,
+    :dispatch_label,
+    # Tuist.Kura runner-cache reconciler structured fields
+    :region,
+    :cap,
+    :urls,
+    :configured,
+    :reconciling,
+    # Turnstile widget-failure signal from the signup LiveViews
+    :turnstile_state,
+    :turnstile_action
+  ]
+
+config :mdex_native, syntax_highlighter: :lumis
 
 config :mime, :types, %{
-  "application/vnd.swift.registry.v1+json" => ["swift-registry-v1-json"],
-  "application/vnd.swift.registry.v1+zip" => ["swift-registry-v1-zip"],
-  "application/vnd.swift.registry.v1+swift" => ["swift-registry-v1-api"]
+  "application/linkset+json" => ["linkset"],
+  "application/scim+json" => ["scim+json"]
 }
 
 # Money
@@ -80,6 +302,14 @@ config :money,
   default_currency: :USD
 
 config :peep, :bucket_calculator, Tuist.PromEx.Buckets
+
+config :phoenix, :filter_parameters, [
+  "password",
+  "secret",
+  "token",
+  "credential",
+  "installation_receipt"
+]
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
@@ -90,8 +320,17 @@ config :phoenix, :json_library, Jason
 # as a reference
 config :prom_ex, :storage_adapter, Tuist.PromEx.StripedPeep
 
+# Stripity Stripe adds a Connection header, which is forbidden by Hypertext Transfer
+# Protocol version 2 and causes Hackney protocol errors after negotiating version 2.
+config :stripity_stripe,
+  hackney_opts: [protocols: [:http1]],
+  http_module: Tuist.Billing.StripeHTTPClient
+
+config :tower, reporters: [TowerOpentelemetry]
+
 # Oban
 config :tuist, Oban,
+  engine: Tuist.Oban.Engine,
   repo: Tuist.Repo,
   notifier: Oban.Notifiers.PG
 
@@ -108,7 +347,7 @@ config :tuist, Tuist.Vault, key: {Tuist.Environment, :secret_key_encryption, []}
 config :tuist, TuistWeb.Endpoint,
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
-    formats: [html: TuistWeb.ErrorHTML, json: TuistWeb.ErrorJSON],
+    formats: [html: TuistWeb.ErrorHTML, json: TuistWeb.ErrorJSON, "scim+json": TuistWeb.SCIM.ErrorJSON],
     layout: false
   ],
   pubsub_server: Tuist.PubSub,
@@ -229,6 +468,66 @@ config :tuist, :blocked_handles, [
   "jobs"
 ]
 
+config :tuist, :dev_all_locales, System.get_env("TUIST_DEV_ALL_LOCALES") in ~w(1 true TRUE yes YES)
+
+# Baseline machine-minutes every account gets free per billing period.
+# Must match the first tier of the environment's runner Stripe Price;
+# see `Tuist.Runners.Allowance`.
+config :tuist, :runner_free_monthly_minutes, 100
+
+# Runner Profiles shape catalog — the (vCPU, RAM) pairs customers can
+# pick when creating a profile. This is the **dev/test/CI default**;
+# managed deploys override it at boot from `TUIST_RUNNER_LINUX_SHAPES`,
+# which Helm injects from the same `runnersFleetLinux.shapes` list it
+# renders the RunnerPool CRs from (see config/runtime.exs). So the
+# cluster's pools and the server's catalog share one source of truth in
+# prod and can't drift. Exactly one entry should carry `default: true`
+# (preselected in the "new profile" form).
+#
+# A Linux shape is only runnable where a bare-metal host can seat it,
+# so like the macOS catalog below this list is per-environment on the
+# Helm side: the 64 GB shape needs an AX162-R and is not offered in
+# environments whose Linux fleet is 64 GB AX42-U only.
+config :tuist, :runner_linux_shapes, [
+  %{vcpus: 1, memory_gb: 2},
+  %{vcpus: 2, memory_gb: 4},
+  %{vcpus: 2, memory_gb: 8, default: true},
+  %{vcpus: 4, memory_gb: 8},
+  %{vcpus: 4, memory_gb: 16},
+  %{vcpus: 8, memory_gb: 16},
+  %{vcpus: 8, memory_gb: 32},
+  %{vcpus: 16, memory_gb: 32},
+  %{vcpus: 16, memory_gb: 64}
+]
+
+# macOS shape catalog. Same role as `:runner_linux_shapes`. Managed
+# deploys override at boot from `TUIST_RUNNER_MACOS_SHAPES` (Helm
+# injects from `runnersFleet.shapes`).
+#
+# A macOS shape is only runnable on a host SKU whose advertised
+# `hostCPU`/`hostMemoryMB` fit it, so the catalog is per-environment on
+# the Helm side: the 12 vCPU shape needs an M4-XL and is not offered in
+# environments whose fleet is M2-L only.
+config :tuist, :runner_macos_shapes, [
+  %{vcpus: 6, memory_gb: 14, default: true},
+  %{vcpus: 12, memory_gb: 28}
+]
+
+# macOS Xcode catalog. Each entry is a runnable Xcode version on the
+# macOS fleet; the profile's `xcode_version` field validates against
+# this list. The list must stay in sync with the
+# `runner-image-build.strategy.matrix.xcode` matrix in `release.yml`
+# (the Helm value the chart renders is the source of truth in managed
+# deploys; this config is the dev/test/CI fallback). Exactly one
+# entry should carry `default: true`.
+config :tuist, :runner_macos_xcode_versions, [
+  %{xcode_version: "26.5", default: true},
+  %{xcode_version: "26.4.1"},
+  %{xcode_version: "26.3"},
+  %{xcode_version: "26.1.1"},
+  %{xcode_version: "26.0.1"}
+]
+
 config :tuist, :urls,
   production: "https://tuist.dev",
   contact: "mailto:contact@tuist.dev",
@@ -243,16 +542,20 @@ config :tuist, :urls,
   podcast: "https://podcast.tuist.dev",
   peertube: "https://videos.tuist.dev",
   status: "https://status.tuist.dev",
-  get_started: "https://docs.tuist.dev",
+  get_started: "https://tuist.dev/en/docs",
   forum: "https://community.tuist.dev",
-  documentation: "https://docs.tuist.dev",
+  documentation: "https://tuist.dev/en/docs",
   # Import environment specific config. This must remain at the bottom
   # of this file so it overrides the configuration defined above.
-  feature_generated_projects: "https://docs.tuist.dev/en/guides/features/projects",
-  feature_cache: "https://docs.tuist.dev/en/guides/features/cache",
-  feature_previews: "https://docs.tuist.dev/en/guides/features/previews",
-  feature_insights: "https://docs.tuist.dev/en/guides/features/insights",
+  feature_generated_projects: "https://tuist.dev/en/docs/guides/features/projects",
+  feature_cache: "https://tuist.dev/en/docs/guides/features/cache",
+  feature_previews: "https://tuist.dev/en/docs/guides/features/previews",
+  feature_insights: "https://tuist.dev/en/docs/guides/features/build-insights",
   shop: "https://shop.tuist.dev"
+
+config :tuist_common, finch_name: Tuist.Finch
+
+config :tzdata, :http_client, Tuist.Tzdata.HTTPClient
 
 config :ueberauth, Ueberauth,
   base_path: "/users/auth",

@@ -1,0 +1,23 @@
+# Example values for deploying Kura on Scaleway Kapsule.
+#
+# Scaleway documents `scw-bssd` as the default block storage class on Kapsule
+# clusters and recommends `WaitForFirstConsumer` for multi-AZ scheduling.
+# You can keep using the default if your cluster already exposes it as the
+# default StorageClass, or pin it explicitly as shown below.
+
+service:
+  type: LoadBalancer
+  annotations: {}
+  # Example optional annotations:
+  # service.beta.kubernetes.io/scw-loadbalancer-use-hostname: "true"
+  # service.beta.kubernetes.io/scw-loadbalancer-proxy-protocol-v2: "true"
+  # service.beta.kubernetes.io/scw-loadbalancer-zone: "fr-par-1"
+  loadBalancerIP: ""
+
+persistence:
+  storageClass: scw-bssd
+
+config:
+  discovery:
+    enabled: true
+

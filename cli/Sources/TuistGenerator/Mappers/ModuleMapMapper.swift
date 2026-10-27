@@ -1,14 +1,25 @@
 import Foundation
 import Path
+import TuistConstants
 import TuistCore
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 
 /// Mapper that maps the `MODULE_MAP` build setting to the `-fmodule-map-file` compiler flags.
 /// It is required to avoid embedding the module map into the frameworks during cache operations, which would make the framework
 /// not portable, as the modulemap could contain absolute paths.
-public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_body_length
+///
+/// To avoid "Argument list too long" errors for targets with many transitive dependencies, this mapper generates a single
+/// combined module map file per target using `extern module` declarations, rather than adding individual
+/// `-fmodule-map-file` flags for each dependency.
+///
+/// This mirrors SwiftPM's package PIF builder, which propagates custom and generated module maps to clients
+/// with `-fmodule-map-file`:
+/// https://github.com/swiftlang/swift-package-manager/blob/ff05594c1267137ed5ee2c0076dfaf78f0289877/Sources/SwiftBuildSupport/PackagePIFProjectBuilder%2BModules.swift#L440-L459
+public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_body_length
     private static let modulemapFileSetting = "MODULEMAP_FILE"
+    private static let modulemapPathSetting = "MODULEMAP_PATH"
     private static let otherCFlagsSetting = "OTHER_CFLAGS"
     private static let otherSwiftFlagsSetting = "OTHER_SWIFT_FLAGS"
     private static let headerSearchPaths = "HEADER_SEARCH_PATHS"
@@ -19,14 +30,25 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
     }
 
     private struct DependencyMetadata: Hashable {
+        let moduleName: String
         let moduleMapPath: AbsolutePath?
         let headerSearchPaths: [String]
+    }
+
+    private struct DependenciesModuleMapsFrame {
+        let targetID: TargetID
+        let dependencies: [GraphTargetReference]
+        var nextDependencyIndex: Int
+        var dependenciesMetadata: Set<DependencyMetadata>
     }
 
     public init() {}
 
     // swiftlint:disable function_body_length
-    public func map(graph: Graph, environment: MapperEnvironment) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
+    public func map(
+        graph: Graph,
+        environment: MapperEnvironment
+    ) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment) {
         Logger.current
             .debug(
                 "Transforming graph \(graph.name): Mapping MODULE_MAP build setting to -fmodule-map-file compiler flag"
@@ -36,16 +58,21 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
         let graphTraverser = GraphTraverser(graph: graph)
         for target in graphTraverser.allTargets() {
             try Self.dependenciesModuleMaps(
-                graph: graph,
+                graphTraverser: graphTraverser,
                 target: target,
                 targetToDependenciesMetadata: &targetToDependenciesMetadata
             )
         }
 
         var graph = graph
+        var generatedFileSideEffects: [SideEffectDescriptor] = []
+        var generatedModuleMapDirectories: Set<AbsolutePath> = []
+        var activeFilesByDirectory: [AbsolutePath: Set<AbsolutePath>] = [:]
 
         graph.projects = Dictionary(uniqueKeysWithValues: graph.projects.map { projectPath, project in
             var project = project
+            generatedModuleMapDirectories.insert(dependenciesModuleMapDirectory(for: project))
+            let derivedDirectory = dependenciesDerivedDirectory(for: project)
             project.targets = Dictionary(uniqueKeysWithValues: project.targets.map { targetName, target in
                 var target = target
                 let targetID = TargetID(projectPath: project.path, targetName: target.name)
@@ -55,47 +82,188 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
                 else { return (targetName, target) }
 
                 if hasModuleMap {
+                    if let moduleMapPath = Self.moduleMapPath(
+                        from: mappedSettingsDictionary[Self.modulemapFileSetting],
+                        project: project
+                    ) {
+                        switch target.product {
+                        case .framework, .staticFramework:
+                            mappedSettingsDictionary[Self.modulemapPathSetting] = .string(moduleMapPath)
+                        default:
+                            break
+                        }
+                    }
                     mappedSettingsDictionary[Self.modulemapFileSetting] = nil
                 }
 
-                if let updatedOtherSwiftFlags = Self.updatedOtherSwiftFlags(
+                let combinedModuleMap = Self.combinedModuleMapContent(
                     targetID: targetID,
-                    oldOtherSwiftFlags: mappedSettingsDictionary[Self.otherSwiftFlagsSetting],
+                    project: project,
                     targetToDependenciesMetadata: targetToDependenciesMetadata
-                ) {
-                    mappedSettingsDictionary[Self.otherSwiftFlagsSetting] = updatedOtherSwiftFlags
+                )
+
+                if let combinedModuleMap {
+                    activeFilesByDirectory[
+                        combinedModuleMap.path.parentDirectory,
+                        default: []
+                    ].insert(combinedModuleMap.path)
+                    generatedFileSideEffects.append(
+                        .file(FileDescriptor(
+                            path: combinedModuleMap.path,
+                            contents: combinedModuleMap.content
+                        ))
+                    )
                 }
 
-                if let updatedOtherCFlags = Self.updatedOtherCFlags(
+                mappedSettingsDictionary = applyModuleMapFlags(
+                    to: mappedSettingsDictionary,
                     targetID: targetID,
-                    oldOtherCFlags: mappedSettingsDictionary[Self.otherCFlagsSetting],
-                    targetToDependenciesMetadata: targetToDependenciesMetadata
-                ) {
-                    mappedSettingsDictionary[Self.otherCFlagsSetting] = updatedOtherCFlags
-                }
-
-                if let updatedHeaderSearchPaths = Self.updatedHeaderSearchPaths(
-                    targetID: targetID,
-                    oldHeaderSearchPaths: mappedSettingsDictionary[Self.headerSearchPaths],
-                    targetToDependenciesMetadata: targetToDependenciesMetadata
-                ) {
-                    mappedSettingsDictionary[Self.headerSearchPaths] = updatedHeaderSearchPaths
-                }
+                    targetToDependenciesMetadata: targetToDependenciesMetadata,
+                    dependenciesDerivedDirectory: derivedDirectory,
+                    xcodeProjParent: project.xcodeProjPath.parentDirectory,
+                    combinedModuleMapPath: combinedModuleMap?.path
+                )
 
                 let targetSettings = target.settings ?? Settings(
                     base: [:],
                     configurations: [:],
                     defaultSettings: project.settings.defaultSettings
                 )
-                target.settings = targetSettings.with(base: mappedSettingsDictionary)
+
+                let updatedConfigurations: [BuildConfiguration: Configuration?] = Dictionary(
+                    uniqueKeysWithValues: targetSettings.configurations.map { buildConfig, configuration in
+                        let configSettings = applyModuleMapFlags(
+                            to: configuration?.settings ?? [:],
+                            targetID: targetID,
+                            targetToDependenciesMetadata: targetToDependenciesMetadata,
+                            dependenciesDerivedDirectory: derivedDirectory,
+                            xcodeProjParent: project.xcodeProjPath.parentDirectory,
+                            combinedModuleMapPath: combinedModuleMap?.path,
+                            onlyExistingKeys: true
+                        )
+                        return (
+                            buildConfig,
+                            configuration?.with(settings: configSettings)
+                                ?? Configuration(settings: configSettings)
+                        )
+                    }
+                )
+
+                target.settings = Settings(
+                    base: mappedSettingsDictionary,
+                    baseDebug: targetSettings.baseDebug,
+                    configurations: updatedConfigurations,
+                    defaultSettings: targetSettings.defaultSettings,
+                    defaultConfiguration: targetSettings.defaultConfiguration
+                )
 
                 return (target.name, target)
             })
 
             return (projectPath, project)
         })
-        return (graph, [], environment)
+        var sideEffects: [SideEffectDescriptor] = generatedModuleMapDirectories.isEmpty ? [] : [
+            .generatedFilesCleanup(
+                GeneratedFilesCleanupDescriptor(
+                    directories: generatedModuleMapDirectories,
+                    activeFilesByDirectory: activeFilesByDirectory,
+                    include: ["*-deps.modulemap"]
+                )
+            ),
+        ]
+        sideEffects.append(contentsOf: generatedFileSideEffects)
+        return (graph, sideEffects, environment)
     } // swiftlint:enable function_body_length
+
+    private static func moduleMapPath(
+        from value: SettingsDictionary.Value?,
+        project: Project
+    ) -> String? {
+        guard case let .string(moduleMap) = value else { return nil }
+
+        // Combined dependency module maps live under `tuist-derived/` and are referenced as
+        // `$(SRCROOT)/../../tuist-derived/...`. Rewrite them to the canonical `$(PROJECT_DIR)` form
+        // without depending on the project's generated location.
+        for sourceRoot in ["$(SRCROOT)", "$(SOURCE_ROOT)"] {
+            let derivedDirectoryPrefix = "\(sourceRoot)/../../tuist-derived/"
+            if moduleMap.hasPrefix(derivedDirectoryPrefix) {
+                let relativePath = String(moduleMap.dropFirst(derivedDirectoryPrefix.count))
+                return "$(PROJECT_DIR)/../../\(relativePath)"
+            }
+        }
+
+        // Source-root build-setting macros and absolute filesystem paths. `MODULEMAP_FILE` is
+        // authored relative to the source project: `$(SRCROOT)`/`$(SOURCE_ROOT)` resolve to the
+        // checkout (see `PackageInfoMapper`), while `$(PROJECT_DIR)` already anchors to the generated
+        // project. Resolve each macro against its corresponding project, then reanchor to the
+        // generated project's directory as a machine-independent `$(PROJECT_DIR)`-relative path so
+        // cache hashes stay stable across checkouts.
+        if moduleMap.hasPrefix("/") || moduleMap.hasPrefix("$(") {
+            let sourceProjectPath = project.path.pathString
+            let generatedProjectPath = project.xcodeProjPath.parentDirectory.pathString
+            let resolved = moduleMap
+                .replacingOccurrences(of: "$(PROJECT_DIR)", with: generatedProjectPath)
+                .replacingOccurrences(of: "$(SRCROOT)", with: sourceProjectPath)
+                .replacingOccurrences(of: "$(SOURCE_ROOT)", with: sourceProjectPath)
+
+            // Macros we don't model here (e.g. `$(DERIVED_FILE_DIR)`) can't be resolved to an absolute
+            // path at generation time. Preserve them verbatim so the module map isn't dropped and Xcode
+            // can evaluate them at build time.
+            guard let resolvedPath = try? AbsolutePath(validating: resolved) else {
+                return moduleMap
+            }
+
+            return "$(PROJECT_DIR)/\(resolvedPath.relative(to: project.xcodeProjPath.parentDirectory).pathString)"
+        }
+
+        guard (try? RelativePath(validating: moduleMap)) != nil else {
+            return nil
+        }
+        return "$(PROJECT_DIR)/\(moduleMap)"
+    }
+
+    private func dependenciesModuleMapDirectory(for project: Project) -> AbsolutePath {
+        if case .external = project.type,
+           let scratch = project.swiftPackageManagerScratchDirectory
+        {
+            return scratch.appending(
+                components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                Constants.DerivedDirectory.dependenciesModuleMapsDirectory,
+                project.name.sanitizedModuleName
+            )
+        } else {
+            return project.path.appending(
+                components: Constants.DerivedDirectory.name,
+                Constants.DerivedDirectory.moduleMaps
+            )
+        }
+    }
+
+    /// The `tuist-derived/` directory for an external SPM-generated project, or `nil` for local projects.
+    /// Used as a gating condition for `referenceString` to decide whether a referenced path is one Tuist owns
+    /// and should anchor on `$(PROJECT_DIR)` instead of `$(SRCROOT)`.
+    private func dependenciesDerivedDirectory(for project: Project) -> AbsolutePath? {
+        guard case .external = project.type,
+              let scratch = project.swiftPackageManagerScratchDirectory
+        else { return nil }
+        return scratch.appending(component: Constants.DerivedDirectory.dependenciesDerivedDirectory)
+    }
+
+    /// Returns the flag value to emit for `path`. Paths under `dependenciesDerivedDirectory` anchor on
+    /// `$(PROJECT_DIR)` so the substituted absolute path stays inside `tuist-derived/` and never traverses the
+    /// SwiftPM `checkouts/` symlink (see the file-level header for the underlying Xcode 26.5 dep-scanner
+    /// behaviour this avoids). All other paths keep the historical `$(SRCROOT)/<rel>` form.
+    private static func referenceString(
+        for path: AbsolutePath,
+        relativeTo projectPath: AbsolutePath,
+        dependenciesDerivedDirectory: AbsolutePath?,
+        xcodeProjParent: AbsolutePath
+    ) -> String {
+        if let dependenciesDerivedDirectory, path.pathString.hasPrefix(dependenciesDerivedDirectory.pathString + "/") {
+            return "$(PROJECT_DIR)/\(path.relative(to: xcodeProjParent).pathString)"
+        }
+        return "$(SRCROOT)/\(path.relative(to: projectPath).pathString)"
+    }
 
     private static func makeProjectsByPathWithTargetsByName(workspace: WorkspaceWithProjects)
         -> ([AbsolutePath: Project], [String: Target])
@@ -116,52 +284,110 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
     /// Each target must link the module map of its direct and indirect dependencies.
     /// The `targetToDependenciesMetadata` is also used as cache to avoid recomputing the set for already computed targets.
     private static func dependenciesModuleMaps( // swiftlint:disable:this function_body_length
-        graph: Graph,
+        graphTraverser: GraphTraverser,
         target: GraphTarget,
         targetToDependenciesMetadata: inout [TargetID: Set<DependencyMetadata>]
     ) throws {
-        let targetID = TargetID(projectPath: target.path, targetName: target.target.name)
+        let targetID = Self.targetID(target)
         if targetToDependenciesMetadata[targetID] != nil {
             // already computed
             return
         }
 
-        let graphTraverser = GraphTraverser(graph: graph)
+        var activeTargetIDs = Set<TargetID>()
+        var stack = [
+            DependenciesModuleMapsFrame(
+                targetID: targetID,
+                dependencies: Self.directTargetDependencies(graphTraverser: graphTraverser, target: target),
+                nextDependencyIndex: 0,
+                dependenciesMetadata: []
+            ),
+        ]
+        activeTargetIDs.insert(targetID)
 
-        var dependenciesMetadata: Set<DependencyMetadata> = []
-        for dependency in graphTraverser.directTargetDependencies(path: target.path, name: target.target.name) {
-            try Self.dependenciesModuleMaps(
-                graph: graph,
-                target: dependency.graphTarget,
-                targetToDependenciesMetadata: &targetToDependenciesMetadata
-            )
+        while let frame = stack.last {
+            let frameIndex = stack.count - 1
+            if frame.nextDependencyIndex < frame.dependencies.count {
+                let dependency = frame.dependencies[frame.nextDependencyIndex]
+                let dependencyTargetID = Self.targetID(dependency.graphTarget)
 
-            // direct dependency module map
-            let dependencyModuleMapPath: AbsolutePath?
+                if let indirectDependencyMetadata = targetToDependenciesMetadata[dependencyTargetID] {
+                    stack[frameIndex].nextDependencyIndex += 1
+                    stack[frameIndex].dependenciesMetadata.formUnion(indirectDependencyMetadata)
+                    stack[frameIndex].dependenciesMetadata.insert(
+                        try Self.dependencyMetadata(for: dependency)
+                    )
+                    continue
+                }
 
-            if case let .string(dependencyModuleMap) = dependency.target.settings?.base[Self.modulemapFileSetting] {
-                let pathString = dependency.graphTarget.path.pathString
-                dependencyModuleMapPath = try AbsolutePath(
-                    validating: dependencyModuleMap
-                        .replacingOccurrences(of: "$(PROJECT_DIR)", with: pathString)
-                        .replacingOccurrences(of: "$(SRCROOT)", with: pathString)
-                        .replacingOccurrences(of: "$(SOURCE_ROOT)", with: pathString)
+                if activeTargetIDs.contains(dependencyTargetID) {
+                    throw GraphAlgorithmError.unexpectedCycle
+                }
+
+                activeTargetIDs.insert(dependencyTargetID)
+                stack.append(
+                    DependenciesModuleMapsFrame(
+                        targetID: dependencyTargetID,
+                        dependencies: Self.directTargetDependencies(
+                            graphTraverser: graphTraverser,
+                            target: dependency.graphTarget
+                        ),
+                        nextDependencyIndex: 0,
+                        dependenciesMetadata: []
+                    )
                 )
             } else {
-                dependencyModuleMapPath = nil
+                let completedFrame = stack.removeLast()
+                targetToDependenciesMetadata[completedFrame.targetID] = completedFrame.dependenciesMetadata
+                activeTargetIDs.remove(completedFrame.targetID)
             }
+        }
+    }
 
-            var headerSearchPaths: [String]
-            switch dependency.target.settings?.base[Self.headerSearchPaths] ?? .array([]) {
-            case let .array(values):
-                headerSearchPaths = values
-            case let .string(value):
-                headerSearchPaths = [value]
-            }
+    private static func targetID(_ target: GraphTarget) -> TargetID {
+        TargetID(projectPath: target.path, targetName: target.target.name)
+    }
 
-            headerSearchPaths = headerSearchPaths.map {
-                let pathString = dependency.graphTarget.path.pathString
-                return (
+    private static func directTargetDependencies(
+        graphTraverser: GraphTraverser,
+        target: GraphTarget
+    ) -> [GraphTargetReference] {
+        Array(
+            graphTraverser.directTargetDependencies(
+                path: target.path,
+                name: target.target.name
+            )
+        )
+    }
+
+    private static func dependencyMetadata(for dependency: GraphTargetReference) throws -> DependencyMetadata {
+        let dependencyModuleMapPath: AbsolutePath?
+        let pathString = dependency.graphTarget.path.pathString
+
+        if case let .string(dependencyModuleMap) = dependency.target.settings?.base[Self.modulemapFileSetting] {
+            dependencyModuleMapPath = try AbsolutePath(
+                validating: dependencyModuleMap
+                    .replacingOccurrences(of: "$(PROJECT_DIR)", with: pathString)
+                    .replacingOccurrences(of: "$(SRCROOT)", with: pathString)
+                    .replacingOccurrences(of: "$(SOURCE_ROOT)", with: pathString)
+            )
+        } else {
+            dependencyModuleMapPath = nil
+        }
+
+        let headerSearchPaths: [String]
+        switch dependency.target.settings?.base[Self.headerSearchPaths] ?? .array([]) {
+        case let .array(values):
+            headerSearchPaths = values
+        case let .string(value):
+            headerSearchPaths = [value]
+        }
+
+        return DependencyMetadata(
+            moduleName: dependency.target.productName,
+            moduleMapPath: dependencyModuleMapPath,
+            headerSearchPaths: headerSearchPaths.map {
+                (
                     try? AbsolutePath(
                         validating: $0
                             .replacingOccurrences(of: "$(PROJECT_DIR)", with: pathString)
@@ -170,28 +396,94 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
                     ).pathString
                 ) ?? $0
             }
+        )
+    }
 
-            // indirect dependency module maps
-            let dependentTargetID = TargetID(projectPath: dependency.graphTarget.path, targetName: dependency.target.name)
-            if let indirectDependencyMetadata = targetToDependenciesMetadata[dependentTargetID] {
-                dependenciesMetadata.formUnion(indirectDependencyMetadata)
-            }
+    // We apply module map flags to both the base settings and per-configuration overrides.
+    // Base settings alone are not enough because Xcode resolves configuration-level keys
+    // independently: if a configuration already defines e.g. OTHER_SWIFT_FLAGS, it shadows
+    // the base value entirely, so the module map flags would be lost. When updating
+    // configuration settings we pass onlyExistingKeys: true so we only patch keys the
+    // configuration explicitly overrides, avoiding unnecessary duplication.
+    private func applyModuleMapFlags(
+        to settings: SettingsDictionary,
+        targetID: TargetID,
+        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>],
+        dependenciesDerivedDirectory: AbsolutePath?,
+        xcodeProjParent: AbsolutePath,
+        combinedModuleMapPath: AbsolutePath?,
+        onlyExistingKeys: Bool = false
+    ) -> SettingsDictionary {
+        var settings = settings
 
-            dependenciesMetadata.insert(
-                DependencyMetadata(
-                    moduleMapPath: dependencyModuleMapPath,
-                    headerSearchPaths: headerSearchPaths
-                )
-            )
+        if Self.shouldApplyModuleMapFlags(
+            to: settings[Self.otherSwiftFlagsSetting],
+            onlyExistingKeys: onlyExistingKeys
+        ), let updated = Self.updatedOtherSwiftFlags(
+            targetID: targetID,
+            oldOtherSwiftFlags: settings[Self.otherSwiftFlagsSetting],
+            dependenciesDerivedDirectory: dependenciesDerivedDirectory,
+            xcodeProjParent: xcodeProjParent,
+            combinedModuleMapPath: combinedModuleMapPath
+        ) {
+            settings[Self.otherSwiftFlagsSetting] = updated
         }
 
-        targetToDependenciesMetadata[targetID] = dependenciesMetadata
+        if Self.shouldApplyModuleMapFlags(
+            to: settings[Self.otherCFlagsSetting],
+            onlyExistingKeys: onlyExistingKeys
+        ), let updated = Self.updatedOtherCFlags(
+            targetID: targetID,
+            oldOtherCFlags: settings[Self.otherCFlagsSetting],
+            dependenciesDerivedDirectory: dependenciesDerivedDirectory,
+            xcodeProjParent: xcodeProjParent,
+            combinedModuleMapPath: combinedModuleMapPath
+        ) {
+            settings[Self.otherCFlagsSetting] = updated
+        }
+
+        if Self.shouldApplyModuleMapFlags(
+            to: settings[Self.headerSearchPaths],
+            onlyExistingKeys: onlyExistingKeys
+        ), let updated = Self.updatedHeaderSearchPaths(
+            targetID: targetID,
+            oldHeaderSearchPaths: settings[Self.headerSearchPaths],
+            targetToDependenciesMetadata: targetToDependenciesMetadata,
+            dependenciesDerivedDirectory: dependenciesDerivedDirectory,
+            xcodeProjParent: xcodeProjParent
+        ) {
+            settings[Self.headerSearchPaths] = updated
+        }
+
+        return settings
+    }
+
+    /// A configuration value containing $(inherited) already receives the base flags, so adding the
+    /// flag there again would duplicate it in the generated Xcode project.
+    private static func shouldApplyModuleMapFlags(
+        to setting: SettingsDictionary.Value?,
+        onlyExistingKeys: Bool
+    ) -> Bool {
+        !onlyExistingKeys || (setting != nil && !inheritsBaseSetting(setting))
+    }
+
+    private static func inheritsBaseSetting(_ setting: SettingsDictionary.Value?) -> Bool {
+        switch setting {
+        case let .string(value):
+            value.contains("$(inherited)")
+        case let .array(values):
+            values.contains("$(inherited)")
+        case nil:
+            false
+        }
     }
 
     private static func updatedHeaderSearchPaths(
         targetID: TargetID,
         oldHeaderSearchPaths: SettingsDictionary.Value?,
-        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>]
+        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>],
+        dependenciesDerivedDirectory: AbsolutePath?,
+        xcodeProjParent: AbsolutePath
     ) -> SettingsDictionary.Value? {
         let dependenciesHeaderSearchPaths = Set(targetToDependenciesMetadata[targetID]?.flatMap(\.headerSearchPaths) ?? [])
         guard !dependenciesHeaderSearchPaths.isEmpty
@@ -206,25 +498,70 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
         }
 
         for headerSearchPath in dependenciesHeaderSearchPaths.sorted() {
-            mappedHeaderSearchPaths.append(
-                (
-                    try? AbsolutePath(validating: headerSearchPath)
-                        .relative(to: targetID.projectPath).pathString
-                ).map { "$(SRCROOT)/\($0)" } ?? headerSearchPath
-            )
+            if let absolute = try? AbsolutePath(validating: headerSearchPath) {
+                mappedHeaderSearchPaths.append(
+                    referenceString(
+                        for: absolute,
+                        relativeTo: targetID.projectPath,
+                        dependenciesDerivedDirectory: dependenciesDerivedDirectory,
+                        xcodeProjParent: xcodeProjParent
+                    )
+                )
+            } else {
+                mappedHeaderSearchPaths.append(headerSearchPath)
+            }
         }
 
         return .array(mappedHeaderSearchPaths)
     }
 
+    private static func combinedModuleMapContent(
+        targetID: TargetID,
+        project: Project,
+        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>]
+    ) -> (path: AbsolutePath, content: Data)? {
+        guard let dependenciesMetadata = targetToDependenciesMetadata[targetID] else { return nil }
+
+        let moduleMapsMetadata = dependenciesMetadata
+            .filter { $0.moduleMapPath != nil }
+            .sorted { $0.moduleName < $1.moduleName }
+
+        guard !moduleMapsMetadata.isEmpty else { return nil }
+
+        let content = moduleMapsMetadata
+            .map { "extern module \($0.moduleName) \"\($0.moduleMapPath!.pathString)\"" }
+            .joined(separator: "\n")
+            + "\n"
+
+        let combinedPath: AbsolutePath
+        if case .external = project.type,
+           let scratch = project.swiftPackageManagerScratchDirectory
+        {
+            combinedPath = scratch.appending(
+                components: Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                Constants.DerivedDirectory.dependenciesModuleMapsDirectory,
+                project.name.sanitizedModuleName,
+                "\(targetID.targetName)-deps.modulemap"
+            )
+        } else {
+            combinedPath = targetID.projectPath.appending(
+                components: Constants.DerivedDirectory.name,
+                Constants.DerivedDirectory.moduleMaps,
+                "\(targetID.targetName)-deps.modulemap"
+            )
+        }
+
+        return (path: combinedPath, content: Data(content.utf8))
+    }
+
     private static func updatedOtherSwiftFlags(
         targetID: TargetID,
         oldOtherSwiftFlags: SettingsDictionary.Value?,
-        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>]
+        dependenciesDerivedDirectory: AbsolutePath?,
+        xcodeProjParent: AbsolutePath,
+        combinedModuleMapPath: AbsolutePath?
     ) -> SettingsDictionary.Value? {
-        guard let dependenciesModuleMaps = targetToDependenciesMetadata[targetID]?.compactMap(\.moduleMapPath),
-              !dependenciesModuleMaps.isEmpty
-        else { return nil }
+        guard let combinedModuleMapPath else { return nil }
 
         var mappedOtherSwiftFlags: [String]
         switch oldOtherSwiftFlags ?? .array(["$(inherited)"]) {
@@ -234,12 +571,16 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
             mappedOtherSwiftFlags = value.split(separator: " ").map(String.init)
         }
 
-        for moduleMap in dependenciesModuleMaps.sorted() {
-            mappedOtherSwiftFlags.append(contentsOf: [
-                "-Xcc",
-                "-fmodule-map-file=$(SRCROOT)/\(moduleMap.relative(to: targetID.projectPath))",
-            ])
-        }
+        let reference = referenceString(
+            for: combinedModuleMapPath,
+            relativeTo: targetID.projectPath,
+            dependenciesDerivedDirectory: dependenciesDerivedDirectory,
+            xcodeProjParent: xcodeProjParent
+        )
+        mappedOtherSwiftFlags.append(contentsOf: [
+            "-Xcc",
+            "-fmodule-map-file=\"\(reference)\"",
+        ])
 
         return .array(mappedOtherSwiftFlags)
     }
@@ -247,11 +588,11 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
     private static func updatedOtherCFlags(
         targetID: TargetID,
         oldOtherCFlags: SettingsDictionary.Value?,
-        targetToDependenciesMetadata: [TargetID: Set<DependencyMetadata>]
+        dependenciesDerivedDirectory: AbsolutePath?,
+        xcodeProjParent: AbsolutePath,
+        combinedModuleMapPath: AbsolutePath?
     ) -> SettingsDictionary.Value? {
-        guard let dependenciesModuleMaps = targetToDependenciesMetadata[targetID]?.compactMap(\.moduleMapPath),
-              !dependenciesModuleMaps.isEmpty
-        else { return nil }
+        guard let combinedModuleMapPath else { return nil }
 
         var mappedOtherCFlags: [String]
         switch oldOtherCFlags ?? .array(["$(inherited)"]) {
@@ -261,9 +602,15 @@ public final class ModuleMapMapper: GraphMapping { // swiftlint:disable:this typ
             mappedOtherCFlags = value.split(separator: " ").map(String.init)
         }
 
-        for moduleMap in dependenciesModuleMaps.sorted() {
-            mappedOtherCFlags.append("-fmodule-map-file=$(SRCROOT)/\(moduleMap.relative(to: targetID.projectPath))")
-        }
+        let reference = referenceString(
+            for: combinedModuleMapPath,
+            relativeTo: targetID.projectPath,
+            dependenciesDerivedDirectory: dependenciesDerivedDirectory,
+            xcodeProjParent: xcodeProjParent
+        )
+        mappedOtherCFlags.append(
+            "-fmodule-map-file=\"\(reference)\""
+        )
 
         return .array(mappedOtherCFlags)
     }

@@ -1,0 +1,308 @@
+name: Helm
+
+# Validate Helm charts at the PR stage so chart bugs
+# are caught before a deploy workflow tries to apply them to a real
+# cluster. Four layers of checks, each progressively stricter:
+#
+#   1. `helm lint` — Chart.yaml well-formedness, template parse, value
+#      reference sanity.
+#   2. `helm template` — full render with the production overlay.
+#      Catches missing required values, bad Sprig pipelines, and
+#      dependency resolution failures the way the actual deploy would
+#      hit them.
+#   3. `kubeconform` — schema-validates the rendered manifests against
+#      the built-in Kubernetes API and the datreeio CRDs catalog.
+#      Catches typo'd field names and wrong apiVersion/kind combinations
+#      that `helm template` happily emits but the API server would
+#      reject.
+#   4. K3s smoke install — starts a disposable single-node K3s cluster,
+#      checks that the chart is accepted by the K3s control plane,
+#      and waits for the embedded storage dependencies to become ready.
+#
+# All charts run sequentially inside the lint and render jobs instead of
+# a per-chart matrix. Each per-chart pass takes seconds, so spinning up
+# a runner per chart was mostly setup overhead. Per-chart `::group::`
+# sections keep the GitHub Actions UI navigable.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - infra/helm/**
+      - infra/grafana-dashboards/**
+      - infra/mise.toml
+      - infra/mise.lock
+      - infra/mise/tasks/helm/**
+      - server/lib/tuist_web/draining.ex
+      - kura/ops/helm/kura/**
+      - .github/workflows/helm.yml
+      - .github/workflows/pentest-deployment.yml
+      - .github/workflows/pentest-platform-reconcile.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - infra/helm/**
+      - infra/grafana-dashboards/**
+      - infra/mise.toml
+      - infra/mise.lock
+      - infra/mise/tasks/helm/**
+      - server/lib/tuist_web/draining.ex
+      - kura/ops/helm/kura/**
+      - .github/workflows/helm.yml
+      - .github/workflows/pentest-deployment.yml
+      - .github/workflows/pentest-platform-reconcile.yml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: helm-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  # Helm is pinned here for the generic lint and render jobs. The K3s
+  # smoke job uses the infra mise tool pins instead.
+  HELM_VERSION: "4.1.4"
+  KUBECONFORM_VERSION: "0.7.0"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install: "false"
+      - name: Install helm
+        run: mise use -g "helm@${HELM_VERSION}"
+      - name: helm lint
+        run: |
+          set -uo pipefail
+          configs=(
+            "kura/ops/helm/kura|"
+            "infra/helm/typesense|values-ci.yaml"
+            "infra/helm/slack|values-ci.yaml"
+            "infra/helm/mdm|values-ci.yaml"
+            "infra/helm/noora-storybook|values-ci.yaml"
+            "infra/helm/tuist|values-self-hosted-ci.yaml values-ci.yaml"
+            "infra/helm/tuist|values-self-hosted-ci.yaml values-cluster-ci.yaml values-ci.yaml"
+            "infra/helm/tuist|values-preview.yaml values-preview-kura.yaml values-preview-ci.yaml values-ci.yaml"
+            "infra/helm/tuist|values-pentest.yaml values-ci.yaml"
+            "infra/helm/tuist|values-k3s-smoke.yaml"
+            "infra/helm/k8s-monitoring|"
+            "infra/helm/platform|"
+            "infra/helm/rack-nodes|"
+            "infra/helm/xcresult-processor|"
+            "infra/helm/rack-cache-gateways|"
+          )
+          failed=()
+          for entry in "${configs[@]}"; do
+            IFS='|' read -r chart values <<< "$entry"
+            echo "::group::$chart"
+            # `helm lint` needs subchart tarballs in charts/ to resolve
+            # references. No-op for charts without `dependencies:`.
+            if grep -q "^dependencies:" "$chart/Chart.yaml"; then
+              helm dependency update "$chart"
+            fi
+            args=()
+            for v in $values; do
+              args+=("-f" "$chart/$v")
+            done
+            if ! helm lint "$chart" "${args[@]}"; then
+              failed+=("$chart")
+            fi
+            echo "::endgroup::"
+          done
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "::error::helm lint failed for: ${failed[*]}"
+            exit 1
+          fi
+
+      - name: Start production Alloy log pipeline
+        run: |
+          mise use -g yq@4.52.5
+          bash infra/helm/k8s-monitoring/test-cost-controls.sh
+      - name: Test mixed-version Kura latency query
+        run: |
+          mise use -g aqua:prometheus/prometheus@3.5.0
+          bash infra/helm/k8s-monitoring/test-kura-latency-query.sh
+      - name: Test production metric write rules with Alloy
+        run: python3 infra/helm/k8s-monitoring/test-metric-cost-controls.py
+      - name: Test runner macOS host health alerts
+        run: bash infra/helm/k8s-monitoring/test-runner-macos-host-alerts.sh
+
+  render:
+    name: Render
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install: "false"
+      - name: Install helm
+        run: mise use -g "helm@${HELM_VERSION}"
+      - name: Install kubeconform
+        run: |
+          set -euo pipefail
+          archive="kubeconform-linux-amd64.tar.gz"
+          curl -fsSL \
+            "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/${archive}" \
+            -o "$archive"
+          mkdir -p "$HOME/.local/bin"
+          tar -xzf "$archive" kubeconform
+          install -m 0755 kubeconform "$HOME/.local/bin/kubeconform"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: helm template + kubeconform
+        # Each entry: name|chart|release|values (values is space-separated;
+        # the tuist umbrella layers values-managed-common.yaml under the
+        # per-env overlay, matching what server-deployment.yml does on a
+        # real cluster). Only production overlays are checked: production
+        # is the load-bearing overlay (HPA, PDB, NetworkPolicy, second
+        # deployment), and canary/staging diverge minimally from it so
+        # they would just duplicate signal.
+        run: |
+          set -uo pipefail
+          configs=(
+            "kura|kura/ops/helm/kura|kura|"
+            "typesense (production)|infra/helm/typesense|typesense|values-production.yaml values-ci.yaml"
+            "slack (production)|infra/helm/slack|slack|values-production.yaml values-ci.yaml"
+            "mdm (production)|infra/helm/mdm|mdm|values-production.yaml values-ci.yaml"
+            "noora-storybook (production)|infra/helm/noora-storybook|noora-storybook|values-production.yaml values-ci.yaml"
+            "tuist (production)|infra/helm/tuist|tuist|values-managed-common.yaml values-managed-production.yaml values-ci.yaml"
+            "tuist (clustered self-hosted)|infra/helm/tuist|cluster-validation|values-self-hosted-ci.yaml values-cluster-ci.yaml values-ci.yaml"
+            "tuist (preview)|infra/helm/tuist|preview-validation|values-preview.yaml values-preview-kura.yaml values-preview-ci.yaml values-ci.yaml"
+            "tuist (pentest)|infra/helm/tuist|pentest|values-pentest.yaml values-ci.yaml"
+            "k8s-monitoring (production)|infra/helm/k8s-monitoring|k8s-monitoring|values-production.yaml"
+            "platform (hetzner)|infra/helm/platform|platform|values-hetzner.yaml"
+            "platform (preview)|infra/helm/platform|platform|values-hetzner.yaml values-tuist-preview.yaml"
+            "platform (pentest)|infra/helm/platform|platform|values-hetzner.yaml values-tuist-pentest.yaml"
+          )
+          failed=()
+          for entry in "${configs[@]}"; do
+            IFS='|' read -r name chart release values <<< "$entry"
+            echo "::group::$name"
+            if grep -q "^dependencies:" "$chart/Chart.yaml"; then
+              helm dependency update "$chart"
+            fi
+            args=()
+            for v in $values; do
+              args+=("-f" "$chart/$v")
+            done
+            if ! helm template "$release" "$chart" "${args[@]}" > rendered.yaml; then
+              failed+=("$name (template)")
+              echo "::endgroup::"
+              continue
+            fi
+            echo "Rendered $(wc -l <rendered.yaml) lines of manifests."
+            if [ "$name" = "tuist (preview)" ]; then
+              hosted_values="$(
+                awk '
+                  /name: TUIST_HOSTED/ {
+                    getline
+                    print
+                  }
+                ' rendered.yaml
+              )"
+              if [ -z "$hosted_values" ] || echo "$hosted_values" | grep -qv 'value: "1"'; then
+                echo "::error::The preview render must set every TUIST_HOSTED value to 1."
+                failed+=("$name (hosted configuration)")
+              fi
+            fi
+            # `-strict` rejects unknown fields so typo'd keys in resource
+            # specs fail the build. Built-in resources validate against
+            # the upstream Kubernetes JSON schemas; CRDs (ExternalSecret,
+            # etc.) use the datreeio catalog. Anything still unrecognized
+            # is skipped via `-ignore-missing-schemas` rather than
+            # failing — better than vendoring schemas for every operator
+            # we run.
+            if ! kubeconform \
+              -strict \
+              -ignore-missing-schemas \
+              -summary \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+              rendered.yaml; then
+              failed+=("$name (kubeconform)")
+            fi
+            echo "::endgroup::"
+          done
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "::error::render/validation failed for: ${failed[*]}"
+            exit 1
+          fi
+      # Check cookie ownership after the full manifest render validation.
+      - name: Test cluster cookie ownership and managed environment wiring
+        run: python3 infra/helm/tuist/test-cluster-cookie.py
+      - name: CNPG promotion stays in the environment write tier
+        run: |
+          mise use -g yq@4.52.5
+          bash infra/helm/pomerium/test-access-tiers.sh
+      # A release a deploy waits on must not run pods on a rack node, or a dark
+      # rack fails every deploy. See "Deploys and the rack's health" in
+      # infra/rack-nodes/AGENTS.md.
+      - name: Rack workloads stay out of waited releases
+        run: infra/mise/tasks/helm/rack-independence.sh
+      - name: Server pods drain and the edge retries only unsent requests
+        run: infra/mise/tasks/helm/server-rollout.sh
+      - name: Linux vRack rollout keeps runner cohorts isolated
+        run: infra/mise/tasks/helm/linux-vrack.sh
+      # The xcresult processor chart renders the tuist chart's processor
+      # templates for the tuist release it names, which the loop above cannot
+      # express either.
+      - name: kubeconform the xcresult processor chart
+        run: |
+          set -euo pipefail
+          for env in staging canary production; do
+            helm template tuist-xcresult-processor infra/helm/xcresult-processor --namespace tuist \
+              --set tuistRelease=tuist \
+              -f infra/helm/tuist/values-managed-common.yaml \
+              -f "infra/helm/tuist/values-managed-$env.yaml" \
+              -f infra/helm/tuist/values-ci.yaml > xcresult-processor.yaml
+            if ! grep -q "^kind: Deployment$" xcresult-processor.yaml; then
+              echo "::error::The $env render of infra/helm/xcresult-processor has no Deployment."
+              exit 1
+            fi
+            kubeconform -strict -summary xcresult-processor.yaml
+          done
+      # The rack charts render with another chart's values, which the loop
+      # above cannot express.
+      - name: kubeconform the rack charts
+        run: |
+          set -euo pipefail
+          for env in staging production; do
+            helm template tuist-rack-nodes infra/helm/rack-nodes --namespace tuist \
+              -f infra/helm/tuist/values.yaml \
+              -f infra/helm/tuist/values-managed-common.yaml \
+              -f "infra/helm/tuist/values-managed-$env.yaml" > rack-nodes.yaml
+            kubeconform -strict -summary rack-nodes.yaml
+          done
+          for overlay in values-tuist-staging.yaml values-tuist.yaml; do
+            helm template rack-cache-gateways infra/helm/rack-cache-gateways --namespace platform \
+              -f infra/helm/platform/values.yaml \
+              -f infra/helm/platform/values-hetzner.yaml \
+              -f "infra/helm/platform/$overlay" > rack-cache-gateways.yaml
+            kubeconform -strict -summary rack-cache-gateways.yaml
+          done
+
+  k3s:
+    name: K3s Smoke Install
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install: "false"
+      - name: Install smoke test tools
+        run: mise -C infra install helm kubectl k3d
+      - name: Smoke test Tuist chart on K3s
+        run: mise -C infra run helm:k3s-smoke

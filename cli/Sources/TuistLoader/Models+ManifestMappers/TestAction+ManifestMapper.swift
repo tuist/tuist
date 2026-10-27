@@ -3,7 +3,6 @@ import Foundation
 import Path
 import ProjectDescription
 import TuistCore
-import TuistSupport
 import XcodeGraph
 
 extension XcodeGraph.TestAction {
@@ -12,7 +11,11 @@ extension XcodeGraph.TestAction {
     // - Parameters:
     //   - manifest: Manifest representation of test action model.
     //   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TestAction, generatorPaths: GeneratorPaths) async throws -> XcodeGraph
+    static func from(
+        manifest: ProjectDescription.TestAction,
+        generatorPaths: GeneratorPaths,
+        schemeName: String? = nil
+    ) async throws -> XcodeGraph
         .TestAction
     {
         // swiftlint:enable function_body_length
@@ -20,6 +23,7 @@ extension XcodeGraph.TestAction {
         let targets: [XcodeGraph.TestableTarget]
         let arguments: XcodeGraph.Arguments?
         let coverage: Bool
+        let inheritsCoverage: Bool
         let codeCoverageTargets: [XcodeGraph.TargetReference]
         let expandVariablesFromTarget: XcodeGraph.TargetReference?
         let diagnosticsOptions: XcodeGraph.SchemeDiagnosticsOptions
@@ -29,55 +33,20 @@ extension XcodeGraph.TestAction {
         let skippedTests: [String]?
         let fileSystem = FileSystem()
 
-        if let plans = manifest.testPlans {
-            var resolvedTestPlans: [XcodeGraph.TestPlan] = []
+        if let planManifests = manifest.testPlans, !planManifests.isEmpty {
+            let resolvedTestPlans = try await XcodeGraph.TestPlan.from(
+                manifests: planManifests,
+                generatorPaths: generatorPaths,
+                schemeName: schemeName,
+                fileSystem: fileSystem
+            )
 
-            for path in plans {
-                let resolvedPath = try generatorPaths.resolve(path: path)
-                let pathString = resolvedPath.pathString
+            testPlans = resolvedTestPlans.isEmpty ? nil : resolvedTestPlans
 
-                // Check if path contains glob patterns
-                if pathString.contains("*") {
-                    let globPathString = String(pathString.dropFirst())
-
-                    do {
-                        let globPaths = try await fileSystem
-                            .throwingGlob(directory: .root, include: [globPathString])
-                            .collect()
-                            .filter { $0.extension == "xctestplan" }
-                            .sorted()
-
-                        for globPath in globPaths {
-                            let testPlan = try await TestPlan.from(
-                                path: globPath,
-                                isDefault: resolvedTestPlans.isEmpty,
-                                generatorPaths: generatorPaths
-                            )
-                            resolvedTestPlans.append(testPlan)
-                        }
-                    } catch GlobError.nonExistentDirectory {
-                        // Skip non-existent glob patterns
-                        continue
-                    }
-                } else {
-                    // Handle as literal path
-                    if try await fileSystem.exists(resolvedPath) && resolvedPath.extension == "xctestplan" {
-                        let testPlan = try await TestPlan.from(
-                            path: resolvedPath,
-                            isDefault: resolvedTestPlans.isEmpty,
-                            generatorPaths: generatorPaths
-                        )
-                        resolvedTestPlans.append(testPlan)
-                    }
-                }
-            }
-
-            testPlans = resolvedTestPlans
-
-            // not used when using test plans
             targets = []
             arguments = nil
             coverage = false
+            inheritsCoverage = false
             codeCoverageTargets = []
             expandVariablesFromTarget = nil
             diagnosticsOptions = .init()
@@ -89,7 +58,8 @@ extension XcodeGraph.TestAction {
             targets = try manifest.targets
                 .map { try XcodeGraph.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths) }
             arguments = manifest.arguments.map { XcodeGraph.Arguments.from(manifest: $0) }
-            coverage = manifest.options.coverage
+            coverage = manifest.options.codeCoverage == .enabled
+            inheritsCoverage = manifest.options.codeCoverage == .inherit
             codeCoverageTargets = try manifest.options.codeCoverageTargets.map {
                 XcodeGraph.TargetReference(
                     projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
@@ -138,7 +108,8 @@ extension XcodeGraph.TestAction {
             region: region,
             preferredScreenCaptureFormat: preferredScreenCaptureFormat,
             testPlans: testPlans,
-            skippedTests: skippedTests
+            skippedTests: skippedTests,
+            inheritsCoverage: inheritsCoverage
         )
     }
 }

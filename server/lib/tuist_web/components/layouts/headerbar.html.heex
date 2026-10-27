@@ -1,0 +1,9 @@
+<main class="layout">
+  <TuistWeb.AppLayoutComponents.headerbar
+    breadcrumbs={Map.get(assigns, :breadcrumbs, [])}
+    current_user={@current_user}
+    selected_account={@selected_account}
+    latest_app_release={@latest_app_release}
+  />
+  {@inner_content}
+</main>

@@ -1,6 +1,6 @@
 import Foundation
 
-final class MarkdownRenderer: Renderer {
+struct MarkdownRenderer: Renderer {
     private let deltaThreshold: TimeInterval
     init(deltaThreshold: TimeInterval) {
         self.deltaThreshold = deltaThreshold

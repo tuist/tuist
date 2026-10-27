@@ -1,6 +1,7 @@
 #if canImport(TuistCore)
     import Foundation
     import Mockable
+    import TuistConfig
     import TuistCore
 
     @Mockable

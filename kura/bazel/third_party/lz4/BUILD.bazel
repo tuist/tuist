@@ -1,0 +1,21 @@
+load(":include_dir.bzl", "include_dir")
+
+# A directory tree artifact containing lz4.h, fed to librocksdb-sys's build
+# script as DEP_LZ4_INCLUDE (see include_dir.bzl for why the normal rules_rs
+# propagation is broken). The header comes from the BCR @lz4 module, the same
+# cc_library linked into lz4-sys itself, so the C ABI rocksdb compiles against
+# matches the one it links.
+# rocksdb's util/compression.h does `#include <lz4.h>` and `#include <lz4hc.h>`, so the directory
+# must carry both. The BCR @lz4 module splits these across cc_libraries (lz4 → lz4.h, lz4_hc →
+# lz4hc.h, lz4_frame → lz4frame.h); we flatten their direct headers into one include dir. lz4_frame
+# is included defensively for rocksdb versions/features that pull in the frame API.
+include_dir(
+    name = "lz4_include",
+    libs = [
+        "@lz4//:lz4",
+        "@lz4//:lz4_hc",
+        "@lz4//:lz4_frame",
+    ],
+    dir_name = "lz4_include",
+    visibility = ["//visibility:public"],
+)

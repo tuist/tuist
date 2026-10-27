@@ -1,0 +1,21 @@
+# Sample CloudflareBotManagement CR. Adopts current dashboard state
+# and raises the "definitely automated" bucket to managed_challenge so
+# Super Bot Fight Mode actually enforces on scraper-shaped traffic.
+#
+# `mode: read_only` is available as a pre-adoption safeguard: it makes
+# the reconciler diff without writing. Flip to active to enforce.
+apiVersion: cloudflare.tuist.dev/v1alpha1
+kind: CloudflareBotManagement
+metadata:
+  name: sample
+spec:
+  zoneId: <zone-id>
+  mode: active
+  botFightMode:
+    enableJs: true
+  superBotFightMode:
+    definitelyAutomated: managed_challenge
+    likelyAutomated: allow
+    verifiedBots: allow
+    staticResourceProtection: false
+    optimizeWordpress: false

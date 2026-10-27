@@ -6,7 +6,7 @@ import Path
 @Mockable
 public protocol FileUnarchiving {
     /// Unarchives the files into a temporary directory and returns the path to that directory.
-    func unzip() throws -> AbsolutePath
+    func unzip() async throws -> AbsolutePath
 
     /// Call this method to delete the temporary directory where the .zip file has been generated.
     func delete() async throws
@@ -29,8 +29,8 @@ public class FileUnarchiver: FileUnarchiving {
         temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: false).path
     }
 
-    public func unzip() throws -> AbsolutePath {
-        try FileHandler.shared.unzipItem(at: path, to: temporaryDirectory)
+    public func unzip() async throws -> AbsolutePath {
+        try await fileSystem.unzip(path, to: temporaryDirectory)
         return temporaryDirectory
     }
 

@@ -36,11 +36,9 @@ public struct PluginLocation: Codable, Equatable, Sendable {
     public static func git(url: String, sha: String, directory: String? = nil) -> Self {
         PluginLocation(type: .gitWithSha(url: url, sha: sha, directory: directory))
     }
-}
 
-// MARK: - Codable
+    // MARK: - Codable
 
-extension PluginLocation {
     public enum LocationType: Codable, Equatable, Sendable {
         case local(path: Path)
         case gitWithTag(url: String, tag: String, directory: String?, releaseUrl: String?)

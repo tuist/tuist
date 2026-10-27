@@ -243,6 +243,20 @@ extension String {
         replacingOccurrences(of: "-", with: "_")
             .replacingOccurrences(of: "/", with: "_")
     }
+
+    /// Formats the string as a legal C identifier.
+    public var asLegalCIdentifier: String {
+        decomposedStringWithCanonicalMapping.enumerated().map { index, character in
+            switch character {
+            case "A" ... "Z", "a" ... "z", "_":
+                String(character)
+            case "0" ... "9" where index != 0:
+                String(character)
+            default:
+                "_"
+            }
+        }.joined()
+    }
 }
 
 extension Array where Element: CustomStringConvertible {
@@ -252,8 +266,19 @@ extension Array where Element: CustomStringConvertible {
     /// ["Framework", "App", "Tests"] results in "Framework, App, and Tests"
     /// - Returns: <#description#>
     public func listed() -> String {
-        let listFormatter = ListFormatter()
-        listFormatter.locale = Locale(identifier: "en-US")
-        return listFormatter.string(from: self) ?? ""
+        #if canImport(Darwin)
+            let listFormatter = ListFormatter()
+            listFormatter.locale = Locale(identifier: "en-US")
+            return listFormatter.string(from: self) ?? ""
+        #else
+            switch count {
+            case 0: return ""
+            case 1: return String(describing: self[0])
+            case 2: return "\(self[0]) and \(self[1])"
+            default:
+                let allButLast = self.dropLast().map { String(describing: $0) }.joined(separator: ", ")
+                return "\(allButLast), and \(last!)"
+            }
+        #endif
     }
 }

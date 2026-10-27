@@ -8,7 +8,7 @@ protocol SchemeLinting {
     func lint(project: Project) async throws -> [LintingIssue]
 }
 
-class SchemeLinter: SchemeLinting {
+struct SchemeLinter: SchemeLinting {
     private let fileSystem: FileSysteming
 
     init(
@@ -23,18 +23,20 @@ class SchemeLinter: SchemeLinting {
             schemes: project.schemes,
             settings: project.settings
         ))
-        issues.append(contentsOf: lintCodeCoverageTargets(schemes: project.schemes, targets: Array(project.targets.values)))
+        issues.append(contentsOf: lintCodeCoverageTargets(
+            schemes: project.schemes,
+            targets: Array(project.targets.values),
+            project: project
+        ))
         issues.append(contentsOf: lintExpandVariableTarget(schemes: project.schemes, targets: Array(project.targets.values)))
         issues.append(contentsOf: projectSchemeCantReferenceRemoteTargets(schemes: project.schemes, project: project))
         return issues
     }
-}
 
-extension SchemeLinter {
     private func lintReferencedBuildConfigurations(schemes: [Scheme], settings: Settings) async throws -> [LintingIssue] {
         let buildConfigurations = Array(settings.configurations.keys)
         return try await schemes
-            .concurrentFlatMap { try await self.lintScheme(scheme: $0, buildConfigurations: buildConfigurations) }
+            .concurrentFlatMap { try await lintScheme(scheme: $0, buildConfigurations: buildConfigurations) }
     }
 
     private func lintScheme(scheme: Scheme, buildConfigurations: [BuildConfiguration]) async throws -> [LintingIssue] {
@@ -73,7 +75,7 @@ extension SchemeLinter {
                 )
             }
             try await testAction.testPlans?.forEach(context: .concurrent) { testPlan in
-                if try await !self.fileSystem.exists(testPlan.path) {
+                if testPlan.kind == .referenced, try await !fileSystem.exists(testPlan.path) {
                     issues.append(
                         LintingIssue(
                             reason: "Test Plan not found at path \(testPlan.path.pathString)",
@@ -124,12 +126,14 @@ extension SchemeLinter {
         return issues
     }
 
-    private func lintCodeCoverageTargets(schemes: [Scheme], targets: [Target]) -> [LintingIssue] {
+    private func lintCodeCoverageTargets(schemes: [Scheme], targets: [Target], project: Project) -> [LintingIssue] {
         let targetNames = targets.map(\.name)
         var issues: [LintingIssue] = []
 
         for scheme in schemes {
-            for target in scheme.testAction?.codeCoverageTargets ?? [] where !targetNames.contains(target.name) {
+            for target in scheme.testAction?.codeCoverageTargets ?? []
+                where target.projectPath == project.path && !targetNames.contains(target.name)
+            {
                 issues.append(missingCodeCoverageTargetIssue(missingTargetName: target.name, schemaName: scheme.name))
             }
         }
@@ -162,7 +166,9 @@ extension SchemeLinter {
     private func projectSchemeCantReferenceRemoteTargets(scheme: Scheme, project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
-        for targetDependency in scheme.targetDependencies() where targetDependency.projectPath != project.path {
+        for targetDependency in scheme.nonCodeCoverageTargetDependencies()
+            where targetDependency.projectPath != project.path
+        {
             issues.append(.init(
                 reason: "The target '\(targetDependency.name)' specified in scheme '\(scheme.name)' is not defined in the project named '\(project.name)'. Consider using a workspace scheme instead to reference a target in another project.",
                 severity: .error

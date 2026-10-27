@@ -1,0 +1,422 @@
+defmodule Tuist.Automations.Alerts.Alert do
+  @moduledoc false
+  use Ecto.Schema
+
+  import Ecto.Changeset
+
+  alias Tuist.Projects.Project
+
+  @event_driven_monitor_types ~w(test_updated)
+  @recovery_ledger_monitor_types ~w(flakiness_rate flaky_run_count reliability_rate)
+  @monitor_types @recovery_ledger_monitor_types ++ @event_driven_monitor_types
+  @comparisons ~w(gte gt lt lte)
+  @valid_states ~w(enabled muted skipped)
+  @test_updated_events ~w(
+    marked_flaky
+    unmarked_flaky
+    state_changed_to_enabled
+    state_changed_to_muted
+    state_changed_to_skipped
+  )
+  @window_types ~w(last_days rolling)
+
+  # Trigger windows are served by `test_case_runs_recent_window_per_case`, whose
+  # 2000-slot state holds 1000 distinct runs even when every run in the window
+  # carries a flaky correction row. Triggers and recovery therefore share one
+  # ceiling.
+  @max_rolling_trigger_window_size 1000
+
+  # Recovery counts read raw runs rather than the rolling aggregate tables.
+  @max_rolling_window_size 1000
+
+  @doc """
+  Subscription keys recognised on the `test_updated` monitor's
+  `trigger_config["events"]` array. Stripe-style: subscribe by name, no
+  threshold or content filter.
+  """
+  def test_updated_events, do: @test_updated_events
+
+  @doc """
+  Maximum rolling trigger window the active aggregate storage can serve.
+  """
+  def max_rolling_trigger_window_size, do: @max_rolling_trigger_window_size
+
+  @doc """
+  Whether an alert's rolling trigger can be evaluated from the active
+  aggregate.
+  """
+  def trigger_window_supported?(%__MODULE__{
+        trigger_config: %{"window_type" => "rolling", "rolling_window_size" => size}
+      }), do: is_integer(size) and size >= 1 and size <= @max_rolling_trigger_window_size
+
+  def trigger_window_supported?(%__MODULE__{trigger_config: %{"window_type" => "rolling"}}), do: false
+  def trigger_window_supported?(%__MODULE__{}), do: true
+
+  @doc """
+  Maximum rolling recovery window and legacy runtime ceiling.
+  """
+  def max_rolling_window_size, do: @max_rolling_window_size
+
+  @doc """
+  Event-driven monitors (`test_updated`) fire from
+  `Tuist.Automations.dispatch_test_case_event/2` the instant a test case
+  changes and keep their own one-shot ledger. They are not scheduled and have
+  no dwell or recovery semantics. Accepts an alert struct or a monitor-type
+  string.
+  """
+  def event_driven?(%{monitor_type: monitor_type}), do: event_driven?(monitor_type)
+  def event_driven?(monitor_type), do: monitor_type in @event_driven_monitor_types
+
+  @doc """
+  Metric monitors evaluated by the scheduled `AlertEvaluationWorker` via
+  `FlakyTestsMonitor`. These drive the triggered/recovered ledger this worker
+  maintains (baseline, transition firing, re-arming). Accepts an alert struct
+  or a monitor-type string.
+  """
+  def recovery_ledger?(%{monitor_type: monitor_type}), do: recovery_ledger?(monitor_type)
+  def recovery_ledger?(monitor_type), do: monitor_type in @recovery_ledger_monitor_types
+
+  # Attempt revisions invalidate stale publishers without hiding active recovery events.
+  def event_generation(alert), do: alert.event_generation || alert.baseline_generation
+
+  def apply_actions_to_existing_matches?(alert) do
+    recovery_ledger?(alert) and alert.trigger_config["apply_actions_to_existing_matches"] == true
+  end
+
+  @doc """
+  Established rolling metric alerts are evaluated from recently changed test
+  cases. Calendar-window alerts and rolling alerts without a baseline stay on
+  the periodic full-evaluation path.
+  """
+  def scoped_evaluation?(%{
+        monitor_type: monitor_type,
+        trigger_config: %{"window_type" => "rolling"},
+        baseline_established_at: %DateTime{}
+      })
+      when monitor_type in @recovery_ledger_monitor_types, do: true
+
+  def scoped_evaluation?(_alert), do: false
+
+  @primary_key {:id, UUIDv7, autogenerate: true}
+  @foreign_key_type UUIDv7
+
+  schema "automation_alerts" do
+    field :name, :string
+    field :enabled, :boolean, default: true
+    field :monitor_type, :string
+    field :trigger_config, :map, default: %{}
+    field :cadence, :string, default: "5m"
+    field :trigger_actions, {:array, :map}, default: []
+    field :recovery_enabled, :boolean, default: false
+    field :recovery_config, :map, default: %{}
+    field :recovery_actions, {:array, :map}, default: []
+    field :baseline_established_at, :utc_datetime
+    field :baseline_generation, :integer, default: 0
+    field :event_generation, :integer
+    field :last_scoped_evaluation_inserted_at, :utc_datetime
+
+    belongs_to :project, Project, type: :integer
+
+    timestamps(type: :utc_datetime)
+  end
+
+  # AutomationScheduler dedupes per-alert evaluations against the completed
+  # Oban job within `cadence`, and completed jobs are pruned at 2h, so the
+  # cadence must stay well under that window. Lifting this cap means
+  # decoupling that dedup from Oban retention first.
+  @default_cadence_seconds 300
+  @max_cadence_seconds 3600
+
+  def cadence_seconds(cadence) do
+    case parse_cadence_seconds(cadence) do
+      {:ok, seconds} -> seconds
+      :error -> @default_cadence_seconds
+    end
+  end
+
+  def changeset(alert \\ %__MODULE__{}, attrs) do
+    alert
+    |> cast(attrs, [
+      :project_id,
+      :name,
+      :enabled,
+      :monitor_type,
+      :trigger_config,
+      :cadence,
+      :trigger_actions,
+      :recovery_enabled,
+      :recovery_config,
+      :recovery_actions,
+      :baseline_established_at
+    ])
+    |> validate_required([:project_id, :name, :monitor_type])
+    |> validate_inclusion(:monitor_type, @monitor_types)
+    |> validate_cadence()
+    |> validate_actions(:trigger_actions, require_present: true)
+    |> validate_actions(:recovery_actions, require_present: false)
+    |> validate_config()
+    |> foreign_key_constraint(:project_id)
+  end
+
+  defp validate_cadence(changeset) do
+    validate_change(changeset, :cadence, fn :cadence, cadence ->
+      case parse_cadence_seconds(cadence) do
+        {:ok, seconds} when seconds >= 1 and seconds <= @max_cadence_seconds -> []
+        {:ok, _} -> [cadence: "must be between 1 second and 1 hour"]
+        :error -> [cadence: ~s(must be a duration like "5m", "30s", or "1h")]
+      end
+    end)
+  end
+
+  defp parse_cadence_seconds(cadence) when is_binary(cadence) do
+    case Integer.parse(cadence) do
+      {value, "s"} -> {:ok, value}
+      {value, "m"} -> {:ok, value * 60}
+      {value, "h"} -> {:ok, value * 3600}
+      _ -> :error
+    end
+  end
+
+  defp parse_cadence_seconds(_), do: :error
+
+  defp validate_actions(changeset, field, opts) do
+    case get_field(changeset, field) do
+      nil -> maybe_blank_error(changeset, field, opts)
+      [] -> maybe_blank_error(changeset, field, opts)
+      actions when is_list(actions) -> validate_action_list(changeset, field, actions)
+      _ -> add_error(changeset, field, "must be a list")
+    end
+  end
+
+  defp maybe_blank_error(changeset, field, opts) do
+    if Keyword.get(opts, :require_present, false) do
+      add_error(changeset, field, "can't be blank")
+    else
+      changeset
+    end
+  end
+
+  defp validate_action_list(changeset, field, actions) do
+    cond do
+      not Enum.all?(actions, &valid_action?/1) ->
+        add_error(changeset, field, "contains invalid actions")
+
+      Enum.count(actions, &change_state_action?/1) > 1 ->
+        add_error(changeset, field, "can only contain one change_state action")
+
+      has_duplicate_label_action?(actions, "add_label") ->
+        add_error(changeset, field, "can only contain one add_label action per label")
+
+      has_duplicate_label_action?(actions, "remove_label") ->
+        add_error(changeset, field, "can only contain one remove_label action per label")
+
+      true ->
+        changeset
+    end
+  end
+
+  defp valid_action?(%{"type" => "change_state", "state" => state}) when state in @valid_states, do: true
+
+  defp valid_action?(%{"type" => "send_slack", "channel" => channel, "message" => message})
+       when is_binary(channel) and channel != "" and is_binary(message) and message != "", do: true
+
+  defp valid_action?(%{"type" => "add_label", "label" => label}) when is_binary(label) and label != "", do: true
+  defp valid_action?(%{"type" => "remove_label", "label" => label}) when is_binary(label) and label != "", do: true
+
+  defp valid_action?(_), do: false
+
+  defp change_state_action?(%{"type" => "change_state"}), do: true
+  defp change_state_action?(_), do: false
+
+  defp has_duplicate_label_action?(actions, type) do
+    actions
+    |> Enum.filter(fn a -> a["type"] == type end)
+    |> Enum.map(fn a -> a["label"] end)
+    |> then(fn labels -> length(labels) != length(Enum.uniq(labels)) end)
+  end
+
+  defp validate_config(changeset) do
+    if disabling_only?(changeset) do
+      changeset
+    else
+      validate_monitor_config(changeset)
+    end
+  end
+
+  # A legacy alert may contain a trigger that new code no longer accepts. It
+  # must still be possible to turn that alert off without editing its
+  # definition. Any other effective change continues through full validation.
+  defp disabling_only?(%{data: %__MODULE__{id: id, enabled: true}, changes: %{enabled: false} = changes})
+       when not is_nil(id) and map_size(changes) == 1, do: true
+
+  defp disabling_only?(_changeset), do: false
+
+  defp validate_monitor_config(changeset) do
+    monitor_type = get_field(changeset, :monitor_type)
+    trigger_config = get_field(changeset, :trigger_config) || %{}
+
+    changeset =
+      case monitor_type do
+        "flakiness_rate" -> validate_flakiness_rate_config(changeset, trigger_config)
+        "flaky_run_count" -> validate_flaky_run_count_config(changeset, trigger_config)
+        "reliability_rate" -> validate_reliability_rate_config(changeset, trigger_config)
+        "test_updated" -> validate_test_updated_config(changeset, trigger_config)
+        _ -> changeset
+      end
+
+    changeset
+    |> validate_comparison(trigger_config)
+    |> validate_existing_matches(trigger_config, monitor_type)
+    |> validate_state_filter(trigger_config, :trigger_config)
+    |> validate_recovery_config()
+  end
+
+  defp validate_existing_matches(changeset, config, monitor_type) do
+    case Map.get(config, "apply_actions_to_existing_matches", false) do
+      false -> changeset
+      true when monitor_type in @recovery_ledger_monitor_types -> changeset
+      true -> add_error(changeset, :trigger_config, "applying actions to existing matches requires a metric monitor")
+      _ -> add_error(changeset, :trigger_config, "apply_actions_to_existing_matches must be a boolean")
+    end
+  end
+
+  defp validate_test_updated_config(changeset, trigger_config) do
+    case Map.get(trigger_config, "events") do
+      events when is_list(events) and events != [] ->
+        invalid = Enum.reject(events, &(&1 in @test_updated_events))
+
+        if invalid == [] do
+          changeset
+        else
+          add_error(
+            changeset,
+            :trigger_config,
+            "events contains invalid values: #{Enum.join(invalid, ", ")}"
+          )
+        end
+
+      _ ->
+        add_error(changeset, :trigger_config, "events must be a non-empty list")
+    end
+  end
+
+  defp validate_comparison(changeset, trigger_config) do
+    case Map.get(trigger_config, "comparison") do
+      nil -> changeset
+      value when value in @comparisons -> changeset
+      _ -> add_error(changeset, :trigger_config, "comparison must be one of: #{Enum.join(@comparisons, ", ")}")
+    end
+  end
+
+  defp validate_state_filter(changeset, config, field) do
+    case Map.get(config, "states") do
+      nil ->
+        changeset
+
+      states when is_list(states) ->
+        invalid = Enum.reject(states, &(&1 in @valid_states))
+
+        if invalid == [] do
+          changeset
+        else
+          add_error(changeset, field, "states must be one of: #{Enum.join(@valid_states, ", ")}")
+        end
+
+      _ ->
+        add_error(changeset, field, "states must be a list of: #{Enum.join(@valid_states, ", ")}")
+    end
+  end
+
+  defp validate_flakiness_rate_config(changeset, trigger_config) do
+    threshold = trigger_config["threshold"]
+
+    if !is_number(threshold) or threshold <= 0 or threshold > 100 do
+      add_error(changeset, :trigger_config, "threshold must be a number between 0 and 100")
+    else
+      validate_window_config(changeset, trigger_config)
+    end
+  end
+
+  defp validate_flaky_run_count_config(changeset, trigger_config) do
+    threshold = trigger_config["threshold"]
+
+    if !is_integer(threshold) or threshold <= 0 do
+      add_error(changeset, :trigger_config, "threshold must be a positive integer")
+    else
+      validate_window_config(changeset, trigger_config)
+    end
+  end
+
+  defp validate_reliability_rate_config(changeset, trigger_config) do
+    validate_flakiness_rate_config(changeset, trigger_config)
+  end
+
+  # `window_type` selects between a calendar window ("last_days", configured
+  # via `window: "30d"`) and a count-based rolling window ("rolling",
+  # configured via `rolling_window_size: 100`). Every persisted row carries an
+  # explicit `window_type` after the backfill migration, so missing values are
+  # rejected here instead of inferred.
+  defp validate_window_config(changeset, trigger_config) do
+    case validate_window_shape(trigger_config, @max_rolling_trigger_window_size) do
+      :ok -> changeset
+      {:error, message} -> add_error(changeset, :trigger_config, message)
+    end
+  end
+
+  # Recovery is only validated when the user opts in. The shape mirrors
+  # `trigger_config` so a `rolling_window_size: 0` can't sneak past and have
+  # the worker silently fall back to its default.
+  defp validate_recovery_config(changeset) do
+    if get_field(changeset, :recovery_enabled) do
+      recovery_config = get_field(changeset, :recovery_config) || %{}
+
+      case validate_window_shape(recovery_config, @max_rolling_window_size) do
+        :ok -> validate_state_filter(changeset, recovery_config, :recovery_config)
+        {:error, message} -> add_error(changeset, :recovery_config, message)
+      end
+    else
+      changeset
+    end
+  end
+
+  defp validate_window_shape(config, max_rolling_window_size) do
+    case window_type(config) do
+      "last_days" ->
+        if valid_day_window?(config["window"]),
+          do: :ok,
+          else: {:error, "window must be a string like '30d' (day-level only)"}
+
+      "rolling" ->
+        size = config["rolling_window_size"]
+
+        cond do
+          not (is_integer(size) and size > 0) ->
+            {:error, "rolling_window_size must be a positive integer"}
+
+          size > max_rolling_window_size ->
+            {:error, "rolling_window_size must be at most #{max_rolling_window_size}"}
+
+          true ->
+            :ok
+        end
+
+      _ ->
+        {:error, "window_type must be one of: #{Enum.join(@window_types, ", ")}"}
+    end
+  end
+
+  defp window_type(%{"window_type" => type}) when type in @window_types, do: type
+  defp window_type(_), do: :invalid
+
+  @doc """
+  Whether a `last_days` window string is day-level (`Nd`).
+
+  The flaky-test monitor evaluates against a per-day-aggregated MV, so sub-day
+  windows would silently round to a full day and look broken. Constrain
+  `trigger_config.window` to day-level up front so users don't think `1h` /
+  `5m` are honored. Public so the dashboard form can gate Save on the same
+  rule instead of letting an invalid window reach a silent no-op.
+  """
+  def valid_day_window?(window) when is_binary(window), do: Regex.match?(~r/^[1-9]\d*d$/, window)
+  def valid_day_window?(_window), do: false
+end

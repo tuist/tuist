@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 import TuistHTTP
 
 @Mockable
@@ -29,10 +29,10 @@ enum GetBundleServiceError: LocalizedError {
     }
 }
 
-public final class GetBundleService: GetBundleServicing {
+public struct GetBundleService: GetBundleServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
+    public init() {
         self.init(
             fullHandleService: FullHandleService()
         )
@@ -88,6 +88,10 @@ public final class GetBundleService: GetBundleServicing {
             case let .json(error):
                 throw GetBundleServiceError.unprocessable(error.message)
             }
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .undocumented(statusCode: statusCode, _):
             throw GetBundleServiceError.unknownError(statusCode)
         }

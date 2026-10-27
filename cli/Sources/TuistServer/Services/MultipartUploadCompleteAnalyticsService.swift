@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import OpenAPIRuntime
+import TuistHTTP
 
 @Mockable
 public protocol MultipartUploadCompleteAnalyticsServicing {
@@ -32,7 +33,7 @@ public enum MultipartUploadCompleteAnalyticsServiceError: LocalizedError, Equata
     }
 }
 
-public final class MultipartUploadCompleteAnalyticsService: MultipartUploadCompleteAnalyticsServicing {
+public struct MultipartUploadCompleteAnalyticsService: MultipartUploadCompleteAnalyticsServicing {
     public init() {}
 
     public func uploadAnalyticsArtifact(
@@ -62,6 +63,10 @@ public final class MultipartUploadCompleteAnalyticsService: MultipartUploadCompl
         switch response {
         case .noContent:
             return
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .undocumented(statusCode: statusCode, _):
             throw MultipartUploadCompleteAnalyticsServiceError.unknownError(statusCode)
         case let .forbidden(forbiddenResponse):

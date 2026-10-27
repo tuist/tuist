@@ -1,0 +1,142 @@
+# Cilium values for Tuist workload clusters.
+# Enables kube-proxy replacement, host firewall, BBR + bandwidth manager,
+# egress gateway, hubble metrics, ip-masq-agent.
+#
+# Version: pin chart appVersion to v1.18.x; the tuist-hcloud
+# ClusterClass already does `skipPhases: [addon/kube-proxy]` in
+# kubeadm initConfiguration, so kube-proxy DaemonSet never gets
+# created and Cilium MUST be installed before anything tries to talk
+# Service IPs.
+#
+# Required at install time (not in this file because the API endpoint
+# is per-cluster):
+#   --set k8sServiceHost=<workload cluster API LB IP>
+#   --set k8sServicePort=443
+# The bootstrap script extracts these from the Cluster CR's
+# spec.controlPlaneEndpoint after KCP is initialized.
+
+ipam:
+  mode: kubernetes  # use node PodCIDR from kubeadm
+
+routingMode: tunnel
+tunnelProtocol: vxlan
+
+kubeProxyReplacement: true
+
+# The agent tolerates every taint, so a node it must never run on is marked
+# with the label the chart already keys cilium-envoy on. The rack edge node
+# (infra/rack-switch-fleet) carries it: that node's own networks sit inside
+# the cluster's pod CIDR (staging gave 192.168.0.0/24, the house network the
+# edge node lives on, to a runner node), and an agent there would route them
+# into the tunnel and cut the node off. The pod anti-affinity is the chart's
+# default, which setting affinity replaces.
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - topologyKey: kubernetes.io/hostname
+        labelSelector:
+          matchLabels:
+            k8s-app: cilium
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: cilium.io/no-schedule
+              operator: NotIn
+              values: ["true"]
+
+# Datapath / performance
+bpf:
+  masquerade: true
+  tproxy: true
+  preallocateMaps: true
+bandwidthManager:
+  enabled: true
+  bbr: true
+ipMasqAgent:
+  enabled: true
+
+# Security
+hostFirewall:
+  enabled: true
+policyEnforcementMode: default
+authentication:
+  mutual:
+    spire:
+      enabled: false
+  enabled: true
+
+# L7 + Envoy (proxy lives in its own pod, not in the agent)
+l7Proxy: true
+envoy:
+  enabled: true
+
+# Egress gateway
+egressGateway:
+  enabled: true
+
+# Service LB IPAM (Cilium can act as LB IPAM; HCCM still does the
+# actual Hetzner LB provisioning, this is just for the in-cluster
+# IPAM bookkeeping)
+loadBalancer:
+  algorithm: maglev
+  mode: snat
+  l7:
+    backend: envoy
+
+# Observability
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: false  # access via port-forward; no in-cluster UI ingress
+  metrics:
+    enabled:
+      - dns:query;ignoreAAAA
+      # Context labels on `drop` only. Without them hubble_drop_total is
+      # aggregated cluster-wide to (protocol, reason), which names neither
+      # the source nor the destination. That gap is what leaves a policy-denied
+      # kura cache node unattributable (see
+      # ../../../helm/k8s-monitoring/alerts.md, "Kura cache rejecting runner
+      # traffic"). `pod|ip` falls back to the raw address when the source is
+      # not a known pod, which is exactly the discriminator: an in-cluster pod
+      # source resolves to a pod, a mis-sourced runner VM or a SNATed path
+      # resolves to an IP. Do NOT add contexts to `flow` or `tcp`; those are
+      # high-volume and the cardinality is not worth it. `drop` is inherently
+      # low-volume, so the added series count is bounded.
+      - drop:sourceContext=pod|ip;destinationContext=pod
+      - tcp
+      - flow
+      - icmp
+      - http
+
+# Operator
+operator:
+  replicas: 1  # single-replica is fine for staging/canary; bump to 2 for production via overlay
+  prometheus:
+    enabled: true
+
+# Prometheus
+prometheus:
+  enabled: true
+
+# Pod resources. The limit has to accommodate the BPF maps that
+# cilium-agent allocates at startup. With `bpf-map-dynamic-size-ratio`
+# at its chart default of 0.0025 and `preallocate-bpf-maps=true`, the
+# combined dynamic maps (auth/ct/neigh/nat/policy) are sized as a
+# fraction of system memory and charged to the cilium-agent cgroup.
+#
+# On a 256GB AX162-R bare-metal node that lands at ~640MB, which blows
+# past a 512Mi limit and surfaces as `bpf(BPF_MAP_CREATE) = ENOMEM`
+# (`initializing neighbors map: cannot allocate memory`), leaving the
+# `node.cilium.io/agent-not-ready:NoSchedule` taint stuck and the node
+# unusable. 2Gi gives comfortable headroom for current and future
+# hardware sizes; actual usage stays low on the smaller Hetzner Cloud
+# nodes where the ratio resolves to tens of MB.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 2Gi

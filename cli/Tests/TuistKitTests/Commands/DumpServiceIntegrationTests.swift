@@ -1,13 +1,96 @@
 import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import ProjectDescription
+import Testing
+import TuistConstants
+import TuistLoggerTesting
+import TuistLogging
 import TuistSupport
+import TuistTesting
 import XCTest
 
+@testable import TuistConfigLoader
 @testable import TuistKit
 @testable import TuistLoader
-@testable import TuistTesting
+
+struct DumpServiceProjectTests {
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedLogger())
+    func printsTheProjectManifest() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let config = """
+        import ProjectDescription
+
+        let project = Project(
+            name: "tuist",
+            organizationName: "tuist",
+            settings: nil,
+            targets: [],
+            resourceSynthesizers: []
+        )
+        """
+        try config.write(
+            toFile: temporaryDirectory.appending(component: "Project.swift").pathString,
+            atomically: true,
+            encoding: .utf8
+        )
+
+        try await DumpService().run(path: temporaryDirectory.pathString, manifest: .project)
+
+        let expectedStart = """
+        {
+          "additionalFiles": [
+
+          ],
+          "name": "tuist",
+          "options": {
+            "automaticSchemesOptions": {
+              "enabled": {
+                "codeCoverageEnabled": false,
+                "targetSchemesGrouping": {
+                  "byNameSuffix": {
+                    "build": [
+        """
+        let expectedEnd = """
+                    ]
+                  }
+                },
+                "testingOptions": 0
+              }
+            },
+            "disableBundleAccessors": false,
+            "disableShowEnvironmentVarsInScriptPhases": false,
+            "disableSynthesizedResourceAccessors": false,
+            "textSettings": {
+
+            }
+          },
+          "organizationName": "tuist",
+          "packageDependencies": [
+
+          ],
+          "packages": [
+
+          ],
+          "resourceSynthesizers": [
+
+          ],
+          "schemes": [
+
+          ],
+          "targets": [
+
+          ]
+        }
+
+        """
+        let output = Logger.testingLogHandler.collected[.warning, >=]
+
+        #expect(output.contains(expectedStart))
+        #expect(output.contains(expectedEnd))
+    }
+}
 
 final class DumpServiceTests: TuistTestCase {
     private var subject: DumpService!
@@ -23,77 +106,6 @@ final class DumpServiceTests: TuistTestCase {
         fileSystem = nil
         subject = nil
         super.tearDown()
-    }
-
-    func test_prints_the_manifest_when_project_manifest() async throws {
-        try await withMockedDependencies {
-            let tmpDir = try temporaryPath()
-            let config = """
-            import ProjectDescription
-
-            let project = Project(
-                name: "tuist",
-                organizationName: "tuist",
-                settings: nil,
-                targets: [],
-                resourceSynthesizers: []
-            )
-            """
-            try config.write(
-                toFile: tmpDir.appending(component: "Project.swift").pathString,
-                atomically: true,
-                encoding: .utf8
-            )
-            try await subject.run(path: tmpDir.pathString, manifest: .project)
-            let expectedStart = """
-            {
-              "additionalFiles": [
-
-              ],
-              "name": "tuist",
-              "options": {
-                "automaticSchemesOptions": {
-                  "enabled": {
-                    "codeCoverageEnabled": false,
-                    "targetSchemesGrouping": {
-                      "byNameSuffix": {
-                        "build": [
-            """
-            // middle part is ignored as order of suffixes is not predictable
-            let expectedEnd = """
-                        ]
-                      }
-                    },
-                    "testingOptions": 0
-                  }
-                },
-                "disableBundleAccessors": false,
-                "disableShowEnvironmentVarsInScriptPhases": false,
-                "disableSynthesizedResourceAccessors": false,
-                "textSettings": {
-
-                }
-              },
-              "organizationName": "tuist",
-              "packages": [
-
-              ],
-              "resourceSynthesizers": [
-
-              ],
-              "schemes": [
-
-              ],
-              "targets": [
-
-              ]
-            }
-
-            """
-
-            XCTAssertPrinterOutputContains(expectedStart)
-            XCTAssertPrinterOutputContains(expectedEnd)
-        }
     }
 
     func test_prints_the_manifest_when_workspace_manifest() async throws {
@@ -132,6 +144,11 @@ final class DumpServiceTests: TuistTestCase {
                     "testingOptions": 0
                   }
                 },
+                "derivedDataPath": {
+                  "default": {
+
+                  }
+                },
                 "enableAutomaticXcodeSchemes": false,
                 "renderMarkdownReadme": false
               },
@@ -144,98 +161,6 @@ final class DumpServiceTests: TuistTestCase {
               ]
             }
 
-            """
-
-            XCTAssertPrinterOutputContains(expected)
-        }
-    }
-
-    func test_prints_the_manifest_when_config_manifest() async throws {
-        try await withMockedDependencies {
-            let tmpDir = try temporaryPath()
-            let config = """
-            import ProjectDescription
-
-            let config = Config(
-                compatibleXcodeVersions: .all,
-                fullHandle: "tuist/tuist",
-                swiftVersion: nil,
-                plugins: [],
-                generationOptions: .options(),
-                installOptions: .options(
-                    passthroughSwiftPackageManagerArguments: [
-                        "--replace-scm-with-registry"
-                    ]
-                )
-            )
-            """
-            try config.write(
-                toFile: tmpDir.appending(components: "Tuist.swift").pathString,
-                atomically: true,
-                encoding: .utf8
-            )
-            try await subject.run(path: tmpDir.pathString, manifest: .config)
-            let expected = """
-            {
-              "fullHandle": "tuist/tuist",
-              "inspectOptions": {
-                "redundantDependencies": {
-                  "ignoreTagsMatching": [
-
-                  ]
-                }
-              },
-              "project": {
-                "tuist": {
-                  "cacheOptions": {
-                    "keepSourceTargets": false,
-                    "profiles": {
-                      "defaultProfile": {
-                        "onlyExternal": {
-
-                        }
-                      },
-                      "profileByName": {
-
-                      }
-                    }
-                  },
-                  "compatibleXcodeVersions": {
-                    "all": {
-
-                    }
-                  },
-                  "generationOptions": {
-                    "additionalPackageResolutionArguments": [
-
-                    ],
-                    "buildInsightsDisabled": false,
-                    "disablePackageVersionLocking": false,
-                    "disableSandbox": true,
-                    "enableCaching": false,
-                    "enforceExplicitDependencies": false,
-                    "includeGenerateScheme": true,
-                    "optionalAuthentication": false,
-                    "resolveDependenciesWithSystemScm": false,
-                    "staticSideEffectsWarningTargets": {
-                      "all": {
-
-                      }
-                    },
-                    "testInsightsDisabled": false
-                  },
-                  "installOptions": {
-                    "passthroughSwiftPackageManagerArguments": [
-                      "--replace-scm-with-registry"
-                    ]
-                  },
-                  "plugins": [
-
-                  ]
-                }
-              },
-              "url": "https://tuist.dev"
-            }
             """
 
             XCTAssertPrinterOutputContains(expected)
@@ -309,7 +234,7 @@ final class DumpServiceTests: TuistTestCase {
             // Given
             let tmpDir = try temporaryPath()
             let tuistDir = tmpDir.appending(component: Constants.tuistDirectoryName)
-            try fileHandler.createFolder(tuistDir)
+            try await fileSystem.makeDirectory(at: tuistDir)
 
             let manifestLoader = MockManifestLoading()
             given(manifestLoader)
@@ -334,6 +259,7 @@ final class DumpServiceTests: TuistTestCase {
             // Then
             let expected = """
             {
+              "baseProductType": "staticFramework",
               "baseSettings": {
                 "base": {
 
@@ -398,6 +324,7 @@ final class DumpServiceTests: TuistTestCase {
             // Then
             let expected = """
             {
+              "baseProductType": "staticFramework",
               "baseSettings": {
                 "base": {
 
@@ -476,18 +403,17 @@ final class DumpServiceTests: TuistTestCase {
     // MARK: - Helpers
 
     private func assertLoadingRaisesWhenManifestNotFound(manifest: DumpableManifest) async throws {
-        try await fileHandler.inTemporaryDirectory { tmpDir in
-            var expectedDirectory = tmpDir
-            if manifest == .config {
-                if try await !self.fileSystem.exists(expectedDirectory) {
-                    try await self.fileSystem.makeDirectory(at: expectedDirectory)
-                }
+        let tmpDir = try temporaryPath()
+        let expectedDirectory = tmpDir
+        if manifest == .config {
+            if try await !fileSystem.exists(expectedDirectory) {
+                try await fileSystem.makeDirectory(at: expectedDirectory)
             }
-            await self.XCTAssertThrowsSpecific(
-                try await self.subject.run(path: tmpDir.pathString, manifest: manifest),
-                ManifestLoaderError.manifestNotFound(manifest.manifest, expectedDirectory)
-            )
         }
+        await XCTAssertThrowsSpecific(
+            try await subject.run(path: tmpDir.pathString, manifest: manifest),
+            ManifestLoaderError.manifestNotFound(manifest.manifest, expectedDirectory)
+        )
     }
 }
 

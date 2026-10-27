@@ -1,0 +1,477 @@
+import Foundation
+import Testing
+@testable import SwifterPMCore
+
+struct SupportTests {
+    @Test
+    func resolutionCredentialsDoNotChangeManifestFingerprints() async throws {
+        let manifest = ["PATH": "/usr/bin:/bin", "PACKAGE_FEATURE": "enabled"]
+        var firstFingerprint: String?
+        for token in ["first", "second"] {
+            let resolution = manifest.merging(["GITHUB_TOKEN": token], uniquingKeysWith: { _, new in new })
+            try await Environment.withManifestEnvironment(manifest, resolutionEnvironment: resolution) {
+                let process = try await SystemProcess.run("/usr/bin/env", [], customEnvironment: Environment.resolution)
+                #expect(process.stdoutString.contains("GITHUB_TOKEN=\(token)"))
+                let dumpProcess = try await SystemProcess.run("/usr/bin/env", [], customEnvironment: Environment.manifestValues)
+                #expect(!dumpProcess.stdoutString.contains("GITHUB_TOKEN="))
+                let fingerprint = ManifestEnvironmentFingerprint.current()
+                if let firstFingerprint {
+                    #expect(fingerprint == firstFingerprint)
+                } else {
+                    firstFingerprint = fingerprint
+                }
+            }
+        }
+        #expect(Environment.manifestValues == nil)
+        #expect(Environment.resolutionValues == nil)
+    }
+
+    @Test
+    func omittedResolutionEnvironmentPreservesExistingManifestContract() async throws {
+        let manifest = ["PACKAGE_FEATURE": "enabled"]
+        try await Environment.withManifestEnvironment(manifest) {
+            #expect(Environment.resolution == manifest)
+            try await Environment.withManifestEnvironment(nil) {
+                #expect(Environment.manifest == manifest)
+                #expect(Environment.resolution == manifest)
+            }
+        }
+    }
+
+    @Test
+    func nestedManifestOverrideDoesNotInheritOuterResolverCredentials() async throws {
+        try await Environment.withManifestEnvironment(["PACKAGE_FEATURE": "outer"], resolutionEnvironment: ["TOKEN": "outer"]) {
+            try await Environment.withManifestEnvironment(["PACKAGE_FEATURE": "inner"]) {
+                #expect(Environment.resolution == ["PACKAGE_FEATURE": "inner"])
+            }
+            #expect(Environment.resolution == ["TOKEN": "outer"])
+        }
+    }
+
+    @Test
+    func customProcessEnvironmentDoesNotInheritExcludedVariables() async throws {
+        let result = try await SystemProcess.run(
+            "/usr/bin/env",
+            [],
+            customEnvironment: ["SWIFTERPM_TEST_RETAINED": "value"]
+        )
+
+        #expect(result.stdoutString.contains("SWIFTERPM_TEST_RETAINED=value"))
+        #expect(!result.stdoutString.contains("HOME="))
+    }
+
+    @Test
+    func hashingAndRevisionHelpersAreStable() {
+        let expected = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        #expect(Hashing.sha256Hex(Data("abc".utf8)) == expected)
+        #expect(Hashing.stable("abc") == expected)
+    }
+
+    @Test
+    func atomicWriteCreatesParentDirectories() async throws {
+        try await withTemporaryDirectory { root in
+            let path = root.appendingPathComponent("nested/file.txt")
+            try await fileSystem.atomicWrite("hello", to: path)
+
+            let data = try await fileSystem.readFile(at: path.absolutePath)
+            #expect(String(data: data, encoding: .utf8) == "hello")
+        }
+    }
+
+    @Test
+    func systemProcessDrainsStdoutAndStderr() async throws {
+        let result = try await SystemProcess.run("/bin/sh", ["-c", "printf out; printf err >&2"])
+
+        #expect(result.stdoutString == "out")
+        #expect(result.stderrString == "err")
+    }
+
+    @Test
+    func forwardedProcessFailureCarriesItsStandardError() async throws {
+        let error = await #expect(throws: ToolError.self) {
+            try await SystemProcess.run(
+                "/bin/sh", ["-c", "printf 'error: boom' >&2; exit 3"], forwardOutput: true
+            )
+        }
+
+        #expect(error?.description == "error: boom")
+    }
+
+    @Test
+    func forwardedProcessFailureWithoutStandardErrorFallsBackToItsStatus() async throws {
+        let error = await #expect(throws: ToolError.self) {
+            try await SystemProcess.run("/bin/sh", ["-c", "exit 1"], forwardOutput: true)
+        }
+
+        #expect(error?.description == "exited(1)")
+    }
+
+    @Test
+    func binaryArtifactHeadersAskForRawBytesExactly() async throws {
+        let url = try #require(URL(string: "https://api.github.com/repos/tuist/tuist/releases/assets/1.zip"))
+        let headers = try await HTTPClient.binaryArtifactHeaders(for: url)
+
+        #expect(headers["Accept"] == "application/octet-stream")
+    }
+
+    @Test
+    func concurrentTaskMapPreservesInputOrder() async throws {
+        let values = [0, 1, 2, 3]
+        let mapped = try await ConcurrentTasks.map(values, maxConcurrentTasks: 4) { value in
+            try await Task.sleep(nanoseconds: UInt64((values.count - value) * 1_000_000))
+            return value
+        }
+
+        #expect(mapped == values)
+    }
+
+    @Test
+    func filesystemHelpersFlattenAndSymlinkDirectory() async throws {
+        try await withTemporaryDirectory { root in
+            let source = root.appendingPathComponent("source")
+            let nested = root.appendingPathComponent("outer/nested")
+            try await fileSystem.makeDirectory(at: source.absolutePath, options: [.createTargetParentDirectories])
+            try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
+            try await fileSystem.atomicWrite(
+                "value", to: source.appendingPathComponent("file.txt")
+            )
+            try await fileSystem.atomicWrite(
+                "nested", to: nested.appendingPathComponent("nested.txt")
+            )
+
+            try await fileSystem.flattenSingleDirectory(root.appendingPathComponent("outer"))
+            #expect(
+                try await fileSystem.exists(root.appendingPathComponent("outer/nested.txt").absolutePath)
+            )
+
+            let destination = root.appendingPathComponent("destination")
+            try await fileSystem.replaceWithSymlinkedDirectory(
+                source: source, destination: destination
+            )
+            #expect(try await fileSystem.exists(destination.absolutePath))
+            #expect(!(fileSystem.isDirectoryAndNotSymlink(destination)))
+            #expect(
+                try await fileSystem.exists(destination.appendingPathComponent("file.txt").absolutePath)
+            )
+            let data = try await fileSystem.readFile(at: destination.appendingPathComponent("file.txt").absolutePath)
+            #expect(String(data: data, encoding: .utf8) == "value")
+            #expect(
+                !(fileSystem.isDirectoryAndNotSymlink(
+                    destination.appendingPathComponent("file.txt")
+                ))
+            )
+        }
+    }
+
+    @Test
+    func cachedDirectoryReplacementAutomaticModeCopiesOnCI() async throws {
+        try await Environment.$values.withValue(["CI": "1"]) {
+            try await withTemporaryDirectory { root in
+                let source = root.appendingPathComponent("source")
+                let nested = source.appendingPathComponent("nested")
+                let destination = root.appendingPathComponent("destination")
+                try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
+                try await fileSystem.atomicWrite(
+                    "value", to: nested.appendingPathComponent("file.txt")
+                )
+
+                try await fileSystem.replaceWithCachedDirectory(
+                    source: source, destination: destination
+                )
+
+                #expect(fileSystem.isDirectoryAndNotSymlink(destination))
+                #expect(
+                    try await fileSystem.exists(destination.appendingPathComponent("nested/file.txt").absolutePath)
+                )
+                let data = try await fileSystem.readFile(at: destination.appendingPathComponent("nested/file.txt").absolutePath)
+                #expect(String(data: data, encoding: .utf8) == "value")
+            }
+        }
+    }
+
+    @Test
+    func cachedDirectoryReplacementAutomaticModeSymlinksOutsideCI() async throws {
+        try await Environment.$values.withValue([:]) {
+            try await withTemporaryDirectory { root in
+                let source = root.appendingPathComponent("source")
+                let nested = source.appendingPathComponent("nested")
+                let destination = root.appendingPathComponent("destination")
+                try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
+                try await fileSystem.atomicWrite(
+                    "value", to: nested.appendingPathComponent("file.txt")
+                )
+
+                try await fileSystem.replaceWithCachedDirectory(
+                    source: source, destination: destination
+                )
+
+                #expect(!(fileSystem.isDirectoryAndNotSymlink(destination)))
+                #expect(
+                    try await fileSystem.exists(destination.appendingPathComponent("nested/file.txt").absolutePath)
+                )
+                let data = try await fileSystem.readFile(at: destination.appendingPathComponent("nested/file.txt").absolutePath)
+                #expect(String(data: data, encoding: .utf8) == "value")
+            }
+        }
+    }
+
+    @Test
+    func registryDownloadReplacementAutomaticModeSymlinksContentsOutsideCI() async throws {
+        try await Environment.$values.withValue([:]) {
+            try await withTemporaryDirectory { root in
+                let source = root.appendingPathComponent("source")
+                let nested = source.appendingPathComponent("nested")
+                let destination = root.appendingPathComponent("destination")
+                try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
+                try await fileSystem.atomicWrite(
+                    "value", to: nested.appendingPathComponent("file.txt")
+                )
+                try await fileSystem.atomicWrite(
+                    "manifest", to: source.appendingPathComponent("Package.swift")
+                )
+
+                try await fileSystem.replaceWithRegistryDownloadDirectory(
+                    source: source, destination: destination
+                )
+
+                #expect(fileSystem.isDirectoryAndNotSymlink(destination))
+                #expect(!(fileSystem.isDirectoryAndNotSymlink(destination.appendingPathComponent("nested"))))
+                #expect(
+                    !(fileSystem.isDirectoryAndNotSymlink(
+                        destination.appendingPathComponent("Package.swift"))))
+                #expect(
+                    try await fileSystem.exists(destination.appendingPathComponent("nested/file.txt").absolutePath))
+                let data = try await fileSystem.readFile(at: destination.appendingPathComponent("nested/file.txt").absolutePath)
+                #expect(String(data: data, encoding: .utf8) == "value")
+            }
+        }
+    }
+
+    @Test
+    func registryDownloadReplacementAutomaticModeCopiesOnContinuousIntegration() async throws {
+        try await Environment.$values.withValue(["CI": "1"]) {
+            try await withTemporaryDirectory { root in
+                let source = root.appendingPathComponent("source")
+                let nested = source.appendingPathComponent("nested")
+                let destination = root.appendingPathComponent("destination")
+                try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
+                try await fileSystem.atomicWrite(
+                    "value", to: nested.appendingPathComponent("file.txt")
+                )
+
+                try await fileSystem.replaceWithRegistryDownloadDirectory(
+                    source: source, destination: destination
+                )
+
+                #expect(fileSystem.isDirectoryAndNotSymlink(destination))
+                #expect(fileSystem.isDirectoryAndNotSymlink(destination.appendingPathComponent("nested")))
+                #expect(
+                    try await fileSystem.exists(destination.appendingPathComponent("nested/file.txt").absolutePath))
+            }
+        }
+    }
+
+    @Test
+    func registryDownloadReplacementSymlinksContentsWhenConfigured() async throws {
+        try await Environment.withCachedDirectoryMaterialization(.symlink) {
+            try await withTemporaryDirectory { root in
+                let source = root.appendingPathComponent("source")
+                let nested = source.appendingPathComponent("nested")
+                let destination = root.appendingPathComponent("destination")
+                try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
+                try await fileSystem.atomicWrite(
+                    "value", to: nested.appendingPathComponent("file.txt")
+                )
+
+                try await fileSystem.replaceWithRegistryDownloadDirectory(
+                    source: source, destination: destination
+                )
+
+                #expect(fileSystem.isDirectoryAndNotSymlink(destination))
+                #expect(!(fileSystem.isDirectoryAndNotSymlink(destination.appendingPathComponent("nested"))))
+                #expect(
+                    try await fileSystem.exists(destination.appendingPathComponent("nested/file.txt").absolutePath))
+            }
+        }
+    }
+
+    @Test
+    func cachedDirectoryReplacementSymlinksOnCIWhenConfigured() async throws {
+        try await Environment.$values.withValue([
+            "CI": "1",
+        ]) {
+            try await Environment.withCachedDirectoryMaterialization(.symlink) {
+                try await withTemporaryDirectory { root in
+                    let source = root.appendingPathComponent("source")
+                    let nested = source.appendingPathComponent("nested")
+                    let destination = root.appendingPathComponent("destination")
+                    try await fileSystem.makeDirectory(at: nested.absolutePath, options: [.createTargetParentDirectories])
+                    try await fileSystem.atomicWrite(
+                        "value", to: nested.appendingPathComponent("file.txt")
+                    )
+
+                    try await fileSystem.replaceWithCachedDirectory(
+                        source: source, destination: destination
+                    )
+
+                    #expect(!(fileSystem.isDirectoryAndNotSymlink(destination)))
+                    #expect(
+                        try await fileSystem.exists(destination.appendingPathComponent("nested/file.txt").absolutePath)
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    func cachedDirectoryReplacementCopiesOutsideCIWhenConfigured() async throws {
+        try await Environment.withCachedDirectoryMaterialization(.copy) {
+            try await withTemporaryDirectory { root in
+                let source = root.appendingPathComponent("source")
+                let destination = root.appendingPathComponent("destination")
+                try await fileSystem.makeDirectory(at: source.absolutePath, options: [.createTargetParentDirectories])
+                try await fileSystem.atomicWrite(
+                    "value", to: source.appendingPathComponent("file.txt")
+                )
+
+                try await fileSystem.replaceWithCachedDirectory(
+                    source: source, destination: destination
+                )
+
+                #expect(fileSystem.isDirectoryAndNotSymlink(destination))
+                #expect(
+                    try await fileSystem.exists(destination.appendingPathComponent("file.txt").absolutePath)
+                )
+            }
+        }
+    }
+
+    @Test
+    func ciDetectionMatchesAubeEnvironmentLogic() {
+        Environment.$values.withValue([:]) {
+            #expect(!Environment.isCI)
+        }
+        Environment.$values.withValue(["CI": ""]) {
+            #expect(Environment.isCI)
+        }
+        Environment.$values.withValue(["GITHUB_RUN_ID": "123"]) {
+            #expect(Environment.isCI)
+        }
+        Environment.$values.withValue(["BUILD_NUMBER": "123"]) {
+            #expect(Environment.isCI)
+        }
+    }
+
+    @Test
+    func temporaryDirectoryAndFileSafeNameUseScopedPaths() async throws {
+        try await withTemporaryDirectory { root in
+            let temp = try await fileSystem.temporaryDirectory(in: root)
+
+            #expect(temp.path.hasPrefix(root.path))
+            #expect(try await fileSystem.exists(temp.absolutePath))
+            #expect(SafeFileName.make("a/b:c") == "a_b_c")
+        }
+    }
+
+    @Test
+    func sourceControlTokenBeatsNetrcAndKeychain() async throws {
+        let header = try await HTTPAuthorization.prioritizedHeader(
+            sourceControlToken: "environment-token",
+            netrcCredential: RegistryCredential(user: "user", password: "file-token"),
+            keychain: { Issue.record("keychain consulted despite environment token"); return nil }
+        )
+        #expect(header == "Basic " + Data("token:environment-token".utf8).base64EncodedString())
+    }
+
+    @Test
+    func netrcCredentialBeatsKeychainWithAnEmptyEnvironmentToken() async throws {
+        let credential = RegistryCredential(user: "user", password: "file-token")
+        let header = try await HTTPAuthorization.prioritizedHeader(
+            sourceControlToken: "",
+            netrcCredential: credential,
+            keychain: { Issue.record("keychain consulted despite netrc credentials"); return nil }
+        )
+        #expect(header == "Basic " + Data("user:file-token".utf8).base64EncodedString())
+    }
+
+    @Test
+    func keychainIsUsedWhenOtherHTTPProvidersMiss() async throws {
+        let header = try await HTTPAuthorization.prioritizedHeader(
+            sourceControlToken: nil, netrcCredential: nil,
+            keychain: { RegistryCredential(user: "keychain", password: "credential") }
+        )
+        #expect(header == "Basic " + Data("keychain:credential".utf8).base64EncodedString())
+    }
+
+    @Test
+    func noHTTPProvidersProducesNoHeader() async throws {
+        #expect(try await HTTPAuthorization.prioritizedHeader(
+            sourceControlToken: nil, netrcCredential: nil, keychain: { nil }
+        ) == nil)
+    }
+
+    @Test(arguments: ["https://api.github.com/asset", "https://artifacts.example.com/asset"])
+    func sourceControlEnvironmentTokenIsNotHostScoped(location: String) async throws {
+        let header = try await Environment.$values.withValue([
+            "SWIFTPM_SOURCE_CONTROL_TOKEN": "environment-token",
+            "GITHUB_TOKEN": "unrelated-token",
+        ]) {
+            try await Environment.withNetrc(.empty) {
+                try await HTTPAuthorization.header(for: try #require(URL(string: location)))
+            }
+        }
+        #expect(header == "Basic " + Data("token:environment-token".utf8).base64EncodedString())
+    }
+
+    @Test(arguments: ["https://api.github.com/asset", "https://artifacts.example.com/asset"])
+    func providerTokensDoNotAuthenticateHTTPArtifacts(location: String) async throws {
+        let netrc = Netrc(configuration: .init(disableKeychain: true), sources: [])
+        let header = try await Environment.$values.withValue([
+            "SWIFTERPM_GITHUB_TOKEN": "explicit-api-token",
+            "SWIFTERPM_GITLAB_TOKEN": "explicit-api-token",
+            "GITHUB_TOKEN": "github-token", "GH_TOKEN": "gh-token",
+            "GITLAB_TOKEN": "gitlab-token", "CI_JOB_TOKEN": "job-token",
+        ]) {
+            try await Environment.withNetrc(netrc) {
+                try await HTTPAuthorization.header(for: try #require(URL(string: location)))
+            }
+        }
+        #expect(header == nil)
+    }
+
+    @Test
+    func gitEnvironmentMatchesNativeDefaultsWithoutOverridingUserConfiguration() {
+        Environment.$values.withValue([:]) {
+            #expect(SystemProcess.nonInteractiveGitEnvironment == [
+                "GIT_TERMINAL_PROMPT": "0", "GIT_SSH_COMMAND": "ssh -oBatchMode=yes",
+            ])
+        }
+        Environment.$values.withValue([
+            "GIT_TERMINAL_PROMPT": "1", "GIT_SSH_COMMAND": "custom-ssh",
+        ]) {
+            #expect(SystemProcess.nonInteractiveGitEnvironment == [
+                "GIT_TERMINAL_PROMPT": "1", "GIT_SSH_COMMAND": "custom-ssh",
+            ])
+        }
+    }
+
+    @Test
+    func realpathFollowsSymlinksAndKeepsThePathWhenItCannotResolve() async throws {
+        try await withTemporaryDirectory { directory in
+            let target = directory.appendingPathComponent("Target")
+            try await fileSystem.makeDirectory(
+                at: target.absolutePath, options: [.createTargetParentDirectories]
+            )
+            let link = directory.appendingPathComponent("Link")
+            try await fileSystem.createSymbolicLink(from: link.absolutePath, to: target.absolutePath)
+            let absent = directory.appendingPathComponent("Absent/Deep")
+
+            #expect(
+                PathCanonicalizer.realpath(link).path
+                    == PathCanonicalizer.realpath(directory).appendingPathComponent("Target").path)
+            // Nothing to resolve: the caller still needs the path it asked about, not a
+            // truncated prefix of it.
+            #expect(PathCanonicalizer.realpath(absent).path == absent.standardizedFileURL.path)
+        }
+    }
+}

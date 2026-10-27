@@ -9,7 +9,9 @@ defmodule TuistWeb.PreviewLive do
 
   alias Tuist.AppBuilds
   alias Tuist.AppBuilds.AppBuild
+  alias Tuist.Authorization
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.SHA
 
   def mount(%{"id" => preview_id} = _params, _session, %{assigns: %{selected_project: selected_project}} = socket) do
@@ -27,6 +29,9 @@ defmodule TuistWeb.PreviewLive do
     preview = Tuist.Repo.preload(preview, :project)
 
     user_agent = UAParser.parse(get_connect_info(socket, :user_agent))
+    current_user = Map.get(socket.assigns, :current_user)
+
+    can_delete_preview = Authorization.authorize(:preview_delete, current_user, preview.project) == :ok
 
     {
       :ok,
@@ -40,6 +45,18 @@ defmodule TuistWeb.PreviewLive do
         preview
       )
       |> assign(
+        OpenGraph.project_image_assigns(selected_project,
+          title: preview.display_name || dgettext("dashboard_previews", "Preview"),
+          subtitle:
+            Enum.map_join(
+              preview.supported_platforms || [],
+              " · ",
+              &(&1 |> Atom.to_string() |> String.replace("_", " ") |> String.capitalize())
+            ),
+          badge: dgettext("dashboard_previews", "App preview")
+        )
+      )
+      |> assign(
         :user_agent,
         user_agent
       )
@@ -50,7 +67,8 @@ defmodule TuistWeb.PreviewLive do
       |> assign(
         :preview_url,
         url(~p"/#{preview.project.account.name}/#{preview.project.name}/previews/#{preview.id}")
-      ),
+      )
+      |> assign(:can_delete_preview, can_delete_preview),
       layout: layout
     }
   end
@@ -91,14 +109,20 @@ defmodule TuistWeb.PreviewLive do
         _params,
         %{assigns: %{preview: preview, selected_project: selected_project}} = socket
       ) do
-    AppBuilds.delete_preview!(preview)
+    current_user = Map.get(socket.assigns, :current_user)
 
-    {
-      :noreply,
-      push_navigate(socket,
-        to: ~p"/#{selected_project.account.name}/#{selected_project.name}/previews"
-      )
-    }
+    if Authorization.authorize(:preview_delete, current_user, preview.project) == :ok do
+      AppBuilds.delete_preview!(preview)
+
+      {
+        :noreply,
+        push_navigate(socket,
+          to: ~p"/#{selected_project.account.name}/#{selected_project.name}/previews"
+        )
+      }
+    else
+      {:noreply, socket}
+    end
   end
 
   defp get_current_preview(preview_id) do

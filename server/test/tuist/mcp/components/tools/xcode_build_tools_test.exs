@@ -1,0 +1,516 @@
+defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
+  use TuistTestSupport.Cases.ConnCase, async: true
+  use Mimic
+
+  alias Tuist.Builds
+  alias Tuist.MCP.Components.Tools.GetXcodeBuild
+  alias Tuist.MCP.Components.Tools.GetXcodeBuildStep
+  alias Tuist.MCP.Components.Tools.ListXcodeBuildCacheTasks
+  alias Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs
+  alias Tuist.MCP.Components.Tools.ListXcodeBuildFiles
+  alias Tuist.MCP.Components.Tools.ListXcodeBuildIssues
+  alias Tuist.MCP.Components.Tools.ListXcodeBuilds
+  alias Tuist.MCP.Components.Tools.ListXcodeBuildSteps
+  alias Tuist.MCP.Components.Tools.ListXcodeBuildTargets
+  alias Tuist.Projects
+  alias Tuist.Storage
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
+
+  defp conn_with_subject do
+    %Plug.Conn{assigns: %{current_subject: :subject}}
+  end
+
+  @build_run_uuid "38338b32-3437-42e4-bc01-f048d6d3368f"
+
+  defp stub_build_lookup(project) do
+    stub(Builds, :get_build, fn id -> {:ok, %{id: id, project_id: 1}} end)
+    stub(Projects, :get_project_by_id, fn 1 -> project end)
+    stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
+  end
+
+  test "ID-only Xcode MCP tools refuse a public attacker's duplicate private build UUID", %{conn: conn} do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+    public = ProjectsFixtures.project_fixture(visibility: :public)
+
+    {:ok, victim} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: "Victim",
+        inserted_at: DateTime.utc_now() |> DateTime.add(-120, :day) |> DateTime.to_naive()
+      )
+
+    {:ok, _} = RunsFixtures.build_fixture(id: victim.id, project_id: public.id, scheme: "Attacker")
+    conn = assign(conn, :current_subject, user)
+
+    for tool <- [
+          GetXcodeBuild,
+          ListXcodeBuildSteps,
+          GetXcodeBuildStep,
+          ListXcodeBuildTargets,
+          ListXcodeBuildFiles,
+          ListXcodeBuildIssues,
+          ListXcodeBuildCacheTasks,
+          ListXcodeBuildCASOutputs
+        ],
+        reference <- [victim.id, "https://tuist.dev/#{project.account.name}/#{project.name}/builds/#{victim.id}"] do
+      arguments = %{"build_run_id" => reference}
+      arguments = if tool == GetXcodeBuildStep, do: Map.put(arguments, "step_id", "1"), else: arguments
+      assert %{"isError" => true, "content" => [%{"text" => text}]} = tool.call(conn, arguments)
+
+      assert text == "Build not found: #{victim.id}"
+      refute text =~ "Attacker"
+    end
+
+    assert {:ok, build} = Builds.get_build(victim.id, project_id: project.id)
+    assert build.scheme == "Victim"
+  end
+
+  describe "list_xcode_builds" do
+    test "returns paginated builds" do
+      project = %{id: 1, name: "app"}
+      stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" -> project end)
+      stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
+
+      stub(Builds, :list_build_runs, fn _attrs ->
+        {[
+           %{
+             id: "build-1",
+             duration: 5000,
+             status: "success",
+             category: "clean",
+             scheme: "App",
+             configuration: "Debug",
+             is_ci: false,
+             git_branch: "main",
+             git_commit_sha: "abc123",
+             cacheable_tasks_count: 10,
+             cacheable_task_local_hits_count: 5,
+             cacheable_task_remote_hits_count: 3,
+             inserted_at: ~N[2024-01-01 12:00:00]
+           }
+         ],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           total_count: 1,
+           total_pages: 1,
+           current_page: 1,
+           page_size: 20
+         }}
+      end)
+
+      result =
+        ListXcodeBuilds.call(conn_with_subject(), %{
+          "account_handle" => "acme",
+          "project_handle" => "app"
+        })
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+      result = JSON.decode!(text)
+      assert length(result["builds"]) == 1
+      assert hd(result["builds"])["id"] == "build-1"
+      assert hd(result["builds"])["duration"] == 5000
+    end
+
+    test "requires :build_read authorization" do
+      project = %{id: 1, name: "app", account: %{name: "acme"}}
+      stub(Projects, :get_project_by_account_and_project_handles, fn "acme", "app" -> project end)
+
+      expect(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project ->
+        {:error, :forbidden}
+      end)
+
+      result =
+        ListXcodeBuilds.call(conn_with_subject(), %{
+          "account_handle" => "acme",
+          "project_handle" => "app"
+        })
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} = result
+      assert text == ~s(You do not have access to project: acme/app. It belongs to the account "acme".)
+    end
+  end
+
+  describe "get_xcode_build" do
+    test "returns the CAS transfer totals for the build" do
+      project = %{id: 1, name: "app", account: %{name: "acme"}}
+
+      stub(Builds, :get_build, fn "build-1" ->
+        {:ok,
+         %{
+           id: "build-1",
+           duration: 5000,
+           status: "success",
+           category: "clean",
+           scheme: "App",
+           configuration: "Debug",
+           xcode_version: "15.0",
+           macos_version: "14.0",
+           model_identifier: "MacBookPro18,1",
+           is_ci: false,
+           git_branch: "main",
+           git_commit_sha: "abc123",
+           git_ref: "refs/heads/main",
+           cacheable_tasks_count: 10,
+           cacheable_task_local_hits_count: 5,
+           cacheable_task_remote_hits_count: 3,
+           project_id: 1,
+           inserted_at: ~N[2024-01-01 12:00:00]
+         }}
+      end)
+
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
+      stub(Storage, :generate_download_url, fn object_key, _actor, _opts -> "https://storage.test/#{object_key}" end)
+
+      expect(Builds, :cas_output_metrics, fn "build-1" ->
+        cas_output_metrics(download_count: 90, upload_count: 10, download_bytes: 9000, upload_bytes: 1000)
+      end)
+
+      result = GetXcodeBuild.call(conn_with_subject(), %{"build_run_id" => "build-1"})
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+      result = JSON.decode!(text)
+      assert result["cas_output_download_count"] == 90
+      assert result["cas_output_upload_count"] == 10
+      assert result["cas_output_download_bytes"] == 9000
+      assert result["cas_output_upload_bytes"] == 1000
+    end
+
+    test "returns build details and an archive download URL" do
+      project = %{id: 1, name: "app", account: %{name: "acme"}}
+
+      stub(Builds, :get_build, fn "build-1" ->
+        {:ok,
+         %{
+           id: "build-1",
+           duration: 5000,
+           status: "success",
+           category: "clean",
+           scheme: "App",
+           configuration: "Debug",
+           xcode_version: "15.0",
+           macos_version: "14.0",
+           model_identifier: "MacBookPro18,1",
+           is_ci: false,
+           git_branch: "main",
+           git_commit_sha: "abc123",
+           git_ref: "refs/heads/main",
+           cacheable_tasks_count: 10,
+           cacheable_task_local_hits_count: 5,
+           cacheable_task_remote_hits_count: 3,
+           project_id: 1,
+           inserted_at: ~N[2024-01-01 12:00:00]
+         }}
+      end)
+
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
+
+      # Signed rather than checked for existence, so the caller pays no storage
+      # round trip for build details they may only want the metadata from.
+      stub(Storage, :generate_download_url, fn object_key, _actor, opts ->
+        assert Keyword.fetch!(opts, :expires_in) == 900
+        "https://storage.test/#{object_key}"
+      end)
+
+      reject(&Storage.get_object_size/2)
+
+      stub(Builds, :cas_output_metrics, fn _build_run_id -> cas_output_metrics() end)
+
+      result = GetXcodeBuild.call(conn_with_subject(), %{"build_run_id" => "build-1"})
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+      result = JSON.decode!(text)
+      assert result["id"] == "build-1"
+      assert result["duration"] == 5000
+      assert result["xcode_version"] == "15.0"
+      assert result["archive_url"] == "https://storage.test/acme/app/builds/build-1/build.zip"
+    end
+
+    test "accepts a dashboard URL in place of the build ID" do
+      project = %{id: 1, name: "app", account: %{name: "acme"}}
+
+      stub(Builds, :get_build, fn id ->
+        {:ok,
+         %{
+           id: id,
+           duration: 5000,
+           status: "success",
+           category: "clean",
+           scheme: "App",
+           configuration: "Debug",
+           xcode_version: "15.0",
+           macos_version: "14.0",
+           model_identifier: "MacBookPro18,1",
+           is_ci: false,
+           git_branch: "main",
+           git_commit_sha: "abc123",
+           git_ref: "refs/heads/main",
+           cacheable_tasks_count: 10,
+           cacheable_task_local_hits_count: 5,
+           cacheable_task_remote_hits_count: 3,
+           project_id: 1,
+           inserted_at: ~N[2024-01-01 12:00:00]
+         }}
+      end)
+
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
+      stub(Storage, :generate_download_url, fn object_key, _actor, _opts -> "https://storage.test/#{object_key}" end)
+
+      for build_run_id <- [
+            "https://tuist.dev/acme/app/builds/build-runs/#{@build_run_uuid}",
+            "https://tuist.dev/acme/app/builds/build-runs/#{@build_run_uuid}/",
+            "https://tuist.dev/acme/app/builds/build-runs/#{@build_run_uuid}?tab=targets",
+            @build_run_uuid
+          ] do
+        assert %{"content" => [%{"type" => "text", "text" => text}]} =
+                 GetXcodeBuild.call(conn_with_subject(), %{"build_run_id" => build_run_id})
+
+        assert JSON.decode!(text)["id"] == @build_run_uuid
+      end
+    end
+
+    test "still reports not found for a value that is neither an ID nor a URL" do
+      stub(Builds, :get_build, fn "not-a-build" -> {:error, :not_found} end)
+
+      assert %{"content" => [%{"type" => "text", "text" => text}], "isError" => true} =
+               GetXcodeBuild.call(conn_with_subject(), %{"build_run_id" => "not-a-build"})
+
+      assert text == "Build not found: not-a-build"
+    end
+  end
+
+  describe "list_xcode_build_targets" do
+    test "returns build targets" do
+      project = %{id: 1, name: "app"}
+
+      stub(Builds, :get_build, fn "build-1" ->
+        {:ok, %{id: "build-1", project_id: 1}}
+      end)
+
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
+
+      stub(Builds, :list_build_targets, fn _attrs ->
+        {[
+           %{
+             name: "AppTarget",
+             project: "App",
+             build_duration: 3000,
+             compilation_duration: 2500,
+             status: "success"
+           }
+         ],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           total_count: 1,
+           total_pages: 1,
+           current_page: 1,
+           page_size: 20
+         }}
+      end)
+
+      result = ListXcodeBuildTargets.call(conn_with_subject(), %{"build_run_id" => "build-1"})
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+      result = JSON.decode!(text)
+      assert length(result["targets"]) == 1
+      assert hd(result["targets"])["name"] == "AppTarget"
+      assert hd(result["targets"])["build_duration"] == 3000
+    end
+  end
+
+  describe "list_xcode_build_files" do
+    test "returns build files" do
+      project = %{id: 1, name: "app"}
+
+      stub(Builds, :get_build, fn "build-1" -> {:ok, %{id: "build-1", project_id: 1}} end)
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
+
+      stub(Builds, :list_build_files, fn _attrs ->
+        {[
+           %{
+             type: "swift",
+             target: "AppTarget",
+             project: "App",
+             path: "Sources/App.swift",
+             compilation_duration: 150
+           }
+         ],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           total_count: 1,
+           total_pages: 1,
+           current_page: 1,
+           page_size: 20
+         }}
+      end)
+
+      result = ListXcodeBuildFiles.call(conn_with_subject(), %{"build_run_id" => "build-1"})
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+      result = JSON.decode!(text)
+      assert length(result["files"]) == 1
+      assert hd(result["files"])["path"] == "Sources/App.swift"
+    end
+
+    test "filters by the ID extracted from a dashboard URL, not by the URL" do
+      project = %{id: 1, name: "app"}
+      stub_build_lookup(project)
+
+      stub(Builds, :list_build_files, fn %{filters: filters} ->
+        assert %{field: :build_run_id, op: :==, value: @build_run_uuid} in filters
+
+        {[],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           total_count: 0,
+           total_pages: 0,
+           current_page: 1,
+           page_size: 20
+         }}
+      end)
+
+      assert %{"content" => [%{"type" => "text"}]} =
+               ListXcodeBuildFiles.call(conn_with_subject(), %{
+                 "build_run_id" => "https://tuist.dev/acme/app/builds/build-runs/#{@build_run_uuid}"
+               })
+    end
+  end
+
+  describe "list_xcode_build_issues" do
+    test "returns build issues" do
+      project = %{id: 1, name: "app"}
+
+      stub(Builds, :get_build, fn "build-1" -> {:ok, %{id: "build-1", project_id: 1}} end)
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
+
+      stub(Builds, :list_build_issues, fn "build-1" ->
+        [
+          %{
+            type: "error",
+            target: "AppTarget",
+            project: "App",
+            title: "Type mismatch",
+            message: "Cannot convert Int to String",
+            signature: "sig123",
+            step_type: "swift_compilation",
+            path: "Sources/App.swift",
+            starting_line: 42,
+            ending_line: 42,
+            starting_column: 10,
+            ending_column: 20
+          }
+        ]
+      end)
+
+      result = ListXcodeBuildIssues.call(conn_with_subject(), %{"build_run_id" => "build-1"})
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+      result = JSON.decode!(text)
+      assert length(result["issues"]) == 1
+      assert hd(result["issues"])["title"] == "Type mismatch"
+    end
+  end
+
+  describe "list_xcode_build_cache_tasks" do
+    test "returns cache tasks" do
+      project = %{id: 1, name: "app"}
+
+      stub(Builds, :get_build, fn "build-1" -> {:ok, %{id: "build-1", project_id: 1}} end)
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
+
+      stub(Builds, :list_cacheable_tasks, fn _attrs ->
+        {:ok,
+         {[
+            %{
+              type: "swift",
+              status: "hit_remote",
+              key: "abc123",
+              read_duration: 50.0,
+              write_duration: nil,
+              description: "AppTarget",
+              cas_output_node_ids: ["node-1"]
+            }
+          ],
+          %{
+            has_next_page?: false,
+            has_previous_page?: false,
+            total_count: 1,
+            total_pages: 1,
+            current_page: 1,
+            page_size: 20
+          }}}
+      end)
+
+      result = ListXcodeBuildCacheTasks.call(conn_with_subject(), %{"build_run_id" => "build-1"})
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+      result = JSON.decode!(text)
+      assert length(result["tasks"]) == 1
+      assert hd(result["tasks"])["status"] == "hit_remote"
+    end
+  end
+
+  describe "list_xcode_build_cas_outputs" do
+    test "returns CAS outputs" do
+      project = %{id: 1, name: "app"}
+
+      stub(Builds, :get_build, fn "build-1" -> {:ok, %{id: "build-1", project_id: 1}} end)
+      stub(Projects, :get_project_by_id, fn 1 -> project end)
+      stub(Tuist.Authorization, :authorize, fn :build_read, :subject, ^project -> :ok end)
+
+      stub(Builds, :list_cas_outputs, fn _attrs ->
+        {[
+           %{
+             node_id: "node-1",
+             checksum: "sha256abc",
+             size: 1024,
+             compressed_size: 512,
+             duration: 100,
+             operation: "download",
+             type: "swift"
+           }
+         ],
+         %{
+           has_next_page?: false,
+           has_previous_page?: false,
+           total_count: 1,
+           total_pages: 1,
+           current_page: 1,
+           page_size: 20
+         }}
+      end)
+
+      result = ListXcodeBuildCASOutputs.call(conn_with_subject(), %{"build_run_id" => "build-1"})
+
+      assert %{"content" => [%{"type" => "text", "text" => text}]} = result
+      result = JSON.decode!(text)
+      assert length(result["outputs"]) == 1
+      assert hd(result["outputs"])["node_id"] == "node-1"
+      assert hd(result["outputs"])["size"] == 1024
+    end
+  end
+
+  defp cas_output_metrics(attrs \\ []) do
+    %{
+      download_count: Keyword.get(attrs, :download_count, 0),
+      upload_count: Keyword.get(attrs, :upload_count, 0),
+      download_bytes: Keyword.get(attrs, :download_bytes, 0),
+      upload_bytes: Keyword.get(attrs, :upload_bytes, 0),
+      time_weighted_avg_download_throughput: 0,
+      time_weighted_avg_upload_throughput: 0
+    }
+  end
+end

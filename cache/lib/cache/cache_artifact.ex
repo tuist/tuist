@@ -5,12 +5,12 @@ defmodule Cache.CacheArtifact do
 
   import Ecto.Changeset
 
-  schema "cas_artifacts" do
+  schema "cache_artifacts" do
     field :key, :string
     field :size_bytes, :integer
     field :last_accessed_at, :utc_datetime_usec
 
-    timestamps()
+    timestamps(type: :utc_datetime)
   end
 
   def changeset(artifact, attrs) do

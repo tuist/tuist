@@ -5,11 +5,13 @@ defmodule TuistWeb.TestCasesLive do
 
   import Noora.Filter
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.Skeleton
+  import TuistWeb.Helpers.TestLabels
   import TuistWeb.PercentileDropdownWidget
 
   alias Noora.Filter
-  alias Tuist.Runs
-  alias Tuist.Runs.Analytics
+  alias Tuist.Tests
+  alias Tuist.Tests.Analytics
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -20,8 +22,13 @@ defmodule TuistWeb.TestCasesLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Cases")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("test-cases"))
-      |> assign(:available_filters, define_filters())
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_tests", "Test Cases"),
+          fallback: "test-cases"
+        )
+      )
+      |> assign(:available_filters, define_filters(project))
 
     if connected?(socket) do
       Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
@@ -30,7 +37,7 @@ defmodule TuistWeb.TestCasesLive do
     {:ok, socket}
   end
 
-  defp define_filters do
+  defp define_filters(project) do
     [
       %Filter.Filter{
         id: "last_status",
@@ -49,7 +56,7 @@ defmodule TuistWeb.TestCasesLive do
       %Filter.Filter{
         id: "module_name",
         field: "module_name",
-        display_name: dgettext("dashboard_tests", "Module"),
+        display_name: module_label(project),
         type: :text,
         operator: :=~,
         value: ""
@@ -57,19 +64,21 @@ defmodule TuistWeb.TestCasesLive do
       %Filter.Filter{
         id: "suite_name",
         field: "suite_name",
-        display_name: dgettext("dashboard_tests", "Suite"),
+        display_name: suite_label(project),
         type: :text,
         operator: :=~,
         value: ""
       },
       %Filter.Filter{
-        id: "is_flaky",
-        field: :is_flaky,
+        id: "test_case_trait",
+        field: :test_case_trait,
         display_name: dgettext("dashboard_tests", "Test case"),
         type: :option,
-        options: ["flaky"],
+        options: [:flaky, :muted, :skipped],
         options_display_names: %{
-          "flaky" => dgettext("dashboard_tests", "Flaky")
+          flaky: dgettext("dashboard_tests", "Flaky"),
+          muted: dgettext("dashboard_tests", "Muted"),
+          skipped: dgettext("dashboard_tests", "Skipped")
         },
         operator: :==,
         value: nil
@@ -77,7 +86,9 @@ defmodule TuistWeb.TestCasesLive do
     ]
   end
 
-  def handle_params(params, _uri, socket) do
+  def handle_params(_params, uri, socket) do
+    params = Query.query_params(uri)
+
     {
       :noreply,
       socket
@@ -88,7 +99,10 @@ defmodule TuistWeb.TestCasesLive do
   end
 
   def handle_event("add_filter", %{"value" => filter_id}, socket) do
-    updated_params = Filter.Operations.add_filter_to_query(filter_id, socket)
+    updated_params =
+      filter_id
+      |> Filter.Operations.add_filter_to_query(socket)
+      |> Map.put("page", "1")
 
     {:noreply,
      socket
@@ -101,7 +115,10 @@ defmodule TuistWeb.TestCasesLive do
   end
 
   def handle_event("update_filter", params, socket) do
-    updated_query_params = Filter.Operations.update_filters_in_query(params, socket)
+    updated_query_params =
+      params
+      |> Filter.Operations.update_filters_in_query(socket)
+      |> Map.put("page", "1")
 
     {:noreply,
      socket
@@ -113,40 +130,65 @@ defmodule TuistWeb.TestCasesLive do
      |> push_event("close-popover", %{all: true})}
   end
 
-  def handle_event(
-        "select_widget",
-        %{"widget" => widget},
-        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
-      ) do
-    socket =
-      push_patch(
-        socket,
-        to:
-          "/#{selected_account.name}/#{selected_project.name}/tests/test-cases?#{Query.put(uri.query, "analytics-selected-widget", widget)}",
-        replace: true
-      )
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
+    uri = URI.new!("?" <> query)
 
-    {:noreply, socket}
+    socket =
+      socket
+      |> assign(:analytics_selected_widget, widget)
+      |> assign(:uri, uri)
+      |> push_event("replace-url", %{url: "?" <> query})
+
+    {:noreply,
+     if socket.assigns.analytics_chart_data.ok? do
+       chart_data =
+         analytics_chart_data(
+           widget,
+           socket.assigns.selected_duration_type,
+           socket.assigns.test_case_runs_analytics.result,
+           socket.assigns.failed_test_case_runs_analytics.result,
+           socket.assigns.test_case_runs_duration_analytics.result,
+           socket.assigns.test_cases_count_analytics.result
+         )
+
+       assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})
+     else
+       socket
+     end}
   end
 
-  def handle_event(
-        "select_duration_type",
-        %{"type" => type},
-        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
-      ) do
+  def handle_event("select_duration_type", %{"type" => type}, socket) do
     query =
-      uri.query
+      socket.assigns.uri.query
       |> Query.put("duration-type", type)
       |> Query.put("analytics-selected-widget", "test_case_run_duration")
 
-    socket =
-      push_patch(
-        socket,
-        to: "/#{selected_account.name}/#{selected_project.name}/tests/test-cases?#{query}",
-        replace: true
-      )
+    uri = URI.new!("?" <> query)
 
-    {:noreply, socket}
+    socket =
+      socket
+      |> assign(:selected_duration_type, type)
+      |> assign(:analytics_selected_widget, "test_case_run_duration")
+      |> assign(:uri, uri)
+      |> push_event("replace-url", %{url: "?" <> query})
+
+    {:noreply,
+     if socket.assigns.analytics_chart_data.ok? do
+       chart_data =
+         analytics_chart_data(
+           "test_case_run_duration",
+           type,
+           socket.assigns.test_case_runs_analytics.result,
+           socket.assigns.failed_test_case_runs_analytics.result,
+           socket.assigns.test_case_runs_duration_analytics.result,
+           socket.assigns.test_cases_count_analytics.result
+         )
+
+       assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})
+     else
+       socket
+     end}
   end
 
   def handle_event(
@@ -163,6 +205,8 @@ defmodule TuistWeb.TestCasesLive do
       else
         Query.put(socket.assigns.uri.query, "analytics-date-range", preset)
       end
+
+    query_params = Query.drop(query_params, "page")
 
     {:noreply,
      push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/tests/test-cases?#{query_params}")}
@@ -222,26 +266,83 @@ defmodule TuistWeb.TestCasesLive do
 
     uri = URI.new!("?" <> URI.encode_query(params))
 
-    [test_case_runs_analytics, failed_test_case_runs_analytics, test_case_runs_duration_analytics] =
-      Task.await_many(
-        [
-          Task.async(fn -> Analytics.test_case_run_analytics(project.id, opts) end),
-          Task.async(fn -> Analytics.test_case_run_analytics(project.id, Keyword.put(opts, :status, "failure")) end),
-          Task.async(fn -> Analytics.test_case_run_duration_analytics(project.id, opts) end)
-        ],
-        30_000
-      )
-
     analytics_selected_widget = params["analytics-selected-widget"] || "test_case_run_count"
 
-    analytics_chart_data =
+    socket
+    |> assign(:analytics_preset, preset)
+    |> assign(:analytics_period, period)
+    |> assign(:analytics_trend_label, analytics_trend_label(preset))
+    |> assign(:analytics_environment, analytics_environment)
+    |> assign(:analytics_environment_label, analytics_environment_label(analytics_environment))
+    |> assign(:analytics_selected_widget, analytics_selected_widget)
+    |> assign(:selected_duration_type, selected_duration_type)
+    |> assign(:uri, uri)
+    |> assign_async(
+      [
+        :test_case_runs_analytics,
+        :failed_test_case_runs_analytics,
+        :test_case_runs_duration_analytics,
+        :test_cases_count_analytics,
+        :analytics_chart_data
+      ],
+      fn ->
+        test_case_runs_analytics = Analytics.test_case_run_analytics(project.id, opts)
+
+        failed_test_case_runs_analytics =
+          Analytics.test_case_run_analytics(project.id, Keyword.put(opts, :status, "failure"))
+
+        test_case_runs_duration_analytics =
+          Analytics.test_case_run_duration_analytics(project.id, opts)
+
+        test_cases_count_analytics = Analytics.test_cases_count_analytics(project.id, opts)
+
+        {:ok,
+         %{
+           test_case_runs_analytics: test_case_runs_analytics,
+           failed_test_case_runs_analytics: failed_test_case_runs_analytics,
+           test_case_runs_duration_analytics: test_case_runs_duration_analytics,
+           test_cases_count_analytics: test_cases_count_analytics,
+           analytics_chart_data:
+             analytics_chart_data(
+               analytics_selected_widget,
+               selected_duration_type,
+               test_case_runs_analytics,
+               failed_test_case_runs_analytics,
+               test_case_runs_duration_analytics,
+               test_cases_count_analytics
+             )
+         }}
+      end
+    )
+  end
+
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
+  defp analytics_chart_data(
+         analytics_selected_widget,
+         selected_duration_type,
+         test_case_runs_analytics,
+         failed_test_case_runs_analytics,
+         test_case_runs_duration_analytics,
+         test_cases_count_analytics
+       ) do
+    chart_data =
       case analytics_selected_widget do
+        "test_cases_count" ->
+          %{
+            dates: test_cases_count_analytics.dates,
+            values: test_cases_count_analytics.values,
+            name: dgettext("dashboard_tests", "Test cases"),
+            value_formatter: "{value}",
+            color: "var:noora-chart-tertiary"
+          }
+
         "test_case_run_count" ->
           %{
             dates: test_case_runs_analytics.dates,
             values: test_case_runs_analytics.values,
             name: dgettext("dashboard_tests", "Test case runs"),
-            value_formatter: "{value}"
+            value_formatter: "{value}",
+            color: "var:noora-chart-primary"
           }
 
         "failed_test_case_run_count" ->
@@ -249,7 +350,8 @@ defmodule TuistWeb.TestCasesLive do
             dates: failed_test_case_runs_analytics.dates,
             values: failed_test_case_runs_analytics.values,
             name: dgettext("dashboard_tests", "Failed test case runs"),
-            value_formatter: "{value}"
+            value_formatter: "{value}",
+            color: "var:noora-chart-destructive"
           }
 
         "test_case_run_duration" ->
@@ -272,23 +374,16 @@ defmodule TuistWeb.TestCasesLive do
             dates: test_case_runs_duration_analytics.dates,
             values: values,
             name: name,
-            value_formatter: "fn:formatMilliseconds"
+            value_formatter: "fn:formatMilliseconds",
+            color: "var:noora-chart-secondary"
           }
       end
 
-    socket
-    |> assign(:analytics_preset, preset)
-    |> assign(:analytics_period, period)
-    |> assign(:analytics_trend_label, analytics_trend_label(preset))
-    |> assign(:analytics_environment, analytics_environment)
-    |> assign(:analytics_environment_label, analytics_environment_label(analytics_environment))
-    |> assign(:analytics_selected_widget, analytics_selected_widget)
-    |> assign(:selected_duration_type, selected_duration_type)
-    |> assign(:test_case_runs_analytics, test_case_runs_analytics)
-    |> assign(:failed_test_case_runs_analytics, failed_test_case_runs_analytics)
-    |> assign(:test_case_runs_duration_analytics, test_case_runs_duration_analytics)
-    |> assign(:analytics_chart_data, analytics_chart_data)
-    |> assign(:uri, uri)
+    Map.put(
+      chart_data,
+      :grid_left,
+      if(Enum.max(chart_data.values, fn -> 0 end) >= 1_000_000, do: "0.8%", else: "0.4%")
+    )
   end
 
   defp analytics_trend_label("last-24-hours"), do: dgettext("dashboard_tests", "since yesterday")
@@ -301,7 +396,12 @@ defmodule TuistWeb.TestCasesLive do
   defp analytics_environment_label("local"), do: dgettext("dashboard_tests", "Local")
   defp analytics_environment_label("ci"), do: dgettext("dashboard_tests", "CI")
 
-  @allowed_sort_fields ~w(name last_duration avg_duration last_ran_at)
+  # The `duration_*` fields are alias fields `Tests.list_test_cases/3` computes
+  # from the per-case duration aggregates. `avg_duration` is still accepted so
+  # links and bookmarks pointing at the old denormalized column keep sorting the
+  # table by a duration rather than silently falling back to "Last ran at".
+  @allowed_sort_fields ~w(name last_duration duration_p50 duration_p90 duration_p99 duration_avg last_ran_at)
+  @legacy_sort_fields %{"avg_duration" => "duration_avg"}
   @default_sort_field "last_ran_at"
 
   defp assign_test_cases(%{assigns: %{selected_project: project}} = socket, params) do
@@ -313,10 +413,22 @@ defmodule TuistWeb.TestCasesLive do
     sort_order = params["sort_order"] || "desc"
     search = params["search"] || ""
 
+    # The table intentionally ignores the analytics date picker — see
+    # `Tests.list_test_cases/3` docs. The CI/Local environment dropdown still
+    # narrows the listing because it's an environment axis, not a date range.
+    is_ci =
+      case socket.assigns.analytics_environment do
+        "ci" -> true
+        "local" -> false
+        _ -> nil
+      end
+
     flop_filters = build_flop_filters(filters, search)
 
-    order_by = [String.to_existing_atom(sort_by)]
-    order_directions = [String.to_existing_atom(sort_order)]
+    # Append `:id` as the unique tiebreaker so LIMIT/OFFSET pagination stays
+    # deterministic when the primary sort column has ties.
+    order_by = [String.to_existing_atom(sort_by), :id]
+    order_directions = [order_direction(sort_by, sort_order), :asc]
 
     options = %{
       filters: flop_filters,
@@ -326,16 +438,27 @@ defmodule TuistWeb.TestCasesLive do
       page_size: 20
     }
 
-    {test_cases, test_cases_meta} = Runs.list_test_cases(project.id, options)
+    # Spelled out rather than derived from `Tests.duration_fields/0`, to match
+    # the four columns the template spells out: dropping a column should leave
+    # its statistic visibly un-preloaded here.
+    list_opts = [
+      is_ci: is_ci,
+      preload: [:duration_p50_ms, :duration_p90_ms, :duration_p99_ms, :duration_avg_ms]
+    ]
 
     socket
     |> assign(:active_filters, filters)
-    |> assign(:test_cases, test_cases)
-    |> assign(:test_cases_meta, test_cases_meta)
-    |> assign(:test_cases_page, page)
+    |> assign(:test_cases_current_page, page)
     |> assign(:test_cases_sort_by, sort_by)
     |> assign(:test_cases_sort_order, sort_order)
     |> assign(:test_cases_filter, search)
+    |> assign_async(
+      :test_cases_page,
+      fn ->
+        {test_cases, test_cases_meta} = Tests.list_test_cases(project.id, options, list_opts)
+        {:ok, %{test_cases_page: %{test_cases: test_cases, meta: test_cases_meta}}}
+      end
+    )
   end
 
   defp parse_page(nil), do: 1
@@ -344,13 +467,56 @@ defmodule TuistWeb.TestCasesLive do
 
   defp validate_sort_by(nil), do: @default_sort_field
   defp validate_sort_by(field) when field in @allowed_sort_fields, do: field
+
+  defp validate_sort_by(field) when is_map_key(@legacy_sort_fields, field), do: Map.fetch!(@legacy_sort_fields, field)
+
   defp validate_sort_by(_invalid), do: @default_sort_field
+
+  # Test cases without enough runs to rank carry null durations. Sorting them
+  # last in both directions keeps them out of "slowest" and out of "fastest":
+  # the listing does not know how long they take, which is not the same as
+  # knowing they are quick.
+  defp order_direction("duration_" <> _statistic, "asc"), do: :asc_nulls_last
+  defp order_direction("duration_" <> _statistic, _desc), do: :desc_nulls_last
+  defp order_direction(_field, "asc"), do: :asc
+  defp order_direction(_field, _desc), do: :desc
+
+  @doc """
+  Column header and sort-menu label for each of the listing's duration columns.
+  """
+  def duration_field_label(:duration_p50), do: dgettext("dashboard_tests", "p50")
+  def duration_field_label(:duration_p90), do: dgettext("dashboard_tests", "p90")
+  def duration_field_label(:duration_p99), do: dgettext("dashboard_tests", "p99")
+  def duration_field_label(:duration_avg), do: dgettext("dashboard_tests", "Avg.")
+
+  @doc """
+  Cell label for a duration the listing has, or a placeholder for one it does
+  not. The reason it is missing is spelled out once per row, on the p50 column.
+  """
+  def duration_cell_label(nil), do: dgettext("dashboard_tests", "N/A")
+
+  def duration_cell_label(duration_ms), do: Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(duration_ms)
+
+  # Bazel synthesizes a one-case `test.xml` when the runner (rust_test,
+  # cc_test without gtest, etc.) does not write JUnit itself, using the
+  # target basename for both classname and test name. That collapses the
+  # whole target into a single row here. The row is worth flagging so a
+  # reader understands why per-case detail is missing and where the raw
+  # `test.log` still lives (on the invocation's test run page).
+  def bazel_target_collapse?(%{module_name: module_name, name: name, suite_name: suite_name})
+      when is_binary(module_name) and is_binary(name) and is_binary(suite_name) do
+    String.starts_with?(module_name, "//") and
+      name != "" and name == suite_name and
+      module_name |> String.split(":") |> List.last() == name
+  end
+
+  def bazel_target_collapse?(_), do: false
 
   defp build_flop_filters(filters, search) do
     flop_filters =
       filters
       |> Filter.Operations.convert_filters_to_flop()
-      |> Enum.map(&convert_is_flaky_filter/1)
+      |> Enum.map(&convert_trait_filter/1)
 
     if search == "" do
       flop_filters
@@ -359,14 +525,19 @@ defmodule TuistWeb.TestCasesLive do
     end
   end
 
-  defp convert_is_flaky_filter(%{field: :is_flaky, value: "flaky"} = filter) do
-    %{filter | value: true}
+  defp convert_trait_filter(%{field: :test_case_trait, value: :flaky} = filter) do
+    %{filter | field: :is_flaky, value: true}
   end
 
-  defp convert_is_flaky_filter(filter), do: filter
+  defp convert_trait_filter(%{field: :test_case_trait, value: :muted} = filter) do
+    %{filter | field: :state, value: "muted"}
+  end
 
-  defp sort_icon("asc"), do: "square_rounded_arrow_up"
-  defp sort_icon("desc"), do: "square_rounded_arrow_down"
+  defp convert_trait_filter(%{field: :test_case_trait, value: :skipped} = filter) do
+    %{filter | field: :state, value: "skipped"}
+  end
+
+  defp convert_trait_filter(filter), do: filter
 
   defp toggle_sort_order("asc"), do: "desc"
   defp toggle_sort_order("desc"), do: "asc"

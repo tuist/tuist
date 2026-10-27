@@ -21,8 +21,8 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
 
     func test_map() async throws {
         // Given
-        let projectAPath = fileHandler.currentPath.appending(component: "ProjectA")
-        let externalProjectBPath = fileHandler.currentPath.appending(component: "ProjectB")
+        let projectAPath = try temporaryPath().appending(component: "ProjectA")
+        let externalProjectBPath = try temporaryPath().appending(component: "ProjectB")
         let frameworkA: Target = .test(
             name: "FrameworkA",
             product: .framework,
@@ -246,8 +246,8 @@ final class ExplicitDependencyGraphMapperTests: TuistUnitTestCase {
 
     func test_enabling_testing_search_paths() async throws {
         // Given
-        let projectAPath = fileHandler.currentPath.appending(component: "ProjectA")
-        let externalProjectBPath = fileHandler.currentPath.appending(component: "ProjectB")
+        let projectAPath = try temporaryPath().appending(component: "ProjectA")
+        let externalProjectBPath = try temporaryPath().appending(component: "ProjectB")
 
         let frameworkA: Target = .test(
             name: "FrameworkA",

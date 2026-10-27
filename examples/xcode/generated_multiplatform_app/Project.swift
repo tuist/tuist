@@ -5,7 +5,7 @@ let appTarget: Target = .target(
     destinations: [.iPhone, .iPad, .mac, .appleWatch],
     product: .app,
     bundleId: "dev.tuist.App",
-    deploymentTargets: .multiplatform(iOS: "14.0", macOS: "14.0.0", watchOS: "9.0"),
+    deploymentTargets: .multiplatform(iOS: "15.0", macOS: "14.0.0", watchOS: "9.0"),
     sources: "Modules/App/Sources/**/*.swift",
     dependencies: [
         .target(name: "iOSStaticFramework", condition: .when([.ios])),
@@ -19,7 +19,7 @@ let iOSStaticFramework: Target = .target(
     destinations: [.iPhone, .iPad, .mac],
     product: .staticFramework,
     bundleId: "dev.tuist.App.iOSStaticFramework",
-    deploymentTargets: .multiplatform(iOS: "14.0"),
+    deploymentTargets: .multiplatform(iOS: "15.0"),
     sources: "Modules/iOSStaticFramework/Sources/**/*.swift",
     resources: "Modules/iOSStaticFramework/Resources/**",
     dependencies: [
@@ -69,8 +69,20 @@ let multiPlatformTransitiveDynamicFramework: Target = .target(
     destinations: [.iPhone, .iPad, .mac, .appleWatch],
     product: .framework,
     bundleId: "dev.tuist.App.MultiPlatformTransitiveDynamicFramework",
-    deploymentTargets: .multiplatform(iOS: "14.0", macOS: "14.0.0", watchOS: "9.0"),
+    deploymentTargets: .multiplatform(iOS: "15.0", macOS: "14.0.0", watchOS: "9.0"),
     sources: "Modules/MultiPlatformTransitiveDynamicFramework/Sources/**/*.swift"
+)
+
+let multiPlatformTransitiveDynamicFrameworkTests: Target = .target(
+    name: "MultiPlatformTransitiveDynamicFrameworkTests",
+    destinations: [.mac],
+    product: .unitTests,
+    bundleId: "dev.tuist.App.MultiPlatformTransitiveDynamicFrameworkTests",
+    deploymentTargets: .multiplatform(macOS: "14.0.0"),
+    sources: "Modules/MultiPlatformTransitiveDynamicFrameworkTests/Sources/**/*.swift",
+    dependencies: [
+        .target(name: "MultiPlatformTransitiveDynamicFramework", condition: .when([.macos])),
+    ]
 )
 
 let project = Project(
@@ -82,5 +94,6 @@ let project = Project(
         macOSStaticFramework,
         macOSStaticFrameworkTests,
         multiPlatformTransitiveDynamicFramework,
+        multiPlatformTransitiveDynamicFrameworkTests,
     ]
 )

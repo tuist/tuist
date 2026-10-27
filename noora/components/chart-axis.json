@@ -1,0 +1,111 @@
+{
+  "name": "ChartAxis",
+  "tagName": "noora-chart-axis",
+  "elementClassName": "NooraChartAxis",
+  "className": "noora-chart-axis",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Describes one declarative chart axis.",
+  "usage": "<noora-chart-axis dimension=\"x\" type=\"category\"><noora-chart-category>Monday</noora-chart-category></noora-chart-axis>",
+  "standalone": false,
+  "attributes": [
+    {
+      "name": "dimension",
+      "property": "dimension",
+      "type": "string",
+      "values": ["x", "y"],
+      "default": "x",
+      "description": "Chooses the horizontal or vertical axis."
+    },
+    {
+      "name": "type",
+      "property": "type",
+      "type": "string",
+      "values": ["category", "value"],
+      "default": "value",
+      "description": "Chooses a categorical or numeric axis."
+    },
+    {
+      "name": "min",
+      "property": "min",
+      "type": "number",
+      "description": "Sets the minimum numeric value."
+    },
+    {
+      "name": "max",
+      "property": "max",
+      "type": "number",
+      "description": "Sets the maximum numeric value."
+    },
+    {
+      "name": "label-format",
+      "property": "labelFormat",
+      "type": "string",
+      "description": "Formats axis labels using an Apache ECharts value template."
+    },
+    {
+      "name": "label-size",
+      "property": "labelSize",
+      "type": "number",
+      "description": "Sets the axis-label font size."
+    },
+    {
+      "name": "label-margin",
+      "property": "labelMargin",
+      "type": "number",
+      "description": "Sets the distance between labels and the axis."
+    },
+    {
+      "name": "hidden",
+      "property": "axisHidden",
+      "type": "boolean",
+      "default": false,
+      "description": "Hides the complete axis."
+    },
+    {
+      "name": "hide-line",
+      "property": "hideLine",
+      "type": "boolean",
+      "default": false,
+      "description": "Hides the axis line."
+    },
+    {
+      "name": "hide-ticks",
+      "property": "hideTicks",
+      "type": "boolean",
+      "default": false,
+      "description": "Hides axis tick marks."
+    },
+    {
+      "name": "dashed-grid",
+      "property": "dashedGrid",
+      "type": "boolean",
+      "default": false,
+      "description": "Uses dashed split lines."
+    },
+    {
+      "name": "no-boundary-gap",
+      "property": "noBoundaryGap",
+      "type": "boolean",
+      "default": false,
+      "description": "Removes the category-axis boundary gap."
+    }
+  ],
+  "properties": [],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "Declarative noora-chart-category children."
+    }
+  ],
+  "cssParts": [],
+  "notes": ["Use this element inside noora-chart."],
+  "examples": [
+    {
+      "id": "axis",
+      "title": "Axis",
+      "description": "Describe a categorical horizontal axis.",
+      "markup": "<noora-chart-axis dimension=\"x\" type=\"category\"><noora-chart-category>Monday</noora-chart-category></noora-chart-axis>"
+    }
+  ]
+}

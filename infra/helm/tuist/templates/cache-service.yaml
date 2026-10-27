@@ -1,0 +1,17 @@
+{{- if .Values.cache.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "cache") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cache
+spec:
+  type: {{ .Values.cache.service.type }}
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" . "component" "cache") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.cache.service.port }}
+      targetPort: {{ ternary 80 4000 .Values.cache.nginx.enabled }}
+{{- end }}

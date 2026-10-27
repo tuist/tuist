@@ -6,9 +6,35 @@ defmodule TuistWeb.ModuleCacheLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Builds.Analytics
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
+  alias TuistTestSupport.Fixtures.XcodeFixtures
+  alias TuistWeb.Runs.ModuleCacheTab
 
   describe "module cache page" do
+    test "recent runs hydrate actor metadata from the base table rather than the old view schema", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      stub(DateTime, :utc_now, fn -> ~U[2024-01-01 10:20:30Z] end)
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        cacheable_targets: ["Core"],
+        created_at: ~N[2024-01-01 03:00:00],
+        claimed_actor_id: "developer-123",
+        submission_auth: "token"
+      )
+
+      {:ok, lv, _} = live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache")
+      html = render_async(lv, 5000)
+      assert html =~ "developer-123"
+      assert has_element?(lv, "[data-actor-source=reported] .noora-badge[data-color=neutral]", "developer-123")
+      assert has_element?(lv, "[data-actor-source=reported] .icon-tabler-device-laptop")
+      refute html =~ "Unverified"
+    end
+
     test "displays analytics widgets", %{
       conn: conn,
       organization: organization,
@@ -33,5 +59,184 @@ defmodule TuistWeb.ModuleCacheLiveTest do
       assert has_element?(lv, "#widget-cache-hits")
       assert has_element?(lv, "#widget-cache-misses")
     end
+
+    test "renders the module invalidation card with worst offenders", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      # Given
+      stub(DateTime, :utc_now, fn -> ~U[2024-01-31 10:20:30Z] end)
+
+      build = fn created_at, hit, sources ->
+        event =
+          CommandEventsFixtures.command_event_fixture(
+            project_id: project.id,
+            git_branch: "main",
+            created_at: created_at
+          )
+
+        XcodeFixtures.xcode_target_fixture(
+          command_event_id: event.id,
+          name: "Core",
+          product: "framework",
+          binary_cache_hash: "h-#{sources}",
+          binary_cache_hit: hit,
+          sources_hash: sources
+        )
+      end
+
+      build.(~N[2024-01-30 10:00:00], :miss, "s1")
+      build.(~N[2024-01-31 09:00:00], :miss, "s2")
+
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache")
+      html = render_async(lv, 2000)
+
+      # Then
+      assert has_element?(lv, "#module-cache-modules-table")
+      assert has_element?(lv, "#widget-most-invalidated-module")
+      assert html =~ "Core"
+    end
+  end
+
+  describe "subhashes_list/1" do
+    test "renders recorded hash destinations independently of declared destinations" do
+      # Given
+      hashed_destinations = ["iPad", "iPhone", "macWithiPadDesign"]
+
+      target_a =
+        target_fixture(
+          destinations: ["mac", "mac_with_ipad_design", "iphone", "ipad"],
+          hashed_destinations: hashed_destinations
+        )
+
+      target_b = target_fixture(destinations: ["iphone"], hashed_destinations: hashed_destinations)
+
+      # When
+      html_a = render_component(&ModuleCacheTab.subhashes_list/1, target: target_a)
+      html_b = render_component(&ModuleCacheTab.subhashes_list/1, target: target_b)
+
+      # Then
+      assert html_a =~ "iPad, iPhone, macWithiPadDesign"
+      refute html_a =~ "iPad, iPhone, mac, macWithiPadDesign"
+      assert html_a == html_b
+    end
+
+    test "renders the additional hashing inputs subhash" do
+      target = target_fixture(additional_hashing_inputs_hash: "additional-inputs-hash")
+
+      html = render_component(&ModuleCacheTab.subhashes_list/1, target: target)
+
+      assert html =~ "Additional hashing inputs"
+      assert html =~ "additional-inputs-hash"
+    end
+  end
+
+  defp target_fixture(attrs) do
+    Map.merge(
+      %{
+        name: "AnalyticsSharedTypes",
+        binary_cache_hit: 0,
+        binary_cache_hash: "hash",
+        product: "",
+        product_name: "",
+        bundle_id: "",
+        external_hash: "",
+        sources_hash: "",
+        resources_hash: "",
+        copy_files_hash: "",
+        core_data_models_hash: "",
+        target_scripts_hash: "",
+        environment_hash: "",
+        headers_hash: "",
+        deployment_target_hash: "",
+        info_plist_hash: "",
+        entitlements_hash: "",
+        dependencies_hash: "",
+        project_settings_hash: "",
+        target_settings_hash: "",
+        buildable_folders_hash: "",
+        additional_hashing_inputs_hash: "",
+        destinations: [],
+        additional_strings: []
+      },
+      Map.new(attrs)
+    )
+  end
+
+  test "shows an error in place of the modules card when the module query fails", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(Analytics, :module_invalidations, fn _opts ->
+      raise Ch.Error, code: 159, message: "Code: 159. DB::Exception: Timeout exceeded"
+    end)
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache")
+
+    render_async(lv, 2000)
+
+    assert has_element?(lv, "[data-part=\"module-invalidation\"] [data-error]")
+    refute has_element?(lv, "[data-part=\"module-invalidation-skeleton\"]")
+    refute has_element?(lv, ~s([data-part="module-invalidation"] [data-part="widgets"]))
+
+    # The analytics card is unaffected.
+    assert has_element?(lv, ~s([data-part="analytics-card"] [data-part="widgets"]))
+    refute has_element?(lv, "[data-part=\"analytics-error\"]")
+  end
+
+  test "the module summary looks past the rows the card lists", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(DateTime, :utc_now, fn -> ~U[2024-01-31 10:20:30Z] end)
+
+    event = fn created_at ->
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        git_branch: "main",
+        created_at: created_at
+      ).id
+    end
+
+    target = fn event_id, name, sources, deps ->
+      XcodeFixtures.xcode_target_fixture(
+        command_event_id: event_id,
+        name: name,
+        product: "framework",
+        binary_cache_hash: "h-#{name}-#{sources}",
+        binary_cache_hit: :miss,
+        sources_hash: sources,
+        dependencies: deps
+      )
+    end
+
+    first = event.(~N[2024-01-29 10:00:00])
+    latest = event.(~N[2024-01-30 10:00:00])
+
+    # 40 noisy modules, each missing far more often than Core, so Core sorts
+    # last and falls outside the 30 the query returns by default.
+    for i <- 1..40 do
+      name = "Noise#{String.pad_leading("#{i}", 2, "0")}"
+
+      for {event_id, sources} <- [{first, "a"}, {latest, "b"}] do
+        target.(event_id, name, "#{sources}-#{name}", ["Core"])
+      end
+    end
+
+    # Core misses once, but every one of those modules depends on it.
+    target.(latest, "Core", "core", [])
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache")
+
+    html = render_async(lv, 2000)
+
+    # Summarising only the returned rows would miss Core entirely.
+    assert html =~ "Core"
   end
 end

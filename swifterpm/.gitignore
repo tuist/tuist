@@ -1,0 +1,14 @@
+/target
+/dist
+/.build
+/.cache
+/.config
+/.security
+/.swiftpm
+/bazel-*
+/bazel-bin
+/bazel-out
+/bazel-testlogs
+/benchmark-results
+/server
+/xcode_processor

@@ -1,16 +1,55 @@
 defmodule TuistWeb.UserRegistrationLiveTest do
-  use TuistTestSupport.Cases.ConnCase
-  use TuistTestSupport.Cases.LiveCase
+  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.LiveCase, async: true
   use Mimic
 
   import Phoenix.LiveViewTest
   import TuistTestSupport.Fixtures.AccountsFixtures
+
+  alias Tuist.Accounts.Workers.DeliverConfirmationInstructionsWorker
+  alias TuistWeb.RateLimit.Registration
+  alias TuistWeb.Turnstile
 
   describe "Registration page" do
     test "renders registration page", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/users/register")
 
       assert html =~ "Create an account"
+    end
+
+    test "redirects to log in when email auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :email_auth_enabled?, fn -> false end)
+
+      assert {:error, {:redirect, %{to: to}}} = live(conn, ~p"/users/register")
+      assert to == ~p"/users/log_in"
+    end
+
+    test "renders the Google button when Google is configured and enabled", %{conn: conn} do
+      stub(Tuist.Environment, :google_oauth_configured?, fn -> true end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      assert has_element?(lv, "a[href='/users/auth/google']")
+      assert has_element?(lv, "#google-one-tap[phx-hook='GoogleOneTap']")
+    end
+
+    test "hides the Google button when Google auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :google_oauth_configured?, fn -> true end)
+      stub(Tuist.Environment, :google_auth_enabled?, fn -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      refute has_element?(lv, "a[href='/users/auth/google']")
+      refute has_element?(lv, "#google-one-tap")
+    end
+
+    test "hides the Okta button when Okta auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :okta_oauth_configured?, fn -> true end)
+      stub(Tuist.Environment, :okta_auth_enabled?, fn -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      refute has_element?(lv, "a[href='/users/auth/okta']")
     end
 
     test "redirects if already logged in", %{conn: conn} do
@@ -27,6 +66,190 @@ defmodule TuistWeb.UserRegistrationLiveTest do
   end
 
   describe "Registration with email confirmation" do
+    test "asks the user to reload when the session token is missing", %{conn: conn} do
+      stub(Turnstile, :required?, fn -> true end)
+      stub(Turnstile, :site_key, fn -> "site-key" end)
+      stub(Registration, :hit, fn _session_token -> {:error, :missing_session} end)
+      reject(&Turnstile.verify/2)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      render_hook(lv, "turnstile_state_changed", %{"id" => "email-signup-turnstile", "state" => "ready"})
+
+      html =
+        lv
+        |> form("#login_form", %{
+          "cf-turnstile-response" => "",
+          "user" => %{
+            "email" => "missing-session@example.com",
+            "password" => "StrongP@ssword!2028",
+            "username" => "missingsession"
+          }
+        })
+        |> render_submit()
+
+      assert html =~ "Your session has expired"
+      refute html =~ "Too many sign-up attempts"
+    end
+
+    test "parks the submit and shows a verifying message when the user clicks before the widget is ready",
+         %{conn: conn} do
+      stub(Turnstile, :required?, fn -> true end)
+      stub(Turnstile, :site_key, fn -> "site-key" end)
+      reject(&Registration.hit/1)
+      reject(&Turnstile.verify/2)
+
+      {:ok, lv, html} = live(conn, ~p"/users/register")
+      # Button is not pre-disabled; the optimistic-submit gate handles the wait.
+      refute html =~ ~s(<button[^>]*disabled)
+
+      after_submit =
+        lv
+        |> form("#login_form", %{
+          "user" => %{
+            "email" => "optimistic@example.com",
+            "password" => "StrongP@ssword!2028",
+            "username" => "optimistic"
+          }
+        })
+        |> render_submit()
+
+      # No Turnstile.verify was called (that would fail with a missing token);
+      # the LiveView parked the intent and told the hook to re-fire the form
+      # once the token arrives.
+      assert after_submit =~ "Verifying, one moment"
+      refute after_submit =~ "Please complete the security check"
+      assert {:error, :not_found} = Tuist.Accounts.get_user_by_email("optimistic@example.com")
+    end
+
+    test "clears the verifying message once the Turnstile-driven re-fire completes",
+         %{conn: conn} do
+      stub(Turnstile, :required?, fn -> true end)
+      stub(Turnstile, :site_key, fn -> "site-key" end)
+      stub(Registration, :hit, fn _session_token -> {:allow, 2} end)
+
+      stub(Turnstile, :verify, fn "token", [expected_action: "email_signup"] -> :ok end)
+
+      stub(Tuist.Environment, :skip_email_confirmation?, fn -> true end)
+      stub(Tuist.Environment, :skip_email_confirmation?, fn _ -> true end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      # 1st click before ready parks the intent and renders the verifying banner.
+      pending_html =
+        lv
+        |> form("#login_form", %{
+          "user" => %{
+            "email" => "verify-pending@example.com",
+            "password" => "StrongP@ssword!2028",
+            "username" => "verifypending"
+          }
+        })
+        |> render_submit()
+
+      assert pending_html =~ "Verifying, one moment"
+
+      # Widget produces the token, hook re-fires with `cf-turnstile-response`
+      # set. Emitted directly as a live_view event because Phoenix.LiveViewTest
+      # `form/3` refuses to override a rendered hidden input's value, and
+      # `cf-turnstile-response` is empty in the initial HTML — the hook fills
+      # it in-browser before `requestSubmit()`, which the test simulates by
+      # sending the save event with the token in the payload.
+      render_hook(lv, "turnstile_state_changed", %{"id" => "email-signup-turnstile", "state" => "ready"})
+
+      render_submit(lv, "save", %{
+        "cf-turnstile-response" => "token",
+        "user" => %{
+          "email" => "verify-pending@example.com",
+          "password" => "StrongP@ssword!2028",
+          "username" => "verifypending"
+        }
+      })
+
+      assert {:ok, user} = Tuist.Accounts.get_user_by_email("verify-pending@example.com")
+      assert user.account.name == "verifypending"
+    end
+
+    test "surfaces a distinct error when the Turnstile bundle cannot load", %{conn: conn} do
+      stub(Turnstile, :required?, fn -> true end)
+      stub(Turnstile, :site_key, fn -> "site-key" end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      html =
+        render_hook(lv, "turnstile_state_changed", %{"id" => "email-signup-turnstile", "state" => "unavailable"})
+
+      assert html =~ "The security check could not load"
+    end
+
+    test "surfaces a retry message when the Turnstile challenge itself fails", %{conn: conn} do
+      stub(Turnstile, :required?, fn -> true end)
+      stub(Turnstile, :site_key, fn -> "site-key" end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      html =
+        render_hook(lv, "turnstile_state_changed", %{"id" => "email-signup-turnstile", "state" => "error"})
+
+      assert html =~ "The security check failed"
+    end
+
+    test "does not create a user when the security check is rejected", %{conn: conn} do
+      email = "rejected-security-check@example.com"
+
+      stub(Turnstile, :required?, fn -> true end)
+      stub(Turnstile, :site_key, fn -> "site-key" end)
+      stub(Registration, :hit, fn _session_token -> {:allow, 2} end)
+      stub(Turnstile, :verify, fn _token, [expected_action: "email_signup"] -> {:error, :rejected} end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      render_hook(lv, "turnstile_state_changed", %{"id" => "email-signup-turnstile", "state" => "ready"})
+
+      html =
+        lv
+        |> form("#login_form", %{
+          "user" => %{
+            "email" => email,
+            "password" => "StrongP@ssword!2028",
+            "username" => "rejectedsecuritycheck"
+          }
+        })
+        |> render_submit()
+
+      assert html =~ "Please complete the security check and try again."
+      assert {:error, :not_found} = Tuist.Accounts.get_user_by_email(email)
+    end
+
+    test "completes registration when confirmation email delivery fails", %{conn: conn} do
+      stub(Tuist.Environment, :skip_email_confirmation?, fn -> false end)
+      stub(Tuist.Environment, :skip_email_confirmation?, fn _ -> false end)
+
+      stub(Tuist.Accounts.UserNotifier, :deliver_confirmation_instructions, fn _ ->
+        raise "Mailgun is temporarily unavailable"
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      lv
+      |> form("#login_form",
+        user: %{
+          email: "mail-provider-outage@example.com",
+          password: "StrongP@ssword!2028",
+          username: "mailprovideroutage"
+        }
+      )
+      |> render_submit()
+
+      assert has_element?(lv, "#signup-success")
+      assert {:ok, user} = Tuist.Accounts.get_user_by_email("mail-provider-outage@example.com")
+
+      assert_enqueued(
+        worker: DeliverConfirmationInstructionsWorker,
+        args: %{user_id: user.id}
+      )
+    end
+
     test "trims whitespace from email and username before registration", %{conn: conn} do
       stub(Tuist.Environment, :skip_email_confirmation?, fn -> true end)
       stub(Tuist.Environment, :skip_email_confirmation?, fn _ -> true end)

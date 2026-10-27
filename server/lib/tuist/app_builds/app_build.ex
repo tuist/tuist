@@ -15,7 +15,8 @@ defmodule Tuist.AppBuilds.AppBuild do
     field :type, Ecto.Enum,
       values: [
         app_bundle: 0,
-        ipa: 1
+        ipa: 1,
+        apk: 2
       ]
 
     field :supported_platforms, {:array, Ecto.Enum},
@@ -28,7 +29,8 @@ defmodule Tuist.AppBuilds.AppBuild do
         watchos_simulator: 5,
         visionos: 6,
         visionos_simulator: 7,
-        macos: 8
+        macos: 8,
+        android: 9
       ]
 
     field :binary_id, :string
@@ -49,6 +51,8 @@ defmodule Tuist.AppBuilds.AppBuild do
     ])
     |> validate_subset(:supported_platforms, Ecto.Enum.values(__MODULE__, :supported_platforms))
     |> validate_required([:preview_id, :type])
-    |> unique_constraint([:binary_id, :build_version])
+    |> unique_constraint([:binary_id, :build_version],
+      name: :app_builds_binary_id_build_version_non_apk_index
+    )
   end
 end

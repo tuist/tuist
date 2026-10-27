@@ -1,9 +1,22 @@
-import Darwin
+#if canImport(Glibc)
+    import Glibc
+
+    let systemGlob = Glibc.glob
+#elseif canImport(Musl)
+    import Musl
+
+    let systemGlob = Musl.glob
+#elseif canImport(Darwin)
+    import Darwin
+
+    let systemGlob = Darwin.glob
+#endif
 import Foundation
 import Path
-import UniformTypeIdentifiers
-
-let systemGlob = Darwin.glob
+import TuistLogging
+#if os(macOS)
+    import UniformTypeIdentifiers
+#endif
 
 public enum GlobError: FatalError, Equatable {
     case nonExistentDirectory(InvalidGlob)
@@ -29,12 +42,14 @@ extension AbsolutePath {
         URL(fileURLWithPath: pathString)
     }
 
-    /// Returns true if the path is a package, recognized by having a UTI `com.apple.package`
-    public var isPackage: Bool {
-        let ext = URL(fileURLWithPath: pathString).pathExtension
-        guard let utType = UTType(tag: ext, tagClass: .filenameExtension, conformingTo: nil) else { return false }
-        return utType.conforms(to: UTType.package)
-    }
+    #if os(macOS)
+        /// Returns true if the path is a package, recognized by having a UTI `com.apple.package`
+        public var isPackage: Bool {
+            let ext = URL(fileURLWithPath: pathString).pathExtension
+            guard let utType = UTType(tag: ext, tagClass: .filenameExtension, conformingTo: nil) else { return false }
+            return utType.conforms(to: UTType.package)
+        }
+    #endif
 
     /// An opaque directory is a directory that should be treated like a file, therefore ignoring its content.
     /// I.e.: .xcassets, .xcdatamodeld, etc...
@@ -70,6 +85,7 @@ extension AbsolutePath {
             "mlmodelc",
             "xcmappingmodel",
             "icon",
+            "nib",
         ]
         .contains(self.extension ?? "")
     }
@@ -115,10 +131,26 @@ extension AbsolutePath {
         return try! AbsolutePath(validating: components[0 ..< index].joined(separator: "/")) // swiftlint:disable:this force_try
     }
 
-    /// Returns the hash of the file the path points to.
-    public func sha256() -> Data? {
-        try? SHA256Digest.file(at: url)
+    /// Returns the concrete directory root when the glob suffix recursively matches everything below it.
+    ///
+    /// Examples:
+    /// - `/path/**` -> `/path`
+    /// - `/path/**/*` -> `/path`
+    ///
+    /// Patterns that still constrain filenames return `nil`, e.g. `/path/**/*.swift`.
+    public var recursiveGlobRoot: AbsolutePath? {
+        let globComponents = components.drop(while: { !$0.isGlobComponent })
+        guard globComponents.first == "**" else { return nil }
+        guard globComponents.dropFirst().allSatisfy({ $0 == "*" || $0 == "**" }) else { return nil }
+        return upToLastNonGlob
     }
+
+    #if os(macOS)
+        /// Returns the hash of the file the path points to.
+        public func sha256() -> Data? {
+            try? SHA256Digest.file(at: url)
+        }
+    #endif
 }
 
 extension AbsolutePath: Swift.ExpressibleByStringLiteral {
@@ -128,7 +160,7 @@ extension AbsolutePath: Swift.ExpressibleByStringLiteral {
 }
 
 extension String {
-    var isGlobComponent: Bool {
+    public var isGlobComponent: Bool {
         let globCharacters = CharacterSet(charactersIn: "*{}")
         return rangeOfCharacter(from: globCharacters) != nil
     }

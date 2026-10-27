@@ -1,0 +1,53 @@
+import Foundation
+import Path
+
+public struct BuildAction: Equatable, Codable, Sendable {
+    public enum BuildFor: String, Codable, CaseIterable, Sendable {
+        case analyzing
+        case archiving
+        case profiling
+        case running
+        case testing
+    }
+
+    // MARK: - Attributes
+
+    public var targets: [TargetReference]
+    public var buildFor: [TargetReference: Set<BuildFor>]
+    public var preActions: [ExecutionAction]
+    public var postActions: [ExecutionAction]
+    public var parallelizeBuild: Bool
+    public var runPostActionsOnFailure: Bool
+    public var findImplicitDependencies: Bool
+
+    // MARK: - Init
+
+    public init(
+        targets: [TargetReference] = [],
+        buildFor: [TargetReference: Set<BuildFor>] = [:],
+        preActions: [ExecutionAction] = [],
+        postActions: [ExecutionAction] = [],
+        parallelizeBuild: Bool = true,
+        runPostActionsOnFailure: Bool = false,
+        findImplicitDependencies: Bool = true
+    ) {
+        self.targets = targets
+        self.buildFor = buildFor
+        self.preActions = preActions
+        self.postActions = postActions
+        self.parallelizeBuild = parallelizeBuild
+        self.runPostActionsOnFailure = runPostActionsOnFailure
+        self.findImplicitDependencies = findImplicitDependencies
+    }
+
+    #if DEBUG
+        public static func test(
+            // swiftlint:disable:next force_try
+            targets: [TargetReference] = [TargetReference(projectPath: try! AbsolutePath(validating: "/Project"), name: "App")],
+            preActions: [ExecutionAction] = [],
+            postActions: [ExecutionAction] = []
+        ) -> BuildAction {
+            BuildAction(targets: targets, preActions: preActions, postActions: postActions)
+        }
+    #endif
+}

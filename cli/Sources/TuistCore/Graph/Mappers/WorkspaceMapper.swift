@@ -7,10 +7,8 @@ public struct WorkspaceWithProjects: Equatable {
         self.workspace = workspace
         self.projects = projects
     }
-}
 
-#if DEBUG
-    extension WorkspaceWithProjects {
+    #if DEBUG
         public static func test(
             workspace: Workspace = .test(),
             projects: [Project] = [.test()]
@@ -20,14 +18,14 @@ public struct WorkspaceWithProjects: Equatable {
                 projects: projects
             )
         }
-    }
-#endif
+    #endif
+}
 
 public protocol WorkspaceMapping {
     func map(workspace: WorkspaceWithProjects) async throws -> (WorkspaceWithProjects, [SideEffectDescriptor])
 }
 
-public final class SequentialWorkspaceMapper: WorkspaceMapping {
+public struct SequentialWorkspaceMapper: WorkspaceMapping {
     let mappers: [WorkspaceMapping]
 
     public init(mappers: [WorkspaceMapping]) {
@@ -50,7 +48,7 @@ public final class SequentialWorkspaceMapper: WorkspaceMapping {
     }
 }
 
-public final class ProjectWorkspaceMapper: WorkspaceMapping {
+public struct ProjectWorkspaceMapper: WorkspaceMapping {
     private let mapper: ProjectMapping
     public init(mapper: ProjectMapping) {
         self.mapper = mapper

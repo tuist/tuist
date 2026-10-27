@@ -147,7 +147,7 @@ defmodule Cache.DiskEvictionWorker do
     final_percent = percent_used(final_used_bytes, stats.total_bytes)
 
     Logger.info(
-      "Evicted #{count} artifacts freeing #{format_bytes(freed)}; disk usage #{format_percent(stats.percent_used)} -> #{format_percent(final_percent)}"
+      "Evicted #{count} artifacts freeing #{Disk.format_bytes(freed)}; disk usage #{format_percent(stats.percent_used)} -> #{format_percent(final_percent)}"
     )
 
     :ok
@@ -164,9 +164,4 @@ defmodule Cache.DiskEvictionWorker do
   defp percent_used(used, total), do: used / total * 100.0
 
   defp format_percent(value), do: "~.2f%" |> :io_lib.format([value]) |> to_string()
-
-  defp format_bytes(bytes) when bytes < 1024, do: "#{bytes} B"
-  defp format_bytes(bytes) when bytes < 1_048_576, do: "#{Float.round(bytes / 1024, 2)} KB"
-  defp format_bytes(bytes) when bytes < 1_073_741_824, do: "#{Float.round(bytes / 1_048_576, 2)} MB"
-  defp format_bytes(bytes), do: "#{Float.round(bytes / 1_073_741_824, 2)} GB"
 end

@@ -1,5 +1,6 @@
 import Foundation
 import Mockable
+import TuistConstants
 import TuistCore
 import TuistRootDirectoryLocator
 import XCTest

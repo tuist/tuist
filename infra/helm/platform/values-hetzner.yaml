@@ -1,0 +1,19 @@
+# Hetzner-specific overlay for the platform chart.
+# Loaded by k8s:install-platform after the base platform values. The task
+# reconciles cert-manager custom resource definitions before Helm runs.
+
+ingress-nginx:
+  controller:
+    service:
+      annotations:
+        # Hetzner Cloud LB, provisioned by hcloud-cloud-controller-manager.
+        load-balancer.hetzner.cloud/location: nbg1
+        load-balancer.hetzner.cloud/uses-proxyprotocol: "true"
+
+grpc-ingress-nginx:
+  controller:
+    service:
+      annotations:
+        # Hetzner Cloud LB, provisioned by hcloud-cloud-controller-manager.
+        load-balancer.hetzner.cloud/location: nbg1
+        load-balancer.hetzner.cloud/uses-proxyprotocol: "true"

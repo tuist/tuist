@@ -61,10 +61,8 @@ public struct SimulatorDevice: Sendable, Codable, Hashable, CustomStringConverti
         self.availabilityError = availabilityError
         self.runtimeIdentifier = runtimeIdentifier
     }
-}
 
-#if DEBUG
-    extension SimulatorDevice {
+    #if DEBUG
         public static func test(
             dataPath: AbsolutePath = "/Library/Developer/CoreSimulator/Devices/3A8C9673-C1FD-4E33-8EFA-AEEBF43161CC/data",
             logPath: AbsolutePath = "/Library/Logs/CoreSimulator/3A8C9673-C1FD-4E33-8EFA-AEEBF43161CC",
@@ -88,5 +86,5 @@ public struct SimulatorDevice: Sendable, Codable, Hashable, CustomStringConverti
                 runtimeIdentifier: runtimeIdentifier
             )
         }
-    }
-#endif
+    #endif
+}

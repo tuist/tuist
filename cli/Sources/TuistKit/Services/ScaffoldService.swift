@@ -1,6 +1,10 @@
 import Path
+import TuistAlert
+import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
 import TuistLoader
+import TuistLogging
 import TuistPlugin
 import TuistScaffold
 import TuistSupport
@@ -32,7 +36,7 @@ enum ScaffoldServiceError: FatalError, Equatable {
     }
 }
 
-final class ScaffoldService {
+struct ScaffoldService {
     private let templateLoader: TemplateLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
@@ -57,7 +61,7 @@ final class ScaffoldService {
         templateName: String,
         path: String?
     ) async throws -> (required: [String], optional: [String]) {
-        let path = try self.path(path)
+        let path = try await self.path(path)
         let plugins = try await loadPlugins(at: path)
         let templateDirectories = try await locateTemplateDirectories(at: path, plugins: plugins)
         let templateDirectory = try templateDirectory(
@@ -83,7 +87,7 @@ final class ScaffoldService {
         requiredTemplateOptions: [String: String],
         optionalTemplateOptions: [String: String?]
     ) async throws {
-        let path = try self.path(path)
+        let path = try await self.path(path)
         let plugins = try await loadPlugins(at: path)
         let templateDirectories = try await locateTemplateDirectories(at: path, plugins: plugins)
 
@@ -110,12 +114,8 @@ final class ScaffoldService {
 
     // MARK: - Helpers
 
-    private func path(_ path: String?) throws -> AbsolutePath {
-        if let path {
-            return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-        } else {
-            return FileHandler.shared.currentPath
-        }
+    private func path(_ path: String?) async throws -> AbsolutePath {
+        try await Environment.current.pathRelativeToWorkingDirectory(path)
     }
 
     private func loadPlugins(at path: AbsolutePath) async throws -> Plugins {

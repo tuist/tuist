@@ -1,14 +1,16 @@
 import Foundation
 import Mockable
 import Path
+import TuistConstants
 import TuistCore
+import TuistEnvironment
 import TuistGit
 import TuistSupport
 import XcodeGraph
 
 /// `CommandEventTagger` builds a `CommandEvent` by grouping information
 /// from different sources and tells `analyticsTagger` to send the event to a provider.
-public final class CommandEventFactory {
+public struct CommandEventFactory {
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let gitController: GitControlling
 
@@ -23,8 +25,8 @@ public final class CommandEventFactory {
     public func make(
         from info: TrackableCommandInfo,
         path: AbsolutePath
-    ) throws -> CommandEvent {
-        let gitInfo = try gitController.gitInfo(workingDirectory: path)
+    ) async throws -> CommandEvent {
+        let gitInfo = try await gitController.gitInfo(workingDirectory: path)
 
         let graph = info.graph.map {
             map(
@@ -36,7 +38,7 @@ public final class CommandEventFactory {
             )
         }
 
-        let commandEvent = CommandEvent(
+        return CommandEvent(
             runId: info.runId,
             name: info.name,
             subcommand: info.subcommand,
@@ -44,7 +46,7 @@ public final class CommandEventFactory {
             durationInMs: Int(info.durationInMs),
             clientId: machineEnvironment.clientId,
             tuistVersion: Constants.version,
-            swiftVersion: try SwiftVersionProvider.current.swiftVersion(),
+            swiftVersion: try await SwiftVersionProvider.current.swiftVersion(),
             macOSVersion: machineEnvironment.macOSVersion,
             machineHardwareName: machineEnvironment.hardwareName,
             isCI: Environment.current.isCI,
@@ -59,9 +61,10 @@ public final class CommandEventFactory {
             ranAt: info.ranAt,
             buildRunId: info.buildRunId,
             testRunId: info.testRunId,
-            cacheEndpoint: info.cacheEndpoint
+            generationId: info.generationId,
+            cacheEndpoint: info.cacheEndpoint,
+            moduleCacheOutputs: info.moduleCacheOutputs
         )
-        return commandEvent
     }
 
     private func map(
@@ -71,6 +74,7 @@ public final class CommandEventFactory {
         selectiveTestingCacheItems: [AbsolutePath: [String: CacheItem]],
         targetContentHashSubhashes: [String: TargetContentHashSubhashes]
     ) -> RunGraph {
+        let graphTraverser = GraphTraverser(graph: graph)
         let graphProjects = graph.projects.map { project in
             RunProject(
                 name: project.value.name,
@@ -90,8 +94,8 @@ public final class CommandEventFactory {
                         binaryCacheMetadata = RunCacheTargetMetadata(
                             hash: cacheItem.hash,
                             hit: hit,
-                            buildDuration: cacheItem.buildDuration,
-                            subhashes: targetContentHashSubhashes[cacheItem.hash]
+                            subhashes: targetContentHashSubhashes[cacheItem.hash],
+                            instrumented: cacheItem.instrumented
                         )
                     } else {
                         binaryCacheMetadata = nil
@@ -109,11 +113,17 @@ public final class CommandEventFactory {
 
                         selectiveTestingMetadata = RunCacheTargetMetadata(
                             hash: cacheItem.hash,
-                            hit: hit
+                            hit: hit,
+                            subhashes: targetContentHashSubhashes[cacheItem.hash]
                         )
                     } else {
                         selectiveTestingMetadata = nil
                     }
+
+                    let dependencies = graphTraverser
+                        .directTargetDependencies(path: project.value.path, name: target.value.name)
+                        .map(\.target.name)
+                        .sorted()
 
                     return RunTarget(
                         name: target.value.name,
@@ -122,7 +132,8 @@ public final class CommandEventFactory {
                         productName: target.value.productName,
                         destinations: target.value.destinations,
                         binaryCacheMetadata: binaryCacheMetadata,
-                        selectiveTestingMetadata: selectiveTestingMetadata
+                        selectiveTestingMetadata: selectiveTestingMetadata,
+                        dependencies: dependencies
                     )
                 }
                 .sorted(by: { $0.name < $1.name })

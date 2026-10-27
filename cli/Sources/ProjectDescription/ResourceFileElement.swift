@@ -5,7 +5,7 @@
 ///
 /// Note: For convenience, an element can be represented as a string literal
 ///       `"some/pattern/**"` is the equivalent of `ResourceFileElement.glob(pattern: "some/pattern/**")`
-public enum ResourceFileElement: Codable, Equatable, Sendable, Hashable {
+public enum ResourceFileElement: Codable, Equatable, Sendable, Hashable, ExpressibleByStringInterpolation {
     /// A glob pattern of files to include and ODR tags
     case glob(pattern: Path, excluding: [Path] = [], tags: [String] = [], inclusionCondition: PlatformCondition? = nil)
 
@@ -25,9 +25,7 @@ public enum ResourceFileElement: Codable, Equatable, Sendable, Hashable {
             return .folderReference
         }
     }
-}
 
-extension ResourceFileElement: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
         self = .glob(pattern: .path(value))
     }

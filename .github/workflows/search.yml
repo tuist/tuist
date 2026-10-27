@@ -1,0 +1,46 @@
+name: Search
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - search/**
+      - .github/workflows/search.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - search/**
+      - .github/workflows/search.yml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: search-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: search
+
+env:
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  # Install only this project's tools and stop mise auto-installing the rest of the
+  # merged root toolset when `mise run` executes (which would hit the GitHub API).
+  MISE_AUTO_INSTALL: "0"
+
+jobs:
+  build:
+    name: Build and health check
+    runs-on: tuist-linux
+    timeout-minutes: 10
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise-install
+        with:
+          working-directory: search
+      - name: Build and verify health
+        run: mise run test

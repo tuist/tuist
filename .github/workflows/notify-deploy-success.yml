@@ -1,0 +1,74 @@
+name: Notify Slack on deploy success
+
+# Mirrors notify-failure.yml but for successes, scoped to where a green run
+# means production landed. The production deploy runs as a job inside the
+# "Server Production Deployment" workflow (the release pipeline). We
+# intentionally stay quiet on staging/canary successes and only ping when
+# production lands.
+#
+# That run can be green without deploying (it can publish releases with no
+# deployable change), so we notify only when its production deploy job
+# actually succeeded, not on any green run. That job is named
+# "… / Deploy to tuist" — "tuist" is the production namespace; canary/staging
+# are "Deploy to tuist-canary"/"-staging".
+
+on:
+  workflow_run:
+    workflows:
+      - Server Production Deployment
+    branches: [main]
+    types: [completed]
+
+permissions:
+  actions: read
+
+jobs:
+  check:
+    if: ${{ github.repository == 'tuist/tuist' && github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    outputs:
+      deployed: ${{ steps.check.outputs.deployed }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # A deploy run has well under 100 jobs, so one page covers it.
+          # "Deploy to tuist" is the production deploy job (canary/staging
+          # are "Deploy to tuist-canary"/"-staging"); a gate deferral has no
+          # such job, so this is false and we stay quiet.
+          deployed=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" \
+            --jq 'any(.jobs[]; .conclusion == "success" and (.name | endswith("Deploy to tuist")))')
+          echo "deployed=$deployed" >> "$GITHUB_OUTPUT"
+
+  notify:
+    needs: check
+    if: ${{ needs.check.outputs.deployed == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: 1password/install-cli-action@v2
+      - name: Load secrets from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          SLACK_WEBHOOK_URL=$(op read 'op://cache/SLACK_WEBHOOK_URL/password')
+          echo "::add-mask::$SLACK_WEBHOOK_URL"
+          echo "SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL" >> $GITHUB_ENV
+      - name: Build Slack payload
+        env:
+          COMMIT_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          SHORT_SHA="${SHA:0:7}"
+          COMMIT_URL="${REPO_URL}/commit/${SHA}"
+          TEXT=$(printf ':white_check_mark: New deploy for <%s|tuist%s>: %s\n\nhttps://tuist.dev' "$COMMIT_URL" "$SHORT_SHA" "$COMMIT_MESSAGE")
+          jq -n --arg text "$TEXT" '{text: $text}' > "$RUNNER_TEMP/slack-payload.json"
+      - uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload-file-path: ${{ runner.temp }}/slack-payload.json

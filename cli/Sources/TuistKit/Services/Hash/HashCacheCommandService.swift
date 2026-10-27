@@ -1,9 +1,14 @@
 import Foundation
 import Path
+import TuistAlert
 import TuistCache
+import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
+import TuistExtension
 import TuistHasher
 import TuistLoader
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 #if canImport(TuistCacheEE)
@@ -21,7 +26,7 @@ enum HashCacheCommandServiceError: LocalizedError, Equatable {
     }
 }
 
-final class HashCacheCommandService {
+public struct HashCacheCommandService: HashCacheServicing {
     #if canImport(TuistCacheEE)
         private let generatorFactory: CacheGeneratorFactorying
     #else
@@ -31,7 +36,7 @@ final class HashCacheCommandService {
     private let configLoader: ConfigLoading
     private let manifestLoader: ManifestLoading
 
-    convenience init(
+    public init(
         contentHasher: ContentHashing = CachedContentHasher()
     ) {
         #if canImport(TuistCacheEE)
@@ -43,7 +48,7 @@ final class HashCacheCommandService {
         self.init(
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
-            configLoader: ConfigLoader(manifestLoader: manifestLoader),
+            configLoader: ConfigLoader(),
             manifestLoader: manifestLoader
         )
     }
@@ -74,35 +79,28 @@ final class HashCacheCommandService {
         }
     #endif
 
-    private func absolutePath(_ path: String?) throws -> AbsolutePath {
-        if let path {
-            return try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-        } else {
-            return FileHandler.shared.currentPath
-        }
-    }
-
-    func run(
+    public func run(
         path: String?,
         configuration: String?
     ) async throws {
-        let absolutePath = try absolutePath(path)
+        let absolutePath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let graph: XcodeGraph.Graph
         let defaultConfiguration: String?
+        let coverage: BinaryCacheCoverage
 
         if try await manifestLoader.hasRootManifest(at: absolutePath) {
             let config = try await configLoader.loadConfig(path: absolutePath)
+            coverage = .resolved(config: config)
 
-            // Use the same generator as binaryCacheWarmingPreload to ensure consistent hashing
-            // Pass empty set to load all targets without filtering
             #if canImport(TuistCacheEE)
                 let generator = generatorFactory.binaryCacheWarmingPreload(
                     config: config,
-                    targetsToBinaryCache: []
+                    targetsToBinaryCache: [],
+                    coverage: coverage
                 )
             #else
-                let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [])
+                let generator = generatorFactory.defaultGenerator(config: config, includedTargets: [], coverage: coverage)
             #endif
             graph = try await generator.load(
                 path: absolutePath,
@@ -119,7 +117,8 @@ final class HashCacheCommandService {
             configuration: configuration,
             defaultConfiguration: defaultConfiguration,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            coverage: coverage
         )
 
         let sortedHashes = hashes.sorted { $0.key.target.name < $1.key.target.name }

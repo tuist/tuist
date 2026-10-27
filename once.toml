@@ -1,0 +1,41 @@
+# Once workspace for the monorepo. Discovery is limited to the projects that
+# build with Once so the rest of the repository is never scanned or loaded.
+[workspace]
+include = [
+  "once.toml",
+  "atlas/mix.exs",
+]
+exclude = [
+  "Package.swift",
+]
+
+[infrastructure.cache]
+provider = "tuist"
+
+[infrastructures.tuist]
+kind = "tuist"
+account = "tuist"
+project = "atlas"
+
+# The Atlas image has its own project so its layer snapshots and insights stay
+# separate from the Mix build. Select it with `ONCE_CACHE_PROVIDER=tuist-oci`.
+[infrastructures.tuist-oci]
+kind = "tuist"
+account = "tuist"
+project = "atlas-oci"
+
+# The build context is the repository root because Atlas depends on `../noora`
+# through a Mix path dependency, matching the release workflow. Instructions are
+# cached individually: base images are pinned by digest in the Dockerfile, so a
+# result only changes when an instruction or the files it copies change.
+[[target]]
+name = "atlas_image"
+kind = "dockerfile_image"
+
+[target.attrs]
+dockerfile = "atlas/Dockerfile"
+context = "."
+platform = "linux/amd64"
+cacheable = true
+pull = false
+tag = "ghcr.io/tuist/atlas:ci"

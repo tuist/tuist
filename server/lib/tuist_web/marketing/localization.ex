@@ -3,36 +3,69 @@ defmodule TuistWeb.Marketing.Localization do
   This module contains utilities to handle localization in the marketing pages:
 
   - Plugs and LiveView on_mount callbacks to set the local to the process using `Gettext.put_locale/1`
-  - Logic to extract the locale from the `Accept-Language` header.
-  - Logic to redirect to the localized route based on the locale extracted from the `Accept-Language` header.
+  - Root-only browser language detection and explicit, persistent language selection.
   """
   @behaviour Plug
 
   import Plug.Conn
 
-  @languages [
-    %{code: "en", label: "English", native: "English"},
-    %{code: "ar", label: "Arabic", native: "العربية"},
-    %{code: "es", label: "Spanish", native: "Castellano"},
-    %{code: "ja", label: "Japanese", native: "日本語"},
-    %{code: "ko", label: "Korean", native: "한국어"},
-    %{code: "pl", label: "Polish", native: "Polski"},
-    %{code: "pt", label: "Portuguese", native: "Português"},
-    %{code: "ru", label: "Russian", native: "Русский"},
-    %{code: "yue_Hant", label: "Cantonese", native: "廣東話"},
-    %{code: "zh_Hans", label: "Chinese", native: "中文"}
-  ]
+  alias TuistWeb.Locale
+
+  @languages Tuist.Locale.languages()
+  @preference_cookie "tuist_locale"
 
   @additional_locales @languages
                       |> Enum.map(& &1.code)
                       |> Enum.reject(&(&1 == "en"))
 
   def init(:put_locale), do: :put_locale
-  def init(:redirect_to_localized_route), do: :redirect_to_localized_route
+  def init(:negotiate_locale), do: :negotiate_locale
 
   def languages, do: @languages
   def all_locales, do: Enum.map(@languages, & &1.code)
   def additional_locales, do: @additional_locales
+
+  def call(%{method: method} = conn, :negotiate_locale) when method in ["GET", "HEAD"] do
+    selected_locale = conn.query_params["set_locale"]
+
+    cond do
+      selected_locale in all_locales() and selected_locale == conn.private[:locale] ->
+        query =
+          conn.query_string
+          |> URI.query_decoder()
+          |> Enum.reject(fn {key, _value} -> key == "set_locale" end)
+          |> URI.encode_query()
+
+        target = %URI{path: conn.request_path, query: if(query != "", do: query)}
+
+        conn
+        |> private_response()
+        |> put_resp_cookie(@preference_cookie, selected_locale,
+          max_age: 60 * 60 * 24 * 365,
+          http_only: true,
+          same_site: "Lax",
+          secure: conn.scheme == :https
+        )
+        |> Phoenix.Controller.redirect(to: URI.to_string(target))
+        |> halt()
+
+      conn.request_path == "/" ->
+        conn = conn |> fetch_cookies() |> private_response()
+        locale = preferred_locale(conn)
+
+        if locale in additional_locales() and conn.query_params["disable_locale_redirect"] != "true" do
+          target = %URI{path: locale_path_prefix(locale), query: if(conn.query_string != "", do: conn.query_string)}
+          conn |> Phoenix.Controller.redirect(to: URI.to_string(target)) |> halt()
+        else
+          conn
+        end
+
+      true ->
+        conn
+    end
+  end
+
+  def call(conn, :negotiate_locale), do: conn
 
   def call(conn, :put_locale) do
     locale = Map.get(conn.private, :locale)
@@ -42,60 +75,46 @@ defmodule TuistWeb.Marketing.Localization do
     else
       Gettext.put_locale(locale)
 
-      conn
-      |> put_session(:locale, locale)
-      |> put_resp_cookie("user_locale_preference", locale,
-        max_age: 60 * 60 * 24 * 365,
-        http_only: true,
-        same_site: "Lax"
-      )
+      maybe_put_locale_session(conn, locale)
     end
   end
 
-  def call(conn, :redirect_to_localized_route) do
-    private_locale = Map.get(conn.private, :locale, "en")
-    headers_locale = fetch_locale_from_headers(conn) || "en"
+  def language_switch_href(path, locale) do
+    uri = path |> localized_href(locale) |> URI.parse()
 
-    # Check if user has explicitly disabled redirect via query param or cookie
-    disable_locale_redirect =
-      Map.get(conn.query_params, "disable_locale_redirect", "false") == "true" or
-        has_user_locale_preference?(conn)
+    query =
+      (uri.query || "")
+      |> URI.query_decoder()
+      |> Enum.reject(fn {key, _value} -> key == "set_locale" end)
+      |> Enum.concat([{"set_locale", locale}])
+      |> URI.encode_query()
 
-    # Only redirect when:
-    # 1. User is on English pages (private_locale == "en")
-    # 2. Browser language is a different supported locale
-    # 3. Redirect is not disabled (no query param or user preference)
-    should_redirect =
-      private_locale == "en" and
-        Enum.member?(additional_locales(), headers_locale) and
-        !disable_locale_redirect
+    URI.to_string(%{uri | query: query})
+  end
 
-    if should_redirect do
-      redirect_to_path =
-        Path.join(
-          locale_path_prefix(headers_locale),
-          if(conn.query_string == "",
-            do: path_without_locale(conn.request_path),
-            else: "#{path_without_locale(conn.request_path)}?#{conn.query_string}"
-          )
-        )
+  defp preferred_locale(conn) do
+    preference = conn.cookies[@preference_cookie]
 
-      conn
-      |> put_status(:moved_permanently)
-      |> Phoenix.Controller.redirect(
-        to: redirect_to_path,
-        status: 301
-      )
-      |> halt()
+    if preference in all_locales() do
+      preference
     else
       conn
+      |> get_req_header("accept-language")
+      |> Enum.join(",")
+      |> Locale.locale_from_accept_language()
     end
+  end
+
+  defp private_response(conn) do
+    register_before_send(conn, fn conn ->
+      put_resp_header(conn, "cache-control", "private, no-store")
+    end)
   end
 
   def path_without_locale(path) do
     Enum.reduce(all_locales(), path, fn locale, acc ->
       # For marketing URLs, English uses "/" as prefix
-      # For docs URLs, we need to handle "/en/" explicitly
+      # For docs URLs, we need to handle "/en/docs/..." explicitly
       locale_prefix = if locale == "en", do: "/en", else: locale_path_prefix(locale)
 
       # Handle paths like /ko/ or /ko/pricing using regex
@@ -122,69 +141,24 @@ defmodule TuistWeb.Marketing.Localization do
     {:cont, socket}
   end
 
-  defp fetch_locale_from_headers(conn) do
-    conn
-    |> locales_from_accept_language()
-    |> Enum.map(fn locale -> validate_locale(locale) end)
-    |> Enum.find(&(not is_nil(&1)))
-  end
-
-  # Accept-Language: en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7
-  defp locales_from_accept_language(conn) do
-    case get_req_header(conn, "accept-language") do
-      [value | _] ->
-        values = String.split(value, ",")
-        Enum.map(values, &resolve_locale_from_accept_language/1)
-
-      _ ->
-        []
-    end
-  end
-
-  defp resolve_locale_from_accept_language(language) do
-    language
-    |> String.split(";")
-    |> List.first()
-    |> language_to_locale()
-  end
-
-  defp language_to_locale(language) do
-    String.replace(language, "-", "_", global: false)
-  end
-
-  defp validate_locale(nil), do: nil
-
-  defp validate_locale(locale) do
-    supported_locales = Gettext.known_locales(TuistWeb.Gettext)
-
-    case String.split(locale, "_") do
-      [language, _] ->
-        Enum.find([language, locale], fn locale ->
-          locale in supported_locales
-        end)
-
-      [^locale] ->
-        if locale in supported_locales do
-          locale
-        end
-    end
-  end
-
-  defp has_user_locale_preference?(conn) do
-    # Check if user has a locale preference cookie set
-    # This cookie is set when user explicitly switches language
-    case Map.get(conn.req_cookies, "user_locale_preference") do
-      nil -> false
-      _value -> true
+  # Marketing responses declare `public, max-age=60, stale-while-revalidate=86400`,
+  # but a CDN will not store a response carrying `Set-Cookie`. Re-stamping an
+  # unchanged locale on every request made the entire marketing site
+  # uncacheable at the edge, so only write when the value actually changes.
+  defp maybe_put_locale_session(conn, locale) do
+    if get_session(conn, :locale) == locale do
+      conn
+    else
+      put_session(conn, :locale, locale)
     end
   end
 
   @doc """
   Localizes a URL path based on the current locale.
 
-  For docs.tuist.dev URLs, inserts locale after domain (or replaces existing locale).
+  For tuist.dev docs URLs, updates the locale segment in the path.
   For relative marketing URLs, prepends locale (except for English which has no prefix).
-  External URLs that are not docs.tuist.dev are returned as-is.
+  External URLs that are not tuist.dev docs are returned as-is.
   """
   def localized_href(href) do
     locale = Gettext.get_locale(TuistWeb.Gettext)
@@ -194,9 +168,9 @@ defmodule TuistWeb.Marketing.Localization do
   @doc """
   Localizes a URL path to a specific target locale.
 
-  For docs.tuist.dev URLs, inserts locale after domain (or replaces existing locale).
+  For tuist.dev docs URLs, updates the locale segment in the path.
   For relative marketing URLs, prepends locale (except for English which has no prefix).
-  External URLs that are not docs.tuist.dev are returned as-is.
+  External URLs that are not tuist.dev docs are returned as-is.
   """
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def localized_href(href, target_locale) do
@@ -207,10 +181,10 @@ defmodule TuistWeb.Marketing.Localization do
       not is_nil(uri.scheme) and uri.scheme not in ["http", "https"] ->
         href
 
-      # Handle docs.tuist.dev URLs
-      uri.host == "docs.tuist.dev" ->
-        clean_path = path_without_locale(uri.path || "/")
-        localized_path = "/#{target_locale}#{clean_path}"
+      # Handle tuist.dev docs URLs (tuist.dev/LOCALE/docs/...)
+      uri.host == "tuist.dev" and docs_path?(uri.path) ->
+        docs_subpath = extract_docs_subpath(uri.path)
+        localized_path = "/#{target_locale}/docs#{docs_subpath}"
 
         uri
         |> Map.put(:path, localized_path)
@@ -246,6 +220,27 @@ defmodule TuistWeb.Marketing.Localization do
       true ->
         href
     end
+  end
+
+  defp docs_path?(nil), do: false
+
+  defp docs_path?(path) do
+    Enum.any?(all_locales(), fn locale -> String.starts_with?(path, "/#{locale}/docs") end)
+  end
+
+  defp extract_docs_subpath(path) do
+    result =
+      Enum.reduce(all_locales(), path, fn locale, acc ->
+        prefix = "/#{locale}/docs"
+
+        if String.starts_with?(acc, prefix) do
+          String.replace_prefix(acc, prefix, "")
+        else
+          acc
+        end
+      end)
+
+    if result == "" or result == path, do: "", else: result
   end
 
   @doc """

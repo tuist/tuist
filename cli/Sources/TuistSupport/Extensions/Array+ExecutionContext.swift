@@ -1,4 +1,5 @@
 import Foundation
+import TuistThreadSafe
 
 extension Array where Element: Sendable {
     /// Map (with execution context)
@@ -42,18 +43,19 @@ extension Array where Element: Sendable {
         _ transform: @escaping (Element) async throws -> B
     ) async throws -> [B] {
         try await withThrowingTaskGroup(
-            of: B.self,
+            of: (Int, B).self,
             returning: [B].self
         ) { group in
-            var results: [B] = []
+            var results: [(Int, B)] = []
             for (index, element) in enumerated() {
-                if index > maxConcurrentTasks {
+                if index >= maxConcurrentTasks {
                     if let result = try await group.next() {
                         results.append(result)
                     }
                 }
+                let idx = index
                 group.addTask {
-                    return try await transform(element)
+                    return (idx, try await transform(element))
                 }
             }
 
@@ -61,7 +63,7 @@ extension Array where Element: Sendable {
                 results.append(result)
             }
 
-            return results
+            return results.sorted(by: { $0.0 < $1.0 }).map(\.1)
         }
     }
 
@@ -94,6 +96,40 @@ extension Array where Element: Sendable {
 
         return try await tasks.serialCompactMap { task in
             try await task.value
+        }
+    }
+
+    /// Async concurrent compact map with concurrency limit
+    ///
+    /// - Parameters:
+    ///   - maxConcurrentTasks: Number of max tasks that can run simultaneously
+    ///   - transform: The transformation closure to apply to the array
+    public func concurrentCompactMap<B>(
+        maxConcurrentTasks: Int = Int.max,
+        _ transform: @escaping (Element) async throws -> B?
+    ) async throws -> [B] {
+        try await withThrowingTaskGroup(
+            of: (Int, B?).self,
+            returning: [B].self
+        ) { group in
+            var results: [(Int, B?)] = []
+            for (index, element) in enumerated() {
+                if index >= maxConcurrentTasks {
+                    if let result = try await group.next() {
+                        results.append(result)
+                    }
+                }
+                let idx = index
+                group.addTask {
+                    return (idx, try await transform(element))
+                }
+            }
+
+            for try await result in group {
+                results.append(result)
+            }
+
+            return results.sorted(by: { $0.0 < $1.0 }).compactMap(\.1)
         }
     }
 

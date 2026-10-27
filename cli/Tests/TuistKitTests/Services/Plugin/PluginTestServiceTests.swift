@@ -8,7 +8,7 @@ final class PluginTestServiceTests: TuistUnitTestCase {
 
     override func setUp() {
         super.setUp()
-        subject = PluginTestService()
+        subject = PluginTestService(commandRunner: mockCommandRunner)
     }
 
     override func tearDown() {
@@ -16,11 +16,11 @@ final class PluginTestServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_run_with_arguments() throws {
+    func test_run_with_arguments() async throws {
         // Given
         let path = try temporaryPath()
 
-        system.succeedCommand([
+        mockCommandRunner.succeedCommand([
             "swift", "test",
             "--configuration", PluginCommand.PackageConfiguration.release.rawValue,
             "--package-path", path.pathString,
@@ -30,31 +30,27 @@ final class PluginTestServiceTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(
-            try subject.run(
-                path: path.pathString,
-                configuration: .release,
-                buildTests: true,
-                testProducts: ["MyProduct1", "MyProduct2"]
-            )
+        try await subject.run(
+            path: path.pathString,
+            configuration: .release,
+            buildTests: true,
+            testProducts: ["MyProduct1", "MyProduct2"]
         )
     }
 
-    func test_run_with_no_arguments() throws {
+    func test_run_with_no_arguments() async throws {
         // Given
-        system.succeedCommand([
+        mockCommandRunner.succeedCommand([
             "swift", "test",
             "--configuration", PluginCommand.PackageConfiguration.debug.rawValue,
         ])
 
         // When / Then
-        XCTAssertNoThrow(
-            try subject.run(
-                path: nil,
-                configuration: .debug,
-                buildTests: false,
-                testProducts: []
-            )
+        try await subject.run(
+            path: nil,
+            configuration: .debug,
+            buildTests: false,
+            testProducts: []
         )
     }
 }

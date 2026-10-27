@@ -1,14 +1,25 @@
 import ProjectDescription
 
+#if DEBUG
+    import FileSystem
+    import Path
+#endif
+
 /// A directed acyclic graph (DAG) that Tuist uses to represent the dependency tree.
-public struct DependenciesGraph: Equatable, Codable {
+public struct DependenciesGraph: Equatable, Codable { // swiftlint:disable:this type_body_length
     public struct ExternalProject: Equatable, Codable {
         public var manifest: ProjectDescription.Project
         public var hash: String?
+        public var swiftPackageManagerScratchDirectory: Path?
 
-        public init(manifest: ProjectDescription.Project, hash: String?) {
+        public init(
+            manifest: ProjectDescription.Project,
+            hash: String?,
+            swiftPackageManagerScratchDirectory: Path? = nil
+        ) {
             self.manifest = manifest
             self.hash = hash
+            self.swiftPackageManagerScratchDirectory = swiftPackageManagerScratchDirectory
         }
     }
 
@@ -24,13 +35,8 @@ public struct DependenciesGraph: Equatable, Codable {
         self.externalDependencies = externalDependencies
         self.externalProjects = externalProjects
     }
-}
 
-#if DEBUG
-    import Path
-    import TuistSupport
-
-    extension DependenciesGraph {
+    #if DEBUG
         /// A snapshot of `graph.json` file.
         public static var testJson: String {
             """
@@ -73,9 +79,10 @@ public struct DependenciesGraph: Equatable, Codable {
             spmFolder: Path,
             packageFolder: Path,
             destinations: Destinations = [.iPhone, .iPad, .macWithiPadDesign, .appleVisionWithiPadDesign],
-            fileHandler: FileHandler
-        ) throws -> Self {
-            try fileHandler.createFolder(try AbsolutePath(validating: "\(packageFolder.pathString)/customPath/resources"))
+            fileSystem: FileSysteming = FileSystem()
+        ) async throws -> Self {
+            try await fileSystem
+                .makeDirectory(at: try AbsolutePath(validating: "\(packageFolder.pathString)/customPath/resources"))
 
             let externalDependencies: [String: [TargetDependency]] = [
                 "Tuist": [
@@ -163,7 +170,6 @@ public struct DependenciesGraph: Equatable, Codable {
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
                         settings: Self.swiftpmProjectSettings(
-                            packageName: "tuist",
                             baseSettings: .settings(
                                 base: [
                                     "GCC_C_LANGUAGE_STANDARD": "c99",
@@ -247,7 +253,6 @@ public struct DependenciesGraph: Equatable, Codable {
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
                         settings: Self.swiftpmProjectSettings(
-                            packageName: "a-dependency",
                             baseSettings: .settings(
                                 configurations: [
                                     .debug(name: .debug),
@@ -305,7 +310,6 @@ public struct DependenciesGraph: Equatable, Codable {
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
                         settings: Self.swiftpmProjectSettings(
-                            packageName: "another-dependency",
                             baseSettings: .settings(
                                 configurations: [
                                     .debug(name: .debug),
@@ -371,7 +375,6 @@ public struct DependenciesGraph: Equatable, Codable {
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
                         settings: Self.swiftpmProjectSettings(
-                            packageName: "Alamofire",
                             baseSettings: .settings(base: ["SWIFT_VERSION": "5.0.0"])
                         ),
                         targets: targets,
@@ -505,7 +508,6 @@ public struct DependenciesGraph: Equatable, Codable {
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
                         settings: Self.swiftpmProjectSettings(
-                            packageName: "GoogleAppMeasurement",
                             baseSettings: .settings(
                                 base: [
                                     "GCC_C_LANGUAGE_STANDARD": "c99",
@@ -627,7 +629,6 @@ public struct DependenciesGraph: Equatable, Codable {
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
                         settings: Self.swiftpmProjectSettings(
-                            packageName: "GoogleUtilities",
                             baseSettings: .settings(
                                 configurations: [
                                     .debug(name: .debug),
@@ -685,7 +686,6 @@ public struct DependenciesGraph: Equatable, Codable {
                             textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                         ),
                         settings: Self.swiftpmProjectSettings(
-                            packageName: "nanopb",
                             baseSettings: .settings(
                                 configurations: [
                                     .debug(name: .debug),
@@ -699,9 +699,7 @@ public struct DependenciesGraph: Equatable, Codable {
                 ]
             )
         }
-    }
 
-    extension DependenciesGraph {
         fileprivate static func artifactsFolder(spmFolder: Path, packageName: String) -> Path {
             Path("\(spmFolder.pathString)/artifacts/\(packageName)")
         }
@@ -711,7 +709,6 @@ public struct DependenciesGraph: Equatable, Codable {
         }
 
         public static func swiftpmProjectSettings(
-            packageName: String,
             baseSettings: Settings = .settings(),
             with customSettings: SettingsDictionary = [:]
         ) -> Settings {
@@ -725,7 +722,6 @@ public struct DependenciesGraph: Equatable, Codable {
                 "FRAMEWORK_SEARCH_PATHS": ["$(inherited)", "$(PLATFORM_DIR)/Developer/Library/Frameworks"],
                 "GCC_NO_COMMON_BLOCKS": "NO",
                 "USE_HEADERMAP": "NO",
-                "OTHER_SWIFT_FLAGS": ["-package-name", packageName.quotedIfContainsSpaces],
             ]
             var settingsDictionary = defaultSpmSettings.combine(with: customSettings)
 
@@ -789,8 +785,24 @@ public struct DependenciesGraph: Equatable, Codable {
                 defaultSettings: baseSettings.defaultSettings
             )
         }
-    }
 
+        // MARK: - Helpers
+
+        fileprivate static func resolveDeploymentTargets(for destinations: Destinations) -> DeploymentTargets {
+            let platforms = destinations.platforms
+
+            return .multiplatform(
+                iOS: platforms.contains(.iOS) ? ProjectDescription.Platform.iOS.testVersion() : nil,
+                macOS: platforms.contains(.macOS) ? ProjectDescription.Platform.macOS.testVersion() : nil,
+                watchOS: platforms.contains(.watchOS) ? ProjectDescription.Platform.watchOS.testVersion() : nil,
+                tvOS: platforms.contains(.watchOS) ? ProjectDescription.Platform.tvOS.testVersion() : nil,
+                visionOS: platforms.contains(.visionOS) ? ProjectDescription.Platform.visionOS.testVersion() : nil
+            )
+        }
+    #endif
+}
+
+#if DEBUG
     extension SettingsDictionary {
         /// Combines two `SettingsDictionary`. Instead of overriding values for a duplicate key, it combines them.
         func combine(with settings: SettingsDictionary) -> SettingsDictionary {
@@ -811,21 +823,4 @@ public struct DependenciesGraph: Equatable, Codable {
             })
         }
     }
-
-    // MARK: - Helpers
-
-    extension DependenciesGraph {
-        fileprivate static func resolveDeploymentTargets(for destinations: Destinations) -> DeploymentTargets {
-            let platforms = destinations.platforms
-
-            return .multiplatform(
-                iOS: platforms.contains(.iOS) ? ProjectDescription.Platform.iOS.testVersion() : nil,
-                macOS: platforms.contains(.macOS) ? ProjectDescription.Platform.macOS.testVersion() : nil,
-                watchOS: platforms.contains(.watchOS) ? ProjectDescription.Platform.watchOS.testVersion() : nil,
-                tvOS: platforms.contains(.watchOS) ? ProjectDescription.Platform.tvOS.testVersion() : nil,
-                visionOS: platforms.contains(.visionOS) ? ProjectDescription.Platform.visionOS.testVersion() : nil
-            )
-        }
-    }
-
 #endif

@@ -1,10 +1,14 @@
 import FileSystem
 import Foundation
 import Path
+import TuistConfig
+import TuistConstants
 import TuistCore
 import TuistGit
 import TuistHTTP
 import TuistLoader
+import TuistLogging
+import TuistProcess
 import TuistScaffold
 import TuistSupport
 
@@ -62,18 +66,17 @@ enum PluginServiceConstants {
 public struct PluginService: PluginServicing {
     private let manifestLoader: ManifestLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
-    private let fileHandler: FileHandling
     private let gitController: GitControlling
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let fileArchivingFactory: FileArchivingFactorying
     private let fileClient: FileClienting
     private let fileSystem: FileSystem
+    private let commandRunner: CommandRunning
 
     /// Creates a `PluginService`.
     /// - Parameters:
     ///   - manifestLoader: A manifest loader for loading plugin manifests.
     ///   - templatesDirectoryLocator: Locator for finding templates for plugins.
-    ///   - fileHandler: A file handler for creating plugin directories/related files.
     ///   - gitController: A git handler for cloning and interacting with remote plugins.
     ///   - cacheDirectoriesProvider: A cache directory provider
     ///   - fileArchivingFactory: FileArchiver for unzipping plugin releases.
@@ -81,21 +84,21 @@ public struct PluginService: PluginServicing {
     public init(
         manifestLoader: ManifestLoading = ManifestLoader.current,
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
-        fileHandler: FileHandling = FileHandler.shared,
         gitController: GitControlling = GitController(),
         cacheDirectoriesProvider: CacheDirectoriesProviding = CacheDirectoriesProvider(),
         fileArchivingFactory: FileArchivingFactorying = FileArchivingFactory(),
         fileClient: FileClienting = FileClient(),
-        fileSystem: FileSystem = FileSystem()
+        fileSystem: FileSystem = FileSystem(),
+        commandRunner: CommandRunning = CommandRunner()
     ) {
         self.manifestLoader = manifestLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
-        self.fileHandler = fileHandler
         self.gitController = gitController
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.fileArchivingFactory = fileArchivingFactory
         self.fileClient = fileClient
         self.fileSystem = fileSystem
+        self.commandRunner = commandRunner
     }
 
     public func remotePluginPaths(using configGeneratedProjectsOptions: TuistGeneratedProjectOptions) async throws
@@ -235,6 +238,7 @@ public struct PluginService: PluginServicing {
                 releaseUrl: releaseUrl
             )
         }
+        await fileSystem.markCacheEntryUsed(at: pluginCacheDirectory)
     }
 
     private func pluginCacheDirectory(
@@ -259,8 +263,8 @@ public struct PluginService: PluginServicing {
 
         Logger.current.notice("Cloning plugin from \(url) @ \(gitId)", metadata: .subsection)
         Logger.current.notice("\(pluginRepositoryDirectory.pathString)", metadata: .subsection)
-        try gitController.clone(url: url, to: pluginRepositoryDirectory)
-        try gitController.checkout(id: gitId, in: pluginRepositoryDirectory)
+        try await gitController.clone(url: url, to: pluginRepositoryDirectory)
+        try await gitController.checkout(id: gitId, in: pluginRepositoryDirectory)
     }
 
     private func fetchGitPluginRelease(
@@ -286,27 +290,28 @@ public struct PluginService: PluginServicing {
         else { throw PluginServiceError.invalidURL(url) }
 
         Logger.current.debug("Cloning plugin release from \(url) @ \(gitTag)")
-        try await FileHandler.shared.inTemporaryDirectory { _ in
+        try await fileSystem.runInTemporaryDirectory { temporaryDirectory in
             // Download the release.
             // Currently, we assume the release path exists.
-            let downloadPath = try await fileClient.download(url: releaseURL)
-            let downloadZipPath = downloadPath.removingLastComponent().appending(component: "release.zip")
-            let fileUnarchiver = try fileArchivingFactory.makeFileUnarchiver(for: downloadZipPath)
+            let downloadZipPath = temporaryDirectory.appending(component: "release.zip")
 
             var thrownError: Error?
+            var fileUnarchiver: FileUnarchiving?
 
             do {
                 if try await fileSystem.exists(downloadZipPath) {
                     try await fileSystem.remove(downloadZipPath)
                 }
-                try await fileSystem.move(from: downloadPath, to: downloadZipPath)
+                try await downloadRelease(from: releaseURL, to: downloadZipPath)
+                let unarchiver = try fileArchivingFactory.makeFileUnarchiver(for: downloadZipPath)
+                fileUnarchiver = unarchiver
 
                 // Unzip
-                let unarchivedContents = try FileHandler.shared.contentsOfDirectory(
-                    try fileUnarchiver.unzip()
+                let unarchivedContents = try await fileSystem.contentsOfDirectory(
+                    try unarchiver.unzip()
                 )
 
-                try FileHandler.shared.createFolder(pluginReleaseDirectory)
+                try await fileSystem.makeDirectory(at: pluginReleaseDirectory)
                 for unarchivedContent in unarchivedContents {
                     try await fileSystem.move(
                         from: unarchivedContent,
@@ -315,20 +320,26 @@ public struct PluginService: PluginServicing {
                 }
 
                 // Mark files as executables (this information is lost during (un)archiving)
-                try FileHandler.shared.contentsOfDirectory(pluginReleaseDirectory)
+                let pluginReleaseExecutables = try await fileSystem.contentsOfDirectory(pluginReleaseDirectory)
                     .filter { $0.basename.hasPrefix("tuist-") }
-                    .forEach {
-                        try System.shared.chmod(.executable, path: $0, options: [.onlyFiles])
-                    }
+                for pluginReleaseExecutable in pluginReleaseExecutables {
+                    try await commandRunner.runAndWait(arguments: ["chmod", "+x", pluginReleaseExecutable.pathString])
+                }
             } catch {
                 thrownError = error
             }
 
-            try? await fileUnarchiver.delete()
-            try? await fileSystem.remove(downloadPath)
+            try? await fileUnarchiver?.delete()
             try? await fileSystem.remove(downloadZipPath)
 
             if let thrownError { throw thrownError }
+        }
+    }
+
+    /// Downloads again after a transport error or a 408, 429 or 5xx response.
+    func downloadRelease(from url: URL, to path: AbsolutePath) async throws {
+        try await HTTPRetryPolicy().run {
+            try await fileClient.download(url: url, to: path)
         }
     }
 
@@ -360,7 +371,7 @@ public struct PluginService: PluginServicing {
     ) async throws -> [AbsolutePath] {
         let templatesPath = pluginPath.appending(component: Constants.templatesDirectoryName)
         guard try await fileSystem.exists(templatesPath) else { return [] }
-        return try templatesDirectoryLocator.templatePluginDirectories(at: templatesPath)
+        return try await templatesDirectoryLocator.templatePluginDirectories(at: templatesPath)
     }
 }
 

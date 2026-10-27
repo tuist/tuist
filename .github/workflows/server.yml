@@ -7,79 +7,152 @@ on:
     paths:
       - server/**
       - tuist_common/**
+      - tuist_ex/**
+      - noora/**
       - .github/workflows/server.yml
+      - .github/actions/setup-server-mix/action.yml
+      - .github/actions/mise/action.yml
       - server/pnpm-lock.yaml
+      - mise/tasks/marketing/**
+      - .trivyignore
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - server/**
       - tuist_common/**
+      - tuist_ex/**
+      - noora/**
       - .github/workflows/server.yml
+      - .github/actions/setup-server-mix/action.yml
+      - .github/actions/mise/action.yml
       - server/pnpm-lock.yaml
-      - pnpm-lock.yaml
+      - noora/aube-lock.yaml
+      - mise/tasks/marketing/**
+      - .trivyignore
   merge_group: {}
 
 permissions:
   contents: read
 
 concurrency:
-  group: tuist-server-${{ github.head_ref }}
+  group: tuist-server-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 env:
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
   MIX_ENV: test
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  PNPM_HOME: ~/.pnpm
+  MISE_TASK_RUN_AUTO_INSTALL: 0
+  MISE_GITHUB_ATTESTATIONS: 0
+  MISE_GITHUB_SLSA: 0
+  # Same repositories as Trivy's default, in the opposite order. Trivy only
+  # falls through to the next repository on a temporary status code (408, 429,
+  # 5xx) or a BLOB_UNKNOWN diagnostic. mirror.gcr.io intermittently serves a
+  # bare 404 for the blob redirect target, which is neither, so a mirror.gcr.io
+  # fault is fatal when it is first and recoverable when it is second.
+  TRIVY_DB_REPOSITORY: "ghcr.io/aquasecurity/trivy-db:2,mirror.gcr.io/aquasec/trivy-db:2"
 
 defaults:
   run:
     working-directory: server
 
 jobs:
-  gettext_marketing:
-    name: Gettext (Marketing)
-    runs-on: namespace-profile-default
+  gettext:
+    name: Gettext
+    # The throttled compile below uses a single scheduler, so this job
+    # cannot use a larger shape's extra vCPUs and fits the default memory.
+    runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        id: mix-cache
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Restore PNPM Cache
-        uses: actions/cache@v4
-        id: pnpm-cache
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - run: mise run install
-      - name: Check marketing gettext template is up-to-date
+      - uses: ./.github/actions/setup-server-mix
+      # Pre-compile the project in its own step so the OOM (if any)
+      # surfaces here rather than inside the extract heartbeat loop —
+      # makes the failure mode obvious. The throttle stack:
+      # MIX_OS_DEPS_COMPILE_PARTITION_COUNT for OS-deps compile,
+      # ERL_AFLAGS "+S 1:1" for project compile (Kernel.ParallelCompiler
+      # sizes concurrency from System.schedulers_online()), and the
+      # System.schedulers_online() echo verifies the throttle landed.
+      - name: Compile project (throttled)
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
+          ERL_AFLAGS: "+S 1:1"
+        working-directory: server
         run: |
-          # Extract only (without --merge) to check if marketing.pot changes
-          # DO NOT use --merge here as it would modify .po translation files
-          cp priv/gettext/marketing.pot priv/gettext/marketing.pot.backup
-          mix gettext.extract > /dev/null 2>&1 || true
+          mix run -e 'IO.puts("schedulers_online=#{System.schedulers_online()}")'
+          mix compile
+      - name: Check gettext templates are up-to-date
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
+          ERL_AFLAGS: "+S 1:1"
+        run: |
+          run_gettext_extract() {
+            log_file="$1"
+            (
+              while true; do
+                sleep 30
+                echo "Waiting for gettext.extract..."
+              done
+            ) &
+            heartbeat_pid=$!
 
-          if ! diff -q priv/gettext/marketing.pot.backup priv/gettext/marketing.pot > /dev/null; then
-            echo "::error title=Marketing gettext template out of sync::The marketing.pot file is not up-to-date. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
-            rm priv/gettext/marketing.pot.backup
+            set +e
+            timeout 5m mix gettext.extract > "$log_file" 2>&1
+            extract_status=$?
+            set -e
+
+            kill "$heartbeat_pid" 2>/dev/null || true
+            wait "$heartbeat_pid" 2>/dev/null || true
+
+            if [ "$extract_status" -eq 124 ]; then
+              echo "::error title=Gettext extraction timed out::mix gettext.extract did not finish within 5 minutes."
+              cat "$log_file"
+              exit 1
+            fi
+
+            if [ "$extract_status" -gt 128 ]; then
+              exit "$extract_status"
+            fi
+          }
+
+          # Extract only (without --merge) to check whether any .pot template
+          # is out of date. DO NOT use --merge here as it would modify the .po
+          # translation files. Every domain under priv/gettext is discovered by
+          # a glob so a newly added domain is guarded without editing this job.
+          POT_LIST=/tmp/gettext-pot-files.txt
+          printf '%s\n' priv/gettext/*.pot | sort > "$POT_LIST"
+
+          while read -r pot; do
+            cp "$pot" "${pot}.backup"
+          done < "$POT_LIST"
+
+          run_gettext_extract /tmp/gettext-extract.log
+
+          CHANGED_DOMAINS=""
+
+          while read -r pot; do
+            if ! diff -q "${pot}.backup" "$pot" > /dev/null 2>&1; then
+              CHANGED_DOMAINS="$CHANGED_DOMAINS $(basename "$pot" .pot)"
+            fi
+            rm -f "${pot}.backup"
+          done < "$POT_LIST"
+
+          # A domain created by the extraction has no backup to diff against.
+          for pot in priv/gettext/*.pot; do
+            if ! grep -qxF "$pot" "$POT_LIST"; then
+              CHANGED_DOMAINS="$CHANGED_DOMAINS $(basename "$pot" .pot)"
+            fi
+          done
+
+          rm -f "$POT_LIST"
+
+          if [ -n "$CHANGED_DOMAINS" ]; then
+            echo "::error title=Gettext templates out of sync::The following .pot files are not up-to-date:$CHANGED_DOMAINS. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
             exit 1
-          else
-            echo "✅ Marketing gettext template is up-to-date"
-            rm priv/gettext/marketing.pot.backup
           fi
+
+          echo "✅ All gettext templates are up-to-date"
       - name: Check marketing translations exist
         run: |
           # Check if marketing.pot exists
@@ -100,75 +173,10 @@ jobs:
           done
 
           echo "✅ All marketing translations present"
-  gettext_dashboard:
-    name: Gettext (Dashboard)
-    runs-on: namespace-profile-default
-    timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        id: mix-cache
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Restore PNPM Cache
-        uses: actions/cache@v4
-        id: pnpm-cache
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - run: mise run install
-      - name: Check dashboard gettext templates are up-to-date
-        run: |
-          # Dashboard domains to check
-          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_qa dashboard_tests"
-
-          # Backup all dashboard .pot files
-          for domain in $DASHBOARD_DOMAINS; do
-            if [ -f "priv/gettext/${domain}.pot" ]; then
-              cp "priv/gettext/${domain}.pot" "priv/gettext/${domain}.pot.backup"
-            fi
-          done
-
-          # Extract only (without --merge) to check if any .pot changes
-          # DO NOT use --merge here as it would modify .po translation files
-          mix gettext.extract > /dev/null 2>&1 || true
-
-          # Check each domain for changes
-          CHANGED_DOMAINS=""
-          for domain in $DASHBOARD_DOMAINS; do
-            if [ -f "priv/gettext/${domain}.pot.backup" ]; then
-              if ! diff -q "priv/gettext/${domain}.pot.backup" "priv/gettext/${domain}.pot" > /dev/null 2>&1; then
-                CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
-              fi
-              rm "priv/gettext/${domain}.pot.backup"
-            elif [ -f "priv/gettext/${domain}.pot" ]; then
-              # New domain file was created
-              CHANGED_DOMAINS="$CHANGED_DOMAINS $domain"
-            fi
-          done
-
-          if [ -n "$CHANGED_DOMAINS" ]; then
-            echo "::error title=Dashboard gettext templates out of sync::The following .pot files are not up-to-date:$CHANGED_DOMAINS. Please run 'mix gettext.extract' (WITHOUT --merge) in the server directory and commit the changes."
-            exit 1
-          else
-            echo "✅ All dashboard gettext templates are up-to-date"
-          fi
       - name: Check dashboard translations templates exist
         run: |
           # Dashboard domains to check
-          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_qa dashboard_tests"
+          DASHBOARD_DOMAINS="dashboard dashboard_account dashboard_auth dashboard_builds dashboard_cache dashboard_integrations dashboard_previews dashboard_projects dashboard_tests"
 
           MISSING_DOMAINS=""
           for domain in $DASHBOARD_DOMAINS; do
@@ -183,200 +191,354 @@ jobs:
           fi
 
           echo "✅ All dashboard translation templates present"
-  translation_protection:
-    name: Translation Protection
-    runs-on: namespace-profile-default
-    timeout-minutes: 5
-    if: github.event_name == 'pull_request'
+  test-build:
+    name: Build Test Shards
+    runs-on: tuist-linux-large
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: read
+    if: |
+      github.repository == 'tuist/tuist' &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      github.event.pull_request.head.repo.fork != true
+    outputs:
+      current-matrix: ${{ steps.current.outputs.matrix }}
+      floor-matrix: ${{ steps.floor.outputs.matrix }}
+      current-reference: ${{ steps.current.outputs.reference }}
+      floor-reference: ${{ steps.floor.outputs.reference }}
+    env:
+      TUIST_DEV_ALL_LOCALES: "1"
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Check for .po file modifications by non-bot users
+      - name: Decide whether to test the oldest supported ClickHouse
+        id: floor-gate
+        working-directory: ${{ github.workspace }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          # Get the PR author
-          PR_AUTHOR="${{ github.event.pull_request.user.login }}"
-
-          # Get list of added and modified .po files in this PR
-          ADDED_PO_FILES=$(git diff --name-only --diff-filter=A origin/${{ github.base_ref }}...HEAD | grep '\.po$' || true)
-          MODIFIED_PO_FILES=$(git diff --name-only --diff-filter=M origin/${{ github.base_ref }}...HEAD | grep '\.po$' || true)
-
-          if [ -z "$ADDED_PO_FILES" ] && [ -z "$MODIFIED_PO_FILES" ]; then
-            echo "✅ No .po files modified in this PR"
-            exit 0
-          fi
-
-          # Allow adding new language directories (one-time setup), but block modifications to non-English translations
-          if [ "$PR_AUTHOR" != "tuistit" ]; then
-            # Filter out English .po files from modified files (developers can modify English source translations)
-            NON_ENGLISH_MODIFIED=$(echo "$MODIFIED_PO_FILES" | grep -v '/en/LC_MESSAGES/' || true)
-
-            if [ -n "$NON_ENGLISH_MODIFIED" ]; then
-              echo "::error title=Translation files modified::Non-English translation files (.po) were modified by $PR_AUTHOR. Only the tuistit bot should modify translation files. Translations should be managed through Weblate."
-              echo ""
-              echo "Modified translation files:"
-              echo "$NON_ENGLISH_MODIFIED"
-              echo ""
-              echo "If you need to update translations, please use Weblate instead of editing .po files directly."
-              echo "You should only commit .pot (template) files, not .po (translation) files."
-              echo "Note: English .po files (en/LC_MESSAGES/*.po) can be modified by developers."
-              exit 1
-            fi
-
-            # Report on English modifications (allowed)
-            ENGLISH_MODIFIED=$(echo "$MODIFIED_PO_FILES" | grep '/en/LC_MESSAGES/' || true)
-            if [ -n "$ENGLISH_MODIFIED" ]; then
-              echo "✅ English translation files modified by $PR_AUTHOR (allowed):"
-              echo "$ENGLISH_MODIFIED"
-              echo ""
-            fi
-
-            if [ -n "$ADDED_PO_FILES" ]; then
-              echo "⚠️  New translation files added by $PR_AUTHOR:"
-              echo "$ADDED_PO_FILES"
-              echo ""
-              echo "✅ Allowing new language setup. Future modifications should go through Weblate."
-            fi
-          else
-            echo "✅ Translation files modified by tuistit bot"
-          fi
+          run="$(bash .github/scripts/server-clickhouse-floor.sh "$EVENT_NAME" "$GITHUB_REPOSITORY" "$PR_NUMBER")" || run=true
+          run=false
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/setup-server-mix
+        with:
+          mise-cache: "false"
+      # The _build volume also preserves CLDR downloads. Do not restore an
+      # archive cache into a directory inside that volume.
+      - name: Prefetch CLDR locale data
+        run: mise/tasks/cldr/prefetch-locale-data.sh
+      # Discovering a cold SDK task compiles every dependency before Tuist can
+      # restore its cache. Enter through the bootstrap-aware compile alias first.
+      - name: Compile with dependency caching
+        run: mix compile --warnings-as-errors
+      # Keep the persisted build plain. Coverage shards instrument their own
+      # downloaded build, which is not retained in a cache volume.
+      - name: Build and plan current ClickHouse shards
+        id: current
+        run: |
+          mix tuist.test.build --shard-total 4 --warnings-as-errors
+          echo "reference=$TUIST_SHARD_REFERENCE" >> "$GITHUB_OUTPUT"
+        env:
+          TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.run_attempt }}-server-current
+      - name: Plan oldest supported ClickHouse shards
+        id: floor
+        if: steps.floor-gate.outputs.run == 'true'
+        run: |
+          mix tuist.test.build --shard-total 4 --warnings-as-errors
+          echo "reference=$TUIST_SHARD_REFERENCE" >> "$GITHUB_OUTPUT"
+        env:
+          TUIST_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.run_attempt }}-server-floor
   test:
     name: Test
-    runs-on: namespace-profile-default
-    timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    # Shards download the compiled build from Build Test Shards, so they fit the
+    # default shape and stay out of the large pool's queue.
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    needs: test-build
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.test-build.outputs.current-matrix) }}
+    env:
+      TUIST_DEV_ALL_LOCALES: "1"
+      TUIST_SHARD_REFERENCE: ${{ needs.test-build.outputs.current-reference }}
+      TUIST_SHARD_INDEX: ${{ matrix.shard }}
     services:
       postgres:
-        image: timescale/timescaledb-ha:pg16
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 1s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 60
     steps:
       - uses: actions/checkout@v4
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        id: mix-cache
+      - uses: ./.github/actions/setup-server-mix
         with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
+          mise-install-args: erlang elixir github:ClickHouse/ClickHouse
+          restore-mix-cache: deps
+          mise-cache: "false"
+      - name: Start ClickHouse
+        run: mise run --no-deps clickhouse:start
+      # deps.compile's OS workers do not load the SDK in the parent. Load its
+      # paths explicitly or task discovery compiles every dependency first.
+      - name: Download the test build
+        run: mix 'do' deps.compile tuist_ex --include-children + deps.loadpaths --no-compile --no-deps-check + tuist.test --prepare-only
+      # Run migrations in another process so migration regression tests can
+      # require their modules without triggering redefinition warnings.
+      - name: Setup database without rebuilding
+        run: mise run --no-deps db:reset -- --no-compile --no-deps-check
+      # On main the shards also report the server's coverage to tuist/server.
+      # A run from a dirty checkout keeps its coverage off the commit: a cold
+      # cache install writes checksums into mise.lock and deps.get can rewrite
+      # mix.lock, neither of which changes the measured code. Git is told to
+      # ignore them rather than having them restored, which would leave the
+      # fetched dependencies out of step with mix.lock and stop Mix.
+      - name: Ignore lockfile changes for coverage
+        if: github.event_name == 'push'
+        run: git update-index --assume-unchanged ../mise.lock mix.lock
+      - name: Run shard ${{ matrix.shard }}
+        run: mix 'do' deps.loadpaths --no-compile --no-deps-check + tuist.test --no-download --scheme clickhouse-current --warnings-as-errors ${{ github.event_name == 'push' && '--cover' || '' }}
+  test-clickhouse-floor:
+    name: Test (oldest supported ClickHouse)
+    # Keep exercising the release declared by Tuist.ClickHouseVersions, including
+    # every migration, rather than testing only against the newer hosted release.
+    # Pull requests run it only when .github/scripts/server-clickhouse-floor.sh
+    # finds ClickHouse changes or the `ci:clickhouse-floor` label.
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    needs: test-build
+    if: needs.test-build.outputs.floor-matrix != ''
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.test-build.outputs.floor-matrix) }}
+    env:
+      TUIST_DEV_ALL_LOCALES: "1"
+      TUIST_SHARD_REFERENCE: ${{ needs.test-build.outputs.floor-reference }}
+      TUIST_SHARD_INDEX: ${{ matrix.shard }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 1s
+          --health-timeout 5s
+          --health-retries 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-server-mix
+        with:
+          restore-mix-cache: deps
+          mise-cache: "false"
+      # This install must be unlocked: mise.lock pins the newer CI release.
+      - name: Pin ClickHouse to the oldest supported release
+        run: |
+          file=lib/tuist/clickhouse_versions.ex
+          version="$(grep -E '^\s*@oldest_tested_release' "$file" | sed -E 's/.*"([^"]+)".*/\1/' | head -1)"
+          if [ -z "$version" ]; then
+            echo "Could not resolve @oldest_tested_release from $file" >&2
+            exit 1
+          fi
+          mise use "github:ClickHouse/ClickHouse@${version}"
+          clickhouse --version
+      - name: Start ClickHouse
+        run: mise run --no-deps clickhouse:start
+      - name: Download the test build
+        run: mix 'do' deps.compile tuist_ex --include-children + deps.loadpaths --no-compile --no-deps-check + tuist.test --prepare-only
+      - name: Setup database without rebuilding
+        run: mise run --no-deps db:reset -- --no-compile --no-deps-check
+      - name: Run shard ${{ matrix.shard }}
+        run: mix 'do' deps.loadpaths --no-compile --no-deps-check + tuist.test --no-download --scheme clickhouse-floor --warnings-as-errors
+  # On main, tells the server the commit's coverage is all in once every
+  # shard ran: a shard with a failing test still reported its coverage. A
+  # failed signal leaves the commit in progress without turning the run red.
+  coverage-complete:
+    name: Complete Coverage
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    needs: test
+    if: always() && github.event_name == 'push' && (needs.test.result == 'success' || needs.test.result == 'failure')
+    continue-on-error: true
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-server-mix
+        with:
+          restore-mix-cache: deps
+          mise-cache: "false"
+      - name: Signal that the commit's coverage is complete
+        run: mix 'do' deps.compile tuist_ex --include-children + deps.loadpaths --no-compile --no-deps-check + tuist.coverage.complete
+  test-unsharded:
+    name: Test (unsharded fallback, ${{ matrix.clickhouse }})
+    runs-on: tuist-linux-large
+    timeout-minutes: 75
+    permissions:
+      contents: read
+    needs: test-build
+    # A failed planner stays red, but must not leave its fixing PR untested.
+    # Forks also use these unprivileged, explicitly unsharded jobs.
+    if: |
+      always() && !cancelled() &&
+      github.repository == 'tuist/tuist' &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      (github.event.pull_request.head.repo.fork == true || needs.test-build.result == 'failure')
+    strategy:
+      fail-fast: false
+      matrix:
+        clickhouse: [current, floor]
+    env:
+      TUIST_DEV_ALL_LOCALES: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 1s
+          --health-timeout 5s
+          --health-retries 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-server-mix
+        with:
+          mise-install-args: ${{ matrix.clickhouse == 'current' && 'erlang elixir github:ClickHouse/ClickHouse' || 'erlang elixir' }}
+          restore-mix-cache: "false"
+      - name: Pin ClickHouse to the oldest supported release
+        if: matrix.clickhouse == 'floor'
+        run: |
+          file=lib/tuist/clickhouse_versions.ex
+          version="$(grep -E '^\s*@oldest_tested_release' "$file" | sed -E 's/.*"([^"]+)".*/\1/' | head -1)"
+          if [ -z "$version" ]; then
+            echo "Could not resolve @oldest_tested_release from $file" >&2
+            exit 1
+          fi
+          mise use "github:ClickHouse/ClickHouse@${version}"
+          clickhouse --version
+      - name: Restore CLDR locale cache
+        uses: actions/cache@v4
+        with:
+          path: server/_build/cldr/locales
+          key: cldr-locales-v1-${{ hashFiles('server/mix.lock') }}
           restore-keys: |
-            mix-
-      - name: Restore PNPM Cache
-        uses: actions/cache@v4
-        id: pnpm-cache
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - run: mise run install
-      - run: mise run clickhouse:start
-      - run: mise run db:reset
-      - name: Run tests
+            cldr-locales-v1-
+      - name: Prefetch CLDR locale data
+        run: mise/tasks/cldr/prefetch-locale-data.sh
+      - name: Compile
+        run: mix compile --warnings-as-errors
+      - name: Start ClickHouse
+        run: mise run --no-deps clickhouse:start
+      - name: Setup database
+        run: mise run --no-deps db:reset
+      - name: Run tests without Tuist authentication
         run: mix test --warnings-as-errors
   credo:
     name: Credo
-    runs-on: namespace-profile-default
+    runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist'
     steps:
       - uses: actions/checkout@v4
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        id: mix-cache
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Restore PNPM Cache
-        uses: actions/cache@v4
-        id: pnpm-cache
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - run: mise run install
+      - uses: ./.github/actions/setup-server-mix
       - name: Run Credo
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
         run: mix credo
   format:
     name: Format
-    runs-on: namespace-profile-default
+    runs-on: tuist-linux
     timeout-minutes: 15
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        id: mix-cache
+      - uses: ./.github/actions/setup-server-mix
         with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Restore PNPM Cache
-        uses: actions/cache@v4
-        id: pnpm-cache
+          mise-install-args: erlang elixir node aube npm:prettier
+      - name: Install aube dependencies
+        run: aube install
+      - name: Test database setup scripts
+        run: bash ../.github/scripts/server-db.test.sh
+      - name: Test ClickHouse startup
+        run: bash ../.github/scripts/server-clickhouse.test.sh
+      - name: Check Elixir format
+        run: mix format --check-formatted
+      - name: Test frontend interactions
+        run: node --test assets/app/js/*.test.mjs assets/shared/js/hooks/*.test.mjs assets/marketing/js/hooks/*.test.mjs
+      - name: Check asset format
+        run: prettier --check assets
+      - name: Check CSS custom property references
+        working-directory: ${{ github.workspace }}
+        run: mise run css:lint-tokens server
+  image-budget:
+    name: Image budget
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    if: github.repository == 'tuist/tuist'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install image inspection tools
+        uses: ./.github/actions/mise
         with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - run: mise run install
-      - name: Check format
-        run: mise run format --check
+          working_directory: mise/tasks/marketing
+          install_args: --locked conda:imagemagick
+      - name: Verify ImageMagick runtime
+        run: magick -version
+      - name: Test image budget guard
+        working-directory: ${{ github.workspace }}
+        run: bash mise/tasks/marketing/image-budget-test.sh
+      - name: Check served image budgets
+        working-directory: ${{ github.workspace }}
+        run: ./mise/tasks/marketing/image-budget.sh
   esbuild:
     name: esbuild
-    runs-on: namespace-profile-default
+    runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
-      - uses: actions/checkout@v4 # v4
-      - name: Restore Mix Cache
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-server-mix
+        with:
+          mise-install-args: erlang elixir node aube
+      - name: Restore Aube Cache
         uses: actions/cache@v4
-        id: mix-cache
         with:
           path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Restore PNPM Cache
-        uses: actions/cache@v4
-        id: pnpm-cache
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - run: mise run install
+            ~/.local/share/aube
+            ~/.cache/aube
+          key: aube-server-${{ hashFiles('server/pnpm-lock.yaml') }}
+      - name: Install aube dependencies
+        run: aube install
+      - name: Build noora static assets
+        working-directory: noora
+        run: |
+          aube install
+          aube run build
       - name: Install esbuild
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
         run: mix esbuild.install
       - name: Check esbuild output
         run: |
@@ -396,89 +558,118 @@ jobs:
           fi
   security:
     name: Security
-    runs-on: namespace-profile-default
+    runs-on: tuist-linux
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     steps:
       - uses: actions/checkout@v4
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        id: mix-cache
-        with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Restore PNPM Cache
-        uses: actions/cache@v4
-        id: pnpm-cache
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - run: mise run install
+      - uses: ./.github/actions/setup-server-mix
+      - name: Install Trivy
+        env:
+          TRIVY_VERSION: "0.69.3"
+        run: |
+          curl -sfL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" -o /tmp/trivy.tar.gz
+          sudo tar xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy
+          rm /tmp/trivy.tar.gz
       - name: Check
-        run: mise run security
+        env:
+          MIX_OS_DEPS_COMPILE_PARTITION_COUNT: 1
+        run: ./mise/tasks/security.sh
   docker_build:
     name: Docker build
-    runs-on: namespace-profile-default
-    timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    # Bigger shape: the server image build (Elixir release compile inside
+    # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM.
+    # Pushes to main skip it: server-release.yml and
+    # server-production-deployment.yml build the same Dockerfile from the
+    # same commit.
+    runs-on: tuist-linux-large
+    timeout-minutes: 75
+    if: github.repository == 'tuist/tuist' && github.event_name != 'push' && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: false
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        id: mix-cache
+      # The docker driver builds inside the runner's dind dockerd, whose
+      # --registry-mirror routes docker.io base-image pulls through the
+      # in-cluster pull-through cache. A docker-container builder resolves
+      # registries on its own and would bypass that mirror.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
         with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Restore PNPM Cache
-        uses: actions/cache@v4
-        id: pnpm-cache
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - run: mise run install
-      # We move it so that we can copy it inside the Docker image for
-      # reproducibility of dependency resolution.
+          driver: docker
       - name: Docker build
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./server/Dockerfile
-          push: false
-          tags: tuist/tuist
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            TUIST_HOSTED=0
-            TUIST_VERSION=1.24.11.11
-            MIX_ENV=prod
+        run: |
+          log_file=/tmp/server-docker-build.log
+          docker buildx build \
+            --progress=plain \
+            --file "$GITHUB_WORKSPACE/server/Dockerfile" \
+            --target runner \
+            --load \
+            --secret id=github_token,env=GITHUB_TOKEN \
+            --tag tuist/tuist \
+            --build-arg TUIST_HOSTED=0 \
+            --build-arg TUIST_VERSION=1.24.11.11 \
+            --build-arg MIX_ENV=prod \
+            --build-arg APT_CACHE_BUST=${{ github.sha }} \
+            "$GITHUB_WORKSPACE" > "$log_file" 2>&1 &
+          build_pid=$!
+          while kill -0 "$build_pid" 2>/dev/null; do
+            echo "Waiting for Docker build..."
+            sleep 30
+          done &
+          heartbeat_pid=$!
+          status=0
+          wait "$build_pid" || status=$?
+          kill "$heartbeat_pid" 2>/dev/null || true
+          wait "$heartbeat_pid" 2>/dev/null || true
+          if [ "$status" -ne 0 ]; then
+            echo "--- server-docker-build.log tail ---" >&2
+            tail -100 "$log_file" >&2
+            exit "$status"
+          fi
+          echo "Docker build completed"
+      - name: Smoke test parser runtime and PromEx metrics server
+        run: |
+          docker run --rm \
+            --env DATABASE_URL=ecto://tuist:tuist@127.0.0.1/tuist \
+            --env TUIST_DEPLOY_ENV=prod \
+            --env TUIST_HOSTED=1 \
+            --env TUIST_OBJECT_STORAGE_PROVIDER=azure_blob \
+            --env TUIST_PROMETHEUS_ENABLED=1 \
+            tuist/tuist \
+            /app/bin/tuist eval '
+              :web = Tuist.Environment.mode()
+              :prod = Tuist.Environment.env()
+              true = File.regular?(Application.app_dir(:tuist, "priv/static/server/self-host/.env.example"))
+              parser = Application.app_dir(:tuist, "priv/native/xcactivitylog-parser")
+              {usage, 2} = System.cmd(parser, [], stderr_to_stdout: true)
+              true = String.starts_with?(usage, "usage: xcactivitylog-parser ")
+              {:ok, _} = Application.ensure_all_started(:plug_cowboy)
+              {:ok, _} = Application.ensure_all_started(:prom_ex)
+              {:ok, supervisor} = Tuist.PromEx.start_link([])
+              {:ok, _} = Application.ensure_all_started(:inets)
+              {:ok, {{_, 200, _}, _, _}} = :httpc.request(~c"http://127.0.0.1:9091/metrics")
+              :ok = Supervisor.stop(supervisor)
+            '
+      - name: Install Trivy
+        env:
+          TRIVY_VERSION: "0.69.3"
+        run: |
+          curl -sfL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" -o /tmp/trivy.tar.gz
+          sudo tar xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy
+          rm /tmp/trivy.tar.gz
+      - name: Scan image for vulnerabilities
+        # Use the absolute workspace path because `trivy image` in 0.69.3
+        # resolves --ignorefile against an undocumented base, not cwd.
+        run: trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress --ignorefile "$GITHUB_WORKSPACE/.trivyignore" tuist/tuist
   # The Codegen produces non-deterministic results, so we're skipping it for now
   # api-codegen:
   #   name: API Codegen Check
-  #   runs-on: namespace-profile-default
+  #   runs-on: tuist-linux
   #   timeout-minutes: 15
   #   services:
   #     postgres:
-  #       image: timescale/timescaledb-ha:pg16
+  #       image: postgres:16
   #       env:
   #         POSTGRES_USER: postgres
   #         POSTGRES_PASSWORD: postgres
@@ -491,25 +682,9 @@ jobs:
   #         --health-retries 5
   #   steps:
   #     - uses: actions/checkout@v4
-  #     - name: Restore Mix Cache
-  #       uses: actions/cache@v4
-  #       id: mix-cache
+  #     - uses: jdx/mise-action@v4.0.1
   #       with:
-  #         path: |
-  #           deps
-  #           _build
-  #           _site
-  #         key: mix-${{ hashFiles('mix.lock') }}
-  #     - name: Restore PNPM Cache
-  #       uses: actions/cache@v4
-  #       id: pnpm-cache
-  #       with:
-  #         path: |
-  #           ~/.pnpm/store
-  #         key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-  #     - uses: jdx/mise-action@v3.2.0
-  #       with:
-  #         cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
+  #         cache: "true"
   #     - run: mise run install
   #     - run: mise run clickhouse:start
   #     - run: mise run db:reset
@@ -529,48 +704,34 @@ jobs:
   #         fi
   seed:
     name: Seed
-    runs-on: namespace-profile-default
+    # Bigger shape: database setup (migrations + seeds) is too slow on the
+    # 2 vCPU default and overruns the 15m timeout under fleet load. The
+    # 4 vCPU / 16 GB shape restores the headroom from before #11052.
+    runs-on: tuist-linux-large
     timeout-minutes: 15
-    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
     services:
       postgres:
-        image: timescale/timescaledb-ha:pg16
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 1s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 60
     steps:
       - uses: actions/checkout@v4
-      - name: Restore Mix Cache
-        uses: actions/cache@v4
-        id: mix-cache
+      - uses: ./.github/actions/setup-server-mix
         with:
-          path: |
-            server/deps
-            server/_build
-          key: mix-${{ hashFiles('server/mix.lock') }}
-          restore-keys: |
-            mix-
-      - name: Restore PNPM Cache
-        uses: actions/cache@v4
-        id: pnpm-cache
-        with:
-          path: |
-            ~/.pnpm/store
-          key: pnpm-server-${{ hashFiles('server/pnpm-lock.yaml') }}
-      - uses: jdx/mise-action@v3.2.0
-        with:
-          cache_key: "{{default}}-{{env.NSC_BASE_IMAGE_REF_ID}}"
-          working_directory: server
-      - run: mise run install
-      - run: mise run clickhouse:start
-      - run: mise run db:reset
+          mise-install-args: erlang elixir github:ClickHouse/ClickHouse
+      - name: Start ClickHouse
+        run: mise run --no-deps clickhouse:start
+      - name: Setup database
+        run: mise run --no-deps db:reset
       - name: Run migrations
         run: mix ecto.migrate
       - name: Seed the database

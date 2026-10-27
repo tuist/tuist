@@ -3,8 +3,9 @@ import Foundation
 import TuistSupport
 
 /// A command to hash an Xcode or generated project.
-struct HashCommand: AsyncParsableCommand {
-    static var configuration: CommandConfiguration {
+public struct HashCommand: AsyncParsableCommand {
+    public init() {}
+    public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "hash",
             abstract: "Utilities to debug the hashing logic used by features like binary caching or selective testing.",

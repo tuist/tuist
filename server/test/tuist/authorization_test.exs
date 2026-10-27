@@ -1,5 +1,5 @@
 defmodule Tuist.AuthorizationTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.Accounts
@@ -10,6 +10,73 @@ defmodule Tuist.AuthorizationTest do
   alias TuistTestSupport.Fixtures.BillingFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+
+  test "can.read.account_dashboard when the account is public and the subject is anonymous" do
+    # Given
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    {:ok, public_account} = Accounts.update_account_visibility(account, :public)
+
+    # Then
+    assert Authorization.authorize(:account_dashboard_read, nil, public_account) == :ok
+  end
+
+  test "cannot.read.account_dashboard when the account is private and the subject is anonymous" do
+    # Given
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+    # Then
+    assert Authorization.authorize(:account_dashboard_read, nil, account) == {:error, :forbidden}
+  end
+
+  test "can.read.runners on a public account when the subject is not a member" do
+    # A public account exposes runner state, but attaching to a running virtual
+    # machine remains members-only through the separate interactive permission.
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    {:ok, public_account} = Accounts.update_account_visibility(account, :public)
+    non_member = AccountsFixtures.user_fixture()
+
+    # Then
+    assert Authorization.authorize(:runners_read, nil, public_account) == :ok
+    assert Authorization.authorize(:runners_read, non_member, public_account) == :ok
+    assert Authorization.authorize(:account_dashboard_read, non_member, public_account) == :ok
+  end
+
+  test "can.update.account when the subject has an admin operator grant" do
+    # Given — the grant only authorizes a Tuist operator (signed in with
+    # Google) whose email matches the grant's subject. Operators only exist
+    # on tuist-hosted instances.
+    stub(Environment, :tuist_hosted?, fn -> true end)
+    user = AccountsFixtures.user_fixture(email: "operator-#{System.unique_integer([:positive])}@tuist.dev")
+    AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google)
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    now = System.system_time(:second)
+
+    user = %{
+      user
+      | operator_grant: %{
+          tier: :admin,
+          account_id: account.id,
+          account_handle: account.name,
+          sub: user.email,
+          reason: "support",
+          jti: "1",
+          iat: now,
+          exp: now + 600
+        }
+    }
+
+    # When
+    assert Authorization.authorize(:account_update, user, account) == :ok
+  end
+
+  test "cannot.update.account when the subject is not an admin or operator" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+    # When
+    assert Authorization.authorize(:account_update, user, account) == {:error, :forbidden}
+  end
 
   test "can.update.account.billing when the subject is the same account being read and it's on-premise" do
     # Given
@@ -121,7 +188,40 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.authorize(:cache_read, project, project) == :ok
+    assert Authorization.authorize(:project_cache_read, project, project) == :ok
+  end
+
+  test "can discover account cache endpoints with project cache access without gaining account cache access" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = organization.account
+    project = ProjectsFixtures.project_fixture(account: account)
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["project:cache:read"],
+      all_projects: false,
+      project_ids: [project.id]
+    }
+
+    # When/Then
+    assert Authorization.authorize(:account_cache_endpoint_read, subject, account) == :ok
+    assert Authorization.authorize(:account_cache_read, subject, account) == {:error, :forbidden}
+  end
+
+  test "cannot discover account cache endpoints when project cache access has no accessible projects" do
+    # Given
+    account = AccountsFixtures.organization_fixture().account
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["project:cache:read"],
+      all_projects: false,
+      project_ids: []
+    }
+
+    # When/Then
+    assert Authorization.authorize(:account_cache_endpoint_read, subject, account) == {:error, :forbidden}
   end
 
   test "can.read.project.cache when the subject is not the same project being read" do
@@ -130,7 +230,7 @@ defmodule Tuist.AuthorizationTest do
     another_project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.authorize(:cache_read, another_project, project) ==
+    assert Authorization.authorize(:project_cache_read, another_project, project) ==
              {:error, :forbidden}
   end
 
@@ -139,7 +239,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.authorize(:cache_create, project, project) == :ok
+    assert Authorization.authorize(:project_cache_create, project, project) == :ok
   end
 
   test "can.create.project.cache when the subject is not the same project being read" do
@@ -148,7 +248,7 @@ defmodule Tuist.AuthorizationTest do
     another_project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.authorize(:cache_create, another_project, project) ==
+    assert Authorization.authorize(:project_cache_create, another_project, project) ==
              {:error, :forbidden}
   end
 
@@ -157,7 +257,7 @@ defmodule Tuist.AuthorizationTest do
     project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.authorize(:cache_update, project, project) == :ok
+    assert Authorization.authorize(:project_cache_update, project, project) == :ok
   end
 
   test "can.update.project.cache when the subject is not the same project being read" do
@@ -166,7 +266,7 @@ defmodule Tuist.AuthorizationTest do
     another_project = ProjectsFixtures.project_fixture()
 
     # When
-    assert Authorization.authorize(:cache_update, another_project, project) ==
+    assert Authorization.authorize(:project_cache_update, another_project, project) ==
              {:error, :forbidden}
   end
 
@@ -179,7 +279,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.authorize(:cache_read, user, project) == :ok
+    assert Authorization.authorize(:project_cache_read, user, project) == :ok
   end
 
   test "can.read.project.cache when the subject is a user that doesn't belong to the project organization" do
@@ -190,7 +290,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.authorize(:cache_read, user, project) == {:error, :forbidden}
+    assert Authorization.authorize(:project_cache_read, user, project) == {:error, :forbidden}
   end
 
   test "can.read.project.cache when the subject is a user that doesn't belong to the project organization and the project is public" do
@@ -201,7 +301,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.authorize(:cache_read, user, project) == :ok
+    assert Authorization.authorize(:project_cache_read, user, project) == :ok
   end
 
   test "can.create.project.cache when the subject is a user that belongs to the project organization" do
@@ -213,7 +313,80 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.authorize(:cache_create, user, project) == :ok
+    assert Authorization.authorize(:project_cache_create, user, project) == :ok
+  end
+
+  test "cannot.create.project.cache when the account restricts cache writes to tokens" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
+    project = ProjectsFixtures.project_fixture(account: account)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+
+    # When
+    assert Authorization.authorize(:project_cache_create, user, project) == {:error, :forbidden}
+  end
+
+  test "can.read.project.cache when the account restricts cache writes to tokens" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
+    project = ProjectsFixtures.project_fixture(account: account)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+
+    # When
+    assert Authorization.authorize(:project_cache_read, user, project) == :ok
+  end
+
+  test "can.create.project.cache when an account token has cache write scope and writes are restricted to tokens" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
+    project = ProjectsFixtures.project_fixture(account: account)
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["project:cache:write"],
+      all_projects: true
+    }
+
+    # When
+    assert Authorization.authorize(:project_cache_create, subject, project) == :ok
+  end
+
+  test "can.create.account.cache when a CI account token writes to a token-restricted account" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["ci"],
+      all_projects: true
+    }
+
+    # When
+    assert Authorization.authorize(:account_cache_create, subject, account) == :ok
+  end
+
+  test "cannot.create.project.cache when a user-issued account token writes to a token-restricted account" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture(creator: user)
+    {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
+    project = ProjectsFixtures.project_fixture(account: account)
+
+    subject = %AuthenticatedAccount{
+      account: user.account,
+      issued_by: user,
+      scopes: ["project:cache:write"],
+      all_projects: true
+    }
+
+    # When
+    assert Authorization.authorize(:project_cache_create, subject, project) == {:error, :forbidden}
   end
 
   test "can.create.project.cache when the subject is a user that doesn't belong to the project organization" do
@@ -224,7 +397,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.authorize(:cache_create, user, project) ==
+    assert Authorization.authorize(:project_cache_create, user, project) ==
              {:error, :forbidden}
   end
 
@@ -237,7 +410,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.authorize(:cache_update, user, project) == :ok
+    assert Authorization.authorize(:project_cache_update, user, project) == :ok
   end
 
   test "can.update.project.cache when the subject is a user that doesn't belong to the project organization" do
@@ -248,7 +421,7 @@ defmodule Tuist.AuthorizationTest do
     user = AccountsFixtures.user_fixture()
 
     # When
-    assert Authorization.authorize(:cache_update, user, project) ==
+    assert Authorization.authorize(:project_cache_update, user, project) ==
              {:error, :forbidden}
   end
 
@@ -584,6 +757,107 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.authorize(:projects_read, user, account) == {:error, :forbidden}
   end
 
+  test "can.read.account.runners when the subject is a user that belongs to an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :user)
+
+    # When
+    assert Authorization.authorize(:runners_read, user, account) == :ok
+  end
+
+  test "can.read.account.runners when the subject is a user that doesn't belong to an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+
+    # When
+    assert Authorization.authorize(:runners_read, user, account) == {:error, :forbidden}
+  end
+
+  test "can.read.account.runners when an account token has runner read scope" do
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["account:runners:read"]
+    }
+
+    assert Authorization.authorize(:runners_read, subject, account) == :ok
+  end
+
+  test "can.read.account.runners when an account token has the coding-agent scope" do
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["mcp"]
+    }
+
+    assert Authorization.authorize(:runners_read, subject, account) == :ok
+  end
+
+  test "cannot.read.account.runners when an account token lacks a runner read scope" do
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["project:admin:read"]
+    }
+
+    assert Authorization.authorize(:runners_read, subject, account) == {:error, :forbidden}
+  end
+
+  test "cannot.read.account.runners when an account token targets another private account" do
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+    subject = %AuthenticatedAccount{
+      account: account,
+      scopes: ["account:runners:read"]
+    }
+
+    assert Authorization.authorize(:runners_read, subject, other_account) == {:error, :forbidden}
+  end
+
+  test "can.read.account.runners when an account token has runner write scope" do
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    subject = %AuthenticatedAccount{account: account, scopes: ["account:runners:write"]}
+
+    assert Authorization.authorize(:runners_read, subject, account) == :ok
+  end
+
+  test "can.update.account.runners only when the subject is an admin of the organization" do
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    admin = AccountsFixtures.user_fixture()
+    member = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(admin, organization, role: :admin)
+    Accounts.add_user_to_organization(member, organization, role: :user)
+
+    assert Authorization.authorize(:runners_update, admin, account) == :ok
+    assert Authorization.authorize(:runners_update, member, account) == {:error, :forbidden}
+  end
+
+  test "can.update.account.runners when an account token has runner write scope for that account" do
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    subject = %AuthenticatedAccount{account: account, scopes: ["account:runners:write"]}
+
+    assert Authorization.authorize(:runners_update, subject, account) == :ok
+    assert Authorization.authorize(:runners_update, subject, other_account) == {:error, :forbidden}
+
+    for scopes <- [["account:runners:read"], ["mcp"]] do
+      assert Authorization.authorize(:runners_update, %{subject | scopes: scopes}, account) == {:error, :forbidden}
+    end
+  end
+
   test "can.read.account.organization when the subject is a user that is admin of an organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()
@@ -716,6 +990,28 @@ defmodule Tuist.AuthorizationTest do
 
     # When
     assert Authorization.authorize(:organization_read, user, account) ==
+             {:error, :forbidden}
+  end
+
+  test "can.read.account.organization when the subject is a matching account token with members read scope" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    subject = %AuthenticatedAccount{account: account, scopes: ["account:members:read"]}
+
+    # When
+    assert Authorization.authorize(:organization_read, subject, account) == :ok
+  end
+
+  test "cannot.read.account.organization when the subject is an account token for another account" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    other_account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    subject = %AuthenticatedAccount{account: other_account, scopes: ["account:members:read"]}
+
+    # When
+    assert Authorization.authorize(:organization_read, subject, account) ==
              {:error, :forbidden}
   end
 
@@ -854,6 +1150,27 @@ defmodule Tuist.AuthorizationTest do
              {:error, :forbidden}
   end
 
+  test "can.create.account.invitation when the subject is a matching account token with members write scope" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    subject = %AuthenticatedAccount{account: account, scopes: ["account:members:write"]}
+
+    # When
+    assert Authorization.authorize(:invitation_create, subject, account) == :ok
+  end
+
+  test "cannot.create.account.invitation when the subject is a matching account token with members read scope" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    subject = %AuthenticatedAccount{account: account, scopes: ["account:members:read"]}
+
+    # When
+    assert Authorization.authorize(:invitation_create, subject, account) ==
+             {:error, :forbidden}
+  end
+
   test "can.delete.account.invitation when the subject is a user that is admin of an organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()
@@ -888,6 +1205,16 @@ defmodule Tuist.AuthorizationTest do
              {:error, :forbidden}
   end
 
+  test "can.delete.account.invitation when the subject is a matching account token with members write scope" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    subject = %AuthenticatedAccount{account: account, scopes: ["account:members:write"]}
+
+    # When
+    assert Authorization.authorize(:invitation_delete, subject, account) == :ok
+  end
+
   test "can.delete.account.member when the subject is a user that is admin of an organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()
@@ -918,6 +1245,16 @@ defmodule Tuist.AuthorizationTest do
 
     # When
     assert Authorization.authorize(:member_delete, user, account) == {:error, :forbidden}
+  end
+
+  test "can.delete.account.member when the subject is a matching account token with members write scope" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    subject = %AuthenticatedAccount{account: account, scopes: ["account:members:write"]}
+
+    # When
+    assert Authorization.authorize(:member_delete, subject, account) == :ok
   end
 
   test "can.update.account.member when the subject is a user that is admin of an organization" do
@@ -952,6 +1289,16 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.authorize(:member_update, user, account) == {:error, :forbidden}
   end
 
+  test "can.update.account.member when the subject is a matching account token with members write scope" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    subject = %AuthenticatedAccount{account: account, scopes: ["account:members:write"]}
+
+    # When
+    assert Authorization.authorize(:member_update, subject, account) == :ok
+  end
+
   test "can.create.account.token when the subject is the same account being read" do
     # Given
     user = AccountsFixtures.user_fixture()
@@ -982,7 +1329,7 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.authorize(:account_token_create, user, account) == :ok
   end
 
-  test "can.create.account.token when the subject is a user of the account being read" do
+  test "cannot.create.account.token when the subject is a user of the account being read" do
     # Given
     user = AccountsFixtures.user_fixture()
     organization = AccountsFixtures.organization_fixture()
@@ -990,7 +1337,7 @@ defmodule Tuist.AuthorizationTest do
     Accounts.add_user_to_organization(user, organization, role: :user)
 
     # When
-    assert Authorization.authorize(:account_token_create, user, account) == :ok
+    assert Authorization.authorize(:account_token_create, user, account) == {:error, :forbidden}
   end
 
   test "can.create.account.token when the subject does not belong to the account organization" do
@@ -1263,6 +1610,50 @@ defmodule Tuist.AuthorizationTest do
              {:error, :forbidden}
   end
 
+  test "can.update.project.settings when the subject is a user-issued token whose user is an admin" do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    organization = AccountsFixtures.organization_fixture(creator: user)
+    project = ProjectsFixtures.project_fixture(account_id: Accounts.get_account_from_organization(organization).id)
+
+    subject = %AuthenticatedAccount{
+      account: user.account,
+      scopes: ["project:admin:write"],
+      all_projects: true,
+      issued_by: user
+    }
+
+    assert Authorization.authorize(:project_update, subject, project) == :ok
+    assert Authorization.authorize(:project_delete, subject, project) == :ok
+  end
+
+  test "can.update.project.settings when the subject is a user-issued token whose user is not an admin" do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    organization = AccountsFixtures.organization_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :user)
+    project = ProjectsFixtures.project_fixture(account_id: Accounts.get_account_from_organization(organization).id)
+
+    subject = %AuthenticatedAccount{
+      account: user.account,
+      scopes: ["project:admin:write"],
+      all_projects: true,
+      issued_by: user
+    }
+
+    assert Authorization.authorize(:project_update, subject, project) == {:error, :forbidden}
+    assert Authorization.authorize(:project_delete, subject, project) == {:error, :forbidden}
+  end
+
+  test "can.attach.runners.interactive when the subject is a user of the account" do
+    # Given
+    user = AccountsFixtures.user_fixture()
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    Accounts.add_user_to_organization(user, organization, role: :user)
+
+    # Then
+    assert Authorization.authorize(:runners_interactive_access, user, account) == :ok
+  end
+
   test "can.user.read.ops when the environment is :dev" do
     # Given
     stub(Environment, :dev?, fn -> true end)
@@ -1272,73 +1663,133 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.authorize(:ops_read, user, :ops) == :ok
   end
 
-  test "can.user.read.ops when the environment is not dev and the account handle is not included in the list of super admin handles" do
+  test "cannot.user.read.ops when the user is not an operator" do
     # Given
-    stub(Environment, :env, fn -> :prod end)
     user = AccountsFixtures.user_fixture(preload: [:account])
-    stub(Environment, :ops_user_handles, fn -> [] end)
+    stub(Accounts, :tuist_operator?, fn _ -> false end)
 
     # Then
     assert Authorization.authorize(:command_event_read, user, :ops) == {:error, :forbidden}
   end
 
-  test "can.user.read.ops when the environment is not dev and the account handle is included in the list of super admin handles" do
+  test "can.user.read.ops when the user is an operator" do
     # Given
-    stub(Environment, :env, fn -> :prod end)
     user = AccountsFixtures.user_fixture(preload: [:account])
-    stub(Environment, :ops_user_handles, fn -> [user.account.name] end)
+    stub(Accounts, :tuist_operator?, fn _ -> true end)
 
     # Then
     assert Authorization.authorize(:ops_read, user, :ops) == :ok
   end
 
-  test "can.read.account.registry when the subject is the same account being read and the scopes permit the action" do
-    # Given
-    account = AccountsFixtures.user_fixture(preload: [:account]).account
+  describe "viewer role" do
+    setup do
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      viewer = AccountsFixtures.user_fixture()
+      Accounts.add_user_to_organization(viewer, organization, role: :viewer)
 
-    # When
-    assert Authorization.authorize(
-             :registry_read,
-             %AuthenticatedAccount{account: account, scopes: ["account:registry:read"]},
-             account
-           ) == :ok
-  end
+      %{organization: organization, account: account, project: project, viewer: viewer}
+    end
 
-  test "can.read.account.registry when the subject is the same account being read and the scopes don't permit the action" do
-    # Given
-    account = AccountsFixtures.user_fixture(preload: [:account]).account
+    test "can read a project's tests", %{project: project, viewer: viewer} do
+      assert Authorization.authorize(:test_read, viewer, project) == :ok
+    end
 
-    # When
-    assert Authorization.authorize(
-             :registry_read,
-             %AuthenticatedAccount{account: account, scopes: ["account:registry:create"]},
-             account
-           ) == {:error, :forbidden}
-  end
+    test "cannot update a test case, which is how test cases get quarantined", %{
+      project: project,
+      viewer: viewer
+    } do
+      assert Authorization.authorize(:test_update, viewer, project) == {:error, :forbidden}
+    end
 
-  test "can.read.account.registry when the subject is not the same account being read" do
-    # Given
-    account = AccountsFixtures.user_fixture(preload: [:account]).account
-    another_account = AccountsFixtures.user_fixture(preload: [:account]).account
+    test "can read a project's runs and builds", %{project: project, viewer: viewer} do
+      assert Authorization.authorize(:run_read, viewer, project) == :ok
+      assert Authorization.authorize(:build_read, viewer, project) == :ok
+    end
 
-    # When
-    assert Authorization.authorize(
-             :registry_read,
-             %AuthenticatedAccount{account: account, scopes: ["account:registry:read"]},
-             another_account
-           ) == {:error, :forbidden}
-  end
+    test "cannot create or update a project's runs", %{project: project, viewer: viewer} do
+      assert Authorization.authorize(:run_create, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:run_update, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:build_create, viewer, project) == {:error, :forbidden}
+    end
 
-  test "can.read.account.registry when the subject is project" do
-    # Given
-    project = ProjectsFixtures.project_fixture()
-    account = AccountsFixtures.user_fixture(preload: [:account]).account
+    test "can reach a private project's dashboards and URLs", %{
+      account: account,
+      project: project,
+      viewer: viewer
+    } do
+      assert Authorization.authorize(:dashboard_read, viewer, project) == :ok
+      assert Authorization.authorize(:project_url_access, viewer, project) == :ok
+      assert Authorization.authorize(:account_dashboard_read, viewer, account) == :ok
+    end
 
-    # When
-    assert Authorization.authorize(
-             :registry_read,
-             project,
-             account
-           ) == {:error, :forbidden}
+    test "can read a project's command events", %{project: project, viewer: viewer} do
+      command_event = CommandEventsFixtures.command_event_fixture(project_id: project.id)
+
+      assert Authorization.authorize(:command_event_read, viewer, command_event) == :ok
+    end
+
+    test "cannot write to the project or account cache", %{
+      account: account,
+      project: project,
+      viewer: viewer
+    } do
+      assert Authorization.authorize(:project_cache_read, viewer, project) == :ok
+      assert Authorization.authorize(:project_cache_create, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:project_cache_update, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:account_cache_read, viewer, account) == :ok
+      assert Authorization.authorize(:account_cache_create, viewer, account) == {:error, :forbidden}
+    end
+
+    test "cannot manage the project, the organization, or its members", %{
+      account: account,
+      project: project,
+      viewer: viewer
+    } do
+      assert Authorization.authorize(:project_create, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:project_update, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:project_delete, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:organization_update, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:member_update, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:member_delete, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:invitation_create, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:account_update, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:account_delete, viewer, account) == {:error, :forbidden}
+    end
+
+    test "can read runner state but cannot attach an interactive shell or VNC session", %{
+      account: account,
+      viewer: viewer
+    } do
+      # Given — attaching executes commands on the running VM and reaches the
+      # secrets the job was given, so it is withheld even though the runner
+      # dashboards are readable.
+      assert Authorization.authorize(:runners_read, viewer, account) == :ok
+
+      assert Authorization.authorize(:runners_interactive_access, viewer, account) ==
+               {:error, :forbidden}
+    end
+
+    test "cannot manage automation alerts but can read them", %{project: project, viewer: viewer} do
+      assert Authorization.authorize(:automation_alert_read, viewer, project) == :ok
+      assert Authorization.authorize(:automation_alert_create, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:automation_alert_update, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:automation_alert_delete, viewer, project) == {:error, :forbidden}
+    end
+
+    test "cannot create or delete previews but can read them", %{project: project, viewer: viewer} do
+      assert Authorization.authorize(:preview_read, viewer, project) == :ok
+      assert Authorization.authorize(:preview_create, viewer, project) == {:error, :forbidden}
+      assert Authorization.authorize(:preview_delete, viewer, project) == {:error, :forbidden}
+    end
+
+    test "cannot reach account tokens at all", %{account: account, viewer: viewer} do
+      # Given — tokens are credentials management rather than dashboard reading,
+      # and granting the read half-opens the settings shell around them.
+      assert Authorization.authorize(:account_token_read, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:account_token_create, viewer, account) == {:error, :forbidden}
+      assert Authorization.authorize(:account_token_delete, viewer, account) == {:error, :forbidden}
+    end
   end
 end

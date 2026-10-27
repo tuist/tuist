@@ -1,0 +1,72 @@
+{
+  "name": "FilterDefinition",
+  "tagName": "noora-filter-definition",
+  "elementClassName": "NooraFilterDefinition",
+  "className": "noora-filter-definition",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Describes one filter that a user can add.",
+  "usage": "<noora-filter-definition name=\"status\" label=\"Status\" type=\"option\"><noora-filter-option value=\"active\">Active</noora-filter-option></noora-filter-definition>",
+  "standalone": false,
+  "attributes": [
+    {
+      "name": "name",
+      "property": "name",
+      "type": "string",
+      "default": "",
+      "description": "Sets the filter identifier."
+    },
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Sets the filter label."
+    },
+    {
+      "name": "type",
+      "property": "type",
+      "type": "string",
+      "values": ["option", "text", "number", "percentage", "list"],
+      "default": "option",
+      "description": "Sets the filter value type and available operators."
+    },
+    {
+      "name": "operator",
+      "property": "operator",
+      "type": "string",
+      "values": ["==", "!=", "=~", "!=~", "<", ">", "<=", ">="],
+      "description": "Sets the initial comparison operator."
+    },
+    {
+      "name": "default-value",
+      "property": "defaultValue",
+      "type": "string",
+      "description": "Sets the value used when the filter is added."
+    },
+    {
+      "name": "searchable",
+      "property": "searchable",
+      "type": "boolean",
+      "default": false,
+      "description": "Adds search to option-value menus."
+    }
+  ],
+  "properties": [],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "The allowed noora-filter-option children."
+    }
+  ],
+  "cssParts": [],
+  "notes": [],
+  "examples": [
+    {
+      "id": "definition",
+      "title": "Definition",
+      "description": "Describe an available filter and its values.",
+      "markup": "<noora-filter-definition name=\"status\" label=\"Status\" type=\"option\"><noora-filter-option value=\"active\">Active</noora-filter-option></noora-filter-definition>"
+    }
+  ]
+}

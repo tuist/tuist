@@ -1,0 +1,326 @@
+defmodule Cache.SQLiteBufferTest do
+  use ExUnit.Case, async: true
+  use Mimic
+
+  import Ecto.Query
+  import ExUnit.CaptureLog
+
+  alias Cache.CacheArtifact
+  alias Cache.CacheArtifactsBuffer
+  alias Cache.KeyValueBuffer
+  alias Cache.KeyValueEntry
+  alias Cache.KeyValueEntryHash
+  alias Cache.KeyValueRepo
+  alias Cache.Repo
+  alias Cache.S3Transfer
+  alias Cache.S3TransfersBuffer
+  alias Cache.SQLiteBuffer
+  alias Ecto.Adapters.SQL.Sandbox
+
+  setup :set_mimic_from_context
+
+  setup context do
+    :ok = Sandbox.checkout(Repo)
+    :ok = Sandbox.checkout(KeyValueRepo)
+
+    context =
+      context
+      |> Cache.BufferTestHelpers.setup_key_value_buffer()
+      |> Cache.BufferTestHelpers.setup_cache_artifacts_buffer()
+      |> Cache.BufferTestHelpers.setup_s3_transfers_buffer()
+
+    :ok = KeyValueBuffer.flush()
+    :ok = CacheArtifactsBuffer.flush()
+    :ok = S3TransfersBuffer.flush()
+
+    Repo.delete_all(S3Transfer)
+    Repo.delete_all(CacheArtifact)
+    KeyValueRepo.delete_all(KeyValueEntryHash)
+    KeyValueRepo.delete_all(KeyValueEntry)
+
+    {:ok, context}
+  end
+
+  test "flush persists key values and keeps latest payload" do
+    key = "keyvalue:account:project:cas"
+    payload_one = JSON.encode!(%{entries: [%{"value" => "one"}]})
+    payload_two = JSON.encode!(%{entries: [%{"value" => "two"}]})
+
+    :ok = KeyValueBuffer.enqueue(key, payload_one)
+    :ok = KeyValueBuffer.enqueue(key, payload_two)
+
+    assert %{key_values: 1} = KeyValueBuffer.queue_stats()
+
+    :ok = KeyValueBuffer.flush()
+
+    record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
+    assert record.json_payload == payload_two
+    assert record.last_accessed_at
+
+    hashes =
+      KeyValueRepo.all(from(h in KeyValueEntryHash, where: h.key_value_entry_id == ^record.id, select: h.cas_hash))
+
+    assert hashes == ["two"]
+  end
+
+  test "flush refreshes hash references on overwrite" do
+    key = "keyvalue:account:project:cas-overwrite"
+    payload_one = JSON.encode!(%{entries: [%{"value" => "one"}, %{"value" => "shared"}]})
+    payload_two = JSON.encode!(%{entries: [%{"value" => "two"}, %{"value" => "shared"}]})
+
+    :ok = KeyValueBuffer.enqueue(key, payload_one)
+    :ok = KeyValueBuffer.flush()
+
+    :ok = KeyValueBuffer.enqueue(key, payload_two)
+    :ok = KeyValueBuffer.flush()
+
+    record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
+
+    hashes =
+      KeyValueRepo.all(
+        from(h in KeyValueEntryHash,
+          where: h.key_value_entry_id == ^record.id,
+          select: h.cas_hash,
+          order_by: h.cas_hash
+        )
+      )
+
+    assert hashes == ["shared", "two"]
+  end
+
+  test "write then access for same key keeps pending write" do
+    key = "keyvalue:write-then-access:account:project"
+    payload = JSON.encode!(%{entries: [%{"value" => "write"}]})
+
+    :ok = KeyValueBuffer.enqueue(key, payload)
+    :ok = KeyValueBuffer.enqueue_access(key)
+
+    assert %{key_values: 1, total: 1} = KeyValueBuffer.queue_stats()
+
+    :ok = KeyValueBuffer.flush()
+
+    record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
+    assert record.json_payload == payload
+    assert record.last_accessed_at
+  end
+
+  test "access-only entry updates last_accessed_at without changing payload" do
+    key = "keyvalue:access-only:account:project"
+    payload = JSON.encode!(%{entries: [%{"value" => "original"}]})
+
+    initial_time = DateTime.add(DateTime.utc_now(), -120, :second)
+    timestamp = DateTime.truncate(DateTime.utc_now(), :second)
+
+    KeyValueRepo.insert!(%KeyValueEntry{
+      key: key,
+      json_payload: payload,
+      last_accessed_at: initial_time,
+      inserted_at: timestamp,
+      updated_at: timestamp
+    })
+
+    :ok = KeyValueBuffer.enqueue_access(key)
+    :ok = KeyValueBuffer.flush()
+
+    record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
+    assert record.json_payload == payload
+    assert DateTime.after?(record.last_accessed_at, initial_time)
+  end
+
+  test "flush handles access batches at sqlite parameter limits" do
+    base_key = "keyvalue:batch-access-limit:account:project"
+    initial_time = DateTime.add(DateTime.utc_now(), -120, :second)
+    timestamp = DateTime.truncate(DateTime.utc_now(), :second)
+
+    rows =
+      for i <- 1..1000 do
+        %{
+          key: "#{base_key}:#{i}",
+          json_payload: JSON.encode!(%{entries: [%{"value" => "hash-#{i}"}]}),
+          last_accessed_at: initial_time,
+          inserted_at: timestamp,
+          updated_at: timestamp
+        }
+      end
+
+    {1000, _} = KeyValueRepo.insert_all(KeyValueEntry, rows)
+
+    for i <- 1..1000 do
+      :ok = KeyValueBuffer.enqueue_access("#{base_key}:#{i}")
+    end
+
+    :ok = KeyValueBuffer.flush()
+
+    refreshed_count =
+      KeyValueRepo.aggregate(
+        from(e in KeyValueEntry,
+          where: like(e.key, ^"#{base_key}:%") and e.last_accessed_at > ^initial_time
+        ),
+        :count,
+        :id
+      )
+
+    assert refreshed_count == 1000
+  end
+
+  test "multiple accesses for same key are de-duplicated in queue" do
+    key = "keyvalue:access-dedup:account:project"
+    write_key = "keyvalue:access-dedup:write"
+
+    :ok = KeyValueBuffer.enqueue(write_key, JSON.encode!(%{value: "write"}))
+    :ok = KeyValueBuffer.enqueue_access(key)
+    :ok = KeyValueBuffer.enqueue_access(key)
+    :ok = KeyValueBuffer.enqueue_access(key)
+
+    assert %{key_values: 2, total: 2} = KeyValueBuffer.queue_stats()
+
+    :ok = KeyValueBuffer.flush()
+  end
+
+  test "flush writes and deletes cas artifacts" do
+    key = "account/project/xcode/ab/cd/cas1"
+    last_accessed_at = DateTime.utc_now()
+
+    :ok = CacheArtifactsBuffer.enqueue_access(key, 123, last_accessed_at)
+    :ok = CacheArtifactsBuffer.flush()
+
+    record = Repo.get_by!(CacheArtifact, key: key)
+    assert record.size_bytes == 123
+
+    :ok = CacheArtifactsBuffer.enqueue_delete(key)
+    :ok = CacheArtifactsBuffer.flush()
+
+    assert Repo.get_by(CacheArtifact, key: key) == nil
+  end
+
+  test "flush inserts and deletes s3 transfers with de-duplication" do
+    key = "account/project/xcode/ab/cd/key"
+
+    :ok = S3TransfersBuffer.enqueue(:upload, "account", "project", :xcode_cache, key)
+    :ok = S3TransfersBuffer.enqueue(:upload, "account", "project", :xcode_cache, key)
+    :ok = S3TransfersBuffer.flush()
+
+    transfers = Repo.all(from(t in S3Transfer, where: t.key == ^key))
+    assert length(transfers) == 1
+
+    :ok = S3TransfersBuffer.enqueue_delete(hd(transfers).id)
+    :ok = S3TransfersBuffer.flush()
+
+    assert Repo.aggregate(from(t in S3Transfer, where: t.key == ^key), :count, :id) == 0
+  end
+
+  test "flushes queued entries on shutdown" do
+    key = "keyvalue:shutdown:account:project"
+    payload = JSON.encode!(%{entries: [%{"value" => "shutdown"}]})
+
+    suffix = :erlang.unique_integer([:positive])
+    shutdown_buf = :"sqlite_buffer_shutdown_test_#{suffix}"
+    {:ok, pid} = SQLiteBuffer.start_link(name: shutdown_buf, buffer_module: KeyValueBuffer)
+
+    Sandbox.allow(KeyValueRepo, self(), pid)
+    true = :ets.insert(shutdown_buf, {key, {:write, %{key: key, json_payload: payload}}})
+
+    :ok = GenServer.stop(pid)
+
+    record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
+    assert record.json_payload == payload
+  end
+
+  test "unexpected info messages are logged and ignored" do
+    key = "keyvalue:unexpected-message:account:project"
+    payload = JSON.encode!(%{entries: [%{"value" => "unexpected"}]})
+
+    suffix = :erlang.unique_integer([:positive])
+    buffer = :"sqlite_buffer_unexpected_message_test_#{suffix}"
+    {:ok, pid} = SQLiteBuffer.start_link(name: buffer, buffer_module: KeyValueBuffer)
+
+    Sandbox.allow(KeyValueRepo, self(), pid)
+
+    log =
+      capture_log(fn ->
+        send(pid, {[:alias | make_ref()], :dropped})
+        true = :ets.insert(buffer, {key, {:write, %{key: key, json_payload: payload}}})
+        :ok = SQLiteBuffer.flush(buffer)
+      end)
+
+    assert log =~ "key_values buffer received unexpected message"
+
+    record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
+    assert record.json_payload == payload
+
+    :ok = GenServer.stop(pid)
+  end
+
+  test "concurrent writes to the same key preserve last value" do
+    key = "keyvalue:concurrent:account:project"
+
+    tasks =
+      for i <- 1..100 do
+        Task.async(fn ->
+          payload = JSON.encode!(%{value: i})
+          KeyValueBuffer.enqueue(key, payload)
+        end)
+      end
+
+    Task.await_many(tasks)
+
+    assert %{key_values: 1} = KeyValueBuffer.queue_stats()
+
+    :ok = KeyValueBuffer.flush()
+
+    record = KeyValueRepo.get_by!(KeyValueEntry, key: key)
+    decoded = JSON.decode!(record.json_payload)
+    assert decoded["value"] in 1..100
+  end
+
+  test "concurrent access and delete for same key preserves last operation" do
+    key = "account/project/xcode/ab/cd/concurrent"
+    last_accessed_at = DateTime.utc_now()
+
+    tasks =
+      for i <- 1..100 do
+        Task.async(fn ->
+          if rem(i, 2) == 0 do
+            CacheArtifactsBuffer.enqueue_access(key, i * 100, last_accessed_at)
+          else
+            CacheArtifactsBuffer.enqueue_delete(key)
+          end
+        end)
+      end
+
+    Task.await_many(tasks)
+
+    assert %{cache_artifacts: 1} = CacheArtifactsBuffer.queue_stats()
+
+    :ok = CacheArtifactsBuffer.flush()
+
+    case Repo.get_by(CacheArtifact, key: key) do
+      nil ->
+        assert true
+
+      record ->
+        assert rem(record.size_bytes, 100) == 0
+    end
+  end
+
+  test "writes during flush are not lost" do
+    base_key = "keyvalue:during_flush:account:project"
+
+    for i <- 1..50 do
+      KeyValueBuffer.enqueue("#{base_key}:#{i}", JSON.encode!(%{batch: "first", index: i}))
+    end
+
+    flush_task = Task.async(fn -> KeyValueBuffer.flush() end)
+
+    for i <- 51..100 do
+      KeyValueBuffer.enqueue("#{base_key}:#{i}", JSON.encode!(%{batch: "second", index: i}))
+    end
+
+    Task.await(flush_task)
+
+    :ok = KeyValueBuffer.flush()
+
+    count = KeyValueRepo.aggregate(from(e in KeyValueEntry, where: like(e.key, ^"#{base_key}%")), :count, :id)
+    assert count == 100
+  end
+end

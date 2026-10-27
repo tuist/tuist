@@ -10,7 +10,7 @@ public protocol SettingsContentHashing {
 
 /// `SettingsContentHasher`
 /// is responsible for computing a hash that uniquely identifies some `Settings`
-public final class SettingsContentHasher: SettingsContentHashing {
+public struct SettingsContentHasher: SettingsContentHashing {
     private let contentHasher: ContentHashing
     private let xcconfigHasher: XCConfigContentHashing
 
@@ -25,9 +25,12 @@ public final class SettingsContentHasher: SettingsContentHashing {
 
     public func hash(settings: Settings) async throws -> String {
         let baseSettingsHash = try hash(settings.base)
+        let baseDebugSettingsHash = settings.baseDebug.isEmpty ? nil : try hash(settings.baseDebug)
         let configurationHash = try await hash(settings.configurations)
         let defaultSettingsHash = try hash(settings.defaultSettings)
-        return try contentHasher.hash([baseSettingsHash, configurationHash, defaultSettingsHash])
+        return try contentHasher.hash(
+            [baseSettingsHash, baseDebugSettingsHash, configurationHash, defaultSettingsHash].compactMap { $0 }
+        )
     }
 
     private func hash(_ configurations: [BuildConfiguration: Configuration?]) async throws -> String {
@@ -46,7 +49,11 @@ public final class SettingsContentHasher: SettingsContentHashing {
 
     private func hash(_ settingsDictionary: SettingsDictionary) throws -> String {
         let filteredSettings = settingsDictionary.compactMap { key, value -> (String, SettingValue)? in
-            let filteredValue = filterWarningFlags(from: value)
+            guard !Self.isCompilationCacheSetting(key),
+                  !Self.isWarningsAsErrorsSetting(key),
+                  key != Self.prefixMappingRootDirectorySetting
+            else { return nil }
+            let filteredValue = filterProductNeutralFlags(from: value, key: key)
             return filteredValue.map { (key, $0) }
         }
         let sortedAndNormalizedSettings = filteredSettings
@@ -55,16 +62,72 @@ public final class SettingsContentHasher: SettingsContentHashing {
         return try contentHasher.hash(sortedAndNormalizedSettings)
     }
 
-    private func filterWarningFlags(from value: SettingValue) -> SettingValue? {
+    /// Build settings that configure Xcode's compilation cache, written by
+    /// `XcodeCacheSettingsProjectMapper` into a project's base settings.
+    ///
+    /// They select where a compilation caches, not what it produces, so two builds
+    /// differing only here yield the same binary and must land on the same hash.
+    /// Hashing them splits the cache along axes that have nothing to do with the
+    /// code: `COMPILATION_CACHE_PLUGIN_PATH` carries the dylib's install path, which
+    /// differs between a Homebrew install and a mise one, and toggling
+    /// `enableCaching` at all moves every target's hash.
+    private static func isCompilationCacheSetting(_ key: String) -> Bool {
+        key.hasPrefix("COMPILATION_CACHE_")
+    }
+
+    /// The root directory `XcodeCachePrefixMappingWorkspaceMapper` writes for the
+    /// `SWIFT_OTHER_PREFIX_MAPPINGS` and `CLANG_OTHER_PREFIX_MAPPINGS` it generates.
+    ///
+    /// Those mappings reference this setting instead of embedding the path, and are
+    /// hashed as written. The path itself differs between checkouts of the same
+    /// repository, git worktrees included, while the placeholders it maps to, which are
+    /// what reach the built product, don't.
+    private static let prefixMappingRootDirectorySetting = "TUIST_PREFIX_MAPPING_ROOT_DIR"
+
+    /// Warnings-as-errors decides whether a build fails, not what it produces.
+    private static func isWarningsAsErrorsSetting(_ key: String) -> Bool {
+        let unconditionedKey = key.split(separator: "[", maxSplits: 1).first.map(String.init) ?? key
+        return unconditionedKey == "SWIFT_TREAT_WARNINGS_AS_ERRORS" || unconditionedKey == "GCC_TREAT_WARNINGS_AS_ERRORS"
+    }
+
+    private static let swiftWarningsAsErrorsFlags: Set<String> = ["-warnings-as-errors", "-no-warnings-as-errors"]
+
+    private func filterProductNeutralFlags(from value: SettingValue, key: String) -> SettingValue? {
         guard case let .array(elements) = value else {
             return value
         }
 
-        let filteredElements = filterWarningFlags(from: elements)
+        let filteredElements = filterCASPluginOptions(
+            from: filterWarningFlags(from: elements, isSwiftFlags: key.hasPrefix("OTHER_SWIFT_FLAGS"))
+        )
         return filteredElements.isEmpty ? nil : .array(filteredElements)
     }
 
-    private func filterWarningFlags(from elements: [String]) -> [String] {
+    /// Drops `-cas-plugin-option <value>` pairs, which `XcodeCacheSettingsProjectMapper`
+    /// appends to `OTHER_SWIFT_FLAGS` to reach compiler frontends that carry no CLI
+    /// environment. They configure the CAS plugin's routing and upload policy, not
+    /// codegen. `tuist-upload=false` is the one that matters in practice: the
+    /// documented `xcodeCache(upload: Environment.isCI)` policy sets it on developer
+    /// machines and not on CI, which would otherwise give the two disjoint cache keys
+    /// and deny developers every artifact CI warmed.
+    private func filterCASPluginOptions(from elements: [String]) -> [String] {
+        var result: [String] = []
+        var index = 0
+
+        while index < elements.count {
+            if elements[index] == "-cas-plugin-option", index + 1 < elements.count {
+                index += 2
+                continue
+            }
+
+            result.append(elements[index])
+            index += 1
+        }
+
+        return result
+    }
+
+    private func filterWarningFlags(from elements: [String], isSwiftFlags: Bool) -> [String] {
         var result: [String] = []
         var index = 0
 
@@ -73,13 +136,22 @@ public final class SettingsContentHasher: SettingsContentHashing {
 
             if element == "-Xfrontend", index + 1 < elements.count {
                 let nextElement = elements[index + 1]
-                if nextElement.hasPrefix("-warn-") {
+                if nextElement.hasPrefix("-warn-") || Self.swiftWarningsAsErrorsFlags.contains(nextElement) {
                     index += 2
                     continue
                 }
             }
 
-            if element.hasPrefix("-Wno-") ||
+            // Swift's `-Werror` takes a diagnostic group as its argument; Clang's stands alone.
+            if isSwiftFlags, element == "-Werror", index + 1 < elements.count {
+                index += 2
+                continue
+            }
+
+            if Self.swiftWarningsAsErrorsFlags.contains(element) ||
+                element == "-Werror" ||
+                element.hasPrefix("-Werror=") ||
+                element.hasPrefix("-Wno-") ||
                 element.hasPrefix("-Wunused") ||
                 element.hasPrefix("-Wdocumentation") ||
                 element.hasPrefix("-Wdeprecated") ||

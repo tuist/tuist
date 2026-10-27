@@ -2,11 +2,15 @@ defmodule Tuist.ClickHouseRepo.Migrations.ChangeCommandEventsPrimaryKey do
   use Ecto.Migration
 
   def up do
+    # Serial IDs require a configured Keeper. The managed instance has one; a
+    # single-node ClickHouse (dev, test, self-hosted, and every hosted preview)
+    # does not, and would reject the default expression.
     legacy_id_default =
-      if Tuist.Environment.dev?() || Tuist.Environment.test?(),
-        do: "abs(rand64())",
-        # Serial IDs require Zookeeper, which we are not using in dev/test environments. Therefore, only run it in deployment environments.
-        else: "generateSerialID('command_events_legacy_id')"
+      if Tuist.ClickHouseCapabilities.use_serial_ids?(repo()) do
+        "generateSerialID('command_events_legacy_id')"
+      else
+        "abs(rand64())"
+      end
 
     execute("""
     CREATE TABLE command_events_new

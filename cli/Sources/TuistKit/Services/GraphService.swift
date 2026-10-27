@@ -5,23 +5,29 @@ import GraphViz
 import Path
 import ProjectAutomation
 import Tools
+import TuistAlert
+import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
 import TuistGenerator
 import TuistLoader
+import TuistLogging
 import TuistPlugin
+import TuistProcess
 import TuistSupport
 import XcodeGraph
 import XcodeGraphMapper
 
-final class GraphService {
+struct GraphService {
     private let graphVizMapper: GraphToGraphVizMapping
     private let manifestGraphLoader: ManifestGraphLoading
     private let fileSystem: FileSystem
     private let manifestLoader: ManifestLoading
     private let xcodeGraphMapper: XcodeGraphMapping
     private let configLoader: ConfigLoading
+    private let commandRunner: CommandRunning
 
-    convenience init() {
+    init() {
         let manifestLoader = ManifestLoader.current
         let manifestGraphLoader = ManifestGraphLoader(
             manifestLoader: manifestLoader,
@@ -29,7 +35,7 @@ final class GraphService {
             graphMapper: SequentialGraphMapper([])
         )
         let graphVizMapper = GraphToGraphVizMapper()
-        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
+        let configLoader = ConfigLoader()
         self.init(
             graphVizGenerator: graphVizMapper,
             manifestGraphLoader: manifestGraphLoader,
@@ -44,7 +50,8 @@ final class GraphService {
         manifestLoader: ManifestLoading,
         xcodeGraphMapper: XcodeGraphMapping = XcodeGraphMapper(),
         fileSystem: FileSystem = FileSystem(),
-        configLoader: ConfigLoading
+        configLoader: ConfigLoading,
+        commandRunner: CommandRunning = CommandRunner()
     ) {
         graphVizMapper = graphVizGenerator
         self.manifestGraphLoader = manifestGraphLoader
@@ -52,6 +59,7 @@ final class GraphService {
         self.xcodeGraphMapper = xcodeGraphMapper
         self.fileSystem = fileSystem
         self.configLoader = configLoader
+        self.commandRunner = commandRunner
     }
 
     func run(
@@ -59,6 +67,7 @@ final class GraphService {
         layoutAlgorithm: GraphViz.LayoutAlgorithm,
         skipTestTargets: Bool,
         skipExternalDependencies: Bool,
+        skipMacroSupportTargets: Bool,
         open: Bool,
         platformToFilter: Platform?,
         targetsToFilter: [String],
@@ -91,6 +100,7 @@ final class GraphService {
         let filteredTargetsAndDependencies = graph.filter(
             skipTestTargets: skipTestTargets,
             skipExternalDependencies: skipExternalDependencies,
+            skipMacroSupportTargets: skipMacroSupportTargets,
             platformToFilter: platformToFilter,
             targetsToFilter: targetsToFilter
         )
@@ -98,12 +108,12 @@ final class GraphService {
         switch format {
         case .dot, .png, .svg:
             let graphVizGraph = graphVizMapper.map(graph: graph, targetsAndDependencies: filteredTargetsAndDependencies)
-            try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm, open: open)
+            try await export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm, open: open)
         case .json:
             try await export(graph: graph, at: filePath)
         case .legacyJSON:
             let outputGraph = ProjectAutomation.Graph.from(graph: graph, targetsAndDependencies: filteredTargetsAndDependencies)
-            try outputGraph.export(to: filePath)
+            try await outputGraph.export(to: filePath)
         }
 
         AlertController.current.success(.alert("Graph exported to \(filePath.pathString)"))
@@ -115,14 +125,26 @@ final class GraphService {
         withFormat format: GraphFormat,
         layoutAlgorithm: LayoutAlgorithm,
         open: Bool = true
-    ) throws {
+    ) async throws {
         switch format {
         case .dot:
-            try exportDOTRepresentation(from: graph, at: filePath)
+            try await exportDOTRepresentation(from: graph, at: filePath)
         case .png:
-            try exportImageRepresentation(from: graph, at: filePath, layoutAlgorithm: layoutAlgorithm, format: .png, open: open)
+            try await exportImageRepresentation(
+                from: graph,
+                at: filePath,
+                layoutAlgorithm: layoutAlgorithm,
+                format: .png,
+                open: open
+            )
         case .svg:
-            try exportImageRepresentation(from: graph, at: filePath, layoutAlgorithm: layoutAlgorithm, format: .svg, open: open)
+            try await exportImageRepresentation(
+                from: graph,
+                at: filePath,
+                layoutAlgorithm: layoutAlgorithm,
+                format: .svg,
+                open: open
+            )
         case .json:
             throw GraphServiceError.jsonNotValidForVisualExport
         case .legacyJSON:
@@ -145,9 +167,9 @@ final class GraphService {
         try await fileSystem.writeText(jsonString, at: path)
     }
 
-    private func exportDOTRepresentation(from graphVizGraph: GraphViz.Graph, at filePath: AbsolutePath) throws {
+    private func exportDOTRepresentation(from graphVizGraph: GraphViz.Graph, at filePath: AbsolutePath) async throws {
         let dotFile = DOTEncoder().encode(graphVizGraph)
-        try FileHandler.shared.write(dotFile, path: filePath, atomically: true)
+        try await fileSystem.writeText(dotFile, at: filePath)
     }
 
     private func exportImageRepresentation(
@@ -156,26 +178,26 @@ final class GraphService {
         layoutAlgorithm: LayoutAlgorithm,
         format: GraphViz.Format,
         open: Bool
-    ) throws {
-        if !isGraphVizInstalled() {
-            try installGraphViz()
+    ) async throws {
+        if await !isGraphVizInstalled() {
+            try await installGraphViz()
         }
 
         let data = try Renderer(layout: layoutAlgorithm).render(graph: graph, to: format)
         FileManager.default.createFile(atPath: filePath.pathString, contents: data, attributes: nil)
         if open {
-            try System.shared.async(["open", filePath.pathString])
+            try await commandRunner.runAndWait(arguments: ["open", filePath.pathString])
         }
     }
 
-    private func isGraphVizInstalled() -> Bool {
-        System.shared.commandExists("dot")
+    private func isGraphVizInstalled() async -> Bool {
+        await commandRunner.commandExists("dot")
     }
 
-    private func installGraphViz() throws {
+    private func installGraphViz() async throws {
         Logger.current.notice("Installing GraphViz...")
         var env = Environment.current.variables
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
-        try System.shared.runAndPrint(["brew", "install", "graphviz"], verbose: false, environment: env)
+        try await commandRunner.runAndPrint(arguments: ["brew", "install", "graphviz"], environment: env)
     }
 }

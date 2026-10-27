@@ -4,6 +4,9 @@
 # If you run "mix test --cover", coverage assets end up here.
 /cover/
 
+# Local Tuist test shard plans.
+/.tuist-shard-matrix.json
+
 # The directory Mix downloads your dependencies sources to.
 /deps/
 
@@ -29,6 +32,7 @@ hello-*.tar
 /priv/static/assets/
 /priv/static/app/assets/
 /priv/static/marketing/assets/
+/priv/static/docs/assets/
 /priv/static/apidocs/assets/
 /priv/static/storybook/assets/
 
@@ -47,7 +51,6 @@ priv/secrets/*.key
 ~/.pnpm/store
 
 # ClickHouse
-.clickhouse.pid
 metadata
 store
 data
@@ -63,4 +66,5 @@ config.d
 .claude/
 minio/
 
-burrito_out
+# Built by native/xcresult_nif/build.sh
+/priv/native/

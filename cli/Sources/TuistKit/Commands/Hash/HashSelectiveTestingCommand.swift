@@ -1,10 +1,11 @@
 import ArgumentParser
 import Foundation
+import TuistExtension
 import TuistHasher
 import TuistSupport
 
 /// A command to hash a generated project.
-public struct HashSelectiveTestingCommand: AsyncParsableCommand {
+public struct HashSelectiveTestingCommand: AsyncParsableCommand, ProjectPathProviding {
     public init() {}
 
     public static var configuration: CommandConfiguration {
@@ -21,10 +22,14 @@ public struct HashSelectiveTestingCommand: AsyncParsableCommand {
         completion: .directory,
         envKey: .hashCachePath
     )
-    var path: String?
+    public var path: String?
 
     public func run() async throws {
-        try await HashSelectiveTestingCommandService(selectiveTestingGraphHasher: Extension.selectiveTestingGraphHasher).run(
+        try await HashSelectiveTestingCommandService(
+            generatorFactory: Extension.generatorFactory,
+            cacheStorageFactory: Extension.cacheStorageFactory
+        )
+        .run(
             path: path
         )
     }

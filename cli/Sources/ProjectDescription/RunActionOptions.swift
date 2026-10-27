@@ -82,9 +82,7 @@ public struct RunActionOptions: Equatable, Codable, Sendable {
             enableGPUFrameCaptureMode: enableGPUFrameCaptureMode
         )
     }
-}
 
-extension RunActionOptions {
     public enum GPUFrameCaptureMode: String, Codable, Equatable, Sendable {
         case autoEnabled
         case metal
@@ -95,9 +93,7 @@ extension RunActionOptions {
             .autoEnabled
         }
     }
-}
 
-extension RunActionOptions {
     @available(*, deprecated, message: "Use ProjectDescription.SimulatedLocation directly instead.")
     public typealias SimulatedLocation = ProjectDescription.SimulatedLocation
 }

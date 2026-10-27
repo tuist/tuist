@@ -31,7 +31,7 @@ defmodule Tuist.Utilities.DateFormatterTest do
     end
 
     test "formats a single month ago correctly" do
-      date = Timex.shift(DateTime.utc_now(), months: -1)
+      date = Timex.shift(DateTime.utc_now(), days: -31)
       assert DateFormatter.from_now(date) == "1mo ago"
     end
 
@@ -83,7 +83,7 @@ defmodule Tuist.Utilities.DateFormatterTest do
     end
 
     test "handles zero duration" do
-      assert DateFormatter.format_duration_from_milliseconds(0) == "0.0s"
+      assert DateFormatter.format_duration_from_milliseconds(0) == "0ms"
     end
 
     test "formats hours with minutes and seconds when include_seconds: true" do
@@ -108,6 +108,20 @@ defmodule Tuist.Utilities.DateFormatterTest do
 
     test "still includes seconds for sub-hour durations when include_seconds: false" do
       assert DateFormatter.format_duration_from_milliseconds(3_500_000, include_seconds: false) == "58m 20s"
+    end
+
+    test "drops fractional seconds when fractional_seconds: false" do
+      assert DateFormatter.format_duration_from_milliseconds(5_500, fractional_seconds: false) == "5s"
+    end
+
+    test "omits a trailing zero-seconds component when fractional_seconds: false" do
+      assert DateFormatter.format_duration_from_milliseconds(360_000, fractional_seconds: false) == "6m"
+      assert DateFormatter.format_duration_from_milliseconds(60_000, fractional_seconds: false) == "1m"
+    end
+
+    test "keeps fractional seconds by default" do
+      assert DateFormatter.format_duration_from_milliseconds(5_500) == "5.5s"
+      assert DateFormatter.format_duration_from_milliseconds(360_000) == "6m 0.0s"
     end
   end
 

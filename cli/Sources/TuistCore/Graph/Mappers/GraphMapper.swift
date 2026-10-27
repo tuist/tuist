@@ -1,3 +1,5 @@
+import Foundation
+import TuistLogging
 import XcodeGraph
 
 /// A protocol that defines an interface to map dependency graphs.
@@ -8,7 +10,7 @@ public protocol GraphMapping {
 }
 
 /// A mapper that is initialized with a mapping function.
-public final class AnyGraphMapper: GraphMapping {
+public struct AnyGraphMapper: GraphMapping {
     /// A function to map the graph.
     let mapper: (Graph) throws -> (Graph, [SideEffectDescriptor], MapperEnvironment)
 
@@ -23,7 +25,7 @@ public final class AnyGraphMapper: GraphMapping {
     }
 }
 
-public final class SequentialGraphMapper: GraphMapping {
+public struct SequentialGraphMapper: GraphMapping {
     /// List of mappers to be executed sequentially.
     private let mappers: [GraphMapping]
 
@@ -41,7 +43,14 @@ public final class SequentialGraphMapper: GraphMapping {
         var sideEffects = [SideEffectDescriptor]()
         var environment = environment
         for mapper in mappers {
+            // Timed here rather than in each mapper so every mapper is attributable in the session log, including
+            // the ones that log nothing of their own. Nested sequences (the cache-hash normalization pass) report
+            // their own mappers first, followed by the total for the mapper that wraps them.
+            let name = String(describing: type(of: mapper))
+            let startedAt = DispatchTime.now().uptimeNanoseconds
             let (mappedGraph, newSideEffects, newEnvironment) = try await mapper.map(graph: graph, environment: environment)
+            let duration = Double(DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000_000
+            Logger.current.debug("Mapper \(name) finished in \(String(format: "%.3f", duration))s")
             sideEffects.append(contentsOf: newSideEffects)
             graph = mappedGraph
             environment = newEnvironment

@@ -1,0 +1,16 @@
+# Provider overlay: Hetzner. Layered after values-managed.yaml.
+# Carries provider-wide knobs that every Hetzner location inherits.
+
+persistence:
+  storageClass: hcloud-volumes
+  size: 200Gi
+
+# Pin Kura pods to the dedicated Hetzner Cloud worker pool declared as
+# md-kura in infra/k8s/clusters/cluster-production.yaml. CAPI only
+# propagates a restricted label set from MachineDeployments to Nodes, so
+# the pool selector uses node.cluster.x-k8s.io/pool rather than a custom
+# tuist.dev label. The tuist-hcloud ClusterClass does not expose taints
+# today; tenant separation across accounts on this shared pool is
+# application-layer (`KURA_TENANT_ID`).
+nodeSelector:
+  node.cluster.x-k8s.io/pool: kura

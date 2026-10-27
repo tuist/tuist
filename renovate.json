@@ -1,0 +1,142 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Dependencies are batched on a weekly schedule. The tuist CLI dev-tooling pin in mise.toml is handled out-of-band by the update-tuist-cli workflow, not Renovate, because the bump must regenerate mise.lock in the same commit (six per-platform checksums) and Renovate's hosted app can't run mise lock. prConcurrentLimit/prHourlyLimit are raised off their defaults (10/2) and the dashboard is on because the default limit silently starved the queue: eleven never-reviewed PRs held every slot for months, so Renovate stopped opening branches entirely and the actions/runner pin sat three releases behind until GitHub deprecated it. With no dependency dashboard there was nothing anywhere that said an update was being withheld. The limits still exist to bound review load, so a saturated dashboard means PRs need merging or closing, not a higher limit. swifterpm's test and e2e fixtures are frozen real-world manifests (Package.swift + Package.resolved) that the resolution tests assert against; Renovate bumping the pins inside them only rewrites test data, so those paths are ignored (the first two ignorePaths entries restate Renovate's defaults, which setting the option replaces). Branches are rebased only on conflict: main requires a review but not an up-to-date branch, so rebasing an automerge PR that waits for review on every commit to main only reruns its CI.",
+  "schedule": ["before 6am on monday"],
+  "rebaseWhen": "conflicted",
+  "dependencyDashboard": true,
+  "dependencyDashboardTitle": "Renovate: dependency dashboard",
+  "prConcurrentLimit": 25,
+  "prHourlyLimit": 4,
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "swifterpm/Tests/**/Fixtures/**",
+    "swifterpm/e2e/fixtures/**"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "GitHub Actions runner version baked into the Tart runner image. Bumps land as `fix(runner-image): …` commits which runner-image-release.yml picks up to rebuild the image and push a new `runner-image@<semver>` tag; server-deployment.yml resolves that version at deploy time.",
+      "fileMatch": ["^infra/runner-image/runner\\.pkr\\.hcl$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+default\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "extractVersionTemplate": "^v?(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "ARG-based version pins in the Linux runner image (actions/runner, kubectl, helm, gh). Bumps land as `fix(linux-runner-image): …` commits which server-production-deployment.yml's release-linux-runner-image flow picks up to rebuild the image and push a new `linux-runner-image@<semver>` tag; server-deployment.yml resolves that version at deploy time.",
+      "fileMatch": ["^infra/linux-runner-image/Dockerfile$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+ARG\\s+[A-Z_]+=(?<currentValue>[^\\s]+)"
+      ],
+      "extractVersionTemplate": "^v?(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "hetzner-robot-controller image pin in the mgmt-cluster Deployment manifest. Renovate tracks the ghcr tag the release pushes and opens the bump PR; mgmt-cluster-apply.yml rolls it out on merge (the manifest path is in its trigger).",
+      "fileMatch": ["^infra/k8s/mgmt/hetzner-robot-controller\\.yaml$"],
+      "matchStrings": [
+        "image: (?<depName>ghcr\\.io/tuist/tuist-hetzner-robot-controller):(?<currentValue>[^\\s\"]+)"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Gradle plugin version the CLI references (gradlePluginVersion in Constants.swift). Renovate tracks the dev.tuist plugin on the Gradle Plugin Portal and opens the bump PR.",
+      "fileMatch": ["^cli/Sources/TuistConstants/Constants\\.swift$"],
+      "matchStrings": [
+        "public static let gradlePluginVersion = \"(?<currentValue>[^\"]+)\""
+      ],
+      "datasourceTemplate": "maven",
+      "depNameTemplate": "dev.tuist:dev.tuist.gradle.plugin",
+      "registryUrlTemplate": "https://plugins.gradle.org/m2/"
+    },
+    {
+      "customType": "regex",
+      "description": "Single source for the mise CLI version. Every workflow installs mise through .github/actions/mise, so the pin exists once and this manager bumps that one line. Stay on mise >= 2026.5.15: only there do --locked installs download from the lockfile's direct CDN URLs; older mise still hits api.github.com for github-backend tools and gets rate-limited.",
+      "fileMatch": ["^\\.github/actions/mise/action\\.yml$"],
+      "matchStrings": ["# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+version: \"(?<currentValue>[^\"]+)\""],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "jdx/mise",
+      "extractVersionTemplate": "^v?(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "actions/runner version seeded onto bare-metal vm-image-builder hosts at first bootstrap (buildersFleet.ghRunnerVersion). Not a guest-image pin: the host agent runs without `--disableupdate` and self-updates from here. Tracked so a freshly adopted host never lands on a release GitHub has already retired, and so it can't drift away from the guest pin it is supposed to match.",
+      "fileMatch": ["^infra/helm/tuist/values\\.yaml$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+ghRunnerVersion:\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "extractVersionTemplate": "^v?(?<version>.+)$"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Digest updates for git deps in server/mix.exs. Renovate only ever proposes the default-branch head, but the ref-pinned deps there are deliberately NOT on it: ex_aws_s3 (tuist fork branch fix/presigned-url-config-defaults, makes presigned URLs honour the virtual_host/bucket_as_host config production sets), emcp (branch fix/streamable-http-inline-response-on-post, keeps JSON-RPC responses inline on the POST instead of the SSE stream), cachex (TBK145/cachex@patch-1, the Elixir 1.19 record/0 type rename from whitfin/cachex#433), and boruta (a 3.0 pre-release snapshot; moving it means running its bundled migrations and a nebulex 2->3 major). Every digest PR here would silently revert a patch or start a migration, and Renovate cannot regenerate mix.lock anyway, so the rule matches by datasource rather than by name: a new ref-pinned git dep is covered without editing this list. Tag-pinned git deps (e.g. heroicons) are version updates, not digests, and stay tracked. Those bumps are done by hand.",
+      "matchManagers": ["mix"],
+      "matchDatasources": ["git-tags", "github-tags"],
+      "matchUpdateTypes": ["digest"],
+      "enabled": false
+    },
+    {
+      "description": "actions/runner bumps: route through the runner-image release flow. prPriority puts them at the head of the queue — GitHub retires runner releases on a deadline, so these are the one bump class where being held behind a backlog of routine updates ends in broken CI rather than lag.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["infra/runner-image/runner.pkr.hcl"],
+      "matchPackageNames": ["actions/runner"],
+      "commitMessagePrefix": "fix(runner-image):",
+      "commitMessageTopic": "GitHub Actions runner",
+      "prPriority": 10,
+      "automerge": true
+    },
+    {
+      "description": "Linux-runner-image ARG bumps (actions/runner, kubectl, helm, gh): route through the linux-runner-image release flow.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["infra/linux-runner-image/Dockerfile"],
+      "matchPackageNames": ["actions/runner", "kubernetes/kubernetes", "helm/helm", "cli/cli"],
+      "commitMessagePrefix": "fix(linux-runner-image):",
+      "prPriority": 10,
+      "automerge": true
+    },
+    {
+      "description": "Host-side actions/runner seed in the chart values. Same deadline pressure as the image pins, but no image to rebuild — merging the chart bump is the whole change.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["infra/helm/tuist/values.yaml"],
+      "matchPackageNames": ["actions/runner"],
+      "commitMessagePrefix": "fix(infra):",
+      "commitMessageTopic": "GitHub Actions runner (builder hosts)",
+      "prPriority": 10,
+      "automerge": true
+    },
+    {
+      "description": "hetzner-robot-controller mgmt-cluster image pin.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["infra/k8s/mgmt/hetzner-robot-controller.yaml"],
+      "commitMessagePrefix": "fix(hetzner-robot-controller):",
+      "automerge": true
+    },
+    {
+      "description": "CLI gradlePluginVersion consumer pin in Constants.swift.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["cli/Sources/TuistConstants/Constants.swift"],
+      "commitMessagePrefix": "chore(cli):",
+      "commitMessageTopic": "dev.tuist Gradle plugin",
+      "automerge": true
+    },
+    {
+      "description": "android consumes the dev.tuist Gradle plugin via settings.gradle.kts; Renovate's native gradle manager picks up the `id(\"dev.tuist\") version` plugin pin. Route the bump under the android scope.",
+      "matchManagers": ["gradle"],
+      "matchPackageNames": ["dev.tuist", "dev.tuist:dev.tuist.gradle.plugin"],
+      "commitMessagePrefix": "chore(android):",
+      "automerge": true
+    },
+    {
+      "description": "mise CLI version shared across all workflows (MISE_VERSION). One PR bumps every literal; CI on that PR exercises all workflows before it can automerge.",
+      "matchManagers": ["custom.regex"],
+      "matchPackageNames": ["jdx/mise"],
+      "commitMessagePrefix": "chore(infra):",
+      "commitMessageTopic": "mise",
+      "automerge": true
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import FileSystem
 import Foundation
 import TSCBasic
 import struct TSCUtility.Version
@@ -26,7 +27,7 @@ final class VersionsControllerTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_install() throws {
+    func test_install() async throws {
         try subject.install(version: "3.2.1") { path in
             let testPath = path.appending(component: "test")
             try Data().write(to: testPath.url)
@@ -35,7 +36,8 @@ final class VersionsControllerTests: TuistUnitTestCase {
         let versionsPath = environment.versionsDirectory
         let testPath = versionsPath.appending(try RelativePath(validating: "3.2.1/test"))
 
-        XCTAssertTrue(FileHandler.shared.exists(testPath))
+        let exists = try await FileSystem().exists(testPath)
+        XCTAssertTrue(exists)
     }
 
     func test_path_for_version() {
@@ -44,9 +46,9 @@ final class VersionsControllerTests: TuistUnitTestCase {
         XCTAssertEqual(got, environment.versionsDirectory.appending(component: "ref"))
     }
 
-    func test_versions() throws {
-        try FileHandler.shared.createFolder(environment.versionsDirectory.appending(component: "3.2.1"))
-        try FileHandler.shared.createFolder(environment.versionsDirectory.appending(component: "ref"))
+    func test_versions() async throws {
+        try await FileSystem().makeDirectory(at: environment.versionsDirectory.appending(component: "3.2.1"))
+        try await FileSystem().makeDirectory(at: environment.versionsDirectory.appending(component: "ref"))
 
         let versions = subject.versions()
 
@@ -54,7 +56,7 @@ final class VersionsControllerTests: TuistUnitTestCase {
         XCTAssertTrue(versions.contains(.semver(Version("3.2.1"))))
     }
 
-    func test_semverVersions_ordered() throws {
+    func test_semverVersions_ordered() async throws {
         // Given
         let versions = [
             "0.12.0",
@@ -68,7 +70,7 @@ final class VersionsControllerTests: TuistUnitTestCase {
             "2.18.0",
         ]
         for version in versions {
-            try fileHandler.createFolder(environment.versionsDirectory.appending(component: version))
+            try await FileSystem().makeDirectory(at: environment.versionsDirectory.appending(component: version))
         }
 
         // When

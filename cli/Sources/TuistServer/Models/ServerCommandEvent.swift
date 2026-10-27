@@ -32,12 +32,10 @@ public struct ServerCommandEvent: Codable, Equatable {
         }
 
         public enum ArtifactType {
-            case resultBundle, invocationRecord, resultBundleObject
+            case resultBundle, stressResultBundle, invocationRecord, resultBundleObject, session
         }
     }
-}
 
-extension ServerCommandEvent {
     init(_ commandEvent: Components.Schemas.CommandEvent) {
         id = commandEvent.id
         name = commandEvent.name
@@ -48,29 +46,8 @@ extension ServerCommandEvent {
             testRunURL = nil
         }
     }
-}
 
-extension Components.Schemas.CommandEventArtifact {
-    public init(_ artifact: ServerCommandEvent.Artifact) {
-        self = .init(name: artifact.name, _type: .init(artifact.type))
-    }
-}
-
-extension Components.Schemas.CommandEventArtifact._typePayload {
-    public init(_ type: ServerCommandEvent.Artifact.ArtifactType) {
-        switch type {
-        case .resultBundle:
-            self = .result_bundle
-        case .invocationRecord:
-            self = .invocation_record
-        case .resultBundleObject:
-            self = .result_bundle_object
-        }
-    }
-}
-
-#if MOCKING
-    extension ServerCommandEvent {
+    #if MOCKING
         public static func test(
             id: String = UUID().uuidString,
             name: String = "generate",
@@ -84,5 +61,28 @@ extension Components.Schemas.CommandEventArtifact._typePayload {
                 testRunURL: testRunURL
             )
         }
+    #endif
+}
+
+extension Components.Schemas.CommandEventArtifact {
+    public init(_ artifact: ServerCommandEvent.Artifact) {
+        self = .init(name: artifact.name, _type: .init(artifact.type))
     }
-#endif
+}
+
+extension Components.Schemas.CommandEventArtifact._typePayload {
+    public init(_ type: ServerCommandEvent.Artifact.ArtifactType) {
+        switch type {
+        case .resultBundle:
+            self = .result_bundle
+        case .stressResultBundle:
+            self = .stress_result_bundle
+        case .invocationRecord:
+            self = .invocation_record
+        case .resultBundleObject:
+            self = .result_bundle_object
+        case .session:
+            self = .session
+        }
+    }
+}

@@ -1,0 +1,611 @@
+use std::{
+    fs::{File, OpenOptions},
+    io::Write,
+    path::Path,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
+    },
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+
+#[cfg(not(test))]
+use std::cell::Cell;
+#[cfg(test)]
+use std::path::PathBuf;
+
+use tokio::sync::{Notify, futures::Notified};
+
+use crate::metrics::{InflightMetrics, Metrics};
+
+const DATA_DIR_LOCK_FILE: &str = ".kura.writer.lock";
+const PUBLIC_REQUEST_LATENCY_EWMA_DENOMINATOR: u64 = 8;
+#[cfg(not(test))]
+const PUBLIC_REQUEST_LATENCY_SAMPLE_INTERVAL: u8 = 16;
+const PUBLIC_REQUEST_LATENCY_STALE_MS: u64 = 30_000;
+const MAX_PUBLIC_LATENCY_PRESSURE_DIVISOR: usize = 64;
+const PUBLIC_HTTP_INFLIGHT_SHIFT: u32 = 32;
+const HTTP_INFLIGHT_INCREMENT: u64 = 1;
+const PUBLIC_HTTP_INFLIGHT_INCREMENT: u64 = 1 << PUBLIC_HTTP_INFLIGHT_SHIFT;
+
+#[cfg(not(test))]
+thread_local! {
+    static PUBLIC_REQUEST_LATENCY_SAMPLE_COUNTER: Cell<u8> = const { Cell::new(0) };
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TrafficState {
+    Joining,
+    Serving,
+    Draining,
+}
+
+impl TrafficState {
+    pub fn as_i64(self) -> i64 {
+        match self {
+            Self::Joining => 0,
+            Self::Serving => 1,
+            Self::Draining => 2,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Joining => "joining",
+            Self::Serving => "serving",
+            Self::Draining => "draining",
+        }
+    }
+}
+
+pub struct RuntimeState {
+    pub authority: Arc<crate::serving_authority::ServingAuthority>,
+    draining: AtomicBool,
+    drain_requested: Notify,
+    serving: AtomicBool,
+    // Boot guardrail for nodes whose peer view arrives from the control plane
+    // (managed peers sync): serving is withheld until the first successful
+    // fetch, because a node booting blind would accept writes without
+    // enqueuing replication for peers it cannot see — silent, unrecoverable
+    // under-replication.
+    peer_view_required: AtomicBool,
+    peer_view_ready: AtomicBool,
+    writer_lock_owned: AtomicBool,
+    http_inflight: AtomicU64,
+    grpc_inflight: AtomicUsize,
+    public_request_latency_ewma_micros: AtomicU64,
+    public_request_latency_sampled_at_ms: AtomicU64,
+    inflight_changed: Notify,
+}
+
+impl RuntimeState {
+    pub fn new() -> Arc<Self> {
+        Self::with_authority(crate::serving_authority::ServingAuthority::legacy())
+    }
+
+    pub fn with_authority(authority: Arc<crate::serving_authority::ServingAuthority>) -> Arc<Self> {
+        Arc::new(Self {
+            authority,
+            draining: AtomicBool::new(false),
+            drain_requested: Notify::new(),
+            serving: AtomicBool::new(false),
+            peer_view_required: AtomicBool::new(false),
+            peer_view_ready: AtomicBool::new(false),
+            writer_lock_owned: AtomicBool::new(true),
+            http_inflight: AtomicU64::new(0),
+            grpc_inflight: AtomicUsize::new(0),
+            public_request_latency_ewma_micros: AtomicU64::new(0),
+            public_request_latency_sampled_at_ms: AtomicU64::new(0),
+            inflight_changed: Notify::new(),
+        })
+    }
+
+    pub fn request_drain(&self) -> bool {
+        let entered = !self.draining.swap(true, Ordering::SeqCst);
+        if entered {
+            self.drain_requested.notify_waiters();
+        }
+        entered
+    }
+
+    pub async fn wait_for_drain(&self) {
+        let notified = self.drain_requested.notified();
+        tokio::pin!(notified);
+        notified.as_mut().enable();
+        if !self.is_draining() {
+            notified.await;
+        }
+    }
+
+    pub fn is_draining(&self) -> bool {
+        self.draining.load(Ordering::SeqCst)
+    }
+
+    pub fn mark_serving(&self) -> bool {
+        !self.serving.swap(true, Ordering::SeqCst)
+    }
+
+    pub fn require_peer_view(&self) {
+        self.peer_view_required.store(true, Ordering::SeqCst);
+    }
+
+    pub fn mark_peer_view_ready(&self) {
+        self.peer_view_ready.store(true, Ordering::SeqCst);
+    }
+
+    pub fn peer_view_pending(&self) -> bool {
+        self.peer_view_required.load(Ordering::SeqCst)
+            && !self.peer_view_ready.load(Ordering::SeqCst)
+    }
+
+    pub fn is_serving(&self) -> bool {
+        self.serving.load(Ordering::SeqCst)
+    }
+
+    pub fn writer_lock_owned(&self) -> bool {
+        self.writer_lock_owned.load(Ordering::SeqCst)
+    }
+
+    pub fn traffic_state(&self) -> TrafficState {
+        if self.is_draining() {
+            TrafficState::Draining
+        } else if self.is_serving() {
+            TrafficState::Serving
+        } else {
+            TrafficState::Joining
+        }
+    }
+
+    pub fn http_inflight(&self) -> usize {
+        http_inflight_counts(self.http_inflight.load(Ordering::SeqCst)).0
+    }
+
+    pub fn public_http_inflight(&self) -> usize {
+        http_inflight_counts(self.http_inflight.load(Ordering::SeqCst)).1
+    }
+
+    pub fn grpc_inflight(&self) -> usize {
+        self.grpc_inflight.load(Ordering::SeqCst)
+    }
+
+    pub fn public_inflight(&self) -> usize {
+        self.public_http_inflight() + self.grpc_inflight()
+    }
+
+    #[cfg(test)]
+    pub fn public_request_latency_ewma(&self) -> Option<Duration> {
+        let micros = self
+            .public_request_latency_ewma_micros
+            .load(Ordering::SeqCst);
+        if micros == 0 {
+            None
+        } else {
+            Some(Duration::from_micros(micros))
+        }
+    }
+
+    pub fn public_latency_pressure_divisor(&self, target_ms: u64) -> usize {
+        if target_ms == 0 {
+            return 1;
+        }
+
+        let ewma_micros = self
+            .public_request_latency_ewma_micros
+            .load(Ordering::SeqCst);
+        if ewma_micros == 0 {
+            return 1;
+        }
+
+        let sampled_at_ms = self
+            .public_request_latency_sampled_at_ms
+            .load(Ordering::SeqCst);
+        if sampled_at_ms == 0
+            || now_ms().saturating_sub(sampled_at_ms) > PUBLIC_REQUEST_LATENCY_STALE_MS
+        {
+            return 1;
+        }
+
+        let target_micros = target_ms.saturating_mul(1_000).max(1);
+        let divisor = ewma_micros.div_ceil(target_micros).max(1) as usize;
+        divisor.min(MAX_PUBLIC_LATENCY_PRESSURE_DIVISOR)
+    }
+
+    pub fn total_inflight(&self) -> usize {
+        self.http_inflight() + self.grpc_inflight()
+    }
+
+    /// Returns a notification for shutdown drain progress.
+    ///
+    /// Callers must invoke [`Self::request_drain`] before waiting because
+    /// completed requests notify waiters only while the runtime is draining.
+    /// Create this future before checking [`Self::total_inflight`] so a
+    /// completion cannot be missed between the check and the wait.
+    pub fn inflight_changed(&self) -> Notified<'_> {
+        self.inflight_changed.notified()
+    }
+
+    pub fn start_http_request(
+        self: &Arc<Self>,
+        metrics: &Metrics,
+        traffic_class: HttpTrafficClass,
+    ) -> InflightGuard {
+        let public_load = traffic_class.contributes_to_public_load();
+        let increment =
+            HTTP_INFLIGHT_INCREMENT + u64::from(public_load) * PUBLIC_HTTP_INFLIGHT_INCREMENT;
+        let counts = self.http_inflight.fetch_add(increment, Ordering::SeqCst) + increment;
+        let (http_inflight, public_http_inflight) = http_inflight_counts(counts);
+        metrics.update_http_inflight(http_inflight);
+        if public_load {
+            metrics.update_public_http_inflight(public_http_inflight);
+        }
+        InflightGuard::new(
+            self.clone(),
+            metrics.inflight_metrics(),
+            InflightKind::Http { public_load },
+        )
+    }
+
+    pub fn start_grpc_request(self: &Arc<Self>, metrics: &Metrics) -> InflightGuard {
+        let count = self.grpc_inflight.fetch_add(1, Ordering::SeqCst) + 1;
+        metrics.update_grpc_inflight(count);
+        InflightGuard::new(self.clone(), metrics.inflight_metrics(), InflightKind::Grpc)
+    }
+
+    /// Records the time to first response byte for a completed public request.
+    ///
+    /// Callers invoke this once the response is ready to start streaming, not
+    /// when the body finishes, so the signal stays responsiveness-focused and
+    /// large downloads do not masquerade as latency in the adaptation EWMA or
+    /// the `kura_public_request_latency_seconds` histogram.
+    pub fn record_public_request_latency(
+        &self,
+        metrics: &Metrics,
+        transport: &str,
+        route: &str,
+        duration: Duration,
+    ) {
+        metrics.observe_public_request_latency(transport, route, duration);
+
+        if !should_update_public_request_latency_ewma() {
+            return;
+        }
+
+        let sample_micros = duration.as_micros().min(u64::MAX as u128) as u64;
+        if sample_micros == 0 {
+            return;
+        }
+
+        let mut current = self
+            .public_request_latency_ewma_micros
+            .load(Ordering::Relaxed);
+        loop {
+            let next = if current == 0 {
+                sample_micros
+            } else {
+                ((current * (PUBLIC_REQUEST_LATENCY_EWMA_DENOMINATOR - 1)) + sample_micros)
+                    / PUBLIC_REQUEST_LATENCY_EWMA_DENOMINATOR
+            };
+            match self
+                .public_request_latency_ewma_micros
+                .compare_exchange_weak(current, next, Ordering::Relaxed, Ordering::Relaxed)
+            {
+                Ok(_) => {
+                    self.public_request_latency_sampled_at_ms
+                        .store(now_ms(), Ordering::Relaxed);
+                    metrics.update_public_request_latency_ewma(Duration::from_micros(next));
+                    break;
+                }
+                Err(actual) => current = actual,
+            }
+        }
+    }
+}
+
+fn should_update_public_request_latency_ewma() -> bool {
+    #[cfg(test)]
+    return true;
+
+    #[cfg(not(test))]
+    PUBLIC_REQUEST_LATENCY_SAMPLE_COUNTER.with(|counter| {
+        let current = counter.get();
+        counter.set((current + 1) % PUBLIC_REQUEST_LATENCY_SAMPLE_INTERVAL);
+        current == 0
+    })
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HttpTrafficClass {
+    Public,
+    Background,
+}
+
+impl HttpTrafficClass {
+    fn contributes_to_public_load(self) -> bool {
+        matches!(self, Self::Public)
+    }
+}
+
+#[derive(Clone, Copy)]
+enum InflightKind {
+    Http { public_load: bool },
+    Grpc,
+}
+
+pub struct InflightGuard {
+    runtime: Arc<RuntimeState>,
+    metrics: Arc<InflightMetrics>,
+    kind: InflightKind,
+    active: bool,
+}
+
+impl InflightGuard {
+    fn new(runtime: Arc<RuntimeState>, metrics: Arc<InflightMetrics>, kind: InflightKind) -> Self {
+        Self {
+            runtime,
+            metrics,
+            kind,
+            active: true,
+        }
+    }
+}
+
+impl Drop for InflightGuard {
+    fn drop(&mut self) {
+        if !self.active {
+            return;
+        }
+        self.active = false;
+        match self.kind {
+            InflightKind::Http { public_load } => {
+                let decrement = HTTP_INFLIGHT_INCREMENT
+                    + u64::from(public_load) * PUBLIC_HTTP_INFLIGHT_INCREMENT;
+                let counts = self
+                    .runtime
+                    .http_inflight
+                    .fetch_sub(decrement, Ordering::SeqCst)
+                    .saturating_sub(decrement);
+                let (http_inflight, public_http_inflight) = http_inflight_counts(counts);
+                self.metrics.update_http(http_inflight);
+                if public_load {
+                    self.metrics.update_public_http(public_http_inflight);
+                }
+            }
+            InflightKind::Grpc => {
+                let previous = self.runtime.grpc_inflight.fetch_sub(1, Ordering::SeqCst);
+                self.metrics.update_grpc(previous.saturating_sub(1));
+            }
+        }
+        if self.runtime.is_draining() {
+            self.runtime.inflight_changed.notify_waiters();
+        }
+    }
+}
+
+fn http_inflight_counts(counts: u64) -> (usize, usize) {
+    (
+        (counts as u32) as usize,
+        ((counts >> PUBLIC_HTTP_INFLIGHT_SHIFT) as u32) as usize,
+    )
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_else(|_| Duration::from_secs(0))
+        .as_millis() as u64
+}
+
+pub struct DataDirLock {
+    _file: File,
+    #[cfg(test)]
+    path: PathBuf,
+}
+
+impl DataDirLock {
+    pub fn acquire(data_dir: &Path) -> Result<Self, String> {
+        let path = data_dir.join(DATA_DIR_LOCK_FILE);
+        let mut file = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .truncate(false)
+            .open(&path)
+            .map_err(|error| {
+                format!(
+                    "failed to open writer lock file {}: {error}",
+                    path.display()
+                )
+            })?;
+
+        try_lock_exclusive(&file).map_err(|error| {
+            format!("failed to acquire writer lock {}: {error}", path.display())
+        })?;
+
+        file.set_len(0).map_err(|error| {
+            format!(
+                "failed to reset writer lock file {}: {error}",
+                path.display()
+            )
+        })?;
+        writeln!(file, "pid={}", std::process::id()).map_err(|error| {
+            format!(
+                "failed to write writer lock file {}: {error}",
+                path.display()
+            )
+        })?;
+        file.flush().map_err(|error| {
+            format!(
+                "failed to flush writer lock file {}: {error}",
+                path.display()
+            )
+        })?;
+
+        Ok(Self {
+            _file: file,
+            #[cfg(test)]
+            path,
+        })
+    }
+
+    #[cfg(test)]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+#[cfg(unix)]
+fn try_lock_exclusive(file: &File) -> Result<(), std::io::Error> {
+    use std::os::fd::AsRawFd;
+
+    let result = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(not(unix))]
+fn try_lock_exclusive(_file: &File) -> Result<(), std::io::Error> {
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{sync::Barrier, time::Duration};
+
+    use tempfile::tempdir;
+    use tokio::time::timeout;
+
+    use super::*;
+
+    #[test]
+    fn data_dir_lock_rejects_second_owner() {
+        let temp_dir = tempdir().expect("failed to create temp dir");
+        let first = DataDirLock::acquire(temp_dir.path()).expect("first lock should succeed");
+        let second = DataDirLock::acquire(temp_dir.path());
+        assert!(second.is_err(), "second lock acquisition should fail");
+        assert_eq!(
+            first.path(),
+            temp_dir.path().join(DATA_DIR_LOCK_FILE).as_path()
+        );
+    }
+
+    #[tokio::test]
+    async fn inflight_change_notification_resolves_on_request_completion() {
+        let runtime = RuntimeState::new();
+        let metrics = Metrics::new("region".into(), "tenant".into());
+        let guard = runtime.start_http_request(&metrics, HttpTrafficClass::Public);
+
+        runtime.request_drain();
+        let notified = runtime.inflight_changed();
+        drop(guard);
+
+        timeout(Duration::from_secs(1), notified)
+            .await
+            .expect("request completion should wake inflight waiters");
+    }
+
+    #[tokio::test]
+    async fn inflight_requests_do_not_notify_before_drain() {
+        let runtime = RuntimeState::new();
+        let metrics = Metrics::new("region".into(), "tenant".into());
+        let notified = runtime.inflight_changed();
+        tokio::pin!(notified);
+        notified.as_mut().enable();
+
+        let guard = runtime.start_http_request(&metrics, HttpTrafficClass::Public);
+        drop(guard);
+
+        assert!(timeout(Duration::from_millis(10), notified).await.is_err());
+    }
+
+    #[test]
+    #[ignore = "performance benchmark run manually"]
+    fn inflight_request_accounting_benchmark() {
+        const WORKERS: usize = 8;
+        const REQUESTS_PER_WORKER: usize = 50_000;
+        const SAMPLES: usize = 8;
+
+        fn measure() -> f64 {
+            let runtime = RuntimeState::new();
+            let metrics = Metrics::new("region".into(), "tenant".into());
+            let barrier = Arc::new(Barrier::new(WORKERS + 1));
+            let started_at = std::time::Instant::now();
+            std::thread::scope(|scope| {
+                for _ in 0..WORKERS {
+                    let runtime = runtime.clone();
+                    let metrics = metrics.clone();
+                    let barrier = barrier.clone();
+                    scope.spawn(move || {
+                        barrier.wait();
+                        for _ in 0..REQUESTS_PER_WORKER {
+                            drop(runtime.start_http_request(&metrics, HttpTrafficClass::Public));
+                        }
+                    });
+                }
+                barrier.wait();
+            });
+            let requests = (WORKERS * REQUESTS_PER_WORKER) as f64;
+            requests / started_at.elapsed().as_secs_f64()
+        }
+
+        let mut rates = Vec::with_capacity(SAMPLES - 1);
+        for sample in 0..SAMPLES {
+            let rate = measure();
+            if sample > 0 {
+                rates.push(rate);
+            }
+        }
+        rates.sort_by(f64::total_cmp);
+        println!(
+            "METRIC request_accounting_requests_per_second={:.3}",
+            rates[rates.len() / 2]
+        );
+    }
+
+    #[test]
+    fn public_http_inflight_excludes_background_http_requests() {
+        let runtime = RuntimeState::new();
+        let metrics = Metrics::new("region".into(), "tenant".into());
+
+        let background = runtime.start_http_request(&metrics, HttpTrafficClass::Background);
+        assert_eq!(runtime.http_inflight(), 1);
+        assert_eq!(runtime.public_http_inflight(), 0);
+
+        let public = runtime.start_http_request(&metrics, HttpTrafficClass::Public);
+        assert_eq!(runtime.http_inflight(), 2);
+        assert_eq!(runtime.public_http_inflight(), 1);
+        assert_eq!(runtime.public_inflight(), 1);
+
+        drop(public);
+        assert_eq!(runtime.http_inflight(), 1);
+        assert_eq!(runtime.public_http_inflight(), 0);
+
+        drop(background);
+        assert_eq!(runtime.http_inflight(), 0);
+        assert_eq!(runtime.public_http_inflight(), 0);
+    }
+
+    #[test]
+    fn public_latency_pressure_divisor_tracks_recent_request_latency() {
+        let runtime = RuntimeState::new();
+        let metrics = Metrics::new("region".into(), "tenant".into());
+
+        assert_eq!(runtime.public_latency_pressure_divisor(100), 1);
+
+        runtime.record_public_request_latency(
+            &metrics,
+            "http",
+            "/api/cache/cas/{id}",
+            Duration::from_millis(250),
+        );
+
+        assert_eq!(
+            runtime.public_request_latency_ewma(),
+            Some(Duration::from_millis(250))
+        );
+        assert_eq!(runtime.public_latency_pressure_divisor(100), 3);
+        assert_eq!(runtime.public_latency_pressure_divisor(0), 1);
+    }
+}

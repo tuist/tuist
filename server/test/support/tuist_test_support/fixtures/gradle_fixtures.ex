@@ -1,0 +1,88 @@
+defmodule TuistTestSupport.Fixtures.GradleFixtures do
+  @moduledoc """
+  Fixtures for Gradle builds and cache events.
+  """
+
+  alias Tuist.Gradle
+  alias Tuist.Gradle.CacheEvent
+  alias Tuist.IngestRepo
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+
+  def build_fixture(attrs \\ []) do
+    project_id =
+      Keyword.get_lazy(attrs, :project_id, fn ->
+        ProjectsFixtures.project_fixture().id
+      end)
+
+    account_id =
+      Keyword.get_lazy(attrs, :account_id, fn ->
+        AccountsFixtures.user_fixture(preload: [:account]).account.id
+      end)
+
+    {:ok, build_id} =
+      Gradle.create_build(%{
+        id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
+        project_id: project_id,
+        account_id: account_id,
+        actor_account_id: Keyword.get(attrs, :actor_account_id, 0),
+        claimed_actor_id: Keyword.get(attrs, :claimed_actor_id, ""),
+        submission_auth: Keyword.get(attrs, :submission_auth, ""),
+        duration_ms: Keyword.get(attrs, :duration_ms, 10_000),
+        started_at: Keyword.get(attrs, :started_at),
+        machine_metrics: Keyword.get(attrs, :machine_metrics, []),
+        status: Keyword.get(attrs, :status, "success"),
+        gradle_version: Keyword.get(attrs, :gradle_version, "8.5"),
+        java_version: Keyword.get(attrs, :java_version, "17.0.1"),
+        is_ci: Keyword.get(attrs, :is_ci, false),
+        git_branch: Keyword.get(attrs, :git_branch),
+        git_commit_sha: Keyword.get(attrs, :git_commit_sha),
+        git_ref: Keyword.get(attrs, :git_ref),
+        root_project_name: Keyword.get(attrs, :root_project_name),
+        requested_tasks: Keyword.get(attrs, :requested_tasks, []),
+        custom_tags: Keyword.get(attrs, :custom_tags, []),
+        custom_values: Keyword.get(attrs, :custom_values, %{}),
+        configuration_cache: Keyword.get(attrs, :configuration_cache),
+        configuration_operations: Keyword.get(attrs, :configuration_operations, []),
+        artifact_transforms: Keyword.get(attrs, :artifact_transforms, []),
+        inserted_at: Keyword.get(attrs, :inserted_at),
+        tasks: Keyword.get(attrs, :tasks, [])
+      })
+
+    Gradle.Build.Buffer.flush()
+    Gradle.Task.Buffer.flush()
+    Gradle.ConfigurationOperation.Buffer.flush()
+    Gradle.ArtifactTransform.Buffer.flush()
+
+    build_id
+  end
+
+  def cache_event_fixture(attrs \\ []) do
+    project_id =
+      Keyword.get_lazy(attrs, :project_id, fn ->
+        ProjectsFixtures.project_fixture().id
+      end)
+
+    now =
+      Keyword.get(attrs, :inserted_at, NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second))
+
+    event = %{
+      id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
+      action: Keyword.get(attrs, :action, "upload"),
+      cache_key: Keyword.get(attrs, :cache_key, "cache_key_#{:rand.uniform(100_000)}"),
+      size: Keyword.get(attrs, :size, 1_000_000),
+      duration_ms: Keyword.get(attrs, :duration_ms, 100),
+      is_hit: Keyword.get(attrs, :is_hit, true),
+      is_ci: Keyword.get(attrs, :is_ci, false),
+      gradle_build_id: Keyword.get(attrs, :gradle_build_id),
+      project_id: project_id,
+      account_handle: Keyword.get(attrs, :account_handle, "test-account"),
+      project_handle: Keyword.get(attrs, :project_handle, "test-project"),
+      inserted_at: now
+    }
+
+    IngestRepo.insert_all(CacheEvent, [event])
+
+    event
+  end
+end

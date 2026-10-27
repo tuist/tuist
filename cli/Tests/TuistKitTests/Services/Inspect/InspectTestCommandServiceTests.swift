@@ -3,16 +3,21 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
 import TuistLoader
 import TuistProcess
 import TuistServer
 import TuistSupport
 import TuistTesting
 import TuistXCActivityLog
+import TuistXcodeBuildProducts
 import TuistXcodeProjectOrWorkspacePathLocator
 import TuistXCResultService
+import XCResultParser
 
+@testable import TuistInspectCommand
 @testable import TuistKit
 
 struct InspectTestCommandServiceTests {
@@ -22,7 +27,7 @@ struct InspectTestCommandServiceTests {
     private let fileSystem = FileSystem()
     private let xcResultService = MockXCResultServicing()
     private let xcodeProjectOrWorkspacePathLocator = MockXcodeProjectOrWorkspacePathLocating()
-    private let inspectResultBundleService = MockInspectResultBundleServicing()
+    private let uploadResultBundleService = MockUploadResultBundleServicing()
     private let backgroundProcessRunner = MockBackgroundProcessRunning()
 
     init() throws {
@@ -31,22 +36,40 @@ struct InspectTestCommandServiceTests {
             fileSystem: fileSystem,
             xcResultService: xcResultService,
             xcodeProjectOrWorkspacePathLocator: xcodeProjectOrWorkspacePathLocator,
-            inspectResultBundleService: inspectResultBundleService,
+            uploadResultBundleService: uploadResultBundleService,
             configLoader: configLoader,
             backgroundProcessRunner: backgroundProcessRunner
         )
 
         given(configLoader)
             .loadConfig(path: .any)
-            .willReturn(.test(fullHandle: "tuist/tuist"))
+            .willReturn(.test(fullHandle: "tuist/tuist", url: URL(string: "https://example.com")!))
 
-        given(inspectResultBundleService)
-            .inspectResultBundle(resultBundlePath: .any, projectDerivedDataDirectory: .any, config: .any)
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(TestSummary(testPlanName: nil, status: .passed, duration: 1000, testModules: []))
+        given(xcResultService)
+            .coveredFilePaths(path: .any)
+            .willReturn(nil)
+
+        given(uploadResultBundleService)
+            .uploadTestSummary(
+                testSummary: .any,
+                resultBundlePath: .any,
+                projectDerivedDataDirectory: .any,
+                config: .any,
+                shardPlanId: .any,
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
+            )
             .willReturn(
                 Components.Schemas.RunsTest(
                     duration: 1000,
                     id: "test-id",
                     project_id: 1,
+                    test_case_runs: [],
                     _type: .test,
                     url: "https://tuist.dev/tuist/tuist/runs/test-id"
                 )
@@ -74,11 +97,17 @@ struct InspectTestCommandServiceTests {
         )
 
         // Then
-        verify(inspectResultBundleService)
-            .inspectResultBundle(
-                resultBundlePath: .value(resultBundlePath),
+        verify(uploadResultBundleService)
+            .uploadTestSummary(
+                testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .value(nil),
-                config: .any
+                config: .any,
+                shardPlanId: .any,
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -110,11 +139,17 @@ struct InspectTestCommandServiceTests {
         try await subject.run(path: temporaryDirectory.pathString)
 
         // Then
-        verify(inspectResultBundleService)
-            .inspectResultBundle(
-                resultBundlePath: .value(resultBundlePath),
+        verify(uploadResultBundleService)
+            .uploadTestSummary(
+                testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
-                config: .any
+                config: .any,
+                shardPlanId: .any,
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -149,11 +184,17 @@ struct InspectTestCommandServiceTests {
             .locate(for: .any)
             .called(0)
 
-        verify(inspectResultBundleService)
-            .inspectResultBundle(
-                resultBundlePath: .value(resultBundlePath),
+        verify(uploadResultBundleService)
+            .uploadTestSummary(
+                testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
-                config: .any
+                config: .any,
+                shardPlanId: .any,
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
     }
@@ -214,13 +255,230 @@ struct InspectTestCommandServiceTests {
         try await subject.run(path: nil)
 
         // Then
-        verify(inspectResultBundleService)
-            .inspectResultBundle(
-                resultBundlePath: .value(resultBundlePath),
+        verify(uploadResultBundleService)
+            .uploadTestSummary(
+                testSummary: .any,
+                resultBundlePath: .any,
                 projectDerivedDataDirectory: .value(derivedDataPath),
-                config: .any
+                config: .any,
+                shardPlanId: .any,
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
             )
             .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func run_defaults_to_remote_for_tuist_dev_url() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let resultBundlePath = temporaryDirectory.appending(component: "Test.xcresult")
+        try await fileSystem.makeDirectory(at: resultBundlePath)
+
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.variables["TUIST_INSPECT_TEST_WAIT"] = "YES"
+
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .value(temporaryDirectory))
+            .willReturn(temporaryDirectory.appending(component: "App.xcodeproj"))
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist", url: URL(string: "https://tuist.dev")!))
+
+        given(uploadResultBundleService)
+            .uploadResultBundle(
+                resultBundlePath: .any,
+                config: .any,
+                quarantinedTests: .any,
+                buildRunId: .any,
+                shardPlanId: .any,
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any,
+                stressNewTests: .any,
+                stressResultBundlePaths: .any,
+                scheme: .any
+            )
+            .willReturn(
+                Components.Schemas.RunsTest(
+                    duration: 1000,
+                    id: "test-id",
+                    project_id: 1,
+                    test_case_runs: [],
+                    _type: .test,
+                    url: "https://tuist.dev/tuist/tuist/runs/test-id"
+                )
+            )
+
+        // When
+        try await subject.run(
+            path: temporaryDirectory.pathString,
+            resultBundlePath: resultBundlePath.pathString
+        )
+
+        // Then
+        verify(uploadResultBundleService)
+            .uploadResultBundle(
+                resultBundlePath: .value(resultBundlePath),
+                config: .any,
+                quarantinedTests: .any,
+                buildRunId: .any,
+                shardPlanId: .any,
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any,
+                stressNewTests: .any,
+                stressResultBundlePaths: .any,
+                scheme: .any
+            )
+            .called(1)
+        verify(uploadResultBundleService)
+            .uploadTestSummary(
+                testSummary: .any,
+                resultBundlePath: .any,
+                projectDerivedDataDirectory: .any,
+                config: .any,
+                shardPlanId: .any,
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
+            )
+            .called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func run_explicit_local_mode_overrides_url_default() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let resultBundlePath = temporaryDirectory.appending(component: "Test.xcresult")
+        try await fileSystem.makeDirectory(at: resultBundlePath)
+
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.variables["TUIST_INSPECT_TEST_WAIT"] = "YES"
+
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .value(temporaryDirectory))
+            .willReturn(temporaryDirectory.appending(component: "App.xcodeproj"))
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist", url: URL(string: "https://tuist.dev")!))
+
+        // When
+        try await subject.run(
+            path: temporaryDirectory.pathString,
+            resultBundlePath: resultBundlePath.pathString,
+            mode: .local
+        )
+
+        // Then
+        verify(uploadResultBundleService)
+            .uploadTestSummary(
+                testSummary: .any,
+                resultBundlePath: .any,
+                projectDerivedDataDirectory: .value(nil),
+                config: .any,
+                shardPlanId: .any,
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func run_from_xcode_waits_for_result_bundle_to_be_finalized() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let resultBundlePath = temporaryDirectory.appending(component: "Test.xcresult")
+        try await fileSystem.makeDirectory(at: resultBundlePath.appending(component: "Staging"))
+        let infoPlistPath = resultBundlePath.appending(component: "Info.plist")
+
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.variables["TUIST_INSPECT_TEST_WAIT"] = "YES"
+        mockedEnvironment.workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
+
+        given(xcodeProjectOrWorkspacePathLocator)
+            .locate(from: .value(temporaryDirectory))
+            .willReturn(temporaryDirectory.appending(component: "App.xcworkspace"))
+
+        xcResultService.reset()
+        given(xcResultService)
+            .parse(path: .value(resultBundlePath), rootDirectory: .any)
+            .willProduce { _, _ in
+                #expect(FileManager.default.fileExists(atPath: infoPlistPath.pathString))
+                return TestSummary(testPlanName: nil, status: .passed, duration: 1000, testModules: [])
+            }
+
+        let finalizeTask = Task {
+            try await Task.sleep(for: .milliseconds(300))
+            try await fileSystem.writeText("", at: infoPlistPath)
+        }
+
+        // When
+        try await subject.run(
+            path: temporaryDirectory.pathString,
+            resultBundlePath: resultBundlePath.pathString
+        )
+        try await finalizeTask.value
+
+        // Then
+        verify(uploadResultBundleService)
+            .uploadTestSummary(
+                testSummary: .any,
+                resultBundlePath: .value(resultBundlePath),
+                projectDerivedDataDirectory: .any,
+                config: .any,
+                shardPlanId: .any,
+                shardIndex: .any,
+                onlyTestIdentifiers: .any,
+                skipTestIdentifiers: .any,
+                stressNewTests: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func run_from_xcode_throws_when_result_bundle_is_never_finalized() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let resultBundlePath = temporaryDirectory.appending(component: "Test.xcresult")
+        try await fileSystem.makeDirectory(at: resultBundlePath.appending(component: "Staging"))
+
+        let mockedEnvironment = try #require(Environment.mocked)
+        mockedEnvironment.variables["TUIST_INSPECT_TEST_WAIT"] = "YES"
+        mockedEnvironment.workspacePath = temporaryDirectory.appending(component: "App.xcworkspace")
+
+        let subject = InspectTestCommandService(
+            derivedDataLocator: derivedDataLocator,
+            fileSystem: fileSystem,
+            xcResultService: xcResultService,
+            xcodeProjectOrWorkspacePathLocator: xcodeProjectOrWorkspacePathLocator,
+            uploadResultBundleService: uploadResultBundleService,
+            configLoader: configLoader,
+            backgroundProcessRunner: backgroundProcessRunner,
+            resultBundleFinalizationTimeout: .milliseconds(200)
+        )
+
+        // When / Then
+        await #expect(
+            throws: InspectTestCommandServiceError.resultBundleNotFinalized(resultBundlePath)
+        ) {
+            try await subject.run(
+                path: temporaryDirectory.pathString,
+                resultBundlePath: resultBundlePath.pathString
+            )
+        }
+        verify(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .called(0)
     }
 
     @Test(.withMockedEnvironment())

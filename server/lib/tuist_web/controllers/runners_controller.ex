@@ -1,0 +1,265 @@
+defmodule TuistWeb.RunnersController do
+  @moduledoc """
+  Authenticated dispatch endpoint runner Pods poll for their JIT
+  runner config.
+
+  Authentication: the Pod presents its projected ServiceAccount
+  token as a `Bearer` token. The endpoint validates the token via
+  the Kubernetes TokenReview API, recovers the SA's namespace +
+  name, then asks `Tuist.Runners.dispatch_for_sa/3` to claim a
+  pending Burst and mint a JIT.
+
+  Trust chain: the runners-controller is the only writer of SAs
+  in the runners namespace and stamps each SA with the fleet's
+  `tuist.dev/runner-pool` label at create time. The K8s API
+  server signs the projected token. So "the bearer of this token
+  = a Pod minted by our controller for this fleet" without any
+  server-side state.
+  """
+
+  use TuistWeb, :controller
+
+  alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Runners
+
+  require Logger
+
+  def dispatch(conn, params) do
+    with {:ok, token} <- bearer_token(conn),
+         {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
+         {:ok,
+          %{
+            credential: credential,
+            account: account,
+            workflow_job_id: workflow_job_id,
+            fleet_on_cluster_network: on_cluster_network,
+            fleet_platform: fleet_platform
+          } = dispatched} <-
+           Runners.dispatch_for_sa(ns, sa_name, guest(params)) do
+      response =
+        credential
+        |> dispatch_response(
+          account,
+          workflow_job_id,
+          on_cluster_network,
+          fleet_platform,
+          Map.get(dispatched, :fleet_site),
+          Map.get(dispatched, :cache_signing_grant)
+        )
+        |> Map.merge(setup_info_fields(credential, account, Map.get(dispatched, :runner_name)))
+
+      json(conn, response)
+    else
+      {:error, :no_work_yet} ->
+        send_resp(conn, :no_content, "")
+
+      {:error, :drain} ->
+        # 410 Gone: the polling Pod's image no longer matches its
+        # RunnerPool's spec.image. dispatch-poll.sh on the Pod side
+        # treats this as a clean-exit signal — exits 0, the EXIT
+        # trap halts the VM, tart-kubelet transitions the Pod to
+        # Succeeded, and the runner-pool reconciler replaces it
+        # with one on the current image.
+        conn |> put_status(:gone) |> json(%{error: "drain", reason: "image stale"})
+
+      {:error, :pod_committed} ->
+        # 410 Gone: this Pod already committed to a dispatch (it carries the
+        # account label) but is polling again, so its dispatch response was lost
+        # and the runner never started. Same clean-exit signal as a drain — the
+        # VM halts and the reconciler replaces the Pod — so it can't serve a
+        # second job.
+        conn |> put_status(:gone) |> json(%{error: "drain", reason: "pod already committed"})
+
+      {:error, :missing_bearer} ->
+        conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
+
+      {:error, :unauthenticated} ->
+        Logger.warning("runners: tokenreview rejected token")
+        conn |> put_status(:unauthorized) |> json(%{error: "invalid token"})
+
+      {:error, :not_service_account} ->
+        Logger.warning("runners: tokenreview principal is not an SA")
+        conn |> put_status(:unauthorized) |> json(%{error: "not a service account"})
+
+      {:error, :not_found} ->
+        conn |> put_status(:unauthorized) |> json(%{error: "service account gone"})
+
+      {:error, :no_pool_label} ->
+        Logger.warning("runners: SA missing pool label")
+        conn |> put_status(:unauthorized) |> json(%{error: "no pool label on service account"})
+
+      {:error, :unknown_account} ->
+        conn |> put_status(:not_found) |> json(%{error: "account not configured"})
+
+      {:error, mint_failure} when mint_failure in [:github_mint_failed, :buildkite_mint_failed, :gitlab_mint_failed] ->
+        conn |> put_status(:bad_gateway) |> json(%{error: "credential mint failed"})
+
+      {:error, :not_in_cluster} ->
+        conn |> put_status(:service_unavailable) |> json(%{error: "kubernetes unavailable"})
+
+      {:error, reason} ->
+        Logger.error("runners: dispatch failed", reason: inspect(reason))
+        conn |> put_status(:internal_server_error) |> json(%{error: "dispatch failed"})
+    end
+  end
+
+  @doc """
+  Returns the raw scaling signals the runners-controller's
+  autoscaler reconciler uses to compute the desired replica count
+  for a given fleet:
+
+      GET /api/internal/runners/desired_replicas?fleet=<name>
+      → 200 { fleet, claimed, occupied, queued, withheld,
+              p95_concurrent_last_hour }
+
+  Authentication: same SA-token + TokenReview path as the dispatch
+  endpoint. Anyone with a valid in-cluster SA token can read —
+  the values are aggregate counts (not per-customer detail), and
+  the controller's SA holds no pool label so we cannot gate by
+  pool membership the way `dispatch` does.
+
+  The controller composes the response into a desired replicas
+  value using `minWarmPoolFloor` + `maxReplicas` from the
+  per-pool `spec.autoscaling` block; keeping the policy knobs on
+  the controller side means a chart-only tuning change doesn't
+  need a server deploy.
+  """
+  def desired_replicas(conn, %{"fleet" => fleet}) when is_binary(fleet) and fleet != "" do
+    with {:ok, token} <- bearer_token(conn),
+         {:ok, _} <- K8sClient.create_controller_token_review(token) do
+      signals = Runners.scaling_signals_for_fleet(fleet)
+      json(conn, signals)
+    else
+      {:error, :missing_bearer} ->
+        conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
+
+      {:error, :unauthenticated} ->
+        Logger.warning("runners: tokenreview rejected token on desired_replicas")
+        conn |> put_status(:unauthorized) |> json(%{error: "invalid token"})
+
+      {:error, :not_service_account} ->
+        Logger.warning("runners: tokenreview principal is not an SA on desired_replicas")
+        conn |> put_status(:unauthorized) |> json(%{error: "not a service account"})
+
+      {:error, :not_in_cluster} ->
+        conn |> put_status(:service_unavailable) |> json(%{error: "kubernetes unavailable"})
+
+      {:error, reason} ->
+        Logger.error("runners: desired_replicas failed", reason: inspect(reason))
+        conn |> put_status(:internal_server_error) |> json(%{error: "scaling signals failed"})
+    end
+  end
+
+  def desired_replicas(conn, _params) do
+    conn |> put_status(:bad_request) |> json(%{error: "missing fleet query param"})
+  end
+
+  # Hands the polling Pod its JIT config plus, when the account has a
+  # Kura node serving the fleet's platform, the in-cluster URL the job
+  # should use (tier order in `Tuist.Kura.runner_cache_endpoint_url/2`).
+  # The runner image exports it as `TUIST_CACHE_ENDPOINT` so cache
+  # traffic stays on the cluster's internal network instead of going
+  # through the public Kura ingress. Absent (no serving node), the Pod
+  # falls back to normal server-side cache resolution.
+  #
+  # Only fleets on the cluster pod network get the URL: it's a
+  # `*.svc.cluster.local` address, and clients treat
+  # `TUIST_CACHE_ENDPOINT` as a hard override rather than a hint, so
+  # handing it to a runtime that can't reach it breaks caching instead
+  # of degrading it. Two gates compose here:
+  #
+  #   * reachability — `Catalog.fleet_on_cluster_network?/1`, threaded
+  #     in by `serve_claim`: can this fleet's runtime resolve and route
+  #     `*.svc.cluster.local` at all (Linux kata Pods always; macOS
+  #     Tart VMs only in environments that wired the tailnet route).
+  #   * locality — the fleet's platform and the site the claiming runner's
+  #     Node is at (`Tuist.Runners.Sites.claim_site/2`), which
+  #     `runner_cache_endpoint_url/3` matches against the private
+  #     region's `runner_platforms` and `site`, so a node co-located with
+  #     one site never serves a runner on the wrong side of a WAN.
+  defp dispatch_response(
+         credential,
+         account,
+         workflow_job_id,
+         fleet_on_cluster_network,
+         fleet_platform,
+         fleet_site,
+         cache_signing_grant
+       ) do
+    base =
+      Map.merge(
+        %{owner: account.name, workflow_job_id: workflow_job_id},
+        credential_fields(credential)
+      )
+
+    base =
+      case cache_signing_grant do
+        grant when is_binary(grant) and grant != "" -> Map.put(base, :cache_signing_grant, grant)
+        _ -> base
+      end
+
+    with true <- fleet_on_cluster_network,
+         true <- fleet_platform in [:linux, :macos],
+         url when is_binary(url) and url != "" <-
+           Tuist.Kura.runner_cache_endpoint_url(account, fleet_platform, fleet_site) do
+      Map.put(base, :cache_endpoint_url, url)
+    else
+      _ -> base
+    end
+  end
+
+  # The VM branches on which of these two key sets it receives, so the
+  # response stays a single shape per provider rather than a discriminator
+  # the poll script would have to read before it knows what else to expect.
+  defp credential_fields(%{kind: :github, jit: jit}), do: %{encoded_jit_config: jit}
+
+  defp credential_fields(%{kind: :gitlab} = credential) do
+    %{
+      gitlab_job: %{
+        url: credential.url,
+        payload: credential.payload,
+        report_token: credential.report_token,
+        waiting_trace: credential.waiting_trace
+      }
+    }
+  end
+
+  defp credential_fields(%{kind: :buildkite} = credential) do
+    %{
+      buildkite_acquisition_token: credential.token,
+      buildkite_job_uuid: credential.job_uuid,
+      buildkite_organization_slug: credential.organization_slug,
+      buildkite_report_token: credential.report_token
+    }
+  end
+
+  # Groups the GitHub runner prints in the job's "Set up job" step. The VM
+  # writes them verbatim to the runner's `.setup_info`, which the runner
+  # reads before it is given a job, so the link names the runner and the
+  # dashboard resolves it to whichever job GitHub placed there.
+  defp setup_info_fields(%{kind: :github}, account, runner_name) when is_binary(runner_name) and runner_name != "" do
+    job_url =
+      Tuist.Environment.app_url(path: "/#{account.name}/runners/by-runner/#{URI.encode_www_form(runner_name)}")
+
+    %{setup_info: [%{group: "Tuist Runner", detail: "Job details: #{job_url}"}]}
+  end
+
+  defp setup_info_fields(_credential, _account, _runner_name), do: %{}
+
+  defp bearer_token(conn) do
+    case Plug.Conn.get_req_header(conn, "authorization") do
+      ["Bearer " <> token] when token != "" -> {:ok, token}
+      ["bearer " <> token] when token != "" -> {:ok, token}
+      _ -> {:error, :missing_bearer}
+    end
+  end
+
+  # The guest's `sw_vers -productVersion`, which the macOS poll script sends
+  # so the runner can be named after it. Anything that is not a dotted
+  # version is dropped rather than put in a name customers read.
+  defp guest(%{"os_version" => os_version}) when is_binary(os_version) do
+    if os_version =~ ~r/\A\d{1,3}(\.\d{1,3}){0,2}\z/, do: %{os_version: os_version}, else: %{}
+  end
+
+  defp guest(_params), do: %{}
+end

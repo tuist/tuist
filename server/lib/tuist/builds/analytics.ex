@@ -1,0 +1,4031 @@
+defmodule Tuist.Builds.Analytics do
+  @moduledoc """
+  Module for build-related analytics.
+
+  `module_invalidation_timeseries/1` and `modules_timeseries/1` retain the previous
+  raw-query implementations as independent regression oracles for breakdown-derived
+  series. They have no production callers; module-cache pages must reuse
+  `module_timeseries_from_breakdown/2` rather than add these scans back to page loads.
+  """
+  import Ecto.Query
+
+  alias Tuist.Builds.Build
+  alias Tuist.ClickHouseRepo
+  alias Tuist.CommandEvents
+  alias Tuist.CommandEvents.Event
+  alias Tuist.Utilities.Decimals
+  alias Tuist.Xcode.XcodeGraph
+
+  def build_duration_analytics_by_category(project_id, category, opts \\ []) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    category_field =
+      case category do
+        :xcode_version -> dynamic([b], b.xcode_version)
+        :model_identifier -> dynamic([b], b.model_identifier)
+        :macos_version -> dynamic([b], b.macos_version)
+      end
+
+    query =
+      select_merge(
+        from(b in Build,
+          where: b.project_id == ^project_id,
+          where: b.inserted_at > ^start_datetime,
+          where: b.inserted_at < ^end_datetime,
+          group_by: ^category_field,
+          select: %{value: fragment("avgOrNull(?)", b.duration)}
+        ),
+        ^%{category: category_field}
+      )
+
+    query
+    |> apply_filters(opts)
+    |> ClickHouseRepo.all()
+    |> Enum.map(fn row ->
+      %{category: row.category, value: row.value || 0}
+    end)
+  end
+
+  def build_analytics(project_id, opts \\ []) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    clickhouse_interval = clickhouse_interval_for_date_period(date_period)
+
+    current_build_data =
+      build_count(
+        project_id,
+        start_datetime,
+        end_datetime,
+        date_period,
+        clickhouse_interval,
+        opts
+      )
+
+    previous_builds_count =
+      build_total_count(
+        project_id,
+        DateTime.add(start_datetime, -days_delta, :day),
+        start_datetime,
+        opts
+      )
+
+    current_builds_count = build_total_count(project_id, start_datetime, end_datetime, opts)
+
+    %{
+      trend:
+        trend(
+          previous_value: previous_builds_count,
+          current_value: current_builds_count
+        ),
+      count: current_builds_count,
+      values: Enum.map(current_build_data, & &1.count),
+      dates: Enum.map(current_build_data, & &1.date)
+    }
+  end
+
+  defp build_count(project_id, start_datetime, end_datetime, date_period, clickhouse_interval, opts) do
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
+
+    query = """
+    SELECT
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}, 'UTC') as date,
+      count() as count
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at > {start_dt:DateTime64(6)}
+      AND inserted_at < {end_dt:DateTime64(6)}
+      #{filter_clauses}
+    GROUP BY date
+    ORDER BY date
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+
+    builds_data =
+      Map.new(rows, fn [date, count] -> {normalise_date(date, date_period), count} end)
+
+    date_period
+    |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    |> Enum.map(fn date ->
+      normalized_date = normalise_date(date, date_period)
+      count = Map.get(builds_data, normalized_date, 0)
+      %{date: date, count: count}
+    end)
+  end
+
+  defp build_total_count(project_id, start_datetime, end_datetime, opts) do
+    query =
+      apply_filters(
+        from(b in Build,
+          where: b.project_id == ^project_id,
+          where: b.inserted_at > ^start_datetime,
+          where: b.inserted_at < ^end_datetime,
+          select: count()
+        ),
+        opts
+      )
+
+    ClickHouseRepo.one(query) || 0
+  end
+
+  @scatter_data_limit 10_000
+
+  def build_duration_scatter_data(project_id, opts \\ []) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    group_by = Keyword.get(opts, :group_by, :scheme)
+
+    query =
+      apply_filters(
+        from(b in Build,
+          where: b.project_id == ^project_id,
+          where: b.inserted_at > ^start_datetime,
+          where: b.inserted_at < ^end_datetime,
+          order_by: [desc: b.inserted_at],
+          limit: ^@scatter_data_limit,
+          select: %{
+            id: b.id,
+            inserted_at: b.inserted_at,
+            duration: b.duration,
+            scheme: b.scheme,
+            status: b.status,
+            category: b.category,
+            is_ci: b.is_ci
+          }
+        ),
+        opts
+      )
+
+    results = ClickHouseRepo.all(query)
+    truncated = length(results) >= @scatter_data_limit
+
+    oldest_entry =
+      if truncated do
+        results |> List.last() |> Map.get(:inserted_at)
+      end
+
+    series =
+      results
+      |> Enum.group_by(fn build ->
+        case group_by do
+          :environment -> build.is_ci
+          :category -> build.category
+          _ -> build.scheme
+        end
+      end)
+      |> Enum.map(fn {group_key, builds} ->
+        %{
+          name: group_key,
+          data:
+            Enum.map(builds, fn build ->
+              ts = NaiveDateTime.diff(build.inserted_at, ~N[1970-01-01 00:00:00], :millisecond)
+
+              %{
+                value: [ts, Decimals.to_rounded(build.duration / 1000)],
+                id: build.id,
+                meta: %{
+                  scheme: build.scheme,
+                  status: build.status,
+                  is_ci: build.is_ci,
+                  category: build.category
+                }
+              }
+            end)
+        }
+      end)
+
+    %{
+      series: series,
+      truncated: truncated,
+      oldest_entry: oldest_entry
+    }
+  end
+
+  def build_duration_analytics(project_id, opts \\ []) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    clickhouse_interval = clickhouse_interval_for_date_period(date_period)
+
+    previous_period_data =
+      build_aggregated_analytics(
+        project_id,
+        DateTime.add(start_datetime, -days_delta, :day),
+        start_datetime,
+        opts
+      )
+
+    previous_period_total_average_duration = previous_period_data.average_duration
+
+    current_period_data =
+      build_aggregated_analytics(project_id, start_datetime, end_datetime, opts)
+
+    current_period_total_average_duration = current_period_data.average_duration
+
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
+
+    query = """
+    SELECT
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}, 'UTC') as date,
+      avgOrNull(duration) as value
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at > {start_dt:DateTime64(6)}
+      AND inserted_at < {end_dt:DateTime64(6)}
+      #{filter_clauses}
+    GROUP BY date
+    ORDER BY date
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+
+    average_durations_data = Enum.map(rows, fn [date, value] -> %{date: date, value: value} end)
+
+    average_durations =
+      process_durations_data(average_durations_data, start_datetime, end_datetime, date_period)
+
+    %{
+      trend:
+        trend(
+          previous_value: previous_period_total_average_duration,
+          current_value: current_period_total_average_duration
+        ),
+      total_average_duration: current_period_total_average_duration,
+      average_durations: average_durations,
+      dates: Enum.map(average_durations, & &1.date),
+      values: Enum.map(average_durations, & &1.value)
+    }
+  end
+
+  defp build_aggregated_analytics(project_id, start_datetime, end_datetime, opts) do
+    query =
+      apply_filters(
+        from(b in Build,
+          where: b.project_id == ^project_id,
+          where: b.inserted_at > ^start_datetime,
+          where: b.inserted_at < ^end_datetime,
+          select: %{
+            total_duration: fragment("sumOrNull(?)", b.duration),
+            count: count(),
+            average_duration: fragment("avgOrNull(?)", b.duration)
+          }
+        ),
+        opts
+      )
+
+    case ClickHouseRepo.one(query) do
+      nil ->
+        %{total_duration: 0, count: 0, average_duration: 0}
+
+      %{total_duration: nil, count: count, average_duration: nil} ->
+        %{total_duration: 0, count: count || 0, average_duration: 0}
+
+      %{total_duration: total, count: count, average_duration: avg} ->
+        %{
+          total_duration: normalize_result(total),
+          count: count || 0,
+          average_duration: normalize_result(avg)
+        }
+    end
+  end
+
+  def build_percentile_durations(project_id, percentile, opts \\ []) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    clickhouse_interval = clickhouse_interval_for_date_period(date_period)
+
+    current_period_percentile =
+      build_period_percentile(project_id, percentile, start_datetime, end_datetime, opts)
+
+    previous_period_percentile =
+      build_period_percentile(
+        project_id,
+        percentile,
+        DateTime.add(start_datetime, -days_delta, :day),
+        start_datetime,
+        opts
+      )
+
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
+
+    query = """
+    SELECT
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}, 'UTC') as date,
+      quantileOrNull(#{percentile})(duration) as value
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at > {start_dt:DateTime64(6)}
+      AND inserted_at < {end_dt:DateTime64(6)}
+      #{filter_clauses}
+    GROUP BY date
+    ORDER BY date
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+
+    durations_data = Enum.map(rows, fn [date, value] -> %{date: date, value: value} end)
+    durations = process_durations_data(durations_data, start_datetime, end_datetime, date_period)
+
+    %{
+      trend:
+        trend(
+          previous_value: previous_period_percentile,
+          current_value: current_period_percentile
+        ),
+      total_percentile_duration: current_period_percentile,
+      dates: Enum.map(durations, & &1.date),
+      values: Enum.map(durations, & &1.value)
+    }
+  end
+
+  defp build_period_percentile(project_id, percentile, start_datetime, end_datetime, opts) do
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
+
+    query = """
+    SELECT quantileOrNull(#{percentile})(duration) as value
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at > {start_dt:DateTime64(6)}
+      AND inserted_at < {end_dt:DateTime64(6)}
+      #{filter_clauses}
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: [[value]]}} = ClickHouseRepo.query(query, params)
+
+    normalize_result(value)
+  end
+
+  def build_duration_percentiles_analytics(project_id, opts \\ []) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    clickhouse_interval = clickhouse_interval_for_date_period(date_period)
+
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
+
+    series_query = """
+    SELECT
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}, 'UTC') as date,
+      avgOrNull(duration) as average,
+      quantileOrNull(0.5)(duration) as p50,
+      quantileOrNull(0.9)(duration) as p90,
+      quantileOrNull(0.99)(duration) as p99
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at > {start_dt:DateTime64(6)}
+      AND inserted_at < {end_dt:DateTime64(6)}
+      #{filter_clauses}
+    GROUP BY date
+    ORDER BY date
+    """
+
+    params =
+      Map.merge(
+        %{project_id: project_id, start_dt: start_datetime, end_dt: end_datetime},
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(series_query, params)
+
+    series =
+      Enum.map(rows, fn [date, average, p50, p90, p99] ->
+        %{date: date, average: average, p50: p50, p90: p90, p99: p99}
+      end)
+
+    average_durations = build_series_durations(series, :average, start_datetime, end_datetime, date_period)
+    p50_durations = build_series_durations(series, :p50, start_datetime, end_datetime, date_period)
+    p90_durations = build_series_durations(series, :p90, start_datetime, end_datetime, date_period)
+    p99_durations = build_series_durations(series, :p99, start_datetime, end_datetime, date_period)
+
+    current_period = build_period_aggregates(project_id, start_datetime, end_datetime, opts)
+
+    previous_period =
+      build_period_aggregates(
+        project_id,
+        DateTime.add(start_datetime, -days_delta, :day),
+        start_datetime,
+        opts
+      )
+
+    %{
+      trend: trend(previous_value: previous_period.average, current_value: current_period.average),
+      total_average_duration: current_period.average,
+      p50: current_period.p50,
+      p90: current_period.p90,
+      p99: current_period.p99,
+      dates: Enum.map(average_durations, & &1.date),
+      values: Enum.map(average_durations, & &1.value),
+      p50_values: Enum.map(p50_durations, & &1.value),
+      p90_values: Enum.map(p90_durations, & &1.value),
+      p99_values: Enum.map(p99_durations, & &1.value)
+    }
+  end
+
+  defp build_series_durations(series, key, start_datetime, end_datetime, date_period) do
+    series
+    |> Enum.map(fn row -> %{date: row.date, value: Map.get(row, key)} end)
+    |> process_durations_data(start_datetime, end_datetime, date_period)
+  end
+
+  defp build_period_aggregates(project_id, start_datetime, end_datetime, opts) do
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
+
+    query = """
+    SELECT
+      avgOrNull(duration) as average,
+      quantileOrNull(0.5)(duration) as p50,
+      quantileOrNull(0.9)(duration) as p90,
+      quantileOrNull(0.99)(duration) as p99
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at > {start_dt:DateTime64(6)}
+      AND inserted_at < {end_dt:DateTime64(6)}
+      #{filter_clauses}
+    """
+
+    params =
+      Map.merge(
+        %{project_id: project_id, start_dt: start_datetime, end_dt: end_datetime},
+        filter_params
+      )
+
+    {:ok, %{rows: [[average, p50, p90, p99]]}} = ClickHouseRepo.query(query, params)
+
+    %{
+      average: normalize_result(average),
+      p50: normalize_result(p50),
+      p90: normalize_result(p90),
+      p99: normalize_result(p99)
+    }
+  end
+
+  def build_success_rate_analytics(project_id, opts \\ []) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+
+    current_success_rate =
+      build_success_rate(
+        project_id,
+        start_datetime: start_datetime,
+        end_datetime: end_datetime,
+        opts: opts
+      )
+
+    previous_success_rate =
+      build_success_rate(
+        project_id,
+        start_datetime: DateTime.add(start_datetime, -days_delta, :day),
+        end_datetime: start_datetime,
+        opts: opts
+      )
+
+    success_rates =
+      build_success_rates_per_period(project_id,
+        start_datetime: start_datetime,
+        end_datetime: end_datetime,
+        date_period: date_period,
+        opts: opts
+      )
+
+    %{
+      trend:
+        trend(
+          previous_value: previous_success_rate,
+          current_value: current_success_rate
+        ),
+      success_rate: current_success_rate,
+      dates:
+        Enum.map(
+          success_rates,
+          & &1.date
+        ),
+      values:
+        Enum.map(
+          success_rates,
+          & &1.success_rate
+        )
+    }
+  end
+
+  defp build_success_rate(project_id, opts) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    filter_opts = Keyword.get(opts, :opts, [])
+
+    {filter_clauses, filter_params} = build_filter_clauses(filter_opts)
+
+    query = """
+    SELECT
+      count() as total_builds,
+      countIf(status = 'success') as successful_builds
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at > {start_dt:DateTime64(6)}
+      AND inserted_at < {end_dt:DateTime64(6)}
+      #{filter_clauses}
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: [[total_builds, successful_builds]]}} = ClickHouseRepo.query(query, params)
+
+    if total_builds == 0 do
+      0.0
+    else
+      successful_builds / total_builds
+    end
+  end
+
+  defp build_success_rates_per_period(project_id, opts) do
+    start_datetime = Keyword.get(opts, :start_datetime)
+    end_datetime = Keyword.get(opts, :end_datetime)
+    date_period = Keyword.get(opts, :date_period)
+    filter_opts = Keyword.get(opts, :opts, [])
+
+    clickhouse_interval = clickhouse_interval_for_date_period(date_period)
+    {filter_clauses, filter_params} = build_filter_clauses(filter_opts)
+
+    query = """
+    SELECT
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}, 'UTC') as date,
+      count() as total_builds,
+      countIf(status = 'success') as successful_builds
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at > {start_dt:DateTime64(6)}
+      AND inserted_at < {end_dt:DateTime64(6)}
+      #{filter_clauses}
+    GROUP BY date
+    ORDER BY date
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+
+    success_rate_metadata_map =
+      Map.new(rows, fn [date, total, successful] ->
+        {normalise_date(date, date_period),
+         %{
+           total_builds: total,
+           successful_builds: successful
+         }}
+      end)
+
+    date_period
+    |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    |> Enum.map(fn date ->
+      normalized_date = normalise_date(date, date_period)
+      success_rate_metadata = Map.get(success_rate_metadata_map, normalized_date)
+
+      if is_nil(success_rate_metadata) or success_rate_metadata.total_builds == 0 do
+        %{
+          date: date,
+          success_rate: 0.0
+        }
+      else
+        total_builds = success_rate_metadata.total_builds
+        successful_builds = success_rate_metadata.successful_builds
+
+        %{
+          date: date,
+          success_rate: successful_builds / total_builds
+        }
+      end
+    end)
+  end
+
+  def cache_hit_rate_analytics(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    is_ci = Keyword.get(opts, :is_ci)
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+
+    current_cache_hit_rate =
+      cache_hit_rate(
+        project_id,
+        start_datetime: start_datetime,
+        end_datetime: end_datetime,
+        is_ci: is_ci
+      )
+
+    previous_cache_hit_rate =
+      cache_hit_rate(
+        project_id,
+        start_datetime: DateTime.add(start_datetime, -days_delta, :day),
+        end_datetime: start_datetime,
+        is_ci: is_ci
+      )
+
+    cache_hit_rates =
+      cache_hit_rates(project_id,
+        start_datetime: start_datetime,
+        end_datetime: end_datetime,
+        date_period: date_period,
+        is_ci: is_ci
+      )
+
+    %{
+      trend:
+        trend(
+          previous_value: previous_cache_hit_rate,
+          current_value: current_cache_hit_rate
+        ),
+      cache_hit_rate: current_cache_hit_rate,
+      dates:
+        Enum.map(
+          cache_hit_rates,
+          & &1.date
+        ),
+      values:
+        Enum.map(
+          cache_hit_rates,
+          & &1.cache_hit_rate
+        )
+    }
+  end
+
+  defp cache_hit_rate(project_id, opts) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = DateTime.utc_now()
+
+    result = build_cache_hit_rate(project_id, start_datetime, end_datetime, opts)
+
+    local_cache_hits_count = result.cacheable_task_local_hits_count
+    remote_cache_hits_count = result.cacheable_task_remote_hits_count
+    cacheable_tasks_count = result.cacheable_tasks_count
+
+    if cacheable_tasks_count == 0 do
+      0.0
+    else
+      (local_cache_hits_count + remote_cache_hits_count) / cacheable_tasks_count
+    end
+  end
+
+  defp cache_hit_rates(project_id, opts) do
+    start_datetime = Keyword.get(opts, :start_datetime)
+    end_datetime = Keyword.get(opts, :end_datetime)
+    date_period = Keyword.get(opts, :date_period)
+
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
+
+    cache_hit_rate_metadata_map =
+      project_id
+      |> build_cache_hit_rates(
+        start_datetime,
+        end_datetime,
+        clickhouse_time_bucket,
+        opts
+      )
+      |> Map.new(
+        &{normalise_date(&1.date, date_period),
+         %{
+           cacheable_tasks: &1.cacheable_tasks,
+           cacheable_task_local_hits: &1.cacheable_task_local_hits,
+           cacheable_task_remote_hits: &1.cacheable_task_remote_hits
+         }}
+      )
+
+    date_period
+    |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    |> Enum.map(fn date ->
+      normalized_date = normalise_date(date, date_period)
+      cache_hit_rate_metadata = Map.get(cache_hit_rate_metadata_map, normalized_date)
+
+      if is_nil(cache_hit_rate_metadata) or (cache_hit_rate_metadata.cacheable_tasks || 0) == 0 do
+        %{
+          date: date,
+          cache_hit_rate: 0.0
+        }
+      else
+        cacheable_tasks = cache_hit_rate_metadata.cacheable_tasks
+        cacheable_task_local_hits = cache_hit_rate_metadata.cacheable_task_local_hits || 0
+        cacheable_task_remote_hits = cache_hit_rate_metadata.cacheable_task_remote_hits || 0
+
+        %{
+          date: date,
+          cache_hit_rate: (cacheable_task_local_hits + cacheable_task_remote_hits) / cacheable_tasks
+        }
+      end
+    end)
+  end
+
+  def selective_testing_scatter_data(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    is_ci = Keyword.get(opts, :is_ci)
+
+    query =
+      from(e in Event,
+        where: e.project_id == ^project_id,
+        where: e.ran_at > ^DateTime.to_naive(start_datetime),
+        where: e.ran_at < ^DateTime.to_naive(end_datetime),
+        where: e.test_targets_count > 0,
+        order_by: [desc: e.ran_at],
+        limit: ^@scatter_data_limit,
+        select: %{
+          ran_at: e.ran_at,
+          is_ci: e.is_ci,
+          hit_rate:
+            fragment(
+              "(ifNull(?, 0) + ifNull(?, 0)) / ? * 100.0",
+              e.local_test_hits_count,
+              e.remote_test_hits_count,
+              e.test_targets_count
+            )
+        }
+      )
+
+    query =
+      case is_ci do
+        true -> where(query, [e], e.is_ci == true)
+        false -> where(query, [e], e.is_ci == false)
+        _ -> query
+      end
+
+    results = ClickHouseRepo.all(query)
+    truncated = length(results) >= @scatter_data_limit
+
+    oldest_entry =
+      if truncated do
+        results |> List.last() |> Map.get(:ran_at)
+      end
+
+    series =
+      results
+      |> Enum.group_by(& &1.is_ci)
+      |> Enum.map(fn {is_ci, events} ->
+        %{
+          name: is_ci,
+          data:
+            Enum.map(events, fn %{ran_at: ran_at, hit_rate: hit_rate} ->
+              ts = NaiveDateTime.diff(ran_at, ~N[1970-01-01 00:00:00], :millisecond)
+
+              %{
+                value: [ts, Decimals.to_rounded(hit_rate)],
+                meta: %{is_ci: is_ci}
+              }
+            end)
+        }
+      end)
+
+    %{
+      series: series,
+      truncated: truncated,
+      oldest_entry: oldest_entry
+    }
+  end
+
+  def selective_testing_analytics(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    is_ci = Keyword.get(opts, :is_ci)
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+
+    current_selective_testing_hit_rate =
+      selective_testing_hit_rate(
+        project_id,
+        start_datetime: start_datetime,
+        end_datetime: end_datetime,
+        is_ci: is_ci
+      )
+
+    previous_selective_testing_hit_rate =
+      selective_testing_hit_rate(
+        project_id,
+        start_datetime: DateTime.add(start_datetime, -days_delta, :day),
+        end_datetime: start_datetime,
+        is_ci: is_ci
+      )
+
+    selective_testing_hit_rates =
+      selective_testing_hit_rates(project_id,
+        start_datetime: start_datetime,
+        end_datetime: end_datetime,
+        date_period: date_period,
+        is_ci: is_ci
+      )
+
+    dates = Enum.map(selective_testing_hit_rates, & &1.date)
+
+    %{
+      trend:
+        trend(
+          previous_value: previous_selective_testing_hit_rate,
+          current_value: current_selective_testing_hit_rate
+        ),
+      hit_rate: current_selective_testing_hit_rate,
+      dates: dates,
+      values:
+        Enum.map(
+          selective_testing_hit_rates,
+          & &1.hit_rate
+        )
+    }
+  end
+
+  def selective_testing_analytics_with_percentiles(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    is_ci = Keyword.get(opts, :is_ci)
+
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
+
+    base_analytics = selective_testing_analytics(opts)
+
+    [p50_period, p90_period, p99_period, p50_values, p90_values, p99_values] =
+      Task.await_many(
+        [
+          Task.async(fn ->
+            CommandEvents.selective_testing_hit_rate_period_percentile(
+              project_id,
+              start_datetime,
+              end_datetime,
+              0.50,
+              is_ci: is_ci
+            )
+          end),
+          Task.async(fn ->
+            CommandEvents.selective_testing_hit_rate_period_percentile(
+              project_id,
+              start_datetime,
+              end_datetime,
+              0.90,
+              is_ci: is_ci
+            )
+          end),
+          Task.async(fn ->
+            CommandEvents.selective_testing_hit_rate_period_percentile(
+              project_id,
+              start_datetime,
+              end_datetime,
+              0.99,
+              is_ci: is_ci
+            )
+          end),
+          Task.async(fn ->
+            CommandEvents.selective_testing_hit_rate_percentiles(
+              project_id,
+              start_datetime,
+              end_datetime,
+              clickhouse_time_bucket,
+              0.50,
+              is_ci: is_ci
+            )
+          end),
+          Task.async(fn ->
+            CommandEvents.selective_testing_hit_rate_percentiles(
+              project_id,
+              start_datetime,
+              end_datetime,
+              clickhouse_time_bucket,
+              0.90,
+              is_ci: is_ci
+            )
+          end),
+          Task.async(fn ->
+            CommandEvents.selective_testing_hit_rate_percentiles(
+              project_id,
+              start_datetime,
+              end_datetime,
+              clickhouse_time_bucket,
+              0.99,
+              is_ci: is_ci
+            )
+          end)
+        ],
+        30_000
+      )
+
+    dates = base_analytics.dates
+
+    Map.merge(base_analytics, %{
+      p50: normalize_percentile_result(p50_period),
+      p90: normalize_percentile_result(p90_period),
+      p99: normalize_percentile_result(p99_period),
+      p50_values: process_percentile_hit_rates(p50_values, dates, date_period),
+      p90_values: process_percentile_hit_rates(p90_values, dates, date_period),
+      p99_values: process_percentile_hit_rates(p99_values, dates, date_period)
+    })
+  end
+
+  defp normalize_percentile_result(nil), do: 0.0
+  defp normalize_percentile_result(value) when is_float(value), do: value
+  defp normalize_percentile_result(%Decimal{} = value), do: Decimal.to_float(value)
+
+  defp process_percentile_hit_rates(percentile_data, dates, date_period) do
+    percentile_map =
+      Map.new(percentile_data, fn row ->
+        {normalise_date(row.date, date_period), row.percentile_hit_rate}
+      end)
+
+    Enum.map(dates, fn date ->
+      normalized_date = normalise_date(date, date_period)
+
+      case Map.get(percentile_map, normalized_date) do
+        nil -> 0.0
+        value -> value / 100.0
+      end
+    end)
+  end
+
+  defp selective_testing_hit_rate(project_id, opts) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    result =
+      CommandEvents.selective_testing_hit_rate(project_id, start_datetime, end_datetime, opts)
+
+    local_test_hits_count = result.local_test_hits_count || 0
+    remote_test_hits_count = result.remote_test_hits_count || 0
+    test_targets_count = result.test_targets_count || 0
+
+    if test_targets_count == 0 do
+      0.0
+    else
+      (local_test_hits_count + remote_test_hits_count) / test_targets_count
+    end
+  end
+
+  defp selective_testing_hit_rates(project_id, opts) do
+    start_datetime = Keyword.get(opts, :start_datetime)
+    end_datetime = Keyword.get(opts, :end_datetime)
+    date_period = Keyword.get(opts, :date_period)
+
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
+
+    selective_testing_hit_rate_metadata_map =
+      project_id
+      |> CommandEvents.selective_testing_hit_rates(
+        start_datetime,
+        end_datetime,
+        date_period,
+        clickhouse_time_bucket,
+        opts
+      )
+      |> Map.new(
+        &{normalise_date(&1.date, date_period),
+         %{
+           test_targets: &1.test_targets,
+           local_test_target_hits: &1.local_test_target_hits,
+           remote_test_target_hits: &1.remote_test_target_hits
+         }}
+      )
+
+    date_period
+    |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    |> Enum.map(fn date ->
+      normalized_date = normalise_date(date, date_period)
+
+      selective_testing_hit_rate_metadata =
+        Map.get(selective_testing_hit_rate_metadata_map, normalized_date)
+
+      if is_nil(selective_testing_hit_rate_metadata) or
+           (selective_testing_hit_rate_metadata.test_targets || 0) == 0 do
+        %{
+          date: date,
+          hit_rate: 0.0
+        }
+      else
+        test_targets = selective_testing_hit_rate_metadata.test_targets
+        local_test_target_hits = selective_testing_hit_rate_metadata.local_test_target_hits || 0
+        remote_test_target_hits = selective_testing_hit_rate_metadata.remote_test_target_hits || 0
+
+        %{
+          date: date,
+          hit_rate: (local_test_target_hits + remote_test_target_hits) / test_targets
+        }
+      end
+    end)
+  end
+
+  def build_time_analytics(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    is_ci = Keyword.get(opts, :is_ci)
+
+    query =
+      from(xg in XcodeGraph,
+        join: e in Event,
+        on: xg.command_event_id == e.id,
+        where: xg.inserted_at > ^start_datetime,
+        where: xg.inserted_at < ^end_datetime,
+        select: %{
+          actual_build_time: sum(e.duration),
+          total_time_saved: sum(xg.binary_build_duration)
+        }
+      )
+
+    query =
+      case project_id do
+        nil -> query
+        _ -> where(query, [xg, e], e.project_id == ^project_id)
+      end
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [xg, e], e.is_ci == true)
+        false -> where(query, [xg, e], e.is_ci == false)
+      end
+
+    result = ClickHouseRepo.one(query) || %{actual_build_time: 0, total_time_saved: 0}
+
+    actual = normalize_duration_result(result.actual_build_time)
+    saved = result.total_time_saved || 0
+    total = actual + saved
+
+    %{
+      actual_build_time: actual,
+      total_time_saved: saved,
+      total_build_time: total
+    }
+  end
+
+  defp normalize_duration_result(result) do
+    case result do
+      nil -> 0
+      %Decimal{} -> Decimal.to_integer(result)
+      value when is_integer(value) -> value
+      value when is_float(value) -> round(value)
+    end
+  end
+
+  @cas_actions ["download", "upload"]
+
+  @doc """
+  Gets CAS upload analytics for a project over a time period sourced from the
+  per-task `cas_outputs` data already collected by the CAS plugin.
+  """
+  def cas_uploads_analytics(project_id, opts \\ []) do
+    project_id |> cas_action_metrics("upload", opts) |> to_transfer_summary()
+  end
+
+  @doc """
+  Gets CAS download analytics for a project over a time period sourced from
+  the per-task `cas_outputs` data already collected by the CAS plugin.
+  """
+  def cas_downloads_analytics(project_id, opts \\ []) do
+    project_id |> cas_action_metrics("download", opts) |> to_transfer_summary()
+  end
+
+  @doc """
+  Gets combined CAS transfer (upload + download) analytics with the per-action
+  split preserved. The combined total/series are sums of downloads and uploads.
+  """
+  def cas_transfer_analytics(project_id, opts \\ []) do
+    %{transfer: transfer} = cas_analytics(project_id, opts)
+    transfer
+  end
+
+  defp cas_transfer_analytics_from_metrics(downloads, uploads) do
+    combined_values =
+      downloads.size_values
+      |> Enum.zip(uploads.size_values)
+      |> Enum.map(fn {d, u} -> d + u end)
+
+    combined_total = downloads.total_size + uploads.total_size
+    combined_previous = downloads.previous_size + uploads.previous_size
+
+    %{
+      dates: downloads.dates,
+      values: combined_values,
+      total: combined_total,
+      trend: trend(previous_value: combined_previous, current_value: combined_total),
+      downloads: %{values: downloads.size_values, total: downloads.total_size},
+      uploads: %{values: uploads.size_values, total: uploads.total_size}
+    }
+  end
+
+  @doc """
+  Gets average CAS latency analytics (in milliseconds) per action, plus a
+  combined average. Combined latency weights downloads and uploads by event
+  count.
+  """
+  def cas_latency_analytics(project_id, opts \\ []) do
+    %{latency: latency} = cas_analytics(project_id, opts)
+    latency
+  end
+
+  defp cas_latency_analytics_from_metrics(downloads, uploads) do
+    combined_values =
+      [
+        downloads.duration_values,
+        uploads.duration_values,
+        downloads.count_values,
+        uploads.count_values
+      ]
+      |> Enum.zip()
+      |> Enum.map(fn {d_dur, u_dur, d_count, u_count} ->
+        safe_div(d_dur + u_dur, d_count + u_count)
+      end)
+
+    combined_avg =
+      safe_div(
+        downloads.total_duration_ms + uploads.total_duration_ms,
+        downloads.event_count + uploads.event_count
+      )
+
+    combined_previous =
+      safe_div(
+        downloads.previous_duration_ms + uploads.previous_duration_ms,
+        downloads.previous_event_count + uploads.previous_event_count
+      )
+
+    %{
+      dates: downloads.dates,
+      values: combined_values,
+      total: combined_avg,
+      trend: trend(previous_value: combined_previous, current_value: combined_avg),
+      downloads: %{values: downloads.avg_latency_values, total: downloads.avg_latency_ms},
+      uploads: %{values: uploads.avg_latency_values, total: uploads.avg_latency_ms}
+    }
+  end
+
+  @doc """
+  Gets CAS throughput analytics (bytes/second) per action, plus a combined
+  throughput. The combined throughput divides the sum of transferred bytes by
+  the sum of recorded durations across both actions.
+  """
+  def cas_throughput_analytics(project_id, opts \\ []) do
+    %{throughput: throughput} = cas_analytics(project_id, opts)
+    throughput
+  end
+
+  defp cas_throughput_analytics_from_metrics(downloads, uploads) do
+    combined_values =
+      [
+        downloads.size_values,
+        uploads.size_values,
+        downloads.duration_values,
+        uploads.duration_values
+      ]
+      |> Enum.zip()
+      |> Enum.map(fn {d_size, u_size, d_dur, u_dur} ->
+        bytes_per_second(d_size + u_size, d_dur + u_dur)
+      end)
+
+    combined_throughput =
+      bytes_per_second(
+        downloads.total_size + uploads.total_size,
+        downloads.total_duration_ms + uploads.total_duration_ms
+      )
+
+    combined_previous =
+      bytes_per_second(
+        downloads.previous_size + uploads.previous_size,
+        downloads.previous_duration_ms + uploads.previous_duration_ms
+      )
+
+    %{
+      dates: downloads.dates,
+      values: combined_values,
+      total: combined_throughput,
+      trend: trend(previous_value: combined_previous, current_value: combined_throughput),
+      downloads: %{values: downloads.throughput_values, total: downloads.throughput_bytes_per_second},
+      uploads: %{values: uploads.throughput_values, total: uploads.throughput_bytes_per_second}
+    }
+  end
+
+  def cas_analytics(project_id, opts \\ []) do
+    action_metrics = cas_action_metrics_by_action(project_id, opts)
+    downloads = Map.fetch!(action_metrics, "download")
+    uploads = Map.fetch!(action_metrics, "upload")
+
+    %{
+      transfer: cas_transfer_analytics_from_metrics(downloads, uploads),
+      latency: cas_latency_analytics_from_metrics(downloads, uploads),
+      throughput: cas_throughput_analytics_from_metrics(downloads, uploads)
+    }
+  end
+
+  defp to_transfer_summary(metrics) do
+    %{
+      trend: trend(previous_value: metrics.previous_size, current_value: metrics.total_size),
+      total_size: metrics.total_size,
+      previous_value: metrics.previous_size,
+      dates: metrics.dates,
+      values: metrics.size_values
+    }
+  end
+
+  defp cas_action_metrics(project_id, action, opts) do
+    project_id
+    |> cas_action_metrics_by_action(opts)
+    |> Map.fetch!(action)
+  end
+
+  defp cas_action_metrics_by_action(project_id, opts) do
+    {start_datetime, end_datetime, days_delta, date_period, interval_str} =
+      cas_analytics_period(opts)
+
+    previous_start_datetime = DateTime.add(start_datetime, -days_delta, :day)
+
+    rows =
+      cas_action_metrics_rows(project_id, previous_start_datetime, start_datetime, end_datetime, interval_str)
+
+    rows_by_action = Enum.group_by(rows, fn [action | _] -> action end)
+
+    Map.new(@cas_actions, fn action ->
+      metrics =
+        rows_by_action
+        |> Map.get(action, [])
+        |> cas_action_metrics_from_rows(start_datetime, end_datetime, date_period)
+
+      {action, metrics}
+    end)
+  end
+
+  defp cas_action_metrics_from_rows(rows, start_datetime, end_datetime, date_period) do
+    current_rows = Enum.filter(rows, fn [_action, period_kind | _] -> period_kind == "current" end)
+    previous_rows = Enum.filter(rows, fn [_action, period_kind | _] -> period_kind == "previous" end)
+    current_totals = cas_rows_totals(current_rows)
+    previous_totals = cas_rows_totals(previous_rows)
+
+    parsed_rows =
+      Enum.map(current_rows, fn [_action, _period_kind, date, total_size, total_duration_ms, event_count] ->
+        %{
+          date: date,
+          size: total_size || 0,
+          duration: total_duration_ms || 0,
+          count: event_count || 0
+        }
+      end)
+
+    size_series = fill_cas_series(parsed_rows, :size, start_datetime, end_datetime, date_period)
+    duration_series = fill_cas_series(parsed_rows, :duration, start_datetime, end_datetime, date_period)
+    count_series = fill_cas_series(parsed_rows, :count, start_datetime, end_datetime, date_period)
+
+    avg_latency_values =
+      duration_series
+      |> Enum.zip(count_series)
+      |> Enum.map(fn {dur, count} -> safe_div(dur, count) end)
+
+    throughput_values =
+      size_series
+      |> Enum.zip(duration_series)
+      |> Enum.map(fn {size, dur} -> bytes_per_second(size, dur) end)
+
+    %{
+      dates: cas_series_dates(start_datetime, end_datetime, date_period),
+      size_values: size_series,
+      duration_values: duration_series,
+      count_values: count_series,
+      avg_latency_values: avg_latency_values,
+      throughput_values: throughput_values,
+      total_size: current_totals.total_size,
+      total_duration_ms: current_totals.total_duration_ms,
+      event_count: current_totals.event_count,
+      avg_latency_ms: safe_div(current_totals.total_duration_ms, current_totals.event_count),
+      throughput_bytes_per_second: bytes_per_second(current_totals.total_size, current_totals.total_duration_ms),
+      previous_size: previous_totals.total_size,
+      previous_duration_ms: previous_totals.total_duration_ms,
+      previous_event_count: previous_totals.event_count
+    }
+  end
+
+  defp cas_rows_totals(rows) do
+    Enum.reduce(rows, %{total_size: 0, total_duration_ms: 0, event_count: 0}, fn row, acc ->
+      [_action, _period_kind, _date, total_size, total_duration_ms, event_count] = row
+
+      %{
+        total_size: acc.total_size + (total_size || 0),
+        total_duration_ms: acc.total_duration_ms + (total_duration_ms || 0),
+        event_count: acc.event_count + (event_count || 0)
+      }
+    end)
+  end
+
+  defp cas_action_metrics_rows(project_id, previous_start_datetime, start_datetime, end_datetime, interval_str) do
+    %{rows: rows} =
+      ClickHouseRepo.query!(
+        """
+        SELECT
+          toString(co.operation) AS action,
+          if(co.inserted_at >= {start_dt:DateTime}, 'current', 'previous') AS period_kind,
+          if(
+            co.inserted_at >= {start_dt:DateTime},
+            toStartOfInterval(toDateTime(co.inserted_at), INTERVAL #{interval_str}, 'UTC'),
+            toDateTime(0)
+          ) AS period,
+          SUM(co.size) as total_size,
+          SUM(co.duration) as total_duration_ms,
+          COUNT() as event_count
+        FROM cas_outputs AS co
+        WHERE co.project_id = {project_id:Int64}
+          AND co.operation IN ('download', 'upload')
+          AND co.inserted_at >= {previous_start_dt:DateTime}
+          AND co.inserted_at <= {end_dt:DateTime}
+        GROUP BY action, period_kind, period
+        ORDER BY action, period_kind, period
+        """,
+        %{
+          project_id: project_id,
+          previous_start_dt: previous_start_datetime,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        }
+      )
+
+    rows
+  end
+
+  defp fill_cas_series(parsed_rows, key, start_datetime, end_datetime, date_period) do
+    parsed_rows
+    |> Enum.map(fn row -> %{date: row.date, size: Map.get(row, key, 0)} end)
+    |> process_cas_data(start_datetime, end_datetime, date_period)
+    |> Enum.map(& &1.size)
+  end
+
+  defp cas_series_dates(start_datetime, end_datetime, date_period) do
+    date_period
+    |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    |> Enum.map(& &1)
+  end
+
+  defp process_cas_data(cas_data, start_datetime, end_datetime, date_period) do
+    cas_map =
+      case cas_data do
+        data when is_list(data) ->
+          Map.new(data, &{normalise_date(&1.date, date_period), &1.size})
+
+        _ ->
+          %{}
+      end
+
+    date_period
+    |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    |> Enum.map(fn date ->
+      normalized_date = normalise_date(date, date_period)
+      size = Map.get(cas_map, normalized_date, 0)
+      %{date: date, size: size}
+    end)
+  end
+
+  defp cas_analytics_period(opts) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    interval_str = clickhouse_interval_for_date_period(date_period)
+    {start_datetime, end_datetime, days_delta, date_period, interval_str}
+  end
+
+  defp bytes_per_second(_total_size, total_duration_ms) when total_duration_ms in [nil, 0], do: 0
+  defp bytes_per_second(nil, _total_duration_ms), do: 0
+  defp bytes_per_second(total_size, total_duration_ms), do: total_size * 1000 / total_duration_ms
+
+  defp safe_div(_numerator, denominator) when denominator in [nil, 0], do: 0
+  defp safe_div(nil, _denominator), do: 0
+  defp safe_div(numerator, denominator), do: numerator / denominator
+
+  def build_cache_hit_rate_scatter_data(project_id, opts \\ []) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    group_by = Keyword.get(opts, :group_by, :scheme)
+
+    query =
+      apply_filters(
+        from(b in Build,
+          where: b.project_id == ^project_id,
+          where: b.inserted_at >= ^start_datetime,
+          where: b.inserted_at <= ^end_datetime,
+          where: b.cacheable_tasks_count > 0,
+          order_by: [desc: b.inserted_at],
+          limit: ^@scatter_data_limit,
+          select: %{
+            id: b.id,
+            inserted_at: b.inserted_at,
+            scheme: b.scheme,
+            status: b.status,
+            is_ci: b.is_ci,
+            hit_rate:
+              fragment(
+                "CASE WHEN ? = 0 THEN 0.0 ELSE (ifNull(?, 0) + ifNull(?, 0)) / ? * 100.0 END",
+                b.cacheable_tasks_count,
+                b.cacheable_task_local_hits_count,
+                b.cacheable_task_remote_hits_count,
+                b.cacheable_tasks_count
+              )
+          }
+        ),
+        opts
+      )
+
+    results = ClickHouseRepo.all(query)
+    truncated = length(results) >= @scatter_data_limit
+
+    oldest_entry =
+      if truncated do
+        results |> List.last() |> Map.get(:inserted_at)
+      end
+
+    series =
+      results
+      |> Enum.group_by(fn build ->
+        case group_by do
+          :environment -> build.is_ci
+          _ -> build.scheme
+        end
+      end)
+      |> Enum.map(fn {group_key, builds} ->
+        %{
+          name: group_key,
+          data:
+            Enum.map(builds, fn build ->
+              ts = NaiveDateTime.diff(build.inserted_at, ~N[1970-01-01 00:00:00], :millisecond)
+
+              %{
+                value: [ts, Decimals.to_rounded(build.hit_rate)],
+                id: build.id,
+                meta: %{
+                  scheme: build.scheme,
+                  status: build.status,
+                  is_ci: build.is_ci
+                }
+              }
+            end)
+        }
+      end)
+
+    %{
+      series: series,
+      truncated: truncated,
+      oldest_entry: oldest_entry
+    }
+  end
+
+  @doc """
+  Gets build cache hit rate analytics for a project over a time period.
+
+  ## Options
+    * `:start_date` - Start date for the analytics period
+    * `:end_date` - End date for the analytics period
+    * `:is_ci` - Filter by CI builds (true/false/nil for all)
+  """
+  def build_cache_hit_rate_analytics(project_id, opts \\ []) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    clickhouse_interval = clickhouse_interval_for_date_period(date_period)
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
+
+    query = """
+    SELECT
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}, 'UTC') as date,
+      CASE WHEN SUM(cacheable_tasks_count) = 0 THEN 0.0
+           ELSE (SUM(cacheable_task_local_hits_count) + SUM(cacheable_task_remote_hits_count)) / SUM(cacheable_tasks_count) * 100.0
+      END as hit_rate
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at >= {start_dt:DateTime64(6)}
+      AND inserted_at <= {end_dt:DateTime64(6)}
+      AND cacheable_tasks_count > 0
+      #{filter_clauses}
+    GROUP BY date
+    ORDER BY date
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+
+    current_data = Enum.map(rows, fn [date, hit_rate] -> %{date: date, hit_rate: hit_rate} end)
+
+    current_avg_hit_rate = avg_cache_hit_rate(project_id, start_datetime, end_datetime, opts)
+
+    previous_start_datetime = DateTime.add(start_datetime, -days_delta, :day)
+
+    previous_avg_hit_rate =
+      avg_cache_hit_rate(project_id, previous_start_datetime, start_datetime, opts)
+
+    processed_data =
+      process_hit_rate_data(current_data, start_datetime, end_datetime, date_period)
+
+    %{
+      trend:
+        trend(
+          previous_value: previous_avg_hit_rate,
+          current_value: current_avg_hit_rate
+        ),
+      avg_hit_rate: current_avg_hit_rate,
+      dates: Enum.map(processed_data, & &1.date),
+      values: Enum.map(processed_data, & &1.hit_rate)
+    }
+  end
+
+  @doc """
+  Gets percentile cache hit rate analytics for a project over a time period.
+
+  Note: For cache hit rate, higher values are better, so percentiles are calculated
+  in descending order. For example, p90 = 60% means that 90% of builds achieved
+  a hit rate of 60% or better (not 60% or worse).
+
+  ## Parameters
+    * `project_id` - The project ID
+    * `percentile` - The percentile to calculate (e.g., 0.5, 0.9, 0.99)
+    * `opts` - Options including:
+      * `:start_date` - Start date for the analytics period
+      * `:end_date` - End date for the analytics period
+      * `:is_ci` - Filter by CI builds (true/false/nil for all)
+
+  ## Returns
+    A map with:
+    * `:trend` - Percentage change from previous period
+    * `:total_percentile_hit_rate` - The percentile hit rate for the current period
+    * `:dates` - List of dates for the chart
+    * `:values` - List of percentile hit rate values
+  """
+  def build_cache_hit_rate_percentile(project_id, percentile, opts \\ []) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    clickhouse_interval = clickhouse_interval_for_date_period(date_period)
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
+
+    current_period_percentile =
+      cache_hit_rate_period_percentile(project_id, percentile, start_datetime, end_datetime, opts)
+
+    previous_period_percentile =
+      cache_hit_rate_period_percentile(
+        project_id,
+        percentile,
+        DateTime.add(start_datetime, -days_delta, :day),
+        start_datetime,
+        opts
+      )
+
+    # For cache hit rate, higher is better, so we invert the percentile:
+    # quantile(1 - p) on ascending data ≡ percentile_cont(p) on descending data.
+    inverted_percentile = 1 - percentile
+
+    query = """
+    SELECT
+      toStartOfInterval(inserted_at, INTERVAL #{clickhouse_interval}, 'UTC') as date,
+      quantileOrNull(#{inverted_percentile})((cacheable_task_local_hits_count + cacheable_task_remote_hits_count) / cacheable_tasks_count * 100.0) as hit_rate
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at >= {start_dt:DateTime64(6)}
+      AND inserted_at <= {end_dt:DateTime64(6)}
+      AND cacheable_tasks_count > 0
+      #{filter_clauses}
+    GROUP BY date
+    ORDER BY date
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+
+    hit_rate_data = Enum.map(rows, fn [date, hit_rate] -> %{date: date, hit_rate: hit_rate} end)
+
+    processed_data =
+      process_hit_rate_data(hit_rate_data, start_datetime, end_datetime, date_period)
+
+    %{
+      trend:
+        trend(
+          previous_value: previous_period_percentile,
+          current_value: current_period_percentile
+        ),
+      total_percentile_hit_rate: current_period_percentile,
+      dates: Enum.map(processed_data, & &1.date),
+      values: Enum.map(processed_data, & &1.hit_rate)
+    }
+  end
+
+  defp cache_hit_rate_period_percentile(project_id, percentile, start_datetime, end_datetime, opts) do
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
+
+    # ClickHouse quantile uses "lower-is-better" convention, so we invert for hit rate where higher is better
+    inverted_percentile = 1 - percentile
+
+    query = """
+    SELECT quantileOrNull(#{inverted_percentile})((cacheable_task_local_hits_count + cacheable_task_remote_hits_count) / cacheable_tasks_count * 100.0) as value
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at >= {start_dt:DateTime64(6)}
+      AND inserted_at <= {end_dt:DateTime64(6)}
+      AND cacheable_tasks_count > 0
+      #{filter_clauses}
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: [[value]]}} = ClickHouseRepo.query(query, params)
+
+    normalize_result(value)
+  end
+
+  defp avg_cache_hit_rate(project_id, start_datetime, end_datetime, opts) do
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
+
+    query = """
+    SELECT
+      sum(cacheable_tasks_count) as total_cacheable,
+      sum(cacheable_task_local_hits_count) as total_local_hits,
+      sum(cacheable_task_remote_hits_count) as total_remote_hits
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at >= {start_dt:DateTime64(6)}
+      AND inserted_at <= {end_dt:DateTime64(6)}
+      AND cacheable_tasks_count > 0
+      #{filter_clauses}
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+
+    case rows do
+      [[nil, _, _]] ->
+        0.0
+
+      [[total, _, _]] when total == 0 ->
+        0.0
+
+      [[total, local, remote]] ->
+        local = local || 0
+        remote = remote || 0
+        Float.round((local + remote) / total * 100.0, 1)
+
+      _ ->
+        0.0
+    end
+  end
+
+  defp process_hit_rate_data(hit_rate_data, start_datetime, end_datetime, date_period) do
+    hit_rate_map =
+      case hit_rate_data do
+        data when is_list(data) ->
+          Map.new(data, fn item ->
+            date = normalise_date(item.date, date_period)
+            hit_rate = if is_nil(item.hit_rate), do: 0.0, else: Float.round(item.hit_rate, 1)
+            {date, hit_rate}
+          end)
+
+        _ ->
+          %{}
+      end
+
+    date_period
+    |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    |> Enum.map(fn date ->
+      normalized_date = normalise_date(date, date_period)
+      hit_rate = Map.get(hit_rate_map, normalized_date, 0.0)
+      %{date: date, hit_rate: hit_rate}
+    end)
+  end
+
+  @doc """
+  Gets Xcode build cache metrics from the Builds table.
+
+  Returns a map with:
+  - cacheable_tasks_count: Total number of cacheable tasks
+  - cacheable_task_local_hits_count: Total number of local cache hits
+  - cacheable_task_remote_hits_count: Total number of remote cache hits
+  """
+  def build_cache_hit_rate(project_id, start_datetime, end_datetime, opts) do
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
+
+    query = """
+    SELECT
+      sum(cacheable_tasks_count) as total_cacheable_tasks,
+      sum(cacheable_task_local_hits_count) as total_local_hits,
+      sum(cacheable_task_remote_hits_count) as total_remote_hits
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at >= {start_dt:DateTime64(6)}
+      AND inserted_at <= {end_dt:DateTime64(6)}
+      AND cacheable_tasks_count > 0
+      #{filter_clauses}
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+
+    case rows do
+      [[cacheable, local, remote]] ->
+        %{
+          cacheable_tasks_count: cacheable || 0,
+          cacheable_task_local_hits_count: local || 0,
+          cacheable_task_remote_hits_count: remote || 0
+        }
+
+      _ ->
+        %{
+          cacheable_tasks_count: 0,
+          cacheable_task_local_hits_count: 0,
+          cacheable_task_remote_hits_count: 0
+        }
+    end
+  end
+
+  @doc """
+  Gets Xcode build cache metrics over time from the Builds table.
+
+  Returns a list of maps, one for each time period, with:
+  - date: The date string for the period
+  - cacheable_tasks: Total number of cacheable tasks in this period
+  - cacheable_task_local_hits: Total number of local cache hits in this period
+  - cacheable_task_remote_hits: Total number of remote cache hits in this period
+  """
+  def build_cache_hit_rates(project_id, start_datetime, end_datetime, time_bucket, opts) do
+    {filter_clauses, filter_params} = build_filter_clauses(opts)
+    date_format = get_clickhouse_date_format(time_bucket)
+
+    query = """
+    SELECT
+      toStartOfInterval(inserted_at, INTERVAL #{time_bucket}, 'UTC') as date,
+      sum(cacheable_tasks_count) as cacheable_tasks,
+      sum(cacheable_task_local_hits_count) as cacheable_task_local_hits,
+      sum(cacheable_task_remote_hits_count) as cacheable_task_remote_hits
+    FROM build_runs
+    WHERE project_id = {project_id:Int64}
+      AND inserted_at >= {start_dt:DateTime64(6)}
+      AND inserted_at <= {end_dt:DateTime64(6)}
+      AND cacheable_tasks_count > 0
+      #{filter_clauses}
+    GROUP BY date
+    ORDER BY date
+    """
+
+    params =
+      Map.merge(
+        %{
+          project_id: project_id,
+          start_dt: start_datetime,
+          end_dt: end_datetime
+        },
+        filter_params
+      )
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+
+    Enum.map(rows, fn [date, cacheable_tasks, local_hits, remote_hits] ->
+      date_str = format_clickhouse_date(date, date_format)
+
+      %{
+        date: date_str,
+        cacheable_tasks: cacheable_tasks || 0,
+        cacheable_task_local_hits: local_hits || 0,
+        cacheable_task_remote_hits: remote_hits || 0
+      }
+    end)
+  end
+
+  def module_cache_hit_rate_scatter_data(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    is_ci = Keyword.get(opts, :is_ci)
+
+    query =
+      from(e in Event,
+        where: e.project_id == ^project_id,
+        where: e.ran_at > ^DateTime.to_naive(start_datetime),
+        where: e.ran_at < ^DateTime.to_naive(end_datetime),
+        where: e.cacheable_targets_count > 0,
+        order_by: [desc: e.ran_at],
+        limit: ^@scatter_data_limit,
+        select: %{
+          ran_at: e.ran_at,
+          is_ci: e.is_ci,
+          hit_rate:
+            fragment(
+              "(ifNull(?, 0) + ifNull(?, 0)) / ? * 100.0",
+              e.local_cache_hits_count,
+              e.remote_cache_hits_count,
+              e.cacheable_targets_count
+            )
+        }
+      )
+
+    query =
+      case is_ci do
+        true -> where(query, [e], e.is_ci == true)
+        false -> where(query, [e], e.is_ci == false)
+        _ -> query
+      end
+
+    results = ClickHouseRepo.all(query)
+    truncated = length(results) >= @scatter_data_limit
+
+    oldest_entry =
+      if truncated do
+        results |> List.last() |> Map.get(:ran_at)
+      end
+
+    series =
+      results
+      |> Enum.group_by(& &1.is_ci)
+      |> Enum.map(fn {is_ci, events} ->
+        %{
+          name: is_ci,
+          data:
+            Enum.map(events, fn %{ran_at: ran_at, hit_rate: hit_rate} ->
+              ts = NaiveDateTime.diff(ran_at, ~N[1970-01-01 00:00:00], :millisecond)
+
+              %{
+                value: [ts, Decimals.to_rounded(hit_rate)],
+                meta: %{is_ci: is_ci}
+              }
+            end)
+        }
+      end)
+
+    %{
+      series: series,
+      truncated: truncated,
+      oldest_entry: oldest_entry
+    }
+  end
+
+  @doc """
+  Gets module cache hit rate analytics for a project over a time period.
+
+  ## Options
+    * `:project_id` - The project ID
+    * `:start_date` - Start date for the analytics period
+    * `:end_date` - End date for the analytics period
+
+  ## Returns
+    A map with:
+    * `:avg_hit_rate` - Average hit rate as a percentage
+    * `:trend` - Percentage change from previous period
+    * `:dates` - List of dates for the chart
+    * `:values` - List of hit rate values (as percentages)
+  """
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
+  def module_cache_hit_rate_analytics(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
+
+    hit_rate_result = CommandEvents.cache_hit_rate(project_id, start_datetime, end_datetime, opts)
+
+    hit_rate_time_series =
+      CommandEvents.cache_hit_rates(
+        project_id,
+        start_datetime,
+        end_datetime,
+        date_period,
+        clickhouse_time_bucket,
+        opts
+      )
+
+    cacheable = hit_rate_result.cacheable_targets_count || 0
+    local_hits = hit_rate_result.local_cache_hits_count || 0
+    remote_hits = hit_rate_result.remote_cache_hits_count || 0
+    total_hits = local_hits + remote_hits
+    avg_hit_rate = calculate_hit_rate_percentage(total_hits, cacheable)
+
+    previous_start = DateTime.add(start_datetime, -days_delta, :day)
+
+    previous_result =
+      CommandEvents.cache_hit_rate(project_id, previous_start, start_datetime, opts)
+
+    previous_cacheable = previous_result.cacheable_targets_count || 0
+
+    previous_hits =
+      (previous_result.local_cache_hits_count || 0) +
+        (previous_result.remote_cache_hits_count || 0)
+
+    previous_hit_rate = calculate_hit_rate_percentage(previous_hits, previous_cacheable)
+
+    hit_rate_trend = trend(previous_value: previous_hit_rate, current_value: avg_hit_rate)
+
+    all_dates = generate_date_range(start_datetime, end_datetime, date_period)
+
+    hit_rate_map =
+      Map.new(hit_rate_time_series, fn item ->
+        cacheable = item.cacheable_targets || 0
+        local = item.local_cache_target_hits || 0
+        remote = item.remote_cache_target_hits || 0
+        normalized_date = normalize_clickhouse_date(item.date, date_period)
+        {normalized_date, calculate_hit_rate_percentage(local + remote, cacheable)}
+      end)
+
+    {hit_rate_dates, hit_rate_values} =
+      fill_date_range_with_values(all_dates, date_period, hit_rate_map, 0.0)
+
+    %{
+      avg_hit_rate: avg_hit_rate,
+      trend: hit_rate_trend,
+      dates: hit_rate_dates,
+      values: hit_rate_values
+    }
+  end
+
+  @doc """
+  Gets module cache hits analytics for a project over a time period.
+
+  ## Options
+    * `:project_id` - The project ID
+    * `:start_date` - Start date for the analytics period
+    * `:end_date` - End date for the analytics period
+
+  ## Returns
+    A map with:
+    * `:total_count` - Total number of cache hits
+    * `:trend` - Percentage change from previous period
+    * `:dates` - List of dates for the chart
+    * `:values` - List of hit count values
+  """
+  def module_cache_hits_analytics(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
+
+    hit_rate_time_series =
+      CommandEvents.cache_hit_rates(
+        project_id,
+        start_datetime,
+        end_datetime,
+        date_period,
+        clickhouse_time_bucket,
+        opts
+      )
+
+    all_dates = generate_date_range(start_datetime, end_datetime, date_period)
+
+    hits_map =
+      Map.new(hit_rate_time_series, fn item ->
+        hits = (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
+        normalized_date = normalize_clickhouse_date(item.date, date_period)
+        {normalized_date, hits}
+      end)
+
+    {hit_rate_dates, hits_values} =
+      fill_date_range_with_values(all_dates, date_period, hits_map, 0)
+
+    total_hits_count = Enum.sum(hits_values)
+
+    previous_start = DateTime.add(start_datetime, -days_delta, :day)
+
+    previous_hits_series =
+      CommandEvents.cache_hit_rates(
+        project_id,
+        previous_start,
+        start_datetime,
+        date_period,
+        clickhouse_time_bucket,
+        opts
+      )
+
+    previous_total_hits =
+      Enum.reduce(previous_hits_series, 0, fn item, acc ->
+        acc + (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
+      end)
+
+    hits_trend = trend(previous_value: previous_total_hits, current_value: total_hits_count)
+
+    %{
+      total_count: total_hits_count,
+      trend: hits_trend,
+      dates: hit_rate_dates,
+      values: hits_values
+    }
+  end
+
+  @doc """
+  Gets module cache misses analytics for a project over a time period.
+
+  ## Options
+    * `:project_id` - The project ID
+    * `:start_date` - Start date for the analytics period
+    * `:end_date` - End date for the analytics period
+
+  ## Returns
+    A map with:
+    * `:total_count` - Total number of cache misses
+    * `:trend` - Percentage change from previous period
+    * `:dates` - List of dates for the chart
+    * `:values` - List of miss count values
+  """
+  def module_cache_misses_analytics(opts \\ []) do
+    project_id = Keyword.get(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
+
+    hit_rate_time_series =
+      CommandEvents.cache_hit_rates(
+        project_id,
+        start_datetime,
+        end_datetime,
+        date_period,
+        clickhouse_time_bucket,
+        opts
+      )
+
+    all_dates = generate_date_range(start_datetime, end_datetime, date_period)
+
+    misses_map =
+      Map.new(hit_rate_time_series, fn item ->
+        cacheable = item.cacheable_targets || 0
+        hits = (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
+        normalized_date = normalize_clickhouse_date(item.date, date_period)
+        {normalized_date, max(0, cacheable - hits)}
+      end)
+
+    {hit_rate_dates, misses_values} =
+      fill_date_range_with_values(all_dates, date_period, misses_map, 0)
+
+    total_misses_count = Enum.sum(misses_values)
+
+    previous_start = DateTime.add(start_datetime, -days_delta, :day)
+
+    previous_hits_series =
+      CommandEvents.cache_hit_rates(
+        project_id,
+        previous_start,
+        start_datetime,
+        date_period,
+        clickhouse_time_bucket,
+        opts
+      )
+
+    previous_total_misses =
+      Enum.reduce(previous_hits_series, 0, fn item, acc ->
+        cacheable = item.cacheable_targets || 0
+        hits = (item.local_cache_target_hits || 0) + (item.remote_cache_target_hits || 0)
+        acc + max(0, cacheable - hits)
+      end)
+
+    misses_trend = trend(previous_value: previous_total_misses, current_value: total_misses_count)
+
+    %{
+      total_count: total_misses_count,
+      trend: misses_trend,
+      dates: hit_rate_dates,
+      values: misses_values
+    }
+  end
+
+  @doc """
+  Returns per-module cache invalidation analytics for a project over a time period.
+
+  For each cacheable module (keyed by `name` + `product`) it reports how often the
+  module was a cache miss ("invalidated"), how often it appeared, and — by comparing
+  each missed build to the module's previous build on the same branch — whether the
+  invalidation was caused by the module's own content changing (`self_changes`) or
+  only by one of its dependencies changing (`dependency_induced`).
+
+  The classification window partitions by branch so a `main` build is never compared
+  against a feature-branch build, regardless of the `:git_branch` filter. Remote
+  availability evidence crosses branch and environment filters within the same
+  project and endpoint, over the retained 30-day window ending at `:end_datetime`.
+
+  ## Options
+    * `:project_id` - The project ID (required)
+    * `:start_datetime` / `:end_datetime` - Analytics window
+    * `:is_ci` - When set, restricts to CI (`true`) or local (`false`) runs
+    * `:git_branch` - When set, restricts to a single branch
+    * `:limit` - Max number of modules returned (default 30), ordered by invalidations desc
+
+  ## Returns
+    A list of maps with `:name`, `:product`, `:appearances`, `:invalidations`,
+    `:invalidation_rate` and `:hit_rate` (percentages), `:self_changes`,
+    `:dependency_induced`, `:evicted` (a previously remote-served exact key now
+    misses at the same endpoint), and `:unclassified` (misses without an earlier
+    observation in the comparison window, or not explained by the compared inputs).
+    These are command observations; restored cache results can be reported by
+    multiple test shards belonging to the same build.
+  """
+  def module_invalidations(opts \\ []) do
+    opts
+    |> module_invalidation_breakdown()
+    |> module_invalidations_from_breakdown(opts)
+  end
+
+  @module_invalidation_batch_size 256
+  @module_cache_history_days 30
+
+  @doc """
+  Returns, per module and day, how often it was built and why it missed:
+  `appearances`, `misses`, `changed` (its own content differed from its previous
+  build), `upstream` (only a dependency differed), and `evicted`
+  (an exact key previously served remotely now misses at the same endpoint). Both the module list and
+  miss-reason timeseries derive from this breakdown. Reads are batched by module
+  name so each query sorts a bounded set of independent module histories, with
+  dictionary-encoded names and branches to avoid repeating strings in memory.
+
+  Takes the same options as `module_invalidations/1`, without `:limit`.
+  """
+  def module_invalidation_breakdown(opts) do
+    project_id = Keyword.fetch!(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    {filter_sql, filter_params} = module_invalidation_filters(opts)
+
+    params =
+      %{project_id: project_id, start: start_datetime, end: end_datetime}
+      |> Map.merge(filter_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
+      |> Map.merge(module_cache_availability_params(end_datetime))
+
+    query = """
+    SELECT
+      day,
+      name,
+      product,
+      count() AS appearances,
+      countIf(hit = 'miss') AS misses,
+      countIf(reason = 'changed') AS changed,
+      countIf(reason = 'upstream') AS upstream,
+      countIf(reason = 'evicted') AS evicted
+    FROM (
+      SELECT *, #{module_cache_reason()} AS reason
+      FROM (
+      SELECT
+        day, name, product, hit, own, direct_inputs, deps, ext, previously_available,
+        row_number() OVER w AS rn,
+        lagInFrame(own, 1) OVER w AS prev_own,
+        lagInFrame(direct_inputs, 1) OVER w AS prev_direct_inputs,
+        lagInFrame(deps, 1) OVER w AS prev_deps,
+        lagInFrame(ext, 1) OVER w AS prev_ext
+      FROM (
+        SELECT
+          toDate(e.ran_at) AS day,
+          e.ran_at AS ran_at,
+          toLowCardinality(coalesce(e.git_branch, '')) AS branch,
+          toLowCardinality(xt.name) AS name,
+          xt.product AS product,
+          xt.binary_cache_hit AS hit,
+          #{previously_available()} AS previously_available,
+          xt.own_hash AS own,
+          xt.direct_inputs_hashes AS direct_inputs,
+          cityHash64(xt.dependencies_hash) AS deps,
+          cityHash64(xt.external_hash) AS ext
+        FROM xcode_targets_by_project AS xt
+        INNER JOIN command_events AS e ON xt.command_event_id = e.id
+        #{module_cache_availability_join()}
+        WHERE e.project_id = {project_id:Int64}
+          AND e.ran_at >= {start:DateTime64(6)}
+          AND e.ran_at <= {end:DateTime64(6)}
+          AND xt.name IN {names:Array(String)}
+          AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{xcode_target_pruning()}
+      )
+      WINDOW w AS (
+        PARTITION BY name, product, branch
+        ORDER BY ran_at ASC
+        ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
+      )
+    )
+    )
+    GROUP BY day, name, product
+    """
+
+    # Every window partitions by name, so keeping a name's complete date range
+    # in one batch preserves comparisons across days, branches, and products.
+    # Sequential reads also keep concurrent batches from competing for memory.
+    opts
+    |> module_invalidation_names(params)
+    |> Enum.chunk_every(@module_invalidation_batch_size)
+    |> Enum.flat_map(fn names ->
+      %{rows: rows} = ClickHouseRepo.query!(query, Map.put(params, :names, names))
+
+      Enum.map(rows, fn [day, name, product, appearances, misses, changed, upstream, evicted] ->
+        %{
+          day: normalize_date(day),
+          name: name,
+          product: product,
+          appearances: appearances,
+          misses: misses,
+          changed: changed,
+          upstream: upstream,
+          evicted: evicted
+        }
+      end)
+    end)
+  end
+
+  # Availability is shared across branches and CI/local runs, but only within
+  # the same project and recorded endpoint. Use report time, not command start:
+  # an overlapping command might not have downloaded its artifact yet.
+  defp module_cache_availability_join do
+    """
+    LEFT JOIN (
+      SELECT
+        av_xt.name AS name,
+        av_xt.product AS product,
+        av_xt.binary_cache_hash AS hash,
+        av_e.cache_endpoint AS endpoint,
+        count() AS remote_hits,
+        min(av_e.created_at) AS first_remote_hit_at
+      FROM xcode_targets_by_project AS av_xt
+      INNER JOIN command_events AS av_e ON av_xt.command_event_id = av_e.id
+      WHERE av_e.project_id = {project_id:Int64}
+        AND av_xt.project_id = {project_id:Int64}
+        AND av_xt.name IN {names:Array(String)}
+        AND av_e.ran_at >= {availability_start:DateTime64(6)}
+        AND av_e.created_at <= {availability_end:DateTime64(6)}
+        AND av_xt.inserted_at >= {availability_targets_start:DateTime64(6)}
+        AND av_xt.inserted_at <= {targets_end:DateTime64(6)}
+        AND av_xt.binary_cache_hit = 'remote'
+        AND av_xt.binary_cache_hash IS NOT NULL
+        AND notEmpty(av_xt.binary_cache_hash)
+        AND notEmpty(av_e.cache_endpoint)
+      GROUP BY name, product, hash, endpoint
+    ) AS available
+      ON available.name = xt.name
+      AND available.product = xt.product
+      AND available.hash = xt.binary_cache_hash
+      AND available.endpoint = e.cache_endpoint
+    """
+  end
+
+  defp module_cache_availability_params(end_datetime) do
+    evidence_end = Enum.min_by([end_datetime, DateTime.utc_now()], &DateTime.to_unix(&1, :microsecond))
+    evidence_start = DateTime.add(evidence_end, -@module_cache_history_days, :day)
+
+    %{
+      availability_start: evidence_start,
+      availability_end: evidence_end,
+      availability_targets_start: xcode_target_pruning_params(evidence_start, evidence_end).targets_start
+    }
+  end
+
+  defp previously_available do
+    """
+    available.remote_hits > 0
+    AND available.first_remote_hit_at < least(e.ran_at, e.created_at - toIntervalMillisecond(e.duration))
+    """
+  end
+
+  defp module_cache_reason do
+    """
+    multiIf(
+      hit != 'miss', 'hit',
+      previously_available, 'evicted',
+      rn = 1, 'cold',
+      own != prev_own OR arrayExists(
+        input -> mapContains(prev_direct_inputs, input)
+          AND coalesce(direct_inputs[input] != prev_direct_inputs[input], false),
+        mapKeys(direct_inputs)
+      ), 'changed',
+      deps != prev_deps OR ext != prev_ext, 'upstream',
+      'cold'
+    )
+    """
+  end
+
+  defp module_invalidation_names(opts, params) do
+    case Keyword.get(opts, :name) do
+      name when is_binary(name) and name != "" ->
+        [name]
+
+      _ ->
+        # This is a superset of the names matching the event filters. The
+        # classification query still applies those filters before its window.
+        # Grouping uses less memory than DISTINCT on large target histories.
+        query = """
+        SELECT xt.name
+        FROM xcode_targets_by_project AS xt
+        WHERE xt.binary_cache_hash IS NOT NULL#{xcode_target_pruning()}
+        GROUP BY xt.name
+        """
+
+        %{rows: rows} = ClickHouseRepo.query!(query, params)
+
+        rows
+        |> Enum.map(fn [name] -> name end)
+        |> Enum.sort()
+    end
+  end
+
+  @doc """
+  The module list `module_invalidations/1` returns, derived from a breakdown from
+  `module_invalidation_breakdown/1` for the same options.
+  """
+  def module_invalidations_from_breakdown(breakdown, opts) do
+    limit = Keyword.get(opts, :limit, 30)
+
+    breakdown
+    |> Enum.group_by(&{&1.name, &1.product})
+    |> Enum.map(fn {{name, product}, rows} ->
+      {appearances, invalidations, self_changes, dependency_induced, evicted} =
+        Enum.reduce(rows, {0, 0, 0, 0, 0}, fn row, {appearances, misses, changed, upstream, evicted} ->
+          {appearances + row.appearances, misses + row.misses, changed + row.changed, upstream + row.upstream,
+           evicted + row.evicted}
+        end)
+
+      %{
+        name: name,
+        product: product,
+        appearances: appearances,
+        invalidations: invalidations,
+        invalidation_rate: percentage(invalidations, appearances),
+        hit_rate: percentage(appearances - invalidations, appearances),
+        self_changes: self_changes,
+        dependency_induced: dependency_induced,
+        evicted: evicted,
+        unclassified: max(invalidations - (self_changes + dependency_induced + evicted), 0)
+      }
+    end)
+    |> Enum.filter(&(&1.invalidations > 0))
+    |> Enum.sort_by(&{-&1.invalidations, -&1.appearances})
+    |> Enum.take(limit)
+    |> put_blast_radii(opts)
+  end
+
+  # Only the modules that survive the limit carry a radius into the page, so the
+  # graph is read and walked for those alone. Reading it to annotate rows that
+  # were about to be dropped meant a reverse-reachability traversal per module in
+  # the project to fill in a page of thirty, and two ClickHouse reads for a page
+  # that displays no modules at all.
+  defp put_blast_radii([], _opts), do: []
+
+  defp put_blast_radii(rows, opts) do
+    case latest_graph_dependencies(opts) do
+      # nil radius when the latest graph carries no dependency edges (older CLI);
+      # an integer (0 for a leaf) once edges are present.
+      edges when map_size(edges) == 0 ->
+        Enum.map(rows, &Map.put(&1, :blast_radius, nil))
+
+      edges ->
+        reverse = reverse_edges(edges)
+
+        {rows, _walked} =
+          Enum.map_reduce(rows, %{}, fn row, walked ->
+            {radius, walked} = blast_radius(row.name, edges, reverse, walked)
+            {Map.put(row, :blast_radius, radius), walked}
+          end)
+
+        rows
+    end
+  end
+
+  # The same module appears once per product it is built as, so each name is
+  # walked once however many rows it holds.
+  defp blast_radius(name, edges, reverse, walked) do
+    case walked do
+      %{^name => radius} ->
+        {radius, walked}
+
+      _ ->
+        radius =
+          case edges do
+            %{^name => _} -> name |> downstream_dependents(reverse) |> MapSet.size()
+            _ -> nil
+          end
+
+        {radius, Map.put(walked, name, radius)}
+    end
+  end
+
+  @doc """
+  Daily hits, misses, miss reasons and distinct module names from a full breakdown.
+  Includes modules with no misses and counts a name once across its products.
+
+  Every series covers the breakdown's selected cohort, including any `:name`,
+  branch or environment filter. A name-scoped breakdown therefore has module
+  counts of zero or one, not project-wide counts. Use the same date bounds that
+  loaded the breakdown; omitted bounds default to the last 30 days.
+  """
+  def module_timeseries_from_breakdown(breakdown, opts) do
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    by_day =
+      breakdown
+      |> Enum.group_by(& &1.day)
+      |> Map.new(fn {day, rows} ->
+        misses = Enum.sum(Enum.map(rows, & &1.misses))
+        changed = Enum.sum(Enum.map(rows, & &1.changed))
+        upstream = Enum.sum(Enum.map(rows, & &1.upstream))
+        evicted = Enum.sum(Enum.map(rows, & &1.evicted))
+
+        {day,
+         %{
+           invalidations: misses,
+           reuses: Enum.sum(Enum.map(rows, &(&1.appearances - &1.misses))),
+           modules: rows |> MapSet.new(& &1.name) |> MapSet.size(),
+           changed: changed,
+           upstream: upstream,
+           evicted: evicted,
+           cold: max(misses - changed - upstream - evicted, 0)
+         }}
+      end)
+
+    dates = Date.range(DateTime.to_date(start_datetime), DateTime.to_date(end_datetime))
+    labels = Enum.map(dates, &Date.to_iso8601/1)
+
+    %{
+      timeseries: %{
+        dates: labels,
+        invalidations: Enum.map(dates, &(get_in(by_day, [&1, :invalidations]) || 0)),
+        reuses: Enum.map(dates, &(get_in(by_day, [&1, :reuses]) || 0))
+      },
+      modules_series: %{
+        dates: labels,
+        counts: Enum.map(dates, &(get_in(by_day, [&1, :modules]) || 0))
+      },
+      miss_reasons_series: %{
+        dates: labels,
+        changed: Enum.map(dates, &(get_in(by_day, [&1, :changed]) || 0)),
+        upstream: Enum.map(dates, &(get_in(by_day, [&1, :upstream]) || 0)),
+        cold: Enum.map(dates, &(get_in(by_day, [&1, :cold]) || 0)),
+        evicted: Enum.map(dates, &(get_in(by_day, [&1, :evicted]) || 0))
+      }
+    }
+  end
+
+  # Returns the latest edges per module across builds of the newest commit with
+  # edges in the requested window and filters. Older commits cannot keep removed
+  # modules in the graph. Empty when no build carries edges yet.
+  defp latest_graph_dependencies(opts) do
+    project_id = Keyword.fetch!(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    {filter_sql, filter_params} = module_invalidation_filters(opts)
+
+    params =
+      %{project_id: project_id, start: start_datetime, end: end_datetime}
+      |> Map.merge(filter_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
+
+    # Find eligible events without building a join over the whole history.
+    # Older clients send no dependency edges, so an empty result must stop here.
+    query = """
+    SELECT argMax(coalesce(nullIf(e.git_commit_sha, ''), toString(e.id)), e.ran_at)
+    FROM command_events AS e
+    WHERE e.project_id = {project_id:Int64}
+      AND e.ran_at >= {start:DateTime64(6)}
+      AND e.ran_at <= {end:DateTime64(6)}#{filter_sql}
+      AND e.id IN (
+        SELECT xt.command_event_id
+        FROM xcode_targets_by_project AS xt
+        WHERE xt.binary_cache_hash IS NOT NULL
+          AND notEmpty(xt.dependencies)#{xcode_target_pruning()}
+      )
+    """
+
+    %{rows: [[commit]]} = ClickHouseRepo.query!(query, params)
+
+    if commit in [nil, ""] do
+      %{}
+    else
+      graph_dependencies_for_commit(Map.put(params, :commit, commit), filter_sql)
+    end
+  end
+
+  defp graph_dependencies_for_commit(params, filter_sql) do
+    # Include every matching build of this commit, including leaf modules and
+    # targets uploaded later in the requested window. Filter event identifiers
+    # before reading the dependency arrays; do not tighten the ingestion range
+    # to the commit's run times, which would exclude delayed target uploads.
+    query = """
+    WITH selected_events AS (
+      SELECT e.id, e.ran_at
+      FROM command_events AS e
+      WHERE e.project_id = {project_id:Int64}
+        AND e.ran_at >= {start:DateTime64(6)}
+        AND e.ran_at <= {end:DateTime64(6)}#{filter_sql}
+        AND coalesce(nullIf(e.git_commit_sha, ''), toString(e.id)) = {commit:String}
+    )
+    SELECT xt.name, argMax(xt.dependencies, e.ran_at) AS dependencies
+    FROM xcode_targets_by_project AS xt
+    INNER JOIN selected_events AS e ON xt.command_event_id = e.id
+    PREWHERE xt.command_event_id IN (SELECT id FROM selected_events)#{xcode_target_pruning()}
+    WHERE xt.binary_cache_hash IS NOT NULL
+    GROUP BY xt.name
+    """
+
+    %{rows: rows} = ClickHouseRepo.query!(query, params)
+
+    edges = Map.new(rows, fn [name, dependencies] -> {name, dependencies} end)
+
+    # Include leaf modules (empty deps) as graph nodes so they can be counted as
+    # downstream targets. But if no module carries any edge, the project's CLI
+    # isn't sending the graph yet — keep blast radius unknown (nil) for all.
+    if Enum.any?(edges, fn {_name, deps} -> deps != [] end), do: edges, else: %{}
+  end
+
+  # Blast radius of a module = the number of other modules that transitively depend
+  # on it, i.e. how many modules it invalidates when it changes. Computed by
+  # reverse-reachability over the dependency graph.
+  defp blast_radii(deps_by_module) when map_size(deps_by_module) == 0, do: %{}
+
+  defp blast_radii(deps_by_module) do
+    reverse = reverse_edges(deps_by_module)
+
+    deps_by_module
+    |> Map.keys()
+    |> Map.new(fn module -> {module, module |> downstream_dependents(reverse) |> MapSet.size()} end)
+  end
+
+  @doc """
+  Given the dependency `edges` (`%{module => [dependencies]}`) and a module name,
+  returns the transitive set of modules that depend on it — i.e. everything it
+  invalidates downstream when it changes. Matches the module's blast radius.
+  """
+  def module_transitive_dependents(edges, name) do
+    edges
+    |> reverse_edges()
+    |> then(&downstream_dependents(name, &1))
+    |> MapSet.to_list()
+  end
+
+  defp reverse_edges(deps_by_module) do
+    module_set = deps_by_module |> Map.keys() |> MapSet.new()
+
+    Enum.reduce(deps_by_module, %{}, fn {module, deps}, acc ->
+      deps
+      |> Enum.filter(&MapSet.member?(module_set, &1))
+      |> Enum.uniq()
+      |> Enum.reduce(acc, fn dep, acc2 -> Map.update(acc2, dep, [module], &[module | &1]) end)
+    end)
+  end
+
+  defp downstream_dependents(module, reverse), do: do_downstream([module], reverse, MapSet.new())
+
+  defp do_downstream([], _reverse, visited), do: visited
+
+  # Prepending keeps the queue append proportional to the neighbours found rather
+  # than to everything still pending; only the visited set is returned, so
+  # walking depth-first reaches the same modules.
+  defp do_downstream([module | rest], reverse, visited) do
+    new = reverse |> Map.get(module, []) |> Enum.reject(&MapSet.member?(visited, &1))
+    visited = Enum.reduce(new, visited, &MapSet.put(&2, &1))
+    do_downstream(new ++ rest, reverse, visited)
+  end
+
+  @doc """
+  Returns the distinct git branches with cacheable runs for a project in a window,
+  used to populate the branch filter on the module cache dashboard.
+  """
+  def cache_branches(opts \\ []) do
+    project_id = Keyword.fetch!(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    limit = Keyword.get(opts, :limit, 100)
+
+    # Ordering alphabetically and cutting at the limit drops the tail of the
+    # alphabet, which on a busy project is arbitrary. Take the busiest branches
+    # instead, so the cut falls on the ones nobody is filtering by, then sort
+    # what survives for the dropdown.
+    from(e in Event,
+      where:
+        e.project_id == ^project_id and
+          e.ran_at >= ^start_datetime and
+          e.ran_at <= ^end_datetime and
+          e.cacheable_targets_count > 0 and
+          not is_nil(e.git_branch) and e.git_branch != "",
+      group_by: e.git_branch,
+      order_by: [desc: count(e.id)],
+      limit: ^limit,
+      select: e.git_branch
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.sort()
+  end
+
+  @doc """
+  One row per build a module took part in, newest first, with why it missed.
+
+  Unlike `module_invalidations/1` this grows with the project's build history,
+  so it is cursor paginated over `(ran_at, id)`. Pass `:after` to walk further
+  back and `:before` to walk forward again; both take a cursor from a previous
+  result.
+
+  ## Options
+    * `:project_id` - Required
+    * `:name` - Required, the module
+    * `:start_datetime` / `:end_datetime` - Window, defaults to the last 30 days
+    * `:is_ci` - When set, restricts to CI (`true`) or local (`false`) runs
+    * `:git_branch` - When set, restricts to a single branch
+    * `:commit_sha` - When set, matches commit shas starting with it
+    * `:reason` - When set, restricts to `"hit"`, `"changed"`, `"upstream"`, `"cold"` or `"evicted"`
+    * `:order` - `"desc"` (default, newest first) or `"asc"`
+    * `:limit` - Rows per page (default 25)
+
+  ## Returns
+    `%{rows: [...], has_previous_page: boolean, has_next_page: boolean,
+    start_cursor: binary | nil, end_cursor: binary | nil}`, where each row has
+    `:id` (the command event), `:scheme`, `:ran_at`, `:branch`, `:commit_sha`,
+    `:hit` (`"miss"`, `"local"` or `"remote"`) and `:reason` (`"hit"`,
+    `"changed"`, `"upstream"`, `"cold"` or `"evicted"`).
+
+    `:scheme` comes from the build run the command event belongs to and is
+    empty for the commands that produce no activity log, such as `generate` and
+    `cache`.
+  """
+  def module_build_history(opts \\ []) do
+    project_id = Keyword.fetch!(opts, :project_id)
+    name = Keyword.fetch!(opts, :name)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    limit = Keyword.get(opts, :limit, 25)
+
+    {filter_sql, filter_params} = module_invalidation_filters(opts)
+
+    {reason_sql, reason_params} = build_history_reason_filter(opts)
+    {commit_sql, commit_params} = build_history_commit_filter(opts)
+
+    order = if Keyword.get(opts, :order) == "asc", do: :asc, else: :desc
+    {direction, cursor, cursor_params} = build_history_cursor(opts)
+    {cursor_sql, order_sql} = build_history_window(order, direction, cursor)
+
+    where_sql = build_history_where([reason_sql, commit_sql, cursor_sql])
+
+    params =
+      %{
+        project_id: project_id,
+        name: name,
+        names: [name],
+        start: start_datetime,
+        end: end_datetime,
+        # One extra row tells us whether another page exists in the direction of travel.
+        limit: limit + 1
+      }
+      |> Map.merge(filter_params)
+      |> Map.merge(reason_params)
+      |> Map.merge(commit_params)
+      |> Map.merge(cursor_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
+      |> Map.merge(module_cache_availability_params(end_datetime))
+
+    query = """
+    SELECT id, scheme, ran_at, branch, commit_sha, hit, reason
+    FROM (
+      SELECT
+        id, scheme, ran_at, branch, commit_sha, hit,
+        #{module_cache_reason()} AS reason
+      FROM (
+        SELECT
+          id, scheme, ran_at, branch, commit_sha, hit, own, direct_inputs, deps, ext,
+          previously_available,
+          row_number() OVER w AS rn,
+          lagInFrame(own, 1) OVER w AS prev_own,
+          lagInFrame(direct_inputs, 1) OVER w AS prev_direct_inputs,
+          lagInFrame(deps, 1) OVER w AS prev_deps,
+          lagInFrame(ext, 1) OVER w AS prev_ext
+        FROM (
+          SELECT
+            toString(e.id) AS id,
+            coalesce(b.scheme, '') AS scheme,
+            e.ran_at AS ran_at,
+            coalesce(e.git_branch, '') AS branch,
+            coalesce(e.git_commit_sha, '') AS commit_sha,
+            xt.binary_cache_hit AS hit,
+            #{previously_available()} AS previously_available,
+            xt.product AS product,
+            xt.own_hash AS own,
+            xt.direct_inputs_hashes AS direct_inputs,
+            cityHash64(xt.dependencies_hash) AS deps,
+            cityHash64(xt.external_hash) AS ext
+          FROM xcode_targets_by_project AS xt
+          INNER JOIN command_events AS e ON xt.command_event_id = e.id
+          #{module_cache_availability_join()}
+          -- Commands that produce an activity log carry the build run they
+          -- belong to, which is where the scheme lives. Bounded to the same
+          -- project and window so the join builds a small hash table.
+          LEFT JOIN (
+            SELECT id, scheme
+            FROM build_runs
+            WHERE project_id = {project_id:Int64}
+              AND inserted_at >= {start:DateTime64(6)}
+              AND inserted_at <= {end:DateTime64(6)}
+          ) AS b ON e.build_run_id = b.id
+          WHERE e.project_id = {project_id:Int64}
+            AND e.ran_at >= {start:DateTime64(6)}
+            AND e.ran_at <= {end:DateTime64(6)}
+            AND xt.binary_cache_hash IS NOT NULL#{xcode_target_pruning()}
+            AND xt.name = {name:String}#{filter_sql}
+        )
+        WINDOW w AS (
+          PARTITION BY product, branch
+          ORDER BY ran_at ASC
+          ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
+        )
+      )
+    )#{where_sql}
+    ORDER BY #{order_sql}
+    LIMIT {limit:UInt32}
+    """
+
+    %{rows: rows} = ClickHouseRepo.query!(query, params)
+    build_history_page(rows, direction, cursor, limit)
+  end
+
+  # Reading a page forwards and reading it backwards are the same query with the
+  # comparison and the order flipped, so the combinations collapse to whichever
+  # direction the cursor walks in.
+  defp build_history_window(order, _direction, nil), do: {"", order_sql(order)}
+
+  defp build_history_window(order, direction, _cursor) do
+    walking = if direction == :after, do: order, else: flip(order)
+    comparison = if walking == :desc, do: "<", else: ">"
+
+    {"(ran_at, id) #{comparison} ({cursor_ran_at:DateTime64(6)}, {cursor_id:String})", order_sql(walking)}
+  end
+
+  defp build_history_where(clauses) do
+    case Enum.reject(clauses, &(&1 == "")) do
+      [] -> ""
+      kept -> " WHERE " <> Enum.join(kept, " AND ")
+    end
+  end
+
+  defp order_sql(:asc), do: "ran_at ASC, id ASC"
+  defp order_sql(:desc), do: "ran_at DESC, id DESC"
+
+  defp flip(:asc), do: :desc
+  defp flip(:desc), do: :asc
+
+  defp build_history_reason_filter(opts) do
+    case Keyword.get(opts, :reason) do
+      reason when reason in ~w(hit changed upstream cold evicted) -> {"reason = {reason:String}", %{reason: reason}}
+      _ -> {"", %{}}
+    end
+  end
+
+  defp build_history_commit_filter(opts) do
+    case Keyword.get(opts, :commit_sha) do
+      sha when is_binary(sha) and sha != "" ->
+        {"startsWith(commit_sha, {commit_sha:String})", %{commit_sha: String.downcase(sha)}}
+
+      _ ->
+        {"", %{}}
+    end
+  end
+
+  defp build_history_cursor(opts) do
+    cond do
+      cursor = decode_build_cursor(Keyword.get(opts, :after)) -> {:after, cursor, cursor_params(cursor)}
+      cursor = decode_build_cursor(Keyword.get(opts, :before)) -> {:before, cursor, cursor_params(cursor)}
+      true -> {:after, nil, %{}}
+    end
+  end
+
+  defp cursor_params({ran_at, id}), do: %{cursor_ran_at: ran_at, cursor_id: id}
+
+  defp build_history_page(rows, direction, cursor, limit) do
+    more? = length(rows) > limit
+
+    rows =
+      rows
+      |> Enum.take(limit)
+      |> Enum.map(fn [id, scheme, ran_at, branch, commit_sha, hit, reason] ->
+        %{
+          id: id,
+          scheme: scheme,
+          ran_at: ran_at,
+          branch: branch,
+          commit_sha: commit_sha,
+          hit: to_string(hit),
+          reason: reason
+        }
+      end)
+
+    # Walking backwards reads the page in reverse, so flip it back into the
+    # order the table is sorted in.
+    rows = if not is_nil(cursor) and direction == :before, do: Enum.reverse(rows), else: rows
+
+    {has_previous, has_next} =
+      case {direction, cursor} do
+        {_, nil} -> {false, more?}
+        {:after, _} -> {true, more?}
+        {:before, _} -> {more?, true}
+      end
+
+    %{
+      rows: rows,
+      has_previous_page: has_previous,
+      has_next_page: has_next,
+      start_cursor: rows |> List.first() |> encode_build_cursor(),
+      end_cursor: rows |> List.last() |> encode_build_cursor()
+    }
+  end
+
+  defp encode_build_cursor(nil), do: nil
+
+  defp encode_build_cursor(%{ran_at: ran_at, id: id}) do
+    Base.url_encode64("#{NaiveDateTime.to_iso8601(ran_at)}|#{id}", padding: false)
+  end
+
+  defp decode_build_cursor(cursor) when cursor in [nil, ""], do: nil
+
+  defp decode_build_cursor(cursor) do
+    with {:ok, decoded} <- Base.url_decode64(cursor, padding: false),
+         [ran_at, id] <- String.split(decoded, "|", parts: 2),
+         {:ok, ran_at} <- NaiveDateTime.from_iso8601(ran_at) do
+      {ran_at, id}
+    else
+      _ -> nil
+    end
+  end
+
+  @doc """
+  How many distinct modules were built on each day of the window.
+
+  ## Returns
+    `%{dates: [iso8601], counts: [integer]}`, one entry per day in the range.
+  """
+  def modules_timeseries(opts) do
+    project_id = Keyword.fetch!(opts, :project_id)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    {filter_sql, filter_params} = module_invalidation_filters(opts)
+
+    params =
+      %{project_id: project_id, start: start_datetime, end: end_datetime}
+      |> Map.merge(filter_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
+
+    query = """
+    SELECT
+      toDate(e.ran_at) AS day,
+      uniqExact(xt.name) AS modules
+    FROM xcode_targets_by_project AS xt
+    INNER JOIN command_events AS e ON xt.command_event_id = e.id
+    WHERE e.project_id = {project_id:Int64}
+      AND e.ran_at >= {start:DateTime64(6)}
+      AND e.ran_at <= {end:DateTime64(6)}
+      AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{xcode_target_pruning()}
+    GROUP BY day
+    ORDER BY day
+    """
+
+    %{rows: rows} = ClickHouseRepo.query!(query, params)
+    by_day = Map.new(rows, fn [day, modules] -> {normalize_date(day), modules} end)
+
+    dates =
+      start_datetime
+      |> DateTime.to_date()
+      |> Date.range(DateTime.to_date(end_datetime))
+      |> Enum.to_list()
+
+    %{
+      dates: Enum.map(dates, &Date.to_iso8601/1),
+      counts: Enum.map(dates, &Map.get(by_day, &1, 0))
+    }
+  end
+
+  @doc """
+  How many modules the project has, taken from its latest commit on the given
+  branch. Counting every module seen in the window instead would include ones
+  that have since been renamed or removed.
+
+  ## Options
+    * `:project_id` - Required
+    * `:git_branch` - Required, the branch to read the latest commit from
+    * `:start_datetime` / `:end_datetime` - Window, defaults to the last 30 days
+    * `:is_ci` - When set, restricts to CI (`true`) or local (`false`) runs
+  """
+  def module_count(opts) do
+    project_id = Keyword.fetch!(opts, :project_id)
+    branch = Keyword.fetch!(opts, :git_branch)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    {filter_sql, filter_params} = module_invalidation_filters(Keyword.delete(opts, :git_branch))
+    {filter_sql_e2, _} = module_invalidation_filters(Keyword.delete(opts, :git_branch), "e2")
+
+    params =
+      %{project_id: project_id, branch: branch, start: start_datetime, end: end_datetime}
+      |> Map.merge(filter_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
+
+    # A commit is usually built more than once, so count across every build of
+    # it rather than picking one. A build that reports no commit sha falls back
+    # to its own id, which degrades to counting that single build rather than
+    # matching every sha-less build in the window.
+    commit_key = "coalesce(nullIf(%{alias}.git_commit_sha, ''), toString(%{alias}.id))"
+
+    query = """
+    SELECT uniqExact(name)
+    FROM (
+      SELECT xt.name AS name, #{String.replace(commit_key, "%{alias}", "e")} AS commit
+      FROM xcode_targets_by_project AS xt
+      INNER JOIN command_events AS e ON xt.command_event_id = e.id
+      WHERE e.project_id = {project_id:Int64}
+        AND e.ran_at >= {start:DateTime64(6)}
+        AND e.ran_at <= {end:DateTime64(6)}
+        AND e.git_branch = {branch:String}
+        AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{xcode_target_pruning()}
+    )
+    WHERE commit = (
+      SELECT argMax(#{String.replace(commit_key, "%{alias}", "e2")}, e2.ran_at)
+      FROM xcode_targets_by_project AS xt2
+      INNER JOIN command_events AS e2 ON xt2.command_event_id = e2.id
+      WHERE e2.project_id = {project_id:Int64}
+        AND e2.ran_at >= {start:DateTime64(6)}
+        AND e2.ran_at <= {end:DateTime64(6)}
+        AND e2.git_branch = {branch:String}
+        AND xt2.binary_cache_hash IS NOT NULL#{filter_sql_e2}#{xcode_target_pruning("xt2")}
+    )
+    """
+
+    %{rows: [[count]]} = ClickHouseRepo.query!(query, params)
+    count
+  end
+
+  @doc """
+  How many modules transitively depend on one module, or nil when no build in
+  the window carries dependency edges yet.
+
+  ## Options
+    * `:project_id` - Required
+    * `:name` - Required, the module
+    * `:start_datetime` / `:end_datetime` - Window, defaults to the last 30 days
+    * `:is_ci` - When set, restricts to CI (`true`) or local (`false`) runs
+  """
+  def module_dependents_count(opts) do
+    name = Keyword.fetch!(opts, :name)
+
+    # The graph itself is never scoped to one module, so drop the name before
+    # reading it.
+    opts
+    |> Keyword.delete(:name)
+    |> latest_graph_dependencies()
+    |> case do
+      edges when map_size(edges) == 0 -> nil
+      edges -> edges |> reverse_edges() |> then(&downstream_dependents(name, &1)) |> MapSet.size()
+    end
+  end
+
+  # xcode_targets_by_project is ordered by (project_id, name, inserted_at) and
+  # partitioned by day of inserted_at, so these predicates turn every scan into
+  # a range over one project's rows in the queried days. inserted_at is the
+  # ingestion time, bounded the way Tuist.Xcode already bounds it; measured lag
+  # in production is p99 17 minutes.
+  @xcode_target_ingest_lead 300
+  @xcode_target_ingest_lag 7200
+
+  defp xcode_target_pruning(alias_name \\ "xt") do
+    " AND #{alias_name}.project_id = {project_id:Int64}" <>
+      " AND #{alias_name}.inserted_at >= {targets_start:DateTime64(6)}" <>
+      " AND #{alias_name}.inserted_at <= {targets_end:DateTime64(6)}"
+  end
+
+  defp xcode_target_pruning_params(start_datetime, end_datetime) do
+    %{
+      targets_start: DateTime.add(start_datetime, -@xcode_target_ingest_lead, :second),
+      targets_end: DateTime.add(end_datetime, @xcode_target_ingest_lag, :second)
+    }
+  end
+
+  defp module_invalidation_filters(opts, alias_name \\ "e") do
+    {sql, params} =
+      case Keyword.get(opts, :is_ci) do
+        true -> {" AND #{alias_name}.is_ci = true", %{}}
+        false -> {" AND #{alias_name}.is_ci = false", %{}}
+        _ -> {"", %{}}
+      end
+
+    case Keyword.get(opts, :git_branch) do
+      branch when is_binary(branch) and branch != "" ->
+        {sql <> " AND #{alias_name}.git_branch = {branch:String}", Map.put(params, :branch, branch)}
+
+      _ ->
+        {sql, params}
+    end
+  end
+
+  defp percentage(_count, 0), do: 0.0
+  defp percentage(count, total), do: Float.round(count / total * 100, 1)
+
+  defp module_name_filter(opts, alias_name \\ "xt") do
+    case Keyword.get(opts, :name) do
+      name when is_binary(name) and name != "" -> {" AND #{alias_name}.name = {name:String}", %{name: name}}
+      _ -> {"", %{}}
+    end
+  end
+
+  @doc """
+  Returns a daily time series for a single module of how often it was a cache
+  miss ("invalidations") versus a hit ("reuses"), for the invalidations vs reuse
+  chart on the module detail page. Requires the `:name` option.
+
+  Without `:name` it covers every module in the project.
+  """
+  def module_invalidation_timeseries(opts) do
+    project_id = Keyword.fetch!(opts, :project_id)
+    {name_sql, name_params} = module_name_filter(opts)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    {filter_sql, filter_params} = module_invalidation_filters(opts)
+
+    params =
+      %{project_id: project_id, start: start_datetime, end: end_datetime}
+      |> Map.merge(filter_params)
+      |> Map.merge(name_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
+
+    query = """
+    SELECT
+      toDate(e.ran_at) AS day,
+      countIf(xt.binary_cache_hit = 'miss') AS invalidations,
+      countIf(xt.binary_cache_hit != 'miss') AS reuses
+    FROM xcode_targets_by_project AS xt
+    INNER JOIN command_events AS e ON xt.command_event_id = e.id
+    WHERE e.project_id = {project_id:Int64}
+      AND e.ran_at >= {start:DateTime64(6)}
+      AND e.ran_at <= {end:DateTime64(6)}
+      AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{name_sql}#{xcode_target_pruning()}
+    GROUP BY day
+    ORDER BY day
+    """
+
+    %{rows: rows} = ClickHouseRepo.query!(query, params)
+
+    by_day =
+      Map.new(rows, fn [day, invalidations, reuses] ->
+        {normalize_date(day), %{invalidations: invalidations, reuses: reuses}}
+      end)
+
+    dates =
+      start_datetime
+      |> DateTime.to_date()
+      |> Date.range(DateTime.to_date(end_datetime))
+      |> Enum.to_list()
+
+    %{
+      dates: Enum.map(dates, &Date.to_iso8601/1),
+      invalidations: Enum.map(dates, fn date -> get_in(by_day, [date, :invalidations]) || 0 end),
+      reuses: Enum.map(dates, fn date -> get_in(by_day, [date, :reuses]) || 0 end)
+    }
+  end
+
+  @doc """
+  Returns a daily breakdown of reported misses: `changed` (the module's compared
+  direct inputs differed), `upstream` (only its dependency or external package hash
+  differed), `evicted` (a previously served exact key now misses at the same endpoint),
+  and `cold` (missing comparison history or an unexplained miss without earlier
+  remote availability evidence). Cold does not establish that an artifact was
+  never cached or was evicted.
+
+  Uses the same branch-partitioned window as `module_invalidations/1`, grouped by
+  day instead of by module. Requires `:name`.
+
+  Without `:name` it covers every module in the project.
+  """
+  def module_miss_reasons_timeseries(opts) do
+    opts
+    |> module_invalidation_breakdown()
+    |> module_timeseries_from_breakdown(opts)
+    |> Map.fetch!(:miss_reasons_series)
+  end
+
+  @doc """
+  Returns a daily time series of how many modules transitively depend on a
+  module — its dependent count over time. Rebuilding the graph per day means a
+  refactor that removes (or adds) dependents shows up as a step in the chart.
+
+  Days with no build carry the previous day's graph forward, since the graph did
+  not change; days before the first build carrying edges are 0. Requires `:name`.
+  """
+  def module_dependents_timeseries(opts) do
+    project_id = Keyword.fetch!(opts, :project_id)
+    name = Keyword.fetch!(opts, :name)
+
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    {filter_sql, filter_params} = module_invalidation_filters(opts)
+
+    params =
+      %{project_id: project_id, start: start_datetime, end: end_datetime}
+      |> Map.merge(filter_params)
+      |> Map.merge(xcode_target_pruning_params(start_datetime, end_datetime))
+
+    query = """
+    SELECT
+      toDate(e.ran_at) AS day,
+      xt.name AS name,
+      -- Taking the newest row outright returns [] whenever that build came from
+      -- a CLI that does not send edges, which would drop this module's edges
+      -- for the day while its neighbours keep theirs.
+      argMaxIf(xt.dependencies, e.ran_at, notEmpty(xt.dependencies)) AS deps
+    FROM xcode_targets_by_project AS xt
+    INNER JOIN command_events AS e ON xt.command_event_id = e.id
+    WHERE e.project_id = {project_id:Int64}
+      AND e.ran_at >= {start:DateTime64(6)}
+      AND e.ran_at <= {end:DateTime64(6)}
+      AND xt.binary_cache_hash IS NOT NULL#{filter_sql}#{xcode_target_pruning()}
+    GROUP BY day, name
+    ORDER BY day
+    """
+
+    %{rows: rows} = ClickHouseRepo.query!(query, params)
+
+    edges_by_day =
+      Enum.group_by(
+        rows,
+        fn [day, _name, _deps] -> normalize_date(day) end,
+        fn [_day, name, deps] -> {name, deps} end
+      )
+
+    dates =
+      start_datetime
+      |> DateTime.to_date()
+      |> Date.range(DateTime.to_date(end_datetime))
+      |> Enum.to_list()
+
+    # Reversing the graph is proportional to the whole project, so it is done
+    # once per distinct daily graph instead of once per day: a day with no build
+    # carries the previous day's graph forward, and a day that rebuilds the same
+    # targets produces the same graph again.
+    {counts, _carried} =
+      Enum.map_reduce(dates, {nil, nil}, fn date, {carried, reverse} ->
+        case edges_for_day(Map.get(edges_by_day, date), carried) do
+          nil ->
+            {0, {nil, nil}}
+
+          ^carried ->
+            {dependents_count(reverse, name), {carried, reverse}}
+
+          edges ->
+            rebuilt = reverse_edges(edges)
+            {dependents_count(rebuilt, name), {edges, rebuilt}}
+        end
+      end)
+
+    %{dates: Enum.map(dates, &Date.to_iso8601/1), counts: counts}
+  end
+
+  # A day with no build, or one whose targets all came from an older CLI without
+  # dependency edges, keeps the last graph we saw rather than dropping to zero.
+  defp edges_for_day(nil, carried), do: carried
+
+  defp edges_for_day(pairs, carried) do
+    if Enum.any?(pairs, fn {_name, deps} -> deps != [] end), do: Map.new(pairs), else: carried
+  end
+
+  defp dependents_count(nil, _name), do: 0
+  defp dependents_count(reverse, name), do: name |> downstream_dependents(reverse) |> MapSet.size()
+
+  @doc """
+  Returns the project's latest module dependency graph as
+  `%{edges: %{module => [dependency names]}, radii: %{module => blast_radius}}`.
+
+  Used by the module detail page to show what a module is invalidated by (its
+  direct dependencies) and what it invalidates downstream (its direct dependents).
+  Empty edges when no build carries dependency edges yet (older CLI).
+  """
+  def module_dependency_graph(opts) do
+    edges = latest_graph_dependencies(opts)
+    %{edges: edges, radii: blast_radii(edges)}
+  end
+
+  defp normalize_date(%Date{} = date), do: date
+  defp normalize_date(date) when is_binary(date), do: Date.from_iso8601!(date)
+
+  @doc """
+  Gets module cache hit rate percentile analytics for a project over a time period.
+
+  This function calculates percentile-based hit rates by analyzing individual runs
+  and determining what percentage of runs achieved a certain hit rate or better.
+
+  Note: For cache hit rate, higher values are better, so percentiles are calculated
+  in descending order. For example, p99 = 60% means that 99% of runs achieved
+  a hit rate of 60% or better (not 60% or worse).
+
+  ## Parameters
+    * `project_id` - The project ID
+    * `percentile` - The percentile to calculate (e.g., 0.5, 0.9, 0.99)
+    * `opts` - Options including:
+      * `:start_date` - Start date for the analytics period
+      * `:end_date` - End date for the analytics period
+
+  ## Returns
+    A map with:
+    * `:avg_hit_rate` - The percentile hit rate as a percentage
+    * `:trend` - Percentage change from previous period
+    * `:dates` - List of dates for the chart
+    * `:values` - List of percentile hit rate values (as percentages)
+  """
+  def module_cache_hit_rate_percentile(project_id, percentile, opts \\ []) do
+    start_datetime =
+      Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    clickhouse_time_bucket = clickhouse_interval_for_date_period(date_period)
+
+    current_period_percentile =
+      module_cache_hit_rate_period_percentile(
+        project_id,
+        percentile,
+        start_datetime,
+        end_datetime,
+        opts
+      )
+
+    previous_start = DateTime.add(start_datetime, -days_delta, :day)
+
+    previous_period_percentile =
+      module_cache_hit_rate_period_percentile(
+        project_id,
+        percentile,
+        previous_start,
+        start_datetime,
+        opts
+      )
+
+    percentile_time_series =
+      CommandEvents.cache_hit_rate_percentiles(
+        project_id,
+        start_datetime,
+        end_datetime,
+        date_period,
+        clickhouse_time_bucket,
+        percentile,
+        opts
+      )
+
+    all_dates = generate_date_range(start_datetime, end_datetime, date_period)
+
+    percentile_map =
+      Map.new(percentile_time_series, fn item ->
+        value =
+          if item.percentile_hit_rate, do: Float.round(item.percentile_hit_rate, 1), else: 0.0
+
+        normalized_date = normalize_clickhouse_date(item.date, date_period)
+        {normalized_date, value}
+      end)
+
+    {percentile_dates, percentile_values} =
+      fill_date_range_with_values(all_dates, date_period, percentile_map, 0.0)
+
+    %{
+      avg_hit_rate: current_period_percentile,
+      trend:
+        trend(
+          previous_value: previous_period_percentile,
+          current_value: current_period_percentile
+        ),
+      dates: percentile_dates,
+      values: percentile_values
+    }
+  end
+
+  defp module_cache_hit_rate_period_percentile(project_id, percentile, start_datetime, end_datetime, opts) do
+    result =
+      CommandEvents.cache_hit_rate_period_percentile(
+        project_id,
+        start_datetime,
+        end_datetime,
+        percentile,
+        opts
+      )
+
+    case result do
+      nil -> 0.0
+      value when is_float(value) -> Float.round(value, 1)
+      value -> Float.round(value * 1.0, 1)
+    end
+  end
+
+  @doc """
+  Gets a single build duration metric for the last N builds.
+
+  ## Parameters
+    * `project_id` - The project ID
+    * `metric` - The metric to calculate: `:p50`, `:p90`, `:p99`, or `:average`
+    * `opts` - Options:
+      * `:limit` - Number of builds to consider (default: 100)
+      * `:offset` - Number of builds to skip (default: 0)
+
+  ## Returns
+    The calculated metric value, or `nil` if no data available.
+  """
+  def build_duration_metric_by_count(project_id, metric, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 100)
+    offset = Keyword.get(opts, :offset, 0)
+    scheme = Keyword.get(opts, :scheme)
+    is_ci = Keyword.get(opts, :is_ci)
+
+    query =
+      from(b in Build,
+        where: b.project_id == ^project_id,
+        order_by: [desc: b.inserted_at],
+        limit: ^limit,
+        offset: ^offset,
+        where: b.submission_auth != "network_trusted",
+        select: b.duration
+      )
+
+    query =
+      if is_binary(scheme) and scheme != "" do
+        where(query, [b], b.scheme == ^scheme)
+      else
+        query
+      end
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [b], b.is_ci == true)
+        false -> where(query, [b], b.is_ci == false)
+      end
+
+    durations = ClickHouseRepo.all(query)
+
+    calculate_metric_from_values(durations, metric)
+  end
+
+  @doc """
+  Gets a single cache hit rate metric for the last N builds.
+
+  ## Parameters
+    * `project_id` - The project ID
+    * `metric` - The metric to calculate: `:p50`, `:p90`, `:p99`, or `:average`
+    * `opts` - Options:
+      * `:limit` - Number of builds to consider (default: 100)
+      * `:offset` - Number of builds to skip (default: 0)
+      * `:git_branch` - Only consider builds run on the given branch
+      * `:is_ci` - Only consider CI (`true`) or local (`false`) builds
+      * `:min_sample_size` - Return `nil` unless the window matched at least this
+        many builds. The reversed percentiles degenerate to `min(values)` on
+        short windows (the p90 index floors to 0 below 10 rows, p99 below 100),
+        so callers comparing two windows can use this to reject a window that
+        did not fill up.
+
+  ## Returns
+    The calculated metric value (as a ratio 0.0-1.0), or `nil` if no data available.
+  """
+  def build_cache_hit_rate_metric_by_count(project_id, metric, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 100)
+    offset = Keyword.get(opts, :offset, 0)
+    git_branch = Keyword.get(opts, :git_branch)
+    is_ci = Keyword.get(opts, :is_ci)
+
+    query =
+      from(b in Build,
+        where: b.project_id == ^project_id,
+        where: not is_nil(b.cacheable_tasks_count),
+        where: b.cacheable_tasks_count > 0,
+        where: b.submission_auth != "network_trusted",
+        order_by: [desc: b.inserted_at],
+        limit: ^limit,
+        offset: ^offset,
+        select:
+          fragment(
+            "(ifNull(?, 0) + ifNull(?, 0)) / ?",
+            b.cacheable_task_local_hits_count,
+            b.cacheable_task_remote_hits_count,
+            b.cacheable_tasks_count
+          )
+      )
+
+    query =
+      if is_binary(git_branch) and git_branch != "" do
+        where(query, [b], b.git_branch == ^git_branch)
+      else
+        query
+      end
+
+    query =
+      case is_ci do
+        nil -> query
+        true -> where(query, [b], b.is_ci == true)
+        false -> where(query, [b], b.is_ci == false)
+      end
+
+    hit_rates = ClickHouseRepo.all(query)
+
+    if below_min_sample_size?(hit_rates, Keyword.get(opts, :min_sample_size)) do
+      nil
+    else
+      calculate_hit_rate_metric_from_values(hit_rates, metric)
+    end
+  end
+
+  defp below_min_sample_size?(_values, nil), do: false
+  defp below_min_sample_size?(values, min_sample_size), do: length(values) < min_sample_size
+
+  defp calculate_metric_from_values([], _metric), do: nil
+
+  defp calculate_metric_from_values(values, :average) do
+    Enum.sum(values) / length(values)
+  end
+
+  defp calculate_metric_from_values(values, percentile) do
+    sorted = Enum.sort(values)
+    count = length(sorted)
+
+    index =
+      case percentile do
+        :p50 -> trunc(count * 0.5)
+        :p90 -> trunc(count * 0.9)
+        :p99 -> trunc(count * 0.99)
+      end
+
+    index = min(index, count - 1)
+    Enum.at(sorted, index)
+  end
+
+  defp calculate_hit_rate_metric_from_values([], _metric), do: nil
+
+  defp calculate_hit_rate_metric_from_values(values, :average) do
+    Enum.sum(values) / length(values)
+  end
+
+  defp calculate_hit_rate_metric_from_values(values, percentile) do
+    sorted = Enum.sort(values)
+    count = length(sorted)
+
+    index =
+      case percentile do
+        :p50 -> trunc(count * 0.5)
+        :p90 -> trunc(count * 0.1)
+        :p99 -> trunc(count * 0.01)
+      end
+
+    index = min(index, count - 1)
+    Enum.at(sorted, index)
+  end
+
+  # Shared helper functions
+
+  defp normalize_result(nil), do: 0.0
+  defp normalize_result(%Decimal{} = decimal), do: Decimal.to_float(decimal)
+  defp normalize_result(float) when is_float(float), do: float
+  defp normalize_result(int) when is_integer(int), do: int * 1.0
+
+  defp calculate_hit_rate_percentage(_hits, total) when total == 0, do: 0.0
+  defp calculate_hit_rate_percentage(hits, total), do: Float.round(hits / total * 100.0, 1)
+
+  @doc """
+  Returns the trend between the current value and the previous value as a percentage value. The value is negative if the current_value is smaller than previous_value.
+
+  Returns 0 if the previous value is 0 or if the current value is 0.
+  """
+  def trend(opts) do
+    previous_value = Keyword.get(opts, :previous_value)
+    current_value = Keyword.get(opts, :current_value)
+
+    case {previous_value, current_value} do
+      {0, _} ->
+        0.0
+
+      {_, 0} ->
+        0.0
+
+      {+0.0, _} ->
+        0.0
+
+      {_, +0.0} ->
+        0.0
+
+      {previous_value, current_value} ->
+        Float.round(
+          current_value / previous_value * 100,
+          1
+        ) - 100.0
+    end
+  end
+
+  defp date_period(opts) do
+    start_datetime = Keyword.get(opts, :start_datetime)
+    end_datetime = Keyword.get(opts, :end_datetime)
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+
+    cond do
+      days_delta <= 1 -> :hour
+      days_delta >= 60 -> :month
+      true -> :day
+    end
+  end
+
+  defp clickhouse_interval_for_date_period(:hour), do: "1 hour"
+  defp clickhouse_interval_for_date_period(:day), do: "1 day"
+  defp clickhouse_interval_for_date_period(:month), do: "1 month"
+
+  @filters [
+    {:boolean, :is_ci, "is_ci"},
+    {:string, :scheme, "scheme"},
+    {:string, :configuration, "configuration"},
+    {:enum, :category, "category", ["clean", "incremental"]},
+    {:tag, :tag, "custom_tags"},
+    {:enum, :status, "status", ["success", "failure"]}
+  ]
+
+  defp apply_filters(query, opts) do
+    Enum.reduce(@filters, query, fn
+      {:boolean, key, _field}, q ->
+        case Keyword.get(opts, key) do
+          value when is_boolean(value) -> from(b in q, where: field(b, ^key) == ^value)
+          _ -> q
+        end
+
+      {:string, key, _field}, q ->
+        case normalize_string_filter(Keyword.get(opts, key)) do
+          nil -> q
+          value -> from(b in q, where: field(b, ^key) == ^value)
+        end
+
+      {:enum, key, _field, allowed_values}, q ->
+        value = normalize_string_filter(Keyword.get(opts, key))
+        if value in allowed_values, do: from(b in q, where: field(b, ^key) == ^value), else: q
+
+      {:tag, key, _field}, q ->
+        case normalize_string_filter(Keyword.get(opts, key)) do
+          nil -> q
+          value -> from(b in q, where: fragment("has(custom_tags, ?)", ^value))
+        end
+    end)
+  end
+
+  defp build_filter_clauses(opts) do
+    {clauses, params} =
+      Enum.reduce(@filters, {[], %{}}, fn filter, acc ->
+        build_filter_clause(filter, opts, acc)
+      end)
+
+    filter_sql =
+      case clauses do
+        [] -> ""
+        _ -> clauses |> Enum.reverse() |> Enum.join("\n")
+      end
+
+    {filter_sql, params}
+  end
+
+  defp build_filter_clause({:boolean, key, field}, opts, {clauses, params}) do
+    case Keyword.get(opts, key) do
+      value when is_boolean(value) ->
+        {
+          ["AND #{field} = {#{key}:Bool}" | clauses],
+          Map.put(params, key, value)
+        }
+
+      _ ->
+        {clauses, params}
+    end
+  end
+
+  defp build_filter_clause({:string, key, field}, opts, {clauses, params}) do
+    case normalize_string_filter(Keyword.get(opts, key)) do
+      nil ->
+        {clauses, params}
+
+      value ->
+        {
+          ["AND #{field} = {#{key}:String}" | clauses],
+          Map.put(params, key, value)
+        }
+    end
+  end
+
+  defp build_filter_clause({:enum, key, field, allowed_values}, opts, {clauses, params}) do
+    value = normalize_string_filter(Keyword.get(opts, key))
+
+    if value in allowed_values do
+      {
+        ["AND #{field} = {#{key}:String}" | clauses],
+        Map.put(params, key, value)
+      }
+    else
+      {clauses, params}
+    end
+  end
+
+  defp build_filter_clause({:tag, key, field}, opts, {clauses, params}) do
+    case normalize_string_filter(Keyword.get(opts, key)) do
+      nil ->
+        {clauses, params}
+
+      value ->
+        {
+          ["AND has(#{field}, {#{key}:String})" | clauses],
+          Map.put(params, key, value)
+        }
+    end
+  end
+
+  defp normalize_string_filter(nil), do: nil
+  defp normalize_string_filter(value) when is_atom(value), do: Atom.to_string(value)
+  defp normalize_string_filter(value) when is_binary(value), do: value
+  defp normalize_string_filter(_), do: nil
+
+  defp date_range_for_date_period(:hour, opts) do
+    start_datetime = DateTime.truncate(Keyword.fetch!(opts, :start_datetime), :second)
+    end_datetime = DateTime.truncate(Keyword.fetch!(opts, :end_datetime), :second)
+
+    start_datetime
+    |> Stream.iterate(&DateTime.add(&1, 1, :hour))
+    |> Enum.take_while(&(DateTime.compare(&1, end_datetime) != :gt))
+  end
+
+  defp date_range_for_date_period(:month, opts) do
+    start_datetime = Keyword.get(opts, :start_datetime)
+    end_datetime = Keyword.get(opts, :end_datetime)
+
+    start_datetime
+    |> DateTime.to_date()
+    |> Date.beginning_of_month()
+    |> Date.range(Date.beginning_of_month(DateTime.to_date(end_datetime)))
+    |> Enum.filter(&(&1.day == 1))
+  end
+
+  defp date_range_for_date_period(:day, opts) do
+    start_datetime = Keyword.get(opts, :start_datetime)
+    end_datetime = Keyword.get(opts, :end_datetime)
+
+    start_datetime
+    |> DateTime.to_date()
+    |> Date.range(DateTime.to_date(end_datetime))
+    |> Enum.to_list()
+  end
+
+  defp normalise_date(date_input, :hour) do
+    case date_input do
+      %DateTime{} = dt ->
+        Timex.format!(dt, "%Y-%m-%d %H:00", :strftime)
+
+      %NaiveDateTime{} = dt ->
+        Timex.format!(dt, "%Y-%m-%d %H:00", :strftime)
+
+      date_string when is_binary(date_string) ->
+        date_string
+        |> String.slice(0, 13)
+        |> Kernel.<>(":00")
+
+      %Date{} = d ->
+        Timex.format!(d, "%Y-%m-%d", :strftime) <> " 00:00"
+    end
+  end
+
+  defp normalise_date(date_input, date_period) do
+    date =
+      case date_input do
+        %DateTime{} = dt ->
+          DateTime.to_date(dt)
+
+        %NaiveDateTime{} = dt ->
+          NaiveDateTime.to_date(dt)
+
+        date_string when is_binary(date_string) ->
+          case Date.from_iso8601(date_string) do
+            {:ok, date} -> date
+            {:error, :invalid_format} -> Date.from_iso8601!(date_string <> "-01")
+          end
+
+        %Date{} = d ->
+          d
+      end
+
+    case date_period do
+      :day -> date
+      :month -> Date.beginning_of_month(date)
+    end
+  end
+
+  defp process_durations_data(durations_data, start_datetime, end_datetime, date_period) do
+    durations_map =
+      case durations_data do
+        data when is_list(data) ->
+          Map.new(data, &{normalise_date(&1.date, date_period), &1.value})
+
+        _ ->
+          %{}
+      end
+
+    date_period
+    |> date_range_for_date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+    |> Enum.map(fn date ->
+      normalized_date = normalise_date(date, date_period)
+      duration = Map.get(durations_map, normalized_date)
+
+      %{
+        date: date,
+        value:
+          case duration do
+            nil -> 0
+            duration when is_float(duration) -> duration
+            _ -> Decimal.to_float(duration)
+          end
+      }
+    end)
+  end
+
+  defp format_datetime_for_date_format(datetime, "%Y-%m-%d %H:00") do
+    date = Date.new!(datetime.year, datetime.month, datetime.day)
+    "#{Date.to_string(date)} #{String.pad_leading(to_string(datetime.hour), 2, "0")}:00"
+  end
+
+  defp format_datetime_for_date_format(datetime, "%Y-%m-%d") do
+    date = Date.new!(datetime.year, datetime.month, datetime.day)
+    Date.to_string(date)
+  end
+
+  defp format_datetime_for_date_format(datetime, "%Y-%m"),
+    do: "#{datetime.year}-#{String.pad_leading(to_string(datetime.month), 2, "0")}"
+
+  defp format_datetime_for_date_format(datetime, _) do
+    date = Date.new!(datetime.year, datetime.month, datetime.day)
+    Date.to_string(date)
+  end
+
+  defp get_clickhouse_date_format("1 hour"), do: "%Y-%m-%d %H:00"
+  defp get_clickhouse_date_format("1 day"), do: "%Y-%m-%d"
+  defp get_clickhouse_date_format("1 month"), do: "%Y-%m"
+  defp get_clickhouse_date_format(_), do: "%Y-%m-%d"
+
+  defp format_clickhouse_date(%Date{} = date, date_format) do
+    Calendar.strftime(date, date_format)
+  end
+
+  defp format_clickhouse_date(%NaiveDateTime{} = dt, date_format) do
+    format_datetime_for_date_format(dt, date_format)
+  end
+
+  defp format_clickhouse_date(%DateTime{} = dt, date_format) do
+    format_datetime_for_date_format(dt, date_format)
+  end
+
+  defp format_clickhouse_date(date_string, _date_format) when is_binary(date_string) do
+    date_string
+  end
+
+  defp generate_date_range(start_datetime, end_datetime, :hour) do
+    end_dt = DateTime.truncate(DateTime.utc_now(), :second)
+
+    start_dt =
+      case start_datetime do
+        %DateTime{} = dt -> DateTime.truncate(dt, :second)
+        nil -> DateTime.add(end_dt, -23, :hour)
+      end
+
+    actual_end_dt =
+      case end_datetime do
+        %DateTime{} = dt -> DateTime.truncate(dt, :second)
+        nil -> end_dt
+      end
+
+    start_dt
+    |> Stream.iterate(&DateTime.add(&1, 1, :hour))
+    |> Enum.take_while(&(DateTime.compare(&1, actual_end_dt) != :gt))
+  end
+
+  defp generate_date_range(start_datetime, end_datetime, :day) do
+    start_datetime
+    |> DateTime.to_date()
+    |> Date.range(DateTime.to_date(end_datetime))
+    |> Enum.to_list()
+  end
+
+  defp generate_date_range(start_datetime, end_datetime, :month) do
+    start_datetime
+    |> DateTime.to_date()
+    |> Date.beginning_of_month()
+    |> Date.range(Date.beginning_of_month(DateTime.to_date(end_datetime)))
+    |> Enum.filter(&(&1.day == 1))
+  end
+
+  defp fill_date_range_with_values(all_dates, date_period, value_map, default_value) do
+    all_dates
+    |> Enum.map(fn date ->
+      lookup_key = date_to_string(date, date_period)
+      value = Map.get(value_map, lookup_key, default_value)
+      {lookup_key, value}
+    end)
+    |> Enum.unzip()
+  end
+
+  defp date_to_string(%DateTime{} = dt, :hour) do
+    Timex.format!(dt, "%Y-%m-%d %H:00", :strftime)
+  end
+
+  defp date_to_string(date, :day) do
+    Timex.format!(date, "%Y-%m-%d", :strftime)
+  end
+
+  defp date_to_string(date, :month) do
+    Timex.format!(date, "%Y-%m", :strftime)
+  end
+
+  defp normalize_clickhouse_date(date_string, :hour) when is_binary(date_string) do
+    date_string
+    |> String.slice(0, 13)
+    |> Kernel.<>(":00")
+  end
+
+  defp normalize_clickhouse_date(date_string, _date_period) when is_binary(date_string) do
+    date_string
+  end
+end

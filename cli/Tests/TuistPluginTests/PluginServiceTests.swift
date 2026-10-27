@@ -2,6 +2,8 @@ import Mockable
 import struct ProjectDescription.Plugin
 import struct ProjectDescription.PluginLocation
 import TSCBasic
+import TuistConfig
+import TuistConstants
 import TuistCore
 import TuistGit
 import TuistLoader
@@ -40,7 +42,6 @@ final class PluginServiceTests: TuistUnitTestCase {
         subject = PluginService(
             manifestLoader: manifestLoader,
             templatesDirectoryLocator: templatesDirectoryLocator,
-            fileHandler: fileHandler,
             gitController: gitController,
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             fileArchivingFactory: fileArchivingFactory,
@@ -87,7 +88,8 @@ final class PluginServiceTests: TuistUnitTestCase {
             .appending(component: pluginBFingerprint)
         let pluginCDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .plugins)
             .appending(component: pluginCFingerprint)
-        try fileHandler.touch(
+        try await fileSystem.makeDirectory(at: pluginBDirectory)
+        try await fileSystem.touch(
             pluginBDirectory.appending(components: PluginServiceConstants.release)
         )
 
@@ -221,12 +223,13 @@ final class PluginServiceTests: TuistUnitTestCase {
 
         let pluginDirectory = try cacheDirectoriesProvider.cacheDirectory(for: .plugins)
             .appending(component: pluginFingerprint)
-        try fileHandler.touch(
-            pluginDirectory
-                .appending(components: PluginServiceConstants.repository, Constants.SwiftPackageManager.packageSwiftName)
-        )
+        let repoPath = pluginDirectory
+            .appending(components: PluginServiceConstants.repository, Constants.SwiftPackageManager.packageSwiftName)
+        try await fileSystem.makeDirectory(at: repoPath.parentDirectory)
+        try await fileSystem.touch(repoPath)
         let commandPath = pluginDirectory.appending(components: PluginServiceConstants.release, "tuist-command")
-        try fileHandler.touch(commandPath)
+        try await fileSystem.makeDirectory(at: commandPath.parentDirectory)
+        try await fileSystem.touch(commandPath)
 
         // When / Then
         _ = try await subject.fetchRemotePlugins(using: generatedProjectsOptions)
@@ -250,9 +253,9 @@ final class PluginServiceTests: TuistUnitTestCase {
             )
 
         let generatedProjectOptions =
-            mockConfigGeneratedProjectOptions(plugins: [TuistCore.PluginLocation.local(path: pluginPath.pathString)])
+            mockConfigGeneratedProjectOptions(plugins: [TuistConfig.PluginLocation.local(path: pluginPath.pathString)])
 
-        try fileHandler.createFolder(
+        try await fileSystem.makeDirectory(at:
             pluginPath.appending(component: Constants.helpersDirectoryName)
         )
 
@@ -292,10 +295,10 @@ final class PluginServiceTests: TuistUnitTestCase {
                 ProjectDescription.Plugin(name: pluginName)
             )
 
-        try fileHandler.createFolder(cachedPluginPath.appending(component: Constants.helpersDirectoryName))
+        try await fileSystem.makeDirectory(at: cachedPluginPath.appending(component: Constants.helpersDirectoryName))
 
         let generatedProjectOptions = mockConfigGeneratedProjectOptions(plugins: [
-            TuistCore.PluginLocation.git(
+            TuistConfig.PluginLocation.git(
                 url: pluginGitUrl,
                 gitReference: .tag(pluginGitReference),
                 directory: nil,
@@ -337,7 +340,7 @@ final class PluginServiceTests: TuistUnitTestCase {
             )
 
         let generatedProjectOptions =
-            mockConfigGeneratedProjectOptions(plugins: [TuistCore.PluginLocation.local(path: pluginPath.pathString)])
+            mockConfigGeneratedProjectOptions(plugins: [TuistConfig.PluginLocation.local(path: pluginPath.pathString)])
 
         // When
         let plugins = try await subject.loadPlugins(using: generatedProjectOptions)
@@ -377,7 +380,7 @@ final class PluginServiceTests: TuistUnitTestCase {
 
         let generatedProjectOptions =
             mockConfigGeneratedProjectOptions(plugins: [
-                TuistCore.PluginLocation.git(
+                TuistConfig.PluginLocation.git(
                     url: pluginGitUrl,
                     gitReference: .tag(pluginGitReference),
                     directory: nil,
@@ -423,7 +426,7 @@ final class PluginServiceTests: TuistUnitTestCase {
             )
 
         let generatedProjectOptions =
-            mockConfigGeneratedProjectOptions(plugins: [TuistCore.PluginLocation.local(path: pluginPath.pathString)])
+            mockConfigGeneratedProjectOptions(plugins: [TuistConfig.PluginLocation.local(path: pluginPath.pathString)])
 
         // Then
         let plugins = try await subject.loadPlugins(using: generatedProjectOptions)
@@ -468,7 +471,7 @@ final class PluginServiceTests: TuistUnitTestCase {
 
         let generatedProjectOptions =
             mockConfigGeneratedProjectOptions(plugins: [
-                TuistCore.PluginLocation
+                TuistConfig.PluginLocation
                     .git(url: pluginGitUrl, gitReference: .tag(pluginGitReference), directory: nil, releaseUrl: nil),
             ])
 
@@ -478,12 +481,11 @@ final class PluginServiceTests: TuistUnitTestCase {
         XCTAssertEqual(plugins, expectedPlugins)
     }
 
-    private func mockConfigGeneratedProjectOptions(plugins: [TuistCore.PluginLocation]) -> TuistCore
+    private func mockConfigGeneratedProjectOptions(plugins: [TuistConfig.PluginLocation]) -> TuistConfig
         .TuistGeneratedProjectOptions
     {
-        TuistCore.TuistGeneratedProjectOptions(
+        TuistConfig.TuistGeneratedProjectOptions(
             compatibleXcodeVersions: .all,
-            swiftVersion: nil,
             plugins: plugins,
             generationOptions: .test(),
             installOptions: .test(),

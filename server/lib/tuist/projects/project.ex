@@ -10,11 +10,11 @@ defmodule Tuist.Projects.Project do
   alias Tuist.Accounts.User
   alias Tuist.AppBuilds.Preview
   alias Tuist.Projects.VCSConnection
-  alias Tuist.QA.LaunchArgumentGroup
+  alias Tuist.Vault.Binary
 
   @derive {
     Flop.Schema,
-    filterable: [:account_id, :name], sortable: [:name, :created_at], default_limit: 20
+    filterable: [:account_id, :name, :visibility], sortable: [:name, :created_at], default_limit: 20
   }
 
   schema "projects" do
@@ -24,22 +24,44 @@ defmodule Tuist.Projects.Project do
     field :default_branch, :string, default: "main"
     field :last_interacted_at, :naive_datetime, virtual: true
     field :default_previews_visibility, Ecto.Enum, values: [private: 0, public: 1], default: :private
-    field :qa_app_description, :string, default: ""
-    field :qa_email, :string, default: ""
-    field :qa_password, :string, default: ""
-
     field :slack_channel_id, :string
     field :slack_channel_name, :string
+    field :slack_webhook_url, Binary
     field :report_frequency, Ecto.Enum, values: [never: 0, daily: 1], default: :never
     field :report_days_of_week, {:array, :integer}, default: []
     field :report_schedule_time, :utc_datetime
     field :report_timezone, :string
+    # Stamped by ReportWorker on each successful send; bounds the next report
+    # window independently of oban_jobs retention. Set internally, not via the
+    # public changeset.
+    field :last_reported_at, :utc_datetime
+    field :build_system, Ecto.Enum, values: [xcode: 0, gradle: 1, bazel: 2, once: 3, mix: 4, cargo: 5], default: :xcode
+
+    field :bundle_size_approval_policy, Ecto.Enum,
+      values: [everyone: 0, selected: 1],
+      default: :everyone
+
+    field :auto_quarantine_flaky_tests, :boolean, default: false
+    field :flaky_test_alerts_enabled, :boolean, default: false
+    field :flaky_test_alerts_slack_channel_id, :string
+    field :flaky_test_alerts_slack_channel_name, :string
+    field :flaky_test_alerts_slack_webhook_url, Binary
+    field :auto_mark_flaky_tests, :boolean, default: true
+    field :auto_mark_flaky_threshold, :integer, default: 1
+    field :flaky_cooldown_days, :integer, default: 14
+
+    # Object-storage key of the currently uploaded project logo, or nil when
+    # the project has none. The suffix (`.png` / `.jpg` / `.webp`) doubles as
+    # the content-type hint when serving.
+    field :logo_storage_key, :string
+    # Git history overrides; nil means the server default (see `Tuist.GitHistory.settings/1`).
+    field :git_history_window_days, :integer
+    field :git_history_window_commits, :integer
 
     belongs_to :account, Account
 
     has_many :previews, Preview
     has_one :vcs_connection, VCSConnection
-    has_many :qa_launch_argument_groups, LaunchArgumentGroup
 
     has_many :users_with_last_visited_projects, User,
       foreign_key: :last_visited_project_id,
@@ -59,12 +81,14 @@ defmodule Tuist.Projects.Project do
       :name,
       :created_at,
       :visibility,
-      :default_previews_visibility
+      :default_previews_visibility,
+      :build_system
     ])
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_required([:token, :account_id, :name])
     |> validate_name()
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
+    |> validate_inclusion(:build_system, [:xcode, :gradle, :bazel, :once, :mix, :cargo])
   end
 
   def update_changeset(project, attrs) do
@@ -74,20 +98,67 @@ defmodule Tuist.Projects.Project do
       :default_branch,
       :visibility,
       :default_previews_visibility,
-      :qa_app_description,
-      :qa_email,
-      :qa_password,
       :slack_channel_id,
       :slack_channel_name,
+      :slack_webhook_url,
       :report_frequency,
       :report_days_of_week,
       :report_schedule_time,
-      :report_timezone
+      :report_timezone,
+      :auto_quarantine_flaky_tests,
+      :flaky_test_alerts_enabled,
+      :flaky_test_alerts_slack_channel_id,
+      :flaky_test_alerts_slack_channel_name,
+      :flaky_test_alerts_slack_webhook_url,
+      :auto_mark_flaky_tests,
+      :auto_mark_flaky_threshold,
+      :flaky_cooldown_days,
+      :build_system,
+      :bundle_size_approval_policy,
+      :git_history_window_days,
+      :git_history_window_commits
     ])
+    |> validate_number(:git_history_window_days, greater_than: 0)
+    |> validate_number(:git_history_window_commits, greater_than: 0)
     |> validate_name()
+    |> validate_length(:default_branch, max: 255)
+    |> validate_number(:auto_mark_flaky_threshold, greater_than: 0)
+    |> validate_number(:flaky_cooldown_days, greater_than: 0)
     |> validate_inclusion(:visibility, [:private, :public])
     |> validate_inclusion(:default_previews_visibility, [:private, :public])
+    |> validate_inclusion(:build_system, [:xcode, :gradle, :bazel, :once, :mix, :cargo])
+    |> validate_inclusion(:bundle_size_approval_policy, [:everyone, :selected])
   end
+
+  # Kept separate from `update_changeset/2` so the storage key is never cast
+  # from user-controlled params; the context is the only writer of this field.
+  def logo_changeset(project, attrs) do
+    cast(project, attrs, [:logo_storage_key])
+  end
+
+  def xcode_project?(%__MODULE__{build_system: :xcode}), do: true
+  def xcode_project?(_), do: false
+
+  def gradle_project?(%__MODULE__{build_system: :gradle}), do: true
+  def gradle_project?(_), do: false
+
+  def bazel_project?(%__MODULE__{build_system: :bazel}), do: true
+  def bazel_project?(_), do: false
+
+  def mix_project?(%__MODULE__{build_system: :mix}), do: true
+  def mix_project?(_), do: false
+
+  def cargo_project?(%__MODULE__{build_system: :cargo}), do: true
+  def cargo_project?(_), do: false
+
+  def once_project?(%__MODULE__{build_system: :once}), do: true
+  def once_project?(_), do: false
+
+  def supports_previews?(%__MODULE__{build_system: build_system}) when build_system in [:xcode, :gradle], do: true
+  def supports_previews?(_), do: false
+
+  def supports_bundles?(%__MODULE__{build_system: build_system}) when build_system in [:xcode, :gradle], do: true
+  def supports_bundles?(_), do: false
 
   defp validate_name(changeset) do
     changeset

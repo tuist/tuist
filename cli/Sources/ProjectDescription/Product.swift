@@ -24,6 +24,8 @@ public enum Product: String, Codable, Equatable, Sendable {
     case appExtension = "app_extension"
     /// A Watch application. (watchOS platform only) .
     case watch2App
+    /// A Watch application container. (iOS companion for watchOS-only apps).
+    case watch2AppContainer
     /// A Watch application extension. (watchOS platform only).
     case watch2Extension
     /// A TV Top Shelf Extension.

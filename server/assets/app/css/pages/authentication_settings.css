@@ -1,0 +1,399 @@
+#authentication-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-9);
+
+  & > [data-part="title"] {
+    margin: 0;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+
+  & [data-part="sso-card"],
+  & [data-part="scim-card"] {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-radius: var(--noora-radius-8);
+    padding: 0;
+
+    & > [data-part="header"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      padding: var(--noora-spacing-7) var(--noora-spacing-8);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+    }
+
+    & > [data-part="content"] {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Following sections own dividers; adjacent bottom/top shadows paint them twice. */
+    & [data-part="section"] {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      box-shadow: inset 0 1px 0 0 var(--noora-surface-border-primary);
+      padding: var(--noora-spacing-8);
+
+      & > [data-part="label"] {
+        display: flex;
+        flex-shrink: 0;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+        padding-right: var(--noora-spacing-8);
+        width: 40%;
+
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & > [data-part="description"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        }
+      }
+
+      & > [data-part="field"] {
+        display: flex;
+        flex-grow: 1;
+        flex-direction: column;
+        gap: var(--noora-spacing-4);
+        min-width: 0;
+
+        /* Controls sit at one width on the trailing edge rather than stretching
+           the column. The values here are domains, identifiers, and endpoint
+           URLs, so the width is set by what reads comfortably rather than by
+           the widest value: a long URL scrolls inside its field at any width
+           this column could offer. */
+        & > .noora-dropdown,
+        & > .noora-text-input {
+          align-self: flex-end;
+          width: 320px;
+          max-width: 100%;
+        }
+      }
+
+      & > [data-part="toggle-label"] {
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+        gap: var(--noora-spacing-5);
+
+        & > [data-part="label-text"] {
+          display: flex;
+          flex-direction: column;
+          gap: var(--noora-spacing-2);
+
+          & > [data-part="title"] {
+            color: var(--noora-surface-label-primary);
+            font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+          }
+
+          & > [data-part="description"] {
+            color: var(--noora-surface-label-secondary);
+            font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+          }
+        }
+      }
+
+      &[data-section="base-url"] {
+        align-items: center;
+
+        & > [data-part="field"] {
+          align-items: flex-end;
+        }
+
+        & [data-part="read-only-value"] {
+          width: fit-content;
+          max-width: 100%;
+
+          & > code {
+            flex-grow: 0;
+          }
+        }
+      }
+
+      /* Center the Generate-token button vertically with its label, since
+         the field is a single button rather than a stacked input column. */
+      &[data-section="tokens"] {
+        align-items: center;
+
+        & > [data-part="field"] {
+          flex-direction: row;
+          justify-content: flex-end;
+          align-items: center;
+        }
+      }
+    }
+
+    & > [data-part="footer"] {
+      display: flex;
+      flex-direction: row;
+      justify-content: flex-end;
+      align-items: center;
+      gap: var(--noora-spacing-4);
+      box-shadow: inset 0 1px 0 0 var(--noora-surface-border-primary);
+      padding: var(--noora-spacing-6) var(--noora-spacing-8);
+    }
+  }
+
+  & [data-part="tokens-table"] {
+    box-shadow: inset 0 1px 0 0 var(--noora-surface-border-primary);
+    padding: var(--noora-spacing-6) var(--noora-spacing-8);
+  }
+
+  & #scim-tokens-table {
+    & table {
+      min-width: 0;
+      table-layout: fixed;
+    }
+
+    & th:first-child {
+      width: 32%;
+    }
+
+    & th:nth-child(2),
+    & th:nth-child(3) {
+      width: 28%;
+    }
+
+    & th:last-child {
+      width: 72px;
+    }
+
+    & td:last-child > [data-part="cell"][data-type="button"] {
+      justify-content: flex-end;
+      width: 100%;
+    }
+  }
+
+  & #generate-scim-token-modal > [data-part="positioner"] > [data-part="content"] {
+    width: min(560px, 90vw);
+    max-width: 560px;
+  }
+
+  & #generate-scim-token-modal-body {
+    padding: 0;
+
+    & [data-part="modal-content-wrapper"] {
+      display: flex;
+      flex-direction: column;
+
+      & > .noora-line-divider {
+        flex-shrink: 0;
+      }
+    }
+  }
+
+  & [data-part="modal-body"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    padding: var(--noora-spacing-7);
+
+    & > [data-part="modal-description"] {
+      margin: 0;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+
+    & [data-part="modal-message"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+    }
+
+    & .noora-text-input > .noora-label {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--noora-spacing-2);
+    }
+  }
+
+  & [data-part="read-only-value"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-3);
+    border-radius: var(--noora-radius-3);
+    background: var(--noora-surface-background-tertiary);
+    padding: var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-5);
+    min-width: 0;
+
+    & > code {
+      flex-grow: 1;
+      overflow: hidden;
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      font-family: "Geist Mono", monospace;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    & > .noora-button {
+      flex-shrink: 0;
+    }
+  }
+
+  & [data-part="setup-steps"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+
+    & > p {
+      margin: 0;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+
+    & > ol {
+      margin: 0;
+      padding-left: var(--noora-spacing-7);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+
+      & > li {
+        padding: var(--noora-spacing-1) 0;
+      }
+
+      & code {
+        border-radius: var(--noora-radius-1);
+        background: var(--noora-surface-background-tertiary);
+        padding: 1px var(--noora-spacing-2);
+        color: var(--noora-surface-label-primary);
+        font-size: 0.85em;
+        font-family: "Geist Mono", monospace;
+      }
+    }
+  }
+
+  & [data-part="sso-card"] [data-part="section"][data-section="login-domain"] {
+    flex-wrap: wrap;
+    align-items: center;
+
+    @media (max-width: 768px) {
+      flex-wrap: nowrap;
+      align-items: stretch;
+    }
+
+    & > [data-part="label"] > [data-part="title-row"] {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+    }
+
+    & > [data-part="field"] > .noora-button {
+      align-self: flex-end;
+      white-space: nowrap;
+
+      &.phx-click-loading {
+        opacity: 0.6;
+        cursor: progress;
+      }
+    }
+  }
+
+  & [data-part="domain-verification-status"] {
+    border-radius: var(--noora-radius-4);
+    padding: var(--noora-spacing-1) var(--noora-spacing-3);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+    &[data-status="verified"] {
+      background: var(--noora-badge-light-fill-success-background);
+      color: var(--noora-badge-light-fill-success-label);
+    }
+
+    &[data-status="pending"] {
+      background: var(--noora-badge-light-fill-warning-background);
+      color: var(--noora-badge-light-fill-warning-label);
+    }
+
+    &[data-status="expiring"] {
+      background: var(--noora-badge-light-fill-destructive-background);
+      color: var(--noora-badge-light-fill-destructive-label);
+    }
+  }
+
+  & [data-part="domain-verification"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    margin-left: auto;
+    padding-top: var(--noora-spacing-7);
+    width: calc(60% - var(--noora-spacing-8));
+
+    @media (max-width: 768px) {
+      width: 100%;
+    }
+
+    & > [data-part="domain-verification-error"].phx-click-loading {
+      display: none;
+    }
+
+    & > [data-part="domain-records"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+
+      & > [data-part="domain-record"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+      }
+
+      & [data-part="domain-record-label"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+
+      & [data-part="read-only-value"] > code {
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
+    }
+  }
+
+  @media (max-width: 768px) {
+    & [data-part="sso-card"],
+    & [data-part="scim-card"] {
+      & [data-part="section"] {
+        flex-direction: column;
+        gap: var(--noora-spacing-5);
+
+        & > [data-part="label"] {
+          padding-right: 0;
+          width: 100%;
+        }
+      }
+    }
+  }
+}

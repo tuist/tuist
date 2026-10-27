@@ -3,9 +3,12 @@ defmodule TuistWeb.MembersLiveTest do
   use TuistTestSupport.Cases.LiveCase
   use Mimic
 
+  import Ecto.Query
   import Phoenix.LiveViewTest
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Invitation
+  alias Tuist.Environment
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} do
@@ -27,7 +30,262 @@ defmodule TuistWeb.MembersLiveTest do
     %{conn: conn, user: user, organization: organization, account: account}
   end
 
+  describe "revoke_invite" do
+    test "does not allow revoking an invitation belonging to a different organization", %{
+      conn: conn,
+      account: account
+    } do
+      # Given: an invitation on a completely different organization
+      other_user = AccountsFixtures.user_fixture()
+      other_org = AccountsFixtures.organization_fixture(creator: other_user, preload: [:account])
+
+      {:ok, other_invitation} =
+        Accounts.invite_user_to_organization(
+          "victim@example.com",
+          %{
+            inviter: other_user,
+            to: other_org,
+            url: &"/auth/invitations/#{&1}"
+          }
+        )
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      # When: the user sends a revoke event with the other org's invitation ID
+      render_hook(lv, "revoke_invite", %{"id" => other_invitation.id})
+
+      # Then: the invitation should still exist
+      assert Accounts.get_invitation_by_id(other_invitation.id)
+    end
+  end
+
+  describe "resend_invite" do
+    test "does not allow resending an invitation belonging to a different organization", %{
+      conn: conn,
+      account: account
+    } do
+      other_user = AccountsFixtures.user_fixture()
+      other_org = AccountsFixtures.organization_fixture(creator: other_user, preload: [:account])
+
+      {:ok, other_invitation} =
+        Accounts.invite_user_to_organization(
+          "victim@example.com",
+          %{
+            inviter: other_user,
+            to: other_org,
+            url: &"/auth/invitations/#{&1}"
+          },
+          token: "other-org-token"
+        )
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      render_hook(lv, "resend_invite", %{"id" => other_invitation.id})
+
+      assert Accounts.get_invitation_by_id(other_invitation.id).token == "other-org-token"
+    end
+
+    test "refreshes the invitation and reveals the new link", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      account: account
+    } do
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization(
+          "invitee@example.com",
+          %{
+            inviter: user,
+            to: organization,
+            url: &"/auth/invitations/#{&1}"
+          },
+          token: "old-token"
+        )
+
+      stub(Environment, :mail_configured?, fn -> true end)
+
+      expect(Accounts.UserNotifier, :deliver_invitation, fn invitee_email, opts ->
+        assert invitee_email == "invitee@example.com"
+        assert opts.url =~ "/auth/invitations/"
+        refute opts.url =~ "old-token"
+        :ok
+      end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      html = render_hook(lv, "resend_invite", %{"id" => invitation.id})
+      resent_invitation = Accounts.get_invitation_by_id(invitation.id)
+
+      assert resent_invitation.token != "old-token"
+      assert html =~ "Invitation link"
+      assert html =~ "/auth/invitations/#{resent_invitation.token}"
+      assert html =~ "emailed this invitation to invitee@example.com"
+    end
+  end
+
+  describe "invitations table" do
+    test "surfaces a copy-able invite link so members can be onboarded without email delivery", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      account: account
+    } do
+      # Given: a pending invitation to the current organization
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization(
+          "invitee@example.com",
+          %{
+            inviter: user,
+            to: organization,
+            url: &"/auth/invitations/#{&1}"
+          }
+        )
+
+      # When: visiting the members page and switching to the invitations tab
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      html =
+        lv
+        |> element("[phx-value-tab='invitations']")
+        |> render_click()
+
+      # Then: the invitation row exposes the acceptance link for the clipboard action
+      assert html =~ "copy-invite-link-#{invitation.id}"
+      assert html =~ "/auth/invitations/#{invitation.token}"
+      assert html =~ "Resend invitation"
+    end
+
+    test "shows expired invitations as expired and hides the stale copy action", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      account: account
+    } do
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization(
+          "expired@example.com",
+          %{
+            inviter: user,
+            to: organization,
+            url: &"/auth/invitations/#{&1}"
+          }
+        )
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Tuist.Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      html =
+        lv
+        |> element("[phx-value-tab='invitations']")
+        |> render_click()
+
+      assert html =~ "Expired"
+      assert html =~ ~s(data-status="disabled")
+      assert html =~ "resend-invite-#{invitation.id}"
+      refute html =~ "copy-invite-link-#{invitation.id}"
+    end
+
+    test "reveals the invite link and notes no email was sent when mail is not configured", %{
+      conn: conn,
+      organization: organization,
+      account: account
+    } do
+      stub(Environment, :mail_configured?, fn -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      html =
+        lv
+        |> form("#invite-member-form", invitation: %{invitee_email: "newcomer@example.com"})
+        |> render_submit()
+
+      # Then: the modal swaps to a confirmation that surfaces the acceptance link
+      invitation =
+        Accounts.get_invitation_by_invitee_email_and_organization(
+          "newcomer@example.com",
+          organization
+        )
+
+      assert html =~ "Invitation link"
+      assert html =~ "/auth/invitations/#{invitation.token}"
+      assert html =~ "invite-member-form-copy-invitation-link"
+      assert html =~ "Share this link with newcomer@example.com so they can join"
+    end
+
+    test "tells the inviter an email was sent when mail is configured", %{
+      conn: conn,
+      account: account
+    } do
+      stub(Environment, :mail_configured?, fn -> true end)
+      stub(Accounts.UserNotifier, :deliver_invitation, fn _email, _opts -> :ok end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      html =
+        lv
+        |> form("#invite-member-form", invitation: %{invitee_email: "emailed@example.com"})
+        |> render_submit()
+
+      assert html =~ "Invitation link"
+      assert html =~ "emailed this invitation to emailed@example.com"
+    end
+  end
+
   describe "members table" do
+    test "rejects a user who does not belong to the organization", %{conn: conn} do
+      victim_admin = AccountsFixtures.user_fixture()
+      victim_member = AccountsFixtures.user_fixture(email: "victim-member@example.com")
+
+      victim_organization =
+        AccountsFixtures.organization_fixture(creator: victim_admin, preload: [:account])
+
+      Accounts.add_user_to_organization(victim_member, victim_organization)
+
+      assert_raise TuistWeb.Errors.UnauthorizedError, fn ->
+        live(conn, ~p"/#{victim_organization.account.name}/members")
+      end
+    end
+
+    test "does not let a regular member forge member-management events", %{
+      organization: organization,
+      account: account
+    } do
+      regular_user = AccountsFixtures.user_fixture()
+      managed_user = AccountsFixtures.user_fixture()
+      Accounts.add_user_to_organization(regular_user, organization, role: :user)
+      Accounts.add_user_to_organization(managed_user, organization, role: :user)
+
+      conn = log_in_user(build_conn(), regular_user)
+      {:ok, live_view, _html} = live(conn, ~p"/#{account.name}/members")
+
+      render_hook(live_view, "select-member-role", %{"member_id" => to_string(managed_user.id), "role" => "admin"})
+      render_hook(live_view, "save-member-role", %{"member-id" => to_string(managed_user.id)})
+
+      assert Accounts.get_user_role_in_organization(managed_user, organization).name == "user"
+
+      render_hook(live_view, "confirm-remove-member", %{"member-id" => to_string(managed_user.id)})
+
+      assert Accounts.get_user_role_in_organization(managed_user, organization).name == "user"
+
+      render_submit(live_view, "invite-members", %{
+        "invitation" => %{"invitee_email" => "forged-invite@example.com"}
+      })
+
+      refute Accounts.get_invitation_by_invitee_email_and_organization(
+               "forged-invite@example.com",
+               organization
+             )
+    end
+
     test "renders members table with admin and regular users", %{
       conn: conn,
       user: admin_user,
@@ -135,6 +393,119 @@ defmodule TuistWeb.MembersLiveTest do
     end
   end
 
+  describe "invitations pagination" do
+    setup %{user: user, organization: organization} do
+      invitations =
+        for index <- 1..25 do
+          {:ok, invitation} =
+            Accounts.invite_user_to_organization(
+              "invitee-#{String.pad_leading("#{index}", 2, "0")}@example.com",
+              %{inviter: user, to: organization, url: &"/auth/invitations/#{&1}"}
+            )
+
+          Tuist.Repo.update_all(
+            from(i in Invitation, where: i.id == ^invitation.id),
+            set: [created_at: NaiveDateTime.add(~N[2026-01-01 00:00:00], index, :hour)]
+          )
+
+          invitation
+        end
+
+      %{invitations: Enum.reverse(invitations)}
+    end
+
+    test "renders one page of invitations at a time", %{conn: conn, account: account, invitations: invitations} do
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+      lv |> element("[phx-value-tab='invitations']") |> render_click()
+
+      # Then
+      assert_patched(lv, ~p"/#{account.name}/members?tab=invitations")
+      assert has_element?(lv, "#invite-actions-#{hd(invitations).id}")
+      assert has_element?(lv, "#invite-actions-#{Enum.at(invitations, 19).id}")
+      refute has_element?(lv, "#invite-actions-#{Enum.at(invitations, 20).id}")
+      assert has_element?(lv, ".noora-pagination-group")
+
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members?tab=invitations&page=2")
+
+      # Then
+      refute has_element?(lv, "#invite-actions-#{hd(invitations).id}")
+      assert has_element?(lv, "#invite-actions-#{Enum.at(invitations, 20).id}")
+      assert has_element?(lv, "#invite-actions-#{List.last(invitations).id}")
+    end
+
+    test "searches across every invitation, not only the current page", %{
+      conn: conn,
+      account: account,
+      invitations: invitations
+    } do
+      oldest = List.last(invitations)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members?tab=invitations")
+
+      # When
+      lv
+      |> form("form[phx-change='search']", %{search: oldest.invitee_email})
+      |> render_change()
+
+      # Then
+      assert has_element?(lv, "#invite-actions-#{oldest.id}")
+      refute has_element?(lv, "#invite-actions-#{hd(invitations).id}")
+      refute has_element?(lv, ".noora-pagination-group")
+    end
+  end
+
+  describe "members pagination" do
+    setup %{organization: organization} do
+      members =
+        for index <- 1..25 do
+          user =
+            AccountsFixtures.user_fixture(
+              handle: "zz-member-#{String.pad_leading("#{index}", 2, "0")}-#{System.unique_integer([:positive])}"
+            )
+
+          Accounts.add_user_to_organization(user, organization)
+          user
+        end
+
+      %{members: members}
+    end
+
+    test "renders one page of members at a time", %{conn: conn, account: account, members: members, user: admin_user} do
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      # Then
+      assert has_element?(lv, "tr#member-#{admin_user.id}")
+      assert has_element?(lv, "tr#member-#{Enum.at(members, 18).id}")
+      refute has_element?(lv, "tr#member-#{Enum.at(members, 19).id}")
+      assert has_element?(lv, ".noora-pagination-group")
+
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members?page=2")
+
+      # Then
+      refute has_element?(lv, "tr#member-#{admin_user.id}")
+      assert has_element?(lv, "tr#member-#{Enum.at(members, 19).id}")
+      assert has_element?(lv, "tr#member-#{List.last(members).id}")
+    end
+
+    test "searches across every member, not only the current page", %{conn: conn, account: account, members: members} do
+      last_member = List.last(members)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members?page=1")
+
+      # When
+      lv
+      |> form("form[phx-change='search']", %{search: last_member.account.name})
+      |> render_change()
+
+      # Then
+      assert has_element?(lv, "tr#member-#{last_member.id}")
+      refute has_element?(lv, "tr#member-#{hd(members).id}")
+      refute has_element?(lv, ".noora-pagination-group")
+    end
+  end
+
   describe "avatar rendering" do
     test "renders avatar for member with consecutive delimiters in account name", %{
       conn: conn,
@@ -185,6 +556,58 @@ defmodule TuistWeb.MembersLiveTest do
       assert html =~ admin_user.email
       assert html =~ user1.email
       assert html =~ user2.email
+    end
+  end
+
+  describe "viewer role" do
+    setup do
+      stub(Environment, :mail_configured?, fn -> false end)
+      :ok
+    end
+
+    test "invites a member as a viewer", %{conn: conn, account: account, organization: organization} do
+      # Given
+      invitee = AccountsFixtures.user_fixture(email: "viewer@example.com")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      # When — the role is a dropdown rather than a form field, so it is picked
+      # before the form is submitted.
+      render_hook(lv, "select-invite-role", %{"role" => "viewer"})
+
+      lv
+      |> element("#invite-member-form")
+      |> render_submit(%{"invitation" => %{"invitee_email" => "viewer@example.com"}})
+
+      # Then
+      invitation = Accounts.get_invitation_by_invitee_email_and_organization("viewer@example.com", organization)
+      assert invitation.role == "viewer"
+
+      Accounts.accept_invitation(%{
+        invitation: invitation,
+        invitee: invitee,
+        organization: organization
+      })
+
+      assert Accounts.organization_viewer?(invitee, organization)
+    end
+
+    test "changes an existing member's role to viewer", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      # Given
+      member = AccountsFixtures.user_fixture(handle: "member#{System.unique_integer([:positive])}")
+      Accounts.add_user_to_organization(member, organization)
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/members")
+
+      # When
+      render_hook(lv, "select-member-role", %{"member_id" => "#{member.id}", "role" => "viewer"})
+      render_hook(lv, "save-member-role", %{"member-id" => "#{member.id}"})
+
+      # Then
+      assert Accounts.organization_viewer?(member, organization)
+      refute Accounts.organization_user?(member, organization)
     end
   end
 end

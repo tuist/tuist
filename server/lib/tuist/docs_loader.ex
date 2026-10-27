@@ -1,0 +1,783 @@
+defmodule Tuist.Docs.Loader do
+  @moduledoc false
+
+  use Noora
+
+  import TuistWeb.Docs.MarkdownComponents, warn: false
+
+  alias Phoenix.HTML.Safe
+  alias Tuist.Docs.HTML
+  alias Tuist.Docs.Page
+  alias Tuist.Locale
+  alias Tuist.Markdown
+  alias Tuist.Runners.Catalog
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
+  alias Tuist.Webhooks.WebhookEndpoint
+
+  # Paths
+  @source_docs_root Path.expand("../../priv/docs", __DIR__)
+  @locales if(Tuist.Environment.test?(), do: ["en"], else: Locale.supported_locales())
+  @source_examples_root Path.expand("../../../examples/xcode", __DIR__)
+  @priv_examples_root Path.expand("../../priv/examples/xcode", __DIR__)
+
+  # Icons (rendered from Noora components at compile time)
+  @copy_icon %{__changed__: nil} |> Noora.Icon.copy() |> Safe.to_iodata() |> IO.iodata_to_binary()
+  @copy_check_icon %{__changed__: nil}
+                   |> Noora.Icon.check()
+                   |> Safe.to_iodata()
+                   |> IO.iodata_to_binary()
+
+  # Regexes
+  @frontmatter_regex ~r/\A---\s*\n(?<frontmatter>.*?)\n---\s*\n(?<body>.*)\z/s
+  @localized_link_regex ~r/<LocalizedLink\s+(?:href|to)="([^"]+)"\s*>(.*?)<\/LocalizedLink>/s
+  @script_setup_regex ~r/<script\s+setup>.*?<\/script>\s*/s
+  @custom_heading_id_regex ~r/^(\#{1,6}\s+.*?)\s+\{#([\w-]+)\}\s*$/m
+  @heading_extract_regex ~r/^(\#{2,4})\s+(.+?)(?:\s+\{#([\w-]+)\})?\s*$/m
+  @code_group_regex ~r/^(?<indent>[ \t]*):::[ \t]*code-group[ \t]*\n(?<content>.*?)^\k<indent>:::[ \t]*$/ms
+  @code_group_block_regex ~r/```(\w+)\s+\[([^\]]+)\]\n(.*?)```/s
+  # Tempered inner group so the title capture stops at the first `</strong>`
+  # even under the `s` flag. Without tempering, `.*?` can back off past a
+  # `</strong>` at end of paragraph one and match a `</strong>` in a later
+  # paragraph, swallowing intermediate markup into the title.
+  @bold_title_regex ~r/\A\s*<p><strong>((?:(?!<\/strong>).)*?)<\/strong><\/p>\s*/s
+  @code_content_regex ~r/(<code[^>]*>)(.*?)(<\/code>)/s
+
+  @github_alert_type_to_status %{
+    "note" => "information",
+    "tip" => "success",
+    "important" => "information",
+    "warning" => "warning",
+    "caution" => "error"
+  }
+
+  @syntax_highlight_options (if Tuist.Environment.test?() do
+                               []
+                             else
+                               [
+                                 syntax_highlight: [
+                                   formatter:
+                                     {:html_multi_themes,
+                                      themes: [light: "github_light", dark: "github_dark"], default_theme: "light-dark()"}
+                                 ]
+                               ]
+                             end)
+
+  @mdex_options [
+                  extension: [
+                    header_id_prefix: "",
+                    autolink: true,
+                    table: true,
+                    strikethrough: true,
+                    tasklist: true,
+                    alerts: true,
+                    phoenix_heex: true
+                  ],
+                  render: [unsafe: true]
+                ] ++ @syntax_highlight_options
+
+  def load_pages! do
+    source_paths = source_paths()
+    example_readmes = example_readmes()
+    pages = Enum.map(source_paths, &build_page!/1) ++ Enum.map(example_readmes, &build_example_page!/1)
+    all_source_paths = source_paths ++ example_readmes
+    {pages, all_source_paths}
+  end
+
+  def load_slugs! do
+    load_page_sources!()
+    |> Map.keys()
+    |> Enum.sort()
+  end
+
+  def load_page_sources! do
+    page_sources =
+      Enum.reduce(source_paths(), %{}, fn source_path, page_sources ->
+        slug = source_path |> Path.relative_to(docs_root()) |> source_to_slug()
+        Map.put_new(page_sources, slug, {:page, source_path})
+      end)
+
+    Enum.reduce(example_readmes(), page_sources, fn readme_path, page_sources ->
+      Map.put_new(page_sources, example_slug(readme_path), {:example, readme_path})
+    end)
+  end
+
+  def load_page!(slug, page_sources \\ load_page_sources!()) do
+    page_sources
+    |> Map.get(slug)
+    |> load_page_source!()
+  end
+
+  def load_page_source!({:page, source_path}), do: build_page!(source_path)
+  def load_page_source!({:example, readme_path}), do: build_example_page!(readme_path)
+  def load_page_source!(nil), do: nil
+
+  def load_example_items! do
+    Enum.map(example_readmes(), fn readme_path ->
+      dir_name = readme_path |> Path.dirname() |> Path.basename()
+      markdown = File.read!(readme_path)
+      title = title_from_markdown(markdown) || dir_name
+      slug = "/en/references/examples/generated-projects/#{String.downcase(dir_name)}"
+      {title, slug}
+    end)
+  end
+
+  def validate_page!(source_path) do
+    source_path
+    |> Path.expand()
+    |> build_page!()
+
+    :ok
+  end
+
+  defp source_paths do
+    docs_root = docs_root()
+
+    @locales
+    |> Enum.flat_map(fn locale ->
+      docs_root
+      |> Path.join(locale)
+      |> Path.join("**/*.md")
+      |> Path.wildcard()
+    end)
+    |> Enum.sort()
+    |> Enum.reject(&excluded_source?/1)
+  end
+
+  defp example_readmes do
+    case examples_root() do
+      nil ->
+        []
+
+      examples_root ->
+        examples_root
+        |> Path.join("*/README.md")
+        |> Path.wildcard()
+        |> Enum.sort()
+    end
+  end
+
+  defp build_page!(source_path) do
+    relative_path = Path.relative_to(source_path, docs_root())
+    slug = source_to_slug(relative_path)
+    locale = relative_path |> String.split("/") |> List.first()
+    contents = File.read!(source_path)
+
+    {attrs, markdown} = parse_frontmatter(contents)
+    markdown = expand_snippets(markdown, source_path)
+    markdown = expand_compile_time_macros(markdown)
+    {html, template, code_blocks} = render_markdown(markdown, source_path, locale, true)
+
+    %Page{
+      slug: slug,
+      title: attrs["title"] || title_from_markdown(markdown) || slug,
+      title_template: attrs["titleTemplate"],
+      description: attrs["description"],
+      body: html,
+      body_template: template,
+      code_blocks: code_blocks,
+      markdown: markdown,
+      source_path: relative_path,
+      headings: extract_headings(markdown),
+      last_modified: file_last_modified(source_path)
+    }
+  end
+
+  defp build_example_page!(readme_path) do
+    dir_name = readme_path |> Path.dirname() |> Path.basename()
+    slug = example_slug(readme_path)
+    markdown = File.read!(readme_path)
+    title = title_from_markdown(markdown) || dir_name
+    github_url = "https://github.com/tuist/tuist/tree/main/examples/xcode/#{dir_name}"
+
+    markdown_with_link = markdown <> "\n\n[Check out example](#{github_url})\n"
+    {html, template, code_blocks} = render_markdown(markdown_with_link, readme_path, "en", true)
+
+    %Page{
+      slug: slug,
+      title: title,
+      title_template: ":title · Examples · References · Tuist",
+      description: "Example: #{title}",
+      body: html,
+      body_template: template,
+      code_blocks: code_blocks,
+      markdown: markdown_with_link,
+      source_path: readme_path,
+      headings: extract_headings(markdown_with_link),
+      last_modified: file_last_modified(readme_path)
+    }
+  end
+
+  defp example_slug(readme_path) do
+    dir_name = readme_path |> Path.dirname() |> Path.basename()
+    "/en/references/examples/generated-projects/#{String.downcase(dir_name)}"
+  end
+
+  defp docs_root do
+    if File.dir?(@source_docs_root) do
+      @source_docs_root
+    else
+      Application.app_dir(:tuist, "priv/docs")
+    end
+  end
+
+  defp examples_root do
+    Enum.find(
+      [@source_examples_root, @priv_examples_root, Application.app_dir(:tuist, "priv/examples/xcode")],
+      &File.dir?/1
+    )
+  end
+
+  # Snippet directive: expands `<!-- @snippet: <path> -->` into the referenced
+  # markdown file's body (frontmatter stripped). Paths starting with `.` are
+  # relative to the including file; anything else is resolved from the locale
+  # root. Convention: snippet filenames start with `_` so they never surface as
+  # standalone pages (see `snippet_source?/1`). Expansion is recursive with a
+  # cycle guard; a bad path or a cycle raises at compile time so it can't ship
+  # broken.
+  @snippet_directive_regex ~r/<!--\s*@snippet:\s*([^\s]+)\s*-->/
+
+  defp expand_snippets(markdown, source_path, visited \\ MapSet.new()) do
+    Regex.replace(@snippet_directive_regex, markdown, fn _match, snippet_ref ->
+      snippet_path = resolve_snippet_path(snippet_ref, source_path)
+
+      if MapSet.member?(visited, snippet_path) do
+        raise "Snippet cycle detected: #{snippet_path} (from #{source_path})"
+      end
+
+      if !File.exists?(snippet_path) do
+        raise "Snippet not found: #{snippet_ref} (referenced from #{source_path}, resolved to #{snippet_path})"
+      end
+
+      {_attrs, body} = snippet_path |> File.read!() |> parse_frontmatter()
+
+      expand_snippets(body, snippet_path, MapSet.put(visited, snippet_path))
+    end)
+  end
+
+  defp resolve_snippet_path(snippet_ref, source_path) do
+    ref = ensure_md_extension(snippet_ref)
+
+    resolved =
+      cond do
+        String.starts_with?(ref, "./") or String.starts_with?(ref, "../") ->
+          source_path |> Path.dirname() |> Path.join(ref)
+
+        String.starts_with?(ref, "/") ->
+          locale = source_path |> Path.relative_to(docs_root()) |> String.split("/") |> List.first()
+          docs_root() |> Path.join(locale) |> Path.join(String.trim_leading(ref, "/"))
+
+        true ->
+          source_path |> Path.dirname() |> Path.join(ref)
+      end
+
+    Path.expand(resolved)
+  end
+
+  defp ensure_md_extension(ref) do
+    if String.ends_with?(ref, ".md"), do: ref, else: ref <> ".md"
+  end
+
+  # Compile-time macros documentation pages can reference with
+  # `{{macro_name}}` placeholders. Keeps content that mirrors a code-level
+  # catalogue (event types, etc.) from drifting against the canonical
+  # source — touching the catalogue forces the docs page to recompile and
+  # re-substitute.
+  defp expand_compile_time_macros(markdown) do
+    markdown
+    |> String.replace("{{webhook_events_table}}", webhook_events_table())
+    |> String.replace(
+      "{{minimum_supported_cli_version}}",
+      Tuist.CLIVersions.minimum_supported_version()
+    )
+    |> String.replace(
+      "{{minimum_supported_clickhouse_version}}",
+      Tuist.ClickHouseVersions.minimum_supported_version()
+    )
+    |> String.replace("{{runner_default_profiles_table}}", runner_default_profiles_table())
+    |> String.replace("{{runner_linux_shapes_table}}", runner_shapes_table(:linux))
+    |> String.replace("{{runner_macos_shapes_table}}", runner_shapes_table(:macos))
+    |> String.replace("{{runner_macos_xcode_versions}}", runner_xcode_versions_list())
+  end
+
+  defp runner_shapes_table(platform) do
+    rows =
+      platform
+      |> Catalog.shapes()
+      |> Enum.map_join("\n", fn shape ->
+        "| #{shape.vcpus} | #{shape.memory_gb} GB#{default_suffix(shape.default?)} |"
+      end)
+
+    """
+    | vCPUs | Memory |
+    | --- | --- |
+    #{rows}
+    """
+  end
+
+  defp runner_xcode_versions_list do
+    Enum.map_join(Catalog.xcode_versions(), "\n", fn version ->
+      "- `#{version.xcode_version}`#{default_suffix(version.default?)}"
+    end)
+  end
+
+  defp runner_default_profiles_table do
+    prefix = Profile.prefix()
+
+    rows =
+      Enum.map_join(default_profile_rows(prefix), "\n", fn row ->
+        "| `#{row.name}` | `#{row.label}` | #{row.shape} |"
+      end)
+
+    """
+    | Profile | Label | Default shape |
+    | --- | --- | --- |
+    #{rows}
+    """
+  end
+
+  defp default_profile_rows(prefix) do
+    linux_row =
+      case Catalog.default_shape(:linux) do
+        nil ->
+          []
+
+        shape ->
+          name = Profiles.default_linux_name()
+          [%{name: name, label: prefix <> name, shape: shape_label(shape)}]
+      end
+
+    macos_row =
+      with shape when not is_nil(shape) <- Catalog.default_shape(:macos),
+           xcode when not is_nil(xcode) <- Catalog.default_xcode_version() do
+        name = Profiles.default_macos_name()
+        [%{name: name, label: prefix <> name, shape: "#{shape_label(shape)}, Xcode #{xcode.xcode_version}"}]
+      else
+        _ -> []
+      end
+
+    linux_row ++ macos_row
+  end
+
+  defp shape_label(%{vcpus: vcpus, memory_gb: memory_gb}), do: "#{vcpus} vCPU / #{memory_gb} GB"
+
+  defp default_suffix(true), do: " (default)"
+  defp default_suffix(_), do: ""
+
+  defp webhook_events_table do
+    rows =
+      WebhookEndpoint.event_groups()
+      |> Enum.flat_map(& &1.events)
+      |> Enum.map_join("\n", fn %{type: type, description: description} ->
+        "| `#{type}` | #{description} |"
+      end)
+
+    """
+    | Type | When it fires |
+    | --- | --- |
+    #{rows}
+    """
+  end
+
+  defp render_markdown(markdown, source_path, locale, _live?) do
+    custom_ids = extract_custom_heading_ids(markdown)
+
+    processed_markdown =
+      markdown
+      |> String.replace(@script_setup_regex, "")
+      |> localize_link_components(locale)
+      |> strip_custom_heading_ids()
+      |> convert_code_groups()
+
+    html =
+      [markdown: processed_markdown]
+      |> Keyword.merge(@mdex_options)
+      |> MDEx.new()
+      |> MDExMermaid.attach(
+        mermaid_init: "",
+        mermaid_pre_attrs: fn seq ->
+          ~s(id="mermaid-#{seq}" class="mermaid" phx-hook="MermaidDiagram" phx-update="ignore")
+        end
+      )
+      |> MDEx.to_html!()
+      |> convert_github_alerts()
+      |> HTML.wrap_code_blocks()
+      |> HTML.wrap_tables()
+      |> strip_unsupported_tags()
+      |> rewrite_image_paths()
+      |> replace_heading_ids(custom_ids)
+      |> HTML.add_heading_anchors()
+
+    {safe_html, code_blocks} = extract_code_contents(html)
+    safe_html = escape_heex_expressions(safe_html)
+
+    case compile_heex_template(safe_html, source_path) do
+      {:ok, template} -> {html, template, code_blocks}
+      :error -> {html, nil, []}
+    end
+  end
+
+  defp compile_heex_template(html, path) do
+    {:ok,
+     Phoenix.LiveView.TagEngine.compile(
+       html,
+       file: path,
+       line: 1,
+       caller: __ENV__,
+       indentation: 0,
+       tag_handler: Phoenix.LiveView.HTMLEngine
+     )}
+  rescue
+    _ -> :error
+  end
+
+  defp extract_code_contents(html) do
+    blocks = @code_content_regex |> Regex.scan(html) |> Enum.map(fn [_, _, content, _] -> content end)
+
+    {safe_html, _} =
+      @code_content_regex
+      |> Regex.scan(html, return: :index)
+      |> Enum.with_index()
+      |> Enum.reverse()
+      |> Enum.reduce({html, nil}, fn {[_full_idx, _open_idx, content_idx, _close_idx], idx}, {acc, _} ->
+        {content_start, content_len} = content_idx
+        placeholder = "<%= raw(Enum.at(@_doc_code_blocks, #{idx})) %>"
+        acc = binary_replace_range(acc, content_start, content_len, placeholder)
+        {acc, nil}
+      end)
+
+    {safe_html, blocks}
+  end
+
+  defp binary_replace_range(binary, start, len, replacement) do
+    before = binary_part(binary, 0, start)
+    after_part = binary_part(binary, start + len, byte_size(binary) - start - len)
+    before <> replacement <> after_part
+  end
+
+  defp escape_heex_expressions(html) do
+    parts = Regex.split(~r/(<%.*?%>|\{@\w+\})/s, html, include_captures: true)
+
+    Enum.map_join(parts, fn part ->
+      if String.starts_with?(part, "<%") or String.starts_with?(part, "{@"),
+        do: part,
+        else: String.replace(part, "{", "&#123;")
+    end)
+  end
+
+  @alert_opening_regex ~r/<div class="markdown-alert markdown-alert-(\w+)">\s*<p class="markdown-alert-title">([^<]*)<\/p>\s*/s
+
+  # Alert titles are rendered inside a text attribute and can't carry inline
+  # HTML. When the extracted `**bold**` title contains markup (e.g. `<code>`),
+  # collapse it to plain text so the shorter, code-formatted phrase still lands
+  # as the title rather than falling back to the default "Tip"/"Warning" label.
+  defp strip_html_tags(text) do
+    text
+    |> String.replace(~r/<[^>]+>/, "")
+    |> String.replace("&nbsp;", " ")
+    |> String.trim()
+  end
+
+  defp convert_github_alerts(html) do
+    case Regex.run(@alert_opening_regex, html, return: :index) do
+      nil ->
+        html
+
+      [{full_start, full_len}, {_, _} = type_idx, {_, _} = title_idx] ->
+        type = binary_part(html, elem(type_idx, 0), elem(type_idx, 1))
+        default_title = binary_part(html, elem(title_idx, 0), elem(title_idx, 1))
+        after_header = full_start + full_len
+        rest = binary_part(html, after_header, byte_size(html) - after_header)
+
+        # Find the matching </div> by tracking depth (the alert's own <div> is already open)
+        close_offset = find_matching_close_div(rest, 0, 1)
+        content = binary_part(rest, 0, close_offset)
+        after_alert = after_header + close_offset + byte_size("</div>")
+
+        status = Map.get(@github_alert_type_to_status, type, "information")
+
+        {title, content} =
+          case Regex.run(@bold_title_regex, content) do
+            [match, bold] -> {strip_html_tags(bold), String.replace_prefix(content, match, "")}
+            _ -> {default_title, content}
+          end
+
+        title = title |> String.replace("\"", "&quot;") |> String.replace("<", "&lt;")
+
+        replacement =
+          ~s(<Noora.Alert.alert status="#{status}" title="#{title}" type="secondary" size="large">#{content}</Noora.Alert.alert>)
+
+        before = binary_part(html, 0, full_start)
+        after_part = binary_part(html, after_alert, byte_size(html) - after_alert)
+
+        convert_github_alerts(before <> replacement <> after_part)
+    end
+  end
+
+  defp find_matching_close_div(html, pos, depth) when depth > 0 do
+    remaining = binary_part(html, pos, byte_size(html) - pos)
+    open_match = :binary.match(remaining, "<div")
+    close_match = :binary.match(remaining, "</div>")
+
+    case {open_match, close_match} do
+      {_, :nomatch} ->
+        pos
+
+      {{open_off, _}, {close_off, _}} when open_off < close_off ->
+        find_matching_close_div(html, pos + open_off + 4, depth + 1)
+
+      {_, {close_off, _}} ->
+        if depth == 1, do: pos + close_off, else: find_matching_close_div(html, pos + close_off + 6, depth - 1)
+    end
+  end
+
+  defp strip_unsupported_tags(html) do
+    html
+    |> String.replace(~r/<Badge[^>]*\/?>/, "")
+    |> String.replace(~r/<\/Badge>/, "")
+    |> String.replace(~r/<HomeCards[^>]*>.*?<\/HomeCards>/s, "")
+    |> String.replace(~r/<HomeVideos[^>]*\/>/, "")
+    |> String.replace(~r/<HomeCommunity[^>]*>.*?<\/HomeCommunity>/s, "")
+  end
+
+  defp rewrite_image_paths(html) do
+    html
+    |> String.replace(~s(src="/images/), ~s(src="/docs/images/))
+    |> String.replace(~s(src="/logo.png"), ~s(src="/docs/images/logo.webp"))
+  end
+
+  defp localize_link_components(markdown, _locale) do
+    Regex.replace(@localized_link_regex, markdown, fn _, href, text ->
+      ~s(<.localized_link href="#{href}" locale={@locale}>#{text}</.localized_link>)
+    end)
+  end
+
+  defp convert_code_groups(markdown) do
+    Regex.replace(@code_group_regex, markdown, fn _, indent, content ->
+      # A code-group can be nested inside a list item, where each line carries a
+      # common leading indent. Strip that indent before parsing so the inner
+      # ```lang [Label]``` blocks match, then reapply the indent to the emitted
+      # HTML so the surrounding markdown treats it as list-item content.
+      dedented = strip_indent(content, indent)
+      html = convert_code_group(dedented)
+      if indent == "", do: html, else: reapply_indent(html, indent)
+    end)
+  end
+
+  defp strip_indent(content, ""), do: content
+
+  defp strip_indent(content, indent) do
+    content
+    |> String.split("\n")
+    |> Enum.map_join("\n", fn line ->
+      if String.starts_with?(line, indent) do
+        String.replace_prefix(line, indent, "")
+      else
+        line
+      end
+    end)
+  end
+
+  defp reapply_indent(html, indent) do
+    html
+    |> String.split("\n")
+    |> Enum.map_join("\n", fn
+      "" -> ""
+      line -> indent <> line
+    end)
+  end
+
+  defp convert_code_group(content) do
+    tabs = Regex.scan(@code_group_block_regex, content)
+
+    if tabs == [] do
+      String.trim(content)
+    else
+      tab_buttons =
+        tabs
+        |> Enum.with_index()
+        |> Enum.map_join("", fn {[_, _lang, label, _code], index} ->
+          selected = if index == 0, do: ~s( data-selected="true"), else: ""
+
+          EEx.eval_string(
+            ~s(<button data-part="tab" data-index="<%= index %>"<%= selected %>><%= label %></button>),
+            index: index,
+            selected: selected,
+            label: label
+          )
+        end)
+
+      tab_panels =
+        tabs
+        |> Enum.with_index()
+        |> Enum.map_join("", fn {[_, lang, _label, code], index} ->
+          hidden = if index == 0, do: "", else: ~s( data-hidden="true")
+          copy_source = code |> String.trim() |> Markdown.html_escape() |> String.replace("\n", "&#10;")
+
+          EEx.eval_string(
+            ~s(<div data-part="panel" data-index="<%= index %>"<%= hidden %>><template data-part="copy-source"><%= copy_source %></template>\n\n```<%= lang %>\n<%= code %>```\n\n</div>),
+            index: index,
+            hidden: hidden,
+            lang: lang,
+            code: code,
+            copy_source: copy_source
+          )
+        end)
+
+      copy_button =
+        EEx.eval_string(
+          ~s(<button data-part="copy" class="noora-neutral-button" data-size="large" aria-label="Copy code"><span data-part="copy-icon"><%= copy_icon %></span><span data-part="copy-check-icon"><%= copy_check_icon %></span></button>),
+          copy_icon: @copy_icon,
+          copy_check_icon: @copy_check_icon
+        )
+
+      EEx.eval_string(
+        ~s(<div class="code-group"><div data-part="header"><div data-part="tabs"><%= tab_buttons %></div><%= copy_button %></div><div data-part="panels"><%= tab_panels %></div></div>\n),
+        tab_buttons: tab_buttons,
+        copy_button: copy_button,
+        tab_panels: tab_panels
+      )
+    end
+  end
+
+  defp strip_custom_heading_ids(markdown) do
+    Regex.replace(@custom_heading_id_regex, markdown, "\\1")
+  end
+
+  defp extract_custom_heading_ids(markdown) do
+    cleaned = String.replace(markdown, @script_setup_regex, "")
+
+    @custom_heading_id_regex
+    |> Regex.scan(cleaned)
+    |> Map.new(fn [_, heading_text, custom_id] ->
+      text =
+        heading_text
+        |> String.replace(~r/^[#]{1,6}\s+/, "")
+        |> strip_html()
+
+      auto_id =
+        text
+        |> String.downcase()
+        |> String.replace(~r/[^\w\s-]/u, "")
+        |> String.replace(~r/\s+/, "-")
+        |> String.trim("-")
+
+      {auto_id, custom_id}
+    end)
+  end
+
+  defp replace_heading_ids(html, custom_ids) when map_size(custom_ids) == 0, do: html
+
+  defp replace_heading_ids(html, custom_ids) do
+    Enum.reduce(custom_ids, html, fn {auto_id, custom_id}, acc ->
+      if auto_id == custom_id do
+        acc
+      else
+        acc
+        |> String.replace(~s(id="#{auto_id}"), ~s(id="#{custom_id}"))
+        |> String.replace(~s(href="##{auto_id}"), ~s(href="##{custom_id}"))
+      end
+    end)
+  end
+
+  defp extract_headings(markdown) do
+    cleaned = String.replace(markdown, @script_setup_regex, "")
+
+    @heading_extract_regex
+    |> Regex.scan(cleaned)
+    |> Enum.map(fn
+      [_, hashes, text, custom_id] when custom_id != "" ->
+        %{level: String.length(hashes), text: strip_html(text), id: custom_id}
+
+      [_, hashes, text | _] ->
+        clean_text = strip_html(text)
+
+        id =
+          clean_text
+          |> String.downcase()
+          |> String.replace(~r/[^\w\s-]/u, "")
+          |> String.replace(~r/\s+/, "-")
+          |> String.trim("-")
+
+        %{level: String.length(hashes), text: clean_text, id: id}
+    end)
+  end
+
+  defp parse_frontmatter(contents) do
+    case Regex.named_captures(@frontmatter_regex, contents) do
+      %{"frontmatter" => frontmatter, "body" => body} ->
+        {parse_frontmatter_data(frontmatter), body}
+
+      _ ->
+        {%{}, contents}
+    end
+  end
+
+  defp parse_frontmatter_data(frontmatter) do
+    case YamlElixir.read_from_string(frontmatter) do
+      {:ok, attrs} when is_map(attrs) ->
+        attrs
+
+      _ ->
+        case JSON.decode(frontmatter) do
+          {:ok, attrs} when is_map(attrs) -> attrs
+          _ -> %{}
+        end
+    end
+  end
+
+  defp excluded_source?(source_path) do
+    relative_path = Path.relative_to(source_path, docs_root())
+
+    String.contains?(relative_path, "[") or
+      String.starts_with?(relative_path, "en/references/project-description/") or
+      snippet_source?(relative_path)
+  end
+
+  # Snippet files are shared markdown fragments included from full pages via
+  # `<!-- @snippet: ./name -->`. They are not standalone pages, so we skip them
+  # when building the slug map. Convention: filename starts with `_`.
+  defp snippet_source?(relative_path) do
+    relative_path
+    |> Path.basename()
+    |> String.starts_with?("_")
+  end
+
+  defp source_to_slug(relative_path) do
+    without_extension = String.trim_trailing(relative_path, ".md")
+    segments = String.split(without_extension, "/", trim: true)
+
+    slug_segments =
+      case Enum.reverse(segments) do
+        ["index" | rest] -> Enum.reverse(rest)
+        _ -> segments
+      end
+
+    "/" <> Enum.join(slug_segments, "/")
+  end
+
+  defp file_last_modified(path) do
+    case File.stat(path) do
+      {:ok, %{mtime: mtime}} ->
+        mtime
+        |> NaiveDateTime.from_erl!()
+        |> NaiveDateTime.to_date()
+
+      _ ->
+        nil
+    end
+  end
+
+  defp title_from_markdown(markdown) do
+    case Regex.run(~r/^\s*#\s+(.+?)(?:\s+\{#.*\})?\s*$/m, markdown, capture: :all_but_first) do
+      [title] -> String.trim(title)
+      _ -> nil
+    end
+  end
+
+  defp strip_html(text) do
+    text
+    |> String.replace(~r/<[^>]+>/, "")
+    |> String.trim()
+  end
+end

@@ -1,11 +1,13 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 import XcodeProj
 
-protocol TargetGenerating: AnyObject {
+protocol TargetGenerating {
     func generateTarget(
         target: Target,
         project: Project,
@@ -15,23 +17,31 @@ protocol TargetGenerating: AnyObject {
         fileElements: ProjectFileElements,
         path: AbsolutePath,
         graphTraverser: GraphTraversing
-    ) async throws -> PBXNativeTarget
+    ) async throws -> (PBXTarget, [SideEffectDescriptor])
 
     func generateTargetDependencies(
         path: AbsolutePath,
         targets: [Target],
-        nativeTargets: [String: PBXNativeTarget],
+        nativeTargets: [String: PBXTarget],
         graphTraverser: GraphTraversing
+    ) throws
+
+    func generateBuildableFolderForeignExceptions(
+        targets: [Target],
+        nativeTargets: [String: PBXTarget],
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj
     ) throws
 }
 
-final class TargetGenerator: TargetGenerating {
+struct TargetGenerator: TargetGenerating {
     // MARK: - Attributes
 
     let configGenerator: ConfigGenerating
     let buildPhaseGenerator: BuildPhaseGenerating
     let linkGenerator: LinkGenerating
     let buildRulesGenerator: BuildRulesGenerating
+    let fileSystem: FileSysteming
 
     // MARK: - Init
 
@@ -39,12 +49,14 @@ final class TargetGenerator: TargetGenerating {
         configGenerator: ConfigGenerating = ConfigGenerator(),
         buildPhaseGenerator: BuildPhaseGenerating = BuildPhaseGenerator(),
         linkGenerator: LinkGenerating = LinkGenerator(),
-        buildRulesGenerator: BuildRulesGenerating = BuildRulesGenerator()
+        buildRulesGenerator: BuildRulesGenerating = BuildRulesGenerator(),
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.configGenerator = configGenerator
         self.buildPhaseGenerator = buildPhaseGenerator
         self.linkGenerator = linkGenerator
         self.buildRulesGenerator = buildRulesGenerator
+        self.fileSystem = fileSystem
     }
 
     // MARK: - TargetGenerating
@@ -59,30 +71,45 @@ final class TargetGenerator: TargetGenerating {
         fileElements: ProjectFileElements,
         path: AbsolutePath,
         graphTraverser: GraphTraversing
-    ) async throws -> PBXNativeTarget {
-        // Products reference.
-        let productFileReference = fileElements.products[target.name]!
+    ) async throws -> (PBXTarget, [SideEffectDescriptor]) {
+        Logger.current.debug("TargetGenerator: Starting generation for target \(target.name)")
 
-        // Target
-        let pbxTarget = PBXNativeTarget(
-            name: target.name,
-            buildConfigurationList: nil,
-            buildPhases: [],
-            buildRules: [],
-            dependencies: [],
-            productInstallPath: nil,
-            productName: target.productName,
-            product: productFileReference,
-            productType: target.product.xcodeValue
-        )
+        let pbxTarget: PBXTarget
+        if target.isAggregate {
+            Logger.current.debug("TargetGenerator: Creating PBXAggregateTarget for \(target.name)")
+            pbxTarget = PBXAggregateTarget(
+                name: target.name,
+                buildConfigurationList: nil,
+                buildPhases: [],
+                buildRules: [],
+                dependencies: [],
+                productName: target.productName
+            )
+        } else {
+            let productFileReference = fileElements.products[target.name]!
+            Logger.current.debug("TargetGenerator: Creating PBXNativeTarget for \(target.name)")
+            pbxTarget = PBXNativeTarget(
+                name: target.name,
+                buildConfigurationList: nil,
+                buildPhases: [],
+                buildRules: [],
+                dependencies: [],
+                productInstallPath: nil,
+                productName: target.productName,
+                product: productFileReference,
+                productType: target.product.xcodeValue
+            )
+        }
         pbxproj.add(object: pbxTarget)
         pbxProject.targets.append(pbxTarget)
 
         // Buildable folders
-        generateSynchronizedGroups(target: target, fileElements: fileElements, pbxTarget: pbxTarget, pbxproj: pbxproj)
+        Logger.current.debug("TargetGenerator: Generating synchronized groups for \(target.name)")
+        try await generateSynchronizedGroups(target: target, fileElements: fileElements, pbxTarget: pbxTarget, pbxproj: pbxproj)
 
         // Pre actions
-        try buildPhaseGenerator.generateScripts(
+        Logger.current.debug("TargetGenerator: Generating pre-scripts for \(target.name)")
+        try await buildPhaseGenerator.generateScripts(
             target.scripts.preScripts,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj,
@@ -90,6 +117,7 @@ final class TargetGenerator: TargetGenerating {
         )
 
         // Build configuration
+        Logger.current.debug("TargetGenerator: Generating target config for \(target.name)")
         try await configGenerator.generateTargetConfig(
             target,
             project: project,
@@ -101,7 +129,20 @@ final class TargetGenerator: TargetGenerating {
             sourceRootPath: project.sourceRootPath
         )
 
+        if target.isAggregate {
+            Logger.current.debug("TargetGenerator: Generating post-scripts for aggregate target \(target.name)")
+            try await buildPhaseGenerator.generateScripts(
+                target.scripts.postScripts,
+                pbxTarget: pbxTarget,
+                pbxproj: pbxproj,
+                sourceRootPath: project.sourceRootPath
+            )
+            Logger.current.debug("TargetGenerator: Finished generation for aggregate target \(target.name)")
+            return (pbxTarget, [])
+        }
+
         // Build phases
+        Logger.current.debug("TargetGenerator: Generating build phases for \(target.name)")
         try await buildPhaseGenerator.generateBuildPhases(
             path: path,
             target: target,
@@ -112,7 +153,8 @@ final class TargetGenerator: TargetGenerating {
         )
 
         // Links
-        try linkGenerator.generateLinks(
+        Logger.current.debug("TargetGenerator: Generating links for \(target.name)")
+        let linkSideEffects = try linkGenerator.generateLinks(
             target: target,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj,
@@ -123,28 +165,31 @@ final class TargetGenerator: TargetGenerating {
         )
 
         // Post actions
-        try buildPhaseGenerator.generateScripts(
+        Logger.current.debug("TargetGenerator: Generating post-scripts for \(target.name)")
+        try await buildPhaseGenerator.generateScripts(
             target.scripts.postScripts,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj,
             sourceRootPath: project.sourceRootPath
         )
 
+        Logger.current.debug("TargetGenerator: Generating build rules for \(target.name)")
         try buildRulesGenerator.generateBuildRules(
             target: target,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj
         )
 
-        return pbxTarget
+        Logger.current.debug("TargetGenerator: Finished generation for target \(target.name)")
+        return (pbxTarget, linkSideEffects)
     }
 
     private func generateSynchronizedGroups(
         target: Target,
         fileElements: ProjectFileElements,
-        pbxTarget: PBXNativeTarget,
+        pbxTarget: PBXTarget,
         pbxproj: PBXProj
-    ) {
+    ) async throws {
         for buildableFolder in target.buildableFolders {
             guard let fileElement = fileElements.elements[buildableFolder.path],
                   let synchronizedGroup = fileElement as? PBXFileSystemSynchronizedRootGroup else { continue }
@@ -153,10 +198,23 @@ final class TargetGenerator: TargetGenerating {
             }
             pbxTarget.fileSystemSynchronizedGroups?.append(synchronizedGroup)
 
-            for exception in buildableFolder.exceptions {
+            var explicitFolders: [String] = []
+
+            // Exceptions addressed to a foreign target (additive cross-target membership) are handled after every
+            // target has been generated, in `generateBuildableFolderForeignExceptions`, where the foreign PBXTarget
+            // exists.
+            for exception in buildableFolder.exceptions where exception.target == nil {
                 let membershipExceptions = exception.excluded.compactMap {
                     $0.isDescendant(of: buildableFolder.path) ? $0.relative(to: buildableFolder.path).pathString : nil
                 }
+
+                for excludedPath in exception.excluded {
+                    guard excludedPath.isDescendant(of: buildableFolder.path) else { continue }
+                    if try await fileSystem.exists(excludedPath, isDirectory: true) {
+                        explicitFolders.append(excludedPath.relative(to: buildableFolder.path).pathString)
+                    }
+                }
+
                 let additionalCompilerFlagsByRelativePath = Dictionary(uniqueKeysWithValues: exception.compilerFlags
                     .compactMap { path, compilerFlags -> (
                         String,
@@ -167,38 +225,180 @@ final class TargetGenerator: TargetGenerating {
                     }
                 )
 
+                let platformFiltersByRelativePath = Dictionary(
+                    uniqueKeysWithValues: exception.platformFilters
+                        .compactMap { path, condition -> (String, [String])? in
+                            guard path.isDescendant(of: buildableFolder.path) else { return nil }
+                            return (
+                                path.relative(to: buildableFolder.path).pathString,
+                                condition.platformFilters.xcodeprojValue
+                            )
+                        }
+                )
+
                 let exceptionSet = PBXFileSystemSynchronizedBuildFileExceptionSet(
                     target: pbxTarget,
                     membershipExceptions: membershipExceptions,
                     publicHeaders: exception.publicHeaders.map { $0.relative(to: buildableFolder.path).pathString },
                     privateHeaders: exception.privateHeaders.map { $0.relative(to: buildableFolder.path).pathString },
                     additionalCompilerFlagsByRelativePath: additionalCompilerFlagsByRelativePath,
-                    attributesByRelativePath: nil
+                    attributesByRelativePath: nil,
+                    platformFiltersByRelativePath: platformFiltersByRelativePath.isEmpty ? nil : platformFiltersByRelativePath
                 )
                 pbxproj.add(object: exceptionSet)
                 synchronizedGroup.exceptions?.append(exceptionSet)
             }
+
+            let targetHeadersInSynchronizedGroup = synchronizedHeaders(
+                buildableFolderPath: buildableFolder.path,
+                targetHeaders: target.headers,
+                buildableFolderExceptions: buildableFolder.exceptions
+            )
+            if !targetHeadersInSynchronizedGroup.public.isEmpty || !targetHeadersInSynchronizedGroup.private.isEmpty {
+                let exceptionSet = PBXFileSystemSynchronizedBuildFileExceptionSet(
+                    target: pbxTarget,
+                    membershipExceptions: [],
+                    publicHeaders: targetHeadersInSynchronizedGroup.public,
+                    privateHeaders: targetHeadersInSynchronizedGroup.private,
+                    additionalCompilerFlagsByRelativePath: [:],
+                    attributesByRelativePath: nil,
+                    platformFiltersByRelativePath: nil
+                )
+                pbxproj.add(object: exceptionSet)
+                synchronizedGroup.exceptions?.append(exceptionSet)
+            }
+
+            if !explicitFolders.isEmpty {
+                synchronizedGroup.explicitFolders = explicitFolders
+            }
         }
+    }
+
+    func generateBuildableFolderForeignExceptions(
+        targets: [Target],
+        nativeTargets: [String: PBXTarget],
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj
+    ) throws {
+        for target in targets {
+            for buildableFolder in target.buildableFolders {
+                guard let fileElement = fileElements.elements[buildableFolder.path],
+                      let synchronizedGroup = fileElement as? PBXFileSystemSynchronizedRootGroup else { continue }
+
+                for exception in buildableFolder.exceptions {
+                    guard let foreignTargetName = exception.target else { continue }
+                    guard let foreignTarget = nativeTargets[foreignTargetName] else {
+                        Logger.current
+                            .warning(
+                                "Target '\(target.name)' references unknown target '\(foreignTargetName)' in a buildable folder exception. Skipping."
+                            )
+                        continue
+                    }
+
+                    let membershipExceptions = exception.included.compactMap {
+                        $0.isDescendant(of: buildableFolder.path) ? $0.relative(to: buildableFolder.path).pathString : nil
+                    }
+
+                    let additionalCompilerFlagsByRelativePath = Dictionary(
+                        uniqueKeysWithValues: exception.compilerFlags.compactMap { path, compilerFlags -> (String, String)? in
+                            guard path.isDescendant(of: buildableFolder.path) else { return nil }
+                            return (path.relative(to: buildableFolder.path).pathString, compilerFlags)
+                        }
+                    )
+
+                    let platformFiltersByRelativePath = Dictionary(
+                        uniqueKeysWithValues: exception.platformFilters.compactMap { path, condition -> (String, [String])? in
+                            guard path.isDescendant(of: buildableFolder.path) else { return nil }
+                            return (path.relative(to: buildableFolder.path).pathString, condition.platformFilters.xcodeprojValue)
+                        }
+                    )
+
+                    guard !membershipExceptions.isEmpty || !additionalCompilerFlagsByRelativePath.isEmpty else { continue }
+
+                    let exceptionSet = PBXFileSystemSynchronizedBuildFileExceptionSet(
+                        target: foreignTarget,
+                        membershipExceptions: membershipExceptions,
+                        publicHeaders: [],
+                        privateHeaders: [],
+                        additionalCompilerFlagsByRelativePath: additionalCompilerFlagsByRelativePath,
+                        attributesByRelativePath: nil,
+                        platformFiltersByRelativePath: platformFiltersByRelativePath.isEmpty ? nil : platformFiltersByRelativePath
+                    )
+                    pbxproj.add(object: exceptionSet)
+                    if synchronizedGroup.exceptions == nil {
+                        synchronizedGroup.exceptions = []
+                    }
+                    synchronizedGroup.exceptions?.append(exceptionSet)
+                }
+            }
+        }
+    }
+
+    private func synchronizedHeaders(
+        buildableFolderPath: AbsolutePath,
+        targetHeaders: Headers?,
+        buildableFolderExceptions: BuildableFolderExceptions
+    ) -> (public: [String], private: [String]) {
+        guard let targetHeaders else { return (public: [], private: []) }
+
+        let existingPublicHeaders = Set(
+            buildableFolderExceptions
+                .flatMap(\.publicHeaders)
+                .filter { $0.isDescendant(of: buildableFolderPath) }
+                .map { $0.relative(to: buildableFolderPath).pathString }
+        )
+        let existingPrivateHeaders = Set(
+            buildableFolderExceptions
+                .flatMap(\.privateHeaders)
+                .filter { $0.isDescendant(of: buildableFolderPath) }
+                .map { $0.relative(to: buildableFolderPath).pathString }
+        )
+
+        let publicHeaders = Set(
+            targetHeaders.public
+                .filter { $0.isDescendant(of: buildableFolderPath) }
+                .map { $0.relative(to: buildableFolderPath).pathString }
+        )
+        let privateHeaders = Set(
+            targetHeaders.private
+                .filter { $0.isDescendant(of: buildableFolderPath) }
+                .map { $0.relative(to: buildableFolderPath).pathString }
+        )
+
+        return (
+            public: Array(publicHeaders.subtracting(existingPublicHeaders)).sorted(),
+            private: Array(privateHeaders.subtracting(existingPrivateHeaders)).sorted()
+        )
     }
 
     func generateTargetDependencies(
         path: AbsolutePath,
         targets: [Target],
-        nativeTargets: [String: PBXNativeTarget],
+        nativeTargets: [String: PBXTarget],
         graphTraverser: GraphTraversing
     ) throws {
+        Logger.current.debug("TargetGenerator: Generating dependencies for \(targets.count) targets")
         for targetSpec in targets {
             let dependenciesAndConditions = graphTraverser.directLocalTargetDependencies(
                 path: path,
                 name: targetSpec.name
             ).sorted()
 
+            Logger.current.debug("TargetGenerator: Target \(targetSpec.name) has \(dependenciesAndConditions.count) dependencies")
             for dependency in dependenciesAndConditions {
                 let nativeTarget = nativeTargets[targetSpec.name]!
                 let nativeDependency = nativeTargets[dependency.target.name]!
-                let pbxTargetDependency = try nativeTarget.addDependency(target: nativeDependency)
+                let pbxTargetDependency: PBXTargetDependency?
+                if let nativeTarget = nativeTarget as? PBXNativeTarget {
+                    pbxTargetDependency = try nativeTarget.addDependency(target: nativeDependency)
+                } else if let aggregateTarget = nativeTarget as? PBXAggregateTarget {
+                    pbxTargetDependency = try aggregateTarget.addDependency(target: nativeDependency)
+                } else {
+                    pbxTargetDependency = nil
+                }
                 pbxTargetDependency?.applyCondition(dependency.condition, applicableTo: targetSpec)
             }
         }
+        Logger.current.debug("TargetGenerator: Finished generating target dependencies")
     }
 }

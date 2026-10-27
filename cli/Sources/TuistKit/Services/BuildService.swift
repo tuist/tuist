@@ -1,8 +1,13 @@
 import Foundation
 import Path
+import TuistAlert
 import TuistAutomation
+import TuistConfig
+import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
 import TuistLoader
+import TuistLogging
 import TuistServer
 import TuistSupport
 import XcodeGraph
@@ -11,6 +16,7 @@ enum BuildServiceError: LocalizedError {
     case workspaceNotFound(path: String)
     case schemeWithoutBuildableTargets(scheme: String)
     case schemeNotFound(scheme: String, existing: [String])
+    case unspecifiedPlatform(target: String, platforms: [String])
 
     var errorDescription: String? {
         switch self {
@@ -21,11 +27,14 @@ enum BuildServiceError: LocalizedError {
         case let .schemeNotFound(scheme, existing):
             return
                 "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
+        case let .unspecifiedPlatform(target, platforms):
+            return
+                "Only single platform targets supported. The target \(target) specifies multiple supported platforms (\(platforms.joined(separator: ", ")))."
         }
     }
 }
 
-public final class BuildService {
+public struct BuildService {
     private let generatorFactory: GeneratorFactorying
     private let cacheStorageFactory: CacheStorageFactorying
     private let buildGraphInspector: BuildGraphInspecting
@@ -74,12 +83,13 @@ public final class BuildService {
                 errorMessageOverride:
                 "The 'tuist build' command is for generated projects or Swift packages. Please use 'tuist xcodebuild build' instead."
             )
-        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+        let cacheStorage = try await cacheStorageFactory.cacheStorageFallingBackToLocal(config: config)
         let generator = generatorFactory.building(
             config: config,
             configuration: configuration,
             ignoreBinaryCache: ignoreBinaryCache,
-            cacheStorage: cacheStorage
+            cacheStorage: cacheStorage,
+            coverage: .resolved(config: config)
         )
         let workspacePath = try await buildGraphInspector.workspacePath(directory: path)
         if generate || workspacePath == nil {
@@ -106,10 +116,11 @@ public final class BuildService {
         let graphTraverser = GraphTraverser(graph: graph)
         let buildableSchemes = buildGraphInspector.buildableSchemes(graphTraverser: graphTraverser)
 
+        let currentPath = try await Environment.current.pathRelativeToWorkingDirectory(nil)
         let derivedDataPath = try derivedDataPath.map {
             try AbsolutePath(
                 validating: $0,
-                relativeTo: FileHandler.shared.currentPath
+                relativeTo: currentPath
             )
         }
 
@@ -136,8 +147,15 @@ public final class BuildService {
 
             if let platform {
                 buildPlatform = platform
+            } else if let resolvedPlatform = graphTarget.target.destinations.first?.platform,
+                      graphTarget.target.destinations.platforms.count == 1
+            {
+                buildPlatform = resolvedPlatform
             } else {
-                buildPlatform = try graphTarget.target.servicePlatform
+                throw BuildServiceError.unspecifiedPlatform(
+                    target: graphTarget.target.name,
+                    platforms: graphTarget.target.supportedPlatforms.map(\.rawValue)
+                )
             }
 
             try await targetBuilder.buildTarget(
@@ -173,8 +191,15 @@ public final class BuildService {
 
                 if let platform {
                     buildPlatform = platform
+                } else if let resolvedPlatform = graphTarget.target.destinations.first?.platform,
+                          graphTarget.target.destinations.platforms.count == 1
+                {
+                    buildPlatform = resolvedPlatform
                 } else {
-                    buildPlatform = try graphTarget.target.servicePlatform
+                    throw BuildServiceError.unspecifiedPlatform(
+                        target: graphTarget.target.name,
+                        platforms: graphTarget.target.supportedPlatforms.map(\.rawValue)
+                    )
                 }
 
                 try await targetBuilder.buildTarget(

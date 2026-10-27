@@ -1,0 +1,951 @@
+// Command tart-kubelet runs on a Mac mini, joins it to the cluster as
+// a real Node, and translates Pods scheduled to that Node into Tart
+// VMs. It is "kubelet, but for Tart" — same shape, none of cAdvisor's
+// hard Linux-isms, no CSI.
+//
+// One process per Mac mini, started by launchd as root. Reads its
+// kubeconfig from disk (provisioned by the CAPI provider during host
+// bootstrap), watches the API server for Pods scheduled to its
+// hostname-derived Node, and drives `tart` locally to execute them.
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"net"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/connrotation"
+	ctrl "sigs.k8s.io/controller-runtime"
+	cache "sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+
+	cachevolumes "github.com/tuist/tuist/infra/runner-cache"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/nodeagent"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/podagent"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/satoken"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
+)
+
+var (
+	scheme   = runtime.NewScheme()
+	setupLog = ctrl.Log.WithName("setup")
+)
+
+func init() {
+	_ = clientgoscheme.AddToScheme(scheme)
+}
+
+func main() {
+	var (
+		nodeName             string
+		providerID           string
+		nodeIP               string
+		nodeIPSource         string
+		scrapeAllowedCIDRs   cidrList
+		nodeLabelsRaw        string
+		hostCPU              int
+		hostMemoryMB         int
+		maxPods              int
+		metricsAddr          string
+		probeAddr            string
+		tartBinary           string
+		vncControlDir        string
+		vncRelayHost         string
+		vncRelayPort         int
+		vncRelayPortCount    int
+		minGoldensKept       int
+		disableVMGC          bool
+		runnerCacheRoot      string
+		customCacheURL       string
+		customCacheNamespace string
+		customCacheSA        string
+		customCacheMaxGB     int
+		runnerCacheBudgetGiB int
+		imageMirrors         imageMirrorList
+		imageMirrorSync      time.Duration
+	)
+	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
+	flag.StringVar(&providerID, "provider-id", envOr("TART_KUBELET_PROVIDER_ID", ""),
+		"Cloud providerID (e.g. scw-applesilicon://<zone>/<id>) to set on Node.spec.providerID. CAPI matches this against Machine.spec.providerID to bind the Machine to this Node; empty leaves it unset.")
+	flag.StringVar(&nodeIP, "node-ip", envOr("TART_KUBELET_NODE_IP", ""),
+		"Routable IP of this Mac mini. Pods that opt into Prometheus scraping advertise it as their PodIP and run a host-side forwarder on the host port. Defaults to the first non-loopback IPv4 address on a UP interface.")
+	flag.StringVar(&nodeIPSource, "node-ip-source", envOr("TART_KUBELET_NODE_IP_SOURCE", "auto"),
+		"Where to learn this Mac mini's routable IP from. "+
+			"`auto` (default) walks UP interfaces. `tailscale` shells out to `tailscale ip -4` "+
+			"and is fatal on failure — used when the cluster's scraper path is the tailnet and "+
+			"falling back to a public interface would expose the host-side metrics forwarder on "+
+			"the open internet. `--node-ip` overrides this in either mode.")
+	flag.Var(&scrapeAllowedCIDRs, "scrape-allowed-cidr",
+		"CIDR (IPv4 or IPv6) allowed to reach per-Pod host-side forwarders (metrics and VNC relays). May be repeated. Defaults to RFC1918 / IPv6 ULA / loopback / link-local — covers any realistic cluster Pod or Node CIDR while clamping out the public WAN. The Mac mini's bind address can in practice be a public IP, so this allowlist (not the bind interface) is the load-bearing security boundary.")
+	flag.StringVar(&nodeLabelsRaw, "node-labels", envOr("TART_KUBELET_NODE_LABELS", ""),
+		"Comma-separated key=value pairs the Node carries as labels (e.g. "+
+			"`tuist.dev/fleet=runners,tuist.dev/instance-type=large`). Workloads use "+
+			"these via nodeSelector to pin to specific Mac minis. Mirrors kubelet's "+
+			"--node-labels flag. Empty omits the labels; tart-kubelet prunes any "+
+			"`tuist.dev/*` labels it previously set on the Node but no longer carries.")
+	flag.IntVar(&hostCPU, "host-cpu", 8, "CPU cores to advertise on the Node.")
+	flag.IntVar(&hostMemoryMB, "host-memory-mb", 16384, "Memory MB to advertise on the Node.")
+	flag.IntVar(&maxPods, "max-pods", 2,
+		"Pod ceiling advertised as the Node's pods capacity. NOT the "+
+			"concurrent-VM limit: the scheduler counts terminated Pods against "+
+			"this until GC deletes them, so a host is given guests x 2 + 1. "+
+			"Apple's macOS SLA caps simultaneous virtualized macOS instances at "+
+			"2 per host, and Tart enforces that itself regardless of this value. "+
+			"The default of 2 is one guest slot plus one terminating predecessor.")
+	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080",
+		"Prometheus metrics endpoint. When --node-ip-source=tailscale and "+
+			"this is left at the default `:8080`, the bind address is "+
+			"rewritten to `<tailnet-ip>:8080` so the controller-runtime "+
+			"metrics never listen on a public interface. Any explicit "+
+			"override (including an explicit `:8080`) opts out of that "+
+			"rewrite — the operator is then responsible for not exposing "+
+			"the endpoint on the WAN.")
+	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint.")
+	flag.StringVar(&tartBinary, "tart-binary", "/usr/local/bin/tart", "Path to the local tart CLI.")
+	flag.StringVar(&vncControlDir, "vnc-control-dir", envOr("TART_KUBELET_VNC_CONTROL_DIR", "/var/lib/tart-vnc-control"),
+		"Host-local control/state directory for runner VNC access. Create requests/<namespace>_<pod> or stamp the server-owned Pod request annotation to open a VNC relay for a running runner Pod; tart-kubelet writes sensitive connection metadata under state/ with 0600 permissions. Empty disables VNC relays.")
+	flag.StringVar(&vncRelayHost, "vnc-relay-host", envOr("TART_KUBELET_VNC_RELAY_HOST", ""),
+		"Host name to advertise for dashboard VNC relays. Empty advertises --node-ip. Managed tailnet deployments set this to the per-Mac Kubernetes egress Service DNS name so the server connects through the Tailscale operator instead of dialing the raw tailnet IP.")
+	flag.IntVar(&vncRelayPort, "vnc-relay-port", envIntOr("TART_KUBELET_VNC_RELAY_PORT", 0),
+		"Host port to bind and advertise for dashboard VNC relays. 0 chooses an ephemeral port. Managed tailnet deployments use a fixed port that is declared on the per-Mac Tailscale egress Service. "+
+			"With --vnc-relay-port-count > 1 this is the base of a contiguous range.")
+	flag.IntVar(&vncRelayPortCount, "vnc-relay-port-count", envIntOr("TART_KUBELET_VNC_RELAY_PORT_COUNT", 1),
+		"How many contiguous ports from --vnc-relay-port a relay may bind, walked in order until one is free. "+
+			"A pinned port is a per-host resource while a relay is per-Pod, so a host that runs more than one guest "+
+			"needs one port per guest or the second guest's relay fails to bind. Every port in the range must be "+
+			"declared on whatever fronts the host. Ignored when --vnc-relay-port is 0.")
+	flag.IntVar(&minGoldensKept, "min-goldens-kept", envIntOr("TART_KUBELET_MIN_GOLDENS_KEPT", 0),
+		"Floor on how many golden base VMs the disk-pressure reclaim may leave on the host. 0 uses the built-in "+
+			"default of 1. A host that runs guests from more than one pool wants at least one golden per pool, "+
+			"otherwise reclaiming under pressure strands a pool into a full cold image pull.")
+	flag.StringVar(&runnerCacheRoot, "runner-cache-root", envOr("TART_KUBELET_RUNNER_CACHE_ROOT", ""),
+		"Mount point of the quota-bounded APFS volume that holds the runner cache volumes. "+
+			"Empty (default) disables cache volumes entirely. "+
+			"Host bootstrap sets this to the runner-cache volume it provisions (e.g. /var/lib/tart-cache).")
+	flag.IntVar(&runnerCacheBudgetGiB, "runner-cache-budget-gib", envIntOr("TART_KUBELET_RUNNER_CACHE_BUDGET_GIB", 0),
+		"Space (GiB) every cache on --runner-cache-root may take together. Admission and eviction "+
+			"measure against it below the volume's quota, so it can change without recreating the volume. "+
+			"0 (default) leaves the quota as the bound.")
+	flag.StringVar(&customCacheURL, "custom-cache-url", envOr("TART_KUBELET_CUSTOM_CACHE_URL", ""), "Opt-in server /api/internal/runners/cache-volumes URL")
+	flag.StringVar(&customCacheNamespace, "custom-cache-namespace", "tuist-runners", "Runner namespace")
+	flag.StringVar(&customCacheSA, "custom-cache-service-account", "tuist-runner-cache-volumes", "Trusted cache agent service account")
+	flag.IntVar(&customCacheMaxGB, "custom-cache-max-volume-gb", envIntOr("TART_KUBELET_CUSTOM_CACHE_MAX_VOLUME_GB", 100),
+		"Largest custom cache volume this host accepts, in decimal GB. Sent with every authorization; the server never allocates a larger volume to this host. At least 20.")
+	flag.Var(&imageMirrors, "image-mirror",
+		"<upstream>=<endpoint> (e.g. ghcr.io=http://10.10.0.11:5000): a registry serving the upstream's images under the same "+
+			"repository names, tried in order before the upstream when a golden base is pulled. May be repeated. An http endpoint is "+
+			"pulled with `tart pull --insecure`. A mirror that is down, does not hold the image or fails the pull falls back to the upstream.")
+	flag.DurationVar(&imageMirrorSync, "image-mirror-sync-timeout", 30*time.Minute,
+		"How long a Pod waits for an --image-mirror that is still fetching its image before the host pulls from the upstream instead.")
+	flag.BoolVar(&disableVMGC, "disable-vm-gc", false,
+		"Disable the periodic orphan-VM garbage collector. The GC deletes every local "+
+			"Tart VM not backed by a Pod scheduled to this Node. On builder-fleet Nodes — "+
+			"which never have Pods scheduled but bake images with a host-level Packer/`tart` "+
+			"process — every local VM looks orphaned, so the GC reaps the in-flight build VM "+
+			"mid-`tart push` (it fails at the NVRAM layer with `nvram.bin doesn't exist`). Set "+
+			"this on builder Nodes; the image-bake workflow reclaims its own Tart disk.")
+
+	// `--kubeconfig` is registered automatically by controller-runtime's
+	// init() (sigs.k8s.io/controller-runtime/pkg/client/config). Defining
+	// our own flag of the same name here would panic with `flag
+	// redefined`; rely on theirs and let the launchd plist pass the path.
+	opts := zap.Options{Development: false}
+	opts.BindFlags(flag.CommandLine)
+	flag.Parse()
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	if vncRelayPort < 0 || vncRelayPort > 65535 {
+		setupLog.Error(fmt.Errorf("invalid --vnc-relay-port %d", vncRelayPort), "parse flag")
+		os.Exit(1)
+	}
+
+	// Reject a range that runs off the end of the port space at parse
+	// time rather than letting the last offsets fail to bind at the
+	// moment an operator is trying to open a session.
+	if vncRelayPort > 0 && (vncRelayPortCount < 1 || vncRelayPort+vncRelayPortCount-1 > 65535) {
+		setupLog.Error(fmt.Errorf("invalid --vnc-relay-port-count %d for base port %d", vncRelayPortCount, vncRelayPort), "parse flag")
+		os.Exit(1)
+	}
+
+	if nodeName == "" {
+		hostname, err := os.Hostname()
+		if err != nil {
+			setupLog.Error(err, "resolve hostname for default node name")
+			os.Exit(1)
+		}
+		nodeName = hostname
+	}
+
+	if nodeIP == "" {
+		switch nodeIPSource {
+		case "tailscale":
+			// Fatal on failure: the only reason an operator pins
+			// source=tailscale is that the tailnet IP is the
+			// load-bearing boundary for in-cluster scrapers. Silently
+			// falling back to a public interface would expose the
+			// metrics forwarder on the WAN and bypass the source-CIDR
+			// allowlist (which is RFC1918 + CGNAT — public IPs
+			// outside the RFC1918 set would still match a cluster
+			// egress NAT if the operator override loosened it).
+			ip, err := tailscaleNodeIP()
+			if err != nil {
+				setupLog.Error(err, "resolve tailnet node-ip via `tailscale ip -4`")
+				os.Exit(1)
+			}
+			nodeIP = ip
+		case "auto", "":
+			ip, err := defaultNodeIP()
+			if err != nil {
+				// Non-fatal: scraping is opt-in per Pod, and the
+				// reconciler's PodIP rewrite is gated on NodeIP being
+				// set. Everything else (Pod ↔ VM management) keeps
+				// working without a known host IP.
+				setupLog.Info("no --node-ip and auto-detect failed; metrics scraping for VM Pods will be disabled", "err", err.Error())
+			} else {
+				nodeIP = ip
+			}
+		default:
+			setupLog.Error(fmt.Errorf("unknown --node-ip-source %q (want one of: auto, tailscale)", nodeIPSource), "parse flag")
+			os.Exit(1)
+		}
+	}
+
+	// Bind the controller-runtime metrics endpoint (PromEx-shaped
+	// /metrics on :8080 by default) to the same tailnet interface
+	// when source=tailscale and the operator left --metrics-bind-
+	// address at its default :8080. Without this, the endpoint
+	// listens on 0.0.0.0:8080 and on a Scaleway Mac mini that's a
+	// public address — the kubelet's reconcile-counters, error
+	// rates, and the new `tart_kubelet_vm_boot_duration_seconds`
+	// histogram would be exposed on the WAN. The tailnet bind
+	// inverts that: only `tag:tuist-k8s-operator` can dial 8080,
+	// gated by the Tailscale ACL.
+	if nodeIPSource == "tailscale" && nodeIP != "" && metricsAddr == ":8080" {
+		metricsAddr = fmt.Sprintf("%s:8080", nodeIP)
+		setupLog.Info("binding metrics endpoint to tailnet IP", "addr", metricsAddr)
+	}
+
+	if vncControlDir != "" {
+		for _, dir := range []string{
+			filepath.Join(vncControlDir, "requests"),
+			filepath.Join(vncControlDir, "state"),
+		} {
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				setupLog.Error(err, "create VNC control directory", "dir", dir)
+				os.Exit(1)
+			}
+		}
+	}
+
+	// controller-runtime's GetConfigOrDie resolves config via (in order):
+	//   1. `--kubeconfig` flag value (set by launchd plist)
+	//   2. KUBECONFIG env
+	//   3. in-cluster service-account mount (won't apply on Mac mini)
+	//   4. ~/.kube/config
+	cfg := ctrl.GetConfigOrDie()
+
+	// Every API client dials through one rotating dialer so the lease
+	// heartbeat can drop all connections when the API server stops
+	// answering, the way kubelet does. Otherwise a silently dead HTTP/2
+	// connection keeps every request hanging until client-go's 45s
+	// health check gives up.
+	dialer := connrotation.NewDialer((&net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}).DialContext)
+	cfg.Dial = dialer.DialContext
+
+	// Narrow the cache: we only ever care about Pods scheduled to this
+	// Node and the Node object itself. Cluster-wide watches on a node-
+	// embedded agent are wasteful; this keeps memory + apiserver load
+	// small per Mac mini.
+	mgr, err := ctrl.NewManager(cfg, manager.Options{
+		Scheme:                 scheme,
+		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
+		HealthProbeBindAddress: probeAddr,
+		Cache: cache.Options{
+			ByObject: map[client.Object]cache.ByObject{
+				&corev1.Pod{}: {
+					Field: pickPodsForNode(nodeName),
+				},
+				&corev1.Node{}: {
+					Field: pickThisNode(nodeName),
+				},
+			},
+		},
+	})
+	if err != nil {
+		setupLog.Error(err, "create manager")
+		os.Exit(1)
+	}
+
+	tartClient := tart.New()
+	tartClient.Binary = tartBinary
+
+	var images *podagent.ImageSources
+	if len(imageMirrors) > 0 {
+		images = &podagent.ImageSources{Mirrors: imageMirrors, SyncTimeout: imageMirrorSync}
+		setupLog.Info("pulling golden bases through image mirrors", "mirrors", imageMirrors.String())
+	}
+
+	resolver := &envresolver.Resolver{K8s: mgr.GetAPIReader()}
+
+	store := podagent.NewStore()
+
+	nodeLabels, err := parseNodeLabels(nodeLabelsRaw)
+	if err != nil {
+		setupLog.Error(err, "parse --node-labels")
+		os.Exit(1)
+	}
+
+	// The orphan-VM GC reaps any local Tart VM not backed by a Pod on
+	// this Node. Builder-fleet Nodes never run Pods (they bake images
+	// with a host-level Packer/`tart` process), so every local VM —
+	// including the in-flight build VM — looks orphaned to the GC; it
+	// would `tart delete` the bundle mid-`tart push`, failing the push
+	// at the NVRAM layer. `--disable-vm-gc` leaves the collector off on
+	// those Nodes; the image-bake workflow reclaims its own disk.
+	var gcCollector *podagent.Collector
+	if disableVMGC {
+		setupLog.Info("orphan-VM garbage collector disabled (--disable-vm-gc); this Node manages its own Tart disk")
+	} else {
+		gcCollector = &podagent.Collector{
+			K8s:      mgr.GetAPIReader(),
+			Tart:     tartClient,
+			NodeName: nodeName,
+			Interval: 5 * time.Minute,
+			Store:    store,
+			// Keep an idle host's golden base for a day so the next
+			// burst clones from it instead of re-pulling the whole VM
+			// image. Zero would fall back to the same default.
+			GoldenRetention: 24 * time.Hour,
+			// 0 falls back to the collector's own default (1).
+			MinGoldensKept: minGoldensKept,
+			Images:         images,
+			Fleet:          nodeLabels["tuist.dev/fleet"],
+		}
+		if err := mgr.Add(gcCollector); err != nil {
+			setupLog.Error(err, "add gc collector")
+			os.Exit(1)
+		}
+	}
+
+	// The volume every runner cache on the host shares; without one, jobs run without cache volumes.
+	space := podagent.NewCacheSpace(runnerCacheRoot, nil)
+	space.BudgetGiB = runnerCacheBudgetGiB
+	space.Running = tartClient.IsRunning
+	if space.Enabled() {
+		setupLog.Info("runner cache volumes enabled", "root", runnerCacheRoot, "budget-gib", runnerCacheBudgetGiB)
+		space.AwaitMountedRoot(context.Background())
+		if err := mgr.Add(space); err != nil {
+			setupLog.Error(err, "add runner cache space")
+			os.Exit(1)
+		}
+	}
+
+	// Hydrate the Pod ↔ VM map from on-host state before reconciles
+	// fire. After a kubelet restart the in-memory store is empty but
+	// any Tart VMs from before the restart are still running
+	// (`nohup`-detached). Without this pass the next Reconcile would
+	// see "no entry for this Pod", check `tart get`, find the existing
+	// VM, and stop+delete it as stale — killing a healthy workload on
+	// every kubelet update. We do this synchronously, before
+	// mgr.Start, using a fresh non-cached client.
+	if err := recoverState(cfg, scheme, tartClient, store, nodeName); err != nil {
+		setupLog.Error(err, "state recovery failed; reconciles may treat existing VMs as stale")
+	}
+
+	// Typed kubernetes.Interface for TokenRequest — the
+	// controller-runtime client doesn't expose CreateToken on
+	// ServiceAccounts because TokenRequest is a subresource that
+	// doesn't fit the generic resource shape.
+	typedClient, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		setupLog.Error(err, "create typed kubernetes client")
+		os.Exit(1)
+	}
+
+	var customVolumes *podagent.CustomVolumes
+	var prefetch *podagent.PrefetchPoller
+	if customCacheURL != "" && space.Enabled() {
+		if customCacheMaxGB < 20 {
+			setupLog.Error(fmt.Errorf("--custom-cache-max-volume-gb=%d", customCacheMaxGB), "custom cache volumes need a maximum of at least the default 20 GB")
+			os.Exit(1)
+		}
+		checkoutsRoot := filepath.Join(runnerCacheRoot, "custom", "checkouts")
+		customVolumes = &podagent.CustomVolumes{Root: filepath.Join(runnerCacheRoot, "custom"), URL: strings.TrimRight(customCacheURL, "/"), Node: nodeName, Namespace: customCacheNamespace, ServiceAccount: customCacheSA, Kube: typedClient, Tart: tartClient, Space: space, MaxVolumeBytes: int64(customCacheMaxGB) * 1_000_000_000,
+			// Checkout masters share the custom volumes' filesystem, admission and agent.
+			Checkouts: &cachevolumes.Checkouts{Root: checkoutsRoot, Images: &cachevolumes.APFSCheckoutImages{}, Tools: podagent.GitLFS(checkoutsRoot, nil)}}
+		if err := mgr.Add(customVolumes); err != nil {
+			setupLog.Error(err, "add custom volumes")
+			os.Exit(1)
+		}
+		// Every host of the class warms the custom HEADs the server lists for it.
+		prefetch = &podagent.PrefetchPoller{Source: &podagent.ServerPrefetch{Client: typedClient}, Custom: customVolumes}
+		if err := mgr.Add(prefetch); err != nil {
+			setupLog.Error(err, "add custom cache prefetch")
+			os.Exit(1)
+		}
+	}
+
+	hostDisk := &podagent.HostDisk{
+		Tart:       tartClient,
+		MarkerPath: filepath.Join(tartClient.UserDataDir, ".holds-runner-images"),
+	}
+	reconciler := &podagent.Reconciler{
+		HostDisk:           hostDisk,
+		CachedClient:       mgr.GetClient(),
+		NodeName:           nodeName,
+		NodeIP:             nodeIP,
+		ScrapeAllowedCIDRs: scrapeAllowedCIDRs.Value(),
+		VNCControlDir:      vncControlDir,
+		VNCRelayHost:       vncRelayHost,
+		VNCRelayPort:       vncRelayPort,
+		VNCRelayPortCount:  vncRelayPortCount,
+		Tart:               tartClient,
+		Resolver:           resolver,
+		Store:              store,
+		// 8h TTL: minted once at boot and not rotated, the token must
+		// outlive warm-time + the whole job, because the in-VM metrics
+		// sampler reuses it to POST for the job's full duration (a 1h TTL
+		// expired mid-run on long jobs and truncated their charts). It's
+		// Pod-bound, so it dies when the Pod is reaped regardless.
+		TokenMinter:   &satoken.ClientMinter{Client: typedClient, ExpirationSeconds: 28800},
+		GC:            gcCollector,
+		CustomVolumes: customVolumes,
+		Prefetch:      prefetch,
+		Recorder:      mgr.GetEventRecorderFor("tart-kubelet"),
+		Images:        images,
+	}
+	if err := reconciler.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup pod reconciler")
+		os.Exit(1)
+	}
+	if gcCollector != nil {
+		// A host holding a pool's previous runner image pulls the current
+		// one before the GC reaps the previous one, so the release costs
+		// it the overlay rather than the whole image.
+		gcCollector.Goldens = reconciler
+	}
+
+	// Publish which golden base VMs this host holds as
+	// `tuist.dev/golden-<hash>` Node labels so the runners-controller can
+	// steer a pool's Pods toward hosts that can clone its image locally
+	// instead of cold-pulling it. Mask a transient `tart list` failure
+	// with the last good result so a momentary hiccup doesn't flap the
+	// labels off (and briefly drop the affinity). The maintainer calls
+	// this serially from its single heartbeat goroutine, so the closed-over
+	// cache needs no lock.
+	var lastGoldenLabels map[string]string
+	goldenLabelProvider := func(ctx context.Context) (map[string]string, error) {
+		labels, err := podagent.GoldenNodeLabels(ctx, tartClient)
+		if err != nil {
+			if lastGoldenLabels != nil {
+				return lastGoldenLabels, nil
+			}
+			return nil, err
+		}
+		lastGoldenLabels = labels
+		return labels, nil
+	}
+
+	// A host joining the cluster pulls its fleet's in-demand runner images
+	// before it takes Pods, through the same golden path a Pod's first VM
+	// takes. The gate taints a Node this process creates, or one whose host
+	// disk has never held a runner image; see nodeagent.PrewarmGate.
+	prewarmGate := nodeagent.NewPrewarmGate()
+	prewarmGate.FreshDisk = hostDisk.Fresh
+	if err := mgr.Add(&podagent.Prewarmer{
+		K8s:           mgr.GetAPIReader(),
+		Goldens:       reconciler,
+		Gate:          prewarmGate,
+		Fleet:         nodeLabels["tuist.dev/fleet"],
+		NodeName:      nodeName,
+		StageInterval: time.Minute,
+		DiskFree: func() (float64, error) {
+			st, err := hostdisk.Root("/")
+			if err != nil {
+				return 0, err
+			}
+			return st.FreePercent(), nil
+		},
+	}); err != nil {
+		setupLog.Error(err, "add runner image prewarmer")
+		os.Exit(1)
+	}
+
+	if err := mgr.Add(&nodeagent.Maintainer{
+		Client:         mgr.GetClient(),
+		NodeName:       nodeName,
+		ProviderID:     providerID,
+		NodeIP:         nodeIP,
+		NodeLabels:     nodeLabels,
+		CPU:            hostCPU,
+		MemoryMB:       hostMemoryMB,
+		MaxPods:        maxPods,
+		Heartbeat:      30 * time.Second,
+		PrewarmGate:    prewarmGate,
+		RuntimeVersion: tartClient.Version,
+		DiskPressure: func(ctx context.Context) (bool, string, error) {
+			// Host root volume first: it holds every Tart golden + clone,
+			// and a fill there silently breaks the operator's SSH config
+			// updates while the guest volumes still look fine — which the
+			// guest-only probe below can't see. A statvfs error falls
+			// through to the guest check rather than failing the probe.
+			if st, err := hostdisk.Root("/"); err == nil && st.FreePercent() < hostDiskPressureFreePercent {
+				return true, fmt.Sprintf("host root volume %.1f%% free (below %g%% floor)", st.FreePercent(), hostDiskPressureFreePercent), nil
+			}
+			return diskPressureFromGuests(ctx, tartClient, diskPressureThresholdPercent)
+		},
+		DynamicLabels: []nodeagent.LabelAdvertisement{
+			{Name: "golden-images", Labels: goldenLabelProvider},
+			// The custom volume lineages this host holds a master of, so dispatch
+			// can prefer it for jobs that attach them.
+			{Name: "custom-cache-masters", Labels: func(context.Context) (map[string]string, error) {
+				if customVolumes == nil {
+					return map[string]string{}, nil
+				}
+				return cachevolumes.MasterNodeLabels(customVolumes.Root)
+			}},
+			// The cache disk capacity, so placement never prefers this host for a job
+			// whose volumes its remaining room cannot hold.
+			{Name: "cache-volume-capacity", Labels: func(context.Context) (map[string]string, error) {
+				if customVolumes == nil {
+					return map[string]string{}, nil
+				}
+				return customVolumes.CapacityNodeLabels()
+			}},
+		},
+	}); err != nil {
+		setupLog.Error(err, "add node maintainer")
+		os.Exit(1)
+	}
+
+	// The lease gets its own client, so its requests never queue behind
+	// the manager's on a shared connection or rate limiter.
+	leaseClient, err := client.New(cfg, client.Options{Scheme: scheme})
+	if err != nil {
+		setupLog.Error(err, "create node lease client")
+		os.Exit(1)
+	}
+	if err := mgr.Add(&nodeagent.LeaseHeartbeat{
+		Client:             leaseClient,
+		NodeName:           nodeName,
+		Interval:           nodeagent.DefaultLeaseRenewInterval,
+		Timeout:            nodeagent.DefaultLeaseRenewalTimeout,
+		OnTransportFailure: dialer.CloseAll,
+	}); err != nil {
+		setupLog.Error(err, "add node lease heartbeat")
+		os.Exit(1)
+	}
+
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		setupLog.Error(err, "set up healthz")
+		os.Exit(1)
+	}
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		setupLog.Error(err, "set up readyz")
+		os.Exit(1)
+	}
+
+	setupLog.Info("starting tart-kubelet", "node", nodeName)
+	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+		setupLog.Error(err, "manager exited")
+		os.Exit(1)
+	}
+}
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+func envIntOr(key string, fallback int) int {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		setupLog.Error(err, "parse integer environment variable", "key", key, "value", raw)
+		os.Exit(1)
+	}
+	return value
+}
+
+// parseNodeLabels parses kubelet's --node-labels=k=v,k=v form. Empty
+// input yields a nil map (no labels stamped, prune-only mode). Used
+// by the Maintainer to populate the Node's labels at registration.
+func parseNodeLabels(raw string) (map[string]string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	out := map[string]string{}
+	for _, pair := range strings.Split(raw, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		k, v, ok := strings.Cut(pair, "=")
+		if !ok {
+			return nil, fmt.Errorf("invalid label pair %q (expected key=value)", pair)
+		}
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		if k == "" {
+			return nil, fmt.Errorf("invalid label pair %q (empty key)", pair)
+		}
+		out[k] = v
+	}
+	return out, nil
+}
+
+// defaultNodeIP picks the first non-loopback IPv4 address bound to a
+// UP, non-loopback, non-VM-bridge interface. Mirrors what real
+// kubelet does when --node-ip isn't set, with one extra exclusion:
+// Tart spins up `bridge*` interfaces for the VM NAT network
+// (192.168.64.0/24 by default) on first `tart run`, and after a
+// kubelet restart with a running VM those would be the first
+// candidate the naive walker picked — handing back the host-side
+// gateway of the VM network instead of the routable host IP.
+// Returns an error if no candidate is found — the caller treats
+// that as "scraping disabled" rather than fatal.
+func defaultNodeIP() (string, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return "", err
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		if isVMBridge(iface.Name) {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, a := range addrs {
+			ip, _, err := net.ParseCIDR(a.String())
+			if err != nil {
+				continue
+			}
+			if ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+				continue
+			}
+			ip4 := ip.To4()
+			if ip4 == nil {
+				continue
+			}
+			return ip4.String(), nil
+		}
+	}
+	return "", &noNodeIPError{}
+}
+
+// isVMBridge matches the interface-name patterns macOS uses for
+// virtualization NAT bridges — Tart's `bridge100+` and the more
+// generic `vmnet*` (Hypervisor.framework's reserved prefix).
+func isVMBridge(name string) bool {
+	if len(name) >= 6 && name[:6] == "bridge" {
+		return true
+	}
+	if len(name) >= 5 && name[:5] == "vmnet" {
+		return true
+	}
+	return false
+}
+
+type noNodeIPError struct{}
+
+func (*noNodeIPError) Error() string {
+	return "no non-loopback IPv4 address found on any UP interface"
+}
+
+// tailscaleNodeIP shells out to `tailscale ip -4` and returns the
+// first IPv4 address the daemon advertises. macOS's CLI lives at
+// /usr/local/bin/tailscale after macos-host-bootstrap.installTailscale
+// extracts the operator-baked binaries there and `tailscaled
+// install-system-daemon` registers the launchd job.
+// /usr/bin/env-style PATH lookup would work too (the launchd job
+// already exports /usr/local/bin first), but pinning the absolute
+// path keeps the failure mode explicit when the binary is missing.
+//
+// Why not parse the utun interface address ourselves: macOS picks an
+// arbitrary utunN index for Tailscale (varies by boot order with
+// other VPN clients), and the daemon's CGNAT address can be IPv4-
+// only, IPv6-only, or both depending on tailnet config. Asking the
+// daemon is the only stable source of truth.
+func tailscaleNodeIP() (string, error) {
+	const tailscaleCLI = "/usr/local/bin/tailscale"
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, tailscaleCLI, "ip", "-4").Output()
+	if err != nil {
+		return "", fmt.Errorf("exec %s ip -4: %w", tailscaleCLI, err)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if ip := net.ParseIP(line); ip != nil && ip.To4() != nil {
+			return ip.String(), nil
+		}
+	}
+	return "", fmt.Errorf("tailscale ip -4 returned no IPv4 address")
+}
+
+// cidrList implements flag.Value for repeated --scrape-allowed-cidr.
+// Each invocation appends one CIDR; no value at all means "fall
+// back to DefaultScrapeAllowedCIDRs in the reconciler" rather than
+// "deny everything", because an empty allowlist would silently lock
+// out every scraper.
+type cidrList []*net.IPNet
+
+func (c *cidrList) String() string {
+	if c == nil || len(*c) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(*c))
+	for _, n := range *c {
+		parts = append(parts, n.String())
+	}
+	return joinComma(parts)
+}
+
+func (c *cidrList) Set(value string) error {
+	_, n, err := net.ParseCIDR(value)
+	if err != nil {
+		return fmt.Errorf("parse cidr %q: %w", value, err)
+	}
+	*c = append(*c, n)
+	return nil
+}
+
+// Value returns the parsed CIDRs, or nil when none were passed.
+func (c cidrList) Value() []*net.IPNet { return []*net.IPNet(c) }
+
+func joinComma(s []string) string {
+	out := ""
+	for i, v := range s {
+		if i > 0 {
+			out += ","
+		}
+		out += v
+	}
+	return out
+}
+
+// pickPodsForNode narrows the Pod informer with a server-side field
+// selector — the API server filters by spec.nodeName before sending us
+// anything. Same trick the upstream kubelet uses.
+func pickPodsForNode(nodeName string) fields.Selector {
+	return fields.SelectorFromSet(fields.Set{"spec.nodeName": nodeName})
+}
+
+// pickThisNode narrows the Node informer to just our Node.
+func pickThisNode(nodeName string) fields.Selector {
+	return fields.SelectorFromSet(fields.Set{"metadata.name": nodeName})
+}
+
+// diskPressureThresholdPercent is the guest root-volume capacity at or
+// above which the host Node reports DiskPressure. Below 100% so the
+// condition fires (stopping new scheduling and triggering alerts) before
+// the guest actually starts failing writes with ENOSPC.
+const diskPressureThresholdPercent = 90
+
+// hostDiskPressureFreePercent is the host root-volume free-space floor
+// below which the Node reports DiskPressure. The Tart golden bases + clones
+// live here, and a full host disk silently breaks the operator's SSH config
+// updates while guests still look fine — so this is checked in addition to
+// the guest-volume probe. Kept at 10% to match the disk-buffer alert; the
+// golden GC reclaims at 15% (defaultGoldenReclaimFreeFloor), so pressure
+// only trips if reclaim can't keep up (all bases live-backed).
+const hostDiskPressureFreePercent = 10.0
+
+// diskPressureFromGuests reports DiskPressure=True when any running VM's
+// guest root volume is at or above the threshold. Each probe is bounded
+// so an unresponsive guest agent can't stall the node heartbeat, and a
+// per-VM error is logged and skipped rather than failing the whole check
+// — one bad guest shouldn't blind the others. A List error propagates so
+// the maintainer keeps the previous condition instead of flapping.
+func diskPressureFromGuests(ctx context.Context, tartClient *tart.Client, threshold int) (bool, string, error) {
+	vms, err := tartClient.List(ctx)
+	if err != nil {
+		return false, "", err
+	}
+
+	// Drop stale series up front so a VM that's gone since the last
+	// sweep stops reporting its last-known capacity.
+	podagent.ResetGuestDiskUsage()
+
+	var pressured []string
+	for _, vm := range vms {
+		if vm.Source != "local" {
+			continue
+		}
+		running, err := tartClient.IsRunning(ctx, vm.Name)
+		if err != nil || !running {
+			continue
+		}
+
+		probeCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		pct, err := tartClient.GuestDiskUsagePercent(probeCtx, vm.Name)
+		cancel()
+		if err != nil {
+			log.FromContext(ctx).Error(err, "guest disk usage probe", "vm", vm.Name)
+			continue
+		}
+		podagent.RecordGuestDiskUsage(vm.Name, pct)
+		if pct >= threshold {
+			pressured = append(pressured, fmt.Sprintf("%s at %d%%", vm.Name, pct))
+		}
+	}
+
+	if len(pressured) > 0 {
+		return true, "guest root volume(s) near capacity: " + strings.Join(pressured, ", "), nil
+	}
+	return false, "", nil
+}
+
+// recoverState rebuilds the Pod ↔ VM map by intersecting the host's
+// current Tart VMs with the Pods scheduled to this Node. Any Pod whose
+// VM name is present in `tart list` is recorded in the Store so the
+// reconciler treats the VM as live instead of attempting to
+// re-provision it.
+//
+// Best-effort. A miss (no Tart VM matching a scheduled Pod) is left
+// alone — the reconciler will recreate it. A spurious extra Tart VM
+// (no matching Pod) is also left; the reconciler garbage-collects on
+// Pod deletion in steady state, and an explicit `tart-kubelet gc`
+// pass can be added later if drift becomes a real problem.
+func recoverState(
+	cfg *clientcmdConfig,
+	scheme *runtime.Scheme,
+	tartClient *tart.Client,
+	store *podagent.Store,
+	nodeName string,
+) error {
+	c, err := client.New(cfg, client.Options{Scheme: scheme})
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	vms, err := tartClient.List(ctx)
+	if err != nil {
+		return err
+	}
+	// A VM is live if its `tart run` process is still executing. The VM is
+	// Setsid-detached so it survives a kubelet restart, and pgrep is the
+	// canonical liveness signal (see tart.Client.IsRunning) — fast, and
+	// false the instant the VM exits.
+	//
+	// This used to probe each local VM with `tart ip`, which blocks up to
+	// 30s waiting for an IP that a stopped VM never gets. The golden-base
+	// feature then added stopped golden VMs to `tart list`, so a single
+	// golden could burn the whole 30s recovery budget before the
+	// actually-running workload VM was reached — leaving it unbound.
+	// createPod would `tart run` it again, hit "VM is already running",
+	// and loop forever (this wedged the xcresult-processor and blocked a
+	// prod deploy). IsRunning returns false instantly for stopped goldens
+	// and stopped clones, which createPod re-runs as before.
+	live := make(map[string]bool, len(vms))
+	for _, vm := range vms {
+		if vm.Source != "local" {
+			continue
+		}
+		if running, rErr := tartClient.IsRunning(ctx, vm.Name); rErr == nil && running {
+			live[vm.Name] = true
+		}
+	}
+
+	pods := &corev1.PodList{}
+	if err := c.List(ctx, pods, client.MatchingFields{"spec.nodeName": nodeName}); err != nil {
+		return err
+	}
+
+	matched := 0
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		vmName := podagent.VMNameForPod(pod)
+		if !live[vmName] {
+			continue
+		}
+		startTS := pod.Status.StartTime
+		if startTS == nil {
+			now := metav1.Now()
+			startTS = &now
+		}
+		entry := &podagent.Entry{
+			PodName: pod.Name,
+			PodUID:  string(pod.UID),
+			VMName:  vmName,
+			// Pod.Status.StartTime is when the API server first saw the
+			// Pod, not when we started the clone — observing
+			// `tart_kubelet_vm_boot_duration_seconds` against it would
+			// fold kubelet downtime into the histogram and read as a
+			// boot-time spike across every recovered VM. Suppress the
+			// observation for recovered entries.
+			StartTS:      *startTS,
+			BootObserved: true,
+			StatusDir:    podagent.StatusDirForPod(tartClient, pod, vmName),
+		}
+		store.Put(pod.Namespace, pod.Name, entry)
+		matched++
+	}
+	setupLog.Info("recovered VM state", "node", nodeName, "tart_vms", len(vms), "matched_pods", matched)
+	return nil
+}
+
+// clientcmdConfig is an alias so the signature of recoverState reads
+// without dragging the rest-config dep into the main signature line.
+type clientcmdConfig = rest.Config
+
+// imageMirrorList implements flag.Value for repeated --image-mirror.
+type imageMirrorList []podagent.ImageMirror
+
+func (l *imageMirrorList) String() string {
+	if l == nil {
+		return ""
+	}
+	parts := make([]string, 0, len(*l))
+	for _, m := range *l {
+		parts = append(parts, m.String())
+	}
+	return joinComma(parts)
+}
+
+func (l *imageMirrorList) Set(value string) error {
+	m, err := podagent.ParseImageMirror(value)
+	if err != nil {
+		return err
+	}
+	*l = append(*l, m)
+	return nil
+}

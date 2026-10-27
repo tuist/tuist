@@ -32,6 +32,41 @@ defmodule TuistWeb.BuildRunsLiveTest do
     assert has_element?(lv, "span", "AppTests")
   end
 
+  test "keeps Ran by accounts distinct from the Reported name filter", %{
+    conn: conn,
+    organization: organization,
+    project: project,
+    user: user
+  } do
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      scheme: "ReportedApp",
+      claimed_actor_id: "review-laptop",
+      submission_auth: "token"
+    )
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      scheme: "VerifiedApp",
+      actor_account_id: user.account.id,
+      submission_auth: "token"
+    )
+
+    {:ok, view, _} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs?filter_claimed_actor_id_op===&filter_claimed_actor_id_val=review-laptop"
+      )
+
+    html = render(view)
+    assert html =~ "Ran by"
+    assert html =~ "Reported name"
+    refute html =~ "Verified user / CI"
+    refute html =~ "Reported identifier (unverified)"
+    assert has_element?(view, "[data-part=build-runs-table]", "ReportedApp")
+    refute has_element?(view, "[data-part=build-runs-table]", "VerifiedApp")
+  end
+
   test "handles cursor mismatch when sort order changes", %{
     conn: conn,
     organization: organization,
@@ -47,7 +82,7 @@ defmodule TuistWeb.BuildRunsLiveTest do
 
     # Generate a cursor with inserted_at sorting
     {_builds, %{end_cursor: cursor}} =
-      Tuist.Runs.list_build_runs(%{
+      Tuist.Builds.list_build_runs(%{
         filters: [%{field: :project_id, op: :==, value: project.id}],
         order_by: [:inserted_at],
         order_directions: [:desc],
@@ -63,5 +98,92 @@ defmodule TuistWeb.BuildRunsLiveTest do
              )
 
     assert has_element?(lv, "span", "App-1")
+  end
+
+  test "filters build runs by scheme", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      scheme: "App"
+    )
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      scheme: "Framework"
+    )
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs?filter_scheme_op===&filter_scheme_val=App"
+      )
+
+    assert has_element?(lv, "[data-part='build-runs-table'] span", "App")
+    refute has_element?(lv, "[data-part='build-runs-table'] span", "Framework")
+  end
+
+  test "filters build runs by ran_by user without including continuous integration runs", %{
+    conn: conn,
+    user: user,
+    organization: organization,
+    project: project
+  } do
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      user_id: user.account.id,
+      scheme: "local-user-build",
+      is_ci: false
+    )
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      user_id: user.account.id,
+      scheme: "ci-user-build",
+      is_ci: true
+    )
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/builds/build-runs?filter_ran_by_op===&filter_ran_by_val=#{user.account.id}"
+      )
+
+    assert has_element?(lv, "[data-part='build-runs-table'] span", "local-user-build")
+    refute has_element?(lv, "[data-part='build-runs-table'] span", "ci-user-build")
+  end
+
+  test "filters build runs whose branch does not contain a substring", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      scheme: "Queued",
+      git_branch: "gh-readonly-queue/main"
+    )
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      scheme: "Regular",
+      git_branch: "feature/main"
+    )
+
+    query =
+      URI.encode_query(%{
+        "filter_git_branch_op" => "!=~",
+        "filter_git_branch_val" => "gh-readonly-queue"
+      })
+
+    {:ok, lv, html} =
+      live(conn, "/#{organization.account.name}/#{project.name}/builds/build-runs?#{query}")
+
+    assert has_element?(lv, "[data-part='build-runs-table']")
+    assert html =~ "does not contain"
+    assert has_element?(lv, "[data-part='build-runs-table'] span", "Regular")
+    refute has_element?(lv, "[data-part='build-runs-table'] span", "Queued")
   end
 end

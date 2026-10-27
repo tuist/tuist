@@ -1,0 +1,122 @@
+# shellcheck shell=bash
+
+Describe 'accelerated artifact serving'
+  Include spec/e2e/support.sh
+
+  setup_suite() {
+    # Exercises the accelerator on the COMBINED port like the rest of the suite:
+    # kura routes the combined listener through the same accelerated server, so
+    # HTTP/1.1 artifact GETs hit the sendfile fast path while gRPC co-hosts on
+    # the same port. No dedicated-port override needed.
+    COMPOSE_FILES=(-f "${PROJECT_ROOT}/docker-compose.yml")
+    setup_suite_tmpdir
+
+    suite_env COMPOSE_PROJECT_NAME kura-accelerated
+    ephemeral_ports KURA_US_PORT
+
+    dc down -v --remove-orphans >/dev/null 2>&1 || true
+    compose_up kura-us || return 1
+
+    resolve_http_node KURA_US kura-us
+    wait_for_node_ready "${KURA_US_URL}"
+  }
+
+  teardown_suite() {
+    compose_teardown
+  }
+
+  BeforeAll 'setup_suite'
+  AfterAll 'teardown_suite'
+
+  # The compose nodes run KURA_TENANT_ID=default with accelerated file serving at
+  # its default (enabled), so a same-tenant file-backed GET on Linux is served by
+  # the same-port accelerator rather than the Axum fallback. This guards that the
+  # accelerator keeps the connection alive instead of forcing connection: close.
+  It 'serves sequential downloads of a file-backed artifact over one reused connection'
+    marker="$(new_marker)"
+    artifact_id="accelerated-${marker}"
+    url="${KURA_US_URL}/api/cache/cas/${artifact_id}?tenant_id=default"
+
+    payload="${SUITE_TMP_DIR}/payload-${marker}.bin"
+    # 256 KiB keeps the artifact file-backed (CAS uploads are never inline) and
+    # large enough to exercise a real accelerated transfer.
+    head -c 262144 /dev/urandom >"${payload}"
+
+    put_status="$(status_only -X POST "${url}" \
+      -H "content-type: application/octet-stream" \
+      --data-binary "@${payload}")"
+    The variable put_status should eq 204
+
+    capture_into ready_status wait_for_status "${url}" 200 || return 1
+    The variable ready_status should eq 200
+
+    out1="${SUITE_TMP_DIR}/out1-${marker}.bin"
+    out2="${SUITE_TMP_DIR}/out2-${marker}.bin"
+    trace="${SUITE_TMP_DIR}/curl-${marker}.log"
+
+    # Two sequential GETs in a single curl invocation over HTTP/1.1: the second
+    # request must reuse the connection the accelerator kept open.
+    curl -sS -v --http1.1 \
+      -o "${out1}" "${url}" \
+      -o "${out2}" "${url}" \
+      >/dev/null 2>"${trace}"
+
+    reused="$(grep -c 'Re-using existing connection' "${trace}" || true)"
+    if [ "${reused:-0}" -ge 1 ]; then reused_connection=yes; else reused_connection=no; fi
+    The variable reused_connection should eq "yes"
+
+    first_match="$(cmp -s "${payload}" "${out1}" && echo match || echo differ)"
+    second_match="$(cmp -s "${payload}" "${out2}" && echo match || echo differ)"
+    The variable first_match should eq "match"
+    The variable second_match should eq "match"
+  End
+
+  # A download cut short mid-body must be resumable from where it stopped
+  # rather than restarted, which is the whole point of Range on this path.
+  It 'resumes an interrupted download from a byte offset instead of restarting'
+    marker="$(new_marker)"
+    artifact_id="resumable-${marker}"
+    url="${KURA_US_URL}/api/cache/cas/${artifact_id}?tenant_id=default"
+
+    payload="${SUITE_TMP_DIR}/resume-payload-${marker}.bin"
+    head -c 262144 /dev/urandom >"${payload}"
+
+    put_status="$(status_only -X POST "${url}" \
+      -H "content-type: application/octet-stream" \
+      --data-binary "@${payload}")"
+    The variable put_status should eq 204
+
+    capture_into ready_status wait_for_status "${url}" 200 || return 1
+    The variable ready_status should eq 200
+
+    head_part="${SUITE_TMP_DIR}/resume-head-${marker}.bin"
+    tail_part="${SUITE_TMP_DIR}/resume-tail-${marker}.bin"
+    assembled="${SUITE_TMP_DIR}/resume-assembled-${marker}.bin"
+
+    # Stand in for a transfer that died at 100000 bytes.
+    head -c 100000 "${payload}" >"${head_part}"
+
+    resume_status="$(curl -sS --http1.1 -o "${tail_part}" -w "%{http_code}" \
+      -H "range: bytes=100000-" "${url}")"
+    The variable resume_status should eq 206
+
+    content_range="$(curl -sS --http1.1 -o /dev/null -D - \
+      -H "range: bytes=100000-" "${url}" | tr -d '\r' | grep -i '^content-range:' | head -1)"
+    The variable content_range should eq "content-range: bytes 100000-262143/262144"
+
+    cat "${head_part}" "${tail_part}" >"${assembled}"
+    resumed_match="$(cmp -s "${payload}" "${assembled}" && echo match || echo differ)"
+    The variable resumed_match should eq "match"
+
+    # The full response has to say resume is available, or a client never
+    # learns it can retry this way.
+    accept_ranges="$(curl -sS --http1.1 -o /dev/null -D - "${url}" \
+      | tr -d '\r' | grep -i '^accept-ranges:' | head -1)"
+    The variable accept_ranges should eq "accept-ranges: bytes"
+
+    # A range entirely past the end must be refused, not widened to a 200: a
+    # client appending a full body to a partial file would corrupt it.
+    unsatisfiable_status="$(status_only -H "range: bytes=999999-" "${url}")"
+    The variable unsatisfiable_status should eq 416
+  End
+End

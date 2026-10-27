@@ -1,0 +1,163 @@
+name: Runner Image
+
+# On-demand build of the Tart VM image hosted on the customer-runner
+# Mac mini fleet. Invoke via `gh workflow run runner-image.yml --ref
+# <branch>` when probing image contents or smoke-testing a Packer
+# change before merging.
+#
+# Releases go through runner-image-release.yml, which publishes the
+# immutable per-release profile tags the chart pins. This workflow's
+# `:macos-<dashes>-<git-sha>` tag is normally dispatch-only. A new
+# profile may temporarily pin a verified dispatch build in the chart
+# until its first release exists. Do not rebuild the same Xcode/SHA
+# while that bootstrap tag is pinned; record its digest in the PR.
+#
+# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
+# (built by `infra/macos-xcode-image`). Xcode + dev tools + WWDR certs
+# live in the base; this build just adds the GitHub Actions runner
+# agent and dispatch loop on top, so a rebuild is ~2 min instead of
+# the ~30 min an all-in-one rebuild used to cost.
+#
+# Runs on the same self-hosted bare-metal Mac mini as the other
+# Tart images — Tart needs a live GUI session for
+# Virtualization.framework, so this can't run on hosted runners.
+
+on:
+  workflow_dispatch:
+    inputs:
+      xcode_version:
+        description: "Xcode version of the profile to (re)build (e.g. 26.5, 26.4.1, 27.0-beta-6). Use this to refresh a profile that's not in profiles.json without cutting a release."
+        required: true
+      runner_version:
+        description: "Override the actions/runner version baked into the image. Leave empty to use `runner_version`'s default in runner.pkr.hcl, which is the Renovate-tracked pin."
+        required: false
+      stacked:
+        description: "Build the runner layer as a stacked image on the macOS 27 builder (`macos-27` label) and push it as `:macos-<dashes>-<git-sha>-stacked`. Only macOS 27 hosts with Tart 2.36 or newer can run it."
+        type: boolean
+        default: false
+
+concurrency:
+  group: runner-image
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ${{ inputs.stacked && fromJSON('["self-hosted", "macos", "bare-metal", "macos-27"]') || fromJSON('["self-hosted", "macos", "bare-metal", "vm-image-builder"]') }}
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      # Log in BEFORE Packer build so Tart's clone of the
+      # macos-tahoe-xcode base authenticates. The registry is
+      # tailnet-only and every image on it needs a credential, for
+      # reads as well as writes.
+      - name: Log in to GHCR (crane)
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
+
+      - name: Initialize Packer
+        working-directory: infra/runner-image
+        run: packer init -upgrade runner.pkr.hcl
+
+      - uses: ./.github/actions/reclaim-tart-disk
+
+      # Every binary runner.pkr.hcl provisions, built the same way the
+      # production cascade builds them — see the action for why it is shared.
+      - uses: ./.github/actions/build-runner-image-binaries
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image
+        id: build
+        working-directory: infra/runner-image
+        env:
+          XCODE: ${{ inputs.xcode_version }}
+          RUNNER_VERSION_OVERRIDE: ${{ inputs.runner_version }}
+          STACKED: ${{ inputs.stacked }}
+        run: |
+          set -euo pipefail
+          BASE_TAG="${XCODE//./-}"
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
+          PROFILE="macos-${BASE_TAG}"
+          echo "Xcode:      ${XCODE}"
+          echo "Base image: ${BASE_IMAGE}"
+          echo "Profile:    ${PROFILE}"
+          if [ "$STACKED" = "true" ]; then
+            export PATH="$PWD/stacked-tart:$PATH"
+          fi
+          # `runner_version` is passed only when the dispatch input is
+          # non-empty; otherwise packer falls back to the Renovate-tracked
+          # default in runner.pkr.hcl. Duplicating that default here is how
+          # the pin silently went stale before, so there is no literal.
+          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
+            -var "base_image=${BASE_IMAGE}" \
+            -var "output_image=tuist-runner" \
+            -var "stacked=${STACKED}" \
+            ${RUNNER_VERSION_OVERRIDE:+-var runner_version=$RUNNER_VERSION_OVERRIDE} \
+            runner.pkr.hcl
+          echo "profile=${PROFILE}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore nvram.bin if missing
+        env:
+          XCODE: ${{ inputs.xcode_version }}
+        # packer-plugin-tart v1.20.0 builds leave the VM bundle
+        # without `nvram.bin`, so the very next `tart push` uploads
+        # config + disk successfully then fails with
+        # `Error: The file "nvram.bin" doesn't exist.` Restore it
+        # from a fresh clone of the base image (no provisioner ever
+        # mutates auxiliary storage from inside the guest, so the
+        # base's nvram is equivalent for our purposes).
+        run: |
+          set -euo pipefail
+          BUNDLE="$HOME/.tart/vms/tuist-runner"
+          echo "pre-push bundle contents:"
+          ls -la "$BUNDLE"
+          if [ ! -f "$BUNDLE/nvram.bin" ]; then
+            BASE_TAG="${XCODE//./-}"
+            BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${BASE_TAG}"
+            echo "nvram.bin missing — restoring from ${BASE_IMAGE}"
+            tart delete nvram-restore 2>/dev/null || true
+            tart clone "$BASE_IMAGE" nvram-restore
+            cp "$HOME/.tart/vms/nvram-restore/nvram.bin" "$BUNDLE/nvram.bin"
+            tart delete nvram-restore
+            echo "restored nvram.bin ($(du -h "$BUNDLE/nvram.bin" | cut -f1))"
+          fi
+
+      - name: Resolve image tag
+        id: image-tag
+        env:
+          STACKED: ${{ inputs.stacked }}
+        run: |
+          set -euo pipefail
+          suffix=""
+          if [ "$STACKED" = "true" ]; then suffix="-stacked"; fi
+          echo "value=${GITHUB_SHA::8}${suffix}" >> "$GITHUB_OUTPUT"
+
+      - name: Push image to GHCR
+        timeout-minutes: 90
+        env:
+          TART_REGISTRY_HOSTNAME: ghcr.io
+          TART_REGISTRY_USERNAME: tuist-bot
+          TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          # Tart's OCI-cache prune fires opportunistically during
+          # `tart push`'s internal staging step and races the push
+          # of the source VM bundle — when it loses, nvram.bin is
+          # truncated mid-upload (see cirruslabs/tart#860). Disable
+          # the prune for the duration of the push; the cache was
+          # already trimmed at the start of the job by the
+          # `reclaim-tart-disk` composite action and won't grow
+          # before push completes.
+          TART_NO_AUTO_PRUNE: "1"
+        uses: ./.github/actions/tart-push
+        with:
+          local-name: tuist-runner
+          remote-names: ghcr.io/tuist/tuist-runner:${{ steps.build.outputs.profile }}-${{ steps.image-tag.outputs.value }}
+
+      - name: Cleanup
+        if: always()
+        run: tart delete tuist-runner 2>/dev/null || true

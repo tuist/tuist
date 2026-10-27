@@ -229,6 +229,14 @@ public class MockFileSystem: FileSysteming {
         throw NSError()
     }
 
+    public func glob(
+        directory _: Path.AbsolutePath,
+        include _: [String],
+        exclude _: [String]
+    ) throws -> AnyThrowingAsyncSequenceable<Path.AbsolutePath> {
+        throw NSError()
+    }
+
     public func currentWorkingDirectory() async throws -> Path.AbsolutePath {
         try await currentWorkingDirectoryOverride()
     }
@@ -237,5 +245,15 @@ public class MockFileSystem: FileSysteming {
 
     public func fileMetadata(at path: Path.AbsolutePath) async throws -> FileMetadata? {
         return try await fileMetadataOverride(path)
+    }
+
+    public var setFileTimesOverride: ((AbsolutePath, Date?, Date?) async throws -> Void) = { _, _, _ in }
+
+    public func setFileTimes(
+        of path: Path.AbsolutePath,
+        lastAccessDate: Date?,
+        lastModificationDate: Date?
+    ) async throws {
+        try await setFileTimesOverride(path, lastAccessDate, lastModificationDate)
     }
 }

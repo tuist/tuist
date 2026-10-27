@@ -4,7 +4,7 @@
     import TuistCore
 
     /// Empty `CacheStoring` implementation as we noop cache storing in the opensource repository
-    public final class EmptyCacheStorage: CacheStoring {
+    public struct EmptyCacheStorage: CacheStoring {
         public init() {}
 
         public func fetch(

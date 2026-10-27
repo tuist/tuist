@@ -1,0 +1,785 @@
+# Platform-level values for the Tuist-managed Kubernetes cluster.
+# This chart is installed once per cluster (staging / production), not per app release.
+#
+# Managed-cluster install:
+#   mise -C infra run k8s:install-platform <workload-kubeconfig> <cluster-name>
+#
+# The task reconciles cert-manager custom resource definitions before Helm
+# renders this chart. Do not use a direct Helm install to bootstrap a fresh
+# managed cluster.
+#
+# The Cloudflare API token is expected in a pre-existing Secret in the platform
+# namespace (see infra/k8s/onboarding.md for the bootstrap commands).
+
+# Cloudflare wiring shared by cert-manager (DNS-01 ACME) and external-dns.
+cloudflare:
+  email: ops@tuist.dev
+  # Name + key of the Secret that holds the Cloudflare API token. The chart
+  # does not create this Secret; create it out-of-band so the token never
+  # lands in values / helm history. Token must have Zone.DNS:Edit scope on
+  # the tuist.dev zone (and any other managed zones).
+  apiTokenSecret:
+    name: cloudflare-api-token
+    key: api-token
+
+# Lets Encrypt account email for certificates issued by cert-manager.
+letsencrypt:
+  email: ops@tuist.dev
+
+# Optional default TLS certificate for an ingress-nginx controller. Cluster
+# overlays can enable this for wildcard host families where app Ingresses rely
+# on the controller's default certificate instead of carrying per-Ingress TLS.
+ingressCertificate:
+  enabled: false
+  name: ""
+  secretName: ""
+  dnsNames: []
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-cloudflare
+
+cert-manager:
+  enabled: true
+  # CRDs are reconciled by k8s:install-platform before Helm runs. Keeping
+  # them outside the release prevents Helm from trying to adopt CRDs created
+  # during a recovery bootstrap.
+  installCRDs: false
+  crds:
+    enabled: false
+  prometheus:
+    enabled: true
+  extraArgs:
+    - --dns01-recursive-nameservers=1.1.1.1:53,8.8.8.8:53
+    - --dns01-recursive-nameservers-only
+
+ingress-nginx:
+  enabled: true
+  controller:
+    replicaCount: 2
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      # Provider-specific LB annotations are set via overlays so this base
+      # chart stays portable (see values-hetzner.yaml). Leaving annotations
+      # empty here means any cloud provider's default LB controller will
+      # provision a plain public LB with its own defaults — works everywhere,
+      # but without provider-native features like PROXY protocol.
+      annotations: {}
+    # Proxy protocol is a Hetzner-oriented default because that's where the
+    # managed Tuist cluster runs. Other providers should disable these in
+    # their own overlay when their LB doesn't pass through PROXY headers.
+    #
+    # Keep upstream connection reuse disabled for the main web ingress. Under
+    # production load, reused nginx-to-Bandit connections intermittently
+    # stalled until Bandit's read timeout or were closed before nginx received
+    # a response. Fresh connections directly to the same pods remained healthy.
+    # Keep the timeout below Bandit's 15-second read timeout as a guard if
+    # connection reuse is enabled again after the underlying behavior is fixed.
+    config:
+      use-forwarded-headers: "true"
+      use-proxy-protocol: "true"
+      compute-full-forwarded-for: "true"
+      upstream-keepalive-connections: "0"
+      upstream-keepalive-timeout: "10"
+      # Never replay a POST, PATCH or LOCK nginx already started sending.
+      retry-non-idempotent: "false"
+    # The address of the edge that opened this connection, which the
+    # application needs and cannot otherwise see. With PROXY protocol,
+    # $remote_addr is the CDN edge the load balancer declared, but the
+    # forwarded-for chain nginx builds ends in $realip_remote_addr — the
+    # load balancer itself — so the edge address exists here and reaches
+    # nothing downstream. Everything that reads it must treat it as
+    # authoritative only from a private peer: the load balancer holds a
+    # public address, so a client can reach the origin directly, and
+    # proxy_set_header overwriting any inbound value is what makes this
+    # unforgeable rather than a header anyone can assert.
+    proxySetHeaders:
+      X-Tuist-Edge-Address: "$remote_addr"
+    metrics:
+      enabled: true
+      service:
+        annotations:
+          prometheus.io/scrape: "true"
+          prometheus.io/port: "10254"
+          prometheus.io/path: /metrics
+
+# Ingress controller for gRPC backends that run in this cluster, such as the
+# Once events listener on the Tuist server.
+#
+# The main controller above turns upstream connection reuse off, and
+# ingress-nginx then adds `Connection: close` to every upstream request. HTTP/2
+# forbids that header, and a strict server such as Cowboy, which serves the Once
+# events listener, answers it by resetting the stream with PROTOCOL_ERROR, which
+# nginx reports as "upstream rejected request with error 1". A proxy hop in
+# between does not help, because nginx and other HTTP/2 servers reject the
+# header too. With upstream keepalive left on, ingress-nginx sends no
+# `Connection` header, which is how the regional Kura gateways serve gRPC.
+#
+# This controller exists so the main one can keep its setting for the HTTP
+# backends that need it. Do not copy `upstream-keepalive-connections: "0"` here.
+grpc-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: grpc-ingress-nginx-leader
+    ingressClass: nginx-grpc
+    ingressClassResource:
+      name: nginx-grpc
+      controllerValue: k8s.io/grpc-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      # Provider-specific LB annotations are set via overlays, as for the main
+      # controller (see values-hetzner.yaml).
+      annotations: {}
+    # Admission stays on the main controller only, as for the Kura gateways: the
+    # validator is cluster-wide, and a second one would run the same checks.
+    admissionWebhooks:
+      enabled: false
+    config:
+      use-proxy-protocol: "true"
+      # Preserve standard dotted REAPI metadata headers on the Kura activation path.
+      ignore-invalid-headers: "false"
+      # Explicit so the intent is visible. Anything above zero stops the
+      # `Connection` header, and 320 is the controller default.
+      upstream-keepalive-connections: "320"
+      # Below the idle timeout of the backends, as for the Kura gateways, so a
+      # reused connection is not closed under a request.
+      upstream-keepalive-timeout: "10"
+    metrics:
+      enabled: true
+      service:
+        annotations:
+          prometheus.io/scrape: "true"
+          prometheus.io/port: "10254"
+          prometheus.io/path: /metrics
+
+kura-eu-west-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-eu-west-ingress-nginx-leader
+    ingressClass: kura-eu-west
+    ingressClassResource:
+      name: kura-eu-west
+      # The region was renamed from eu-central. This value is the controller's
+      # identity on an IngressClass, and Kubernetes makes that field immutable,
+      # so it keeps the string the kura-eu-central class was created with:
+      # changing it would make the upgrade patch an existing class and fail.
+      # It is an opaque identifier that nothing displays.
+      controllerValue: k8s.io/kura-eu-central-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    # ingress-nginx admission webhooks are cluster-wide, not scoped to one
+    # IngressClass. A regional Kura controller can legitimately have zero pods
+    # while its bare-metal fleet is absent or being replaced; if its webhook is
+    # registered, every Ingress update in the cluster blocks on that empty
+    # Service. Keep admission on the main ingress-nginx controller only; it runs
+    # the same validator for the Kura Ingress annotations.
+    admissionWebhooks: &kuraGatewayAdmissionWebhooks
+      enabled: false
+    # Regional and runner gateways inherit the same streaming and metadata
+    # settings. TestKuraIngressPreservesREAPIMetadata checks environment overrides;
+    # kura/test/e2e/grpc-upload-throughput derives its window settings here too.
+    config: &kuraGatewayNginxConfig
+      # Nginx otherwise drops build.bazel.remote.execution.v2.requestmetadata-bin,
+      # leaving successful cache operations without Mix/Bazel analytics attribution.
+      ignore-invalid-headers: "false"
+      use-forwarded-headers: "true"
+      use-proxy-protocol: "true"
+      compute-full-forwarded-for: "true"
+      upstream-keepalive-timeout: "10"
+      # Refuse the handshake for a name this gateway does not serve, rather
+      # than answering it from the default backend.
+      #
+      # A cache client resolves a name once and then holds the connection: a
+      # gRPC channel re-resolves only when the connection fails, never when a
+      # request fails. So a 404 from the default backend is the worst possible
+      # answer — it arrives on a healthy connection, which reads as "the server
+      # is fine, your request was not", and the client stays pinned to a region
+      # that has stopped serving it. Bazel and the CAS plugin retry into it;
+      # the Gradle cache reads a 404 as a plain cache miss, so it degrades to
+      # nothing cached and reports no error at all.
+      #
+      # Rejecting at TLS makes it a connection failure, which is the one thing
+      # every client already handles: re-resolve and reconnect, landing on
+      # whichever region now serves the name. This is what makes a name moving
+      # between regions safe for clients holding a stale answer, and it costs
+      # nothing when the name is served here.
+      ssl-reject-handshake: "true"
+      # HTTP/2 request-body flow control. nginx's 64KB default window caps
+      # every upload stream (gRPC ByteStream writes and HTTP/2 CLI uploads
+      # alike) at ~window/RTT — ~310KB/s from a 193ms-RTT client. Both knobs
+      # must move together: http2_body_preread_size is the window advertised
+      # before the body is consumed, client-body-buffer-size paces
+      # WINDOW_UPDATEs while streaming to the upstream. The stream cap bounds
+      # worst-case nginx memory at 32 x 4m = 128MB per client connection.
+      # Keep in sync with the dedicated gateway ConfigMap in
+      # infra/kura-controller (reconcileGatewayConfigMap).
+      client-body-buffer-size: "4m"
+      http2-max-concurrent-streams: "32"
+      http-snippet: "http2_body_preread_size 4m;"
+    metrics:
+      enabled: true
+
+kura-ca-east-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-ca-east-ingress-nginx-leader
+    ingressClass: kura-ca-east
+    ingressClassResource:
+      name: kura-ca-east
+      controllerValue: k8s.io/kura-ca-east-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    # Shares the one anchored regional Kura nginx config (defined in the
+    # eu-west block above); see TestGatewayNginxConfigMatchesChart on why
+    # these cannot drift from the dedicated-gateway ConfigMap.
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
+kura-us-east-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-us-east-ingress-nginx-leader
+    ingressClass: kura-us-east
+    ingressClassResource:
+      name: kura-us-east
+      controllerValue: k8s.io/kura-us-east-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
+kura-us-west-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-us-west-ingress-nginx-leader
+    ingressClass: kura-us-west
+    ingressClassResource:
+      name: kura-us-west
+      controllerValue: k8s.io/kura-us-west-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
+# Asia Pacific Southeast (Singapore). Off by default like every other kura
+# gateway; the environments that serve the region turn it on.
+kura-ap-southeast-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-ap-southeast-ingress-nginx-leader
+    ingressClass: kura-ap-southeast
+    ingressClassResource:
+      name: kura-ap-southeast
+      controllerValue: k8s.io/kura-ap-southeast-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
+# Declared while the region is gated off everywhere, for the same reason
+# kura-ap-southeast is: a region whose ingress class no controller declares has
+# its Ingresses go unclaimed the moment it is switched on.
+kura-sa-west-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-sa-west-ingress-nginx-leader
+    ingressClass: kura-sa-west
+    ingressClassResource:
+      name: kura-sa-west
+      controllerValue: k8s.io/kura-sa-west-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
+kura-eu-east-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-eu-east-ingress-nginx-leader
+    ingressClass: kura-eu-east
+    ingressClassResource:
+      name: kura-eu-east
+      controllerValue: k8s.io/kura-eu-east-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
+kura-us-central-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-us-central-ingress-nginx-leader
+    ingressClass: kura-us-central
+    ingressClassResource:
+      name: kura-us-central
+      controllerValue: k8s.io/kura-us-central-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
+# Lets the regional Kura gateways above reach Kura pods on the other boxes of a
+# multi-box region. Enable it wherever a `kura-*-ingress-nginx` gateway runs
+# host-network; see templates/kura-gateway-network-policy.yaml for why the
+# per-instance NetworkPolicy cannot express this on its own.
+kuraGatewayNetworkPolicy:
+  enabled: false
+  # Namespace kura-controller creates KuraInstance workloads in
+  # (`kuraController.namespace` in the tuist chart).
+  namespace: kura
+  port: 4000
+  # kura-controller's `gatewayGRPCPort`, the gRPC-only port the gRPC Ingress
+  # routes to once an instance's pods serve it.
+  grpcPort: 4001
+  # kura-controller's `peerPort`, which the regional peer demux forwards the
+  # public peer hosts to.
+  peerPort: 7443
+
+# Host policy that drops the cluster-internal node ports from `world`. Needs
+# Cilium with the host firewall enabled. See
+# templates/cluster-ports-host-policy.yaml.
+clusterPortsHostPolicy:
+  enabled: false
+  ports:
+    - port: 8472
+      protocol: UDP
+    - port: 4240
+      protocol: TCP
+    - port: 10250
+      protocol: TCP
+    - port: 9962
+      protocol: TCP
+    - port: 9965
+      protocol: TCP
+    - port: 9963
+      protocol: TCP
+    - port: 9964
+      protocol: TCP
+    - port: 9100
+      protocol: TCP
+
+external-dns:
+  enabled: true
+  provider: cloudflare
+  sources:
+    - service
+    - ingress
+    # crd sources DNSEndpoint CRs (externaldns.k8s.io). The kura-controller emits
+    # one per host-network region peer host -> the region's failover IP, since a
+    # bare-metal peer plane has no LoadBalancer for the service source to read.
+    - crd
+  # Must be unique per workload cluster because several managed clusters
+  # write records under tuist.dev. The bootstrap task overrides this with
+  # "<cluster-name>-platform".
+  txtOwnerId: tuist-platform
+  # Sync about 5s after a source changes (external-dns fixes that delay; a
+  # lower --min-event-sync-interval does not shorten it) instead of only on the
+  # 1m interval. A new Kura instance's DNSEndpoint is the last step before its
+  # endpoint can be handed out, and waiting for the next interval was most of
+  # the time a cold instance took to serve.
+  triggerLoopOnEvent: true
+  extraArgs:
+    # Every sync lists the whole zone. At the default 100 records a page that is
+    # a dozen Cloudflare API calls per sync, which syncing on events multiplies;
+    # at 5,000 it is one.
+    - --cloudflare-dns-records-per-page=5000
+    - --exclude-domains=cache.tuist.dev
+  # Limit which records external-dns will touch; be explicit for prod safety.
+  domainFilters:
+    - tuist.dev
+  policy: sync
+  cloudflare:
+    # Reference the Cloudflare API token Secret created out-of-band. The
+    # external-dns chart accepts env from an existing Secret under env[].
+    apiTokenType: token
+  env:
+    - name: CF_API_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: cloudflare-api-token
+          key: api-token
+
+external-secrets:
+  enabled: true
+  installCRDs: true
+  webhook:
+    port: 9443
+
+# Backs the pods.metrics.k8s.io API the HPA reads. Without it, HPAs report
+# `FailedGetResourceMetric` and refuse to scale.
+# --kubelet-insecure-tls because kubeadm kubelets serve a self-signed cert
+# the kube-apiserver CA can't validate (CSR auto-approval is opt-in).
+metrics-server:
+  enabled: true
+  args:
+    - --kubelet-insecure-tls
+  resources:
+    requests:
+      cpu: 50m
+      memory: 80Mi
+    limits:
+      cpu: 200m
+      memory: 200Mi
+
+# CloudNativePG — operator that owns the postgresql.cnpg.io/v1 Cluster +
+# Backup + ScheduledBackup CRs the Tuist chart renders. Installed
+# cluster-wide on every workload cluster so the next `helm upgrade
+# tuist` can declare a Cluster without an out-of-band step.
+#
+# Self-hosters running the Tuist chart with `postgresql.mode: embedded`
+# (the default) or `postgresql.mode: external` don't need this — flip
+# it off in the same overlay that flips the Tuist chart's
+# `postgresql.mode` off the cnpg path.
+cloudnative-pg:
+  enabled: true
+  # PodMonitor stays off: managed clusters run Grafana Alloy via
+  # k8s-monitoring with annotation autodiscovery
+  # (prometheus.io/scrape + prometheus.io/port), not prometheus-operator,
+  # so the `monitoring.coreos.com/v1` PodMonitor CRD isn't installed.
+  # Enabling this would crash `helm upgrade platform` with
+  # "no matches for kind PodMonitor".
+  monitoring:
+    podMonitorEnabled: false
+
+# Barman Cloud Plugin (CNPG-I) — the backup sidecar a CNPG cluster uses when
+# its backups run through the plugin instead of in-tree barman. As a subchart
+# of this release it installs into the release namespace (`platform`), which is
+# where the operator runs and where the plugin must live. Installing it is
+# inert: no cluster uses it until the tuist/tuist-ops chart sets
+# `…backup.plugin.enabled`. Flip off alongside cloudnative-pg for non-cnpg
+# (embedded/external) self-hosted setups.
+plugin-barman-cloud:
+  enabled: true
+
+# Optional Cilium egress gateway policy for managed-cluster workloads that
+# need a stable outbound source IP for customer allowlists.
+#
+# This chart only renders the policy. The egress IP itself must already be
+# provisioned in the cloud provider and assigned to the selected gateway node's
+# network interface; otherwise Cilium will drop matching traffic.
+ciliumEgressGateway:
+  server:
+    enabled: false
+    name: tuist-server-stable-egress
+    namespace: tuist
+    podSelector:
+      app.kubernetes.io/component: server
+      app.kubernetes.io/instance: tuist
+      app.kubernetes.io/name: tuist
+    destinationCIDRs:
+      - 0.0.0.0/0
+    # Keep private/link-local/tailnet destinations on their normal route.
+    # Cilium already excludes in-cluster Pod/Service/Node IPs, but keeping
+    # these here makes the policy's intended public-internet boundary obvious.
+    excludedCIDRs:
+      - 10.0.0.0/8
+      - 100.64.0.0/10
+      - 169.254.0.0/16
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+    gatewayNodeSelector:
+      tuist.dev/stable-egress-gateway: server
+    egressIP: ""
+    hostConfigurator:
+      enabled: false
+      # Required when enabled. Select the full candidate pool so every standby
+      # is prepared before the failover controller can activate it.
+      nodeSelector: {}
+      image: quay.io/cilium/cilium:v1.18.7
+      imagePullPolicy: IfNotPresent
+      interface: eth0
+      gateway: 172.31.1.1
+      routeTable: "2010"
+      rulePriority: "2010"
+      reconcileIntervalSeconds: 60
+    # Stable-egress failover controller (see templates/stable-egress-controller.yaml).
+    # Keeps the Floating IP + the gateway label (`gatewayNodeSelector`) on a
+    # single Ready node from the egress candidate pool and fails over on node
+    # loss. Pair with a ≥2-node egress pool whose kubelet self-applies the
+    # candidate label (`tuist.dev/stable-egress-candidate=server`).
+    failoverController:
+      enabled: false
+      image:
+        repository: ghcr.io/tuist/tuist-stable-egress-controller
+        # Fallback only. Real deploys resolve the released
+        # stable-egress-controller@<semver> tag at deploy time
+        # (k8s:install-platform --set), like the fleet/runtime images, so this
+        # `latest` is never used in CI deploys.
+        tag: latest
+        pullPolicy: IfNotPresent
+      # HA via leader election — keep ≥2 so the controller itself isn't a SPOF.
+      replicas: 2
+      # Name of the Hetzner Cloud Floating IP the controller keeps on the
+      # active node. Required when enabled.
+      floatingIpName: ""
+      # Documented set of egress CIDRs customers allowlist (the reserved
+      # Floating-IP pool). When non-empty the controller fails closed if the
+      # active Floating IP's address falls outside it, so we can never activate
+      # an un-allowlisted egress IP. Keep this in lockstep with the customer
+      # network guide (server/priv/docs/en/guides/server/network.md).
+      egressIpAllowlist: []
+      # Port 9962 requires Cilium's Prometheus listener, which the managed
+      # workload bootstrap enables on every Linux node.
+      # Probe Cilium directly on the node instead of treating Kubernetes
+      # NodeReady as the active-gateway failover signal. The wall-clock grace
+      # period cannot be consumed early by bursts of Kubernetes events.
+      nodeHealthPort: 9962
+      nodeHealthTimeout: 2s
+      nodeUnhealthyGracePeriod: 90s
+      # Host preparation is a promotion requirement. A longer demotion grace
+      # avoids moving the address during a host-configurer rolling update while
+      # still recovering when the address or source-routing state stays absent.
+      nodeUnpreparedGracePeriod: 5m
+      resources:
+        requests:
+          cpu: 25m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
+      tokenSecretRef:
+        # caph writes this Secret into kube-system once the first
+        # control-plane node is up; HCCM + hcloud-csi read the same one.
+        # `token` is the canonical key bootstrap-workload waits for.
+        name: hcloud
+        key: token
+  # The CAPI Apple Silicon operator's SSH egress to the Mac minis. The minis
+  # drop inbound :22 from everything except the tailnet, loopback and the
+  # addresses in macosFleet.sshIngressAllowCIDRs (see the tuist chart), which
+  # keeps internet SSH scan traffic from exhausting launchd's ssh listen
+  # backlog and wedging the operator out of both dial paths at once. Without a
+  # stable source the operator SNATs out of whichever worker node hosts it, and
+  # those addresses change on every MachineDeployment roll, so there is nothing
+  # durable to put in that allow list. Routing it through the gateway gives it
+  # one address per env that the allow list can name.
+  #
+  # Reuses the server entry's Floating IP and gateway node, so this adds a
+  # policy and no infrastructure. hostConfigurator / failoverController stay
+  # on the server entry and serve both.
+  capi:
+    enabled: false
+    name: tuist-capi-applesilicon-stable-egress
+    namespace: tuist
+    podSelector:
+      app.kubernetes.io/component: capi-scaleway-applesilicon
+      app.kubernetes.io/instance: tuist
+      app.kubernetes.io/name: tuist
+    # Scaleway only, unlike the server entry's 0.0.0.0/0: the operator's
+    # Scaleway API calls and image pulls keep their normal route, so the
+    # gateway isn't in the path of everything it does. A mini adopted outside
+    # this range degrades gracefully rather than breaking, since its dial just
+    # isn't SNAT'd, the guard drops it, and the drift loop falls back to the
+    # tailnet exactly as it does with no allow list at all.
+    destinationCIDRs:
+      - 62.210.0.0/16
+    excludedCIDRs:
+      - 10.0.0.0/8
+      - 100.64.0.0/10
+      - 169.254.0.0/16
+      - 172.16.0.0/12
+      - 192.168.0.0/16
+    gatewayNodeSelector:
+      tuist.dev/stable-egress-gateway: server
+    egressIP: ""
+
+# Optional in-cluster cleanup loop for the managed preview cluster. Disabled
+# by default so ordinary platform installs do not get cluster-wide delete
+# permissions. The tuist-preview overlay enables it.
+previewJanitor:
+  enabled: false
+  schedule: "0 * * * *"
+  suspend: false
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 900
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  stuckCreateAgeSeconds: 1800
+  teardownTimeout: 5m
+  kuraNamespace: kura
+  serviceAccount:
+    name: preview-janitor
+  image:
+    repository: alpine/k8s
+    tag: "1.36.1"
+    pullPolicy: IfNotPresent
+  nodeSelector: {}
+  tolerations: []
+  resources:
+    requests:
+      cpu: 25m
+      memory: 96Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Whether to emit the ClusterIssuer template below. Turn off if you manage
+# cert-manager issuers with a separate GitOps process.
+clusterIssuer:
+  enabled: true
+  name: letsencrypt-cloudflare
+  server: https://acme-v02.api.letsencrypt.org/directory
+
+# Same regional gateway as managed Kura, reached directly over the runner PN.
+# The per-account ingress restricts both HTTP and gRPC to clientCIDRs. Never
+# trust forwarded client IPs here: there is no trusted proxy in front of nginx.
+kura-runners-ingress-nginx:
+  enabled: false
+  controller:
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: ClusterFirstWithHostNet
+    electionID: kura-runners-ingress-nginx-leader
+    ingressClass: kura-runners
+    ingressClassResource:
+      name: kura-runners
+      controllerValue: k8s.io/kura-runners-ingress-nginx
+    podLabels:
+      tuist.dev/kura-ingress-class: kura-runners
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: kura-scw-fr-par
+    tolerations:
+      - key: tuist.dev/runner-cache
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
+    extraArgs:
+      update-status: "false"
+    service:
+      type: ClusterIP
+      externalTrafficPolicy: ""
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config:
+      <<: *kuraGatewayNginxConfig
+      use-forwarded-headers: "false"
+      use-proxy-protocol: "false"
+      enable-real-ip: "false"
+      compute-full-forwarded-for: "false"
+    metrics:
+      enabled: true
+
+# The BER1 rack's runner-cache gateway, on its storage nodes beside the rack's
+# minis, which reach it over the machines segment. A rack node runs a pod
+# network of its own and reaches no Service, so the gateway resolves through
+# the node; the node translates the kubernetes Service to the API server, and
+# the Kura pods it fronts sit on the same node.
+#
+# Configured here beside the other gateways, but deployed by the
+# rack-cache-gateways chart (infra/helm/rack-cache-gateways), a release that
+# install-platform.sh does not wait on: this chart's release is, and a dark
+# rack would fail it. Its objects are named after the gateway rather than that
+# release, whose name would push the metrics Service past the 63 characters a
+# Service name may have.
+kura-ber1-runners-ingress-nginx:
+  enabled: false
+  fullnameOverride: kura-ber1-runners-ingress-nginx
+  controller:
+    kind: DaemonSet
+    hostNetwork: true
+    dnsPolicy: Default
+    electionID: kura-ber1-runners-ingress-nginx-leader
+    ingressClass: kura-ber1-runners
+    ingressClassResource:
+      name: kura-ber1-runners
+      controllerValue: k8s.io/kura-ber1-runners-ingress-nginx
+    podLabels:
+      tuist.dev/kura-ingress-class: kura-ber1-runners
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: rack-storage-ber1
+    tolerations:
+      - key: tuist.dev/rack-storage
+        operator: Exists
+        effect: NoSchedule
+    publishService:
+      enabled: false
+    extraArgs:
+      update-status: "false"
+    service:
+      type: ClusterIP
+      externalTrafficPolicy: ""
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    config:
+      <<: *kuraGatewayNginxConfig
+      use-forwarded-headers: "false"
+      use-proxy-protocol: "false"
+      enable-real-ip: "false"
+      compute-full-forwarded-for: "false"
+    metrics:
+      enabled: true
+
+# Delegated managed-cache DNS. Inert until the zone and scoped credentials exist.
+cacheDNS:
+  enabled: false
+  # Opt in only on the single global wildcard owner after gateway validation.
+  activationIngressClass: ""
+  hostedZoneId: ""
+  ownerId: ""
+  image: registry.k8s.io/external-dns/external-dns:v0.15.1
+  secretName: cache-dns-writer
+  solverSecretName: cache-dns-solver
+  externalSecret:
+    enabled: false
+    storeName: onepassword
+    writerItem: ""
+    solverItem: ""

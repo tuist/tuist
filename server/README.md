@@ -11,35 +11,102 @@ Contributions to the Tuist Server require signing a Contributor License Agreemen
 ### Requirements
 
 - [Postgres](https://formulae.brew.sh/formula/postgresql@16)
-- [TimescaleDB](https://docs.timescale.com/self-hosted/latest/install/installation-macos/)
 - [Mise](https://mise.jdx.dev/)
 
 ### Set up
 
-1. Clone the repository: `git clone https://github.com/tuist/server.git`.
+1. Clone the repository: `git clone https://github.com/tuist/tuist.git`.
 1. Open the folder: `cd server`.
-1. Get the private key from 1Password.
-1. Create a `priv/secrets/dev.key` file and add the key to decrypt the secrets needed for development.
-1. Install additional system dependencies with: `mise install`.
+1. Install system dependencies with: `mise install`.
 1. Start Postgres with: `brew services start postgresql@16`.
 1. Start ClickHouse with: `mise run clickhouse:start`
-1. Create a new database with: `mise run db:create`.
-1. Load the data into database with: `mise run db:load`.
-1. Seed your database with data: `mise run db:seed`.
+1. Install dependencies: `mise run install`
+1. Create and set up the database: `mise run db:setup`
 1. Run the server: `mise run dev`
-1. We already have a pre-made user account that you can use to test the server:
+1. Open the local URL for your current clone or worktree in your browser and log in with the pre-made test user account. With `mise activate` enabled, each checkout persists its own numeric suffix through Git metadata when available, while keeping the existing root `.tuist-dev-instance` file as a compatibility fallback. That suffix scopes the local service ports, MinIO ports, and the PostgreSQL and ClickHouse database names, while the local ClickHouse daemon itself stays shared across checkouts. For example, a suffix of `443` yields `http://localhost:8523`:
 
 ```
 Email: tuistrocks@tuist.dev
 Pass: tuistrocks
 ```
 
+> [!NOTE]
+> First-party developers load dev secrets from 1Password via fnox — `mise run dev` wraps the server in `fnox exec` (see `server/fnox.toml`). External contributors don't need 1Password access; the server runs locally without it. OAuth, Stripe, and other third-party integrations will be disabled, but core functionality works.
+
 #### To run additional features
 1. Clone the repository: `https://github.com/tuist/tuist.git`.
 1. Go to `tuist/examples/xcode/generated_ios_app_with_frameworks`.
-1. Change the url in `Tuist/Config.swift` to `http://localhost:8080`.
+1. Change the url in `Tuist.swift` to the local URL for the current clone or worktree, for example `http://localhost:8523`.
 1. Run `tuist auth` to authenticate.
 1. You are now connected to the local Tuist Server!  You can try running `tuist cache` and see the binaries being uploaded.
 
-> [!IMPORTANT]
-> If the execution of database migrations fails because the TimescaleDB extension is not installed, you'll have to [install the extension](https://docs.timescale.com/self-hosted/latest/install/installation-macos/#set-up-the-timescaledb-extension) in the `tuist_development` database.
+### Local Kura Controller
+
+To test the server's controller-backed Kura provisioning path from account settings, use the dev-only `Local Controller (kind)` region.
+
+```bash
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+suffix="${TUIST_DEV_INSTANCE:-0}"
+cluster="kura-dev-${suffix}"
+
+kind get clusters | grep -qx "$cluster" || \
+  kind create cluster --name "$cluster" --config kura/ops/kind/dev-cluster.yaml
+
+docker build -t ghcr.io/tuist/kura-controller:dev -f infra/kura-controller/Dockerfile .
+docker build -t ghcr.io/tuist/kura:dev -f kura/Dockerfile kura
+kind load docker-image ghcr.io/tuist/kura-controller:dev --name "$cluster"
+kind load docker-image ghcr.io/tuist/kura:dev --name "$cluster"
+
+# Optional controller verification from the repository root.
+mise x go@1.25.0 -- go test ./infra/kura-controller/...
+
+kubectl --context "kind-${cluster}" apply -f infra/helm/tuist/crds/kura.tuist.dev_kurainstances.yaml
+helm template tuist infra/helm/tuist \
+  --show-only templates/kura-controller.yaml \
+  --set kuraController.enabled=true \
+  --set kuraController.namespace=kura \
+  --set kuraController.image.tag=dev \
+  --set kuraController.image.pullPolicy=IfNotPresent \
+  --set server.enabled=false \
+  | kubectl --context "kind-${cluster}" apply -f -
+```
+
+When rebuilding the controller with the same `:dev` tag after the initial install, restart the Deployment so kind uses the newly-loaded image:
+
+```bash
+kubectl --context "kind-${cluster}" -n kura rollout restart deployment/tuist-tuist-kura-controller
+kubectl --context "kind-${cluster}" -n kura rollout status deployment/tuist-tuist-kura-controller
+```
+
+Start the server, open the account settings page, and deploy a server in `Local Controller (kind)`.
+
+```bash
+cd server
+TUIST_KURA_RUNTIME_IMAGE_TAG=dev mise run dev
+```
+
+After the controller creates the service, port-forward it:
+
+```bash
+port=$((4100 + suffix))
+kubectl --context "kind-${cluster}" -n kura port-forward svc/kura-tuist-local-controller "${port}:4000"
+curl "http://localhost:${port}/up"
+```
+
+### Managed Kura Regions
+
+Managed deployments expose the regions listed in `TUIST_KURA_AVAILABLE_REGIONS`. The production Helm overlay currently sets `eu-west,us-east,us-west`, so account settings can deploy one Kura server per account in any managed region that is not already occupied by that account.
+
+Managed deploys use the newest `kura@...-canary.N` tag contained in the deployed commit as the Kura version, so hosted Kura follows `main` like the server; the RC/stable train is for self-hosted operators. The reconciler rolls active Kura servers to the corresponding Docker tag, for example `kura@0.56.0-canary.8` maps to `ghcr.io/tuist/kura:0.56.0-canary.8`. Local development can still set `TUIST_KURA_RUNTIME_IMAGE_TAG=dev`.
+
+Production maps those product regions to Hetzner-backed node pools inside the `tuist` workload cluster:
+
+| Product region | Cluster ID | Kubernetes client | Node pool | Hetzner location |
+| --- | --- | --- | --- | --- |
+| `eu-west` | `eu-west-1` | in-cluster ServiceAccount on `tuist` | `kura-dedibox` | Scaleway Dedibox, Paris |
+| `us-east` | `us-east-1` | in-cluster ServiceAccount on `tuist` | `kura-us-east` | `ash` |
+| `us-west` | `us-west-1` | in-cluster ServiceAccount on `tuist` | `kura-us-west` | `hil` |
+
+The Kura controller creates shared-ingress routes for the customer-specific hostnames and schedules each region onto its configured node pool.

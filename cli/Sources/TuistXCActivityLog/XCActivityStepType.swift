@@ -56,6 +56,29 @@ public enum XCActivityStepType: Hashable, Equatable {
     /// Validate app
     case validate
 
+    init(stepTypeString: String) {
+        switch stepTypeString {
+        case "c_compilation": self = .cCompilation
+        case "swift_compilation": self = .swiftCompilation
+        case "script_execution": self = .scriptExecution
+        case "create_static_library": self = .createStaticLibrary
+        case "linker": self = .linker
+        case "copy_swift_libs": self = .copySwiftLibs
+        case "compile_assets_catalog": self = .compileAssetsCatalog
+        case "compile_storyboard": self = .compileStoryboard
+        case "write_auxiliary_file": self = .writeAuxiliaryFile
+        case "link_storyboards": self = .linkStoryboards
+        case "copy_resource_file": self = .copyResourceFile
+        case "merge_swift_module": self = .mergeSwiftModule
+        case "xib_compilation": self = .XIBCompilation
+        case "swift_aggregated_compilation": self = .swiftAggregatedCompilation
+        case "precompile_bridging_header": self = .precompileBridgingHeader
+        case "validate_embedded_binary": self = .validateEmbeddedBinary
+        case "validate": self = .validate
+        default: self = .other
+        }
+    }
+
     init(signature: String) {
         // We check manually for SwiftCompile as XCLogParser doesn't currently support due to memory issues when exporting the
         // output as a JSON (which we don't do): https://github.com/MobileNativeFoundation/XCLogParser/issues/201

@@ -1,0 +1,502 @@
+# CloudNativePG
+
+In-cluster Postgres operated by the [CloudNativePG](https://cloudnative-pg.io) operator. The managed deployment's primary datastore.
+
+The chart-rendered `Cluster` CR ([`infra/helm/tuist/templates/postgresql-cnpg.yaml`](../helm/tuist/templates/postgresql-cnpg.yaml)) owns instance count, storage, sync replication, role lifecycle, and the WAL archive. This directory holds the SQL files that grant per-table privileges that don't fit `managed.roles[].inRoles` — they run **once per fresh cluster bootstrap** as the cluster's superuser.
+
+## Files
+
+- Web runtime grants are applied automatically by `Tuist.Release.migrate/0` when `TUIST_DATABASE_RUNTIME_ROLE` is set (the Helm chart sets it to `postgresql.cnpg.roles.web.name` for managed CNPG migration jobs). The migration role keeps owning schema changes, and the web role gets DML on application tables plus read-only access to `schema_migrations`.
+- [`tuist-processor-grants.sql`](./tuist-processor-grants.sql) — per-table grants for the `tuist_processor` role. The role itself is created declaratively by CNPG via `managed.roles[]`. **These grants are now applied automatically by `Tuist.Release.migrate/0` (`do_grant_processor_role`) on every migrate for managed CNPG envs**, so this file is a bootstrap/restore fallback for the window before the first migrate runs — keep it in sync with `do_grant_processor_role`. Pass `-v tuist_schema=<schema>` when the chart uses a non-`public` `postgresql.schema`.
+- [`tuist-swift-registry-sync-grants.sql`](./tuist-swift-registry-sync-grants.sql) — `oban_jobs` / `oban_peers` write grants for the `tuist_swift_registry_sync` role used by the Swift registry sync worker. The role itself is created declaratively by CNPG via `managed.roles[]`; this file adds the narrower per-table privileges the worker needs. Pass `-v tuist_schema=<schema>` when the chart uses a non-`public` `postgresql.schema`.
+- [`tuist-ops-ro-grants.sql`](./tuist-ops-ro-grants.sql) — `CONNECT` on the application database for the `tuist_ops_ro` role, plus an explicit `REVOKE` of write privileges on the application schema (defense-in-depth against a future grant-by-default change in Postgres widening `pg_read_all_data`). The role is for ad-hoc operator psql access; the `/ops/db` LiveView uses Tuist.Repo under the web runtime role and enforces read-only at the app layer (see `Tuist.Ops.Database.execute/2`).
+- [`tuist-grafana-ro-grants.sql`](./tuist-grafana-ro-grants.sql) — column-level `SELECT`s for the `tuist_grafana_ro` role, which backs the Grafana "Tuist Product Usage" dashboard and the runner cache volume warm-rate alert rule over the PDC tunnel. The role is created declaratively by CNPG via `managed.roles[]` with **no `inRoles`** — unlike `tuist_ops_ro` it must never inherit `pg_read_all_data`, because its password lives in Grafana Cloud and every table the dashboard reads sits next to a secret in the same row (`users.encrypted_password`, `projects.token`, `accounts.s3_secret_access_key`, `organizations.oauth2_encrypted_client_secret`). **These grants are applied automatically by `Tuist.Release.migrate/0` (`do_grant_grafana_role`) on every migrate for managed CNPG envs**, so this file is a bootstrap/restore fallback for the window before the first migrate runs — keep it in sync with `grafana_role_grant_statements/3` (a test asserts this). Pass `-v tuist_schema=<schema>` when the chart uses a non-`public` `postgresql.schema`.
+- [`pg-stat-statements.sql`](./pg-stat-statements.sql) — `CREATE EXTENSION pg_stat_statements`, enabling the per-query latency metrics (`cnpg_tuist_query_stats_*`) that back the dashboard's query-latency panels. The library is preloaded via the chart (`postgresql.cnpg.sharedPreloadLibraries`); this creates the reading view. **Runs against `postgres`, not `tuist`** (the metrics exporter queries the instance-global view from the maintenance database). Only relevant when `postgresql.cnpg.queryStats.enabled` is set. **Only for clusters bootstrapped before query-stats was enabled** — fresh clusters create the extension automatically via the Cluster CR's `bootstrap.initdb.postInitSQL`, and it persists across restores. (The operator now supports `Database.spec.extensions`, which could reconcile it declaratively on existing clusters instead.)
+
+## When to run
+
+- **Once per env, immediately after the CNPG `Cluster` reports `phase: Cluster in healthy state`** — the cluster has bootstrapped its primary, ESO has synced the managed-role password Secrets, and CNPG has created the roles themselves. Web runtime grants are part of the managed CNPG migration Job; the processor's `oban_jobs` grants only make sense after the first Ecto migration, so run the SQL files *after* the migration Job ran for the first time too.
+- **After a fresh cluster restore from a backup** — `pg_basebackup`-style restores re-create role objects but not the per-table GRANT state, so the SQL re-runs are needed.
+
+The files use `GRANT … TO <role>` against pre-existing tables and roles, so re-running them on an existing cluster is a no-op outside of explicit grant changes.
+
+## Managed web runtime role cutover
+
+Managed CNPG deployments use an explicit least-privilege steady state:
+migration jobs use the CNPG owner Secret, server pods use the `tuist_web`
+runtime role Secret, and migrations grant `tuist_web` after schema changes by
+setting `TUIST_DATABASE_RUNTIME_ROLE`.
+
+Before deploying this setting to an environment, confirm ESO has synced
+`WEB_DATABASE_PASSWORD` and CNPG has reconciled the managed role Secret. For a
+brand-new managed environment, provision the web-role Secret before switching
+`server.managedSecrets` with `postgresql.mode: cnpg`, otherwise the server
+Deployment and migration Job will reference a role that is not ready yet.
+
+## How to run
+
+The cluster's `postgres` superuser Secret (`<cluster-name>-superuser`) is generated by CNPG and only readable by an operator with `secrets/get` on the cluster's namespace. The `kubectl-cnpg` plugin gives you a one-liner that opens a psql session as that superuser inside an ephemeral pod on the cluster's network:
+
+```bash
+ENV=staging  # or canary | production
+NAMESPACE=tuist-$ENV
+CLUSTER=tuist-tuist-pg
+TUIST_SCHEMA=public
+
+# -d tuist switches psql to the application database that CNPG creates
+# via `bootstrap.initdb.database`. The maintenance database (`postgres`)
+# the cluster's superuser defaults to does not have the application's
+# schema, so GRANTs against `oban_jobs`/`accounts`/`projects` need the
+# right -d on the psql side. `tuist_schema` should match the chart's
+# `postgresql.schema` value.
+kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d tuist -v "tuist_schema=$TUIST_SCHEMA" -f - \
+  < infra/cnpg/tuist-processor-grants.sql
+
+kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d tuist -v "tuist_schema=$TUIST_SCHEMA" -f - \
+  < infra/cnpg/tuist-swift-registry-sync-grants.sql
+
+kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d tuist -v "tuist_schema=$TUIST_SCHEMA" -f - \
+  < infra/cnpg/tuist-ops-ro-grants.sql
+
+# pg_stat_statements is instance-global and the metrics exporter reads it
+# from the maintenance database, so this one runs against `postgres`, not
+# `tuist`. Only needed where postgresql.cnpg.queryStats.enabled is set.
+kubectl cnpg psql -n "$NAMESPACE" "$CLUSTER" -- -d postgres -f - \
+  < infra/cnpg/pg-stat-statements.sql
+```
+
+Each file ends with a sanity-check `SELECT … information_schema.role_table_grants …` query that prints the exact privilege set the role holds after the run. A clean run shows write privileges on the Oban tables and read-only privileges on the lookup tables the processors use.
+
+Bazel profile processing also needs `SELECT` on `bazel_profile_uploads` and
+column-scoped `UPDATE` on `compressed`, `state`, `error`, and `updated_at`.
+A missing grant prevents both reading the staged body and recording a terminal
+failure, so an upload can remain `pending` after its Oban job is discarded.
+After deploying the grant correction, retry only the affected
+`Tuist.Bazel.Workers.ProcessProfileWorker` jobs whose uploads are still pending
+with compressed bytes. The worker can then publish the existing profile; there
+is no need to rerun those builds. Grant reconciliation does not retry discarded
+jobs automatically. Verify both a processed upload and published ClickHouse
+profile/step rows after recovery.
+
+The `tuist_swift_registry_sync` role's grants are applied at migrate time by `Tuist.Release.migrate` (keyed by `TUIST_DATABASE_SWIFT_REGISTRY_SYNC_ROLE`, passed by the migration job), the same way the runtime and processor roles are handled, so a normal deploy grants them and no manual step is needed. This file is the re-runnable fallback for a fresh cluster or a backup restore where migrations haven't run yet; keep it in sync with `Release.swift_registry_sync_role_grant_statements/3` (a test enforces this).
+
+## Why not an Ecto migration
+
+Three reasons: `CREATE ROLE` is superuser-only, role state is infra rather than app schema, and CNPG's declarative role surface keeps the operator-driven path open. CNPG also offers `bootstrap.initdb.postInitApplicationSQL` for SQL to run on the very first cluster bootstrap, but it only fires once and never re-runs (e.g., not on a backup restore), so we keep the grants in a re-runnable file instead of inlining them in the `Cluster` CR.
+
+## Connection pooler (PgBouncer)
+
+The chart can put a CNPG `Pooler` (PgBouncer) in front of the cluster's primary, gated on `postgresql.cnpg.pooler.enabled` (off by default). The managed deployment routes the Linux build processors, macOS xcresult processors, and Swift registry sync consumer through it in **transaction mode**, matching their `prepare: :unnamed` connection shape.
+
+### Why the web tier is not pooled
+
+The web pods run Oban, whose PG notifier (LISTEN/NOTIFY) and Postgres-peer leader election (session advisory locks) do not survive **transaction** pooling. They do survive **session** pooling, so the constraint is specifically transaction mode, not pooling in general.
+
+CNPG's `-rw` Service is already a native session endpoint with primary failover built in, so the web tier connects straight to it. Adding a session-mode PgBouncer in front would skip no work (session pooling holds ~one backend per client connection) and would duplicate what `-rw` already does. The web tier's connection budget is therefore sized at the cluster via `max_connections`, not by a pooler.
+
+### Activation
+
+No manual SQL bootstrap is needed. The chart's `Pooler` does not set custom certificate secrets, so CNPG's built-in PgBouncer integration manages authentication itself: on reconcile it creates the `cnpg_pooler_pgbouncer` role and the `user_search` lookup function in the **`postgres`** database, issues the pooler's TLS certificate, and configures PgBouncer with `auth_user = cnpg_pooler_pgbouncer` and `auth_dbname = postgres`. (Providing custom cert secrets would *disable* that built-in integration and hand you full responsibility for auth — so don't.)
+
+To activate:
+
+1. Set `postgresql.cnpg.pooler.enabled: true` in the env values and deploy.
+2. CNPG creates the `<cluster>-pooler-rw` Deployment + Service. Wait for the pooler pods to be Ready.
+3. Confirm the processor reconnected — its `DATABASE_URL` now resolves to `-pooler-rw`.
+
+There is no separate cluster-bootstrap step, so this is safe to flip on an existing cluster; the processor briefly retries its connection while the pooler pods come up, then settles.
+
+### Canary rollout backend budget
+
+Canary sets `max_connections: "300"` locally; production and self-hosted defaults
+are unchanged. The two web pods keep direct pools of 30. During one fixed-size
+rollout, both old pods can retain those pools throughout their 60-second
+termination grace period while both replacements connect: 4 × 30 = 120.
+Kubernetes excludes terminating pods from the surge limit, so neither counting
+only the three non-terminating pods allowed by `maxSurge: 1` nor switching to
+`maxSurge: 0` is a sufficient backend budget.
+
+PgBouncer's `default_pool_size: "20"` applies **per database/user pair, per
+process**, not across the pooler. Canary has these pairs:
+
+- `tuist/tuist_processor`, shared by Linux and xcresult processors. Include the
+  desired xcresult consumer even when its pod is Pending.
+- `tuist/tuist_swift_registry_sync`, the independent registry sync role.
+- `postgres/cnpg_pooler_pgbouncer`, CNPG's authentication lookup pool.
+
+Budget the full 20 for each pair, including authentication bursts and backend
+connections retained after consumer replacements. The one-instance pooler's
+own rolling replacement can overlap two PgBouncer processes: 2 × 3 × 20 = 120.
+`reserve_pool_size` is disabled; `max_client_conn: "200"` only limits client
+admission and must not be treated as a PostgreSQL backend cap.
+
+The resulting allowance is 120 direct + 120 pooled + 30 operational reserve =
+270, leaving 30 spare below 300. The operational reserve covers other direct
+users, notifier/leader session overhead across versions, migrations,
+admin/monitoring connections and PostgreSQL's reserved slots. Current Oban
+uses the Erlang PG notifier and repository-backed peer election, so those
+features do not themselves open extra dedicated PostgreSQL pools.
+This is a conservative allowance, not a measured simultaneous peak or a
+guarantee for repeated overlapping rollouts, extra database/user pairs, or
+unbounded operator sessions. Rebudget when those assumptions change.
+
+Keep the existing application pool sizes and zero-unavailable web strategy:
+reducing checkout capacity can compete with web-local Oban work, and disabling
+surge does not wait for old pools to close. Raising the database admission
+ceiling instead permits more backend memory and concurrent work on the same
+8 GiB / 2 CPU instance; it is not a throughput increase. `work_mem` is per
+operation, so 300 simultaneously busy connections are not a safe load target.
+Synchronous `ANY 1` replication with `dataDurability: required` is unchanged.
+The existing `helm:server-rollout` regression checks the merged rendered budget.
+
+**Apply the initial correction database-first, before the normal application
+deployment.** A normal Helm upgrade is not a readiness barrier: its blocking
+`pre-upgrade` migration hook uses the old limit before updating the Cluster,
+and web replacements can start before CNPG finishes applying the new limit.
+
+1. Obtain human approval/elevation for the database-only canary change and
+   schedule a write interruption. Increasing `max_connections` requires a
+   PostgreSQL restart. With two instances and required `ANY 1` replication,
+   commits wait while the only standby restarts, in addition to the primary
+   switchover interruption. Do not weaken synchronous durability to avoid it.
+2. Apply only the CNPG `max_connections: "300"` parameter change, leaving
+   application workloads unchanged. Let CNPG complete its standby restart and
+   primary switchover.
+3. Wait for both instances to be healthy, with replication restored and no
+   restart pending. Verify the effective `max_connections` is 300 on **both**
+   instances before starting the normal application deployment.
+4. During that rollout, check for `53300` and pooler authentication rejections,
+   confirm old web connections drain, and check backend memory, active sessions
+   and checkout queues remain healthy.
+
+This correction does not address production DB-volume stalls.
+
+### Client connections through Tailscale
+
+The macOS xcresult processors reach PgBouncer through a Tailscale operator
+proxy. The proxy's TCP connection to PgBouncer can survive a lost VM. TCP
+keepalives on that connection test the proxy, not the original VM, so they
+cannot by themselves bound how long an abandoned client occupies a slot.
+
+On September 7, 2026, production reached its 100-client limit during processor
+rollouts. One xcresult processor could not fetch Oban jobs from 19:36 to 19:52
+UTC. The pooler rejected new clients with `max_client_conn` until ten older
+connections from the Tailscale proxy closed together at 19:52:45. Sixty such
+connections were released in batches of ten by 21:46, returning the pooler to
+its normal 50 application clients plus the monitoring connection. These
+observations point to connections surviving earlier VM replacements; they do
+not establish a leak of Postgres backend connections.
+
+The managed common values apply two controls to staging, canary, and production:
+
+- `client_idle_timeout: "300"` closes clients after five minutes without
+  PostgreSQL protocol traffic. DBConnection's default one-second idle checks
+  call Postgrex's `Sync` ping, which refreshes PgBouncer's client activity
+  timestamp. Healthy idle pools therefore stay connected. PgBouncer skips
+  clients linked to a backend, including running queries and open transactions;
+  this is not a query or transaction timeout. A client that stops sending
+  traffic for five minutes outside a transaction must reconnect.
+- `max_client_conn: "200"` provides admission headroom while abandoned clients
+  age out and old/new consumers overlap. Production's normal topology has two Linux
+  processors, two xcresult processors, and one Swift registry sync consumer,
+  each with ten connections. The backend `default_pool_size` remains 20 per
+  database/user pair, and Postgres `max_connections` is unchanged. Increasing
+  the application pools or only increasing this admission limit would not
+  reclaim abandoned connections.
+
+These overrides are limited to managed environments. The base chart leaves
+the idle timeout disabled, since other clients may not send idle heartbeats.
+See [PgBouncer's timeout documentation](https://www.pgbouncer.org/config.html#client_idle_timeout)
+and the [1.25.1 client maintenance implementation](https://github.com/pgbouncer/pgbouncer/blob/pgbouncer_1_25_1/src/janitor.c#L376-L401).
+
+After deployment, verify the `Pooler` parameters, then observe a processor
+rollout: `cnpg_pgbouncer_lists_used_clients` should return near the steady-state
+baseline within five minutes of the old clients' last protocol traffic. Check
+PgBouncer logs for `client_idle_timeout` and absence of `max_client_conn`
+rejections, and confirm `process_xcresult` continues completing jobs. Sustained
+idle-timeout disconnects from live consumers indicate their heartbeat behavior
+needs investigation. To roll back, set the managed `client_idle_timeout` to
+`"0"`; the client admission limit can be reverted independently.
+
+## Password rotation
+
+```bash
+ENV=staging   # or canary | production
+ROLE=tuist_processor  # or tuist_ops_ro
+
+NEW_PW="$(openssl rand -base64 32 | tr -d '/+=')"
+op item edit "op://tuist-k8s-$ENV/$(echo "$ROLE" | tr '[:lower:]' '[:upper:]')_PASSWORD" password="$NEW_PW"
+
+# Force ESO to re-sync before CNPG's next reconcile, otherwise the
+# rotation takes up to `refreshInterval` to land.
+kubectl -n tuist-$ENV annotate externalsecret \
+  tuist-tuist-pg-$ROLE force-sync=$(date +%s) --overwrite
+```
+
+CNPG sees the updated Secret on its next reconcile and runs `ALTER ROLE … PASSWORD …` itself; no manual psql step.
+
+## Backup configuration
+
+Continuous WAL archiving + daily 03:00 UTC base backups, both targeting the per-env Tigris bucket (`tuist-{stag,can,prod}-pg-backups`). Retention is 30 days; older base backups (and the WALs they pin) are pruned by barman on the next backup run.
+
+The Tigris key used for backups is **separate** from the workload's `S3_CREDENTIALS` — a dedicated `S3_BACKUP_CREDENTIALS` item per env, scoped to the env's backup bucket only. Rotate it independently from the workload key.
+
+Restore-validation drill, automated by
+[`.github/workflows/cnpg-restore-drill.yml`](../../.github/workflows/cnpg-restore-drill.yml)
+(weekly + on-demand per env; also run it by hand before any operation that
+depends on backups being usable). It builds a one-shot recovery `Cluster` that
+replays from the archive, checks the restored data + schema against live, then
+deletes it (and its PVCs). Recover through `externalClusters[].plugin`, reusing
+the `ObjectStore` CR the chart already renders in the namespace. `serverName` is the original cluster name (the archive
+prefix), `barmanObjectName` is the rendered store (`tuist-tuist-pg-backup-store`
+for the main cluster, `tuist-ops-pg-backup-store` for tuist-ops):
+
+```yaml
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: tuist-tuist-pg-restore-check
+  namespace: tuist-staging
+spec:
+  instances: 1
+  storage:
+    size: 100Gi            # >= the source cluster's storage
+  bootstrap:
+    recovery:
+      source: source
+  externalClusters:
+    - name: source
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: tuist-tuist-pg-backup-store
+          serverName: tuist-tuist-pg
+```
+
+Apply the manifest, wait for `phase: Cluster in healthy state`, run the
+validation queries, then `kubectl delete cluster` it. Backup state shows in the
+`ObjectStore`/`Cluster` status.
+
+## Operator version & upgrade path
+
+The CNPG operator version is pinned by the `cloudnative-pg` dependency in
+[`infra/helm/platform/Chart.yaml`](../helm/platform/Chart.yaml). Production runs
+operator **1.29.1** (chart `0.28.3`), the latest supported line. The chart
+version and the operator `appVersion` are separate numbers; the authoritative
+map is the upstream Helm index (<https://cloudnative-pg.io/charts/index.yaml>,
+or `helm search repo cloudnative-pg --versions`). The platform chart is
+re-applied by the `platform-install` deploy job, so bumping that pin upgrades
+the operator on the next deploy.
+
+For that to happen on merge, `infra/helm/platform/` must be in the
+`deployable-changed` path filter in
+[`.github/workflows/server-production-deployment.yml`](../../.github/workflows/server-production-deployment.yml).
+That filter gates the `build` job, which the whole canary -> acceptance ->
+production cascade depends on. A change to a path outside the filter skips
+`build` and therefore skips every deploy job, so the run goes green without ever
+reaching a cluster. If a platform-only bump ever merges without deploying, check
+that this path is still in the filter.
+
+Upgrade one minor at a time — CNPG only supports sequential N->N+1 upgrades,
+not skips (<https://cloudnative-pg.io/docs/current/installation_upgrade/>). Bump
+the chart pin by one minor, merge, and let it deploy via `platform-install`.
+
+Keep the operand Postgres image (`postgresql.cnpg.image.tag`) pinned and out of
+the operator-bump PR: CNPG's admission webhook rejects changing the image and
+`postgresql.parameters` in the same apply, and a fixed operand makes the bump a
+clean instance-manager-only roll.
+
+### What an operator bump does to a running cluster
+
+Upgrading the operator triggers a rolling update of every CNPG cluster it
+manages, one instance at a time, ending in a primary switchover governed by
+`primaryUpdateStrategy` (currently `unsupervised`, the CNPG default, so the
+switchover completes automatically). With synchronous replication the promotion
+is fast and lossless (RPO 0); the write path sees a few seconds of dropped
+connections and errors during the switchover. Because the operator is
+cluster-wide, a bump on the production cluster rolls every cluster it manages:
+the main `tuist` cluster, `tuist-ops`, and any single-instance cluster still in
+the fleet. A single-instance cluster takes a brief restart rather than a
+switchover, since it has no replica to fail over to.
+
+Merge an operator-bump PR at the start of a low-traffic window wider than the
+deploy lag (the prod step runs after the canary deploy and acceptance tests, so
+roughly 20-40 min after merge), so the switchover lands inside the quiet period.
+
+In-tree `barmanObjectStore` backups (the operator's native path, deprecated
+since 1.26) are no longer rendered; every cluster backs up through the Barman
+Cloud Plugin.
+
+## Single-instance clusters deadlock node drains
+
+**A single-instance CNPG cluster on a drainable node will eventually wedge a
+CAPI Machine deletion forever.** Treat two instances as the floor for any
+cluster scheduled on a pool CAPI rolls, however small its data.
+
+CNPG gives every cluster a `<cluster>-primary` PodDisruptionBudget with
+`minAvailable: 1` selecting `cnpg.io/instanceRole: primary`. With one instance
+the primary is the only pod, so:
+
+```
+currentHealthy=1 desiredHealthy=1 expectedPods=1 disruptionsAllowed=0
+```
+
+`disruptionsAllowed` is structurally 0 and no eviction can ever succeed. The
+operator does try. It logs `Primary is running on an unschedulable node, will
+try switching over` and then `no valid candidates`, but with nowhere to
+promote, it cannot clear the budget itself. The ClusterClass sets
+`nodeDrainTimeoutSeconds: 0` so a drain never kills a customer's in-flight CI
+job, which means nothing else breaks the tie either. `tuist-md-processor` sat
+in this state for 14 days from 2026-07-31.
+
+Two instances is enough, and the threshold is worth knowing precisely: CNPG
+only emits the second, replica-scoped `<cluster>` PDB once there are at least
+two replicas (three instances). At two instances the demoted old primary is
+covered by no PDB at all, so the drain proceeds. At three the replica PDB
+allows one disruption, which also works. One is the only broken count.
+
+Audit the fleet by counting instance pods. Any cluster with a count of 1 is a
+latent drain deadlock:
+
+```bash
+kubectl get pods -A -l cnpg.io/podRole=instance \
+  -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.labels.cnpg\.io/cluster}{"\n"}{end}' \
+  | sort | uniq -c
+```
+
+Count pods (or read `spec.instances`), **not** PDBs. The PDB shape does not
+distinguish the broken case: a healthy two-instance cluster also has only a
+`<cluster>-primary` row with `ALLOWED=0`, because the replica-scoped PDB does
+not appear until three instances. `ALLOWED=0` on the primary budget is normal
+at every instance count and is not by itself a fault.
+
+Reading the `Cluster` CR and instance pods is available through the normal
+`view` tier. A manual promotion needs the write tier; follow the
+[controlled switchover runbook](../k8s/onboarding.md#controlled-cnpg-switchover).
+
+## Backup: Barman Cloud Plugin
+
+Backups run through the Barman Cloud Plugin (CNPG-I): an `ObjectStore` CR holds
+the bucket config, the `Cluster` references it through `.spec.plugins` for WAL
+archiving, and a `ScheduledBackup` with `method: plugin` takes the daily base
+backup (03:00 UTC). Value keys: the main server uses
+`postgresql.cnpg.backup.plugin.*`; tuist-ops uses `postgresql.backup.plugin.*`.
+
+**The plugin is installed on every cluster by the platform deploy.** It's a
+dependency of the platform chart (`plugin-barman-cloud`, pinned in
+[`infra/helm/platform/Chart.yaml`](../helm/platform/Chart.yaml), toggled by
+`plugin-barman-cloud.enabled`). As a subchart of the `platform` release it lands
+in the `platform` namespace alongside the operator, which is where the plugin
+must run. Bump it like any other platform dependency: edit the pin and redeploy.
+It needs cert-manager (already a platform dependency) and adds the
+`objectstores.barmancloud.cnpg.io` CRD, the `platform-plugin-barman-cloud`
+Deployment (release-prefixed as a subchart), a Service, and self-signed mTLS
+Certificates.
+
+**Archive continuity:** `serverName` is pinned to the cluster name and the
+`ObjectStore` uses the same `destinationPath` + credentials, so the plugin reads
+and writes one continuous `s3://…/<serverName>` archive; recovery replays the
+whole history. Confirm health from a primary pod's `plugin-barman-cloud` sidecar
+logs: `Archived WAL file` for the WAL stream, `Backup completed` for the daily
+base backup.
+
+**Observability:** the plugin reports backup freshness via
+`barman_cloud_cloudnative_pg_io_*`. The operator's `cnpg_collector_*` backup
+timestamps do NOT track plugin backups, so point backup panels and alerts at the
+`barman_cloud_*` series.
+
+## Decommissioning a cluster
+
+Deleting the `Cluster` CR deletes the Pods, Services, and PVCs the operator
+owns. It does **not** delete the underlying Hetzner Cloud Volume:
+`hcloud-volumes` sets `reclaimPolicy: Retain` deliberately
+([`infra/k8s/mgmt/bootstrap/hcloud-csi-values.yaml`](../k8s/mgmt/bootstrap/hcloud-csi-values.yaml)),
+so the PV outlives its PVC in `Released` and the volume stays allocated and
+billed. The `released-pv-reaper` CronJob
+([`infra/helm/tuist/templates/released-pv-reaper.yaml`](../helm/tuist/templates/released-pv-reaper.yaml))
+exists for exactly this, but it ships `dryRun: true` and no environment
+overrides it today, so it only logs. Until an environment arms it, the volume
+has to be deleted by hand.
+
+Split it in two. Phase 1 removes the workload and is data-preserving, because
+`Retain` keeps the volume whatever happens to the PVC. Phase 2 destroys the
+data and can wait as long as you like; a stranded 10Gi volume costs well under
+a euro a month, so there is never a reason to rush it.
+
+Phase 1, under an active `/elevate <env>` write elevation:
+
+1. Confirm the data is disposable, or take a final base backup. A Cluster whose
+   Pod has never started cannot be backed up at all, so decide before deleting.
+2. `kubectl delete cluster.postgresql.cnpg.io <name> -n <ns>`. The operator
+   removes the Pods, Services, and PVCs it owns.
+
+Phase 2, whenever you are satisfied nothing missed it:
+
+3. `hcloud volume delete <id>` in the `tuist-workloads` project.
+
+Find the volume by the labels the CSI driver stamps on it rather than through
+the PV, which is what the earlier version of this runbook suggested:
+
+```bash
+hcloud volume list -l pvc-namespace=<ns>,pvc-name=<pvc>
+```
+
+That indirection is not cosmetic. `persistentvolumes` is cluster-scoped and
+readable by **no** tier here, elevated or not: it is absent from
+`tuist-view-infra-read` and from the CNPG roles added in
+[#12445](https://github.com/tuist/tuist/pull/12445). So `kubectl get pv` fails
+even mid-decommission, and the `hcloud` labels are the only route to the
+handle. The orphaned PV object is left behind for `released-pv-reaper` or an
+admin; it is inert once its volume is gone.
+
+Namespaces are likewise not deletable from the write tier, so a retired cluster
+leaves an empty namespace for an admin to sweep.
+
+### The orphaned `registry` namespace (worked example, completed)
+
+`registry/registry-pg` was decommissioned on 2026-08-19 by the steps above. It
+was created on 2026-06-15 by a standalone `registry` chart that moved the
+registry's Oban journal from SQLite onto CloudNativePG. Two days later the sync
+workers moved to the server under `TUIST_MODE=registry_sync`, the registry app
+became a stateless read frontend with no Repo, and the commit that did it also
+deleted the chart's `cnpg-cluster.yaml`. Neither that chart nor its removal
+ever landed on `main` (the registry moved into the `tuist` chart's
+`registry-*` templates in the `tuist` namespace instead), so nothing ran
+`helm upgrade` or `helm uninstall` against the old release again. Its
+`Cluster`, three Services, and PVC were left running in a namespace no chart
+owns.
+
+Its Pod sat `Pending` from 2026-07-06, when the node its volume was pinned to
+was destroyed, until the deletion: six weeks serving nothing, with no
+consequence and no alert. Nothing depended on the data. The registry's source
+of truth is its Tigris bucket, and the only migration ever run against that
+Postgres was `Oban.Migrations.up(version: 13)`, so the database held a job
+queue and no application tables at all.
+
+The generalisable part is how it stayed invisible. A Helm release deployed from
+a branch that never merged leaves objects no chart on `main` renders, so no
+deploy can ever prune them and no `helm uninstall` is ever run. Nothing owned
+them, nothing reconciled them, and their Services reported zero endpoints
+rather than an error. Worth grepping the live clusters for namespaces no chart
+owns; this was the third single-instance CNPG cluster found this way.
+
+### How the volume ended up unschedulable
+
+The PVC's `volume.kubernetes.io/selected-node` named an OVH bare-metal kura
+node, which should never have been a candidate for an `hcloud-volumes` PVC.
+It was, because `hcloud-csi-node` still ran there: the DaemonSet's node
+affinity excluded non-Hetzner pools by enumerating pool names, and the list
+only covered the pools that existed when each entry was written. With the
+driver registered on that node, the scheduler treated it as a valid
+`selected-node` for a `WaitForFirstConsumer` claim and the provisioner bound a
+location-pinned Hetzner volume behind a Pod that could only ever run off
+Hetzner. The volume was provisioned in Hetzner `ash`, a location the cluster
+has no nodes in at all, which is why the replacement Pod could never satisfy
+its node affinity: the scheduler reported the five untainted `fsn1` workers as
+failing it.
+
+That enumeration bug is already fixed — `hcloud-csi-values.yaml` now excludes
+by provider label (`node.cluster.x-k8s.io/instance-type NotIn [ovh, dedibox,
+scaleway]`) so a new region on an existing provider needs no edit — but the fix
+landed on 2026-07-03, after this volume was bound on 2026-06-16. The stranded
+PVC is residue from the window before it, not a live misconfiguration.

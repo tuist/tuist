@@ -1,20 +1,12 @@
 defmodule Tuist.GitHub.Releases do
   @moduledoc ~S"""
-  This module provides functionality to fetch and manage information about the latest CLI release
-  of Tuist from GitHub. It uses a GenServer to periodically fetch and cache the release data,
-  ensuring that the information is up-to-date while minimizing API calls.
-
-  The module offers the following main features:
-  - Fetches the latest CLI and App release information from the Tuist GitHub repository
-  - Caches the release data and refreshes it periodically
-  - Provides a function to retrieve the latest CLI release information
-
-  The GenServer runs with a 1-hour refresh interval, balancing between having recent data
-  and avoiding excessive API requests to GitHub.
+  Fetches and caches the latest Tuist App release from GitHub, used to surface
+  the macOS app download in the dashboard. Results are cached with a 1-hour TTL
+  to minimize API calls.
   """
 
   alias Tuist.GitHub.Retry
-  alias Tuist.KeyValueStore
+  alias Tuist.Marketing.ReleaseMetadata
 
   require Logger
 
@@ -25,65 +17,18 @@ defmodule Tuist.GitHub.Releases do
     @releases_url
   end
 
-  def get_latest_cli_release(opts \\ []) do
-    if Tuist.Environment.dev?() do
-      nil
-    else
-      update_if_needed = Keyword.get(opts, :update_if_needed, true)
-
-      releases =
-        if update_if_needed do
-          fetch_releases(opts)
-        else
-          [__MODULE__, "github_releases"] |> KeyValueStore.get() |> List.wrap()
-        end
-
-      case Enum.find(releases, fn release ->
-             not String.contains?(release["name"], "@")
-           end) do
-        nil -> nil
-        release -> map_release(release)
-      end
-    end
-  end
-
   def get_latest_app_release(opts \\ []) do
     if Tuist.Environment.dev?() do
       nil
     else
-      KeyValueStore.get_or_update(
+      ReleaseMetadata.get_or_update(
+        :github,
         [__MODULE__, "github_latest_app_release"],
         [ttl: Keyword.get(opts, :ttl, @ttl)],
         fn ->
           fetch_latest_app_release()
         end
       )
-    end
-  end
-
-  defp fetch_releases(opts) do
-    KeyValueStore.get_or_update(
-      [__MODULE__, "github_releases"],
-      [ttl: Keyword.get(opts, :ttl, @ttl)],
-      fn ->
-        req_releases()
-      end
-    )
-  end
-
-  defp req_releases do
-    headers = github_auth_headers()
-    req_opts = [finch: Tuist.Finch, headers: headers] ++ Retry.retry_options()
-
-    case Req.get(releases_url(), req_opts) do
-      {:ok, %Req.Response{status: 200, body: releases}} ->
-        releases
-
-      {:ok, %Req.Response{status: status}} when status in 500..599 ->
-        []
-
-      {:error, _reason} ->
-        []
     end
   end
 
@@ -103,6 +48,7 @@ defmodule Tuist.GitHub.Releases do
   defp map_release(release) do
     %{
       name: release["name"],
+      tag_name: release["tag_name"],
       published_at: Timex.parse!(release["published_at"], "{ISO:Extended}"),
       html_url: release["html_url"],
       assets:
@@ -115,24 +61,49 @@ defmodule Tuist.GitHub.Releases do
 
   defp fetch_latest_app_release(opts \\ []) do
     url = Keyword.get(opts, :url, releases_url())
-    headers = github_auth_headers()
-    req_opts = [finch: Tuist.Finch, headers: headers] ++ Retry.retry_options()
 
-    case Req.get(url, req_opts) do
-      {:ok, %Req.Response{status: 200, body: releases, headers: headers}} ->
-        next_url = extract_next_url(headers)
-
-        releases = Enum.map(releases, &map_release/1)
-
+    case release_page(url, opts) do
+      %{releases: releases, next_url: next_url} ->
         case find_app_release_from_releases(releases) do
           nil when next_url != nil ->
-            fetch_latest_app_release(url: next_url)
+            fetch_latest_app_release(Keyword.put(opts, :url, next_url))
 
           result ->
             result
         end
 
+      nil ->
+        nil
+    end
+  end
+
+  defp release_page(url, opts) do
+    ReleaseMetadata.get_or_update(
+      :github_page,
+      [__MODULE__, "github_releases_page", url],
+      [ttl: Keyword.get(opts, :ttl, @ttl)],
+      fn ->
+        fetch_release_page(url)
+      end
+    )
+  end
+
+  defp fetch_release_page(url) do
+    headers = github_auth_headers()
+    req_opts = [finch: Tuist.Finch, headers: headers] ++ Retry.retry_options()
+
+    case Req.get(url, req_opts) do
+      {:ok, %Req.Response{status: 200, body: releases, headers: headers}} ->
+        %{
+          releases: Enum.map(releases, &map_release/1),
+          next_url: extract_next_url(headers)
+        }
+
       {:ok, %Req.Response{status: status}} when status in 500..599 ->
+        Logger.error("Failed to fetch GitHub releases, status: #{status}")
+        nil
+
+      {:ok, %Req.Response{status: status}} ->
         Logger.error("Failed to fetch GitHub releases, status: #{status}")
         nil
 
@@ -144,7 +115,7 @@ defmodule Tuist.GitHub.Releases do
 
   defp find_app_release_from_releases(releases) do
     Enum.find(releases, fn release ->
-      String.contains?(release.name, "app@") and
+      String.starts_with?(release.tag_name, "app@") and
         Enum.find(release.assets, &String.ends_with?(&1.browser_download_url, "dmg"))
     end)
   end

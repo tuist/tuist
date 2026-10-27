@@ -2,7 +2,7 @@
 title: Security
 description: This page outlines our security practices, how to report vulnerabilities, and the steps we take to safeguard our users and their projects.
 logo: /marketing/images/shared/soc2.webp
-last_updated: 2023-10-23
+last_updated: 2026-05-21
 ---
 
 At Tuist, we are deeply committed to ensuring the security of our tools and services. We understand that trust is fundamental, especially when it comes to tools that developers rely on to build high-quality software. This page outlines our security practices, how to report vulnerabilities, and the steps we take to safeguard our users and their projects.
@@ -38,7 +38,7 @@ If you discover a security vulnerability, we encourage you to report it to us re
 1. **Email**: Contact us at [contact@tuist.dev](mailto:contact@tuist.dev).
 2. **Details**: Provide a detailed description of the issue, including reproduction steps, screenshots, and relevant logs if applicable.
 
-We prioritize all security reports and work diligently to address them. Public acknowledgment is available for those who help secure Tuist, upon request.
+We prioritize all security reports and work diligently to address them. Valid reports can be publicly acknowledged on this page, upon request.
 
 ## Responsible disclosure policy
 We ask security researchers to:
@@ -46,12 +46,17 @@ We ask security researchers to:
 - Avoid actions that could compromise user data or disrupt services.
 
 ## Bug bounty program
-Tuist is working on introducing a bug bounty program to reward security researchers for identifying vulnerabilities. Stay tuned for updates on this initiative.
+Tuist does not currently run a paid bug bounty program. We still review responsible disclosures and can publicly acknowledge valid reports, upon request.
+
+## Security acknowledgments
+With their permission, we recognize security researchers who helped us improve Tuist through responsible disclosure:
+
+- Mohammad Zain
 
 ## Future enhancements
 Security is an ongoing priority at Tuist. We are committed to improving our security posture through:
 - Enhancing threat detection and response capabilities.
-- Expanding our bug bounty program to encourage broader participation.
+- Improving our vulnerability reporting and disclosure process over time.
 
 ## Contact us
 For general security inquiries, please email [contact@tuist.dev](mailto:contact@tuist.dev). We appreciate your contributions to maintaining a secure environment for our users.

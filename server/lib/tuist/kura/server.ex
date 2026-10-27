@@ -1,0 +1,427 @@
+defmodule Tuist.Kura.Server do
+  @moduledoc """
+  A Kura server allocated for a single account, in a single region.
+
+  Identity is `(account, region)`: an account can light up Kura in as
+  many regions as it needs, but only one server per region.
+
+  Lifecycle:
+
+      provisioning ⇄ failed
+            ↑         ↑
+            │  └→ active ┘
+            │       ↓ ↑
+            │  drain_pending
+            │       ↓
+            └── archived
+                      ↓
+                  destroying → destroyed
+
+  `status` is a **projection of observed cluster state**, not an
+  independently-mutated state machine. Postgres owns intent (which
+  region a server should exist in, the deployment history) and audit;
+  the backing `KuraInstance` owns observed runtime state. Every
+  reconciler tick re-derives `status` for present-intent servers from
+  `(latest deployment intent, observed image, endpoint readiness)` and
+  records the observation in `observed_image_tag` / `last_observed_at`.
+  Nothing pins a sticky `:failed`: a failed
+  deploy is recorded on the `kura_deployments` row (audit) and the
+  server `status` is whatever the next projection derives, so infra
+  recovery is reflected without an out-of-band retry. The deliberate
+  exception is a previously-serving server whose newer rollout failed:
+  it stays `:failed` while its old endpoint keeps serving, so traffic
+  is never trampled, until the cluster converges on the intended image.
+  See `Tuist.Kura.Reconciler`.
+
+  `:failed` → `:provisioning` is the operator Retry path for a
+  first-time deploy that never reached `:active`; the new deployment is
+  appended to the same row so the failure history stays attached.
+  `:destroyed` is reserved for operator-driven teardown.
+
+  `:drain_pending` and `:archived` are the demand-driven lifecycle
+  (`Tuist.Kura.Lifecycle`) and are outside the observation projection:
+  neither has an endpoint to probe, and an archived row has no backing
+  workload at all. In the public regions they are driven only by the archival
+  sweep, which owns its own clocks on `kura_account_region_lifecycles`. A
+  private runner-cache node has no lifecycle row: `Tuist.Kura.RunnerCache`
+  drains it when its region stops serving the account and holds teardown on
+  `drain_started_at`.
+
+  `url` and `current_image_tag` are populated when the server first
+  reaches `:active` and updated on subsequent successful deployments.
+
+  `provisioner_node_ref` is the opaque handle the provisioner returned
+  from `provision/3`. The control plane stores it untouched and hands
+  it back to the provisioner for `rollout/2` and `destroy/1`. For the
+  Kubernetes controller provisioner it's the KuraInstance name.
+
+  `storage_claim_size` is the claim this instance is built at: desired state,
+  folded into the manifest revision, so a value that changes reaches the cluster
+  on the next reconciler tick. It is written by the regions that size instances
+  from their account's plan (`Tuist.Kura.Regions.storage_governed?/1`), and null
+  on the regions that size every instance alike, which render the region's own
+  claim.
+
+  What it is deliberately *not* is a value re-derived on every render. The
+  bare-metal regions run a local-path storage class that cannot expand a claim,
+  so the only way to change one is to build the volumes again, and an instance
+  whose claim silently tracked its account would have that attempted under it
+  every time the account moved. So the value is set where the volumes are built
+  — provisioning, the cold return out of `:archived`, a warm handoff onto a
+  second instance — at the account's claim (`Tuist.Kura.PlacerClaims`), which
+  follows what the account's other instances are pinned at before its plan.
+
+  That makes it desired state with a narrow set of writers rather than an
+  observation: at rest it is what the volumes hold, and between a write and the
+  storage being rebuilt it is what they are about to hold.
+
+  Per-server install and update attempts live in `kura_deployments` via
+  `kura_server_id`. These rows are the deployment records the
+  provisioner later applies with its own rollout strategy.
+  """
+  use Ecto.Schema
+
+  import Ecto.Changeset
+
+  alias Tuist.Accounts.Account
+  alias Tuist.Kura.Deployment
+
+  @status_mappings [
+    provisioning: 0,
+    active: 1,
+    failed: 2,
+    destroying: 3,
+    destroyed: 4,
+    replicating: 5,
+    drain_pending: 6,
+    archived: 7
+  ]
+  @statuses Keyword.keys(@status_mappings)
+  # `:replicating` sits between `:provisioning` and `:active`: the workload is up
+  # on the desired image but its public endpoint is not serving yet because the
+  # pod is still replicating from mesh peers behind the backfill readiness gate.
+  #
+  # `:drain_pending` and `:archived` are the demand-driven lifecycle's two
+  # states (see `Tuist.Kura.Lifecycle`). An active instance whose account has
+  # not asked for cache in its inactivity window enters `:drain_pending`, which
+  # unpublishes the endpoint and waits out the drain window; if demand returns
+  # before teardown it goes straight back to `:active`, otherwise it reaches
+  # `:archived`. Archival is not destruction: `:archived -> :provisioning` is
+  # the cold return the next cache demand triggers, on the same row, because
+  # the partial uniqueness index still counts an archived row as owning
+  # `(account, region)`.
+  @allowed_status_transitions %{
+    provisioning: [:provisioning, :replicating, :active, :failed, :destroying],
+    replicating: [:replicating, :provisioning, :active, :failed, :destroying],
+    active: [:active, :replicating, :failed, :destroying, :drain_pending],
+    failed: [:failed, :provisioning, :replicating, :active, :destroying],
+    drain_pending: [:drain_pending, :active, :archived, :destroying],
+    archived: [:archived, :provisioning, :destroying],
+    destroying: [:destroying, :destroyed],
+    destroyed: [:destroyed]
+  }
+  @image_tag_format ~r/\A[A-Za-z0-9_][A-Za-z0-9_.-]*\z/
+  @image_tag_message "must be a valid OCI image tag like sha-abcdef123456, latest, or 0.5.2"
+  @provisioner_node_ref_format ~r/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
+  @provisioner_node_ref_message "must come from an account handle and region that produce a valid Kubernetes RFC1123 label"
+  @storage_claim_size_format ~r/\A[1-9][0-9]*(Ki|Mi|Gi|Ti)?\z/
+  @storage_claim_size_message "must be a Kubernetes storage quantity like 24Gi"
+
+  @primary_key {:id, :binary_id, autogenerate: true}
+  schema "kura_servers" do
+    field :region, :string
+    field :status, Ecto.Enum, values: @status_mappings, default: :provisioning
+    field :url, :string
+    field :current_image_tag, :string
+    field :provisioner_node_ref, :string
+
+    # Warm-handoff move phase (see `Tuist.Kura.move_server/2`). `:none` is the
+    # steady-state server and owns the customer host; `:moving_in` is a target
+    # being warmed on a new box (no customer host yet); `:moving_out` is the
+    # former source draining after the target took over. Promotion is a single
+    # relabel — source `:none -> :moving_out`, target `:moving_in -> :none` — so
+    # the uniqueness index stays satisfied throughout and host ownership is
+    # simply `move_phase == :none`.
+    field :move_phase, Ecto.Enum, values: [none: 0, moving_in: 1, moving_out: 2], default: :none
+
+    # Pins a `:moving_in` target to the destination box (rendered as a
+    # `kubernetes.io/hostname` nodeSelector on the KuraInstance). Null on
+    # steady-state rows, which the scheduler bin-packs across the region's boxes.
+    field :target_node, :string
+
+    # The claim this instance is built at. Written where the volumes are built,
+    # not re-derived per render — see the module doc.
+    field :storage_claim_size, :string
+
+    # Observed-state projection. Written only by the reconciler from the
+    # backing KuraInstance, never by user actions: the image the cluster
+    # reports running and when it was last successfully observed.
+    field :observed_image_tag, :string
+    field :last_observed_at, :utc_datetime
+
+    # Observed-state projection too: the replication roles the kura-controller
+    # publishes for this instance's pods (`status.peerRoles`), one
+    # `%{"url" => ..., "gateway" => ...}` per pod, `url` being the pod's
+    # internal peer URL exactly as the controller renders its `KURA_NODE_URL`.
+    # Refreshed by the reconciler each tick it observes the instance, so the
+    # mesh view can publish roles from Postgres instead of reading each
+    # region's apiserver on the request path. Bounded staleness is one
+    # reconciler tick; roles are an optimisation over the local lowest-URL
+    # rule (kura/docs/replication-design.md §2.2), so a tick's lag costs
+    # nothing but a late role move.
+    field :peer_roles, {:array, :map}, default: []
+
+    # Readiness heartbeat: the reconciler stamps it each tick a private
+    # node-port server's endpoint is observable (the backing KuraInstance
+    # only publishes the endpoint for a ready primary pod). Dispatch
+    # treats a stale heartbeat as "not serving" and falls back to the
+    # public cache. Distinct from last_observed_at, which tracks the last
+    # image observation regardless of endpoint readiness.
+    field :last_ready_at, :utc_datetime
+
+    # Shared stable-host readiness, retaining the controller's observation time.
+    field :stable_endpoint, :map
+
+    # When the reconciler first saw the region template render a public host
+    # different from `url`. Set only while such a change is outstanding, and the
+    # clock the endpoint probe is held on so it cannot resolve the new host
+    # ahead of its DNS record.
+    field :public_host_drift_observed_at, :utc_datetime
+
+    # When the server last entered `:drain_pending`, cleared when the drain is
+    # cancelled or the server is archived. Runner-cache nodes have no lifecycle
+    # row, so this is the clock `Tuist.Kura.RunnerCache` holds teardown on.
+    field :drain_started_at, :utc_datetime
+
+    belongs_to :account, Account
+
+    has_many :deployments, Deployment, foreign_key: :kura_server_id
+
+    # Sub-second precision so deployments inserted in quick succession
+    # keep a deterministic order when listed.
+    # credo:disable-for-next-line Credo.Checks.TimestampsType
+    timestamps(type: :utc_datetime_usec)
+  end
+
+  def statuses, do: @statuses
+
+  def create_changeset(server \\ %__MODULE__{}, attrs) do
+    server
+    |> cast(attrs, [
+      :account_id,
+      :region,
+      :provisioner_node_ref,
+      :move_phase,
+      :target_node,
+      :storage_claim_size
+    ])
+    |> validate_required([:account_id, :region, :provisioner_node_ref])
+    |> validate_format(:provisioner_node_ref, @provisioner_node_ref_format, message: @provisioner_node_ref_message)
+    |> validate_length(:provisioner_node_ref, max: 53)
+    |> validate_storage_claim()
+    |> validate_change(:region, fn :region, value ->
+      if Tuist.Kura.Regions.exists?(value),
+        do: [],
+        else: [region: "is not a registered region"]
+    end)
+    |> foreign_key_constraint(:account_id)
+    |> unique_constraint([:account_id, :region, :move_phase],
+      name: :kura_servers_account_region_move_phase_active_index,
+      message: "an active Kura server already exists for this account and region"
+    )
+  end
+
+  def status_changeset(server, attrs) do
+    server
+    |> cast(attrs, [
+      :status,
+      :url,
+      :current_image_tag,
+      :provisioner_node_ref
+    ])
+    |> validate_status_and_image()
+  end
+
+  @move_phase_transitions %{
+    none: [:none, :moving_out],
+    moving_in: [:moving_in, :none],
+    moving_out: [:moving_out]
+  }
+
+  @doc """
+  Relabels a server's `move_phase` during a warm handoff (see
+  `Tuist.Kura.move_server/2`). The only forward transitions are the promotion
+  swap — source `:none -> :moving_out`, target `:moving_in -> :none` — so host
+  ownership (`move_phase == :none`) moves atomically from source to target and
+  the partial uniqueness index stays satisfied.
+  """
+  def move_changeset(server, attrs) do
+    server
+    |> cast(attrs, [:move_phase, :target_node])
+    |> validate_required([:move_phase])
+    |> validate_move_phase_transition()
+    |> unique_constraint([:account_id, :region, :move_phase],
+      name: :kura_servers_account_region_move_phase_active_index,
+      message: "an active Kura server already exists for this account and region"
+    )
+  end
+
+  defp validate_move_phase_transition(%Ecto.Changeset{} = changeset) do
+    from = changeset.data.move_phase || :none
+    to = get_field(changeset, :move_phase)
+
+    if to in Map.get(@move_phase_transitions, from, []) do
+      changeset
+    else
+      add_error(changeset, :move_phase, "cannot transition from #{from} to #{to}")
+    end
+  end
+
+  @doc """
+  Changeset for the demand-driven lifecycle transitions
+  (`Tuist.Kura.Lifecycle`). Archival has to clear the observation columns
+  alongside the status — an archived row has no pod to have observed — and a
+  cold return has to clear `current_image_tag` so the projection treats the
+  returning instance as a first install rather than as drift.
+  """
+  def lifecycle_changeset(server, attrs) do
+    server
+    |> cast(attrs, [
+      :status,
+      :url,
+      :current_image_tag,
+      :observed_image_tag,
+      :last_observed_at,
+      :last_ready_at,
+      :storage_claim_size,
+      :drain_started_at
+    ])
+    |> validate_storage_claim()
+    |> validate_status_and_image()
+    |> clear_stable_endpoint_on_lifecycle_reset()
+  end
+
+  defp clear_stable_endpoint_on_lifecycle_reset(changeset) do
+    if get_change(changeset, :status) in [:archived, :provisioning] do
+      put_change(changeset, :stable_endpoint, nil)
+    else
+      changeset
+    end
+  end
+
+  @doc """
+  Reconciler-only changeset for the observed-state projection. Casts
+  the derived `status` alongside the observation columns and the
+  activation outputs (`url`, `current_image_tag`). User-facing code
+  never builds this changeset.
+  """
+  def observation_changeset(server, attrs) do
+    server
+    |> cast(attrs, [
+      :status,
+      :url,
+      :current_image_tag,
+      :observed_image_tag,
+      :last_observed_at,
+      :last_ready_at
+    ])
+    |> validate_format(:observed_image_tag, @image_tag_format, message: @image_tag_message)
+    |> validate_length(:observed_image_tag, max: 128)
+    |> validate_status_and_image()
+  end
+
+  @doc "Reconciler-only changeset for the public-host drift clock."
+  def public_host_drift_changeset(server, attrs) do
+    cast(server, attrs, [:public_host_drift_observed_at])
+  end
+
+  @doc """
+  Reconciler-only changeset for the observed replication roles. Kept apart
+  from `observation_changeset/2` because the two are written on different
+  paths and neither should be able to blank the other's columns: the role
+  refresh must be able to record an empty list (the controller published
+  none) without touching `status`, and a status projection must not drop
+  roles it never read.
+
+  Entries that carry no URL name nothing a node could match a role to, so
+  they are dropped rather than stored as a role for an empty address.
+  """
+  def peer_roles_changeset(server, attrs) do
+    server
+    |> cast(attrs, [:peer_roles])
+    |> validate_required([:peer_roles])
+    |> update_change(:peer_roles, &normalize_peer_roles/1)
+    |> discard_unchanged_peer_roles()
+  end
+
+  # Normalisation runs after `cast/3`, so a list that only differed in key
+  # shape still reads as a change until it is compared again. Dropping it
+  # here keeps `Repo.update/1` a no-op for the steady state, where the
+  # reconciler re-reads the same roles every tick.
+  defp discard_unchanged_peer_roles(changeset) do
+    stored = changeset.data.peer_roles
+
+    case fetch_change(changeset, :peer_roles) do
+      {:ok, ^stored} -> delete_change(changeset, :peer_roles)
+      _ -> changeset
+    end
+  end
+
+  defp normalize_peer_roles(roles) when is_list(roles) do
+    Enum.flat_map(roles, fn role ->
+      case peer_role_url(role) do
+        url when is_binary(url) and url != "" -> [%{"url" => url, "gateway" => peer_role_gateway(role)}]
+        _ -> []
+      end
+    end)
+  end
+
+  defp normalize_peer_roles(roles), do: roles
+
+  defp peer_role_url(%{url: url}), do: url
+  defp peer_role_url(%{"url" => url}), do: url
+  defp peer_role_url(_role), do: nil
+
+  defp peer_role_gateway(%{gateway: gateway}), do: gateway == true
+  defp peer_role_gateway(%{"gateway" => gateway}), do: gateway == true
+  defp peer_role_gateway(_role), do: false
+
+  # Only the paths that create the instance's volumes write a claim, so a value
+  # that cannot be rendered is a bug at the point it is pinned rather than one to
+  # discover when the manifest is built.
+  defp validate_storage_claim(changeset) do
+    validate_format(changeset, :storage_claim_size, @storage_claim_size_format, message: @storage_claim_size_message)
+  end
+
+  defp validate_status_and_image(changeset) do
+    changeset
+    |> validate_required([:status])
+    |> validate_format(:current_image_tag, @image_tag_format, message: @image_tag_message)
+    |> validate_length(:current_image_tag, max: 128)
+    |> validate_active_fields()
+    |> validate_status_transition()
+  end
+
+  defp validate_active_fields(changeset) do
+    if get_field(changeset, :status) == :active do
+      validate_required(changeset, [:url, :current_image_tag])
+    else
+      changeset
+    end
+  end
+
+  defp validate_status_transition(%Ecto.Changeset{errors: errors} = changeset) do
+    if Keyword.has_key?(errors, :status) do
+      changeset
+    else
+      from = changeset.data.status || :provisioning
+      to = get_field(changeset, :status)
+
+      if to in Map.get(@allowed_status_transitions, from, []) do
+        changeset
+      else
+        add_error(changeset, :status, "cannot transition from #{from} to #{to}")
+      end
+    end
+  end
+end

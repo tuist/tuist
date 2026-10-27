@@ -24,7 +24,6 @@ defmodule TuistWeb.Utilities.SHA do
       iex> TuistWeb.Utilities.SHA.format_commit_sha("")
       "None"
   """
-  @spec format_commit_sha(String.t() | nil) :: String.t()
   def format_commit_sha(nil), do: "None"
   def format_commit_sha(""), do: "None"
 

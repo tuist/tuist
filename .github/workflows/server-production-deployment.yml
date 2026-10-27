@@ -4,164 +4,1829 @@ on:
   push:
     branches:
       - main
-    paths:
-      - server/**
-      - .github/workflows/server-production-deployment.yml
-      - server/pnpm-lock.yaml
-
+    paths-ignore:
+      - cli/**
+      - mise/tasks/cli/**
+      - mise/utilities/install_static_linux_sdk.sh
+      - .github/workflows/cli-release.yml
+      - .github/workflows/cli-build-publish.yml
+      - app/**
+      - grafana-datasource/**
+      - mise/tasks/app/**
+      - Package.swift
+      - Package.resolved
+      - .xcode-version-releases
+      # Components with their own release workflows (extracted from this
+      # pipeline) so a change to them alone does not spin up the monorepo run.
+      - cache/**
+      - gradle/**
+      - skills/**
+      - infra/hetzner-robot-controller/**
+      - infra/mdm/**
+      - infra/helm/mdm/**
+      - infra/runner-image/**
+      - .github/workflows/cache-release.yml
+      - .github/workflows/gradle-release.yml
+      - .github/workflows/noora-release.yml
+      - .github/workflows/skills-release.yml
+      - .github/workflows/hetzner-robot-controller-release.yml
+      - .github/workflows/mdm-deployment.yml
+      - .github/workflows/runner-image-release.yml
+      # Server + Kura publishing lives in dedicated workflows now
+      # (canary / RC / promote channels), so changes to those files or
+      # their per-component release plumbing must not respin the deploy
+      # cascade here.
+      - .github/workflows/server-release.yml
+      - .github/workflows/server-rc.yml
+      - .github/workflows/server-promote.yml
+      - .github/workflows/server-build-publish.yml
+      - .github/workflows/kura-release.yml
+      - .github/workflows/kura-rc.yml
+      - .github/workflows/kura-promote.yml
+      - .github/workflows/kura-build-publish.yml
+      - mise/tasks/server/**
+      - mise/tasks/kura/**
+      # Management-cluster state has its own apply workflow and must not
+      # redeploy the customer-facing server.
+      - infra/k8s/clusters/**
+      - infra/k8s/mgmt/**
+      - .github/workflows/mgmt-cluster-apply.yml
+      # Documentation edits do not change a deployable server artifact.
+      - infra/helm/k8s-monitoring/**/*.md
+  # Dispatched by runner-image-release.yml once it tags a runner image, so
+  # the fleet rolls onto it through the canary cascade.
   workflow_dispatch:
-    inputs:
-      commit_sha:
-        description: The commit SHA to deploy. When not passed, it deploys the latest commit available in `main`.
-        required: false
 
 permissions:
-  id-token: write
-  contents: read
+  # check-releases reads this workflow's previous runs to find the commit
+  # production last deployed.
+  actions: read
+  contents: write
+  pull-requests: read
+  statuses: write
+  packages: write
 
 concurrency:
-  group: server-production-deployment-${{ github.head_ref }}
-  cancel-in-progress: true
+  # Serialize release runs (the group): check-releases derives each next
+  # version from the latest tag, so two runs in flight would compute the
+  # same version and collide.
+  #
+  # Queue rather than cancel: a run pushes component tags, publishes GitHub
+  # Releases, and runs the production deploy as side effects, so each must
+  # complete atomically — cancelling mid-run could tear a release or a
+  # helm --atomic deploy. GitHub keeps only the latest pending run, so a
+  # burst of merges collapses into one run that covers them all via
+  # cumulative check-releases.
+  group: release-workflow-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
-  CI: true
-  RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  PNPM_HOME: ~/.pnpm
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
+  GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN || github.token }}
   TUIST_ENABLE_CACHING: "true"
+  MISE_GITHUB_ATTESTATIONS: 0
+  # Skip mise's SLSA provenance verification for github-backend tools only.
+  # The verification resolves the release through
+  # api.github.com/repos/<owner>/<repo>/releases/tags/<tag>, which mise.lock
+  # cannot replace: the lockfile only supplies the download URL, and mise
+  # already prefers that CDN URL over url_api. So this API call is the last
+  # one standing on the install path, and it 403s once the shared deploy
+  # token's 5000/hr budget is spent across a fan-out - failing the install of
+  # `github:endevco/aube` and `github:pomerium/cli`, which every job here
+  # picks up from the merged root toolset. Aqua-backend SLSA stays ON:
+  # mise.lock records slsa provenance for aqua tools (e.g. getsops/sops), and
+  # disabling it trips mise's downgrade-attack guard. Same setting as
+  # server.yml and server-deployment.yml.
+  MISE_GITHUB_SLSA: 0
+  # Used by the production deploy cascade's build job.
+  REGISTRY: ghcr.io
+  IMAGE_NAME: tuist/tuist
 
 jobs:
-  canary:
-    environment: server-canary
-    name: Canary Deployment
+  check-releases:
+    name: Check for releasable changes
+    if: github.repository == 'tuist/tuist'
+    runs-on: tuist-linux
+    timeout-minutes: 5
+    # release:check only needs the git-cliff + jq installed below, but `mise run`
+    # otherwise auto-installs the whole merged mise.toml toolset — including
+    # github/npm-backend tools that hit the rate-limited GitHub API for SLSA
+    # verification (--locked only redirects the binary download, not the
+    # provenance fetch). Block the task-run auto-install.
     env:
-      DOCKER_BUILDKIT: 1
-    runs-on: namespace-profile-default
-    defaults:
-      run:
-        working-directory: server
-    timeout-minutes: 40
+      MISE_TASK_RUN_AUTO_INSTALL: "0"
+    outputs:
+      cli-should-release: ${{ steps.check.outputs.cli-should-release }}
+      cli-next-version: ${{ steps.check.outputs.cli-next-version }}
+      cli-next-version-number: ${{ steps.check.outputs.cli-next-version-number }}
+      app-should-release: ${{ steps.check.outputs.app-should-release }}
+      app-next-version: ${{ steps.check.outputs.app-next-version }}
+      app-next-version-number: ${{ steps.check.outputs.app-next-version-number }}
+      # Server and Kura releases moved out of this pipeline into
+      # server-{release,rc,promote}.yml and kura-{release,rc,promote}.yml,
+      # which publish canary / RC / stable image tags on their own weekly
+      # release-train schedule. This pipeline calls kura-release.yml when
+      # kura/ changed, and its deploy tail resolves the Kura runtime tag to
+      # the newest `kura@` canary in the deployed commit (server-deployment.yml).
+      helm-should-release: ${{ steps.check.outputs.helm-should-release }}
+      helm-next-version: ${{ steps.check.outputs.helm-next-version }}
+      helm-next-version-number: ${{ steps.check.outputs.helm-next-version-number }}
+      capi-scaleway-should-release: ${{ steps.check.outputs.capi-scaleway-should-release }}
+      capi-scaleway-next-version: ${{ steps.check.outputs.capi-scaleway-next-version }}
+      capi-scaleway-next-version-number: ${{ steps.check.outputs.capi-scaleway-next-version-number }}
+      xcresult-processor-image-should-release: ${{ steps.check.outputs.xcresult-processor-image-should-release }}
+      xcresult-processor-image-next-version: ${{ steps.check.outputs.xcresult-processor-image-next-version }}
+      xcresult-processor-image-next-version-number: ${{ steps.check.outputs.xcresult-processor-image-next-version-number }}
+      linux-runner-image-should-release: ${{ steps.check.outputs.linux-runner-image-should-release }}
+      linux-runner-image-next-version: ${{ steps.check.outputs.linux-runner-image-next-version }}
+      linux-runner-image-next-version-number: ${{ steps.check.outputs.linux-runner-image-next-version-number }}
+      runners-controller-should-release: ${{ steps.check.outputs.runners-controller-should-release }}
+      runners-controller-next-version: ${{ steps.check.outputs.runners-controller-next-version }}
+      runners-controller-next-version-number: ${{ steps.check.outputs.runners-controller-next-version-number }}
+      stable-egress-controller-should-release: ${{ steps.check.outputs.stable-egress-controller-should-release }}
+      stable-egress-controller-next-version: ${{ steps.check.outputs.stable-egress-controller-next-version }}
+      stable-egress-controller-next-version-number: ${{ steps.check.outputs.stable-egress-controller-next-version-number }}
+      egress-tree-agent-should-release: ${{ steps.check.outputs.egress-tree-agent-should-release }}
+      egress-tree-agent-next-version: ${{ steps.check.outputs.egress-tree-agent-next-version }}
+      egress-tree-agent-next-version-number: ${{ steps.check.outputs.egress-tree-agent-next-version-number }}
+      deployable-changed: ${{ steps.deployable.outputs.deployable-changed }}
+      platform-changed: ${{ steps.deployable.outputs.platform-changed }}
+      observability-changed: ${{ steps.deployable.outputs.observability-changed }}
+      tailscale-operator-changed: ${{ steps.deployable.outputs.tailscale-operator-changed }}
+      kura-changed: ${{ steps.kura.outputs.kura-changed }}
+      # Single source of truth for hotfix routing. "(hotfix)" in the commit
+      # subject ships straight to production via the production-hotfix leg and
+      # skips the canary cascade. The deploy-tail jobs (canary, production,
+      # production-hotfix) all gate on this one output, so the marker format
+      # lives in exactly one place instead of three inline contains() checks
+      # with inverted logic.
+      is-hotfix: ${{ contains(github.event.head_commit.message, '(hotfix)') }}
     steps:
       - uses: actions/checkout@v4
-        if: ${{ github.event.inputs.commit_sha == '' }}
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - id: check
+        run: mise run release:check
+      - id: deployable
+        # A change to any of these paths deploys the server; the build gate
+        # of the production cascade ORs this with the fleet/runtime
+        # image-release flags. infra/helm/platform/ is included so platform
+        # chart changes (CNPG operator, cert-manager, ingress-nginx, ESO,
+        # metrics-server) deploy on merge via platform-install — without it a
+        # platform-only change skips build and the whole cascade, merging green
+        # but never reaching the cluster.
+        #
+        # Compared against the commit production last deployed rather than
+        # the push's `before`: queued runs of this workflow collapse, so a
+        # deployable commit whose run was replaced by a newer push must still
+        # deploy even when that newer push alone is not deployable. The base
+        # is the newest run of this workflow in HEAD's history whose
+        # production deploy job ("… / Deploy to tuist", either leg) succeeded.
+        # GitHub's deployments API is not usable here: other workflows record
+        # deployments to the same environment without deploying the server.
+        # Anything that cannot be resolved deploys.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          deployable() {
+            echo "deployable-changed=$1" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+          # The cluster charts each deploy leg installs before the server
+          # chart. One whose inputs are unchanged since production's last
+          # deploy is skipped; without a base, every chart installs.
+          charts_changed() {
+            {
+              echo "platform-changed=$1"
+              echo "observability-changed=$2"
+              echo "tailscale-operator-changed=$3"
+            } >> "$GITHUB_OUTPUT"
+          }
+          charts_changed true true true
+          # A dispatch redeploys main's head (e.g. runner-image-release.yml
+          # rolling the fleet onto a new image).
+          if [ "$EVENT_NAME" != "push" ]; then
+            deployable true
+          fi
+          if ! runs="$(gh api "repos/$REPO/actions/workflows/server-production-deployment.yml/runs?branch=main&status=completed&per_page=100" \
+            --jq '.workflow_runs[] | select(.conclusion != "cancelled" and .conclusion != "skipped") | "\(.id) \(.head_sha)"')"; then
+            echo "::warning::Could not list previous runs; treating the push as deployable."
+            deployable true
+          fi
+          base=""
+          while read -r run_id sha; do
+            if [ -z "$run_id" ] || [ "$run_id" = "$RUN_ID" ]; then
+              continue
+            fi
+            if ! git merge-base --is-ancestor "$sha" "$HEAD_SHA" 2>/dev/null; then
+              continue
+            fi
+            if ! deployed="$(gh api "repos/$REPO/actions/runs/$run_id/jobs?per_page=100" \
+              --jq 'any(.jobs[]; .conclusion == "success" and (.name | endswith("Deploy to tuist")))')"; then
+              echo "::warning::Could not read jobs of run $run_id; treating the push as deployable."
+              deployable true
+            fi
+            if [ "$deployed" = "true" ]; then
+              base="$sha"
+              echo "Production last deployed $base (run $run_id)."
+              break
+            fi
+          done <<< "$runs"
+          if [ -z "$base" ]; then
+            echo "::warning::No production deploy found in the history of $HEAD_SHA; treating the push as deployable."
+            deployable true
+          fi
+          # Captured rather than piped into `grep -q`: an early grep exit
+          # would SIGPIPE `git diff` and fail the pipeline under pipefail.
+          changed="$(git diff --name-only "$base" "$HEAD_SHA")"
+          # The job that installs a chart in server-deployment.yml, as of a
+          # commit. Only that job's own definition counts as an input, so an
+          # edit elsewhere in the file does not reinstall every chart.
+          install_job() {
+            git show "$1:.github/workflows/server-deployment.yml" 2>/dev/null \
+              | awk -v job="  $2:" '$0 == job { found = 1; print; next } found && /^  [^ #]/ { exit } found { print }'
+          }
+          # $1: the chart's paths (Markdown aside), $2: its install job.
+          changed_besides_docs="$(grep -vE '\.md$' <<< "$changed" || true)"
+          chart_changed() {
+            if grep -qE "^($1)" <<< "$changed_besides_docs" \
+              || [ "$(install_job "$base" "$2")" != "$(install_job "$HEAD_SHA" "$2")" ]; then
+              echo true
+            else
+              echo false
+            fi
+          }
+          # A new stable-egress-controller release changes the image the
+          # platform chart pins, and infra/mise.* the Helm the task runs.
+          platform="$(chart_changed 'infra/helm/platform/|infra/helm/rack-cache-gateways/|infra/mise/tasks/k8s/install-platform\.sh$|infra/mise\.(toml|lock)$|infra/stable-egress-controller/' platform-install)"
+          observability="$(chart_changed 'infra/helm/k8s-monitoring/' observability-install)"
+          tailscale_operator="$(chart_changed 'infra/helm/tailscale-operator/' tailscale-operator-install)"
+          charts_changed "$platform" "$observability" "$tailscale_operator"
+          echo "Cluster charts changed since $base: platform=$platform observability=$observability tailscale-operator=$tailscale_operator"
+          # Docs under k8s-monitoring are in paths-ignore and never deploy.
+          deployable_paths="$(printf '%s\n' "$changed" \
+            | grep -vE '^infra/helm/k8s-monitoring/.*\.md$' \
+            | grep -E '^(server/|codebase-search/|registry/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)' \
+            || true)"
+          if [ -n "$deployable_paths" ]; then
+            echo "Deployable paths changed since $base:"
+            printf '%s\n' "$deployable_paths"
+            deployable true
+          fi
+          deployable false
+      - id: kura
+        # Compared against the newest canary rather than the previous push:
+        # queued runs of this workflow collapse, and a Kura change in a
+        # replaced run must still be released and deployed.
+        run: |
+          set -euo pipefail
+          latest_canary="$(git tag --list 'kura@*' --merged HEAD \
+            | grep -E '^kura@[0-9]+\.[0-9]+\.[0-9]+-canary\.[0-9]+$' \
+            | sort -V | tail -n1 || true)"
+          if [ -z "$latest_canary" ] || ! git diff --quiet "$latest_canary" HEAD -- kura/; then
+            echo "kura-changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "kura-changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  release-helm:
+    name: Release Helm Chart
+    # Kura runtime releases now come from kura-promote.yml on its own weekly
+    # train, so the helm chart no longer waits on a co-tenant kura image
+    # build. The kura appVersion stamped into the chart below is resolved
+    # from the newest existing kura@ git tag at run time, so the pinned
+    # image is always one that has actually shipped.
+    needs: [check-releases]
+    if: needs.check-releases.outputs.helm-should-release == 'true'
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
+      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+    steps:
       - uses: actions/checkout@v4
-        if: ${{ github.event.inputs.commit_sha != '' }}
         with:
-          ref: ${{ github.event.inputs.commit_sha }}
-      - uses: jdx/mise-action@v2
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
         with:
-          install: false
-      - name: "Get version"
-        id: version
+          install_args: "--locked git-cliff helm"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Get release notes
+        id: release-notes
         run: |
-          version=$(./mise/tasks/generate-version.sh)
-          echo "::set-output name=version::$version"
-      - name: Update version in mix.exs
+          # Get the latest helm version tag
+          LATEST_VERSION=$(git tag -l | grep -E "^helm@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          if [ -n "$LATEST_VERSION" ]; then
+            git cliff --include-path "infra/helm/**/*" --include-path "kura/ops/helm/kura/**/*" --config infra/helm/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          else
+            git cliff --include-path "infra/helm/**/*" --include-path "kura/ops/helm/kura/**/*" --config infra/helm/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          fi
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Update Chart.yaml version
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          sed -i 's/version: "[^"]*"/version: "'$VERSION'"/' mix.exs
-      - name: Trigger canary deploy with Render CLI
+          set -euo pipefail
+          sed -i 's/^version: .*/version: ${{ needs.check-releases.outputs.helm-next-version-number }}/' infra/helm/tuist/Chart.yaml
+          sed -i 's/^appVersion: .*/appVersion: "${{ needs.check-releases.outputs.helm-next-version-number }}"/' infra/helm/tuist/Chart.yaml
+          sed -i 's/^version: .*/version: ${{ needs.check-releases.outputs.helm-next-version-number }}/' kura/ops/helm/kura/Chart.yaml
+          # The kura chart's appVersion is the runtime image tag the chart
+          # defaults to (the StatefulSet falls back to .Chart.AppVersion), so
+          # it is stamped with the KURA runtime version, not the chart
+          # version. Kura's release cadence is now the weekly kura-promote
+          # train, decoupled from every helm cut, so the appVersion is
+          # resolved from the newest existing kura@ semver tag rather than
+          # from a check-releases output that no longer exists. The repo
+          # tree keeps appVersion "latest" so in-tree installs track the
+          # newest release.
+          KURA_APPVERSION=$(git tag -l 'kura@[0-9]*' \
+            | sed 's|^kura@||' \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sort -V | tail -n1)
+          if [ -z "$KURA_APPVERSION" ]; then
+            echo "::error::No stable kura@ tag found; the kura chart cannot pin appVersion."
+            exit 1
+          fi
+          sed -i 's/^appVersion: .*/appVersion: "'"$KURA_APPVERSION"'"/' kura/ops/helm/kura/Chart.yaml
+
+      - name: Login to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Package Helm charts
         run: |
-          mise exec "github:render-oss/cli@2.6.1" -- cli_v2.6.1 deploys create srv-d35uiopr0fns73bfve00 --output json --confirm --wait --commit "$GITHUB_SHA"
+          helm package infra/helm/tuist
+          helm package kura/ops/helm/kura
+
+      - name: Push Helm charts
+        run: |
+          helm push tuist-${{ needs.check-releases.outputs.helm-next-version-number }}.tgz oci://ghcr.io/tuist/charts
+          helm push kura-${{ needs.check-releases.outputs.helm-next-version-number }}.tgz oci://ghcr.io/tuist/charts
+
+      - name: Upload Helm artifacts
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-artifacts
+          path: |
+            infra/helm/tuist/Chart.yaml
+            kura/ops/helm/kura/Chart.yaml
+          retention-days: 1
+
+  release-capi-scaleway:
+    name: Release CAPI operator
+    needs: check-releases
+    if: needs.check-releases.outputs.capi-scaleway-should-release == 'true'
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Get release notes
+        id: release-notes
+        run: |
+          LATEST_VERSION=$(git tag -l | grep -E "^capi-scaleway@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+
+          INCLUDE_PATHS=(
+            --include-path "infra/cluster-api-provider-tuist/**/*"
+            --include-path "infra/macos-host-bootstrap/**/*"
+            --include-path "infra/macos-log-shipper/**/*"
+            --include-path "infra/tart-kubelet/**/*"
+          )
+
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          if [ -n "$LATEST_VERSION" ]; then
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/cluster-api-provider-tuist/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          else
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/cluster-api-provider-tuist/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          fi
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/cluster-api-provider-tuist/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/tuist/capi-provider-scaleway-applesilicon:${{ needs.check-releases.outputs.capi-scaleway-next-version-number }}
+            ghcr.io/tuist/capi-provider-scaleway-applesilicon:latest
+
+  release-runners-controller:
+    name: Release runners-controller
+    needs: check-releases
+    if: needs.check-releases.outputs.runners-controller-should-release == 'true'
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff"
+          cache: "true"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Get release notes
+        id: release-notes
+        run: |
+          LATEST_VERSION=$(git tag -l | grep -E "^runners-controller@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+
+          INCLUDE_PATHS=(
+            --include-path "infra/runners-controller/**/*"
+          )
+
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          if [ -n "$LATEST_VERSION" ]; then
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/runners-controller/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          else
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/runners-controller/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          fi
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      # The cache-volumes stage runs apt-get for linux/arm64, which needs
+      # emulation on the amd64 runner.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/runners-controller/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/tuist/tuist-runners-controller:${{ needs.check-releases.outputs.runners-controller-next-version-number }}
+            ghcr.io/tuist/tuist-runners-controller:latest
+
+      - name: Build and push cache volume agent
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/runners-controller/Dockerfile
+          target: cache-volumes
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/tuist/tuist-runner-cache-volumes:${{ needs.check-releases.outputs.runners-controller-next-version-number }}
+            ghcr.io/tuist/tuist-runner-cache-volumes:latest
+
+  release-stable-egress-controller:
+    name: Release stable-egress-controller
+    needs: check-releases
+    if: needs.check-releases.outputs.stable-egress-controller-should-release == 'true'
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff"
+          cache: "true"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Get release notes
+        id: release-notes
+        run: |
+          LATEST_VERSION=$(git tag -l | grep -E "^stable-egress-controller@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+
+          INCLUDE_PATHS=(
+            --include-path "infra/stable-egress-controller/**/*"
+          )
+
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          if [ -n "$LATEST_VERSION" ]; then
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/stable-egress-controller/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          else
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/stable-egress-controller/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          fi
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/stable-egress-controller/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/tuist/tuist-stable-egress-controller:${{ needs.check-releases.outputs.stable-egress-controller-next-version-number }}
+            ghcr.io/tuist/tuist-stable-egress-controller:latest
+
+  release-egress-tree-agent:
+    name: Release egress-tree-agent
+    needs: check-releases
+    if: needs.check-releases.outputs.egress-tree-agent-should-release == 'true'
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff"
+          cache: "true"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Get release notes
+        id: release-notes
+        run: |
+          LATEST_VERSION=$(git tag -l | grep -E "^egress-tree-agent@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+
+          INCLUDE_PATHS=(
+            --include-path "infra/egress-tree-agent/**/*"
+          )
+
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          if [ -n "$LATEST_VERSION" ]; then
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/egress-tree-agent/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          else
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/egress-tree-agent/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          fi
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/egress-tree-agent/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/tuist/egress-tree-agent:${{ needs.check-releases.outputs.egress-tree-agent-next-version-number }}
+            ghcr.io/tuist/egress-tree-agent:latest
+
+  release-xcresult-processor-image:
+    name: Release xcresult processor image
+    needs: check-releases
+    if: needs.check-releases.outputs.xcresult-processor-image-should-release == 'true'
+    runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
+    timeout-minutes: 150
+    env:
+      PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+      MISE_GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Job-level, matching runner-image-release.yml's build: Tart reads
+      # these for both the clone of the base and the push at the end.
+      TART_REGISTRY_HOSTNAME: ghcr.io
+      TART_REGISTRY_USERNAME: tuist-bot
+      TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "git-cliff"
+
+      - name: Get release notes
+        id: release-notes
+        run: |
+          LATEST_VERSION=$(git tag -l | grep -E "^xcresult-processor-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+
+          INCLUDE_PATHS=(
+            --include-path "infra/xcresult-processor-image/**/*"
+          )
+
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          if [ -n "$LATEST_VERSION" ]; then
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/xcresult-processor-image/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          else
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/xcresult-processor-image/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          fi
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      # Log in BEFORE Packer build so Tart's clone of the
+      # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
+      # authenticates with the tuist-bot token. crane writes creds
+      # to ~/.docker/config.json, which Tart reads via the Docker
+      # credential-helper protocol for both the pull (this build's
+      # clone of the base) and the push at the end. See
+      # runner-image.yml's matching step for the long explanation.
+      - name: Log in to GHCR (crane)
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.GITHUB_TOKEN }}" | crane auth login --username tuist-bot --password-stdin ghcr.io
+
+      - name: Initialize Packer
+        working-directory: infra/xcresult-processor-image
+        run: packer init -upgrade xcresult-processor.pkr.hcl
+
+      - uses: ./.github/actions/reclaim-tart-disk
+
+      # The processor parses .xcresult bundles from *all* customer runner
+      # profiles, so `xcode-version` tracks the newest stable Xcode rather
+      # than following beta or RC profiles onto a prerelease toolchain.
+      - name: Build image
+        working-directory: infra/xcresult-processor-image
+        run: |
+          set -euo pipefail
+          XCODE_VERSION="$(tr -d '[:space:]' < xcode-version)"
+          BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE_VERSION//./-}"
+          echo "Base image: ${BASE_IMAGE}"
+          env -u GITHUB_TOKEN -u MISE_GITHUB_TOKEN packer build \
+            -var "base_image=${BASE_IMAGE}" \
+            -var "output_image=tuist-xcresult-processor" \
+            xcresult-processor.pkr.hcl
+
+      # Overrides the action's default of 4. A release of this image sits on
+      # the production cascade's critical path and the push is most of its
+      # wall clock, and it uploads alone, so it has the whole rate-limit
+      # budget to itself.
+      # Push throughput measured close to linear in this value from 1 to 4
+      # with no GHCR throttling; if that stops holding, lower it back
+      # rather than reaching for a larger chunk size.
+      - name: Push image to GHCR
+        timeout-minutes: 90
+        uses: ./.github/actions/tart-push
+        with:
+          local-name: tuist-xcresult-processor
+          concurrency: "8"
+          remote-names: |
+            ghcr.io/tuist/tuist-xcresult-processor:${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}
+            ghcr.io/tuist/tuist-xcresult-processor:latest
+
+      - name: Cleanup
+        if: always()
+        run: |
+          tart delete tuist-xcresult-processor 2>/dev/null || true
+
+  release-linux-runner-image:
+    name: Release Linux runner image
+    needs: check-releases
+    if: needs.check-releases.outputs.linux-runner-image-should-release == 'true'
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff"
+          cache: "true"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Get release notes
+        id: release-notes
+        run: |
+          LATEST_VERSION=$(git tag -l | grep -E "^linux-runner-image@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
+          INCLUDE_PATHS=( --include-path "infra/linux-runner-image/**/*" )
+
+          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
+          if [ -n "$LATEST_VERSION" ]; then
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/linux-runner-image/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          else
+            git cliff "${INCLUDE_PATHS[@]}" --config infra/linux-runner-image/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
+          fi
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/linux-runner-image
+          file: infra/linux-runner-image/Dockerfile
+          # Linux runners run on Hetzner bare-metal x86 nodes at v1.
+          # arm64 is a future option and can land as an additive
+          # `platforms:` entry.
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ghcr.io/tuist/tuist-linux-runner:${{ needs.check-releases.outputs.linux-runner-image-next-version-number }}
+            ghcr.io/tuist/tuist-linux-runner:latest
+
+      # The Linux runner image is pushed with a `:<semver>` tag above.
+      # server-deployment.yml resolves that version at deploy time from
+      # this run's `linux-runner-image@<semver>` tag and passes
+      # `tuist-linux-runner:<semver>` to the chart via --set.
+
+  publish-releases:
+    # Publishes the GitHub Releases (which create the component tags via the
+    # API) for the components released here: Helm and the infrastructure
+    # images. Other components have dedicated workflows — Server and Kura
+    # publish their own GitHub Releases from server-build-publish.yml and
+    # kura-build-publish.yml, on the weekly canary / RC / promote trains,
+    # and are no longer built here. Version files are stamped into the
+    # build artifacts by each release job, image versions are resolved at
+    # deploy time from tags, and in-source consumer pins land via Renovate
+    # PRs, so this job writes nothing back to a branch.
+    name: Publish releases
+    needs:
+      [
+        check-releases,
+        release-helm,
+        release-capi-scaleway,
+        release-runners-controller,
+        release-stable-egress-controller,
+        release-egress-tree-agent,
+        release-xcresult-processor-image,
+        release-linux-runner-image,
+        tag-infra-releases,
+      ]
+    if: |
+      always() &&
+      (
+        needs.check-releases.outputs.helm-should-release == 'true' ||
+        needs.check-releases.outputs.capi-scaleway-should-release == 'true' ||
+        needs.check-releases.outputs.runners-controller-should-release == 'true' ||
+        needs.check-releases.outputs.stable-egress-controller-should-release == 'true' ||
+        needs.check-releases.outputs.egress-tree-agent-should-release == 'true' ||
+        needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
+        needs.check-releases.outputs.linux-runner-image-should-release == 'true'
+      )
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    concurrency:
+      group: publish-releases-${{ github.run_id }}
+      cancel-in-progress: false
+    env:
+      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "--locked git-cliff"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Download Helm artifacts
+        if: needs.check-releases.outputs.helm-should-release == 'true' && needs.release-helm.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: helm-artifacts
+          path: infra/helm
+
+      # Component git tags are created by softprops/action-gh-release below
+      # (via tag_name, through the GitHub API) for the published components,
+      # by gradle's own job, and by tag-infra-releases for the fleet/runtime
+      # images. The release path writes only tags and releases, never a
+      # branch.
+
+      # Server + Kura GitHub Releases are minted by server-build-publish.yml
+      # and kura-build-publish.yml, called from their component-specific
+      # canary / RC / promote workflows. Every fleet/runtime component below
+      # pins `target_commitish` to `github.sha` so the tag lands on this
+      # run's commit rather than the default branch's HEAD.
+
+      - name: Create Helm GitHub Release
+        if: needs.check-releases.outputs.helm-should-release == 'true' && needs.release-helm.result == 'success'
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
+          name: Helm Chart ${{ needs.check-releases.outputs.helm-next-version-number }}
+          tag_name: ${{ needs.check-releases.outputs.helm-next-version }}
+          body: |
+            OCI registries:
+            - `oci://ghcr.io/tuist/charts/tuist:${{ needs.check-releases.outputs.helm-next-version-number }}`
+            - `oci://ghcr.io/tuist/charts/kura:${{ needs.check-releases.outputs.helm-next-version-number }}`
+
+            ${{ needs.release-helm.outputs.release-notes }}
+
+      - name: Create CAPI Scaleway GitHub Release
+        if: needs.tag-infra-releases.outputs.capi-scaleway-tagged == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
+          name: CAPI Scaleway ${{ needs.check-releases.outputs.capi-scaleway-next-version-number }}
+          tag_name: ${{ needs.check-releases.outputs.capi-scaleway-next-version }}
+          body: |
+            Docker image: `ghcr.io/tuist/capi-provider-scaleway-applesilicon:${{ needs.check-releases.outputs.capi-scaleway-next-version-number }}`
+
+            ${{ needs.release-capi-scaleway.outputs.release-notes }}
+
+      - name: Create runners-controller GitHub Release
+        if: needs.tag-infra-releases.outputs.runners-controller-tagged == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
+          name: Runners Controller ${{ needs.check-releases.outputs.runners-controller-next-version-number }}
+          tag_name: ${{ needs.check-releases.outputs.runners-controller-next-version }}
+          body: |
+            Docker image: `ghcr.io/tuist/tuist-runners-controller:${{ needs.check-releases.outputs.runners-controller-next-version-number }}`
+
+            ${{ needs.release-runners-controller.outputs.release-notes }}
+
+      - name: Create stable-egress-controller GitHub Release
+        if: needs.tag-infra-releases.outputs.stable-egress-controller-tagged == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
+          name: Stable Egress Controller ${{ needs.check-releases.outputs.stable-egress-controller-next-version-number }}
+          tag_name: ${{ needs.check-releases.outputs.stable-egress-controller-next-version }}
+          body: |
+            Docker image: `ghcr.io/tuist/tuist-stable-egress-controller:${{ needs.check-releases.outputs.stable-egress-controller-next-version-number }}`
+
+            ${{ needs.release-stable-egress-controller.outputs.release-notes }}
+
+      - name: Create egress-tree-agent GitHub Release
+        if: needs.tag-infra-releases.outputs.egress-tree-agent-tagged == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
+          name: Egress Tree Agent ${{ needs.check-releases.outputs.egress-tree-agent-next-version-number }}
+          tag_name: ${{ needs.check-releases.outputs.egress-tree-agent-next-version }}
+          body: |
+            Docker image: `ghcr.io/tuist/egress-tree-agent:${{ needs.check-releases.outputs.egress-tree-agent-next-version-number }}`
+
+            ${{ needs.release-egress-tree-agent.outputs.release-notes }}
+
+      - name: Create xcresult-processor-image GitHub Release
+        if: needs.tag-infra-releases.outputs.xcresult-processor-image-tagged == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
+          name: xcresult Processor ${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}
+          tag_name: ${{ needs.check-releases.outputs.xcresult-processor-image-next-version }}
+          body: |
+            Tart image: `ghcr.io/tuist/tuist-xcresult-processor:${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}`
+
+            ${{ needs.release-xcresult-processor-image.outputs.release-notes }}
+
+      - name: Create linux-runner-image GitHub Release
+        if: needs.tag-infra-releases.outputs.linux-runner-image-tagged == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          repository: tuist/tuist
+          target_commitish: ${{ github.sha }}
+          name: Linux Runner Image ${{ needs.check-releases.outputs.linux-runner-image-next-version-number }}
+          tag_name: ${{ needs.check-releases.outputs.linux-runner-image-next-version }}
+          body: |
+            Docker image: `ghcr.io/tuist/tuist-linux-runner:${{ needs.check-releases.outputs.linux-runner-image-next-version-number }}`
+
+            ${{ needs.release-linux-runner-image.outputs.release-notes }}
+
+      # Nothing is committed to a branch here. Build artifacts embed their
+      # version (each release job stamps it before building), release notes
+      # live in the GitHub Releases above, image versions are resolved at
+      # deploy time from the `<component>@<semver>` tags, and the in-source
+      # consumer pins (mise.toml CLI version, the CLI gradlePluginVersion
+      # constant, android's dev.tuist version, the hetzner-robot-controller
+      # mgmt manifest image) land via Renovate PRs — see renovate.json.
+
+      # Kura GitHub Releases are minted by kura-build-publish.yml on the
+      # weekly canary / RC / promote trains; they no longer piggyback on
+      # this monorepo run.
+
+  # --------------------------------------------------------------------------
+  # Deploy orchestration. This pipeline tags every fleet/runtime image it
+  # builds and then runs the production deploy cascade in-sequence (the build →
+  # canary → tests → production jobs below), which resolves those tags at
+  # deploy time — one build-then-deploy pass on this workflow's serialized
+  # concurrency lane, with no cross-workflow dispatch.
+  #
+  # tag-infra-releases pushes the image tags; the cascade's build job needs it
+  # so a freshly built image ships with the server. The deploy fires when a
+  # deployable path changed OR any fleet/runtime image released this run.
+  # --------------------------------------------------------------------------
+  tag-infra-releases:
+    name: Tag fleet and runtime image releases
+    needs:
+      [
+        check-releases,
+        release-capi-scaleway,
+        release-runners-controller,
+        release-stable-egress-controller,
+        release-egress-tree-agent,
+        release-xcresult-processor-image,
+        release-linux-runner-image,
+      ]
+    # Runs whenever the gate computed, regardless of which (if any) image
+    # released; tag_release no-ops the components that didn't. Kura's tag
+    # is created by kura-build-publish.yml on the weekly canary / RC /
+    # promote trains, so it is no longer tagged here.
+    if: always() && needs.check-releases.result == 'success'
+    runs-on: tuist-linux
+    timeout-minutes: 10
+    # `publish-releases` gates its GitHub Release steps on these so it can
+    # never create, through `action-gh-release`'s `tag_name`, a tag this job
+    # refused to push.
+    outputs:
+      capi-scaleway-tagged: ${{ steps.tag.outputs.capi-scaleway-tagged }}
+      runners-controller-tagged: ${{ steps.tag.outputs.runners-controller-tagged }}
+      stable-egress-controller-tagged: ${{ steps.tag.outputs.stable-egress-controller-tagged }}
+      egress-tree-agent-tagged: ${{ steps.tag.outputs.egress-tree-agent-tagged }}
+      xcresult-processor-image-tagged: ${{ steps.tag.outputs.xcresult-processor-image-tagged }}
+      linux-runner-image-tagged: ${{ steps.tag.outputs.linux-runner-image-tagged }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
+      - name: Create and push fleet/runtime component tags
+        id: tag
+        # server-deployment.yml resolves each image version from these
+        # tags at deploy time, so they must exist on origin before the
+        # deploy is dispatched. Idempotent: skip a tag that already exists.
+        #
+        # A job result of `success` proves the release job ran, not that the
+        # image reached the registry the chart pulls from, so every tag is
+        # gated on the image being there. The check MUST target the chart's
+        # address rather than wherever the release job pushed: a job that
+        # publishes to some other registry succeeds, and verifying its own
+        # push would confirm nothing. An untagged component simply stays on
+        # its previous version, which is the correct reading of a release
+        # that never published.
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          image_missing() {
+            ! .github/scripts/ghcr-image-published.sh "$1" "$2"
+          }
+
+          tag_release() {
+            # $1 output key, $2 should-release flag, $3 job result, $4 tag,
+            # $5 GHCR repository the chart pulls the component from,
+            # $6... the image tags that release must have published
+            # (defaults to the version carried by the tag).
+            key="$1"; should="$2"; result="$3"; tag="$4"; repository="$5"
+            shift 5
+            image_tags=("$@")
+            [ "${#image_tags[@]}" -gt 0 ] || image_tags=("${tag##*@}")
+
+            tagged=false
+            if [ "$should" != "true" ]; then
+              echo "${key}-tagged=${tagged}" >> "$GITHUB_OUTPUT"
+              return 0
+            fi
+            if [ "$result" != "success" ]; then
+              echo "Skipping $tag (release job result: $result)"
+              echo "${key}-tagged=${tagged}" >> "$GITHUB_OUTPUT"
+              return 0
+            fi
+            for image_tag in "${image_tags[@]}"; do
+              if image_missing "$repository" "$image_tag"; then
+                echo "::error::Refusing to tag ${tag}: ghcr.io/${repository}:${image_tag} is not published. The release job reported success, so it published somewhere the chart does not read. ${key} stays on its previous version."
+                echo "${key}-tagged=${tagged}" >> "$GITHUB_OUTPUT"
+                return 0
+              fi
+            done
+            if [ "$key" = runners-controller ] && image_missing tuist/tuist-runner-cache-volumes "${tag##*@}"; then
+              echo "::error::Refusing to tag ${tag}: the matching cache volume agent image is not published."
+              echo "${key}-tagged=false" >> "$GITHUB_OUTPUT"
+              return 0
+            fi
+
+            if git ls-remote --tags --exit-code origin "refs/tags/$tag" >/dev/null 2>&1; then
+              echo "Tag $tag already exists on origin"
+            else
+              git tag "$tag"
+              git push origin "refs/tags/$tag"
+              echo "Pushed $tag"
+            fi
+            tagged=true
+            echo "${key}-tagged=${tagged}" >> "$GITHUB_OUTPUT"
+          }
+
+          tag_release capi-scaleway \
+            "${{ needs.check-releases.outputs.capi-scaleway-should-release }}" \
+            "${{ needs.release-capi-scaleway.result }}" \
+            "${{ needs.check-releases.outputs.capi-scaleway-next-version }}" \
+            tuist/capi-provider-scaleway-applesilicon
+          tag_release runners-controller \
+            "${{ needs.check-releases.outputs.runners-controller-should-release }}" \
+            "${{ needs.release-runners-controller.result }}" \
+            "${{ needs.check-releases.outputs.runners-controller-next-version }}" \
+            tuist/tuist-runners-controller
+          tag_release stable-egress-controller \
+            "${{ needs.check-releases.outputs.stable-egress-controller-should-release }}" \
+            "${{ needs.release-stable-egress-controller.result }}" \
+            "${{ needs.check-releases.outputs.stable-egress-controller-next-version }}" \
+            tuist/tuist-stable-egress-controller
+          tag_release egress-tree-agent \
+            "${{ needs.check-releases.outputs.egress-tree-agent-should-release }}" \
+            "${{ needs.release-egress-tree-agent.result }}" \
+            "${{ needs.check-releases.outputs.egress-tree-agent-next-version }}" \
+            tuist/egress-tree-agent
+          tag_release xcresult-processor-image \
+            "${{ needs.check-releases.outputs.xcresult-processor-image-should-release }}" \
+            "${{ needs.release-xcresult-processor-image.result }}" \
+            "${{ needs.check-releases.outputs.xcresult-processor-image-next-version }}" \
+            tuist/tuist-xcresult-processor
+          tag_release linux-runner-image \
+            "${{ needs.check-releases.outputs.linux-runner-image-should-release }}" \
+            "${{ needs.release-linux-runner-image.result }}" \
+            "${{ needs.check-releases.outputs.linux-runner-image-next-version }}" \
+            tuist/tuist-linux-runner
+
+  # Publishes the Kura canary that the deploy legs below resolve (hosted Kura
+  # runs the newest canary in the deployed commit). It runs inside this
+  # serialized workflow so the tag exists before any leg resolves it, and no
+  # release can land mid-cascade. The legs wait for it without requiring
+  # success: a failed Kura release must not hold back server changes.
+  kura-release:
+    name: Kura canary release
+    needs: [check-releases]
+    if: needs.check-releases.outputs.kura-changed == 'true'
+    permissions:
+      contents: write
+      pull-requests: read
+      statuses: write
+      packages: write
+      id-token: write
+    uses: ./.github/workflows/kura-release.yml
+    secrets: inherit
+
+  # --------------------------------------------------------------------------
+  # Production deploy cascade - build → canary → acceptance tests → production,
+  # run in-sequence after the fleet/runtime images are built + tagged so a
+  # freshly released image ships with the server in this same pass. The `build`
+  # gate fires when a deployable path changed OR any fleet/runtime image
+  # released this run; the rest of the cascade follows via `needs: build`.
+  # "(hotfix)" in the commit subject ships straight to production via the
+  # production-hotfix leg. Each leg is delegated to server-deployment.yml so
+  # the helm logic stays in one place; the image is env-agnostic (built once
+  # with MIX_ENV=prod) and the same sha-<SHA> tag is promoted canary → prod.
+  #
+  # Manual re-promotes / rollbacks of a pinned SHA go through
+  # server-deployment.yml's own workflow_dispatch (deploy any environment,
+  # optionally with a pre-built image_tag). This cascade's own dispatch only
+  # redeploys main's head.
+  # --------------------------------------------------------------------------
+  build:
+    name: Build server image
+    needs: [check-releases]
+    if: >-
+      always() &&
+      needs.check-releases.result == 'success' &&
+      (
+        needs.check-releases.outputs.deployable-changed == 'true' ||
+        needs.check-releases.outputs.linux-runner-image-should-release == 'true' ||
+        needs.check-releases.outputs.runners-controller-should-release == 'true' ||
+        needs.check-releases.outputs.stable-egress-controller-should-release == 'true' ||
+        needs.check-releases.outputs.egress-tree-agent-should-release == 'true' ||
+        needs.check-releases.outputs.capi-scaleway-should-release == 'true' ||
+        needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
+        needs.check-releases.outputs.kura-changed == 'true'
+      )
+    # Bigger shape: the server image build (Elixir release compile inside
+    # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM, killing the
+    # runner mid-build ("lost communication"). Mirrors server.yml's
+    # docker_build job.
+    runs-on: tuist-linux-large
+    timeout-minutes: 75
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+      codebase_search_image_tag: ${{ steps.tag.outputs.image_tag }}
+      registry_image_tag: ${{ steps.tag.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+      - id: tag
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+        run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
+      - id: buildx
+        uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Restore production project builds
+        id: project-volume
+        continue-on-error: true
+        uses: tuist/cache-volume@v1
+        with:
+          key: server-image-prod-hosted-amd64-projects-v1
+          path: ~/.cache/tuist-server-docker-mix
+      - name: Prepare the production Mix build context
+        id: project-cache
+        if: steps.project-volume.outcome == 'success'
+        continue-on-error: true
+        run: bash .github/scripts/server-docker-mix-cache.sh prepare
+      # The Dockerfile's `--mount=type=cache` for /og-cache is local to the
+      # BuildKit builder, which starts empty on every ephemeral runner, so
+      # Chromium re-renders every OG image (~6 min, on the critical path that
+      # gates `mix release`) on each deploy. cache-dance round-trips the mount
+      # through actions/cache so unchanged images are skipped via their
+      # .cachekey sidecars. The registry layer cache below can't do this:
+      # `mode=max` exports layers, not cache-mount contents.
+      - name: Restore OG image render cache
+        id: og-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            og-cache-marketing
+            og-cache-docs
+          key: server-og-cache-${{ github.sha }}
+          restore-keys: |
+            server-og-cache-
+      - name: Seed OG cache mounts into BuildKit
+        uses: reproducible-containers/buildkit-cache-dance@v3.4.0
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-map: |
+            {
+              "og-cache-marketing": { "target": "/og-cache/marketing", "id": "og-marketing" },
+              "og-cache-docs": { "target": "/og-cache/docs", "id": "og-docs" }
+            }
+          skip-extraction: ${{ steps.og-cache.outputs.cache-hit }}
+      - uses: docker/build-push-action@v6
+        name: Build and push server image
+        with:
+          context: .
+          file: ./server/Dockerfile
+          target: runner
+          build-contexts: ${{ steps.project-cache.outcome == 'success' && steps.project-cache.outputs.context || '' }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
+          # Shared registry layer cache. This workflow runs on every push to
+          # main, so it keeps `buildcache:server` warm merge to merge;
+          # server-deployment.yml reads and writes the same ref. `mode=max`
+          # caches every stage (deps.compile, builder, og-images).
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-buildcache:server,mode=max
+          # TUIST_VERSION is baked into the image as the value Sentry reports as
+          # `release`. The Dockerfile default is `0.0.0`, so without this line
+          # every hosted-server event lands in Atlas without a release tag.
+          # Reuse the image tag so the Atlas release matches the image the pod
+          # runs (`sha-<12chars>`).
+          build-args: |
+            TUIST_HOSTED=1
+            TUIST_VERSION=${{ steps.tag.outputs.image_tag }}
+            MIX_ENV=prod
+            APT_CACHE_BUST=${{ github.sha }}
+      - name: Export production project builds
+        id: project-export
+        if: steps.project-cache.outcome == 'success'
+        continue-on-error: true
+        uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: "false"
+          DOCKER_BUILD_SUMMARY: "false"
+        with:
+          context: .
+          file: ./server/Dockerfile
+          target: mix-cache-export
+          provenance: false
+          build-contexts: ${{ steps.project-cache.outputs.context }}
+          outputs: ${{ steps.project-cache.outputs.export }}
+          secrets: github_token=${{ secrets.GITHUB_TOKEN }}
+          build-args: |
+            TUIST_HOSTED=1
+            MIX_ENV=prod
+      - name: Retain the production project snapshot
+        if: always() && steps.project-cache.outcome == 'success'
+        continue-on-error: true
+        env:
+          TUIST_MIX_CACHE_EXPORTED: ${{ steps.project-export.outcome == 'success' }}
+        run: bash .github/scripts/server-docker-mix-cache.sh commit
+
+  # The deploy's other images, each in its own job beside `build` so none of
+  # them waits on the server image. Their tags match the server image's.
+  build-images:
+    name: Build ${{ matrix.name }} image
+    needs: [check-releases]
+    # Same gate as `build`: these images are deployed alongside the server image.
+    if: >-
+      always() &&
+      needs.check-releases.result == 'success' &&
+      (
+        needs.check-releases.outputs.deployable-changed == 'true' ||
+        needs.check-releases.outputs.linux-runner-image-should-release == 'true' ||
+        needs.check-releases.outputs.runners-controller-should-release == 'true' ||
+        needs.check-releases.outputs.stable-egress-controller-should-release == 'true' ||
+        needs.check-releases.outputs.egress-tree-agent-should-release == 'true' ||
+        needs.check-releases.outputs.capi-scaleway-should-release == 'true' ||
+        needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
+        needs.check-releases.outputs.kura-changed == 'true'
+      )
+    runs-on: tuist-linux-large
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: codebase search
+            image: tuist/codebase-search
+            context: ./codebase-search
+            file: ./codebase-search/Dockerfile
+            build-args: TUIST_REVISION=${{ github.sha }}
+            cache: tuist/codebase-search-buildcache:main
+          - name: Kura controller
+            image: tuist/kura-controller
+            context: .
+            file: ./infra/kura-controller/Dockerfile
+          - name: Swift registry
+            image: tuist/registry
+            context: .
+            file: ./registry/Dockerfile
+            build-args: MIX_ENV=prod
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+      - id: tag
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+        run: echo "image_tag=sha-${DEPLOY_SHA:0:12}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        name: Build and push ${{ matrix.name }} image
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ matrix.image }}:${{ steps.tag.outputs.image_tag }}
+          build-args: ${{ matrix.build-args }}
+          cache-from: ${{ matrix.cache && format('type=registry,ref={0}/{1}', env.REGISTRY, matrix.cache) || '' }}
+          cache-to: ${{ matrix.cache && format('type=registry,ref={0}/{1},mode=max', env.REGISTRY, matrix.cache) || '' }}
+
+  # Builds the macOS server release the xcresult processor boots and publishes
+  # it to GHCR as an OCI artifact tagged like the server image. The processor's
+  # Tart image downloads it at boot, so a server change no longer needs a new
+  # image; the deploy pins the release by the digest it resolves from that tag.
+  build-xcresult-processor-release:
+    name: Build xcresult processor release
+    needs: [check-releases]
+    # Same gate as `build`: the release is deployed alongside the server image.
+    if: >-
+      always() &&
+      needs.check-releases.result == 'success' &&
+      (
+        needs.check-releases.outputs.deployable-changed == 'true' ||
+        needs.check-releases.outputs.linux-runner-image-should-release == 'true' ||
+        needs.check-releases.outputs.runners-controller-should-release == 'true' ||
+        needs.check-releases.outputs.stable-egress-controller-should-release == 'true' ||
+        needs.check-releases.outputs.egress-tree-agent-should-release == 'true' ||
+        needs.check-releases.outputs.capi-scaleway-should-release == 'true' ||
+        needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
+        needs.check-releases.outputs.kura-changed == 'true'
+      )
+    # The pool the acceptance tests already need, so this job adds no runner
+    # dependency to the run: a queued job does not count toward
+    # `timeout-minutes` and would hold the release concurrency group.
+    runs-on: tuist-macos-27-0
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      tarball_digest: ${{ steps.release.outputs.tarball-digest }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+      - id: release
+        uses: ./.github/actions/xcresult-processor-release
+        with:
+          revision: ${{ github.sha }}
+          registry-username: ${{ github.actor }}
+          registry-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # --------------------------------------------------------------------------
+  # Canary leg - deploys the pre-built image. Skipped on a hotfix: the
+  # fast-path ships straight to production without waiting on the canary
+  # cascade.
+  canary:
+    needs: [check-releases, build, build-images, build-xcresult-processor-release, tag-infra-releases, kura-release]
+    # `build` runs under `if: always()` so it survives the many skipped sibling
+    # release jobs. A plain-`if` dependent of an `always()`-guarded job gets
+    # caught by skip-propagation and is itself skipped even when `build`
+    # succeeded, so the whole deploy tail must re-assert success explicitly.
+    if: ${{ always() && needs.build.result == 'success' && needs.build-images.result == 'success' && needs.build-xcresult-processor-release.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
+    # server-deployment.yml's build-kura-runtime job requests id-token: write;
+    # a reusable workflow's permissions are validated against the caller at
+    # startup, so this leg must grant the callee's full permission union.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    uses: ./.github/workflows/server-deployment.yml
+    with:
+      environment: canary
+      commit_sha: ${{ github.sha }}
+      image_tag: ${{ needs.build.outputs.image_tag }}
+      kura_controller_image_tag: ${{ needs.build.outputs.image_tag }}
+      codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
+      registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
+      xcresult_processor_release_digest: ${{ needs.build-xcresult-processor-release.outputs.tarball_digest }}
+      install_platform: ${{ needs.check-releases.outputs.platform-changed != 'false' }}
+      install_observability: ${{ needs.check-releases.outputs.observability-changed != 'false' }}
+      install_tailscale_operator: ${{ needs.check-releases.outputs.tailscale-operator-changed != 'false' }}
+    secrets: inherit
+
   acceptance-tests:
     name: Acceptance Tests
-    runs-on: namespace-profile-default-macos
-    timeout-minutes: 30
     needs: canary
-    environment: server-canary
+    if: ${{ always() && needs.canary.result == 'success' }}
+    runs-on: tuist-macos-27-0
+    # A degraded remote cache can force a correct cold build, which must still
+    # have enough time to complete before production promotion.
+    timeout-minutes: 45
+    environment: server-k8s-canary
+    permissions:
+      contents: read
+      id-token: write
+    # A fixed instance keeps the development settings mise derives from it, and
+    # with them the manifest fingerprints on the dependency volume, stable.
+    env:
+      TUIST_DEV_INSTANCE: "1"
     steps:
       - uses: actions/checkout@v4
         with:
-          token: ${{ secrets.TUIST_GITHUB_TOKEN }}
+          ref: ${{ github.sha }}
+          token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
           submodules: recursive
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
-      - name: Restore cache
-        id: cache-restore
-        uses: actions/cache/restore@v4
+      - uses: tuist/xcode-cache@v1
+      - uses: tuist/module-cache@v1
+      # mise's data directory and the Rust toolchain share one volume: mise
+      # records an installed Rust as a link to ~/.cargo/bin, so the two are only
+      # consistent when they are restored together.
+      - uses: tuist/cache-volume@v1
         with:
-          path: .build
-          key: ${{ runner.os }}-cli-cache-ee-${{ hashFiles('Package.resolved') }}
-      - uses: jdx/mise-action@v2
+          key: server-deploy-acceptance-tools
+          path: |
+            ~/.local/share/mise
+            ~/.rustup
+            ~/.cargo/bin
+      # The job needs only Tuist and, below, Rust. The tasks run with
+      # --skip-tools so mise does not install the rest of the root toolset.
+      - uses: ./.github/actions/mise
+        with:
+          github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+          install_args: "--locked tuist"
+          cache: "false"
+      # Every Tuist pin bump would otherwise leave another release on the
+      # volume. Prune keeps the versions of configs mise has seen in this job;
+      # the install restores the pinned one if it was not among them.
+      - name: Remove superseded Tuist installs
+        run: |
+          mise prune --yes tuist
+          mise install --locked tuist
       - name: Authenticate with Tuist
         run: tuist auth login
-      - name: Setup Tuist cache
-        run: tuist setup cache
+      - name: Setup Tuist
+        run: tuist setup
       - name: Install Tuist dependencies
-        if: steps.cache-restore.outputs.cache-matched-key == ''
-        run: tuist install
+        uses: tuist/install@v1
+        with:
+          cache-key: server-deploy-acceptance-workspace
       - name: Initialize TuistCacheEE submodule
         env:
-          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_GITHUB_TOKEN }}
-        run: mise run cli:ee
+          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
+        run: mise run --skip-tools cli:ee
+      # The Xcode compilation-cache acceptance test loads the cas-plugin dylib
+      # inside xcodebuild's compilers and routes it to the proxy over a unix
+      # socket. Build both from source and hand their paths to the test via the
+      # TUIST_CAS_PLUGIN_PATH / TUIST_CAS_PROXY_PATH overrides ResourceLocator
+      # honours.
+      - uses: ./.github/actions/mise
+        with:
+          github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+          install_args: rust
+          working_directory: cas-plugin
+          cache: "false"
+      # ~/.cargo/bin is on the tools volume above.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: cas-plugin-rust-${{ runner.os }}
+          cache-bin: "false"
+          workspaces: |
+            cas-plugin -> target
+      - name: Build the cas-plugin
+        working-directory: cas-plugin
+        run: |
+          mise run --skip-tools build
+          echo "TUIST_CAS_PLUGIN_PATH=$(pwd)/target/release/libtuist_cas_plugin.dylib" >> "$GITHUB_ENV"
+          echo "TUIST_CAS_PROXY_PATH=$(pwd)/target/release/tuist-cas-proxy" >> "$GITHUB_ENV"
+      # TuistServerProductionDeployAcceptanceTests is this workflow's own plan
+      # (see Project.swift): the EE suite this job has always run, which covers
+      # caching, module cache and selective testing against canary, plus
+      # TuistServerAcceptanceTests, which covers build and test result ingestion.
+      # Ingestion had no coverage here at all, which is how a change that killed
+      # 100% of build ingestion promoted to production green on 2026-09-09, and
+      # one that killed 100% of xcresult processing on 2026-09-23.
+      #
+      # The worker cap matches tuist-project-tests.yml. It is not load-bearing while the plan
+      # holds two targets, since xcodebuild hands out one worker per target, but
+      # it keeps the ceiling where it is if a third target is ever added here.
       - name: Test
         env:
           TUIST_EE: 1
-        run: tuist test TuistCacheEEAcceptanceTests --no-selective-testing --test-targets TuistCacheEEAcceptanceTests/TuistCacheEECanaryAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+        run: |
+          tuist test TuistServerProductionDeployAcceptanceTests --no-selective-testing -- \
+            -maximum-parallel-testing-workers 2 \
+            -retry-tests-on-failure -test-iterations 2
+
+  # --------------------------------------------------------------------------
+  # Backward-compatibility acceptance - runs an OLD CLI against the freshly-
+  # deployed canary to catch server changes that break still-supported CLIs.
+  # The acceptance-tests job above always uses the CLI built from HEAD, so it
+  # can never catch this; this job gates production alongside it.
+  #
+  # The support window's source of truth is
+  # Tuist.CLIVersions.minimum_supported_version/0 in server/lib/tuist/cli_versions.ex
+  # (it drives the deprecation warning and the docs Compatibility page). This job
+  # would normally test that exact floor, but it builds on a macOS runner with
+  # Xcode 26, and CLIs older than 4.154.2 cannot `tuist cache` under Xcode 26
+  # (XCLogParser/build-log handling, fixed in CLI 4.154.2) - a client-side Xcode
+  # gap, not a server-contract break. Since this gate guards the server contract,
+  # it tests the oldest supported CLI that can actually build on this runner:
+  # max(minimum_supported_version, the Xcode-26 build floor below). Keeping the
+  # declared minimum lower (e.g. for a customer pinned to an older release) does
+  # not weaken the contract check.
+  # --------------------------------------------------------------------------
+  backward-compatibility-acceptance:
+    name: Backward-Compatibility Acceptance
+    needs: canary
+    if: ${{ always() && needs.canary.result == 'success' }}
+    # Any Xcode 26 works for the build floor below. `tuist-macos` (Xcode 26.6)
+    # keeps a warm runner; the other Xcode 26 pools start cold.
+    runs-on: tuist-macos
+    timeout-minutes: 15
+    environment: server-k8s-canary
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MISE_TASK_RUN_AUTO_INSTALL: 0
+      TUIST_URL: https://canary.tuist.dev
+      # Pin the cache to canary's PUBLIC endpoint instead of resolving it via
+      # /api/cache/endpoints. This job runs on the scw-fr-par macOS runner fleet,
+      # and the server routes that fleet to the regional Kura cache - an in-cluster
+      # Private Network NodePort (e.g. http://172.16.0.2:3xxxx) meant for the
+      # dispatched-runner cache data plane, which a plain `tuist cache` here can't
+      # reach (every download/upload times out). A real external customer resolves
+      # the public endpoint; pinning makes this gate use it too. Verified on the
+      # runner: with the pin the store+fetch round-trip succeeds; without it the
+      # CLI picks the PN NodePort and stalls.
+      TUIST_CACHE_ENDPOINT: https://cache-eu-central-canary.tuist.dev
+      # Public canary test account, same as the HEAD acceptance scheme (Project.swift).
+      TUIST_AUTH_EMAIL: tuistrocks@tuist.dev
+      TUIST_AUTH_PASSWORD: tuistrocks
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: false
+      # No tuist/module-cache: the suite must pull its binary from canary, so a
+      # module cache that outlives the job would only hold throwaway artifacts.
+      - uses: tuist/xcode-cache@v1
+      - name: Resolve backward-compatibility CLI version
+        # Test the oldest supported CLI that can build on this runner's Xcode:
+        # max(minimum_supported_version, the Xcode-26 build floor). See the
+        # comment block above the job for why the floor exists.
+        run: |
+          file=server/lib/tuist/cli_versions.ex
+          min_version="$(grep -E '@minimum_supported_version' "$file" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+          if [ -z "$min_version" ]; then
+            echo "Could not resolve @minimum_supported_version from $file" >&2
+            exit 1
+          fi
+          # Oldest CLI that can `tuist cache` under the runner's Xcode 26 (CLI 4.154.2).
+          xcode_build_floor=4.154.2
+          version="$(printf '%s\n%s\n' "$min_version" "$xcode_build_floor" | sort -V | tail -n1)"
+          echo "BACKWARD_COMPAT_TUIST_VERSION=$version" >> "$GITHUB_ENV"
+          echo "Minimum supported CLI: ${min_version}; testing backward-compat with: ${version}"
+      - uses: ./.github/actions/mise
+        with:
+          github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+          install_args: "--locked bats"
+      - name: Install backward-compatibility tuist
+        run: mise install "tuist@${BACKWARD_COMPAT_TUIST_VERSION}"
+      - name: Resolve backward-compatibility tuist binary
+        id: oldtuist
+        run: |
+          install_dir="$(mise where "tuist@${BACKWARD_COMPAT_TUIST_VERSION}")"
+          bin="$(find "$install_dir" -type f -name tuist | head -n1)"
+          if [ -z "$bin" ]; then
+            echo "Could not locate the tuist binary under $install_dir" >&2
+            exit 1
+          fi
+          echo "tuist_bin=$bin" >> "$GITHUB_OUTPUT"
+          # Run outside the checkout: the CLI loads the nearest Tuist.swift, and the
+          # repository's own manifest may use APIs newer than this CLI.
+          (cd "$RUNNER_TEMP" && "$bin" version)
+      - name: Run backward-compatibility acceptance test
+        env:
+          TUIST_EXECUTABLE: ${{ steps.oldtuist.outputs.tuist_bin }}
+        run: mise run --no-deps e2e module_cache_backward_compat
+
+  # Kura promotion gate - production's wave 0 never starts on an image the
+  # canary environment has not actually converged on (spec #79). The canary
+  # environment's rollout runs expedited, so completion is minutes; a
+  # paused, aborted, or superseded canary rollout blocks promotion. When
+  # rollout orchestration is disabled on canary (flag off) the gate passes
+  # with a notice, so enabling the machinery stays an ops action rather
+  # than a deploy-order dependency.
+  kura-canary-rollout-gate:
+    name: Kura canary rollout gate
+    needs: [check-releases, build, canary]
+    if: ${{ always() && needs.canary.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
+    runs-on: tuist-linux
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          # Full history + tags to resolve the same kura@ canary tag the
+          # canary deploy pinned.
+          fetch-depth: 0
+      - name: Wait for the canary Kura rollout to complete
+        run: |
+          set -euo pipefail
+          # Mirrors server-deployment.yml's resolver: the newest canary this
+          # commit contains, else (commits predating canaries) the newest
+          # stable tag.
+          kura_tag="$(git tag --list 'kura@*' --merged "${{ github.sha }}" \
+            | sed 's|^kura@||' \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+-canary\.[0-9]+$' \
+            | sort -V | tail -n1 || true)"
+          if [ -z "$kura_tag" ]; then
+            kura_tag="$(git tag --list 'kura@*' \
+              | sed 's|^kura@||' \
+              | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+              | sort -V | tail -n1 || true)"
+          fi
+          if [ -z "$kura_tag" ]; then
+            echo "No kura@ release tag reachable from this commit; nothing to gate."
+            exit 0
+          fi
+          echo "Gating production promotion on the canary rollout of kura ${kura_tag}"
+          deadline=$((SECONDS + 25 * 60))
+          while (( SECONDS < deadline )); do
+            response="$(curl -fsS "https://canary.tuist.dev/api/kura/rollout-status?image_tag=${kura_tag}" || true)"
+            if [ -z "$response" ]; then
+              echo "Rollout status endpoint unreachable; retrying..."
+              sleep 30
+              continue
+            fi
+            enabled="$(jq -r '.enabled // false' <<<"$response")"
+            status="$(jq -r '.rollout.status // empty' <<<"$response")"
+            if [ "$enabled" != "true" ]; then
+              echo "Rollout orchestration is disabled on canary; skipping the gate."
+              exit 0
+            fi
+            case "$status" in
+              completed)
+                echo "Canary rollout of kura ${kura_tag} completed."
+                exit 0
+                ;;
+              paused|aborted|superseded)
+                echo "Canary rollout of kura ${kura_tag} is ${status}; blocking production promotion." >&2
+                exit 1
+                ;;
+              running)
+                echo "Canary rollout of kura ${kura_tag} is running; waiting..."
+                ;;
+              *)
+                echo "No rollout recorded for kura ${kura_tag} yet; waiting..."
+                ;;
+            esac
+            sleep 30
+          done
+          echo "Timed out waiting for the canary rollout of kura ${kura_tag} to complete." >&2
+          exit 1
+
+  # Runners gate - a canary deploy that breaks Tuist Runners or the cache their
+  # jobs build against fails here instead of reaching production. Runs the
+  # Runners Acceptance workflow against canary's own runners, the only fleets
+  # that run this commit before production does: a job is dispatched onto a
+  # runner, round-trips a blob through the cache endpoint dispatch handed it
+  # with a token minted from its OIDC identity, and rebuilds a fixture from an
+  # empty local CAS, which must be served entirely from the remote cache.
+  # Production's own fleets, the BER1 rack among them, are covered by the
+  # workflow's hourly schedule, since a check of them here would test the
+  # release production is still on rather than this one.
+  #
+  # The probe is its own workflow run so its dispatch watchdog can cancel a job
+  # no runner picks up without cancelling this run. Runs on a GitHub-hosted
+  # runner so a broken Tuist runner fleet cannot keep the gate from reporting.
+  runners-acceptance:
+    name: Runners acceptance
+    needs: [check-releases, canary]
+    if: ${{ always() && needs.canary.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts/runners-acceptance
+      - name: Run the runners acceptance probe against canary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ENVIRONMENT: canary
+          REF: ${{ github.ref_name }}
+          GATE_MINUTES: 35
+        run: .github/scripts/runners-acceptance/gate.sh
+
+  # Production leg - standard path: canary ready + tests green. Promotes the
+  # same image bytes tests ran against. Skipped on a hotfix. The
+  # `always() && needs.*.result == 'success'` guard is required for the
+  # skip-propagation reason documented on `canary` above.
   production:
-    environment: server-production
-    name: Production Deployment
-    env:
-      DOCKER_BUILDKIT: 1
-    runs-on: namespace-profile-default
-    timeout-minutes: 60
-    if: ${{ !contains(github.event.head_commit.message, '(hotfix)') }}
-    needs: acceptance-tests
-    defaults:
-      run:
-        working-directory: server
-    steps:
-      - uses: actions/checkout@v4
-        if: ${{ github.event.inputs.commit_sha == '' }}
-      - uses: actions/checkout@v4
-        if: ${{ github.event.inputs.commit_sha != '' }}
-        with:
-          ref: ${{ github.event.inputs.commit_sha }}
-      - uses: jdx/mise-action@v2
-        with:
-          install: false
-      - name: "Get version"
-        id: version
-        run: |
-          version=$(./mise/tasks/generate-version.sh)
-          echo "::set-output name=version::$version"
-      - name: Update version in mix.exs
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          sed -i 's/version: "[^"]*"/version: "'$VERSION'"/' mix.exs
-      - name: Trigger canary deploy with Render CLI
-        run: |
-          mise exec "github:render-oss/cli@2.6.1" -- cli_v2.6.1 deploys create srv-d35an4ggjchc73evd8m0 --output json --confirm --wait --commit "$GITHUB_SHA"
+    # `canary` is listed explicitly (not just relied on transitively through the
+    # acceptance jobs) so the "canary must be green before prod" invariant is
+    # encoded in this job's own gate, not in the acceptance jobs' needs.
+    needs:
+      [
+        check-releases,
+        build,
+        build-images,
+        build-xcresult-processor-release,
+        canary,
+        acceptance-tests,
+        backward-compatibility-acceptance,
+        kura-canary-rollout-gate,
+        runners-acceptance,
+        tag-infra-releases,
+      ]
+    if: >-
+      always() &&
+      needs.build.result == 'success' &&
+      needs.build-images.result == 'success' &&
+      needs.build-xcresult-processor-release.result == 'success' &&
+      needs.tag-infra-releases.result == 'success' &&
+      needs.canary.result == 'success' &&
+      needs.acceptance-tests.result == 'success' &&
+      needs.backward-compatibility-acceptance.result == 'success' &&
+      needs.kura-canary-rollout-gate.result == 'success' &&
+      needs.runners-acceptance.result == 'success' &&
+      needs.check-releases.outputs.is-hotfix != 'true'
+    # See `canary` above: grant the callee's full permission union.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    uses: ./.github/workflows/server-deployment.yml
+    with:
+      environment: production
+      commit_sha: ${{ github.sha }}
+      image_tag: ${{ needs.build.outputs.image_tag }}
+      kura_controller_image_tag: ${{ needs.build.outputs.image_tag }}
+      codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
+      registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
+      xcresult_processor_release_digest: ${{ needs.build-xcresult-processor-release.outputs.tarball_digest }}
+      install_platform: ${{ needs.check-releases.outputs.platform-changed != 'false' }}
+      install_observability: ${{ needs.check-releases.outputs.observability-changed != 'false' }}
+      install_tailscale_operator: ${{ needs.check-releases.outputs.tailscale-operator-changed != 'false' }}
+    secrets: inherit
+
+  # Hotfix fast-path: "(hotfix)" in the commit subject ships production without
+  # waiting for canary + acceptance tests. Kept independent of the cascade so a
+  # flaky acceptance test can't block an urgent fix; canary is skipped above on
+  # hotfix so the fast-path is the only deploy in flight. The
+  # `always() && needs.build.result == 'success'` guard mirrors `canary`
+  # (see its comment) so this leg is not skip-propagated away.
   production-hotfix:
-    environment: server-production
-    name: Hotfix Production Deployment
-    env:
-      DOCKER_BUILDKIT: 1
-    runs-on: namespace-profile-default
-    timeout-minutes: 60
-    if: ${{ contains(github.event.head_commit.message, '(hotfix)') }}
-    defaults:
-      run:
-        working-directory: server
-    steps:
-      - uses: actions/checkout@v4
-        if: ${{ github.event.inputs.commit_sha == '' }}
-      - uses: actions/checkout@v4
-        if: ${{ github.event.inputs.commit_sha != '' }}
-        with:
-          ref: ${{ github.event.inputs.commit_sha }}
-      - uses: jdx/mise-action@v2
-        with:
-          install: false
-      - name: "Get version"
-        id: version
-        run: |
-          version=$(./mise/tasks/generate-version.sh)
-          echo "::set-output name=version::$version"
-      - name: Update version in mix.exs
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          sed -i 's/version: "[^"]*"/version: "'$VERSION'"/' mix.exs
-      - name: Trigger canary deploy with Render CLI
-        run: |
-          mise exec "github:render-oss/cli@2.6.1" -- cli_v2.6.1 deploys create srv-d35an4ggjchc73evd8m0 --output json --confirm --wait --commit "$GITHUB_SHA"
+    needs: [check-releases, build, build-images, build-xcresult-processor-release, tag-infra-releases, kura-release]
+    if: ${{ always() && needs.build.result == 'success' && needs.build-images.result == 'success' && needs.build-xcresult-processor-release.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix == 'true' }}
+    # See `canary` above: grant the callee's full permission union.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    uses: ./.github/workflows/server-deployment.yml
+    with:
+      environment: production
+      commit_sha: ${{ github.sha }}
+      image_tag: ${{ needs.build.outputs.image_tag }}
+      kura_controller_image_tag: ${{ needs.build.outputs.image_tag }}
+      codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
+      registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
+      xcresult_processor_release_digest: ${{ needs.build-xcresult-processor-release.outputs.tarball_digest }}
+      install_platform: ${{ needs.check-releases.outputs.platform-changed != 'false' }}
+      install_observability: ${{ needs.check-releases.outputs.observability-changed != 'false' }}
+      install_tailscale_operator: ${{ needs.check-releases.outputs.tailscale-operator-changed != 'false' }}
+    secrets: inherit

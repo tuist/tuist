@@ -68,7 +68,7 @@ public struct MenuBarView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             switch authenticationService.authenticationState {
-            case let .loggedIn(account):
+            case let .loggedIn(account, _):
                 MenuHeader(
                     accountHandle: account.handle
                 )
@@ -80,7 +80,7 @@ public struct MenuBarView: View {
                 )
                 .padding(.horizontal, 8)
                 .padding(.top, 4)
-                .padding(.bottom, 12)
+                .padding(.bottom, 8)
 
                 DevicesView(
                     viewModel: DevicesViewModel(deviceService: deviceService)

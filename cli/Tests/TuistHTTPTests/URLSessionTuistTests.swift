@@ -1,0 +1,224 @@
+#if os(macOS)
+    import Foundation
+    import Testing
+    import TuistEnvironment
+    import TuistEnvironmentTesting
+
+    @testable import TuistHTTP
+
+    @Suite(.serialized)
+    struct URLSessionTuistTests {
+        @Test(.withMockedEnvironment())
+        func tuistURLSessionConfiguration_uses_environment_proxy_when_enabled() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["HTTPS_PROXY"] = "http://proxy.tuist.dev:8080"
+
+            let configuration = tuistURLSessionConfiguration(useEnvironmentProxy: true)
+            let proxyHost = configuration.connectionProxyDictionary?[kCFNetworkProxiesHTTPProxy as String] as? String
+            let proxyPort = configuration.connectionProxyDictionary?[kCFNetworkProxiesHTTPPort as String] as? Int
+
+            #expect(proxyHost == "proxy.tuist.dev")
+            #expect(proxyPort == 8080)
+        }
+
+        @Test(.withMockedEnvironment())
+        func discovery_preserves_proxy_settings_without_cookies_credentials_or_redirects() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["HTTPS_PROXY"] = "http://proxy.tuist.dev:8080"
+            let previousSettings = HTTPSettings.current
+            HTTPSettings.current = .init(useEnvironmentProxy: true)
+            defer { HTTPSettings.current = previousSettings }
+            let session = URLSession.tuistDiscovery
+            defer { session.invalidateAndCancel() }
+            let configuration = session.configuration
+            #expect(configuration
+                .connectionProxyDictionary?[kCFNetworkProxiesHTTPSProxy as String] as? String == "proxy.tuist.dev")
+            #expect(configuration.httpCookieStorage == nil)
+            #expect(configuration.urlCredentialStorage == nil)
+            #expect(!configuration.httpShouldSetCookies)
+            #expect(configuration.timeoutIntervalForRequest == 10)
+            #expect(configuration.timeoutIntervalForResource == 10)
+            let delegate = try #require(session.delegate as? URLSessionTaskDelegate)
+            let url = try #require(URL(string: "https://tuist.example"))
+            let response = try #require(HTTPURLResponse(url: url, statusCode: 302, httpVersion: nil, headerFields: nil))
+            await confirmation("Discovery refuses redirects") { completed in
+                delegate.urlSession?(
+                    session, task: session.dataTask(with: url), willPerformHTTPRedirection: response,
+                    newRequest: URLRequest(url: url)
+                ) { request in
+                    #expect(request == nil)
+                    completed()
+                }
+            }
+        }
+
+        @Test(.withMockedEnvironment())
+        func tuistURLSessionConfiguration_uses_default_timeouts_and_connection_limit() async throws {
+            let configuration = tuistURLSessionConfiguration()
+
+            #expect(configuration.timeoutIntervalForRequest == 120)
+            #expect(configuration.timeoutIntervalForResource == 90)
+            #expect(configuration.httpMaximumConnectionsPerHost == 20)
+        }
+
+        @Test(.withMockedEnvironment())
+        func tuistURLSessionConfiguration_overrides_timeouts_and_connection_limit_from_environment() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST"] = "300"
+            environment.variables["TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE"] = "600"
+            environment.variables["TUIST_HTTP_MAXIMUM_CONNECTIONS_PER_HOST"] = "40"
+
+            let configuration = tuistURLSessionConfiguration()
+
+            #expect(configuration.timeoutIntervalForRequest == 300)
+            #expect(configuration.timeoutIntervalForResource == 600)
+            #expect(configuration.httpMaximumConnectionsPerHost == 40)
+        }
+
+        @Test(.withMockedEnvironment())
+        func tuistURLSessionConfiguration_falls_back_to_defaults_for_invalid_environment_values() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST"] = "not-a-number"
+            environment.variables["TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE"] = ""
+            environment.variables["TUIST_HTTP_MAXIMUM_CONNECTIONS_PER_HOST"] = "abc"
+
+            let configuration = tuistURLSessionConfiguration()
+
+            #expect(configuration.timeoutIntervalForRequest == 120)
+            #expect(configuration.timeoutIntervalForResource == 90)
+            #expect(configuration.httpMaximumConnectionsPerHost == 20)
+        }
+
+        @Test(.withMockedEnvironment())
+        func tuistURLSessionConfiguration_skips_environment_proxy_when_disabled() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["HTTPS_PROXY"] = "http://proxy.tuist.dev:8080"
+
+            let configuration = tuistURLSessionConfiguration(useEnvironmentProxy: false)
+
+            #expect(configuration.connectionProxyDictionary == nil)
+        }
+
+        @Test(.withMockedEnvironment())
+        func tuistURLSessionConfiguration_uses_current_http_settings_by_default() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["HTTPS_PROXY"] = "http://proxy.tuist.dev:8080"
+
+            let previousSettings = HTTPSettings.current
+            HTTPSettings.current = .init(useEnvironmentProxy: false)
+            defer { HTTPSettings.current = previousSettings }
+
+            let configuration = tuistURLSessionConfiguration()
+
+            #expect(configuration.connectionProxyDictionary == nil)
+        }
+
+        @Test(.withMockedEnvironment())
+        func tuistShared_resolves_proxy_mode_from_runtime_settings() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["HTTPS_PROXY"] = "http://proxy.tuist.dev:8080"
+
+            let previousSettings = HTTPSettings.current
+            HTTPSettings.current = .init(useEnvironmentProxy: false)
+            defer { HTTPSettings.current = previousSettings }
+
+            let defaultSession = URLSession.tuistShared
+            let explicitProxiedSession = URLSession.tuistShared(useEnvironmentProxy: true)
+
+            #expect(defaultSession.configuration.connectionProxyDictionary == nil)
+            #expect(
+                explicitProxiedSession.configuration.connectionProxyDictionary?[kCFNetworkProxiesHTTPProxy as String] as? String
+                    == "proxy.tuist.dev"
+            )
+        }
+
+        @Test(.withMockedEnvironment())
+        func tuistShared_reuses_the_process_shared_session() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["HTTPS_PROXY"] = "http://proxy.tuist.dev:8080"
+
+            let previousSettings = HTTPSettings.current
+            HTTPSettings.current = .init(useEnvironmentProxy: false)
+            defer { HTTPSettings.current = previousSettings }
+
+            let firstSession = URLSession.tuistShared
+            let secondSession = URLSession.tuistShared
+
+            #expect(firstSession === secondSession)
+            #expect(firstSession.configuration.connectionProxyDictionary == nil)
+        }
+
+        @Test(.withMockedEnvironment())
+        func tuistShared_recreates_the_shared_session_when_runtime_settings_change() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["HTTPS_PROXY"] = "http://proxy.tuist.dev:8080"
+
+            let previousSettings = HTTPSettings.current
+            defer { HTTPSettings.current = previousSettings }
+
+            HTTPSettings.current = .init(useEnvironmentProxy: false)
+            let firstSession = URLSession.tuistShared
+
+            HTTPSettings.current = .init(useEnvironmentProxy: true)
+            let secondSession = URLSession.tuistShared
+
+            #expect(firstSession !== secondSession)
+            #expect(firstSession.configuration.connectionProxyDictionary == nil)
+            #expect(
+                secondSession.configuration.connectionProxyDictionary?[kCFNetworkProxiesHTTPProxy as String] as? String
+                    == "proxy.tuist.dev"
+            )
+        }
+
+        @Test(.withMockedEnvironment())
+        func tuistShared_preserves_the_shared_session_when_runtime_settings_are_rewritten_with_the_same_value() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["HTTPS_PROXY"] = "http://proxy.tuist.dev:8080"
+
+            let previousSettings = HTTPSettings.current
+            defer { HTTPSettings.current = previousSettings }
+
+            HTTPSettings.current = .init(useEnvironmentProxy: true)
+            let firstSession = URLSession.tuistShared
+
+            HTTPSettings.current = .init(useEnvironmentProxy: true)
+            let secondSession = URLSession.tuistShared
+
+            #expect(firstSession === secondSession)
+        }
+
+        @Test(.withMockedEnvironment())
+        func tuistLargeTransfer_uses_a_ten_minute_resource_timeout_by_default() async throws {
+            invalidateSharedTuistURLSession()
+            defer { invalidateSharedTuistURLSession() }
+
+            let configuration = URLSession.tuistLargeTransfer.configuration
+
+            #expect(configuration.timeoutIntervalForResource == 600)
+            #expect(configuration.timeoutIntervalForRequest == 120)
+        }
+
+        @Test(.withMockedEnvironment())
+        func tuistLargeTransfer_raises_the_resource_timeout_from_the_environment() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE"] = "1800"
+
+            invalidateSharedTuistURLSession()
+            defer { invalidateSharedTuistURLSession() }
+
+            #expect(URLSession.tuistLargeTransfer.configuration.timeoutIntervalForResource == 1800)
+        }
+
+        @Test(.withMockedEnvironment())
+        func tuistLargeTransfer_keeps_its_floor_when_the_environment_lowers_the_resource_timeout() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE"] = "30"
+
+            invalidateSharedTuistURLSession()
+            defer { invalidateSharedTuistURLSession() }
+
+            #expect(URLSession.tuistLargeTransfer.configuration.timeoutIntervalForResource == 600)
+            #expect(URLSession.tuistShared.configuration.timeoutIntervalForResource == 30)
+        }
+    }
+#endif

@@ -1,0 +1,1277 @@
+defmodule Tuist.Kura.ReconcilerTest do
+  # Not async: these tests enable and disable :kura_account_endpoint_migration for
+  # their own actors, and a FunWithFlags flag record and its ETS cache are global.
+  # The Ecto sandbox rolls back each test's gates but not the cache, so a
+  # concurrent module's enable overwrites the cached record and this module's
+  # gate reads false.
+  use TuistTestSupport.Cases.DataCase, async: false
+  use Mimic
+
+  alias Tuist.Accounts
+  alias Tuist.Kura
+  alias Tuist.Kura.Deployment
+  alias Tuist.Kura.Identity
+  alias Tuist.Kura.Provisioner
+  alias Tuist.Kura.Reconciler
+  alias Tuist.Kura.Server
+  alias Tuist.Kura.Workers.AwaitActivationWorker
+  alias Tuist.Repo
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
+
+  @moduletag capture_log: true
+
+  setup :set_mimic_from_context
+
+  setup do
+    stub(Tuist.Environment, :kura_control_plane?, fn -> true end)
+    stub(Tuist.Environment, :kura_runtime_image_tag, fn -> nil end)
+    # Most of this file exercises the interim-paced scheduler, which is
+    # the kill-switch fallback now that orchestration is on by default.
+    stub(Tuist.FeatureFlags, :kura_rollout_orchestration_enabled?, fn -> false end)
+    stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4100" end)
+    :ok
+  end
+
+  test "boot reconciliation reuses the existing incomplete job" do
+    first = Kura.enqueue_reconcile_orphaned_deployments()
+    second = Kura.enqueue_reconcile_orphaned_deployments()
+
+    assert first.id == second.id
+    assert second.conflict?
+    assert first.worker == "Tuist.Kura.Reconciler"
+    assert first.queue == "default"
+  end
+
+  test "routes version scheduling through the rollout orchestration by default" do
+    expect(Tuist.Kura.Rollouts, :sync, fn -> :ok end)
+    stub(Tuist.FeatureFlags, :kura_rollout_orchestration_enabled?, fn -> true end)
+
+    assert :ok = Reconciler.reconcile()
+  end
+
+  test "reconciles nothing when this process is not the Kura control plane" do
+    stub(Tuist.Environment, :kura_control_plane?, fn -> false end)
+    {_account, server, deployment} = create_server()
+
+    # No Provisioner expectations: a non-control-plane boot (ops eval
+    # Job) must not schedule, apply, or observe anything.
+    assert :ok = Reconciler.reconcile()
+
+    assert Repo.get!(Deployment, deployment.id).status == :pending
+    assert Repo.get!(Server, server.id).status == :provisioning
+  end
+
+  test "applies a pending deployment when the KuraInstance is missing" do
+    {_account, server, deployment} = create_server()
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:error, :not_found}
+    end)
+
+    expect(Provisioner, :rollout, fn %Server{id: id}, inputs ->
+      assert id == server.id
+      assert inputs.image_tag == deployment.image_tag
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{status: :running} = Repo.get!(Deployment, deployment.id)
+    assert %Server{status: :provisioning, current_image_tag: nil} = Repo.get!(Server, server.id)
+  end
+
+  test "marks a deployment succeeded when the controller observes the requested image" do
+    {_account, server, deployment} = create_server()
+    {:ok, deployment} = Kura.mark_running(deployment)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, deployment.image_tag}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{status: :succeeded, error_message: nil} = Repo.get!(Deployment, deployment.id)
+
+    assert %Server{status: :active, current_image_tag: "0.5.2", url: "http://localhost:4100"} =
+             Repo.get!(Server, server.id)
+  end
+
+  test "marks a pending deployment running before succeeding when the requested image is already observed" do
+    {_account, server, deployment} = create_server()
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, deployment.image_tag}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{status: :succeeded, error_message: nil} = Repo.get!(Deployment, deployment.id)
+
+    assert %Server{status: :active, current_image_tag: "0.5.2", url: "http://localhost:4100"} =
+             Repo.get!(Server, server.id)
+  end
+
+  test "keeps a deployment running until the public HTTPS endpoint is ready" do
+    {account, server, deployment} = create_server()
+    {:ok, deployment} = Kura.mark_running(deployment)
+    stub_unready_public_endpoint(account, server)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{status: :running} = Repo.get!(Deployment, deployment.id)
+
+    # The workload is up on the desired image but its public endpoint is not
+    # serving yet, and this account has nothing to replicate from — no other
+    # live instance, no self-hosted peer. Calling that "replicating" would
+    # attribute the wait to a bootstrap that can never finish, so a cold start
+    # stays :provisioning while the deployment keeps retrying.
+    assert %Server{status: :provisioning, current_image_tag: nil, url: nil} = Repo.get!(Server, server.id)
+  end
+
+  test "surfaces replicating while the endpoint is unready and the account has a peer to bootstrap from" do
+    {account, server, deployment} = create_server()
+    {:ok, deployment} = Kura.mark_running(deployment)
+
+    Repo.insert!(%Server{
+      account_id: account.id,
+      region: "us-east",
+      status: :active,
+      url: "https://peer.example.com",
+      current_image_tag: deployment.image_tag,
+      provisioner_node_ref: "kura-#{account.id}-us-east"
+    })
+
+    stub_unready_public_endpoint(account, server)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :replicating} = Repo.get!(Server, server.id)
+  end
+
+  defp stub_unready_public_endpoint(account, server) do
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, "0.5.2"}
+    end)
+
+    expect(Provisioner, :public_url, fn account_arg, %Server{id: id} ->
+      assert account_arg.id == account.id
+      assert id == server.id
+      "https://localhost:4100"
+    end)
+
+    expect(Req, :get, fn "https://localhost:4100/up", opts ->
+      refute Keyword.has_key?(opts, :finch)
+      assert opts[:receive_timeout] == 5_000
+      assert opts[:connect_options] == [timeout: 5_000]
+      assert opts[:retry] == false
+      {:error, %Mint.TransportError{reason: {:tls_alert, ~c"unknown ca"}}}
+    end)
+  end
+
+  test "schedules and applies runtime image drift for active servers" do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "sha-abcdef123456" end)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, "0.5.2"}
+    end)
+
+    expect(Provisioner, :rollout, fn %Server{id: id}, inputs ->
+      assert id == server.id
+      assert inputs.image_tag == "sha-abcdef123456"
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{status: :running} =
+             Repo.get_by!(Deployment, kura_server_id: server.id, image_tag: "sha-abcdef123456")
+
+    # A rollout reaches the whole fleet at once; the minute tick activates it.
+    refute_enqueued(worker: AwaitActivationWorker)
+  end
+
+  test "checks a provisioning server's activation every second once its deployment is applied" do
+    {_account, server, _deployment} = create_server()
+    stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+    stub(Provisioner, :rollout, fn _server, _inputs -> :ok end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert_enqueued(worker: AwaitActivationWorker, args: %{"server_id" => server.id})
+  end
+
+  test "reapplies a succeeded server when the backing KuraInstance is missing" do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:error, :not_found}
+    end)
+
+    expect(Provisioner, :rollout, fn %Server{id: id}, inputs ->
+      assert id == server.id
+      assert inputs.image_tag == deployment.image_tag
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{status: :succeeded} = Repo.get!(Deployment, deployment.id)
+    assert %Server{status: :active, current_image_tag: "0.5.2"} = Repo.get!(Server, server.id)
+  end
+
+  # A rename changes nothing about the workload, so the drift is seen on the same
+  # tick the instance re-renders, before external-dns has created the record. A
+  # lookup that early caches NXDOMAIN at the provider for the zone's SOA minimum.
+  test "holds the endpoint probe on the tick a rendered public host change is first seen" do
+    {account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4200" end)
+    stub(Provisioner, :current_image_tag, fn _server -> {:ok, "0.5.2"} end)
+
+    reject(&Kura.activate_server/2)
+
+    assert :ok = Reconciler.reconcile()
+
+    held = Repo.get!(Server, server.id)
+    assert held.status == :active
+    assert held.url == "http://localhost:4100"
+    assert Kura.managed_cache_endpoint_urls(account) == ["http://localhost:4100"]
+    assert %DateTime{} = held.public_host_drift_observed_at
+
+    # Written once, not restamped: a hold that reset itself would never expire.
+    assert :ok = Reconciler.reconcile()
+
+    assert Repo.get!(Server, server.id).public_host_drift_observed_at == held.public_host_drift_observed_at
+  end
+
+  test "re-activates an active server whose stored URL drifted from the rendered host" do
+    {account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    assert Kura.managed_cache_endpoint_urls(account) == ["http://localhost:4100"]
+
+    # The region template now renders a different host (e.g. an
+    # environment-scoped public-host rename). The image is unchanged, so only
+    # the URL-aware convergence check forces the server back through activation.
+    stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4200" end)
+
+    # A publication window has passed, so the record for the new host exists.
+    server
+    |> Ecto.Changeset.change(%{
+      public_host_drift_observed_at:
+        DateTime.utc_now()
+        |> DateTime.add(-Kura.public_host_publication_seconds() - 1, :second)
+        |> DateTime.truncate(:second)
+    })
+    |> Repo.update!()
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, "0.5.2"}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :active, url: "http://localhost:4200"} = Repo.get!(Server, server.id)
+    assert Kura.managed_cache_endpoint_urls(account) == ["http://localhost:4200"]
+  end
+
+  test "clears the public host drift clock once the stored URL matches the rendered host again" do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    server
+    |> Ecto.Changeset.change(%{public_host_drift_observed_at: DateTime.truncate(DateTime.utc_now(), :second)})
+    |> Repo.update!()
+
+    stub(Provisioner, :current_image_tag, fn _server -> {:ok, "0.5.2"} end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert Repo.get!(Server, server.id).public_host_drift_observed_at == nil
+  end
+
+  # A rollout abort or supersede cancels the open deployments it owns, which
+  # can leave a replicating server with none. The rollout fast path drives open
+  # deployments alone, so the projection is the only thing that reaches it.
+  test "projects a replicating server whose deployment was closed under it" do
+    {account, server, deployment} = create_server()
+
+    server
+    |> Ecto.Changeset.change(%{status: :replicating})
+    |> Repo.update!()
+
+    {:ok, deployment} = Kura.mark_running(deployment)
+    {:ok, _deployment} = Kura.mark_cancelled(deployment, "superseded by a newer rollout")
+
+    stub(Provisioner, :manifest_revision, fn _ -> {:ok, nil} end)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, "0.5.2"}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :active, url: "http://localhost:4100"} = Repo.get!(Server, server.id)
+    assert Kura.managed_cache_endpoint_urls(account) == ["http://localhost:4100"]
+  end
+
+  test "refreshes an active private endpoint while its image deployment is still running" do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    server = server |> Ecto.Changeset.change(region: "scw-fr-par-runners") |> Repo.update!()
+    stub(Provisioner, :current_image_tag, fn _ -> {:ok, "older-image"} end)
+    stub(Provisioner, :rollout, fn _, _ -> :ok end)
+    reject(&Kura.activate_server/2)
+
+    expect(Kura, :refresh_private_server_url, fn %Server{id: id} ->
+      assert id == server.id
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+    assert Repo.get!(Server, server.id).status == :active
+  end
+
+  test "refreshes a converged node-port server instead of re-activating it every tick" do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    # Move the converged server into a node-port private region with its
+    # node-published dispatch URL. `public_url/2` renders the cluster-DNS
+    # template, which this never matches, so the pre-fix `endpoint_in_sync?/1`
+    # reported drift on every tick and re-activated the node (DB write +
+    # broadcast) instead of letting the node-port refresh path own the endpoint.
+    server =
+      server
+      |> Ecto.Changeset.change(region: "scw-fr-par-runners", url: "http://172.16.0.5:32000")
+      |> Repo.update!()
+
+    stub(Provisioner, :current_image_tag, fn _ -> {:ok, "0.5.2"} end)
+    stub(Provisioner, :manifest_revision, fn _ -> {:ok, nil} end)
+    stub(Provisioner, :current_manifest_revision, fn _ -> {:ok, "rev"} end)
+
+    # The fix routes a converged node-port server through the endpoint refresh,
+    # not back through activation.
+    reject(&Kura.activate_server/2)
+
+    expect(Kura, :refresh_private_server_url, fn %Server{id: id} ->
+      assert id == server.id
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :active, url: "http://172.16.0.5:32000"} = Repo.get!(Server, server.id)
+  end
+
+  test "re-applies the manifest when only the instance's claim moved" do
+    {account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    # The revision this instance's live CR carries, computed rather than written
+    # out so it tracks whatever else the revision folds in.
+    server = server |> Ecto.Changeset.change(storage_claim_size: "50Gi") |> Repo.update!()
+    {:ok, live_revision} = Provisioner.manifest_revision(%{server | account: account})
+
+    # A claim that moves has to reach the cluster on the next tick; before it
+    # was folded into the revision, the manifest rendered the new value while
+    # the desired revision stayed put, so the reconciler compared equal and
+    # never re-applied.
+    server = server |> Ecto.Changeset.change(storage_claim_size: "24Gi") |> Repo.update!()
+
+    stub(Provisioner, :current_image_tag, fn _ -> {:ok, deployment.image_tag} end)
+    stub(Provisioner, :current_manifest_revision, fn _ -> {:ok, live_revision} end)
+
+    expect(Provisioner, :rollout, fn %Server{id: id, storage_claim_size: claim}, _inputs ->
+      assert id == server.id
+      assert claim == "24Gi"
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+  end
+
+  test "already-renamed endpoints stay put until per-account migration is enabled" do
+    {original, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    server = server |> Ecto.Changeset.change(region: "eu-west") |> Repo.update!()
+    mark_deployment_succeeded(deployment)
+    {:ok, live_revision} = Provisioner.manifest_revision(%{server | account: original})
+    {:ok, account} = Accounts.update_account(original, %{name: "renamed-#{original.id}"})
+    Repo.query!("UPDATE account_handle_reservations SET client_url_expires_at = now() WHERE name = $1", [original.name])
+
+    stub(Provisioner, :public_url, fn account, server -> call_original(Provisioner, :public_url, [account, server]) end)
+    stub(Provisioner, :current_image_tag, fn _ -> {:ok, deployment.image_tag} end)
+    stub(Provisioner, :current_manifest_revision, fn _ -> {:ok, live_revision} end)
+    stub(Provisioner, :rollout, fn _, _ -> flunk("migration must not apply while disabled") end)
+    reject(&Kura.activate_server/2)
+
+    assert :ok = Reconciler.reconcile()
+    assert Repo.get!(Server, server.id).public_host_drift_observed_at == nil
+    assert Kura.managed_cache_endpoint_urls(account) == [server.url]
+
+    FunWithFlags.enable(:kura_account_endpoint_migration, for_actor: account)
+
+    expect(Provisioner, :rollout, fn %Server{id: id}, inputs ->
+      assert id == server.id
+      assert inputs.image_tag == deployment.image_tag
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+    # Opt-in schedules host publication through the existing readiness hold;
+    # it does not immediately expose an unverified URL to discovery.
+    assert %DateTime{} = Repo.get!(Server, server.id).public_host_drift_observed_at
+    assert Kura.managed_cache_endpoint_urls(account) == [server.url]
+  end
+
+  test "the ordinary reconciliation tick withdraws expired URLs without an image change" do
+    {original, server, deployment} = create_server()
+    FunWithFlags.enable(:kura_account_endpoint_migration, for_actor: original)
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+    {:ok, account} = Accounts.update_account(original, %{name: "renamed-#{original.id}"})
+    {:ok, live_revision} = Provisioner.manifest_revision(%{server | account: account})
+    Repo.query!("UPDATE account_handle_reservations SET client_url_expires_at = now() WHERE name = $1", [original.name])
+    stub(Provisioner, :current_image_tag, fn _ -> {:ok, deployment.image_tag} end)
+    stub(Provisioner, :current_manifest_revision, fn _ -> {:ok, live_revision} end)
+
+    expect(Provisioner, :rollout, fn %Server{id: id}, inputs ->
+      assert id == server.id
+      assert inputs.image_tag == deployment.image_tag
+      assert Identity.client_handles(inputs.account) == [account.name]
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+  end
+
+  test "preloads active subscriptions for manifest reconciliation" do
+    {account, server, deployment} = create_server()
+    BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+    {:ok, _server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, deployment.image_tag}
+    end)
+
+    expect(Provisioner, :manifest_revision, fn %Server{account: loaded_account} ->
+      assert [%{plan: :enterprise}] = loaded_account.subscriptions
+      {:ok, nil}
+    end)
+
+    stub(Provisioner, :current_manifest_revision, fn _ -> {:ok, nil} end)
+
+    assert :ok = Reconciler.reconcile()
+  end
+
+  test "marks destroying servers destroyed after the KuraInstance disappears" do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+    {:ok, server} = Kura.destroy_server(server)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:error, :not_found}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :destroyed} = Repo.get!(Server, server.id)
+  end
+
+  test "keeps destroying servers destroying while the KuraInstance still exists" do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+    {:ok, server} = Kura.destroy_server(server)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, deployment.image_tag}
+    end)
+
+    expect(Provisioner, :destroy, fn %Server{id: id} ->
+      assert id == server.id
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :destroying} = Repo.get!(Server, server.id)
+  end
+
+  test "marks a first-time-deploy server :failed and reports to Sentry when apply fails" do
+    {_account, server, deployment} = create_server()
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:error, :not_found}
+    end)
+
+    expect(Provisioner, :rollout, fn %Server{id: id}, _inputs ->
+      assert id == server.id
+      {:error, "apply failed"}
+    end)
+
+    expect(Sentry, :capture_message, fn "Kura deploy failed", opts ->
+      assert opts[:level] == :error
+      extra = opts[:extra]
+      assert extra.deployment_id == deployment.id
+      assert extra.server_id == server.id
+      assert extra.region == server.region
+      assert extra.failure_detail == "apply failed"
+      assert extra.failure_kind == "provisioner_error"
+      assert opts[:tags].failure_kind == "provisioner_error"
+      :ignored
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{status: :failed, error_message: "apply failed"} = Repo.get!(Deployment, deployment.id)
+    assert %Server{status: :failed, current_image_tag: nil} = Repo.get!(Server, server.id)
+  end
+
+  test "marks a first-time-deploy server :failed and reports to Sentry when Kubernetes is unreachable" do
+    {_account, server, deployment} = create_server()
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:error, "Kubernetes API unavailable"}
+    end)
+
+    expect(Sentry, :capture_message, fn "Kura deploy failed", opts ->
+      assert opts[:level] == :error
+      assert opts[:extra].failure_detail == "Kubernetes API unavailable"
+      assert opts[:extra].failure_kind == "provisioner_error"
+      :ignored
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{
+             status: :failed,
+             error_message: "Kubernetes API unavailable"
+           } = Repo.get!(Deployment, deployment.id)
+
+    assert %Server{status: :failed, current_image_tag: nil} = Repo.get!(Server, server.id)
+  end
+
+  test "continues later reconciliation phases after one server cannot schedule" do
+    {_account, stale, stale_deployment} = create_server()
+    {:ok, stale} = Kura.activate_server(stale, stale_deployment.image_tag)
+    mark_deployment_succeeded(stale_deployment)
+    stale = stale |> Ecto.Changeset.change(region: "removed-region") |> Repo.update!()
+
+    {_account, destroying, destroying_deployment} = create_server()
+    {:ok, destroying} = Kura.activate_server(destroying, destroying_deployment.image_tag)
+    mark_deployment_succeeded(destroying_deployment)
+    {:ok, destroying} = Kura.destroy_server(destroying)
+
+    stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.3" end)
+
+    stub(Provisioner, :current_image_tag, fn
+      %Server{id: id} when id == destroying.id -> {:error, :not_found}
+      %Server{id: id} when id == stale.id -> {:error, :not_found}
+    end)
+
+    expect(Sentry, :capture_message, fn "Kura deployment scheduling failed", opts ->
+      assert opts[:extra].server_id == stale.id
+      assert opts[:extra].region == "removed-region"
+      assert opts[:extra].failure_kind == "not_found"
+      :ignored
+    end)
+
+    assert :ok = Reconciler.reconcile()
+    assert %Server{status: :destroyed} = Repo.get!(Server, destroying.id)
+  end
+
+  test "deduplicates overlapping reconciler jobs" do
+    assert {:ok, first} = Oban.insert(Reconciler.new(%{}))
+    assert {:ok, second} = Oban.insert(Reconciler.new(%{}))
+
+    assert second.conflict?
+    assert second.id == first.id
+  end
+
+  test "keeps an active server at :failed when a drift rollout fails so the working endpoint stays up" do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "sha-abcdef123456" end)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, "0.5.2"}
+    end)
+
+    expect(Provisioner, :rollout, fn %Server{id: id}, _inputs ->
+      assert id == server.id
+      {:error, "apply failed"}
+    end)
+
+    expect(Sentry, :capture_message, fn "Kura deploy failed", _opts -> :ignored end)
+
+    assert :ok = Reconciler.reconcile()
+
+    drift_deployment = Repo.get_by!(Deployment, kura_server_id: server.id, image_tag: "sha-abcdef123456")
+    assert drift_deployment.status == :failed
+    assert %Server{status: :failed, url: url, current_image_tag: "0.5.2"} = Repo.get!(Server, server.id)
+    assert is_binary(url)
+  end
+
+  test "heals a failed first-time-deploy server forward once the controller reports the target image" do
+    {_account, server, deployment} = create_server()
+    {:ok, _deployment} = Kura.mark_failed(deployment, "apply failed")
+    {:ok, server} = Kura.fail_server(server)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, deployment.image_tag}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :active, current_image_tag: "0.5.2", url: "http://localhost:4100"} =
+             Repo.get!(Server, server.id)
+
+    assert %Deployment{status: :failed} = Repo.get!(Deployment, deployment.id)
+  end
+
+  test "heals a previously-active failed server forward once the controller recovers" do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+    {:ok, server} = Kura.fail_server(server)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, "0.5.2"}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :active, current_image_tag: "0.5.2"} = Repo.get!(Server, server.id)
+  end
+
+  test "re-applies a vanished KuraInstance for a failed server, healing it forward" do
+    # Regression: a transient apiserver 401 during a rollout marks the
+    # deployment :failed; if the CR is later deleted out-of-band, self-heal must
+    # still recreate it. Gating recreation on a :succeeded latest deployment used
+    # to strand the instance with no CR and no path back.
+    {_account, server, deployment} = create_server()
+    {:ok, _deployment} = Kura.mark_failed(deployment, "apply failed")
+    {:ok, server} = Kura.fail_server(server)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:error, :not_found}
+    end)
+
+    expect(Provisioner, :rollout, fn %Server{id: id}, inputs ->
+      assert id == server.id
+      assert inputs.image_tag == deployment.image_tag
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :active, current_image_tag: "0.5.2"} = Repo.get!(Server, server.id)
+  end
+
+  test "leaves a failed server failed while its public endpoint is not yet serving" do
+    {account, server, deployment} = create_server()
+    {:ok, _deployment} = Kura.mark_failed(deployment, "apply failed")
+    {:ok, server} = Kura.fail_server(server)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, deployment.image_tag}
+    end)
+
+    expect(Provisioner, :public_url, fn account_arg, %Server{id: id} ->
+      assert account_arg.id == account.id
+      assert id == server.id
+      "https://localhost:4100"
+    end)
+
+    expect(Req, :get, fn "https://localhost:4100/up", _opts ->
+      {:error, %Mint.TransportError{reason: {:tls_alert, ~c"unknown ca"}}}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :failed, current_image_tag: nil, url: nil} = Repo.get!(Server, server.id)
+  end
+
+  test "heals a failed server and applies drift to an active server in the same tick" do
+    {_account_a, active_server, active_deployment} = create_server()
+    {:ok, active_server} = Kura.activate_server(active_server, active_deployment.image_tag)
+    mark_deployment_succeeded(active_deployment)
+
+    {_account_b, failed_server, failed_deployment} = create_server()
+    {:ok, _deployment} = Kura.mark_failed(failed_deployment, "apply failed")
+    {:ok, failed_server} = Kura.fail_server(failed_server)
+
+    stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "sha-abcdef123456" end)
+
+    stub(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id in [active_server.id, failed_server.id]
+      {:ok, "0.5.2"}
+    end)
+
+    expect(Provisioner, :rollout, fn %Server{id: id}, inputs ->
+      assert id == active_server.id
+      assert inputs.image_tag == "sha-abcdef123456"
+      :ok
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{status: :running} =
+             Repo.get_by!(Deployment, kura_server_id: active_server.id, image_tag: "sha-abcdef123456")
+
+    assert %Server{status: :active, current_image_tag: "0.5.2"} = Repo.get!(Server, active_server.id)
+
+    assert %Server{status: :active, current_image_tag: "0.5.2"} = Repo.get!(Server, failed_server.id)
+    assert %Deployment{status: :failed} = Repo.get!(Deployment, failed_deployment.id)
+  end
+
+  test "heals a previously-active server forward to the drift image the controller eventually applied" do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    {:ok, drift} = Kura.create_deployment(server, "sha-newimage123")
+    {:ok, drift} = Kura.mark_running(drift)
+    {:ok, _drift} = Kura.mark_failed(drift, "apply failed")
+    {:ok, server} = Kura.fail_server(server)
+
+    # The controller recovered and is now serving the drift image, not
+    # the image the server used to serve. The projection's desired
+    # image is the latest deployment's, so it heals forward to it.
+    stub(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, "sha-newimage123"}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :active, current_image_tag: "sha-newimage123", observed_image_tag: "sha-newimage123"} =
+             Repo.get!(Server, server.id)
+  end
+
+  test "records the observed image without flipping status while the cluster has not converged" do
+    {_account, server, deployment} = create_server()
+    {:ok, _deployment} = Kura.mark_failed(deployment, "apply failed")
+    {:ok, server} = Kura.fail_server(server)
+
+    stub(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, "0.4.0"}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    server = Repo.get!(Server, server.id)
+    assert server.status == :failed
+    assert server.current_image_tag == nil
+    assert server.observed_image_tag == "0.4.0"
+    assert server.last_observed_at
+  end
+
+  test "marks a pending deployment running before succeeding an already-observed image" do
+    {_account, server, deployment} = create_server()
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, deployment.image_tag}
+    end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Deployment{status: :succeeded, started_at: started_at, finished_at: finished_at} =
+             Repo.get!(Deployment, deployment.id)
+
+    assert started_at
+    assert finished_at
+
+    assert %Server{status: :active, current_image_tag: "0.5.2", url: "http://localhost:4100"} =
+             Repo.get!(Server, server.id)
+  end
+
+  describe "warm-handoff moves" do
+    test "promotes a caught-up moving_in target, swapping host ownership" do
+      {_account, source} = active_host_network_source()
+      {:ok, target} = Kura.move_server(source, "box-2")
+
+      # The target is up on the desired image and has caught up from the source.
+      stub(Provisioner, :current_image_tag, fn %Server{id: id} ->
+        if id == target.id, do: {:ok, "0.5.2"}, else: {:error, :not_found}
+      end)
+
+      stub(Provisioner, :caught_up?, fn %Server{id: id} -> {:ok, id == target.id} end)
+      stub(Provisioner, :rollout, fn _server, _inputs -> :ok end)
+
+      assert :ok = Reconciler.reconcile()
+
+      # Host ownership flips atomically: source drains, target takes over.
+      assert %Server{move_phase: :moving_out} = Repo.get!(Server, source.id)
+      assert %Server{move_phase: :none} = Repo.get!(Server, target.id)
+    end
+
+    test "leaves a not-yet-caught-up target warming as :replicating" do
+      {_account, source} = active_host_network_source()
+      {:ok, target} = Kura.move_server(source, "box-2")
+
+      stub(Provisioner, :current_image_tag, fn %Server{id: id} ->
+        if id == target.id, do: {:ok, "0.5.2"}, else: {:error, :not_found}
+      end)
+
+      stub(Provisioner, :caught_up?, fn %Server{} -> {:ok, false} end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert %Server{move_phase: :moving_in, status: :replicating} = Repo.get!(Server, target.id)
+      assert %Server{move_phase: :none} = Repo.get!(Server, source.id)
+    end
+
+    test "drains and destroys the source after the drain window" do
+      {_account, source} = active_host_network_source()
+      {:ok, moving_out} = source |> Server.move_changeset(%{move_phase: :moving_out}) |> Repo.update()
+
+      past = DateTime.add(DateTime.utc_now(), -3600, :second)
+      {1, _} = Repo.update_all(Ecto.Query.where(Server, [s], s.id == ^moving_out.id), set: [updated_at: past])
+
+      assert :ok = Reconciler.reconcile()
+
+      assert %Server{status: :destroying} = Repo.get!(Server, moving_out.id)
+    end
+  end
+
+  defp active_host_network_source do
+    user = AccountsFixtures.user_fixture()
+    account = Accounts.get_account_from_user(user)
+
+    {:ok, source} =
+      %{account_id: account.id, region: "eu-west", provisioner_node_ref: "kura-move-source"}
+      |> Server.create_changeset()
+      |> Repo.insert()
+
+    {:ok, source} =
+      source
+      |> Server.status_changeset(%{
+        status: :active,
+        url: "https://acme-eu-west-1.kura.tuist.dev",
+        current_image_tag: "0.5.2"
+      })
+      |> Repo.update()
+
+    {account, source}
+  end
+
+  test "schedules destruction for servers stranded in a retired region" do
+    {_account, server, _deployment} = create_server()
+
+    {:ok, server} =
+      server
+      |> Ecto.Changeset.change(region: "hetzner-staging-runners")
+      |> Repo.update()
+
+    stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+
+    Reconciler.reconcile()
+
+    # A retired region only stays in the catalog so its leftovers can be torn
+    # down. Without this the row keeps its status forever and its pod sits
+    # unschedulable against a node pool that was deleted with the region.
+    assert %Server{status: :destroyed} = Repo.reload!(server)
+  end
+
+  test "leaves servers in live regions alone" do
+    {_account, server, _deployment} = create_server()
+
+    stub(Provisioner, :current_image_tag, fn _server -> {:ok, "0.5.2"} end)
+
+    Reconciler.reconcile()
+
+    refute Repo.reload!(server).status in [:destroying, :destroyed]
+  end
+
+  # A rollout that ran against a draining or archived row would drag it back to
+  # `:active` outside the lifecycle's transitions, or recreate a resource
+  # archival had already reclaimed. `begin_drain/1` closes open deployments, so
+  # this is the second line of defence against one arriving another way.
+  test "cancels a deployment rather than rolling a server out of the demand-driven lifecycle" do
+    for status <- [:drain_pending, :archived] do
+      {_account, server, deployment} = create_server()
+
+      server
+      |> Ecto.Changeset.change(%{status: status})
+      |> Repo.update!()
+
+      reject(&Provisioner.current_image_tag/1)
+      reject(&Provisioner.rollout/2)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert %Deployment{status: :cancelled} = Repo.get!(Deployment, deployment.id)
+      assert %Server{status: ^status} = Repo.get!(Server, server.id)
+    end
+  end
+
+  describe "provisioning stalls" do
+    setup do
+      # A host that resolves but whose endpoint never answers: exactly the
+      # shape of an instance whose certificate was never issued, so the
+      # workload is up and the ingress serves something the probe rejects.
+      stub(Provisioner, :public_url, fn _account, _server -> "https://localhost:4100" end)
+      stub(Req, :get, fn _url, _opts -> {:error, :econnrefused} end)
+      :ok
+    end
+
+    test "keeps waiting while the attempt is younger than the stall threshold" do
+      {_account, server, deployment} = create_server()
+      {:ok, deployment} = Kura.mark_running(deployment)
+
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, deployment.image_tag} end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert %Server{status: :provisioning, url: nil} = Repo.get!(Server, server.id)
+      assert %Deployment{status: :running} = Repo.get!(Deployment, deployment.id)
+    end
+
+    test "marks the server failed once the attempt runs past the stall threshold" do
+      {_account, server, deployment} = create_server()
+      {:ok, deployment} = Kura.mark_running(deployment)
+      backdate_deployment(deployment, Kura.provisioning_stall_seconds() + 60)
+
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, deployment.image_tag} end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert %Server{status: :failed, url: nil} = Repo.get!(Server, server.id)
+
+      # The deployment stays open on purpose: the fast path keeps probing every
+      # tick, so the instance activates by itself when its endpoint comes up.
+      assert %Deployment{status: :running} = Repo.get!(Deployment, deployment.id)
+    end
+
+    test "activates a stalled server once its endpoint starts serving" do
+      {_account, server, deployment} = create_server()
+      {:ok, deployment} = Kura.mark_running(deployment)
+      backdate_deployment(deployment, Kura.provisioning_stall_seconds() + 60)
+
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, deployment.image_tag} end)
+
+      assert :ok = Reconciler.reconcile()
+      assert %Server{status: :failed} = Repo.get!(Server, server.id)
+
+      stub(Req, :get, fn _url, _opts -> {:ok, %Req.Response{status: 200}} end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert %Server{status: :active, url: "https://localhost:4100"} = Repo.get!(Server, server.id)
+      assert %Deployment{status: :succeeded} = Repo.get!(Deployment, deployment.id)
+    end
+
+    test "leaves a stalled server failed without re-reporting it every tick" do
+      {_account, server, deployment} = create_server()
+      {:ok, deployment} = Kura.mark_running(deployment)
+      backdate_deployment(deployment, Kura.provisioning_stall_seconds() + 60)
+
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, deployment.image_tag} end)
+
+      assert :ok = Reconciler.reconcile()
+      failed = Repo.get!(Server, server.id)
+      assert failed.status == :failed
+
+      # Only the first crossing reports; afterwards the row is already recorded
+      # and is left untouched, so a stall does not rewrite the row once a
+      # minute for as long as it lasts.
+      assert :ok = Reconciler.reconcile()
+
+      assert %Server{status: :failed, updated_at: updated_at} = Repo.get!(Server, server.id)
+      assert updated_at == failed.updated_at
+    end
+  end
+
+  defp backdate_deployment(deployment, seconds) do
+    deployment
+    |> Ecto.Changeset.change(inserted_at: DateTime.add(DateTime.utc_now(), -seconds, :second))
+    |> Repo.update!()
+  end
+
+  describe "peer-role observation" do
+    test "observes independent regions concurrently" do
+      first_server = mesh_server()
+      second_server = mesh_server()
+      test_process = self()
+
+      expect(Provisioner, :peer_roles, 2, fn %Server{id: id} ->
+        send(test_process, {:peer_roles_started, self()})
+
+        receive do
+          :continue_peer_roles -> {:ok, [%{url: "https://#{id}.peer:7443", gateway: true}]}
+        end
+      end)
+
+      reconcile = Task.async(fn -> Reconciler.reconcile() end)
+      assert_receive {:peer_roles_started, first}, 1_000
+      assert_receive {:peer_roles_started, second}, 1_000
+      send(first, :continue_peer_roles)
+      send(second, :continue_peer_roles)
+
+      assert Task.await(reconcile) == :ok
+
+      for server <- [first_server, second_server] do
+        assert Repo.get!(Server, server.id).peer_roles == [
+                 %{"url" => "https://#{server.id}.peer:7443", "gateway" => true}
+               ]
+      end
+    end
+
+    test "records the roles the controller publishes for a mesh server" do
+      server = mesh_server()
+
+      expect(Provisioner, :peer_roles, fn %Server{id: id} ->
+        assert id == server.id
+
+        {:ok,
+         [
+           %{url: "https://kura-eu-0.peer:7443", gateway: false, primary: true},
+           %{url: "https://kura-eu-1.peer:7443", gateway: true, primary: false}
+         ]}
+      end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert Repo.get!(Server, server.id).peer_roles == [
+               %{"url" => "https://kura-eu-0.peer:7443", "gateway" => false},
+               %{"url" => "https://kura-eu-1.peer:7443", "gateway" => true}
+             ]
+    end
+
+    test "clears roles the controller no longer publishes" do
+      server = mesh_server(peer_roles: [%{"url" => "https://kura-eu-0.peer:7443", "gateway" => true}])
+
+      expect(Provisioner, :peer_roles, fn %Server{} -> {:ok, []} end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert Repo.get!(Server, server.id).peer_roles == []
+    end
+
+    test "keeps the last known roles when the region's cluster cannot be read" do
+      stored = [%{"url" => "https://kura-eu-0.peer:7443", "gateway" => true}]
+      server = mesh_server(peer_roles: stored)
+
+      expect(Provisioner, :peer_roles, fn %Server{} -> {:error, :timeout} end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert Repo.get!(Server, server.id).peer_roles == stored
+    end
+
+    test "drops a published role that names no URL" do
+      server = mesh_server()
+
+      expect(Provisioner, :peer_roles, fn %Server{} ->
+        {:ok, [%{url: "", gateway: true, primary: false}, %{url: "https://kura-eu-0.peer:7443", gateway: true}]}
+      end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert Repo.get!(Server, server.id).peer_roles == [%{"url" => "https://kura-eu-0.peer:7443", "gateway" => true}]
+    end
+
+    test "refreshes the roles of a server whose rollout is still open" do
+      server = mesh_server(peer_roles: [%{"url" => "https://kura-eu-1.peer:7443", "gateway" => true}])
+      {:ok, deployment} = Kura.create_deployment(server, "sha-newimage123")
+      {:ok, _deployment} = Kura.mark_running(deployment)
+
+      expect(Provisioner, :peer_roles, fn %Server{id: id} ->
+        assert id == server.id
+
+        {:ok,
+         [%{url: "https://kura-eu-0.peer:7443", gateway: true}, %{url: "https://kura-eu-1.peer:7443", gateway: false}]}
+      end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert Repo.get!(Server, server.id).peer_roles == [
+               %{"url" => "https://kura-eu-0.peer:7443", "gateway" => true},
+               %{"url" => "https://kura-eu-1.peer:7443", "gateway" => false}
+             ]
+    end
+
+    test "does not read roles for a server that is still provisioning" do
+      {_account, server, _deployment} = create_server()
+
+      server
+      |> Ecto.Changeset.change(region: "eu-west")
+      |> Repo.update!()
+
+      stub(Provisioner, :current_image_tag, fn _ -> {:ok, nil} end)
+      stub(Provisioner, :rollout, fn _, _ -> :ok end)
+
+      reject(&Provisioner.peer_roles/1)
+
+      assert :ok = Reconciler.reconcile()
+    end
+
+    test "does not read roles for a region with no peer mesh" do
+      {_account, server, deployment} = create_server()
+      {:ok, _server} = Kura.activate_server(server, deployment.image_tag)
+      mark_deployment_succeeded(deployment)
+
+      stub(Provisioner, :current_image_tag, fn _ -> {:ok, "0.5.2"} end)
+      stub(Provisioner, :manifest_revision, fn _ -> {:ok, nil} end)
+
+      reject(&Provisioner.peer_roles/1)
+
+      assert :ok = Reconciler.reconcile()
+    end
+  end
+
+  # A converged, mesh-region server on the observation path: the projection
+  # loop is the only thing that reaches it, which is where roles are refreshed.
+  defp mesh_server(opts \\ []) do
+    {_account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    server =
+      server
+      |> Ecto.Changeset.change(region: "eu-west", peer_roles: Keyword.get(opts, :peer_roles, []))
+      |> Repo.update!()
+
+    stub(Provisioner, :current_image_tag, fn _ -> {:ok, "0.5.2"} end)
+    stub(Provisioner, :manifest_revision, fn _ -> {:ok, nil} end)
+
+    server
+  end
+
+  describe "reconcile_server/1" do
+    test "applies one server's open deployment without waiting for the tick" do
+      {_account, server, deployment} = create_server()
+
+      expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+        assert id == server.id
+        {:ok, nil}
+      end)
+
+      expect(Provisioner, :rollout, fn %Server{id: id}, %{image_tag: image_tag} ->
+        assert id == server.id
+        assert image_tag == deployment.image_tag
+        :ok
+      end)
+
+      assert :ok = Reconciler.reconcile_server(server)
+
+      assert %Deployment{status: :running} = Repo.get!(Deployment, deployment.id)
+    end
+
+    test "does nothing when this process is not the Kura control plane" do
+      stub(Tuist.Environment, :kura_control_plane?, fn -> false end)
+      {_account, server, _deployment} = create_server()
+      reject(&Provisioner.current_image_tag/1)
+
+      assert :ok = Reconciler.reconcile_server(server)
+    end
+  end
+
+  describe "activate_when_ready/1" do
+    test "activates the server once the controller reports its deployment's image" do
+      {_account, server, deployment} = create_server()
+
+      expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+        assert id == server.id
+        {:ok, deployment.image_tag}
+      end)
+
+      assert :done = Reconciler.activate_when_ready(server.id)
+
+      assert %Deployment{status: :succeeded} = Repo.get!(Deployment, deployment.id)
+      assert %Server{status: :active} = Repo.get!(Server, server.id)
+    end
+
+    test "keeps waiting, without re-applying, while the controller is still starting the pods" do
+      {_account, server, deployment} = create_server()
+      stub(Provisioner, :current_image_tag, fn _server -> {:ok, nil} end)
+      reject(&Provisioner.rollout/2)
+
+      assert {:waiting, %Deployment{id: id}} = Reconciler.activate_when_ready(server.id)
+      assert id == deployment.id
+    end
+
+    test "keeps waiting while the endpoint does not answer yet" do
+      {account, server, deployment} = create_server()
+      {:ok, _deployment} = Kura.mark_running(deployment)
+      stub_unready_public_endpoint(account, server)
+
+      assert {:waiting, _deployment} = Reconciler.activate_when_ready(server.id)
+      assert %Server{status: :provisioning} = Repo.get!(Server, server.id)
+    end
+
+    test "has nothing to wait for once the server is gone" do
+      reject(&Provisioner.current_image_tag/1)
+
+      assert :done = Reconciler.activate_when_ready(UUIDv7.generate())
+    end
+
+    test "has nothing to wait for once the deployment is closed" do
+      {_account, server, deployment} = create_server()
+      mark_deployment_succeeded(deployment)
+      reject(&Provisioner.current_image_tag/1)
+
+      assert :done = Reconciler.activate_when_ready(server.id)
+    end
+  end
+
+  defp create_server do
+    user = AccountsFixtures.user_fixture()
+    account = Accounts.get_account_from_user(user)
+
+    {:ok, server} =
+      Kura.create_server(%{
+        account_id: account.id,
+        region: "local-controller",
+        image_tag: "0.5.2"
+      })
+
+    {account, server, List.first(server.deployments)}
+  end
+
+  defp mark_deployment_succeeded(deployment) do
+    {:ok, deployment} = Kura.mark_running(deployment)
+    {:ok, deployment} = Kura.mark_succeeded(deployment)
+    deployment
+  end
+end

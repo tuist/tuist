@@ -7,11 +7,54 @@ defmodule Cache.Config do
     |> parse_float(default)
   end
 
+  def int_env(name, default) when is_binary(name) do
+    name
+    |> System.get_env()
+    |> parse_int(default)
+  end
+
+  def list_env(name) when is_binary(name) do
+    case System.get_env(name) do
+      nil ->
+        nil
+
+      value ->
+        value
+        |> String.split(",")
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+    end
+  end
+
+  def bool_env(name, default) when is_binary(name) do
+    case System.get_env(name) do
+      value when value in ["1", "true", "TRUE", "yes", "YES"] -> true
+      value when value in ["0", "false", "FALSE", "no", "NO"] -> false
+      _ -> default
+    end
+  end
+
   @doc """
   Returns true if analytics/usage reporting is enabled (API key is configured).
   """
   def analytics_enabled? do
     api_key() != nil
+  end
+
+  def analytics_failure_threshold do
+    Application.get_env(:cache, :analytics_failure_threshold, 3)
+  end
+
+  def analytics_cooldown_ms do
+    Application.get_env(:cache, :analytics_cooldown_ms, 60_000)
+  end
+
+  def analytics_receive_timeout_ms do
+    Application.get_env(:cache, :analytics_receive_timeout_ms, 2_000)
+  end
+
+  def analytics_pool_timeout_ms do
+    Application.get_env(:cache, :analytics_pool_timeout_ms, 1_000)
   end
 
   @doc """
@@ -55,11 +98,118 @@ defmodule Cache.Config do
     Application.get_env(:cache, :oban_web_basic_auth, [])
   end
 
+  @doc """
+  Returns the bucket for cache artifacts (module and Gradle).
+  """
+  def cache_bucket, do: Application.get_env(:cache, :s3)[:bucket]
+
+  @doc """
+  Returns the dedicated bucket for Xcode cache artifacts, or nil if not configured.
+
+  When nil, Xcode cache artifacts use the shared cache bucket (`cache_bucket/0`).
+  """
+  def xcode_cache_bucket, do: Application.get_env(:cache, :s3)[:xcode_cache_bucket]
+
+  @doc """
+  Returns the bucket for registry artifacts, or nil if not configured.
+  """
+  def registry_bucket, do: Application.get_env(:cache, :s3)[:registry_bucket]
+
+  @doc """
+  Returns true if this node can serve registry reads.
+
+  Cache is read-only for the registry: the bucket is all it needs. It used to
+  also require a GitHub token, because the same config gated the cache-side
+  sync writer that has since been removed. Keeping the token in this check
+  would have meant dropping the token to stop writes also silently turned off
+  reads.
+  """
+  def registry_enabled?, do: registry_bucket() != nil
+
+  def s3_protocols do
+    case Application.get_env(:cache, :s3)[:protocols] do
+      protocols when is_list(protocols) and protocols != [] -> protocols
+      _ -> [:http2, :http1]
+    end
+  end
+
+  def s3_ca_cert_pem(s3_config \\ Application.get_env(:cache, :s3, [])) do
+    case Keyword.get(s3_config, :ca_cert_pem) do
+      pem when is_binary(pem) and pem != "" -> pem
+      _ -> nil
+    end
+  end
+
+  def server_ca_cert_pem(value \\ Application.get_env(:cache, :server_ca_cert_pem)) do
+    case value do
+      pem when is_binary(pem) and pem != "" -> pem
+      _ -> nil
+    end
+  end
+
+  def s3_virtual_host do
+    !!Application.get_env(:ex_aws, :s3)[:virtual_host]
+  end
+
+  def server_url, do: Application.get_env(:cache, :server_url)
+
+  @doc """
+  Gates the Xcode key-value database (`Cache.KeyValueRepo`) and the S3 transfer
+  enqueues for Xcode CAS artifacts.
+
+  It must never gate `Cache.CacheArtifacts.track_artifact_access/1`:
+  `Cache.DiskEvictionWorker` evicts only keys that have a `cache_artifacts` row,
+  so artifacts written while tracking is off are invisible to eviction and the
+  storage volume fills up (only the rate-limited orphan scan can reclaim them).
+  """
+  def xcode_database_interactions_enabled? do
+    Application.get_env(:cache, :xcode_database_interactions_enabled, true)
+  end
+
+  @default_orphan_scan_max_dirs 50
+  def orphan_scan_max_dirs, do: Application.get_env(:cache, :orphan_scan_max_dirs, @default_orphan_scan_max_dirs)
+
+  def repo_busy_timeout_ms(repo \\ Cache.Repo) do
+    Application.get_env(:cache, repo)[:busy_timeout] || 30_000
+  end
+
+  def key_value_eviction_max_duration_ms do
+    Application.get_env(:cache, :key_value_eviction_max_duration_ms, 300_000)
+  end
+
+  def key_value_read_busy_timeout_ms do
+    Application.get_env(:cache, :key_value_read_busy_timeout_ms, 2_000)
+  end
+
+  def key_value_maintenance_busy_timeout_ms do
+    Application.get_env(:cache, :key_value_maintenance_busy_timeout_ms, 50)
+  end
+
+  def s3_config do
+    Application.fetch_env(:ex_aws, :s3)
+  end
+
+  def cache_endpoint do
+    node()
+    |> to_string()
+    |> String.split("@")
+    |> List.last()
+  end
+
   defp parse_float(nil, default), do: default
 
   defp parse_float(value, default) do
     case Float.parse(value) do
       {float, _} -> float
+      :error -> default
+    end
+  end
+
+  defp parse_int(nil, default), do: default
+
+  defp parse_int(value, default) do
+    case Integer.parse(value) do
+      {integer, _} -> integer
       :error -> default
     end
   end

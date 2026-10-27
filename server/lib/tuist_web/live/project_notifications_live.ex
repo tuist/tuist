@@ -5,11 +5,14 @@ defmodule TuistWeb.ProjectNotificationsLive do
 
   alias Tuist.Alerts
   alias Tuist.Authorization
+  alias Tuist.Environment
   alias Tuist.Projects
   alias Tuist.Repo
   alias Tuist.Slack
   alias Tuist.Slack.Client, as: SlackClient
+  alias Tuist.Slack.Installation
   alias Tuist.Slack.Reports
+  alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.SlackOAuthController
 
   @impl true
@@ -24,17 +27,16 @@ defmodule TuistWeb.ProjectNotificationsLive do
             dgettext("dashboard_projects", "You are not authorized to perform this action.")
     end
 
-    selected_account = Repo.preload(selected_account, [:slack_installation])
-    slack_installation = selected_account.slack_installation
-
-    if connected?(socket) do
-      Tuist.PubSub.subscribe(Slack.slack_installation_topic(selected_account.id))
-    end
-
     socket =
       socket
-      |> assign(slack_installation: slack_installation)
+      |> assign(:slack_configured, Environment.slack_configured?())
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Notifications")} · #{selected_project.name} · Tuist")
+      |> assign(
+        OpenGraph.project_image_assigns(selected_project,
+          title: dgettext("dashboard_projects", "Notifications"),
+          subtitle: dgettext("dashboard_projects", "Project settings")
+        )
+      )
       |> assign(
         :slack_channel_selection_url,
         SlackOAuthController.channel_selection_url(selected_project.id, selected_account.id)
@@ -45,57 +47,32 @@ defmodule TuistWeb.ProjectNotificationsLive do
     {:ok, socket}
   end
 
-  @impl true
-  def handle_info({:slack_installation_changed, %{status: status}}, socket) do
-    selected_account = socket.assigns.selected_account
-
-    slack_installation =
-      case status do
-        :connected ->
-          selected_account = Repo.preload(selected_account, [:slack_installation], force: true)
-          selected_account.slack_installation
-
-        :disconnected ->
-          nil
-      end
-
-    {:noreply, assign(socket, slack_installation: slack_installation)}
-  end
-
   defp assign_alert_defaults(socket, project) do
     alert_rules = Alerts.get_project_alert_rules(project)
-    flaky_test_alert_rules = Alerts.get_project_flaky_test_alert_rules(project)
 
     edit_alert_forms =
       Map.new(alert_rules, fn rule ->
         {rule.id, alert_rule_to_form(rule)}
       end)
 
-    edit_flaky_test_alert_forms =
-      Map.new(flaky_test_alert_rules, fn rule ->
-        {rule.id, flaky_test_alert_rule_to_form(rule)}
-      end)
-
     socket
     |> assign(alert_rules: alert_rules)
-    |> assign(flaky_test_alert_rules: flaky_test_alert_rules)
     # Metric alert create form defaults
     |> assign(create_alert_form_name: "")
     |> assign(create_alert_form_category: :build_run_duration)
     |> assign(create_alert_form_metric: :p99)
     |> assign(create_alert_form_deviation: 20.0)
     |> assign(create_alert_form_rolling_window_size: 100)
+    |> assign(create_alert_form_git_branch: "")
+    |> assign(create_alert_form_branch_error: nil)
+    |> assign(create_alert_form_scheme: "")
+    |> assign(create_alert_form_bundle_name: "")
+    |> assign(create_alert_form_environment: "any")
     |> assign(create_alert_form_channel_id: nil)
     |> assign(create_alert_form_channel_name: nil)
+    |> assign(create_alert_form_webhook_url: nil)
     # Metric alert edit forms - one per alert rule
     |> assign(edit_alert_forms: edit_alert_forms)
-    # Flaky test alert create form defaults
-    |> assign(create_flaky_test_alert_form_name: "")
-    |> assign(create_flaky_test_alert_form_trigger_threshold: 1)
-    |> assign(create_flaky_test_alert_form_channel_id: nil)
-    |> assign(create_flaky_test_alert_form_channel_name: nil)
-    # Flaky test alert edit forms - one per rule
-    |> assign(edit_flaky_test_alert_forms: edit_flaky_test_alert_forms)
   end
 
   defp alert_rule_to_form(rule) do
@@ -105,17 +82,13 @@ defmodule TuistWeb.ProjectNotificationsLive do
       metric: rule.metric,
       deviation: rule.deviation_percentage,
       rolling_window_size: rule.rolling_window_size,
+      git_branch: rule.git_branch || "",
+      scheme: rule.scheme || "",
+      bundle_name: rule.bundle_name || "",
+      environment: to_string(rule.environment || :any),
       channel_id: rule.slack_channel_id,
-      channel_name: rule.slack_channel_name
-    }
-  end
-
-  defp flaky_test_alert_rule_to_form(rule) do
-    %{
-      name: rule.name,
-      trigger_threshold: rule.trigger_threshold,
-      channel_id: rule.slack_channel_id,
-      channel_name: rule.slack_channel_name
+      channel_name: rule.slack_channel_name,
+      webhook_url: rule.slack_webhook_url
     }
   end
 
@@ -144,11 +117,21 @@ defmodule TuistWeb.ProjectNotificationsLive do
   def handle_event(
         "send_test_slack_report",
         _params,
-        %{assigns: %{selected_project: selected_project, slack_installation: slack_installation}} = socket
+        %{assigns: %{selected_project: selected_project, selected_account: selected_account}} = socket
       ) do
     blocks = Reports.report(selected_project)
 
-    :ok = SlackClient.post_message(slack_installation.access_token, selected_project.slack_channel_id, blocks)
+    cond do
+      is_binary(selected_project.slack_webhook_url) and selected_project.slack_webhook_url != "" ->
+        :ok = SlackClient.post_to_webhook(selected_project.slack_webhook_url, blocks)
+
+      installation = legacy_installation(selected_account) ->
+        :ok = SlackClient.post_message(installation.access_token, selected_project.slack_channel_id, blocks)
+
+      true ->
+        :ok
+    end
+
     {:noreply, socket}
   end
 
@@ -259,8 +242,14 @@ defmodule TuistWeb.ProjectNotificationsLive do
       |> assign(create_alert_form_metric: :p99)
       |> assign(create_alert_form_deviation: 20.0)
       |> assign(create_alert_form_rolling_window_size: 100)
+      |> assign(create_alert_form_git_branch: "")
+      |> assign(create_alert_form_branch_error: nil)
+      |> assign(create_alert_form_scheme: "")
+      |> assign(create_alert_form_bundle_name: "")
+      |> assign(create_alert_form_environment: "any")
       |> assign(create_alert_form_channel_id: nil)
       |> assign(create_alert_form_channel_name: nil)
+      |> assign(create_alert_form_webhook_url: nil)
 
     {:noreply, socket}
   end
@@ -271,7 +260,19 @@ defmodule TuistWeb.ProjectNotificationsLive do
   end
 
   def handle_event("update_create_alert_form_category", %{"category" => category}, socket) do
-    {:noreply, assign(socket, create_alert_form_category: String.to_existing_atom(category))}
+    category = String.to_existing_atom(category)
+
+    default_metric =
+      case category do
+        :bundle_size -> :install_size
+        _ -> :p99
+      end
+
+    {:noreply,
+     socket
+     |> assign(create_alert_form_category: category)
+     |> assign(create_alert_form_metric: default_metric)
+     |> assign(create_alert_form_branch_error: nil)}
   end
 
   def handle_event("update_create_alert_form_metric", %{"metric" => metric}, socket) do
@@ -292,13 +293,45 @@ defmodule TuistWeb.ProjectNotificationsLive do
     end
   end
 
+  def handle_event("update_create_alert_form_git_branch", %{"value" => git_branch}, socket) do
+    {:noreply,
+     socket
+     |> assign(create_alert_form_git_branch: git_branch)
+     |> assign(create_alert_form_branch_error: nil)}
+  end
+
+  def handle_event("update_create_alert_form_scheme", %{"value" => scheme}, socket) do
+    {:noreply, assign(socket, create_alert_form_scheme: scheme)}
+  end
+
+  def handle_event("update_create_alert_form_bundle_name", %{"value" => bundle_name}, socket) do
+    {:noreply, assign(socket, create_alert_form_bundle_name: bundle_name)}
+  end
+
+  def handle_event("update_create_alert_form_environment", %{"environment" => environment}, socket) do
+    {:noreply, assign(socket, create_alert_form_environment: environment)}
+  end
+
   # Edit form handlers
   def handle_event("update_edit_alert_form_name", %{"id" => id, "value" => name}, socket) do
     {:noreply, update_edit_alert_form(socket, id, :name, name)}
   end
 
   def handle_event("update_edit_alert_form_category", %{"id" => id, "category" => category}, socket) do
-    {:noreply, update_edit_alert_form(socket, id, :category, String.to_existing_atom(category))}
+    category = String.to_existing_atom(category)
+
+    default_metric =
+      case category do
+        :bundle_size -> :install_size
+        _ -> :p99
+      end
+
+    socket =
+      socket
+      |> update_edit_alert_form(id, :category, category)
+      |> update_edit_alert_form(id, :metric, default_metric)
+
+    {:noreply, socket}
   end
 
   def handle_event("update_edit_alert_form_metric", %{"id" => id, "metric" => metric}, socket) do
@@ -319,6 +352,27 @@ defmodule TuistWeb.ProjectNotificationsLive do
     end
   end
 
+  def handle_event("update_edit_alert_form_git_branch", %{"id" => id, "value" => git_branch}, socket) do
+    socket =
+      socket
+      |> update_edit_alert_form(id, :git_branch, git_branch)
+      |> update_edit_alert_form(id, :branch_error, nil)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("update_edit_alert_form_scheme", %{"id" => id, "value" => scheme}, socket) do
+    {:noreply, update_edit_alert_form(socket, id, :scheme, scheme)}
+  end
+
+  def handle_event("update_edit_alert_form_bundle_name", %{"id" => id, "value" => bundle_name}, socket) do
+    {:noreply, update_edit_alert_form(socket, id, :bundle_name, bundle_name)}
+  end
+
+  def handle_event("update_edit_alert_form_environment", %{"id" => id, "environment" => environment}, socket) do
+    {:noreply, update_edit_alert_form(socket, id, :environment, environment)}
+  end
+
   def handle_event("create_alert_rule", _params, %{assigns: assigns} = socket) do
     attrs = %{
       project_id: assigns.selected_project.id,
@@ -327,48 +381,80 @@ defmodule TuistWeb.ProjectNotificationsLive do
       metric: assigns.create_alert_form_metric,
       deviation_percentage: assigns.create_alert_form_deviation,
       rolling_window_size: assigns.create_alert_form_rolling_window_size,
+      git_branch: assigns.create_alert_form_git_branch,
+      scheme: assigns.create_alert_form_scheme,
+      bundle_name: assigns.create_alert_form_bundle_name,
+      environment: assigns.create_alert_form_environment,
       slack_channel_id: assigns.create_alert_form_channel_id,
-      slack_channel_name: assigns.create_alert_form_channel_name
+      slack_channel_name: assigns.create_alert_form_channel_name,
+      slack_webhook_url: assigns.create_alert_form_webhook_url
     }
 
-    {:ok, _alert_rule} = Alerts.create_alert_rule(attrs)
+    case Alerts.create_alert_rule(attrs) do
+      {:ok, _alert_rule} ->
+        socket =
+          socket
+          |> assign_alert_defaults(assigns.selected_project)
+          |> push_event("close-modal", %{id: "create-alert-modal"})
 
-    socket =
-      socket
-      |> assign_alert_defaults(assigns.selected_project)
-      |> push_event("close-modal", %{id: "create-alert-modal"})
+        {:noreply, socket}
 
-    {:noreply, socket}
+      {:error, changeset} ->
+        {:noreply, assign(socket, create_alert_form_branch_error: branch_error(changeset))}
+    end
   end
 
   def handle_event("update_alert_rule", %{"id" => id}, %{assigns: assigns} = socket) do
-    form = Map.get(assigns.edit_alert_forms, id)
     {:ok, alert_rule} = Alerts.get_alert_rule(id)
+    alert_rule = Repo.preload(alert_rule, :project)
 
-    attrs = %{
-      name: form.name,
-      category: form.category,
-      metric: form.metric,
-      deviation_percentage: form.deviation,
-      rolling_window_size: form.rolling_window_size,
-      slack_channel_id: form.channel_id,
-      slack_channel_name: form.channel_name
-    }
+    if Authorization.authorize(:project_update, assigns.current_user, alert_rule.project) == :ok do
+      form = Map.get(assigns.edit_alert_forms, id)
 
-    {:ok, _alert_rule} = Alerts.update_alert_rule(alert_rule, attrs)
+      attrs = %{
+        name: form.name,
+        category: form.category,
+        metric: form.metric,
+        deviation_percentage: form.deviation,
+        rolling_window_size: form.rolling_window_size,
+        git_branch: form.git_branch,
+        scheme: form.scheme,
+        bundle_name: form.bundle_name,
+        environment: Map.get(form, :environment, "any"),
+        slack_channel_id: form.channel_id,
+        slack_channel_name: form.channel_name,
+        slack_webhook_url: form.webhook_url
+      }
 
-    socket =
-      socket
-      |> assign_alert_defaults(assigns.selected_project)
-      |> push_event("close-modal", %{id: "update-alert-modal-#{id}"})
+      case Alerts.update_alert_rule(alert_rule, attrs) do
+        {:ok, _alert_rule} ->
+          socket =
+            socket
+            |> assign_alert_defaults(assigns.selected_project)
+            |> push_event("close-modal", %{id: "update-alert-modal-#{id}"})
 
-    {:noreply, socket}
+          {:noreply, socket}
+
+        {:error, changeset} ->
+          {:noreply, update_edit_alert_form(socket, id, :branch_error, branch_error(changeset))}
+      end
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("delete_alert_rule", %{"alert_rule_id" => alert_rule_id}, socket) do
+    current_user = socket.assigns.current_user
+    selected_project = socket.assigns.selected_project
     {:ok, alert_rule} = Alerts.get_alert_rule(alert_rule_id)
-    {:ok, _} = Alerts.delete_alert_rule(alert_rule)
-    {:noreply, assign(socket, alert_rules: Alerts.get_project_alert_rules(socket.assigns.selected_project))}
+    alert_rule = Repo.preload(alert_rule, :project)
+
+    if Authorization.authorize(:project_update, current_user, alert_rule.project) == :ok do
+      {:ok, _} = Alerts.delete_alert_rule(alert_rule)
+      {:noreply, assign_alert_defaults(socket, selected_project)}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("close_create_alert_modal", _params, %{assigns: %{selected_project: selected_project}} = socket) do
@@ -391,198 +477,72 @@ defmodule TuistWeb.ProjectNotificationsLive do
 
   def handle_event(
         "oauth_channel_selected",
-        %{"channel_id" => channel_id, "channel_name" => channel_name},
+        %{"channel_token" => channel_token},
         %{assigns: %{selected_project: selected_project}} = socket
       ) do
-    {:ok, selected_project} =
-      Projects.update_project(selected_project, %{
-        slack_channel_id: channel_id,
-        slack_channel_name: channel_name,
-        report_frequency: :daily
-      })
+    case Slack.verify_channel_result(channel_token) do
+      {:ok, %{channel_id: channel_id, channel_name: channel_name, webhook_url: webhook_url}} ->
+        {:ok, selected_project} =
+          Projects.update_project(selected_project, %{
+            slack_channel_id: channel_id,
+            slack_channel_name: channel_name,
+            slack_webhook_url: webhook_url,
+            report_frequency: :daily
+          })
 
-    socket =
-      socket
-      |> assign(selected_project: selected_project)
-      |> assign_schedule_form_defaults(selected_project)
+        socket =
+          socket
+          |> assign(selected_project: selected_project)
+          |> assign_schedule_form_defaults(selected_project)
 
+        {:noreply, socket}
+
+      {:error, _reason} ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("oauth_channel_selected", _params, socket) do
     {:noreply, socket}
   end
 
-  def handle_event(
-        "create_alert_form_channel_selected",
-        %{"channel_id" => channel_id, "channel_name" => channel_name},
-        socket
-      ) do
-    socket =
-      socket
-      |> assign(create_alert_form_channel_id: channel_id)
-      |> assign(create_alert_form_channel_name: channel_name)
+  def handle_event("create_alert_form_channel_selected", %{"channel_token" => channel_token}, socket) do
+    case Slack.verify_channel_result(channel_token) do
+      {:ok, %{channel_id: channel_id, channel_name: channel_name, webhook_url: webhook_url}} ->
+        socket =
+          socket
+          |> assign(create_alert_form_channel_id: channel_id)
+          |> assign(create_alert_form_channel_name: channel_name)
+          |> assign(create_alert_form_webhook_url: webhook_url)
 
-    {:noreply, socket}
+        {:noreply, socket}
+
+      {:error, _reason} ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("create_alert_form_channel_selected", _params, socket) do
     {:noreply, socket}
   end
 
-  def handle_event(
-        "edit_alert_form_channel_selected",
-        %{"id" => id, "channel_id" => channel_id, "channel_name" => channel_name},
-        socket
-      ) do
-    socket =
-      socket
-      |> update_edit_alert_form(id, :channel_id, channel_id)
-      |> update_edit_alert_form(id, :channel_name, channel_name)
+  def handle_event("edit_alert_form_channel_selected", %{"id" => id, "channel_token" => channel_token}, socket) do
+    case Slack.verify_channel_result(channel_token) do
+      {:ok, %{channel_id: channel_id, channel_name: channel_name, webhook_url: webhook_url}} ->
+        socket =
+          socket
+          |> update_edit_alert_form(id, :channel_id, channel_id)
+          |> update_edit_alert_form(id, :channel_name, channel_name)
+          |> update_edit_alert_form(id, :webhook_url, webhook_url)
 
-    {:noreply, socket}
+        {:noreply, socket}
+
+      {:error, _reason} ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("edit_alert_form_channel_selected", _params, socket) do
-    {:noreply, socket}
-  end
-
-  # Flaky test alert rule event handlers
-
-  def handle_event("open_create_flaky_test_alert_modal", _params, socket) do
-    socket =
-      socket
-      |> assign(create_flaky_test_alert_form_name: "")
-      |> assign(create_flaky_test_alert_form_trigger_threshold: 1)
-      |> assign(create_flaky_test_alert_form_channel_id: nil)
-      |> assign(create_flaky_test_alert_form_channel_name: nil)
-
-    {:noreply, socket}
-  end
-
-  def handle_event("update_create_flaky_test_alert_form_name", %{"value" => name}, socket) do
-    {:noreply, assign(socket, create_flaky_test_alert_form_name: name)}
-  end
-
-  def handle_event("update_create_flaky_test_alert_form_trigger_threshold", %{"value" => threshold_str}, socket) do
-    case Integer.parse(threshold_str) do
-      {threshold, _} -> {:noreply, assign(socket, create_flaky_test_alert_form_trigger_threshold: threshold)}
-      :error -> {:noreply, socket}
-    end
-  end
-
-  def handle_event("create_flaky_test_alert_rule", _params, %{assigns: assigns} = socket) do
-    attrs = %{
-      project_id: assigns.selected_project.id,
-      name: assigns.create_flaky_test_alert_form_name,
-      trigger_threshold: assigns.create_flaky_test_alert_form_trigger_threshold,
-      slack_channel_id: assigns.create_flaky_test_alert_form_channel_id,
-      slack_channel_name: assigns.create_flaky_test_alert_form_channel_name
-    }
-
-    {:ok, _rule} = Alerts.create_flaky_test_alert_rule(attrs)
-
-    socket =
-      socket
-      |> assign_alert_defaults(assigns.selected_project)
-      |> push_event("close-modal", %{id: "create-flaky-test-alert-modal"})
-
-    {:noreply, socket}
-  end
-
-  def handle_event("update_edit_flaky_test_alert_form_name", %{"id" => id, "value" => name}, socket) do
-    {:noreply, update_edit_flaky_test_alert_form(socket, id, :name, name)}
-  end
-
-  def handle_event("update_edit_flaky_test_alert_form_trigger_threshold", %{"id" => id, "value" => threshold_str}, socket) do
-    case Integer.parse(threshold_str) do
-      {threshold, _} -> {:noreply, update_edit_flaky_test_alert_form(socket, id, :trigger_threshold, threshold)}
-      :error -> {:noreply, socket}
-    end
-  end
-
-  def handle_event("update_flaky_test_alert_rule", %{"id" => id}, %{assigns: assigns} = socket) do
-    form = Map.get(assigns.edit_flaky_test_alert_forms, id)
-    {:ok, rule} = Alerts.get_flaky_test_alert_rule(id)
-
-    attrs = %{
-      name: form.name,
-      trigger_threshold: form.trigger_threshold,
-      slack_channel_id: form.channel_id,
-      slack_channel_name: form.channel_name
-    }
-
-    {:ok, _rule} = Alerts.update_flaky_test_alert_rule(rule, attrs)
-
-    socket =
-      socket
-      |> assign_alert_defaults(assigns.selected_project)
-      |> push_event("close-modal", %{id: "update-flaky-test-alert-modal-#{id}"})
-
-    {:noreply, socket}
-  end
-
-  def handle_event("delete_flaky_test_alert_rule", %{"rule_id" => rule_id}, socket) do
-    {:ok, rule} = Alerts.get_flaky_test_alert_rule(rule_id)
-    {:ok, _} = Alerts.delete_flaky_test_alert_rule(rule)
-
-    {:noreply,
-     assign(socket, flaky_test_alert_rules: Alerts.get_project_flaky_test_alert_rules(socket.assigns.selected_project))}
-  end
-
-  def handle_event(
-        "close_create_flaky_test_alert_modal",
-        _params,
-        %{assigns: %{selected_project: selected_project}} = socket
-      ) do
-    socket =
-      socket
-      |> push_event("close-modal", %{id: "create-flaky-test-alert-modal"})
-      |> assign_alert_defaults(selected_project)
-
-    {:noreply, socket}
-  end
-
-  def handle_event(
-        "close_edit_flaky_test_alert_modal",
-        %{"id" => id},
-        %{assigns: %{selected_project: selected_project}} = socket
-      ) do
-    socket =
-      socket
-      |> push_event("close-modal", %{id: "update-flaky-test-alert-modal-#{id}"})
-      |> assign_alert_defaults(selected_project)
-
-    {:noreply, socket}
-  end
-
-  def handle_event(
-        "create_flaky_test_alert_form_channel_selected",
-        %{"channel_id" => channel_id, "channel_name" => channel_name},
-        socket
-      ) do
-    socket =
-      socket
-      |> assign(create_flaky_test_alert_form_channel_id: channel_id)
-      |> assign(create_flaky_test_alert_form_channel_name: channel_name)
-
-    {:noreply, socket}
-  end
-
-  def handle_event("create_flaky_test_alert_form_channel_selected", _params, socket) do
-    {:noreply, socket}
-  end
-
-  def handle_event(
-        "edit_flaky_test_alert_form_channel_selected",
-        %{"id" => id, "channel_id" => channel_id, "channel_name" => channel_name},
-        socket
-      ) do
-    socket =
-      socket
-      |> update_edit_flaky_test_alert_form(id, :channel_id, channel_id)
-      |> update_edit_flaky_test_alert_form(id, :channel_name, channel_name)
-
-    {:noreply, socket}
-  end
-
-  def handle_event("edit_flaky_test_alert_form_channel_selected", _params, socket) do
     {:noreply, socket}
   end
 
@@ -591,13 +551,6 @@ defmodule TuistWeb.ProjectNotificationsLive do
     form = Map.get(edit_alert_forms, id, %{})
     updated_form = Map.put(form, key, value)
     assign(socket, edit_alert_forms: Map.put(edit_alert_forms, id, updated_form))
-  end
-
-  defp update_edit_flaky_test_alert_form(socket, id, key, value) do
-    edit_forms = socket.assigns.edit_flaky_test_alert_forms
-    form = Map.get(edit_forms, id, %{})
-    updated_form = Map.put(form, key, value)
-    assign(socket, edit_flaky_test_alert_forms: Map.put(edit_forms, id, updated_form))
   end
 
   defp alert_channel_selection_url(account_id) do
@@ -670,9 +623,21 @@ defmodule TuistWeb.ProjectNotificationsLive do
 
   # Alert helper functions
 
+  defp branch_error(changeset) do
+    case changeset.errors[:git_branch] do
+      {_message, _opts} -> dgettext("dashboard_projects", "Branch is required.")
+      nil -> nil
+    end
+  end
+
+  defp branch_placeholder(:bundle_size), do: dgettext("dashboard_projects", "e.g. main")
+
+  defp branch_placeholder(_category), do: dgettext("dashboard_projects", "e.g. main (optional)")
+
   defp category_label(:build_run_duration), do: dgettext("dashboard_projects", "Build duration")
   defp category_label(:test_run_duration), do: dgettext("dashboard_projects", "Test duration")
   defp category_label(:cache_hit_rate), do: dgettext("dashboard_projects", "Cache hit rate")
+  defp category_label(:bundle_size), do: dgettext("dashboard_projects", "Bundle size")
 
   defp metric_label(:p50), do: "p50"
   defp metric_label(:p90), do: "p90"
@@ -680,35 +645,126 @@ defmodule TuistWeb.ProjectNotificationsLive do
   defp metric_label(:average), do: dgettext("dashboard_projects", "Average")
   defp metric_label(nil), do: ""
 
-  defp alert_rule_description(category, metric, deviation, rolling_window_size) do
-    metric_category = alert_metric_category_label(category, metric)
-    unit = alert_unit_label(category)
-
-    text =
-      case category do
-        :cache_hit_rate ->
-          dgettext(
-            "dashboard_projects",
-            "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{unit}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
-            metric_category: metric_category,
-            rolling_window_size: rolling_window_size,
-            unit: unit,
-            deviation: deviation
-          )
-
-        _ ->
-          dgettext(
-            "dashboard_projects",
-            "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{unit}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
-            metric_category: metric_category,
-            rolling_window_size: rolling_window_size,
-            unit: unit,
-            deviation: deviation
-          )
-      end
-
-    raw(text)
+  # The description sentence carries its own <strong> markup and is handed to
+  # raw/1, and Gettext bindings are plain string substitution. Rule-authored
+  # values have to be escaped before they reach the template.
+  defp escape_binding(value) do
+    value
+    |> to_string()
+    |> Phoenix.HTML.html_escape()
+    |> Phoenix.HTML.safe_to_string()
   end
+
+  defp alert_rule_description(category, metric, deviation, rolling_window_size, opts) do
+    case category do
+      :bundle_size ->
+        git_branch = escape_binding(Keyword.get(opts, :git_branch, ""))
+        bundle_name = escape_binding(Keyword.get(opts, :bundle_name, ""))
+        size_label = bundle_size_metric_label(metric)
+
+        text =
+          if bundle_name == "" do
+            dgettext(
+              "dashboard_projects",
+              "Alert when the <strong>%{size_label}</strong> of the latest bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle.",
+              size_label: size_label,
+              git_branch: git_branch,
+              deviation: deviation
+            )
+          else
+            dgettext(
+              "dashboard_projects",
+              "Alert when the <strong>%{size_label}</strong> of the latest <strong>%{bundle_name}</strong> bundle on branch <strong>%{git_branch}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous bundle.",
+              size_label: size_label,
+              bundle_name: bundle_name,
+              git_branch: git_branch,
+              deviation: deviation
+            )
+          end
+
+        raw(text)
+
+      _ ->
+        metric_category = alert_metric_category_label(category, metric)
+        unit = alert_unit_label(category)
+        scheme = escape_binding(Keyword.get(opts, :scheme, ""))
+        environment = Keyword.get(opts, :environment, "any")
+        current_unit = qualified_unit_label(scheme, environment, unit)
+
+        text =
+          case category do
+            :cache_hit_rate ->
+              git_branch = escape_binding(Keyword.get(opts, :git_branch, ""))
+
+              if git_branch == "" do
+                dgettext(
+                  "dashboard_projects",
+                  "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
+                  metric_category: metric_category,
+                  rolling_window_size: rolling_window_size,
+                  current_unit: current_unit,
+                  unit: unit,
+                  deviation: deviation
+                )
+              else
+                dgettext(
+                  "dashboard_projects",
+                  "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> on branch <strong>%{git_branch}</strong> has decreased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
+                  metric_category: metric_category,
+                  rolling_window_size: rolling_window_size,
+                  current_unit: current_unit,
+                  git_branch: git_branch,
+                  unit: unit,
+                  deviation: deviation
+                )
+              end
+
+            _ ->
+              dgettext(
+                "dashboard_projects",
+                "Alert when the <strong>%{metric_category}</strong> of the last <strong>%{rolling_window_size} %{current_unit}</strong> has increased by <strong>%{deviation}%</strong> compared to the previous <strong>%{rolling_window_size} %{unit}</strong>.",
+                metric_category: metric_category,
+                rolling_window_size: rolling_window_size,
+                current_unit: current_unit,
+                unit: unit,
+                deviation: deviation
+              )
+          end
+
+        raw(text)
+    end
+  end
+
+  defp qualified_unit_label(scheme, environment, unit) do
+    cond do
+      scheme != "" && environment not in ["any", nil] ->
+        dgettext("dashboard_projects", "%{scheme} %{environment} %{unit}",
+          scheme: scheme,
+          environment: environment_inline_label(environment),
+          unit: unit
+        )
+
+      scheme != "" ->
+        dgettext("dashboard_projects", "%{scheme} %{unit}", scheme: scheme, unit: unit)
+
+      environment not in ["any", nil] ->
+        dgettext("dashboard_projects", "%{environment} %{unit}",
+          environment: environment_inline_label(environment),
+          unit: unit
+        )
+
+      true ->
+        unit
+    end
+  end
+
+  defp environment_label("any"), do: dgettext("dashboard_projects", "Any")
+  defp environment_label("local"), do: dgettext("dashboard_projects", "Local")
+  defp environment_label("ci"), do: dgettext("dashboard_projects", "CI")
+  defp environment_label(_), do: dgettext("dashboard_projects", "Any")
+
+  defp environment_inline_label("local"), do: dgettext("dashboard_projects", "local")
+  defp environment_inline_label(env), do: environment_label(env)
 
   defp alert_metric_category_label(:build_run_duration, metric),
     do: "#{metric_label_lowercase(metric)} #{dgettext("dashboard_projects", "build time")}"
@@ -729,15 +785,14 @@ defmodule TuistWeb.ProjectNotificationsLive do
   defp metric_label_lowercase(:average), do: dgettext("dashboard_projects", "average")
   defp metric_label_lowercase(nil), do: ""
 
-  defp flaky_test_alert_rule_description(trigger_threshold) do
-    text =
-      dngettext(
-        "dashboard_projects",
-        "Alert when flaky runs occur in at least <strong>%{count} run</strong> in the last 30 days.",
-        "Alert when flaky runs occur in at least <strong>%{count} runs</strong> in the last 30 days.",
-        trigger_threshold
-      )
+  defp bundle_size_metric_label(:install_size), do: dgettext("dashboard_projects", "Install size")
+  defp bundle_size_metric_label(:download_size), do: dgettext("dashboard_projects", "Download size")
+  defp bundle_size_metric_label(_), do: ""
 
-    raw(text)
+  defp legacy_installation(account) do
+    case Repo.preload(account, :slack_installation).slack_installation do
+      %Installation{} = installation -> installation
+      _ -> nil
+    end
   end
 end

@@ -1,4 +1,5 @@
 import Foundation
+import TuistConstants
 import TuistSupport
 
 #if DEBUG
@@ -8,12 +9,14 @@ import TuistSupport
         public static func test(
             fullHandle: String? = nil,
             url: String = Constants.URLs.production.absoluteString,
+            network: Config.Network = .network(),
             generationOptions: Config.GenerationOptions = .options(),
             plugins: [PluginLocation] = []
         ) -> Config {
             Config(
                 fullHandle: fullHandle,
                 url: url,
+                network: network,
                 plugins: plugins,
                 generationOptions: generationOptions
             )
@@ -81,6 +84,7 @@ import TuistSupport
             headers: Headers? = nil,
             entitlements: Entitlements = .file(path: "Entitlements.entitlements"),
             scripts: [TargetScript] = [],
+            additionalHashingInputs: [Target.HashingInput] = [],
             dependencies: [TargetDependency] = [],
             settings: Settings? = nil,
             coreDataModels: [CoreDataModel] = [],
@@ -101,6 +105,7 @@ import TuistSupport
                 headers: headers,
                 entitlements: entitlements,
                 scripts: scripts,
+                additionalHashingInputs: additionalHashingInputs,
                 dependencies: dependencies,
                 settings: settings,
                 coreDataModels: coreDataModels,
@@ -117,9 +122,9 @@ import TuistSupport
             order: Order = .pre,
             arguments: [String] = [],
             inputPaths: [FileListGlob] = [],
-            inputFileListPaths: [Path] = [],
+            inputFileListPaths: [TargetScript.FileListPath] = [],
             outputPaths: [Path] = [],
-            outputFileListPaths: [Path] = [],
+            outputFileListPaths: [TargetScript.FileListPath] = [],
             dependencyFile: Path? = nil
         ) -> TargetScript {
             TargetScript(
@@ -141,14 +146,16 @@ import TuistSupport
             shared: Bool = false,
             buildAction: BuildAction? = nil,
             testAction: TestAction? = nil,
-            runAction: RunAction? = nil
+            runAction: RunAction? = nil,
+            profileAction: ProfileAction? = nil
         ) -> Scheme {
             .scheme(
                 name: name,
                 shared: shared,
                 buildAction: buildAction,
                 testAction: testAction,
-                runAction: runAction
+                runAction: runAction,
+                profileAction: profileAction
             )
         }
     }
@@ -193,11 +200,12 @@ import TuistSupport
             filePath: Path? = nil,
             arguments: Arguments? = nil,
             options: RunActionOptions = .options(),
+            askForAppToLaunch: Bool = false,
             appClipInvocationURLString: String? = nil
         ) -> RunAction {
             RunAction(
                 configuration: configuration,
-                executable: executable,
+                executable: askForAppToLaunch ? .askOnLaunch : executable.map { .executable($0) },
                 customWorkingDirectory: customWorkingDirectory,
                 filePath: filePath,
                 arguments: arguments,

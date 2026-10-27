@@ -59,30 +59,57 @@ defmodule Tuist.PromEx do
     plugins =
       [
         # Plugins.Application,
-        # Plugins.Oban,
+        Tuist.Oban.PromExPlugin,
         # Plugins.PhoenixLiveView,
         # Plugins.Absinthe,
         # Plugins.Broadway,
-        PromEx.Plugins.Finch,
+        # Plugins.Finch — superseded by Tuist.HTTP.PromExPlugin (Finch event metrics +
+        # polled pool gauges). The default plugin only adds duplicate pool gauges with
+        # no extra signal.
         PromEx.Plugins.Beam,
         Tuist.Storage.PromExPlugin,
         Tuist.CommandEvents.PromExPlugin,
-        Tuist.Accounts.PromExPlugin,
-        Tuist.Projects.PromExPlugin,
         Tuist.AppBuilds.PromExPlugin,
-        Tuist.Registry.Swift.PromExPlugin,
+        Tuist.Tests.PromExPlugin,
         Tuist.Repo.PromExPlugin,
+        Tuist.ClickHouseRepo.PromExPlugin,
         Tuist.KeyValueStore.PromExPlugin,
+        Tuist.PromEx.RateLimit,
         Tuist.Authentication.PromExPlugin,
-        Tuist.HTTP.PromExPlugin
+        Tuist.HTTP.PromExPlugin,
+        Tuist.License.PromExPlugin,
+        Tuist.OnceEvents.PromExPlugin,
+        Tuist.Registry.Swift.PromExPlugin,
+        TuistCommon.HTTP.TransportPromExPlugin,
+        TuistCommon.GitHub.PromExPlugin
       ]
+
+    # Control-plane gauges polled from Postgres tables the processor and
+    # swift_registry_sync roles may not read, so outside web mode these pollers
+    # only fail with 42501 on every boot.
+    plugins =
+      if Tuist.Environment.mode() == :web do
+        plugins ++
+          [
+            Tuist.Accounts.PromExPlugin,
+            Tuist.Projects.PromExPlugin,
+            Tuist.Kura.PromExPlugin,
+            Tuist.Runners.PromExPlugin,
+            Tuist.Kura.Rollouts.PromExPlugin
+          ]
+      else
+        plugins
+      end
 
     plugins =
       if Tuist.Environment.tuist_hosted?() do
         plugins ++
           [
-            {PromEx.Plugins.Phoenix, router: TuistWeb.Router, endpoint: TuistWeb.Endpoint},
-            PromEx.Plugins.Ecto
+            {TuistCommon.PromExPhoenixPlugin,
+             router: TuistWeb.Router,
+             endpoint: TuistWeb.Endpoint,
+             include_controller_action_tags: false,
+             normalize_path: &Tuist.Locale.collapse_locale_path_prefix/1}
           ]
       else
         plugins

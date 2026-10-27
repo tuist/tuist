@@ -12,9 +12,23 @@ public struct CASOutputMetadata: Codable {
     /// Compressed size of the data in bytes
     public let compressedSize: Int
 
-    public init(size: Int, duration: TimeInterval, compressedSize: Int) {
+    /// Portion of `duration` spent on network transfer (download/upload)
+    public let transferDuration: TimeInterval
+
+    /// Portion of `duration` spent on (de)compression
+    public let codecDuration: TimeInterval
+
+    public init(
+        size: Int,
+        duration: TimeInterval,
+        compressedSize: Int,
+        transferDuration: TimeInterval = 0,
+        codecDuration: TimeInterval = 0
+    ) {
         self.size = size
         self.duration = duration
         self.compressedSize = compressedSize
+        self.transferDuration = transferDuration
+        self.codecDuration = codecDuration
     }
 }

@@ -1,6 +1,13 @@
+import TuistProcess
 import TuistSupport
 
-final class PluginBuildService {
+struct PluginBuildService {
+    private let commandRunner: CommandRunning
+
+    init(commandRunner: CommandRunning = CommandRunner()) {
+        self.commandRunner = commandRunner
+    }
+
     func run(
         path: String?,
         configuration: PluginCommand.PackageConfiguration,
@@ -8,7 +15,7 @@ final class PluginBuildService {
         showBinPath: Bool,
         targets: [String],
         products: [String]
-    ) throws {
+    ) async throws {
         var buildCommand = [
             "swift", "build",
             "--configuration", configuration.rawValue,
@@ -39,6 +46,6 @@ final class PluginBuildService {
                 "--product", product,
             ]
         }
-        try System.shared.runAndPrint(buildCommand)
+        try await commandRunner.runAndPrint(arguments: buildCommand)
     }
 }

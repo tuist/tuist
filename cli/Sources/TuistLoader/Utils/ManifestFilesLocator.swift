@@ -2,12 +2,13 @@ import FileSystem
 import Foundation
 import Mockable
 import Path
+import TuistConstants
 import TuistCore
 import TuistRootDirectoryLocator
 import TuistSupport
 
 @Mockable
-public protocol ManifestFilesLocating: AnyObject {
+public protocol ManifestFilesLocating {
     /// It locates the manifest files in the locating directory.
     /// - Parameter locatingPath: Directory for which the manifest files will be obtained.
     func locateManifests(at locatingPath: AbsolutePath) async throws -> [(Manifest, AbsolutePath)]
@@ -81,7 +82,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
         } else {
             let path = try await rootDirectoryLocator.locate(from: locatingPath) ?? locatingPath
 
-            let pluginsPaths = await fetchTuistManifestsFilePaths(at: path)
+            let pluginsPaths = try await fetchTuistManifestsFilePaths(at: path)
                 .filter { $0.basename == Manifest.plugin.fileName(path) }
                 .filter { path in
                     !excluding.contains { pattern in match(path, pattern: pattern) }
@@ -97,7 +98,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
 
     var cacheTuistManifestsFilePaths = [AbsolutePath: Set<AbsolutePath>]()
 
-    private func fetchTuistManifestsFilePaths(at path: AbsolutePath) async -> Set<AbsolutePath> {
+    private func fetchTuistManifestsFilePaths(at path: AbsolutePath) async throws -> Set<AbsolutePath> {
         if let cachedTuistManifestsFilePaths = cacheTuistManifestsFilePaths[path] {
             return cachedTuistManifestsFilePaths
         }
@@ -107,11 +108,12 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
             Manifest.plugin.fileName(path),
         ]
 
-        let tuistManifestsFilePaths = await FileHandler.shared.files(
-            in: path,
-            nameFilter: fileNamesCandidates,
-            extensionFilter: ["swift"]
-        ).concurrentFilter { [weak self] in
+        let tuistManifestsFilePaths = try await Set(
+            fileSystem.glob(directory: path, include: ["**/*.swift"], exclude: ManifestLookupExcludes.frameworkSearchPathLinks)
+                .collect()
+                .filter { fileNamesCandidates.contains($0.basename) }
+        )
+        .concurrentFilter { [weak self] in
             await self?.hasValidManifestContent($0) ?? false
         }
 
@@ -167,7 +169,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
         } else {
             let path = try await rootDirectoryLocator.locate(from: locatingPath) ?? locatingPath
 
-            let manifestsFilePaths = await fetchTuistManifestsFilePaths(at: path)
+            let manifestsFilePaths = try await fetchTuistManifestsFilePaths(at: path)
                 .filter { path in
                     !excluding.contains { pattern in match(path, pattern: pattern) }
                 }

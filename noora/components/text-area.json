@@ -1,0 +1,181 @@
+{
+  "name": "TextArea",
+  "tagName": "noora-text-area",
+  "elementClassName": "NooraTextArea",
+  "className": "noora-text-area",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Collects multi-line text with labels, hints, errors, and character counting.",
+  "usage": "<noora-text-area label=\"Description\" name=\"description\"></noora-text-area>",
+  "attributes": [
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "description": "Sets the field label."
+    },
+    {
+      "name": "sublabel",
+      "property": "sublabel",
+      "type": "string",
+      "description": "Sets secondary label text."
+    },
+    {
+      "name": "hint",
+      "property": "hint",
+      "type": "string",
+      "description": "Sets supporting text."
+    },
+    {
+      "name": "hint-variant",
+      "property": "hintVariant",
+      "type": "string",
+      "values": ["default", "destructive", "disabled"],
+      "default": "default",
+      "description": "Controls hint semantics."
+    },
+    {
+      "name": "error",
+      "property": "error",
+      "type": "string",
+      "description": "Sets the validation error."
+    },
+    {
+      "name": "name",
+      "property": "name",
+      "type": "string",
+      "default": "",
+      "description": "Sets the submitted field name."
+    },
+    {
+      "name": "value",
+      "property": "value",
+      "type": "string",
+      "default": "",
+      "description": "Gets or sets the field value."
+    },
+    {
+      "name": "placeholder",
+      "property": "placeholder",
+      "type": "string",
+      "description": "Sets placeholder text."
+    },
+    {
+      "name": "required",
+      "property": "required",
+      "type": "boolean",
+      "default": false,
+      "description": "Marks the field as required."
+    },
+    {
+      "name": "show-required",
+      "property": "showRequired",
+      "type": "boolean",
+      "default": false,
+      "description": "Shows the required indicator."
+    },
+    {
+      "name": "rows",
+      "property": "rows",
+      "type": "number",
+      "default": 4,
+      "description": "Sets the visible row count."
+    },
+    {
+      "name": "max-length",
+      "property": "maxLength",
+      "type": "number",
+      "default": 200,
+      "description": "Sets the maximum character count."
+    },
+    {
+      "name": "show-character-count",
+      "property": "showCharacterCount",
+      "type": "boolean",
+      "default": true,
+      "description": "Shows the current character count."
+    },
+    {
+      "name": "resize",
+      "property": "resize",
+      "type": "string",
+      "values": ["none", "both", "horizontal", "vertical"],
+      "default": "vertical",
+      "description": "Controls native resizing."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Disables the field."
+    }
+  ],
+  "readonlyProperties": [
+    {
+      "name": "control",
+      "type": "HTMLTextAreaElement | null",
+      "description": "The native text area."
+    },
+    {
+      "name": "form",
+      "type": "HTMLFormElement | null",
+      "description": "The associated form."
+    }
+  ],
+  "slots": [],
+  "cssParts": [
+    {
+      "name": "textarea",
+      "description": "The native text area."
+    },
+    {
+      "name": "character-count",
+      "description": "The character counter."
+    }
+  ],
+  "events": [
+    {
+      "name": "input",
+      "type": "InputEvent",
+      "description": "Emitted while the text value changes."
+    },
+    {
+      "name": "change",
+      "type": "Event",
+      "description": "Emitted after the text value is committed."
+    }
+  ],
+  "notes": ["The component emits standard input and change events."],
+  "examples": [
+    {
+      "id": "basic",
+      "title": "Basic",
+      "description": "Collect longer supporting text.",
+      "markup": "<noora-text-area name=\"basic\" placeholder=\"Enter your message...\" max-length=\"200\"></noora-text-area>"
+    },
+    {
+      "id": "required",
+      "title": "Required",
+      "description": "Mark required fields visibly and semantically.",
+      "markup": "<noora-text-area name=\"required\" label=\"Message\" placeholder=\"This field is required\" required show-required></noora-text-area>"
+    },
+    {
+      "id": "hint",
+      "title": "With hint",
+      "description": "Give supporting guidance below the field.",
+      "markup": "<noora-text-area name=\"feedback\" label=\"Feedback\" placeholder=\"Share your feedback...\" hint=\"Please be as detailed as possible\"></noora-text-area>"
+    },
+    {
+      "id": "error",
+      "title": "Error",
+      "description": "Communicate validation failures.",
+      "markup": "<noora-text-area name=\"error\" label=\"Message\" placeholder=\"Enter your message...\" error=\"This field is required\"></noora-text-area>"
+    },
+    {
+      "id": "disabled",
+      "title": "Disabled",
+      "description": "Prevent editing while preserving context.",
+      "markup": "<noora-text-area name=\"disabled\" label=\"Disabled\" placeholder=\"Enter your message...\" disabled></noora-text-area>"
+    }
+  ]
+}

@@ -1,0 +1,266 @@
+# Tuist Helm Chart
+
+This chart deploys the Tuist server, cache service, processor, and optional server-owned public web workloads, with support for either embedded or external infrastructure dependencies.
+
+Noora Storybook ships from the standalone `infra/helm/noora-storybook/` chart so it can keep an independent deployment workflow.
+
+## Infrastructure dependencies
+
+- `postgresql`
+- `clickhouse`
+- `objectStorage`
+- `observability`
+
+Each dependency defaults to `embedded` (deployed within the chart). To use an external provider instead, set its `mode` to `external` and configure the connection details under the corresponding section in `values.yaml`.
+
+Embedded object storage uses the [Cool Labs community build of MinIO](https://github.com/coollabsio/minio), pinned to a release and multi-architecture digest. The upstream `quay.io/minio/minio` and `quay.io/minio/mc` images no longer allow anonymous pulls. Both the server and bucket initialization Job use the same image, which includes the `mc` client and shell. Override `objectStorage.embedded.image` and `objectStorage.embedded.mcImage` to use your own builds; keep the server's MinIO entrypoint and the initializer's `/bin/sh`, `mc`, and `sleep` available. This restores image availability; the community build does not provide an ongoing upstream security-support commitment. Managed environments use external object storage and do not run these images.
+
+The Tuist server can use Azure Blob Storage for server-owned artifacts by setting `server.storage.provider: azure_blob` and filling `server.azureBlob.*`. The top-level `objectStorage` dependency remains S3-compatible because optional workloads such as the cache service and registry mirror still use S3-compatible APIs. For Azure-only deployments with those workloads disabled, set `objectStorage.mode: external` and leave the external object-storage endpoint and credentials empty to avoid deploying the embedded MinIO StatefulSet.
+
+External PostgreSQL with an existing Secret:
+
+```yaml
+postgresql:
+  mode: external
+  external:
+    port: 5432
+    database: tuist
+    existingSecret: tuist-postgresql
+    existingSecretKeys:
+      host: host
+      username: username
+      password: password
+```
+
+The chart reads `host`, `username`, and `password` from the named Secret and
+builds `DATABASE_URL` through Kubernetes env-var substitution, so the password
+does not appear in the rendered manifest. The Secret value for `password`
+should be URL-safe because it is interpolated into a database URL.
+
+## Artifact retention
+
+Artifact cleanup is disabled by default. Opt in by setting positive retention
+windows, in days, for the artifact families you want the server to clean from
+object storage. Omitted families remain untouched.
+
+```yaml
+server:
+  artifactRetentionDays:
+    cacheArtifacts: 30
+    appPreviews: 30
+    buildArchives: 60
+    runArtifacts: 30
+    testAttachments: 30
+    shardBundles: 14
+```
+
+## Kura analytics
+
+Managed environments enable `kuraController.analytics.enabled`. The chart
+syncs `CACHE_API_KEY/password` from the same secret store used by the server
+into `kura-shared-secrets` as `KURA_ANALYTICS_SIGNING_KEY`, alongside
+`KURA_ANALYTICS_SERVER_URL` pointing to the server's internal Service in
+absolute form, so a Kura node outside the control plane's region does not
+spend a WAN round trip per search domain resolving it. Both
+values are needed: Kura otherwise accepts Bazel build events while leaving
+analytics delivery disabled. This also enables cache-operation analytics
+and Bazel test-artifact delivery.
+
+The controller rolls Kura pods when the shared Secret changes. After rollout,
+`kura_analytics_queue_capacity` should be positive (the default is 1000).
+Run a Bazel build with `--bes_upload_mode=wait_for_upload_complete`, then
+verify its invocation appears in Tuist and that
+`kura_analytics_events_total_total{pipeline="bazel_invocations",result="sent"}`
+increases. Successful upload to Kura alone does not prove server ingestion.
+Events accepted while analytics were disabled are not retained for replay.
+
+This automatic secret sync requires `server.config.managedSecrets` and stays
+disabled by default for self-hosted installs. Those installs can supply both
+runtime variables through `kuraController.sharedSecrets.data` or an externally
+managed shared Secret, using the same signing key as their server.
+
+## Local validation
+
+Render manifests:
+
+```bash
+helm template tuist infra/helm/tuist
+```
+
+Install into a local kind cluster:
+
+```bash
+kind create cluster --name tuist
+helm install tuist infra/helm/tuist
+```
+
+Run the same [K3s](https://k3s.io/) smoke profile used by the Helm workflow. The task creates a disposable [k3d](https://k3d.io/) cluster, renders the chart, runs a server-side dry run, installs the chart, and waits for the embedded dependencies:
+
+```bash
+mise -C infra run helm:k3s-smoke
+```
+
+This profile keeps the server Deployment rendered, but scales it to zero
+because booting the production server image requires a Tuist license. It
+validates that K3s accepts the chart resources and can run the embedded
+PostgreSQL, ClickHouse, and MinIO dependencies with its default storage class.
+
+To validate only the Helm render without creating a cluster:
+
+```bash
+mise -C infra run helm:k3s-smoke --render-only
+```
+
+Lint the chart:
+
+```bash
+helm lint infra/helm/tuist
+```
+
+## Shared pod settings
+
+The `global` block contains shared settings that apply across workloads rendered by the chart.
+
+- `global.commonLabels` adds extra labels to chart resources.
+- `global.podLabels` adds extra labels to pod templates.
+- `global.imagePullSecrets` configures registry credentials for every pod in the chart.
+- `global.nodeSelector` and `global.tolerations` let you steer pods onto specific node pools.
+
+Example:
+
+```yaml
+global:
+  podLabels:
+    environment: production
+  imagePullSecrets:
+    - name: ghcr-pull-secret
+  nodeSelector:
+    nodepool: apps
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: apps
+      effect: NoSchedule
+```
+
+## Workload identity
+
+Use per-workload service accounts when you need Kubernetes RBAC or cloud workload identity for a specific Tuist component.
+
+```yaml
+cache:
+  serviceAccount:
+    create: true
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/tuist-cache
+```
+
+The chart keeps service accounts scoped to the application workloads that need them:
+
+- `server.serviceAccount` applies to the Tuist server deployment and migration job.
+- `cache.serviceAccount` applies to the cache deployment.
+
+Embedded PostgreSQL, ClickHouse, and MinIO continue to use the namespace default service account unless you customize them separately.
+
+## Compatibility overrides
+
+Some cluster-specific fixes are intentionally opt-in:
+
+- `cache.podSecurityContext` is empty by default. Set `fsGroup` only if your storage class needs it.
+- `cache.nginx.clientMaxBodySize` defaults to `10m`, matching the cache application's module part size limit. Raise it only when the application limit is raised too.
+- `cache.nginx.resources` is separate from `cache.resources` because the nginx sidecar is a distinct container. Set it explicitly in clusters with strict default LimitRanger policies.
+- `cache.nginx.proxyConnectTimeout`, `cache.nginx.proxyReadTimeout`, and `cache.nginx.proxySendTimeout` default to `60s`. Increase them for slower links or larger uploads.
+- `clickhouse.embedded.service.nativePort` defaults to ClickHouse's standard `9000` service port and can be overridden for mesh or port-allocation conflicts.
+- `clickhouse.embedded.systemLogs.ttlDays` applies a TTL to embedded ClickHouse `system.*` log tables such as `text_log`, `query_log`, `trace_log`, `metric_log`, and `part_log`. It is empty by default, leaving ClickHouse's unbounded retention untouched. Adopt it together with `supersededTables: delete`, in one `helm upgrade` — see below.
+- `clickhouse.embedded.systemLogs.supersededTables` decides what happens to the `<name>_N` tables ClickHouse leaves behind when it supersedes a system log table, which it does on a retention change and on any ClickHouse upgrade that changes a system log schema. Defaults to `ignore`; `delete` drops them after each `helm upgrade`. There is no option to copy the rows back into the live table, because a ClickHouse upgrade changes the schema. A generation keeps whatever retention the live table had when it was superseded, so the ones a later window change produces expire on their own, while the ones from the first adoption — or from a ClickHouse upgrade on an install that never set a TTL — keep their rows indefinitely. ClickHouse never drops the tables themselves, so they accumulate either way.
+- Setting `ttlDays` on an install that already has data is a one-time, one-way step, which is why it is not defaulted. Any value at all makes the table definitions stop matching, so ClickHouse renames each declared table aside and starts a fresh one. The generation it leaves behind holds every row accumulated so far and carries no TTL, so under `supersededTables: ignore` it is stranded permanently and the new window only bounds rows written from then on. Set both values in the same upgrade to get the intended end state:
+
+  ```yaml
+  clickhouse:
+    embedded:
+      systemLogs:
+        ttlDays: 14
+        supersededTables: delete
+  ```
+
+  That upgrade is self-contained because moving `ttlDays` from blank to set adds the drop-in mount, which rolls the StatefulSet: ClickHouse restarts, supersedes the tables, and the post-upgrade Job then drops them. It relies on the ClickHouse pod being rolled before hooks run, so deploy with `helm upgrade --wait`. Without it the generations appear after the Job has already looked and are reclaimed by the next `helm upgrade` instead.
+- `clickhouse.embedded.systemLogs.level` controls the embedded ClickHouse server logger and `system.text_log` level. It defaults to `information`; use verbose levels like `debug` or `trace` only while investigating ClickHouse itself.
+- Neither `clickhouse.embedded.systemLogs.ttlDays` nor `level` reaches a running pod on its own. Both drop-ins are `subPath` mounts, which Kubernetes does not update in place, and the chart does not roll the StatefulSet when its ConfigMap changes, so an edit applies the next time the ClickHouse pod restarts. Toggling `ttlDays` between blank and set is the exception, because the volume mount itself is conditional. The same delay means an upgrade that only edits these values produces no superseded tables for `supersededTables: delete` to reclaim during that upgrade; the generations appear at the later restart and are collected by the next `helm upgrade`.
+- `clickhouse.external.pingUrl` lets the migration job wait for an external ClickHouse instance through a dedicated `/ping` URL when `clickhouse.external.url` includes a database path.
+
+External ClickHouse example:
+
+```yaml
+clickhouse:
+  mode: external
+  external:
+    url: http://user:password@clickhouse.example.com:8123/tuist
+    pingUrl: http://clickhouse.example.com:8123/ping
+```
+
+Embedded compatibility override example:
+
+```yaml
+cache:
+  nginx:
+    clientMaxBodySize: 10m
+    proxyReadTimeout: 300s
+    proxySendTimeout: 300s
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 1
+        memory: 512Mi
+  podSecurityContext:
+    fsGroup: 990
+
+clickhouse:
+  embedded:
+    service:
+      nativePort: 9100
+    systemLogs:
+      ttlDays: 7
+      level: warning
+```
+
+## Scaling the server
+
+### When to add replicas
+
+A single web replica may be enough for a small installation. Add replicas when you need the web tier to remain available during restarts or node failures, or when one replica can no longer comfortably handle your request volume.
+
+For availability, spread replicas across nodes or failure zones. Two pods on the same host do not protect against host failure, and shared dependencies still need their own availability strategy. For capacity, first check that the bottleneck is in the web tier: adding web replicas does not scale PostgreSQL, ClickHouse or background processors, and each replica adds database connections.
+
+Geographic distribution is a separate concern. More replicas in one region do not bring the server closer to users elsewhere, and placing web replicas far from their shared databases can increase latency. A multi-region deployment needs a design for traffic routing, data placement and cross-region communication; increasing the replica count alone does not provide that.
+
+### Configure the cluster
+
+Tuist uses Erlang clustering to exchange notifications between web replicas, so features such as realtime updates can work across the web tier. Enable `server.cluster.enabled` before increasing the replica count or enabling autoscaling beyond one replica; the chart rejects multi-replica configurations without clustering. If you are upgrading an existing installation, first follow the [upgrade and clustering migration prerequisites](https://tuist.dev/en/docs/guides/server/self-host/server#multi-replica-clustering).
+
+Create a high-entropy cookie Secret in the release namespace using your secret manager, then reference it:
+
+```yaml
+server:
+  replicaCount: 2
+  cluster:
+    enabled: true
+    distributionPort: 9100
+    cookieExistingSecret: tuist-server-cluster
+    cookieExistingSecretKey: release-cookie
+```
+
+The cookie lets the web replicas trust one another, so they must all use the same value, including during rolling upgrades. Treat it as a remote-execution credential: keep it private and never use an image-baked cookie. To rotate it, coordinate replacement of every participating process; updating the Secret alone does not change running nodes.
+
+Use a separately managed Secret for offline `helm template` and GitOps deployments. Ordinary server-connected Helm upgrades can instead generate and reuse a cookie when `cookieExistingSecret` is empty, but offline renderers cannot preserve that generated value.
+
+The replicas also need private connectivity on EPMD (TCP 4369) and the distribution port (TCP 9100 by default). Allow these connections only between trusted server peers. Enable `server.networkPolicy.enabled` to render the chart's peer rules, and verify that your cluster enforces them. Background processors remain outside the web cluster and scale separately.
+
+### Verify the rollout
+
+Once the replicas are running, use the release's `rpc 'Node.list()'` command on each web pod to check membership. With two healthy replicas, each should list the other. If the lists are empty, check that the pods use the same cookie and can reach each other's distribution ports.
+
+Before increasing traffic, exercise a rolling replacement and a replica failure under load. Check that requests continue to be served and that cross-replica PubSub and Oban notifications work across the deployed versions. Ready pods alone do not establish that the cluster is working.
+
+A surviving single replica should still serve requests. Do not make readiness depend on having a peer: otherwise, losing one replica would take the survivor out of service too.

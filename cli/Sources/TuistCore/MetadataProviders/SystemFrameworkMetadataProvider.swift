@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 
@@ -39,7 +40,7 @@ extension SystemFrameworkMetadataProviding {
 
 // MARK: - Default Implementation
 
-public final class SystemFrameworkMetadataProvider: SystemFrameworkMetadataProviding {
+public struct SystemFrameworkMetadataProvider: SystemFrameworkMetadataProviding {
     public init() {}
 
     public func loadMetadata(

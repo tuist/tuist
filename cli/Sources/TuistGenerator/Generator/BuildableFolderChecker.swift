@@ -23,9 +23,15 @@ public struct BuildableFolderChecker: BuildableFolderChecking {
     }
 
     public func containsResources(_ folders: [XcodeGraph.BuildableFolder]) async throws -> Bool {
-        let extensions = Target.validResourceExtensions + Target.validResourceCompatibleFolderExtensions
+        // Mirrors Xcode's synchronized-folder behavior: any file that is not a known source / header
+        // is routed to a resource build rule (CpResource by default), so we treat it as a resource.
+        let sourceExtensions = Set(
+            Target.validSourceExtensions
+                + Target.validSourceCompatibleFolderExtensions
+                + Target.validHeaderExtensions
+        )
         return folders.contains(where: { folder in
-            folder.resolvedFiles.contains(where: { extensions.contains($0.path.extension ?? "") })
+            folder.resolvedFiles.contains(where: { !sourceExtensions.contains($0.path.extension ?? "") })
         })
     }
 }

@@ -1,0 +1,368 @@
+.noora-button,
+.noora-link-button,
+.noora-neutral-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  -webkit-appearance: button;
+  border: 0;
+  border-radius: var(--noora-radius-3);
+  padding: 0;
+  text-decoration: none;
+
+  & svg {
+    pointer-events: none;
+  }
+}
+
+.noora-button {
+  --noora-button-icon-size: var(--noora-icon-size-large);
+
+  cursor: pointer;
+  outline: unset;
+  transition: transform 150ms var(--ease-out-cubic);
+  /* Reserve space for box-shadow to ensure consistent height across variants */
+  box-shadow:
+    0px 0px 0px 0px transparent,
+    0px 0px 0px 0px transparent,
+    0px 0px 0px 0px transparent,
+    0px 0px 0px 0px transparent;
+
+  &[disabled] {
+    cursor: not-allowed;
+  }
+
+  &:not(:disabled):active {
+    transform: scale(0.97);
+  }
+
+  & > span {
+    padding: 0rem var(--noora-spacing-2);
+  }
+
+  &[data-variant="primary"] {
+    box-shadow: var(--noora-button-border-primary);
+    background: var(--noora-button-background-primary);
+    color: var(--noora-button-primary-label);
+
+    &:hover {
+      box-shadow: var(--noora-button-border-primary-hover);
+      background: var(--noora-button-background-primary-hover);
+    }
+
+    &:focus-visible {
+      box-shadow: var(--noora-button-border-primary-focus);
+    }
+
+    &[disabled] {
+      box-shadow: var(--noora-button-border-primary-disabled);
+      background: var(--noora-button-background-primary-disabled);
+      color: var(--noora-button-primary-disabled-label);
+    }
+
+    &:not(:disabled):active {
+      box-shadow: var(--noora-button-border-primary-active);
+      background: var(--noora-button-background-primary-active);
+    }
+  }
+
+  &[data-variant="secondary"] {
+    box-shadow: var(--noora-button-border-secondary);
+    background: var(--noora-button-background-secondary);
+    color: var(--noora-button-secondary-label);
+
+    &:hover {
+      background: var(--noora-button-background-secondary-hover);
+    }
+
+    &:focus-visible {
+      box-shadow: var(--noora-button-border-secondary-focus);
+    }
+
+    &[disabled] {
+      box-shadow: var(--noora-button-border-secondary-disabled);
+      background: var(--noora-button-background-secondary-disabled);
+      color: var(--noora-button-secondary-disabled-label);
+    }
+
+    &:not(:disabled):active {
+      box-shadow: var(--noora-button-border-secondary-active);
+      background: var(--noora-button-background-secondary-active);
+    }
+  }
+
+  &[data-variant="destructive"] {
+    box-shadow: var(--noora-button-border-destructive);
+    background: var(--noora-button-background-destructive);
+
+    color: var(--noora-button-destructive-label);
+
+    &:hover {
+      box-shadow: var(--noora-button-border-destructive-hover);
+      background: var(--noora-button-background-destructive-hover);
+    }
+
+    &:focus-visible {
+      box-shadow: var(--noora-button-border-destructive-focus);
+    }
+
+    &[disabled] {
+      box-shadow: var(--noora-button-border-destructive-disabled);
+      background: var(--noora-button-background-destructive-disabled);
+      color: var(--noora-button-destructive-disabled-label);
+    }
+
+    &:not(:disabled):active {
+      box-shadow: var(--noora-button-border-destructive-active);
+      background: var(--noora-button-destructive-background);
+    }
+  }
+
+  &[data-icon-only] {
+    padding: var(--noora-spacing-3);
+  }
+
+  &[data-size="small"] {
+    --noora-button-icon-size: var(--noora-icon-size-small);
+
+    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+
+    &:not([data-icon-only]) {
+      padding: var(--noora-spacing-3) var(--noora-spacing-2);
+    }
+
+    & svg {
+      width: var(--noora-button-icon-size);
+      height: var(--noora-button-icon-size);
+    }
+  }
+
+  &[data-size="medium"] {
+    --noora-button-icon-size: var(--noora-icon-size-medium);
+
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+    &:not([data-icon-only]) {
+      padding: var(--noora-spacing-3) var(--noora-spacing-2);
+    }
+
+    & svg {
+      width: var(--noora-button-icon-size);
+      height: var(--noora-button-icon-size);
+    }
+  }
+
+  &[data-size="large"] {
+    --noora-button-icon-size: var(--noora-icon-size-large);
+
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+    &:not([data-icon-only]) {
+      padding: var(--noora-spacing-3) var(--noora-spacing-4);
+    }
+
+    & svg {
+      width: var(--noora-button-icon-size);
+      height: var(--noora-button-icon-size);
+    }
+  }
+}
+
+.noora-link-button {
+  --noora-link-button-primary-label: light-dark(
+    var(--noora-purple-500),
+    var(--noora-purple-300)
+  );
+  --noora-link-button-secondary-label: light-dark(
+    var(--noora-neutral-light-1200),
+    var(--noora-neutral-light-50)
+  );
+  --noora-link-button-destructive-label: light-dark(
+    var(--noora-red-500),
+    var(--noora-red-300)
+  );
+  --noora-link-button-disabled-label: light-dark(
+    var(--noora-neutral-light-600),
+    var(--noora-neutral-light-300)
+  );
+
+  display: inline-flex;
+  gap: var(--noora-spacing-1);
+  border-radius: var(--noora-radius-1);
+  background: transparent;
+
+  &:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    color: var(--noora-link-button-disabled-label) !important;
+  }
+
+  &:not(:disabled)[data-underline] {
+    text-decoration: underline;
+
+    &:hover {
+      text-decoration-style: dotted;
+    }
+  }
+
+  &:not(:disabled):not([data-underline]):hover {
+    text-decoration: underline;
+  }
+
+  &[data-variant="primary"] {
+    color: var(--noora-link-button-primary-label);
+  }
+
+  &[data-variant="secondary"] {
+    color: var(--noora-link-button-secondary-label);
+  }
+
+  &[data-variant="destructive"] {
+    color: var(--noora-link-button-destructive-label);
+  }
+
+  &[data-size="small"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+
+    & svg {
+      width: var(--noora-icon-size-small);
+      height: var(--noora-icon-size-small);
+    }
+  }
+
+  &[data-size="medium"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+    & svg {
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
+    }
+  }
+
+  &[data-size="large"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+    & svg {
+      width: var(--noora-icon-size-large);
+      height: var(--noora-icon-size-large);
+    }
+  }
+}
+
+.noora-neutral-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  border-radius: var(--noora-radius-3);
+  background: unset;
+  padding: var(--noora-spacing-3);
+  color: var(--noora-button-neutral-label);
+  text-decoration: none;
+  transition: transform 150ms var(--ease-out-cubic);
+
+  &:not(:disabled):hover {
+    background: var(--noora-button-neutral-background-hover);
+  }
+
+  &:not(:disabled):active {
+    background: var(--noora-button-neutral-background-active);
+    transform: scale(0.97);
+  }
+
+  &[disabled] {
+    cursor: not-allowed;
+    color: var(--noora-button-neutral-disabled-label);
+  }
+
+  /* Same label inset as .noora-button's `& > span`, scoped to the label
+     part so icons that arrive wrapped in spans keep their geometry. */
+  & > [data-part="label"] {
+    padding: 0rem var(--noora-spacing-2);
+  }
+
+  /* Spacing and positioning mirror .noora-button's size rules exactly, so
+     the two variants can sit side by side (e.g. the navbar's action
+     cluster) without drifting: the same data-icon-only gating, the same
+     per-size paddings, and descendant svg sizing through the shared icon
+     custom property (reaching icons nested in wrapper spans, which a
+     direct-child selector missed). */
+  &[data-icon-only] {
+    padding: var(--noora-spacing-3);
+  }
+
+  &[data-size="small"] {
+    --noora-button-icon-size: var(--noora-icon-size-small);
+
+    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
+
+    &:not([data-icon-only]) {
+      padding: var(--noora-spacing-3) var(--noora-spacing-2);
+    }
+
+    & svg {
+      width: var(--noora-button-icon-size);
+      height: var(--noora-button-icon-size);
+    }
+  }
+
+  &[data-size="medium"],
+  &[data-size="large"] {
+    &:not([data-icon-only]) {
+      padding: var(--noora-spacing-3);
+    }
+  }
+
+  &[data-size="medium"] {
+    --noora-button-icon-size: var(--noora-icon-size-medium);
+
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+    & svg {
+      width: var(--noora-button-icon-size);
+      height: var(--noora-button-icon-size);
+    }
+  }
+
+  &[data-size="large"] {
+    --noora-button-icon-size: var(--noora-icon-size-large);
+
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+
+    & svg {
+      width: var(--noora-button-icon-size);
+      height: var(--noora-button-icon-size);
+    }
+  }
+
+  /* Labeled neutral buttons take .noora-button's per-size paddings. Gated
+     on data-with-label (set by the component in label mode) rather than
+     :not([data-icon-only]) because existing icon-only call sites don't set
+     data-icon-only and must keep their geometry. */
+  &[data-with-label] {
+    &[data-size="small"],
+    &[data-size="medium"] {
+      padding: var(--noora-spacing-3) var(--noora-spacing-2);
+    }
+
+    &[data-size="large"] {
+      padding: var(--noora-spacing-3) var(--noora-spacing-4);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .noora-button,
+  .noora-neutral-button {
+    transition: none;
+
+    &:not(:disabled):active {
+      transform: none;
+    }
+  }
+}

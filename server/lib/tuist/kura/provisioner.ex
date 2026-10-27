@@ -1,0 +1,248 @@
+defmodule Tuist.Kura.Provisioner do
+  @moduledoc """
+  Behaviour the control plane uses to prepare backing resources, apply
+  Kura to them, and destroy servers on a particular platform.
+
+  The control plane (`Tuist.Kura.Reconciler`, /ops UI, and the
+  `Tuist.Kura` context) speaks in regions and accounts. It does not
+  know whether a given region is backed by a Kubernetes custom resource,
+  by a direct VM provisioner, or by another platform. Each backing
+  platform is a module that implements this behaviour.
+
+  Implementations return an opaque `provisioner_node_ref` from
+  `provision/3`. The control plane stores it on the `Server` row
+  and hands it back for every subsequent operation. Refs are
+  provisioner-defined; the control plane never parses them.
+
+  Adding a backing platform is self-contained: implement the
+  callbacks, register the module against a region in
+  `Tuist.Kura.Regions`, and supply whatever config the implementation
+  needs (region host template, API token, instance-type table, …).
+  """
+
+  alias Tuist.Accounts.Account
+  alias Tuist.Kura.Identity
+  alias Tuist.Kura.Regions
+  alias Tuist.Kura.Server
+
+  @doc """
+  Prepare or look up backing resources for `(account, region, server)`.
+
+  Idempotent on the returned ref: calling twice for the same
+  `(account_id, region)` should converge on the same backing resource
+  rather than creating a second one. Implementations may rely on the
+  partial unique index on `kura_servers` for the higher-level
+  guarantee.
+
+  The control plane treats this as the resource-allocation step. Some
+  implementations may create resources here; others may only return a
+  deterministic handle and defer the first install to `rollout/2`.
+  """
+  @callback provision(Account.t(), Regions.t(), Server.t()) ::
+              {:ok, ref :: String.t()} | {:error, term()}
+
+  @doc """
+  Apply a (possibly new) Kura image tag to an existing provisioned
+  resource.
+
+  Used both for the first install (right after `provision/3`) and for
+  later version changes. Implementations decide what "rollout" means:
+  creating a custom resource, ssh + systemctl restart, a multi-step warm
+  rollout, etc. Durable status belongs in the deployment row and the
+  backing resource status, not in captured stdout.
+  """
+  @callback rollout(ref :: String.t(), inputs :: map()) :: :ok | {:error, term()}
+
+  @doc """
+  Destroy the backing resource. Must be safe to call on already-
+  destroyed refs (return `:ok`) so the control plane can finalise the
+  row after retries, even when a previous attempt already removed the
+  backing resource before failing to persist local state.
+  """
+  @callback destroy(ref :: String.t(), Regions.t()) :: :ok | {:error, term()}
+
+  @doc "Public URL the CLI hits for cache traffic."
+  @callback public_url(account_handle :: String.t(), Regions.t(), ref :: String.t()) ::
+              String.t()
+
+  @doc """
+  Public gRPC (Bazel REAPI) URL for the server, or `nil` if the region
+  doesn't expose gRPC publicly. Returned with a `grpcs://` scheme when
+  TLS is terminated by the runtime.
+  """
+  @callback grpc_public_url(account_handle :: String.t(), Regions.t(), ref :: String.t()) ::
+              String.t() | nil
+
+  @doc """
+  In-cluster URL of the server, or `nil` if the region has no
+  cluster-internal form. Never handed to the CLI — only runner dispatch
+  uses it (`Tuist.Kura.runner_cache_endpoint_url/2`).
+  """
+  @callback internal_url(account_handle :: String.t(), Regions.t(), ref :: String.t()) ::
+              String.t() | nil
+
+  @doc """
+  Best-effort drift check: what version is actually running on the
+  node right now? Returns `{:ok, nil}` when the resource exists but
+  isn't reporting a version yet. Used for reconciliation jobs and the
+  /ops drift badge; never on the cache hot path.
+  """
+  @callback current_image_tag(ref :: String.t(), Regions.t()) ::
+              {:ok, String.t() | nil} | {:error, term()}
+
+  @doc """
+  Returns the observed private gateway URL and the controller's check time.
+  Consumers persist that check time so rereading status cannot renew readiness.
+  """
+  @callback external_endpoint(ref :: String.t(), Regions.t()) ::
+              {:ok, %{url: String.t(), observed_at: DateTime.t()}} | {:error, term()}
+
+  @callback current_manifest_revision(ref :: String.t(), Regions.t()) ::
+              {:ok, String.t() | nil} | {:error, term()}
+
+  @doc """
+  Returns the manifest revision the provisioner would render for `server` in the
+  given region, folding in any dynamic input (an enrolled self-hosted peer, the
+  account's plan, the disk footprint the instance was built with) that must
+  trigger a re-apply when it changes.
+
+  Takes the server rather than the account because some of those inputs are
+  properties of the instance rather than of its account.
+  """
+  @callback manifest_revision(Server.t(), Regions.t()) :: String.t() | nil
+
+  @doc "Returns the provisioner's default resource description for one Kura server."
+  @callback resources_for(Server.t()) :: map()
+
+  @doc """
+  Whether the server's backing workload has caught up from its mesh peers and
+  passed the backfill readiness gate (its pod is Ready). Used to gate the warm
+  handoff: a `:moving_in` target has no public endpoint to probe, so its
+  readiness is the peer-plane backfill gate, not a public `/up` check.
+  """
+  @callback caught_up?(ref :: String.t(), Regions.t()) ::
+              {:ok, boolean()} | {:error, term()}
+
+  @doc """
+  The rollout-health aggregate the backing platform publishes for the
+  server's workload, or `{:ok, nil}` when the resource exists but has not
+  published one yet (old controller, no pods sampled). Consumed by
+  `Tuist.Kura.Rollouts` as the health authority for the progressive
+  rollout gate; never on the cache hot path.
+  """
+  @callback rollout_health(ref :: String.t(), Regions.t()) ::
+              {:ok, map() | nil} | {:error, term()}
+
+  @doc """
+  The replication roles the backing platform publishes for the server's
+  pods — `[%{url, gateway, primary}]`, `url` being each pod's internal peer
+  URL — or `{:ok, []}` when the resource exists but has not published any
+  yet. Read by `Tuist.Kura.Reconciler` on the loop that already observes the
+  instance and persisted on `kura_servers.peer_roles`, which is what the mesh
+  view publishes; never called from a request. Implementations must still
+  bound it — one tick observes every mesh server in turn.
+  """
+  @callback peer_roles(ref :: String.t(), Regions.t()) ::
+              {:ok, [map()]} | {:error, term()}
+
+  ## Convenience dispatchers
+
+  @doc "Calls `rollout/2` on the region's provisioner."
+  def rollout(%Server{provisioner_node_ref: ref, region: region_id}, inputs) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.rollout(ref, Map.put(inputs, :region, region))
+    end
+  end
+
+  @doc "Calls `destroy/2` on the region's provisioner."
+  def destroy(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.destroy(ref, region)
+    end
+  end
+
+  @doc "Calls `public_url/3` on the region's provisioner."
+  def public_url(%Account{} = account, %Server{provisioner_node_ref: ref, region: region_id} = server) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      if Identity.endpoint_migration_paused?(account) and is_binary(server.url) do
+        server.url
+      else
+        region.provisioner.public_url(Identity.endpoint_handle(account), region, ref)
+      end
+    end
+  end
+
+  @doc "Calls `grpc_public_url/3` on the region's provisioner."
+  def grpc_public_url(%Account{} = account, %Server{provisioner_node_ref: ref, region: region_id} = server) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      handle =
+        if Identity.endpoint_migration_paused?(account) do
+          Enum.find(Identity.handles(account), Identity.tenant_id(account), fn handle ->
+            region.provisioner.public_url(handle, region, ref) == server.url
+          end)
+        else
+          Identity.endpoint_handle(account)
+        end
+
+      region.provisioner.grpc_public_url(handle, region, ref)
+    end
+  end
+
+  @doc "Calls `internal_url/3` on the region's provisioner."
+  def internal_url(%Account{} = account, %Server{provisioner_node_ref: ref, region: region_id}) when is_binary(ref) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.internal_url(Identity.tenant_id(account), region, ref)
+    end
+  end
+
+  def internal_url(%Account{}, %Server{}), do: nil
+
+  @doc "Calls `current_image_tag/2` on the region's provisioner."
+  def current_image_tag(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.current_image_tag(ref, region)
+    end
+  end
+
+  @doc "Calls `external_endpoint/2` on the region's provisioner."
+  def external_endpoint(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.external_endpoint(ref, region)
+    end
+  end
+
+  @doc "Calls `current_manifest_revision/2` on the region's provisioner."
+  def current_manifest_revision(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.current_manifest_revision(ref, region)
+    end
+  end
+
+  @doc "Calls `manifest_revision/2` on the region's provisioner."
+  def manifest_revision(%Server{region: region_id} = server) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      {:ok, region.provisioner.manifest_revision(server, region)}
+    end
+  end
+
+  @doc "Calls `caught_up?/2` on the region's provisioner."
+  def caught_up?(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.caught_up?(ref, region)
+    end
+  end
+
+  @doc "Calls `rollout_health/2` on the region's provisioner."
+  def rollout_health(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.rollout_health(ref, region)
+    end
+  end
+
+  @doc "Calls `peer_roles/2` on the region's provisioner."
+  def peer_roles(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.peer_roles(ref, region)
+    end
+  end
+end

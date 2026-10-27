@@ -1,9 +1,10 @@
 import Foundation
 import Path
+import TuistLogging
 import TuistMigration
 import TuistSupport
 
-final class MigrationTargetsByDependenciesService {
+struct MigrationTargetsByDependenciesService {
     // MARK: - Attributes
 
     private let targetsExtractor: TargetsExtracting

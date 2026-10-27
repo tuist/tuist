@@ -1,0 +1,4036 @@
+nameOverride: ""
+fullnameOverride: ""
+
+global:
+  imagePullSecrets: []
+  commonLabels: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+
+# Grace-period garbage collector for orphaned Hetzner block volumes (PVs left
+# Released by CNPG rebuilds, StatefulSet teardowns, etc. under the hcloud-volumes
+# Retain default). Ships to every cluster the chart is applied to. Safe to leave
+# on: dryRun only logs. After reviewing a run's logs in Grafana Cloud, set
+# dryRun=false (per env) to arm actual reaping. See templates/released-pv-reaper.yaml.
+pvReaper:
+  enabled: true
+  # dryRun logs the PVs it would reap without deleting anything. Flip to false
+  # per environment once the dry-run logs look right.
+  dryRun: true
+  schedule: "0 3 * * *"
+  # Only reap PVs that have been Released longer than this. The grace window is
+  # the recovery window for an accidental PVC deletion (default 7 days).
+  graceHours: 168
+  # Scoped to this StorageClass so node-local (scw-local-nvme) and non-CSI
+  # volumes are never touched.
+  storageClass: hcloud-volumes
+  # kubectl + jq in one image (Docker Hub, same registry as other chart images).
+  image: alpine/k8s:1.31.1
+  resources:
+    requests:
+      cpu: "25m"
+      memory: "32Mi"
+    limits:
+      memory: "64Mi"
+
+# Grace-period garbage collector for abandoned tagged Tailscale devices. Tagged
+# devices never expire on their own, and both the xcresult-processor VMs and the
+# Tailscale operator's proxy Pods register a device per Pod, so dead
+# registrations accumulate until something deletes them. See the template for
+# the full failure mode and the safety argument.
+#
+# One reaper per environment, each sweeping only its own env's devices. Off by
+# default; managed envs enable it and set `tags`.
+tailscaleDeviceReaper:
+  enabled: false
+  # ACL tags this env's reaper is allowed to delete, and exactly the tags its
+  # OAuth client must be scoped to. Required: the job refuses to run on an empty
+  # list rather than sweeping nothing while reporting success.
+  #
+  # This is what makes three reapers on one shared tailnet safe. The devices
+  # listing returns the whole tailnet however the credential is scoped, so
+  # without the filter each env's reaper would walk every other env's devices
+  # and die on the first 403. Keep it to the env's own tags: widening it to
+  # another env's would be a credential error, not just a config one.
+  tags: []
+  # dryRun logs the devices it would reap without deleting anything. Flip to
+  # false once a run's logs look right.
+  dryRun: true
+  schedule: "30 3 * * *"
+  # `-` is the default tailnet of the authenticated OAuth client, so the tailnet
+  # name is not pinned in the chart.
+  tailnet: "-"
+  # Default window: only reap devices unseen for longer than this. A live device
+  # reports lastSeen within minutes, so the window is really the recovery margin
+  # for a device that is merely down. Sized for the Mac mini hosts, which join
+  # once at bootstrap and keep that identity for the life of the machine --
+  # reaping one while its host is down strands it off the tailnet until it is
+  # re-bootstrapped (default 7 days).
+  graceHours: 168
+  # Short window for devices that re-derive their tailnet identity on every
+  # boot, so a dead registration can never be reused and is pure garbage. The
+  # xcresult-processor Tart VMs boot from an image with no persisted tailscaled
+  # state: each boot means a new node key, and a new node key always means a new
+  # device -- the hostname has nothing to do with it.
+  #
+  # A backstop: these VMs join ephemeral through the OAuth client, and Tailscale
+  # deletes an ephemeral device within an hour of it going away, long before
+  # this window. It catches a join that is not ephemeral, such as a pre-auth key
+  # created without it (tailscale-up.sh passes one through unchanged). Every
+  # image release then leaves its VMs behind, and the 7-day default would keep
+  # a week of them standing.
+  #
+  # An empty hostnamePattern disables the short window (everything falls back to
+  # graceHours) rather than matching every device.
+  disposable:
+    hostnamePattern: "xcresult-processor"
+    # 12h is ~24x the Deployment's 1800s progressDeadlineSeconds, so a slow
+    # rollout cannot have its own in-flight VM reaped out from under it.
+    graceHours: 12
+  # Ceiling on a single run, so a wrong predicate cannot empty the tailnet
+  # before anyone reads the logs. Candidates are reaped oldest-first and the
+  # remainder rolls into the next run.
+  maxDeletions: 25
+  # curl + jq in one image; same image the PV reaper uses.
+  image: alpine/k8s:1.31.1
+  # Secret holding the tag-scoped OAuth client. Empty falls back to the
+  # ExternalSecret this chart syncs from 1Password. Setting a name opts out of
+  # that sync entirely: the CronJob reads the named Secret and no ExternalSecret
+  # is rendered, so nothing tries to pull a 1Password item you are not using.
+  oauthSecretName: ""
+  oauthSecretClientIDKey: client-id
+  oauthSecretClientSecretKey: client-secret
+  externalSecrets:
+    enabled: true
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    item: TAILSCALE_DEVICE_REAPER
+    fields:
+      clientID: client-id
+      clientSecret: client-secret
+  resources:
+    requests:
+      cpu: "25m"
+      memory: "32Mi"
+    limits:
+      memory: "64Mi"
+
+# Grafana Cloud Private Data source Connect (PDC) agent. Off by default: it only
+# makes sense on the managed envs whose Grafana Cloud stack has a PDC network,
+# and self-hosters have no Grafana Cloud stack at all.
+#
+# Enabling it lets a Grafana *Postgres* datasource reach the in-cluster CNPG
+# database as the `tuist_ops_ro` role, which is what keeps the Business
+# Intelligence dashboard on Grafana's built-in Postgres datasource instead of a
+# plugin + bespoke query endpoint.
+#
+# cluster / hostedGrafanaId / the signing token are all minted together when the
+# PDC network is created in Grafana Cloud (Connections > Private data source
+# connections > Configuration Details). The first two are stack identifiers and
+# live here; the token is a secret and comes from 1Password via ESO.
+pdcAgent:
+  enabled: false
+  image:
+    repository: grafana/pdc-agent
+    # Required when enabled — see the guard in templates/pdc-agent.yaml.
+    tag: ""
+  cluster: ""
+  hostedGrafanaId: ""
+  # Grafana load-balances across agents on a network and fails over when one
+  # drops, so this is an availability knob: at 1 a node drain takes every
+  # PDC-routed panel with it. Grafana recommends >= 3 in production; envs that
+  # only serve a dashboard can stay lower.
+  replicas: 1
+  # host:port targets the tunnel is allowed to open, via ssh's PermitRemoteOpen.
+  # Empty means NO restriction: the agent permits any destination reachable from
+  # its pod. Set this per env to the CNPG read-only service so a compromised
+  # tunnel cannot reach the rest of the cluster.
+  permitRemoteOpen: []
+  externalSecrets:
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    # 1P item holding the PDC signing token (scope: pdc-signing:write), in the
+    # per-env vault the ClusterSecretStore is bound to.
+    item: PDC_AGENT
+    tokenField: password
+  # The agent is a single ssh tunnel process, not a throughput-scaled
+  # workload: measured steady state is ~10Mi and ~1m across every env.
+  # Upstream's manifest requests 1 CPU + 1Gi, which the scheduler reserves
+  # in full — on the two-worker canary pool that is a seventh of the node's
+  # memory and a quarter of its CPU held for an idle tunnel, and it is what
+  # left rolling updates without the headroom to place a surge Pod. Requests
+  # track the measured working set; the 1Gi limit stays as the burst ceiling.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 1Gi
+
+kuraController:
+  servingAuthority:
+    enabled: false
+  privateReplication:
+    enabled: false
+  enabled: false
+  stableDNS:
+    enabled: false
+    hostedZoneId: ""
+    ownerId: ""
+    secretName: kura-cache-dns
+    drain: 3720s
+    externalSecret:
+      enabled: false
+      storeName: onepassword
+      item: ""
+  # Fixed /ready timing profile emitted to each selected pod's logs. Enabling
+  # changes the pod template and rolls these instances. No RBAC grant needed.
+  # Requires a Kura runtime image with built-in connectivity telemetry.
+  connectivityDiagnostics:
+    instances: []
+  # Enable managed gateway readiness reads and its Cilium backend policy.
+  privateGateway:
+    enabled: false
+  namespace: kura
+  replicaCount: 2
+  nodeSelector: {}
+  tolerations: []
+  image:
+    repository: ghcr.io/tuist/kura-controller
+    tag: ""
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  # cert-manager ClusterIssuer to use for the single per-instance public
+  # Certificate (`<name>-public-tls`). gRPC co-hosts on the public host, so
+  # there is no separate gRPC certificate. Leave empty only when the runtime
+  # does not mount public TLS certificates, for example kind/dev clusters.
+  tlsClusterIssuer: ""
+  # Deprecated alias for tlsClusterIssuer. Kept so existing overlays do
+  # not break while the controller flag is still named grpc-cluster-issuer.
+  grpcClusterIssuer: ""
+  # One Certificate in the controller namespace, issued by tlsClusterIssuer,
+  # that every public Ingress terminates on. The controller maintains it, not
+  # this chart: `--rollback-on-failure` defaults Helm 4's wait strategy to
+  # `watcher`, so a Certificate in the release makes a first issuance slower
+  # than the release timeout fail the deploy. An instance keeps its own
+  # certificate until this Secret holds a leaf covering its host, and an ACME
+  # wildcard covers exactly one label below the name it is issued for.
+  publicWildcardCertificate:
+    enabled: false
+    secretName: kura-public-wildcard-tls
+    dnsNames:
+      - "*.kura.tuist.dev"
+  telemetry:
+    # Default OTLP traces endpoint for controller-managed Kura pods.
+    # Leave empty to disable controller-injected tracing, or override
+    # per KuraInstance through spec.extraEnv.
+    otlpTracesEndpoint: ""
+    # Environment label injected into controller-managed Kura pods. Kura
+    # uses this for both OpenTelemetry and Sentry.
+    deploymentEnvironment: production
+  analytics:
+    # Sync the server's webhook signing key and internal address into Kura.
+    # Requires server.config.managedSecrets and sharedSecrets.enabled.
+    # Self-hosted installs can instead supply KURA_ANALYTICS_SERVER_URL and
+    # KURA_ANALYTICS_SIGNING_KEY through sharedSecrets.data.
+    enabled: false
+  sharedSecrets:
+    # Renders the kura-shared-secrets Kubernetes Secret in the
+    # controller namespace. Set to false if the Secret is managed
+    # out-of-band (sealed-secrets, external-secrets, etc.).
+    enabled: true
+    annotations: {}
+    # Map of env-var names to literal values. The controller's
+    # StatefulSet picks them up via envFrom on every Kura pod. Leave
+    # empty if you populate the Secret out-of-band; the manifest will
+    # still be created so envFrom doesn't 404, and stringData will be
+    # absent, which Kubernetes accepts.
+    data: {}
+    # Internal OAuth client shared by the Tuist server and Kura runtime
+    # for Kura control-plane calls and token introspection. When enabled,
+    # both the server namespace and the Kura namespace receive the same
+    # client id and secret. Provide them inline for self-hosted/local
+    # installs, or enable the ExternalSecret below for managed installs.
+    kuraIntrospection:
+      enabled: false
+      clientId: ""
+      # Required when kuraIntrospection.enabled is true unless
+      # sharedSecrets.externalSecret.enabled is also true.
+      clientSecret: ""
+    externalSecret:
+      enabled: false
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      item: ""
+      fields:
+        introspectionClientId: KURA_CONTROL_PLANE_CLIENT_ID
+        introspectionClientSecret: KURA_CONTROL_PLANE_CLIENT_SECRET
+  sentry:
+    externalSecret:
+      enabled: false
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      item: ""
+      field: KURA_SENTRY_DSN
+  # Public half of the keypair the server signs cache tokens with. A node
+  # holding it reads a cache token where the request lands instead of asking
+  # the server, and cannot mint one. Only ever the public half: the private
+  # half stays on the server as TUIST_SECRET_KEY_CACHE_TOKENS.
+  #
+  # The value may carry two concatenated PEM blocks during a rotation, so that
+  # the server and the nodes, which roll independently, are never required to
+  # switch keys at the same instant.
+  cacheTokenPublicKey:
+    externalSecret:
+      enabled: false
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      item: ""
+      field: KURA_AUTH_JWT_PUBLIC_KEY
+    # Example shape — never commit real values here:
+    #   KURA_AUTH_JWT_ISSUER: tuist
+    #   KURA_AUTH_JWT_PUBLIC_KEY: "<PEM public key>"
+    #   KURA_CONTROL_PLANE_CLIENT_SECRET: "<Kura OAuth introspection secret>"
+
+# Per-node shared egress HTB tree for kura pods (infra/egress-tree-agent/):
+# enforces the per-tenant floors (egress_guaranteed_mbps), ceilings
+# (egress_burst_mbps) and the node's advertised egress budget
+# (tuist.dev/egress-mbps) via a tcx/HTB trampoline that keeps Cilium's
+# datapath (policy, identity, masquerade) fully applied to shaped traffic.
+# Inert unless the kura-controller also renders the tuist.dev/egress-class
+# pod annotation (it does so for every instance with a floor or ceiling).
+egressTreeAgent:
+  # When enabled, the chart also renders a CiliumClusterwideNetworkPolicy that
+  # drops the metrics port from `world` on the selected nodes. That policy is a
+  # no-op unless the cluster runs Cilium with `enable-host-firewall: true` — the
+  # policy object applies but the host endpoint is never enforced, leaving the
+  # port world-readable with no signal. Confirm host-firewall is on before
+  # relying on it. If a host endpoint is ever locked out, recover by setting
+  # `enabled: false` and redeploying, or delete the policy object directly
+  # (see infra/egress-tree-agent/AGENTS.md).
+  enabled: false
+  # The tag is resolved at deploy time from the highest
+  # `egress-tree-agent@<semver>` git tag reachable from the deployed commit
+  # (server-deployment.yml's fleet/runtime resolution step), so a release
+  # rolls forward on the next deploy and there is no in-repo pin to bump.
+  # Empty is a render-time failure — see the template's guard.
+  image:
+    repository: ghcr.io/tuist/egress-tree-agent
+    tag: ""
+    pullPolicy: IfNotPresent
+  # Deployed into the kura namespace (kuraController.namespace) by default.
+  namespace: ""
+  # Backstop sweep only: pod/node watch events drive convergence, so this
+  # interval just repairs what no event reports (stripped tcx links, deleted
+  # trampoline devices, stale pins).
+  reconcileInterval: 2m
+  metricsPort: 9469
+  # Agent log level: debug, info, warn, or error.
+  logLevel: info
+  # Consecutive return-program attach failures after which the agent
+  # detaches every pod program (shaped packets drop at the trampoline peer
+  # without a return program; unshaped beats blackholed).
+  returnAttachMaxFailures: 3
+  # Observe-mode fallback for the tree's root ceiling on nodes that do not
+  # advertise tuist.dev/egress-mbps capacity. 0 = no fallback: such nodes get
+  # no tree and their pods stay unshaped on the node-local leg.
+  defaultNodeEgressMbps: 0
+  # Kura cache pools to schedule onto, matched as
+  # `node.cluster.x-k8s.io/pool In [<nodePools>]` required node affinity —
+  # the same pool names the region specs use (server/lib/tuist/kura/regions.ex)
+  # and the regional kura-*-ingress-nginx blocks in
+  # infra/helm/platform/values-tuist.yaml. The template refuses to render an
+  # enabled agent when both nodePools and nodeSelector are empty: this is a
+  # privileged host-network DaemonSet and must never run cluster-wide.
+  nodePools: []
+  # Optional extra equality constraints on top of nodePools
+  # (kubernetes.io/os: linux is always applied).
+  nodeSelector: {}
+  tolerations:
+    - key: tuist.dev/kura-cache
+      operator: Exists
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
+kuraRuntime:
+  image:
+    repository: ghcr.io/tuist/kura
+    tag: ""
+  rollout:
+    # Image tag the deploy explicitly asks to expedite (all-at-once
+    # fan-out at rollout creation, for rollbacks to a tag that already
+    # completed a rollout in the environment). Set per deploy via the
+    # workflow's kura_expedite input — never committed — and matched
+    # against exactly this tag so it cannot leak onto a later rollout.
+    expediteTag: ""
+    # Webhook the rollout lifecycle posts to (start, pause with the failing
+    # signal, completion, supersede, expedite). Context only — Grafana is the
+    # paging authority — so an unset secret leaves the notifications off
+    # rather than failing anything. Point it at a Secret carrying the URL;
+    # it is deliberately not a plain value, since a webhook URL is a
+    # credential.
+    opsSlackWebhookSecret:
+      name: ""
+      key: ops-slack-webhook-url
+  # An optional per-release KuraInstance, rendered into `instance.namespace`
+  # (the cluster-wide namespace the controller watches). Off by default:
+  # managed environments provision Kura through the server's reconciler, which
+  # authors the CR itself, so the chart must not also own one. Previews turn it
+  # on through values-preview-kura.yaml.
+  instance:
+    enabled: false
+    # Defaults to "<release>-kura".
+    name: ""
+    namespace: kura
+    # Own the CR by the release's namespace so that deleting the preview
+    # namespace garbage-collects it (and its controller-created children in the
+    # kura namespace). Self-healing cleanup for previews; keep off if the CR's
+    # namespace equals the release namespace or the CR should outlive it.
+    ownerReferenceToReleaseNamespace: true
+    accountHandle: ""
+    tenantID: ""
+    region: ""
+    replicas: 1
+    # When true, no public endpoint is reconciled and publicHost is not
+    # required: the cache is reachable only in-cluster.
+    private: false
+    publicHost: ""
+    ingressClassName: nginx
+    storageSize: 10Gi
+    labels: {}
+    nodeSelector: {}
+    tolerations: []
+    # Optional credentials for this KuraInstance. The controller's shared
+    # Secret remains the default when this is empty.
+    controlPlaneCredentials:
+      secretName: ""
+    networkPolicy:
+      enabled: false
+
+codebaseSearch:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: ghcr.io/tuist/codebase-search
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    port: 80
+  containerPort: 4000
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "64Mi"
+    limits:
+      cpu: "1"
+      memory: "512Mi"
+  networkPolicy:
+    enabled: false
+  podAnnotations: {}
+  podLabels: {}
+  affinity: {}
+  nodeSelector: {}
+  tolerations: []
+
+server:
+  enabled: true
+  replicaCount: 1
+  # server.image.tag is REQUIRED. The chart's .Chart.AppVersion tracks the
+  # chart itself, not the server image, which ships on its own 1.x cadence
+  # under ghcr.io/tuist/tuist. Pin an explicit tag matching a release from
+  # https://github.com/tuist/tuist/releases?q=server (for example "1.318.0").
+  # Managed deploys inject it via `helm upgrade --set server.image.tag=...`.
+  image:
+    repository: ghcr.io/tuist/tuist
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+    # gRPC port for `once.events.v1` (and, later, native BEP). Enabled
+    # per environment; the server also needs `TUIST_ONCE_EVENTS_GRPC=on`
+    # to start the listener on the pod side.
+    grpcPort: 4001
+    grpcTargetPort: 4001
+  # Dedicated origin for build event traffic. Fronts the gRPC surface for
+  # `once.events.v1` (build, test, cache, and exec invocations alike), and
+  # on a follow-up will also carry native BEP. The subdomain is
+  # `events.<host>` so the name reflects the stream contents rather than
+  # one of the invocation kinds. Bazel BEP still terminates at Kura today
+  # and posts summaries to the main tuist.dev host; nothing self-hosted
+  # should have `enabled: true` prior to the Once gRPC rollout.
+  #
+  # Renamed from `bazelEvents` (introduced in #13184). The templates
+  # resolve the effective config through `tuist.serverEventsConfig` with
+  # these precedence rules:
+  #
+  #   1. `server.events.enabled: true` -> use `server.events`.
+  #   2. `server.events.enabled` is falsy AND `server.bazelEvents.enabled:
+  #      true` -> use `server.bazelEvents` as the one-release deprecation
+  #      path for #13184 adopters.
+  #   3. BOTH `enabled: true` -> the chart `fail`s with a migration
+  #      message. Pick one key.
+  #
+  # The scheme the discovery doc advertises
+  # (`TUIST_ONCE_EVENTS_ENDPOINTS`) follows `tlsSecretName`: set it ->
+  # `grpcs://`, leave it empty -> `grpc://`, so non-TLS self-hosted
+  # installs don't advertise a scheme their ingress cannot serve.
+  events:
+    enabled: false
+    className: nginx
+    host: ""
+    tlsSecretName: ""
+    annotations:
+      external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+      nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+      nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+      # A run's event stream stays open for as long as the run, so these
+      # also set the gRPC read and send timeouts, which default to 60s.
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+      # Once enabled, the ingress forwards gRPC (HTTP/2 end-to-end) to
+      # the server's grpc port. Rendered when eventsGrpc.enabled is true.
+  # gRPC listener toggle for `once.events.v1`. When enabled, the server's
+  # Service exposes the grpcPort/grpcTargetPort above and the ingress
+  # template picks the GRPC backend protocol.
+  eventsGrpc:
+    enabled: false
+  resources: {}
+  extraEnv: []
+  # Additional env from Secrets or ConfigMaps. List of objects with
+  # secretRef.name or configMapRef.name. Useful for bringing in
+  # managed-deployment secrets (Mailgun, OAuth tokens, etc.) without listing
+  # each one in values.yaml.
+  extraEnvFrom: []
+  appUrl: http://tuist.local
+  logLevel: info
+  hosted: false
+  # Cloudflare Turnstile protects self-service browser registration on hosted
+  # deployments. When `enabled` is true, TUIST_TURNSTILE_ENABLED is set on the
+  # deployment and the site/secret keys are synced from the TURNSTILE 1Password
+  # item via external-secrets.
+  turnstile:
+    enabled: false
+    secretsFrom: eso
+  # Second Turnstile-backed gate: interstitial challenge in front of public
+  # project dashboards (see #13205). Uses the same Turnstile keys as
+  # `server.turnstile`; this switch just decides whether the plug/live-hook
+  # pair enforces the check. Layered defence in depth on top of
+  # Cloudflare Super Bot Fight Mode at the edge — SBFM's
+  # `managed_challenge` still lets a chunk of definitely-automated traffic
+  # through, so browser sessions get gated at the app layer too.
+  # `Environment.public_page_challenge_required?/0` additionally requires
+  # `hosted: true`; leave that in sync per env.
+  publicPageChallenge:
+    enabled: false
+  # Browser real user monitoring. Set collectorUrl to the endpoint the browser
+  # posts Grafana Faro payloads to; a same-origin path keeps the request free of
+  # CORS and leaves the Content Security Policy untouched. Empty disables it and
+  # ships no browser telemetry at all.
+  faro:
+    collectorUrl: ""
+    # In-cluster address of the Faro receiver. Setting it renders an
+    # ExternalName Service plus a dedicated Ingress that routes collectorUrl's
+    # path at it, which is what keeps the collector same-origin with the site.
+    # That Ingress rewrites to /collect, the only path Alloy's faro.receiver
+    # serves. ingress-nginx rejects an Ingress that claims a host and path
+    # another Ingress already defines, so collectorUrl has to be a path no
+    # other Ingress on the host lists, and it cannot be moved onto or off the
+    # server Ingress in the same upgrade that renders it here.
+    receiverHost: ""
+    receiverPort: 12347
+    # Route through Phoenix to add session-authentication and trusted Ray ID
+    # context before forwarding to Alloy. Requires collectorUrl /-/faro/collect.
+    # Enable only after all server pods contain the gateway (two-phase rollout).
+    gateway:
+      enabled: false
+  # Refuse a new Kura instance before it can use the region's reserved storage
+  # headroom. This must remain enabled on hosted deployments.
+  kuraCapacityAdmission:
+    enabled: false
+  # Opt-in object-storage cleanup windows by artifact family, in days.
+  # An empty value disables cleanup only for that artifact family.
+  artifactRetentionDays:
+    cacheArtifacts: ""
+    appPreviews: ""
+    buildArchives: ""
+    runArtifacts: ""
+    testAttachments: ""
+    shardBundles: ""
+  skipEmailConfirmation: true
+  secretKeyBase: ""
+  # Name of an existing Kubernetes Secret backing TUIST_SECRET_KEY_BASE (the
+  # Phoenix session/signing key). When set, the chart routes the env var
+  # through a secretKeyRef against this Secret instead of rendering
+  # `server-secret-key-base` into its own app-secrets Secret. Use with a
+  # Vault-synced Secret, sealed-secrets, or any other out-of-band source.
+  # Mutually exclusive with `server.secretKeyBase`. Override
+  # `secretKeyBaseExistingSecretKey` to match the key in your Secret.
+  secretKeyBaseExistingSecret: ""
+  secretKeyBaseExistingSecretKey: server-secret-key-base
+  # When true, the chart skips emitting DATABASE_URL / TUIST_CLICKHOUSE_URL /
+  # TUIST_SECRET_KEY_BASE / TUIST_S3_* env vars and expects those to come from
+  # elsewhere — the consolidated config Secret (config.managedSecrets) and CNPG
+  # for managed envs. Self-hosted installs leave this false so values.yaml
+  # drives all runtime config.
+  managedSecrets: false
+  # Sync secrets from an external store via external-secrets-operator (the Tuist
+  # license and Kura OAuth creds). The store must already exist
+  # (ClusterSecretStore/SecretStore) and be configured elsewhere (see
+  # infra/k8s/onboarding.md for the 1Password flow).
+  externalSecrets:
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    # Sync either the online Tuist license key or the air-gapped license
+    # certificate from the external store. These sources are mutually
+    # exclusive.
+    license:
+      item: ""
+      field: password
+      certificateItem: ""
+      certificateField: password
+    # Cache-signing grant private key: a PEM Ed25519 key the
+    # server signs runner cache grants with. Leave item empty to disable
+    # grant minting (dispatch omits the grant; CLI falls back to the MAC
+    # default). The 1Password item's `password` field holds the PEM.
+    cacheGrant:
+      item: ""
+      field: password
+    # Dedicated OAuth client used by Kura to call /oauth2/introspect.
+    # Leave item empty to skip syncing it into the server environment.
+    kuraIntrospection:
+      item: ""
+      # Non-secret OAuth client id. When set, the chart renders this value
+      # into the ESO-managed Secret and only fetches the client secret from
+      # the external store.
+      clientIdValue: ""
+      fields:
+        clientId: KURA_CONTROL_PLANE_CLIENT_ID
+        clientSecret: KURA_CONTROL_PLANE_CLIENT_SECRET
+  # Kura introspection credentials sourced from an out-of-band Secret in
+  # this release's namespace named `kura-shared-secrets`. Set to true when
+  # the kuraController runs in a different release (preview environments
+  # install the controller once at platform level into the `kura`
+  # namespace; the deploy workflow copies that Secret into the preview
+  # namespace before installing this chart). Managed environments install
+  # server + kuraController from one release and leave this off.
+  kuraIntrospection:
+    useSharedSecret: false
+    # An explicitly named Secret takes precedence over the shared controller
+    # Secret. This lets an isolated environment use a distinct Kura client
+    # without copying the controller credential into its application
+    # namespace.
+    secretName: ""
+  # GitHub App + bot PAT secrets. When `github.managedSecrets: true`, ESO
+  # syncs them from 1Password into a dedicated Secret and the Server +
+  # Processor Deployments mount the keys as TUIST_GITHUB_APP_* /
+  # TUIST_GITHUB_TOKEN_* env vars. Self-hosted installs that prefer to
+  # supply those env vars by other means (own Secret, extraEnv) leave
+  # this off.
+  github:
+    managedSecrets: false
+    externalSecrets:
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      app:
+        # The single 1P item carrying the App's atomic credential set.
+        item: GITHUB_APP
+        fields:
+          name: app_name
+          id: app_id
+          clientId: client_id
+          clientSecret: client_secret
+          webhookSecret: webhook_secret
+          # ESO's 1P provider reads file attachments by their filename.
+          # The vault scoping (tuist-k8s-{staging,canary,production})
+          # already encodes the env, so the same filename is used in
+          # every vault.
+          privateKey: private-key.pem
+      # 1P's Password template stores the secret in `password`. If a PAT
+      # item uses a custom template (e.g. API Credential with field
+      # `credential`), override here.
+      tokenUpdatePackageReleases:
+        item: GITHUB_TOKEN_UPDATE_PACKAGE_RELEASES
+        field: password
+      tokenUpdatePackages:
+        item: GITHUB_TOKEN_UPDATE_PACKAGES
+        field: password
+  # Google OAuth client credentials. When `google.managedSecrets: true`, ESO
+  # syncs them from 1Password into a dedicated Secret and the Server
+  # Deployment mounts them as TUIST_GOOGLE_OAUTH_CLIENT_ID /
+  # TUIST_GOOGLE_OAUTH_CLIENT_SECRET env vars, which enable the "Log in with
+  # Google" button. Leave managedSecrets false (the default) for self-hosted
+  # installs that don't use Google sign-in — no Secret or env refs are then
+  # rendered.
+  google:
+    managedSecrets: false
+    externalSecrets:
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      oauth:
+        # The single 1P item carrying the OAuth client credentials.
+        item: GOOGLE_OAUTH
+        fields:
+          clientId: client_id
+          clientSecret: client_secret
+  # Bulk runtime secrets (Sentry, Stripe API keys, Slack, Apple, the Tuist
+  # OAuth/OIDC provider keys, the Mailgun API key, the ClickHouse URL,
+  # the cache API key, and the Phoenix/Cloak/Guardian secret keys)
+  # synced from 1Password by ESO into a single Secret whose keys are TUIST_*
+  # env var names, mounted via envFrom. This is what lets managed envs drop
+  # the encrypted priv/secrets/<env>.yml.enc blob + MASTER_KEY. Per-concern 1P
+  # items live in the per-env vault — see
+  # templates/server-config-external-secrets.yaml for the item/field layout.
+  # Off by default: self-hosted installs supply config via extraEnv / their
+  # own Secret, and a managed env must have every 1P item populated before
+  # flipping this on (the migration-job hook waits on the ExternalSecret).
+  config:
+    managedSecrets: false
+    # Reconcile a dedicated, bounded ClickHouse query identity before each
+    # server deployment. The chart preserves a generated password in a Secret
+    # unless an existing Secret is supplied. The migration ClickHouse identity
+    # must be allowed to create and alter users, roles, and grants.
+    opsClickHouse:
+      enabled: false
+      username: tuist_ops
+      role: tuist_ops_readonly
+      existingSecret: ""
+      passwordKey: password
+    # The bounded ClickHouse identity Grafana Cloud's data source signs in
+    # as, through the PDC agent (add the ClickHouse Service to
+    # `pdcAgent.permitRemoteOpen`). Reconciled by the migration Job like
+    # `opsClickHouse`. The password comes from 1Password (`item`/`field`
+    # through the managed external secrets, so `managedSecrets` must be on)
+    # because the same value is entered on the Grafana data source.
+    grafanaClickHouse:
+      enabled: false
+      username: tuist_grafana
+      role: tuist_grafana_readonly
+      item: CLICKHOUSE_GRAFANA
+      field: password
+    # Newsletter signups go to Atlas, which is our own deployment. Only the
+    # environment that owns the production audience should write to it, so
+    # this stays off everywhere else and the client then has no key to use.
+    atlasEmail:
+      enabled: false
+    # Origin app identity. Enable only after the registered App ID and its
+    # signing key exist together in the environment's vault.
+    originAppKey:
+      enabled: false
+      item: ORIGIN_APP
+      appIdField: app_id
+      field: private_key
+    # Private half of the keypair cache tokens are signed with, so that a cache
+    # node given the public half reads them without calling back here. Off until
+    # a pair exists in the environment's vault: cache tokens are then signed by
+    # the API-credential key instead and nodes answer them through introspection,
+    # which is what every environment did before the pair existed.
+    #
+    # The two flags are switched on in order, in separate rollouts. `enabled`
+    # installs the key, which only teaches a replica to verify tokens signed
+    # with it and changes nothing a client sees. `signing` then makes replicas
+    # issue those tokens. Doing both at once means that partway through the
+    # rollout a token minted by a replica holding the key can be introspected
+    # by one that does not yet hold it, which reports it inactive and 401s a
+    # request that was perfectly valid.
+    cacheTokenKey:
+      enabled: false
+      signing: false
+    externalSecrets:
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      # Overridable field names inside the per-env 1Password items. The
+      # chart's default field layout is described in
+      # templates/server-config-external-secrets.yaml; override here to
+      # point ESO at a sibling field on the same 1P item (e.g. to send
+      # errors to a different ingest without touching every other secret).
+      fields:
+        sentryDsn: dsn
+  # Stripe price IDs, keyed plan -> category -> [price ids], plus a top-level
+  # `runners` map from meter event name -> price id. Not secrets (just
+  # identifiers), so they live here rather than 1Password; the chart JSON-encodes
+  # them into TUIST_STRIPE_PRICES (Environment.stripe_prices/1). Empty by default
+  # — managed values set the real map. The Stripe API keys themselves stay in the
+  # secret store (server.config / 1Password STRIPE item).
+  stripe:
+    prices: {}
+  # Mailing identity (Mailgun sending domain + from/reply-to addresses). Not
+  # secrets — just the sender identity, shared across envs — so they live here,
+  # wired to TUIST_MAILING_* env vars. The Mailgun API key stays in the secret
+  # store (server.config / 1Password MAILGUN item). Empty by default; managed
+  # values set them.
+  mailing:
+    domain: ""
+    fromAddress: ""
+    replyToAddress: ""
+  license:
+    key: ""
+    certificateBase64: ""
+    selfHostingDevelopmentMode: false
+    # Name of an existing Kubernetes Secret whose keys back the license
+    # environment variables. Use this when the license values live in a
+    # Secret populated out-of-band (Vault, sealed-secrets, bank-vaults, an
+    # ExternalSecret targeting a store other than 1Password, etc.) and you
+    # do not want the chart to render them into its own app-secrets Secret.
+    # Mutually exclusive with `server.license.{key,certificateBase64}`
+    # and with the ESO `server.externalSecrets.license` path.
+    #
+    # Override `existingSecretKeys` to match the key names in your Secret.
+    # An empty value under `existingSecretKeys` skips wiring the corresponding
+    # env var, which lets the Secret carry only the online key (or only the
+    # air-gapped certificate) without a placeholder for the other.
+    existingSecret: ""
+    existingSecretKeys:
+      key: server-license-key
+      certificateBase64: server-license-certificate-base64
+  database:
+    ssl: false
+  storage:
+    # Storage backend used by the Tuist server for build archives, previews,
+    # test attachments, runner log archives, and other server-owned artifacts.
+    # Supported values:
+    #   - s3: use the chart's S3-compatible objectStorage settings.
+    #   - azure_blob: use server.azureBlob below.
+    provider: s3
+  s3:
+    region: auto
+    virtualHost: false
+    bucketAsHost: false
+    bucketName: tuist
+  azureBlob:
+    accountName: ""
+    accountKey: ""
+    containerName: tuist
+    endpoint: ""
+    serviceVersion: "2020-12-06"
+  cacheEndpointUrl: ""
+  # Kura endpoint URLs advertised by this server when clients request the
+  # Kura cache technology. Self-hosted installs can point this at Kura
+  # instances running in the same cluster or network.
+  kuraEndpointUrls: []
+  # Optional account handles that should get server-driven dedicated
+  # Kura gateway infrastructure even if billing metadata has not yet
+  # marked them Enterprise. Leave empty in committed managed values;
+  # prefer wiring this through external runtime config when needed.
+  kuraDedicatedGatewayAccounts: []
+  # Per-region public peer failover IPs for the bare-metal regions (operator
+  # provisioned out of band, like the fleets — parked until ordered). Each entry
+  # renders a FailoverIP CR (the CAPI provider keeps the IP on a healthy box of
+  # the pool) and feeds TUIST_KURA_PEER_FAILOVER_IPS so the server points the
+  # region's peer DNSEndpoint at it. Leave empty until a region's IP exists.
+  kuraPeerFailoverIps: []
+  # - region: eu-west
+  #   ip: "1.2.3.4"
+  #   vendor: ovh
+  #   pool: kura-eu-west
+  # Erlang distribution / libcluster configuration. Emits a headless Service
+  # and wires TUIST_CLUSTER_DNS_SERVICE + TUIST_CLUSTER_APP_NAME into the pod.
+  cluster:
+    enabled: false
+    applicationName: tuist
+    distributionPort: 9100
+    # Shared across replicas and image versions. When empty, the chart creates
+    # a Secret and preserves its cookie with lookup during upgrades.
+    cookieExistingSecret: ""
+    cookieExistingSecretKey: release-cookie
+    # Optional ESO-owned cookie Secret. Requires cookieExistingSecret and an
+    # existing SecretStore. No ESO dependency for ordinary self-hosted installs.
+    externalSecret:
+      enabled: false
+      # Sync only on ExternalSecret metadata/spec changes, never on a timer.
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      item: SERVER_CLUSTER_COOKIE
+      field: password
+  serviceAccount:
+    # Workload identity / Kubernetes API identity for server pods and the migration job.
+    # Set annotations when integrating with a cloud IAM system or custom RBAC.
+    create: false
+    name: ""
+    annotations: {}
+  # Existing deployments may give the server Kubernetes API permissions for
+  # runners or database operations. Keep the historical implicit mount as the
+  # default; isolated deployments can explicitly turn it off.
+  automountServiceAccountToken: true
+  # Optional Secret mounted read-only for a one-time account bootstrap. The
+  # server process never reads it; operational tooling can read the files
+  # through an exec command without placing credentials in command arguments.
+  seedAccountCredentials:
+    secretName: ""
+  networkPolicy:
+    enabled: false
+    # Applies a default-deny policy to every pod in the release. The
+    # pentest overlay enables this and supplies narrowly scoped component
+    # policies for the embedded data plane.
+    defaultDenyAllPods: false
+    ingressControllerNamespace: platform
+    ingressControllerPodLabels:
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/component: controller
+    dnsNamespace: kube-system
+    observabilityNamespace: observability
+    kuraEnabled: true
+    kuraNamespace: kura
+    # Additional labels for Kura runtime pods allowed to call the server.
+    # Empty preserves the existing namespace-wide behavior.
+    kuraPodLabels: {}
+    # Private Pod and Service ranges excluded from the public HTTP/S egress
+    # rule. Environment overlays should set their cluster's actual ranges.
+    clusterCIDRs: []
+  ingress:
+    enabled: false
+    className: ""
+    host: ""
+    # TLS is configured when tlsSecretName is set. Typically paired with
+    # cert-manager annotations on the Ingress.
+    tlsSecretName: ""
+    annotations: {}
+    # extraPaths is merged before the default "/" path so cert-manager
+    # HTTP01 solvers (and similar) can inject their own route.
+    extraPaths: []
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  podAnnotations: {}
+  podLabels: {}
+  affinity: {}
+  # Optional nodeSelector to keep server pods off a dedicated worker pool
+  # (for example, the cpx51 processor pool the managed cluster provisions
+  # for xcactivitylog parsing). Self-hosters can leave this empty.
+  nodeSelector: {}
+  tolerations: []
+  terminationGracePeriodSeconds: 60
+  # Preferred HTTP probes. All three hit the Phoenix /ready endpoint.
+  #
+  # startupProbe gives the release up to ~5 minutes to come up under load
+  # (failureThreshold * periodSeconds = 60 * 5s = 300s). Kubernetes
+  # disables both readinessProbe and livenessProbe while startupProbe is
+  # still failing, so the `liveness.initialDelaySeconds: 30` below only
+  # starts counting AFTER startupProbe succeeds — the small delay cannot
+  # race with a slow boot.
+  probes:
+    readiness:
+      path: /ready
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+    liveness:
+      path: /ready
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      timeoutSeconds: 3
+      failureThreshold: 3
+    startup:
+      path: /ready
+      initialDelaySeconds: 0
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 60
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  migrationJob:
+    enabled: true
+    backoffLimit: 6
+    resources: {}
+    # When true, the Job runs as a Helm pre-install/pre-upgrade hook so that
+    # migrations complete before new pods roll out. Disable for self-hosted
+    # topologies that prefer a post-install Job instead.
+    asHook: false
+    # Only meaningful when asHook is false. Suffixes the Job name with the
+    # release revision so an upgrade creates a new Job and Helm prunes the old
+    # one, instead of failing on the immutable `spec.template`. Off by default
+    # to keep the Job name stable for existing self-hosted installs.
+    namePerRevision: false
+
+processor:
+  # Oban-backed xcactivitylog processor. Runs the same Docker image as the
+  # server with TUIST_MODE=processor, which (a) disables the Phoenix
+  # web endpoint and (b) narrows the Oban queue set to :process_build and
+  # :process_bazel_tests, each with an independent concurrency limit.
+  # Jobs flow from any `ProcessBuildWorker.new()` enqueue (server side) to
+  # these pods via SELECT … FOR UPDATE SKIP LOCKED; a saturated pod doesn't
+  # claim more work, so jobs naturally flow to whichever replica has headroom.
+  #
+  # Disabled by default — self-hosters who don't want a dedicated parse fleet
+  # can leave this off, and the server's main Deployment will consume the
+  # :process_build queue in-process like every other queue.
+  enabled: false
+  replicaCount: 2
+  # Per-pod Oban concurrency for the :process_build queue. Total parse
+  # parallelism is replicaCount * queueConcurrency.
+  queueConcurrency: 5
+  # Per-pod concurrency for the memory- and input/output-bound Bazel test
+  # report processor. Keeping this separate prevents a burst of reports from
+  # consuming xcactivitylog parsing capacity.
+  bazelTestQueueConcurrency: 1
+  resources: {}
+  extraEnv: []
+  # When true, the chart provisions an ExternalSecret that syncs the
+  # `tuist_processor` role password from the configured store (1Password
+  # by default) and composes DATABASE_URL from it + the non-secret
+  # `database:` values below. When false, the full URL must be provided
+  # via `databaseUrl` for self-hosted installs.
+  managedSecrets: false
+  # Full DATABASE_URL for self-hosted installs pointing at a least-privilege
+  # Postgres role for the processor (see `postgresql.cnpg.roles.processor`
+  # for the grant surface CNPG-managed installs use). Used as-is when
+  # managedSecrets is false; ignored when managedSecrets is true (the URL is
+  # composed from `database:` + the ESO-synced password instead).
+  databaseUrl: ""
+  # Non-secret connection parameters composed with the secret password into
+  # DATABASE_URL when `managedSecrets: true`. Kept out of 1P on purpose so
+  # rotation is a single-item update.
+  database:
+    # External Postgres hostname — only relevant under `postgresql.mode:
+    # external`. Per-env override in values-managed-<env>.yaml.
+    host: ""
+    # Pooler port. Use 5432 for direct sessions (required if the worker
+    # uses SET / advisory locks).
+    port: 6543
+    name: postgres
+    username: tuist_processor
+    # Query params appended to the URL. No secrets here either.
+    params: "sslmode=require"
+  externalSecrets:
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    databasePassword:
+      item: PROCESSOR_DATABASE_PASSWORD
+      field: password
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # maxUnavailable: 0 keeps at least one processor consuming the queue
+      # during a rolling deploy. maxSurge: 1 lets the surge pod co-locate
+      # on one of the two worker VMs when the topology spread can't satisfy
+      # strict separation.
+      maxSurge: 1
+      maxUnavailable: 0
+  topologySpread:
+    # Spread one replica per Kubernetes node. Default whenUnsatisfiable is
+    # ScheduleAnyway so a 1-node cluster (preview / small self-host) still
+    # schedules; override to DoNotSchedule on multi-node clusters where
+    # co-location would degrade throughput (managed production does this).
+    enabled: true
+    whenUnsatisfiable: ScheduleAnyway
+  affinity: {}
+  # Optional nodeSelector to pin processor pods to a dedicated node pool.
+  # The managed cluster sets `node.cluster.x-k8s.io/pool: processor` on
+  # cpx51 worker nodes provisioned for parsing; self-hosters can leave
+  # this empty and processors will land on any schedulable node.
+  nodeSelector: {}
+  # Tolerations for taint-based pool isolation. The managed cluster's
+  # tuist-hcloud ClusterClass relies on nodeSelector alone for pool
+  # isolation, but the field is wired up so a self-hoster with their
+  # own taints can use it.
+  tolerations: []
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  podAnnotations: {}
+  podLabels: {}
+  # Grace period long enough for an in-flight xcactivitylog parse (typically
+  # 30s–5min, occasionally up to ~20min on outsized archives) to finish
+  # before SIGKILL. Oban.Plugins.Lifeline reclaims anything that was still
+  # running at the deadline.
+  terminationGracePeriodSeconds: 1260
+  # Build archives are unzipped into the pod's /tmp. Scale to match the
+  # largest archive plus headroom for CAS metadata. 16 GiB gives ~3 GiB per
+  # slot at queueConcurrency = 5, which is enough for any realistic build
+  # archive plus its CAS sidecar files.
+  tmpSizeLimit: 16Gi
+
+swiftRegistrySync:
+  # TUIST_MODE=swift_registry_sync consumer for the Swift package
+  # registry catalog. Same image as the server; no Phoenix listener;
+  # Oban queue set narrowed to :swift_registry_sync +
+  # :swift_registry_release. Cron entry that fires the SyncWorker runs
+  # on the :web pod's leader, not here, so this Deployment is a pure
+  # consumer. Future ecosystems get their own block + Deployment
+  # (e.g. `mavenRegistrySync:`).
+  #
+  # Disabled by default — only hosted Tuist runs the registry mirror.
+  enabled: false
+  replicaCount: 1
+  resources: {}
+  extraEnv: []
+  # When true, the chart provisions an ExternalSecret pulling the
+  # registry's Tigris credentials, GitHub PAT, and bucket name from
+  # 1Password (the existing `REGISTRY` item used by the standalone
+  # `registry` Phoenix app). When false, the values must be in a
+  # chart-managed Secret or an explicitly named runtime Secret.
+  managedSecrets: false
+  runtimeSecretName: ""
+  databaseUrl: ""
+  inlineSecrets:
+    s3RegistryBucket: ""
+    s3Endpoint: ""
+    s3Host: ""
+    s3Region: ""
+    s3AccessKeyId: ""
+    s3SecretAccessKey: ""
+    githubToken: ""
+  externalSecrets:
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    # 1P item to read from; same item the standalone `registry` chart
+    # reads. Lives per-env in `tuist-k8s-<env>/REGISTRY`.
+    item: REGISTRY
+    # Field names on the 1P item. `githubToken` is intentionally mapped
+    # to the legacy `REGISTRY_GITHUB_TOKEN` field (the 1P item predates
+    # the swift- prefix rename); the rendered Secret exposes it as
+    # `SWIFT_REGISTRY_GITHUB_TOKEN` to match the runtime.exs env name.
+    fields:
+      s3RegistryBucket: S3_REGISTRY_BUCKET
+      s3Host: S3_HOST
+      s3Region: S3_REGION
+      s3AccessKeyId: S3_ACCESS_KEY_ID
+      s3SecretAccessKey: S3_SECRET_ACCESS_KEY
+      githubToken: REGISTRY_GITHUB_TOKEN
+    # Per-env CNPG role password for tuist_swift_registry_sync. Lives
+    # in 1Password under `SWIFT_REGISTRY_SYNC_DATABASE_PASSWORD` in
+    # `tuist-k8s-<env>` so rotation is `op item edit` + ESO refresh.
+    databasePassword:
+      item: SWIFT_REGISTRY_SYNC_DATABASE_PASSWORD
+      field: password
+  # Non-secret DB connection parameters composed with the secret
+  # password into DATABASE_URL when `postgresql.mode != "cnpg"` and
+  # `managedSecrets: true`. Ignored when postgresql.mode == "cnpg"
+  # (the URL is composed from CNPG service helpers instead).
+  database:
+    host: ""
+    port: 6543
+    name: postgres
+    username: tuist_swift_registry_sync
+    params: "sslmode=require"
+  # Optional override of the SwiftPackageIndex catalog allowlist.
+  # Useful for canary to scope sync to a small set of packages.
+  syncAllowlist: ""
+  # Optional catalog batch limit. Must be a positive integer; the release
+  # refuses to boot on anything else. Leave empty to take the release default,
+  # which is sized to stay under the GitHub request budget for one pass.
+  syncLimit: ""
+  # GitHub App installation the mirror authenticates as, given as the
+  # organization the App is installed on (resolved to an installation id at
+  # runtime) or as a numeric installation id. When set, the release mints a
+  # short-lived installation token per pass and draws on the installation's own
+  # request budget instead of the user-scoped budget a personal access token
+  # spends. SWIFT_REGISTRY_GITHUB_TOKEN stays configured as the fallback, and
+  # the mirror falls back to it if the App cannot issue a token.
+  githubAppInstallation: ""
+  # Optional override of the master enable flag. Defaults to enabled
+  # in the release; set to false (bool or string) to deploy the pod for
+  # image bake without actually pulling from the catalog.
+  syncEnabled: ""
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  topologySpread:
+    enabled: false
+    whenUnsatisfiable: ScheduleAnyway
+  affinity: {}
+  nodeSelector: {}
+  tolerations: []
+  podAnnotations: {}
+  podLabels: {}
+  # Grace period sized for a single in-flight ReleaseWorker job
+  # (git clone + zip + S3 upload, ~30s–10min typical, occasionally
+  # longer on packages with deep submodules).
+  terminationGracePeriodSeconds: 900
+  # Source archives + manifest variants are staged here during each
+  # ReleaseWorker run. 16 GiB matches the processor's budget.
+  tmpSizeLimit: 16Gi
+
+registry:
+  # Stateless read frontend for public package registry traffic. The
+  # Swift writer/sync side lives in swiftRegistrySync above, but the
+  # reader is deployed from this same Helm release so both halves roll
+  # atomically with the server.
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: ghcr.io/tuist/registry
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+  containerPort: 4000
+  metrics:
+    enabled: true
+    port: 9091
+    path: /metrics
+  publicHost: ""
+  serverUrl: https://tuist.dev
+  deployEnv: production
+  sentryEnv: production
+  poolSize: "2"
+  secretKeyBase: ""
+  releaseCookie: ""
+  managedSecrets: false
+  runtimeSecretName: ""
+  inlineSecrets:
+    sentryDsn: ""
+    s3RegistryBucket: ""
+    s3Host: ""
+    s3AccessKeyId: ""
+    s3SecretAccessKey: ""
+    s3Region: ""
+  externalSecrets:
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    item: REGISTRY
+    fields:
+      sentryDsn: ""
+      s3RegistryBucket: S3_REGISTRY_BUCKET
+      s3Host: S3_HOST
+      s3AccessKeyId: S3_ACCESS_KEY_ID
+      s3SecretAccessKey: S3_SECRET_ACCESS_KEY
+      s3Region: S3_REGION
+  ingress:
+    enabled: false
+    className: ""
+    host: ""
+    tlsSecretName: ""
+    annotations: {}
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+  automountServiceAccountToken: false
+  s3:
+    endpoint: ""
+    protocol: ""
+    virtualHost: false
+    caCertPem: ""
+  observability:
+    otelEndpoint: ""
+    lokiUrl: ""
+  networkPolicy:
+    enabled: false
+    ingressControllerNamespace: platform
+    ingressControllerPodLabels:
+      app.kubernetes.io/name: ingress-nginx
+      app.kubernetes.io/component: controller
+    dnsNamespace: kube-system
+    observabilityNamespace: observability
+    # Private Pod and Service ranges excluded from the public HTTP/S egress
+    # rule. Environment overlays should set their cluster's actual ranges.
+    clusterCIDRs: []
+  resources: {}
+  podSecurityContext:
+    fsGroup: 990
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 990
+  extraEnv: []
+  extraEnvFrom: []
+  # Off by default so a single-replica self-hosted install can still drain a
+  # node. Enable it wherever replicaCount is raised above 1.
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  podAnnotations: {}
+  podLabels: {}
+  affinity: {}
+  nodeSelector: {}
+  tolerations: []
+  terminationGracePeriodSeconds: 30
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  probes:
+    readiness:
+      path: /up
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
+    liveness:
+      path: /up
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      timeoutSeconds: 3
+      failureThreshold: 3
+    startup:
+      path: /up
+      initialDelaySeconds: 0
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 60
+
+xcresultProcessor:
+  # Dedicated macOS workers that consume `:process_xcresult`. The parse
+  # path leans on `xcresulttool` from Xcode (no Linux equivalent), so
+  # these Pods schedule onto Mac mini nodes running tart-kubelet (see
+  # infra/tart-kubelet/) — the macOS hosts join the cluster as real
+  # nodes with `kubernetes.io/os=darwin` + `tuist.dev/runtime=tart` and
+  # a `tuist.dev/macos:NoSchedule` taint that this Deployment tolerates.
+  #
+  # When enabled the chart emits two things:
+  #   1. The Deployment template here (xcresult-processor-deployment.yaml).
+  #   2. TUIST_DELEGATE_PROCESS_XCRESULT=1 on the in-cluster Linux server
+  #      pods — they drop `:process_xcresult` from their Oban queue list
+  #      so jobs land exclusively on the macOS fleet, avoiding both
+  #      SKIP-LOCKED races and `:nif_not_loaded` crashes (the macOS-only
+  #      NIF isn't loaded on Linux pods).
+  #
+  # Requires at least one Mac mini joined to the cluster. Tuist-managed
+  # deployments declare the fleet via `macosFleet.enabled=true` (see
+  # below) and the cluster-api-provider-tuist operator
+  # provisions hosts from Scaleway and bootstraps Tart + tart-kubelet
+  # over SSH. Self-hosters without a macOS fleet should leave this off;
+  # xcresult ingestion silently no-ops for them (acceptable — Linux-only
+  # deployments don't have xcresult uploads to ingest in the first place).
+  enabled: false
+  # Leave the Deployment and PDB out of this release so that
+  # infra/helm/xcresult-processor can install them in a release of its own,
+  # under the same names and labels. Managed envs do this so the server
+  # deploy's `helm upgrade --atomic --wait` never waits on a processor; see
+  # infra/helm/xcresult-processor/Chart.yaml.
+  ownRelease: false
+  replicaCount: 2
+  # Per-pod Oban concurrency. Total parallelism = replicaCount * concurrency.
+  queueConcurrency: 4
+  image:
+    # Tart VM image with macOS, Xcode and the boot scripts, released by the
+    # production cascade from infra/xcresult-processor-image. It carries no
+    # server release: the guest downloads `release` below at boot.
+    repository: ghcr.io/tuist/tuist-xcresult-processor
+    tag: ""  # Set by CI to the commit SHA.
+    pullPolicy: IfNotPresent
+  # The macOS server release the guest boots: the single `release.tar.gz`
+  # layer of an OCI artifact in `repository`, pulled anonymously and pinned
+  # by its layer digest. The deploy sets the digest to the release built for
+  # the server image it ships, so a new digest rolls the Pods.
+  release:
+    repository: ghcr.io/tuist/tuist-xcresult-processor-release
+    digest: ""
+  # When the chart's `processor.managedSecrets` is true (managed cloud)
+  # the build processor's ExternalSecret already syncs the
+  # tuist_processor role's DATABASE_URL into a Secret — we reuse that
+  # same Secret here so xcresult and build processors share one
+  # credential rotation surface. Override these for self-hosted setups
+  # that point at a different Secret.
+  databaseUrlSecretName: ""  # default: processor-external-secrets
+  databaseUrlSecretKey: "processor-database-url"
+  # Tailscale identity for each Tart VM. When enabled the VM image's
+  # tailscale-up.sh runs at boot (before the BEAM) and joins the
+  # tailnet using the credential sourced from this Secret. The chart's
+  # `xcresult-processor-database-url` rendering points at the
+  # operator-managed pooler proxy hostname; the VM resolves it via
+  # MagicDNS and dials it as a first-class tailnet member.
+  #
+  # The join is on the critical path of every boot here, not just the
+  # first: the launchd chain refuses to `exec tuist start` without a
+  # tailnet identity, and each Pod roll creates a fresh VM. That is
+  # what makes the credential's own expiry an outage class of its own
+  # (2026-08-12) and why managed envs put an OAuth client secret here
+  # rather than a pre-auth key.
+  #
+  # Off by default — self-hosters without a tailnet, and any
+  # deployment that hasn't shipped the tailscale-enabled VM image
+  # yet, leaves this off and the chart skips the env injection.
+  tailscale:
+    enabled: false
+    # Name of the Secret holding the per-env Tailscale credential
+    # (the same one the Mac mini host bootstrap reads via the CAPI
+    # operator's --tailscale-auth-key-secret-name flag). Empty falls
+    # back to the chart-default
+    # `<release>-capi-scaleway-applesilicon-tailscale` Secret the
+    # macOS-fleet ExternalSecret syncs from 1Password. The tag the VM
+    # advertises comes from `macosFleet.tailscale.tags`.
+    authKeySecretName: ""
+    authKeySecretKey: "auth-key"
+  extraEnv: []
+  # Evaluated by tart-kubelet against the guest's `GET /ready` on port
+  # 9092 (Tuist.Readiness.Plug). The delay counts from VM launch, which
+  # precedes the tailnet join and the BEAM boot; probes before the BEAM
+  # is up only fail into an already NotReady Pod. Off, the Pod is Ready as
+  # soon as the VM has an IP.
+  #
+  # A release that waits on its resources waits on this Deployment too, so
+  # one NotReady processor (a shared Postgres or ClickHouse outage, or a host
+  # that cannot reach its guest) holds that release's upgrade. Managed envs
+  # set `ownRelease` so the server release never waits on it; a self-hosted
+  # install that keeps the processor in its release and upgrades with
+  # `--wait` should weigh that before leaving this on.
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 60
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 3
+  # Pair with the topology spread in the Deployment template (one
+  # replica per Mac mini hostname, ScheduleAnyway). minAvailable: 1
+  # keeps at least one queue consumer up across voluntary disruptions
+  # (host drains, fleet rolls). Off by default so single-replica
+  # deployments don't fight the chart.
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  resources:
+    requests:
+      cpu: "1000m"
+      memory: "2Gi"
+    limits:
+      cpu: "3000m"
+      memory: "4Gi"
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Terminate-then-replace, not surge-then-terminate: the Pod
+      # declares hostPort 9091 (so the host-side metrics forwarder
+      # in tart-kubelet has a single owner per Mac mini) and the
+      # scheduler refuses to bind the same hostPort to two Pods on
+      # the same Node. Surging would deadlock on a fleet whose
+      # nodes are all already at capacity.
+      #
+      # Multi-replica deployments that turn `podDisruptionBudget`
+      # on (managed prod sets minAvailable: 1) keep one consumer
+      # up across the rollout window. Single-replica deployments
+      # and ones that leave the PDB off above briefly drop to zero
+      # consumers while the new VM boots — acceptable for an Oban
+      # queue where work just queues; if you need stricter SLOs,
+      # bump `replicaCount` and enable the PDB.
+      maxSurge: 0
+      maxUnavailable: 1
+  # Grace period sized for an in-flight xcresult parse plus the final
+  # ingestion buffer drain. `Tuist.Tests.Workers.ProcessXcresultWorker`
+  # jobs typically run 30s–3min but can stretch on outsized archives;
+  # ingestion buffers use `shutdown: :infinity` and rely on this value
+  # as their outer wall, retrying their final flush until it lands or
+  # kubelet SIGKILLs the pod. 300s covers the parse tail and gives the
+  # buffer room to survive a slow ClickHouse.
+  terminationGracePeriodSeconds: 300
+
+# macOS Mac mini fleet, provisioned declaratively via Cluster API.
+#
+# Operator UX:
+#   1. Drop Scaleway IAM credentials in 1Password (one item with
+#      `access-key`, `secret-key`, `project-id` fields).
+#   2. Set `macosFleet.enabled: true` + `controlPlane.host` in the
+#      chart.
+#   3. `helm upgrade`. Done — Mac minis are ordered, joined to the
+#      cluster as `kubernetes.io/os=darwin` Nodes, and the
+#      xcresult-processor Deployment schedules onto them.
+#
+# Everything else is operator-managed:
+#   - SSH key: generated on first reconcile (Ed25519), public half
+#     registered with Scaleway via the IAM API, private half stored
+#     in `<fleet-name>-ssh` Secret. The chart doesn't pre-create it.
+#   - Bootstrap material: bootstrap token minted on each Machine
+#     reconcile (24h TTL); API server URL + CA cert read from the
+#     operator pod's in-cluster service-account context. No 1P
+#     entries needed for cluster join material.
+#
+# Cluster API toggle. The Mac mini fleets render against
+# `cluster.x-k8s.io` + `infrastructure.cluster.x-k8s.io` CRDs which
+# are NOT installed by this chart — they ship via clusterctl /
+# `cluster-api-operator` outside the chart's lifecycle. Set to
+# `true` only after CAPI core CRDs are installed in the target
+# cluster; otherwise `helm upgrade` fails on the first
+# `kind: Cluster` it tries to apply. Existing managed envs that
+# already have CAPI core can leave the default.
+#
+# Operationally, `capi.enabled=false` is a useful escape hatch for
+# bringing this chart up on a green-field cluster before the CAPI
+# install runs: macosFleet / runnersFleet stay un-rendered until
+# CAPI is in place, then a follow-up `helm upgrade` flips this on
+# alongside `macosFleet.enabled`.
+capi:
+  enabled: true
+  vultrPrivateNetwork:
+    enabled: false
+    # Per region: description, cidr, qualified, canonicalPeers (region names).
+    # Reciprocal approvals permit canonical mTLS between resolved VPC IDs.
+    # Upgrade existing runtimes before qualifying an additional region.
+    regions: {}
+  ovhPrivateNetwork:
+    enabled: false
+    vrackID: ""
+    cidr: ""
+  # Workload kubeconfig CAPI core's cluster cache uses to reach this
+  # cluster and bind Mac-mini Machines to Nodes. Synced from 1Password
+  # by ESO into <release>-capi-kubeconfig (the Secret CAPI looks up).
+  # Off by default — self-hosters without the 1Password item leave it
+  # off; the in-cluster CAPI then can't bind Machines, but the fleet
+  # still works at the Kubernetes level (tart-kubelet registers the
+  # nodes directly). Managed envs enable it.
+  remoteKubeconfig:
+    externalSecrets:
+      enabled: false
+      refreshInterval: "1h"
+      # 1Password item holding the assembled kubeconfig (server =
+      # in-cluster API, cluster CA, the capi-remote SA token). Populated
+      # once per cluster — see infra/k8s/onboarding.md.
+      item: "capi-workload-kubeconfig"
+      field: "kubeconfig"
+      storeRef:
+        name: onepassword
+        kind: ClusterSecretStore
+
+# Kura runner-cache fleet — declarative Scaleway node co-located with the
+# Mac fleet. Off by default; managed envs that run the runner cache enable
+# it and set the PN id. Scale with
+# `kubectl scale machinedeployment <name> --replicas=N`.
+kuraFleet:
+  # replicas counts hosts; each account has two Kura process replicas/PVCs.
+  enabled: false
+  replicas: 1
+  # Propagated to the Node as node.cluster.x-k8s.io/pool; the runner-cache
+  # region's nodeSelector pins the cache pods here.
+  nodePool: kura-scw-fr-par
+  # Kubernetes apt repo minor (pkgs.k8s.io channel) + the joined kubelet
+  # version. Keep both in step with the cluster's control-plane version.
+  kubernetesMinorVersion: "v1.34"
+  kubernetesVersion: "v1.34.8"
+  machine:
+    # The Scaleway Elastic Metal offer for the runner-cache node: a bare-metal
+    # server with a 10G+ PN NIC and local NVMe. EM-B220E-NVME is the benchmarked
+    # staging/canary shape; production uses EM-I220E-NVME.
+    offerType: EM-B220E-NVME
+    # Name prefix of the pre-ordered Elastic Metal pool. The operator orders the
+    # boxes out-of-band (named with this prefix, authorized with the fleet SSH
+    # key); the controller claims a free one rather than ordering inline, so a
+    # rollout never blocks on out-of-stock capacity, and releases it back to the
+    # pool (reinstall) on delete.
+    adoptNamePrefix: tuist-kura-em-
+    zone: fr-par-1
+    # Elastic Metal OS install label.
+    os: ubuntu_noble
+    # The VPC Private Network the node attaches to (the runner-cache PN shared
+    # with the Mac fleet). Declared by name + CIDR, not a UUID: the operator
+    # finds the PN by name in the env's Scaleway project and creates it from the
+    # CIDR if it doesn't exist. The name is shared across envs (each lives in its
+    # own project, so there's no collision).
+    privateNetworkName: tuist-runner-cache
+    privateNetworkCIDR: 172.16.0.0/22
+
+ovhFleet:
+  enabled: false
+  replicas: 1
+  # Propagated to the Node as node.cluster.x-k8s.io/pool; the region's
+  # nodeSelector pins its Kura cache pods here.
+  nodePool: kura-ovh
+  kubernetesVersion: "v1.34.8"
+  # OVH API entity the account is registered with (ovh-eu, ovh-ca, ovh-us, ...).
+  # Non-secret; must match where the OVH_API token was minted.
+  endpoint: ovh-eu
+  machine:
+    # Reverse-DNS prefix the operator sets on each pre-ordered, operator-installed
+    # box. THIS is the adoption signal: the reconciler claims only boxes whose OVH
+    # reverse DNS starts with it. Required when enabled.
+    adoptDisplayNamePrefix: ""
+    # OVH commercial range to narrow adoption (case-insensitive substring, e.g.
+    # SYS-1). Empty matches any range under the prefix.
+    offer: ""
+    # OVH datacenter to narrow adoption (e.g. bhs6, gra2, vin). Empty matches any
+    # datacenter under the prefix; the providerID uses the adopted box's real one.
+    datacenter: ""
+    # OS the operator pre-installs; informational (the controller never installs).
+    os: ubuntu_24.04
+    # Per-box egress budget in Mbps advertised as the tuist.dev/egress-mbps
+    # extended resource (0 = unset).
+    egressBudgetMbps: 0
+  # Override to point the reconciler at a Secret you manage instead of the
+  # ESO-synced one. Holds application-key + application-secret + consumer-key.
+  secretName: ""
+  externalSecrets:
+    enabled: true
+    # 1Password item holding the OVH API credentials (application-key,
+    # application-secret, consumer-key) scoped to /dedicated/server/*.
+    item: ""
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    fields:
+      applicationKey: application-key
+      applicationSecret: application-secret
+      consumerKey: consumer-key
+  # Per-fleet SSH keypair (+ install sudo-password) the reconciler self-joins
+  # boxes with, owned from 1Password instead of minted in-cluster. Default off
+  # keeps the controller's in-cluster minting; set enabled=true + item to a
+  # 1Password item carrying private-key / public-key / sudo-password fields.
+  sshExternalSecret:
+    enabled: false
+    item: ""
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    fields:
+      privateKey: private-key
+      publicKey: public-key
+      sudoPassword: sudo-password
+
+# Additional OVH fleets keyed by purpose (e.g. us-east, us-west, runners-linux),
+# each rendering its own OVHDedicatedMachineTemplate + MachineDeployment
+# (ovh-fleets.yaml) + SSH ExternalSecret (ovh-fleets-ssh-external-secret.yaml),
+# named tuist-tuist-ovh-fleet-<key>. They share the env's OVH_API + OVH_FLEET_SSH
+# (one OVH account) and must share one `endpoint`: the operator Deployment
+# resolves a single OVH_ENDPOINT for the whole reconciler, so a divergent value
+# points it at the wrong API. The singular ovhFleet above stays the ca-east
+# validation fleet. Empty by default.
+#
+# Per-entry keys are the ovhFleet ones (replicas, endpoint, nodePool, machine.*,
+# sshExternalSecret.*) plus `machine.nodeTaints`, a list of corev1 taints the
+# node registers with. Unset renders `tuist.dev/kura-cache=true:NoSchedule`, the
+# cache-region shape; set it on a fleet that is not a cache region, which also
+# keeps that pool out of the cache-only surfaces keyed off this map.
+#
+# `machine.kataRuntime` installs kata-static and registers the kata-qemu
+# containerd handler in the self-join, and labels the node
+# `katacontainers.io/kata-runtime=true`. Required for a Linux runner pool (every
+# runner Pod carries `runtimeClassName: kata-qemu`, and the RuntimeClass selects
+# on that label); leave it off for cache fleets so they skip the download.
+ovhFleets: {}
+
+# Shared Vultr config holder. There is no singular Vultr MachineDeployment: the
+# provider arrived with the sa-west region, which lives in the vultrFleets map
+# below, and this exists only so the API credential and its store have one place
+# to be declared. Rendered whenever any vultrFleets entry is enabled.
+vultrFleet:
+  externalSecrets:
+    item: ""
+  # secretName overrides the ESO-managed Secret for self-hosters not using ESO.
+  secretName: ""
+
+# Vultr bare-metal fleets, keyed by purpose. Adoption is by TAG rather than a
+# name prefix: Vultr's list endpoint matches labels exactly, so a fleet prefix
+# selects nothing.
+vultrFleets: {}
+
+# Scaling: `kubectl scale machinedeployment <name> --replicas=N`.
+# Rack-owned Mac minis: hardware we bought, in a rack we operate (the BER1
+# colo programme), as opposed to capacity ordered from a provider API.
+#
+# `hosts` is the rack's physical inventory: one entry per box, each rendering a
+# RackHost, for which the operator keeps a Machine that makes it a node. `machine`
+# sizes every host's node. See templates/rack-fleet.yaml.
+rackFleet:
+  enabled: false
+  name: ""             # default: <release>-rack-fleet
+
+  # This env's name (staging, canary, production). Every push to a rack host
+  # claims the host's runner runtime for it, and a host this env lends names
+  # it as the lender. Required to lend or borrow a host. See "A host lent to
+  # another env" in infra/cluster-api-provider-tuist/AGENTS.md.
+  env: ""
+
+  # The envs this env lends rack hosts to (`hosts[].lendTo`), by name. Each
+  # needs the borrowing chart's rack-lender kubeconfig in this env's vault:
+  #
+  #   borrowers:
+  #     staging:
+  #       kubeconfigItem: RACK_BORROWER_STAGING_KUBECONFIG  # field `kubeconfig`
+  #       namespace: tuist-staging   # where staging's operator watches leases
+  #
+  # An entry without kubeconfigItem renders nothing, so it can be declared
+  # before the item exists.
+  borrowers: {}
+
+  # Rack hosts another env lends this one. This env runs their runner
+  # runtime from its own operator, as it does its rented minis, and its rack
+  # catalog pools (`runners` below, with `name` as their fleet) place runners
+  # on them. Enabled, the chart renders the rack-lender identity the lending
+  # env writes this env's RackHostLeases with. Not for an env with `enabled`,
+  # which owns its rack.
+  borrow:
+    enabled: false
+    # RackHost names this env runs when they are lent to it. A lease for any
+    # other host is refused.
+    hosts: []
+
+  # Default rack site for hosts that don't name their own. Load-bearing: it
+  # composes the providerID, so it must be stable for the life of a host.
+  site: ""
+
+  # Default SSH account. On rack hosts this is the MDM-provisioned service
+  # account, not a provider-issued one.
+  sshUser: tuist
+
+  # The LAN address of every subnet router that advertises the hosts'
+  # addresses, as /32s. Required when enabled. A router forwards the operator's
+  # dial with SNAT, so this is the source each host sees, and the host's SSH
+  # ingress guard admits it on top of macosFleet.sshIngressAllowCIDRs. Without
+  # it the guard drops the router, and a host that loses its own tailnet device
+  # is reachable only from its console. Give each router a DHCP reservation,
+  # and list both routers of an HA pair. A host can override it with its own
+  # `sshIngressAllowCIDRs`.
+  sshIngressAllowCIDRs: []
+
+  # The rack's runner-cache gateways, as IPv4 CIDRs, which a rack host's Tart
+  # VMs may reach on TCP 443 through the VM egress firewall. Every other
+  # private destination stays blocked. Empty passes none.
+  vmCacheGatewayCIDRs: []
+
+  # The rack's VM image cache: a zot registry on each of the rack's storage
+  # nodes that mirrors the runner images, so an image crosses the WAN once per
+  # rack instead of once per mini. Rendered by the rack-nodes chart
+  # (infra/helm/rack-nodes/templates/image-cache.yaml), which a deploy does not
+  # wait on. See "The rack's VM image cache" in infra/rack-nodes/AGENTS.md.
+  imageCache:
+    # Runs the cache on each of `nodes` and keeps `prewarm` synced.
+    enabled: false
+    # The rack hosts (`hosts[].name`) whose tart-kubelet pulls golden bases
+    # through the caches (`--image-mirror`), in the order of `nodes`, before
+    # the upstream; `"*"` routes every host. A cache that is down, does not
+    # hold the image or fails the pull falls back to the upstream. Adding or
+    # removing a host drifts that host only, so one host can carry the cache
+    # before the rest.
+    routeHosts: []
+    # The registry the caches mirror. Only images from it are routed.
+    upstream: ghcr.io
+    # The repositories the caches serve, as zot sync prefixes.
+    repositories:
+      - tuist/tuist-runner
+    # Each storage node that runs a cache, by Node name, and its address on
+    # the machines segment, which the cache binds and the minis pull from.
+    #   - name: ber1-store-a
+    #     address: 10.10.0.11
+    nodes: []
+    port: 5000
+    # The cache's volume on the node's XFS /data (a quota-bounded local-path
+    # volume), also requested as ephemeral-storage so the Kura region on the
+    # same node places its instances around it.
+    storageClass: scw-local-nvme
+    sizeGi: 400
+    # Catalog Xcode versions (`runnersFleet.xcodeVersions`) the caches fetch
+    # as soon as a release names them, rather than on the first pull. Every
+    # other image of `repositories` is fetched on its first pull, which the
+    # hosts that want it wait for together.
+    prewarm: []
+    # How often the prewarm set is asked for again, which is how a release's
+    # new tags reach the cache once a deploy names them.
+    syncInterval: 10m
+    # Tags neither in `prewarm` nor pulled within this long are deleted, and
+    # their blobs collected, so a release's previous images go once the rack
+    # has rolled off them.
+    keepPulledWithin: 24h
+    image:
+      repository: ghcr.io/project-zot/zot-linux-amd64
+      tag: v2.1.22@sha256:46f688dc26315a35a247e1784368829e66a67bf91de94c7d8d1645044fac1d5b
+      pullPolicy: IfNotPresent
+    # The prewarm loop's wget. From ECR Public, so the rack's one egress IP
+    # spends nothing of Docker Hub's anonymous budget.
+    prewarmImage:
+      repository: public.ecr.aws/docker/library/busybox
+      tag: 1.37.0@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        memory: 4Gi
+
+  # The rack's physical inventory. Adding a mini is a values PR: the record is
+  # then versioned and reviewed, rather than living in someone's kubectl
+  # history. Removing one is also `kubectl delete rackhost <name>`: Helm keeps
+  # RackHosts.
+  #
+  #   - name: ber1-proto-01     # RackHost object name; its Node is
+  #                             # <fleet>-<name>
+  #     serial: C07FC05JQ6NY    # durable identity (ABM/MDM know it by this)
+  #     address: 192.168.0.41   # what the operator SSHes to, normally the
+  #                             # in-rack LAN address reached over a tailnet
+  #                             # subnet route advertised by the rack's service
+  #                             # node. Routing it separately from the host's
+  #                             # OWN tailnet identity is deliberate: bootstrap
+  #                             # stops and replaces tailscaled, which over a
+  #                             # host-transported session drops the tunnel it
+  #                             # is riding.
+  #     sshIngressAllowCIDRs:   # optional; replaces the rackFleet default for a
+  #       - 192.168.0.2/32      # host behind a different router
+  #     site: ber1
+  #     rack: r1
+  #     shelf: s3
+  #     positionU: 12
+  #     power:                  # the fleet's remote reboot: Apple silicon boots
+  #       pdu: ber1-pdu-b       # on power-apply and every host runs
+  #       outlet: "1"           # `pmset autorestart 1`, so an outlet cycle is
+  #                             # a cold boot with nobody at a console. `pdu`
+  #                             # names a RackPDU (rendered from the site
+  #                             # definition in infra/rack-switch-fleet), whose
+  #                             # outlets are 1-based. A plug that is not a
+  #                             # RackPDU takes `driver` (shelly), `host`,
+  #                             # `outlet` ("0") and `credentialsSecret`
+  #                             # instead.
+  #     parked: false           # keeps the box declared with no Machine (bench
+  #                             # work, an RMA, a box that is off); parking a
+  #                             # host deletes its Node undrained
+  #     lendTo: ""              # lends the host's runner runtime to another env
+  #                             # (a `borrowers` key): that env's operator runs
+  #                             # it and this one keeps the site. Clearing it
+  #                             # returns the host once the borrower drained it.
+  #     nodeFleet: ""           # (the manual lend, replaced by lendTo)
+  #                             # lends the host to another fleet's runner pools:
+  #                             # its Node's tuist.dev/fleet label, which the
+  #                             # rack fleet's own pools then skip
+  #     nodeCluster:            # lends the host to another env: its Node
+  #       kubeconfigItem: ""    # registers in that env's cluster with the
+  #       cacheVolumesURL: ""   # kubeconfig in this 1Password item (field
+  #                             # `kubeconfig`; see "Lending a host to another
+  #                             # env" in infra/rack-nodes/AGENTS.md); drain
+  #                             # the Node first.
+  #                             # cacheVolumesURL is that env's server's
+  #                             # cache-volumes endpoint, empty for none
+  hosts: []
+
+  # The manual lend, which `borrow` replaces. Rack hosts another env lends
+  # this cluster, by Machine name: each gets the node identity its
+  # tart-kubelet registers with here (templates/rack-joining-nodes.yaml). The
+  # lending env sets the host's `nodeCluster` to a kubeconfig built from its
+  # token. This env runs the rack catalog's pools on them through `runners`
+  # below, with `name` set to the hosts' `nodeFleet`, and does not enable the
+  # fleet itself.
+  joiningNodes: []
+
+  # Each host's node sizing. Each field falls back to the operator's global
+  # default when unset.
+  machine:
+    hostCPU: null            # cores advertised on the Node
+    hostMemoryMB: null       # RAM advertised, minus the ~2 GB
+                             # Virtualization.framework reserves for the host
+    guestCapacity: null      # Tart guests the host is expected to run
+    maxPods: null            # Node Pod ceiling; size as guests x 2 + 1
+    # Cache-volume quota in GiB. An explicit 0 means "cache volumes off on this
+    # host" (the only setting that fits a 256 GB prototype box) and is
+    # deliberately distinguishable from unset, which inherits the global.
+    runnerCacheVolumeGiB: null
+
+  # The runner catalog on this fleet. Enabled, every `runnersFleet.xcodeVersions`
+  # entry renders a second macOS pool, on the catalog's default shape, that
+  # selects this fleet, at every site whose runners are on (`sites` below):
+  # `<release>-runner-pool-macos-<site>-<xcode-dashes>`, named after `site`,
+  # with the same image as the rented fleet's pool for that Xcode. Accounts on
+  # the server's `runner_site` flag have their profiles routed to these pools,
+  # and the server falls back to the rented fleet for a profile the site has no
+  # pool for. The pools select only this fleet, so the runners-controller
+  # apportions this fleet's guest slots among them and among any explicit
+  # `runnersFleet.pools` entry that selects it and autoscales. A Tart guest
+  # cannot be newer than its host: every catalog image has to fit the hosts'
+  # macOS.
+  runners:
+    enabled: false
+    # Run each Xcode's stacked runner image (`runnersFleet
+    # .runnerImageStackedDigests`) on this fleet, so a release on an unchanged
+    # base pulls only its overlay. Every host of the fleet, and every host it
+    # borrows, must run macOS 27 and Tart 2.36 or newer: older hosts can pull a
+    # stacked image but not boot it. An Xcode without a stacked digest, or with
+    # an `imageTag` override, keeps its standalone image.
+    stackedImages: false
+    # Every rack pool's scaling unless its `xcodeOverrides` entry sets its own.
+    # `maxReplicas` is a per-pool ceiling against this fleet's slots (hosts x
+    # guestCapacity); the allocator caps the pools' joint sum.
+    autoscaling: {}
+    #   enabled: true
+    #   minWarmPoolFloor: 0
+    #   maxReplicas: 18
+    # rollout:
+    #   maxConcurrentPercent: 5
+    # Per-Xcode scaling on this fleet, keyed by `xcodeVersion`: `replicas`,
+    # `autoscaling`, `rollout`, `idleTimeoutSeconds`. The image, runner labels
+    # and pod sizing are the Xcode's (`runnersFleet.xcodeOverrides`), apart
+    # from `guestShapes` below.
+    xcodeOverrides: {}
+    # A bigger guest on this fleet for a catalog shape, keyed
+    # `<vcpus>vcpu-<gb>gb`. The pool keeps the shape's name, so profiles of that
+    # shape still route to it and its jobs are recorded, billed and counted
+    # against concurrency limits at the shape; only its Pods grow. Size the
+    # hosts' `machine` for the guests, and keep memory per vCPU the same across
+    # this fleet's guests so memory binds guest count where CPU does. A guest
+    # smaller than its shape fails the render.
+    guestShapes: {}
+    #   6vcpu-14gb: { vcpus: 8, memoryGb: 24 }
+    #   12vcpu-28gb: { vcpus: 16, memoryGb: 48 }
+    # Non-default catalog shapes this fleet runs, keyed `<vcpus>vcpu-<gb>gb`,
+    # each with its `autoscaling` (and optional `rollout`). A shape not named
+    # here gets no pool on this fleet. Its `maxReplicas` is the hosts that fit
+    # one, as on the rented fleet.
+    shapes: {}
+    #   12vcpu-28gb:
+    #     autoscaling:
+    #       enabled: true
+    #       minWarmPoolFloor: 0
+    #       maxReplicas: 9
+
+  # The fleet's other sites, keyed by site name. `site` above is the default
+  # site, and everything else in this block applies to it. A host whose `site`
+  # is a key here belongs to that site:
+  # - While the site's `runners.enabled` is false, its Node carries the site's
+  #   own fleet (`nodeFleet`, by default `<fleet name>-<site>`) instead of the
+  #   rack fleet, so no rack pool places a runner on its minis. The Machine
+  #   keeps the operator's fleet, its name and its credentials, as for any
+  #   `nodeFleet`.
+  # - Once `runners.enabled` is true, its Node joins the rack fleet, and the
+  #   rack's pools (`runners` above) span this site too: a queued job runs at
+  #   whichever site claims it first. A RunnerPool has one guest size, so the
+  #   site runs `runners` above as is: setting any of its other keys here to a
+  #   different value, or `nodeFleet`, fails the render, and so does enabling
+  #   it while `runners` above is off. Keep it disabled until the site has
+  #   hosts.
+  # - Its SSH ingress defaults to the site's `sshIngressAllowCIDRs`, the site's
+  #   edges, never the default site's.
+  # - `vmCacheGatewayCIDRs` joins the operator's fleet-wide list.
+  # A host naming a site that is neither `site` nor a key here fails the
+  # render.
+  sites: {}
+  #   larch:
+  #     nodeFleet: ""                  # default: <fleet name>-larch
+  #     sshIngressAllowCIDRs: [10.20.0.2/32, 10.20.0.3/32]
+  #     vmCacheGatewayCIDRs: []
+  #     runners:
+  #       enabled: false
+
+  # The fleet SSH key + the service account's password, synced from 1Password.
+  # NOT optional: the controller never mints a replacement, because a credential
+  # generated in-cluster is one no MDM-provisioned host has heard of.
+  sshExternalSecret:
+    enabled: false
+    item: BER1_FLEET_SSH
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    fields:
+      privateKey: private-key
+      publicKey: public-key
+      sudoPassword: sudo-password
+
+  # The root key every rack power card's passwords (RackPDU, RackATS) are
+  # derived from, synced read-only from 1Password into `secretName` in the
+  # release namespace, which the operator reads as --rack-card-root-secret.
+  # Without it the operator adopts no card. A rebuilt cluster derives the same
+  # passwords from the same item, so it re-adopts the cards with nobody at the
+  # rack.
+  cardRootKey:
+    enabled: false
+    item: BER1_RACK_CARD_ROOT
+    field: key
+    secretName: rack-card-root
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+
+  # Credentials of a smart plug that is not a RackPDU (a Shelly on a desk), if
+  # it has any. A RackPDU's credentials are derived by its controller from
+  # `cardRootKey`. A plug with no password needs none; leave disabled and omit
+  # `power.credentialsSecret` on the hosts.
+  powerExternalSecret:
+    enabled: false
+    item: ""
+    secretName: ""       # default: <fleet-name>-power
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    fields:
+      username: username
+      password: password
+
+# Rack-owned x86 Linux machines (the BER1 edge, services and storage nodes).
+# `hosts` is inventory, one RackLinuxHost each; each role present among them
+# gets a MachineDeployment claiming from `<pool>-<role>`, with that role's node
+# labels and taints from `roles`. A host joins the tailnet from its install
+# stick (mise run rack:write-install-usb) and the operator joins it to the
+# cluster from there.
+rackLinuxFleet:
+  enabled: false
+  name: ""             # default: <release>-rack-linux
+  site: ""             # default site; composes the providerID
+  sshUser: tuist
+  # The tags a host's tailnet device carries, unless the host sets its own.
+  tailnetTags: []
+
+  # The rack's fleet key item (`private-key`, `public-key`).
+  sshExternalSecret:
+    enabled: false
+    item: ""
+
+  # A Tailscale OAuth client (`client-id`, `client-secret`) with the Auth Keys
+  # and Devices Core scopes, restricted to the hosts' tailnet tags.
+  tailscale:
+    externalSecret:
+      enabled: false
+      item: ""
+
+  #   edge:
+  #     tailnetTags: [tag:tuist-rack-edge]   # its hosts' tags, unless a host sets its own
+  #     nodeLabels:
+  #       tuist.dev/rack-edge: ber1
+  #     nodeTaints:
+  #       - {key: tuist.dev/rack-edge, value: ber1, effect: NoSchedule}
+  roles: {}
+
+  # A role's configuration for the hosts of one site, in place of `roles`
+  # for that role, when the env's cluster holds more than one rack: their
+  # labels and taints name the site.
+  #   larch:
+  #     roles:
+  #       edge:
+  #         tailnetTags: [tag:tuist-rack-edge]
+  #         nodeLabels:
+  #           tuist.dev/rack-edge: larch
+  #         nodeTaints:
+  #           - {key: tuist.dev/rack-edge, value: larch, effect: NoSchedule}
+  sites: {}
+
+  # One entry per box, by the SMBIOS UUID its install stick announced
+  # (`kubectl get rlc`). The rest is optional:
+  #   - uuid: 44312e80-1dc6-11f1-853e-8f903547d200
+  #     hostname: ber1-edge-a    # OS, tailnet and Node name; changing it rejoins
+  #     role: edge               # edge | services | storage
+  #     site: ber1               # default: rackLinuxFleet.site
+  #     tailnetTags: [tag:tuist-rack-edge]   # default: its role's, else rackLinuxFleet.tailnetTags
+  #     bootMAC: 38:05:25:38:b5:b5   # default: the management port it announced
+  #     tpmCheckCode: 1a2b-3c4d-5e6f-7a8b  # a preinstalled box's, from its vendor's acceptance report;
+  #                             # pins its TPM to that key alone, and lets it
+  #                             # announce itself to the internet boot server
+  #     rack: r1
+  #     positionU: 10
+  #     online: true             # false powers it off through AMT
+  #     address: 10.10.0.11      # its address on the machines segment
+  #     publicAddress: 149.6.170.31   # the site's WAN address: the host joins the
+  #                              # cluster's Cilium network, and the edges forward
+  #                              # its cluster ports there (8472/udp, 4240/tcp,
+  #                              # 10250/tcp) from the cluster's nodes only. One
+  #                              # host per address; needs `address`, not an edge.
+  #     reinstallGeneration: 1   # raise it to reinstall the host
+  #     amt:
+  #       activate: false        # default: amt.products decides
+  #       address: 192.168.50.21/24   # default: one from amt.addressRange
+  #       gateway: 192.168.50.1  # default: amt.gateway
+  # An edge's way out on the first boot of an install (spec.edge) comes from
+  # rack-sites/<site>.yaml, which `mise run rack:fleet render` writes from the
+  # site definition, not from here.
+  hosts: []
+
+  # Intel AMT. The operator activates, in admin control mode, the AMT of each
+  # host whose hardware model is in `products` (its SMBIOS vendor and product
+  # name, as `kubectl get rlc -o wide` shows it) unless the host sets
+  # amt.activate, with the provisioning certificate (`pfx`, a base64 PKCS#12
+  # carrying the chain to its root, and `pfx-password`), and keeps the admin
+  # password it sets in the Secret `<host UUID>-amt`. The certificate's domain
+  # must match the DHCP domain the site's edge hands out
+  # (management.edge.domain). Activated AMT gets a static address from
+  # `addressRange` unless the host sets amt.address.
+  # Hardware models, by SMBIOS vendor and product as a machine announces them,
+  # that a vendor ships with the preinstall image's installer partition on the
+  # boot drive (infra/rack-nodes/AGENTS.md); their installs keep it.
+  preinstall:
+    products: []       # e.g. ["ASUSTeK COMPUTER INC. RS501A-E12-RS12U"]
+  amt:
+    provisioningExternalSecret:
+      enabled: false
+      item: ""
+    products: []
+    addressRange: ""   # a CIDR on the management segment, outside its DHCP range
+    gateway: ""        # the segment's gateway with its prefix length, e.g. 192.168.50.1/24
+
+  # People's SSH keys every netbooted install authorizes beside the fleet key.
+  authorizedKeys: []
+
+  # The rack's boot server (cmd/rack-boot, from the operator's image), on each
+  # edge node of the site. The operator publishes an install for each host that
+  # is not on the tailnet yet, or whose reinstallGeneration asks for one, and
+  # the host installs itself when it netboots or boots its stick. The site
+  # definition's management.edge.netboot points the edge node's DHCP here.
+  # The rack-nodes chart (infra/helm/rack-nodes) renders its DaemonSet, and the
+  # rack node agent's, from these values; this chart configures the operator.
+  boot:
+    enabled: false
+    site: ""           # default: rackLinuxFleet.site; the tuist.dev/rack-edge value
+    # The site's provisioning address (management.edge.provisioning), which the
+    # rack-edge pod puts on the edge node's switch port.
+    address: ""
+    httpPort: 8480
+    iso:
+      url: https://releases.ubuntu.com/24.04/ubuntu-24.04.5-live-server-amd64.iso
+      sha256: 97f3d7ffb032c3eb3b23d2c8be9cc76e60c2c1f2c0146ba5ba9fe01cafae0fd8
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 512Mi
+    # The boot server a preinstalled box (the preinstall image of
+    # infra/rack-nodes) reaches over the internet before its site has one:
+    # rack-boot --internet on cloud nodes, behind the ingress. It hands a seed
+    # only to a host's pinned TPM, and takes announcements only from hosts
+    # declared with tpmCheckCode. The operator then publishes the first edge
+    # of a site an install once its TPM is pinned.
+    internet:
+      enabled: false
+      host: ""          # e.g. rack-boot.tuist.dev
+      className: nginx
+      tlsSecretName: ""
+      annotations: {}
+      nodeSelector: {}
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 128Mi
+
+macosFleet:
+  enabled: false
+  name: ""             # default: <release>-macos-fleet
+  replicas: 1
+  kubeletVersion: 1.32.1
+  # Required. See `runnersFleet.adoptPoolPrefix` for the full
+  # operator workflow + adoption semantics. Sharing the same prefix
+  # with `runnersFleet.adoptPoolPrefix` lets one pool of pre-ordered
+  # Mac minis serve both fleets — the controller claims the first
+  # match per Machine, so whichever MachineDeployment scales first
+  # gets the next host.
+  adoptPoolPrefix: "tuist-pool-"
+  controlPlane:
+    host: ""           # API server endpoint Mac minis dial when joining
+    port: 6443
+  image:
+    repository: ghcr.io/tuist/capi-provider-scaleway-applesilicon
+    # Pin the operator image to a specific build SHA in your env values.
+    # Falls back to `:latest` if unset, which is fine for development
+    # but not production.
+    tag: ""
+    pullPolicy: IfNotPresent
+  # Placement of the provider Deployment, not of the Mac minis.
+  operatorNodeSelector: {}
+  # External URL of the cluster API server that Mac minis dial when
+  # joining. Auto-discovered from the kube-public/cluster-info
+  # ConfigMap that kubeadm/CAPI write during cluster bootstrap; only
+  # set this when the ConfigMap isn't usable (non-kubeadm cluster,
+  # split-horizon DNS, ad-hoc override).
+  apiServerURL: ""
+
+  # Orphan-reclaim sweep — a leader-gated periodic sweep that returns
+  # Scaleway hosts which were claimed by the controller but whose CR is
+  # gone (a legacy CR that skipped release, a force-delete that bypassed
+  # the finalizer, a crash mid-claim) back to the adopt pool. The sweep's
+  # pool prefix and zones are derived from the fleet config
+  # (adoptPoolPrefix + each fleet's machine.zone) and the claimed-name
+  # prefix from the chart name, so the only knob here is whether the
+  # sweep may mutate. See controllers/orphan_reclaimer.go.
+  orphanReclaim:
+    # false (default): report-only. The sweep exports the
+    # scaleway_orphan_servers gauge and logs strays but never touches a
+    # host; the per-Machine delete path still falls back to the fleet
+    # pool prefix, which prevents new strands. true: the sweep also
+    # returns stranded hosts to the pool (rename + reinstall). Enable per
+    # env only after confirming this cluster has its own Scaleway project
+    # — a shared project could let the sweep reclaim another env's live
+    # host, whose CR isn't visible to this cluster's API server.
+    activeReclaim: false
+
+  # tart-kubelet — kubelet-shaped agent the CAPI provider installs on
+  # each Mac mini. Each Mac mini joins the cluster as a real Node and
+  # runs Pods scheduled to it as Tart VMs. The darwin/arm64 binary is
+  # baked into the operator's own image — bumping
+  # `macosFleet.image.tag` rolls a new kubelet.
+  # Tart on every Mac mini this release manages, rented and rack. It
+  # must be one of the releases the operator image carries (TART_RELEASES
+  # in infra/cluster-api-provider-tuist/Dockerfile); empty runs the image's
+  # TART_DEFAULT_VERSION. A change reaches existing hosts in place through
+  # the host-config drift loop, without draining them. Annotate one machine
+  # `tuist.dev/tart-version=<version>` to move it ahead of the rest first.
+  tart:
+    version: ""
+  tartKubelet:
+    # Capacity advertised by each Mac mini when it registers its Node.
+    # Matches the default `macosFleet.machine.type = M2-L` on Scaleway
+    # — M2 Pro chip, 12 vCPU, 16 GB RAM. 14336 leaves ~2 GB for the
+    # macOS host + Apple Virtualization.framework reserve (asking for
+    # the full 16 GB on `tart run` fails with
+    # `memorySize > maximumAllowedMemorySize`).
+    # Override per-env if `machine.type` is bumped to a different SKU.
+    #
+    # maxPods counts EVERY Pod bound to the Node, not just Tart-VM
+    # Pods, and a Pod stays bound after it finishes — a terminal Pod
+    # holds its slot until GC collects it. Measured on the live fleet
+    # (2026-08-25): a single-guest macos-fleet node was carrying its
+    # Running xcresult-processor Pod plus the previous rollout's
+    # Succeeded one. So the ceiling scales as guests x 2, not
+    # guests + system Pods: each guest slot can transiently hold its
+    # running Pod and one not-yet-collected predecessor.
+    #
+    # hcloud-csi-node does NOT consume a slot here, despite an older
+    # comment in this file that said it did. It tolerates everything
+    # (blanket NoSchedule/NoExecute `Exists`, so the macOS taint
+    # genuinely does not stop it) but its required nodeAffinity carries
+    # `kubernetes.io/os NotIn [darwin]`, which does. Verified: zero
+    # hcloud-csi Pods across all 15 macOS Nodes in production.
+    #
+    # This is not the SLA guard and does not have to be. Apple caps a
+    # host at 2 virtualized macOS guests and Tart refuses to start a
+    # third, and hostCPU/hostMemoryMB bind the guest count before
+    # maxPods ever does. The error costs are lopsided — too low stalls
+    # a real guest slot until GC catches up, too high admits nothing
+    # extra — so size it for the worst case and move on.
+    #
+    # The rule is guests x 2 + 1. 3 for a single-guest host: 1 guest x 2
+    # (running + uncollected predecessor), plus one of margin — which on
+    # the macosFleet also happens to be what keeps the xcresult-
+    # processor's rolling update converging, since maxSurge=1 /
+    # maxUnavailable=0 needs old(1) + new(1) at once. A dual-guest host
+    # is 5 by the same rule.
+    hostCPU: 8
+    hostMemoryMB: 14336
+    maxPods: 3
+    # Fleet-wide fallback for how many Tart guests a Mac mini runs, used
+    # when a Machine doesn't set `spec.guestCapacity`. Sizes the
+    # per-guest host resources (the VNC relay port range and the
+    # disk-pressure goldens floor) — it does not itself create or cap
+    # capacity, which comes from hostCPU/hostMemoryMB above and from
+    # Tart refusing a third VM.
+    #
+    # Leave this at 1 and set `guestCapacity` on the multi-guest SKU's
+    # entry in `runnersFleet.machineGroups[]` instead. This operator
+    # bootstraps every macOS fleet in the cluster, so raising the global
+    # over-provisions every single-guest host in all of them.
+    guestCapacity: 1
+  # Runner cache volumes. When gib > 0, bootstrap
+  # provisions a quota-bounded APFS volume of that many GiB on each Mac
+  # mini to hold the runner cache volumes, and turns the feature on
+  # in tart-kubelet (--runner-cache-root). The quota is the aggregate
+  # ceiling for all cache volumes on the host — the filesystem bound that
+  # keeps them from ever starving the VM image path. Operator-wide (the
+  # provider applies it to every Mac it bootstraps); 0 (default) leaves the
+  # feature off.
+  runnerCacheVolume:
+    gib: 0
+  scaleway:
+    # Name of the Secret holding `access-key`, `secret-key`,
+    # `project-id`. ESO populates it from 1Password by default; set
+    # to a manually-created Secret name to opt out.
+    secretName: ""
+    externalSecrets:
+      enabled: true
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      # Bare 1Password item name. The cluster's `ClusterSecretStore
+      # "onepassword"` is pre-configured per env to look in the
+      # matching `tuist-k8s-<env>` vault, so this name is the same
+      # across staging / canary / production. Convention: each env
+      # has its own SCALEWAY_API item with a per-env Scaleway IAM
+      # principal — leaked staging key rotates without touching
+      # production.
+      item: SCALEWAY_API
+      fields:
+        accessKey: access-key
+        secretKey: secret-key
+        projectID: project-id
+  # Tailscale wiring for the Mac mini fleet. When enabled the CAPI
+  # provider's bootstrap installs Tailscale on each mini, joins it
+  # to the tailnet under `tag:tuist-macmini-<env>`, and tart-kubelet
+  # advertises the tailnet IPv4 as the Node's InternalIP.
+  #
+  # Two scrape paths consume this:
+  #   - VM-Pod scrapes (PromEx on the xcresult-processor) ride the
+  #     standard annotationAutodiscovery pipeline: alloy-metrics
+  #     reads the Pod's IP from the cluster Pod object, which
+  #     tart-kubelet rewrites to the tailnet address.
+  #   - Host-level scrapes (node_exporter :9100, tart-kubelet's own
+  #     controller-runtime metrics :8080) go through the Tailscale
+  #     K8s operator's egress ProxyGroup. See `tailscaleEgress`
+  #     below for the cluster-Pod-to-tailnet plumbing; subnet-router
+  #     mode advertises cluster IPs INTO the tailnet, not the other
+  #     way round, so an egress proxy is the missing half.
+  #
+  # Off by default: the chart is self-hostable and most operators
+  # don't have a tailnet to join. Tuist-managed envs flip it on in
+  # their per-env values.
+  tailscale:
+    enabled: false
+    # Per-env ACL tag every Mac mini advertises at `tailscale up`,
+    # and the tag the xcresult processor's Tart VMs join under too
+    # (they share this fleet's credential and ACL binding).
+    # Per-env values override (e.g. `tag:tuist-macmini-staging`).
+    #
+    # Required whenever the credential below is an OAuth client
+    # secret: keys minted through an OAuth client are always tagged
+    # and carry no default to fall back on. The chart-default empty
+    # list only works with a legacy pre-auth key, which applies the
+    # tag baked into the key instead. See infra/tailscale/acls.json
+    # for the full taxonomy.
+    tags: []
+    # `tailscale up --accept-routes` on every Mac mini: installs the
+    # subnet routes the env's cluster-side Connector advertises into
+    # the tailnet (the cluster's Service CIDR — see the
+    # infra/helm/tailscale-operator wrapper chart). This is the route
+    # half of the macOS runner-cache path: a host route via the
+    # tailnet is a Tart-VM route, because vmnet NATs VM egress
+    # through the host's routing table. Enable per env ONLY when that
+    # env's Connector is the single advertiser of the Service CIDR on
+    # the shared tailnet (all envs use 10.128.0.0/12, so two
+    # advertisers would route ambiguously — today staging is the only
+    # one). Pair with `vmClusterEgress` below, or the VMs' packets
+    # will route but the pf firewall will still drop them.
+    acceptRoutes: false
+    # Name of the Secret with key `auth-key` holding the fleet's
+    # Tailscale credential: an OAuth client secret on Tuist-managed
+    # envs (see the ExternalSecret template for why it isn't a
+    # pre-auth key). ESO populates it from 1Password by default; set
+    # to a manually-created Secret name to opt out.
+    secretName: ""
+    externalSecrets:
+      enabled: true
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      # Same per-env convention as the Scaleway item: one TAILSCALE
+      # entry in each env's `tuist-k8s-<env>` vault holding that
+      # env's tailnet credential. We don't share it across envs so a
+      # leaked staging credential can't add a node to the production
+      # tailnet, which is also why each env gets its own OAuth
+      # client, scoped to that env's `tag:tuist-macmini-<env>`.
+      item: TAILSCALE
+      fields:
+        authKey: auth-key
+  # Host logs from each Mac mini, shipped to Loki.
+  #
+  # tart-kubelet runs under launchd and everything it logs — the pod
+  # reconciler, the node agent, the cache-volume manager — lands in
+  # /var/log/tart-kubelet.log on the mini and nowhere else. There is no
+  # DaemonSet path to it: a Pod on a macOS Node is a Tart VM with no view of
+  # the host filesystem, and the apiserver can't resolve these kubelets to
+  # serve `kubectl logs` either. So the host runs its own agent
+  # (infra/macos-log-shipper), installed by the same bootstrap that installs
+  # node_exporter.
+  #
+  # Direction is the difference from metrics: metrics are pulled by
+  # alloy-metrics through the egress ProxyGroup, logs are pushed by the host.
+  # They are pushed to the in-cluster Alloy receiver over the tailnet —
+  # already reachable, already granted in acls.json, already serving this
+  # exact endpoint for the xcresult processor's Tart guests — rather than to
+  # Grafana Cloud, so no ingest credential is ever distributed to the fleet.
+  #
+  # Requires `tailscale.enabled`; the endpoint only exists on the tailnet.
+  #
+  # Reversible in both directions: turning this off moves the fleet host-config
+  # hash, and the drift roll that follows unloads the launchd job and removes
+  # the agent from every mini. A flag that only stopped new config from being
+  # pushed would leave the daemon running with its old URL, so ingestion would
+  # continue after a "rollback" — this one actually stops it.
+  hostLogs:
+    enabled: false
+    # Loki push endpoint, including the /loki/api/v1/push path. The tailnet
+    # hostname of the Tailscale-operator proxy fronting the k8s-monitoring
+    # chart's alloy-receiver — set the matching `tailscale.com/expose` +
+    # `tailscale.com/hostname` annotations there, or this resolves nowhere.
+    #
+    # Must be the FULLY QUALIFIED name (<host>.<tailnet>.ts.net). MagicDNS
+    # answers only fully-qualified queries, and a mini has no `search` domain
+    # to complete a short one — the agent resolves through tailscaled rather
+    # than the OS precisely because the OS on these hosts knows no tailnet
+    # names at all. A bare hostname here fails every push with "no such host".
+    url: ""
+    # `env` stream label on every shipped line, mirroring the label the
+    # server's own Loki handler sets. Empty omits it.
+    env: ""
+  # Tailscale egress Services. When enabled, the CAPI operator
+  # creates one ExternalName Service per Mac mini in
+  # `.namespace` (matching the tailscale-operator wrapper chart's
+  # Release.Namespace), annotated to bind to the named
+  # ProxyGroup. alloy-metrics' Service-role discovery then scrapes
+  # those Services and the Tailscale operator bridges to the
+  # tailnet.
+  #
+  # Off by default — self-hosters without a tailnet never need this
+  # plumbing. When tailscale.enabled is on, flip this on too.
+  tailscaleEgress:
+    enabled: false
+    # Where the per-machine Services land. Must match the
+    # tailscale-operator wrapper chart's release namespace.
+    namespace: tailscale-operator
+    # Name of the ProxyGroup the Services bind to. Matches the
+    # tailscale-operator wrapper chart's `macminiEgress.proxyGroup.name`.
+    proxyGroup: macmini-egress
+    # MagicDNS suffix of the tailnet the Mac minis register
+    # under. Required when enabled — derived from
+    # `tailscale status --json | .MagicDNSSuffix` on any tailnet
+    # device, e.g. `taild6d7bb.ts.net`. Per-env overlays set the
+    # actual value.
+    magicDNSSuffix: ""
+    # Tags for a proxy the Tailscale operator runs for one Service
+    # outside the ProxyGroup (a rack Linux host's kubelet proxy): the
+    # cluster's own `tag:tuist-k8s-<env>`, the only tag the
+    # operator's credential mints. Required when enabled; per-env
+    # overlays set it.
+    proxyTags: ""
+  # Runner-cache carve-out in the Mac minis' VM egress firewall
+  # (infra/macos-host-bootstrap installVMEgressFirewall). By default
+  # Tart VMs are blocked from all RFC1918 destinations; these knobs
+  # open exactly the in-cluster Kura cache path:
+  #   kuraServiceCIDR — the cluster's Service CIDR
+  #     (infra/k8s/clusters/cluster-<env>.yaml,
+  #     .spec.clusterNetwork.services; 10.128.0.0/12 in managed
+  #     envs), reachable on TCP 4000 (the Kura cache port, co-hosted
+  #     HTTP + gRPC). Mirrors the Linux runner namespace's
+  #     NetworkPolicy egress carve-out; per-account isolation stays
+  #     at Kura's app layer (JWT tenant check), same as for Linux
+  #     runners.
+  #   clusterDNSIP — kube-dns's ClusterIP (`kubectl -n kube-system
+  #     get svc kube-dns`; 10.128.0.10 in managed envs), reachable
+  #     on 53 so the runner VM's /etc/resolver entry can resolve
+  #     `*.svc.cluster.local` names.
+  # Both empty (the default) keeps the firewall a pure blocklist.
+  # Only useful together with `tailscale.acceptRoutes` above and the
+  # runnersController.clusterDNS knobs that hand the VM its resolver
+  # config.
+  vmClusterEgress:
+    kuraServiceCIDR: ""
+    clusterDNSIP: ""
+  # Scaleway Private Network for the kura runner-cache node-port data
+  # plane (per-account NodePorts on the kura-scw-fr-par pool). Both
+  # fields required to enable. name is the same PN the kura fleet
+  # attaches to (kuraFleet.machine.privateNetworkName), so the minis
+  # and the cache node share one PN per env; the operator resolves it
+  # to an ID, creating it from cidr if absent. The operator's IAM
+  # principal needs Apple Silicon Private Networks permissions to
+  # attach minis.
+  vmCachePrivateNetwork:
+    name: ""
+    cidr: ""
+  # Extra IPv4 CIDRs allowed to reach :22 on each Mac mini. The tailnet
+  # and loopback are always allowed; everything else is dropped by a pf
+  # anchor, keeping internet SSH scan traffic from exhausting launchd's
+  # ssh listen backlog (which blocks the public and tailnet paths at
+  # once, since that socket binds *:22). Set this to the operator's SSH
+  # egress address to keep the public-IP dial path working, the only one
+  # that can update Tailscale itself; without it the drift loop still
+  # converges over the tailnet fallback. Ignored when Tailscale isn't
+  # wired, since the guard needs a second path to be safe.
+  sshIngressAllowCIDRs: []
+  machine:
+    # M2-L (M2 Pro chip, 12 vCPU, 32 GB RAM) is our default SKU:
+    # it has the most reliable inventory in fr-par-1 and the
+    # capacity headroom we want for Tuist + customer build
+    # workloads. fr-par-3 only offers M1-M and it's been unstocked.
+    # Override per-env if a workload calls for more CPU/RAM
+    # (M4-M, M4-XL), a different generation (M4-S), or to track
+    # restocking pressure on a specific SKU.
+    type: M2-L
+    zone: fr-par-1
+    os: Tahoe
+    # Per-SKU host sizing, each falling back to the matching
+    # operator-global default when unset. See the identical block under
+    # `runnersFleet.machine` for what they mean and how to size them.
+    hostCPU: ~
+    hostMemoryMB: ~
+    maxPods: ~
+    guestCapacity: ~
+    runnerCacheVolumeGiB: ~
+
+# Customer-runner Mac mini fleet — sibling of macosFleet, hosted by
+# the same cluster-api-provider-tuist operator and
+# the same tart-kubelet binary. Split out so customer-bought
+# concurrency lives on its own hardware and isn't preempted by
+# internal queue consumers (xcresult-processor, etc.).
+#
+# Two-level shape:
+#
+#   * `hostCount` is the CAPI MachineDeployment replica count —
+#     i.e. how many physical Mac mini hosts the operator orders of
+#     the default `machine` SKU. `machineGroups[]` adds further
+#     MachineDeployments of OTHER SKUs to the same fleet, each with
+#     its own `hostCount`.
+#
+#     Host count is NOT the concurrency ceiling once the fleet is
+#     mixed. A host admits `hostMemoryMB / podMemoryMB` guests, so a
+#     14336 MB M2-L contributes one slot and a 28672 MB M4-XL
+#     contributes two. Apple's SLA caps any single host at two.
+#
+#   * `pools[]` is the list of RunnerPool CRs. Each entry is one
+#     runner image variant (e.g. Xcode 16 baseline, Xcode-15
+#     compatibility, future per-OS variants). Customers route to
+#     a pool by putting its `dispatchLabel` in `runs-on`. The
+#     webhook handler matches `workflow_job.labels` against every
+#     pool's `dispatchLabel` and enqueues against the matching
+#     fleet; the dispatch endpoint includes the label in the JIT
+#     mint so the runner registers with it.
+#
+# Sum of `pools[*].replicas` must not exceed the fleet's GUEST
+# capacity (see above — sum over every group of
+# `hostCount * guests-per-host`, not the host count). The chart
+# doesn't enforce that today (intentional — we'd rather let a thin
+# overcommit show up as unscheduled Pods than fail a deploy on
+# arithmetic).
+#
+# Runner availability is gated server-side by the `:runners`
+# feature flag (see server/lib/tuist/runners.ex); there's no
+# per-customer concurrency cap.
+#
+# The Tuist server's ServiceAccount holds Pod create/list/get on
+# the runners namespace (templates/runners-namespace.yaml); a
+# default-deny NetworkPolicy + GitHub-only egress limits a
+# compromised runner's reachability into the cluster.
+runnersFleet:
+  customCacheVolumes:
+    enabled: false
+  enabled: false
+  # Default `spec.idleTimeoutSeconds` for every macOS pool (a per-pool
+  # or per-xcodeOverride `idleTimeoutSeconds` wins). Bounds how long a
+  # runner that registered with GitHub but has not been handed a job
+  # stays alive; a runner executing a job writes the JOB_STARTED marker
+  # and is never reaped. 0 disables the watchdog.
+  #
+  # The bound is necessary because GitHub assigns a queued job to any
+  # label-eligible runner, so a runner whose job landed on a sibling
+  # otherwise waits indefinitely, holding warm-pool capacity that reads
+  # as busy (its owner label is stamped at claim, not at execution).
+  #
+  # 300s only bounds the post-claim window between registering and
+  # being handed work (the happy path is sub-30s), and a warm Pod still
+  # polling for a claim has no runner container yet, so this adds no
+  # warm-pool churn. The value matches the stale-claim /
+  # orphan-recovery thresholds.
+  idleTimeoutSeconds: 300
+  name: ""              # default: <release>-runners-fleet — CAPI MachineDeployment name.
+  # Kubernetes namespace customer runner Pods live in. Helm-owned;
+  # `helm.sh/resource-policy: keep` so an uninstall doesn't yank in-
+  # flight Pods. Per-namespace RBAC + NetworkPolicy live alongside.
+  namespace: tuist-runners
+  # Number of Mac mini hosts the default MachineDeployment adopts
+  # from the pool, at the `machine` SKU below. Hosts of other SKUs
+  # come from `machineGroups[]`; the fleet's guest capacity is the
+  # sum across all groups of hosts x guests-per-host.
+  hostCount: 0
+  # Required. The controller claims a pre-ordered Mac mini whose
+  # Scaleway-side name starts with this prefix; there is no
+  # auto-order path. Scaleway Mac mini stock is unreliable and
+  # Apple's 24h licensing floor makes speculative auto-ordering
+  # expensive, so capacity planning is operator-owned via the
+  # Scaleway console.
+  #
+  # Operator workflow:
+  #
+  #   1. In the Scaleway console, order N Mac minis of the same
+  #      `machine.type` / `machine.os` / `machine.zone` as below.
+  #      Name each with this prefix (e.g. `tuist-pool-001`,
+  #      `tuist-pool-fr-par-1-a`) — the exact suffix doesn't matter.
+  #   2. Scale the MachineDeployment (`hostCount`). For each new
+  #      Machine, the controller picks the first matching host
+  #      whose name has this prefix, renames it to the Machine's
+  #      name (which IS the claim — the prefix is gone), then
+  #      bootstraps tart-kubelet on it.
+  #
+  # When no compatible pre-ordered host is available, the CR stays
+  # in `Adopting` phase with a `NoAvailableHost` event so the
+  # operator sees the queue and knows to pre-order more capacity.
+  adoptPoolPrefix: "tuist-pool-"
+  machine:
+    # Match the existing macosFleet shape — same M2-L baseline.
+    # Override per-env when product demands a beefier SKU (M4-M for
+    # memory-heavy iOS apps, etc.). The operator pre-orders Mac
+    # minis matching these `type` / `zone` / `os` values; the
+    # controller's adoption query filters on the same three.
+    type: M2-L
+    zone: fr-par-1
+    os: Tahoe
+    # Per-SKU host sizing. Every field below is optional and falls
+    # back to the operator-global default when unset — which is also
+    # what keeps an existing fleet's MachineTemplate unchanged, since
+    # even an inert field would alter the rendered spec.
+    #
+    # hostCPU / hostMemoryMB are what tart-kubelet advertises as the
+    # Node's capacity, so they are what kube-scheduler bin-packs guest
+    # Pods into. Leave the host itself ~2 cores and ~2 GB: asking for
+    # the full SKU on `tart run` fails with
+    # `memorySize > maximumAllowedMemorySize`.
+    #
+    # These two ARE the guest-count control. Size hostMemoryMB as an
+    # exact multiple of the pool's `podMemoryMB` so both dimensions
+    # bind at the same number, rather than leaving CPU as the only
+    # thing standing between the fleet and a third guest.
+    hostCPU: ~
+    hostMemoryMB: ~
+    # Node-level Pod ceiling. Counts EVERY Pod bound to the Node, and a
+    # terminal Pod keeps its slot until GC collects it, so size this as
+    # guests x 2 + 1 — each guest slot can transiently hold its running
+    # Pod plus one not-yet-collected predecessor, and the +1 is margin.
+    # 3 for a single-guest host, 5 for a dual-guest one.
+    #
+    # Keep the margin. hostCPU/hostMemoryMB bind the guest count before
+    # maxPods does, so a higher value admits no extra guest; but a node
+    # sitting at its ceiling rejects Pods with "Too many pods" while the
+    # autoscaler still counts its slots as available.
+    #
+    # No allowance for host-system Pods: hcloud-csi-node is kept off
+    # macOS by a `kubernetes.io/os NotIn [darwin]` nodeAffinity (its
+    # tolerations are blanket, so the taint is not what stops it), and
+    # nothing else targets these Nodes. See the long-form note on
+    # `macosFleet.tartKubelet.maxPods`.
+    maxPods: ~
+    # How many guests this SKU is expected to run. Sizes the per-guest
+    # host resources (the VNC relay port range, the disk-pressure
+    # goldens floor); it does not create or cap capacity, which comes
+    # from hostCPU/hostMemoryMB above and Tart's own SLA enforcement.
+    # Keep it equal to what those two actually admit.
+    guestCapacity: ~
+    # Per-SKU override of `macosFleet.runnerCacheVolume.gib`. The right
+    # quota tracks the SKU's disk, and these differ by 4x. The provisioning
+    # script never resizes, so this only takes effect on a fresh host.
+    #
+    # Unlike the fields above, this one reads on PRESENCE: null (or
+    # omitted) inherits the operator global, while an explicit `0`
+    # disables cache volumes on this SKU and every VM there boots on
+    # the cold path. Staging a new SKU cold and enabling its cache once
+    # validated is how the feature was rolled out originally, so the
+    # two states have to stay distinguishable.
+    runnerCacheVolumeGiB: ~
+  # Additional host groups, each rendering its own MachineDeployment +
+  # MachineTemplate. This is how one fleet spans several Scaleway SKUs
+  # — e.g. the M2-L baseline above running one guest per host, plus an
+  # M4-XL group running two.
+  #
+  # Every group joins the SAME capacity domain: its MachineTemplate
+  # carries the fleet's `fleetName`, which becomes the `tuist.dev/fleet`
+  # NODE label that RunnerPool.fleetSelector matches. So every Xcode
+  # pool can schedule onto every group's hosts and the autoscaler sums
+  # one budget across all of them — nothing is pinned to a SKU.
+  #
+  # The Machine OBJECT label is per group, because CAPI selectors are
+  # subset matches and two MachineDeployments sharing it would fight
+  # over each other's MachineSets. Nothing else reads that label.
+  #
+  # Ordering a new SKU into rotation is therefore: pre-order minis of
+  # that type under `adoptPoolPrefix`, add a group, set `hostCount`.
+  #
+  #   machineGroups:
+  #     - name: m4                     # group id; also the MD name suffix
+  #       hostCount: 4
+  #       # adoptPoolPrefix: ""        # defaults to the fleet's
+  #       machine:
+  #         type: M4-XL
+  #         zone: fr-par-1
+  #         os: Tahoe
+  #         hostCPU: 12                # of 14; ~2 for the host
+  #         hostMemoryMB: 28672        # 2 x the 14336 MB pod shape
+  #         maxPods: 5                 # guests x 2 + 1 (see maxPods above)
+  #         guestCapacity: 2
+  #         runnerCacheVolumeGiB: 240
+  machineGroups: []
+  # Pod-network policy on the runners namespace. Default-deny
+  # ingress, constrained egress (HTTPS to public internet for
+  # GitHub + registries, DNS to kube-system). **Scope is the Pod
+  # network namespace only** — the customer workload runs inside
+  # a Tart VM whose vmnet interface bypasses CNI, so this gate
+  # does not constrain VM-originated traffic. See the long-form
+  # comment on the NetworkPolicy block in
+  # templates/runners-namespace.yaml.
+  networkPolicy:
+    enabled: true
+    # CIDRs excluded from the runner-Pod egress allow rule.
+    # Blocks the Pod (not the VM) from reaching internal cluster
+    # ranges (Pod CIDR, Service CIDR, Node CIDR, in-cluster
+    # databases). Override per-env with the real cluster ranges.
+    exceptCIDRs: []
+  # macOS shape catalog. Symmetric with `runnersFleetLinux.shapes`:
+  # single source of truth for the Profiles dropdown and the server's
+  # `:runner_macos_shapes` validation. Injected into the server as
+  # `TUIST_RUNNER_MACOS_SHAPES` (JSON).
+  #
+  # A shape is what a CUSTOMER gets, and is deliberately independent of
+  # which SKU the fleet buys: a 6 vCPU / 14 GB guest is the same guest
+  # on an M2-L that fits one and an M4-XL that fits two. Adding a SKU
+  # to `machineGroups` therefore changes capacity, not the catalog —
+  # and `memoryGb` here is the divisor the autoscaler uses to turn a
+  # host's advertised memory into guest slots.
+  #
+  # Every entry renders one pool per `xcodeVersions` entry. Exactly one
+  # entry must carry `default: true`. That one keeps the shape-free pool
+  # name `<release>-runner-pool-macos-<xcode-dashes>`; the others append
+  # `-<vcpus>vcpu-<gb>gb`. So the default shape is not just a preselect
+  # in the profile form: changing which entry carries it renames live
+  # pools, and a `queued` job's `fleet_name` names the pool a runner
+  # claims it from. Don't move it on a fleet with traffic.
+  #
+  # Two constraints bound what can go in this list, and neither is
+  # enforced by the chart:
+  #
+  #   1. Keep `memoryGb / vcpus` equal across shapes, and equal to a
+  #      host group's `hostMemoryMB / hostCPU`. The autoscaler's macOS
+  #      budget is the fleet's advertised memory divided by a pool's
+  #      `podMemoryMB`, which only equals what kube-scheduler will place
+  #      when memory is the dimension that binds guest count on every
+  #      host. A shape with more memory per vCPU than the host
+  #      advertises forces `hostMemoryMB` up, at which point CPU binds
+  #      instead and the budget over-counts every SMALLER shape's slots,
+  #      producing Pods the allocator keeps asking for and the scheduler
+  #      never places. At the M2-L's 6 vCPU / 14 GB that ratio is
+  #      2389 MB per vCPU, which is what makes 12 vCPU / 28 GB the
+  #      consistent way to sell an M4-XL's cores.
+  #   2. A shape larger than the smallest host in the fleet is
+  #      over-promised by that same fleet-wide sum, since it counts
+  #      memory on hosts too small to place it. The runners-controller
+  #      corrects for this by counting each node's own min(cpu, memory)
+  #      quotient and capping every pool sharing the shape at that sum,
+  #      which `autoscaling.maxReplicas` cannot do on its own — it is
+  #      per pool, and a shape renders one pool per Xcode version. Still
+  #      set `maxReplicas` to the number of hosts that can seat the
+  #      shape, as the per-pool bound.
+  #
+  # Which SKUs a given environment owns is therefore part of what its
+  # catalog can offer, so managed envs override this list per env rather
+  # than sharing one. See `values-managed-common.yaml`.
+  shapes:
+    - vcpus: 6
+      memoryGb: 14
+      default: true
+    # A non-default entry may carry its own `autoscaling` block, which
+    # is the only place a shape's scaling is configured (`xcodeOverrides`
+    # tunes the default shape's pools). Without one the pool renders
+    # static at replicas 0.
+    #
+    # - vcpus: 12
+    #   memoryGb: 28
+    #   autoscaling:
+    #     enabled: true
+    #     minWarmPoolFloor: 0
+    #     maxReplicas: 2          # hosts that can fit it, not fleet slots
+  # macOS Xcode catalog. Each entry renders a `RunnerPool` CR named
+  # `<release>-runner-pool-macos-<xcode-dashes>` with that Xcode's runner
+  # image (see `runnerImageDigests` below).
+  # Customers route via account-scoped Runner Profiles; the server
+  # resolves (account, requested-label) → profile → pool. Keep this
+  # list in sync with `infra/runner-image/profiles.json` — the list
+  # `runner-image-release.yml` publishes images for. A catalog entry with no runner image published for it
+  # renders a pool that can never pull.
+  xcodeVersions:
+    - xcodeVersion: "27.0"
+    - xcodeVersion: "26.6"
+      default: true
+    - xcodeVersion: "26.5"
+    - xcodeVersion: "26.4.1"
+    - xcodeVersion: "26.3"
+    - xcodeVersion: "26.1.1"
+    - xcodeVersion: "26.0.1"
+  # Per-Xcode fleet tuning, keyed by `xcodeVersion` string. The
+  # catalog stays in `xcodeVersions` above so it's shared via the
+  # common values file; each managed env layers its overrides here
+  # without re-pasting the catalog. Unset fields fall back to the
+  # template defaults (replicas: 0, pod sizing from the catalog's
+  # `default: true` shape, no autoscaling).
+  #
+  # The runners-controller's fleet allocator apportions the
+  # fleet's guest-slot budget across every macOS pool sharing this
+  # fleetSelector using the same three-tier (floor / load /
+  # headroom) policy as the Linux pools. `maxReplicas` is per-pool
+  # and can be set to the full host budget — the allocator caps
+  # the joint sum so two pools both at max don't double-book hosts.
+  xcodeOverrides: {}
+    # "26.5":
+    #   replicas: 1                    # Static (non-autoscaling) warm count.
+    #   pod:                           # Optional. Defaults to the catalog's default shape.
+    #     cpuMilli: 6000
+    #     memoryMB: 14336
+    #   autoscaling:                   # Preferred for managed envs (joins the fleet allocator).
+    #     enabled: true
+    #     minWarmPoolFloor: 1          # Always-on warm guarantee (joint sum ≤ hostCount).
+    #     maxReplicas: 9               # Per-pool ceiling; allocator caps the joint sum.
+    #     scaleDownCooldownSeconds: 300
+    #   runnerLabels:                  # Optional. Defaults to ["self-hosted", "macOS", "ARM64"].
+    #     - self-hosted
+    #     - macOS
+    #     - ARM64
+    #   imageTag: ""                   # Optional pin to a specific tag, bypassing `runnerImageDigests` and `runnerImageSemver`.
+  # Each macOS pool's `spec.image` is, in order: the Xcode's
+  # `xcodeOverrides[].imageTag` pin (e.g. a SHA tag for an out-of-rotation
+  # Xcode refreshed via `runner-image.yml`), else
+  # `<runnerImageRepository>@<runnerImageDigests[xcode]>`, else
+  # `<runnerImageRepository>:macos-<xcode-dashes>-<runnerImageSemver>`.
+  runnerImageRepository: "ghcr.io/tuist/tuist-runner"
+  # Required when `xcodeVersions` is non-empty and an Xcode has neither a
+  # digest nor an `imageTag` (the template fails the render otherwise).
+  # Resolved from the latest `runner-image@` tag at deploy time; managed
+  # envs override this with the live version.
+  runnerImageSemver: ""
+  # Manifest digest (`sha256:<hex>`) of each Xcode's
+  # `macos-<xcode-dashes>-<runnerImageSemver>` tag, keyed by `xcodeVersion`.
+  # `server-deployment.yml` resolves them for the profiles the
+  # `runner-image@<runnerImageSemver>` release published. A release re-tags
+  # the profiles it did not rebuild, so naming the digest keeps an unchanged
+  # image's ref, and with it its pools' Pods and each host's golden, across
+  # releases. Tart-kubelet names goldens after the ref string and the
+  # runners-controller rolls Pods whose ref differs from the pool's.
+  runnerImageDigests: {}
+  # Manifest digest of each Xcode's stacked image
+  # (`macos-<xcode-dashes>-<runnerImageSemver>-stacked`), keyed by
+  # `xcodeVersion`, for the rack pools `rackFleet.runners.stackedImages`
+  # turns on. `server-deployment.yml` resolves the ones the release
+  # published. An Xcode with no entry runs its standalone image everywhere.
+  runnerImageStackedDigests: {}
+  # RunnerPool CRs rendered into `runnersFleet.namespace`. One
+  # entry per image variant. Required when `runnersFleet.enabled`
+  # is true; the chart fails the render with an empty list.
+  pools: []
+    # Example entry. Defaults are applied per field; only `name`,
+    # `runnerImage` (or `xcodeVersion`), and `dispatchLabel` are required.
+    # - name: default          # Suffix for the RunnerPool CR name.
+    #   replicas: 0            # spec.replicas — number of Pods the controller maintains.
+    #   runnerImage: ""        # Required unless xcodeVersion is set. Digest-pinned in production.
+    #   xcodeVersion: ""       # Instead of runnerImage: the catalog image for this Xcode,
+    #                          # which follows runnerImageSemver and xcodeOverrides[].imageTag.
+    #   dispatchLabel: ""      # Required. The label customers put in `runs-on`.
+    #   # GitHub runner labels stamped at JIT-mint time, in addition
+    #   # to `dispatchLabel` (always appended). Defaults per-OS in
+    #   # the helm template (`["self-hosted", "macOS", "ARM64"]` for
+    #   # the macOS block, `["self-hosted", "Linux", "X64"]` for the
+    #   # Linux block); override here to add extra labels.
+    #   runnerLabels: ["self-hosted", "macOS", "ARM64"]
+    #   # Optional. Host fleet whose Nodes this pool's runners land on;
+    #   # defaults to this block's own fleet. Set it to place work on a
+    #   # macOS fleet other than runnersFleet, which today means the
+    #   # rack-owned minis in `rackFleet`.
+    #   fleetSelector: ""
+    #   pod:
+    #     cpuMilli: 8000
+    #     memoryMB: 14336
+    #   # Optional queue-depth-driven autoscaling. When `enabled`, the
+    #   # runners-controller patches `spec.replicas` (and the bound
+    #   # CAPI MachineDeployment) every 15 s using the desired-replicas
+    #   # endpoint on the Tuist server. Omit the block (or leave
+    #   # `enabled: false`) for a static-replicas pool.
+    #   autoscaling:
+    #     enabled: false
+    #     minWarmPoolFloor: 1
+    #     maxReplicas: 0
+    #     scaleDownCooldownSeconds: 300
+
+# Linux runner fleet — Hetzner Robot bare-metal hosts (AX42-U for
+# staging/canary, AX162-R for production) claimed via caph and
+# joined to the workload cluster as worker Nodes. caph rescue-boots
+# each box, runs `installimage` to write Ubuntu 24.04 LTS, and the
+# clusterclass cloud-init runs `kubeadm join` automatically. The
+# clusterclass `postKubeadmCommands` stamps
+# `node.cluster.x-k8s.io/pool=<runnersFleetLinux.name>` and the
+# `tuist.dev/runner-tier=bare-metal:NoSchedule` taint so only
+# runner Pods land on these hosts.
+#
+# To enable a runner fleet on a new env:
+#   1. Order one or more boxes from
+#      [robot.hetzner.com](https://robot.hetzner.com) (FSN1 if the
+#      Cloud cluster is in FSN1; co-location keeps cross-substrate
+#      latency to ~5-10ms over public internet, ~1ms via vSwitch).
+#   2. Add a `HetznerBareMetalHost` CR in
+#      `infra/k8s/clusters/bare-metal-<env>.yaml` carrying the
+#      Robot server number, root SSH key ref, and the pool selector
+#      label the `bare-metal-worker` MachineDeployment claims on.
+#      The mgmt-cluster-apply workflow picks it up; caph does
+#      rescue + installimage + kubeadm-join with no manual step.
+#   3. Flip `runnersFleetLinux.enabled: true` here, set `name` to
+#      match the pool label value, point `pools[].runnerImage` at a
+#      digest-pinned `ghcr.io/tuist/tuist-linux-runner` build, and
+#      set `pools[].autoscaling.maxReplicas` to the number of hosts
+#      you provisioned (the autoscaler won't request more Pods than
+#      the operator-provisioned host count can accommodate; Pending
+#      Pods are the signal to provision more hosts).
+runnersFleetLinux:
+  # Opt-in; hostPath MUST be a dedicated reflink-capable filesystem separate from kubelet.
+  cacheVolumes:
+    enabled: false
+    hostPath: /var/lib/tuist-runner-cache
+    maxSlots: 100
+    minFreeGB: 40 # Includes room for a private image and its publication archive.
+    volumeGB: 20
+    maxVolumeGB: 32 # Largest volume this host accepts; the server never allocates more.
+    provisioning:
+      enabled: false
+      sizeGB: 200
+    image:
+      repository: ghcr.io/tuist/tuist-runner-cache-volumes
+      tag: "" # Defaults to the matching runnersController.image.tag release.
+    # Moves each job's dockerd onto its repository's Docker cache volume. Turning it
+    # on replaces the Pods of the pools it covers, so `pools` limits it to those
+    # RunnerPool names during a rollout; an empty list covers every Linux pool.
+    dockerCache:
+      enabled: false
+      pools: []
+  enabled: false
+  # Default `spec.idleTimeoutSeconds` for every Linux pool / shape (a
+  # per-pool or per-shape `idleTimeoutSeconds` wins). Same semantics and
+  # rationale as `runnersFleet.idleTimeoutSeconds` above; on the Linux
+  # split shape the watchdog runs in the credential-free `run-job.sh`
+  # runner container. 0 disables it.
+  idleTimeoutSeconds: 300
+  # Linux Kata sandbox admission is shared across every pool using this
+  # fleet selector. The budget is per node and the controller multiplies
+  # it by the fleet's healthy node count: what a start burst threatens is
+  # one kubelet and one Kata runtime, so the limit belongs per host, and
+  # expressing it fleet-wide meant adding machines raised capacity without
+  # raising start throughput. A cordoned or NotReady node takes its share
+  # of the budget with it. Per-pool / per-shape values override these
+  # defaults; the controller enforces the lowest sibling maximum.
+  #
+  # 6 per node. The fleet's fill rate is this budget divided by sandbox
+  # boot time, so it is what bounds how fast queued Linux work can start.
+  # Three per node ran saturated on 2026-09-03 (737 admission refusals in
+  # ten minutes) while the four hosts sat at 0-17% CPU and 1-37% memory,
+  # and boots completed in 82s to 3m37s with no start timeouts, so there
+  # was headroom on both the hosts and the 300s budget. Raise it further
+  # only against `tuist_runners_pool_pod_start_timeouts_total`: boot time
+  # climbing toward startTimeoutSeconds is the fleet saying a host is
+  # being asked to bring up too many microVMs at once.
+  provisioning:
+    maxConcurrentPerNode: 6
+    # Starts after the scheduler binds the Pod to a node. 0 disables.
+    startTimeoutSeconds: 300
+  # Value of the `node.cluster.x-k8s.io/pool=` label CAPI's
+  # label-sync propagates from the runner MachineDeployment to
+  # each runner Node. Must match the
+  # `metadata.labels.node.cluster.x-k8s.io/pool` entry on the
+  # matching `machineDeployments[]` in
+  # `infra/k8s/clusters/cluster-<env>.yaml`. Defaults to
+  # `runners-linux` (the convention used in
+  # `cluster-staging.yaml`).
+  name: ""
+  # Namespace for the rendered RunnerPool CRs. Falls back to the
+  # macOS fleet's namespace when unset so a single chart install
+  # can share infra (RBAC, NetworkPolicy) across both fleets.
+  namespace: ""
+  # RunnerPool CRs rendered into `runnersFleetLinux.namespace`.
+  # One entry per image variant. Required when
+  # `runnersFleetLinux.enabled` is true and `shapes` is empty.
+  # Operator-defined pools sit alongside shape-keyed pools (below)
+  # for image variants that don't fit the shape catalog (e.g.,
+  # bespoke ops or builder workloads).
+  pools: []
+    # Example entry:
+    # - name: ubuntu-22-04
+    #   replicas: 0          # static target; ignored when autoscaling is enabled.
+    #   runnerImage: ""      # Required. Digest-pinned in production.
+    #   dispatchLabel: ""    # Required. The label customers put in `runs-on`.
+    #   runnerLabels:
+    #     - self-hosted
+    #     - Linux
+    #     - X64
+    #   pod:
+    #     cpuMilli: 4000
+    #     memoryMB: 16384
+    #   # Required on Linux pools. The controller injects a
+    #   # docker:dind native sidecar that runs `privileged: true`;
+    #   # the kata-qemu microVM is the safety boundary that keeps
+    #   # the privileged sidecar off the bare-metal host kernel.
+    #   runtimeClass: kata-qemu
+    #   provisioning:
+    #     maxConcurrentPerNode: 6
+    #     startTimeoutSeconds: 300
+    #   autoscaling:
+    #     enabled: true
+    #     minWarmPoolFloor: 3
+    #     maxReplicas: 30
+    #     scaleDownCooldownSeconds: 300
+
+  # Shape-keyed pools backing the Runner Profiles feature. Each entry
+  # renders one RunnerPool CR with a deterministic name and an
+  # internal dispatch label (`shape-linux-<vcpus>vcpu-<gb>gb`).
+  # Customers never reference these labels directly; they create
+  # account-scoped Profiles in the Tuist UI, and the server resolves
+  # `(account, requested-label)` through the profile to a shape pool.
+  #
+  # All shapes share `shapeRunnerImage` + `shapeRuntimeClass`. Each
+  # shape can override autoscaling via its own `autoscaling:` block;
+  # otherwise `shapeAutoscaling` defaults apply.
+  shapeRunnerImage: ""
+  shapeRuntimeClass: "kata-qemu"
+  shapeAutoscaling:
+    enabled: true
+    minWarmPoolFloor: 1
+    maxReplicas: 0
+    scaleDownCooldownSeconds: 300
+  shapes: []
+    # Example catalog:
+    # - { vcpus: 1, memoryGb: 2 }
+    # - { vcpus: 2, memoryGb: 4 }
+    # - { vcpus: 2, memoryGb: 8 }
+    # - { vcpus: 4, memoryGb: 8 }
+    # - { vcpus: 4, memoryGb: 16, default: true }
+    # - { vcpus: 8, memoryGb: 16 }
+    # - { vcpus: 8, memoryGb: 32 }
+    # - { vcpus: 16, memoryGb: 32 }
+    # Exactly one entry should carry `default: true`. The server's
+    # profile backfill seeds new accounts with a `default` profile
+    # whose vcpus/memoryGb match the entry tagged default.
+
+# Bare-metal vm-image-builder fleet — sibling of macosFleet and
+# runnersFleet, provisioned by the same CAPI operator from the same
+# Scaleway IAM credentials and pre-ordered pool. Hosts register as
+# Kubernetes Nodes via tart-kubelet (same shape as the other fleets)
+# but no Pod targets `tuist.dev/fleet=<buildersFleet.name>`, so
+# kubelet stays idle and the host is used exclusively by an
+# additional launchd LaunchAgent: the GitHub Actions self-hosted
+# runner agent installed on top of the standard bootstrap when
+# `ghActionsRunner` is set on the MachineTemplate.
+#
+# The runner agent picks up image-bake workflow jobs from GitHub
+# (today: runner-image.yml, xcresult-processor-image.yml) and runs
+# `packer build` directly against the host's own Tart daemon.
+# Tart-in-Tart isn't supported on Apple Silicon — Virtualization.
+# framework doesn't nest macOS guests inside macOS guests — so this
+# workload can't live inside the Pod-as-VM model the other fleets
+# use; it has to run on bare-metal Tart with kubelet idle.
+buildersFleet:
+  enabled: false
+  name: ""              # default: <release>-builders-fleet — CAPI MachineDeployment name.
+  # Number of Mac mini builder hosts CAPI provisions / adopts.
+  # `kubectl scale machinedeployment <name> --replicas=N` after
+  # install if you'd rather drive scaling out-of-band.
+  replicas: 0
+  # Required. Adopts from the same `tuist-pool-` pre-ordered pool
+  # the other two fleets use. See `runnersFleet.adoptPoolPrefix`
+  # for the full operator workflow.
+  adoptPoolPrefix: "tuist-pool-"
+  # GitHub Actions runner agent configuration. The agent registers
+  # with GitHub at host bootstrap time and picks up jobs from then
+  # on; ghOrg + ghRunnerLabels must match the workflow `runs-on:`
+  # selectors of the workflows that schedule onto this fleet.
+  ghOrg: tuist
+  ghRunnerLabels: "self-hosted,macos,bare-metal,vm-image-builder"
+  # The actions/runner release installed on a host the first time it
+  # is bootstrapped. Unlike the guest runners, the host agent is
+  # configured without `--disableupdate`, so it self-updates from
+  # here; the pin only decides what a freshly-adopted host lands on.
+  # Keep in sync with `runner_version` in
+  # `infra/runner-image/runner.pkr.hcl` so the runner agent baked
+  # into the runner-image guest matches the one running on the
+  # host that bakes it. Renovate-tracked: bump both pins together.
+  # renovate: datasource=github-releases depName=actions/runner
+  ghRunnerVersion: "2.337.0"
+  # Override the auto-derived Secret name (default:
+  # `<fleetName>-gh-app`). Self-hosters who manage the Secret
+  # out-of-band point at their own name here. The Secret has three
+  # keys: `app-id`, `installation-id`, `private-key`.
+  ghAppSecretName: ""
+  externalSecrets:
+    # Sync the GitHub App credentials (App ID, installation ID,
+    # private key) from 1Password into the cluster Secret. Self-
+    # hosters can disable this and `kubectl create secret generic
+    # <name> --from-literal=app-id=… --from-literal=installation-id=…
+    # --from-file=private-key=…` instead.
+    enabled: false
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    # Bare 1Password item name. The cluster's `ClusterSecretStore
+    # "onepassword"` is pre-configured per env to look in the
+    # matching `tuist-k8s-<env>` vault, so this name is the same
+    # across envs. The item holds three fields (see `fields` below);
+    # operators set it once at env bring-up and never rotate it.
+    item: BUILDERS_FLEET_GITHUB_APP
+    # Field names within the 1Password item. Defaults match the
+    # operator-documented shape; overrideable for self-hosters
+    # whose vault layout differs.
+    fields:
+      appID: app-id
+      installationID: installation-id
+      privateKey: private-key
+  machine:
+    # Match the macosFleet shape — same M2-L baseline. Same caveat
+    # applies: Scaleway's M2-L is M2 Pro 10-core / 16 GB despite
+    # the name. The MachineTemplate doesn't carry hostCPU /
+    # hostMemoryMB by default; tart-kubelet uses the operator-
+    # global defaults, which is fine because no Pods schedule here.
+    type: M2-L
+    zone: fr-par-1
+    os: Tahoe
+
+# runners-controller: standalone Go reconciler that owns Pod + SA
+# materialization for the RunnerPool CRD. The controller watches
+# the helm-rendered RunnerPool CRs and maintains `spec.replicas`
+# Pods + per-Pod ServiceAccounts as direct owner-ref children.
+# When a Pod hits a terminal phase, the controller reaps the Pod
+# and its sibling SA and boots a replacement. The Pod's projected
+# SA token is the dispatch-endpoint authentication anchor (server
+# validates it via TokenReview).
+# Kata Containers + QEMU support. When enabled, the chart renders a
+# `kata-qemu` RuntimeClass routed through the kata QEMU shim, with a
+# `katacontainers.io/kata-runtime=true` nodeSelector so Pods that opt
+# in fail to schedule until a Node carrying the label is available.
+#
+# Install model: Kata is baked into the bare-metal Node at OS install
+# time via the `postInstallScript` in
+# `infra/k8s/clusters/bare-metal-staging.yaml`. The script unpacks
+# `kata-static` under `/opt/kata` (which bundles
+# `qemu-system-x86_64`) and writes the containerd drop-in for the
+# kata-qemu handler — all chrooted in the freshly-installed OS
+# before the first boot. When the Node joins, containerd starts
+# with kata-qemu already registered; the bootstrap
+# `postKubeadmCommands` stamps the
+# `katacontainers.io/kata-runtime=true` label, and kata-qemu Pods
+# can schedule immediately. No runtime DaemonSet runs, no
+# containerd restart happens after the Node is up.
+#
+# Target nodes: bare-metal Linux worker Nodes ordered through the
+# `bare-metal-worker` MachineDeployment in
+# `infra/k8s/clusters/cluster-<env>.yaml`. Hetzner Cloud / Mac mini
+# nodes never carry the kata-runtime label and the RuntimeClass'
+# nodeSelector excludes them automatically.
+#
+# Disable (`enabled: false`) for dev clusters without bare metal —
+# pools that set `runtimeClass: kata-qemu` simply won't get the
+# matching RuntimeClass and will fail at schedule time, which is the
+# correct behavior (fail loud rather than silently fall back to runc
+# in an environment that asked for microVM isolation).
+kataContainers:
+  enabled: false
+  # Fixed sandbox memory cost added to every Kata runner Pod by the
+  # RuntimeClass. Kata 3.30 starts each sandbox with 2 GiB of base
+  # guest memory before adding the container's requested memory.
+  # The remaining 512 MiB covers Quick Emulator
+  # (https://www.qemu.org/), virtiofsd, and kata-shim under build load.
+  # Keep this aligned with measured guest memory and host resident
+  # usage; the runners-controller reads the live RuntimeClass so its
+  # fleet allocator uses the same cost as the scheduler.
+  podFixed:
+    cpu: "250m"
+    memory: "2560Mi"
+
+runnersController:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/tuist/tuist-runners-controller
+    tag: ""
+    pullPolicy: IfNotPresent
+  # In-VM cluster DNS for macOS pools (the runner-cache path). When
+  # `ip` is set, macOS runner Pods carry TUIST_CLUSTER_DNS_IP /
+  # TUIST_CLUSTER_DOMAIN and the Tart VM's dispatch-poll.sh writes an
+  # /etc/resolver/<domain> entry from them, so the dispatch-provided
+  # `cache_endpoint_url` (`*.svc.cluster.local`) resolves inside the
+  # VM. Set `ip` to kube-dns's ClusterIP (`kubectl -n kube-system get
+  # svc kube-dns`; 10.128.0.10 in managed envs). Only meaningful
+  # together with the macosFleet.tailscale.acceptRoutes +
+  # macosFleet.vmClusterEgress route/firewall halves; empty (default)
+  # skips the env injection. Linux pools always use the CNI's DNS and
+  # ignore these.
+  clusterDNS:
+    ip: ""
+    domain: "cluster.local"
+  # OCI ref of the dockerd sidecar stamped on every Linux runner
+  # Pod (`docker:dind`). Required for any `runnersFleetLinux` pool;
+  # empty disables the sidecar so Pods come up with no `DOCKER_HOST`.
+  # Renovate keeps this pinned. Digest-pinned: the controller stamps
+  # this into a privileged container, so the exact image must not move
+  # outside review.
+  #
+  # Pulled from ECR Public (the Docker-sponsored mirror, same source as
+  # postgres/registry) instead of docker.io: this image is pulled by host
+  # containerd, NOT the dind dockerd, so the registry-mirror can't cover
+  # it — sourcing it off Docker Hub keeps the every-pod sidecar pull from
+  # spending the host's shared Docker Hub per-IP budget. The digest is
+  # identical to docker.io/library/docker:28-dind (ECR Public is a faithful
+  # mirror), so this is the same image, just a non-rate-limited registry.
+  # renovate: datasource=docker depName=public.ecr.aws/docker/library/docker versioning=docker
+  dindImage: "public.ecr.aws/docker/library/docker:28-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac"
+  # Override for the URL the dind dockerd mirrors docker.io through (with
+  # a matching insecure-registry, since it's http in-cluster). Empty (the
+  # default) derives this release's registry-cache Service when
+  # `features.registryMirror` is on, so enabling the mirror is just
+  # flipping that gate. Set this only to point at a different cache.
+  registryMirror: ""
+  # Feature gates the controller manager binary's `--dind-image`
+  # flag. The flag was added by the docker-in-runner change; older
+  # controller binaries (<= the release before that change) don't
+  # register the flag and `flag.Parse` exits with code 2 if it's
+  # passed. Each env overlay flips this to `true` only once its
+  # `runnersController.image.tag` points at a binary that recognises
+  # the flag, so a chart upgrade in an env still on the old binary
+  # stays a no-op for runner pools instead of crashing the
+  # controller.
+  features:
+    dindImage: false
+    # Gates the `--registry-mirror-url` flag for the same reason as
+    # dindImage: only flip true once this env's controller image is a
+    # binary that registers the flag, else flag.Parse exits 2.
+    registryMirror: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  nodeSelector: {}
+# The standalone cache service is deprecated for new deployments. Hosted
+# Tuist has moved cache serving into Kura (see kuraController / kuraRuntime)
+# and disables this workload (`cache.enabled: false` in
+# values-managed-common.yaml). It is kept for existing self-hosted installs
+# that still rely on it; new deployments should skip it and plan on Kura.
+cache:
+  enabled: true
+  replicaCount: 1
+  serviceAccount:
+    # Workload identity / Kubernetes API identity for cache pods.
+    # Set annotations (for example, eks.amazonaws.com/role-arn) for IRSA on external S3.
+    create: false
+    name: ""
+    annotations: {}
+  podSecurityContext: {}
+  # ghcr.io/tuist/cache is published as a single-arch linux/amd64 image (see
+  # .github/workflows/cache-release.yml — the build does not pass `platforms`
+  # to buildx). arm64 is not planned: the service is on the deprecation path
+  # in favor of Kura, and every managed environment runs on Hetzner amd64
+  # nodes (cx/cpx/ccx) so arm64 has never been on the roadmap for this
+  # image. The chart currently has no cache-specific scheduling fields;
+  # constrain the pod through `global.nodeSelector` / `global.tolerations`
+  # (applied to every workload in the release), or through cluster-level
+  # scheduling (a runtimeClass, admission policy, or dedicated node pool)
+  # rather than expecting a multi-arch tag.
+  image:
+    repository: ghcr.io/tuist/cache
+    tag: "0.29.0"
+    pullPolicy: IfNotPresent
+  nginx:
+    enabled: true
+    # Keep this aligned with the cache application's module part size limit.
+    clientMaxBodySize: "10m"
+    # Explicit upstream timeouts for upload/download paths. Defaults mirror
+    # NGINX defaults; override in values-managed-<env>.yaml for slower links
+    # or larger payloads.
+    proxyConnectTimeout: "60s"
+    proxyReadTimeout: "60s"
+    proxySendTimeout: "60s"
+    # Sidecar resources are separate from cache.resources because NGINX is a
+    # distinct container in the same pod.
+    resources: {}
+    image:
+      repository: nginx
+      tag: "1.29-alpine"
+      pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+  resources: {}
+  extraEnv: []
+  publicHost: cache.local
+  serverUrl: ""
+  apiKey: ""
+  secretKeyBase: ""
+  guardianSecretKey: ""
+  # Name of an existing Kubernetes Secret backing the cache's three inline
+  # secrets (Tuist API key, Phoenix SECRET_KEY_BASE, Guardian SECRET_KEY).
+  # Use this when those values live in a Secret populated out-of-band
+  # (Vault, sealed-secrets, an ExternalSecret targeting a store other than
+  # 1Password, etc.) and you do not want the chart to render them into its
+  # own app-secrets Secret. Mutually exclusive with `cache.apiKey`,
+  # `cache.secretKeyBase`, and `cache.guardianSecretKey`. All three keys
+  # must be present in the referenced Secret; override `existingSecretKeys`
+  # if their names differ.
+  existingSecret: ""
+  existingSecretKeys:
+    apiKey: cache-api-key
+    secretKeyBase: cache-secret-key-base
+    guardianSecretKey: cache-guardian-secret-key
+  # Unused by the pinned cache image (0.29.x). The cache app writes its state
+  # to a SQLite database on the pod's own /data volume; there is no external
+  # Postgres to point at. Leave empty — the value is ignored and the
+  # historical embedded-Postgres composition has been removed so the chart no
+  # longer emits a DATABASE_URL that Exqlite would try to open as a file path
+  # ("Exqlite.Error: database_open_failed"). The cache service itself is
+  # deprecated for hosted use in favor of Kura (see kuraController).
+  databaseUrl: ""
+  embedded:
+    # Deprecated: the cache image no longer uses Postgres, so this field has
+    # no effect. Retained to preserve the values-file schema across upgrades.
+    database: tuist_cache
+  storage:
+    pvc:
+      create: true
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 50Gi
+  data:
+    pvc:
+      create: true
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi
+  socket:
+    pvc:
+      create: false
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 1Gi
+  s3:
+    region: auto
+    bucket: tuist-cache
+    xcodeCacheBucket: tuist-xcode-cache
+    registryBucket: tuist-registry
+
+# Docker Hub pull-through cache for the Linux runner fleet. Disabled by
+# default; flip `enabled: true` per environment (staging first) once it's
+# validated. Pointing the runner dind sidecars at this mirror is a
+# separate, canaried change — standing the cache up here is inert until
+# that lands.
+registryCache:
+  enabled: false
+  replicaCount: 1
+  image:
+    # ECR Public (the Docker-sponsored mirror, same source server.yml uses
+    # for postgres) rather than docker.io, so the cache that fixes Docker
+    # Hub rate limits can't itself be rate-limited while bootstrapping.
+    repository: public.ecr.aws/docker/library/registry
+    tag: "2"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 5000
+  logLevel: info
+  proxy:
+    # registry-1.docker.io is Docker Hub's registry endpoint.
+    remoteUrl: https://registry-1.docker.io
+    # How long a cached manifest is trusted before its tag is re-validated
+    # upstream. Empty = distribution default (168h). Digest pulls are
+    # always exact; only mutable tags (`:latest`) age within the window.
+    ttl: ""
+    auth:
+      # Authenticate the cache's own upstream pulls — off = anonymous
+      # (still one cache client, not N runners). Enable once a Docker Hub
+      # token lives in 1Password to lift the cold-fill ceiling.
+      enabled: false
+      # Where the username/password Secret comes from when auth is on:
+      # the chart's ExternalSecret (externalSecret.enabled, below), or an
+      # operator-managed Secret named here when externalSecret.enabled is
+      # false. With auth on and neither set, the chart fails to render.
+      existingSecret: ""
+      externalSecret:
+        enabled: true
+        refreshInterval: 1h
+        storeRef:
+          name: onepassword
+          kind: ClusterSecretStore
+        username:
+          item: DOCKER_HUB_CREDENTIALS
+          field: username
+        password:
+          item: DOCKER_HUB_CREDENTIALS
+          field: password
+  s3:
+    # Reuses the object-storage credentials (app-secrets) and the registry
+    # bucket under a prefix, so mirror blobs don't collide with the Swift
+    # package registry's content. Region/endpoint come from objectStorage.
+    bucket: tuist-registry
+    rootDirectory: docker-mirror
+  # Empty = registry auto-generates one per pod (fine at replicaCount 1).
+  # Set a shared value before scaling past one replica behind the Service.
+  httpSecret: ""
+  extraEnv: []
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+postgresql:
+  # `embedded` runs a single-replica Postgres StatefulSet (templates/postgresql.yaml).
+  # `external` points DATABASE_URL at any managed Postgres (RDS, Cloud SQL, etc.).
+  # `cnpg` provisions a CloudNativePG-managed in-cluster Postgres cluster
+  # (templates/postgresql-cnpg.yaml) — used by the Tuist-managed envs.
+  # Requires the cloudnative-pg operator to be installed cluster-wide first.
+  mode: embedded
+  # PostgreSQL schema used by Tuist.Repo. Keep `public` for the default
+  # bootstrap path. Set to a custom unquoted identifier when an external
+  # database policy disallows using the public schema; release migrations
+  # create the schema before running the Ecto migration chain.
+  schema: public
+  external:
+    host: ""
+    port: 5432
+    database: tuist
+    username: tuist
+    password: tuist
+    # Name of an existing Kubernetes Secret containing the external
+    # Postgres connection values. When set, server and migration pods
+    # read host, username, and password from this Secret and compose
+    # DATABASE_URL through Kubernetes env-var substitution so the password
+    # is not rendered into the Helm manifest. `port` and `database` remain
+    # chart values. Leave empty to keep the legacy literal DATABASE_URL path.
+    existingSecret: ""
+    existingSecretKeys:
+      host: host
+      username: username
+      password: password
+  embedded:
+    image:
+      repository: postgres
+      tag: "16"
+      pullPolicy: IfNotPresent
+    database: tuist
+    username: tuist
+    password: tuist
+    persistence:
+      create: true
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi
+    resources: {}
+  # CloudNativePG settings. Two toggles for a phased rollout:
+  #
+  #   * `cnpg.enabled` — when true, the chart renders the Cluster +
+  #     ScheduledBackup + ESO secrets. The cloudnative-pg operator
+  #     provisions the cluster; server pods stay on whatever
+  #     `postgresql.mode` points at. Use this to bring CNPG up alongside
+  #     an existing Postgres while soak-testing.
+  #
+  #   * `postgresql.mode == "cnpg"` — the cutover state. Managed server
+  #     pods read DATABASE_URL from the web runtime role, processors from
+  #     the processor role, and migration jobs from the CNPG-generated
+  #     owner Secret (`<name>-app`). Implies `cnpg.enabled = true`.
+  cnpg:
+    enabled: false
+    # Image tag tracks the CNPG operator's compatibility table. Bump
+    # together with the operator chart version installed on the platform.
+    image:
+      repository: ghcr.io/cloudnative-pg/postgresql
+      tag: "16.6"
+    # Number of cluster members. The primary plus (instances - 1)
+    # replicas. We run sync replication (1 sync + N-2 async); see the
+    # `synchronous` block in templates/postgresql-cnpg.yaml.
+    instances: 2
+    # Owner role created by `bootstrap.initdb` and used by migration jobs.
+    # Owns every object created by Ecto migrations.
+    owner: tuist_app
+    # Initial database created on bootstrap.
+    database: tuist
+    # Server-level Postgres parameters merged into the Cluster CR's
+    # spec.postgresql.parameters. max_connections must cover the aggregate
+    # direct-connection budget: web replicas x TUIST_DATABASE_POOL_SIZE +
+    # processor + pooler backend pool + replication/monitoring/superuser
+    # overhead. The operator default is 100; set it explicitly so a
+    # multi-replica env (production autoscales the web tier to 5) doesn't
+    # silently hit the ceiling.
+    parameters:
+      max_connections: "100"
+    # Extra Postgres libraries to preload via shared_preload_libraries.
+    # Kept separate from `parameters` because CNPG's admission webhook
+    # rejects shared_preload_libraries set there — it's a fixed
+    # parameter the operator manages internally. The chart renders this
+    # list to `spec.postgresql.shared_preload_libraries` on the Cluster
+    # CR, the supported path.
+    sharedPreloadLibraries: []
+    # PgBouncer connection pooler (CNPG Pooler CR). Disabled by default.
+    # Transaction-mode pooler for the PROCESSOR only (matching its
+    # `prepare: :unnamed` connection shape). The web tier is intentionally
+    # NOT pooled here: it needs a session connection (Oban's PG notifier
+    # and Postgres-peer leader election don't survive *transaction*
+    # pooling). The `-rw` Service is already the native session endpoint
+    # with primary failover, so the web tier connects straight to it —
+    # session-mode pooling in front would add a hop without freeing any
+    # backend slots.
+    #
+    # Enabling is just a flag flip: with no custom cert secrets below,
+    # CNPG's built-in PgBouncer integration manages auth itself (it
+    # creates the cnpg_pooler_pgbouncer role + user_search function in
+    # the `postgres` database on reconcile). See infra/cnpg/README.md.
+    pooler:
+      enabled: false
+      instances: 1
+      poolMode: transaction
+      parameters:
+        default_pool_size: "20"
+        max_client_conn: "100"
+      # Annotate the Pooler's Service so the Tailscale operator stands up
+      # a userspace proxy on the tailnet, exposing the in-cluster pooler
+      # ClusterIP at a stable MagicDNS hostname. The processor's
+      # ExternalSecret then renders a second URL keyed off that hostname
+      # for clients whose only network interface is Tailnet — namely the
+      # macOS Tart VM xcresult-processor pods, which can't reach
+      # ClusterIPs through the K8s overlay. Linux processors keep using
+      # the direct in-cluster pooler hostname (no detour).
+      tailscale:
+        enabled: false
+        # tailscale.com/hostname annotation. Must be unique on the tailnet
+        # — by convention, "tuist-pg-pooler-<env>".
+        hostname: ""
+        # tailscale.com/tags annotation override. The operator's
+        # PROXY_TAGS default ("tag:k8s") is platform-wide and the
+        # tailnet's ACL only permits Tuist-scoped tags; set this to the
+        # env's permitted tag (e.g. "tag:tuist-k8s-production").
+        tags: ""
+        # Name of a Tailscale ProxyGroup of type `ingress` to serve the pooler
+        # as the Tailscale Service `svc:<hostname>` instead of a standalone
+        # proxy, from a Service of its own. The tailnet policy must
+        # auto-approve that Service for the ProxyGroup's tag and grant the
+        # macOS fleet access to it.
+        proxyGroup: ""
+    storage:
+      # Bumped per env. 100Gi at staging, 250Gi at canary + production.
+      size: "20Gi"
+      # The Hetzner CSI default (`hcloud-volumes`) is fine for staging
+      # and canary; production may want a topology-aware class if we
+      # ever add multi-AZ awareness.
+      storageClass: ""
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "1000m"
+        memory: "2Gi"
+    # PodMonitor stays off: managed clusters scrape via Alloy with
+    # annotation autodiscovery, not the prometheus-operator
+    # `monitoring.coreos.com/v1` CRD set. Re-enable once we either
+    # install prometheus-operator CRDs or the CNPG operator grows
+    # annotation-emit support on the instance Pods (it doesn't today).
+    monitoring:
+      enablePodMonitor: false
+    # Per-query latency observability. When enabled, the chart renders a
+    # custom CNPG monitoring query over pg_stat_statements
+    # (cnpg_tuist_query_stats_*) for the dashboard's query-latency panels.
+    # Requires `pg_stat_statements` in sharedPreloadLibraries above and the
+    # extension created once via infra/cnpg/pg-stat-statements.sql. Off by
+    # default (local/preview clusters do not preload the library).
+    queryStats:
+      enabled: false
+    roles:
+      # Least-privilege web runtime role. CNPG creates the role;
+      # Tuist.Release.migrate grants DML on application tables and read-only
+      # access to schema_migrations after each migration.
+      web:
+        name: tuist_web
+      # Least-privilege Oban-queue consumer. CNPG creates the role;
+      # per-table GRANTs run via the bootstrap SQL in
+      # infra/cnpg/tuist-processor-grants.sql (see README in that dir).
+      processor:
+        name: tuist_processor
+      # Read-only role for the /ops/db inspection UI. Granted
+      # `pg_read_all_data` declaratively via `inRoles` so it can SELECT
+      # against every table without per-object GRANTs to maintain.
+      opsRo:
+        name: tuist_ops_ro
+      # Read-only role for the Grafana "Tuist Product Usage" dashboard, reaching
+      # CNPG over the PDC tunnel. Deliberately NOT in pg_read_all_data like
+      # opsRo: its password lives in Grafana Cloud, so it is the one database
+      # credential held by a third party. Column-level GRANTs in
+      # infra/cnpg/tuist-grafana-ro-grants.sql restrict it to exactly the
+      # columns the dashboard reads — table-level SELECT would still expose
+      # users.encrypted_password, projects.token, and accounts.s3_secret_access_key.
+      grafanaRo:
+        name: tuist_grafana_ro
+      # Least-privilege Swift Package Registry sync role. Narrower
+      # than `processor` (no accounts/projects reads — registry sync
+      # has no account-scoped data, all package state lives in S3).
+      # Per-table GRANTs in infra/cnpg/tuist-swift-registry-sync-grants.sql.
+      swiftRegistrySync:
+        name: tuist_swift_registry_sync
+    backup:
+      # Daily base backup at 03:00 UTC; the continuous WAL archive keeps
+      # PITR alive between snapshots. CNPG's ScheduledBackup cron is
+      # 6-field (leading seconds), unlike the 5-field Kubernetes CronJob
+      # format — `0 3 * * *` there parses as "second 0, minute 3, every
+      # hour" and fires hourly. `0 0 3 * * *` is the correct daily-03:00.
+      schedule: "0 0 3 * * *"
+      # Barman retention. Older base backups (and the WALs they pin)
+      # are pruned automatically once outside this window.
+      retention: "30d"
+      # Tigris bucket the backups live in. Per-env overlay sets the
+      # bucket name in the path; the endpoint is shared.
+      destinationPath: ""
+      endpointURL: "https://t3.storage.dev"
+      # Barman Cloud Plugin (CNPG-I): the cluster archives via the plugin
+      # sidecar + an ObjectStore CR. Requires the plugin-barman-cloud manifest
+      # installed in the operator namespace (`platform`) — see
+      # infra/cnpg/README.md.
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+    externalSecrets:
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      # Tigris access credentials scoped to the backup bucket. Separate
+      # 1P item from the workload's `S3_CREDENTIALS` so the backup key
+      # can be rotated independently and granted bucket-scoped
+      # permissions only.
+      backupCredentials:
+        item: S3_BACKUP_CREDENTIALS
+        accessKeyField: access_key_id
+        secretKeyField: secret_access_key
+      # Passwords for the managed roles. Per-env 1Password vault.
+      webPassword:
+        item: WEB_DATABASE_PASSWORD
+        field: password
+      processorPassword:
+        item: PROCESSOR_DATABASE_PASSWORD
+        field: password
+      opsRoPassword:
+        item: OPS_DATABASE_PASSWORD
+        field: password
+      grafanaRoPassword:
+        item: GRAFANA_DATABASE_PASSWORD
+        field: password
+      swiftRegistrySyncPassword:
+        item: SWIFT_REGISTRY_SYNC_DATABASE_PASSWORD
+        field: password
+
+clickhouse:
+  # embedded | external | managed
+  #
+  # `embedded` is one unreplicated pod for self-hosters and previews.
+  # `external` points at a URL somebody else operates.
+  # `managed` makes the in-cluster server below the system of record: every
+  # workload gets TUIST_CLICKHOUSE_URL from its credentials Secret. It requires
+  # `managed.enabled`.
+  mode: embedded
+  # In-cluster ClickHouse operated by Tuist: replicated tables on bare metal
+  # with a Keeper quorum. See `templates/clickhouse-managed.yaml`.
+  managed:
+    enabled: false
+    # ClickHouse replicas, each on its own node from
+    # `persistence.localVolume.nodeNames`. Every replica takes writes and
+    # serves reads through the same Service, and each fetches the parts the
+    # others write. A replica joins the Service once it is within five minutes
+    # of its peers (`/replicas_status`), so one that is still copying history
+    # takes no traffic.
+    replicas: 1
+    # Not `default`: the schema is cloned into a database created with
+    # `ENGINE = Replicated`, and `default` already exists as an ordinary
+    # Atomic database on a fresh server.
+    database: tuist
+    # Backups of the in-cluster server to object storage, as a weekly full and
+    # a daily incremental based on that week's full. See
+    # `templates/clickhouse-backup.yaml` for why the chain is two long, why the
+    # full runs on a Monday, and how to restore.
+    #
+    # Pruning is a bucket lifecycle rule on the prefix below, not something
+    # ClickHouse can do: express it in whole weeks and longer than a chain, or
+    # it will delete a full that later incrementals still need.
+    backup:
+      enabled: false
+      # Monday, so every incremental in an ISO week pairs with the full taken
+      # at the start of that same week.
+      fullSchedule: "0 1 * * 1"
+      # Every other day. Sunday is the last day of its ISO week, so it still
+      # pairs with Monday's full.
+      incrementalSchedule: "0 1 * * 0,2,3,4,5,6"
+      # Under the default object-storage bucket, then the namespace, so
+      # environments sharing a bucket cannot restore over each other.
+      prefix: clickhouse-backups
+      # Twenty hours. Production's weekly full took 9 hours in 2026-W41 and 10
+      # in W42, growing with the dataset, and a Job that hits its deadline is
+      # recorded as failed while the server finishes the backup anyway. It
+      # stays under the 24 hours to the next run, so a wedged backup still ends
+      # before Tuesday's incremental looks for the week's full.
+      timeoutSeconds: 72000
+      # Memory budget for the `backup` user the jobs run as, which is separate
+      # from the application's `clickhouse.maxMemoryUsageForUserBytes`. Empty
+      # leaves the user unbounded below the server's own ceiling.
+      maxMemoryUsageForUserBytes: ""
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+    image:
+      repository: clickhouse/clickhouse-server
+      # Pin an LTS. 26.3 is the current one; the ingest migrations need 26.1 or
+      # newer for `deduplicate_merge_projection_mode`.
+      tag: "26.3"
+      pullPolicy: IfNotPresent
+    # Password for the `default` user. Managed environments source this from
+    # 1Password and pass it at deploy time rather than committing it.
+    password: ""
+    # The node pool label the data pods are pinned to, and the pool the local
+    # volume's node affinity binds on.
+    nodePool: clickhouse
+    tolerations:
+      - key: tuist.dev/stateful
+        operator: Equal
+        value: clickhouse
+        effect: NoSchedule
+    metricsPort: 9363
+    logLevel: information
+    # ClickHouse's own system.* log tables ship with no retention and grow
+    # without bound. This is not the application data's retention.
+    systemLogTtlDays: 7
+    resources:
+      requests:
+        cpu: "2"
+        memory: 8Gi
+      limits:
+        # A conservative default for a node whose size the chart does not
+        # know. ClickHouse sizes its caches and its server-wide memory ceiling
+        # (90% of this) from the cgroup limit. On cgroup v2 the page cache its
+        # reads fill is charged to the same cgroup, so memory left above this
+        # limit does not become cache for ClickHouse; on a node dedicated to it,
+        # raise this toward the node's allocatable.
+        memory: 32Gi
+    # Reachability for writers that are not on the pod network. The macOS
+    # fleet's xcresult-processor runs in a Tart VM with a tailnet address, not
+    # a pod IP, so it cannot resolve the in-cluster Service name the `url`
+    # secret carries.
+    #
+    # Same mechanism the CNPG pooler already uses for the same fleet: the
+    # Tailscale operator watches for `tailscale.com/expose` and fronts the
+    # Service with a userspace proxy node, so the VM dials it over MagicDNS as
+    # a first-class tailnet member without joining the overlay.
+    #
+    # A dedicated Service rather than annotating the main one, so only the
+    # HTTP port is reachable off-cluster: the native protocol and the metrics
+    # port have no business on the tailnet.
+    tailscale:
+      enabled: false
+      hostname: ""
+      tags: ""
+      # Name of a Tailscale ProxyGroup of type `ingress` to serve this Service
+      # instead of a standalone proxy. Needed where the tailnet peers sit
+      # behind NATs that keep them on a DERP relay; see `tailnetIngress` in
+      # infra/helm/tailscale-operator. The tailnet policy must auto-approve
+      # `svc:<hostname>` for the ProxyGroup's tag and grant the peers access
+      # to it.
+      proxyGroup: ""
+    persistence:
+      size: 200Gi
+      storageClassName: clickhouse-local
+      localVolume:
+        enabled: true
+        # A directory on the stateful node's XFS `/data`, which is the
+        # filesystem the `stateful-worker` class carves for exactly this.
+        path: /data/clickhouse
+        # The node holding each replica's directory, as
+        # `kubernetes.io/hostname`, in ordinal order: replica `i` runs on
+        # `nodeNames[i]`. One entry per replica, each a different node, and the
+        # chart refuses to render otherwise.
+        #
+        # A hostname rather than the pool label, because a pool-wide affinity
+        # on a pool with more than one node lets the scheduler place a pod on
+        # a node that does not hold its data: ClickHouse then starts on an
+        # empty directory under a replica identity Keeper already knows.
+        #
+        # There is no stable per-host label to use instead. These nodes carry
+        # only `kubernetes.io/hostname`, which CAPI generates, so replacing a
+        # box means editing this. That is the right cost: reinstalling a Robot
+        # host wipes `/data`, so a replacement is already a manual
+        # re-bootstrap of that replica, and a stale name here leaves the claim
+        # Pending rather than quietly binding somewhere empty.
+        nodeNames: []
+    keeper:
+      # One member is not a quorum and cannot tolerate a loss. It is the right
+      # shape for staging, whose job is to exercise the replicated engines and
+      # the Keeper dependency rather than to survive a failure. Canary and
+      # production run three.
+      replicas: 1
+      clientPort: 9181
+      raftPort: 9234
+      storageSize: 10Gi
+      storageClassName: ""
+      # Where the members run, which every cluster with more than one node
+      # pool should set rather than leave empty. Keeper belongs on the general
+      # pool: it is small control-plane metadata, and co-locating it with a
+      # data replica would let one host failure take both the data and the
+      # quorum that makes it writable. Empty means the scheduler decides, and
+      # it will happily put a member on a pool that is sized for one workload
+      # and has no headroom for another, which is how production's first
+      # deploy of this server rolled back with ClickHouse healthy.
+      nodeSelector: {}
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          memory: 2Gi
+  # Optional runtime pool sizes for the Elixir ClickHouse repos. These are
+  # operational capacity knobs, not secrets; managed deployments set them in
+  # values-managed-*.yaml so all server-release workloads render the same env.
+  poolSize: ""
+  bufferPoolSize: ""
+  # Aggregate memory budget for all queries issued by the application user on
+  # one ClickHouse replica. Zero or empty leaves ClickHouse's user-level limit
+  # unchanged.
+  maxMemoryUsageForUserBytes: ""
+  external:
+    url: ""
+    # Optional separate URL for the readiness probe ping check.
+    # When external.url includes a database path (e.g. http://user@host:8123/db),
+    # the /ping endpoint returns 404. Set this to http://<host>:8123/ping to use
+    # a dedicated health-check URL instead.
+    pingUrl: ""
+    # Name of an existing Kubernetes Secret whose `existingSecretKey` field
+    # holds the full TUIST_CLICKHOUSE_URL (including any embedded
+    # credentials). When set, the chart wires TUIST_CLICKHOUSE_URL through a
+    # secretKeyRef instead of rendering the URL as a literal env value, so
+    # credentials never enter the manifest. Use with a Vault-synced Secret,
+    # a sealed Secret, or any other out-of-band source. Mutually exclusive
+    # with `clickhouse.external.url`.
+    existingSecret: ""
+    existingSecretKey: clickhouse-url
+  embedded:
+    image:
+      repository: clickhouse/clickhouse-server
+      tag: "26.1"
+      pullPolicy: IfNotPresent
+    service:
+      # Exposed service port for ClickHouse's native protocol.
+      # Override only if your service mesh or reserved ports require a different number.
+      nativePort: 9000
+    systemLogs:
+      # Retention window for ClickHouse's internal system.* log tables. Empty
+      # by default, which leaves ClickHouse's unbounded retention untouched.
+      #
+      # Setting this is a one-time, one-way step on an install that already has
+      # data: any value at all makes the table definition stop matching, so
+      # ClickHouse renames every declared table aside to `<name>_N` and starts a
+      # fresh one. The superseded generations hold all the history accumulated so
+      # far and carry no TTL, so with `supersededTables: ignore` they are stranded
+      # for good. Set `supersededTables: delete` in the same upgrade to reclaim
+      # them; otherwise the retention window only ever bounds rows written from
+      # here on, which on a long-lived install is the smaller half of the disk.
+      ttlDays: ""
+      # ClickHouse logger/text_log level. The image ships `trace`, which fills
+      # system.text_log quickly; lower it back only while investigating
+      # ClickHouse itself. Takes effect when the ClickHouse pod next restarts.
+      level: information
+      # ClickHouse renames a system log table aside to `<name>_N` and starts a
+      # fresh one whenever the table definition stops matching the config —
+      # on a retention change here, and on any ClickHouse upgrade that changes
+      # a system log schema. A generation keeps whatever retention the live
+      # table had at that moment, so ones from a later window change expire on
+      # their own, while ones from the first adoption keep their rows for good.
+      # ClickHouse never drops the tables themselves, so they accumulate either
+      # way.
+      #   ignore: leave them in place (default; reclaim them yourself)
+      #   delete: drop them after each upgrade
+      # Pair `delete` with the upgrade that first sets ttlDays, which is the
+      # upgrade that produces the first generation.
+      # Dropping needs no extra disk, and runs as DROP ... SYNC so the space
+      # comes back at once rather than after the Atomic engine's deferred-drop
+      # delay. There is deliberately no option to copy the rows back into the
+      # live table: it would need transient disk plus a schema match that a
+      # ClickHouse upgrade breaks.
+      supersededTables: ignore
+    database: tuist
+    username: default
+    password: ""
+    persistence:
+      create: true
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 50Gi
+    resources: {}
+
+# Redis backs the persistent (cross-pod, cross-deploy) auth rate limiter.
+# When disabled the server transparently falls back to an in-memory bucket
+# (per-pod, lost on restart) — fine for dev / single-pod self-hosted.
+# Persistence is intentionally absent: the bucket data is ephemeral by
+# design, a pod restart resetting limits is acceptable.
+redis:
+  enabled: false
+  mode: embedded
+  external:
+    url: ""  # e.g. redis://my-redis:6379
+  embedded:
+    image:
+      repository: valkey/valkey
+      tag: "8.1-alpine"
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+    # Restrict ingress on the embedded Valkey Service to server pods.
+    # Requires a CNI that enforces NetworkPolicy (Cilium, Calico, etc.).
+    networkPolicy:
+      enabled: true
+
+objectStorage:
+  mode: embedded
+  external:
+    endpoint: ""
+    accessKey: ""
+    secretKey: ""
+    region: auto
+    buckets:
+      default: tuist
+      cache: tuist-cache
+      xcodeCache: tuist-xcode-cache
+      registry: tuist-registry
+    managedSecrets: false
+    externalSecrets:
+      refreshInterval: "1h"
+      storeRef:
+        kind: ClusterSecretStore
+        name: onepassword
+      accessKey:
+        # 1Password item title and field. With the 1P SDK provider the vault
+        # is set on the ClusterSecretStore, not here.
+        item: S3_CREDENTIALS
+        field: access_key_id
+      secretKey:
+        item: S3_CREDENTIALS
+        field: secret_access_key
+  embedded:
+    provider: minio
+    # The upstream Quay images are no longer public. Pin the community build
+    # (including its bundled mc client) to the multi-architecture image digest.
+    image:
+      repository: ghcr.io/coollabsio/minio
+      tag: RELEASE.2025-10-15T17-29-55Z@sha256:69b55a1c1c5dc285ce04db96689f5b2102317fc77a50680a1874ca6efd1c87f9
+      pullPolicy: IfNotPresent
+    mcImage:
+      repository: ghcr.io/coollabsio/minio
+      tag: RELEASE.2025-10-15T17-29-55Z@sha256:69b55a1c1c5dc285ce04db96689f5b2102317fc77a50680a1874ca6efd1c87f9
+      pullPolicy: IfNotPresent
+    rootUser: minio
+    rootPassword: minio1234
+    region: auto
+    persistence:
+      create: true
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 100Gi
+    buckets:
+      default: tuist
+      cache: tuist-cache
+      xcodeCache: tuist-xcode-cache
+      registry: tuist-registry
+    resources: {}
+
+observability:
+  enabled: false
+  collector:
+    image:
+      repository: otel/opentelemetry-collector-contrib
+      tag: "0.122.1"
+      pullPolicy: IfNotPresent
+    resources: {}
+  grafana:
+    enabled: true
+    image:
+      repository: grafana/grafana
+      tag: "11.5.2"
+      pullPolicy: IfNotPresent
+    adminUser: admin
+    adminPassword: admin
+    persistence:
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 10Gi
+  prometheus:
+    enabled: true
+    image:
+      repository: prom/prometheus
+      tag: "v3.4.2"
+      pullPolicy: IfNotPresent
+    persistence:
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi
+  loki:
+    enabled: true
+    image:
+      repository: grafana/loki
+      tag: "3.5.5"
+      pullPolicy: IfNotPresent
+    persistence:
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi
+  tempo:
+    enabled: true
+    image:
+      repository: grafana/tempo
+      tag: "2.8.2"
+      pullPolicy: IfNotPresent
+    persistence:
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi
+
+# One global wildcard fallback; explicit account Route53 records take precedence.
+# Enable in one cluster only after validation. No PVCs or Kubernetes API token.
+kuraActivation:
+  enabled: false
+  nodeSelector: {}
+  # Both protocols must share this load balancer. The main nginx class sends
+  # Connection: close upstream, which Go correctly rejects on HTTP/2.
+  ingressClassName: nginx-grpc
+  servers:
+    production: https://tuist.dev
+    canary: https://canary.tuist.dev
+    staging: https://staging.tuist.dev

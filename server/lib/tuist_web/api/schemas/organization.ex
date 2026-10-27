@@ -23,7 +23,7 @@ defmodule TuistWeb.API.Schemas.Organization do
       plan: %Schema{
         type: :string,
         enum: ["air", "pro", "enterprise", "none"],
-        description: "The plan associated with the organization"
+        description: "The effective plan associated with the organization. `none` is deprecated and is no longer emitted."
       },
       members: %Schema{
         type: :array,
@@ -43,6 +43,10 @@ defmodule TuistWeb.API.Schemas.Organization do
       sso_organization_id: %Schema{
         type: :string,
         description: "The organization ID associated with the SSO provider"
+      },
+      sso_enforced: %Schema{
+        type: :boolean,
+        description: "Whether SSO is enforced for the organization"
       }
     },
     required: [:id, :name, :plan, :members, :invitations]

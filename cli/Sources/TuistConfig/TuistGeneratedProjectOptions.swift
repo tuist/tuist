@@ -1,0 +1,287 @@
+import Path
+
+public struct TuistGeneratedProjectOptions: Equatable, Hashable {
+    public let compatibleXcodeVersions: CompatibleXcodeVersions
+    public let plugins: [PluginLocation]
+    public var generationOptions: GenerationOptions
+    public let installOptions: InstallOptions
+    public let cacheOptions: CacheOptions
+
+    public init(
+        compatibleXcodeVersions: CompatibleXcodeVersions,
+        plugins: [PluginLocation],
+        generationOptions: GenerationOptions,
+        installOptions: InstallOptions,
+        cacheOptions: CacheOptions
+    ) {
+        self.compatibleXcodeVersions = compatibleXcodeVersions
+        self.plugins = plugins
+        self.generationOptions = generationOptions
+        self.installOptions = installOptions
+        self.cacheOptions = cacheOptions
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(compatibleXcodeVersions)
+        hasher.combine(plugins)
+        hasher.combine(generationOptions)
+        hasher.combine(installOptions)
+        hasher.combine(cacheOptions)
+    }
+
+    public static var `default`: Self {
+        TuistGeneratedProjectOptions(
+            compatibleXcodeVersions: .all,
+            plugins: [],
+            generationOptions: .init(
+                resolveDependenciesWithSystemScm: false,
+                disablePackageVersionLocking: false,
+                staticSideEffectsWarningTargets: .all,
+                buildInsightsDisabled: true,
+                testInsightsDisabled: true,
+                disableSandbox: true,
+                includeGenerateScheme: false,
+                enableCaching: false,
+                registryEnabled: false,
+                warningsAsErrors: .none,
+                defaultSwiftVersion: GenerationOptions.defaultSwiftVersionValue,
+                onOutdatedDependencies: .warn
+            ),
+            installOptions: .init(passthroughSwiftPackageManagerArguments: []),
+            cacheOptions: CacheOptions(
+                keepSourceTargets: false,
+                profiles: .init([:], default: .onlyExternal)
+            )
+        )
+    }
+
+    public struct GenerationOptions: Codable, Hashable, Equatable {
+        public static let defaultSwiftVersionValue = "5"
+
+        public enum StaticSideEffectsWarningTargets: Codable, Hashable, Equatable {
+            case all
+            case none
+            case excluding([String])
+        }
+
+        public enum GenerationWarning: String, Codable, Hashable, Equatable, Sendable {
+            case outdatedDependencies
+            case staticSideEffects
+            case schemeTargetNotFound
+            case mismatchedConfigurations
+            case duplicateProductNames
+        }
+
+        public enum WarningsAsErrors: Codable, Hashable, Equatable {
+            case none
+            case all
+            case only(Set<GenerationWarning>)
+
+            public func shouldPromote(_ warning: GenerationWarning) -> Bool {
+                switch self {
+                case .none: return false
+                case .all: return true
+                case let .only(set): return set.contains(warning)
+                }
+            }
+        }
+
+        public enum OutdatedDependenciesAction: String, Codable, Hashable, Equatable, Sendable {
+            case warn
+            case install
+            case fail
+        }
+
+        public enum ProjectFormat: String, Codable, Hashable, Equatable, Sendable {
+            case pbxproj
+            case xcproj
+        }
+
+        public struct Coverage: Codable, Hashable, Equatable, Sendable {
+            /// Whether the project's own targets read and warm the instrumented variant of the binary cache.
+            /// Generators read the value the run resolved (`TUIST_COVERAGE_ENABLED` > the manifest).
+            public var enabled: Bool
+            public var prefixMapping: Bool
+
+            public init(enabled: Bool = false, prefixMapping: Bool = false) {
+                self.enabled = enabled
+                self.prefixMapping = prefixMapping
+            }
+        }
+
+        @available(*, deprecated, message: "Use `additionalPackageResolutionArguments` instead.")
+        public let resolveDependenciesWithSystemScm: Bool
+        public let disablePackageVersionLocking: Bool
+        @available(*, deprecated, message: "Use `additionalPackageResolutionArguments` instead.")
+        public let clonedSourcePackagesDirPath: AbsolutePath?
+        public var additionalPackageResolutionArguments: [String]
+        public let staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets
+        public let enforceExplicitDependencies: Bool
+        public let defaultConfiguration: String?
+        public var optionalAuthentication: Bool
+        public let buildInsightsDisabled: Bool
+        public let testInsightsDisabled: Bool
+        public let disableSandbox: Bool
+        public let includeGenerateScheme: Bool
+        public let enableCaching: Bool
+        public var coverage: Coverage
+        public let registryEnabled: Bool
+        public let warningsAsErrors: WarningsAsErrors
+        public let defaultSwiftVersion: String
+        public let manifestEnvironment: [String]
+        public let onOutdatedDependencies: OutdatedDependenciesAction
+        public let projectFormat: ProjectFormat
+
+        public init(
+            resolveDependenciesWithSystemScm: Bool,
+            disablePackageVersionLocking: Bool,
+            clonedSourcePackagesDirPath: AbsolutePath? = nil,
+            additionalPackageResolutionArguments: [String] = [],
+            staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
+            enforceExplicitDependencies: Bool = false,
+            defaultConfiguration: String? = nil,
+            optionalAuthentication: Bool = false,
+            buildInsightsDisabled: Bool,
+            testInsightsDisabled: Bool,
+            disableSandbox: Bool,
+            includeGenerateScheme: Bool,
+            enableCaching: Bool = false,
+            coverage: Coverage = Coverage(),
+            registryEnabled: Bool = false,
+            warningsAsErrors: WarningsAsErrors = .none,
+            defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue,
+            manifestEnvironment: [String] = [],
+            onOutdatedDependencies: OutdatedDependenciesAction = .warn,
+            projectFormat: ProjectFormat = .pbxproj
+        ) {
+            self.resolveDependenciesWithSystemScm = resolveDependenciesWithSystemScm
+            self.disablePackageVersionLocking = disablePackageVersionLocking
+            self.clonedSourcePackagesDirPath = clonedSourcePackagesDirPath
+            self.additionalPackageResolutionArguments = additionalPackageResolutionArguments
+            self.staticSideEffectsWarningTargets = staticSideEffectsWarningTargets
+            self.enforceExplicitDependencies = enforceExplicitDependencies
+            self.defaultConfiguration = defaultConfiguration
+            self.optionalAuthentication = optionalAuthentication
+            self.buildInsightsDisabled = buildInsightsDisabled
+            self.testInsightsDisabled = testInsightsDisabled
+            self.disableSandbox = disableSandbox
+            self.includeGenerateScheme = includeGenerateScheme
+            self.enableCaching = enableCaching
+            self.coverage = coverage
+            self.registryEnabled = registryEnabled
+            self.warningsAsErrors = warningsAsErrors
+            self.defaultSwiftVersion = defaultSwiftVersion
+            self.manifestEnvironment = manifestEnvironment
+            self.onOutdatedDependencies = onOutdatedDependencies
+            self.projectFormat = projectFormat
+        }
+
+        #if DEBUG
+            public static func test(
+                resolveDependenciesWithSystemScm: Bool = false,
+                disablePackageVersionLocking: Bool = false,
+                clonedSourcePackagesDirPath: AbsolutePath? = nil,
+                additionalPackageResolutionArguments: [String] = [],
+                staticSideEffectsWarningTargets: TuistGeneratedProjectOptions.GenerationOptions
+                    .StaticSideEffectsWarningTargets = .all,
+                enforceExplicitDependencies: Bool = false,
+                defaultConfiguration: String? = nil,
+                optionalAuthentication: Bool = false,
+                buildInsightsDisabled: Bool = true,
+                testInsightsDisabled: Bool = true,
+                disableSandbox: Bool = true,
+                includeGenerateScheme: Bool = true,
+                enableCaching: Bool = false,
+                coverage: Coverage = Coverage(),
+                registryEnabled: Bool = false,
+                warningsAsErrors: TuistGeneratedProjectOptions.GenerationOptions.WarningsAsErrors = .none,
+                defaultSwiftVersion: String = GenerationOptions.defaultSwiftVersionValue,
+                manifestEnvironment: [String] = [],
+                onOutdatedDependencies: TuistGeneratedProjectOptions.GenerationOptions.OutdatedDependenciesAction = .warn,
+                projectFormat: TuistGeneratedProjectOptions.GenerationOptions.ProjectFormat = .pbxproj
+            ) -> Self {
+                .init(
+                    resolveDependenciesWithSystemScm: resolveDependenciesWithSystemScm,
+                    disablePackageVersionLocking: disablePackageVersionLocking,
+                    clonedSourcePackagesDirPath: clonedSourcePackagesDirPath,
+                    additionalPackageResolutionArguments: additionalPackageResolutionArguments,
+                    staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
+                    enforceExplicitDependencies: enforceExplicitDependencies,
+                    defaultConfiguration: defaultConfiguration,
+                    optionalAuthentication: optionalAuthentication,
+                    buildInsightsDisabled: buildInsightsDisabled,
+                    testInsightsDisabled: testInsightsDisabled,
+                    disableSandbox: disableSandbox,
+                    includeGenerateScheme: includeGenerateScheme,
+                    enableCaching: enableCaching,
+                    coverage: coverage,
+                    registryEnabled: registryEnabled,
+                    warningsAsErrors: warningsAsErrors,
+                    defaultSwiftVersion: defaultSwiftVersion,
+                    manifestEnvironment: manifestEnvironment,
+                    onOutdatedDependencies: onOutdatedDependencies,
+                    projectFormat: projectFormat
+                )
+            }
+        #endif
+    }
+
+    public struct InstallOptions: Codable, Equatable, Sendable, Hashable {
+        public var passthroughSwiftPackageManagerArguments: [String]
+        public var packageManifestEnvironment: ManifestEnvironment
+
+        public init(
+            passthroughSwiftPackageManagerArguments: [String] = [],
+            packageManifestEnvironment: ManifestEnvironment = .init()
+        ) {
+            self.passthroughSwiftPackageManagerArguments = passthroughSwiftPackageManagerArguments
+            self.packageManifestEnvironment = packageManifestEnvironment
+        }
+
+        public struct ManifestEnvironment: Codable, Equatable, Sendable, Hashable {
+            public let usesAutomaticProviderDefaults: Bool
+            public let includedVariablePatterns: [String]
+            public let excludedVariablePatterns: [String]
+
+            public init(
+                usesAutomaticProviderDefaults: Bool = true,
+                includedVariablePatterns: [String] = [],
+                excludedVariablePatterns: [String] = []
+            ) {
+                self.usesAutomaticProviderDefaults = usesAutomaticProviderDefaults
+                self.includedVariablePatterns = includedVariablePatterns
+                self.excludedVariablePatterns = excludedVariablePatterns
+            }
+        }
+
+        #if DEBUG
+            public static func test(
+                passthroughSwiftPackageManagerArguments: [String] = [],
+                packageManifestEnvironment: ManifestEnvironment = .init()
+            ) -> Self {
+                .init(
+                    passthroughSwiftPackageManagerArguments: passthroughSwiftPackageManagerArguments,
+                    packageManifestEnvironment: packageManifestEnvironment
+                )
+            }
+        #endif
+    }
+
+    #if DEBUG
+        public static func test(
+            compatibleXcodeVersions: CompatibleXcodeVersions = .all,
+            plugins: [PluginLocation] = [],
+            generationOptions: GenerationOptions = .test(),
+            installOptions: InstallOptions = .test(),
+            cacheOptions: CacheOptions = .test()
+        ) -> Self {
+            return .init(
+                compatibleXcodeVersions: compatibleXcodeVersions,
+                plugins: plugins,
+                generationOptions: generationOptions,
+                installOptions: installOptions,
+                cacheOptions: cacheOptions
+            )
+        }
+    #endif
+}

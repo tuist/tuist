@@ -1,7 +1,10 @@
 import FileSystem
 import Foundation
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
 import Mockable
-import OpenAPIURLSession
+import OpenAPIRuntime
 import Path
 import TuistHTTP
 
@@ -9,7 +12,7 @@ import TuistHTTP
 public protocol UploadPreviewIconServicing {
     func uploadPreviewIcon(
         _ icon: AbsolutePath,
-        preview: ServerPreview,
+        previewId: String,
         serverURL: URL,
         fullHandle: String
     ) async throws
@@ -34,23 +37,23 @@ enum UploadPreviewIconServiceError: LocalizedError {
     }
 }
 
-public final class UploadPreviewIconService: UploadPreviewIconServicing {
+public struct UploadPreviewIconService: UploadPreviewIconServicing {
     private let fullHandleService: FullHandleServicing
     private let fileSystem: FileSysteming
-    private let urlSession: URLSession
+    private let urlSession: URLSession?
 
-    public convenience init() {
+    public init() {
         self.init(
             fullHandleService: FullHandleService(),
             fileSystem: FileSystem(),
-            urlSession: .tuistShared
+            urlSession: nil
         )
     }
 
     init(
         fullHandleService: FullHandleServicing,
         fileSystem: FileSysteming,
-        urlSession: URLSession
+        urlSession: URLSession? = nil
     ) {
         self.fullHandleService = fullHandleService
         self.fileSystem = fileSystem
@@ -59,7 +62,7 @@ public final class UploadPreviewIconService: UploadPreviewIconServicing {
 
     public func uploadPreviewIcon(
         _ icon: AbsolutePath,
-        preview: ServerPreview,
+        previewId: String,
         serverURL: URL,
         fullHandle: String
     ) async throws {
@@ -72,7 +75,7 @@ public final class UploadPreviewIconService: UploadPreviewIconServicing {
                 path: .init(
                     account_handle: handles.accountHandle,
                     project_handle: handles.projectHandle,
-                    preview_id: preview.id
+                    preview_id: previewId
                 )
             )
         )
@@ -83,6 +86,7 @@ public final class UploadPreviewIconService: UploadPreviewIconServicing {
                 let data = try await fileSystem.readFile(at: icon)
                 let fileSize = try await fileSystem.fileSizeInBytes(at: icon)
                 guard let url = URL(string: json.url) else { fatalError() }
+                let urlSession = urlSession ?? .tuistShared
                 let (_, response) = try await urlSession.data(
                     for: uploadRequest(
                         url: url,
@@ -102,6 +106,10 @@ public final class UploadPreviewIconService: UploadPreviewIconServicing {
             case let .json(error):
                 throw UploadPreviewIconServiceError.forbidden(error.message)
             }
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .undocumented(statusCode: statusCode, _):
             throw UploadPreviewIconServiceError.unknownError(statusCode)
         case let .unauthorized(unauthorized):
@@ -125,6 +133,7 @@ public final class UploadPreviewIconService: UploadPreviewIconServicing {
             request.setValue(String(fileSize), forHTTPHeaderField: "Content-Length")
         }
         request.httpBody = data
+        request.addAzureBlobTypeHeaderIfNeeded()
         return request
     }
 }

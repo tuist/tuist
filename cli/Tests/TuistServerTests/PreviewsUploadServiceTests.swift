@@ -1,11 +1,13 @@
-import Command
+import CryptoKit
 import FileSystem
 import FileSystemTesting
 import Foundation
 import Mockable
+import Path
 import Testing
+import TuistAndroid
 import TuistCore
-import TuistGit
+import TuistProcess
 import TuistServer
 import TuistSupport
 import TuistTesting
@@ -25,7 +27,6 @@ struct PreviewsUploadServiceTests {
     private let multipartUploadCompletePreviewsService =
         MockMultipartUploadCompletePreviewsServicing()
     private let uploadPreviewIconService = MockUploadPreviewIconServicing()
-    private let gitController = MockGitControlling()
     private let commandRunner = MockCommandRunning()
     private let precompiledMetadataProvider = MockPrecompiledMetadataProvider()
 
@@ -38,13 +39,11 @@ struct PreviewsUploadServiceTests {
         subject = PreviewsUploadService(
             fileSystem: fileSystem,
             fileArchiver: fileArchiverFactory,
-            retryProvider: RetryProvider(),
             multipartUploadStartPreviewsService: multipartUploadStartPreviewsService,
             multipartUploadGenerateURLPreviewsService: multipartUploadGenerateURLPreviewsService,
             multipartUploadArtifactService: multipartUploadArtifactService,
             multipartUploadCompletePreviewsService: multipartUploadCompletePreviewsService,
             uploadPreviewIconService: uploadPreviewIconService,
-            gitController: gitController,
             commandRunner: commandRunner,
             precompiledMetadataProvider: precompiledMetadataProvider
         )
@@ -80,14 +79,6 @@ struct PreviewsUploadServiceTests {
             )
             .willReturn("https://tuist.dev/upload-url")
 
-        given(gitController)
-            .isInGitRepository(workingDirectory: .any)
-            .willReturn(false)
-
-        given(gitController)
-            .gitInfo(workingDirectory: .any)
-            .willReturn(.test())
-
         given(multipartUploadStartPreviewsService)
             .startPreviewsMultipartUpload(
                 type: .any,
@@ -102,7 +93,8 @@ struct PreviewsUploadServiceTests {
                 binaryId: .any,
                 fullHandle: .any,
                 serverURL: .any,
-                track: .any
+                track: .any,
+                releaseNotes: .any
             )
             .willReturn(
                 AppBuildUpload(appBuildId: "app-build-id", uploadId: "upload-id")
@@ -140,9 +132,11 @@ struct PreviewsUploadServiceTests {
             // When
             let got = try await subject.uploadPreview(
                 .appBundles([.test(path: preview)]),
-                path: temporaryDirectory,
                 fullHandle: "tuist/tuist",
                 serverURL: serverURL,
+                gitBranch: nil,
+                gitCommitSHA: nil,
+                gitRef: nil,
                 track: nil,
                 updateProgress: { _ in }
             )
@@ -170,14 +164,15 @@ struct PreviewsUploadServiceTests {
                     version: .any,
                     buildVersion: .any,
                     bundleIdentifier: .any,
-                    supportedPlatforms: .value([.simulator(.iOS)]),
+                    supportedPlatforms: .value([.ios_simulator]),
                     gitBranch: .any,
                     gitCommitSHA: .any,
                     gitRef: .any,
                     binaryId: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(serverURL),
-                    track: .value(nil)
+                    track: .value(nil),
+                    releaseNotes: .value(nil)
                 )
                 .called(1)
         }
@@ -226,7 +221,8 @@ struct PreviewsUploadServiceTests {
                     binaryId: .any,
                     fullHandle: .any,
                     serverURL: .any,
-                    track: .any
+                    track: .any,
+                    releaseNotes: .any
                 )
                 .willReturn(AppBuildUpload(appBuildId: "app-build-id", uploadId: "upload-id"))
 
@@ -243,9 +239,11 @@ struct PreviewsUploadServiceTests {
             // When
             _ = try await subject.uploadPreview(
                 .appBundles([.test(path: preview1), .test(path: preview2)]),
-                path: temporaryDirectory,
                 fullHandle: "tuist/tuist",
                 serverURL: serverURL,
+                gitBranch: nil,
+                gitCommitSHA: nil,
+                gitRef: nil,
                 track: nil,
                 updateProgress: { _ in }
             )
@@ -265,7 +263,8 @@ struct PreviewsUploadServiceTests {
                     binaryId: .any,
                     fullHandle: .any,
                     serverURL: .any,
-                    track: .any
+                    track: .any,
+                    releaseNotes: .any
                 )
                 .called(2)
 
@@ -306,11 +305,6 @@ struct PreviewsUploadServiceTests {
 
             precompiledMetadataProvider.uuidsStub = { _ in [UUID()] }
 
-            gitController.reset()
-            given(gitController)
-                .gitInfo(workingDirectory: .any)
-                .willReturn(.test(ref: "git-ref", branch: "main", sha: "commit-sha"))
-
             var multipartUploadCapturedGenerateUploadURLCallback:
                 ((MultipartUploadArtifactPart) async throws -> String)!
             given(multipartUploadArtifactService)
@@ -330,7 +324,7 @@ struct PreviewsUploadServiceTests {
             try await fileSystem.touch(icon)
 
             given(uploadPreviewIconService)
-                .uploadPreviewIcon(.any, preview: .any, serverURL: .any, fullHandle: .any)
+                .uploadPreviewIcon(.any, previewId: .any, serverURL: .any, fullHandle: .any)
                 .willReturn()
 
             given(commandRunner)
@@ -364,9 +358,11 @@ struct PreviewsUploadServiceTests {
                         )
                     )
                 ),
-                path: temporaryDirectory,
                 fullHandle: "tuist/tuist",
                 serverURL: serverURL,
+                gitBranch: "main",
+                gitCommitSHA: "commit-sha",
+                gitRef: "git-ref",
                 track: nil,
                 updateProgress: { _ in }
             )
@@ -395,21 +391,22 @@ struct PreviewsUploadServiceTests {
                     version: .value("1.0"),
                     buildVersion: .value("1"),
                     bundleIdentifier: .value("dev.tuist.App"),
-                    supportedPlatforms: .value([.device(.iOS)]),
+                    supportedPlatforms: .value([.ios]),
                     gitBranch: .value("main"),
                     gitCommitSHA: .value("commit-sha"),
                     gitRef: .value("git-ref"),
                     binaryId: .any,
                     fullHandle: .value("tuist/tuist"),
                     serverURL: .value(serverURL),
-                    track: .value(nil)
+                    track: .value(nil),
+                    releaseNotes: .value(nil)
                 )
                 .called(1)
 
             verify(uploadPreviewIconService)
                 .uploadPreviewIcon(
                     .any,
-                    preview: .any,
+                    previewId: .any,
                     serverURL: .any,
                     fullHandle: .any
                 )
@@ -448,10 +445,12 @@ struct PreviewsUploadServiceTests {
 
         // When
         _ = try await subject.uploadPreview(
-            .appBundles([.test(path: preview, infoPlist: .test(name: appName))]),
-            path: temporaryDirectory,
+            .appBundles([.test(path: preview, infoPlist: .test(name: appName, executableName: appName))]),
             fullHandle: "tuist/tuist",
             serverURL: serverURL,
+            gitBranch: nil,
+            gitCommitSHA: nil,
+            gitRef: nil,
             track: nil,
             updateProgress: { _ in }
         )
@@ -471,7 +470,139 @@ struct PreviewsUploadServiceTests {
                 binaryId: .value(expectedUUID.uuidString),
                 fullHandle: .any,
                 serverURL: .any,
-                track: .any
+                track: .any,
+                releaseNotes: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory) func upload_app_bundle_uses_executable_name_not_bundle_name() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // Given: CFBundleName differs from CFBundleExecutable
+        let executableName = "myapp"
+        let bundleName = "My App"
+        let preview = temporaryDirectory.appending(component: "\(executableName).app")
+        try await fileSystem.makeDirectory(at: preview)
+
+        let expectedUUID = UUID()
+
+        given(fileArchiver)
+            .zip(name: .any)
+            .willReturn(temporaryDirectory.appending(component: "\(executableName).zip"))
+
+        precompiledMetadataProvider.uuidsStub = { path in
+            if path == preview.appending(component: executableName) {
+                return [expectedUUID]
+            }
+            return []
+        }
+
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .any,
+                generateUploadURL: .any,
+                updateProgress: .any
+            )
+            .willReturn([(etag: "etag", partNumber: 1)])
+
+        // When
+        _ = try await subject.uploadPreview(
+            .appBundles([
+                .test(
+                    path: preview,
+                    infoPlist: .test(name: bundleName, executableName: executableName)
+                ),
+            ]),
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            gitBranch: nil,
+            gitCommitSHA: nil,
+            gitRef: nil,
+            track: nil,
+            updateProgress: { _ in }
+        )
+
+        // Then
+        verify(multipartUploadStartPreviewsService)
+            .startPreviewsMultipartUpload(
+                type: .any,
+                displayName: .value(bundleName),
+                version: .any,
+                buildVersion: .any,
+                bundleIdentifier: .any,
+                supportedPlatforms: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                binaryId: .value(expectedUUID.uuidString),
+                fullHandle: .any,
+                serverURL: .any,
+                track: .any,
+                releaseNotes: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory) func upload_macos_app_bundle_extracts_binary_id() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // Given: macOS bundle with Contents/MacOS/ layout
+        let appName = "MacApp"
+        let preview = temporaryDirectory.appending(component: "\(appName).app")
+        let contentsDir = preview.appending(component: "Contents")
+        try await fileSystem.makeDirectory(at: contentsDir.appending(component: "MacOS"))
+
+        let expectedUUID = UUID()
+
+        given(fileArchiver)
+            .zip(name: .any)
+            .willReturn(temporaryDirectory.appending(component: "\(appName).zip"))
+
+        precompiledMetadataProvider.uuidsStub = { path in
+            if path == contentsDir.appending(components: "MacOS", appName) {
+                return [expectedUUID]
+            }
+            return []
+        }
+
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .any,
+                generateUploadURL: .any,
+                updateProgress: .any
+            )
+            .willReturn([(etag: "etag", partNumber: 1)])
+
+        // When
+        _ = try await subject.uploadPreview(
+            .appBundles([.test(path: preview, infoPlist: .test(name: appName, executableName: appName))]),
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            gitBranch: nil,
+            gitCommitSHA: nil,
+            gitRef: nil,
+            track: nil,
+            updateProgress: { _ in }
+        )
+
+        // Then
+        verify(multipartUploadStartPreviewsService)
+            .startPreviewsMultipartUpload(
+                type: .any,
+                displayName: .any,
+                version: .any,
+                buildVersion: .any,
+                bundleIdentifier: .any,
+                supportedPlatforms: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                binaryId: .value(expectedUUID.uuidString),
+                fullHandle: .any,
+                serverURL: .any,
+                track: .any,
+                releaseNotes: .any
             )
             .called(1)
     }
@@ -493,10 +624,12 @@ struct PreviewsUploadServiceTests {
         // When / Then
         await #expect(throws: PreviewsUploadServiceError.binaryIdNotFound(preview.appending(component: appName))) {
             try await subject.uploadPreview(
-                .appBundles([.test(path: preview, infoPlist: .test(name: appName))]),
-                path: temporaryDirectory,
+                .appBundles([.test(path: preview, infoPlist: .test(name: appName, executableName: appName))]),
                 fullHandle: "tuist/tuist",
                 serverURL: serverURL,
+                gitBranch: nil,
+                gitCommitSHA: nil,
+                gitRef: nil,
                 track: nil,
                 updateProgress: { _ in }
             )
@@ -538,9 +671,11 @@ struct PreviewsUploadServiceTests {
         // When
         _ = try await subject.uploadPreview(
             .ipa(.test(path: preview, infoPlist: .test(name: "App"))),
-            path: temporaryDirectory,
             fullHandle: "tuist/tuist",
             serverURL: serverURL,
+            gitBranch: nil,
+            gitCommitSHA: nil,
+            gitRef: nil,
             track: nil,
             updateProgress: { _ in }
         )
@@ -560,7 +695,217 @@ struct PreviewsUploadServiceTests {
                 binaryId: .value(expectedUUID.uuidString),
                 fullHandle: .any,
                 serverURL: .any,
-                track: .any
+                track: .any,
+                releaseNotes: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory) func upload_apk() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // Given
+        let apkPath = temporaryDirectory.appending(component: "app.apk")
+        let apkContent = Data("fake-apk-content".utf8)
+        try apkContent.write(to: URL(fileURLWithPath: apkPath.pathString))
+
+        let unzippedPath = temporaryDirectory.appending(component: "unzipped-apk")
+        let iconPath = unzippedPath.appending(
+            components: ["res", "mipmap-xxxhdpi-v4", "ic_launcher.png"]
+        )
+        try await fileSystem.makeDirectory(at: iconPath.parentDirectory)
+        try await fileSystem.touch(iconPath)
+
+        given(fileUnarchiver)
+            .unzip()
+            .willReturn(unzippedPath)
+
+        given(uploadPreviewIconService)
+            .uploadPreviewIcon(.any, previewId: .any, serverURL: .any, fullHandle: .any)
+            .willReturn()
+
+        var multipartUploadCapturedGenerateUploadURLCallback:
+            ((MultipartUploadArtifactPart) async throws -> String)!
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .value(apkPath),
+                generateUploadURL: .matching { callback in
+                    multipartUploadCapturedGenerateUploadURLCallback = callback
+                    return true
+                },
+                updateProgress: .any
+            )
+            .willReturn([(etag: "etag", partNumber: 1)])
+
+        let metadata = APKMetadata(
+            packageName: "com.example.app",
+            versionName: "1.0.0",
+            versionCode: "42",
+            displayName: "Example App",
+            iconPath: try RelativePath(validating: "res/mipmap-xxxhdpi-v4/ic_launcher.png")
+        )
+
+        // When
+        let got = try await subject.uploadPreview(
+            .apk(path: apkPath, metadata: metadata),
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            gitBranch: "main",
+            gitCommitSHA: "abc123",
+            gitRef: "refs/heads/main",
+            track: "beta",
+            releaseNotes: "Fix the sign-in flow",
+            updateProgress: { _ in }
+        )
+
+        // Then
+        #expect(
+            got == .test(
+                id: "preview-id",
+                url: shareURL
+            )
+        )
+
+        let gotMultipartUploadURL = try await multipartUploadCapturedGenerateUploadURLCallback(
+            MultipartUploadArtifactPart(
+                number: 1,
+                contentLength: 20
+            )
+        )
+        #expect(
+            gotMultipartUploadURL == "https://tuist.dev/upload-url"
+        )
+
+        verify(multipartUploadStartPreviewsService)
+            .startPreviewsMultipartUpload(
+                type: .value(.apk),
+                displayName: .value("Example App"),
+                version: .value("1.0.0"),
+                buildVersion: .value("42"),
+                bundleIdentifier: .value("com.example.app"),
+                supportedPlatforms: .value([.android]),
+                gitBranch: .value("main"),
+                gitCommitSHA: .value("abc123"),
+                gitRef: .value("refs/heads/main"),
+                binaryId: .any,
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .value(serverURL),
+                track: .value("beta"),
+                releaseNotes: .value("Fix the sign-in flow")
+            )
+            .called(1)
+
+        verify(uploadPreviewIconService)
+            .uploadPreviewIcon(
+                .any,
+                previewId: .value("preview-id"),
+                serverURL: .value(serverURL),
+                fullHandle: .value("tuist/tuist")
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory) func upload_apk_without_icon() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // Given
+        let apkPath = temporaryDirectory.appending(component: "app.apk")
+        let apkContent = Data("fake-apk-content".utf8)
+        try apkContent.write(to: URL(fileURLWithPath: apkPath.pathString))
+
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .value(apkPath),
+                generateUploadURL: .any,
+                updateProgress: .any
+            )
+            .willReturn([(etag: "etag", partNumber: 1)])
+
+        let metadata = APKMetadata(
+            packageName: "com.example.app",
+            versionName: "1.0.0",
+            versionCode: "42",
+            displayName: "Example App"
+        )
+
+        // When
+        _ = try await subject.uploadPreview(
+            .apk(path: apkPath, metadata: metadata),
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            gitBranch: "main",
+            gitCommitSHA: "abc123",
+            gitRef: "refs/heads/main",
+            track: "beta",
+            updateProgress: { _ in }
+        )
+
+        // Then
+        verify(uploadPreviewIconService)
+            .uploadPreviewIcon(
+                .any,
+                previewId: .any,
+                serverURL: .any,
+                fullHandle: .any
+            )
+            .called(0)
+    }
+
+    @Test(.inTemporaryDirectory) func upload_apk_computes_sha256_binary_id() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        // Given
+        let apkPath = temporaryDirectory.appending(component: "app.apk")
+        let apkContent = Data("deterministic-content".utf8)
+        try apkContent.write(to: URL(fileURLWithPath: apkPath.pathString))
+
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .any,
+                generateUploadURL: .any,
+                updateProgress: .any
+            )
+            .willReturn([(etag: "etag", partNumber: 1)])
+
+        let metadata = APKMetadata(
+            packageName: "com.example.app",
+            versionName: "1.0.0",
+            versionCode: "1",
+            displayName: "App"
+        )
+
+        // When
+        _ = try await subject.uploadPreview(
+            .apk(path: apkPath, metadata: metadata),
+            fullHandle: "tuist/tuist",
+            serverURL: serverURL,
+            gitBranch: nil,
+            gitCommitSHA: nil,
+            gitRef: nil,
+            track: nil,
+            updateProgress: { _ in }
+        )
+
+        // Then: verify binaryId is a valid SHA256 hex string (64 chars)
+        verify(multipartUploadStartPreviewsService)
+            .startPreviewsMultipartUpload(
+                type: .value(.apk),
+                displayName: .any,
+                version: .any,
+                buildVersion: .any,
+                bundleIdentifier: .any,
+                supportedPlatforms: .any,
+                gitBranch: .any,
+                gitCommitSHA: .any,
+                gitRef: .any,
+                binaryId: .matching { binaryId in
+                    guard let binaryId else { return false }
+                    return binaryId.count == 64 && binaryId.allSatisfy(\.isHexDigit)
+                },
+                fullHandle: .any,
+                serverURL: .any,
+                track: .any,
+                releaseNotes: .any
             )
             .called(1)
     }
@@ -583,9 +928,11 @@ struct PreviewsUploadServiceTests {
         await #expect(throws: PreviewsUploadServiceError.appBundleNotFound(preview)) {
             try await subject.uploadPreview(
                 .ipa(.test(path: preview, infoPlist: .test(name: "App"))),
-                path: temporaryDirectory,
                 fullHandle: "tuist/tuist",
                 serverURL: serverURL,
+                gitBranch: nil,
+                gitCommitSHA: nil,
+                gitRef: nil,
                 track: nil,
                 updateProgress: { _ in }
             )

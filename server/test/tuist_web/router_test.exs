@@ -3,12 +3,13 @@ defmodule TuistWeb.RouterTest do
   use TuistTestSupport.Cases.StubCase, billing: true
   use Mimic
 
+  alias Tuist.Environment
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   test "marketing pages are non-indexable and non-followable when a production and on-premise environment",
        %{conn: conn} do
-    stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
-    stub(Tuist.Environment, :prod?, fn -> true end)
+    stub(Environment, :tuist_hosted?, fn -> false end)
+    stub(Environment, :prod?, fn -> true end)
 
     for route <- [~p"/blog", ~p"/about", ~p"/pricing", ~p"/terms", ~p"/blog"] do
       assert conn |> get(route) |> get_resp_header("x-robots-tag") == ["noindex, nofollow"]
@@ -17,7 +18,7 @@ defmodule TuistWeb.RouterTest do
 
   test "marketing pages are non-indexable and non-followable when a non-production environment",
        %{conn: conn} do
-    stub(Tuist.Environment, :prod?, fn -> false end)
+    stub(Environment, :prod?, fn -> false end)
 
     for route <- [~p"/blog", ~p"/about", ~p"/pricing", ~p"/terms", ~p"/blog"] do
       assert conn |> get(route) |> get_resp_header("x-robots-tag") == ["noindex, nofollow"]
@@ -26,11 +27,13 @@ defmodule TuistWeb.RouterTest do
 
   test "marketing pages are indexable and followable when a production and non on-premise environment",
        %{conn: conn} do
-    stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
-    stub(Tuist.Environment, :prod?, fn -> true end)
+    stub(Environment, :tuist_hosted?, fn -> true end)
+    stub(Environment, :prod?, fn -> true end)
 
     for route <- [~p"/blog", ~p"/about", ~p"/pricing", ~p"/terms", ~p"/blog"] do
-      assert conn |> get(route) |> get_resp_header("x-robots-tag") == ["index, follow"]
+      response_conn = get(conn, route)
+      assert get_resp_header(response_conn, "x-robots-tag") == ["index, follow"]
+      assert get_resp_header(response_conn, "x-tuist-public") == ["1"]
     end
   end
 
@@ -56,5 +59,44 @@ defmodule TuistWeb.RouterTest do
            |> get_resp_header("x-robots-tag") == [
              "noindex, nofollow"
            ]
+  end
+
+  test "legacy docs routes redirect to the locale-first docs routes", %{conn: conn} do
+    conn = get(conn, "/docs/en/guides/install-tuist?utm_source=test")
+
+    assert redirected_to(conn, 301) == "/en/docs/guides/install-tuist?utm_source=test"
+  end
+
+  test "bare docs routes redirect to the English docs overview", %{conn: conn} do
+    assert conn |> get("/docs") |> redirected_to(301) == "/en/docs"
+    assert conn |> get("/docs/") |> redirected_to(301) == "/en/docs"
+  end
+
+  test "the retired flaky-tests and test-insights pages redirect to the tests page", %{conn: conn} do
+    assert conn |> get("/flaky-tests") |> redirected_to(301) == "/tests"
+    assert conn |> get("/test-insights?utm_source=test") |> redirected_to(301) == "/tests?utm_source=test"
+  end
+
+  test "locale-first docs routes render documentation pages", %{conn: conn} do
+    assert conn
+           |> get("/en/docs/guides/install-tuist")
+           |> html_response(200) =~ "Install Tuist"
+  end
+
+  test "FunWithFlags UI assets are served without triggering CSRF cross-origin check",
+       %{conn: conn} do
+    user = AccountsFixtures.user_fixture(preload: [:account])
+    stub(Tuist.Accounts, :tuist_operator?, fn _ -> true end)
+
+    conn =
+      conn
+      |> log_in_user(user)
+      |> get("/ops/flags/assets/details.js")
+
+    assert conn.status == 200
+
+    assert conn
+           |> get_resp_header("content-type")
+           |> Enum.any?(&String.starts_with?(&1, ~w(text/javascript application/javascript)))
   end
 end

@@ -7,15 +7,121 @@ import Config
 # any compile-time configuration in here, as it won't be applied.
 # The block below contains prod specific runtime configuration.
 
-# ## Using releases
+# ## Pod role
 #
-# If you use `mix release`, you need to explicitly enable the server
-# by passing the TUIST_WEB=true when you start it:
+# The release boots into one of two modes selected by `TUIST_MODE`:
 #
-#     TUIST_WEB=true bin/tuist start
+#   * unset / `TUIST_MODE=web` — Phoenix endpoint binds, every Oban queue
+#     and ingestion buffer runs. Default for `bin/tuist start`.
+#   * `TUIST_MODE=processor` — no Phoenix listener; Oban runs only the
+#     `:process_build` queue.
 #
-# Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
-# script that automatically sets the env var above.
+# See `Tuist.Environment.mode/0` for the full list.
+alias Tuist.Oban.RuntimeConfig
+
+# Runner Profiles shape catalog. Helm injects the same
+# `runnersFleetLinux.shapes` list it renders the shape-keyed RunnerPool
+# CRs from, so in a managed deploy the server's catalog and the
+# cluster's pools share one source of truth and can't drift.
+#
+# Absent (local dev / tests / CI) → the `config/config.exs` default
+# applies. Present but unparseable → raise: the value is Helm-rendered
+# via `toJson`, so a malformed one is a chart bug, and silently falling
+# back to the default would run a catalog that doesn't match the pools
+# that actually exist — reintroducing the drift this injection removes.
+# A boot failure here is caught in the canary stage before production.
+alias Tuist.Runners.Catalog
+
+config :tuist, :network_trusted_report_publishing, System.get_env("TUIST_NETWORK_TRUSTED_REPORT_PUBLISHING") == "true"
+config :tuist, :runner_linux_cache_volumes, System.get_env("TUIST_RUNNER_LINUX_CACHE_VOLUMES") == "true"
+config :tuist, :runner_macos_cache_volumes, System.get_env("TUIST_RUNNER_MACOS_CACHE_VOLUMES") == "true"
+
+case System.get_env("TUIST_RUNNER_LINUX_SHAPES") do
+  nil ->
+    :ok
+
+  json ->
+    case Catalog.parse_shapes_json(json) do
+      :error ->
+        raise "TUIST_RUNNER_LINUX_SHAPES is set but is not a valid JSON array of shapes " <>
+                "(Helm renders it from runnersFleetLinux.shapes via toJson). Got: #{inspect(json)}"
+
+      shapes ->
+        config :tuist, :runner_linux_shapes, shapes
+    end
+end
+
+case System.get_env("TUIST_RUNNER_LINUX_POOLS") do
+  nil ->
+    :ok
+
+  "" ->
+    :ok
+
+  json ->
+    case Catalog.parse_linux_pools_json(json) do
+      :error ->
+        raise "TUIST_RUNNER_LINUX_POOLS is set but is not a valid JSON array of pools " <>
+                "(Helm renders it from runnersFleetLinux.pools via toJson). Got: #{inspect(json)}"
+
+      pools ->
+        config :tuist, :runner_linux_pools, pools
+    end
+end
+
+case System.get_env("TUIST_RUNNER_FREE_MONTHLY_MINUTES") do
+  nil ->
+    :ok
+
+  "" ->
+    :ok
+
+  raw ->
+    case Integer.parse(raw) do
+      {minutes, ""} when minutes >= 0 ->
+        config :tuist, :runner_free_monthly_minutes, minutes
+
+      _ ->
+        raise "TUIST_RUNNER_FREE_MONTHLY_MINUTES must be a non-negative integer. Got: #{inspect(raw)}"
+    end
+end
+
+case System.get_env("TUIST_RUNNER_MACOS_SHAPES") do
+  nil ->
+    :ok
+
+  "" ->
+    :ok
+
+  json ->
+    case Catalog.parse_shapes_json(json) do
+      :error ->
+        raise "TUIST_RUNNER_MACOS_SHAPES is set but is not a valid JSON array of shapes " <>
+                "(Helm renders it from runnersFleet.shapes via toJson). Got: #{inspect(json)}"
+
+      shapes ->
+        config :tuist, :runner_macos_shapes, shapes
+    end
+end
+
+case System.get_env("TUIST_RUNNER_MACOS_XCODE_VERSIONS") do
+  nil ->
+    :ok
+
+  "" ->
+    :ok
+
+  json ->
+    case Catalog.parse_xcode_versions_json(json) do
+      :error ->
+        raise "TUIST_RUNNER_MACOS_XCODE_VERSIONS is set but is not a valid JSON array " <>
+                "(Helm renders it from runnersFleet.xcodeVersions via toJson). Got: #{inspect(json)}"
+
+      xcodes ->
+        config :tuist, :runner_macos_xcode_versions, xcodes
+    end
+end
+
 if Tuist.Environment.web?() do
   config :tuist, TuistWeb.Endpoint, server: true
 end
@@ -28,7 +134,7 @@ if env != :test do
   config :tuist, TuistWeb.Endpoint, secret_key_base: secret_key_base
 end
 
-if Enum.member?([:prod, :stag, :can], env) do
+if Enum.member?([:prod, :stag, :can, :preview], env) do
   database_url =
     Tuist.Environment.database_url(secrets) ||
       raise """
@@ -36,35 +142,100 @@ if Enum.member?([:prod, :stag, :can], env) do
       For example: ecto://USER:PASS@HOST/DATABASE
       """
 
-  parsed_url = URI.parse(database_url)
-  [username, password] = String.split(parsed_url.userinfo, ":")
+  database_config = Tuist.Environment.database_config_from_url(database_url)
+  database_hostname = Keyword.fetch!(database_config, :hostname)
+  database_schema = Tuist.Environment.database_schema()
+
+  # `{:keepalive, true}` enables SO_KEEPALIVE but inherits the OS default
+  # `tcp_keepalive_time` (7200s on Linux), so the pool keeps handing out
+  # half-dead sockets long after a cloud-egress NAT drops the idle TCP
+  # connection — surfaced as `DBConnection.ConnectionError: ssl recv
+  # (idle): closed`, fired ~14k times from `Oban.Met.Reporter` once NAT
+  # hops sat on the Postgres egress path. Postgres-side
+  # `tcp_keepalives_idle: "60"` only helps when those probes actually
+  # reach the client across the path; mirror the same 60s/15s/4-probe
+  # cadence on the client socket so dead idles get reaped within ~2 min,
+  # well under any cloud NAT timeout.
+  # Postgrex hands `socket_options` straight to `:gen_tcp` / `:ssl`,
+  # so the `{:raw, _, _, _}` 4-tuples work here (unlike Mint, whose
+  # `Keyword.merge/2` normalization rejects them — see commit d803ae28cd).
+  tcp_keepalive_raw_opts =
+    case :os.type() do
+      {:unix, :linux} ->
+        [
+          {:raw, 6, 4, <<60::native-32>>},
+          {:raw, 6, 5, <<15::native-32>>},
+          {:raw, 6, 6, <<4::native-32>>}
+        ]
+
+      _ ->
+        []
+    end
 
   socket_opts =
     if Tuist.Environment.use_ipv6?(secrets) in ~w(true 1),
-      do: [:inet6, {:keepalive, true}],
-      else: [{:keepalive, true}]
+      do: [:inet6, {:keepalive, true}] ++ tcp_keepalive_raw_opts,
+      else: [{:keepalive, true}] ++ tcp_keepalive_raw_opts
 
-  database_options = [
-    pool_size: Tuist.Environment.database_pool_size(secrets),
-    queue_target: Tuist.Environment.database_queue_target(secrets),
-    queue_interval: Tuist.Environment.database_queue_interval(secrets),
-    database: String.replace_prefix(parsed_url.path, "/", ""),
-    username: username,
-    password: password,
-    hostname: parsed_url.host,
-    port: parsed_url.port || 5432,
-    socket_options: socket_opts,
-    parameters: [
-      tcp_keepalives_idle: "60",
-      tcp_keepalives_interval: "30",
-      tcp_keepalives_count: "3"
-    ]
-  ]
+  # Picks the connection shape based on `TUIST_DATABASE_POOLED` (set by the
+  # chart on processor pods, unset on server pods). Direct Postgres keeps
+  # `:named` prepares + tcp_keepalives_* startup parameters; transaction-
+  # mode poolers (PgBouncer, PgCat, etc.) drop both — they reject
+  # non-standard startup parameters with `protocol_violation` and can't
+  # reuse named prepares across transactions that land on different
+  # backend connections.
+  pooled? = Tuist.Environment.database_pooled?()
+
+  postgres_parameters =
+    if pooled?,
+      do: [],
+      else: [
+        tcp_keepalives_idle: "60",
+        tcp_keepalives_interval: "30",
+        tcp_keepalives_count: "3"
+      ]
+
+  postgres_parameters =
+    if Tuist.Environment.default_database_schema?(database_schema) do
+      postgres_parameters
+    else
+      Keyword.put(
+        postgres_parameters,
+        :search_path,
+        Tuist.Environment.quote_postgres_identifier(database_schema)
+      )
+    end
+
+  database_options =
+    [
+      pool_size: Tuist.Environment.database_pool_size(secrets),
+      queue_target: Tuist.Environment.database_queue_target(secrets),
+      queue_interval: Tuist.Environment.database_queue_interval(secrets),
+      socket_options: socket_opts,
+      parameters: postgres_parameters,
+      prepare: if(pooled?, do: :unnamed, else: :named)
+    ] ++ database_config
+
+  # The `search_path` connection parameter above is a startup-packet
+  # parameter, which poolers and managed-Postgres proxies routinely drop —
+  # leaving the session on the default `public` path. Issue an explicit
+  # `SET search_path` on every connection (migrator included) so a custom
+  # schema resolves even when the startup parameter doesn't survive.
+  database_options =
+    if Tuist.Environment.default_database_schema?(database_schema) do
+      database_options
+    else
+      Keyword.put(
+        database_options,
+        :after_connect,
+        {Postgrex, :query!, ["SET search_path TO #{Tuist.Environment.quote_postgres_identifier(database_schema)}", []]}
+      )
+    end
 
   database_options =
     if Tuist.Environment.use_ssl_for_database?() do
       Keyword.put(database_options, :ssl,
-        server_name_indication: to_charlist(parsed_url.host),
+        server_name_indication: to_charlist(database_hostname),
         verify: :verify_none
       )
 
@@ -73,19 +244,27 @@ if Enum.member?([:prod, :stag, :can], env) do
       database_options
     end
 
-  dns_name = System.get_env("RENDER_DISCOVERY_SERVICE")
-  app_name = System.get_env("RENDER_SERVICE_NAME")
+  # Cluster formation via headless Service DNS. TUIST_CLUSTER_DNS_SERVICE
+  # must point at a headless Service whose endpoints resolve to the pod IPs;
+  # TUIST_CLUSTER_APP_NAME is the Erlang long-name prefix used for the node
+  # (e.g. "tuist"). Both are set by the Helm chart when
+  # `server.cluster.enabled=true`.
+  dns_name = System.get_env("TUIST_CLUSTER_DNS_SERVICE")
+  app_name = System.get_env("TUIST_CLUSTER_APP_NAME")
 
-  config :libcluster,
-    topologies: [
-      render: [
-        strategy: Cluster.Strategy.Kubernetes.DNS,
-        config: [
-          service: dns_name,
-          application_name: app_name
+  topologies =
+    if dns_name not in [nil, ""] and app_name not in [nil, ""] do
+      [
+        k8s: [
+          strategy: Cluster.Strategy.Kubernetes.DNS,
+          config: [service: dns_name, application_name: app_name]
         ]
       ]
-    ]
+    else
+      []
+    end
+
+  config :libcluster, topologies: topologies
 
   # ## SSL Support
   #
@@ -125,8 +304,26 @@ if Enum.member?([:prod, :stag, :can], env) do
     pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
     queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
     queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+    # The client gives up on a query after this long. ClickHouse's own limit
+    # below is shorter so a slow read fails with TIMEOUT_EXCEEDED (159), which
+    # the server records in query_log and the app can tell from a dropped
+    # connection.
+    timeout: to_timeout(second: 20),
     settings: [
       readonly: 1,
+      max_execution_time: 15,
+      max_threads: Tuist.Environment.clickhouse_read_max_threads(secrets),
+      # Per-query memory ceiling so one heavy read fails on its own with a
+      # `(for query)` error (retryable) rather than driving the process to its
+      # `(total)` server ceiling and killing unrelated queries. Read path only:
+      # writes go through IngestRepo, which sets its own per-query
+      # limits where needed.
+      max_memory_usage: Tuist.Environment.clickhouse_max_memory_usage_bytes(secrets),
+      # Shared across every query issued by the application user on one
+      # ClickHouse replica. Production keeps this below the server ceiling so
+      # concurrent application reads and writes cannot consume the headroom
+      # needed by background merges and allocator overhead.
+      max_memory_usage_for_user: Tuist.Environment.clickhouse_max_memory_usage_for_user_bytes(secrets),
       # Specifies the join algorithms to use in order of preference: direct (fastest for small tables),
       # parallel_hash (good for medium tables), and hash (fallback for large tables)
       join_algorithm: "direct,parallel_hash,hash"
@@ -137,14 +334,40 @@ if Enum.member?([:prod, :stag, :can], env) do
       inet6: Tuist.Environment.use_ipv6?(secrets)
     ]
 
+  if ops_clickhouse_url = Tuist.Environment.ops_clickhouse_url(secrets) do
+    ops_clickhouse_url =
+      Tuist.Environment.validate_ops_clickhouse_url!(
+        ops_clickhouse_url,
+        Tuist.Environment.clickhouse_url(secrets)
+      )
+
+    config :tuist, Tuist.OpsClickHouseRepo,
+      url: ops_clickhouse_url,
+      pool_size: Tuist.Environment.ops_clickhouse_pool_size(secrets),
+      queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
+      queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
+      settings: [
+        max_threads: 2,
+        max_memory_usage: 1024 * 1024 * 1024
+      ],
+      transport_opts: [
+        keepalive: true,
+        show_econnreset: true,
+        inet6: Tuist.Environment.use_ipv6?(secrets)
+      ]
+  end
+
   config :tuist, Tuist.IngestRepo,
     url: Tuist.Environment.clickhouse_url(secrets),
-    pool_size: Tuist.Environment.clickhouse_pool_size(secrets),
+    pool_size: Tuist.Environment.clickhouse_buffer_pool_size(secrets),
     queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
     queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
     flush_interval_ms: Tuist.Environment.clickhouse_flush_interval_ms(secrets),
     max_buffer_size: Tuist.Environment.clickhouse_max_buffer_size(secrets),
-    pool_size: Tuist.Environment.clickhouse_buffer_pool_size(secrets),
+    settings: [
+      max_threads: Tuist.Environment.clickhouse_write_max_threads(secrets),
+      max_memory_usage_for_user: Tuist.Environment.clickhouse_max_memory_usage_for_user_bytes(secrets)
+    ],
     transport_opts: [
       keepalive: true,
       show_econnreset: true,
@@ -160,8 +383,73 @@ if Enum.member?([:prod, :stag, :can], env) do
     api_pipeline_producer_options: [buffer: :api_data_pipeline_in_memory_buffer]
 end
 
-if Enum.member?([:prod, :stag, :can, :dev], env) do
-  port = "8080"
+if env == :dev do
+  clickhouse_http_port =
+    String.to_integer(System.get_env("TUIST_SERVER_CLICKHOUSE_HTTP_PORT") || "8123")
+
+  dev_db_config =
+    for {env_var, key} <- [
+          {"DATABASE_USERNAME", :username},
+          {"DATABASE_PASSWORD", :password},
+          {"DATABASE_HOST", :hostname},
+          {"TUIST_SERVER_POSTGRES_DB", :database}
+        ],
+        value = System.get_env(env_var),
+        do: {key, value}
+
+  clickhouse_dev_config = [
+    hostname: "127.0.0.1",
+    port: clickhouse_http_port,
+    database: System.get_env("TUIST_SERVER_CLICKHOUSE_DB") || "tuist_development"
+  ]
+
+  config :tuist, Tuist.ClickHouseRepo, clickhouse_dev_config
+  config :tuist, Tuist.IngestRepo, clickhouse_dev_config
+  config :tuist, Tuist.OpsClickHouseRepo, clickhouse_dev_config
+  config :tuist, Tuist.Repo, Keyword.put_new(dev_db_config, :database, "tuist_development")
+end
+
+if env == :test do
+  test_postgres_db =
+    System.get_env("TUIST_SERVER_TEST_POSTGRES_DB") ||
+      "tuist_test#{System.get_env("MIX_TEST_PARTITION")}"
+
+  test_clickhouse_db =
+    System.get_env("TUIST_SERVER_TEST_CLICKHOUSE_DB") ||
+      "tuist_test#{System.get_env("MIX_TEST_PARTITION")}"
+
+  test_port = String.to_integer(System.get_env("TUIST_SERVER_TEST_PORT") || "4002")
+
+  clickhouse_http_port =
+    String.to_integer(System.get_env("TUIST_SERVER_CLICKHOUSE_HTTP_PORT") || "8123")
+
+  config :tuist, Tuist.ClickHouseRepo,
+    hostname: "127.0.0.1",
+    port: clickhouse_http_port,
+    database: test_clickhouse_db
+
+  config :tuist, Tuist.IngestRepo,
+    hostname: "127.0.0.1",
+    port: clickhouse_http_port,
+    database: test_clickhouse_db
+
+  config :tuist, Tuist.OpsClickHouseRepo,
+    hostname: "127.0.0.1",
+    port: clickhouse_http_port,
+    database: test_clickhouse_db
+
+  config :tuist, Tuist.Repo, database: test_postgres_db
+  config :tuist, TuistWeb.Endpoint, http: [ip: {127, 0, 0, 1}, port: test_port]
+end
+
+if Enum.member?([:prod, :stag, :can, :preview, :dev], env) do
+  port =
+    if env == :dev do
+      String.to_integer(System.get_env("TUIST_SERVER_PORT") || "8080")
+    else
+      8080
+    end
+
   app_url = Tuist.Environment.app_url([route_type: :app], secrets)
   %{host: app_url_host, port: app_url_port, scheme: app_url_scheme} = URI.parse(app_url)
 
@@ -180,7 +468,14 @@ if Enum.member?([:prod, :stag, :can, :dev], env) do
     check_origin: check_origin,
     http: [
       ip: http_ip,
-      port: port
+      port: port,
+      http_options: [
+        log_protocol_errors: :verbose
+      ],
+      thousand_island_options: [
+        read_timeout: to_timeout(second: 15),
+        shutdown_timeout: to_timeout(second: 15)
+      ]
     ]
 
   # ## Configuring the mailer
@@ -202,50 +497,54 @@ if Enum.member?([:prod, :stag, :can, :dev], env) do
   # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
 end
 
-if Tuist.Environment.error_tracking_enabled?() do
-  appsignal_name = "Tuist"
+# Identity of the instance this node runs as, when the platform supplies one.
+#
+# Sentry and Oban both default to the OS hostname. That is unique per Pod on
+# the Linux deployments, but every VM booted from the xcresult-processor Tart
+# image reports the image's hostname, so on that fleet the default names all
+# Pods identically and an event cannot be traced back to the Pod that produced
+# it. The chart binds POD_NAME to metadata.name there.
+pod_name =
+  case System.get_env("POD_NAME") do
+    name when is_binary(name) and name != "" -> name
+    _ -> nil
+  end
 
-  config :appsignal, :config,
-    otp_app: :tuist,
-    name: appsignal_name,
-    push_api_key: Tuist.Environment.app_signal_push_api_key(secrets),
-    env: env,
-    active: true,
-    ignore_errors: [
-      # Bandit.TransportError is raised when the client disconnects mid-request.
-      # These are expected and not actionable errors.
-      "Bandit.TransportError",
-      "TuistWeb.Errors.BadRequestError",
-      "TuistWeb.Errors.NotFoundError",
-      "TuistWeb.Errors.TooManyRequestsError",
-      "TuistWeb.Errors.UnauthorizedError"
-    ],
-    request_headers: ~w(
-      accept accept-charset accept-encoding accept-language cache-control
-      connection content-length path-info range request-method
-      request-uri server-name server-port server-protocol
-      x-request-id
-      x-tuist-cloud-cli-version x-tuist-cloud-cli-release-date
-      x-tuist-cli-version x-tuist-cli-release-date
-    )
+if Tuist.Environment.error_tracking_enabled?() do
+  config :sentry,
+    client: TuistCommon.SentryHTTPClient,
+    dsn: Tuist.Environment.sentry_dsn(secrets),
+    environment_name: Tuist.Environment.deploy_env_name(),
+    release: Tuist.Environment.version(),
+    enable_source_code_context: true,
+    root_source_code_paths: [File.cwd!()],
+    before_send: {Tuist.SentryEventFilter, :before_send}
+
+  if pod_name do
+    config :sentry, server_name: pod_name
+  end
 end
 
-# Ex.AWS
 if Tuist.Environment.env() not in [:test] do
-  %{host: s3_endpoint_host, scheme: s3_scheme, port: s3_port} =
-    secrets |> Tuist.Environment.s3_endpoint() |> URI.parse()
+  s3_endpoint =
+    if Tuist.Environment.swift_registry_sync_mode?() do
+      case {System.get_env("S3_ENDPOINT"), System.get_env("S3_HOST")} do
+        {endpoint, _host} when endpoint not in [nil, ""] -> endpoint
+        {_endpoint, host} when host not in [nil, ""] -> "https://#{host}"
+        _ -> nil
+      end
+    else
+      Tuist.Environment.s3_endpoint(secrets)
+    end
 
-  s3_config =
-    then(
-      [
-        scheme: "#{s3_scheme}://",
-        host: s3_endpoint_host,
-        region: Tuist.Environment.s3_region(secrets),
-        virtual_host: Tuist.Environment.s3_virtual_host(secrets),
-        bucket_as_host: Tuist.Environment.s3_bucket_as_host(secrets)
-      ],
-      &if(is_nil(s3_port), do: &1, else: Keyword.put(&1, :port, s3_port))
-    )
+  s3_runtime_configured? =
+    Tuist.Environment.object_storage_provider(secrets) == :s3 or
+      (is_binary(s3_endpoint) and s3_endpoint != "") or
+      (not is_binary(s3_endpoint) and not is_nil(s3_endpoint))
+
+  if s3_runtime_configured? and s3_endpoint in [nil, ""] do
+    raise "S3 endpoint is required; set TUIST_S3_ENDPOINT, S3_ENDPOINT, or S3_HOST"
+  end
 
   config :ex_aws, :req_opts,
     # Note: connect_options cannot be used with Finch
@@ -266,25 +565,34 @@ if Tuist.Environment.env() not in [:test] do
     # become available before timing out
     pool_timeout: Tuist.Environment.s3_pool_timeout(secrets)
 
-  config :ex_aws, :s3, s3_config
-
   config :ex_aws,
-    http_client: Tuist.AWS.Client
+    http_client: TuistCommon.AWS.Client
 
-  case Tuist.Environment.s3_authentication_method(secrets) do
-    :env_access_key_id_and_secret_access_key ->
-      config :ex_aws,
-        secret_access_key: Tuist.Environment.s3_secret_access_key(secrets),
-        access_key_id: Tuist.Environment.s3_access_key_id(secrets)
+  config :tuist_common, finch_name: Tuist.Finch
 
-    :aws_web_identity_token_from_env_vars ->
-      config :ex_aws,
-        secret_access_key: [{:awscli, "profile_name", 30}],
-        access_key_id: [{:awscli, "profile_name", 30}],
-        awscli_auth_adapter: ExAws.STS.AuthCache.AssumeRoleWebIdentityAdapter
+  if s3_runtime_configured? do
+    %{host: s3_endpoint_host, scheme: s3_scheme, port: s3_port} =
+      URI.parse(s3_endpoint)
 
-    _ ->
-      nil
+    s3_config =
+      then(
+        [
+          scheme: "#{s3_scheme}://",
+          host: s3_endpoint_host,
+          region: Tuist.Environment.s3_region(secrets),
+          virtual_host: Tuist.Environment.s3_virtual_host(secrets),
+          bucket_as_host: Tuist.Environment.s3_bucket_as_host(secrets)
+        ],
+        &if(is_nil(s3_port), do: &1, else: Keyword.put(&1, :port, s3_port))
+      )
+
+    config :ex_aws, :s3, s3_config
+
+    config :ex_aws,
+           Tuist.AWS.S3AuthenticationConfig.ex_aws_config(
+             Tuist.Environment.s3_authentication_method(secrets),
+             secrets
+           )
   end
 end
 
@@ -323,28 +631,312 @@ if Tuist.Environment.mail_configured?(secrets) and Tuist.Environment.env() in [:
     base_uri: base_uri
 end
 
-# Oban
+otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
+
+# Oban.
+#
+# Four queue-list shapes derived from the same base. Pod role is set
+# via TUIST_MODE; delegate flags let the web tier hand off specific
+# queues to dedicated fleets without changing pod role.
+#
+#   * Web/server (default): every queue. Self-hosted installs without
+#     dedicated processors stay on this shape.
+#   * Build processor (TUIST_MODE=processor): :process_build for CPU-heavy
+#     xcactivitylog parsing and :process_bazel_tests for memory- and
+#     input/output-bound JUnit report processing. Both run in-cluster on Linux
+#     with independent concurrency limits.
+#   * Xcresult processor (TUIST_MODE=xcresult_processor): only
+#     :process_xcresult. Runs on macOS (Scaleway Mac mini) inside a
+#     Tart VM because xcresulttool is Xcode-only.
+#   * Server pods with TUIST_DELEGATE_PROCESS_BUILD=1 /
+#     TUIST_DELEGATE_PROCESS_BAZEL_TESTS=1 /
+#     TUIST_DELEGATE_PROCESS_XCRESULT=1 skip the matching queue so
+#     jobs land exclusively on the dedicated fleet — without those
+#     flags the server would race the processors on SKIP LOCKED, and
+#     on Linux the xcresult parse would crash because the macOS-only
+#     NIF isn't loaded.
+# Webhook deliveries get their own queue so a slow or down upstream
+# can't starve unrelated work — each job can block for up to 10s and
+# retries six times, and a single `test_case.created` event fans out
+# to one job per subscribed endpoint.
+# Alert evaluations are isolated at one worker per server Pod because their
+# rolling ClickHouse aggregates are memory-heavy even after query-level limits.
+# GitLab coordinator requests may long-poll; isolate them from general background work.
+# Kura instances coming up for a client that asked for its cache: bringing one
+# up and polling its endpoint twice a second, kept off :default so a busy queue
+# cannot delay either.
+# Coverage file deltas: a project's writes take turns on an advisory lock, so a
+# burst for one project would otherwise hold :default's slots while it waits.
+base_queues = [
+  runner_gitlab: 10,
+  default: 10,
+  alert_evaluations: 1,
+  vcs_comments: 20,
+  webhooks: 20,
+  mcp_events: 5,
+  storage_retention: 1,
+  kura_provisioning: 10,
+  coverage_deltas: 2
+]
+
+process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
+process_bazel_tests_queue = {:process_bazel_tests, Tuist.Environment.process_bazel_tests_queue_concurrency()}
+process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
+# Swift registry sync queues. Consumed only by
+# `TUIST_MODE=swift_registry_sync` pods so the web tier doesn't
+# accidentally pull catalog-sync work and starve request-path workers;
+# the web tier still ENQUEUES via the leader-only cron entry registered
+# in `Tuist.Oban.RuntimeConfig.@hosted_only_crons`. Future ecosystems
+# get their own mode + queues (e.g. `:maven_registry_sync`).
+swift_registry_sync_queues = [swift_registry_sync: 1, swift_registry_release: 5]
+
+oban_queues =
+  cond do
+    Tuist.Environment.processor_mode?() ->
+      [process_build_queue, process_bazel_tests_queue]
+
+    Tuist.Environment.xcresult_processor_mode?() ->
+      [process_xcresult_queue]
+
+    Tuist.Environment.swift_registry_sync_mode?() ->
+      swift_registry_sync_queues
+
+    true ->
+      base = base_queues
+      base = if Tuist.Environment.delegate_process_build?(), do: base, else: base ++ [process_build_queue]
+
+      base =
+        if Tuist.Environment.delegate_process_bazel_tests?(),
+          do: base,
+          else: base ++ [process_bazel_tests_queue]
+
+      if Tuist.Environment.delegate_process_xcresult?(), do: base, else: base ++ [process_xcresult_queue]
+  end
+
+# Leader-only Oban work (Cron, Pruner, Lifeline) runs on whichever node wins
+# the peer election. Web pods are the only leader-eligible nodes; every other
+# role gets `peer: false`. Oban Met is also limited to the web tier, and its
+# estimate function is installed by a regular migration rather than created at
+# runtime by least-privilege app roles. The crontab, peer rule, and Met gate are
+# derived by `Tuist.Oban.RuntimeConfig`, which is unit-tested against every
+# value of `Tuist.Environment.modes/0` so a future denylist regression — like
+# the one where `:xcresult_processor` shipped leader-eligible with an empty
+# crontab and silently halted every cron job — fails CI before it lands in prod.
+mode = Tuist.Environment.mode()
+
+swift_registry_sync_enabled =
+  "SWIFT_REGISTRY_SYNC_ENABLED"
+  |> System.get_env("true")
+  |> String.downcase()
+  |> Kernel.in(["1", "true"])
+
+crontab =
+  RuntimeConfig.crontab(
+    mode,
+    env,
+    Tuist.Environment.tuist_hosted?(),
+    swift_registry_sync_enabled?: swift_registry_sync_enabled,
+    artifact_retention_days: Tuist.Environment.artifact_retention_days()
+  )
+
+config :oban_met,
+  auto_start: RuntimeConfig.met_auto_start?(mode),
+  reporter: [auto_migrate: false]
+
 config :tuist, Oban,
-  queues: [default: 10, registry: 2],
+  queues: oban_queues,
   plugins: [
-    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7},
+    # Retain completed jobs just long enough to outlive the
+    # AutomationScheduler per-alert dedup window: it skips re-enqueuing an
+    # evaluation that ran within the alert's `cadence`, which is validated
+    # to <= 1h (Tuist.Automations.Alerts.Alert). 2h keeps a 2x margin over
+    # that cap while holding oban_jobs at tens of thousands of rows. `limit`
+    # lets one pass clear the steady churn (the :default queue alone
+    # produces millions/week).
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 2, limit: 50_000},
     {Oban.Plugins.Lifeline, rescue_after: to_timeout(minute: 30)},
-    {Oban.Plugins.Cron,
-     crontab:
-       if(Tuist.Environment.tuist_hosted?() and env in [:prod, :stag, :can],
-         do: [
-           {"0 10 * * 1-5", Tuist.Ops.DailySlackReportWorker},
-           {"0 * * * 1-5", Tuist.Ops.HourlySlackReportWorker},
-           {"@hourly", Tuist.Registry.Swift.Workers.SyncPackagesWorker},
-           {"@hourly", Tuist.Slack.Workers.ReportWorker},
-           {"*/10 * * * *", Tuist.Alerts.Workers.AlertWorker},
-           {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
-           {"@daily", Tuist.Accounts.Workers.UpdateAllAccountsUsageWorker},
-           {"@daily", Tuist.Runs.Workers.ClearStaleFlakyFlagsWorker}
-         ],
-         else: []
-       )}
+    {Oban.Plugins.Cron, crontab: crontab}
   ]
+
+if !RuntimeConfig.peer_eligible?(mode) do
+  config :tuist, Oban, peer: false
+end
+
+# Oban stamps this onto `oban_jobs.attempted_by`, which is what makes per-Pod
+# throughput answerable: given the Pod a failure came from, the jobs it
+# completed over the same window say whether it was wedged or working.
+if pod_name do
+  config :tuist, Oban, node: pod_name
+end
+
+# Registry config.
+#
+# The bucket name is shared across ecosystems (one Tigris bucket). The web
+# runtime receives a dedicated registry object-storage configuration so its
+# operations pages do not reuse the account-artifact credentials.
+# `swift_*` keys are scoped to the Swift Package Registry sync workers.
+# `Tuist.Registry.Swift.SyncWorker` is cron-fired by the :web leader
+# and inserts jobs into the `:swift_registry_sync` queue. The
+# swift-registry-sync pod (`TUIST_MODE=swift_registry_sync`) consumes
+# them plus the `:swift_registry_release` jobs each SyncWorker enqueues
+# per missing tag.
+swift_registry_sync_allowlist =
+  case System.get_env("SWIFT_REGISTRY_SYNC_ALLOWLIST") do
+    nil -> nil
+    "" -> nil
+    value -> value |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
+  end
+
+# The batch size has to stay under the GitHub request budget a single pass can
+# spend: each package costs at least one tag-listing request, plus one per extra
+# page. A limit above the budget exhausts the quota mid-pass, which is what the
+# July 2026 registry incident hit while the pod still reported healthy. An
+# explicitly configured limit that cannot be honoured is rejected rather than
+# clamped, so a typo surfaces at boot instead of silently halving coverage.
+swift_registry_sync_limit =
+  case System.get_env("SWIFT_REGISTRY_SYNC_LIMIT") do
+    nil ->
+      600
+
+    value ->
+      case Integer.parse(value) do
+        {limit, ""} when limit > 0 ->
+          limit
+
+        _ ->
+          raise "SWIFT_REGISTRY_SYNC_LIMIT must be a positive integer, got: #{inspect(value)}"
+      end
+  end
+
+first_registry_env = fn names ->
+  Enum.find_value(names, fn name ->
+    case System.get_env(name) do
+      value when value not in [nil, ""] -> value
+      _ -> nil
+    end
+  end)
+end
+
+legacy_registry_s3_names =
+  if Tuist.Environment.swift_registry_sync_mode?() do
+    %{
+      endpoint: ["S3_ENDPOINT"],
+      host: ["S3_HOST"],
+      region: ["S3_REGION"],
+      access_key_id: ["S3_ACCESS_KEY_ID"],
+      secret_access_key: ["S3_SECRET_ACCESS_KEY"]
+    }
+  else
+    %{endpoint: [], host: [], region: [], access_key_id: [], secret_access_key: []}
+  end
+
+registry_bucket = first_registry_env.(["TUIST_REGISTRY_S3_BUCKET", "S3_REGISTRY_BUCKET"])
+
+registry_s3_endpoint =
+  first_registry_env.(["TUIST_REGISTRY_S3_ENDPOINT"] ++ legacy_registry_s3_names.endpoint)
+
+registry_s3_host =
+  first_registry_env.(["TUIST_REGISTRY_S3_HOST"] ++ legacy_registry_s3_names.host)
+
+registry_s3_region =
+  first_registry_env.(["TUIST_REGISTRY_S3_REGION"] ++ legacy_registry_s3_names.region) || "auto"
+
+registry_s3_access_key_id =
+  first_registry_env.(["TUIST_REGISTRY_S3_ACCESS_KEY_ID"] ++ legacy_registry_s3_names.access_key_id)
+
+registry_s3_secret_access_key =
+  first_registry_env.(["TUIST_REGISTRY_S3_SECRET_ACCESS_KEY"] ++ legacy_registry_s3_names.secret_access_key)
+
+{registry_s3_scheme, registry_s3_host, registry_s3_port} =
+  case registry_s3_endpoint do
+    nil ->
+      {"https://", registry_s3_host, nil}
+
+    endpoint ->
+      uri = URI.parse(endpoint)
+      {"#{uri.scheme || "https"}://", uri.host || registry_s3_host, uri.port}
+  end
+
+registry_s3_values = [
+  {"registry bucket", registry_bucket},
+  {"registry object-storage endpoint or host", registry_s3_host},
+  {"registry object-storage access key", registry_s3_access_key_id},
+  {"registry object-storage secret key", registry_s3_secret_access_key}
+]
+
+missing_registry_s3_values =
+  Enum.filter(registry_s3_values, fn {_name, value} -> value in [nil, ""] end)
+
+if registry_bucket not in [nil, ""] and missing_registry_s3_values != [] do
+  names = Enum.map_join(missing_registry_s3_values, ", ", fn {name, _value} -> name end)
+  raise "Registry object storage requires #{names} to be set; refusing to boot"
+end
+
+registry_s3_config =
+  if missing_registry_s3_values == [] do
+    then(
+      [
+        scheme: registry_s3_scheme,
+        host: registry_s3_host,
+        region: registry_s3_region,
+        virtual_host: false,
+        access_key_id: registry_s3_access_key_id,
+        secret_access_key: registry_s3_secret_access_key
+      ],
+      fn config ->
+        if is_nil(registry_s3_port), do: config, else: Keyword.put(config, :port, registry_s3_port)
+      end
+    )
+  else
+    []
+  end
+
+config :tuist, :registry,
+  bucket: registry_bucket,
+  s3_config: registry_s3_config,
+  url: System.get_env("TUIST_REGISTRY_URL"),
+  swift_github_token: System.get_env("SWIFT_REGISTRY_GITHUB_TOKEN"),
+  # When set, the mirror authenticates as this GitHub App installation and the
+  # personal access token above is only the fallback. Accepts the organization
+  # the App is installed on (resolved and cached at runtime) or a numeric
+  # installation id. See `Tuist.Registry.swift_registry_github_token/0`.
+  swift_github_app_installation: System.get_env("SWIFT_REGISTRY_GITHUB_APP_INSTALLATION"),
+  swift_sync_enabled: swift_registry_sync_enabled,
+  swift_sync_allowlist: swift_registry_sync_allowlist,
+  swift_sync_limit: swift_registry_sync_limit
+
+# In swift-registry-sync mode the BEAM only talks to the registry object-storage
+# bucket, so the dedicated configuration can also be the global ExAws
+# configuration. No other queue runs in this pod, so the override never reaches
+# an account-artifact Storage call.
+if Tuist.Environment.swift_registry_sync_mode?() do
+  if missing_registry_s3_values != [] do
+    names = Enum.map_join(missing_registry_s3_values, ", ", fn {name, _value} -> name end)
+    raise "TUIST_MODE=swift_registry_sync requires #{names} to be set; refusing to boot"
+  end
+
+  config :ex_aws, :s3, Keyword.drop(registry_s3_config, [:access_key_id, :secret_access_key])
+
+  config :ex_aws,
+    access_key_id: registry_s3_access_key_id,
+    secret_access_key: registry_s3_secret_access_key,
+    region: registry_s3_region
+end
+
+# Cache tokens are signed with their own keypair where one is configured, so a
+# cache node can be handed a half that reads them and cannot mint them. Parsed
+# and proven here rather than per token: a key that cannot sign would otherwise
+# boot cleanly and fail the token exchange on the first request.
+cache_token_signing_jwk =
+  case Tuist.Environment.secret_key_cache_tokens(secrets) do
+    nil -> nil
+    pem -> Tuist.CacheGuardian.signing_jwk!(pem)
+  end
+
+config :tuist, Tuist.CacheGuardian,
+  issuer: "tuist",
+  allowed_algos: ["ES256"],
+  secret_key: cache_token_signing_jwk
 
 # Guardian
 config :tuist, Tuist.Guardian,
@@ -357,24 +949,39 @@ config :tuist, Tuist.PromEx,
   manual_metrics_start_delay: :no_delay,
   drop_metrics_groups: [],
   grafana: :disabled,
-  ets_flush_interval: 20_000,
+  # `PromEx.ETSCronFlusher` renders the whole metric set and discards it on
+  # this interval. `Tuist.PromEx.StripedPeep` frees nothing on read, so the
+  # only thing a short interval buys is CPU spent on exports nobody reads.
+  ets_flush_interval: to_timeout(minute: 30),
   metrics_server: [
     port: 9091,
     auth_strategy: :none
   ]
 
-if Tuist.Environment.analytics_enabled?(secrets) do
-  config :posthog,
-    api_url: Tuist.Environment.posthog_url(secrets),
-    api_key: Tuist.Environment.posthog_api_key(secrets)
-
-  config :posthog,
-    json_library: Jason,
-    enabled_capture: true,
-    http_client: Tuist.PostHog.HTTPClient,
-    http_client_opts: [
-      timeout: 5_000,
-      retries: 3,
-      retry_delay: 1_000
+if otel_endpoint do
+  config :opentelemetry,
+    span_processor: :batch,
+    resource: [
+      service: [
+        name: "tuist-server",
+        namespace: "tuist",
+        version: to_string(Tuist.Environment.version())
+      ],
+      deployment: [environment: to_string(env)]
     ]
+
+  config :opentelemetry_exporter,
+    otlp_protocol: :grpc,
+    otlp_endpoint: otel_endpoint
+else
+  config :opentelemetry,
+    traces_exporter: :none
 end
+
+config :tuist,
+       :runner_cache_volumes_namespace,
+       System.get_env("TUIST_RUNNER_CACHE_VOLUMES_NAMESPACE", System.get_env("TUIST_RUNNERS_NAMESPACE", "tuist-runners"))
+
+config :tuist,
+       :runner_cache_volumes_sa_name,
+       System.get_env("TUIST_RUNNER_CACHE_VOLUMES_SA_NAME", "tuist-runner-cache-volumes")

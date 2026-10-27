@@ -6,18 +6,20 @@ defmodule TuistWeb.API.OrganizationsController do
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Billing
+  alias Tuist.Billing.UsagePricing
+  alias Tuist.Runners.Allowance
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.Organization
   alias TuistWeb.API.Schemas.OrganizationMember
   alias TuistWeb.API.Schemas.OrganizationUsage
   alias TuistWeb.Authentication
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_message: TuistWeb.RenderAPIErrorPlug
   )
 
-  tags ["Organizations"]
+  tags(["Organizations"])
 
   operation(:index,
     summary: "Lists the organizations",
@@ -45,15 +47,27 @@ defmodule TuistWeb.API.OrganizationsController do
   )
 
   def index(conn, _params) do
+    organization_accounts =
+      case Authentication.current_user(conn) do
+        %Tuist.Accounts.User{} = user ->
+          Accounts.get_user_organization_accounts(user)
+
+        nil ->
+          account =
+            conn
+            |> Authentication.authenticated_subject_account()
+            |> Tuist.Repo.preload(:organization)
+
+          [%{organization: account.organization, account: account}]
+      end
+
     organizations =
-      conn
-      |> Authentication.current_user()
-      |> Accounts.get_user_organization_accounts()
-      |> Enum.map(
+      Enum.map(
+        organization_accounts,
         &%{
           id: &1.organization.id,
           name: &1.account.name,
-          plan: get_plan(&1.account),
+          plan: Billing.effective_plan(&1.account),
           # We don't display in the CLI members and invitations when showing a list of organizations.
           # We keep these fields for backwards compatibility but should remove in the future.
           members: [],
@@ -62,15 +76,6 @@ defmodule TuistWeb.API.OrganizationsController do
       )
 
     json(conn, %{organizations: organizations})
-  end
-
-  defp get_plan(account) do
-    account
-    |> Billing.get_current_active_subscription()
-    |> case do
-      %Billing.Subscription{} = subscription -> subscription.plan
-      nil -> :none
-    end
   end
 
   operation(:create,
@@ -111,7 +116,7 @@ defmodule TuistWeb.API.OrganizationsController do
       is_nil(existing_account) ->
         create_organization(conn, organization_name, user)
 
-      !is_nil(existing_account) ->
+      true ->
         conn
         |> put_status(:bad_request)
         |> json(%{
@@ -130,7 +135,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> json(%{
           id: organization.id,
           name: organization_name,
-          plan: get_plan(organization.account),
+          plan: Billing.effective_plan(organization.account),
           members: [],
           invitations: []
         })
@@ -187,7 +192,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
-      !is_nil(organization) ->
+      true ->
         Accounts.delete_organization!(organization)
 
         conn
@@ -220,7 +225,7 @@ defmodule TuistWeb.API.OrganizationsController do
     organization =
       Accounts.get_organization_by_handle(organization_name)
 
-    user = Authentication.current_user(conn)
+    subject = Authentication.authenticated_subject(conn)
 
     cond do
       is_nil(organization) ->
@@ -228,12 +233,12 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:not_found)
         |> json(%{message: "Organization not found"})
 
-      Authorization.authorize(:organization_read, user, organization.account) != :ok ->
+      Authorization.authorize(:organization_read, subject, organization.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
-      !is_nil(organization) ->
+      true ->
         admins =
           organization
           |> Accounts.get_organization_members(:admin)
@@ -263,35 +268,65 @@ defmodule TuistWeb.API.OrganizationsController do
             }
           )
 
+        member_ids = admin_ids ++ Enum.map(users, & &1.id)
+
+        viewers =
+          organization
+          |> Accounts.get_organization_members(:viewer)
+          |> Enum.filter(fn member ->
+            member.id not in member_ids
+          end)
+          |> Enum.map(
+            &%{
+              id: &1.id,
+              email: &1.email,
+              name: &1.account.name,
+              role: "viewer"
+            }
+          )
+
         json(conn, %{
           id: organization.id,
           name: organization_name,
-          plan: get_plan(organization.account),
-          members: admins ++ users,
+          plan: Billing.effective_plan(organization.account),
+          members: admins ++ users ++ viewers,
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
-          invitations:
-            Enum.map(
-              Tuist.Repo.preload(organization, invitations: [inviter: :account]).invitations,
-              &%{
-                id: &1.id,
-                invitee_email: &1.invitee_email,
-                inviter: %{
-                  id: &1.inviter.id,
-                  email: &1.inviter.email,
-                  name: &1.inviter.account.name
-                },
-                token: &1.token,
-                organization_id: &1.organization_id
-              }
-            )
+          sso_enforced: organization.sso_enforced,
+          invitations: invitations(organization, subject)
         })
     end
   end
 
+  defp invitations(organization, subject) do
+    if Authorization.authorize(:invitation_read, subject, organization.account) == :ok do
+      organization
+      |> Tuist.Repo.preload(invitations: [inviter: :account])
+      |> Map.fetch!(:invitations)
+      |> Enum.map(&serialize_invitation/1)
+    else
+      []
+    end
+  end
+
+  defp serialize_invitation(invitation) do
+    %{
+      id: invitation.id,
+      invitee_email: invitation.invitee_email,
+      inviter: %{
+        id: invitation.inviter.id,
+        email: invitation.inviter.email,
+        name: invitation.inviter.account.name
+      },
+      token: invitation.token,
+      organization_id: invitation.organization_id,
+      role: invitation.role
+    }
+  end
+
   operation(:usage,
     summary: "Shows the usage of an organization",
-    description: "Returns the usage of the organization with the given identifier. (e.g. number of remote cache hits)",
+    description: "Returns the usage of the organization with the given identifier.",
     operation_id: "showOrganizationUsage",
     parameters: [
       organization_name: [
@@ -326,12 +361,51 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
 
-      !is_nil(organization) ->
-        json(conn, %{
-          current_month_remote_cache_hits: organization.account.current_month_remote_cache_hits_count
-        })
+      true ->
+        json(conn, usage_response(organization.account))
     end
   end
+
+  defp usage_response(account) do
+    {period_start, period_end} = period = hd(Billing.recent_billing_periods(account, 1))
+    %{cache: cache, tests: tests} = UsagePricing.period_breakdown(account, period)
+    runners = Allowance.period_breakdown(account, period)
+    # Only Pro is billed on the cache and test meters: Air is cut off at the
+    # allowances, and enterprise and open source terms are flat.
+    metered? = Billing.effective_plan(account) == :pro
+    cache_charge = if metered?, do: cache.charge.amount, else: 0
+    tests_charge = if metered?, do: tests.charge.amount, else: 0
+
+    %{
+      current_month_remote_cache_hits: 0,
+      period: %{start: iso8601(period_start), end: iso8601(period_end)},
+      cache_egress: meter(cache.egress, metered?),
+      cache_requests: meter(cache.requests, metered?),
+      passing_test_cases: %{
+        used: tests.passed,
+        included: tests.included,
+        billable: tests.billable,
+        charge_cents: tests_charge
+      },
+      runner_minutes: %{
+        used: runners.minutes,
+        included: runners.free_minutes,
+        charge_cents: runners.billed.amount
+      },
+      estimated_charge_cents: cache_charge + tests_charge + runners.billed.amount
+    }
+  end
+
+  defp meter(receipt, metered?) do
+    %{
+      used: receipt.metered,
+      included: receipt.included,
+      billable: receipt.billable,
+      charge_cents: if(metered?, do: receipt.charge.amount, else: 0)
+    }
+  end
+
+  defp iso8601(datetime), do: datetime |> DateTime.truncate(:second) |> DateTime.to_iso8601()
 
   operation(:update,
     summary: "Updates an organization",
@@ -358,6 +432,17 @@ defmodule TuistWeb.API.OrganizationsController do
            sso_organization_id: %Schema{
              type: :string,
              description: "The SSO organization ID to be associated with the SSO provider",
+             nullable: true
+           },
+           sso_enforced: %Schema{
+             type: :boolean,
+             description: "When true, organization members must use SSO and cannot log in with email and password",
+             nullable: true
+           },
+           sso_automatic_enrollment: %Schema{
+             type: :boolean,
+             description:
+               "When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.",
              nullable: true
            }
          }
@@ -398,21 +483,31 @@ defmodule TuistWeb.API.OrganizationsController do
         {:ok, organization} =
           Accounts.update_organization(organization, %{
             sso_provider: nil,
-            sso_organization_id: nil
+            sso_organization_id: nil,
+            sso_enforced: false,
+            sso_login_domain: nil,
+            sso_automatic_enrollment: false,
+            oauth2_client_id: nil,
+            oauth2_encrypted_client_secret: nil,
+            oauth2_authorize_url: nil,
+            oauth2_token_url: nil,
+            oauth2_user_info_url: nil
           })
 
         json(conn, %{
           id: organization.id,
           name: organization_name,
-          plan: get_plan(organization.account),
+          plan: Billing.effective_plan(organization.account),
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
+          sso_enforced: organization.sso_enforced,
+          sso_automatic_enrollment: organization.sso_automatic_enrollment,
           members: [],
           invitations: []
         })
 
       is_nil(
-        Accounts.find_oauth2_identity(%{user: user, provider: String.to_atom(sso_provider)},
+        Accounts.find_oauth2_identity(%{user: user, provider: sso_provider_atom(sso_provider)},
           provider_organization_id: body_params.sso_organization_id
         )
       ) ->
@@ -422,33 +517,60 @@ defmodule TuistWeb.API.OrganizationsController do
           message: "Your SSO organization must be the same as the one you are trying to update your organization to."
         })
 
-      !is_nil(organization) ->
+      true ->
+        sso_provider = sso_provider_atom(sso_provider)
+
         update_organization(%{
           organization: organization,
           sso_provider: sso_provider,
           sso_organization_id: body_params.sso_organization_id,
+          sso_enforced: requested_sso_enforced(body_params, organization, sso_provider),
+          sso_automatic_enrollment: requested_sso_automatic_enrollment(body_params, organization, sso_provider),
           conn: conn
         })
     end
   end
 
+  defp requested_sso_enforced(%{sso_enforced: value}, _organization, _provider) when is_boolean(value), do: value
+
+  defp requested_sso_enforced(_body_params, organization, provider) do
+    organization.sso_provider == provider and organization.sso_enforced
+  end
+
+  defp requested_sso_automatic_enrollment(%{sso_automatic_enrollment: value}, _organization, _provider)
+       when is_boolean(value), do: value
+
+  defp requested_sso_automatic_enrollment(
+         _body_params,
+         %{sso_provider: provider, sso_automatic_enrollment: automatic_enrollment},
+         provider
+       ), do: automatic_enrollment
+
+  defp requested_sso_automatic_enrollment(_body_params, _organization, provider), do: provider == :google
+
   defp update_organization(%{
          organization: organization,
          sso_provider: sso_provider,
          sso_organization_id: sso_organization_id,
+         sso_enforced: sso_enforced,
+         sso_automatic_enrollment: sso_automatic_enrollment,
          conn: %Plug.Conn{} = conn
        }) do
     case Accounts.update_organization(organization, %{
-           sso_provider: String.to_atom(sso_provider),
-           sso_organization_id: sso_organization_id
+           sso_provider: sso_provider,
+           sso_organization_id: sso_organization_id,
+           sso_enforced: sso_enforced || false,
+           sso_automatic_enrollment: sso_automatic_enrollment
          }) do
       {:ok, organization} ->
         json(conn, %{
           id: organization.id,
           name: organization.account.name,
-          plan: get_plan(organization.account),
+          plan: Billing.effective_plan(organization.account),
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
+          sso_enforced: organization.sso_enforced,
+          sso_automatic_enrollment: organization.sso_automatic_enrollment,
           members: [],
           invitations: []
         })
@@ -465,6 +587,9 @@ defmodule TuistWeb.API.OrganizationsController do
         |> json(%Error{message: message})
     end
   end
+
+  defp sso_provider_atom("google"), do: :google
+  defp sso_provider_atom("okta"), do: :okta
 
   operation(:remove_member,
     summary: "Removes a member from an organization",
@@ -495,7 +620,7 @@ defmodule TuistWeb.API.OrganizationsController do
 
   def remove_member(%{path_params: %{"organization_name" => organization_name, "user_name" => user_name}} = conn, _params) do
     organization = Accounts.get_organization_by_handle(organization_name)
-    user = Authentication.current_user(conn)
+    subject = Authentication.authenticated_subject(conn)
     member_account = Accounts.get_account_by_handle(user_name)
 
     cond do
@@ -509,7 +634,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:not_found)
         |> json(%{message: "User #{user_name} not found."})
 
-      Authorization.authorize(:member_delete, user, organization.account) != :ok ->
+      Authorization.authorize(:member_delete, subject, organization.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
@@ -558,7 +683,7 @@ defmodule TuistWeb.API.OrganizationsController do
          properties: %{
            role: %Schema{
              type: :string,
-             enum: ["admin", "user"],
+             enum: Accounts.organization_role_names(),
              description: "The role to update the member to"
            }
          },
@@ -579,7 +704,7 @@ defmodule TuistWeb.API.OrganizationsController do
         _params
       ) do
     organization = Accounts.get_organization_by_handle(organization_name)
-    user = Authentication.current_user(conn)
+    subject = Authentication.authenticated_subject(conn)
     member_account = Accounts.get_account_by_handle(user_name)
 
     cond do
@@ -593,7 +718,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> put_status(:not_found)
         |> json(%{message: "User #{user_name} not found."})
 
-      Authorization.authorize(:member_update, user, organization.account) != :ok ->
+      Authorization.authorize(:member_update, subject, organization.account) != :ok ->
         conn
         |> put_status(:forbidden)
         |> json(%{message: "The authenticated subject is not authorized to perform this action"})
@@ -610,7 +735,8 @@ defmodule TuistWeb.API.OrganizationsController do
         end
 
         if Accounts.belongs_to_organization?(member, organization) do
-          {:ok, _} = Accounts.update_user_role_in_organization(member, organization, String.to_atom(role))
+          {:ok, _} =
+            Accounts.update_user_role_in_organization(member, organization, String.to_atom(role))
 
           json(conn, %{id: member.id, email: member.email, name: member_account.name, role: role})
         else

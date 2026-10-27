@@ -1,28 +1,45 @@
 defmodule Cache.S3TransferWorkerTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
+  import Ecto.Query
   import ExUnit.CaptureLog
 
   alias Cache.Repo
   alias Cache.S3Transfer
   alias Cache.S3Transfers
+  alias Cache.S3TransfersBuffer
   alias Cache.S3TransferWorker
   alias Ecto.Adapters.SQL.Sandbox
 
-  setup do
-    :ok = Sandbox.checkout(Repo)
-    Sandbox.mode(Repo, {:shared, self()})
+  setup :set_mimic_from_context
 
-    :ok
+  setup context do
+    :ok = Sandbox.checkout(Repo)
+
+    context = Cache.BufferTestHelpers.setup_s3_transfers_buffer(context)
+
+    {:ok, context}
   end
 
   describe "perform/1" do
-    test "processes pending uploads and deletes them" do
-      {:ok, _} = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact1")
-      {:ok, _} = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact2")
+    test "processes pending CAS uploads via upload_file with type: :xcode_cache" do
+      suffix = :erlang.unique_integer([:positive])
+      key_one = "account/project/xcode/ar/ti/artifact1-#{suffix}"
+      key_two = "account/project/xcode/ar/ti/artifact2-#{suffix}"
 
-      expect(Cache.S3, :upload, 2, fn _key ->
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", key_one)
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", key_two)
+      :ok = S3TransfersBuffer.flush()
+
+      {:ok, tmp_dir} = Briefly.create(directory: true)
+      tmp_file = Path.join(tmp_dir, "test_artifact")
+      File.write!(tmp_file, "test content")
+
+      expect(Cache.Disk, :artifact_path, 2, fn _key -> tmp_file end)
+
+      expect(Cache.S3, :upload_file, 2, fn _key, _path, opts ->
+        assert opts == [type: :xcode_cache]
         :ok
       end)
 
@@ -30,19 +47,27 @@ defmodule Cache.S3TransferWorkerTest do
         assert :ok = S3TransferWorker.perform(%Oban.Job{})
       end)
 
-      count = Repo.aggregate(S3Transfer, :count, :id)
+      :ok = S3TransfersBuffer.flush()
+
+      count = Repo.aggregate(from(t in S3Transfer, where: t.key in ^[key_one, key_two]), :count, :id)
       assert count == 0
     end
 
-    test "processes pending downloads and deletes them" do
-      {:ok, _} = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/ar/ti/artifact1")
-      {:ok, _} = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/ar/ti/artifact2")
+    test "processes pending CAS downloads with type: :xcode_cache" do
+      suffix = :erlang.unique_integer([:positive])
+      key_one = "account/project/xcode/ar/ti/artifact1-#{suffix}"
+      key_two = "account/project/xcode/ar/ti/artifact2-#{suffix}"
+
+      :ok = S3Transfers.enqueue_xcode_download("account", "project", key_one)
+      :ok = S3Transfers.enqueue_xcode_download("account", "project", key_two)
+      :ok = S3TransfersBuffer.flush()
 
       {:ok, tmp_dir} = Briefly.create(directory: true)
       tmp_file = Path.join(tmp_dir, "test_artifact")
       File.write!(tmp_file, "test content")
 
-      expect(Cache.S3, :download, 2, fn _key ->
+      expect(Cache.S3, :download, 2, fn _key, opts ->
+        assert opts == [type: :xcode_cache]
         {:ok, :hit}
       end)
 
@@ -52,40 +77,61 @@ defmodule Cache.S3TransferWorkerTest do
         assert :ok = S3TransferWorker.perform(%Oban.Job{})
       end)
 
-      count = Repo.aggregate(S3Transfer, :count, :id)
+      :ok = S3TransfersBuffer.flush()
+
+      count = Repo.aggregate(from(t in S3Transfer, where: t.key in ^[key_one, key_two]), :count, :id)
       assert count == 0
     end
 
-    test "processes both uploads and downloads" do
-      {:ok, _} = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact1")
-      {:ok, _} = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/ar/ti/artifact2")
+    test "processes both CAS uploads and downloads" do
+      suffix = :erlang.unique_integer([:positive])
+      upload_key = "account/project/xcode/ar/ti/artifact1-#{suffix}"
+      download_key = "account/project/xcode/ar/ti/artifact2-#{suffix}"
+
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", upload_key)
+      :ok = S3Transfers.enqueue_xcode_download("account", "project", download_key)
+      :ok = S3TransfersBuffer.flush()
 
       {:ok, tmp_dir} = Briefly.create(directory: true)
       tmp_file = Path.join(tmp_dir, "test_artifact")
       File.write!(tmp_file, "test content")
 
-      expect(Cache.S3, :upload, fn _key ->
+      expect(Cache.Disk, :artifact_path, 2, fn _key -> tmp_file end)
+
+      expect(Cache.S3, :upload_file, fn _key, _path, opts ->
+        assert opts == [type: :xcode_cache]
         :ok
       end)
 
-      expect(Cache.S3, :download, fn _key ->
+      expect(Cache.S3, :download, fn _key, opts ->
+        assert opts == [type: :xcode_cache]
         {:ok, :hit}
       end)
-
-      expect(Cache.Disk, :artifact_path, fn _key -> tmp_file end)
 
       capture_log(fn ->
         assert :ok = S3TransferWorker.perform(%Oban.Job{})
       end)
 
-      count = Repo.aggregate(S3Transfer, :count, :id)
+      :ok = S3TransfersBuffer.flush()
+
+      count = Repo.aggregate(from(t in S3Transfer, where: t.key in ^[upload_key, download_key]), :count, :id)
       assert count == 0
     end
 
     test "deletes transfers on non-retryable failure" do
-      {:ok, _} = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact1")
+      suffix = :erlang.unique_integer([:positive])
+      key = "account/project/xcode/ar/ti/artifact1-#{suffix}"
 
-      expect(Cache.S3, :upload, fn _key ->
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", key)
+      :ok = S3TransfersBuffer.flush()
+
+      {:ok, tmp_dir} = Briefly.create(directory: true)
+      tmp_file = Path.join(tmp_dir, "test_artifact")
+      File.write!(tmp_file, "test content")
+
+      expect(Cache.Disk, :artifact_path, fn _key -> tmp_file end)
+
+      expect(Cache.S3, :upload_file, fn _key, _path, [type: :xcode_cache] ->
         {:error, :timeout}
       end)
 
@@ -93,19 +139,32 @@ defmodule Cache.S3TransferWorkerTest do
         assert :ok = S3TransferWorker.perform(%Oban.Job{})
       end)
 
-      count = Repo.aggregate(S3Transfer, :count, :id)
+      :ok = S3TransfersBuffer.flush()
+
+      count = Repo.aggregate(from(t in S3Transfer, where: t.key == ^key), :count, :id)
       assert count == 0
     end
 
     test "keeps transfers in queue on rate limiting" do
-      {:ok, _} = S3Transfers.enqueue_cas_upload("account", "project", "account/project/cas/ar/ti/artifact1")
-      {:ok, _} = S3Transfers.enqueue_cas_download("account", "project", "account/project/cas/ar/ti/artifact2")
+      suffix = :erlang.unique_integer([:positive])
+      upload_key = "account/project/xcode/ar/ti/artifact1-#{suffix}"
+      download_key = "account/project/xcode/ar/ti/artifact2-#{suffix}"
 
-      expect(Cache.S3, :upload, fn _key ->
+      :ok = S3Transfers.enqueue_xcode_upload("account", "project", upload_key)
+      :ok = S3Transfers.enqueue_xcode_download("account", "project", download_key)
+      :ok = S3TransfersBuffer.flush()
+
+      {:ok, tmp_dir} = Briefly.create(directory: true)
+      tmp_file = Path.join(tmp_dir, "test_artifact")
+      File.write!(tmp_file, "test content")
+
+      expect(Cache.Disk, :artifact_path, fn _key -> tmp_file end)
+
+      expect(Cache.S3, :upload_file, fn _key, _path, [type: :xcode_cache] ->
         {:error, :rate_limited}
       end)
 
-      expect(Cache.S3, :download, fn _key ->
+      expect(Cache.S3, :download, fn _key, [type: :xcode_cache] ->
         {:error, :rate_limited}
       end)
 
@@ -113,14 +172,19 @@ defmodule Cache.S3TransferWorkerTest do
         assert :ok = S3TransferWorker.perform(%Oban.Job{})
       end)
 
-      count = Repo.aggregate(S3Transfer, :count, :id)
+      :ok = S3TransfersBuffer.flush()
+
+      count = Repo.aggregate(from(t in S3Transfer, where: t.key in ^[upload_key, download_key]), :count, :id)
       assert count == 2
     end
 
     test "does nothing when no pending transfers" do
+      suffix = :erlang.unique_integer([:positive])
+      key = "account/project/xcode/ar/ti/artifact-noop-#{suffix}"
+
       assert :ok = S3TransferWorker.perform(%Oban.Job{})
 
-      count = Repo.aggregate(S3Transfer, :count, :id)
+      count = Repo.aggregate(from(t in S3Transfer, where: t.key == ^key), :count, :id)
       assert count == 0
     end
   end

@@ -6,7 +6,11 @@ import Mockable
 import OpenAPIRuntime
 import Path
 import Testing
+import TuistAlert
+import TuistAppleArchiver
+import TuistConstants
 import TuistCore
+import TuistLoggerTesting
 import TuistServer
 import TuistSupport
 import XcodeGraph
@@ -63,14 +67,13 @@ struct CacheRemoteStorageTests {
         subject = CacheRemoteStorage(
             fullHandle: fullHandle,
             url: Constants.URLs.production,
-            fileArchiverFactory: FileArchivingFactory(),
+            appleArchiver: AppleArchiver(),
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             cacheExistsService: cacheExistsService,
             getCacheService: getCacheService,
             getCacheActionItemService: getCacheActionItemService,
             uploadCacheActionItemService: uploadCacheActionItemService,
             artifactSigner: artifactSigner,
-            fileHandler: FileHandler.shared,
             fileSystem: fileSystem,
             multipartUploadStartCacheService: multipartUploadStartCacheService,
             multipartUploadGenerateURLCacheService: multipartUploadGenerateURLCacheService,
@@ -78,16 +81,36 @@ struct CacheRemoteStorageTests {
             downloader: downloader,
             retryProvider: retryProvider,
             multipartUploadArtifactService: multipartUploadArtifactService,
-            concurrencyLimit: 15
+            concurrencyLimit: 15,
+            cacheActionItemConcurrencyLimit: 15
         )
+    }
+
+    /// Builds an AppleArchive (LZFSE) fixture of the given paths, matching the archive format the
+    /// storage now downloads and decompresses. Replaces the previous store-method zip fixtures.
+    private func makeArchive(paths: [AbsolutePath], name: String) async throws -> AbsolutePath {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let stagingDirectory = temporaryDirectory.appending(component: "\(name)-staging")
+        try await fileSystem.makeDirectory(at: stagingDirectory)
+        for path in paths {
+            try await fileSystem.copy(path, to: stagingDirectory.appending(component: path.basename))
+        }
+        let archivePath = temporaryDirectory.appending(component: "\(name).aar")
+        try await AppleArchiver().compress(
+            directory: stagingDirectory,
+            to: archivePath,
+            excludePatterns: [],
+            preservesBaseDirectory: false
+        )
+        return archivePath
     }
 
     @Test(.inTemporaryDirectory) func fetch_when_macro_artifact_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let macroPath = temporaryDirectory.appending(component: "target.macro")
-        try FileHandler.shared.touch(macroPath)
-        let zipPath = try await FileArchiver(paths: [macroPath]).zip(name: "test")
+        try await fileSystem.touch(macroPath)
+        let zipPath = try await makeArchive(paths: [macroPath], name: "test")
 
         let serverCacheArtifact = ServerCacheArtifact.test()
 
@@ -115,12 +138,42 @@ struct CacheRemoteStorageTests {
         #expect(try artifactSigner.isValid(path) == true)
     }
 
+    @Test(.inTemporaryDirectory) func fetch_when_macro_product_name_differs_from_target_name() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let macroPath = temporaryDirectory.appending(component: "MacroProduct.macro")
+        try await fileSystem.touch(macroPath)
+        let zipPath = try await makeArchive(paths: [macroPath], name: "test")
+
+        let serverCacheArtifact = ServerCacheArtifact.test()
+
+        given(getCacheService).getCache(
+            serverURL: .value(Constants.URLs.production),
+            projectId: .value(fullHandle),
+            hash: .value("hash"),
+            name: .value("MacroTarget"),
+            cacheCategory: .value(.binaries)
+        ).willReturn(serverCacheArtifact)
+        given(downloader).download(item: .any, url: .value(serverCacheArtifact.url)).willReturn(zipPath)
+
+        let got = try await subject.fetch(
+            Set([.init(name: "MacroTarget", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        let path = try #require(
+            got[.test(name: "MacroTarget", hash: "hash", source: .remote, cacheCategory: .binaries)]
+        )
+        #expect(path.basename == "MacroProduct.macro")
+        #expect(try artifactSigner.isValid(path) == true)
+    }
+
     @Test(.inTemporaryDirectory) func fetch_when_framework_artifact_exists() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let frameworkPath = temporaryDirectory.appending(component: "target.framework")
-        try FileHandler.shared.createFolder(frameworkPath)
-        let zipPath = try await FileArchiver(paths: [frameworkPath]).zip(name: "test")
+        try await fileSystem.makeDirectory(at: frameworkPath)
+        try await fileSystem.touch(frameworkPath.appending(component: "target"))
+        let zipPath = try await makeArchive(paths: [frameworkPath], name: "test")
 
         let serverCacheArtifact = ServerCacheArtifact.test()
 
@@ -225,10 +278,12 @@ struct CacheRemoteStorageTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let frameworkOnePath = temporaryDirectory.appending(components: "frameworkOne.framework")
         try await fileSystem.makeDirectory(at: frameworkOnePath)
-        let zipPathOne = try await FileArchiver(paths: [frameworkOnePath]).zip(name: "test-one")
+        try await fileSystem.touch(frameworkOnePath.appending(component: "frameworkOne"))
+        let zipPathOne = try await makeArchive(paths: [frameworkOnePath], name: "test-one")
         let frameworkTwoPath = temporaryDirectory.appending(component: "frameworkTwo.framework")
         try await fileSystem.makeDirectory(at: frameworkTwoPath)
-        let zipPathTwo = try await FileArchiver(paths: [frameworkTwoPath]).zip(name: "test-two")
+        try await fileSystem.touch(frameworkTwoPath.appending(component: "frameworkTwo"))
+        let zipPathTwo = try await makeArchive(paths: [frameworkTwoPath], name: "test-two")
 
         let serverCacheArtifactOne = ServerCacheArtifact.test(
             url: URL(string: "https://tuist.dev/storage/framework-one")!
@@ -289,8 +344,9 @@ struct CacheRemoteStorageTests {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let bundlePath = temporaryDirectory.appending(component: "target.bundle")
-        try FileHandler.shared.createFolder(bundlePath)
-        let zipPath = try await FileArchiver(paths: [bundlePath]).zip(name: "test")
+        try await fileSystem.makeDirectory(at: bundlePath)
+        try await fileSystem.touch(bundlePath.appending(component: "Info.plist"))
+        let zipPath = try await makeArchive(paths: [bundlePath], name: "test")
 
         let serverCacheArtifact = ServerCacheArtifact.test()
 
@@ -322,8 +378,9 @@ struct CacheRemoteStorageTests {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let xcframeworkPath = temporaryDirectory.appending(component: "target.xcframework")
-        try FileHandler.shared.createFolder(xcframeworkPath)
-        let zipPath = try await FileArchiver(paths: [xcframeworkPath]).zip(name: "test")
+        try await fileSystem.makeDirectory(at: xcframeworkPath)
+        try await fileSystem.touch(xcframeworkPath.appending(component: "Info.plist"))
+        let zipPath = try await makeArchive(paths: [xcframeworkPath], name: "test")
 
         let serverCacheArtifact = ServerCacheArtifact.test()
 
@@ -357,7 +414,11 @@ struct CacheRemoteStorageTests {
         .withScopedAlertController()
     ) func fetch_when_artifact_invalid_exists() async throws {
         // Given
-        let zipPath = try await FileArchiver(paths: []).zip(name: "test") // Invalid
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let unrelatedFile = temporaryDirectory.appending(component: "unrelated.txt")
+        try await fileSystem.touch(unrelatedFile)
+        // Invalid: the archive exists but does not contain the expected `target` artifact.
+        let zipPath = try await makeArchive(paths: [unrelatedFile], name: "test")
 
         let serverCacheArtifact = ServerCacheArtifact.test()
 
@@ -642,7 +703,7 @@ struct CacheRemoteStorageTests {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let macroPath = temporaryDirectory.appending(component: "macro.macro")
-        try FileHandler.shared.touch(macroPath)
+        try await fileSystem.touch(macroPath)
         given(multipartUploadStartCacheService).uploadCache(
             serverURL: .value(Constants.URLs.production),
             projectId: .value(fullHandle),
@@ -693,6 +754,65 @@ struct CacheRemoteStorageTests {
     }
 
     @Test(.inTemporaryDirectory, .withScopedAlertController())
+    func store_when_multipart_upload_complete_cache_service_throws_conflict() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let macroPath = temporaryDirectory.appending(component: "macro.macro")
+        try await fileSystem.touch(macroPath)
+        given(multipartUploadStartCacheService).uploadCache(
+            serverURL: .value(Constants.URLs.production),
+            projectId: .value(fullHandle),
+            hash: .value("hash"),
+            name: .value("target"),
+            cacheCategory: .value(.binaries)
+        ).willReturn("upload-id")
+        given(multipartUploadGenerateURLCacheService)
+            .uploadCache(
+                serverURL: .value(Constants.URLs.production),
+                projectId: .value(fullHandle),
+                hash: .value("hash"),
+                name: .value("target"),
+                cacheCategory: .value(.binaries),
+                uploadId: .value("upload-id"),
+                partNumber: .value(1),
+                contentLength: .value(20)
+            )
+            .willReturn("https://tuist.dev/upload")
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .any,
+                generateUploadURL: .any,
+                updateProgress: .any
+            )
+            .willReturn([(etag: "etag", partNumber: 1)])
+        given(multipartUploadCompleteCacheService).uploadCache(
+            serverURL: .value(Constants.URLs.production),
+            projectId: .value(fullHandle),
+            hash: .value("hash"),
+            name: .value("target"),
+            cacheCategory: .value(.binaries),
+            uploadId: .value("upload-id"),
+            parts: .matching { values in
+                values.contains(where: { $0.etag == "etag" && $0.partNumber == 1 })
+            }
+        ).willThrow(
+            MultipartUploadCompleteCacheServiceError.conflict(
+                "The multipart upload is no longer active. Start a new upload and retry."
+            )
+        )
+
+        // When
+        let error = await #expect(throws: CacheUploadError.self) {
+            try await subject.store(
+                [.init(name: "target", hash: "hash"): [macroPath]], cacheCategory: .binaries
+            )
+        }
+
+        // Then
+        #expect(error?.failures.map(\.item) == [CacheStorableItem(name: "target", hash: "hash")])
+    }
+
+    @Test(.inTemporaryDirectory, .withScopedAlertController())
     func store_when_multipart_upload_start_cache_service_throws_internal_server_error()
         async throws
     {
@@ -709,15 +829,14 @@ struct CacheRemoteStorageTests {
         )
 
         // When
-        let result = try await subject.store(
-            [.init(name: "target", hash: "hash"): [binaryPath]], cacheCategory: .binaries
-        )
+        let error = await #expect(throws: CacheUploadError.self) {
+            try await subject.store(
+                [.init(name: "target", hash: "hash"): [binaryPath]], cacheCategory: .binaries
+            )
+        }
 
         // Then
-        #expect(result.isEmpty)
-        #expect(AlertController.current.warnings()
-            .contains { $0.message.plain().contains("Failed to upload target with hash hash due to unexpected error:") }
-        )
+        #expect(error?.failures.map(\.item) == [CacheStorableItem(name: "target", hash: "hash")])
     }
 
     @Test(.inTemporaryDirectory)
@@ -742,12 +861,14 @@ struct CacheRemoteStorageTests {
         )
 
         // When
-        let result = try await subject.store(
-            [.init(name: "target", hash: "hash"): [binaryPath]], cacheCategory: .binaries
-        )
+        let error = await #expect(throws: CacheUploadError.self) {
+            try await subject.store(
+                [.init(name: "target", hash: "hash"): [binaryPath]], cacheCategory: .binaries
+            )
+        }
 
         // Then
-        #expect(result.isEmpty)
+        #expect(error?.failures.map(\.item) == [CacheStorableItem(name: "target", hash: "hash")])
     }
 
     @Test(.inTemporaryDirectory)
@@ -772,12 +893,14 @@ struct CacheRemoteStorageTests {
         )
 
         // When
-        let result = try await subject.store(
-            [.init(name: "target", hash: "hash"): [binaryPath]], cacheCategory: .binaries
-        )
+        let error = await #expect(throws: CacheUploadError.self) {
+            try await subject.store(
+                [.init(name: "target", hash: "hash"): [binaryPath]], cacheCategory: .binaries
+            )
+        }
 
         // Then
-        #expect(result.isEmpty)
+        #expect(error?.failures.map(\.item) == [CacheStorableItem(name: "target", hash: "hash")])
     }
 
     @Test(.inTemporaryDirectory, .withScopedAlertController())
@@ -802,15 +925,14 @@ struct CacheRemoteStorageTests {
         )
 
         // When
-        let result = try await subject.store(
-            [.init(name: "target", hash: "hash"): [binaryPath]], cacheCategory: .binaries
-        )
+        let error = await #expect(throws: CacheUploadError.self) {
+            try await subject.store(
+                [.init(name: "target", hash: "hash"): [binaryPath]], cacheCategory: .binaries
+            )
+        }
 
         // Then
-        #expect(result.isEmpty)
-        #expect(AlertController.current.warnings()
-            .contains { $0.message.plain().contains("Failed to upload target with hash hash due to unexpected error:") }
-        )
+        #expect(error?.failures.map(\.item) == [CacheStorableItem(name: "target", hash: "hash")])
     }
 
     // MARK: - Upload Error Handling Tests
@@ -820,8 +942,8 @@ struct CacheRemoteStorageTests {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let macroPath1 = temporaryDirectory.appending(component: "macro1.macro")
         let macroPath2 = temporaryDirectory.appending(component: "macro2.macro")
-        try FileHandler.shared.touch(macroPath1)
-        try FileHandler.shared.touch(macroPath2)
+        try await fileSystem.touch(macroPath1)
+        try await fileSystem.touch(macroPath2)
 
         let items = [
             CacheStorableItem(name: "target1", hash: "hash1"): [macroPath1],
@@ -874,13 +996,13 @@ struct CacheRemoteStorageTests {
     }
 
     @Test(.inTemporaryDirectory, .withScopedAlertController())
-    func store_handles_individual_upload_failures_gracefully() async throws {
+    func store_uploads_the_rest_and_throws_the_items_that_failed() async throws {
         // Given
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let macroPath1 = temporaryDirectory.appending(component: "macro1.macro")
         let macroPath2 = temporaryDirectory.appending(component: "macro2.macro")
-        try FileHandler.shared.touch(macroPath1)
-        try FileHandler.shared.touch(macroPath2)
+        try await fileSystem.touch(macroPath1)
+        try await fileSystem.touch(macroPath2)
 
         let items = [
             CacheStorableItem(name: "target1", hash: "hash1"): [macroPath1],
@@ -932,16 +1054,20 @@ struct CacheRemoteStorageTests {
         ).willReturn(())
 
         // When
-        let result = try await subject.store(items, cacheCategory: .binaries)
+        let error = await #expect(throws: CacheUploadError.self) {
+            try await subject.store(items, cacheCategory: .binaries)
+        }
 
         // Then
-        #expect(result.count == 1)
-        #expect(result.first?.name == "target2")
-        #expect(result.first?.hash == "hash2")
-
-        // Verify warning was logged for failed upload
-        #expect(AlertController.current.warnings()
-            .contains { $0.message.plain().contains("Failed to upload target1 with hash hash1 due to unexpected error:") }
-        )
+        #expect(error?.failures.map(\.item) == [CacheStorableItem(name: "target1", hash: "hash1")])
+        verify(multipartUploadCompleteCacheService).uploadCache(
+            serverURL: .any,
+            projectId: .any,
+            hash: .value("hash2"),
+            name: .value("target2"),
+            cacheCategory: .any,
+            uploadId: .any,
+            parts: .any
+        ).called(1)
     }
 }

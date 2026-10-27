@@ -1,12 +1,14 @@
 import FileSystem
 import Foundation
 import Path
+import TuistConstants
 import TuistCore
 import TuistLoader
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 
-protocol ProjectEditorMapping: AnyObject {
+protocol ProjectEditorMapping {
     func map(
         name: String,
         tuistPath: AbsolutePath,
@@ -27,7 +29,7 @@ protocol ProjectEditorMapping: AnyObject {
 }
 
 // swiftlint:disable:next type_body_length
-final class ProjectEditorMapper: ProjectEditorMapping {
+struct ProjectEditorMapper: ProjectEditorMapping {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let fileSystem: FileSysteming
 
@@ -58,7 +60,9 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         projectDescriptionSearchPath: AbsolutePath
     ) async throws -> Graph {
         Logger.current.notice("Building the editable project graph")
-        let swiftVersion = try SwiftVersionProvider.current.swiftVersion()
+        // The Swift compiler version and its default language mode can differ. Match edit targets to the language mode
+        // used by the unversioned `swift` and `swiftc` invocations that evaluate manifests and compile helpers.
+        let swiftVersion = try await SwiftVersionProvider.current.swiftDefaultLanguageModeVersion()
 
         let pluginsProject = try await mapPluginsProject(
             pluginManifests: editablePluginManifests,
@@ -133,7 +137,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             workspace: workspace,
             projects: graphProjects,
             packages: [:],
-            dependencies: Dictionary(uniqueKeysWithValues: graphDependencies),
+            dependencies: Dictionary(graphDependencies, uniquingKeysWith: { $0.union($1) }),
             dependencyConditions: [:]
         )
     }
@@ -177,7 +181,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                 name: "Config",
                 filesGroup: manifestsFilesGroup,
                 targetSettings: baseTargetSettings,
-                sourcePaths: [configPath]
+                sourcePaths: [configPath],
+                excludeFromBuildPaths: [configPath]
             )
         }()
 
@@ -211,6 +216,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                 filesGroup: manifestsFilesGroup,
                 targetSettings: baseTargetSettings,
                 sourcePaths: templateSources,
+                excludeFromBuildPaths: templateSources,
                 additionalFilePaths: templateResources,
                 dependencies: helpersTarget.flatMap { [TargetDependency.target(name: $0.name)] } ?? []
             )
@@ -242,9 +248,9 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let helperTargetDependencies = helpersTarget.map { [TargetDependency.target(name: $0.name)] } ?? []
         let helperAndPluginDependencies = helperTargetDependencies + editablePluginTargetDependencies
 
-        let packagesTarget: Target? = try {
+        let packagesTarget: Target? = try await {
             guard let packageManifestPath else { return nil }
-            let packageVersion = try swiftPackageManagerController.getToolsVersion(at: packageManifestPath.parentDirectory)
+            let packageVersion = try await swiftPackageManagerController.getToolsVersion(at: packageManifestPath.parentDirectory)
 
             var packagesSettings = targetBaseSettings(
                 projectFrameworkPath: projectDescriptionPath,
@@ -287,6 +293,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                     defaultSettings: .recommended
                 ),
                 sourcePaths: [packageManifestPath],
+                excludeFromBuildPaths: [packageManifestPath],
                 dependencies: dependencies
             )
         }()
@@ -297,6 +304,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                 filesGroup: manifestsFilesGroup,
                 targetSettings: targetWithLinkedPluginsSettings,
                 sourcePaths: [projectManifestSourcePath],
+                excludeFromBuildPaths: [projectManifestSourcePath],
                 dependencies: helperAndPluginDependencies
             )
         }
@@ -400,11 +408,12 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             let pluginResources = try await fileSystem.glob(directory: pluginResourceTemplatesPath, include: ["*.stencil"])
                 .collect()
             let sourcePaths = [pluginManifest] + pluginHelpers + pluginTemplates + pluginResources
-            return self.editorHelperTarget(
+            return editorHelperTarget(
                 name: manifest.name,
                 filesGroup: pluginsFilesGroup,
                 targetSettings: targetSettings,
                 sourcePaths: sourcePaths,
+                excludeFromBuildPaths: [pluginManifest] + pluginTemplates,
                 dependencies: []
             )
         }
@@ -500,6 +509,10 @@ final class ProjectEditorMapper: ProjectEditorMapping {
     ///   - filesGroup: File group for target.
     ///   - targetSettings: Target's settings.
     ///   - sourcePaths: Target's sources.
+    ///   - excludeFromBuildPaths: Subset of `sourcePaths` that Xcode should keep as file references but exclude
+    ///     from compilation. Used for script-style manifest and template files that produce false-positive
+    ///     diagnostics when compiled as library sources.
+    ///   - additionalFilePaths: Additional files shown in the target.
     ///   - dependencies: Target's dependencies.
     /// - Returns: Target for edit project.
     private func editorHelperTarget(
@@ -507,16 +520,29 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         filesGroup: ProjectGroup,
         targetSettings: Settings,
         sourcePaths: [AbsolutePath],
+        excludeFromBuildPaths: [AbsolutePath] = [],
         additionalFilePaths: [AbsolutePath] = [],
         dependencies: [TargetDependency] = []
     ) -> Target {
-        Target(
+        let settings: Settings
+        if excludeFromBuildPaths.isEmpty {
+            settings = targetSettings
+        } else {
+            settings = targetSettings.with(base: targetSettings.base.merging(
+                [
+                    "DEFINES_MODULE": "NO",
+                    "EXCLUDED_SOURCE_FILE_NAMES": .array(excludeFromBuildPaths.map(\.basename)),
+                ],
+                uniquingKeysWith: { _, new in new }
+            ))
+        }
+        return Target(
             name: name,
             destinations: .macOS,
             product: .staticFramework,
             productName: name,
             bundleId: "dev.tuist.${PRODUCT_NAME:rfc1034identifier}",
-            settings: targetSettings,
+            settings: settings,
             sources: sourcePaths.map { SourceFile(path: $0, compilerFlags: nil) },
             filesGroup: filesGroup,
             dependencies: dependencies,

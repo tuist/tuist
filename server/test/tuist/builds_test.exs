@@ -1,0 +1,1793 @@
+defmodule Tuist.BuildsTest do
+  use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
+
+  alias Tuist.Builds
+  alias Tuist.Builds.Timeline
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.RunsFixtures
+
+  describe "build_timeline/1" do
+    test "stores relative timings, isolates builds, and deduplicates processing retries" do
+      event = %{
+        event_id: 1,
+        title: "Compile App.swift",
+        target: "App",
+        project: "Workspace",
+        category: "swiftCompilation",
+        start_ms: 100.25,
+        duration_ms: 200.5,
+        status: "success"
+      }
+
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: [event, event])
+      {:ok, other} = RunsFixtures.build_fixture(build_steps: [%{event | title: "Other.swift"}])
+
+      assert %{events: [stored]} = Builds.build_timeline(build.id)
+      assert stored.title == "Compile App.swift"
+      assert_in_delta stored.start_ms, 100.25, 0.001
+      assert_in_delta stored.duration_ms, 200.5, 0.001
+      assert %{events: [%{title: "Other.swift"}]} = Builds.build_timeline(other.id)
+    end
+
+    test "fills optional step metadata and retains records across ingestion batches" do
+      steps = for id <- 1..501, do: %{event_id: id, title: "Compile", start_ms: 0.0, duration_ms: 1.0, status: "success"}
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
+      assert %{events: stored} = Builds.build_timeline(build.id)
+      assert length(stored) == 501
+      assert Enum.all?(stored, &(&1.target == "" and &1.project == "" and &1.category == ""))
+      assert Builds.build_step_log(build.id, 501) == %{log: "", log_truncated: false}
+    end
+
+    test "dense windows retain individual steps beyond the old display limit" do
+      steps =
+        for id <- 1..50_001 do
+          %{event_id: id, title: "Compile", start_ms: 0.0, duration_ms: 1.0, status: "success", log: "Recorded step"}
+        end
+
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
+      assert %{events: events, total_count: 50_001} = Builds.build_timeline(build.id)
+      assert length(events) == 50_001
+      refute Enum.any?(events, &Map.has_key?(&1, :aggregate))
+      assert Builds.build_step_log(build.id, 50_001) == %{log: "Recorded step", log_truncated: false}
+    end
+
+    test "full metadata includes late steps and keyboard navigation stays in the build and search" do
+      steps =
+        Stream.map(1..1600, fn id ->
+          %{
+            event_id: id,
+            title: "Compile #{id}",
+            target: "App",
+            project: "Workspace",
+            category: "swiftCompilation",
+            start_ms: id * 10.0,
+            duration_ms: 5.0,
+            status: "success"
+          }
+        end)
+
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
+
+      {:ok, other} =
+        RunsFixtures.build_fixture(
+          build_steps: [%{event_id: 2000, title: "Other build", start_ms: 99_999.0, duration_ms: 1.0, status: "success"}]
+        )
+
+      assert %{total_count: 1600, events: events} = Builds.build_timeline(build.id)
+      assert length(events) == 1600
+      assert Enum.any?(events, &(&1.start_ms > 15_000))
+
+      assert %{target_count: 1} = Builds.build_timeline(build.id)
+      assert %{event_id: 1600} = Timeline.neighbor(build.id, nil, "last", [])
+      assert %{event_id: 1599} = Timeline.neighbor(build.id, 1600, "previous", [])
+      assert nil == Timeline.neighbor(build.id, 1600, "next", [])
+      assert nil == Timeline.neighbor(other.id, nil, "next", search: "Compile")
+    end
+
+    test "loads the entire build including late steps" do
+      steps =
+        for {id, start, duration} <- [{1, 0, 1}, {2, 100_000, 2000}, {3, 130_000, 1000}, {4, 900_000, 1000}] do
+          %{event_id: id, title: "Compile", start_ms: start * 1.0, duration_ms: duration * 1.0, status: "success"}
+        end
+
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: steps)
+
+      assert %{duration: 901_000.0, events: events} = Builds.build_timeline(build.id)
+      assert Enum.map(events, & &1.event_id) == [1, 2, 3, 4]
+      assert %{duration: 1_000_000} = Builds.build_timeline(build.id, duration: 1_000_000)
+    end
+
+    test "fetches logs separately and scopes them to their build" do
+      event = %{
+        event_id: 3,
+        title: "Compile",
+        target: "App",
+        project: "Workspace",
+        category: "swiftCompilation",
+        start_ms: 0.0,
+        duration_ms: 10.0,
+        status: "success",
+        log: "EmitSwiftModule normal arm64\n<script>output</script>",
+        log_truncated: true
+      }
+
+      {:ok, build} = RunsFixtures.build_fixture(build_steps: [event])
+      {:ok, other} = RunsFixtures.build_fixture(build_steps: [%{event | log: "Other command"}])
+      assert Builds.build_step_log(build.id, 3) == %{log: event.log, log_truncated: true}
+      assert Builds.build_step_log(other.id, 3).log == "Other command"
+      assert Builds.build_step_log(build.id, 4) == nil
+      assert %{events: [stored]} = Builds.build_timeline(build.id)
+      refute Map.has_key?(stored, :log)
+    end
+
+    test "old builds have no manufactured timeline" do
+      {:ok, build} = RunsFixtures.build_fixture()
+      assert %{events: [], total_count: 0} = Builds.build_timeline(build.id)
+    end
+  end
+
+  describe "create_build/1" do
+    test "creates a build" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      # When
+      {:ok, build} =
+        Builds.create_build(%{
+          id: UUIDv7.generate(),
+          duration: 1000,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          model_identifier: "Mac15,6",
+          scheme: "App",
+          project_id: project_id,
+          account_id: account_id,
+          status: "success",
+          issues: [],
+          files: [],
+          targets: []
+        })
+
+      # Then
+      assert build.duration == 1000
+      assert build.macos_version == "11.2.3"
+      assert build.xcode_version == "12.4"
+      assert build.is_ci == false
+      assert build.model_identifier == "Mac15,6"
+      assert build.scheme == "App"
+      assert build.project_id == project_id
+      assert build.account_id == account_id
+      assert build.status == "success"
+    end
+
+    test "creates a build with machine metrics" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      base_ts = 1_741_500_000.0
+
+      machine_metrics = [
+        %{
+          timestamp: base_ts + 1.0,
+          offset_ms: 250.0,
+          cpu_usage_percent: 45.5,
+          memory_used_bytes: 8_000_000_000,
+          memory_total_bytes: 16_000_000_000,
+          network_bytes_in: 1_000_000,
+          network_bytes_out: 500_000,
+          disk_bytes_read: 2_000_000,
+          disk_bytes_written: 1_500_000
+        },
+        %{
+          timestamp: base_ts + 2.0,
+          cpu_usage_percent: 72.3,
+          memory_used_bytes: 10_000_000_000,
+          memory_total_bytes: 16_000_000_000,
+          network_bytes_in: 2_000_000,
+          network_bytes_out: 1_000_000,
+          disk_bytes_read: 3_000_000,
+          disk_bytes_written: 2_500_000
+        }
+      ]
+
+      # When
+      {:ok, build} =
+        Builds.create_build(%{
+          id: UUIDv7.generate(),
+          duration: 1000,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          model_identifier: "Mac15,6",
+          scheme: "App",
+          project_id: project_id,
+          account_id: account_id,
+          status: "success",
+          issues: [],
+          files: [],
+          targets: [],
+          machine_metrics: machine_metrics
+        })
+
+      # Then
+      build = Tuist.ClickHouseRepo.preload(build, [:machine_metrics])
+      assert length(build.machine_metrics) == 2
+      assert Enum.at(build.machine_metrics, 0).offset_ms == 250.0
+      assert Enum.at(build.machine_metrics, 1).offset_ms == nil
+      assert_in_delta Enum.at(build.machine_metrics, 0).timestamp, base_ts + 1.0, 0.001
+      assert_in_delta Enum.at(build.machine_metrics, 0).cpu_usage_percent, 45.5, 0.01
+      assert_in_delta Enum.at(build.machine_metrics, 1).timestamp, base_ts + 2.0, 0.001
+      assert_in_delta Enum.at(build.machine_metrics, 1).cpu_usage_percent, 72.3, 0.01
+    end
+
+    test "creates a build with cacheable tasks and calculates counts correctly" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      cacheable_tasks = [
+        %{type: :swift, status: :hit_local, key: "task1"},
+        %{type: :swift, status: :hit_remote, key: "task2"},
+        %{type: :clang, status: :miss, key: "task3"},
+        %{type: :swift, status: :hit_local, key: "task4"},
+        %{type: :clang, status: :hit_remote, key: "task5"}
+      ]
+
+      # When
+      {:ok, build} =
+        Builds.create_build(%{
+          id: UUIDv7.generate(),
+          duration: 1000,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          model_identifier: "Mac15,6",
+          scheme: "App",
+          project_id: project_id,
+          account_id: account_id,
+          status: "success",
+          issues: [],
+          files: [],
+          targets: [],
+          cacheable_tasks: cacheable_tasks
+        })
+
+      # Then
+      assert build.cacheable_tasks_count == 5
+      assert build.cacheable_task_local_hits_count == 2
+      assert build.cacheable_task_remote_hits_count == 2
+    end
+
+    test "creates a build with empty cacheable tasks" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      # When
+      {:ok, build} =
+        Builds.create_build(%{
+          id: UUIDv7.generate(),
+          duration: 1000,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          model_identifier: "Mac15,6",
+          scheme: "App",
+          project_id: project_id,
+          account_id: account_id,
+          status: "success",
+          issues: [],
+          files: [],
+          targets: [],
+          cacheable_tasks: []
+        })
+
+      # Then
+      assert build.cacheable_tasks_count == 0
+      assert build.cacheable_task_local_hits_count == 0
+      assert build.cacheable_task_remote_hits_count == 0
+    end
+
+    test "returns error when account_id is missing" do
+      # Given
+      project_id = ProjectsFixtures.project_fixture().id
+
+      # When
+      result =
+        Builds.create_build(%{
+          id: UUIDv7.generate(),
+          duration: 1000,
+          macos_version: "11.2.3",
+          xcode_version: "12.4",
+          is_ci: false,
+          model_identifier: "Mac15,6",
+          scheme: "App",
+          project_id: project_id,
+          status: "success",
+          issues: [],
+          files: [],
+          targets: []
+        })
+
+      # Then
+      assert {:error, changeset} = result
+      assert %{account_id: ["can't be blank"]} = errors_on(changeset)
+    end
+  end
+
+  describe "get_build/1" do
+    test "returns {:ok, build}" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture()
+
+      build_id = build.id
+
+      # When
+      {:ok, got} = Builds.get_build(build_id)
+
+      # Then
+      assert got.id == build_id
+    end
+
+    test "falls back to the unbounded lookup for older builds" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          inserted_at: DateTime.utc_now() |> DateTime.add(-120, :day) |> DateTime.to_naive()
+        )
+
+      # When
+      {:ok, got} = Builds.get_build(build.id, project_id: project.id)
+
+      # Then
+      assert got.id == build.id
+    end
+
+    test "returns {:error, :not_found} when build does not exist" do
+      # Given
+      non_existent_build_id = UUIDv7.generate()
+
+      # When / Then
+      assert Builds.get_build(non_existent_build_id) == {:error, :not_found}
+    end
+
+    test "returns {:error, :not_found} when id is nil" do
+      assert Builds.get_build(nil) == {:error, :not_found}
+    end
+
+    test "returns {:error, :not_found} when id is not a valid UUID" do
+      assert Builds.get_build("not-a-uuid") == {:error, :not_found}
+    end
+  end
+
+  describe "project_build_tags/1" do
+    test "returns unique tags from project builds" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      {:ok, _build1} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_tags: ["nightly", "release"]
+        )
+
+      {:ok, _build2} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_tags: ["nightly", "staging"]
+        )
+
+      # When
+      tags = Builds.project_build_tags(project)
+
+      # Then
+      assert "nightly" in tags
+      assert "release" in tags
+      assert "staging" in tags
+      assert length(tags) == 3
+    end
+
+    test "returns empty list when no builds have tags" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      tags = Builds.project_build_tags(project)
+
+      # Then
+      assert tags == []
+    end
+
+    test "excludes builds older than 30 days" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      old_date = DateTime.add(DateTime.utc_now(), -31, :day)
+
+      {:ok, _old_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_tags: ["old-tag"],
+          inserted_at: old_date
+        )
+
+      {:ok, _recent_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_tags: ["recent-tag"]
+        )
+
+      # When
+      tags = Builds.project_build_tags(project)
+
+      # Then
+      assert "recent-tag" in tags
+      refute "old-tag" in tags
+    end
+  end
+
+  describe "list_build_runs/2 with custom_values filter" do
+    test "returns all builds when custom_values is nil" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_values: %{"ticket" => "PROJ-1234"}
+        )
+
+      # When
+      {builds, _meta} =
+        Builds.list_build_runs(
+          %{filters: [%{field: :project_id, op: :==, value: project.id}]},
+          custom_values: nil
+        )
+
+      # Then
+      assert length(builds) == 1
+      assert hd(builds).id == build.id
+    end
+
+    test "returns all builds when custom_values is empty" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_values: %{"ticket" => "PROJ-1234"}
+        )
+
+      # When
+      {builds, _meta} =
+        Builds.list_build_runs(
+          %{filters: [%{field: :project_id, op: :==, value: project.id}]},
+          custom_values: %{}
+        )
+
+      # Then
+      assert length(builds) == 1
+      assert hd(builds).id == build.id
+    end
+
+    test "filters builds by custom_values" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      {:ok, matching_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_values: %{"ticket" => "PROJ-1234", "runner" => "macos-14"}
+        )
+
+      {:ok, _non_matching_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_values: %{"ticket" => "PROJ-5678"}
+        )
+
+      # When
+      {builds, _meta} =
+        Builds.list_build_runs(
+          %{filters: [%{field: :project_id, op: :==, value: project.id}]},
+          custom_values: %{"ticket" => "PROJ-1234"}
+        )
+
+      # Then
+      assert length(builds) == 1
+      assert hd(builds).id == matching_build.id
+    end
+
+    test "filters by multiple custom_values using AND logic" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      {:ok, matching_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_values: %{"ticket" => "PROJ-1234", "runner" => "macos-14"}
+        )
+
+      {:ok, _partial_match} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_values: %{"ticket" => "PROJ-1234", "runner" => "macos-13"}
+        )
+
+      # When
+      {builds, _meta} =
+        Builds.list_build_runs(
+          %{filters: [%{field: :project_id, op: :==, value: project.id}]},
+          custom_values: %{"ticket" => "PROJ-1234", "runner" => "macos-14"}
+        )
+
+      # Then
+      assert length(builds) == 1
+      assert hd(builds).id == matching_build.id
+    end
+  end
+
+  describe "list_build_runs/1 with custom_tags filter" do
+    test "filters build runs containing a custom tag" do
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      {:ok, matching_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_tags: ["nightly", "release"]
+        )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        user_id: account_id,
+        custom_tags: ["nightly", "staging"]
+      )
+
+      {builds, _meta} =
+        Builds.list_build_runs(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :custom_tags, op: :contains, value: "release"}
+          ]
+        })
+
+      assert Enum.map(builds, & &1.id) == [matching_build.id]
+    end
+
+    test "filters build runs not containing a custom tag" do
+      project = ProjectsFixtures.project_fixture()
+      account_id = AccountsFixtures.user_fixture(preload: [:account]).account.id
+
+      {:ok, matching_build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          user_id: account_id,
+          custom_tags: ["nightly", "release"]
+        )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        user_id: account_id,
+        custom_tags: ["nightly", "staging"]
+      )
+
+      {builds, _meta} =
+        Builds.list_build_runs(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :custom_tags, op: :not_contains, value: "staging"}
+          ]
+        })
+
+      assert Enum.map(builds, & &1.id) == [matching_build.id]
+    end
+
+    test "rejects unsupported custom tag operators" do
+      assert_raise Flop.InvalidParamsError, fn ->
+        Builds.list_build_runs(%{
+          filters: [
+            %{field: :project_id, op: :==, value: 1},
+            %{field: :custom_tags, op: :==, value: "nightly"}
+          ]
+        })
+      end
+    end
+  end
+
+  describe "list_build_runs/1" do
+    test "lists build runs" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      project_two = ProjectsFixtures.project_fixture()
+
+      {:ok, build_one} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          duration: 1000,
+          inserted_at: ~U[2024-03-04 01:00:00Z]
+        )
+
+      RunsFixtures.build_fixture(project_id: project_two.id)
+
+      {:ok, build_two} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          duration: 1000,
+          inserted_at: ~U[2024-03-04 02:00:00Z]
+        )
+
+      # When
+      {got_builds_first_page, got_meta_first_page} =
+        Builds.list_build_runs(%{
+          page_size: 1,
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:inserted_at],
+          order_directions: [:desc]
+        })
+
+      {got_builds_second_page, _meta} =
+        Builds.list_build_runs(Flop.to_next_page(got_meta_first_page.flop))
+
+      # Then
+      assert Enum.map(got_builds_first_page, & &1.id) == [build_two.id]
+      assert Enum.map(got_builds_second_page, & &1.id) == [build_one.id]
+    end
+  end
+
+  describe "project_build_schemes/1" do
+    test "returns distinct schemes for the given project within the last 30 days" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+
+      # Create builds with different schemes for the project
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: "App",
+        inserted_at: DateTime.utc_now()
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: "Framework",
+        inserted_at: DateTime.utc_now()
+      )
+
+      # Create another build with a duplicate scheme (should be de-duped in the result)
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: "App",
+        inserted_at: DateTime.utc_now()
+      )
+
+      # Create a build with nil scheme (should be excluded)
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: nil,
+        inserted_at: DateTime.utc_now()
+      )
+
+      # Create a build for another project (should be excluded)
+      RunsFixtures.build_fixture(
+        project_id: other_project.id,
+        scheme: "OtherApp",
+        inserted_at: DateTime.utc_now()
+      )
+
+      # Create a build older than 30 days (should be excluded)
+      old_date = DateTime.add(DateTime.utc_now(), -31, :day)
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        scheme: "OldScheme",
+        inserted_at: old_date
+      )
+
+      # When
+      schemes = Builds.project_build_schemes(project)
+
+      # Then
+      assert schemes == ["App", "Framework"]
+    end
+
+    test "returns an empty list when no builds exist for the project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      schemes = Builds.project_build_schemes(project)
+
+      # Then
+      assert schemes == []
+    end
+
+    test "returns an empty list when only no schemes exist for the project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Create a build with nil scheme
+      {:ok, _build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          scheme: nil,
+          inserted_at: DateTime.utc_now()
+        )
+
+      # When
+      schemes = Builds.project_build_schemes(project)
+
+      # Then
+      assert schemes == []
+    end
+  end
+
+  describe "project_build_configurations/1" do
+    test "returns distinct configurations for the given project within the last 30 days" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        configuration: "Debug",
+        inserted_at: DateTime.utc_now()
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        configuration: "Release",
+        inserted_at: DateTime.utc_now()
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        configuration: "Debug",
+        inserted_at: DateTime.utc_now()
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        configuration: nil,
+        inserted_at: DateTime.utc_now()
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: other_project.id,
+        configuration: "Beta",
+        inserted_at: DateTime.utc_now()
+      )
+
+      old_date = DateTime.add(DateTime.utc_now(), -31, :day)
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        configuration: "OldConfiguration",
+        inserted_at: old_date
+      )
+
+      # When
+      configurations = Builds.project_build_configurations(project)
+
+      # Then
+      assert configurations == ["Debug", "Release"]
+    end
+
+    test "returns an empty list when no builds exist for the project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      configurations = Builds.project_build_configurations(project)
+
+      # Then
+      assert configurations == []
+    end
+
+    test "returns an empty list when only no configurations exist for the project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # Create a build with nil configuration
+      {:ok, _build} =
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          configuration: nil,
+          inserted_at: DateTime.utc_now()
+        )
+
+      # When
+      configurations = Builds.project_build_configurations(project)
+
+      # Then
+      assert configurations == []
+    end
+  end
+
+  describe "recent_build_status_counts/2" do
+    test "returns counts of successful and failed builds for the most recent builds" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        status: "success",
+        inserted_at: ~U[2024-01-01 01:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        status: "failure",
+        inserted_at: ~U[2024-01-01 02:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        status: "success",
+        inserted_at: ~U[2024-01-01 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        status: "success",
+        inserted_at: ~U[2024-01-01 04:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: other_project.id,
+        status: "failure",
+        inserted_at: ~U[2024-01-01 05:00:00Z]
+      )
+
+      # When
+      result = Builds.recent_build_status_counts(project.id, limit: 3)
+
+      # Then
+      assert result.successful_count == 2
+      assert result.failed_count == 1
+    end
+
+    test "returns zero counts when no builds exist for the project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      # When
+      result = Builds.recent_build_status_counts(project.id)
+
+      # Then
+      assert result.successful_count == 0
+      assert result.failed_count == 0
+    end
+
+    test "uses default limit of 40 when not specified" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for i <- 1..45 do
+        status = if rem(i, 2) == 0, do: "success", else: "failure"
+
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          status: status,
+          inserted_at: DateTime.add(~U[2024-01-01 00:00:00Z], i, :minute)
+        )
+      end
+
+      # When
+      result = Builds.recent_build_status_counts(project.id)
+
+      # Then
+      assert result.successful_count == 20
+      assert result.failed_count == 20
+    end
+
+    test "respects custom limit parameter" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      for i <- 1..10 do
+        status = if i <= 5, do: "success", else: "failure"
+
+        RunsFixtures.build_fixture(
+          project_id: project.id,
+          status: status,
+          inserted_at: DateTime.add(~U[2024-01-01 00:00:00Z], i, :minute)
+        )
+      end
+
+      # When
+      result = Builds.recent_build_status_counts(project.id, limit: 5)
+
+      # Then
+      assert result.successful_count == 0
+      assert result.failed_count == 5
+    end
+
+    test "orders by inserted_at descending to get most recent builds" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        status: "success",
+        inserted_at: ~U[2024-01-01 01:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        status: "failure",
+        inserted_at: ~U[2024-01-01 03:00:00Z]
+      )
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        status: "success",
+        inserted_at: ~U[2024-01-01 02:00:00Z]
+      )
+
+      # When
+      result = Builds.recent_build_status_counts(project.id, limit: 2)
+
+      # Then
+      assert result.successful_count == 1
+      assert result.failed_count == 1
+    end
+  end
+
+  test "returns counts of successful and failed builds ordered by insertion time ascending" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+    other_project = ProjectsFixtures.project_fixture()
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      status: "success",
+      inserted_at: ~U[2024-01-01 01:00:00Z]
+    )
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      status: "failure",
+      inserted_at: ~U[2024-01-01 02:00:00Z]
+    )
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      status: "success",
+      inserted_at: ~U[2024-01-01 03:00:00Z]
+    )
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      status: "success",
+      inserted_at: ~U[2024-01-01 04:00:00Z]
+    )
+
+    RunsFixtures.build_fixture(
+      project_id: other_project.id,
+      status: "failure",
+      inserted_at: ~U[2024-01-01 05:00:00Z]
+    )
+
+    # When
+    result = Builds.recent_build_status_counts(project.id, limit: 3, order: :asc)
+
+    # Then
+    assert result.successful_count == 2
+    assert result.failed_count == 1
+  end
+
+  test "supports ascending order with custom limit" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+
+    for i <- 1..10 do
+      status = if i <= 5, do: "success", else: "failure"
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        status: status,
+        inserted_at: DateTime.add(~U[2024-01-01 00:00:00Z], i, :minute)
+      )
+    end
+
+    # When
+    result = Builds.recent_build_status_counts(project.id, limit: 5, order: :asc)
+
+    # Then
+    assert result.successful_count == 5
+    assert result.failed_count == 0
+  end
+
+  test "orders by inserted_at ascending to get earliest builds" do
+    # Given
+    project = ProjectsFixtures.project_fixture()
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      status: "success",
+      inserted_at: ~U[2024-01-01 03:00:00Z]
+    )
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      status: "failure",
+      inserted_at: ~U[2024-01-01 01:00:00Z]
+    )
+
+    RunsFixtures.build_fixture(
+      project_id: project.id,
+      status: "success",
+      inserted_at: ~U[2024-01-01 02:00:00Z]
+    )
+
+    # When
+    result = Builds.recent_build_status_counts(project.id, limit: 2, order: :asc)
+
+    # Then
+    assert result.successful_count == 1
+    assert result.failed_count == 1
+  end
+
+  describe "list_cacheable_tasks/1" do
+    test "lists cacheable tasks with pagination" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cacheable_tasks: [
+            %{type: :swift, status: :hit_local, key: "task1"},
+            %{type: :swift, status: :hit_remote, key: "task2"},
+            %{type: :clang, status: :miss, key: "task3"},
+            %{type: :swift, status: :hit_local, key: "task4"}
+          ]
+        )
+
+      # When
+      {:ok, {tasks, meta}} =
+        Builds.list_cacheable_tasks(%{
+          page_size: 2,
+          filters: [%{field: :build_run_id, op: :==, value: build.id}]
+        })
+
+      # Then
+      assert length(tasks) == 2
+      assert meta.total_count == 4
+      assert meta.total_pages == 2
+    end
+
+    test "lists cacheable tasks with filters" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cacheable_tasks: [
+            %{type: :swift, status: :hit_local, key: "swift_task"},
+            %{type: :clang, status: :hit_remote, key: "clang_task"},
+            %{type: :swift, status: :miss, key: "another_swift"}
+          ]
+        )
+
+      # When - filter by type
+      {:ok, {swift_tasks, _meta}} =
+        Builds.list_cacheable_tasks(%{
+          filters: [
+            %{field: :build_run_id, op: :==, value: build.id},
+            %{field: :type, op: :==, value: "swift"}
+          ]
+        })
+
+      # Then
+      assert length(swift_tasks) == 2
+      assert Enum.all?(swift_tasks, &(&1.type == "swift"))
+    end
+
+    test "lists cacheable tasks with sorting by key ascending" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cacheable_tasks: [
+            %{type: :swift, status: :hit_local, key: "zebra_task"},
+            %{type: :swift, status: :hit_remote, key: "alpha_task"},
+            %{type: :clang, status: :miss, key: "beta_task"}
+          ]
+        )
+
+      # When
+      {:ok, {tasks, _meta}} =
+        Builds.list_cacheable_tasks(%{
+          filters: [%{field: :build_run_id, op: :==, value: build.id}],
+          order_by: [:key],
+          order_directions: [:asc]
+        })
+
+      # Then
+      keys = Enum.map(tasks, & &1.key)
+      assert keys == ["alpha_task", "beta_task", "zebra_task"]
+    end
+
+    test "returns empty list when no cacheable tasks exist for build" do
+      # Given
+      {:ok, build} = RunsFixtures.build_fixture(cacheable_tasks: [])
+
+      # When
+      {:ok, {tasks, meta}} =
+        Builds.list_cacheable_tasks(%{
+          filters: [%{field: :build_run_id, op: :==, value: build.id}]
+        })
+
+      # Then
+      assert tasks == []
+      assert meta.total_count == 0
+    end
+
+    test "returns {:error, errors} when a filter value is invalid" do
+      # When
+      result =
+        Builds.list_cacheable_tasks(%{
+          filters: [
+            %{field: :build_run_id, op: :==, value: "00000000-0000-0000-0000-000000000000"},
+            %{field: :status, op: :==, value: "hit"}
+          ]
+        })
+
+      # Then
+      assert {:error, errors} = result
+      assert Keyword.has_key?(errors, :filters)
+    end
+  end
+
+  describe "build_ci_run_url/1" do
+    test "returns GitHub Actions URL for GitHub provider" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: "github",
+          ci_run_id: "123456789",
+          ci_project_handle: "owner/repo"
+        )
+
+      # When
+      url = Builds.build_ci_run_url(build)
+
+      # Then
+      assert url == "https://github.com/owner/repo/actions/runs/123456789"
+    end
+
+    test "returns GitHub CI URL for GitHub provider with custom host" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: "github",
+          ci_run_id: "123456789",
+          ci_project_handle: "owner/repo"
+        )
+
+      # When
+      url = Builds.build_ci_run_url(build)
+
+      # Then
+      assert url == "https://github.com/owner/repo/actions/runs/123456789"
+    end
+
+    test "returns GitLab CI URL for GitLab provider with default host" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: "gitlab",
+          ci_run_id: "987654321",
+          ci_project_handle: "namespace/project",
+          ci_host: nil
+        )
+
+      # When
+      url = Builds.build_ci_run_url(build)
+
+      # Then
+      assert url == "https://gitlab.com/namespace/project/-/pipelines/987654321"
+    end
+
+    test "returns GitLab CI URL for GitLab provider with custom host" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: "gitlab",
+          ci_run_id: "987654321",
+          ci_project_handle: "namespace/project",
+          ci_host: "gitlab.example.com"
+        )
+
+      # When
+      url = Builds.build_ci_run_url(build)
+
+      # Then
+      assert url == "https://gitlab.example.com/namespace/project/-/pipelines/987654321"
+    end
+
+    test "returns Bitrise URL for Bitrise provider" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: "bitrise",
+          ci_run_id: "build-slug-123",
+          ci_project_handle: "app-slug-456"
+        )
+
+      # When
+      url = Builds.build_ci_run_url(build)
+
+      # Then
+      assert url == "https://app.bitrise.io/build/build-slug-123"
+    end
+
+    test "returns CircleCI URL for CircleCI provider" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: "circleci",
+          ci_run_id: "42",
+          ci_project_handle: "owner/project"
+        )
+
+      # When
+      url = Builds.build_ci_run_url(build)
+
+      # Then
+      assert url == "https://app.circleci.com/jobs/github/owner/project/42"
+    end
+
+    test "returns Buildkite URL for Buildkite provider" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: "buildkite",
+          ci_run_id: "1234",
+          ci_project_handle: "org/pipeline"
+        )
+
+      # When
+      url = Builds.build_ci_run_url(build)
+
+      # Then
+      assert url == "https://buildkite.com/org/pipeline/builds/1234"
+    end
+
+    test "returns Codemagic URL for Codemagic provider" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: "codemagic",
+          ci_run_id: "build-id-123",
+          ci_project_handle: "project-id-456"
+        )
+
+      # When
+      url = Builds.build_ci_run_url(build)
+
+      # Then
+      assert url == "https://codemagic.io/app/project-id-456/build/build-id-123"
+    end
+
+    test "returns nil when ci_provider is nil" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: nil,
+          ci_run_id: "123",
+          ci_project_handle: "owner/repo"
+        )
+
+      # When
+      url = Builds.build_ci_run_url(build)
+
+      # Then
+      assert url == nil
+    end
+
+    test "returns nil when ci_run_id is nil" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: "github",
+          ci_run_id: nil,
+          ci_project_handle: "owner/repo"
+        )
+
+      # When
+      url = Builds.build_ci_run_url(build)
+
+      # Then
+      assert url == nil
+    end
+
+    test "returns nil when ci_project_handle is nil" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: "github",
+          ci_run_id: "123",
+          ci_project_handle: nil
+        )
+
+      # When
+      url = Builds.build_ci_run_url(build)
+
+      # Then
+      assert url == nil
+    end
+
+    test "returns nil when all CI fields are nil" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          ci_provider: nil,
+          ci_run_id: nil,
+          ci_project_handle: nil,
+          ci_host: nil
+        )
+
+      # When
+      url = Builds.build_ci_run_url(build)
+
+      # Then
+      assert url == nil
+    end
+  end
+
+  describe "cas_output_metrics/1" do
+    test "returns correct metrics for build with CAS outputs" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 2000,
+              duration: 2000,
+              compressed_size: 1600,
+              operation: :download,
+              type: :swift
+            },
+            %{
+              node_id: "node2",
+              checksum: "def456",
+              size: 2000,
+              duration: 2000,
+              compressed_size: 1600,
+              operation: :download,
+              type: :swift
+            },
+            %{
+              node_id: "node3",
+              checksum: "ghi789",
+              size: 2000,
+              duration: 2000,
+              compressed_size: 1600,
+              operation: :upload,
+              type: :swift
+            }
+          ]
+        )
+
+      # When
+      metrics = Builds.cas_output_metrics(build.id)
+
+      # Then
+      assert metrics.download_count == 2
+      assert metrics.upload_count == 1
+      assert metrics.download_bytes == 4000
+      assert metrics.upload_bytes == 2000
+      assert metrics.time_weighted_avg_download_throughput == 1000.0
+      assert metrics.time_weighted_avg_upload_throughput == 1000.0
+    end
+
+    test "returns zeros for build with no CAS outputs" do
+      # Given
+      {:ok, build} = RunsFixtures.build_fixture(cas_outputs: [])
+
+      # When
+      metrics = Builds.cas_output_metrics(build.id)
+
+      # Then
+      assert metrics.download_count == 0
+      assert metrics.upload_count == 0
+      assert metrics.download_bytes == 0
+      assert metrics.upload_bytes == 0
+      assert metrics.time_weighted_avg_download_throughput == 0
+      assert metrics.time_weighted_avg_upload_throughput == 0
+    end
+
+    test "returns zeros for non-existent build" do
+      # Given
+      non_existent_build_id = UUIDv7.generate()
+
+      # When
+      metrics = Builds.cas_output_metrics(non_existent_build_id)
+
+      # Then
+      assert metrics.download_count == 0
+      assert metrics.upload_count == 0
+      assert metrics.download_bytes == 0
+      assert metrics.upload_bytes == 0
+      assert metrics.time_weighted_avg_download_throughput == 0
+      assert metrics.time_weighted_avg_upload_throughput == 0
+    end
+
+    test "handles only download operations" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 5000,
+              duration: 5000,
+              compressed_size: 4000,
+              operation: :download,
+              type: :swift
+            },
+            %{
+              node_id: "node2",
+              checksum: "def456",
+              size: 10_000,
+              duration: 10_000,
+              compressed_size: 8000,
+              operation: :download,
+              type: :swift
+            }
+          ]
+        )
+
+      # When
+      metrics = Builds.cas_output_metrics(build.id)
+
+      # Then
+      assert metrics.download_count == 2
+      assert metrics.upload_count == 0
+      assert metrics.download_bytes == 15_000
+      assert metrics.upload_bytes == 0
+      # Time-weighted average: (5000 + 10000) / (5000 + 10000) * 1000 = 1000 bytes/s
+      assert metrics.time_weighted_avg_download_throughput == 1000.0
+      assert metrics.time_weighted_avg_upload_throughput == 0
+    end
+
+    test "handles only upload operations" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 8000,
+              duration: 4000,
+              compressed_size: 6400,
+              operation: :upload,
+              type: :swift
+            },
+            %{
+              node_id: "node2",
+              checksum: "def456",
+              size: 12_000,
+              duration: 6000,
+              compressed_size: 9600,
+              operation: :upload,
+              type: :swift
+            }
+          ]
+        )
+
+      # When
+      metrics = Builds.cas_output_metrics(build.id)
+
+      # Then
+      assert metrics.download_count == 0
+      assert metrics.upload_count == 2
+      assert metrics.download_bytes == 0
+      assert metrics.upload_bytes == 20_000
+      assert metrics.time_weighted_avg_download_throughput == 0
+      # Time-weighted average: (8000 + 12000) / (4000 + 6000) * 1000 = 2000 bytes/s
+      assert metrics.time_weighted_avg_upload_throughput == 2000.0
+    end
+
+    test "ignores operations with zero duration for throughput calculation" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 1000,
+              duration: 0,
+              compressed_size: 800,
+              operation: :download,
+              type: :swift
+            },
+            %{
+              node_id: "node2",
+              checksum: "def456",
+              size: 2000,
+              duration: 2000,
+              compressed_size: 1600,
+              operation: :download,
+              type: :swift
+            }
+          ]
+        )
+
+      # When
+      metrics = Builds.cas_output_metrics(build.id)
+
+      # Then
+      assert metrics.download_count == 2
+      assert metrics.upload_count == 0
+      assert metrics.download_bytes == 3000
+      assert metrics.upload_bytes == 0
+      # Only the second operation (duration > 0) is included in throughput
+      # Time-weighted average: 2000 / 2000 * 1000 = 1000 bytes/s
+      assert metrics.time_weighted_avg_download_throughput == 1000.0
+      assert metrics.time_weighted_avg_upload_throughput == 0
+    end
+
+    test "handles mixed operations with different throughputs" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cas_outputs: [
+            %{
+              node_id: "node1",
+              checksum: "abc123",
+              size: 10_000,
+              duration: 10_000,
+              compressed_size: 8000,
+              operation: :download,
+              type: :swift
+            },
+            %{
+              node_id: "node2",
+              checksum: "def456",
+              size: 20_000,
+              duration: 4000,
+              compressed_size: 16_000,
+              operation: :upload,
+              type: :swift
+            },
+            %{
+              node_id: "node3",
+              checksum: "ghi789",
+              size: 15_000,
+              duration: 5000,
+              compressed_size: 12_000,
+              operation: :download,
+              type: :swift
+            }
+          ]
+        )
+
+      # When
+      metrics = Builds.cas_output_metrics(build.id)
+
+      # Then
+      assert metrics.download_count == 2
+      assert metrics.upload_count == 1
+      assert metrics.download_bytes == 25_000
+      assert metrics.upload_bytes == 20_000
+      # Download throughput: (10000 + 15000) / (10000 + 5000) * 1000 = 1666.67 bytes/s
+      assert_in_delta metrics.time_weighted_avg_download_throughput, 1666.67, 0.1
+      # Upload throughput: 20000 / 4000 * 1000 = 5000 bytes/s
+      assert metrics.time_weighted_avg_upload_throughput == 5000.0
+    end
+  end
+
+  describe "cacheable_task_latency_metrics/1" do
+    test "returns correct metrics for build with cacheable tasks with durations" do
+      # Given
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cacheable_tasks: [
+            %{
+              type: :swift,
+              status: :hit_local,
+              key: "task1",
+              read_duration: 100.0,
+              write_duration: nil
+            },
+            %{
+              type: :swift,
+              status: :miss,
+              key: "task2",
+              read_duration: nil,
+              write_duration: 200.0
+            },
+            %{
+              type: :clang,
+              status: :hit_remote,
+              key: "task3",
+              read_duration: 150.0,
+              write_duration: 250.0
+            },
+            %{
+              type: :swift,
+              status: :hit_local,
+              key: "task4",
+              read_duration: 200.0,
+              write_duration: 300.0
+            }
+          ]
+        )
+
+      # When
+      metrics = Builds.cacheable_task_latency_metrics(build.id)
+
+      # Then
+      assert metrics.avg_read_duration == 150.0
+      assert metrics.avg_write_duration == 250.0
+      assert metrics.p99_read_duration == 199.0
+      assert metrics.p99_write_duration == 299.0
+      assert metrics.p90_read_duration == 190.0
+      assert metrics.p90_write_duration == 290.0
+      assert metrics.p50_read_duration == 150.0
+      assert metrics.p50_write_duration == 250.0
+    end
+
+    test "returns zeros for build with no cacheable tasks" do
+      # Given
+      {:ok, build} = RunsFixtures.build_fixture(cacheable_tasks: [])
+
+      # When
+      metrics = Builds.cacheable_task_latency_metrics(build.id)
+
+      # Then
+      assert metrics.avg_read_duration == 0
+      assert metrics.avg_write_duration == 0
+      assert metrics.p99_read_duration == 0
+      assert metrics.p99_write_duration == 0
+      assert metrics.p90_read_duration == 0
+      assert metrics.p90_write_duration == 0
+      assert metrics.p50_read_duration == 0
+      assert metrics.p50_write_duration == 0
+    end
+  end
+
+  describe "ci_runs_with_remote_cache_hits/3" do
+    test "returns the given CI runs of the given projects whose builds hit the remote cache since the cutoff" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+      since = DateTime.add(DateTime.utc_now(), -7 * 86_400, :second)
+
+      RunsFixtures.build_fixture(project_id: project.id, ci_run_id: "1", cacheable_task_remote_hits_count: 3)
+      RunsFixtures.build_fixture(project_id: project.id, ci_run_id: "1", cacheable_task_remote_hits_count: 5)
+      RunsFixtures.build_fixture(project_id: project.id, ci_run_id: "2", cacheable_task_remote_hits_count: 0)
+      RunsFixtures.build_fixture(project_id: project.id, ci_run_id: "3", cacheable_task_remote_hits_count: 3)
+
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        ci_run_id: "4",
+        cacheable_task_remote_hits_count: 3,
+        inserted_at: DateTime.add(since, -60, :second)
+      )
+
+      RunsFixtures.build_fixture(project_id: other_project.id, ci_run_id: "5", cacheable_task_remote_hits_count: 3)
+
+      # When
+      result = Builds.ci_runs_with_remote_cache_hits([project.id], ["1", "2", "4", "5"], since)
+
+      # Then
+      assert result == {:ok, [{project.id, "1"}]}
+    end
+
+    test "returns no runs without projects or run ids to look up" do
+      assert Builds.ci_runs_with_remote_cache_hits([], ["1"], DateTime.utc_now()) == {:ok, []}
+      assert Builds.ci_runs_with_remote_cache_hits([1], [], DateTime.utc_now()) == {:ok, []}
+    end
+  end
+
+  describe "total_count/0" do
+    test "returns the total number of builds" do
+      # Given
+      before_count = Builds.total_count()
+      RunsFixtures.build_fixture()
+      RunsFixtures.build_fixture()
+
+      # When
+      count = Builds.total_count()
+
+      # Then
+      assert count >= before_count + 2
+    end
+  end
+
+  describe "last_24h_build_count/0" do
+    test "returns the number of builds from the last 24 hours" do
+      # Given
+      before_count = Builds.last_24h_build_count()
+      RunsFixtures.build_fixture()
+      RunsFixtures.build_fixture()
+
+      # When
+      count = Builds.last_24h_build_count()
+
+      # Then
+      assert count >= before_count + 2
+    end
+  end
+
+  describe "list_cacheable_task_cas_outputs/3" do
+    test "resolves large task ID lists inside ClickHouse and paginates distinct outputs within the build" do
+      ids = for index <- 1..15_000, do: "0~" <> String.pad_leading(Integer.to_string(index), 64, "0")
+      task = %{key: "shared-key", type: :swift, status: :hit_remote, cas_output_node_ids: ids ++ ids}
+      {:ok, build} = RunsFixtures.build_fixture(cacheable_tasks: [task, task])
+      {:ok, other} = RunsFixtures.build_fixture(cacheable_tasks: [%{task | cas_output_node_ids: ["other-only"]}])
+
+      for id <- Enum.take(ids, 21) do
+        {:ok, _} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: id)
+      end
+
+      {:ok, _} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: hd(ids), operation: :upload)
+      {:ok, _} = RunsFixtures.cas_output_fixture(build_run_id: other.id, node_id: Enum.at(ids, 21))
+      {:ok, _} = RunsFixtures.cas_output_fixture(build_run_id: build.id, node_id: "other-only")
+
+      first = Builds.list_cacheable_task_cas_outputs(build.id, task.key, 1)
+      second = Builds.list_cacheable_task_cas_outputs(build.id, task.key, 2)
+      assert Enum.map(first.outputs, & &1.node_id) == Enum.take(ids, 20)
+      assert first.has_next?
+      assert Enum.map(second.outputs, & &1.node_id) == [Enum.at(ids, 20)]
+      refute second.has_next?
+      assert Builds.list_cacheable_task_cas_outputs(build.id, "missing", 1).outputs == []
+    end
+
+    test "task summaries omit output IDs while retaining expandability and pagination" do
+      {:ok, build} =
+        RunsFixtures.build_fixture(
+          cacheable_tasks: [
+            %{key: "a", type: :swift, status: :hit_remote, cas_output_node_ids: ["node"]},
+            %{key: "b", type: :swift, status: :hit_local}
+          ]
+        )
+
+      options = %{
+        filters: [%{field: :build_run_id, op: :==, value: build.id}],
+        order_by: [:key],
+        order_directions: [:asc]
+      }
+
+      assert {:ok, {[with_outputs, without_outputs], meta}} =
+               Builds.list_cacheable_tasks(options, include_cas_output_node_ids: false)
+
+      assert with_outputs.has_cas_outputs
+      refute without_outputs.has_cas_outputs
+      refute Map.has_key?(with_outputs, :cas_output_node_ids)
+      assert meta.total_count == 2
+    end
+  end
+end

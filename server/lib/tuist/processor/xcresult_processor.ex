@@ -1,0 +1,497 @@
+defmodule Tuist.Processor.XCResultProcessor do
+  @moduledoc """
+  Parses xcresult test archives.
+
+  The server's `ProcessXcresultWorker` Oban job is the only caller: it
+  downloads the archive from S3 into a temp file, hands the path to
+  `process_local/2`, and the parsed structure flows through to ClickHouse
+  via `Tuist.Tests.create_test/1`.
+
+  On xcresult-processor-mode pods (`TUIST_XCRESULT_PROCESSOR_MODE=true`)
+  this runs as the Oban worker body. Those pods are macOS hosts (Scaleway
+  Mac minis, external to the k8s cluster) because the parse path leans on
+  `xcresulttool` which only ships with Xcode. Linux pods (web server,
+  build-processor) drop the `:process_xcresult` queue from their Oban
+  config when `TUIST_DELEGATE_PROCESS_XCRESULT=1` is set so jobs land
+  exclusively on the macOS fleet. Self-hosted installs running on macOS
+  consume the queue in-process like every other queue.
+  """
+
+  alias Tuist.Processor.XCResultNIF
+  alias Tuist.Storage
+
+  require Logger
+  require OpenTelemetry.Tracer
+
+  @attachment_upload_timeout 120_000
+
+  # Every phase below is wrapped in a span, and the root carries the archive
+  # size. Job cost varies by orders of magnitude with bundle size, so a
+  # duration on its own says nothing: the useful question is always "how does
+  # this phase scale with the artifact", and that needs size on the same trace.
+  # Without it, working out where a job spends its time means guessing from
+  # aggregate throughput, which is how a five hour backlog stayed
+  # mis-diagnosed for most of a day.
+  def process_local(archive_path, opts \\ []) do
+    OpenTelemetry.Tracer.with_span "xcresult.process_local" do
+      set_span_attribute("file.size", archive_size(archive_path))
+
+      bucket = Keyword.get(opts, :s3_bucket) || Tuist.Environment.s3_bucket_name()
+      temp_dir = make_temp_dir()
+
+      try do
+        result = process_archive(archive_path, temp_dir, Keyword.get(opts, :read_coverage, false))
+
+        with {:ok, parsed_data} <- result,
+             {:ok, parsed_data} <- upload_attachments_in_span(parsed_data, bucket, opts) do
+          relocate_coverage(parsed_data)
+        end
+      after
+        cleanup_temp(temp_dir)
+      end
+    end
+  end
+
+  defp upload_attachments_in_span(parsed_data, bucket, opts) do
+    OpenTelemetry.Tracer.with_span "xcresult.upload_attachments" do
+      set_span_attribute("xcresult.attachment_count", count_attachments(parsed_data))
+      upload_attachments(parsed_data, bucket, opts)
+    end
+  end
+
+  defp process_archive(archive_path, temp_dir, read_coverage) do
+    with :ok <- span("xcresult.extract_archive", fn -> extract_archive(archive_path, temp_dir) end),
+         xcresult_path when not is_nil(xcresult_path) <- find_xcresult(temp_dir),
+         :ok <- validate_xcresult(xcresult_path) do
+      root_dir = Path.dirname(xcresult_path)
+
+      # The parser reads coverage from any bundle that carries a manifest; without
+      # it, xccov is never spawned for an account that has coverage turned off.
+      if not read_coverage, do: File.rm(Path.join(xcresult_path, "tuist_coverage_manifest.json"))
+
+      with {:ok, parsed_data} <-
+             span("xcresult.parse", fn -> parse_xcresult_with_telemetry(xcresult_path, root_dir) end) do
+        log_coverage_error(parsed_data)
+        quarantined_tests = span("xcresult.read_quarantined_tests", fn -> read_quarantined_tests(xcresult_path) end)
+        {:ok, apply_quarantine(parsed_data, quarantined_tests)}
+      end
+    else
+      nil -> {:error, :xcresult_not_found}
+      {:error, _} = error -> error
+    end
+  end
+
+  # The parser streams the coverage to a file beside the bundle, one JSON object
+  # per source file, rather than returning it as a term. The bundle's directory
+  # is removed on the way out, so the file moves to a place of its own; whoever
+  # gets `coverage_path` owns it from here (see `Tuist.Tests.Coverage.rows/2`).
+  defp relocate_coverage(%{"coverage_path" => path} = parsed_data) when is_binary(path) do
+    destination = Path.join(System.tmp_dir!(), "coverage_#{System.unique_integer([:positive])}.ndjson")
+
+    case File.rename(path, destination) do
+      :ok ->
+        {:ok, Map.put(parsed_data, "coverage_path", destination)}
+
+      {:error, reason} ->
+        Logger.warning("xcresult coverage could not be kept for publishing: #{inspect(reason)}")
+        {:ok, Map.drop(parsed_data, ["coverage_path", "coverage_partial", "coverage_file_count"])}
+    end
+  end
+
+  defp relocate_coverage(parsed_data), do: {:ok, parsed_data}
+
+  defp parse_xcresult_with_telemetry(xcresult_path, root_dir) do
+    with {:ok, parsed_data} <- parse_xcresult(xcresult_path, root_dir) do
+      set_span_attribute("xcresult.test_case_count", count_test_cases(parsed_data))
+      {:ok, parsed_data}
+    end
+  end
+
+  # Coverage only enriches a run, so the parser reports why it could not read it
+  # instead of failing the parse; this is the only place that surfaces it.
+  defp log_coverage_error(%{"coverage_error" => message}) when is_binary(message) do
+    Logger.warning("xcresult coverage could not be read: #{message}")
+  end
+
+  defp log_coverage_error(_parsed_data), do: :ok
+
+  defp span(name, fun) do
+    OpenTelemetry.Tracer.with_span name do
+      fun.()
+    end
+  end
+
+  # Attributes are best-effort telemetry: a span that cannot be annotated must
+  # never fail the job it is describing.
+  defp set_span_attribute(_key, nil), do: :ok
+
+  defp set_span_attribute(key, value) do
+    OpenTelemetry.Tracer.set_attribute(key, value)
+    :ok
+  end
+
+  defp archive_size(archive_path) do
+    case File.stat(archive_path) do
+      {:ok, %File.Stat{size: size}} -> size
+      {:error, _} -> nil
+    end
+  end
+
+  defp count_test_cases(parsed_data) do
+    parsed_data
+    |> Map.get("test_modules", [])
+    |> Enum.reduce(0, fn module, acc -> acc + length(Map.get(module, "test_cases", [])) end)
+  end
+
+  defp count_attachments(parsed_data) do
+    parsed_data
+    |> Map.get("test_modules", [])
+    |> Enum.flat_map(&Map.get(&1, "test_cases", []))
+    |> Enum.reduce(0, fn test_case, acc -> acc + length(Map.get(test_case, "attachments", [])) end)
+  end
+
+  # An xcresult bundle that xcodebuild populated has an `Info.plist` at its
+  # root. CLI clients sometimes upload a bundle that xcodebuild never wrote
+  # to (e.g. `xcodebuild test` was killed mid-build) — the directory exists
+  # only because Tuist's CLI dropped `quarantined_tests.json` into it before
+  # archiving. Detect that shape here so callers can drop the job cleanly
+  # instead of letting `xcresulttool` fail and bubble up as a generic error.
+  defp validate_xcresult(xcresult_path) do
+    if File.exists?(Path.join(xcresult_path, "Info.plist")) do
+      :ok
+    else
+      {:error, :bundle_invalid}
+    end
+  end
+
+  # Callers upload either a PKZIP archive (legacy CLI clients) or an
+  # AppleArchive payload (newer CLI clients — faster via LZFSE). Sniff the
+  # magic bytes and dispatch: Erlang's `:zip` for PKZIP, the Swift NIF
+  # (AppleArchive framework) for everything else.
+  @pkzip_magic <<0x50, 0x4B>>
+
+  defp extract_archive(archive_path, temp_dir) do
+    case File.open(archive_path, [:read, :binary], fn file -> IO.binread(file, 2) end) do
+      {:ok, @pkzip_magic} ->
+        case :zip.unzip(~c"#{archive_path}", [{:cwd, ~c"#{temp_dir}"}]) do
+          {:ok, _} -> :ok
+          {:error, reason} -> {:error, {:zip_unzip_failed, reason}}
+        end
+
+      {:ok, _} ->
+        XCResultNIF.decompress_archive(archive_path, temp_dir)
+
+      {:error, reason} ->
+        {:error, {:archive_read_failed, reason}}
+    end
+  end
+
+  defp parse_xcresult(xcresult_path, root_dir) do
+    :telemetry.span([:tuist, :processor, :xcresult, :parse], %{}, fn ->
+      result =
+        xcresult_path
+        |> XCResultNIF.parse(root_dir)
+        |> normalize_parse_error(xcresult_path)
+
+      status = if match?({:ok, _}, result), do: :ok, else: :error
+      {result, %{status: status}}
+    end)
+  end
+
+  # The NIF reports a failure as a JSON blob whose message embeds the
+  # absolute bundle path, which carries both a `System.tmp_dir!()` directory
+  # named with an `:erlang.unique_integer` and the customer's own bundle
+  # filename. Both are unique per job, so Sentry fingerprints every failure
+  # as a brand new issue: the fleet-wide parse stall on 2026-08-25 arrived
+  # as fifteen separate "new issue" alerts, each looking like a harmless
+  # one-off, rather than one issue with a rate worth paging on.
+  #
+  # Collapse the volatile path out of the term Oban reports so the grouping
+  # is stable, and log the original so the path stays one query away.
+  defp normalize_parse_error({:ok, _} = result, _xcresult_path), do: result
+
+  defp normalize_parse_error({:error, reason}, xcresult_path) do
+    message = parse_error_message(reason)
+    Logger.error("xcresult parse failed at #{xcresult_path}: #{message}")
+    {:error, stable_parse_error(message, xcresult_path)}
+  end
+
+  defp parse_error_message(reason) when is_binary(reason) do
+    case JSON.decode(reason) do
+      {:ok, %{"error" => message}} when is_binary(message) -> message
+      _ -> reason
+    end
+  end
+
+  defp parse_error_message(reason), do: inspect(reason)
+
+  # A dedicated atom rather than a sanitized string: the timeout is the one
+  # failure mode with its own alert, and an atom is what a queue-consumer
+  # rule and a `grep` can both key on unambiguously. The elapsed seconds it
+  # replaces are a compile-time constant in the NIF, not information.
+  defp stable_parse_error(message, xcresult_path) do
+    if String.starts_with?(message, "xcresult parsing timed out") do
+      :parse_timeout
+    else
+      {:parse_failed, String.replace(message, xcresult_path, "<xcresult>")}
+    end
+  end
+
+  defp read_quarantined_tests(xcresult_path) do
+    json_path = Path.join(xcresult_path, "quarantined_tests.json")
+
+    case File.read(json_path) do
+      {:ok, content} -> JSON.decode!(content)
+      {:error, :enoent} -> []
+    end
+  end
+
+  defp apply_quarantine(parsed_data, []), do: parsed_data
+
+  defp apply_quarantine(parsed_data, quarantined_tests) do
+    test_modules =
+      Enum.map(parsed_data["test_modules"] || [], fn module ->
+        test_cases =
+          Enum.map(module["test_cases"] || [], fn test_case ->
+            is_quarantined =
+              Enum.any?(quarantined_tests, fn q ->
+                matches_quarantine?(test_case, module["name"], q)
+              end)
+
+            Map.put(test_case, "is_quarantined", is_quarantined)
+          end)
+
+        Map.put(module, "test_cases", test_cases)
+      end)
+
+    parsed_data
+    |> Map.put("test_modules", test_modules)
+    |> override_run_status_when_only_quarantined_failed()
+  end
+
+  # Mirror the local CLI behavior: when every failing test case is
+  # quarantined (muted), the run passes from the user's perspective — CI
+  # exits 0 — so the dashboard's run-level status should agree. Only the
+  # top-level status is rewritten; individual test cases keep their raw
+  # `failure` status so flakiness signal stays intact.
+  defp override_run_status_when_only_quarantined_failed(%{"status" => "failure"} = data) do
+    failing_cases =
+      (data["test_modules"] || [])
+      |> Enum.flat_map(&Map.get(&1, "test_cases", []))
+      |> Enum.filter(&(&1["status"] == "failure"))
+
+    if failing_cases != [] and Enum.all?(failing_cases, &Map.get(&1, "is_quarantined", false)) do
+      Map.put(data, "status", "success")
+    else
+      data
+    end
+  end
+
+  defp override_run_status_when_only_quarantined_failed(data), do: data
+
+  defp matches_quarantine?(test_case, module_name, quarantined) do
+    quarantined["target"] == module_name &&
+      (is_nil(quarantined["class"]) || quarantined["class"] == test_case["test_suite_name"]) &&
+      (is_nil(quarantined["method"]) || quarantined["method"] == test_case["name"])
+  end
+
+  defp upload_attachments(parsed_data, bucket, opts) do
+    account_handle = Keyword.get(opts, :account_handle)
+    project_handle = Keyword.get(opts, :project_handle)
+    test_run_id = Keyword.get(opts, :test_run_id)
+
+    if is_nil(account_handle) or is_nil(project_handle) or is_nil(test_run_id) do
+      {:ok, parsed_data}
+    else
+      parsed_data = identify_attachments(parsed_data, opts)
+
+      all_attachments =
+        parsed_data
+        |> Map.get("test_modules", [])
+        |> Enum.flat_map(&Map.get(&1, "test_cases", []))
+        |> Enum.flat_map(&Map.get(&1, "attachments", []))
+
+      uploaded_map =
+        all_attachments
+        |> Task.async_stream(
+          &upload_attachment(&1, bucket, account_handle, project_handle, test_run_id),
+          max_concurrency: 30,
+          timeout: @attachment_upload_timeout,
+          on_timeout: :kill_task
+        )
+        |> Enum.zip(all_attachments)
+        |> Enum.reduce(%{}, fn
+          {{:ok, {:ok, uploaded}}, original}, acc ->
+            Map.put(acc, original["attachment_id"], uploaded)
+
+          {{:ok, :error}, original}, acc ->
+            Logger.error("Failed to upload attachment: #{original["file_name"]}")
+            acc
+
+          {{:exit, reason}, original}, acc ->
+            Logger.error("Attachment upload task crashed for #{original["file_name"]}: #{inspect(reason)}")
+
+            acc
+        end)
+
+      test_modules =
+        parsed_data
+        |> Map.get("test_modules", [])
+        |> Enum.map(&replace_attachments(&1, uploaded_map))
+
+      {:ok, Map.put(parsed_data, "test_modules", test_modules)}
+    end
+  end
+
+  defp replace_attachments(module, uploaded_map) do
+    Map.update(module, "test_cases", [], fn test_cases ->
+      Enum.map(test_cases, &replace_test_case_attachments(&1, uploaded_map))
+    end)
+  end
+
+  defp replace_test_case_attachments(test_case, uploaded_map) do
+    Map.update(test_case, "attachments", [], fn attachments ->
+      Enum.flat_map(attachments, fn att ->
+        case Map.fetch(uploaded_map, att["attachment_id"]) do
+          {:ok, uploaded} -> [uploaded]
+          :error -> []
+        end
+      end)
+    end)
+  end
+
+  defp identify_attachments(parsed_data, opts) do
+    scope = %{
+      test_run_id: Keyword.get(opts, :test_run_id),
+      source_test_run_id: Keyword.get(opts, :source_test_run_id) || Keyword.get(opts, :test_run_id),
+      shard_index: Keyword.get(opts, :shard_index),
+      shard_attempt: Keyword.get(opts, :shard_attempt) || 0,
+      shard_report_revision: Keyword.get(opts, :shard_report_revision) || 0,
+      artifact: Keyword.get(opts, :artifact, :main)
+    }
+
+    modules =
+      parsed_data
+      |> Map.get("test_modules", [])
+      |> Enum.map(fn module ->
+        cases =
+          module
+          |> Map.get("test_cases", [])
+          |> Enum.with_index()
+          |> Enum.map(fn {test_case, case_index} ->
+            attachments =
+              test_case
+              |> Map.get("attachments", [])
+              |> Enum.with_index()
+              |> Enum.map(fn {attachment, occurrence} ->
+                identity =
+                  {scope, module["name"], case_index, test_case["test_suite_name"], test_case["name"], occurrence,
+                   Map.drop(attachment, ["file_path", "attachment_id"])}
+
+                Map.put(attachment, "attachment_id", attachment_uuid(identity))
+              end)
+
+            Map.put(test_case, "attachments", attachments)
+          end)
+
+        Map.put(module, "test_cases", cases)
+      end)
+
+    Map.put(parsed_data, "test_modules", modules)
+  end
+
+  defp attachment_uuid(identity) do
+    namespace = Ecto.UUID.dump!("6ba7b811-9dad-11d1-80b4-00c04fd430c8")
+    name = :erlang.term_to_binary({:tuist_xcresult_attachment, identity}, [:deterministic])
+    <<a::48, _::4, b::12, _::2, c::62, _::binary>> = :crypto.hash(:sha, namespace <> name)
+    Ecto.UUID.cast!(<<a::48, 5::4, b::12, 2::2, c::62>>)
+  end
+
+  defp upload_attachment(attachment, bucket, account_handle, project_handle, test_run_id) do
+    file_path = Map.get(attachment, "file_path")
+    file_name = Map.get(attachment, "file_name")
+    attachment_id = Map.fetch!(attachment, "attachment_id")
+
+    if file_path && File.exists?(file_path) do
+      s3_key =
+        "#{String.downcase(account_handle)}/#{String.downcase(project_handle)}/tests/runs/#{test_run_id}/attachments/#{attachment_id}/#{file_name}"
+
+      case Storage.upload_file(file_path, s3_key, :system, bucket_name: bucket) do
+        {:ok, _} ->
+          uploaded =
+            attachment
+            |> Map.delete("file_path")
+            |> Map.put("attachment_id", attachment_id)
+
+          {:ok, uploaded}
+
+        {:error, reason} ->
+          Logger.error("Failed to upload attachment #{file_name}: #{inspect(reason)}")
+          :error
+      end
+    else
+      :error
+    end
+  end
+
+  defp make_temp_dir do
+    temp_dir =
+      Path.join(System.tmp_dir!(), "tuist_xcresult_processor_#{:erlang.unique_integer([:positive])}")
+
+    File.mkdir_p!(temp_dir)
+    temp_dir
+  end
+
+  defp find_xcresult(temp_dir) do
+    # Three shapes to accept, in the order they appear in practice:
+    #   1. `<temp_dir>/**/*.xcresult` — the CLI archived with `preservesBaseDirectory: true`
+    #      and the source bundle was named with a `.xcresult` suffix.
+    #   2. `<temp_dir>/Info.plist` — the archive was written without preserving a base
+    #      directory, so bundle contents extract at the temp-dir root.
+    #   3. `<temp_dir>/<any name>/Info.plist` — the CLI archived with
+    #      `preservesBaseDirectory: true` but the source bundle's directory name did not
+    #      end in `.xcresult`. Xcode 26 stopped creating the `result-bundle` →
+    #      `result-bundle.xcresult` symlink for `-resultBundlePath` targets without an
+    #      extension, so a per-scheme run writes to `result-bundle-<Scheme>/` and the
+    #      CLI archives that exact directory. Info.plist inside a first-level subdir is
+    #      enough to identify it — the file uniquely marks a populated xcresult bundle.
+    with nil <- xcresult_wrapped(temp_dir),
+         nil <- xcresult_at_root(temp_dir),
+         nil <- xcresult_in_nested_dir(temp_dir) do
+      Logger.error(
+        "xcresult bundle not found after extraction in #{temp_dir}: " <>
+          "contents=#{temp_dir |> Path.join("**") |> Path.wildcard() |> Enum.take(30) |> inspect()}"
+      )
+
+      nil
+    end
+  end
+
+  defp xcresult_wrapped(temp_dir) do
+    temp_dir |> Path.join("**/*.xcresult") |> Path.wildcard() |> List.first()
+  end
+
+  defp xcresult_at_root(temp_dir) do
+    if File.exists?(Path.join(temp_dir, "Info.plist")), do: temp_dir
+  end
+
+  defp xcresult_in_nested_dir(temp_dir) do
+    case File.ls(temp_dir) do
+      {:ok, entries} ->
+        Enum.find_value(entries, fn entry ->
+          candidate = Path.join(temp_dir, entry)
+
+          if File.dir?(candidate) and File.exists?(Path.join(candidate, "Info.plist")),
+            do: candidate
+        end)
+
+      _ ->
+        nil
+    end
+  end
+
+  defp cleanup_temp(temp_dir) do
+    {:ok, _} = File.rm_rf(temp_dir)
+    :ok
+  end
+end

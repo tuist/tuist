@@ -37,6 +37,30 @@ defmodule TuistWeb.API.InvitationsControllerTest do
       assert response == %{}
     end
 
+    test "deletes an invitation with an account token with members write scope", %{conn: conn, user: user} do
+      # Given
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+
+      Accounts.invite_user_to_organization("new@tuist.io", %{
+        inviter: user,
+        to: organization,
+        url: &url(~p"/auth/invitations/#{&1}")
+      })
+
+      token = account_token_value(organization.account, user.account, ["account:members:write"])
+
+      # When
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> put_req_header("content-type", "application/json")
+        |> delete(~p"/api/organizations/tuist-org/invitations", invitee_email: "new@tuist.io")
+
+      # Then
+      response = json_response(conn, :no_content)
+      assert response == %{}
+    end
+
     test "returns :not_found when an organization that should be invited is not found", %{
       conn: conn,
       user: user
@@ -140,6 +164,115 @@ defmodule TuistWeb.API.InvitationsControllerTest do
              }
 
       assert response["organization_id"] == organization.id
+    end
+
+    test "defaults the invited role to user", %{conn: conn, user: user} do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+      AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/organizations/tuist-org/invitations", invitee_email: "new@tuist.io")
+
+      # Then
+      assert json_response(conn, :ok)["role"] == "user"
+    end
+
+    test "invites a user as a viewer", %{conn: conn, user: user} do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+      invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/organizations/tuist-org/invitations",
+          invitee_email: "new@tuist.io",
+          role: "viewer"
+        )
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["role"] == "viewer"
+
+      {:ok, invitation} = Accounts.get_invitation_by_token(response["token"])
+
+      Accounts.accept_invitation(%{
+        invitation: invitation,
+        invitee: invitee,
+        organization: organization
+      })
+
+      assert Accounts.organization_viewer?(invitee, organization)
+      refute Accounts.organization_user?(invitee, organization)
+    end
+
+    test "returns :bad_request when a viewer is invited again", %{conn: conn, user: user} do
+      # Given
+      conn = Authentication.put_current_user(conn, user)
+      invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+      Accounts.add_user_to_organization(invitee, organization, role: :viewer)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/organizations/tuist-org/invitations", invitee_email: "new@tuist.io")
+
+      # Then
+      assert json_response(conn, :bad_request)["message"] ==
+               "The user is already a member of the organization."
+    end
+
+    test "invites user to an organization with an account token with members write scope", %{conn: conn, user: user} do
+      # Given
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+      token = account_token_value(organization.account, user.account, ["account:members:write"])
+
+      # When
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/organizations/tuist-org/invitations", invitee_email: "new@tuist.io")
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert response["invitee_email"] == "new@tuist.io"
+
+      assert response["inviter"] == %{
+               "id" => user.id,
+               "email" => user.email,
+               "name" => user.account.name
+             }
+
+      assert response["organization_id"] == organization.id
+    end
+
+    test "returns :forbidden when an account token only has members read scope", %{conn: conn, user: user} do
+      # Given
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+      token = account_token_value(organization.account, user.account, ["account:members:read"])
+
+      # When
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/organizations/tuist-org/invitations", invitee_email: "new@tuist.io")
+
+      # Then
+      response = json_response(conn, :forbidden)
+
+      assert response["message"] ==
+               "The authenticated subject is not authorized to perform this action"
     end
 
     test "returns an error if the invitee email is not a valid email address", %{
@@ -259,5 +392,17 @@ defmodule TuistWeb.API.InvitationsControllerTest do
     # Given
     response = json_response(conn, :not_found)
     assert response["message"] == "Organization non-existent-tuist-org was not found."
+  end
+
+  defp account_token_value(account, created_by_account, scopes) do
+    {:ok, {_, token}} =
+      Accounts.create_account_token(%{
+        account: account,
+        created_by_account: created_by_account,
+        scopes: scopes,
+        name: "token-#{TuistTestSupport.Utilities.unique_integer()}"
+      })
+
+    token
   end
 end

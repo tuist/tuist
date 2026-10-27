@@ -42,7 +42,7 @@
     z-index: var(--noora-z-index-2);
     margin-top: var(--noora-spacing-12);
     box-shadow: var(--noora-border-light-default);
-    border-radius: var(--noora-radius-2xlarge);
+    border-radius: var(--noora-radius-8);
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-6);
     min-width: 569px;

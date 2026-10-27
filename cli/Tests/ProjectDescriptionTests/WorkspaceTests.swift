@@ -30,4 +30,16 @@ final class WorkspaceTests: XCTestCase {
 
         XCTAssertCodable(subject)
     }
+
+    func test_codable_withDerivedDataPath() throws {
+        let subject = Workspace(
+            name: "name",
+            projects: ["ProjectA"],
+            generationOptions: .options(
+                derivedDataPath: .custom("DerivedData")
+            )
+        )
+
+        XCTAssertCodable(subject)
+    }
 }

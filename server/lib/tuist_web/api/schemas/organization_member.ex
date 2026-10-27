@@ -3,6 +3,7 @@ defmodule TuistWeb.API.Schemas.OrganizationMember do
   A schema for an organization member.
   """
   alias OpenApiSpex.Schema
+  alias Tuist.Accounts
 
   require OpenApiSpex
 
@@ -24,7 +25,7 @@ defmodule TuistWeb.API.Schemas.OrganizationMember do
       },
       role: %Schema{
         type: :string,
-        enum: ["admin", "user"],
+        enum: Accounts.organization_role_names(),
         description: "The organization member's role"
       }
     },

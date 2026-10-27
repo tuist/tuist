@@ -1,7 +1,7 @@
 defmodule TuistWeb.Marketing.LocalizationTest do
   use TuistTestSupport.Cases.ConnCase, async: true
 
-  # alias TuistWeb.Marketing.Localization
+  alias TuistWeb.Marketing.Localization
 
   # describe "plug put_locale" do
   #   test "returns the same connection if the assigns has no locale", %{conn: conn} do
@@ -133,48 +133,48 @@ defmodule TuistWeb.Marketing.LocalizationTest do
   # end
 
   # describe "localized_href" do
-  #   test "localizes docs.tuist.dev URLs with current locale" do
+  #   test "localizes tuist.dev/en/docs URLs with current locale" do
   #     # Given
   #     Gettext.put_locale(TuistWeb.Gettext, "ko")
 
   #     # When
-  #     result = Localization.localized_href("https://docs.tuist.dev/guides/features/projects")
+  #     result = Localization.localized_href("https://tuist.dev/en/docs/guides/features/projects")
 
   #     # Then
-  #     assert result == "https://docs.tuist.dev/ko/guides/features/projects"
+  #     assert result == "https://tuist.dev/ko/docs/guides/features/projects"
   #   end
 
-  #   test "replaces existing locale in docs.tuist.dev URLs" do
+  #   test "replaces existing locale in tuist.dev/en/docs URLs" do
   #     # Given
   #     Gettext.put_locale(TuistWeb.Gettext, "ja")
 
   #     # When
-  #     result = Localization.localized_href("https://docs.tuist.dev/ko/guides/features/projects")
+  #     result = Localization.localized_href("https://tuist.dev/ko/docs/guides/features/projects")
 
   #     # Then
-  #     assert result == "https://docs.tuist.dev/ja/guides/features/projects"
+  #     assert result == "https://tuist.dev/ja/docs/guides/features/projects"
   #   end
 
-  #   test "handles docs.tuist.dev URLs with English locale" do
+  #   test "handles tuist.dev/en/docs URLs with English locale" do
   #     # Given
   #     Gettext.put_locale(TuistWeb.Gettext, "ko")
 
   #     # When
-  #     result = Localization.localized_href("https://docs.tuist.dev/en/guides/features/projects")
+  #     result = Localization.localized_href("https://tuist.dev/en/docs/guides/features/projects")
 
   #     # Then
-  #     assert result == "https://docs.tuist.dev/ko/guides/features/projects"
+  #     assert result == "https://tuist.dev/ko/docs/guides/features/projects"
   #   end
 
-  #   test "handles docs.tuist.dev root path" do
+  #   test "handles tuist.dev/en/docs root path" do
   #     # Given
   #     Gettext.put_locale(TuistWeb.Gettext, "ja")
 
   #     # When
-  #     result = Localization.localized_href("https://docs.tuist.dev/")
+  #     result = Localization.localized_href("https://tuist.dev/en/docs/")
 
   #     # Then
-  #     assert result == "https://docs.tuist.dev/ja/"
+  #     assert result == "https://tuist.dev/ja/docs/"
   #   end
 
   #   test "localizes relative marketing URLs for non-English locales" do
@@ -226,10 +226,10 @@ defmodule TuistWeb.Marketing.LocalizationTest do
   #     Gettext.put_locale(TuistWeb.Gettext, "ko")
 
   #     # When
-  #     result = Localization.localized_href("https://docs.tuist.dev/guides?section=features")
+  #     result = Localization.localized_href("https://tuist.dev/en/docs/guides?section=features")
 
   #     # Then
-  #     assert result == "https://docs.tuist.dev/ko/guides?section=features"
+  #     assert result == "https://tuist.dev/ko/docs/guides?section=features"
   #   end
 
   #   test "preserves fragments in docs URLs" do
@@ -237,10 +237,10 @@ defmodule TuistWeb.Marketing.LocalizationTest do
   #     Gettext.put_locale(TuistWeb.Gettext, "ja")
 
   #     # When
-  #     result = Localization.localized_href("https://docs.tuist.dev/guides#features")
+  #     result = Localization.localized_href("https://tuist.dev/en/docs/guides#features")
 
   #     # Then
-  #     assert result == "https://docs.tuist.dev/ja/guides#features"
+  #     assert result == "https://tuist.dev/ja/docs/guides#features"
   #   end
   # end
 
@@ -250,10 +250,10 @@ defmodule TuistWeb.Marketing.LocalizationTest do
   #     Gettext.put_locale(TuistWeb.Gettext, "en")
 
   #     # When
-  #     result = Localization.localized_href("https://docs.tuist.dev/guides/features", "ko")
+  #     result = Localization.localized_href("https://tuist.dev/en/docs", "ko")
 
   #     # Then
-  #     assert result == "https://docs.tuist.dev/ko/guides/features"
+  #     assert result == "https://tuist.dev/ko/docs/guides/features"
   #   end
 
   #   test "switches locale in docs URLs" do
@@ -261,10 +261,10 @@ defmodule TuistWeb.Marketing.LocalizationTest do
   #     Gettext.put_locale(TuistWeb.Gettext, "ja")
 
   #     # When
-  #     result = Localization.localized_href("https://docs.tuist.dev/ja/guides/features", "ko")
+  #     result = Localization.localized_href("https://tuist.dev/ja/docs/guides/features", "ko")
 
   #     # Then
-  #     assert result == "https://docs.tuist.dev/ko/guides/features"
+  #     assert result == "https://tuist.dev/ko/docs/guides/features"
   #   end
 
   #   test "localizes current page to target locale for relative URLs" do
@@ -357,4 +357,56 @@ defmodule TuistWeb.Marketing.LocalizationTest do
   #     assert result == "/"
   #   end
   # end
+
+  describe "docs URL localization" do
+    # Rewriting between non-en locale segments relies on Tuist.Locale.languages/0,
+    # which is trimmed to "en" unless TUIST_DEV_ALL_LOCALES=1.
+    @describetag :locale
+
+    test "language choices preserve repeated query values and replace the previous choice" do
+      uri =
+        "/blog?tag[]=one&tag[]=two&source=first&source=second&set_locale=en#latest"
+        |> Localization.language_switch_href("ja")
+        |> URI.parse()
+
+      assert uri.path == "/ja/blog"
+      assert uri.fragment == "latest"
+
+      assert uri.query |> URI.query_decoder() |> Enum.to_list() == [
+               {"tag[]", "one"},
+               {"tag[]", "two"},
+               {"source", "first"},
+               {"source", "second"},
+               {"set_locale", "ja"}
+             ]
+    end
+
+    test "places the locale before the path" do
+      Gettext.put_locale(TuistWeb.Gettext, "ko")
+
+      result = Localization.localized_href("https://tuist.dev/en/docs/guides/features/projects")
+
+      assert result == "https://tuist.dev/ko/docs/guides/features/projects"
+    end
+
+    test "normalizes old locale-prefixed docs URLs" do
+      result =
+        Localization.localized_href(
+          "https://tuist.dev/en/docs/guides/features/projects",
+          "ja"
+        )
+
+      assert result == "https://tuist.dev/ja/docs/guides/features/projects"
+    end
+
+    test "keeps URLs stable when switching locales" do
+      result =
+        Localization.localized_href(
+          "https://tuist.dev/ko/docs/guides/features/projects",
+          "ja"
+        )
+
+      assert result == "https://tuist.dev/ja/docs/guides/features/projects"
+    end
+  end
 end

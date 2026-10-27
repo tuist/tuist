@@ -18,7 +18,7 @@ public protocol GraphToGraphVizMapping {
     ) -> GraphViz.Graph
 }
 
-public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
+public struct GraphToGraphVizMapper: GraphToGraphVizMapping {
     public init() {}
 
     /// Maps the project graph into a dot graph representation.
@@ -102,6 +102,8 @@ extension GraphDependency {
             return String(name.split(separator: ".").first ?? "")
         case let .macro(path):
             return path.basename
+        case let .foreignBuildOutput(output):
+            return output.name
         }
     }
 }

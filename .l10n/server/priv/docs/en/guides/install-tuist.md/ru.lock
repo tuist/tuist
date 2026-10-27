@@ -1,0 +1,23 @@
+{
+  "hash": "ed327ab4b5f7c8c43b41def4f316cfa4e0b0bf3c392817bdd685bd135885881f",
+  "hash_tree": {
+    "context": {
+      "child": {
+        "child": {
+          "file": "server/priv/docs/L10N.md",
+          "hash": "f674eef089dd3e7a6d3c35af48a34eedeea8cdccbe779b265ab82a196162e54b"
+        },
+        "file": "server/L10N.md",
+        "hash": "4b6d469c7014caa6766970af517055bd43685866b230e2545cce3b06044cec87"
+      },
+      "file": "L10N.md",
+      "hash": "5d5910c58a27c289d172b18f0bca28176bf6b6a74bd894e27273f55199cd2816"
+    },
+    "source": {
+      "file": "server/priv/docs/en/guides/install-tuist.md",
+      "hash": "81089a5621cce93ff242602d081a9cbfd7cc5745d9cc125dd3d4ee594c992a03"
+    }
+  },
+  "model": "openai:gpt-4.1-mini",
+  "translated_at": "2026-05-19T13:50:34.050245Z"
+}

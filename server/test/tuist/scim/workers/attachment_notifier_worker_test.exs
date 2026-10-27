@@ -1,0 +1,66 @@
+defmodule Tuist.SCIM.Workers.AttachmentNotifierWorkerTest do
+  use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
+
+  import TuistTestSupport.Fixtures.AccountsFixtures
+
+  alias Tuist.Accounts.UserNotifier
+  alias Tuist.SCIM.Workers.AttachmentNotifierWorker
+
+  describe "perform/1" do
+    test "delivers the SCIM attachment email and returns :ok" do
+      organization = organization_fixture(preload: [:account])
+      user = user_fixture(email: "attached@example.com")
+
+      expect(UserNotifier, :deliver_scim_organization_attachment, fn delivered_user, delivered_org ->
+        assert delivered_user.id == user.id
+        assert delivered_org.id == organization.id
+        assert delivered_org.account.name == organization.account.name
+        {:ok, :stub_email}
+      end)
+
+      assert :ok =
+               perform_job(AttachmentNotifierWorker, %{
+                 "user_id" => user.id,
+                 "organization_id" => organization.id
+               })
+    end
+
+    test "forwards delivery errors so Oban can retry on transient failures" do
+      organization = organization_fixture(preload: [:account])
+      user = user_fixture(email: "attached@example.com")
+
+      expect(UserNotifier, :deliver_scim_organization_attachment, fn _, _ ->
+        {:error, :smtp_timeout}
+      end)
+
+      assert {:error, :smtp_timeout} =
+               perform_job(AttachmentNotifierWorker, %{
+                 "user_id" => user.id,
+                 "organization_id" => organization.id
+               })
+    end
+
+    test "raises when the user no longer exists so Oban retries and surfaces the bug" do
+      organization = organization_fixture()
+
+      assert_raise Ecto.NoResultsError, fn ->
+        perform_job(AttachmentNotifierWorker, %{
+          "user_id" => -1,
+          "organization_id" => organization.id
+        })
+      end
+    end
+
+    test "raises when the organization no longer exists so Oban retries and surfaces the bug" do
+      user = user_fixture()
+
+      assert_raise Ecto.NoResultsError, fn ->
+        perform_job(AttachmentNotifierWorker, %{
+          "user_id" => user.id,
+          "organization_id" => -1
+        })
+      end
+    end
+  end
+end

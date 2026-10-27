@@ -52,6 +52,14 @@ defmodule Tuist.Accounts.UserToken do
     {token, %UserToken{token: token, context: "session", user_id: user.id}}
   end
 
+  def live_socket_id(%UserToken{context: "session", token: token}) do
+    live_socket_id(token)
+  end
+
+  def live_socket_id(token) when is_binary(token) do
+    "users_sessions:#{Base.url_encode64(token)}"
+  end
+
   @doc """
   Checks if the token is valid and returns its underlying lookup query.
 

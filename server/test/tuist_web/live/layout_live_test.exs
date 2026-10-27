@@ -12,6 +12,7 @@ defmodule TuistWeb.LayoutLiveTest do
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.LayoutLive
+  alias TuistWeb.Locale
 
   setup %{conn: conn} = context do
     conn = init_test_session(conn, %{})
@@ -100,7 +101,7 @@ defmodule TuistWeb.LayoutLiveTest do
           :project,
           params,
           session,
-          %LiveView.Socket{}
+          connected_socket(current_user: user)
         )
 
       # Then
@@ -128,7 +129,9 @@ defmodule TuistWeb.LayoutLiveTest do
                      selected: false,
                      avatar_color: "gray",
                      show_avatar: true
-                   },
+                   }
+                 ],
+                 footer_items: [
                    %{
                      label: "Create organization",
                      value: "create-organization",
@@ -144,16 +147,96 @@ defmodule TuistWeb.LayoutLiveTest do
                      label: project.name,
                      value: project.id,
                      selected: true,
-                     href: ~p"/#{organization.account.name}/#{project.name}"
+                     href: ~p"/#{organization.account.name}/#{project.name}",
+                     badge: %{label: "Xcode", color: "focus"}
                    }
                  ],
-                 label: project.name
+                 footer_items: [
+                   %{
+                     label: "Create project",
+                     value: "create-project",
+                     href: ~p"/projects/new?account_id=#{organization.account.id}",
+                     icon: "circle_plus",
+                     selected: false
+                   }
+                 ],
+                 label: project.name,
+                 badge: %{label: "Xcode", color: "focus"}
                }
              ]
 
       assert socket.assigns.selected_project == project
       assert socket.assigns.selected_account.name == organization.account.name
       assert socket.assigns.selected_projects == [project]
+    end
+
+    @tag user_role: :user
+    test "defers dropdown assigns when the socket is disconnected", %{
+      params: params,
+      session: session,
+      user: user,
+      project: project
+    } do
+      # Given/When
+      {:cont, socket} =
+        LayoutLive.on_mount(
+          :project,
+          params,
+          session,
+          disconnected_socket(current_user: user)
+        )
+
+      # Then
+      assert socket.assigns.selected_project == project
+      assert socket.assigns.selected_projects == []
+
+      [account_breadcrumb, project_breadcrumb] = socket.assigns.breadcrumbs
+      assert account_breadcrumb.items == []
+      assert project_breadcrumb.items == []
+    end
+
+    @tag user_role: :user
+    test "uses the requested project when a cached project has different handles", %{
+      params: params,
+      session: session,
+      user: user,
+      project: project
+    } do
+      # Given
+      cached_project =
+        ProjectsFixtures.project_fixture(
+          account_id: user.account.id,
+          preload: [:account]
+        )
+
+      # When
+      {:cont, socket} =
+        LayoutLive.on_mount(
+          :project,
+          params,
+          session,
+          connected_socket(current_user: user, selected_project: cached_project)
+        )
+
+      # Then
+      assert socket.assigns.selected_project == project
+    end
+
+    @tag user_role: :user
+    test "uses the session locale for translated dashboard labels", %{
+      params: params,
+      session: session,
+      user: user
+    } do
+      {:cont, socket} =
+        Locale.on_mount(:assign_locale, %{}, Map.put(session, "locale", "es"), disconnected_socket(current_user: user))
+
+      {:cont, socket} = LayoutLive.on_mount(:project, params, session, socket)
+
+      assert Enum.any?(
+               Enum.at(socket.assigns.breadcrumbs, 0).footer_items,
+               &(&1.label == "Crear organización")
+             )
     end
   end
 
@@ -168,7 +251,7 @@ defmodule TuistWeb.LayoutLiveTest do
           :account,
           %{},
           session,
-          %LiveView.Socket{}
+          connected_socket(current_user: user)
         )
 
       # Then
@@ -184,7 +267,9 @@ defmodule TuistWeb.LayoutLiveTest do
                      value: user.account.id,
                      avatar_color: "gray",
                      show_avatar: true
-                   },
+                   }
+                 ],
+                 footer_items: [
                    %{
                      label: "Create organization",
                      value: "create-organization",
@@ -204,6 +289,26 @@ defmodule TuistWeb.LayoutLiveTest do
       assert socket.assigns.can_read_billing == true
     end
 
+    test "defers account dropdown assigns when the socket is disconnected", %{
+      session: session,
+      user: user
+    } do
+      # Given/When
+      {:cont, socket} =
+        LayoutLive.on_mount(
+          :account,
+          %{},
+          session,
+          disconnected_socket(current_user: user)
+        )
+
+      # Then
+      assert socket.assigns.current_user_accounts == []
+
+      [account_breadcrumb] = socket.assigns.breadcrumbs
+      assert account_breadcrumb.items == []
+    end
+
     @tag user_role: :user
     test "assigns the right values when current_user is user of the organization", %{
       params: params,
@@ -217,7 +322,7 @@ defmodule TuistWeb.LayoutLiveTest do
           :account,
           params,
           session,
-          %LiveView.Socket{}
+          connected_socket(current_user: user)
         )
 
       # Then
@@ -241,7 +346,9 @@ defmodule TuistWeb.LayoutLiveTest do
                      href: ~p"/#{user.account.name}/projects",
                      avatar_color: "gray",
                      show_avatar: true
-                   },
+                   }
+                 ],
+                 footer_items: [
                    %{
                      label: "Create organization",
                      value: "create-organization",
@@ -274,7 +381,7 @@ defmodule TuistWeb.LayoutLiveTest do
           :account,
           params,
           session,
-          %LiveView.Socket{}
+          connected_socket(current_user: user)
         )
 
       # Then
@@ -298,7 +405,9 @@ defmodule TuistWeb.LayoutLiveTest do
                      href: ~p"/#{user.account.name}/projects",
                      avatar_color: "gray",
                      show_avatar: true
-                   },
+                   }
+                 ],
+                 footer_items: [
                    %{
                      label: "Create organization",
                      value: "create-organization",
@@ -319,16 +428,29 @@ defmodule TuistWeb.LayoutLiveTest do
     end
 
     test "when the account is invalid", %{
-      session: session
+      session: session,
+      user: user
     } do
       assert_raise NotFoundError, fn ->
         LayoutLive.on_mount(
           :account,
           %{"account_handle" => "invalid"},
           session,
-          %LiveView.Socket{}
+          disconnected_socket(current_user: user)
         )
       end
     end
+  end
+
+  defp connected_socket(assigns) do
+    Enum.reduce(assigns, %LiveView.Socket{transport_pid: self()}, fn {key, value}, socket ->
+      Phoenix.Component.assign(socket, key, value)
+    end)
+  end
+
+  defp disconnected_socket(assigns) do
+    Enum.reduce(assigns, %LiveView.Socket{}, fn {key, value}, socket ->
+      Phoenix.Component.assign(socket, key, value)
+    end)
   end
 end

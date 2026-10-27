@@ -1,6 +1,5 @@
 import Foundation
 import TuistCore
-import TuistSupport
 import XcodeGraph
 import XcodeProj
 
@@ -13,9 +12,16 @@ protocol WorkspaceSettingsDescriptorGenerating {
     func generateWorkspaceSettings(workspace: Workspace) -> WorkspaceSettingsDescriptor?
 }
 
-final class WorkspaceSettingsDescriptorGenerator: WorkspaceSettingsDescriptorGenerating {
+struct WorkspaceSettingsDescriptorGenerator: WorkspaceSettingsDescriptorGenerating {
     func generateWorkspaceSettings(workspace: Workspace) -> WorkspaceSettingsDescriptor? {
-        guard let enableAutomaticXcodeSchemes = workspace.generationOptions.enableAutomaticXcodeSchemes else { return nil }
-        return WorkspaceSettingsDescriptor(enableAutomaticXcodeSchemes: enableAutomaticXcodeSchemes)
+        let options = workspace.generationOptions
+        let hasCustomDerivedData = if case .custom = options.derivedDataPath { true } else { false }
+        guard options.enableAutomaticXcodeSchemes != nil || hasCustomDerivedData else {
+            return nil
+        }
+        return WorkspaceSettingsDescriptor(
+            enableAutomaticXcodeSchemes: options.enableAutomaticXcodeSchemes,
+            derivedDataPath: options.derivedDataPath
+        )
     }
 }

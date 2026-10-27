@@ -2,12 +2,36 @@ import FileSystem
 import Foundation
 import Path
 import TuistCore
+import TuistEnvironment
+import TuistLogging
+import TuistProcess
 import TuistSupport
+import TuistThreadSafe
+
+enum ProjectDescriptionHelpersBuilderError: FatalError, Equatable {
+    case failedToPublishCache(destination: AbsolutePath, underlying: Error)
+
+    var description: String {
+        switch self {
+        case let .failedToPublishCache(destination, underlying):
+            return "Failed to publish ProjectDescriptionHelpers cache to \(destination.pathString): \(underlying)"
+        }
+    }
+
+    var type: ErrorType { .abort }
+
+    static func == (lhs: ProjectDescriptionHelpersBuilderError, rhs: ProjectDescriptionHelpersBuilderError) -> Bool {
+        switch (lhs, rhs) {
+        case let (.failedToPublishCache(lhsDestination, _), .failedToPublishCache(rhsDestination, _)):
+            return lhsDestination == rhsDestination
+        }
+    }
+}
 
 /// This protocol defines the interface to compile a temporary module with the
 /// helper files under /Tuist/ProjectDescriptionHelpers that can be imported
 /// from any manifest being loaded.
-public protocol ProjectDescriptionHelpersBuilding: AnyObject {
+public protocol ProjectDescriptionHelpersBuilding {
     /// Builds all the project description helpers incluing any `projectDescriptionHelperPlugins`.
     ///
     /// Note: Local project description helpers can import plugin helpers.
@@ -54,8 +78,8 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
 
     /// Clock for measuring build duration.
     private let clock: Clock
-    private let fileHandler: FileHandling
     private let fileSystem: FileSysteming
+    private let commandRunner: CommandRunning
 
     /// The name of the default project description helpers module
     static let defaultHelpersName = "ProjectDescriptionHelpers"
@@ -71,15 +95,15 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         cacheDirectory: AbsolutePath,
         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator(),
         clock: Clock = WallClock(),
-        fileHandler: FileHandling = FileHandler.shared,
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        commandRunner: CommandRunning = CommandRunner()
     ) {
         self.projectDescriptionHelpersHasher = projectDescriptionHelpersHasher
         self.cacheDirectory = cacheDirectory
         self.helpersDirectoryLocator = helpersDirectoryLocator
         self.clock = clock
-        self.fileHandler = fileHandler
         self.fileSystem = fileSystem
+        self.commandRunner = commandRunner
     }
 
     public func build(
@@ -166,24 +190,58 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
 
                 // If the same helpers directory has been previously compiled, we just return the module, no need to recompile it.
                 if try await fileSystem.exists(moduleCacheDirectory) {
+                    await fileSystem.markCacheEntryUsed(at: moduleCacheDirectory)
                     return module
                 }
 
-                try fileHandler.createFolder(moduleCacheDirectory)
+                // Compile into a sibling staging directory and atomically
+                // publish it to the final cache path with `FileSystem.move`,
+                // which is built on top of `rename(2)`. This makes the
+                // operation safe across concurrent processes/instances
+                // sharing the same cache: a sibling builder either sees no
+                // cache directory (and races to compile) or the fully
+                // populated final directory, never a half-written one.
+                let stagingDirectory = cacheDirectory
+                    .appending(component: "\(hash).tmp.\(ProcessInfo.processInfo.processIdentifier).\(UUID().uuidString)")
+                try await fileSystem.makeDirectory(at: stagingDirectory)
+                var stagingDirectoryWasPublished = false
+                defer {
+                    if !stagingDirectoryWasPublished {
+                        Task { [fileSystem] in try? await fileSystem.remove(stagingDirectory) }
+                    }
+                }
 
                 let command = try await createCommand(
                     moduleName: name,
                     directory: path,
-                    outputDirectory: moduleCacheDirectory,
+                    outputDirectory: stagingDirectory,
                     projectDescriptionSearchPaths: projectDescriptionSearchPaths,
                     customProjectDescriptionHelperModules: customProjectDescriptionHelperModules
                 )
 
                 let timer = clock.startTimer()
-                try System.shared.runAndPrint(command, verbose: false, environment: Environment.current.manifestLoadingVariables)
+                try await commandRunner.runAndPrint(
+                    arguments: command,
+                    environment: Environment.current.manifestLoadingVariables
+                )
                 let duration = timer.stop()
                 let time = String(format: "%.3f", duration)
                 Logger.current.debug("Built \(name) in (\(time)s)")
+
+                // Atomically publish the staged compilation. If the move
+                // fails but the destination now exists, another process
+                // already published the same cache entry — we lost the race
+                // and can safely fall back to the published directory.
+                do {
+                    try await fileSystem.move(from: stagingDirectory, to: moduleCacheDirectory)
+                    stagingDirectoryWasPublished = true
+                } catch {
+                    if try await fileSystem.exists(moduleCacheDirectory) { return module }
+                    throw ProjectDescriptionHelpersBuilderError.failedToPublishCache(
+                        destination: moduleCacheDirectory,
+                        underlying: error
+                    )
+                }
 
                 return module
             }
@@ -213,7 +271,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
             "-parse-as-library",
             "-emit-library",
             "-suppress-warnings",
-            "-I", projectDescriptionSearchPaths.includeSearchPath.pathString,
+        ] + projectDescriptionSearchPaths.includeSearchPaths.flatMap { ["-I", $0.pathString] } + [
             "-L", projectDescriptionSearchPaths.librarySearchPath.pathString,
             "-F", projectDescriptionSearchPaths.frameworkSearchPath.pathString,
             "-working-directory", outputDirectory.pathString,

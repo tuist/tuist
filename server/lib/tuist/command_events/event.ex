@@ -10,6 +10,7 @@ defmodule Tuist.CommandEvents.Event do
       :id,
       :project_id,
       :name,
+      :command_arguments,
       :git_commit_sha,
       :git_ref,
       :git_branch,
@@ -18,9 +19,10 @@ defmodule Tuist.CommandEvents.Event do
       :user_id,
       :hit_rate,
       :cacheable_targets_count,
-      :cache_endpoint
+      :cache_endpoint,
+      :ran_at
     ],
-    sortable: [:created_at, :ran_at, :duration, :hit_rate]
+    sortable: [:created_at, :ran_at, :duration, :hit_rate, :id]
   }
 
   @primary_key {:id, Ch, type: "UUID", autogenerate: false}
@@ -47,6 +49,10 @@ defmodule Tuist.CommandEvents.Event do
     field :git_ref, Ch, type: "Nullable(String)"
     field :git_branch, Ch, type: "Nullable(String)"
     field :user_id, Ch, type: "Nullable(Int32)"
+    field :actor_account_id, Ch, type: "Int64", default: 0
+    field :claimed_actor_id, Ch, type: "String", default: ""
+    field :submission_auth, Ch, type: "LowCardinality(String)", default: ""
+    belongs_to :actor_account, Tuist.Accounts.Account, foreign_key: :actor_account_id, define_field: false
     field :preview_id, Ch, type: "Nullable(UUID)"
     field :build_run_id, Ch, type: "Nullable(UUID)"
     field :test_run_id, Ch, type: "Nullable(UUID)"
@@ -81,7 +87,9 @@ defmodule Tuist.CommandEvents.Event do
 
     event_attrs =
       event_attrs
-      |> Map.put_new(:id, id)
+      # Honor a client-provided id (the generate command event's id is minted by the CLI so a later
+      # local build can reference it), falling back to a server-generated UUIDv7 when absent or nil.
+      |> Map.update(:id, id, fn existing -> existing || id end)
       |> normalize_status()
       |> Map.update(:command_arguments, "", fn
         args when is_list(args) -> Enum.join(args, " ")

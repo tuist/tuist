@@ -1,0 +1,674 @@
+packer {
+  required_plugins {
+    tart = {
+      version = ">= 1.16.0"
+      source  = "github.com/cirruslabs/tart"
+    }
+  }
+}
+
+# Build the Tart VM image hosted on the customer-runner Mac mini
+# fleet. Each Pod the tart-kubelet runtime schedules onto a runner
+# Mac mini boots a copy of this image as a Tart VM. The VM:
+#
+#  1. Runs `dispatch-poll.sh` from a launchd job at boot.
+#  2. The script reads TUIST_RUNNER_DISPATCH_URL +
+#     TUIST_RUNNER_POD_UID + TUIST_RUNNER_DISPATCH_TOKEN from
+#     /etc/tuist.env (staged by tart-kubelet via the env-mount
+#     flow at /Volumes/My Shared Files/env/tuist.env, then
+#     re-emitted as /etc/tuist.env by inject-env.sh on first boot).
+#  3. Polls the dispatch URL on a 2 s loop. While the Pod is idle
+#     the server returns 204 — the script sleeps and retries.
+#  4. Once the server returns 200 with `encoded_jit_config`, the
+#     script writes the JIT to a temp file and execs
+#     `./run.sh --jitconfig $JIT` against the GitHub Actions
+#     runner under /Users/runner/actions-runner.
+#  5. The runner accepts a single queued job (JIT config implies
+#     ephemeral=true), runs the workflow, and exits.
+#  6. tart-kubelet observes the VM stop, transitions the Pod to
+#     Completed, and the next reconcile tick creates a fresh Pod.
+#
+# Builds on top of `ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>`
+# (built by `infra/macos-xcode-image`). Xcode + dev tools + WWDR
+# certs all live in the macos-tahoe-xcode base; this build just adds
+# the GitHub Actions runner agent, the dispatch loop, and the runner
+# user / launchd wiring. Splitting the slow Xcode install out means
+# a rebuild on every runner-image commit costs ~2 min instead of
+# ~30 min.
+#
+# Active Xcode versions baked per release are listed in
+# `infra/runner-image/profiles.json`. `runner-image-release.yml`
+# publishes one
+# `ghcr.io/tuist/tuist-runner:macos-<xcode-dashes>-<semver>` tag each
+# that the managed envs' charts reference via
+# `runnersFleet.runnerImageSemver`. Keep the list aligned with
+# `runnersFleet.xcodeVersions` in
+# `infra/helm/tuist/values-managed-common.yaml` — every Xcode that
+# ships a pool needs an image published for it.
+#
+# Image layout (mirrors GitHub-hosted macOS paths so on-disk
+# artifacts that bake absolute paths — SwiftPM `.build/checkouts/`,
+# Xcode DerivedData, `actions/cache` payloads — work interchangeably
+# between hosted and self-hosted runs without per-environment cache
+# keys):
+#   /Users/runner/                              <- runtime user
+#   /Users/runner/actions-runner/               <- GitHub Actions runner binary
+#   /Users/runner/work/<owner>/<repo>           <- workspace, set via JIT work_folder
+#   /Users/runner/Library/LaunchAgents/         <- dev.tuist.runner.plist
+#   /opt/tuist/dispatch-poll.sh                 <- the dispatch poll loop (root-owned)
+#   /opt/tuist/tcc-approvals.sh                 <- seeds/checks runner's standing TCC approvals
+#   /opt/tuist/metrics-poll.sh                  <- machine-metrics sampler (forked during a job)
+#   /opt/tuist/inject-env.sh                    <- reads kubelet env mount → /etc/tuist.env
+#   /opt/tuist/runner-shell-agent               <- trusted interactive shell bridge
+#   /opt/tuist/tuist-cas-proxy                  <- compilation-cache (CAS) prune client,
+#                                                  the last-resort one for jobs that never
+#                                                  run Tuist and so install no proxy of
+#                                                  their own; see cas_proxy_client
+#   /Applications/Xcode_<version>.app           <- inherited from the base
+#
+# The macos-tahoe-xcode base inherits macos-tahoe-base's `admin`
+# user and a `/Users/runner` placeholder. Our flow wipes that
+# placeholder and creates a real `runner` user with a home of its
+# own (see the addUser provisioner below), so `admin` and `runner`
+# are distinct accounts with distinct homes — the account that
+# builds the image is not the account that runs jobs.
+#
+# That split is the thing to keep in mind when changing this file.
+# Anything the base set up under `admin` is not automatically
+# usable by `runner`: the Homebrew prefix has to be handed over
+# explicitly, `~/.zprofile` has to be copied into the new home
+# (see the two provisioners below), and the sanity checks at the
+# end assert against `runner`, never `admin`.
+#
+# Those checks run as `sudo -u runner -H`. The `-H` is load-
+# bearing: macOS sudoers carries `env_keep += "HOME"`, so a plain
+# `sudo -u runner` leaves `HOME=/Users/admin` and the checks
+# silently exercise `admin`'s login shell and `admin`'s caches
+# while appearing to test the runtime account.
+#
+# Note that the runner is registered with GitHub at *job* time,
+# not image-build time — the image carries the runner binary but
+# no credentials. The JIT config delivered via dispatch is the
+# only piece that authenticates this VM as a runner for any
+# specific repo. The matching `Tuist.Runners.mint_jit` call passes
+# `work_folder: "/Users/runner/work"` so the agent's workspace
+# lands at the same absolute path GitHub-hosted runners use.
+
+variable "base_image" {
+  type        = string
+  description = "Base Tart image (ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>, e.g. `:26-4-1` or `:26-5`). Bump this to roll the fleet onto a new Xcode."
+  default     = "ghcr.io/tuist/macos-tahoe-xcode:26-4-1"
+}
+
+variable "output_image" {
+  type        = string
+  description = "Output image name."
+  default     = "tuist-runner"
+}
+
+variable "runner_version" {
+  type        = string
+  description = "GitHub Actions runner version. https://github.com/actions/runner/releases."
+  # Pinned: the runner is launched with `--disableupdate` so what
+  # ships is what runs — no opaque mid-VM self-upgrades, no race
+  # against GitHub's broker-deprecation message on cold boot.
+  # Renovate watches actions/runner releases (see renovate.json's
+  # custom regex manager keyed off the marker comment below) and
+  # opens `fix(runner-image): …` PRs which runner-image-release.yml
+  # picks up to rebuild + bump the chart's image pin. Renovate PRs
+  # auto-merge on green CI, same flow we use for other external
+  # deps; falling more than ~1 release behind would re-introduce
+  # the v2.328-style deprecation risk so the cadence is
+  # load-bearing.
+  #
+  # That cadence is only as good as Renovate's PR budget: a backlog
+  # of unreviewed PRs once filled the concurrency limit and this pin
+  # silently sat three releases behind until GitHub retired it. See
+  # renovate.json for the limits and the dependency dashboard that
+  # now make a withheld bump visible.
+  # renovate: datasource=github-releases depName=actions/runner
+  default = "2.337.0"
+}
+
+variable "buildkite_agent_sha256_darwin_arm64" {
+  type        = string
+  description = "SHA256 of the darwin-arm64 agent tarball, from the release's own SHA256SUMS."
+  # Carried with `buildkite_agent_version`: the download is verified
+  # against this before extraction, so a stale value fails the build
+  # rather than installing an unchecked binary.
+  default = "67bd0dbe9417776a9f7bee02bcbf840e169f37e28ae36dd0a5184c61312438b2"
+}
+
+variable "buildkite_agent_version" {
+  type        = string
+  description = "Buildkite agent version. https://github.com/buildkite/agent/releases."
+  # Same pinning rationale as `runner_version`, and the same Renovate
+  # flow keeps it current.
+  # renovate: datasource=github-releases depName=buildkite/agent
+  default = "3.138.0"
+}
+
+# VM CPU/memory baked into the Tart image. Kept at 4 / 8 (same
+# shape as the xcresult-processor image) so the build runs on
+# the existing M1-M `vm-image-builder` Mac mini — the host has
+# 16 GB total, so a 16 GB VM exceeds Tart's
+# `maximumAllowedMemorySize` and Packer aborts at boot.
+#
+# Trade-off: at deploy time customer VMs use these baked sizes
+# (4 vCPU / 8 GB) rather than the M4-S host's full 8 vCPU / 16
+# GB. The Pod-level resource request (`4000m / 14Gi` in
+# `Tuist.Runners.PodSpec`) still pins exactly one runner Pod
+# per Mac mini, so the build-time consistency property is
+# preserved — neighbour VMs can't contend for resources because
+# there are no neighbours. To use the host's full resources at
+# runtime, tart-kubelet would need to invoke `tart set` before
+# `tart run`. That's a v2 hardening item; until it lands, 8 GB
+# is the customer-facing VM size.
+variable "cpu_count" {
+  type    = number
+  default = 4
+}
+
+variable "memory_gb" {
+  type    = number
+  default = 8
+}
+
+# Builds the runner layer as an ASIF overlay on a read-only `base_image`
+# (macOS 27 hosts only). The build runs `tart` through `stacked-tart/`, which
+# turns the plugin's `tart clone` into `tart clone --stacked`. A stacked VM has
+# no `disk.img` for the plugin to edit, so the recovery partition is kept.
+variable "stacked" {
+  type    = bool
+  default = false
+}
+
+source "tart-cli" "runner" {
+  vm_base_name = var.base_image
+  vm_name      = var.output_image
+  cpu_count    = var.cpu_count
+  memory_gb    = var.memory_gb
+  ssh_username = "admin"
+  ssh_password = "admin"
+  # First boot of a freshly-cloned Tart base image runs macOS first-time
+  # setup (kextcache rebuild, Spotlight indexing, APFS expansion,
+  # AssetCacheLocator, first-run launchd jobs) which can take 10+ min
+  # to reach an SSH-ready state. Cached re-clones (the state of long-
+  # lived builder hosts) skip that work and answer in ~30s, which is why
+  # tight values held for years on the original Mac mini but timed out
+  # on newly-onboarded hosts. 15m gives headroom for the cold path on a
+  # cirruslabs Tahoe base; the warm path returns long before then.
+  ssh_timeout        = "15m"
+  headless           = true
+  recovery_partition = var.stacked ? "keep" : "delete"
+}
+
+build {
+  sources = ["source.tart-cli.runner"]
+
+  # Create the `runner` user. macos-tahoe-base (inherited via
+  # the macos-tahoe-xcode base) ships with `admin` as its working
+  # user but pre-stages
+  # `/Users/runner` as a placeholder carrying ACLs / flags that
+  # survive `chown -R`. If we leave it in place, `sysadminctl
+  # -addUser runner` logs `Directory at path:/Users/runner already
+  # exists` and skips home creation, so the new user never owns
+  # its own home and runtime mkdirs like `~/.local/share/mise`
+  # blow up with EACCES the first time any step tries to create a
+  # top-level subdir we didn't pre-chown.
+  #
+  # Wipe the placeholder before sysadminctl so it creates a fresh
+  # home from scratch with the correct POSIX ownership and the
+  # default macOS-user ACLs — no base-image residue to fight.
+  #
+  # `-admin` adds the user to the admin GROUP, which is what
+  # `/etc/sudoers.d/%admin` and `inject-env.sh`'s `root:admin`
+  # file ownership reference. Password "runner" is encoded into
+  # /etc/kcpassword below so the auto-login flow can unlock the
+  # account at boot.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "echo 'admin' | sudo -S rm -rf /Users/runner",
+      "echo 'admin' | sudo -S sysadminctl -addUser runner -fullName 'GitHub Actions Runner' -password runner -admin",
+      "echo 'admin' | sudo -S mkdir -p /opt/tuist /etc/tuist",
+      "echo 'admin' | sudo -S chown root:wheel /opt/tuist"
+    ]
+  }
+
+  # Hand the Homebrew prefix to `runner`. The base images install
+  # brew and its formulae as `admin`, so the prefix ends up owned
+  # by an account that never runs jobs — `brew install <formula>`
+  # from a workflow step then fails the writability audit with
+  # "/opt/homebrew is not writable" across ~16 directories.
+  #
+  # GitHub-hosted macOS images build and run under a single
+  # account, so the job user owns the prefix and unprivileged
+  # `brew install` just works. Customer workflows assume that.
+  # Reachability was never the problem (the login shell resolves
+  # `brew` fine, and the sanity check below has always covered
+  # it) — ownership was.
+  #
+  # This belongs here and not in macos-xcode-image: that base is
+  # shared with xcresult-processor, which keeps running as `admin`
+  # and drives brew-installed binaries itself (`sudo
+  # /opt/homebrew/bin/tailscaled install-system-daemon`). Chowning
+  # in the shared layer would fix this image and break that one.
+  #
+  # `runner:admin` matches Homebrew's own default ownership on
+  # macOS rather than inventing a scheme.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "echo 'admin' | sudo -S chown -R runner:admin /opt/homebrew"
+    ]
+  }
+
+  # Hand the login-shell environment to `runner`. The cirruslabs
+  # base builds `~/.zprofile` for `admin` (Homebrew shellenv,
+  # rbenv init, LANG=en_US.UTF-8, node@24 on PATH) and symlinks
+  # `/Users/runner` at `/Users/admin`, so its runner user reads
+  # the same file. Wiping that symlink above gives `runner` a home
+  # created from macOS's user template, which carries no
+  # `.zprofile` at all — every login shell on this image (the
+  # LaunchAgent entrypoint, and therefore every workflow step
+  # shell that inherits its environment) would resolve none of the
+  # base's tooling.
+  #
+  # Copy rather than symlink back into admin's home: the accounts
+  # are separate here (see the header), and a job appending to its
+  # own `~/.zprofile` must not rewrite the provisioning user's.
+  # The file's contents are $HOME-independent, so the copy behaves
+  # identically under the new owner.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "echo 'admin' | sudo -S install -m 0644 -o runner -g staff /Users/admin/.zprofile /Users/runner/.zprofile"
+    ]
+  }
+
+  # The runner auto-login opens a real desktop session so launchd can
+  # run the GitHub Actions agent. On fresh macOS images that first
+  # desktop can be intercepted by Setup Assistant's "Update Mac
+  # Automatically" pane, which is exactly what the dashboard VNC
+  # would then show. macOS 11+ rejects silent .mobileconfig installs,
+  # so seed the macOS 15+ SkipSetupItems preferences directly and also
+  # write the older seen flags that previous Setup Assistant releases
+  # still consult.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "echo 'admin' | sudo -S true",
+      "SETUP_ITEMS=(AppleID Appearance Biometric Diagnostics FileVault iCloudStorage Intelligence Location Privacy ScreenTime Siri SoftwareUpdate UnlockWithWatch UpdateCompleted Welcome)",
+      "sudo mkdir -p '/Library/Managed Preferences' '/Library/Managed Preferences/runner'",
+      "write_skip_items() { local plist=\"$1\"; sudo rm -f \"$plist\"; sudo plutil -create xml1 \"$plist\"; sudo /usr/libexec/PlistBuddy -c 'Add :SkipSetupItems array' \"$plist\"; for item in \"$${SETUP_ITEMS[@]}\"; do sudo /usr/libexec/PlistBuddy -c \"Add :SkipSetupItems: string $item\" \"$plist\"; done; sudo chmod 644 \"$plist\"; }",
+      "write_skip_items '/Library/Managed Preferences/com.apple.SetupAssistant.managed.plist'",
+      "write_skip_items '/Library/Managed Preferences/runner/com.apple.SetupAssistant.managed.plist'",
+      "write_skip_items '/Library/Preferences/com.apple.SetupAssistant.managed.plist'",
+      "write_skip_items '/Users/runner/Library/Preferences/com.apple.SetupAssistant.managed.plist'",
+      "sudo chown runner:staff /Users/runner/Library/Preferences/com.apple.SetupAssistant.managed.plist",
+      "sudo chmod 755 '/Library/Managed Preferences' '/Library/Managed Preferences/runner'",
+      "PRODUCT_VERSION=$(sw_vers -productVersion)",
+      "BUILD_VERSION=$(sw_vers -buildVersion)",
+      "sudo defaults write /Library/Preferences/com.apple.SetupAssistant DidSeeCloudSetup -bool true",
+      "sudo defaults write /Library/Preferences/com.apple.SetupAssistant DidSeeSiriSetup -bool true",
+      "sudo defaults write /Library/Preferences/com.apple.SetupAssistant DidSeePrivacy -bool true",
+      "sudo defaults write /Library/Preferences/com.apple.SetupAssistant LastSeenCloudProductVersion \"$PRODUCT_VERSION\"",
+      "sudo defaults write /Library/Preferences/com.apple.SetupAssistant LastSeenBuddyBuildVersion \"$BUILD_VERSION\"",
+      "sudo -u runner defaults write com.apple.SetupAssistant DidSeeCloudSetup -bool true",
+      "sudo -u runner defaults write com.apple.SetupAssistant DidSeeSiriSetup -bool true",
+      "sudo -u runner defaults write com.apple.SetupAssistant DidSeePrivacy -bool true",
+      "sudo -u runner defaults write com.apple.SetupAssistant LastSeenCloudProductVersion \"$PRODUCT_VERSION\"",
+      "sudo -u runner defaults write com.apple.SetupAssistant LastSeenBuddyBuildVersion \"$BUILD_VERSION\"",
+      "sudo -u runner defaults write com.apple.SoftwareUpdate AutomaticCheckEnabled -bool false",
+      "sudo -u runner defaults write com.apple.SoftwareUpdate AutomaticDownload -bool false"
+    ]
+  }
+
+  # The base installs the Metal Toolchain as `admin`, and Xcode 26.1
+  # only exposes a downloaded toolchain to the user that installed
+  # it. Running the download as `runner` registers it for the user
+  # jobs run as.
+  #
+  # The toolchain build is passed explicitly: without it `xcodebuild`
+  # asks Apple for a toolchain under the Xcode's own build, and Apple
+  # publishes some under a different one (Xcode 26.4.1 is 17E202, its
+  # toolchain 17E188). Apple's downloadable index maps one to the
+  # other; the last match is the one Xcode itself picks when there
+  # are several.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "XCODE_BUILD=$(xcodebuild -version | awk '/^Build version/ {print $3}')",
+      "INDEX=$(mktemp)",
+      "curl -fsSL https://devimages-cdn.apple.com/downloads/xcode/simulators/index2.dvtdownloadableindex -o \"$INDEX\"",
+      "METAL_BUILD=''",
+      "for i in $(seq 0 $(($(plutil -extract xcodeToOtherDownloadablesMappings raw -o - \"$INDEX\") - 1))); do if [ \"$(plutil -extract xcodeToOtherDownloadablesMappings.$i.assetType raw -o - \"$INDEX\")\" = metalToolchain ] && [ \"$(plutil -extract xcodeToOtherDownloadablesMappings.$i.xcodeBuildUpdate raw -o - \"$INDEX\")\" = \"$XCODE_BUILD\" ]; then METAL_BUILD=$(plutil -extract xcodeToOtherDownloadablesMappings.$i.assetBuildUpdate raw -o - \"$INDEX\"); fi; done",
+      "rm -f \"$INDEX\"",
+      "[ -n \"$METAL_BUILD\" ] || { echo \"Apple's downloadable index maps no Metal Toolchain to Xcode build $XCODE_BUILD\" >&2; exit 1; }",
+      "echo 'admin' | sudo -S -u runner -H /bin/zsh -lc \"xcodebuild -downloadComponent MetalToolchain -buildVersion $METAL_BUILD\""
+    ]
+  }
+
+  # Install the Actions runner agent under runner's home so the
+  # binary, its `_diag` logs, and any side data it writes land
+  # under `/Users/runner/...` — matching GitHub-hosted's layout
+  # (their agent installs at `/Users/runner/runners/<version>/`).
+  # `--work` for the workspace is set at JIT-generation time
+  # (`work_folder: "/Users/runner/work"`), so the actual checkout
+  # ends up at the GH-parity path regardless of the agent's home.
+  #
+  # Defensively wipe `/Users/runner/actions-runner` before
+  # repopulating: macos-tahoe-base's install-actions-runner.sh
+  # script may have installed an unpinned runner version under
+  # the placeholder /Users/runner that survives the rm -rf above
+  # if anything has changed the inheritance order. Removing the
+  # dir before recreating it lands an empty, runner-owned tree
+  # that the tar extract can populate without fighting any
+  # leftover.
+  #
+  # Create the subdirectories as root + chown to runner instead of
+  # `sudo -u runner mkdir` — see the runner-user creation block
+  # for why mkdir directly under a freshly-created /Users/runner
+  # can fail even after a recursive chown.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo rm -rf /Users/runner/actions-runner",
+      "sudo mkdir -p /Users/runner/actions-runner /Users/runner/work",
+      "sudo chown runner:staff /Users/runner/actions-runner /Users/runner/work",
+      "cd /Users/runner/actions-runner",
+      "sudo -u runner rm -rf ./*",
+      "sudo -u runner curl -sSL -o actions-runner.tar.gz https://github.com/actions/runner/releases/download/v${var.runner_version}/actions-runner-osx-arm64-${var.runner_version}.tar.gz",
+      "sudo -u runner tar xzf actions-runner.tar.gz",
+      "sudo -u runner rm actions-runner.tar.gz",
+      # Sanity check: configure script exists. We don't run
+      # ./config.sh — JIT config is provided at runtime.
+      "test -x ./run.sh"
+    ]
+  }
+
+  # The Buildkite agent lives alongside the GitHub one rather than in a
+  # second image. Which of the two runs is a per-job decision the server
+  # makes at dispatch, so a Pod has to be able to serve either; forking
+  # the image would double the fleet's warm-pool partitioning to save
+  # about 30 MB.
+  #
+  # Pinned for the same reason `runner_version` is: the version that ran a
+  # job should be the version we baked. The agent has no self-update, so
+  # pinning here is the whole mechanism.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "cd /tmp",
+      "curl -sSL -o buildkite-agent.tar.gz https://github.com/buildkite/agent/releases/download/v${var.buildkite_agent_version}/buildkite-agent-darwin-arm64-${var.buildkite_agent_version}.tar.gz",
+      "echo '${var.buildkite_agent_sha256_darwin_arm64}  buildkite-agent.tar.gz' | shasum -a 256 -c -",
+      "mkdir -p /tmp/buildkite-agent-dist",
+      "tar xzf buildkite-agent.tar.gz -C /tmp/buildkite-agent-dist",
+      "echo 'admin' | sudo -S install -m 0755 -o root -g wheel /tmp/buildkite-agent-dist/buildkite-agent /opt/tuist/buildkite-agent",
+      "rm -rf buildkite-agent.tar.gz /tmp/buildkite-agent-dist",
+      "/opt/tuist/buildkite-agent --version"
+    ]
+  }
+
+  provisioner "file" {
+    source = "${path.root}/build/tuist-cache-volume"
+    destination = "/tmp/tuist-cache-volume"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/inject-env.sh"
+    destination = "/tmp/inject-env.sh"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/dispatch-poll.sh"
+    destination = "/tmp/dispatch-poll.sh"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/metrics-poll.sh"
+    destination = "/tmp/metrics-poll.sh"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/tuist-runner-cache"
+    destination = "/tmp/tuist-runner-cache"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/buildkite-hooks"
+    destination = "/tmp/buildkite-hooks"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/build/tuist-gitlab-runner"
+    destination = "/tmp/tuist-gitlab-runner"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/build/runner-shell-agent"
+    destination = "/tmp/runner-shell-agent"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/runner-shell-agent-supervisor.sh"
+    destination = "/tmp/runner-shell-agent-supervisor.sh"
+  }
+
+  # Built by the workflow from cas-plugin/ (see "Build CAS prune client"), the
+  # same way runner-shell-agent is. It is only ever invoked as
+  # `--prune`/`--drain`; it never serves, so the image carries no daemon.
+  provisioner "file" {
+    source      = "${path.root}/build/tuist-cas-proxy"
+    destination = "/tmp/tuist-cas-proxy"
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/runner-shell-agent.plist"
+    destination = "/tmp/dev.tuist.runner-shell-agent.plist"
+  }
+
+  provisioner "shell" {
+    inline = [
+      "echo 'admin' | sudo -S install -m 0755 /tmp/inject-env.sh /opt/tuist/inject-env.sh",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/metrics-poll.sh /opt/tuist/metrics-poll.sh",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent /opt/tuist/runner-shell-agent",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cache-volume /usr/local/bin/tuist-cache-volume",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-runner-cache /usr/local/bin/tuist-runner-cache",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-gitlab-runner /opt/tuist/tuist-gitlab-runner",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent-supervisor.sh /opt/tuist/runner-shell-agent-supervisor.sh",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/tuist-cas-proxy /opt/tuist/tuist-cas-proxy",
+      "echo 'admin' | sudo -S install -m 0644 -o root -g wheel /tmp/dev.tuist.runner-shell-agent.plist /Library/LaunchDaemons/dev.tuist.runner-shell-agent.plist",
+      # Global agent hooks: `buildkite-agent --hooks-path` points here, so
+      # these run for every job the agent takes regardless of what the
+      # customer's own repository defines.
+      "echo 'admin' | sudo -S mkdir -p /opt/tuist/buildkite-hooks",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/environment /opt/tuist/buildkite-hooks/environment",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/post-command /opt/tuist/buildkite-hooks/post-command",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/buildkite-hooks/pre-exit /opt/tuist/buildkite-hooks/pre-exit",
+      "rm -rf /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/tuist-runner-cache /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/tuist-cas-proxy /tmp/dev.tuist.runner-shell-agent.plist /tmp/buildkite-hooks"
+    ]
+  }
+
+  # Passwordless sudo for runner. The GitHub Actions runner runs as
+  # the `runner` user in a real desktop session (LaunchAgent +
+  # auto-login), so the few privileged operations the dispatch loop
+  # needs — installing /etc/tuist.env from the kubelet env mount,
+  # halting the VM at job exit — go through sudo. Passwordless because
+  # the VM is ephemeral and single-tenant; the entire OS is the
+  # customer's job environment.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "echo 'admin' | sudo -S sh -c 'echo \"runner ALL=(ALL) NOPASSWD: ALL\" > /etc/sudoers.d/runner-nopasswd'",
+      "echo 'admin' | sudo -S chmod 0440 /etc/sudoers.d/runner-nopasswd",
+      "echo 'admin' | sudo -S chown root:wheel /etc/sudoers.d/runner-nopasswd",
+      "sudo -u runner sudo -n true"
+    ]
+  }
+
+  # Auto-login as runner so a desktop session exists at boot and
+  # loginwindow loads /Users/runner/Library/LaunchAgents agents.
+  # macOS implements auto-login via /etc/kcpassword (XOR-encoded
+  # password using Apple's well-known key) + the autoLoginUser
+  # preference. The encoded payload for password "runner" is the
+  # 6 password bytes followed by 6 zero-pad bytes, each XOR'd
+  # against the 11-byte Apple key.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "printf '\\x0f\\xfc\\x3c\\x4d\\xb7\\xce\\xdd\\xea\\xa3\\xb9\\x1f\\x7d' > /tmp/kcpassword",
+      "sudo install -m 0600 -o root -g wheel /tmp/kcpassword /etc/kcpassword",
+      "rm -f /tmp/kcpassword",
+      "runner_uid=$(id -u runner)",
+      "sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser -string runner",
+      "sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUserUID -int \"$runner_uid\"",
+      "sudo defaults write /Library/Preferences/com.apple.loginwindow DisableFDEAutoLogin -bool false",
+      "sudo pmset -a sleep 0 displaysleep 0 disksleep 0",
+      "sudo defaults write /Library/Preferences/com.apple.screensaver idleTime -int 0",
+      "sudo defaults write /Library/Preferences/com.apple.screensaver askForPassword -int 0",
+      "sudo defaults write /Library/Preferences/com.apple.screensaver askForPasswordDelay -int 0",
+      "sudo defaults -currentHost write com.apple.screensaver idleTime -int 0",
+      "sudo defaults -currentHost write com.apple.screensaver askForPassword -int 0",
+      "sudo defaults -currentHost write com.apple.screensaver askForPasswordDelay -int 0",
+      "sudo defaults write /Library/Preferences/.GlobalPreferences com.apple.autologout.AutoLogOutDelay -int 0",
+      "sudo -u runner defaults write com.apple.screensaver idleTime -int 0",
+      "sudo -u runner defaults write com.apple.screensaver askForPassword -int 0",
+      "sudo -u runner defaults write com.apple.screensaver askForPasswordDelay -int 0",
+      "sudo -u runner defaults -currentHost write com.apple.screensaver idleTime -int 0",
+      "sudo -u runner defaults -currentHost write com.apple.screensaver askForPassword -int 0",
+      "sudo -u runner defaults -currentHost write com.apple.screensaver askForPasswordDelay -int 0",
+      "sudo sysadminctl -screenLock off -password runner || true",
+      "sudo /usr/bin/python3 - <<'CHECK'\nimport sys\nkey = bytes([0x7d, 0x89, 0x52, 0x23, 0xd2, 0xbc, 0xdd, 0xea, 0xa3, 0xb9, 0x1f])\nwith open('/etc/kcpassword', 'rb') as f:\n    enc = f.read()\ndec = bytes(b ^ key[i % len(key)] for i, b in enumerate(enc))\nif dec.startswith(b'<sealed>'):\n    sys.stderr.write('kcpassword was replaced by macOS with <sealed>; runner auto-login would boot to the password screen\\n')\n    sys.exit(1)\nif dec != b'runner' + bytes(6):\n    sys.stderr.write('kcpassword does not decode to the runner auto-login payload\\n')\n    sys.exit(1)\nCHECK"
+    ]
+  }
+
+  # Standing TCC approvals (scripting Finder, the iOS Simulator's
+  # microphone) live in runner's own TCC.db, which tccd only creates
+  # when runner logs in. Nothing above logs runner in, so reboot into
+  # the auto-login session, write the rows into the database tccd
+  # made, and reboot once more to assert they survive a boot. Runs
+  # before the LaunchAgent is installed: dispatch-poll.sh halts a VM
+  # it cannot dispatch from. See AGENTS.md for why each row has the
+  # shape it has.
+  provisioner "file" {
+    source      = "${path.root}/tcc-approvals.sh"
+    destination = "/tmp/tcc-approvals.sh"
+  }
+
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo install -m 0755 -o root -g wheel /tmp/tcc-approvals.sh /opt/tuist/tcc-approvals.sh",
+      "rm -f /tmp/tcc-approvals.sh"
+    ]
+  }
+
+  provisioner "shell" {
+    expect_disconnect = true
+    skip_clean        = true
+    inline            = ["(sleep 2; sudo shutdown -r now) >/dev/null 2>&1 &"]
+  }
+
+  provisioner "shell" {
+    pause_before = "45s"
+    inline = [
+      "set -euo pipefail",
+      "sudo /opt/tuist/tcc-approvals.sh wait",
+      "sudo -u runner /opt/tuist/tcc-approvals.sh seed"
+    ]
+  }
+
+  provisioner "shell" {
+    expect_disconnect = true
+    skip_clean        = true
+    inline            = ["(sleep 2; sudo shutdown -r now) >/dev/null 2>&1 &"]
+  }
+
+  provisioner "shell" {
+    pause_before = "45s"
+    inline = [
+      "set -euo pipefail",
+      "sudo /opt/tuist/tcc-approvals.sh wait",
+      "sudo -u runner /opt/tuist/tcc-approvals.sh check"
+    ]
+  }
+
+  provisioner "file" {
+    source      = "${path.root}/launchd.plist"
+    destination = "/tmp/dev.tuist.runner.plist"
+  }
+
+  # Install as a LaunchAgent under runner's home so it loads
+  # inside runner's user session (auto-login above guarantees the
+  # session exists at boot). User-owned (runner:staff, 0644) per
+  # Apple's LaunchAgent ownership rules.
+  #
+  # Same root-create + chown pattern as the actions-runner block:
+  # `/Users/runner/Library` is part of the placeholder home and
+  # rejects writes from the runner UID even after `chown -R`.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo mkdir -p /Users/runner/Library/LaunchAgents",
+      "sudo chown runner:staff /Users/runner/Library /Users/runner/Library/LaunchAgents",
+      "sudo install -m 0644 -o runner -g staff /tmp/dev.tuist.runner.plist /Users/runner/Library/LaunchAgents/dev.tuist.runner.plist",
+      "rm -f /tmp/dev.tuist.runner.plist",
+      "sudo mkdir -p /var/log/tuist-runner",
+      "sudo chown runner:staff /var/log/tuist-runner"
+    ]
+  }
+
+  # Sanity check: tools customers expect on a GitHub-parity macOS
+  # runner have to be reachable from the agent's runtime
+  # environment. The agent wraps its entrypoint in `zsh -lc`, so
+  # the ~/.zprofile copied into the runner's home above is sourced
+  # (Homebrew shellenv, rbenv init, PATH additions for the
+  # macos-tahoe-xcode base's pre-installed tools) — which is why
+  # these run with `-H` and not against `admin`'s copy of the same
+  # file. A future base-image bump that moves Homebrew's prefix
+  # or drops a formula would silently make tools unreachable from
+  # step shells; resolve each tool against the same login-shell
+  # environment so image-build CI fails loudly instead of customer
+  # workflows. xcresulttool isn't on PATH; xcrun resolves it, so the
+  # explicit `xcrun xcresulttool version` below doubles as proof
+  # that the base's Xcode install + `xcode-select -s` propagated.
+  # `xcrun metal --version` proves the base's Metal Toolchain is
+  # visible to `runner` and not only to the user that installed it.
+  #
+  # Tuist itself isn't in the list — customer workflows install it
+  # via mise / brew so they own the version pin.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo -u runner -H /bin/zsh -lc 'for tool in brew mise gh git-lfs jq yq swiftlint swiftformat xcbeautify fastlane pod carthage xcodes xcrun; do command -v \"$tool\" >/dev/null 2>&1 || { echo \"sanity check: $tool not reachable in runner login shell — base image regression\" >&2; exit 1; }; done'",
+      "sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun xcresulttool version'",
+      "sudo -u runner -H /bin/zsh -lc '/usr/bin/xcrun metal --version'"
+    ]
+  }
+
+  # Sanity check: `brew` being on PATH says nothing about whether a
+  # workflow step can install with it. The check above passed for
+  # months while every `brew install` on this image failed on prefix
+  # ownership, so assert the operation rather than the binary.
+  # `hello` is Homebrew's own smoke-test formula: no dependencies,
+  # installs in seconds, and uninstalling leaves the image clean.
+  #
+  # HOMEBREW_NO_AUTO_UPDATE keeps the check off the network's
+  # critical path — it would otherwise re-fetch every tap and make
+  # image builds fail on transient GitHub blips. The chown is
+  # recursive, so tap writability moves with the prefix; what's
+  # actually at risk of regressing, and what this exercises, is
+  # writing into Cellar and the lock/var dirs. `brew` also writes
+  # its download and bootsnap caches under `$HOME`, which is the
+  # other half of why these run with `-H`.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew install hello' || { echo 'sanity check: unprivileged brew install failed for the runner user — Homebrew prefix ownership regression' >&2; exit 1; }",
+      "sudo -u runner -H /bin/zsh -lc 'HOMEBREW_NO_AUTO_UPDATE=1 brew uninstall hello'"
+    ]
+  }
+}

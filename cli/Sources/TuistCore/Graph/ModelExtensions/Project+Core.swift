@@ -1,8 +1,19 @@
 import Path
+import TuistConstants
 import TuistSupport
 import XcodeGraph
 
 extension Project {
+    /// The hash of the resolution a package was taken from: its revision from source control, its version
+    /// from a registry. Nil for a project of the workspace and for a package the manifest references by
+    /// path. Hashed into a target's key as the `external` subhash, which the server stores as `external_hash`.
+    public var externalHash: String? {
+        switch type {
+        case .local: nil
+        case let .external(hash): hash
+        }
+    }
+
     /// It returns the project targets sorted based on the target type and the dependencies between them.
     /// The most dependent and non-tests targets are sorted first in the list.
     ///
@@ -41,16 +52,19 @@ extension Project {
     }
 
     public func derivedDirectoryPath(for target: Target) -> AbsolutePath {
+        let resolvedSwiftPackageManagerScratchDirectory = SwiftPackageManagerPaths.scratchDirectory(
+            containingPackageSource: path,
+            knownScratchDirectory: swiftPackageManagerScratchDirectory
+        )
         if case .external = type,
-           path.pathString
-           .contains("\(Constants.SwiftPackageManager.packageBuildDirectoryName)/checkouts")
+           let resolvedSwiftPackageManagerScratchDirectory,
+           SwiftPackageManagerPaths.isPath(path, inPackageSourcesOf: resolvedSwiftPackageManagerScratchDirectory)
         {
-            return path
-                // Leads to SPM's .build directory
-                .parentDirectory.parentDirectory
+            return resolvedSwiftPackageManagerScratchDirectory
                 .appending(
                     components: [
                         Constants.DerivedDirectory.dependenciesDerivedDirectory,
+                        Constants.DerivedDirectory.dependenciesTargetDirectory,
                         target.name,
                     ]
                 )

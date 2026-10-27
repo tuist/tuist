@@ -1,0 +1,306 @@
+defmodule TuistWeb.Internal.KuraMeshController do
+  use TuistWeb, :controller
+
+  alias Boruta.BasicAuth
+  alias Boruta.Oauth.Authorization.Client
+  alias Tuist.Environment
+  alias Tuist.Kura.Identity
+  alias Tuist.Kura.Mesh
+  alias Tuist.Kura.Registrations
+  alias Tuist.Kura.SelfHostedClients
+
+  # Node enrollment: a self-hosted node presents its tenant-scoped credential
+  # (HTTP Basic) and a CSR, and gets back its signed certificate, the account
+  # CA, the tenant id, and the peer list. This is the onboarding primitive that
+  # lets a node self-configure with nothing but its credential and URL.
+  def enroll(conn, %{"csr" => csr, "node_url" => node_url}) when is_binary(csr) and is_binary(node_url) do
+    case authorize(conn) do
+      {:ok, account} ->
+        case Mesh.enroll_node(account, %{csr: csr, node_url: node_url}) do
+          {:ok, enrollment} ->
+            conn
+            |> put_status(:created)
+            |> json(%{
+              tenant_id: enrollment.tenant_id,
+              account_handle: enrollment.account_handle,
+              account_aliases: enrollment.account_aliases,
+              endpoint_redirects: enrollment.endpoint_redirects,
+              certificate: enrollment.certificate_pem,
+              ca_certificate: enrollment.ca_certificate_pem,
+              not_after: enrollment.not_after,
+              renew_after_seconds: enrollment.renew_after_seconds,
+              peers: enrollment.peers,
+              managed_peers: enrollment.managed_peers
+            })
+
+          {:error, reason} when reason in [:invalid_csr, :invalid_node_url] ->
+            conn
+            |> put_status(:unprocessable_entity)
+            |> json(%{error: to_string(reason)})
+
+          {:error, :ca_unavailable} ->
+            conn
+            |> put_status(:service_unavailable)
+            |> json(%{error: "ca_unavailable"})
+        end
+
+      {:error, :unauthorized} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{error: "unauthorized"})
+    end
+  end
+
+  def enroll(conn, _params) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{error: "invalid_payload"})
+  end
+
+  # Mesh heartbeat: an enrolled node periodically proves it is still a live
+  # mesh member. Independent from the registration heartbeat (which advertises
+  # the node's client-facing endpoint): this one keeps the node's mesh
+  # membership from being swept as stale and returns the current peer list, so
+  # peers refresh at heartbeat cadence rather than at certificate renewal. A
+  # withheld node is answered `mesh_member: false` and recovers by
+  # re-enrolling. `replication_pull` rides beside the peer list for
+  # self-hosted nodes on a pre-removal release, which still negotiate the
+  # mode per peer; it is always true now.
+  #
+  # Deliberately without `peer_roles`. The published roles key each managed pod
+  # by its internal `KURA_NODE_URL`, while a self-hosted node's peer list names
+  # a managed region by its single public peer URL — and `region_gateways`
+  # (kura/src/sync/roles.rs) only honours a published role whose URL is present
+  # among the peers it can see. So a role published here could never match, the
+  # node's local lowest-URL rule would decide anyway, and all the field actually
+  # did was ship internal cluster DNS names to customer infrastructure. Roles
+  # stay on `/peers`, which the managed pods read and where the URLs do match.
+  def heartbeat(conn, %{"node_url" => node_url}) when is_binary(node_url) do
+    case authorize(conn) do
+      {:ok, account} ->
+        view = Mesh.heartbeat_node(account, node_url)
+
+        json(conn, %{
+          mesh_member: view.mesh_member,
+          account_handle: account.name,
+          account_aliases: Identity.handles(account),
+          endpoint_redirects: Identity.endpoint_redirects(account),
+          peers: view.peers,
+          replication_pull: Mesh.replication_pull?(account),
+          heartbeat_interval_seconds: Mesh.mesh_heartbeat_interval_seconds()
+        })
+
+      {:error, :unauthorized} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{error: "unauthorized"})
+    end
+  end
+
+  def heartbeat(conn, _params) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{error: "invalid_payload"})
+  end
+
+  # Peers-only read for managed pods: they don't enroll (Kubernetes owns their
+  # liveness and their identity is controller-minted), so they must not enter
+  # the membership/reactivation state machine — but they consume the same
+  # dynamic peer view so a self-hosted peer joining or leaving propagates at
+  # heartbeat cadence instead of through a fleet roll, and read their
+  # replication role from it. Accepts the
+  # deployment-level control-plane credential (with a tenant) or a self-hosted
+  # client credential, like registration.
+  #
+  # This is the only endpoint that publishes `peer_roles`: its readers are the
+  # managed pods, whose own `KURA_NODE_URL`s are what the roles are keyed by.
+  # Every field here is a Postgres read — the roles come off `kura_servers`,
+  # refreshed by the reconciler — so a slow regional apiserver cannot push the
+  # response past the 5 s deadline the polling node gives it.
+  def peers(conn, params) do
+    case authorize_registration(conn, params) do
+      {:ok, account, credential_kind} ->
+        json(conn, %{
+          peers: Mesh.self_hosted_peer_urls(account),
+          account_handle: account.name,
+          account_aliases: Identity.handles(account),
+          endpoint_redirects: Identity.endpoint_redirects(account),
+          peer_roles: peer_roles(account, credential_kind),
+          replication_pull: Mesh.replication_pull?(account),
+          refresh_interval_seconds: Mesh.mesh_heartbeat_interval_seconds()
+        })
+
+      {:error, {:tenant_mismatch, expected_tenant_id}} ->
+        permanent_tenant_conflict(conn, expected_tenant_id)
+
+      {:error, :unauthorized} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{error: "unauthorized"})
+    end
+  end
+
+  # Registration heartbeat: a self-hosted node periodically reports its
+  # client-facing endpoint and liveness. The lease (see the response) is
+  # refreshed on each heartbeat; lookup drops endpoints whose lease lapses, so a
+  # node that stops heartbeating disappears without the control plane probing it.
+  def register(conn, %{"node_id" => node_id, "advertised_http_url" => advertised_http_url} = params)
+      when is_binary(node_id) and is_binary(advertised_http_url) do
+    case authorize_registration(conn, params) do
+      {:ok, account, _credential_kind} ->
+        if tenant_mismatch?(params, account) do
+          conn
+          |> put_status(:conflict)
+          |> json(%{error: "tenant_mismatch"})
+        else
+          register_heartbeat(conn, account, node_id, advertised_http_url, params)
+        end
+
+      {:error, {:tenant_mismatch, expected_tenant_id}} ->
+        permanent_tenant_conflict(conn, expected_tenant_id)
+
+      {:error, :unauthorized} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{error: "unauthorized"})
+    end
+  end
+
+  def register(conn, _params) do
+    conn
+    |> put_status(:bad_request)
+    |> json(%{error: "invalid_payload"})
+  end
+
+  defp permanent_tenant_conflict(conn, expected_tenant_id) do
+    conn
+    |> put_status(:conflict)
+    |> json(%{
+      error: "tenant_mismatch",
+      expected_tenant_id: expected_tenant_id,
+      message: "KURA_TENANT_ID is permanent and must keep its original value after an account rename."
+    })
+  end
+
+  defp register_heartbeat(conn, account, node_id, advertised_http_url, params) do
+    attrs = %{
+      node_id: node_id,
+      advertised_http_url: advertised_http_url,
+      region: params["region"],
+      ready: params["ready"] == true,
+      version: params["version"],
+      traffic_state: params["traffic_state"]
+    }
+
+    case Registrations.register_heartbeat(account, attrs) do
+      {:ok, endpoint} ->
+        conn
+        |> put_status(:ok)
+        |> json(%{
+          accepted: true,
+          registration_id: endpoint.id,
+          lease_seconds: Registrations.lease_seconds(),
+          heartbeat_interval_seconds: Registrations.heartbeat_interval_seconds()
+        })
+
+      {:error, _changeset} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "invalid_registration"})
+    end
+  end
+
+  defp tenant_mismatch?(%{"tenant_id" => tenant_id}, account) when is_binary(tenant_id) do
+    String.downcase(tenant_id) not in Identity.handles(account)
+  end
+
+  defp tenant_mismatch?(_params, _account), do: false
+
+  defp authorize(conn) do
+    with {:ok, client_id, client_secret} <- basic_credentials(conn),
+         {:ok, account} <- authorize_self_hosted(client_id, client_secret) do
+      {:ok, account}
+    else
+      _ -> {:error, :unauthorized}
+    end
+  end
+
+  defp authorize_registration(conn, params) do
+    case basic_credentials(conn) do
+      {:ok, client_id, client_secret} ->
+        if dedicated_kura_client?(client_id) do
+          with {:ok, account} <- authorize_control_plane_registration(client_id, client_secret, params) do
+            {:ok, account, :managed}
+          end
+        else
+          with {:ok, account} <- authorize_self_hosted(client_id, client_secret) do
+            {:ok, account, :self_hosted}
+          end
+        end
+
+      _ ->
+        {:error, :unauthorized}
+    end
+  end
+
+  defp peer_roles(account, :managed), do: Mesh.peer_roles(account)
+  defp peer_roles(_account, :self_hosted), do: []
+
+  # The credential is Tuist's own control-plane client rather than a customer's,
+  # and it speaks for every instance the provisioner manages, including
+  # runner-cache nodes, which are provisioned on any plan. The self-hosted-cache
+  # entitlement gates customer-held credentials instead, in
+  # `SelfHostedClients.verify/2`. Gating here too would deny the peer view to
+  # managed instances whose account never claimed to self-host, and every
+  # instance in a mesh region blocks readiness on that view until it answers.
+  defp authorize_control_plane_registration(client_id, client_secret, %{"tenant_id" => tenant_id})
+       when is_binary(tenant_id) and tenant_id != "" do
+    case Client.authorize(
+           id: client_id,
+           source: %{type: "basic", value: client_secret},
+           grant_type: "kura_registration"
+         ) do
+      {:ok, _client} -> resolve_control_plane_tenant(tenant_id)
+      _ -> {:error, :unauthorized}
+    end
+  end
+
+  defp authorize_control_plane_registration(_client_id, _client_secret, _params), do: {:error, :unauthorized}
+
+  # Resolve retained handles only to explain a configuration error after the
+  # deployment credential is verified. Accepting one as the storage tenant
+  # would let a renamed node join with a different object-key namespace.
+  defp resolve_control_plane_tenant(tenant_id) do
+    case Identity.account(tenant_id) do
+      nil ->
+        case Identity.account_for_handle(tenant_id) do
+          nil -> {:error, :unauthorized}
+          account -> {:error, {:tenant_mismatch, Identity.tenant_id(account)}}
+        end
+
+      account ->
+        {:ok, account}
+    end
+  end
+
+  defp authorize_self_hosted(client_id, client_secret) do
+    case SelfHostedClients.verify(client_id, client_secret) do
+      {:ok, account} -> {:ok, account}
+      :error -> {:error, :unauthorized}
+    end
+  end
+
+  defp dedicated_kura_client?(client_id) do
+    Environment.kura_control_plane_configured?() and
+      client_id == Environment.kura_control_plane_client_id()
+  end
+
+  defp basic_credentials(conn) do
+    with [header | _] <- Plug.Conn.get_req_header(conn, "authorization"),
+         {:ok, [client_id, client_secret]} <- BasicAuth.decode(header) do
+      {:ok, client_id, client_secret}
+    else
+      _ -> {:error, :missing_credentials}
+    end
+  end
+end

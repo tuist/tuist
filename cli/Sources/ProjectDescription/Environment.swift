@@ -14,6 +14,21 @@ public enum Environment {
         }
     }
 
+    /// Returns `true` when running in a continuous integration environment.
+    /// Checks for the `CI` environment variable, which is set by most CI providers.
+    public static var isCI: Bool {
+        guard let value = ProcessInfo.processInfo.environment["CI"] else { return false }
+        return isTruthy(value)
+    }
+
+    static func isTruthy(_ value: String) -> Bool {
+        ["1", "true", "TRUE", "yes", "YES"].contains(value)
+    }
+
+    static func isFalsy(_ value: String) -> Bool {
+        ["0", "false", "FALSE", "no", "NO"].contains(value)
+    }
+
     public static subscript(dynamicMember member: String) -> Value? {
         value(for: member, environment: ProcessInfo.processInfo.environment)
     }
@@ -44,9 +59,9 @@ extension Environment.Value? {
     public func getBoolean(default defaultBoolean: Bool) -> Bool {
         guard let value = self?.value else { return defaultBoolean }
 
-        if ["1", "true", "TRUE", "yes", "YES"].contains(value) {
+        if Environment.isTruthy(value) {
             return true
-        } else if ["0", "false", "FALSE", "no", "NO"].contains(value) {
+        } else if Environment.isFalsy(value) {
             return false
         } else {
             return defaultBoolean

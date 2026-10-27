@@ -1,0 +1,429 @@
+{
+    "aside": {
+        "translate": {
+            "title": {
+                "text": "Tłumaczenie 🌍"
+            },
+            "description": {
+                "text": "Możesz przetłumaczyć lub poprawić tłumaczenie tej strony."
+            },
+            "cta": {
+                "text": "Wnieś swój wkład"
+            }
+        }
+    },
+    "search": {
+        "placeholder": "Wyszukiwanie",
+        "translations": {
+            "button": {
+                "button-text": "Przeszukaj dokumentację",
+                "button-aria-label": "Przeszukaj dokumentację"
+            },
+            "modal": {
+                "search-box": {
+                    "reset-button-title": "Wyczyść zapytanie",
+                    "reset-button-aria-label": "Wyczyść zapytanie",
+                    "cancel-button-text": "Anuluj",
+                    "cancel-button-aria-label": "Anuluj"
+                },
+                "start-screen": {
+                    "recent-searches-title": "Historia wyszukiwania",
+                    "no-recent-searches-text": "Brak historii wyszukiwania",
+                    "save-recent-search-button-title": "Zapisz w historii wyszukiwania",
+                    "remove-recent-search-button-title": "Usuń z historii wyszukiwania",
+                    "favorite-searches-title": "Ulubione",
+                    "remove-favorite-search-button-title": "Usuń z ulubionych"
+                },
+                "error-screen": {
+                    "title-text": "Nie można pobrać wyników",
+                    "help-text": "Może być konieczne sprawdzenie połączenia sieciowego"
+                },
+                "footer": {
+                    "select-text": "Wybierz",
+                    "navigate-text": "Nawigacja",
+                    "close-text": "Zamknij",
+                    "search-by-text": "Dostawca wyszukiwania"
+                },
+                "no-results-screen": {
+                    "no-results-text": "Nie znaleziono odpowiednich wyników",
+                    "suggested-query-text": "Możesz spróbować przeszukać",
+                    "report-missing-results-text": "Czy uważasz, że to zapytanie powinno posiadać wyniki?",
+                    "report-missing-results-link-text": "Kliknij, aby przekazać opinię"
+                }
+            }
+        }
+    },
+    "navbar": {
+        "guides": {
+            "text": "Przewodniki"
+        },
+        "cli": {
+            "text": "CLI"
+        },
+        "server": {
+            "text": "Serwer"
+        },
+        "resources": {
+            "text": "Zasoby",
+            "items": {
+                "references": {
+                    "text": "Referencje"
+                },
+                "contributors": {
+                    "text": "Współtwórcy"
+                },
+                "changelog": {
+                    "text": "Dziennik zmian"
+                }
+            }
+        }
+    },
+    "sidebars": {
+        "cli": {
+            "text": "CLI",
+            "items": {
+                "cli": {
+                    "items": {
+                        "logging": {
+                            "text": "Logowanie"
+                        },
+                        "shell-completions": {
+                            "text": "Uzupełnienia komend powłoki"
+                        },
+                        "directories": {
+                            "text": "Katalogi"
+                        }
+                    }
+                },
+                "commands": {
+                    "text": "Polecenia"
+                }
+            }
+        },
+        "references": {
+            "text": "Referencje",
+            "items": {
+                "examples": {
+                    "text": "Przykłady"
+                },
+                "migrations": {
+                    "text": "Migracje",
+                    "items": {
+                        "from-v3-to-v4": {
+                            "text": "Z wersji v3 do v4"
+                        }
+                    }
+                }
+            }
+        },
+        "contributors": {
+            "text": "Współtwórcy",
+            "items": {
+                "get-started": {
+                    "text": "Rozpocznij"
+                },
+                "issue-reporting": {
+                    "text": "Zgłaszanie problemów"
+                },
+                "code-reviews": {
+                    "text": "Recenzje kodu"
+                },
+                "principles": {
+                    "text": "Zasady"
+                },
+                "translate": {
+                    "text": "Tłumaczenie"
+                },
+                "releases": {
+                    "text": "Wydania"
+                },
+                "cli": {
+                    "text": "CLI",
+                    "items": {
+                        "logging": {
+                            "text": "Logowanie"
+                        }
+                    }
+                }
+            }
+        },
+        "server": {
+            "items": {
+                "introduction": {
+                    "text": "Wprowadzenie",
+                    "items": {
+                        "why-server": {
+                            "text": "Dlaczego serwer?"
+                        },
+                        "accounts-and-projects": {
+                            "text": "Konta i projekty"
+                        },
+                        "authentication": {
+                            "text": "Uwierzytelnianie"
+                        },
+                        "integrations": {
+                            "text": "Integracje"
+                        }
+                    }
+                },
+                "on-premise": {
+                    "text": "Lokalnie",
+                    "items": {
+                        "install": {
+                            "text": "Instalacja"
+                        },
+                        "metrics": {
+                            "text": "Metryki"
+                        }
+                    }
+                },
+                "api-documentation": {
+                    "text": "Dokumentacja API"
+                },
+                "status": {
+                    "text": "Status"
+                },
+                "metrics-dashboard": {
+                    "text": "Panel metryk"
+                }
+            }
+        },
+        "guides": {
+            "text": "Przewodniki",
+            "items": {
+                "tuist": {
+                    "text": "Tuist",
+                    "items": {
+                        "about": {
+                            "text": "O Tuist"
+                        }
+                    }
+                },
+                "quick-start": {
+                    "text": "Szybki start",
+                    "items": {
+                        "install-tuist": {
+                            "text": "Instalacja Tuist"
+                        },
+                        "get-started": {
+                            "text": "Rozpocznij"
+                        }
+                    }
+                },
+                "features": {
+                    "text": "Cechy"
+                },
+                "examples": {
+                    "text": "Przykłady",
+                    "items": {
+                        "generated-projects": {
+                            "text": "Wygenerowane projekty"
+                        }
+                    }
+                },
+                "develop": {
+                    "text": "Buduj",
+                    "items": {
+                        "generated-projects": {
+                            "text": "Wygenerowane projekty",
+                            "items": {
+                                "adoption": {
+                                    "text": "Adopcja",
+                                    "items": {
+                                        "new-project": {
+                                            "text": "Utwórz nowy projekt"
+                                        },
+                                        "swift-package": {
+                                            "text": "Wypróbuj z paczką Swift"
+                                        },
+                                        "migrate": {
+                                            "text": "Migracja",
+                                            "items": {
+                                                "xcode-project": {
+                                                    "text": "Projekt Xcode"
+                                                },
+                                                "swift-package": {
+                                                    "text": "Paczka Swift"
+                                                },
+                                                "xcodegen-project": {
+                                                    "text": "Projekt XcodeGen"
+                                                },
+                                                "bazel-project": {
+                                                    "text": "Projekt Bazel"
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "manifests": {
+                                    "text": "Manifesty"
+                                },
+                                "directory-structure": {
+                                    "text": "Struktura katalogów"
+                                },
+                                "editing": {
+                                    "text": "Edycja"
+                                },
+                                "dependencies": {
+                                    "text": "Zależności"
+                                },
+                                "code-sharing": {
+                                    "text": "Współdzielenie kodu"
+                                },
+                                "synthesized-files": {
+                                    "text": "Syntetyzowane pliki"
+                                },
+                                "dynamic-configuration": {
+                                    "text": "Konfiguracja dynamiczna"
+                                },
+                                "templates": {
+                                    "text": "Szablony"
+                                },
+                                "plugins": {
+                                    "text": "Wtyczki"
+                                },
+                                "hashing": {
+                                    "text": "Hashowanie"
+                                },
+                                "inspect": {
+                                    "text": "Kontrola",
+                                    "items": {
+                                        "implicit-imports": {
+                                            "text": "Domyślne importy"
+                                        }
+                                    }
+                                },
+                                "the-cost-of-convenience": {
+                                    "text": "Koszt wygody"
+                                },
+                                "tma-architecture": {
+                                    "text": "Architektura modułowa"
+                                },
+                                "best-practices": {
+                                    "text": "Najlepsze praktyki"
+                                },
+                                "metadata-tags": {
+                                    "text": "Znaczniki metadanych"
+                                }
+                            }
+                        },
+                        "cache": {
+                            "text": "Buforowanie",
+                            "items": {
+                                "generated-project": {
+                                    "text": ""
+                                },
+                                "xcode-cache": {
+                                    "text": "Buforowanie Xcode"
+                                },
+                                "module-cache": {
+                                    "text": "Buforowanie modułu"
+                                }
+                            }
+                        },
+                        "registry": {
+                            "text": "Rejestr",
+                            "items": {
+                                "registry": {
+                                    "text": "Rejestr"
+                                },
+                                "xcode-project": {
+                                    "text": "Projekt Xcode"
+                                },
+                                "generated-project": {
+                                    "text": "Wygenerowany projekt"
+                                },
+                                "xcodeproj-integration": {
+                                    "text": "Integracja oparta na XcodeProj"
+                                },
+                                "swift-package": {
+                                    "text": "Paczka Swift"
+                                },
+                                "continuous-integration": {
+                                    "text": "Ciągła integracja"
+                                }
+                            }
+                        },
+                        "selective-testing": {
+                            "text": "Testowanie selektywne",
+                            "items": {
+                                "selective-testing": {
+                                    "text": "Testowanie selektywne"
+                                },
+                                "xcode-project": {
+                                    "text": "Projekt Xcode"
+                                },
+                                "generated-project": {
+                                    "text": "Wygenerowany projekt"
+                                }
+                            }
+                        },
+                        "insights": {
+                            "text": "Statystyki kompilacji"
+                        },
+                        "bundle-size": {
+                            "text": "Statystyki pakietu"
+                        }
+                    }
+                },
+                "agentic-coding": {
+                    "text": "Programowanie agentowe",
+                    "items": {
+                        "mcp": {
+                            "text": "MCP"
+                        }
+                    }
+                },
+                "integrations": {
+                    "text": "Integracje",
+                    "items": {
+                        "continuous-integration": {
+                            "text": "Ciągła integracja"
+                        },
+                        "sso": {
+                            "text": "SSO"
+                        },
+                        "git-forges": {
+                            "items": {
+                                "github": {
+                                    "text": "GitHub"
+                                }
+                            },
+                            "text": "Kuźnie Git"
+                        }
+                    }
+                },
+                "share": {
+                    "text": "Udział",
+                    "items": {
+                        "previews": {
+                            "text": "Wersje podglądowe"
+                        }
+                    }
+                },
+                "server": {
+                    "items": {
+                        "self-hosting": {
+                            "items": {
+                                "telemetry": {
+                                    "text": "Telemetria"
+                                },
+                                "installation": {
+                                    "text": "Instalacja"
+                                }
+                            },
+                            "text": "Hosting własny"
+                        },
+                        "accounts-and-projects": {
+                            "text": "Konta i projekty"
+                        },
+                        "authentication": {
+                            "text": "Uwierzytelnianie"
+                        }
+                    },
+                    "text": "Serwer"
+                }
+            }
+        }
+    }
+}

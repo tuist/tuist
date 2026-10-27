@@ -94,8 +94,36 @@ defmodule Tuist.Ops.DailySlackReportWorker do
 
   defp format_numbers({this_week, total, growth}) do
     ~s"""
-    #{this_week} created (#{if growth >= 0, do: "↑ #{growth}%", else: "↓ #{growth}%"}) | Total: #{Number.Human.number_to_human(total, precision: 0)}
+    #{this_week} created (#{if growth >= 0, do: "↑ #{growth}%", else: "↓ #{growth}%"}) | Total: #{format_total(total)}
     """
+  end
+
+  @doc false
+  def format_total(total) when total >= 1_000_000_000_000_000,
+    do: format_units(total, 1_000_000_000_000_000, "Quadrillion")
+
+  def format_total(total) when total >= 1_000_000_000_000, do: format_units(total, 1_000_000_000_000, "Trillion")
+
+  def format_total(total) when total >= 1_000_000_000, do: format_units(total, 1_000_000_000, "Billion")
+
+  def format_total(total) when total >= 1_000_000, do: format_units(total, 1_000_000, "Million")
+
+  def format_total(total) when total >= 1_000, do: format_units(total, 1_000, "Thousand")
+  def format_total(total), do: to_string(total)
+
+  defp format_units(total, divisor, label) do
+    rounded_units = div(total, divisor) + if rem(total, divisor) * 2 >= divisor, do: 1, else: 0
+    "#{delimit_integer(rounded_units)} #{label}"
+  end
+
+  defp delimit_integer(integer) do
+    integer
+    |> Integer.to_string()
+    |> String.reverse()
+    |> String.graphemes()
+    |> Enum.chunk_every(3)
+    |> Enum.map_join(",", &Enum.join/1)
+    |> String.reverse()
   end
 
   defp growth(model, {beginning_of_this_week, today, beginning_of_last_week, same_weekday_last_week}) do
@@ -150,12 +178,14 @@ defmodule Tuist.Ops.DailySlackReportWorker do
   end
 
   defp percentage_increase(_, previous_count) when previous_count == 0 do
-    0.0
+    0
   end
 
   defp percentage_increase(current_count, previous_count) do
     increase = (current_count - previous_count) / previous_count * 100
-    Float.round(increase, 1)
+    rounded = Float.round(increase, 1)
+    truncated = trunc(rounded)
+    if rounded == truncated, do: truncated, else: rounded
   end
 
   defp growth_command_events({beginning_of_this_week, today, beginning_of_last_week, same_weekday_last_week}) do

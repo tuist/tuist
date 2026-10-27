@@ -1,0 +1,889 @@
+// Package podtemplate builds the runner Pod manifest from a
+// RunnerPool spec. The Pod is single-shot: it polls the Tuist
+// server's dispatch endpoint with the projected, audience-scoped
+// ServiceAccount token as a Bearer token, gets a JIT runner config
+// back when a queue entry is claimed, registers the GitHub Actions
+// runner against that JIT, runs one job, and exits.
+//
+// On Linux the Pod is split into two containers for credential
+// isolation (see Build): a `poller` init container that holds the
+// token and stages the minted JIT, and a `runner` main container
+// that holds no token and runs the (untrusted) workflow under only
+// the job-scoped JIT. On macOS the whole flow runs inside a single
+// Tart VM — the VM is the isolation boundary and tart-kubelet
+// projects the token into it separately.
+//
+// At boot the Pod has no customer binding — the SA carries
+// `tuist.dev/runner-pool=<pool>` only. The server stamps
+// `tuist.dev/runner-pool-owner=<account>` onto the Pod's labels
+// at the moment it claims a queue entry (so subsequent
+// `max_concurrent` counts include this Pod).
+package podtemplate
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
+)
+
+const (
+	// RackSiteNodeLabel carries a rack host's site on its Node. A pool with
+	// `spec.site` selects it within its fleet.
+	//
+	// CONTRACT: must match cluster-api-provider-tuist's
+	// `v1alpha1.RackSiteNodeLabel`.
+	RackSiteNodeLabel = "node.cluster.x-k8s.io/rack-site"
+
+	// RuntimeClassRevisionAnnotation is the deterministic revision Helm
+	// derives from the Linux RuntimeClass name and fixed overhead. The
+	// RunnerPool carries the desired revision and each Pod records the
+	// revision used at creation so the controller can roll old admission
+	// accounting without inspecting mutable cluster state.
+	RuntimeClassRevisionAnnotation = "tuist.dev/runtime-class-revision"
+
+	// ReservationTaintKey is the taint the controller puts on a node it
+	// is draining to make room for a pool whose Pods no node can seat
+	// right now. Its value is the pool the node is being held for, and
+	// every runner Pod tolerates that key at its OWN pool's value — so a
+	// reserved node stops admitting everyone else's Pods while the seat
+	// it is clearing accumulates, and admits the reserved pool's Pod the
+	// moment it fits.
+	//
+	// NoSchedule, never NoExecute: the Pods already on the node are
+	// running customer jobs and must finish. The controller retires the
+	// IDLE ones itself, which is the only eviction a reservation does.
+	//
+	// A dedicated taint rather than a cordon. Cordoning would make the
+	// node indistinguishable from one Cluster API is replacing, and
+	// `reapIdlePodsOnCordonedNodes` would then retire the reserved pool's
+	// own Pod the moment it landed and was still warm-polling — the
+	// reservation would eat its own result.
+	ReservationTaintKey = "tuist.dev/reserved-for"
+
+	// jitMountPath is where the JIT-handoff emptyDir is mounted in
+	// both the poller (rw) and runner (ro) containers. Deliberately
+	// not under /var/run — the dind sidecar owns that mount in the
+	// runner container.
+	jitMountPath = "/var/lib/tuist-runner"
+	// jitFilePath is the file the poller writes the minted JIT to and
+	// the runner reads it from.
+	jitFilePath = jitMountPath + "/jit"
+	// workPath is the runner's work directory. It must match the
+	// `work_folder` the server mints into the JIT config (`mint_jit`
+	// in `Tuist.Runners`, `/home/runner/work` on Linux to mirror
+	// GitHub-hosted's layout), NOT the runner's own default
+	// of `<runner root>/_work`: the runner honors the JIT's absolute
+	// path and never touches the default. Mounting the shared volume
+	// anywhere else leaves the real work directory container-local,
+	// which is invisible to dockerd in the dind sidecar and breaks
+	// every `jobs.<id>.container` job.
+	workPath = "/home/runner/work"
+	// shellSocketPath sits on its own volume rather than under
+	// workPath: the runner bind-mounts the whole work directory into
+	// a job container as /__w, and the socket is the runner
+	// container's PTY entry point — it has no business inside the
+	// tree a workflow reads and writes.
+	shellSocketMountPath = "/var/lib/tuist-runner-shell"
+	shellSocketPath      = shellSocketMountPath + "/shell.sock"
+	// externalsPath is the runner's `externals` directory — the node
+	// runtimes the runner bind-mounts into a job container as /__e.
+	// dockerd resolves that mount in the dind sidecar's namespace, so
+	// the directory has to exist there under the same path. Unlike
+	// the work directory this one is fixed by the runner image
+	// layout, not by the JIT.
+	externalsPath = "/home/runner/actions-runner/externals"
+	// externalsStagePath is where the staging container mounts the
+	// shared externals volume. Deliberately not externalsPath, which
+	// would shadow the source being copied.
+	externalsStagePath = "/mnt/dind-externals"
+)
+
+// Build returns the Pod manifest the controller stamps on the API
+// server. `dispatchURL` is the externally-reachable dispatch URL
+// the Pod uses (`/api/internal/runners/dispatch`); macOS Tart VMs
+// bypass cluster networking via vmnet and need this public path.
+// `dispatchInternalURL`, when non-empty, overrides for `linux`
+// pools — those Pods live on the cluster's CNI and hit Hetzner
+// Cloud LB hairpin when they try to reach the public ingress IP
+// from inside the cluster, so they must use the in-cluster
+// Service URL instead.
+//
+// `dindImage` is the OCI ref of the dockerd sidecar baked into
+// every Linux runner Pod (k8s 1.29+ native sidecar). Empty skips
+// the sidecar, which is fine for macOS-only installs.
+//
+// `clusterDNSIP` + `clusterDomain`, when set, ride to macOS Pods as
+// TUIST_CLUSTER_DNS_IP / TUIST_CLUSTER_DOMAIN: tart-kubelet stages
+// the Pod env into the VM's /etc/tuist.env, and dispatch-poll.sh
+// writes an /etc/resolver/<domain> entry from them so the
+// dispatch-provided `cache_endpoint_url` (`*.svc.cluster.local`)
+// resolves inside the VM. Linux Pods are on the CNI's DNS already
+// and don't get them.
+//
+// Returns an error (fails closed) when a Linux pool would get the
+// privileged dind sidecar without `spec.runtimeClass == kata-qemu`.
+// The sidecar runs `privileged: true`; that's only safe because the
+// kata-qemu microVM is the isolation boundary. Without the runtime
+// class the Pod falls back to runc on the host kernel and the
+// privileged container escapes onto the bare-metal host — so refuse
+// to build it rather than ship an unbounded privileged container.
+func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInternalURL, dindImage, registryMirror, clusterDNSIP, clusterDomain string) (*corev1.Pod, error) {
+	cpu := resource.NewMilliQuantity(int64(pool.Spec.PodCPUMilli), resource.DecimalSI)
+	mem := resource.NewQuantity(int64(pool.Spec.PodMemoryMB)*1024*1024, resource.BinarySI)
+
+	if pool.Spec.OS == "linux" && dindImage != "" && pool.Spec.RuntimeClass != "kata-qemu" {
+		return nil, fmt.Errorf("refusing to build Linux runner Pod with privileged dind sidecar: pool %q has runtimeClass %q, want kata-qemu", pool.Name, pool.Spec.RuntimeClass)
+	}
+
+	nodeSelector, tolerations := schedulingFor(pool)
+
+	effectiveDispatchURL := dispatchURL
+	if pool.Spec.OS == "linux" && dispatchInternalURL != "" {
+		effectiveDispatchURL = dispatchInternalURL
+	}
+
+	linuxPod := pool.Spec.OS == "linux"
+	cacheVolumes := pool.Spec.CacheVolumeRoot != ""
+	if pool.Spec.DockerCache && !cacheVolumes {
+		return nil, fmt.Errorf("pool %q enables the Docker cache without cache volumes", pool.Name)
+	}
+	if cacheVolumes && (!linuxPod || pool.Spec.RuntimeClass != "kata-qemu" || !filepath.IsAbs(pool.Spec.CacheVolumeRoot) || filepath.Clean(pool.Spec.CacheVolumeRoot) == "/" || pool.Spec.CacheVolumeURL == "" || dindImage == "") {
+		return nil, fmt.Errorf("cache volumes require a Linux Kata pool, dind, an absolute dedicated root and an agent URL")
+	}
+
+	// Env consumed by the dispatch poll loop. On macOS the loop runs
+	// inside the Tart VM, so this is the runner container's env. On
+	// Linux it runs in the dedicated poller init container.
+	dispatchEnv := []corev1.EnvVar{
+		{Name: "TUIST_RUNNER_DISPATCH_URL", Value: effectiveDispatchURL},
+		{Name: "TUIST_RUNNER_POOL", Value: pool.Name},
+		{
+			Name: "TUIST_RUNNER_POD_NAME",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.name"},
+			},
+		},
+		{
+			// dispatch-poll.sh keys claim de-dup on (pool, pod_uid)
+			// so a recreated-same-name Pod gets a fresh slot. With
+			// set -u, the script bails before its first poll if this
+			// env is missing.
+			Name: "TUIST_RUNNER_POD_UID",
+			ValueFrom: &corev1.EnvVarSource{
+				FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"},
+			},
+		},
+	}
+
+	if !linuxPod && clusterDNSIP != "" {
+		// In-VM cluster DNS for the runner-cache path (macOS only:
+		// Linux Pods resolve cluster names via the CNI's DNS).
+		// dispatch-poll.sh writes /etc/resolver/<domain> from these
+		// before its first poll.
+		dispatchEnv = append(dispatchEnv,
+			corev1.EnvVar{Name: "TUIST_CLUSTER_DNS_IP", Value: clusterDNSIP},
+			corev1.EnvVar{Name: "TUIST_CLUSTER_DOMAIN", Value: clusterDomain},
+		)
+	}
+
+	resources := corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    *cpu,
+			corev1.ResourceMemory: *mem,
+		},
+		// kata sizes the microVM from container limits (default 2 GiB
+		// without). Setting limit == request gives the VM the budget
+		// the chart asks for.
+		Limits: corev1.ResourceList{
+			corev1.ResourceCPU:    *cpu,
+			corev1.ResourceMemory: *mem,
+		},
+	}
+
+	// Defaults are the macOS shape: a single runner container running
+	// the poll loop inside the Tart VM, with the default automount
+	// (tart-kubelet projects the audience-scoped token into the VM
+	// separately). The Linux branch below overrides all of these.
+	automount := true
+	runnerEnv := dispatchEnv
+	var runnerCommand []string
+	var runnerMounts []corev1.VolumeMount
+	var volumes []corev1.Volume
+	var initContainers []corev1.Container
+
+	if linuxPod {
+		// Token isolation (credential split). The dispatch SA token
+		// is the one credential a warm Pod holds that can claim a
+		// pending workflow_job — it's pool-scoped, not job-scoped, so
+		// a Pod that reads it could race the warm pool to claim other
+		// tenants' jobs. Untrusted fork workflow code runs in the
+		// runner container, so that container must never see it.
+		//
+		// Split the Pod in two:
+		//   * poller (init container) — mounts the token, runs the
+		//     dispatch poll loop, and on a claim stages the minted,
+		//     job-scoped JIT config onto a shared emptyDir.
+		//   * runner (main container) — holds no token. kubelet won't
+		//     start it until the poller init container exits, so it
+		//     starts only once a JIT is staged, reads it, and runs the
+		//     one job. The JIT binds the runner to a single workflow
+		//     run, so leaking it post-claim grants nothing the runner
+		//     isn't already entitled to.
+		//
+		// A warm-standby Pod therefore sits in Init (poller polling)
+		// rather than Running until a job is claimed.
+		automount = false
+
+		volumes = append(volumes,
+			// JIT handoff. emptyDir scoped to this single-tenant Pod:
+			// the poller (running as root) writes the JIT here, the
+			// runner reads it. Unlike the token, the worst a leak
+			// yields is the single-job JIT the runner already runs
+			// under.
+			corev1.Volume{Name: "tuist-runner-jit", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			// Audience-scoped projected token (audience=
+			// tuist-runners-dispatch). Default automount is off, so
+			// this is the only SA token in the Pod, and it is mounted
+			// into the poller alone. Even exfiltrated it is useless
+			// against the kube-apiserver (wrong audience, 1h TTL, SA
+			// GC'd on Pod exit).
+			corev1.Volume{
+				Name: "tuist-runner-token",
+				VolumeSource: corev1.VolumeSource{
+					Projected: &corev1.ProjectedVolumeSource{
+						DefaultMode: ptr(int32(0o400)),
+						Sources: []corev1.VolumeProjection{{
+							ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
+								Audience:          "tuist-runners-dispatch",
+								ExpirationSeconds: ptr(int64(3600)),
+								Path:              "token",
+							},
+						}},
+					},
+				},
+			},
+		)
+
+		pollerEnv := append(append([]corev1.EnvVar{}, dispatchEnv...),
+			corev1.EnvVar{Name: "TUIST_RUNNER_JIT_OUTPUT_PATH", Value: jitFilePath},
+		)
+
+		// The runner container starts the local PTY socket server and
+		// then runs run-job.sh: read the staged JIT and exec ./run.sh
+		// under it. It carries no dispatch env and no token mount; the
+		// shell sidecar connects to the local socket only after the
+		// server has authorized a terminal session for this job.
+		runnerCommand = []string{
+			"sh",
+			"-c",
+			"TUIST_RUNNER_SHELL_PTY_SERVER=1 /usr/local/bin/runner-shell-agent & exec /usr/local/bin/run-job.sh",
+		}
+		runnerEnv = []corev1.EnvVar{
+			{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath},
+			{Name: "TUIST_RUNNER_SHELL_SOCKET", Value: shellSocketPath},
+			{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: workPath},
+		}
+		volumes = append(volumes,
+			corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			corev1.Volume{Name: "shell-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+		)
+		runnerMounts = []corev1.VolumeMount{
+			{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true},
+			{Name: "work", MountPath: workPath},
+			{Name: "shell-sock", MountPath: shellSocketMountPath},
+		}
+
+		// Linux pods get a dockerd sidecar (k8s 1.29+ native sidecar:
+		// initContainer with restartPolicy=Always). The runner stays
+		// unprivileged; only the sidecar is privileged, bounded by the
+		// Pod's kata-qemu microVM. The startupProbe blocks the rest of
+		// the Pod (poller init, then runner) from starting until
+		// `docker info` succeeds.
+		if dindImage != "" {
+			// When a pull-through cache URL is configured, point the
+			// sidecar's dockerd at it so the job's docker.io pulls go
+			// through the in-cluster cache instead of hitting Docker Hub
+			// from the host's shared egress IP. --insecure-registry is
+			// required because the cache is plain http in-cluster.
+			dockerdMirrorFlags := ""
+			if registryMirror != "" {
+				mirrorHost := strings.TrimPrefix(strings.TrimPrefix(registryMirror, "https://"), "http://")
+				dockerdMirrorFlags = " --registry-mirror=" + registryMirror + " --insecure-registry=" + mirrorHost
+			}
+			dockerd := "dockerd --host=unix:///var/run/docker.sock --group=123 --default-ulimit nofile=1048576:1048576" + dockerdMirrorFlags
+			start := "exec " + dockerd
+			probeCommand := []string{"docker", "info"}
+			if cacheVolumes {
+				// The existing privileged sidecar brokers descriptor-based mounts inside
+				// this Kata guest; workflows retain their unprivileged container shape.
+				probeCommand = []string{"sh", "-c", "test -S " + workPath + "/.tuist-cache-mount.sock && docker info"}
+				start = "rm -f " + workPath + "/.tuist-cache-mount.sock && (" + externalsPath + "/tuist-cache-volume mount-server " + workPath + "/.tuist-cache-mount.sock " + workPath + "/_tuist_cache &); " + start
+				if pool.Spec.DockerCache {
+					// The supervisor owns dockerd and the mount socket, so the job-start
+					// hook can move dockerd onto the repository's Docker cache volume and
+					// the teardown can clean and unmount it. More concurrent layer
+					// downloads shorten the pulls of jobs that start without one.
+					start = "exec " + externalsPath + "/tuist-cache-volume dind " + workPath + "/.tuist-cache-mount.sock " + workPath + "/_tuist_cache /mnt/dind-disk/disk.img -- " + dockerd + " --max-concurrent-downloads=8"
+				}
+			}
+			volumes = append(volumes,
+				corev1.Volume{Name: "dind-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+				// Staging area for the runner image's externals
+				// directory, filled by the dind-externals init
+				// container below and mounted into the sidecar at
+				// the runner's own path.
+				corev1.Volume{Name: "dind-externals", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+				// Node-disk emptyDir holding a sparse disk.img file.
+				// The dind sidecar loop-mounts that file as an ext4
+				// filesystem onto /var/lib/docker so dockerd's
+				// overlay2 driver sees a kernel-native fs (real
+				// trusted.* xattr support) rather than virtio-fs.
+				// Per upstream kata docs (how-to-run-docker-with-
+				// kata.md), virtio-fs can't be an overlayfs upper
+				// layer — overlay's trusted.overlay.* xattrs trip
+				// the host kernel's CAP_SYS_ADMIN gate that
+				// virtiofsd can't bypass. tmpfs medium:Memory or a
+				// loop-mounted disk image are the only two
+				// recommended workarounds; we pick loop-mounted
+				// because the disk.img is sparse on virtio-fs and
+				// only consumes node-disk bytes as written (no pod-
+				// memory tax of tmpfs medium:Memory). Volume name
+				// kept as `dind-storage` for consistency with the
+				// earlier shape; mount path moved off /var/lib/docker
+				// so the dind entrypoint can loop-mount over it.
+				corev1.Volume{Name: "dind-storage", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+			)
+			runnerMounts = append(runnerMounts,
+				corev1.VolumeMount{Name: "dind-sock", MountPath: "/var/run"},
+			)
+			runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "DOCKER_HOST", Value: "unix:///var/run/docker.sock"})
+			// A job that declares `jobs.<id>.container` (or a
+			// container action) doesn't run in the runner container:
+			// the runner asks dockerd to create a container and
+			// bind-mounts its own directories into it — the work
+			// directory as /__w, then _temp, _actions and _tool
+			// under it, _temp/_github_home as /github/home,
+			// _temp/_github_workflow as /github/workflow, and
+			// `externals` (the node runtimes every JS action runs
+			// under) as /__e. Docker resolves those source paths in
+			// the sidecar's mount namespace, not the runner's, and
+			// silently creates an empty directory for any that are
+			// missing there.
+			//
+			// Everything but externals hangs off the work directory,
+			// which the `work` volume shares with the sidecar at
+			// workPath. externals ships in the runner image alone, so
+			// stage it into a volume both sides mount, the way ARC's
+			// dind mode does (init-dind-externals). Runs before the
+			// sidecar so the copy is in place by the time dockerd can
+			// serve a container, and fails the Pod early if the image
+			// ever stops shipping externals.
+			initContainers = append(initContainers, corev1.Container{
+				Name:    "dind-externals",
+				Image:   pool.Spec.Image,
+				Command: []string{"sh", "-c"},
+				Args:    []string{"set -e && cp -a " + externalsPath + "/. " + externalsStagePath + "/"},
+				VolumeMounts: []corev1.VolumeMount{
+					{Name: "dind-externals", MountPath: externalsStagePath},
+				},
+				// Root only to write the root-owned emptyDir; it runs
+				// our copy, never customer code.
+				SecurityContext: &corev1.SecurityContext{RunAsUser: ptr(int64(0))},
+			})
+			initContainers = append(initContainers, corev1.Container{
+				Name:  "dind",
+				Image: dindImage,
+				// Entrypoint stages, in order:
+				//   1. lift nofile rlimit (kata kernel default
+				//      1024 starves dockerd + buildkit on heavy
+				//      node_modules trees)
+				//   2. install e2fsprogs (Alpine docker:*-dind
+				//      ships without mkfs.ext4)
+				//   3. truncate a sparse 100 GiB disk.img on the
+				//      virtio-fs-backed dind-storage volume —
+				//      sparse, only consumes node-disk bytes as
+				//      written, so this is a ceiling, not an
+				//      allocation. Large enough to fit the full
+				//      server-build working set (base image, mix
+				//      deps, npm tree, swift toolchain, buildkit
+				//      caches) with room to spare.
+				//   4. mkfs.ext4 + loop-mount it onto /var/lib/
+				//      docker — dockerd now sees real ext4 with
+				//      trusted.* xattrs and overlay2 initializes
+				//      normally (no vfs fallback, no buildkit
+				//      runc-native).
+				//   5. exec dockerd with --default-ulimit nofile=
+				//      so containers it spawns (incl. buildx's
+				//      docker-container buildkit container)
+				//      inherit the high cap.
+				// --group pins the docker.sock GID so the runner
+				// user (member of `docker` group, GID 123) can
+				// reach it.
+				Command: []string{"sh", "-c"},
+				Args: []string{
+					"set -e && " +
+						"ulimit -n 1048576 && " +
+						"apk add --no-cache e2fsprogs >/dev/null && " +
+						"mkdir -p /mnt/dind-disk && " +
+						"truncate -s 100G /mnt/dind-disk/disk.img && " +
+						"mkfs.ext4 -q -F /mnt/dind-disk/disk.img && " +
+						"mkdir -p /var/lib/docker && " +
+						"mount -o loop /mnt/dind-disk/disk.img /var/lib/docker && " +
+						start,
+				},
+				SecurityContext: &corev1.SecurityContext{
+					Privileged: ptr(true),
+				},
+				RestartPolicy: ptr(corev1.ContainerRestartPolicyAlways),
+				StartupProbe: &corev1.Probe{
+					ProbeHandler:  corev1.ProbeHandler{Exec: &corev1.ExecAction{Command: probeCommand}},
+					PeriodSeconds: 2,
+					// Was 30. apk add + truncate + mkfs.ext4 +
+					// loop mount add ~8 s of pre-dockerd setup;
+					// bump the probe ceiling so a slow apt mirror
+					// doesn't trip the restart.
+					FailureThreshold: 60,
+				},
+				VolumeMounts: []corev1.VolumeMount{
+					{Name: "dind-sock", MountPath: "/var/run"},
+					{Name: "work", MountPath: workPath},
+					{Name: "dind-externals", MountPath: externalsPath},
+					{Name: "dind-storage", MountPath: "/mnt/dind-disk"},
+				},
+			})
+		}
+
+		// Machine-metrics sampler: a native sidecar (restartPolicy=
+		// Always) that samples the microVM's CPU/memory/network/disk and
+		// POSTs them to the server for the job detail page's Metrics tab.
+		// It holds the dispatch token (trusted code, like the poller —
+		// never the customer container) and reads VM-wide /proc plus the
+		// JIT emptyDir's backing filesystem for disk. It idles until the
+		// poller stages the JIT (i.e. a job is claimed), so warm-standby
+		// Pods don't sample. No startupProbe, so it never blocks the
+		// poller/runner from starting; kubelet stops it when the runner
+		// container exits.
+		metricsEnv := append(append([]corev1.EnvVar{}, dispatchEnv...),
+			corev1.EnvVar{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath},
+		)
+		initContainers = append(initContainers, corev1.Container{
+			Name:          "metrics",
+			Image:         pool.Spec.Image,
+			Command:       []string{"/usr/local/bin/metrics-sampler.sh"},
+			Env:           metricsEnv,
+			RestartPolicy: ptr(corev1.ContainerRestartPolicyAlways),
+			VolumeMounts: []corev1.VolumeMount{
+				{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner", ReadOnly: true},
+				{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true},
+			},
+			// Root only to read the token mount and run our trusted
+			// sampling script — never customer code.
+			SecurityContext: &corev1.SecurityContext{RunAsUser: ptr(int64(0))},
+		})
+
+		// Interactive shell bridge: a trusted native sidecar that
+		// holds the dispatch token, waits for a claimed job, polls the
+		// server for authorized shell sessions, and brokers the server-
+		// owned WebSocket tunnel to the runner container's local PTY
+		// socket. The user-facing shell is spawned inside the runner
+		// container, while the dispatch token remains mounted only here.
+		shellEnv := append(append([]corev1.EnvVar{}, dispatchEnv...),
+			corev1.EnvVar{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath},
+			corev1.EnvVar{Name: "TUIST_RUNNER_TOKEN_PATH", Value: "/var/run/secrets/tuist-runner/token"},
+			corev1.EnvVar{Name: "TUIST_RUNNER_SHELL_SOCKET", Value: shellSocketPath},
+			corev1.EnvVar{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: workPath},
+		)
+		initContainers = append(initContainers, corev1.Container{
+			Name:    "shell",
+			Image:   pool.Spec.Image,
+			Command: []string{"sh", "-c"},
+			Args: []string{
+				"sed -i '/runner ALL=(ALL) NOPASSWD/d' /etc/sudoers || true; exec /usr/local/bin/runner-shell-agent",
+			},
+			Env:           shellEnv,
+			RestartPolicy: ptr(corev1.ContainerRestartPolicyAlways),
+			VolumeMounts: []corev1.VolumeMount{
+				{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner", ReadOnly: true},
+				{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true},
+				// Only the socket, not the work volume: the PTY runs
+				// in the runner container, so this sidecar needs to
+				// reach the socket and nothing else.
+				{Name: "shell-sock", MountPath: shellSocketMountPath},
+			},
+			// Root only for the trusted agent: it reads the root-only
+			// token and then drops PTY children to the runner user.
+			SecurityContext: &corev1.SecurityContext{RunAsUser: ptr(int64(0))},
+		})
+
+		// poller runs after the dind sidecar (when present) so it
+		// waits on the dind startupProbe exactly as the single runner
+		// container did before the split.
+		initContainers = append(initContainers, corev1.Container{
+			Name:    "poller",
+			Image:   pool.Spec.Image,
+			Command: []string{"/usr/local/bin/dispatch-poll.sh"},
+			Env:     pollerEnv,
+			VolumeMounts: []corev1.VolumeMount{
+				{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner", ReadOnly: true},
+				{Name: "tuist-runner-jit", MountPath: jitMountPath},
+			},
+			// Runs as root only so it can write the JIT into the
+			// root-owned emptyDir; it executes our trusted poll
+			// script, never customer code. The runner container that
+			// runs the workflow stays non-root (image USER).
+			SecurityContext: &corev1.SecurityContext{RunAsUser: ptr(int64(0))},
+		})
+	}
+
+	// No kata virtiofsd annotation — earlier attempts (`--xattr`
+	// alone, then `--xattrmap=:map::user.virtiofs.::`) didn't fix
+	// the EMFILE class because virtio-fs can't be an overlayfs
+	// upper layer regardless of virtiofsd config (host kernel
+	// gates trusted.* writes on CAP_SYS_ADMIN of virtiofsd's
+	// effective uid). The loop-mounted ext4 above sidesteps the
+	// problem entirely by giving dockerd a real kernel-native
+	// filesystem.
+
+	if cacheVolumes {
+		// SubPathExpr is resolved by kubelet, not a guest-supplied path. Only this
+		// pod's directory crosses virtiofs; slots and other tenants never do.
+		volumes = append(volumes, corev1.Volume{Name: "cache-volumes", VolumeSource: corev1.VolumeSource{HostPath: &corev1.HostPathVolumeSource{Path: filepath.Join(pool.Spec.CacheVolumeRoot, "pods"), Type: ptr(corev1.HostPathDirectoryOrCreate)}}})
+		mount := corev1.VolumeMount{Name: "cache-volumes", MountPath: workPath + "/_tuist_cache", SubPathExpr: "$(TUIST_CACHE_VOLUME_UID)", MountPropagation: ptr(corev1.MountPropagationHostToContainer)}
+		uidEnv := corev1.EnvVar{Name: "TUIST_CACHE_VOLUME_UID", ValueFrom: &corev1.EnvVarSource{FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.uid"}}}
+		runnerMounts = append(runnerMounts, mount)
+		runnerEnv = append(runnerEnv, uidEnv, corev1.EnvVar{Name: "TUIST_CACHE_VOLUME_URL", Value: pool.Spec.CacheVolumeURL}, corev1.EnvVar{Name: "TUIST_CACHE_VOLUME_POD", Value: podName})
+		if pool.Spec.DockerCache {
+			// Tells the job-start hook the sidecar can move dockerd onto a volume.
+			runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "TUIST_DOCKER_CACHE", Value: "1"})
+		}
+		for i := range initContainers {
+			if initContainers[i].Name == "dind" {
+				initContainers[i].VolumeMounts = append(initContainers[i].VolumeMounts, mount)
+				initContainers[i].Env = append(initContainers[i].Env, uidEnv)
+			}
+		}
+	}
+
+	annotations := map[string]string{}
+	if linuxPod {
+		annotations["tuist.dev/cache-volume-revision"] = CacheVolumeRevision(pool)
+	}
+	if linuxPod && pool.Spec.RuntimeClass == "kata-qemu" {
+		// Enable PSI (/proc/pressure/*) in the kata guest so the runner
+		// vitals probe can report CPU/memory pressure. The stock kata
+		// kernel ships CONFIG_PSI=y but boots with PSI disabled; `psi=1`
+		// on the guest cmdline turns it on. The annotation is honored
+		// because the containerd kata runtime whitelists
+		// `io.katacontainers.*` pod annotations.
+		annotations["io.katacontainers.config.hypervisor.kernel_params"] = "psi=1"
+	}
+	if linuxPod && pool.Spec.RuntimeClass != "" {
+		if revision := pool.Annotations[RuntimeClassRevisionAnnotation]; revision != "" {
+			annotations[RuntimeClassRevisionAnnotation] = revision
+		}
+	}
+
+	// Mirror the actions/runner diagnostic log (_diag) to the runner
+	// container's stdout so it reaches Loki through the pod-log pipeline.
+	// The runner's ReturnCode enum only spans 0-7 and run-helper.sh folds
+	// unknown codes to exit 0, so a runner that terminates abnormally
+	// (e.g. the microVM is torn down mid-job) writes no reason to stdout —
+	// its _diag log is the only record, and it dies with the reaped Pod.
+	// Streaming _diag makes that exit reason durable.
+	runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT", Value: "1"})
+
+	// Idle-runner reaping: the runner image's idle watchdog terminates a
+	// runner that registered but never had a job assigned once this many
+	// seconds elapse without an ACTIONS_RUNNER_HOOK_JOB_STARTED marker.
+	// Only injected when set (>0); the image treats an absent/0 value as
+	// "watchdog disabled". See RunnerPoolSpec.IdleTimeoutSeconds.
+	if pool.Spec.IdleTimeoutSeconds > 0 {
+		runnerEnv = append(runnerEnv, corev1.EnvVar{
+			Name:  "TUIST_RUNNER_IDLE_TIMEOUT_SECONDS",
+			Value: strconv.Itoa(int(pool.Spec.IdleTimeoutSeconds)),
+		})
+	}
+
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        podName,
+			Namespace:   pool.Namespace,
+			Annotations: annotations,
+			Labels: map[string]string{
+				"app.kubernetes.io/name":      "tuist-runner",
+				"app.kubernetes.io/component": "runner",
+				// NetworkPolicy in the runners namespace selects on
+				// `tuist.dev/runner=true`. Don't drop it.
+				"tuist.dev/runner":      "true",
+				"tuist.dev/runner-pool": pool.Name,
+			},
+		},
+		Spec: corev1.PodSpec{
+			ServiceAccountName: saName,
+			// macOS: default automount (tart-kubelet projects the
+			// audience-scoped token separately into the VM).
+			// Linux: disable automount and project the
+			// dispatch-audience token explicitly into the poller
+			// container only — see the Linux branch above.
+			AutomountServiceAccountToken: ptr(automount),
+			NodeSelector:                 nodeSelector,
+			Affinity:                     runnerAffinity(pool),
+			Tolerations:                  tolerations,
+			Volumes:                      volumes,
+			InitContainers:               initContainers,
+			// RuntimeClassName, when set, routes the Pod through a
+			// non-default container runtime. Linux bare-metal pools
+			// use `kata-fc` (Kata Containers + Firecracker) so each
+			// Pod becomes a microVM with its own kernel for real
+			// per-tenant isolation. Empty falls back to runc on
+			// containerd — fine for macOS (tart-kubelet) and for
+			// single-tenant bare-metal during bring-up.
+			RuntimeClassName: runtimeClassName(pool),
+			// No restart: ephemeral runner. macOS Pods halt the
+			// underlying Tart VM via the EXIT trap in dispatch-poll;
+			// Linux containers just exit, kubelet flips the Pod to
+			// Succeeded, the reconciler reaps it. Same lifecycle,
+			// substrate-specific exit mechanics.
+			RestartPolicy: corev1.RestartPolicyNever,
+			Containers: []corev1.Container{
+				{
+					Name:         "runner",
+					Image:        pool.Spec.Image,
+					Command:      runnerCommand,
+					Resources:    resources,
+					VolumeMounts: runnerMounts,
+					Env:          runnerEnv,
+				},
+			},
+		},
+	}, nil
+}
+
+// BuildServiceAccount returns the per-Pod ServiceAccount manifest.
+// Carries `tuist.dev/runner-pool=<name>` so the dispatch endpoint
+// can resolve "this SA belongs to which fleet's pool" after
+// TokenReview validates the bearer token.
+func BuildServiceAccount(pool *tuistv1.RunnerPool, saName string) *corev1.ServiceAccount {
+	return &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      saName,
+			Namespace: pool.Namespace,
+			Labels: map[string]string{
+				"app.kubernetes.io/name":      "tuist-runner",
+				"app.kubernetes.io/component": "runner-sa",
+				"tuist.dev/runner-pool":       pool.Name,
+			},
+		},
+		// Disable auto-mount on the SA itself; the Pod opts in via
+		// AutomountServiceAccountToken on its spec. Keeping the
+		// default false means a stray Pod that references this SA
+		// without explicit opt-in doesn't get a token.
+		AutomountServiceAccountToken: ptr(false),
+	}
+}
+
+func ptr[T any](v T) *T {
+	return &v
+}
+
+// runtimeClassName returns a non-nil *string to stamp on
+// `Pod.spec.runtimeClassName` when the pool has `spec.runtimeClass`
+// set, or nil for the cluster default runtime. We never set an empty
+// string — kube-apiserver treats empty as "no class specified" but
+// downstream tooling sometimes treats an empty pointer differently
+// from a nil one. Use nil for cleanliness.
+func runtimeClassName(pool *tuistv1.RunnerPool) *string {
+	if pool.Spec.RuntimeClass == "" {
+		return nil
+	}
+	rc := pool.Spec.RuntimeClass
+	return &rc
+}
+
+// goldenNodeLabelPrefix namespaces the per-digest Node labels tart-kubelet
+// publishes to advertise which golden base VMs a host already holds.
+//
+// CONTRACT: this prefix and GoldenNodeAffinityKey's hashing MUST stay in
+// lockstep with tart-kubelet's `podagent.goldenNodeLabelPrefix` /
+// `goldenVMName` — the two live in separate Go modules, so they're coupled
+// by this convention, not shared code. A mismatch silently disables the
+// affinity (no node ever carries the key the controller prefers), which
+// degrades to today's image-blind placement rather than breaking
+// scheduling, so it's failure-safe but worth a test on both sides.
+const goldenNodeLabelPrefix = "tuist.dev/golden-"
+
+// GoldenNodeAffinityKey is the Node-label key advertising that a host holds
+// the golden base for `image`. The suffix is the same 8-byte SHA-256 prefix
+// of the image ref that tart-kubelet embeds in the golden VM name, so both
+// sides derive an identical key from the same digest-pinned ref.
+func GoldenNodeAffinityKey(image string) string {
+	sum := sha256.Sum256([]byte(image))
+	return goldenNodeLabelPrefix + hex.EncodeToString(sum[:8])
+}
+
+// runnerAffinity returns soft node-affinity steering a pool's Pods toward
+// hosts that already hold the golden base for its image, so a recycle is a
+// local APFS clonefile instead of a multi-GB cold pull. Preferred, not
+// required: when no warm host has a free slot the Pod still schedules onto
+// a cold host (and pays the one-time materialize) rather than going Pending.
+//
+// Linux prefers cache-ready hosts but still schedules when provisioning fails.
+// Cache availability must never gate jobs that can use job-local directories.
+func runnerAffinity(pool *tuistv1.RunnerPool) *corev1.Affinity {
+	if pool.Spec.OS == "linux" {
+		if pool.Spec.CacheVolumeRoot == "" || pool.Spec.CacheVolumeURL == "" {
+			return nil
+		}
+		return &corev1.Affinity{NodeAffinity: &corev1.NodeAffinity{
+			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{{
+				Weight: 100,
+				Preference: corev1.NodeSelectorTerm{MatchExpressions: []corev1.NodeSelectorRequirement{{
+					Key: "tuist.dev/linux-cache-volumes", Operator: corev1.NodeSelectorOpIn, Values: []string{"local-images-v1"},
+				}}},
+			}},
+		}}
+	}
+	return &corev1.Affinity{
+		NodeAffinity: &corev1.NodeAffinity{
+			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.PreferredSchedulingTerm{{
+				Weight: 100,
+				Preference: corev1.NodeSelectorTerm{
+					MatchExpressions: []corev1.NodeSelectorRequirement{{
+						Key:      GoldenNodeAffinityKey(pool.Spec.Image),
+						Operator: corev1.NodeSelectorOpExists,
+					}},
+				},
+			}},
+		},
+	}
+}
+
+// cacheVolumePreferenceWeight keeps the volume preference below the golden
+// one: a host without the image pulls it for minutes, while a host without a
+// volume only starts that volume cold.
+const cacheVolumePreferenceWeight = 20
+
+// PreferCacheVolumeNode adds a soft preference for `nodeName`, a host the
+// server picked because it holds the custom cache volumes of the queued job
+// this Pod is created for and has cache disk room for them. An empty name
+// leaves the Pod alone.
+func PreferCacheVolumeNode(pod *corev1.Pod, nodeName string) {
+	if nodeName == "" {
+		return
+	}
+	if pod.Spec.Affinity == nil {
+		pod.Spec.Affinity = &corev1.Affinity{}
+	}
+	if pod.Spec.Affinity.NodeAffinity == nil {
+		pod.Spec.Affinity.NodeAffinity = &corev1.NodeAffinity{}
+	}
+	node := pod.Spec.Affinity.NodeAffinity
+	node.PreferredDuringSchedulingIgnoredDuringExecution = append(node.PreferredDuringSchedulingIgnoredDuringExecution, corev1.PreferredSchedulingTerm{
+		Weight: cacheVolumePreferenceWeight,
+		Preference: corev1.NodeSelectorTerm{MatchFields: []corev1.NodeSelectorRequirement{{
+			Key: "metadata.name", Operator: corev1.NodeSelectorOpIn, Values: []string{nodeName},
+		}}},
+	})
+}
+
+// schedulingFor returns the nodeSelector + tolerations for a pool's
+// substrate.
+//
+//   - `darwin` (v1 default): Mac mini nodes running tart-kubelet.
+//     `tuist.dev/fleet=<value>` is the chart-managed selector; tart-kubelet
+//     sets the label itself outside the CAPI label-sync path. Tolerates
+//     `tuist.dev/macos:NoSchedule` so only runner Pods land on Mac minis.
+//   - `linux`: Hetzner Robot bare-metal hosts joined to the workload
+//     cluster as worker Nodes out-of-band (kubeadm join during host
+//     bring-up, not CAPI-managed in v1). The hosts are labeled
+//     `node.cluster.x-k8s.io/pool=<FleetSelector>` and tainted
+//     `tuist.dev/runner-tier=bare-metal:NoSchedule` so that only runner
+//     Pods land on them; everything else (server, system DaemonSets,
+//     etc.) stays on the elastic Hetzner Cloud `md-0` pool. Pods
+//     tolerate the runner-tier taint and select on the pool label.
+//
+// Anything else falls back to the darwin shape so a misconfigured CR
+// still produces a schedulable Pod against the macOS fleet.
+func schedulingFor(pool *tuistv1.RunnerPool) (map[string]string, []corev1.Toleration) {
+	switch pool.Spec.OS {
+	case "linux":
+		return map[string]string{
+				"kubernetes.io/os":           "linux",
+				"kubernetes.io/arch":         "amd64",
+				"node.cluster.x-k8s.io/pool": pool.Spec.FleetSelector,
+			}, []corev1.Toleration{
+				{
+					Key:      "tuist.dev/runner-tier",
+					Operator: corev1.TolerationOpEqual,
+					Value:    "bare-metal",
+					Effect:   corev1.TaintEffectNoSchedule,
+				},
+				reservationToleration(pool),
+			}
+	default:
+		selector := map[string]string{
+			"kubernetes.io/os":  "darwin",
+			"tuist.dev/runtime": "tart",
+			"tuist.dev/fleet":   pool.Spec.FleetSelector,
+		}
+		if pool.Spec.Site != "" {
+			selector[RackSiteNodeLabel] = pool.Spec.Site
+		}
+		return selector, []corev1.Toleration{
+			{
+				Key:      "tuist.dev/macos",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			},
+			reservationToleration(pool),
+		}
+	}
+}
+
+// reservationToleration lets a pool's Pods land on a node reserved for
+// that same pool, and only that pool. Every runner Pod carries it, on
+// both platforms, so the reservation mechanism needs no per-pool opt-in
+// and an operator can reserve for any pool without a redeploy.
+//
+// Pods created before this toleration existed keep scheduling normally;
+// they simply cannot use a reservation, and the reservation releases on
+// its timeout if one is held for such a Pod.
+func reservationToleration(pool *tuistv1.RunnerPool) corev1.Toleration {
+	return corev1.Toleration{
+		Key:      ReservationTaintKey,
+		Operator: corev1.TolerationOpEqual,
+		Value:    ReservationValue(pool.Name),
+		Effect:   corev1.TaintEffectNoSchedule,
+	}
+}
+
+// ReservationValue is the taint/toleration value identifying a pool.
+// Pool names are readable and almost always short enough to use as-is,
+// which keeps `kubectl describe node` self-explanatory; a name too long
+// to be a valid label value falls back to a digest so the mechanism
+// still works rather than producing a node the apiserver rejects.
+func ReservationValue(poolName string) string {
+	if len(poolName) <= 63 && labelValue.MatchString(poolName) {
+		return poolName
+	}
+	sum := sha256.Sum256([]byte(poolName))
+	return fmt.Sprintf("pool-%x", sum[:8])
+}
+
+var labelValue = regexp.MustCompile(`^[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$`)
+
+// CacheVolumeRevision lets the existing bounded idle rollout converge mounts.
+func CacheVolumeRevision(pool *tuistv1.RunnerPool) string {
+	h := sha256.Sum256([]byte("local-images-bind-v3\n" + pool.Spec.CacheVolumeRoot + "\n" + pool.Spec.CacheVolumeURL))
+	return hex.EncodeToString(h[:])
+}

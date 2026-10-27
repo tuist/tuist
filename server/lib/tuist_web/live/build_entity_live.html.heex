@@ -1,0 +1,672 @@
+<div
+  id="build-entity"
+  data-toolchain={@resource.system}
+  data-kind={@resource.kind}
+  data-view={if @entity, do: "detail", else: "inventory"}
+  data-durations={to_string(@durations?)}
+>
+  <.button
+    :if={@entity}
+    label={Labels.plural(@resource.system, @resource.kind)}
+    data-part="back-button"
+    variant="secondary"
+    navigate={list_path(assigns)}
+  >
+    <:icon_left><.icon name="arrow_left" /></:icon_left>
+  </.button>
+
+  <div :if={@entity} data-part="header">
+    <h1>{@entity.name}</h1>
+    <div data-part="badges">
+      <.badge
+        :for={
+          {key, _value} <-
+            @entity.identity
+            |> then(&Labels.visible_identity(@resource.system, @resource.kind, &1))
+            |> Enum.sort()
+        }
+        label={"#{identity_label(key)}: #{Labels.identity_value(@entity.identity, key)}"}
+        color="primary"
+        style="light-fill"
+      />
+    </div>
+  </div>
+
+  <div :if={!@entity} data-part="filters">
+    <.controls {assigns} />
+  </div>
+
+  <.tab_menu_horizontal :if={@entity}>
+    <.tab_menu_horizontal_item
+      label={dgettext("dashboard_builds", "Overview")}
+      selected={@tab == "overview"}
+      patch={
+        patch(assigns, %{"tab" => "overview", "page" => nil, "after" => nil, "before" => nil})
+      }
+      replace={true}
+    />
+    <.tab_menu_horizontal_item
+      label={Labels.history(@resource.system, @resource.kind)}
+      selected={@tab == "history"}
+      patch={
+        patch(assigns, %{"tab" => "history", "page" => nil, "after" => nil, "before" => nil})
+      }
+      replace={true}
+    />
+  </.tab_menu_horizontal>
+
+  <.async_card
+    :let={ready?}
+    :if={!@entity}
+    results={[@analytics]}
+    title={dgettext("dashboard_builds", "Analytics")}
+    icon="chart_arcs"
+    data-part="analytics"
+  >
+    <div data-part="analytics-content">
+      <div data-part="widgets">
+        <.inventory_count_widget
+          :for={metric <- [:observations, :failures]}
+          {assigns}
+          metric={metric}
+          ready={ready?}
+        />
+        <.percentile_dropdown_widget
+          :if={@durations?}
+          id="inventory-duration"
+          loading={!ready?}
+          title={inventory_duration_title(assigns)}
+          description={inventory_duration_description(assigns)}
+          value={
+            if ready?,
+              do:
+                duration(
+                  Map.fetch!(@analytics.result.total, String.to_existing_atom(@duration_field))
+                )
+          }
+          metrics={if ready?, do: inventory_duration_metrics(@analytics.result.total)}
+          selected_type={String.replace_suffix(@duration_field, "_duration_ms", "")}
+          event_name="select_inventory_duration"
+          legend_color={
+            if @duration_field == "avg_duration_ms",
+              do: "secondary",
+              else: String.replace_suffix(@duration_field, "_duration_ms", "")
+          }
+          selected={@widget == "duration"}
+          phx_click="select_widget"
+          phx_value_widget="duration"
+          empty={ready? && @analytics.result.total.duration_samples == 0}
+          empty_label={
+            if ready? && @analytics.result.total.observations > 0,
+              do: dgettext("dashboard_builds", "Not recorded"),
+              else: dgettext("dashboard_builds", "No data")
+          }
+          trend_value={
+            if ready? && @analytics.result.total.duration_samples > 0,
+              do:
+                trend(
+                  Map.fetch!(@analytics.result.total, String.to_existing_atom(@duration_field)),
+                  Map.fetch!(@analytics.result.previous, String.to_existing_atom(@duration_field))
+                )
+          }
+          trend_value_label={
+            if ready? && @analytics.result.total.duration_samples > 0,
+              do:
+                trend_value_label(
+                  Map.fetch!(@analytics.result.total, String.to_existing_atom(@duration_field)),
+                  Map.fetch!(
+                    @analytics.result.previous,
+                    String.to_existing_atom(@duration_field)
+                  ),
+                  :duration
+                )
+          }
+          trend_type={:inverse}
+          trend_label={@analytics_trend_label}
+        />
+        <.default_branch_module_widget :if={@resource.system == :xcode} {assigns} />
+        <.inventory_count_widget
+          :if={@resource.system != :xcode}
+          {assigns}
+          metric={:entities}
+          ready={ready?}
+        />
+      </div>
+      <.chart_type_toggle
+        :if={ready? && @widget == "duration" && @analytics.result.total.duration_samples > 0}
+        id="inventory-duration"
+        chart_type={@duration_chart_type}
+        chart_type_event="select_duration_chart_type"
+        group_by_options={duration_group_options()}
+        selected_group_by={@duration_group_by}
+        group_by_query_param="duration-group-by"
+        uri={@uri}
+      />
+      <.card_section data-part="analytics-chart" data-chart-frame="standard">
+        <.default_branch_module_chart :if={default_branch_chart?(assigns)} {assigns} />
+        <.skeleton_box
+          :if={!ready? && !default_branch_chart?(assigns)}
+          width="100%"
+          height="200px"
+        />
+        <.chart
+          :if={
+            ready? && !default_branch_chart?(assigns) && chart_available?(assigns) &&
+              (@widget != "duration" || @duration_chart_type == "line")
+          }
+          id="build-entity-inventory-chart"
+          type="line"
+          series={chart_series(assigns, @analytics.result.points)}
+          extra_options={chart_options(assigns)}
+          y_axis_min={0}
+        />
+        <.duration_scatter_plot
+          :if={
+            ready? && chart_available?(assigns) && @widget == "duration" &&
+              @duration_chart_type == "scatter"
+          }
+          {assigns}
+          height="200px"
+          chart_id="build-entity-inventory-scatter-chart"
+        />
+        <.empty_card_section
+          :if={ready? && !default_branch_chart?(assigns) && !chart_available?(assigns)}
+          title={empty_chart_title(assigns)}
+        >
+          <:image>
+            <img src={~p"/images/empty_line_chart_light.png"} data-theme="light" loading="lazy" />
+            <img src={~p"/images/empty_line_chart_dark.png"} data-theme="dark" loading="lazy" />
+          </:image>
+        </.empty_card_section>
+      </.card_section>
+    </div>
+  </.async_card>
+
+  <.async_card
+    :let={ready?}
+    :if={@entity && @tab == "overview"}
+    results={[@analytics]}
+    title={dgettext("dashboard_builds", "Analytics")}
+    icon="chart_arcs"
+    data-part="analytics"
+  >
+    <:actions><.controls {assigns} /></:actions>
+    <.card_section data-part="analytics-body" data-chart-frame="standard">
+      <div data-part="widgets">
+        <.widget
+          id="entity-observations"
+          loading={!ready?}
+          title={observations_label(assigns)}
+          value={if ready?, do: format_number(@analytics.result.total.observations)}
+          selected={@widget == "observations"}
+          empty={ready? && @analytics.result.total.observations == 0}
+          empty_label={dgettext("dashboard_builds", "No data")}
+          legend_color="primary"
+          phx_click="select_widget"
+          phx_value_widget="observations"
+          trend_value={
+            if ready? && @analytics.result.total.observations > 0,
+              do:
+                trend(
+                  @analytics.result.total.observations,
+                  @analytics.result.previous.observations
+                )
+          }
+          trend_value_label={
+            if ready? && @analytics.result.total.observations > 0,
+              do:
+                trend_value_label(
+                  @analytics.result.total.observations,
+                  @analytics.result.previous.observations,
+                  :count
+                )
+          }
+          trend_type={:neutral}
+          trend_label={@analytics_trend_label}
+        />
+        <.widget
+          :if={@durations?}
+          id="entity-duration"
+          loading={!ready?}
+          title={Labels.duration(@resource.system, @resource.kind)}
+          description={inventory_duration_description(assigns)}
+          value={
+            if ready?,
+              do:
+                duration(
+                  Map.get(@analytics.result.total, String.to_existing_atom(@duration_field))
+                )
+          }
+          selected={@widget == "duration"}
+          legend_color="secondary"
+          empty={
+            ready? &&
+              is_nil(Map.get(@analytics.result.total, String.to_existing_atom(@duration_field)))
+          }
+          empty_label={
+            if ready? && @analytics.result.total.observations == 0,
+              do: dgettext("dashboard_builds", "No data"),
+              else: dgettext("dashboard_builds", "Not recorded")
+          }
+          phx_click="select_widget"
+          phx_value_widget="duration"
+          trend_value={
+            if ready?,
+              do:
+                trend(
+                  Map.get(@analytics.result.total, String.to_existing_atom(@duration_field)),
+                  Map.get(@analytics.result.previous, String.to_existing_atom(@duration_field))
+                )
+          }
+          trend_value_label={
+            if ready?,
+              do:
+                trend_value_label(
+                  Map.get(@analytics.result.total, String.to_existing_atom(@duration_field)),
+                  Map.get(@analytics.result.previous, String.to_existing_atom(@duration_field)),
+                  :duration
+                )
+          }
+          trend_type={:inverse}
+          trend_label={@analytics_trend_label}
+        >
+          <:select>
+            <.dropdown_item
+              :for={
+                {field, label} <- [
+                  {"avg_duration_ms", dgettext("dashboard_builds", "Average")},
+                  {"p50_duration_ms", "p50"},
+                  {"p90_duration_ms", "p90"},
+                  {"p99_duration_ms", "p99"}
+                ]
+              }
+              value={field}
+              label={label}
+              phx-click="select_duration"
+              phx-value-duration={field}
+              data-selected={@duration_field == field}
+            >
+              <:right_icon><.check /></:right_icon>
+            </.dropdown_item>
+          </:select>
+        </.widget>
+      </div>
+      <.chart_type_toggle
+        :if={
+          ready? && @widget == "duration" &&
+            @analytics.result.total.duration_samples > 0
+        }
+        id="entity-duration"
+        chart_type={@duration_chart_type}
+        chart_type_event="select_duration_chart_type"
+        group_by_options={duration_group_options()}
+        selected_group_by={@duration_group_by}
+        group_by_query_param="duration-group-by"
+        uri={@uri}
+      />
+      <div :if={!ready?} data-part="analytics-chart" aria-busy="true">
+        <.skeleton_box width="100%" height="240px" />
+      </div>
+      <div :if={ready?} data-part="analytics-chart">
+        <.chart
+          :if={
+            chart_available?(assigns) &&
+              (@widget != "duration" || @duration_chart_type == "line")
+          }
+          id="build-entity-analytics-chart"
+          type={if @widget == "observations", do: "bar", else: "line"}
+          series={chart_series(assigns, @analytics.result.points)}
+          extra_options={chart_options(assigns)}
+          y_axis_min={0}
+        />
+        <.duration_scatter_plot
+          :if={
+            chart_available?(assigns) && @widget == "duration" &&
+              @duration_chart_type == "scatter"
+          }
+          {assigns}
+          height="240px"
+          chart_id="build-entity-duration-scatter-chart"
+        />
+        <.empty_card_section
+          :if={!chart_available?(assigns)}
+          title={empty_chart_title(assigns)}
+        >
+          <:image>
+            <img src={~p"/images/empty_line_chart_light.png"} data-theme="light" loading="lazy" />
+            <img src={~p"/images/empty_line_chart_dark.png"} data-theme="dark" loading="lazy" />
+          </:image>
+        </.empty_card_section>
+      </div>
+    </.card_section>
+  </.async_card>
+
+  <.card
+    :if={!@entity}
+    title={Labels.plural(@resource.system, @resource.kind)}
+    icon="stack_2"
+  >
+    <.card_section data-part="inventory-section">
+      <div data-part="toolbar">
+        <form id="entity-search-form" phx-change="filters">
+          <.text_input
+            id="entity-search"
+            type="search"
+            name="q"
+            value={@search}
+            placeholder={Labels.search_placeholder(@resource.system, @resource.kind)}
+            phx-debounce="300"
+          />
+        </form>
+        <.dropdown
+          id="entity-inventory-sort"
+          label={
+            Map.get(
+              Map.new(inventory_sort_options(assigns)),
+              @inventory_sort_by,
+              dgettext("dashboard_builds", "Last seen")
+            )
+          }
+          secondary_text={dgettext("dashboard_builds", "Sort by:")}
+        >
+          <.dropdown_item
+            :for={{field, label} <- inventory_sort_options(assigns)}
+            value={field}
+            label={label}
+            patch={inventory_sort_patch(assigns, field)}
+            data-selected={@inventory_sort_by == field}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+      </div>
+      <.async_section :let={ready?} results={[@entries]} chart_frame="small">
+        <.skeleton_box :if={!ready?} width="100%" height="180px" />
+        <.table
+          :if={ready?}
+          id="build-entity-inventory"
+          rows={@entries.result.rows}
+          row_navigate={fn row -> entity_path(assigns, row) end}
+        >
+          <:col
+            :let={row}
+            label={Labels.singular(@resource.system, @resource.kind)}
+            patch={inventory_sort_patch(assigns, "name")}
+            sort_order={@inventory_sort_by == "name" && @inventory_sort_order}
+          >
+            <.text_and_description_cell
+              label={row.name}
+              description={Labels.inventory_sublabel(@resource.system, @resource.kind, row)}
+            />
+          </:col>
+          <:col
+            :let={row}
+            :for={field <- Labels.inventory_fields(@resource.system, @resource.kind)}
+            label={identity_label(field)}
+          >
+            <.badge_cell
+              :if={Labels.type_field?(field)}
+              label={Labels.identity_value(row.identity, field)}
+              color="neutral"
+              style="light-fill"
+            />
+            <.text_cell
+              :if={!Labels.type_field?(field)}
+              label={Labels.identity_value(row.identity, field)}
+            />
+          </:col>
+          <:col
+            :let={row}
+            :for={{field, label} <- inventory_duration_sort_options(assigns)}
+            label={label}
+            patch={inventory_sort_patch(assigns, field)}
+            sort_order={@inventory_sort_by == field && @inventory_sort_order}
+          >
+            <.text_cell
+              label={duration(Map.fetch!(row, String.to_existing_atom(field)))}
+              icon={if field == "p50_duration_ms", do: "history"}
+            />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_builds", "Last status")}>
+            <.status_badge_cell
+              :if={row.last_status == "success"}
+              label={dgettext("dashboard_builds", "Passed")}
+              status="success"
+            />
+            <.status_badge_cell
+              :if={row.last_status == "failure"}
+              label={dgettext("dashboard_builds", "Failed")}
+              status="error"
+            />
+            <.text_cell
+              :if={row.last_status not in ["success", "failure"]}
+              label={dgettext("dashboard_builds", "Not recorded")}
+            />
+          </:col>
+          <:col
+            :let={row}
+            label={dgettext("dashboard_builds", "Last ran at")}
+            patch={inventory_sort_patch(assigns, "last_ran_at")}
+            sort_order={@inventory_sort_by == "last_ran_at" && @inventory_sort_order}
+          >
+            <.text_cell label={
+              if row.last_ran_at,
+                do: relative_time(row.last_ran_at),
+                else: dgettext("dashboard_builds", "Not recorded")
+            } />
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="stack_2"
+              title={dgettext("dashboard_builds", "Nothing recorded for these filters")}
+              subtitle={dgettext("dashboard_builds", "Try another period or report a new build.")}
+            />
+          </:empty_state>
+        </.table>
+        <.pagination_group
+          :if={ready? && @entries.result.meta.total_pages > 1}
+          current_page={@entries.result.meta.current_page}
+          number_of_pages={@entries.result.meta.total_pages}
+          page_patch={fn page -> patch(assigns, %{"page" => page}) end}
+        />
+      </.async_section>
+    </.card_section>
+  </.card>
+
+  <.card
+    :if={@entity}
+    title={
+      if @tab == "history",
+        do: Labels.history(@resource.system, @resource.kind),
+        else: Labels.recent(@resource.system, @resource.kind)
+    }
+    icon="history"
+  >
+    <:actions>
+      <.controls :if={@tab == "history"} {assigns} />
+      <.button
+        :if={@tab == "overview" && @history.ok? && @history.result.meta.has_next_page}
+        label={dgettext("dashboard_builds", "View more")}
+        variant="secondary"
+        patch={
+          patch(assigns, %{"tab" => "history", "page" => nil, "after" => nil, "before" => nil})
+        }
+      />
+    </:actions>
+    <.card_section data-part="activity-section">
+      <div data-part="toolbar">
+        <.form
+          for={%{}}
+          id="entity-activity-search-form"
+          phx-change="search_activity"
+          phx-debounce="200"
+        >
+          <.text_input
+            id="entity-activity-search"
+            type="search"
+            name="search"
+            value={@activity_search}
+            placeholder={dgettext("dashboard_builds", "Search...")}
+            show_suffix={false}
+            data-part="search"
+          />
+        </.form>
+        <.dropdown
+          id="entity-activity-sort"
+          label={
+            if @sort_by == "duration_ms",
+              do: Labels.duration(@resource.system, @resource.kind),
+              else: dgettext("dashboard_builds", "Recorded at")
+          }
+          secondary_text={dgettext("dashboard_builds", "Sort by:")}
+        >
+          <.dropdown_item
+            :for={
+              {field, label} <-
+                [{"observed_at", dgettext("dashboard_builds", "Recorded at")}] ++
+                  if(@durations?,
+                    do: [{"duration_ms", Labels.duration(@resource.system, @resource.kind)}],
+                    else: []
+                  )
+            }
+            value={field}
+            label={label}
+            patch={sort_patch(assigns, field)}
+            data-selected={@sort_by == field}
+          >
+            <:right_icon><.check /></:right_icon>
+          </.dropdown_item>
+        </.dropdown>
+        <.filter_dropdown
+          id="entity-activity-filter"
+          label={dgettext("dashboard_builds", "Filter")}
+          available_filters={@available_filters}
+          active_filters={@active_filters}
+        />
+      </div>
+      <div :if={Enum.any?(@active_filters)} data-part="active-filters">
+        <.active_filter :for={filter <- @active_filters} filter={filter} />
+      </div>
+      <.async_section :let={ready?} results={[@history]} chart_frame="small">
+        <.skeleton_box :if={!ready?} width="100%" height="180px" />
+        <.table
+          :if={ready?}
+          id="build-entity-history"
+          rows={@history.result.rows}
+          row_navigate={
+            if @history.result.row_navigation, do: fn row -> execution_path(assigns, row) end
+          }
+        >
+          <:col :let={row} label={Labels.parent(@resource.system, @resource.kind)}>
+            <.link
+              :if={!@history.result.row_navigation && row.parent_available}
+              navigate={execution_path(assigns, row)}
+            >
+              <.history_context_cell resource={@resource} row={row} />
+            </.link>
+            <.history_context_cell
+              :if={@history.result.row_navigation || !row.parent_available}
+              resource={@resource}
+              row={row}
+            />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_builds", "Status")}>
+            <div data-part="execution-status">
+              <.status_badge_cell
+                :if={row.status == "success"}
+                label={dgettext("dashboard_builds", "Passed")}
+                status="success"
+              />
+              <.status_badge_cell
+                :if={row.status == "failure"}
+                label={dgettext("dashboard_builds", "Failed")}
+                status="error"
+              />
+              <.status_badge_cell
+                :if={row.status == "skipped"}
+                label={Labels.status(row.status)}
+                status="warning"
+              />
+              <.badge_cell
+                :if={row.status not in ["success", "failure", "skipped"]}
+                label={
+                  if row.status == "unknown",
+                    do: dgettext("dashboard_builds", "Not recorded"),
+                    else: Labels.status(row.status)
+                }
+                color={Labels.status_color(row.status)}
+                style="light-fill"
+              />
+            </div>
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_builds", "Branch")}>
+            <.text_cell
+              icon="git_branch"
+              label={
+                if row.git_branch == "",
+                  do: dgettext("dashboard_builds", "Unknown"),
+                  else: row.git_branch
+              }
+            />
+          </:col>
+          <:col :let={row} label={dgettext("dashboard_builds", "Ran by")}>
+            <.run_ran_by_badge_cell run={row} ran_by_name={row.ran_by_name} />
+          </:col>
+          <:col
+            :let={row}
+            :if={@durations?}
+            label={Labels.duration(@resource.system, @resource.kind)}
+            patch={sort_patch(assigns, "duration_ms")}
+            sort_order={@sort_by == "duration_ms" && @sort_order}
+          >
+            <.text_cell label={duration(row.duration_ms)} icon="history" />
+          </:col>
+          <:col
+            :let={row}
+            label={dgettext("dashboard_builds", "Recorded at")}
+            patch={sort_patch(assigns, "observed_at")}
+            sort_order={@sort_by == "observed_at" && @sort_order}
+          >
+            <.text_cell sublabel={relative_time(row.observed_at)} />
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="history"
+              title={Labels.empty_history(@resource.system, @resource.kind)}
+              subtitle={
+                dgettext(
+                  "dashboard_builds",
+                  "This page remains available independently of individual build history."
+                )
+              }
+            />
+          </:empty_state>
+        </.table>
+        <div
+          :if={
+            ready? && @tab == "history" &&
+              (@history.result.meta.has_previous_page || @history.result.meta.has_next_page)
+          }
+          data-part="pagination"
+        >
+          <.button
+            label={dgettext("dashboard_builds", "Previous")}
+            variant="secondary"
+            disabled={!@history.result.meta.has_previous_page}
+            patch={history_page_patch(assigns, :previous)}
+          >
+            <:icon_left><.icon name="chevron_left" /></:icon_left>
+          </.button>
+          <.button
+            label={dgettext("dashboard_builds", "Next")}
+            variant="secondary"
+            disabled={!@history.result.meta.has_next_page}
+            patch={history_page_patch(assigns, :next)}
+          >
+            <:icon_right><.icon name="chevron_right" /></:icon_right>
+          </.button>
+        </div>
+      </.async_section>
+    </.card_section>
+  </.card>
+</div>

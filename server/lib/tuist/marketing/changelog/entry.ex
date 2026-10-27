@@ -11,7 +11,9 @@ defmodule Tuist.Marketing.Changelog.Entry do
     :date,
     :title,
     :body,
-    :id
+    :id,
+    :pull_request,
+    :description
   ]
 
   def build(_filename, attrs, body) do
@@ -22,7 +24,22 @@ defmodule Tuist.Marketing.Changelog.Entry do
       date: attrs["date"],
       title: title,
       id: attrs["id"],
-      body: body
+      body: body,
+      pull_request: attrs["pull_request"],
+      description: attrs["description"]
     )
+  end
+
+  def image_source(%__MODULE__{body: body}) do
+    case Floki.parse_fragment(body) do
+      {:ok, document} ->
+        document
+        |> Floki.find("img[src]")
+        |> Floki.attribute("src")
+        |> List.first()
+
+      {:error, _reason} ->
+        nil
+    end
   end
 end

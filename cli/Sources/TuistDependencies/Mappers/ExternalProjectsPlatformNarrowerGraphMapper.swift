@@ -33,7 +33,28 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
 
         var graph = graph
         let graphTraverser = GraphTraverser(graph: graph)
-        let externalTargetSupportedDestinations = graphTraverser.externalTargetSupportedDestinations()
+        var externalTargetSupportedDestinations = graphTraverser.externalTargetSupportedDestinations()
+        let testDestinations = LocalPackageTestDestinationResolver().resolve(
+            graphTraverser: graphTraverser,
+            productionDestinations: externalTargetSupportedDestinations,
+            graphBeforeTestFocus: environment.graphBeforeTestFocus
+        )
+        let narrowedTests = testDestinations.compactMap { test, destinations -> GraphTarget? in
+            guard !destinations.isEmpty else { return nil }
+            var target = test.target
+            target.destinations = destinations
+            return GraphTarget(path: test.path, target: target, project: test.project)
+        }
+        if !narrowedTests.isEmpty {
+            // Only tests with inferred platforms may extend the production traversal. Orphan
+            // tests must not propagate their broad declared destinations back into runtime targets.
+            // Preserve production destinations when tests connect dependencies with disjoint platforms.
+            let productionDestinations = externalTargetSupportedDestinations
+            externalTargetSupportedDestinations = graphTraverser.externalTargetSupportedDestinations(
+                including: Set(narrowedTests)
+            ).merging(productionDestinations) { _, production in production }
+        }
+        externalTargetSupportedDestinations.merge(testDestinations) { _, testDestinations in testDestinations }
 
         graph.projects = Dictionary(uniqueKeysWithValues: graph.projects.map { projectPath, project in
             var project = project
@@ -58,9 +79,11 @@ public struct ExternalProjectsPlatformNarrowerGraphMapper: GraphMapping { // swi
     ) -> Target {
         var target = target
         let graphTarget = GraphTarget(path: project.path, target: target, project: project)
-        if case .external = project.type,
-           let targetFilteredDestinations = externalTargetSupportedDestinations[graphTarget]
-        {
+        guard case .external = project.type else { return target }
+
+        let targetFilteredDestinations = externalTargetSupportedDestinations[graphTarget]
+
+        if let targetFilteredDestinations {
             target.destinations = targetFilteredDestinations
             if target.destinations.isEmpty {
                 target.metadata.tags = Set(Array(target.metadata.tags) + ["tuist:prunable"])

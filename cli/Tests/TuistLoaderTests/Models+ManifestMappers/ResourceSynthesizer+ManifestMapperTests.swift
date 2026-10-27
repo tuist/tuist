@@ -194,7 +194,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
     func test_locate_when_a_resourceSynthesizer_and_git_directory_exists() async throws {
         // Given
         let resourceSynthesizerDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/ResourceSynthesizers", "this/.git"])
+        try await createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/ResourceSynthesizers", "this/.git"])
 
         // When
         let got = try await subject
@@ -210,7 +210,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
     func test_locate_when_a_resourceSynthesizer_directory_exists() async throws {
         // Given
         let resourceSynthesizerDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/ResourceSynthesizers"])
+        try await createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/ResourceSynthesizers"])
 
         // When
         let got = try await subject
@@ -226,7 +226,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
     func test_locate_when_a_git_directory_exists() async throws {
         // Given
         let resourceSynthesizerDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/directory", "this/.git", "this/Tuist/ResourceSynthesizers"])
+        try await createFolders(["this/is/a/very/nested/directory", "this/.git", "this/Tuist/ResourceSynthesizers"])
 
         // When
         let got = try await subject
@@ -242,7 +242,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
     func test_locate_when_multiple_tuist_directories_exists() async throws {
         // Given
         let resourceSynthesizerDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/Tuist/ResourceSynthesizers", "this/is/Tuist/ResourceSynthesizers"])
+        try await createFolders(["this/is/a/very/nested/Tuist/ResourceSynthesizers", "this/is/Tuist/ResourceSynthesizers"])
         let paths = [
             "this/is/a/very/directory",
             "this/is/a/very/nested/directory",

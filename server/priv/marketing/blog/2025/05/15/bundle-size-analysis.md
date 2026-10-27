@@ -2,13 +2,13 @@
 title: "Track and inspect your app bundle size with Tuist"
 category: "product"
 tags: ["product"] 
-excerpt: "Use Tuist's new bundle analysis to minimize your app's install and download size"
+excerpt: "Use Tuist Bundle Analysis (bundle size insights) to minimize install and download size."
 author: fortmarek
 og_image_path: /marketing/images/blog/2025/05/15/bundle-size-analysis/og.jpg
 highlighted: true
 ---
 
-As your app evolves, its size inevitably increases. New features, additional assets, and expanding codebases all contribute to larger bundle sizes. But how much of that growth is truly necessary? Without proper visibility, it's easy to inadvertently bloat your app with:
+As your app evolves, its size inevitably increases. New features, additional assets, and expanding codebases all contribute to larger bundle sizes. Tuist Bundle Analysis gives you visibility into what's growing and why. Without proper visibility, it's easy to inadvertently bloat your app with:
 
 - Duplicate assets across bundles
 - Unused binary symbols
@@ -67,4 +67,4 @@ Bundle size isn't just about technical optimizations—it's about creating a bet
 
 Ready to get started? Run `tuist inspect bundle` and discover opportunities to optimize your app size! 
 
-For more details, [head over to our documentation](https://docs.tuist.dev/en/guides/develop/bundle-size).
+For more details, [head over to our documentation](https://tuist.dev/en/docs/guides/features/bundle-size).

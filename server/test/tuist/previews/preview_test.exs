@@ -1,6 +1,6 @@
 defmodule Tuist.AppBuilds.PreviewTest do
   @moduledoc false
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.AppBuilds.Preview
 

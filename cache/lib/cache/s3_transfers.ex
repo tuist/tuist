@@ -9,46 +9,86 @@ defmodule Cache.S3Transfers do
   import Ecto.Query
 
   alias Cache.Repo
+  alias Cache.S3
   alias Cache.S3Transfer
+  alias Cache.S3TransfersBuffer
 
   @doc """
-  Enqueues a CAS artifact for upload to S3.
+  Enqueues an Xcode compilation cache (CAS) artifact for upload to S3.
 
-  Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
-  This is a single atomic statement, avoiding SQLite contention under bursty load.
+  Entries are queued and flushed in batches to reduce SQLite contention.
   """
-  def enqueue_cas_upload(account_handle, project_handle, key) do
-    enqueue(:upload, account_handle, project_handle, :cas, key)
+  def enqueue_xcode_upload(account_handle, project_handle, key) do
+    enqueue(:upload, account_handle, project_handle, :xcode_cache, key)
   end
 
   @doc """
-  Enqueues a CAS artifact for download from S3 to local disk.
+  Enqueues an Xcode compilation cache (CAS) artifact for download from S3 to local disk.
 
-  Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
-  This is a single atomic statement, avoiding SQLite contention under bursty load.
+  Entries are queued and flushed in batches to reduce SQLite contention.
   """
-  def enqueue_cas_download(account_handle, project_handle, key) do
-    enqueue(:download, account_handle, project_handle, :cas, key)
+  def enqueue_xcode_download(account_handle, project_handle, key) do
+    enqueue(:download, account_handle, project_handle, :xcode_cache, key)
   end
 
   @doc """
   Enqueues a module cache artifact for upload to S3.
 
-  Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
-  This is a single atomic statement, avoiding SQLite contention under bursty load.
+  Entries are queued and flushed in batches to reduce SQLite contention.
   """
   def enqueue_module_upload(account_handle, project_handle, key) do
-    enqueue(:upload, account_handle, project_handle, :module, key)
+    enqueue(:upload, account_handle, project_handle, :xcode_module, key)
   end
 
   @doc """
   Enqueues a module cache artifact for download from S3 to local disk.
 
+  Entries are queued and flushed in batches to reduce SQLite contention.
+  """
+  def enqueue_module_download(account_handle, project_handle, key) do
+    enqueue(:download, account_handle, project_handle, :xcode_module, key)
+  end
+
+  @doc """
+  Enqueues a Gradle build cache artifact for upload to S3.
+
   Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
   This is a single atomic statement, avoiding SQLite contention under bursty load.
   """
-  def enqueue_module_download(account_handle, project_handle, key) do
-    enqueue(:download, account_handle, project_handle, :module, key)
+  def enqueue_gradle_upload(account_handle, project_handle, key) do
+    enqueue(:upload, account_handle, project_handle, :gradle, key)
+  end
+
+  @doc """
+  Enqueues a Gradle build cache artifact for download from S3 to local disk.
+
+  Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
+  This is a single atomic statement, avoiding SQLite contention under bursty load.
+  """
+  def enqueue_gradle_download(account_handle, project_handle, key) do
+    enqueue(:download, account_handle, project_handle, :gradle, key)
+  end
+
+  @registry_sentinel_handle "registry"
+
+  @doc """
+  Enqueues a registry artifact for upload to S3.
+
+  Registry artifacts have no account/project context, so sentinel values are used.
+  Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
+  """
+  def enqueue_registry_upload(key) do
+    enqueue(:upload, @registry_sentinel_handle, @registry_sentinel_handle, :registry, key)
+  end
+
+  @doc """
+  Enqueues a registry artifact for download from S3 to local disk.
+
+  Registry artifacts have no account/project context, so sentinel values are used.
+  Uses INSERT with ON CONFLICT DO NOTHING to avoid duplicate entries.
+  """
+  def enqueue_registry_download(key) do
+    enqueue(:download, @registry_sentinel_handle, @registry_sentinel_handle, :registry, key)
   end
 
   @doc """
@@ -66,37 +106,34 @@ defmodule Cache.S3Transfers do
   Deletes a single transfer by ID.
   """
   def delete(id) do
-    S3Transfer
-    |> where([t], t.id == ^id)
-    |> Repo.delete_all()
-
-    :ok
+    S3TransfersBuffer.enqueue_delete(id)
   end
 
   @doc """
   Deletes multiple transfers by their IDs.
   """
   def delete_all(ids) when is_list(ids) do
-    S3Transfer
-    |> where([t], t.id in ^ids)
-    |> Repo.delete_all()
+    Enum.each(ids, &S3TransfersBuffer.enqueue_delete/1)
+  end
+
+  @doc """
+  Asynchronously checks S3 and enqueues an artifact upload only when missing.
+  """
+  def enqueue_upload_if_missing(account_handle, project_handle, artifact_type, key) do
+    Task.start(fn ->
+      if !S3.exists?(key, type: storage_type(artifact_type)) do
+        enqueue(:upload, account_handle, project_handle, artifact_type, key)
+      end
+    end)
 
     :ok
   end
 
   defp enqueue(type, account_handle, project_handle, artifact_type, key) do
-    now = DateTime.truncate(DateTime.utc_now(), :second)
-
-    Repo.insert(
-      %S3Transfer{
-        type: type,
-        account_handle: account_handle,
-        project_handle: project_handle,
-        artifact_type: artifact_type,
-        key: key,
-        inserted_at: now
-      },
-      on_conflict: :nothing
-    )
+    S3TransfersBuffer.enqueue(type, account_handle, project_handle, artifact_type, key)
   end
+
+  defp storage_type(:xcode_cache), do: :xcode_cache
+  defp storage_type(:registry), do: :registry
+  defp storage_type(_artifact_type), do: :cache
 end

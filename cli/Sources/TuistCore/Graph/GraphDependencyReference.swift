@@ -1,4 +1,7 @@
 import Path
+#if DEBUG
+    import TuistSupport
+#endif
 import XcodeGraph
 
 public enum GraphDependencyReference: Equatable, Comparable, Hashable {
@@ -7,6 +10,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         case let .framework(_, _, _, _, _, _, _, _, condition),
              let .library(_, _, _, _, condition),
              let .xcframework(_, _, _, _, condition),
+             let .foreignBuildOutput(_, _, condition),
              let .bundle(_, condition),
              let .product(_, _, _, condition),
              let .sdk(_, _, _, condition),
@@ -18,6 +22,11 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     }
 
     case macro(path: AbsolutePath)
+    case foreignBuildOutput(
+        path: AbsolutePath,
+        linking: BinaryLinking,
+        condition: PlatformCondition? = nil
+    )
     case xcframework(
         path: AbsolutePath,
         expectedSignature: String?,
@@ -86,13 +95,89 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 status: xcframework.status,
                 condition: condition
             )
+        case let .foreignBuildOutput(output):
+            self = .foreignBuildOutput(
+                path: output.path,
+                linking: output.linking,
+                condition: condition
+            )
         default:
             preconditionFailure("unsupported dependencies")
         }
     }
 
-    public func hash(into hasher: inout Hasher) {
-        Synthesized(dependencyReference: self).hash(into: &hasher)
+    /// Mirrors the compiler-synthesized equality with one exception: the xcframework case skips `infoPlist`, which is
+    /// read from the artifact at `path` and is therefore already implied by it. Comparing it is what made set
+    /// insertions on graphs full of substituted xcframeworks disproportionately expensive.
+    public static func == (lhs: GraphDependencyReference, rhs: GraphDependencyReference) -> Bool {
+        switch (lhs, rhs) {
+        case let (.macro(lhsPath), .macro(rhsPath)):
+            return lhsPath == rhsPath
+        case let (
+            .foreignBuildOutput(lhsPath, lhsLinking, lhsCondition),
+            .foreignBuildOutput(rhsPath, rhsLinking, rhsCondition)
+        ):
+            return lhsPath == rhsPath && lhsLinking == rhsLinking && lhsCondition == rhsCondition
+        case let (
+            .xcframework(lhsPath, lhsSignature, _, lhsStatus, lhsCondition),
+            .xcframework(rhsPath, rhsSignature, _, rhsStatus, rhsCondition)
+        ):
+            return lhsPath == rhsPath && lhsSignature == rhsSignature && lhsStatus == rhsStatus &&
+                lhsCondition == rhsCondition
+        case let (
+            .library(lhsPath, lhsLinking, lhsArchitectures, lhsProduct, lhsCondition),
+            .library(rhsPath, rhsLinking, rhsArchitectures, rhsProduct, rhsCondition)
+        ):
+            return lhsPath == rhsPath && lhsLinking == rhsLinking && lhsArchitectures == rhsArchitectures &&
+                lhsProduct == rhsProduct && lhsCondition == rhsCondition
+        case let (
+            .framework(
+                lhsPath,
+                lhsBinary,
+                lhsDsym,
+                lhsBcsymbolmaps,
+                lhsLinking,
+                lhsArchitectures,
+                lhsProduct,
+                lhsStatus,
+                lhsCondition
+            ),
+            .framework(
+                rhsPath,
+                rhsBinary,
+                rhsDsym,
+                rhsBcsymbolmaps,
+                rhsLinking,
+                rhsArchitectures,
+                rhsProduct,
+                rhsStatus,
+                rhsCondition
+            )
+        ):
+            return lhsPath == rhsPath && lhsBinary == rhsBinary && lhsDsym == rhsDsym &&
+                lhsBcsymbolmaps == rhsBcsymbolmaps && lhsLinking == rhsLinking &&
+                lhsArchitectures == rhsArchitectures && lhsProduct == rhsProduct && lhsStatus == rhsStatus &&
+                lhsCondition == rhsCondition
+        case let (.bundle(lhsPath, lhsCondition), .bundle(rhsPath, rhsCondition)):
+            return lhsPath == rhsPath && lhsCondition == rhsCondition
+        case let (
+            .product(lhsTarget, lhsProductName, lhsStatus, lhsCondition),
+            .product(rhsTarget, rhsProductName, rhsStatus, rhsCondition)
+        ):
+            return lhsTarget == rhsTarget && lhsProductName == rhsProductName && lhsStatus == rhsStatus &&
+                lhsCondition == rhsCondition
+        case let (
+            .sdk(lhsPath, lhsStatus, lhsSource, lhsCondition),
+            .sdk(rhsPath, rhsStatus, rhsSource, rhsCondition)
+        ):
+            return lhsPath == rhsPath && lhsStatus == rhsStatus && lhsSource == rhsSource &&
+                lhsCondition == rhsCondition
+        case let (.packageProduct(lhsProduct, lhsCondition), .packageProduct(rhsProduct, rhsCondition)):
+            return lhsProduct == rhsProduct && lhsCondition == rhsCondition
+        case (.macro, _), (.foreignBuildOutput, _), (.xcframework, _), (.library, _), (.framework, _),
+             (.bundle, _), (.product, _), (.sdk, _), (.packageProduct, _):
+            return false
+        }
     }
 
     /// For dependencies that exists in the file system (precompiled frameworks & libraries),
@@ -104,6 +189,8 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         case let .library(path, _, _, _, _):
             return path
         case let .xcframework(path, _, _, _, _):
+            return path
+        case let .foreignBuildOutput(path, _, _):
             return path
         default:
             return nil
@@ -118,6 +205,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     /// where only the required subset of properties are used.
     private enum Synthesized: Comparable, Hashable {
         case macro(path: AbsolutePath)
+        case foreignBuildOutput(path: AbsolutePath, condition: PlatformCondition?)
         case sdk(path: AbsolutePath, condition: PlatformCondition?)
         case product(target: String, productName: String, condition: PlatformCondition?)
         case library(path: AbsolutePath, condition: PlatformCondition?)
@@ -130,6 +218,8 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
             switch dependencyReference {
             case let .macro(path):
                 self = .macro(path: path)
+            case let .foreignBuildOutput(path, _, condition):
+                self = .foreignBuildOutput(path: path, condition: condition)
             case .xcframework(
                 let path,
                 let expectedSignature,
@@ -161,20 +251,8 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
             }
         }
     }
-}
 
-extension PlatformCondition?: Swift.Comparable {
-    public static func < (lhs: Optional, rhs: Optional) -> Bool {
-        guard let lhs else { return false }
-        guard let rhs else { return true }
-        return lhs < rhs
-    }
-}
-
-#if DEBUG
-    import TuistSupport
-
-    extension GraphDependencyReference {
+    #if DEBUG
         public static func testFramework(
             path: AbsolutePath = "/frameworks/tuist.framework",
             binaryPath: AbsolutePath = "/frameworks/tuist.framework/tuist",
@@ -272,5 +350,62 @@ extension PlatformCondition?: Swift.Comparable {
                 condition: condition
             )
         }
+    #endif
+}
+
+// MARK: - Hashable
+
+extension GraphDependencyReference {
+    /// Hashes the same subset of properties `Synthesized` does, but without building one. These references are
+    /// hashed millions of times over a large graph — once per set insertion and again per collision check — and
+    /// the intermediate value copied a path out of the reference on each of them.
+    public func hash(into hasher: inout Hasher) {
+        switch self {
+        case let .macro(path):
+            hasher.combine(0)
+            hasher.combine(path)
+        case let .foreignBuildOutput(path, _, condition):
+            hasher.combine(1)
+            hasher.combine(path)
+            hasher.combine(condition)
+        case let .xcframework(path, expectedSignature, _, _, condition):
+            hasher.combine(2)
+            hasher.combine(path)
+            hasher.combine(expectedSignature ?? "")
+            hasher.combine(condition)
+        case let .library(path, _, _, _, condition):
+            hasher.combine(3)
+            hasher.combine(path)
+            hasher.combine(condition)
+        case let .framework(path, _, _, _, _, _, _, _, condition):
+            hasher.combine(4)
+            hasher.combine(path)
+            hasher.combine(condition)
+        case let .bundle(path, condition):
+            hasher.combine(5)
+            hasher.combine(path)
+            hasher.combine(condition)
+        case let .product(target, productName, _, condition):
+            hasher.combine(6)
+            hasher.combine(target)
+            hasher.combine(productName)
+            hasher.combine(condition)
+        case let .sdk(path, _, _, condition):
+            hasher.combine(7)
+            hasher.combine(path)
+            hasher.combine(condition)
+        case let .packageProduct(product, condition):
+            hasher.combine(8)
+            hasher.combine(product)
+            hasher.combine(condition)
+        }
     }
-#endif
+}
+
+extension PlatformCondition?: Swift.Comparable {
+    public static func < (lhs: Optional, rhs: Optional) -> Bool {
+        guard let lhs else { return false }
+        guard let rhs else { return true }
+        return lhs < rhs
+    }
+}

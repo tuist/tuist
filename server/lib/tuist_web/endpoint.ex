@@ -1,18 +1,30 @@
 defmodule TuistWeb.Endpoint do
+  use Sentry.PlugCapture
   use Phoenix.Endpoint, otp_app: :tuist
 
   # The session will be stored in the cookie and signed,
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
+  alias TuistWeb.CodeReloader
+  alias TuistWeb.Plugs.GitHubWebhookLoggingPlug
+  alias TuistWeb.Plugs.MarketingStaticAssetObservabilityPlug
   alias TuistWeb.Plugs.WebhookPlug
+  alias TuistWeb.Webhooks.BazelActionsController
   alias TuistWeb.Webhooks.BillingController
   alias TuistWeb.Webhooks.GitHubController
 
+  # Browser cookies are scoped to host and ignore the port, so every dev
+  # server on localhost otherwise shares one session cookie: loading a
+  # page on one port rewrites the session another port's form embedded
+  # its CSRF token into, and the next form post there fails as an
+  # invalid CSRF token. Dev derives the name from the port to give each
+  # server its own cookie; every other environment keeps `_tuist_key`.
   @session_options [
     store: :cookie,
-    key: "_tuist_key",
+    key: Application.compile_env(:tuist, :session_cookie_key, "_tuist_key"),
     signing_salt: "tmgjS63H",
-    same_site: "Lax"
+    same_site: "Lax",
+    secure: Application.compile_env(:tuist, :session_cookie_secure, false)
   ]
 
   socket "/live", Phoenix.LiveView.Socket,
@@ -23,26 +35,32 @@ defmodule TuistWeb.Endpoint do
     websocket: true,
     longpoll: false
 
+  plug TuistWeb.Plugs.DrainingPlug
+
   # Serve at "/" the static files from "priv/static" directory.
   #
   # You should set gzip to true if you are running phx.digest
   # when deploying your static files in production.
+  plug MarketingStaticAssetObservabilityPlug
+
+  plug Plug.Static,
+    at: "/docs/images",
+    from: {:tuist, "priv/docs/images"},
+    gzip: false
+
   plug Plug.Static,
     at: "/",
     from: :tuist,
-    gzip: false,
+    gzip: true,
+    cache_control_for_etags: "public, max-age=0, must-revalidate",
     only: TuistWeb.static_paths()
-
-  if Code.ensure_loaded?(Tidewave) do
-    plug Tidewave
-  end
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
   if code_reloading? do
     socket "/phoenix/live_reload/socket", Phoenix.LiveReloader.Socket
     plug Phoenix.LiveReloader
-    plug Phoenix.CodeReloader
+    plug Phoenix.CodeReloader, reloader: &CodeReloader.reload/2
     plug Phoenix.Ecto.CheckRepoStatus, otp_app: :tuist
   end
 
@@ -51,9 +69,12 @@ defmodule TuistWeb.Endpoint do
     cookie_key: "request_logger"
 
   plug Plug.RequestId
-  plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
-  plug TuistCommon.Plugs.RequestContextPlug, enabled_fn: &Tuist.Environment.error_tracking_enabled?/0
-  plug TuistCommon.Plugs.AppsignalSamplingPlug, sampled_controllers: [TuistWeb.API.CacheController]
+  plug TuistCommon.OtelRequestIdPlug
+  plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint], log: false
+  plug TuistCommon.RequestLoggerPlug
+  plug TuistWeb.Plugs.RequestKindPlug
+  plug TuistWeb.Plugs.SCIMErrorFormatPlug
+  plug Sentry.PlugContext, header_scrubber: {__MODULE__, :scrub_sentry_headers}
   plug TuistWeb.Plugs.CloseConnectionOnErrorPlug
 
   plug Stripe.WebhookPlug,
@@ -61,12 +82,17 @@ defmodule TuistWeb.Endpoint do
     handler: BillingController,
     secret: {Tuist.Environment, :stripe_endpoint_secret, []}
 
+  plug GitHubWebhookLoggingPlug
+
   plug WebhookPlug,
     at: "/webhooks/github",
     handler: GitHubController,
-    secret: {Tuist.Environment, :github_app_webhook_secret, []},
+    secret: &GitHubController.resolve_webhook_secret/1,
     signature_header: "x-hub-signature-256",
-    signature_prefix: "sha256="
+    signature_prefix: "sha256=",
+    # The GitHub webhook events we handle are small, so fail fast on slow bodies.
+    read_timeout: 5_000,
+    body_length: 262_144
 
   plug WebhookPlug,
     at: "/webhooks/cache",
@@ -74,13 +100,75 @@ defmodule TuistWeb.Endpoint do
     secret: {Tuist.Environment, :cache_api_key, []},
     signature_header: "x-cache-signature"
 
+  plug WebhookPlug,
+    at: "/webhooks/gradle-cache",
+    handler: TuistWeb.Webhooks.GradleCacheController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature"
+
+  plug WebhookPlug,
+    at: "/webhooks/reapi-cache",
+    handler: TuistWeb.Webhooks.ReapiCacheController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature"
+
+  plug WebhookPlug,
+    at: "/webhooks/bazel-invocations",
+    handler: TuistWeb.Webhooks.BazelInvocationsController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature"
+
+  plug WebhookPlug,
+    at: "/webhooks/bazel-actions/batch",
+    handler: BazelActionsController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature",
+    body_length: 12_000_000
+
+  plug WebhookPlug,
+    at: "/webhooks/bazel-actions",
+    handler: BazelActionsController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature",
+    body_length: 512_000
+
+  plug WebhookPlug,
+    at: "/webhooks/bazel-profiles",
+    handler: TuistWeb.Webhooks.BazelProfilesController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature",
+    body_length: 45_000_000
+
+  plug WebhookPlug,
+    at: "/webhooks/bazel-test-artifacts",
+    handler: TuistWeb.Webhooks.BazelTestArtifactsController,
+    secret: {Tuist.Environment, :cache_api_key, []},
+    signature_header: "x-cache-signature",
+    body_length: 512_000
+
+  plug TuistWeb.Plugs.OriginWebhookPlug
+
+  plug TuistWeb.Plugs.BrowserTelemetryPlug, session_options: @session_options
+
+  # The /api/runs endpoint can receive large payloads (files, cacheable_tasks, cas_outputs)
+  # for projects with thousands of files. 50MB should accommodate most projects.
+  # TODO: Consider streaming large arrays instead of loading everything into memory.
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
-    json_decoder: Phoenix.json_library()
+    json_decoder: Phoenix.json_library(),
+    body_reader: {TuistWeb.Plugs.DeflateBodyReader, :read_body, []},
+    length: 50_000_000
 
   plug Plug.MethodOverride
   plug Plug.Head
   plug Plug.Session, @session_options
   plug TuistWeb.Router
+
+  # Sentry only scrubs authorization, authentication and cookie by default.
+  def scrub_sentry_headers(conn) do
+    conn
+    |> Sentry.PlugContext.default_header_scrubber()
+    |> Map.drop(["x-tuist-actor-id" | TuistWeb.OperatorGrant.credential_headers()])
+  end
 end

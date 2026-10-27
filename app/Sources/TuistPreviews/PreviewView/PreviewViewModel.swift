@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import TuistAuthentication
 import TuistServer
 
 @Observable
@@ -43,7 +44,7 @@ final class PreviewViewModel: Sendable {
         isLoading _: Bool,
         fullHandle: String,
         deletePreviewService: DeletePreviewServicing = DeletePreviewService(),
-        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        serverEnvironmentService: ServerEnvironmentServicing = AppServerEnvironmentService(),
         getPreviewService: GetPreviewServicing = GetPreviewService()
     ) {
         self.preview = preview
@@ -60,10 +61,12 @@ final class PreviewViewModel: Sendable {
         isLoading = true
         defer { isLoading = false }
 
-        preview = try await getPreviewService.getPreview(
-            previewId,
-            fullHandle: fullHandle,
-            serverURL: serverEnvironmentService.url()
+        preview = try await ServerPreview(
+            getPreviewService.getPreview(
+                previewId,
+                fullHandle: fullHandle,
+                serverURL: serverEnvironmentService.url()
+            )
         )
     }
 

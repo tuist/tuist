@@ -1,10 +1,13 @@
-import _NIOFileSystem
 import FileSystem
 import Foundation
 import Path
 import ProjectDescription
+import TuistConstants
 import TuistCore
+import TuistEnvironment
+import TuistLogging
 import TuistSupport
+import TuistThreadSafe
 import XcodeGraph
 
 /// Cached Manifest Loader
@@ -165,12 +168,27 @@ public class CachedManifestLoader: ManifestLoading {
 
         let loadedManifest = try await loader()
 
-        try await cacheManifest(
-            manifest: manifest,
-            loadedManifest: loadedManifest,
-            hashes: hashes,
-            to: cachedManifestPath
-        )
+        // Writing the cache entry is an optimization, and failing to write one must never fail the
+        // command: the manifest has already been loaded successfully at this point, and everything
+        // downstream needs the value, not the cache.
+        //
+        // It used to throw, and the blast radius was the whole CLI rather than this one manifest.
+        // `TuistCommand` loads the config manifest before it parses the subcommand, so on a runner
+        // whose cache volume had filled up, every command for that account died on
+        // `Failed to create temp file in '…/Manifests': No space left on device (errno=28)` — a
+        // `tuist auth login` that never got as far as authenticating. A full cache should cost a
+        // cold build, not the build.
+        do {
+            try await cacheManifest(
+                manifest: manifest,
+                loadedManifest: loadedManifest,
+                hashes: hashes,
+                to: cachedManifestPath
+            )
+        } catch {
+            Logger.current
+                .warning("Unable to cache the \(manifest.fileName(path)) manifest at path: \(cachedManifestPath). \(error)")
+        }
 
         return loadedManifest
     }
@@ -269,7 +287,9 @@ public class CachedManifestLoader: ManifestLoading {
             return nil
         }
 
-        return try? decoder.decode(T.self, from: cachedManifest.manifest)
+        guard let manifest = try? decoder.decode(T.self, from: cachedManifest.manifest) else { return nil }
+        await fileSystem.markCacheEntryUsed(at: cachedManifestPath)
+        return manifest
     }
 
     private func cacheManifest(
@@ -288,28 +308,11 @@ public class CachedManifestLoader: ManifestLoading {
         guard let cachedManifestContent = String(data: cachedManifestData, encoding: .utf8) else {
             throw ManifestLoaderError.manifestCachingFailed(manifest, cachedManifestPath)
         }
-        do {
-            try await write(cachedManifestContent: cachedManifestContent, to: cachedManifestPath)
-        } catch let error as _NIOFileSystem.FileSystemError {
-            if error.code == .fileAlreadyExists {
-                Logger.current.debug("The manifest at \(cachedManifestPath) is already cached, skipping...")
-            } else {
-                throw error
-            }
-        }
-    }
-
-    private func write(cachedManifestContent: String, to cachedManifestPath: AbsolutePath) async throws {
-        if try await !fileSystem.exists(cachedManifestPath.parentDirectory, isDirectory: true) {
-            try await fileSystem.makeDirectory(at: cachedManifestPath)
-        }
-        if try await fileSystem.exists(cachedManifestPath) {
-            try await fileSystem.remove(cachedManifestPath)
-        }
-        try await fileSystem.writeText(
-            cachedManifestContent,
-            at: cachedManifestPath
+        try await fileSystem.makeDirectory(
+            at: cachedManifestPath.parentDirectory,
+            options: [.createTargetParentDirectories]
         )
+        try await fileSystem.writeText(cachedManifestContent, at: cachedManifestPath)
     }
 }
 

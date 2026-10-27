@@ -1,0 +1,7 @@
+# Placeholder for static Helm validation of the self-hosted configuration.
+# The server is never started by this profile, and the deliberately invalid
+# value proves the chart requires an explicit license source without placing
+# a real license in source control.
+server:
+  license:
+    key: self-hosted-validation-not-a-valid-license

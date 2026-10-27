@@ -228,5 +228,35 @@ defmodule TuistWeb.AuthorizationTest do
         project_handle: project.name
       })
     end
+
+    test "returns the project if a user can read the given project struct", %{user: user} do
+      # Given
+      project = ProjectsFixtures.project_fixture(account_id: user.account.id)
+
+      # When
+      got =
+        Authorization.require_user_can_read_project(%{
+          user: user,
+          project: project
+        })
+
+      # Then
+      assert got == project
+    end
+
+    test "raises NotFoundError if a user can't read the given project struct", %{user: user} do
+      # Given
+      organization = AccountsFixtures.organization_fixture()
+      account = Accounts.get_account_from_organization(organization)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+
+      # When / Then
+      assert_raise NotFoundError, fn ->
+        Authorization.require_user_can_read_project(%{
+          user: user,
+          project: project
+        })
+      end
+    end
   end
 end

@@ -4,13 +4,19 @@ defmodule TuistWeb.ModuleCacheLive do
   use Noora
 
   import Ecto.Query
+  import TuistWeb.Components.ChartTypeToggle
   import TuistWeb.Components.EmptyCardSection
+  import TuistWeb.Components.ErrorCardSection
+  import TuistWeb.Components.ModuleInvalidationsTable
+  import TuistWeb.Components.ScatterChart
+  import TuistWeb.Components.Skeleton
   import TuistWeb.PercentileDropdownWidget
   import TuistWeb.Runs.RanByBadge
 
+  alias Phoenix.LiveView.AsyncResult
+  alias Tuist.Builds.Analytics
   alias Tuist.CommandEvents
   alias Tuist.CommandEvents.Event
-  alias Tuist.Runs.Analytics
   alias TuistWeb.Helpers.DatePicker
   alias TuistWeb.Helpers.OpenGraph
   alias TuistWeb.Utilities.Query
@@ -21,16 +27,19 @@ defmodule TuistWeb.ModuleCacheLive do
     socket =
       socket
       |> assign(:head_title, "#{dgettext("dashboard_cache", "Module Cache")} · #{slug} · Tuist")
-      |> assign(OpenGraph.og_image_assigns("module-cache"))
-
-    if connected?(socket) do
-      Tuist.PubSub.subscribe("#{account.name}/#{project.name}")
-    end
+      |> assign(
+        OpenGraph.project_image_assigns(project,
+          title: dgettext("dashboard_cache", "Module Cache"),
+          fallback: "module-cache"
+        )
+      )
 
     {:ok, socket}
   end
 
-  def handle_params(params, _uri, socket) do
+  def handle_params(_params, uri, socket) do
+    params = Query.query_params(uri)
+
     uri =
       URI.new!(
         "?" <>
@@ -38,8 +47,12 @@ defmodule TuistWeb.ModuleCacheLive do
             Map.take(params, [
               "analytics-selected-widget",
               "analytics-environment",
+              "analytics-branch",
               "analytics-date-range",
-              "hit-rate-type"
+              "analytics-start-date",
+              "analytics-end-date",
+              "hit-rate-type",
+              "cache-hit-rate-chart-type"
             ])
           )
       )
@@ -51,23 +64,33 @@ defmodule TuistWeb.ModuleCacheLive do
       |> assign(:current_params, params)
       |> assign_analytics(params)
       |> assign_recent_runs(params)
+      |> assign_module_invalidations(params)
     }
   end
 
-  def handle_event(
-        "select_widget",
-        %{"widget" => widget},
-        %{assigns: %{selected_account: selected_account, selected_project: selected_project, uri: uri}} = socket
-      ) do
-    socket =
-      push_patch(
-        socket,
-        to:
-          "/#{selected_account.name}/#{selected_project.name}/module-cache?#{Query.put(uri.query, "analytics-selected-widget", widget)}",
-        replace: true
-      )
+  def handle_event("select_widget", %{"widget" => widget}, socket) do
+    query = Query.put(socket.assigns.uri.query, "analytics-selected-widget", widget)
+    uri = URI.new!("?" <> query)
 
-    {:noreply, socket}
+    socket =
+      socket
+      |> assign(:analytics_selected_widget, widget)
+      |> assign(:uri, uri)
+      |> push_event("replace-url", %{url: "?" <> query})
+
+    if socket.assigns.hit_rate_analytics.ok? do
+      chart_data =
+        analytics_chart_data(
+          widget,
+          socket.assigns.hits_analytics.result,
+          socket.assigns.misses_analytics.result,
+          socket.assigns.hit_rate_analytics.result
+        )
+
+      {:noreply, assign(socket, :analytics_chart_data, %{socket.assigns.analytics_chart_data | result: chart_data})}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event(
@@ -84,6 +107,19 @@ defmodule TuistWeb.ModuleCacheLive do
       )
 
     {:noreply, socket}
+  end
+
+  def handle_event("select_cache_hit_rate_chart_type", %{"type" => type}, socket) do
+    query = Query.put(socket.assigns.uri.query, "cache-hit-rate-chart-type", type)
+    uri = URI.new!("?" <> query)
+    opts = analytics_opts(socket.assigns)
+
+    {:noreply,
+     socket
+     |> assign(:cache_hit_rate_chart_type, type)
+     |> assign(:uri, uri)
+     |> push_event("replace-url", %{url: "?" <> query})
+     |> assign_cache_hit_rate_chart(type, opts)}
   end
 
   def handle_event(
@@ -104,137 +140,264 @@ defmodule TuistWeb.ModuleCacheLive do
     {:noreply, push_patch(socket, to: "/#{selected_account.name}/#{selected_project.name}/module-cache?#{query_params}")}
   end
 
-  def handle_info({:command_event_created, _event}, socket) do
-    {:noreply,
-     socket
-     |> assign_analytics(socket.assigns.current_params)
-     |> assign_recent_runs(socket.assigns.current_params)}
-  end
-
   def handle_info(_event, socket) do
     {:noreply, socket}
   end
 
-  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp assign_analytics(%{assigns: %{selected_project: project}} = socket, params) do
     analytics_environment = params["analytics-environment"] || "any"
 
-    %{preset: preset, period: {start_datetime, end_datetime} = period} =
-      DatePicker.date_picker_params(params, "analytics")
+    %{preset: preset, period: period} = DatePicker.date_picker_params(params, "analytics")
 
-    opts = [
-      project_id: project.id,
-      start_datetime: start_datetime,
-      end_datetime: end_datetime
-    ]
+    analytics_selected_widget = params["analytics-selected-widget"] || "cache_hit_rate"
+    cache_hit_rate_chart_type = params["cache-hit-rate-chart-type"] || "line"
+
+    socket =
+      socket
+      |> assign(:analytics_preset, preset)
+      |> assign(:analytics_period, period)
+      |> assign(:analytics_trend_label, analytics_trend_label(preset))
+      |> assign(:analytics_selected_widget, analytics_selected_widget)
+      |> assign(:analytics_environment, analytics_environment)
+      |> assign(:analytics_branch, params["analytics-branch"] || "any")
+      |> assign(:selected_hit_rate_type, params["hit-rate-type"] || "avg")
+      |> assign(:cache_hit_rate_chart_type, cache_hit_rate_chart_type)
+
+    opts = analytics_opts(socket.assigns)
+
+    socket
+    |> assign_async([:hit_rate_analytics, :hits_analytics, :misses_analytics, :analytics_chart_data], fn ->
+      hit_rate_analytics = Analytics.module_cache_hit_rate_analytics(opts)
+      hits_analytics = Analytics.module_cache_hits_analytics(opts)
+      misses_analytics = Analytics.module_cache_misses_analytics(opts)
+
+      {:ok,
+       %{
+         hit_rate_analytics: hit_rate_analytics,
+         hits_analytics: hits_analytics,
+         misses_analytics: misses_analytics,
+         analytics_chart_data:
+           analytics_chart_data(
+             analytics_selected_widget,
+             hits_analytics,
+             misses_analytics,
+             hit_rate_analytics
+           )
+       }}
+    end)
+    |> assign_async(:hit_rate_p99, fn ->
+      {:ok, %{hit_rate_p99: Analytics.module_cache_hit_rate_percentile(project.id, 0.99, opts)}}
+    end)
+    |> assign_async(:hit_rate_p90, fn ->
+      {:ok, %{hit_rate_p90: Analytics.module_cache_hit_rate_percentile(project.id, 0.9, opts)}}
+    end)
+    |> assign_async(:hit_rate_p50, fn ->
+      {:ok, %{hit_rate_p50: Analytics.module_cache_hit_rate_percentile(project.id, 0.5, opts)}}
+    end)
+    |> assign_cache_hit_rate_chart(cache_hit_rate_chart_type, opts)
+  end
+
+  defp assign_cache_hit_rate_chart(socket, "scatter", opts) do
+    assign_async(socket, :cache_hit_rate_chart, fn ->
+      {:ok,
+       %{cache_hit_rate_chart: {:scatter, opts |> Analytics.module_cache_hit_rate_scatter_data() |> with_tooltip_extra()}}}
+    end)
+  end
+
+  defp assign_cache_hit_rate_chart(socket, _line, _opts) do
+    assign(socket, :cache_hit_rate_chart, AsyncResult.ok(:line))
+  end
+
+  defp analytics_opts(
+         %{selected_project: project, analytics_period: {start_datetime, end_datetime}, analytics_environment: env} =
+           assigns
+       ) do
+    opts = [project_id: project.id, start_datetime: start_datetime, end_datetime: end_datetime]
 
     opts =
-      case analytics_environment do
+      case env do
         "ci" -> Keyword.put(opts, :is_ci, true)
         "local" -> Keyword.put(opts, :is_ci, false)
         _ -> opts
       end
 
-    # Get analytics from Analytics module (runs queries in parallel)
-    [hit_rate_analytics, hits_analytics, misses_analytics, hit_rate_p99, hit_rate_p90, hit_rate_p50] =
-      combined_module_cache_analytics(project.id, opts)
-
-    analytics_selected_widget = params["analytics-selected-widget"] || "cache_hit_rate"
-
-    analytics_chart_data =
-      case analytics_selected_widget do
-        "cache_hits" ->
-          %{
-            dates: hits_analytics.dates,
-            values: hits_analytics.values,
-            name: dgettext("dashboard_cache", "Cache hits"),
-            value_formatter: "{value}"
-          }
-
-        "cache_misses" ->
-          %{
-            dates: misses_analytics.dates,
-            values: misses_analytics.values,
-            name: dgettext("dashboard_cache", "Cache misses"),
-            value_formatter: "{value}"
-          }
-
-        "cache_hit_rate" ->
-          %{
-            dates: hit_rate_analytics.dates,
-            values: hit_rate_analytics.values,
-            name: dgettext("dashboard_cache", "Cache hit rate"),
-            value_formatter: "{value}%"
-          }
-      end
-
-    socket
-    |> assign(:analytics_preset, preset)
-    |> assign(:analytics_period, period)
-    |> assign(:analytics_trend_label, analytics_trend_label(preset))
-    |> assign(:analytics_selected_widget, analytics_selected_widget)
-    |> assign(:analytics_environment, analytics_environment)
-    |> assign(:hit_rate_analytics, hit_rate_analytics)
-    |> assign(:hit_rate_p99, hit_rate_p99)
-    |> assign(:hit_rate_p90, hit_rate_p90)
-    |> assign(:hit_rate_p50, hit_rate_p50)
-    |> assign(:hits_analytics, hits_analytics)
-    |> assign(:misses_analytics, misses_analytics)
-    |> assign(:selected_hit_rate_type, params["hit-rate-type"] || "avg")
-    |> assign(:analytics_chart_data, analytics_chart_data)
+    case Map.get(assigns, :analytics_branch, "any") do
+      "any" -> opts
+      branch -> Keyword.put(opts, :git_branch, branch)
+    end
   end
 
   defp assign_recent_runs(%{assigns: %{selected_project: project}} = socket, _params) do
-    # Add 14-day filter to leverage ClickHouse partition pruning and reduce rows scanned
-    fourteen_days_ago = DateTime.add(DateTime.utc_now(), -14, :day)
+    {start_datetime, end_datetime} = socket.assigns.analytics_period
+    analytics_environment = socket.assigns.analytics_environment
+    analytics_branch = socket.assigns.analytics_branch
 
-    events =
-      from(e in Event,
-        where:
-          e.project_id == ^project.id and
-            e.cacheable_targets_count > 0 and
-            e.ran_at >= ^fourteen_days_ago,
-        order_by: [desc: e.ran_at],
-        limit: 40
-      )
-      |> Tuist.ClickHouseRepo.all()
-      |> Enum.map(&Event.normalize_enums/1)
+    assign_async(socket, [:runs, :recent_runs_chart_data, :avg_recent_hit_rate], fn ->
+      base_query =
+        from(e in {"command_events_by_ran_at", Event},
+          where:
+            e.project_id == ^project.id and
+              e.cacheable_targets_count > 0 and
+              e.ran_at >= ^start_datetime and
+              e.ran_at <= ^end_datetime,
+          order_by: [desc: e.ran_at],
+          select: e.id,
+          limit: 40
+        )
 
-    user_map = CommandEvents.get_user_account_names_for_runs(events)
+      base_query =
+        base_query
+        |> scope_runs_to_environment(analytics_environment)
+        |> scope_runs_to_branch(analytics_branch)
 
-    events =
-      Enum.map(events, fn event ->
-        Map.put(event, :user_account_name, Map.get(user_map, event.id))
-      end)
+      event_ids = Tuist.ClickHouseRepo.all(base_query)
 
-    recent_runs_chart_data =
-      events
-      |> Enum.reverse()
-      |> Enum.map(fn event ->
-        hit_rate = cache_hit_rate(event)
+      events =
+        Event
+        |> where(
+          [e],
+          e.project_id == ^project.id and e.id in ^event_ids and e.ran_at >= ^start_datetime and e.ran_at <= ^end_datetime
+        )
+        |> order_by([e], desc: e.ran_at)
+        |> Tuist.ClickHouseRepo.all()
+        |> Enum.map(&Event.normalize_enums/1)
 
-        %{
-          value: hit_rate,
-          date: event.ran_at
-        }
-      end)
+      events = Tuist.ReportActor.preload(events)
+      user_map = CommandEvents.get_user_account_names_for_runs(events)
 
-    avg_recent_hit_rate =
-      if Enum.empty?(recent_runs_chart_data) do
-        0.0
-      else
-        total =
-          recent_runs_chart_data
-          |> Enum.map(& &1.value)
-          |> Enum.sum()
+      events =
+        Enum.map(events, fn event ->
+          Map.put(event, :user_account_name, Map.get(user_map, event.id))
+        end)
 
-        Float.round(total / length(recent_runs_chart_data), 1)
-      end
+      reversed_events = Enum.reverse(events)
 
-    socket
-    |> assign(:runs, events)
-    |> assign(:recent_runs_chart_data, recent_runs_chart_data)
-    |> assign(:avg_recent_hit_rate, avg_recent_hit_rate)
+      recent_runs_chart_data =
+        Enum.map(reversed_events, fn event ->
+          hit_rate = cache_hit_rate(event)
+
+          %{
+            value: hit_rate,
+            date: event.ran_at,
+            url: ~p"/#{project.account.name}/#{project.name}/runs/#{event.id}"
+          }
+        end)
+
+      avg_recent_hit_rate =
+        if Enum.empty?(recent_runs_chart_data) do
+          0.0
+        else
+          total =
+            recent_runs_chart_data
+            |> Enum.map(& &1.value)
+            |> Enum.sum()
+
+          Float.round(total / length(recent_runs_chart_data), 1)
+        end
+
+      {:ok,
+       %{
+         runs: events,
+         recent_runs_chart_data: recent_runs_chart_data,
+         avg_recent_hit_rate: avg_recent_hit_rate
+       }}
+    end)
+  end
+
+  # One row per module, so this bounds the project's module count rather than a
+  # growing event stream.
+  @summary_module_limit 5_000
+
+  defp scope_runs_to_environment(query, "ci"), do: from(e in query, where: e.is_ci == true)
+  defp scope_runs_to_environment(query, "local"), do: from(e in query, where: e.is_ci == false)
+  defp scope_runs_to_environment(query, _any), do: query
+
+  # Without this the page shows a branch-scoped card above an unscoped list.
+  defp scope_runs_to_branch(query, "any"), do: query
+  defp scope_runs_to_branch(query, branch), do: from(e in query, where: e.git_branch == ^branch)
+
+  defp assign_module_invalidations(%{assigns: %{selected_project: project}} = socket, _params) do
+    opts = analytics_opts(socket.assigns)
+
+    if opts == socket.assigns[:module_invalidations_opts] do
+      socket
+    else
+      socket
+      |> assign(:module_invalidations_opts, opts)
+      |> assign_module_invalidations_async(opts, project)
+    end
+  end
+
+  # Widget and chart-type selections patch the URL, which re-runs handle_params.
+  # Without this guard each of those pays for the module query, the branch list
+  # and the summary again.
+  defp assign_module_invalidations_async(socket, opts, project) do
+    {start_datetime, end_datetime} = socket.assigns.analytics_period
+
+    assign_async(socket, [:module_invalidations, :module_invalidations_summary, :cache_branches], fn ->
+      # The summary ranks and shares across every module, so it cannot be
+      # computed from the handful of rows the card lists.
+      invalidations = opts |> Keyword.put(:limit, @summary_module_limit) |> Analytics.module_invalidations()
+
+      branches =
+        Analytics.cache_branches(
+          project_id: project.id,
+          start_datetime: start_datetime,
+          end_datetime: end_datetime
+        )
+
+      {:ok,
+       %{
+         module_invalidations: invalidations,
+         module_invalidations_summary: summarize_invalidations(invalidations),
+         cache_branches: branches
+       }}
+    end)
+  end
+
+  defp summarize_invalidations([]), do: nil
+
+  defp summarize_invalidations(modules) do
+    with_blast_radius = Enum.filter(modules, & &1.blast_radius)
+    total_self_changes = Enum.sum(Enum.map(modules, & &1.self_changes))
+    total_dependency_induced = Enum.sum(Enum.map(modules, & &1.dependency_induced))
+    classified = total_self_changes + total_dependency_induced
+
+    %{
+      most_invalidated: Enum.max_by(modules, & &1.invalidations),
+      widest_blast_radius: with_blast_radius != [] && Enum.max_by(with_blast_radius, & &1.blast_radius),
+      total_self_changes: total_self_changes,
+      total_dependency_induced: total_dependency_induced,
+      dependency_induced_share:
+        if(classified > 0, do: Float.round(total_dependency_induced / classified * 100, 1), else: 0.0)
+    }
+  end
+
+  defp analytics_chart_data("cache_hits", hits_analytics, _misses_analytics, _hit_rate_analytics) do
+    %{
+      dates: hits_analytics.dates,
+      values: hits_analytics.values,
+      name: dgettext("dashboard_cache", "Cache hits"),
+      value_formatter: "{value}"
+    }
+  end
+
+  defp analytics_chart_data("cache_misses", _hits_analytics, misses_analytics, _hit_rate_analytics) do
+    %{
+      dates: misses_analytics.dates,
+      values: misses_analytics.values,
+      name: dgettext("dashboard_cache", "Cache misses"),
+      value_formatter: "{value}"
+    }
+  end
+
+  defp analytics_chart_data(_cache_hit_rate, _hits_analytics, _misses_analytics, hit_rate_analytics) do
+    %{
+      dates: hit_rate_analytics.dates,
+      values: hit_rate_analytics.values,
+      name: dgettext("dashboard_cache", "Cache hit rate"),
+      value_formatter: "{value}%"
+    }
   end
 
   def cache_hit_rate(event) do
@@ -255,20 +418,34 @@ defmodule TuistWeb.ModuleCacheLive do
   defp analytics_trend_label("custom"), do: dgettext("dashboard_cache", "since last period")
   defp analytics_trend_label(_), do: dgettext("dashboard_cache", "since last month")
 
+  defp branch_label("any"), do: dgettext("dashboard_cache", "Any")
+  defp branch_label(branch), do: branch
+
   defp environment_label("any"), do: dgettext("dashboard_cache", "Any")
   defp environment_label("local"), do: dgettext("dashboard_cache", "Local")
   defp environment_label("ci"), do: dgettext("dashboard_cache", "CI")
+  defp environment_label(true), do: dgettext("dashboard_cache", "CI")
+  defp environment_label(false), do: dgettext("dashboard_cache", "Local")
 
-  defp combined_module_cache_analytics(project_id, opts) do
-    queries = [
-      fn -> Analytics.module_cache_hit_rate_analytics(opts) end,
-      fn -> Analytics.module_cache_hits_analytics(opts) end,
-      fn -> Analytics.module_cache_misses_analytics(opts) end,
-      fn -> Analytics.module_cache_hit_rate_percentile(project_id, 0.99, opts) end,
-      fn -> Analytics.module_cache_hit_rate_percentile(project_id, 0.9, opts) end,
-      fn -> Analytics.module_cache_hit_rate_percentile(project_id, 0.5, opts) end
+  defp with_tooltip_extra(scatter_data) do
+    Map.update!(scatter_data, :series, fn series ->
+      Enum.map(series, fn s ->
+        %{
+          name: environment_label(s.name),
+          data:
+            Enum.map(s.data, fn point ->
+              point
+              |> Map.take([:value, :id])
+              |> Map.put(:tooltipExtra, tooltip_extra(point.meta))
+            end)
+        }
+      end)
+    end)
+  end
+
+  defp tooltip_extra(meta) do
+    [
+      %{label: dgettext("dashboard_cache", "Environment"), value: environment_label(meta.is_ci)}
     ]
-
-    Tuist.Tasks.parallel_tasks(queries)
   end
 end

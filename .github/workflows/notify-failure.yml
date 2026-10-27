@@ -1,0 +1,99 @@
+name: Notify Slack on failure
+
+on:
+  workflow_run:
+    workflows:
+      - Android
+      - App
+      - Cache
+      - Cache Deploy
+      - Cache Release
+      - CLI
+      - CLI Cache EE
+      - CLI Canary Release
+      - CLI Promote to Stable
+      - CLI Release Candidate
+      - CNPG Restore Drill
+      - Gradle
+      - Gradle Cache Acceptance
+      - Gradle Release
+      - Handbook
+      - Hetzner Robot Controller Release
+      - Kura
+      - Mgmt Cluster Apply
+      - Noora
+      - Noora Storybook Deployment
+      - Processor
+      - Processor Deploy
+      - Runners Acceptance
+      - Secret Scanning
+      - Skills Release
+      - Slack
+      - Slack Deployment
+      - Server
+      - Server Deployment
+      - Server Native
+      - Server Kura Regional Deployment
+      - Server Production Deployment
+      - Tuist Ops Deployment
+      - tuist/tuist Tests
+      - Xcode Processor
+      - Xcode Processor Deploy
+    branches: [main]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  notify:
+    # The weekly CLI releases also alert when cancelled: they share the cli-publish
+    # concurrency group with canaries, and a newer queued run cancels a pending one.
+    # Scheduled Runners Acceptance runs alert when cancelled too: its dispatch
+    # watchdog cancels the run when no runner picks a probe up.
+    if: >-
+      github.repository == 'tuist/tuist' &&
+      (github.event.workflow_run.conclusion == 'failure' ||
+      (github.event.workflow_run.event != 'workflow_dispatch' &&
+      contains(fromJSON('["CLI Promote to Stable", "CLI Release Candidate"]'), github.event.workflow_run.name) &&
+      contains(fromJSON('["cancelled", "timed_out"]'), github.event.workflow_run.conclusion)) ||
+      (github.event.workflow_run.event == 'schedule' &&
+      github.event.workflow_run.name == 'Runners Acceptance' &&
+      github.event.workflow_run.conclusion == 'cancelled'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: 1password/install-cli-action@v2
+      - name: Load secrets from 1Password
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.CACHE_OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          SLACK_WEBHOOK_URL=$(op read 'op://cache/SLACK_WEBHOOK_URL/password')
+          echo "::add-mask::$SLACK_WEBHOOK_URL"
+          echo "SLACK_WEBHOOK_URL=$SLACK_WEBHOOK_URL" >> $GITHUB_ENV
+      - name: Build Slack payload
+        env:
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          EVENT: ${{ github.event.workflow_run.event }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          COMMIT_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          SHORT_SHA="${SHA:0:7}"
+          COMMIT_URL="${REPO_URL}/commit/${SHA}"
+          case "$CONCLUSION" in
+            cancelled) OUTCOME="was cancelled" ;;
+            timed_out) OUTCOME="timed out" ;;
+            *) OUTCOME="failed" ;;
+          esac
+          if [ "$EVENT" = "push" ]; then
+            TEXT=$(printf ':x: <%s|%s> %s on main for <%s|tuist%s>: %s' "$RUN_URL" "$WORKFLOW_NAME" "$OUTCOME" "$COMMIT_URL" "$SHORT_SHA" "$COMMIT_MESSAGE")
+          else
+            TEXT=$(printf ':x: <%s|%s> %s (triggered by %s)' "$RUN_URL" "$WORKFLOW_NAME" "$OUTCOME" "$EVENT")
+          fi
+          jq -n --arg text "$TEXT" '{text: $text}' > "$RUNNER_TEMP/slack-payload.json"
+      - uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload-file-path: ${{ runner.temp }}/slack-payload.json

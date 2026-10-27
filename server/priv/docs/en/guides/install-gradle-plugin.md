@@ -1,0 +1,120 @@
+---
+{
+  "title": "Install the Gradle plugin",
+  "titleTemplate": ":title · Guides · Tuist",
+  "description": "Learn how to install and configure Tuist's Gradle plugin in your project."
+}
+---
+# Install the Gradle plugin {#install-the-gradle-plugin}
+
+Tuist provides a Gradle plugin that integrates with your Gradle project to enable features like <.localized_link href="/guides/features/cache/gradle-cache">remote build caching</.localized_link> and <.localized_link href="/guides/features/build-insights/gradle">build insights</.localized_link>. This guide walks you through installing and configuring the plugin.
+
+The plugin requires Gradle 8.12.1 or later.
+
+## 1. Initialize Tuist {#initialize-tuist}
+
+Run the following command in your Gradle project root:
+
+::: code-group
+
+```bash [Mise]
+mise x tuist@latest -- tuist init
+```
+
+```bash [Global Tuist (Homebrew)]
+tuist init
+```
+<!-- -->
+:::
+
+The command will walk you through authenticating, creating or selecting a Tuist project, and generating the configuration for your Gradle project.
+
+## 2. Apply the plugin {#apply-the-plugin}
+
+After running `tuist init`, you'll need to add the Tuist plugin to your `settings.gradle.kts` as instructed by the command output:
+
+```kotlin
+plugins {
+    id("dev.tuist") version "0.10.0"
+}
+```
+
+## 3. Authenticate your team and continuous integration {#authenticate}
+
+While `tuist init` authenticates you locally, your teammates and <.localized_link href="/guides/integrations/continuous-integration">continuous integration</.localized_link> environments will need to authenticate separately.
+
+Each teammate should run the following to get access to the Tuist features on their machine:
+
+```bash
+tuist auth login
+```
+
+When you use a self-hosted or local Tuist server, pass the same base URL configured in `tuist.toml`:
+
+```bash
+tuist auth login --url http://localhost:8080
+tuist auth whoami --url http://localhost:8080
+```
+
+Keep the hostname spelling consistent. For example, a login stored for `localhost` is separate from one stored for `127.0.0.1`.
+
+For automated runners, follow the <.localized_link href="/guides/integrations/continuous-integration#authentication">continuous integration authentication guide</.localized_link> to configure authentication for your environment.
+
+## Configuration cache and Isolated Projects {#configuration-cache-and-isolated-projects}
+
+The plugin supports Gradle's configuration cache and [Isolated Projects](https://docs.gradle.org/current/userguide/isolated_projects.html). Keep the plugin in `settings.gradle.kts`; you do not need to apply it separately to each subproject.
+
+Tuist does not enable either feature automatically. To opt in, add the following to `gradle.properties`:
+
+```properties
+org.gradle.configuration-cache=true
+org.gradle.unsafe.isolated-projects=true
+```
+
+Your build scripts and other plugins must also support these features. Gradle reports compatibility problems when storing the configuration cache.
+
+## Configuration reference {#configuration-reference}
+
+The following options are available in the `tuist` extension block in `settings.gradle.kts`:
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `project` | `String?` | `null` (optional) | The project identifier in `account/project` format. If not set, the plugin reads it from `tuist.toml`. |
+| `url` | `String?` | `null` | The base URL of the Tuist server. If not set, it defaults to `"https://tuist.dev"` or the value defined in `tuist.toml`. |
+| `uploadInBackground` | `Boolean?` | `null` | Whether to upload build and test insights in the background. When `null` (default), uploads run in the background for local builds and in the foreground on continuous integration runners. |
+| `stressNewTests.mode` | `String?` | `null` | `"report"` or `"enforce"`. Reruns the test cases a build adds and flags any that prove flaky; see <.localized_link href="/guides/features/test-insights/flaky-tests/gradle#stress-testing-new-tests">stress-testing new tests</.localized_link>. Off when unset. |
+
+For a local server that uses an `http://` URL, allow the insecure protocol only in that local configuration:
+
+```kotlin
+tuist {
+    buildCache {
+        allowInsecureProtocol = true
+    }
+}
+```
+
+Do not enable `allowInsecureProtocol` for hosted or other `https://` servers.
+
+> [!NOTE]
+> **Tuist.toml**
+>
+> The recommended way to configure `project` (and optionally `url`) is through a `tuist.toml` file in your project root. This way the configuration is shared between the Tuist command-line interface and the Gradle plugin. You can still override these values in `settings.gradle.kts` if needed.
+
+```toml
+project = "account/project"
+url = "https://tuist.dev"
+```
+
+## HTTP proxy {#http-proxy}
+
+If your network routes outbound traffic through an HTTP proxy, see the <.localized_link href="/guides/integrations/http-proxy">HTTP proxy guide</.localized_link>.
+
+## Next steps {#next-steps}
+
+Once the plugin is installed and configured, you can enable:
+
+- <.localized_link href="/guides/features/cache/gradle-cache">Remote build cache</.localized_link> to share build artifacts across your team and continuous integration runners.
+- <.localized_link href="/guides/features/build-insights/gradle">Build insights</.localized_link> to track task timings and cache behavior in the Tuist dashboard.
+- <.localized_link href="/guides/features/test-insights/gradle">Test insights</.localized_link> to track test performance and detect flaky tests.
+- <.localized_link href="/guides/features/test-insights/flaky-tests">Flaky tests</.localized_link> to automatically detect, track, and quarantine flaky tests.

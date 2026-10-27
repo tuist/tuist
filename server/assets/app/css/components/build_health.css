@@ -1,0 +1,29 @@
+.tuist-failure-classification {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--noora-spacing-4);
+  color: var(--noora-surface-label-secondary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+
+  & [data-part="heading"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+    font-weight: var(--noora-font-weight-medium);
+  }
+
+  & button {
+    display: flex;
+    cursor: pointer;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    color: inherit;
+  }
+
+  & button svg {
+    width: 16px;
+    height: 16px;
+  }
+}

@@ -2,7 +2,9 @@ import FileSystem
 import Foundation
 import Mockable
 import Testing
+import TuistEnvironment
 import TuistSupport
+import TuistTesting
 import XcodeGraph
 
 @testable import TuistGenerator

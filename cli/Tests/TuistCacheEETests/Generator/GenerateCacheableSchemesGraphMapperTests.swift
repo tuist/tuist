@@ -1,5 +1,8 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Path
+import Testing
 import TuistCore
 import XcodeGraph
 import XCTest
@@ -15,19 +18,21 @@ final class GenerateCacheableSchemesGraphMapperTests: TuistUnitTestCase {
         let targetA = Target.test(name: "A", destinations: [.iPhone], product: .framework)
         let targetB = Target.test(name: "B", destinations: [.iPhone], product: .app)
         let targetC = Target.test(name: "C", destinations: [.mac], product: .framework)
+        let staticLibrary = Target.test(name: "StaticLibrary", destinations: [.iPhone], product: .staticLibrary)
+        let dynamicLibrary = Target.test(name: "DynamicLibrary", destinations: [.mac], product: .dynamicLibrary)
         let bundle = Target.test(name: "Bundle", destinations: [.appleTv], product: .bundle)
         let macro = Target.test(name: "Macro", destinations: [.appleTv], product: .macro)
 
-        let includedTargets = [targetA, targetC, bundle, macro].map(\.name)
+        let includedTargets = [targetA, staticLibrary, targetC, dynamicLibrary, bundle, macro].map(\.name)
         let subject = GenerateCacheableSchemesGraphMapper(targets: [
-            .iOS: Set([.named(targetA.name)]),
-            .macOS: Set([.named(targetC.name)]),
+            .iOS: Set([.named(targetA.name), .named(staticLibrary.name)]),
+            .macOS: Set([.named(targetC.name), .named(dynamicLibrary.name)]),
             .tvOS: Set([.named(bundle.name), .named(macro.name)]),
         ])
         let projectAPath = directory.appending(component: "ProjectA")
         let projectBPath = directory.appending(component: "ProjectB")
-        let projectA = Project.test(path: projectAPath, name: "A", targets: [targetA, bundle, macro])
-        let projectB = Project.test(path: projectBPath, name: "B", targets: [targetB, targetC])
+        let projectA = Project.test(path: projectAPath, name: "A", targets: [targetA, staticLibrary, bundle, macro])
+        let projectB = Project.test(path: projectBPath, name: "B", targets: [targetB, targetC, dynamicLibrary])
 
         let graph = Graph.test(
             workspace: Workspace.test(projects: [projectAPath, projectBPath]),
@@ -68,6 +73,7 @@ final class GenerateCacheableSchemesGraphMapperTests: TuistUnitTestCase {
                 .map(\.name),
             [
                 "A",
+                "StaticLibrary",
             ]
         )
         XCTAssertEqual(
@@ -76,6 +82,7 @@ final class GenerateCacheableSchemesGraphMapperTests: TuistUnitTestCase {
                 .map(\.name),
             [
                 "C",
+                "DynamicLibrary",
             ]
         )
         XCTAssertEqual(
@@ -170,5 +177,76 @@ final class GenerateCacheableSchemesGraphMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertFalse(updatedGraph.workspace.schemes.map(\.name).contains("Binaries-Cache-Catalyst"))
+    }
+}
+
+struct GenerateCacheableSchemesGraphMapperSourceDependenciesTests {
+    @Test(.inTemporaryDirectory) func binariesSchemeIncludesSourceDependenciesOfTheTargetsToCache() async throws {
+        // Given
+        let directory = try #require(FileSystem.temporaryTestDirectory)
+        let projectPath = directory.appending(component: "App")
+
+        let feature = Target.test(name: "Feature", destinations: [.iPhone], product: .staticFramework)
+        let servicesMockSupport = Target.test(
+            name: "ServicesMockSupport",
+            destinations: [.iPhone],
+            product: .staticFramework
+        )
+        let services = Target.test(name: "Services", destinations: [.iPhone], product: .staticFramework)
+        let resources = Target.test(name: "Resources", destinations: [.iPhone], product: .bundle)
+        let macOnlyDependency = Target.test(
+            name: "MacOnlyDependency",
+            destinations: [.iPhone, .mac],
+            product: .staticFramework
+        )
+        let unrelated = Target.test(name: "Unrelated", destinations: [.iPhone], product: .staticFramework)
+        let cachedFramework = GraphDependency.testXCFramework(path: directory.appending(component: "Cached.xcframework"))
+
+        let subject = GenerateCacheableSchemesGraphMapper(targets: [
+            .iOS: Set([.named(feature.name), .named(services.name)]),
+        ])
+        let project = Project.test(
+            path: projectPath,
+            name: "App",
+            targets: [feature, servicesMockSupport, services, resources, macOnlyDependency, unrelated]
+        )
+        let featureDependency = GraphDependency.target(name: feature.name, path: projectPath)
+        let servicesMockSupportDependency = GraphDependency.target(name: servicesMockSupport.name, path: projectPath)
+        let macOnlyDependencyDependency = GraphDependency.target(name: macOnlyDependency.name, path: projectPath)
+
+        let graph = Graph.test(
+            workspace: Workspace.test(projects: [projectPath]),
+            projects: [projectPath: project],
+            dependencies: [
+                featureDependency: [
+                    servicesMockSupportDependency,
+                    macOnlyDependencyDependency,
+                    cachedFramework,
+                ],
+                servicesMockSupportDependency: [
+                    .target(name: services.name, path: projectPath),
+                    .target(name: resources.name, path: projectPath),
+                ],
+            ],
+            dependencyConditions: [
+                GraphEdge(from: featureDependency, to: macOnlyDependencyDependency): try #require(
+                    PlatformCondition.when([.macos])
+                ),
+            ]
+        )
+
+        // When
+        let (updatedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        #expect(
+            updatedGraph.workspace.schemes.first(where: { $0.name == "Binaries-Cache-iOS" })?
+                .buildAction?.targets
+                .map(\.name) == [
+                    "Feature",
+                    "Services",
+                    "ServicesMockSupport",
+                ]
+        )
     }
 }

@@ -1,0 +1,114 @@
+name: Noora
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - noora/**
+      - .github/workflows/noora.yml
+      - .github/workflows/noora-release.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - noora/**
+      - .github/workflows/noora.yml
+      - .github/workflows/noora-release.yml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: noora-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  MIX_ENV: test
+  MISE_GITHUB_ATTESTATIONS: 0
+
+defaults:
+  run:
+    working-directory: noora
+
+jobs:
+  build:
+    name: Build
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    env:
+      MIX_ENV: prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "erlang elixir node aube"
+          cache: "true"
+          working-directory: noora
+      - name: Install Elixir dependencies
+        run: mix deps.get
+      - name: Compile
+        run: mix compile --warnings-as-errors
+      - name: Install JS dependencies
+        run: aube install
+      - name: Build JS assets
+        run: aube run build
+
+  lint:
+    name: Lint
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    env:
+      MIX_ENV: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "erlang elixir node aube"
+          cache: "true"
+          working-directory: noora
+      - name: Install Elixir dependencies
+        run: mix deps.get
+      - name: Check Elixir formatting
+        run: mix format --check-formatted
+      - name: Install JS dependencies
+        run: aube install
+      - name: Check JS/CSS formatting
+        run: aube exec prettier --check "js/**/*.js" "css/**/*.css"
+      - name: Check CSS custom property references
+        working-directory: ${{ github.workspace }}
+        run: mise run css:lint-tokens noora
+
+  test:
+    name: Test
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "erlang elixir node aube"
+          cache: "true"
+          working-directory: noora
+      - name: Install Elixir dependencies
+        run: mix deps.get
+      - name: Run Elixir tests
+        run: mix test
+      - name: Install JS dependencies
+        run: aube install
+      - name: Run JS tests
+        run: aube run test
+
+  docker_build:
+    name: Docker Build (Storybook)
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build storybook Docker image
+        run: docker build -f storybook/Dockerfile .

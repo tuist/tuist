@@ -1,4 +1,5 @@
 defmodule CacheWeb.Endpoint do
+  use Sentry.PlugCapture
   use Phoenix.Endpoint, otp_app: :cache
 
   @session_options [
@@ -15,14 +16,16 @@ defmodule CacheWeb.Endpoint do
   end
 
   plug Plug.RequestId
-  plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
-  plug TuistCommon.Plugs.RequestContextPlug
-  plug TuistCommon.Plugs.AppsignalSamplingPlug
+  plug TuistCommon.OtelRequestIdPlug
+  plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint], log: false
+  plug TuistCommon.RequestLoggerPlug
+  plug Sentry.PlugContext
 
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
-    json_decoder: Phoenix.json_library()
+    json_decoder: Phoenix.json_library(),
+    body_reader: {Cache.BodyReader, :read_body, []}
 
   plug Plug.MethodOverride
 

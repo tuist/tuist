@@ -17,6 +17,6 @@ let package = Package(
         // Add your own dependencies here:
         // .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
         // You can read more about dependencies here: https://docs.tuist.io/documentation/tuist/dependencies
-        .package(url: "https://github.com/realm/realm-swift", .upToNextMajor(from: "10.46.0")),
+        .package(url: "https://github.com/realm/realm-swift", .upToNextMajor(from: "20.0.4")),
     ]
 )

@@ -1,7 +1,15 @@
 import Foundation
 
 enum Formatters {
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
     static func formatBytes(_ bytes: Int) -> String {
+        // ByteCountFormatter mutates its internal NumberFormatter on every call on Linux, so it cannot be shared across threads.
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useAll]
         formatter.countStyle = .file
@@ -9,9 +17,19 @@ enum Formatters {
     }
 
     static func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+        dateFormatter.string(from: date)
+    }
+
+    static func formatDuration(_ milliseconds: Int) -> String {
+        if milliseconds < 1000 {
+            return "\(milliseconds)ms"
+        }
+        let seconds = Double(milliseconds) / 1000.0
+        return String(format: "%.2fs", seconds)
+    }
+
+    static func formatTimestamp(_ timestamp: Int) -> String {
+        let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
+        return formatDate(date)
     }
 }

@@ -1,0 +1,647 @@
+{{- if .Values.kuraController.enabled }}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "kura-controller") }}
+{{- $namespace := .Values.kuraController.namespace }}
+{{- $kuraSharedSecretName := "kura-shared-secrets" }}
+{{- $kuraIntrospection := .Values.kuraController.sharedSecrets.kuraIntrospection }}
+{{- $kuraSharedSecretsExternalSecret := .Values.kuraController.sharedSecrets.externalSecret }}
+{{- $kuraIntrospectionClientId := $kuraIntrospection.clientId | default "" }}
+{{- $kuraIntrospectionClientSecret := $kuraIntrospection.clientSecret | default "" }}
+{{- if and $kuraIntrospection.enabled (eq $kuraIntrospectionClientId "") (not $kuraSharedSecretsExternalSecret.enabled) }}
+{{- fail "kuraController.sharedSecrets.kuraIntrospection.clientId is required when kuraIntrospection is enabled without sharedSecrets.externalSecret.enabled" }}
+{{- end }}
+{{- if and $kuraIntrospection.enabled (eq $kuraIntrospectionClientSecret "") (not $kuraSharedSecretsExternalSecret.enabled) }}
+{{- fail "kuraController.sharedSecrets.kuraIntrospection.clientSecret is required when kuraIntrospection is enabled without sharedSecrets.externalSecret.enabled" }}
+{{- end }}
+{{- $kuraIntrospectionSecretData := dict }}
+{{- if $kuraIntrospection.enabled }}
+{{- if ne $kuraIntrospectionClientId "" }}
+{{- $_ := set $kuraIntrospectionSecretData "KURA_CONTROL_PLANE_CLIENT_ID" $kuraIntrospectionClientId }}
+{{- end }}
+{{- if ne $kuraIntrospectionClientSecret "" }}
+{{- $_ := set $kuraIntrospectionSecretData "KURA_CONTROL_PLANE_CLIENT_SECRET" $kuraIntrospectionClientSecret }}
+{{- end }}
+{{- end }}
+{{- $serverRoleName := printf "%s-server" $name }}
+{{- $imageTag := .Values.kuraController.image.tag }}
+{{- $tlsClusterIssuer := .Values.kuraController.tlsClusterIssuer | default .Values.kuraController.grpcClusterIssuer }}
+{{- $publicWildcard := .Values.kuraController.publicWildcardCertificate }}
+{{- if and $publicWildcard.enabled (not $tlsClusterIssuer) }}
+{{- fail "kuraController.publicWildcardCertificate.enabled requires kuraController.tlsClusterIssuer: nothing would issue the wildcard, and every public Ingress would fall back to the ingress controller's self-signed default." }}
+{{- end }}
+{{- if not $imageTag }}
+{{- fail "kuraController.image.tag is required — running the controller on :latest silently drifts and surfaces in production after the next push to ghcr." }}
+{{- end }}
+{{- if and .Values.kuraController.tlsClusterIssuer .Values.kuraController.grpcClusterIssuer (ne .Values.kuraController.tlsClusterIssuer .Values.kuraController.grpcClusterIssuer) }}
+{{- fail "kuraController.tlsClusterIssuer and deprecated kuraController.grpcClusterIssuer cannot both be set to different values" }}
+{{- end }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+rules:
+  - apiGroups: ["kura.tuist.dev"]
+    resources: [kurainstances]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["kura.tuist.dev"]
+    resources: [kurainstances/status, kurainstances/finalizers]
+    verbs: [get, update, patch]
+  - apiGroups: ["apps"]
+    resources: [statefulsets, deployments, daemonsets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [services, configmaps, secrets, serviceaccounts]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: [roles, rolebindings]
+    verbs: [get, list, watch, create, update, patch]
+  - apiGroups: ["externaldns.k8s.io"]
+    resources: [dnsendpoints]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [pods]
+    # delete lets a new Kura image replace pods that cannot pass readiness on
+    # the previous image. Ready pods remain under the StatefulSet's ordinary
+    # ordered rollout. patch relabels a pod with the StatefulSet's update
+    # revision once its CPU request has been resized in place.
+    verbs: [get, list, watch, delete, patch]
+  # CPU request changes reach running pods through the resize subresource
+  # instead of a rolling restart; the controller compares the pods' and the
+  # update's ControllerRevisions to confirm nothing else changed.
+  - apiGroups: [""]
+    resources: [pods/resize]
+    verbs: [patch]
+  - apiGroups: ["apps"]
+    resources: [controllerrevisions]
+    verbs: [get]
+  # Pods of instances with spec.nodeLocalNetwork sit on a pod network the
+  # controller cannot route to, so their /status/rollout is read through the
+  # API server's port-forward, upgraded over SPDY (POST).
+  - apiGroups: [""]
+    resources: [pods/portforward]
+    verbs: [create]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: [endpointslices]
+    verbs: [get, list, watch]
+  # The evacuation and gateway handover gates read the client and peer
+  # Services' core Endpoints to see which pod traffic actually lands on before
+  # deleting the other; without list/watch the cached client's informer is
+  # forbidden and every reconcile wedges.
+  - apiGroups: [""]
+    resources: [endpoints]
+    verbs: [get, list, watch]
+  # delete: self-heal a wedged instance by recreating its StatefulSet and
+  # dropping data PVCs that can never bind (storage-class drift on the immutable
+  # volumeClaimTemplate, or a node-local volume orphaned by a reprovisioned
+  # bare-metal fleet node). The cache is regenerable, so a fresh PVC is provisioned.
+  # delete (namespaced): self-heal a wedged instance by recreating its
+  # StatefulSet and dropping data PVCs that can never bind. PVs are read for the
+  # same purpose but are cluster-scoped, so they live in the -node-reads
+  # ClusterRole below, not this namespaced Role.
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [get, list, watch, update, patch, delete]
+  - apiGroups: ["networking.k8s.io"]
+    resources: [ingresses, networkpolicies]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["policy"]
+    resources: [poddisruptionbudgets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["cert-manager.io"]
+    resources: [certificates]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+---
+# Nodes are cluster-scoped, so this can't live in the namespaced
+# controller Role: the controller resolves the primary pod's node
+# `tuist.dev/pn-ipv4` label into KuraInstance.status.nodeAddress for
+# NodePort-exposed instances, and controller-runtime's cached client
+# needs list+watch for the Node informer behind that get.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}-node-reads
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list, watch]
+  # PVs are cluster-scoped too: reconcileStaleDataStorage reads a bound data
+  # PVC's PersistentVolume to detect a node-local volume pinned (node affinity)
+  # to a node that no longer exists — a reprovisioned bare-metal fleet node.
+  # update/patch let reclaimDataVolumes flip a data PV to reclaimPolicy Delete
+  # before the operator tears its PVC down, so the CSI driver reaps the Hetzner
+  # volume instead of stranding it under the hcloud-volumes Retain default.
+  - apiGroups: [""]
+    resources: [persistentvolumes]
+    verbs: [get, list, watch, update, patch]
+  # metrics-server's aggregated API is the source behind requests.cpu. An
+  # aggregated API cannot be bound per namespace.
+  - apiGroups: ["metrics.k8s.io"]
+    resources: [pods]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}-node-reads
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}-node-reads
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $namespace }}
+---
+# Namespaced Role granting the controller's SA read on the single
+# kube-system/kube-dns Service. peer-demux's discoverClusterDNS reads its
+# ClusterIP to wire the per-region peer plane's in-cluster DNS, which a
+# freshly (re)provisioned instance needs before its cache pods can complete
+# peer discovery and pass readiness — without it the reconciler errors every
+# cycle ("services \"kube-dns\" is forbidden") and the fresh StatefulSet never
+# goes Ready. Scoped to kube-system as a Role rather than a ClusterRole with
+# resourceNames (which would match a kube-dns Service in any namespace); read
+# via the uncached APIReader since the manager's Services cache is namespaced.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-cluster-dns
+  namespace: kube-system
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+rules:
+  - apiGroups: [""]
+    resources: [services]
+    resourceNames: [kube-dns]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-cluster-dns
+  namespace: kube-system
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-cluster-dns
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $namespace }}
+{{- if .Values.server.enabled }}
+---
+# The ops account page reads what a region has left: its nodes' allocatable disk
+# and egress, and what is already reserved on the box an account's instances sit
+# on. Both are cluster-scoped, so they cannot live in the namespaced server Role
+# below — and they are deliberately not the controller's -node-reads role, which
+# also carries persistentvolumes update/patch. The server is internet-facing;
+# read-only is the whole of what it needs here.
+#
+# The pod list is cluster-wide because an extended resource is reserved against
+# the node rather than against a namespace, so a box's reservations can only be
+# summed by reading every pod on it. That exposes every namespace's pod specs
+# (inline env values, args) to the server — a conscious grant, list only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $serverRoleName }}-cluster-reads
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list]
+  # Capacity admission charges a node-local volume no claim is bound to any
+  # more, such as a quarantined replica's retained volume, against the node and
+  # region whose disk it still holds.
+  - apiGroups: [""]
+    resources: [persistentvolumes]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $serverRoleName }}-cluster-reads
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $serverRoleName }}-cluster-reads
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $serverRoleName }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+rules:
+  - apiGroups: ["kura.tuist.dev"]
+    resources: [kurainstances]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
+  # Capacity admission reads a replica's data claim size: a claim at least as
+  # large as the new one is kept by a resize, so its replica stays on its node.
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [get]
+  # The server applies the per-account mesh peer-TLS Secret alongside the
+  # KuraInstance when an account bridges into the managed mesh.
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get, create, update, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $serverRoleName }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $serverRoleName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+spec:
+  replicas: {{ .Values.kuraController.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "kura-controller") | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port-name: metrics
+        prometheus.io/path: /metrics
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "kura-controller") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ $name }}
+      # Kura creates one Service per cache instance. Injecting every Service
+      # as environment variables can exceed the process argument limit and
+      # prevent the controller from starting when it is most needed.
+      enableServiceLinks: false
+      {{- with .Values.kuraController.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.kuraController.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: manager
+          image: "{{ .Values.kuraController.image.repository }}:{{ $imageTag }}"
+          imagePullPolicy: {{ .Values.kuraController.image.pullPolicy }}
+          args:
+            - --leader-elect=true
+            - --serving-authority={{ .Values.kuraController.servingAuthority.enabled }}
+            - --metrics-bind-address=:8080
+            - --health-probe-bind-address=:8081
+            - --watch-namespace={{ $namespace }}
+            {{- with .Values.kuraController.connectivityDiagnostics.instances }}
+            - {{ printf "--connectivity-diagnostics-instances=%s" (join "," .) | quote }}
+            {{- end }}
+            {{- if $tlsClusterIssuer }}
+            - --grpc-cluster-issuer={{ $tlsClusterIssuer }}
+            {{- end }}
+            {{- if $publicWildcard.enabled }}
+            - --public-tls-secret-name={{ $publicWildcard.secretName }}
+            - --public-tls-dns-names={{ join "," $publicWildcard.dnsNames }}
+            {{- end }}
+            {{- if .Values.kuraController.telemetry.otlpTracesEndpoint }}
+            - --otlp-traces-endpoint={{ .Values.kuraController.telemetry.otlpTracesEndpoint }}
+            {{- end }}
+            - --deployment-environment={{ .Values.kuraController.telemetry.deploymentEnvironment | default "production" }}
+            {{- if .Values.kuraController.privateReplication.enabled }}
+            - --private-replication=true
+            {{- end }}
+            {{- if .Values.kuraController.stableDNS.enabled }}
+            - --stable-dns-zone-id={{ required "kuraController.stableDNS.hostedZoneId is required" .Values.kuraController.stableDNS.hostedZoneId }}
+            - --stable-dns-owner={{ required "kuraController.stableDNS.ownerId is required" .Values.kuraController.stableDNS.ownerId }}
+            - --stable-dns-drain={{ .Values.kuraController.stableDNS.drain }}
+            {{- end }}
+          {{- if .Values.kuraController.stableDNS.enabled }}
+          env:
+            - name: AWS_REGION
+              value: us-east-1
+            - name: AWS_EC2_METADATA_DISABLED
+              value: "true"
+          envFrom:
+            - secretRef:
+                name: {{ .Values.kuraController.stableDNS.secretName }}
+          {{- end }}
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: probe
+              containerPort: 8081
+          livenessProbe:
+            httpGet: { path: /healthz, port: probe }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /readyz, port: probe }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.kuraController.resources | nindent 12 }}
+{{- if .Values.kuraController.sharedSecrets.enabled }}
+---
+# Shared platform secrets for every Kura runtime pod in this cluster.
+# The controller mounts this Secret via envFrom on the StatefulSet so
+# the JWT verifier secret never has to live in the KuraInstance spec
+# (anyone with list/watch on the CR could otherwise read forging
+# material). Keys are populated either through ExternalSecret, Helm
+# values, or by an out-of-band operator (sealed-secrets, etc.).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kura-shared-secrets
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+{{- if .Values.kuraController.sharedSecrets.annotations }}
+  annotations:
+    {{- toYaml .Values.kuraController.sharedSecrets.annotations | nindent 4 }}
+{{- end }}
+type: Opaque
+{{- $kuraSharedSecretData := deepCopy $kuraIntrospectionSecretData }}
+{{- range $key, $value := .Values.kuraController.sharedSecrets.data }}
+{{- $_ := set $kuraSharedSecretData $key $value }}
+{{- end }}
+{{- with $kuraSharedSecretData }}
+stringData:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- if and .Values.server.enabled $kuraIntrospection.enabled (ne $namespace .Release.Namespace) }}
+---
+# Mirror only the Kura OAuth keys into the server namespace. Kubernetes
+# Secrets are namespaced, and the server needs the same client credentials
+# to serve Kura token introspection.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $kuraSharedSecretName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+type: Opaque
+{{- with $kuraIntrospectionSecretData }}
+stringData:
+  {{- toYaml $kuraIntrospectionSecretData | nindent 2 }}
+{{- end }}
+{{- end }}
+{{- if $kuraSharedSecretsExternalSecret.enabled }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $kuraSharedSecretName }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+spec:
+  refreshInterval: {{ $kuraSharedSecretsExternalSecret.refreshInterval | default "1h" | quote }}
+  secretStoreRef:
+    name: {{ $kuraSharedSecretsExternalSecret.storeRef.name | default "onepassword" }}
+    kind: {{ $kuraSharedSecretsExternalSecret.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: {{ $kuraSharedSecretName }}
+    creationPolicy: Merge
+    template:
+      engineVersion: v2
+      data:
+        {{- if ne $kuraIntrospectionClientId "" }}
+        KURA_CONTROL_PLANE_CLIENT_ID: {{ $kuraIntrospectionClientId | quote }}
+        {{- else }}
+        KURA_CONTROL_PLANE_CLIENT_ID: "{{ `{{ .kura_introspection_client_id | trim }}` }}"
+        {{- end }}
+        KURA_CONTROL_PLANE_CLIENT_SECRET: "{{ `{{ .kura_introspection_client_secret | trim }}` }}"
+  data:
+    {{- if eq $kuraIntrospectionClientId "" }}
+    - secretKey: kura_introspection_client_id
+      remoteRef:
+        key: "{{ required "kuraController.sharedSecrets.externalSecret.item is required when externalSecret.enabled is true" $kuraSharedSecretsExternalSecret.item }}/{{ $kuraSharedSecretsExternalSecret.fields.introspectionClientId | default "KURA_CONTROL_PLANE_CLIENT_ID" }}"
+    {{- end }}
+    - secretKey: kura_introspection_client_secret
+      remoteRef:
+        key: "{{ required "kuraController.sharedSecrets.externalSecret.item is required when externalSecret.enabled is true" $kuraSharedSecretsExternalSecret.item }}/{{ $kuraSharedSecretsExternalSecret.fields.introspectionClientSecret | default "KURA_CONTROL_PLANE_CLIENT_SECRET" }}"
+{{- if and .Values.server.enabled $kuraIntrospection.enabled (ne $namespace .Release.Namespace) }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $kuraSharedSecretName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+spec:
+  refreshInterval: {{ $kuraSharedSecretsExternalSecret.refreshInterval | default "1h" | quote }}
+  secretStoreRef:
+    name: {{ $kuraSharedSecretsExternalSecret.storeRef.name | default "onepassword" }}
+    kind: {{ $kuraSharedSecretsExternalSecret.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: {{ $kuraSharedSecretName }}
+    creationPolicy: Merge
+    template:
+      engineVersion: v2
+      data:
+        {{- if ne $kuraIntrospectionClientId "" }}
+        KURA_CONTROL_PLANE_CLIENT_ID: {{ $kuraIntrospectionClientId | quote }}
+        {{- else }}
+        KURA_CONTROL_PLANE_CLIENT_ID: "{{ `{{ .kura_introspection_client_id | trim }}` }}"
+        {{- end }}
+        KURA_CONTROL_PLANE_CLIENT_SECRET: "{{ `{{ .kura_introspection_client_secret | trim }}` }}"
+  data:
+    {{- if eq $kuraIntrospectionClientId "" }}
+    - secretKey: kura_introspection_client_id
+      remoteRef:
+        key: "{{ required "kuraController.sharedSecrets.externalSecret.item is required when externalSecret.enabled is true" $kuraSharedSecretsExternalSecret.item }}/{{ $kuraSharedSecretsExternalSecret.fields.introspectionClientId | default "KURA_CONTROL_PLANE_CLIENT_ID" }}"
+    {{- end }}
+    - secretKey: kura_introspection_client_secret
+      remoteRef:
+        key: "{{ required "kuraController.sharedSecrets.externalSecret.item is required when externalSecret.enabled is true" $kuraSharedSecretsExternalSecret.item }}/{{ $kuraSharedSecretsExternalSecret.fields.introspectionClientSecret | default "KURA_CONTROL_PLANE_CLIENT_SECRET" }}"
+{{- end }}
+{{- end }}
+{{- if .Values.kuraController.sentry.externalSecret.enabled }}
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: kura-sentry-secrets
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+spec:
+  refreshInterval: {{ .Values.kuraController.sentry.externalSecret.refreshInterval | default "1h" | quote }}
+  secretStoreRef:
+    name: {{ .Values.kuraController.sentry.externalSecret.storeRef.name | default "onepassword" }}
+    kind: {{ .Values.kuraController.sentry.externalSecret.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: kura-shared-secrets
+    creationPolicy: Merge
+    template:
+      engineVersion: v2
+      data:
+        KURA_SENTRY_DSN: "{{ `{{ .kura_sentry_dsn | trim }}` }}"
+  data:
+    - secretKey: kura_sentry_dsn
+      remoteRef:
+        key: "{{ required "kuraController.sentry.externalSecret.item is required when sentry externalSecret is enabled" .Values.kuraController.sentry.externalSecret.item }}/{{ .Values.kuraController.sentry.externalSecret.field | default "KURA_SENTRY_DSN" }}"
+{{- end }}
+{{- if .Values.kuraController.cacheTokenPublicKey.externalSecret.enabled }}
+---
+# The public half of the cache-token keypair. Merged into the same Secret the
+# controller already envFroms, so a node picks it up on its next roll with no
+# change to the pod spec. Only the public half ever reaches a node: it reads
+# the tokens the server signs and cannot mint one, which is what makes it safe
+# on a node that is reachable from the internet.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: kura-cache-token-key
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura
+spec:
+  refreshInterval: {{ .Values.kuraController.cacheTokenPublicKey.externalSecret.refreshInterval | default "1h" | quote }}
+  secretStoreRef:
+    name: {{ .Values.kuraController.cacheTokenPublicKey.externalSecret.storeRef.name | default "onepassword" }}
+    kind: {{ .Values.kuraController.cacheTokenPublicKey.externalSecret.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: kura-shared-secrets
+    creationPolicy: Merge
+    template:
+      engineVersion: v2
+      data:
+        KURA_AUTH_JWT_PUBLIC_KEY: "{{ `{{ .kura_cache_token_public_key | trim }}` }}"
+  data:
+    - secretKey: kura_cache_token_public_key
+      remoteRef:
+        key: "{{ required "kuraController.cacheTokenPublicKey.externalSecret.item is required when cacheTokenPublicKey externalSecret is enabled" .Values.kuraController.cacheTokenPublicKey.externalSecret.item }}/{{ .Values.kuraController.cacheTokenPublicKey.externalSecret.field | default "KURA_AUTH_JWT_PUBLIC_KEY" }}"
+{{- end }}
+{{- end }}
+
+{{- end }}
+
+{{- if and .Values.kuraController.enabled .Values.kuraController.privateGateway.enabled }}
+---
+# Endpoint readiness observes the shared gateway via the uncached APIReader.
+# The controller's normal Pod informer remains restricted to the kura namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "tuist.fullname" . }}-kura-gateway-reads
+  namespace: platform
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "tuist.fullname" . }}-kura-gateway-reads
+  namespace: platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "tuist.fullname" . }}-kura-gateway-reads
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "tuist.componentName" (dict "root" . "component" "kura-controller") }}
+    namespace: {{ .Values.kuraController.namespace | default .Release.Namespace }}
+{{- end }}

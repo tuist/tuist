@@ -1,0 +1,262 @@
+#if os(macOS)
+    import FileSystem
+    import Foundation
+    import Path
+    import TuistAlert
+    import TuistConfig
+    import TuistConfigLoader
+    import TuistCore
+    import TuistEnvironment
+    import TuistKit
+    import TuistLogging
+    import TuistProcess
+    import TuistServer
+    import TuistSupport
+    import TuistXCActivityLog
+    import TuistXcodeBuildProducts
+    import TuistXcodeProjectOrWorkspacePathLocator
+    import TuistXCResultService
+    import XCResultParser
+
+    enum InspectTestCommandServiceError: Equatable, LocalizedError {
+        case executablePathMissing
+        case mostRecentActivityLogNotFound(AbsolutePath)
+        case mostRecentResultBundleNotFound(AbsolutePath)
+        case resultBundleNotFinalized(AbsolutePath)
+
+        var errorDescription: String? {
+            switch self {
+            case .executablePathMissing:
+                return "We couldn't find tuist's executable path to run inspect test in a background."
+            case let .mostRecentActivityLogNotFound(projectPath):
+                return
+                    "We couldn't find the most recent activity log from the project at \(projectPath.pathString)"
+            case let .mostRecentResultBundleNotFound(derivedDataPath):
+                return
+                    "We couldn't find the most recent result bundle in the derived data directory at \(derivedDataPath.pathString)"
+            case let .resultBundleNotFinalized(resultBundlePath):
+                return
+                    "Xcode didn't finish writing the result bundle at \(resultBundlePath.pathString) in time. Run 'tuist inspect test --result-bundle-path \(resultBundlePath.pathString)' to upload it once Xcode is done."
+            }
+        }
+    }
+
+    struct InspectTestCommandService {
+        private let derivedDataLocator: DerivedDataLocating
+        private let fileSystem: FileSysteming
+        private let xcResultService: XCResultServicing
+        private let xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating
+        private let uploadResultBundleService: UploadResultBundleServicing
+        private let configLoader: ConfigLoading
+        private let backgroundProcessRunner: BackgroundProcessRunning
+        private let resultBundleFinalizationTimeout: Duration
+
+        init(
+            derivedDataLocator: DerivedDataLocating = DerivedDataLocator(),
+            fileSystem: FileSysteming = FileSystem(),
+            xcResultService: XCResultServicing = XCResultService(),
+            xcodeProjectOrWorkspacePathLocator: XcodeProjectOrWorkspacePathLocating = XcodeProjectOrWorkspacePathLocator(),
+            uploadResultBundleService: UploadResultBundleServicing = UploadResultBundleService(),
+            configLoader: ConfigLoading = ConfigLoader(),
+            backgroundProcessRunner: BackgroundProcessRunning = BackgroundProcessRunner(),
+            resultBundleFinalizationTimeout: Duration = .seconds(30)
+        ) {
+            self.derivedDataLocator = derivedDataLocator
+            self.fileSystem = fileSystem
+            self.xcResultService = xcResultService
+            self.xcodeProjectOrWorkspacePathLocator = xcodeProjectOrWorkspacePathLocator
+            self.uploadResultBundleService = uploadResultBundleService
+            self.configLoader = configLoader
+            self.backgroundProcessRunner = backgroundProcessRunner
+            self.resultBundleFinalizationTimeout = resultBundleFinalizationTimeout
+        }
+
+        func run(
+            path: String?,
+            derivedDataPath: String? = nil,
+            resultBundlePath: String? = nil,
+            mode: TestProcessingMode? = nil
+        ) async throws {
+            if Environment.current.variables["TUIST_INSPECT_TEST_WAIT"] != "YES",
+               Environment.current.workspacePath != nil
+            {
+                guard let executablePath = Environment.current.currentExecutablePath() else {
+                    throw InspectTestCommandServiceError.executablePathMissing
+                }
+                var environment = Environment.current.variables
+                environment["TUIST_INSPECT_TEST_WAIT"] = "YES"
+                try backgroundProcessRunner.runInBackground(
+                    [executablePath.pathString, "inspect", "test"],
+                    environment: environment
+                )
+                return
+            }
+
+            let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
+
+            let (resolvedResultBundlePath, projectDerivedDataDirectory) = try await resolveResultBundlePath(
+                resultBundlePath: resultBundlePath,
+                basePath: path,
+                derivedDataPath: derivedDataPath
+            )
+
+            if Environment.current.workspacePath != nil {
+                try await waitForResultBundleToBeFinalized(resolvedResultBundlePath)
+            }
+
+            let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: path)
+            let config = try await configLoader.loadConfig(path: projectPath)
+
+            let resolvedMode = mode ?? TestProcessingMode.default(for: config.url)
+
+            switch resolvedMode {
+            case .local:
+                try await runLocal(
+                    resolvedResultBundlePath: resolvedResultBundlePath,
+                    projectDerivedDataDirectory: projectDerivedDataDirectory,
+                    path: path,
+                    config: config
+                )
+            case .remote:
+                try await runRemote(
+                    resolvedResultBundlePath: resolvedResultBundlePath,
+                    config: config
+                )
+            case .off:
+                AlertController.current.warning(
+                    .alert(
+                        "'tuist inspect test' cannot run with mode 'off' — 'off' skips test analysis entirely, leaving nothing for this command to do."
+                    )
+                )
+            }
+        }
+
+        private func runLocal(
+            resolvedResultBundlePath: AbsolutePath,
+            projectDerivedDataDirectory: AbsolutePath?,
+            path: AbsolutePath,
+            config: Tuist
+        ) async throws {
+            guard let testSummary = try await xcResultService.parse(
+                path: resolvedResultBundlePath,
+                rootDirectory: path
+            ) else {
+                throw InspectTestCommandServiceError.mostRecentResultBundleNotFound(resolvedResultBundlePath)
+            }
+
+            let test = try await uploadResultBundleService.uploadTestSummary(
+                testSummary: testSummary,
+                resultBundlePath: resolvedResultBundlePath,
+                projectDerivedDataDirectory: projectDerivedDataDirectory,
+                config: config,
+                shardPlanId: nil,
+                shardIndex: nil,
+                // `tuist inspect test` analyses a bundle someone else produced; how that run was
+                // invoked isn't knowable from here.
+                onlyTestIdentifiers: [],
+                skipTestIdentifiers: [],
+                stressNewTests: nil
+            )
+
+            AlertController.current.success(
+                .alert("View the analyzed test at \(test.url)")
+            )
+        }
+
+        private func runRemote(
+            resolvedResultBundlePath: AbsolutePath,
+            config: Tuist
+        ) async throws {
+            let test = try await uploadResultBundleService.uploadResultBundle(
+                resultBundlePath: resolvedResultBundlePath,
+                config: config,
+                quarantinedTests: [],
+                buildRunId: nil,
+                shardPlanId: nil,
+                shardIndex: nil,
+                onlyTestIdentifiers: [],
+                skipTestIdentifiers: [],
+                stressNewTests: nil,
+                stressResultBundlePaths: [],
+                scheme: nil
+            )
+
+            AlertController.current.success(
+                .alert("Result bundle uploaded for processing. View at \(test.url)")
+            )
+        }
+
+        private func resolveResultBundlePath(
+            resultBundlePath: String?,
+            basePath: AbsolutePath,
+            derivedDataPath: String?
+        ) async throws -> (resultBundlePath: AbsolutePath, derivedDataDirectory: AbsolutePath?) {
+            let currentWorkingDirectory = try await Environment.current.currentWorkingDirectory()
+            Logger.current.debug("Inspect test: base path is \(basePath.pathString)")
+            Logger.current
+                .debug(
+                    "Inspect test: workspace path from environment is \(Environment.current.workspacePath?.pathString ?? "nil")"
+                )
+
+            if let resultBundlePath {
+                Logger.current.debug("Inspect test: using explicit result bundle path \(resultBundlePath)")
+                let derivedDataDirectory: AbsolutePath? = if let derivedDataPath {
+                    try AbsolutePath(
+                        validating: derivedDataPath,
+                        relativeTo: currentWorkingDirectory
+                    )
+                } else {
+                    nil
+                }
+                return (
+                    try AbsolutePath(
+                        validating: resultBundlePath,
+                        relativeTo: currentWorkingDirectory
+                    ),
+                    derivedDataDirectory
+                )
+            }
+
+            let projectPath = try await xcodeProjectOrWorkspacePathLocator.locate(from: basePath)
+            Logger.current.debug("Inspect test: project path resolved to \(projectPath.pathString)")
+            let projectDerivedDataDirectory: AbsolutePath
+            if let derivedDataPath {
+                projectDerivedDataDirectory = try AbsolutePath(
+                    validating: derivedDataPath,
+                    relativeTo: currentWorkingDirectory
+                )
+            } else {
+                projectDerivedDataDirectory = try await derivedDataLocator.locate(for: projectPath)
+            }
+            Logger.current.debug("Inspect test: derived data directory resolved to \(projectDerivedDataDirectory.pathString)")
+
+            guard let xcResultPath = try await xcResultService
+                .mostRecentXCResultFile(projectDerivedDataDirectory: projectDerivedDataDirectory)
+            else {
+                Logger.current.debug("Inspect test: no result bundle found in \(projectDerivedDataDirectory.pathString)")
+                throw InspectTestCommandServiceError.mostRecentResultBundleNotFound(projectDerivedDataDirectory)
+            }
+            Logger.current.debug("Inspect test: using result bundle at \(xcResultPath.pathString)")
+            return (xcResultPath, projectDerivedDataDirectory)
+        }
+
+        /// Xcode runs the test action's post-actions before it moves the bundle out of its `Staging` directory and writes the
+        /// root `Info.plist`, so the bundle is only readable once that file exists.
+        private func waitForResultBundleToBeFinalized(_ resultBundlePath: AbsolutePath) async throws {
+            let infoPlistPath = resultBundlePath.appending(component: "Info.plist")
+            if try await fileSystem.exists(infoPlistPath) { return }
+            Logger.current.debug("Inspect test: waiting for Xcode to finalize \(resultBundlePath.pathString)")
+            try await withTimeout(
+                resultBundleFinalizationTimeout,
+                onTimeout: {
+                    throw InspectTestCommandServiceError.resultBundleNotFinalized(resultBundlePath)
+                },
+                action: {
+                    while try await !fileSystem.exists(infoPlistPath) {
+                        try await Task.sleep(for: .milliseconds(100))
+                    }
+                }
+            )
+        }
+    }
+#endif

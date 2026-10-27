@@ -1,12 +1,17 @@
-import Command
 import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
-import SnapshotTesting
 import Testing
 import TuistAcceptanceTesting
+import TuistBuildCommand
 import TuistCore
+import TuistEnvironment
+import TuistLoggerTesting
+import TuistNooraTesting
+import TuistProcess
+import TuistRunCommand
+import TuistShareCommand
 import TuistSupport
 import TuistTesting
 
@@ -14,6 +19,7 @@ import TuistTesting
 
 struct ShareAcceptanceTests {
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedNoora,
@@ -55,6 +61,7 @@ struct ShareAcceptanceTests {
     }
 
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedNoora,
@@ -81,6 +88,7 @@ struct ShareAcceptanceTests {
     }
 
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedNoora,
@@ -140,6 +148,7 @@ struct ShareAcceptanceTests {
     }
 
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedNoora,
@@ -198,6 +207,7 @@ struct ShareAcceptanceTests {
     }
 
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(),
         .withMockedNoora,

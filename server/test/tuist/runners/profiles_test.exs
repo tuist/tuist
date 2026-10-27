@@ -1,0 +1,362 @@
+defmodule Tuist.Runners.ProfilesTest do
+  use TuistTestSupport.Cases.DataCase, async: true
+  use Mimic
+
+  import Ecto.Query
+
+  alias Tuist.Environment
+  alias Tuist.Runners.Catalog
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+
+  @catalog [
+    %{vcpus: 1, memory_gb: 2, key: "1vcpu-2gb", default?: false, pool_dispatch_label: ""},
+    %{vcpus: 4, memory_gb: 16, key: "4vcpu-16gb", default?: true, pool_dispatch_label: ""},
+    %{vcpus: 8, memory_gb: 32, key: "8vcpu-32gb", default?: false, pool_dispatch_label: ""}
+  ]
+
+  setup do
+    stub(Catalog, :shapes, fn
+      :linux -> @catalog
+      :macos -> []
+    end)
+
+    stub(Catalog, :default_shape, fn
+      :linux -> Enum.find(@catalog, & &1.default?)
+      :macos -> nil
+    end)
+
+    stub(Catalog, :xcode_versions, fn -> [] end)
+    stub(Catalog, :default_xcode_version, fn -> nil end)
+
+    %{account: account} =
+      AccountsFixtures.organization_fixture(
+        name: "profiles-org-#{System.unique_integer([:positive])}",
+        preload: [:account]
+      )
+
+    # `Accounts.create_organization` auto-bootstraps a protected
+    # `linux` profile via `Profiles.create_default_for_account`.
+    # The CRUD / matcher tests below assert behaviour on hand-
+    # crafted shapes, so start from a clean slate; the default-
+    # creation path has its own describe block that exercises the
+    # auto-bootstrap directly.
+    Tuist.Repo.delete_all(from(p in Profile, where: p.account_id == ^account.id))
+
+    %{account: account}
+  end
+
+  describe "create/2" do
+    test "persists a valid profile and normalises the name", %{account: account} do
+      assert {:ok, %Profile{name: "default", vcpus: 4, memory_gb: 16}} =
+               Profiles.create(account, %{"name" => "  Default ", "vcpus" => 4, "memory_gb" => 16})
+    end
+
+    test "rejects a shape not in the catalog", %{account: account} do
+      assert {:error, %Ecto.Changeset{errors: errors}} =
+               Profiles.create(account, %{"name" => "weird", "vcpus" => 7, "memory_gb" => 13})
+
+      assert {"must match one of the available resource configurations", _} = errors[:vcpus]
+    end
+
+    test "rejects a reserved name", %{account: account} do
+      assert {:error, %Ecto.Changeset{errors: errors}} =
+               Profiles.create(account, %{"name" => "tuist", "vcpus" => 4, "memory_gb" => 16})
+
+      assert errors[:name]
+    end
+
+    test "rejects a duplicate name for the same account", %{account: account} do
+      {:ok, _} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+
+      assert {:error, %Ecto.Changeset{errors: errors}} =
+               Profiles.create(account, %{"name" => "default", "vcpus" => 1, "memory_gb" => 2})
+
+      assert errors[:account_id] || errors[:name]
+    end
+
+    test "two accounts can both have a default profile", %{account: account_a} do
+      %{account: account_b} =
+        AccountsFixtures.organization_fixture(
+          name: "profiles-org-b-#{System.unique_integer([:positive])}",
+          preload: [:account]
+        )
+
+      assert {:ok, _} = Profiles.create(account_a, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+      assert {:ok, _} = Profiles.create(account_b, %{"name" => "default", "vcpus" => 1, "memory_gb" => 2})
+    end
+
+    test "enforces the per-account cap", %{account: account} do
+      for i <- 1..Profiles.max_per_account() do
+        {:ok, _} = Profiles.create(account, %{"name" => "p#{i}", "vcpus" => 4, "memory_gb" => 16})
+      end
+
+      assert {:error, :max_profiles_reached} =
+               Profiles.create(account, %{"name" => "extra", "vcpus" => 4, "memory_gb" => 16})
+    end
+  end
+
+  describe "update/2" do
+    test "ignores attempts to change the name", %{account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+
+      assert {:ok, updated} =
+               Profiles.update(profile, %{"name" => "renamed", "vcpus" => 1, "memory_gb" => 2})
+
+      assert updated.name == "default"
+      assert updated.vcpus == 1
+      assert updated.memory_gb == 2
+    end
+
+    test "stores the default branch toggle and an ordered, deduplicated list of additional branches", %{
+      account: account
+    } do
+      {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+      assert profile.cache_writer_default_branch
+      assert profile.cache_writer_all_branches
+      assert is_nil(profile.cache_writer_branches)
+
+      assert {:ok, updated} =
+               Profiles.update(profile, %{"cache_writer_branches" => ["release/*", " main ", "main", "*"]})
+
+      assert updated.cache_writer_branches == ["release/*", "main", "*"]
+      assert {:ok, %{cache_writer_branches: nil}} = Profiles.update(updated, %{"cache_writer_branches" => nil})
+      assert {:ok, %{cache_writer_branches: nil}} = Profiles.update(updated, %{"cache_writer_branches" => []})
+
+      assert {:ok, %{cache_writer_default_branch: false, cache_writer_branches: ["release/*", "main", "*"]}} =
+               Profiles.update(updated, %{cache_writer_default_branch: false})
+
+      assert {:error, %Ecto.Changeset{errors: errors}} =
+               Profiles.update(updated, %{cache_writer_default_branch: nil})
+
+      assert errors[:cache_writer_default_branch]
+
+      assert {:ok, %{cache_writer_all_branches: false, cache_writer_branches: ["release/*", "main", "*"]}} =
+               Profiles.update(updated, %{cache_writer_all_branches: false})
+
+      assert {:error, %Ecto.Changeset{errors: errors}} = Profiles.update(updated, %{cache_writer_all_branches: nil})
+      assert errors[:cache_writer_all_branches]
+    end
+
+    test "rejects invalid refs and more than the branch limit", %{account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+
+      for value <- [
+            "main",
+            ["a b"],
+            ["a?b"],
+            ["a\nb"],
+            ["a..b"],
+            ["x.lock"],
+            [String.duplicate("a", 201)],
+            Enum.map(1..21, &"branch-#{&1}")
+          ] do
+        assert {:error, %Ecto.Changeset{errors: errors}} =
+                 Profiles.update(profile, %{"cache_writer_branches" => value})
+
+        assert errors[:cache_writer_branches]
+      end
+    end
+  end
+
+  describe "update/2 against a changed catalog" do
+    test "validates the shape only when the update changes it", %{account: account} do
+      profile =
+        Tuist.Repo.insert!(%Profile{account_id: account.id, name: "retired", platform: :linux, vcpus: 7, memory_gb: 13})
+
+      assert {:ok, %Profile{cache_writer_branches: ["develop"], vcpus: 7}} =
+               Profiles.update(profile, %{"cache_writer_branches" => ["develop"]})
+
+      assert {:error, %Ecto.Changeset{errors: errors}} =
+               Profiles.update(profile, %{"vcpus" => 7, "cache_writer_branches" => ["main"]})
+
+      assert errors[:vcpus]
+
+      assert {:ok, %Profile{vcpus: 8, memory_gb: 32}} = Profiles.update(profile, %{"vcpus" => 8, "memory_gb" => 32})
+    end
+  end
+
+  describe "error_message/1" do
+    test "lists the catalog's shapes for an unavailable shape", %{account: account} do
+      {:error, changeset} = Profiles.create(account, %{"name" => "weird", "vcpus" => 7, "memory_gb" => 13})
+
+      assert Profiles.error_message(changeset) ==
+               "vcpus and memory_gb must match an available linux shape: 1 vCPU / 2 GB, 4 vCPU / 16 GB, 8 vCPU / 32 GB."
+    end
+
+    test "describes other validation errors by field", %{account: account} do
+      {:error, changeset} = Profiles.create(account, %{"name" => "tuist", "vcpus" => 4})
+
+      message = Profiles.error_message(changeset)
+      assert message =~ "memory_gb can't be blank."
+      assert message =~ "name is reserved."
+    end
+
+    test "describes the profile limit and protected profiles" do
+      assert Profiles.error_message(:max_profiles_reached) =~ "maximum of 10 runner profiles"
+      assert Profiles.error_message(:protected) == "This profile is a default and can't be deleted."
+    end
+  end
+
+  describe "Profile.cache_writer_branch?/2" do
+    test "matches exact names and * across path segments" do
+      assert Profile.cache_writer_branch?(["main"], "main")
+      refute Profile.cache_writer_branch?(["main"], "main-2")
+      assert Profile.cache_writer_branch?(["release/*"], "release/1.0")
+      assert Profile.cache_writer_branch?(["release/*"], "release/a/b")
+      refute Profile.cache_writer_branch?(["release/*"], "releases/1.0")
+      assert Profile.cache_writer_branch?(["feature*"], "feature/x")
+      assert Profile.cache_writer_branch?(["*"], "anything/at/all")
+      refute Profile.cache_writer_branch?(["v1.0"], "v1x0")
+      refute Profile.cache_writer_branch?([], "main")
+      refute Profile.cache_writer_branch?(["*"], nil)
+    end
+  end
+
+  describe "cached checkouts" do
+    test "are on by default and turned off without validating the shape again", %{account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
+      assert profile.cached_checkouts
+
+      stub(Catalog, :shapes, fn _ -> [] end)
+      assert {:ok, %{cached_checkouts: false}} = Profiles.update(profile, %{"cached_checkouts" => false})
+      assert Profiles.get_for_dispatch_label(account.id, Profile.dispatch_label(profile)).id == profile.id
+      assert is_nil(Profiles.get_for_dispatch_label(account.id, "shape-linux-4vcpu-16gb"))
+    end
+  end
+
+  describe "lock_for_dispatch_label/2" do
+    test "resolves profile labels and ignores legacy pool and other account labels", %{account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "ci", "vcpus" => 4, "memory_gb" => 16})
+      other = AccountsFixtures.account_fixture()
+
+      Tuist.Repo.transaction(fn ->
+        assert Profiles.lock_for_dispatch_label(account.id, Profile.dispatch_label(profile)).id == profile.id
+        assert is_nil(Profiles.lock_for_dispatch_label(other.id, Profile.dispatch_label(profile)))
+        assert is_nil(Profiles.lock_for_dispatch_label(account.id, "shape-linux-4vcpu-16gb"))
+        assert is_nil(Profiles.lock_for_dispatch_label(account.id, ""))
+        assert is_nil(Profiles.lock_for_dispatch_label(account.id, nil))
+      end)
+    end
+  end
+
+  describe "match_for_dispatch/2" do
+    test "returns the profile whose tuist-<name> label is requested", %{account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "large", "vcpus" => 8, "memory_gb" => 32})
+
+      assert {:ok, ^profile} =
+               Profiles.match_for_dispatch(account, ["self-hosted", "tuist-large"])
+    end
+
+    test "is case-insensitive on label comparison", %{account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+
+      assert {:ok, ^profile} =
+               Profiles.match_for_dispatch(account, ["Self-Hosted", "TUIST-default"])
+    end
+
+    test "returns :no_matching_profile when nothing matches", %{account: account} do
+      {:ok, _} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+
+      assert {:error, :no_matching_profile} =
+               Profiles.match_for_dispatch(account, ["self-hosted", "tuist-large"])
+    end
+
+    test "returns :no_matching_profile when the account has no profiles", %{account: account} do
+      assert {:error, :no_matching_profile} =
+               Profiles.match_for_dispatch(account, ["self-hosted", "tuist-default"])
+    end
+
+    test "on staging, matches under the tuist-staging- prefix and ignores plain tuist-",
+         %{account: account} do
+      # The shared GitHub App fans `workflow_job` events out to every
+      # env's server, so each env's profiles must occupy a disjoint
+      # label namespace — otherwise a production `tuist-foo` job
+      # would also match staging's `foo` profile and double-dispatch.
+      stub(Environment, :env, fn -> :stag end)
+      {:ok, profile} = Profiles.create(account, %{"name" => "foo", "vcpus" => 4, "memory_gb" => 16})
+
+      assert {:ok, ^profile} =
+               Profiles.match_for_dispatch(account, ["self-hosted", "tuist-staging-foo"])
+
+      assert {:error, :no_matching_profile} =
+               Profiles.match_for_dispatch(account, ["self-hosted", "tuist-foo"])
+    end
+
+    test "on canary, matches under the tuist-canary- prefix", %{account: account} do
+      stub(Environment, :env, fn -> :can end)
+      {:ok, profile} = Profiles.create(account, %{"name" => "foo", "vcpus" => 4, "memory_gb" => 16})
+
+      assert {:ok, ^profile} =
+               Profiles.match_for_dispatch(account, ["self-hosted", "tuist-canary-foo"])
+    end
+  end
+
+  describe "create_default_for_account/1" do
+    test "inserts the protected `linux` profile at the catalog default shape",
+         %{account: account} do
+      assert {:ok, profile} = Profiles.create_default_for_account(account)
+      assert profile.name == "linux"
+      assert profile.protected
+      assert profile.vcpus == 4
+      assert profile.memory_gb == 16
+      assert profile.cache_writer_all_branches
+    end
+
+    test "is idempotent — second call is a no-op on `(account_id, name)` conflict",
+         %{account: account} do
+      {:ok, first} = Profiles.create_default_for_account(account)
+      assert {:ok, _} = Profiles.create_default_for_account(account)
+
+      assert [%Profile{id: id}] = Profiles.list_for_account(account)
+      assert id == first.id
+    end
+
+    test "bypasses the per-account cap", %{account: account} do
+      # Fill the cap with user-created profiles.
+      for i <- 1..Profiles.max_per_account() do
+        {:ok, _} = Profiles.create(account, %{"name" => "u#{i}", "vcpus" => 4, "memory_gb" => 16})
+      end
+
+      # The default still slots in.
+      assert {:ok, profile} = Profiles.create_default_for_account(account)
+      assert profile.protected
+    end
+  end
+
+  describe "delete/1 — protected guard" do
+    test "refuses to delete a protected profile", %{account: account} do
+      {:ok, default} = Profiles.create_default_for_account(account)
+
+      assert {:error, :protected} = Profiles.delete(default)
+      assert Profiles.get_by_name(account, default.name)
+    end
+  end
+
+  describe "Profile.prefix/0" do
+    test "is plain tuist- on production" do
+      stub(Environment, :env, fn -> :prod end)
+      assert "tuist-" == Profile.prefix()
+    end
+
+    test "is tuist-staging- on staging" do
+      stub(Environment, :env, fn -> :stag end)
+      assert "tuist-staging-" == Profile.prefix()
+    end
+
+    test "is tuist-canary- on canary" do
+      stub(Environment, :env, fn -> :can end)
+      assert "tuist-canary-" == Profile.prefix()
+    end
+  end
+
+  describe "delete/1" do
+    test "removes the profile", %{account: account} do
+      {:ok, profile} = Profiles.create(account, %{"name" => "default", "vcpus" => 4, "memory_gb" => 16})
+
+      assert {:ok, _} = Profiles.delete(profile)
+      assert Profiles.list_for_account(account) == []
+    end
+  end
+end

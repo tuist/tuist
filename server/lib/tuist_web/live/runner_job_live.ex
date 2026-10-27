@@ -1,0 +1,1436 @@
+defmodule TuistWeb.RunnerJobLive do
+  @moduledoc false
+  use TuistWeb, :live_view
+  use Noora
+
+  import TuistWeb.Components.RunnerJobMetricsCharts
+
+  alias Tuist.Accounts.User
+  alias Tuist.Authorization
+  alias Tuist.Environment
+  alias Tuist.FeatureFlags
+  alias Tuist.Runners.Buildkite
+  alias Tuist.Runners.CacheVolumes
+  alias Tuist.Runners.Catalog
+  alias Tuist.Runners.GitLab
+  alias Tuist.Runners.InteractiveSessions
+  alias Tuist.Runners.JobLogs
+  alias Tuist.Runners.JobMetrics
+  alias Tuist.Runners.Jobs
+  alias Tuist.Runners.JobSteps
+  alias Tuist.Runners.LogFormatter
+  alias Tuist.Utilities.ByteFormatter
+  alias Tuist.Utilities.DateFormatter
+  alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Utilities.Query
+
+  # The Logs view loads a tail of this many lines on mount and pages
+  # backwards in the same increment via "Load older logs". Live appends
+  # arrive at the bottom via Pub/Sub. We never load the whole stream.
+  @page_size 200
+
+  # An expanded step renders its last this-many lines and pages
+  # backwards in the same increment via "Load earlier lines".
+  @step_page_size 1_000
+
+  # Max matching lines returned by an in-page log search (across the
+  # whole job, not just the loaded tail).
+  @search_limit 500
+  @interactive_refresh_ms 2_000
+
+  @impl true
+  def mount(
+        %{"workflow_run_id" => workflow_run_id_param, "workflow_job_id" => workflow_job_id_param},
+        _session,
+        %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket
+      ) do
+    if Authorization.authorize(:runners_read, current_user, selected_account) != :ok or
+         not FeatureFlags.runners_enabled?(selected_account) do
+      raise NotFoundError,
+            dgettext(
+              "dashboard_runners",
+              "The page you are looking for doesn't exist or has been moved."
+            )
+    end
+
+    workflow_run_id = parse_id(workflow_run_id_param)
+    workflow_job_id = parse_id(workflow_job_id_param)
+
+    case Jobs.get_for_account(selected_account.id, workflow_job_id) do
+      # Mirrors GitHub's 404 on `/actions/runs/<run>/job/<job>` when
+      # `<job>` belongs to a different `<run>` — without this gate,
+      # a tampered run-id in the URL would still load the right job
+      # and just render a misleading breadcrumb.
+      {:ok, %{workflow_run_id: ^workflow_run_id} = job} ->
+        head_title =
+          "#{job_title(job)} · #{dgettext("dashboard_runners", "Jobs")} · #{selected_account.name} · Tuist"
+
+        buildkite_job = Buildkite.get_job(job.workflow_job_id)
+        gitlab_job = GitLab.get_job_for_account(selected_account.id, job.workflow_job_id)
+        log_lines = JobLogs.recent(job.workflow_job_id, @page_size)
+        oldest_line = oldest_line_number(log_lines)
+        machine_metrics = JobMetrics.list_for_job(job.workflow_job_id)
+
+        # Subscribe only on the connected mount so the disconnected
+        # first render doesn't open a stray subscription that gets
+        # leaked when the LiveSocket connects.
+        if connected?(socket), do: Tuist.PubSub.subscribe(JobLogs.topic(job.workflow_job_id))
+
+        {:ok,
+         socket
+         |> assign(:head_title, head_title)
+         |> assign(:job, job)
+         |> assign(:buildkite_job, buildkite_job)
+         |> assign(:gitlab_job, gitlab_job)
+         |> assign(
+           :volumes,
+           CacheVolumes.for_job(selected_account.id, workflow_run_id, workflow_job_id)
+         )
+         |> assign(:interactive, interactive_state(selected_account, current_user, job))
+         |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
+         |> assign(:machine_metrics, machine_metrics)
+         |> assign_runner_insights(selected_account, job, buildkite_job || gitlab_job)
+         |> assign(:expanded_steps, MapSet.new())
+         |> assign(:step_logs, %{})
+         |> expand_failed_steps()
+         |> assign(:search, "")
+         |> assign(:search_results, [])
+         |> assign(:show_timestamps, false)
+         |> assign(:has_logs, log_lines != [])
+         |> assign(:oldest_line, oldest_line)
+         |> assign(:has_older, JobLogs.has_older?(job.workflow_job_id, oldest_line))
+         |> stream(:log_lines, Enum.map(log_lines, &log_stream_item/1))}
+
+      _ ->
+        raise NotFoundError,
+              dgettext(
+                "dashboard_runners",
+                "The job you are looking for doesn't exist or has been moved."
+              )
+    end
+  end
+
+  @impl true
+  def handle_params(_params, uri, socket) do
+    params = Query.query_params(uri)
+    terminal_simulation? = terminal_simulation?(params)
+    step = params["step"]
+    cleaned_params = Map.delete(params, "step")
+    selected_tab = selected_tab(params["tab"] || "overview", socket.assigns.interactive, terminal_simulation?)
+
+    socket =
+      socket
+      |> assign(:terminal_simulation?, terminal_simulation?)
+      |> assign(:selected_tab, selected_tab)
+      |> assign(:uri, URI.new!("?" <> URI.encode_query(cleaned_params)))
+      |> maybe_expand_step(step, cleaned_params)
+      |> maybe_auto_request_interactive_sessions()
+
+    {:noreply, socket}
+  end
+
+  defp parse_id(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {id, ""} ->
+        id
+
+      _ ->
+        raise NotFoundError,
+              dgettext(
+                "dashboard_runners",
+                "The job you are looking for doesn't exist or has been moved."
+              )
+    end
+  end
+
+  defp job_title(%{workflow_name: workflow, job_name: job}) when workflow != "" and job != "", do: "#{workflow} · #{job}"
+
+  defp job_title(%{job_name: job}) when job != "", do: job
+  defp job_title(%{workflow_job_id: id}), do: "Job ##{id}"
+
+  def header_title(job), do: job_title(job)
+
+  attr :volumes, :list, required: true
+  attr :account_name, :string, required: true
+  attr :failed, :boolean, default: false
+
+  def job_volumes(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :filled,
+        if(assigns.failed,
+          do: Enum.filter(assigns.volumes, &CacheVolumes.out_of_space?(&1.size_bytes, &1.capacity_bytes)),
+          else: []
+        )
+      )
+
+    ~H"""
+    <.card
+      :if={@volumes != []}
+      title={dgettext("dashboard_runners", "Volumes")}
+      icon="database"
+      data-part="volumes-card"
+    >
+      <.card_section>
+        <.alert
+          :for={usage <- @filled}
+          id={"runner-job-volume-full-alert-#{usage.volume_id}"}
+          status="warning"
+          type="secondary"
+          size="large"
+          title={
+            dgettext("dashboard_runners", "%{volume} ran out of space",
+              volume: TuistWeb.RunnerVolumesLive.display_name(usage.volume)
+            )
+          }
+          description={
+            dgettext(
+              "dashboard_runners",
+              "This job used %{used} of the volume's %{capacity}. Writes to a full volume fail with errors such as \"No space left on device\", which can fail the job.",
+              used: volume_bytes(usage.size_bytes),
+              capacity: volume_bytes(usage.capacity_bytes)
+            )
+          }
+        />
+        <.table
+          id="runner-job-volumes"
+          rows={@volumes}
+          row_navigate={fn usage -> ~p"/#{@account_name}/runners/volumes/#{usage.volume_id}" end}
+        >
+          <:col :let={usage} label={dgettext("dashboard_runners", "Volume")}>
+            <.text_cell label={TuistWeb.RunnerVolumesLive.display_name(usage.volume)} />
+          </:col>
+          <:col :let={usage} label={dgettext("dashboard_runners", "Cache")}>
+            <.badge_cell
+              :if={not is_nil(usage.warm)}
+              label={
+                cond do
+                  CacheVolumes.older_copy?(usage) -> dgettext("dashboard_runners", "Older copy")
+                  usage.warm -> dgettext("dashboard_runners", "Hit")
+                  true -> dgettext("dashboard_runners", "Miss")
+                end
+              }
+              color={
+                cond do
+                  CacheVolumes.older_copy?(usage) -> "warning"
+                  usage.warm -> "success"
+                  true -> "neutral"
+                end
+              }
+              style="light-fill"
+            />
+            <.text_cell :if={is_nil(usage.warm)} label="—" />
+          </:col>
+          <:col :let={usage} label={dgettext("dashboard_runners", "Used space")}>
+            <.text_cell label={volume_bytes(usage.size_bytes)} />
+          </:col>
+          <:col :let={usage} label={dgettext("dashboard_runners", "Capacity")}>
+            <.text_cell label={volume_bytes(usage.capacity_bytes)} />
+          </:col>
+        </.table>
+      </.card_section>
+    </.card>
+    """
+  end
+
+  defp volume_bytes(nil), do: "—"
+  defp volume_bytes(value), do: ByteFormatter.format_bytes(value)
+
+  def header_status(%{status: "completed", conclusion: conclusion}) do
+    case conclusion do
+      "success" -> :success
+      "failure" -> :failure
+      "cancelled" -> :warning
+      "skipped" -> :warning
+      _ -> :warning
+    end
+  end
+
+  def header_status(%{status: "queued"}), do: :processing
+  def header_status(%{status: "claimed"}), do: :processing
+  def header_status(%{status: "running"}), do: :processing
+  def header_status(_), do: :processing
+
+  def status_badge_props(%{status: "completed", conclusion: "success"}),
+    do: %{label: dgettext("dashboard_runners", "Passed"), color: "success"}
+
+  def status_badge_props(%{status: "completed", conclusion: "failure"}),
+    do: %{label: dgettext("dashboard_runners", "Failed"), color: "destructive"}
+
+  def status_badge_props(%{status: "completed", conclusion: "cancelled"}),
+    do: %{label: dgettext("dashboard_runners", "Cancelled"), color: "warning"}
+
+  def status_badge_props(%{status: "completed", conclusion: "skipped"}),
+    do: %{label: dgettext("dashboard_runners", "Skipped"), color: "warning"}
+
+  def status_badge_props(%{status: "queued"}), do: %{label: dgettext("dashboard_runners", "Queued"), color: "warning"}
+
+  def status_badge_props(%{status: "claimed"}),
+    do: %{label: dgettext("dashboard_runners", "Claimed"), color: "information"}
+
+  def status_badge_props(%{status: "running"}),
+    do: %{label: dgettext("dashboard_runners", "Running"), color: "information"}
+
+  def status_badge_props(_), do: %{label: dgettext("dashboard_runners", "Unknown"), color: "neutral"}
+
+  def platform_label(fleet_name) when is_binary(fleet_name) do
+    cond do
+      String.starts_with?(fleet_name, Catalog.fleet_name_prefixes(:macos)) ->
+        dgettext("dashboard_runners", "macOS")
+
+      String.starts_with?(fleet_name, Catalog.fleet_name_prefixes(:linux)) ->
+        dgettext("dashboard_runners", "Linux")
+
+      true ->
+        dgettext("dashboard_runners", "Unknown")
+    end
+  end
+
+  def platform_label(_), do: dgettext("dashboard_runners", "Unknown")
+
+  @doc """
+  Noora badge color paired with `platform_label/1` so the Platform
+  field in the CI Details card reads the same as the Platform column
+  on the Jobs table — `information` (cool blue) for macOS,
+  `attention` (warm yellow) for Linux.
+  """
+  def platform_badge_color(fleet_name) when is_binary(fleet_name) do
+    cond do
+      String.starts_with?(fleet_name, Catalog.fleet_name_prefixes(:macos)) ->
+        "information"
+
+      String.starts_with?(fleet_name, Catalog.fleet_name_prefixes(:linux)) ->
+        "attention"
+
+      true ->
+        "neutral"
+    end
+  end
+
+  def platform_badge_color(_), do: "neutral"
+
+  def github_job_url(%{repository: repository, workflow_run_id: run_id, workflow_job_id: job_id})
+      when is_binary(repository) and repository != "" and is_integer(run_id) and run_id > 0 and is_integer(job_id) and
+             job_id > 0 do
+    "https://github.com/#{repository}/actions/runs/#{run_id}/job/#{job_id}"
+  end
+
+  def github_job_url(_), do: nil
+
+  @doc """
+  The Buildkite build a job belongs to, or `nil` for a GitHub job.
+
+  Buildkite's own job-level anchor is not part of any documented URL
+  contract, so this stops at the build, which is stable.
+  """
+  def buildkite_build_url(%{organization_slug: org, pipeline_slug: pipeline, build_number: number})
+      when is_binary(org) and org != "" and is_binary(pipeline) and pipeline != "" and is_integer(number) and number > 0 do
+    "https://buildkite.com/#{org}/#{pipeline}/builds/#{number}"
+  end
+
+  def buildkite_build_url(_), do: nil
+
+  @doc """
+  Builds the deep link to a single workflow_job. Mirrors GitHub's
+  `/<owner>/<repo>/actions/runs/<run_id>/job/<job_id>` shape so the
+  two URLs nest the same way. Returns `nil` for rows whose
+  `workflow_run_id` is missing or zero — callers can use that to
+  skip the link entirely instead of routing to a broken URL.
+  """
+  def path(account_name, %{workflow_run_id: run_id, workflow_job_id: job_id})
+      when is_binary(account_name) and is_integer(run_id) and run_id > 0 and is_integer(job_id) and job_id > 0 do
+    "/#{account_name}/runners/runs/#{run_id}/jobs/#{job_id}"
+  end
+
+  def path(_, _), do: nil
+
+  @doc """
+  Builds a deep link to a step in the job overview.
+
+  The `step` query parameter is the single source of truth: LiveView
+  uses it to expand the step, load its logs, and ask the client to
+  scroll to the rendered step.
+  """
+  def step_path(account_name, job, %{number: number}) when is_integer(number) and number > 0 do
+    case __MODULE__.path(account_name, job) do
+      nil -> nil
+      job_path -> "#{job_path}?tab=overview&step=#{number}"
+    end
+  end
+
+  def step_path(_, _, _), do: nil
+
+  @doc """
+  Maps a step's GitHub conclusion/status to the same badge kind the
+  page header uses, so a step's icon reads identically to the
+  job-level status indicator.
+  """
+  def step_status(%{conclusion: "success"}), do: :success
+  def step_status(%{conclusion: "failure"}), do: :failure
+  def step_status(%{conclusion: "cancelled"}), do: :warning
+  def step_status(%{conclusion: "skipped"}), do: :warning
+  def step_status(%{status: "completed"}), do: :success
+  def step_status(_), do: :processing
+
+  @doc """
+  Elapsed time for a single step, in milliseconds. Returns `nil`
+  when either timestamp is missing (e.g. a skipped step) so the
+  template can omit the duration badge entirely.
+  """
+  def step_duration_ms(%{started_at: %DateTime{} = started, completed_at: %DateTime{} = completed}) do
+    max(DateTime.diff(completed, started, :millisecond), 0)
+  end
+
+  def step_duration_ms(_), do: nil
+
+  @doc """
+  Unix-epoch milliseconds for a step boundary, or `nil` when the
+  timestamp is missing. The Overview's `RunnerMetricsHighlight` hook
+  reads these off the step rows to shade the matching window on the
+  metrics charts when a step is hovered.
+  """
+  def step_epoch_ms(%DateTime{} = ts), do: DateTime.to_unix(ts, :millisecond)
+  def step_epoch_ms(_), do: nil
+
+  @doc """
+  The job's step window as `%{min: start_ms, max: end_ms}` — the first
+  step's start to the last step's end. The metric charts anchor their
+  time axis to this so the step-hover bands line up with where the steps
+  ran, rather than auto-scaling to the metric-sample extent (which
+  starts before the first step during Pod boot and can end before the
+  job does when the sampler run is truncated). Returns `nil` when no
+  step carries timestamps.
+  """
+  def step_window(steps) do
+    starts = steps |> Enum.map(&step_epoch_ms(&1.started_at)) |> Enum.reject(&is_nil/1)
+    ends = steps |> Enum.map(&step_epoch_ms(&1.completed_at)) |> Enum.reject(&is_nil/1)
+
+    if starts != [] and ends != [] do
+      %{min: Enum.min(starts), max: Enum.max(ends)}
+    end
+  end
+
+  @doc """
+  Left offset of a step's Gantt bar as a percentage of the job window,
+  or `nil` when the step or window can't place it. The value is
+  formatted as a percentage for the bar's offset custom property.
+  """
+  def step_bar_offset_percent(step, %{min: min, max: max}) when max > min do
+    case step_epoch_ms(step.started_at) do
+      nil ->
+        nil
+
+      started ->
+        started
+        |> Kernel.-(min)
+        |> Kernel./(max - min)
+        |> clamp_unit()
+        |> format_bar_percent()
+    end
+  end
+
+  def step_bar_offset_percent(%{started_at: %DateTime{}}, %{min: min, max: max}) when max == min, do: "0.0%"
+
+  def step_bar_offset_percent(_, _), do: nil
+
+  @doc """
+  Width of a step's Gantt bar as a percentage of the job window. A
+  zero-length step still returns `"0.0%"` so the stylesheet can fall back
+  to a min-width tick — otherwise a 0s "Set up job" row would render
+  nothing at all.
+  """
+  def step_bar_width_percent(step, %{min: min, max: max}) when max > min do
+    with started when not is_nil(started) <- step_epoch_ms(step.started_at),
+         completed when not is_nil(completed) <- step_epoch_ms(step.completed_at) do
+      completed
+      |> Kernel.-(started)
+      |> max(0)
+      |> Kernel./(max - min)
+      |> clamp_unit()
+      |> format_bar_percent()
+    else
+      _ -> nil
+    end
+  end
+
+  def step_bar_width_percent(%{started_at: %DateTime{}, completed_at: %DateTime{}}, %{min: min, max: max})
+      when max == min, do: "0.0%"
+
+  def step_bar_width_percent(_, _), do: nil
+
+  defp clamp_unit(value) when is_float(value) or is_integer(value) do
+    value |> max(0.0) |> min(1.0)
+  end
+
+  defp format_bar_percent(value) do
+    "#{Float.round(value * 100, 2)}%"
+  end
+
+  @doc """
+  The step window associated with build or test insights.
+
+  `run_windows` maps a build run's id to the wall-clock window taken from its
+  command event; see `step_insights/4`.
+  """
+  def insight_step_window(steps, runs, kind, run_windows \\ %{}) do
+    steps
+    |> Enum.filter(fn step ->
+      Enum.any?(runs, &step_overlaps_run?(step, &1, kind, run_windows))
+    end)
+    |> step_window()
+  end
+
+  @doc """
+  Whether the job has any machine-metrics samples to chart. Drives
+  the Metrics tab's empty state and gates the Overview chart row.
+  """
+  def has_machine_metrics?(metrics), do: metrics != []
+
+  def cache_hit_rate_label(%{cacheable_tasks_count: count}) when count in [nil, 0] do
+    dgettext("dashboard_runners", "No cache data")
+  end
+
+  def cache_hit_rate_label(%{
+        cacheable_tasks_count: count,
+        cacheable_task_local_hits_count: local_hits,
+        cacheable_task_remote_hits_count: remote_hits
+      }) do
+    hits = (local_hits || 0) + (remote_hits || 0)
+    "#{round(hits / count * 100)}%"
+  end
+
+  def cache_hit_rate_label(_), do: dgettext("dashboard_runners", "No cache data")
+
+  def build_runs_duration_ms(build_runs) do
+    build_runs
+    |> Enum.map(&(&1.duration || 0))
+    |> Enum.sum()
+  end
+
+  def build_runs_status_badge_props([]), do: %{label: dgettext("dashboard_runners", "Unknown"), color: "neutral"}
+
+  def build_runs_status_badge_props(build_runs) do
+    cond do
+      Enum.any?(build_runs, &(&1.status == "failure")) ->
+        %{label: dgettext("dashboard_runners", "Failed"), color: "destructive"}
+
+      Enum.any?(build_runs, &(&1.status == "failed_processing")) ->
+        %{label: dgettext("dashboard_runners", "Failed processing"), color: "warning"}
+
+      Enum.any?(build_runs, &(&1.status == "processing")) ->
+        %{label: dgettext("dashboard_runners", "Processing"), color: "neutral"}
+
+      true ->
+        %{label: dgettext("dashboard_runners", "Passed"), color: "success"}
+    end
+  end
+
+  def hit_rate_summary?(%{total_count: total_count}) when total_count > 0, do: true
+  def hit_rate_summary?(_), do: false
+
+  def hit_rate_label(%{hits_count: hits_count, total_count: total_count}) when total_count > 0 do
+    "#{round(hits_count / total_count * 100)}%"
+  end
+
+  def xcode_cache_summary(build_runs) do
+    total_count = Enum.sum(Enum.map(build_runs, &(&1.cacheable_tasks_count || 0)))
+    local_hits_count = Enum.sum(Enum.map(build_runs, &(&1.cacheable_task_local_hits_count || 0)))
+    remote_hits_count = Enum.sum(Enum.map(build_runs, &(&1.cacheable_task_remote_hits_count || 0)))
+
+    %{
+      local_hits_count: local_hits_count,
+      remote_hits_count: remote_hits_count,
+      hits_count: local_hits_count + remote_hits_count,
+      total_count: total_count
+    }
+  end
+
+  def build_status_badge_props(%{status: "success"}),
+    do: %{label: dgettext("dashboard_runners", "Passed"), color: "success"}
+
+  def build_status_badge_props(%{status: "failure"}),
+    do: %{label: dgettext("dashboard_runners", "Failed"), color: "destructive"}
+
+  def build_status_badge_props(%{status: "processing"}),
+    do: %{label: dgettext("dashboard_runners", "Processing"), color: "neutral"}
+
+  def build_status_badge_props(%{status: "failed_processing"}),
+    do: %{label: dgettext("dashboard_runners", "Failed processing"), color: "warning"}
+
+  def build_status_badge_props(_), do: %{label: dgettext("dashboard_runners", "Unknown"), color: "neutral"}
+
+  def insight_scheme_label(%{scheme: scheme}) when is_binary(scheme) and scheme != "" do
+    scheme
+  end
+
+  def insight_scheme_label(_), do: dgettext("dashboard_runners", "Unknown scheme")
+
+  def test_status_badge_props(%{status: "success", is_flaky: true}),
+    do: %{label: dgettext("dashboard_runners", "Passed (flaky)"), color: "warning"}
+
+  def test_status_badge_props(%{status: "success"}),
+    do: %{label: dgettext("dashboard_runners", "Passed"), color: "success"}
+
+  def test_status_badge_props(%{status: "failure"}),
+    do: %{label: dgettext("dashboard_runners", "Failed"), color: "destructive"}
+
+  def test_status_badge_props(%{status: "skipped"}),
+    do: %{label: dgettext("dashboard_runners", "Skipped"), color: "warning"}
+
+  def test_status_badge_props(_), do: %{label: dgettext("dashboard_runners", "Unknown"), color: "neutral"}
+
+  @doc """
+  The build and test runs attributed to a step.
+
+  `run_windows` maps a build run's id to `%{min:, max:}` in epoch milliseconds,
+  built from the run's command event. A build row carries no timestamp of its
+  own — `inserted_at` is stamped when the CLI's POST lands, which is a couple of
+  seconds after the build ended, since the xcactivitylog is bundled and uploaded
+  first. Attributing off that anchor drags the window past the step the build
+  ran in and into the ones that follow it.
+  """
+  def step_insights(step, build_runs, test_runs, run_windows \\ %{}) do
+    %{
+      build_runs: matching_step_build_runs(step, build_runs, run_windows),
+      test_runs: matching_step_test_runs(step, test_runs)
+    }
+  end
+
+  def step_has_insights?(%{build_runs: build_runs, test_runs: test_runs}) do
+    build_runs != [] or test_runs != []
+  end
+
+  def step_has_insights?(_), do: false
+
+  def step_test_duration_ms(test_runs) do
+    test_runs
+    |> Enum.map(&(&1.duration || 0))
+    |> Enum.sum()
+  end
+
+  defp module_cache_summary(command_events) do
+    total_count = Enum.sum(Enum.map(command_events, &(&1.cacheable_targets_count || 0)))
+    local_hits_count = Enum.sum(Enum.map(command_events, &(&1.local_cache_hits_count || 0)))
+    remote_hits_count = Enum.sum(Enum.map(command_events, &(&1.remote_cache_hits_count || 0)))
+
+    %{
+      local_hits_count: local_hits_count,
+      remote_hits_count: remote_hits_count,
+      hits_count: local_hits_count + remote_hits_count,
+      total_count: total_count
+    }
+  end
+
+  defp selective_testing_summary(command_events) do
+    total_count = Enum.sum(Enum.map(command_events, &(&1.test_targets_count || 0)))
+    local_hits_count = Enum.sum(Enum.map(command_events, &(&1.local_test_hits_count || 0)))
+    remote_hits_count = Enum.sum(Enum.map(command_events, &(&1.remote_test_hits_count || 0)))
+
+    %{
+      local_hits_count: local_hits_count,
+      remote_hits_count: remote_hits_count,
+      hits_count: local_hits_count + remote_hits_count,
+      total_count: total_count
+    }
+  end
+
+  defp assign_runner_insights(socket, selected_account, job, buildkite_job) do
+    case Jobs.projects_for_runner_job(selected_account, job, buildkite_job) do
+      {:error, :not_found} ->
+        socket
+        |> assign(:insights_project, nil)
+        |> assign(:insights_projects_by_id, %{})
+        |> assign(:linked_build_runs, [])
+        |> assign(:linked_test_runs, [])
+        |> assign(:linked_build_run_windows, %{})
+        |> assign(:linked_build_module_cache_summary, module_cache_summary([]))
+        |> assign(:linked_test_selective_testing_summary, selective_testing_summary([]))
+
+      {:ok, projects} ->
+        build_runs = Jobs.list_runner_build_runs(projects, job.workflow_run_id, buildkite_job)
+        test_runs = Jobs.list_runner_test_runs(projects, job.workflow_run_id, buildkite_job)
+
+        build_command_events = Jobs.command_events_for_runs(build_runs, :build)
+        test_command_events = test_runs |> Jobs.command_events_for_runs(:test) |> Enum.reject(&is_nil/1)
+
+        socket
+        |> assign(:insights_project, List.first(projects))
+        |> assign(:insights_projects_by_id, Map.new(projects, &{&1.id, &1}))
+        |> assign(:linked_build_runs, build_runs)
+        |> assign(:linked_test_runs, test_runs)
+        |> assign(:linked_build_run_windows, build_run_windows(build_runs, build_command_events))
+        |> assign(:linked_build_module_cache_summary, module_cache_summary(Enum.reject(build_command_events, &is_nil/1)))
+        |> assign(:linked_test_selective_testing_summary, selective_testing_summary(test_command_events))
+    end
+  end
+
+  # `Jobs.command_events_for_runs/2` returns one entry per run, in order, so the
+  # zip pairs each build with its own event.
+  defp build_run_windows(build_runs, command_events) do
+    build_runs
+    |> Enum.zip(command_events)
+    |> Enum.reduce(%{}, fn {run, command_event}, acc ->
+      case command_event_window(command_event) do
+        nil -> acc
+        window -> Map.put(acc, run.id, window)
+      end
+    end)
+  end
+
+  defp command_event_window(%{ran_at: ran_at, duration: duration}) do
+    case timestamp_epoch_ms(ran_at) do
+      nil -> nil
+      started_at -> %{min: started_at, max: started_at + max(duration || 0, 0)}
+    end
+  end
+
+  defp command_event_window(_), do: nil
+
+  defp matching_step_build_runs(step, build_runs, run_windows) do
+    Enum.filter(build_runs, &step_overlaps_run?(step, &1, :build, run_windows))
+  end
+
+  defp matching_step_test_runs(step, test_runs) do
+    Enum.filter(test_runs, &step_overlaps_run?(step, &1, :test, %{}))
+  end
+
+  defp step_overlaps_run?(step, run, kind, run_windows) do
+    case {step_timestamp_window(step), insight_run_window(run, kind, run_windows)} do
+      {%{} = step_window, %{} = run_window} -> meaningful_overlap?(step_window, run_window)
+      _ -> false
+    end
+  end
+
+  # A step is attributed a run when the two windows overlap by at least half of
+  # the shorter one. GitHub reports step boundaries at whole-second granularity
+  # and runner jobs fan out concurrent steps that share a second, so a bare
+  # intersection test hands a run a chip on every step it brushes — including
+  # ones it only touches for milliseconds.
+  defp meaningful_overlap?(%{min: step_start, max: step_end} = step_window, %{min: run_start, max: run_end} = run_window) do
+    overlap = min(step_end, run_end) - max(step_start, run_start)
+    shortest = min(step_end - step_start, run_end - run_start)
+
+    cond do
+      # An instant — a 0ms step, or a run with no measured duration — has no
+      # overlap to weigh, so it counts only where it falls strictly inside the
+      # other window. Sharing a boundary is not evidence it ran there.
+      shortest == 0 -> strictly_within?(step_window, run_window)
+      overlap <= 0 -> false
+      true -> overlap * 2 >= shortest
+    end
+  end
+
+  defp strictly_within?(%{min: a_start, max: a_end}, %{min: b_start, max: b_end}) do
+    (a_start > b_start and a_end < b_end) or (b_start > a_start and b_end < a_end)
+  end
+
+  defp step_timestamp_window(%{started_at: %DateTime{} = started_at, completed_at: %DateTime{} = completed_at}) do
+    %{min: DateTime.to_unix(started_at, :millisecond), max: DateTime.to_unix(completed_at, :millisecond)}
+  end
+
+  defp step_timestamp_window(_), do: nil
+
+  defp insight_run_window(%{id: id} = run, :build, run_windows) do
+    Map.get(run_windows, id) || insight_run_window(run, :build)
+  end
+
+  defp insight_run_window(run, kind, _run_windows), do: insight_run_window(run, kind)
+
+  defp insight_run_window(%{inserted_at: inserted_at, duration: duration}, :build) do
+    case timestamp_epoch_ms(inserted_at) do
+      nil ->
+        nil
+
+      ended_at ->
+        duration = max(duration || 0, 0)
+        %{min: ended_at - duration, max: ended_at}
+    end
+  end
+
+  defp insight_run_window(%{ran_at: ran_at, duration: duration}, :test) do
+    case timestamp_epoch_ms(ran_at) do
+      nil ->
+        nil
+
+      started_at ->
+        duration = max(duration || 0, 0)
+        %{min: started_at, max: started_at + duration}
+    end
+  end
+
+  defp insight_run_window(_, _), do: nil
+
+  defp timestamp_epoch_ms(%DateTime{} = timestamp), do: DateTime.to_unix(timestamp, :millisecond)
+
+  defp timestamp_epoch_ms(%NaiveDateTime{} = timestamp) do
+    timestamp
+    |> DateTime.from_naive!("Etc/UTC")
+    |> DateTime.to_unix(:millisecond)
+  end
+
+  defp timestamp_epoch_ms(_), do: nil
+
+  def terminal_tab_visible?(_interactive, true), do: true
+
+  def terminal_tab_visible?(%{can_attach?: true, running?: true, pod_available?: true, shell_requestable?: true}, _),
+    do: true
+
+  def terminal_tab_visible?(_, _), do: false
+
+  def vnc_tab_visible?(%{can_attach?: true, macos?: true, running?: true, pod_available?: true, vnc_requestable?: true}),
+    do: true
+
+  def vnc_tab_visible?(_), do: false
+
+  def interactive_tab_visible?(interactive) do
+    terminal_tab_visible?(interactive, false) or vnc_tab_visible?(interactive)
+  end
+
+  def interactive_vnc_unavailable_reason(%{can_attach?: false}),
+    do: dgettext("dashboard_runners", "You are not authorized to request interactive access.")
+
+  def interactive_vnc_unavailable_reason(%{macos?: false}),
+    do: dgettext("dashboard_runners", "VNC is available for macOS runner jobs.")
+
+  def interactive_vnc_unavailable_reason(%{running?: false}),
+    do: dgettext("dashboard_runners", "VNC can be requested while the macOS runner job is claimed or running.")
+
+  def interactive_vnc_unavailable_reason(%{pod_available?: false}),
+    do: dgettext("dashboard_runners", "The runner pod is not available for this job.")
+
+  def interactive_vnc_unavailable_reason(_), do: nil
+
+  # FetchLogsWorker finished ingesting the job's captured log. Reload
+  # the tail and reset the stream so the empty state ("No logs have
+  # been captured for this job yet.") flips to the loaded view without
+  # the user having to refresh.
+  @impl true
+  def handle_info({:runner_job_logs_ready, _payload}, socket) do
+    workflow_job_id = socket.assigns.job.workflow_job_id
+    log_lines = JobLogs.recent(workflow_job_id, @page_size)
+    oldest_line = oldest_line_number(log_lines)
+
+    {:noreply,
+     socket
+     |> assign(:has_logs, log_lines != [])
+     |> assign(:oldest_line, oldest_line)
+     |> assign(:has_older, JobLogs.has_older?(workflow_job_id, oldest_line))
+     |> stream(:log_lines, Enum.map(log_lines, &log_stream_item/1), reset: true)}
+  end
+
+  # ArchiveLogsWorker stamped `log_archived_at`. Update the assign so
+  # the download button's `:if={@job.log_archived_at}` flips on.
+  def handle_info({:runner_job_log_archived, %{archived_at: archived_at}}, socket) do
+    {:noreply, assign(socket, :job, %{socket.assigns.job | log_archived_at: archived_at})}
+  end
+
+  def handle_info(:refresh_interactive_access, socket) do
+    socket =
+      socket
+      |> refresh_vnc_relay_state()
+      |> refresh_interactive_state()
+      |> schedule_interactive_refresh()
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("toggle_step", %{"number" => number}, socket) do
+    case Integer.parse(number) do
+      {n, ""} ->
+        expanded = socket.assigns.expanded_steps
+
+        socket =
+          if MapSet.member?(expanded, n) do
+            assign(socket, :expanded_steps, MapSet.delete(expanded, n))
+          else
+            socket
+            |> assign(:expanded_steps, MapSet.put(expanded, n))
+            |> load_step_logs(n)
+          end
+
+        {:noreply, socket}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("load_earlier_step_lines", %{"number" => number}, socket) do
+    with {n, ""} <- Integer.parse(number),
+         %{first: first, from: from, loading_earlier?: false} = page when from > first <-
+           Map.get(socket.assigns.step_logs, n) do
+      workflow_job_id = socket.assigns.job.workflow_job_id
+      new_from = max(first, from - @step_page_size)
+
+      {:noreply,
+       socket
+       |> update(:step_logs, &Map.put(&1, n, %{page | loading_earlier?: true}))
+       |> start_async({:earlier_step_lines, n}, fn ->
+         {new_from, JobLogs.list_step_lines(workflow_job_id, first, from - 1, from: new_from)}
+       end)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("search_logs", %{"search" => term}, socket) do
+    term = String.trim(term)
+    results = JobLogs.search(socket.assigns.job.workflow_job_id, term, @search_limit)
+
+    {:noreply,
+     socket
+     |> assign(:search, term)
+     |> assign(:search_results, results)}
+  end
+
+  def handle_event("toggle_timestamps", _params, socket) do
+    {:noreply, assign(socket, :show_timestamps, not socket.assigns.show_timestamps)}
+  end
+
+  def handle_event("request_vnc_session", _params, socket) do
+    {:noreply, request_vnc_session(socket)}
+  end
+
+  def handle_event("request_shell_session", _params, socket) do
+    {:noreply, request_shell_session(socket)}
+  end
+
+  def handle_event("interactive_vnc_disconnected", _params, socket) do
+    {:noreply, close_interactive_session(socket, :vnc)}
+  end
+
+  def handle_event("interactive_shell_disconnected", _params, socket) do
+    {:noreply, close_interactive_session(socket, :shell)}
+  end
+
+  def handle_event("load_older", _params, %{assigns: %{oldest_line: nil}} = socket), do: {:noreply, socket}
+
+  def handle_event("load_older", _params, socket) do
+    %{job: job, oldest_line: oldest_line} = socket.assigns
+    older = JobLogs.older(job.workflow_job_id, oldest_line, @page_size)
+
+    socket =
+      older
+      |> Enum.reverse()
+      |> Enum.reduce(socket, fn line, acc ->
+        stream_insert(acc, :log_lines, log_stream_item(line), at: 0)
+      end)
+
+    new_oldest = oldest_line_number(older) || oldest_line
+
+    {:noreply,
+     socket
+     |> assign(:oldest_line, new_oldest)
+     |> assign(:has_older, JobLogs.has_older?(job.workflow_job_id, new_oldest))}
+  end
+
+  defp request_vnc_session(socket) do
+    %{
+      current_user: current_user,
+      selected_account: selected_account,
+      job: job,
+      interactive: interactive
+    } = socket.assigns
+
+    cond do
+      not can_attach?(current_user, selected_account) ->
+        socket
+
+      not interactive.vnc_requestable? ->
+        socket
+
+      true ->
+        case InteractiveSessions.request_vnc(job, selected_account, current_user) do
+          {:ok, session} ->
+            request_vnc_relay(session, interactive)
+
+            socket
+            |> assign(:vnc_session_token, session.token)
+            |> refresh_interactive_state()
+            |> schedule_interactive_refresh()
+
+          {:error, _reason} ->
+            socket
+        end
+    end
+  end
+
+  defp request_shell_session(socket) do
+    %{
+      current_user: current_user,
+      selected_account: selected_account,
+      job: job,
+      interactive: interactive
+    } = socket.assigns
+
+    cond do
+      not can_attach?(current_user, selected_account) ->
+        socket
+
+      not interactive.shell_requestable? ->
+        socket
+
+      true ->
+        case InteractiveSessions.request_shell(job, selected_account, current_user) do
+          {:ok, session} ->
+            socket
+            |> assign(:shell_session_token, session.token)
+            |> refresh_interactive_state()
+            |> schedule_interactive_refresh()
+
+          {:error, _reason} ->
+            socket
+        end
+    end
+  end
+
+  defp maybe_auto_request_interactive_sessions(
+         %{assigns: %{selected_tab: "terminal", terminal_simulation?: true}} = socket
+       ), do: socket
+
+  defp maybe_auto_request_interactive_sessions(%{assigns: %{selected_tab: "terminal"}} = socket) do
+    if connected?(socket) do
+      request_shell_session(socket)
+    else
+      socket
+    end
+  end
+
+  defp maybe_auto_request_interactive_sessions(%{assigns: %{selected_tab: "vnc"}} = socket) do
+    if connected?(socket) do
+      request_vnc_session(socket)
+    else
+      socket
+    end
+  end
+
+  defp maybe_auto_request_interactive_sessions(socket), do: socket
+
+  # A public account lets anyone mount this LiveView, and any client can push
+  # the disconnect event regardless of which tabs were rendered, so gate the
+  # close rather than trusting that the interactive tabs were visible.
+  # `close_for_job/5` additionally scopes the close to the user who holds the
+  # session.
+  #
+  # This reads the mount-time snapshot on purpose, where requesting a session
+  # resolves the permission afresh. Closing only ever ends access, so a member
+  # demoted mid-session should still be able to hang up rather than leave their
+  # session running until it times out.
+  defp close_interactive_session(%{assigns: %{interactive: %{can_attach?: false}}} = socket, kind)
+       when kind in [:vnc, :shell] do
+    socket
+  end
+
+  defp close_interactive_session(%{assigns: %{current_user: %User{} = current_user}} = socket, kind)
+       when kind in [:vnc, :shell] do
+    %{selected_account: selected_account, job: job} = socket.assigns
+
+    _ =
+      InteractiveSessions.close_for_job(
+        selected_account.id,
+        job.workflow_job_id,
+        kind,
+        current_user,
+        "browser_disconnect"
+      )
+
+    socket
+    |> clear_interactive_session_token(kind)
+    |> refresh_interactive_state()
+  end
+
+  defp close_interactive_session(socket, kind) when kind in [:vnc, :shell], do: socket
+
+  defp clear_interactive_session_token(socket, :vnc), do: assign(socket, :vnc_session_token, nil)
+  defp clear_interactive_session_token(socket, :shell), do: assign(socket, :shell_session_token, nil)
+
+  defp request_vnc_relay(session, %{vnc_dev_placeholder?: true}) do
+    InteractiveSessions.mark_vnc_relay_ready(session, "127.0.0.1", 5900)
+  end
+
+  defp request_vnc_relay(session, _interactive) do
+    InteractiveSessions.request_vnc_relay(session)
+  end
+
+  defp schedule_interactive_refresh(%{assigns: %{selected_tab: "vnc", interactive: interactive}} = socket) do
+    if connected?(socket) and match?(%{state: :requested}, interactive.vnc_session) do
+      Process.send_after(self(), :refresh_interactive_access, @interactive_refresh_ms)
+    end
+
+    socket
+  end
+
+  defp schedule_interactive_refresh(%{assigns: %{selected_tab: "terminal", interactive: interactive}} = socket) do
+    if connected?(socket) and match?(%{state: :requested}, interactive.shell_session) do
+      Process.send_after(self(), :refresh_interactive_access, @interactive_refresh_ms)
+    end
+
+    socket
+  end
+
+  defp schedule_interactive_refresh(socket), do: socket
+
+  defp refresh_vnc_relay_state(%{assigns: %{interactive: %{vnc_session: %{}} = interactive}} = socket) do
+    case InteractiveSessions.sync_vnc_relay_state(interactive.vnc_session) do
+      {:ok, _session} -> refresh_interactive_state(socket)
+      {:error, _reason} -> socket
+    end
+  end
+
+  defp refresh_vnc_relay_state(socket), do: socket
+
+  def step_expanded?(expanded_steps, %{number: number}), do: MapSet.member?(expanded_steps, number)
+
+  def step_expanded?(_expanded_steps, _step), do: false
+
+  @doc """
+  Per-line timestamp label. Mirrors GitHub's "Tue, 02 Jun 2026
+  20:26:29 GMT" formatting so a copied log line carries enough
+  context (day-of-week, full date, UTC marker) to be useful when
+  pasted into an incident channel — `12:00:42` on its own loses
+  the day, which is the most common ambiguity in CI postmortems.
+  """
+  def log_ts(%DateTime{} = ts) do
+    ts
+    |> DateTime.shift_zone!("Etc/UTC")
+    |> Calendar.strftime("%a, %d %b %Y %H:%M:%S GMT")
+  end
+
+  def log_ts(_), do: ""
+
+  # Renders a list of grouped log nodes (`{:line, line}` /
+  # `{:group, header, children}` / `{:action, header, children}`) as
+  # the Steps tab body. Groups and composite-action steps become
+  # collapsible `<details>` elements that match GitHub's own log UI;
+  # lines render with ANSI SGR codes decoded into `<span>` classes so
+  # the user sees colours instead of literal `[36;1m` artefacts.
+  attr(:tree, :list, required: true)
+  attr(:id_prefix, :string, default: nil)
+
+  def log_tree(assigns) do
+    ~H"""
+    <.log_node :for={node <- @tree} node={node} id_prefix={@id_prefix} />
+    """
+  end
+
+  attr(:node, :any, required: true)
+  attr(:id_prefix, :string, default: nil)
+
+  def log_node(%{node: {:line, _line}} = assigns) do
+    {:line, line} = assigns.node
+    assigns = assign(assigns, :line, line)
+
+    ~H"""
+    <div
+      id={@id_prefix && @line.line_number && "#{@id_prefix}-#{@line.line_number}"}
+      data-part="log-line"
+      data-annotation={LogFormatter.annotation(@line.message)}
+    >
+      <span data-part="log-ln">{@line.line_number}</span>
+      <span data-part="log-ts">{log_ts(@line.ts)}</span>
+      <span data-part="log-message">{LogFormatter.render_message(@line.message)}</span>
+    </div>
+    """
+  end
+
+  def log_node(%{node: {:group, _header, _children}} = assigns) do
+    {:group, header, children} = assigns.node
+    assigns = assigns |> assign(:header, header) |> assign(:children, children)
+
+    ~H"""
+    <details data-part="log-group">
+      <summary data-part="log-group-summary">
+        <span data-part="log-ln">{@header.line_number}</span>
+        <span data-part="log-ts">{log_ts(@header.ts)}</span>
+        <span data-part="log-group-label">
+          <span data-part="log-group-chevron"><.chevron_right /></span>{LogFormatter.group_label(
+            @header
+          )}
+        </span>
+      </summary>
+      <div data-part="log-group-body">
+        <.log_tree tree={@children} id_prefix={@id_prefix} />
+      </div>
+    </details>
+    """
+  end
+
+  # A step of a composite action, rendered like GitHub's nested step
+  # header: status icon, name, and duration. Failed steps start
+  # expanded so the error is visible without a click.
+  def log_node(%{node: {:action, _header, _children}} = assigns) do
+    {:action, header, children} = assigns.node
+
+    assigns =
+      assigns
+      |> assign(:header, header)
+      |> assign(:children, children)
+      |> assign(:status, step_status(%{conclusion: header.conclusion}))
+
+    ~H"""
+    <details data-part="log-group" data-kind="action" open={@header.conclusion == "failure"}>
+      <summary data-part="log-group-summary">
+        <span data-part="log-ln">{@header.line.line_number}</span>
+        <span data-part="log-ts">{log_ts(@header.line.ts)}</span>
+        <span data-part="log-group-label">
+          <span data-part="log-group-chevron" data-empty={to_string(@children == [])}>
+            <.chevron_right />
+          </span>
+          <span data-part="log-action-icon" data-status={@status}>
+            <.circle_check :if={@status == :success} />
+            <.alert_circle :if={@status == :failure} />
+            <.alert_hexagon :if={@status == :warning} />
+            <.circle_dashed :if={@status == :processing} />
+          </span>
+          <span data-part="log-action-name">{@header.name}</span>
+          <span :if={@header.duration_ms} data-part="log-action-duration">
+            {DateFormatter.format_duration_from_milliseconds(@header.duration_ms,
+              fractional_seconds: false
+            )}
+          </span>
+        </span>
+      </summary>
+      <div data-part="log-group-body">
+        <.log_tree tree={@children} id_prefix={@id_prefix} />
+      </div>
+    </details>
+    """
+  end
+
+  # Per-step ranges are computed once (two small ClickHouse queries,
+  # no log-body scan); the expanded step's last page of lines is
+  # fetched on demand, off the LiveView process, and cached
+  # individually. A user who never opens a step pays nothing beyond
+  # mount; a step with hundreds of thousands of lines never holds them
+  # in the socket or the DOM.
+  defp load_step_logs(socket, number) do
+    case Map.get(socket.assigns.step_logs, number) do
+      state when state in [nil, :failed] ->
+        workflow_job_id = socket.assigns.job.workflow_job_id
+        steps = socket.assigns.steps
+        ranges = socket.assigns[:step_line_ranges]
+
+        socket
+        |> update(:step_logs, &Map.put(&1, number, :loading))
+        |> start_async({:step_logs, number}, fn ->
+          ranges = ranges || JobLogs.step_line_ranges(workflow_job_id, steps)
+          {ranges, last_step_page(workflow_job_id, Map.get(ranges, number))}
+        end)
+
+      _ ->
+        socket
+    end
+  end
+
+  defp expand_failed_steps(socket) do
+    socket.assigns.steps
+    |> Enum.filter(&(&1.conclusion == "failure"))
+    |> Enum.reduce(socket, fn %{number: number}, socket ->
+      socket
+      |> update(:expanded_steps, &MapSet.put(&1, number))
+      |> load_step_logs(number)
+    end)
+  end
+
+  @doc """
+  Whether an expanded step's log panel opens scrolled to its last
+  line: when the step failed, or when only its tail is loaded.
+  """
+  def step_logs_start_at_end?(%{conclusion: "failure"}, _step_page), do: true
+  def step_logs_start_at_end?(_step, %{first: first, from: from}) when from > first, do: true
+  def step_logs_start_at_end?(_step, _step_page), do: false
+
+  defp last_step_page(workflow_job_id, {first, last}) do
+    from = max(first, last - @step_page_size + 1)
+
+    %{
+      lines: JobLogs.list_step_lines(workflow_job_id, first, last, from: from),
+      first: first,
+      from: from,
+      loading_earlier?: false
+    }
+  end
+
+  defp last_step_page(_workflow_job_id, :unattributed), do: :unattributed
+  defp last_step_page(_workflow_job_id, _range), do: %{lines: [], first: nil, from: nil, loading_earlier?: false}
+
+  @impl true
+  def handle_async({:step_logs, number}, {:ok, {ranges, page}}, socket) do
+    {:noreply,
+     socket
+     |> assign(:step_line_ranges, ranges)
+     |> update(:step_logs, &Map.put(&1, number, page))}
+  end
+
+  def handle_async({:step_logs, number}, {:exit, _reason}, socket) do
+    {:noreply, update(socket, :step_logs, &Map.put(&1, number, :failed))}
+  end
+
+  def handle_async({:earlier_step_lines, number}, {:ok, {from, lines}}, socket) do
+    {:noreply,
+     update(socket, :step_logs, fn step_logs ->
+       Map.update!(step_logs, number, &%{&1 | lines: lines ++ &1.lines, from: from, loading_earlier?: false})
+     end)}
+  end
+
+  def handle_async({:earlier_step_lines, number}, {:exit, _reason}, socket) do
+    {:noreply,
+     update(socket, :step_logs, fn step_logs ->
+       Map.update!(step_logs, number, &%{&1 | loading_earlier?: false})
+     end)}
+  end
+
+  defp log_stream_item(line) do
+    %{
+      id: "log-#{line.line_number}",
+      line_number: line.line_number,
+      ts: line.ts,
+      message: line.message
+    }
+  end
+
+  defp oldest_line_number([]), do: nil
+  defp oldest_line_number([first | _]), do: first.line_number
+
+  defp selected_tab("interactive", interactive, terminal_simulation?) do
+    selected_tab("terminal", interactive, terminal_simulation?)
+  end
+
+  defp selected_tab("terminal", interactive, terminal_simulation?) do
+    if terminal_tab_visible?(interactive, terminal_simulation?), do: "terminal", else: "overview"
+  end
+
+  defp selected_tab("vnc", interactive, _terminal_simulation?) do
+    if vnc_tab_visible?(interactive), do: "vnc", else: "overview"
+  end
+
+  defp selected_tab("logs", _interactive, _terminal_simulation?), do: "logs"
+  defp selected_tab("metrics", _interactive, _terminal_simulation?), do: "metrics"
+  defp selected_tab(_, _interactive, _terminal_simulation?), do: "overview"
+
+  defp terminal_simulation?(params) do
+    Environment.dev?() and Environment.truthy?(params["terminal_simulation"])
+  end
+
+  defp maybe_expand_step(socket, step, cleaned_params) when is_binary(step) do
+    case Integer.parse(step) do
+      {number, ""} ->
+        if Enum.any?(socket.assigns.steps, &(&1.number == number)) do
+          socket
+          |> assign(:expanded_steps, MapSet.put(socket.assigns.expanded_steps, number))
+          |> load_step_logs(number)
+          |> scroll_to_step(number)
+          |> replace_url(cleaned_params)
+        else
+          socket
+        end
+
+      _ ->
+        socket
+    end
+  end
+
+  defp maybe_expand_step(socket, _, _), do: socket
+
+  defp scroll_to_step(socket, number) do
+    push_event(socket, "scroll-to-element", %{id: "runner-step-#{number}"})
+  end
+
+  defp replace_url(socket, params) do
+    query = URI.encode_query(params)
+    push_event(socket, "replace-url", %{url: "?#{query}"})
+  end
+
+  defp refresh_interactive_state(socket) do
+    %{selected_account: selected_account, current_user: current_user, job: job} = socket.assigns
+    vnc_token = socket.assigns[:vnc_session_token]
+    shell_token = socket.assigns[:shell_session_token]
+    assign(socket, :interactive, interactive_state(selected_account, current_user, job, vnc_token, shell_token))
+  end
+
+  # `:runners_interactive_access`, not the page's `:runners_read`:
+  # attaching to a running VM executes commands on it, so it stays with members
+  # that can write.
+  #
+  # Resolved per call rather than read off the socket. `InteractiveSessions`
+  # mints tokens without authorizing, and a socket outlives the role that
+  # opened it, so a member demoted while the page is open would otherwise keep
+  # requesting sessions until they reload.
+  defp can_attach?(current_user, selected_account) do
+    Authorization.authorize(:runners_interactive_access, current_user, selected_account) == :ok
+  end
+
+  defp interactive_state(selected_account, current_user, job, vnc_session_token \\ nil, shell_session_token \\ nil) do
+    platform = Catalog.fleet_platform(job.fleet_name)
+    macos? = platform == :macos
+    linux? = platform == :linux
+    running? = job.status in ["claimed", "running"]
+    pod_available? = is_binary(job.pod_name) and job.pod_name != ""
+
+    can_attach? = can_attach?(current_user, selected_account)
+
+    vnc_requestable? = can_attach? and InteractiveSessions.vnc_requestable?(job)
+    vnc_dev_placeholder? = Environment.dev?() and vnc_requestable?
+    shell_requestable? = can_attach? and InteractiveSessions.shell_requestable?(job)
+
+    vnc_session =
+      selected_account.id
+      |> InteractiveSessions.current_for_job(job.workflow_job_id, :vnc)
+      |> with_vnc_session_token(vnc_session_token)
+
+    shell_session =
+      selected_account.id
+      |> InteractiveSessions.current_for_job(job.workflow_job_id, :shell)
+      |> with_shell_session_token(shell_session_token)
+
+    %{
+      can_attach?: can_attach?,
+      macos?: macos?,
+      linux?: linux?,
+      running?: running?,
+      pod_available?: pod_available?,
+      vnc_requestable?: vnc_requestable?,
+      vnc_dev_placeholder?: vnc_dev_placeholder?,
+      vnc_session: vnc_session,
+      vnc_session_ready?: vnc_session_ready?(vnc_session),
+      vnc_websocket_path: vnc_websocket_path(selected_account, vnc_dev_placeholder?, vnc_session, vnc_session_token),
+      vnc_websocket_token: vnc_session_token,
+      shell_requestable?: shell_requestable?,
+      shell_session: shell_session,
+      shell_websocket_path: shell_websocket_path(selected_account, shell_session, shell_session_token),
+      shell_websocket_token: shell_session_token
+    }
+  end
+
+  defp vnc_websocket_path(selected_account, vnc_dev_placeholder?, vnc_session, vnc_session_token) do
+    if vnc_websocket_available?(vnc_dev_placeholder?, vnc_session, vnc_session_token) do
+      "/#{selected_account.name}/runners/interactive/vnc"
+    end
+  end
+
+  defp vnc_websocket_available?(vnc_dev_placeholder?, vnc_session, vnc_session_token) do
+    not vnc_dev_placeholder? and vnc_session_ready?(vnc_session) and is_binary(vnc_session_token)
+  end
+
+  defp shell_websocket_path(selected_account, shell_session, shell_session_token) do
+    if shell_session_connectable?(shell_session) and is_binary(shell_session_token) do
+      "/#{selected_account.name}/runners/interactive/shell"
+    end
+  end
+
+  defp with_vnc_session_token(nil, _token), do: nil
+  defp with_vnc_session_token(session, token) when is_binary(token), do: %{session | token: token}
+  defp with_vnc_session_token(session, _token), do: session
+
+  defp with_shell_session_token(nil, _token), do: nil
+  defp with_shell_session_token(session, token) when is_binary(token), do: %{session | token: token}
+  defp with_shell_session_token(session, _token), do: session
+
+  defp vnc_session_ready?(%{state: state}) when state in [:ready, :active], do: true
+  defp vnc_session_ready?(_), do: false
+
+  defp shell_session_connectable?(%{state: state}) when state in [:ready, :active], do: true
+  defp shell_session_connectable?(_), do: false
+end

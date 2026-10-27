@@ -1,6 +1,6 @@
 import Foundation
 
-class SourceTemplate {
+struct SourceTemplate {
     private let template = """
     import Foundation
 

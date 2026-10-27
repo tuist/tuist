@@ -1,0 +1,239 @@
+# Tuist wrapper for the Tailscale Kubernetes operator. Per-env
+# overlays set `tailscale-operator.operatorConfig.hostname` and the
+# `Connector.spec.subnetRouter.advertiseRoutes` set (typically the
+# tailnet's `100.64.0.0/10` CGNAT range, optionally narrowed). The
+# OAuth client credentials are synced by ESO — see
+# `templates/externalsecret.yaml`.
+
+externalSecrets:
+  enabled: true
+  refreshInterval: "1h"
+  storeRef:
+    kind: ClusterSecretStore
+    name: onepassword
+  # Single 1Password item holding the operator's OAuth client ID +
+  # secret. Tailscale's chart consumes them as env vars on the
+  # operator Pod via secretRef. Per-env naming convention matches
+  # the SCALEWAY_API / TAILSCALE items (`tuist-k8s-<env>` vault).
+  item: TAILSCALE_OPERATOR
+  fields:
+    clientID: client-id
+    clientSecret: client-secret
+  # Name of the resulting K8s Secret. Tailscale's upstream chart
+  # defaults to `operator-oauth` — keep that name so we don't have
+  # to override the chart's secretName.
+  secretName: operator-oauth
+
+# Upstream tailscale-operator chart values. Everything under this
+# key is passed verbatim to the subchart — see
+# https://github.com/tailscale/tailscale/tree/main/cmd/k8s-operator/deploy/chart
+# for the full schema.
+tailscale-operator:
+  # Use the ESO-synced Secret instead of letting the chart create
+  # one from inline values (which is the chart's default).
+  oauthSecretVolumeName: operator-oauth
+
+  # OAuth client credentials live in a separate Secret. Don't
+  # let the upstream chart try to create the Secret itself from
+  # inline values — `installCRDs` + ESO does the work.
+  oauth:
+    clientId: ""
+    clientSecret: ""
+
+  operatorConfig:
+    # Hostname the operator registers under in the Tailscale admin
+    # console. Per-env overlays override (e.g. `k8s-staging`,
+    # `k8s-production`) so the admin UI distinguishes which
+    # operator manages which cluster.
+    hostname: tuist-k8s
+    # Operator-managed tags applied to every device the operator
+    # spins up (subnet router Pods, ProxyClass-backed proxies).
+    # Per-env overlays override to `tag:tuist-k8s-<env>` so each
+    # env's operator gets its own ACL identity. The tag must be
+    # declared in infra/tailscale/acls.json's tagOwners block, and
+    # the OAuth client used by this operator must list it under
+    # "Tags this client may apply".
+    defaultTags:
+      - "tag:tuist-k8s-staging"
+
+  # Kubernetes API server proxy — human kubectl straight over the
+  # tailnet, no browser and no gateway hostname. OFF by default.
+  #
+  # Canary and production keep routing human kubectl through
+  # Pomerium per env (`infra/helm/pomerium/`): Google Workspace OIDC
+  # for authentication, plus a per-request impersonation decision in
+  # tuist-ops's PolicyController that HAS to run per request because
+  # it reads the live JIT elevation row.
+  #
+  # STAGING opts in — see values-staging.yaml. Staging's write tier
+  # is standing access rather than a per-request elevation
+  # (`TuistOps.JIT.Policy.always_write_env?/1`), so there is no
+  # per-request decision left for Pomerium to make there, and the
+  # tailnet already authenticates every one of us through the same
+  # Google Workspace SSO. The tier comes from
+  # `tailscale.com/cap/kubernetes` grants in
+  # infra/tailscale/acls.json instead of from PolicyController.
+  #
+  # `mode: "true"` runs the proxy in-process on the operator's own
+  # tailnet node, so it answers on the operator's MagicDNS name
+  # (`operatorConfig.hostname` above) — no extra ProxyGroup.
+  #
+  # CAUTION, and the reason this stays off for canary/production:
+  # `mode: "true"` renders the upstream `tailscale-auth-proxy`
+  # ClusterRole, which grants UNRESTRICTED `impersonate` on users
+  # AND groups. That is deliberately wider than the Pomerium
+  # sidecar's grant, which pins group impersonation to a
+  # `resourceNames` allowlist so nothing in its trust chain can ask
+  # for `system:masters` (see
+  # infra/helm/pomerium/templates/rbac.yaml). The upstream chart
+  # renders that role off `mode` alone — `allowImpersonation:
+  # "false"` does NOT suppress it, and a same-name override from
+  # this wrapper would collide inside the release — so the only
+  # lever we have is which envs turn `mode` on. Accepted for
+  # staging; do not enable for canary or production without solving
+  # that first.
+  apiServerProxyConfig:
+    mode: "false"
+    allowImpersonation: "false"
+
+# Connector CR — the operator-managed `tailscaled` subnet router
+# that announces the cluster's reachability to the tailnet's
+# 100.64.0.0/10 range. Lets tailnet devices dial in-cluster Services
+# through the Connector. Does NOT make tailnet IPs reachable from
+# arbitrary cluster Pods — that's what `macminiEgress` below is for.
+connector:
+  enabled: true
+  name: tuist-cluster-subnet-router
+  hostname: tuist-cluster-router
+  # Per-env tag for the cluster-side subnet router. Defaults to the
+  # staging tag so the chart-default install lands in staging; per-
+  # env values override to `tag:tuist-k8s-{canary,production}`.
+  # ACL grants this tag dial access to `tag:tuist-macmini-<env>` on
+  # the scrape ports — see acls.json.
+  tags:
+    - "tag:tuist-k8s-staging"
+  # CGNAT range — every Mac mini joined under `tag:tuist-macmini`
+  # gets an address in `100.64.0.0/10`. Advertising the full range
+  # is simpler than per-host routes and the ACL boundary doesn't
+  # care which IP a request lands on — it gates by tag identity.
+  #
+  # An env that gives its Mac mini fleet a route INTO the cluster
+  # (runner VMs dialing the in-cluster Kura runner-cache Service —
+  # see `Tuist.Kura.RunnerCache` + infra/macos-host-bootstrap)
+  # additionally advertises the cluster's Service CIDR here
+  # (`10.128.0.0/12` per infra/k8s/clusters/cluster-<env>.yaml) so
+  # `tailscale up --accept-routes` on the minis installs the route.
+  #
+  # CAUTION — one env at a time: staging, canary, and production all
+  # use the SAME Service CIDR, and the tailnet is shared. Two
+  # connectors advertising an identical prefix are treated by
+  # Tailscale as HA routers for ONE subnet, so a Mac mini could
+  # route its cluster traffic into the wrong env's cluster.
+  # Today only staging advertises it (values-staging.yaml). Before
+  # a second env does, the CIDR collision has to be resolved
+  # (distinct per-env Service CIDRs or Tailscale 4via6 site
+  # prefixes).
+  advertiseRoutes:
+    - "100.64.0.0/10"
+  # Optional node pinning for the Connector's proxy Pod (rendered as
+  # a tailscale ProxyClass). Enable in envs whose subnet router must
+  # be co-located with the workloads it fronts — e.g. staging pins it
+  # to the `kura-scw-fr-par` pool so the Mac mini -> router -> kura
+  # path stays inside Scaleway fr-par instead of hairpinning through
+  # the Hetzner nodes. A tainted pool also needs a matching entry in
+  # `tolerations`, or the router never schedules.
+  proxyClass:
+    enabled: false
+    name: tuist-connector
+    nodeSelector: {}
+    tolerations: []
+
+# Egress plumbing so cluster Pods (specifically alloy-metrics) can
+# reach each Mac mini at its MagicDNS FQDN. Materialised by
+# templates/macmini-egress.yaml — see that file's header for why a
+# ProxyGroup + per-target ExternalName is necessary on top of the
+# Connector subnet router.
+# Exposes in-cluster Services to tailnet peers over direct paths, through a
+# ProxyGroup with static endpoints. See templates/tailnet-ingress.yaml. A
+# Service opts in with `loadBalancerClass: tailscale` and the
+# `tailscale.com/proxy-group` annotation naming this ProxyGroup.
+tailnetIngress:
+  enabled: false
+  proxyGroup:
+    name: tailnet-ingress
+    replicas: 2
+    # Per-env device name prefix; see macminiEgress.proxyGroup.hostnamePrefix.
+    hostnamePrefix: ""
+    # Tailscale identity the proxies register under. Per-env overlays set
+    # `tag:tuist-k8s-<env>`, which the tailnet policy's grants and
+    # `autoApprovers.services` entries are scoped to.
+    tags:
+      - "tag:tuist-k8s-staging"
+  staticEndpoints:
+    # UDP NodePorts the operator picks from, one per proxy, and advertises on
+    # the external IPs of the nodes below. Must be free, inside the cluster's
+    # NodePort range, and open to inbound UDP on those nodes.
+    ports:
+      - port: 31940
+        endPort: 31949
+    # Nodes whose external IPs are advertised. They need a public address.
+    nodeSelector:
+      node.cluster.x-k8s.io/pool: general
+
+macminiEgress:
+  enabled: false
+  proxyGroup:
+    name: macmini-egress
+    # Prefix of the proxies' tailnet device names, which get `-<n>` appended.
+    # Without one they are named after the ProxyGroup, and every env shares
+    # the tailnet, so each env's proxies took the same names and Tailscale
+    # suffixed the later ones (`macmini-egress-0-2`). Per-env overlays set
+    # `<name>-<env>`.
+    hostnamePrefix: ""
+    # 2 replicas gives HA without burning a lot of pods; the proxy
+    # holds no state per scrape, so a restart drops one in-flight
+    # scrape interval at worst.
+    replicas: 2
+    # Tailscale identity the egress proxy registers under. Per-env
+    # overlays override to `tag:tuist-k8s-<env>` for the same reason
+    # the Connector tag is per-env: ACL grants are scoped to the
+    # cluster-env tag dialing the matching `tag:tuist-macmini-<env>`.
+    tags:
+      - "tag:tuist-k8s-staging"
+    # Renders a ProxyClass that makes these proxies install subnet routes
+    # advertised by other tailnet nodes (`--accept-routes`), and binds the
+    # ProxyGroup to it.
+    #
+    # Only needed by an env that runs RACK-owned Mac minis
+    # (RackAppleSiliconMachine). Those are not on the tailnet when the
+    # operator first has to reach them, since bootstrap is what puts them
+    # there, so the only path is a LAN address behind a subnet router. A proxy
+    # that does not accept routes answers `no matching peer` for such an
+    # address. Every rented mini is a tailnet node reached by its own FQDN,
+    # which is why this stayed off for so long.
+    #
+    # Off by default: it widens what these proxies will forward to, so an env
+    # with no rack hardware should not carry it.
+    acceptRoutes: false
+  # Per-mini ExternalName Services. The standard path is to leave
+  # this list empty: the CAPI provider's
+  # ScalewayAppleSiliconMachine reconciler materialises one
+  # Service per Mac mini in this chart's release namespace,
+  # labelled `tuist.dev/macmini-egress=true` so alloy-metrics
+  # picks them up via Service-role discovery. See
+  # `macosFleet.tailscaleEgress` in the main tuist chart for the
+  # operator-side knobs.
+  #
+  # This list is an escape hatch for Mac minis that aren't
+  # managed by CAPI (e.g. a one-off bare-metal host that joined
+  # the tailnet manually). Entries are static counterparts to
+  # the controller-managed Services and follow the same shape.
+  #
+  # Schema:
+  #   - name:        Service name (must be a valid DNS-1123 label)
+  #     tailnetFQDN: MagicDNS hostname of the Mac mini (matches
+  #                  the `--hostname` passed to `tailscale up` in
+  #                  infra/macos-host-bootstrap/bootstrap.go, which
+  #                  is the CR/Node name). Suffix is the tailnet's
+  #                  MagicDNS domain, e.g. `<tailnet>.ts.net`.
+  machines: []

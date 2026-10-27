@@ -1,0 +1,11 @@
+included:
+  - Sources
+  - Tests
+  - LiveActivity
+  - Share
+
+disabled_rules:
+  - identifier_name
+
+line_length:
+  warning: 140

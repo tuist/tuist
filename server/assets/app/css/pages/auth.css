@@ -1,10 +1,14 @@
 #accept-invitation,
+#integration-installation,
 #login,
 #okta-login,
 #sso-login,
 #signup,
 #signup-success,
 #confirmation,
+#confirmation-instructions,
+#agent-auth,
+#sso-link,
 #forgot-password,
 #reset-password,
 #create-project,
@@ -13,10 +17,21 @@
 #error-page {
   display: flex;
   position: relative;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
-  background-color: var(--surface-background-primary);
+  box-sizing: border-box;
+  background-color: var(--noora-surface-background-primary);
+  padding: var(--noora-spacing-10) var(--noora-spacing-4);
+  width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
+
+  @media (max-width: 768px) {
+    & {
+      padding: var(--noora-spacing-6);
+    }
+  }
 
   & * {
     box-sizing: border-box;
@@ -30,17 +45,11 @@
     gap: var(--noora-spacing-6);
     z-index: var(--noora-z-index-4);
     box-shadow: var(--noora-border-heavy);
-    border-radius: var(--noora-radius-2xlarge);
+    border-radius: var(--noora-radius-8);
     background: var(--noora-surface-background-primary);
     padding: var(--noora-spacing-4);
-    @media (max-width: 768px) {
-      & {
-        box-shadow: unset;
-        border-radius: 0;
-        width: 100vw;
-        height: 100vh;
-      }
-    }
+    max-width: 100%;
+    overflow: hidden;
 
     & > [data-part="content"] {
       display: flex;
@@ -50,10 +59,19 @@
       padding: var(--noora-spacing-10) var(--noora-spacing-11) var(--noora-spacing-3) var(--noora-spacing-11);
       max-width: 438px;
 
+      @media (max-width: 768px) {
+        & {
+          padding-inline: var(--noora-spacing-5);
+          width: 100%;
+          max-width: 100%;
+        }
+      }
+
       & > [data-part="logo"] {
         z-index: 103;
         width: 50px;
         height: 50px;
+        color: light-dark(var(--noora-purple-500), var(--noora-purple-400));
       }
 
       & > [data-part="header"] {
@@ -113,19 +131,31 @@
     }
   }
 
+  & [data-part="oauth-providers"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    width: 100%;
+  }
+
   & [data-part="oauth"] {
     display: grid;
-    grid-auto-columns: minmax(100px, 1fr);
+    grid-auto-columns: minmax(0, 1fr);
     grid-auto-flow: column;
     gap: var(--noora-spacing-4);
     width: 100%;
 
-    &[data-compact] {
-      grid-auto-columns: minmax(76px, 1fr);
-    }
-
     &[data-compact] span {
       display: none;
+    }
+  }
+
+  & [data-part="sso"] {
+    display: flex;
+    width: 100%;
+
+    & > .noora-button {
+      width: 100%;
     }
   }
 
@@ -143,12 +173,19 @@
   }
 
   & [data-part="background"] {
+    /* This is necessary because in Safari iOS, "filter: blur()" makes the main thread hang;
+       causing the rendering to be slow, and other cascading issues, like the websocket connection
+       timing out */
+    @supports (-webkit-touch-callout: none) {
+      display: none;
+    }
+
     position: absolute;
     top: 0px;
     left: 0px;
     z-index: -1;
-    width: 100dvw;
-    height: 100dvh;
+    width: 100%;
+    height: 100%;
     overflow: hidden;
 
     & [data-part="shell"] {
@@ -203,8 +240,146 @@
   }
 }
 
+#integration-installation {
+  & [data-part="frame"] {
+    width: min(100%, 470px);
+  }
+
+  & [data-part="content"] {
+    width: 100%;
+  }
+
+  & [data-part="title"] {
+    text-align: center;
+  }
+
+  & [data-part="organizations"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-4);
+    padding: var(--noora-spacing-2);
+    width: 100%;
+    max-height: 360px;
+    overflow-y: auto;
+  }
+
+  & [data-part="organization"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-5);
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+    box-shadow: var(--noora-border-light-default);
+    border: 0;
+    border-radius: var(--noora-radius-6);
+    background: var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-5);
+    width: 100%;
+    color: var(--noora-surface-label-primary);
+    text-align: left;
+
+    &:hover {
+      background: var(--noora-surface-background-secondary);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--noora-purple-500);
+      outline-offset: -2px;
+    }
+
+    & > svg {
+      flex-shrink: 0;
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
+      color: var(--noora-surface-label-secondary);
+    }
+  }
+
+  & [data-part="organization-details"] {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--noora-spacing-1);
+    min-width: 0;
+  }
+
+  & [data-part="organization-name"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    overflow-wrap: anywhere;
+  }
+
+  & [data-part="organization-type"],
+  & [data-part="empty-state"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+  }
+}
+
+#agent-auth,
+#sso-link {
+  & [data-part="wrapper"] {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+  }
+
+  & [data-part="frame"] {
+    width: min(100%, 470px);
+  }
+
+  & .noora-alert {
+    width: 100%;
+  }
+
+  & [data-part="form"] {
+    & > [data-part="actions"],
+    & > [data-part="actions"] .noora-button {
+      width: 100%;
+    }
+
+    & .noora-text-input input {
+      font: var(--noora-font-weight-semibold) var(--noora-font-heading-medium);
+      letter-spacing: 0.2em;
+      text-align: center;
+    }
+  }
+
+  & [data-part="security-note"] {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--noora-spacing-3);
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-small);
+
+    & [data-part="icon"] {
+      display: flex;
+      flex-shrink: 0;
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
+
+      & svg {
+        width: 100%;
+        height: 100%;
+      }
+    }
+  }
+
+  & .otp {
+    box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-6);
+    background: var(--noora-surface-background-secondary);
+    padding: var(--noora-spacing-8) var(--noora-spacing-6);
+    width: 100%;
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-semibold) var(--noora-font-heading-2xlarge);
+    letter-spacing: 0.2em;
+    text-align: center;
+  }
+}
+
 #login,
 #signup,
+#confirmation-instructions,
 #forgot-password,
 #okta-login,
 #sso-login {
@@ -218,7 +393,7 @@
     align-items: center;
     gap: var(--noora-spacing-2);
     box-shadow: var(--noora-border-section);
-    border-radius: var(--noora-radius-large);
+    border-radius: var(--noora-radius-4);
     background: var(--noora-surface-background-tertiary);
     padding: var(--noora-spacing-8) var(--noora-spacing-9);
     width: 100%;
@@ -235,6 +410,18 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: var(--noora-spacing-3);
+
+    @media (max-width: 768px) {
+      & {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      & > :last-child {
+        align-self: flex-start;
+      }
+    }
   }
 }
 
@@ -244,6 +431,7 @@
   & [data-part="wrapper"] {
     display: flex;
     gap: var(--noora-spacing-6);
+    max-width: 100%;
   }
 
   & [data-part="frame"]:has(> [data-part="features"]) {
@@ -305,7 +493,7 @@
 
   & [data-part="image"] {
     margin: 1.5px;
-    border-radius: var(--noora-radius-2xlarge);
+    border-radius: var(--noora-radius-8);
     width: 658px;
     overflow: hidden;
 
@@ -352,5 +540,25 @@
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-2);
+  }
+}
+
+[data-part="terms-notice"] {
+  margin-top: var(--noora-spacing-14);
+  text-align: center;
+
+  & span {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-body-medium);
+  }
+
+  & a {
+    transition: color 0.2s ease;
+    color: var(--noora-surface-label-secondary);
+    text-decoration: underline;
+
+    &:hover {
+      color: var(--noora-surface-label-primary);
+    }
   }
 }

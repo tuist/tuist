@@ -3,6 +3,8 @@ defmodule TuistWeb.UserConfirmationLive do
   use TuistWeb, :live_view
   use Noora
 
+  import TuistWeb.AppAuthComponents
+
   alias Tuist.Accounts
 
   def render(assigns) do
@@ -11,11 +13,7 @@ defmodule TuistWeb.UserConfirmationLive do
       <div data-part="wrapper">
         <div data-part="frame">
           <div data-part="content">
-            <img
-              src="/images/tuist_logo_32x32@2x.png"
-              alt={dgettext("dashboard_auth", "Tuist Logo")}
-              data-part="logo"
-            />
+            <.tuist_mark data-part="logo" aria-label={dgettext("dashboard_auth", "Tuist Logo")} />
             <div data-part="dots">
               <.dots_light />
               <.dots_dark />
@@ -65,6 +63,7 @@ defmodule TuistWeb.UserConfirmationLive do
         <div data-part="bottom-left-gradient"></div>
         <div data-part="shell"><.shell /></div>
       </div>
+      <.terms_and_privacy />
     </div>
     """
   end
@@ -72,19 +71,26 @@ defmodule TuistWeb.UserConfirmationLive do
   def mount(%{"token" => token}, _session, socket) do
     if connected?(socket) do
       case Accounts.confirm_user(token) do
-        {:ok, _} ->
+        {:ok, user} ->
           Process.send_after(self(), :redirect, 5000)
-          {:ok, assign(socket, success: true)}
+          {:ok, assign(socket, success: true, redirect_to: post_confirmation_path(user))}
 
         :error ->
-          {:ok, assign(socket, success: false)}
+          {:ok, assign(socket, success: false, redirect_to: nil)}
       end
     else
-      {:ok, assign(socket, success: true)}
+      {:ok, assign(socket, success: true, redirect_to: nil)}
     end
   end
 
   def handle_info(:redirect, socket) do
-    {:noreply, redirect(socket, to: ~p"/projects/new")}
+    {:noreply, redirect(socket, to: socket.assigns.redirect_to || ~p"/organizations/new")}
+  end
+
+  defp post_confirmation_path(user) do
+    case Accounts.get_pending_invitations_by_email(user.email) do
+      [invitation | _] -> ~p"/auth/invitations/#{invitation.token}"
+      [] -> ~p"/organizations/new"
+    end
   end
 end

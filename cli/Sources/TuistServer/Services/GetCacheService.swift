@@ -2,6 +2,7 @@
     import Foundation
     import Mockable
     import TuistCore
+    import TuistHTTP
 
     @Mockable
     public protocol GetCacheServicing {
@@ -33,7 +34,19 @@
         }
     }
 
-    public final class GetCacheService: GetCacheServicing {
+    extension GetCacheServiceError: HTTPStatusCodeError {
+        public var httpStatusCode: Int {
+            switch self {
+            case let .unknownError(statusCode): return statusCode
+            case .notFound: return 404
+            case .paymentRequired: return 402
+            case .forbidden: return 403
+            case .unauthorized: return 401
+            }
+        }
+    }
+
+    public struct GetCacheService: GetCacheServicing {
         public init() {}
 
         public func getCache(
@@ -65,6 +78,10 @@
                 case let .json(error):
                     throw GetCacheServiceError.paymentRequired(error.message)
                 }
+            case let .tooManyRequests(tooManyRequests):
+                throw AuthorizationThrottledError(
+                    retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+                )
             case let .undocumented(statusCode: statusCode, _):
                 throw GetCacheServiceError.unknownError(statusCode)
             case let .forbidden(forbiddenResponse):

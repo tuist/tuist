@@ -1,6 +1,6 @@
 import Foundation
 import Mockable
-import TuistSupport
+import TuistEnvironment
 
 @Mockable
 public protocol CIOIDCAuthenticating {
@@ -9,20 +9,27 @@ public protocol CIOIDCAuthenticating {
 
 enum CIOIDCAuthenticatorError: LocalizedError, Equatable {
     case unsupportedCIEnvironment
+    case emptyOIDCToken
     case missingGitHubActionsOIDCPermissions
+    case gitHubActionsOIDCTokenRequestFailed(statusCode: Int, body: String)
     case missingCircleCIOIDCToken
     case missingBitriseOIDCToken
 
     var errorDescription: String? {
         switch self {
         case .unsupportedCIEnvironment:
-            "OIDC authentication is not supported in this environment. OIDC authentication is supported in the following CI providers: GitHub Actions, CircleCI, Bitrise."
+            return "OIDC authentication is not supported in this environment. Use GitHub Actions, CircleCI, Bitrise, or supply a workload identity token through TUIST_OIDC_TOKEN."
+        case .emptyOIDCToken:
+            return "TUIST_OIDC_TOKEN is empty. Fetch an OIDC token with audience 'tuist' from your workload identity provider."
         case .missingGitHubActionsOIDCPermissions:
-            "GitHub Actions OIDC token request variables not set. Ensure your workflow has 'permissions: id-token: write' set."
+            return "GitHub Actions OIDC token request variables not set. Ensure your workflow has 'permissions: id-token: write' set."
+        case let .gitHubActionsOIDCTokenRequestFailed(statusCode, body):
+            let response = body.isEmpty ? "" : " Response: \(body)"
+            return "GitHub Actions returned status code \(statusCode) while issuing an OIDC token. This usually indicates an upstream GitHub Actions OIDC outage or a transient runner networking issue. \(response)"
         case .missingCircleCIOIDCToken:
-            "CircleCI OIDC token not found. Ensure OIDC is enabled for your CircleCI project in the project settings."
+            return "CircleCI OIDC token not found. Ensure OIDC is enabled for your CircleCI project in the project settings."
         case .missingBitriseOIDCToken:
-            "Bitrise OIDC token not found. Ensure you have added the 'Get OIDC Identity Token' step before this step in your workflow."
+            return "Bitrise OIDC token not found. Ensure you have added the 'Get OIDC Identity Token' step before this step in your workflow."
         }
     }
 }
@@ -39,6 +46,14 @@ public struct CIOIDCAuthenticator: CIOIDCAuthenticating {
     }
 
     public func fetchOIDCToken() async throws -> String {
+        if let token = Environment.current.variables["TUIST_OIDC_TOKEN"] {
+            let trimmedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedToken.isEmpty else {
+                throw CIOIDCAuthenticatorError.emptyOIDCToken
+            }
+            return trimmedToken
+        }
+
         if isGitHubActionsEnvironment {
             return try await fetchGitHubActionsOIDCToken()
         }
@@ -67,11 +82,23 @@ public struct CIOIDCAuthenticator: CIOIDCAuthenticating {
             throw CIOIDCAuthenticatorError.missingGitHubActionsOIDCPermissions
         }
 
-        return try await oidcTokenFetcher.fetchToken(
-            requestURL: requestURL,
-            requestToken: requestToken,
-            audience: "tuist"
-        )
+        do {
+            return try await oidcTokenFetcher.fetchToken(
+                requestURL: requestURL,
+                requestToken: requestToken,
+                audience: "tuist"
+            )
+        } catch let error as OIDCTokenFetcherError {
+            switch error {
+            case let .tokenRequestFailed(statusCode, body):
+                throw CIOIDCAuthenticatorError.gitHubActionsOIDCTokenRequestFailed(
+                    statusCode: statusCode,
+                    body: body
+                )
+            case .invalidTokenRequestURL:
+                throw error
+            }
+        }
     }
 
     // MARK: - CircleCI
@@ -97,7 +124,9 @@ public struct CIOIDCAuthenticator: CIOIDCAuthenticating {
     }
 
     private func bitriseOIDCToken() throws -> String {
-        guard let token = Environment.current.variables["BITRISE_OIDC_ID_TOKEN"] else {
+        guard let token = Environment.current.variables["BITRISE_OIDC_ID_TOKEN"]
+            ?? Environment.current.variables["BITRISE_IDENTITY_TOKEN"]
+        else {
             throw CIOIDCAuthenticatorError.missingBitriseOIDCToken
         }
 

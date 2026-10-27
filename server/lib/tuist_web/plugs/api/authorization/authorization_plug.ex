@@ -3,50 +3,48 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   A plug that authorizes API actions.
   """
   use TuistWeb, :controller
-  use TuistWeb, :verified_routes
 
   alias Tuist.Authorization
   alias TuistWeb.Authentication
+  alias TuistWeb.RateLimit
 
   def init(:run), do: :run
   def init(:bundle), do: :bundle
   def init(:cache), do: :cache
   def init(:preview), do: :preview
-  def init(:registry), do: :registry
-  def init(:qa_run), do: :qa_run
-  def init(:qa_step), do: :qa_step
-  def init(:qa_screenshot), do: :qa_screenshot
+  def init(:test), do: :test
+  def init(:build), do: :build
+  def init(:automation_alert), do: :automation_alert
+  def init({:account, :runners}), do: {:account, :runners}
+  def init({:account, :runners, :update}), do: {:account, :runners, :update}
+  def init({:account, :account, :update}), do: {:account, :account, :update}
+  def init({:project, :project, :update}), do: {:project, :project, :update}
 
   def init(opts) when is_list(opts) do
     opts
   end
 
-  def call(conn, category) when is_atom(category) do
-    case category do
-      :run ->
-        authorize_project(conn, :run)
+  @project_categories [:run, :bundle, :cache, :preview, :test, :build, :automation_alert]
+  @account_categories [:runners]
 
-      :bundle ->
-        authorize_project(conn, :bundle)
+  def call(conn, category) when category in @project_categories do
+    authorize_project(conn, category)
+  end
 
-      :cache ->
-        authorize_project(conn, :cache)
+  def call(conn, {:account, category}) when category in @account_categories do
+    authorize_account(conn, category)
+  end
 
-      :preview ->
-        authorize_project(conn, :preview)
+  def call(conn, {:account, :runners, :update}) do
+    authorize_account(conn, :runners, :update)
+  end
 
-      :registry ->
-        authorize_account(conn, :registry)
+  def call(conn, {:account, :account, action}) when action == :update do
+    authorize_account(conn, :account, action)
+  end
 
-      :qa_run ->
-        authorize_project(conn, :qa_run)
-
-      :qa_step ->
-        authorize_project(conn, :qa_step)
-
-      :qa_screenshot ->
-        authorize_project(conn, :qa_screenshot)
-    end
+  def call(conn, {:project, :project, action}) when action == :update do
+    authorize_project(conn, :project, action: action)
   end
 
   def call(conn, opts) do
@@ -54,84 +52,62 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     authorize_project(conn, :cache, opts)
   end
 
-  defp authorize_account(%{assigns: assigns} = conn, :registry) when not is_map_key(assigns, :selected_account) do
-    conn
-  end
-
-  defp authorize_account(%{assigns: %{selected_account: selected_account}} = conn, category) do
-    action = get_action(conn)
-
-    subject =
-      Authentication.authenticated_subject(conn)
-
-    if authorize(subject, action, selected_account, category) do
-      conn
-    else
-      status =
-        case category do
-          :registry -> :unauthorized
-          _ -> :forbidden
-        end
-
-      conn
-      |> put_status(status)
-      |> json(%{
-        message: "You are not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"
-      })
-      |> halt()
-    end
-  end
-
   def authorize_project(%{assigns: %{selected_project: selected_project}} = conn, category, opts \\ []) do
-    caching = Keyword.get(opts, :caching, false)
-    action = get_action(conn)
+    action = Keyword.get(opts, :action, get_action(conn))
     subject = Authentication.authenticated_subject(conn)
 
-    subject_id =
-      case subject do
-        %{id: id} -> id
-        %{account: %{id: id}} -> id
-      end
-
-    cache_key = [
-      Atom.to_string(__MODULE__),
-      "authorize",
-      "#{Atom.to_string(subject.__struct__)}-#{subject_id}",
-      "#{Atom.to_string(selected_project.__struct__)}-#{selected_project.id}"
-    ]
-
-    authorized? =
-      if caching do
-        Tuist.KeyValueStore.get_or_update(
-          cache_key,
-          [
-            cache: Map.get(conn.assigns, :cache, :tuist),
-            ttl: Keyword.get(opts, :cache_ttl, to_timeout(minute: 1)),
-            locking: true
-          ],
-          fn ->
-            authorize(subject, action, selected_project, category)
-          end
-        )
-      else
-        authorize(subject, action, selected_project, category)
-      end
+    authorized? = authorize(subject, action, selected_project, category)
 
     if authorized? do
       conn
     else
-      conn
-      |> put_status(:forbidden)
-      |> json(%{
-        message: "#{subject.account.name} is not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"
-      })
-      |> halt()
+      deny(conn, subject, action, category)
     end
   end
 
-  def authorize(subject, action, project, category) do
-    Authorization.authorize(:"#{category}_#{action}", subject, project) == :ok
+  defp authorize_account(%{assigns: %{selected_account: selected_account}} = conn, category, action \\ nil) do
+    action = action || get_action(conn)
+    subject = Authentication.authenticated_subject(conn)
+
+    if authorize(subject, action, selected_account, category) do
+      conn
+    else
+      deny(conn, subject, action, category)
+    end
   end
+
+  defp deny(conn, subject, action, category) do
+    case RateLimit.Authorization.hit(conn) do
+      {:allow, _count} ->
+        conn
+        |> put_status(:forbidden)
+        |> json(%{
+          message: "#{subject_name(subject)} is not authorized to #{Atom.to_string(action)} #{Atom.to_string(category)}"
+        })
+        |> halt()
+
+      {:deny, milliseconds_until_next_window} ->
+        conn
+        |> put_resp_header("retry-after", Integer.to_string(ceil(milliseconds_until_next_window / 1000)))
+        |> put_resp_header("x-tuist-throttle-reason", "authorization")
+        |> put_status(:too_many_requests)
+        |> json(%{message: "You have made too many unauthorized requests. Please try again later."})
+        |> halt()
+    end
+  end
+
+  defp subject_name(%{account: %{name: name}}), do: name
+  defp subject_name(_subject), do: "The authenticated subject"
+
+  def authorize(subject, action, project, category) do
+    category
+    |> authorization_action(action)
+    |> Authorization.authorize(subject, project)
+    |> Kernel.==(:ok)
+  end
+
+  defp authorization_action(:cache, action), do: authorization_action(:project, :"cache_#{action}")
+  defp authorization_action(category, action), do: :"#{category}_#{action}"
 
   defp get_action(conn) do
     case conn.method do

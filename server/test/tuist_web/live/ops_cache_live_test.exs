@@ -1,0 +1,103 @@
+defmodule TuistWeb.OpsCacheLiveTest do
+  use TuistTestSupport.Cases.ConnCase, async: true
+  use TuistTestSupport.Cases.LiveCase
+  use Mimic
+
+  import Phoenix.LiveViewTest
+
+  alias Tuist.Accounts
+  alias Tuist.CacheEndpoints
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+
+  setup %{conn: conn} do
+    Tuist.Repo.delete_all(CacheEndpoints.CacheEndpoint)
+
+    user = AccountsFixtures.user_fixture(preload: [:account])
+
+    conn = log_in_user(conn, user)
+
+    Mimic.stub(Accounts, :tuist_operator?, fn _ -> true end)
+
+    %{conn: conn, user: user}
+  end
+
+  test "renders the cache endpoints page", %{conn: conn} do
+    # Given
+    {:ok, _endpoint} =
+      CacheEndpoints.create_cache_endpoint(%{
+        url: "https://cache-test.tuist.dev",
+        display_name: "Test Node"
+      })
+
+    # When
+    {:ok, _lv, html} = live(conn, ~p"/ops")
+
+    # Then
+    assert html =~ "Cache Endpoints"
+    assert html =~ "Test Node"
+    assert html =~ "https://cache-test.tuist.dev"
+    assert html =~ "Enabled"
+  end
+
+  test "toggles enabled state", %{conn: conn} do
+    # Given
+    {:ok, endpoint} =
+      CacheEndpoints.create_cache_endpoint(%{
+        url: "https://cache-test.tuist.dev",
+        display_name: "Test Node"
+      })
+
+    {:ok, lv, _html} = live(conn, ~p"/ops")
+
+    # When
+    lv |> element("button", "Disable") |> render_click()
+
+    # Then
+    {:ok, updated_endpoint} = CacheEndpoints.get_cache_endpoint(endpoint.id)
+    assert updated_endpoint.enabled == false
+  end
+
+  test "deletes an endpoint", %{conn: conn} do
+    # Given
+    {:ok, endpoint} =
+      CacheEndpoints.create_cache_endpoint(%{
+        url: "https://cache-test.tuist.dev",
+        display_name: "Test Node"
+      })
+
+    {:ok, lv, _html} = live(conn, ~p"/ops")
+
+    # When
+    lv |> element("button", "Delete") |> render_click()
+
+    # Then
+    assert {:error, :not_found} = CacheEndpoints.get_cache_endpoint(endpoint.id)
+  end
+
+  test "adds a new endpoint in disabled state", %{conn: conn} do
+    # Given
+    {:ok, lv, _html} = live(conn, ~p"/ops")
+
+    # When
+    lv
+    |> form("form", %{
+      url: "https://cache-new.tuist.dev",
+      display_name: "New Node"
+    })
+    |> render_submit()
+
+    # Then
+    assert {:ok, endpoint} = CacheEndpoints.get_cache_endpoint_by_url("https://cache-new.tuist.dev")
+    assert endpoint.display_name == "New Node"
+    assert endpoint.enabled == false
+  end
+
+  test "shows empty state when no endpoints exist", %{conn: conn} do
+    # When
+    {:ok, _lv, html} = live(conn, ~p"/ops")
+
+    # Then
+    assert html =~ "No cache endpoints"
+    assert html =~ "Add a cache endpoint to get started"
+  end
+end

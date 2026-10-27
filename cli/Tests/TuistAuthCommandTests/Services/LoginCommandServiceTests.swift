@@ -1,0 +1,437 @@
+import Foundation
+import Mockable
+import Testing
+import TuistConfigLoader
+import TuistEnvironment
+import TuistEnvironmentTesting
+import TuistOIDC
+import TuistServer
+import TuistUserInputReader
+
+#if os(macOS)
+    import TuistCore
+    import TuistLoader
+    import TuistSupport
+    import TuistTesting
+#endif
+
+@testable import TuistAuthCommand
+
+struct LoginCommandServiceTests {
+    private let serverURL = URL(string: "https://test.tuist.dev")!
+    private let serverSessionController: MockServerSessionControlling
+    private let serverEnvironmentService: MockServerEnvironmentServicing
+    private let userInputReader: MockUserInputReading
+    private let authenticateService: MockAuthenticateServicing
+    private let ciOIDCAuthenticator: MockCIOIDCAuthenticating
+    private let exchangeOIDCTokenService: MockExchangeOIDCTokenServicing
+    private let configLoader: MockConfigLoading
+    private let subject: LoginCommandService
+
+    init() {
+        serverSessionController = MockServerSessionControlling()
+        serverEnvironmentService = MockServerEnvironmentServicing()
+        userInputReader = MockUserInputReading()
+        authenticateService = MockAuthenticateServicing()
+        ciOIDCAuthenticator = MockCIOIDCAuthenticating()
+        exchangeOIDCTokenService = MockExchangeOIDCTokenServicing()
+        configLoader = MockConfigLoading()
+
+        given(serverEnvironmentService)
+            .url(configServerURL: .any)
+            .willReturn(serverURL)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(url: serverURL))
+
+        subject = LoginCommandService(
+            serverEnvironmentService: serverEnvironmentService,
+            serverSessionController: serverSessionController,
+            userInputReader: userInputReader,
+            authenticateService: authenticateService,
+            ciOIDCAuthenticator: ciOIDCAuthenticator,
+            exchangeOIDCTokenService: exchangeOIDCTokenService,
+            configLoader: configLoader
+        )
+    }
+
+    @Test(.withMockedEnvironment())
+    func run_authenticates_with_browser() async throws {
+        // Given
+        given(serverSessionController)
+            .authenticate(
+                serverURL: .any,
+                deviceCodeType: .any,
+                onOpeningBrowser: .any,
+                onAuthWaitBegin: .any
+            )
+            .willReturn(())
+
+        // When
+        try await subject.run(
+            email: nil,
+            password: nil,
+            serverURL: serverURL.absoluteString
+        )
+
+        // Then
+        verify(serverSessionController)
+            .authenticate(
+                serverURL: .any,
+                deviceCodeType: .any,
+                onOpeningBrowser: .any,
+                onAuthWaitBegin: .any
+            )
+            .called(1)
+    }
+
+    #if os(macOS)
+        @Test(.withMockedDependencies())
+        func authenticate_when_password_is_provided() async throws {
+            // Given
+            given(userInputReader)
+                .readString(asking: .value("Email:"))
+                .willReturn("email@tuist.dev")
+
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            given(serverCredentialsStore)
+                .store(
+                    credentials: .value(
+                        ServerCredentials(
+                            accessToken: "access-token",
+                            refreshToken: "refresh-token"
+                        )
+                    ),
+                    serverURL: .any
+                )
+                .willReturn()
+
+            given(authenticateService)
+                .authenticate(
+                    email: .value("email@tuist.dev"),
+                    password: .value("password"),
+                    serverURL: .any
+                )
+                .willReturn(
+                    ServerAuthenticationTokens(
+                        accessToken: "access-token",
+                        refreshToken: "refresh-token"
+                    )
+                )
+
+            // When
+            try await subject.run(
+                email: nil,
+                password: "password",
+                serverURL: serverURL.absoluteString
+            )
+
+            // Then
+            verify(authenticateService)
+                .authenticate(
+                    email: .value("email@tuist.dev"),
+                    password: .value("password"),
+                    serverURL: .any
+                )
+                .called(1)
+        }
+
+        @Test(.withMockedDependencies())
+        func authenticate_when_email_is_provided() async throws {
+            // Given
+            given(userInputReader)
+                .readString(asking: .value("Password:"))
+                .willReturn("password")
+
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            given(serverCredentialsStore)
+                .store(
+                    credentials: .value(
+                        ServerCredentials(
+                            accessToken: "access-token",
+                            refreshToken: "refresh-token"
+                        )
+                    ),
+                    serverURL: .any
+                )
+                .willReturn()
+
+            given(authenticateService)
+                .authenticate(
+                    email: .value("email@tuist.dev"),
+                    password: .value("password"),
+                    serverURL: .any
+                )
+                .willReturn(
+                    ServerAuthenticationTokens(
+                        accessToken: "access-token",
+                        refreshToken: "refresh-token"
+                    )
+                )
+
+            // When
+            try await subject.run(
+                email: "email@tuist.dev",
+                password: nil,
+                serverURL: serverURL.absoluteString
+            )
+
+            // Then
+            verify(authenticateService)
+                .authenticate(
+                    email: .value("email@tuist.dev"),
+                    password: .value("password"),
+                    serverURL: .any
+                )
+                .called(1)
+        }
+
+        @Test(.withMockedDependencies())
+        func authenticate_when_email_and_password_are_provided() async throws {
+            // Given
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            given(serverCredentialsStore)
+                .store(
+                    credentials: .value(
+                        ServerCredentials(
+                            accessToken: "access-token",
+                            refreshToken: "refresh-token"
+                        )
+                    ),
+                    serverURL: .any
+                )
+                .willReturn()
+
+            given(authenticateService)
+                .authenticate(
+                    email: .value("email@tuist.dev"),
+                    password: .value("password"),
+                    serverURL: .any
+                )
+                .willReturn(
+                    ServerAuthenticationTokens(
+                        accessToken: "access-token",
+                        refreshToken: "refresh-token"
+                    )
+                )
+
+            // When
+            try await subject.run(
+                email: "email@tuist.dev",
+                password: "password",
+                serverURL: serverURL.absoluteString
+            )
+
+            // Then
+            verify(userInputReader)
+                .readString(asking: .any)
+                .called(0)
+
+            verify(authenticateService)
+                .authenticate(
+                    email: .value("email@tuist.dev"),
+                    password: .value("password"),
+                    serverURL: .any
+                )
+                .called(1)
+        }
+    #endif
+
+    @Test(.withMockedEnvironment())
+    func run_uses_tuist_url_env_variable_when_no_server_url_argument() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.variables["TUIST_URL"] = "https://env.tuist.dev"
+
+        given(serverSessionController)
+            .authenticate(
+                serverURL: .any,
+                deviceCodeType: .any,
+                onOpeningBrowser: .any,
+                onAuthWaitBegin: .any
+            )
+            .willReturn(())
+
+        // When
+        try await subject.run(
+            email: nil,
+            password: nil,
+            serverURL: nil
+        )
+
+        // Then
+        verify(serverEnvironmentService)
+            .url(configServerURL: .value(URL(string: "https://env.tuist.dev")!))
+            .called(1)
+    }
+
+    @Test(.withMockedEnvironment())
+    func run_uses_config_url_when_no_server_url_argument_and_no_env_variable() async throws {
+        // Given
+        given(serverSessionController)
+            .authenticate(
+                serverURL: .any,
+                deviceCodeType: .any,
+                onOpeningBrowser: .any,
+                onAuthWaitBegin: .any
+            )
+            .willReturn(())
+
+        // When
+        try await subject.run(
+            email: nil,
+            password: nil,
+            serverURL: nil
+        )
+
+        // Then
+        verify(configLoader)
+            .loadConfig(path: .any)
+            .called(1)
+
+        verify(serverEnvironmentService)
+            .url(configServerURL: .value(serverURL))
+            .called(1)
+    }
+
+    #if os(macOS)
+        @Test(
+            .withMockedEnvironment(),
+            .withMockedDependencies(),
+            arguments: [["CI": "1"], ["TUIST_OIDC_TOKEN": "fly-identity-token"]]
+        )
+        func authenticate_with_oidc_in_ci_or_with_supplied_workload_token(variables: [String: String]) async throws {
+            // Given
+            let environment = try #require(Environment.mocked)
+            environment.variables = variables
+
+            given(ciOIDCAuthenticator)
+                .fetchOIDCToken()
+                .willReturn("oidc-jwt-token")
+
+            given(exchangeOIDCTokenService)
+                .exchangeOIDCToken(oidcToken: .value("oidc-jwt-token"), serverURL: .any)
+                .willReturn("tuist-access-token")
+
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            given(serverCredentialsStore)
+                .store(
+                    credentials: .value(
+                        ServerCredentials(
+                            accessToken: "tuist-access-token"
+                        )
+                    ),
+                    serverURL: .any
+                )
+                .willReturn()
+
+            // When
+            try await subject.run(
+                email: nil,
+                password: nil,
+                serverURL: serverURL.absoluteString
+            )
+
+            // Then
+            verify(ciOIDCAuthenticator)
+                .fetchOIDCToken()
+                .called(1)
+
+            verify(exchangeOIDCTokenService)
+                .exchangeOIDCToken(oidcToken: .value("oidc-jwt-token"), serverURL: .any)
+                .called(1)
+
+            verify(serverSessionController)
+                .authenticate(serverURL: .any, deviceCodeType: .any, onOpeningBrowser: .any, onAuthWaitBegin: .any)
+                .called(0)
+        }
+
+        @Test(.withMockedEnvironment(), .withMockedDependencies())
+        func authenticate_with_oidc_retries_fetching_the_ci_token() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["CI"] = "1"
+
+            let retryProvider = MockRetryProviding()
+
+            let subject = LoginCommandService(
+                serverEnvironmentService: serverEnvironmentService,
+                serverSessionController: serverSessionController,
+                userInputReader: userInputReader,
+                authenticateService: authenticateService,
+                ciOIDCAuthenticator: ciOIDCAuthenticator,
+                exchangeOIDCTokenService: exchangeOIDCTokenService,
+                retryProvider: retryProvider,
+                configLoader: configLoader
+            )
+
+            given(ciOIDCAuthenticator)
+                .fetchOIDCToken()
+                .willThrow(RetryTestError.failed)
+
+            given(ciOIDCAuthenticator)
+                .fetchOIDCToken()
+                .willThrow(RetryTestError.failed)
+
+            given(ciOIDCAuthenticator)
+                .fetchOIDCToken()
+                .willReturn("oidc-jwt-token")
+
+            given(exchangeOIDCTokenService)
+                .exchangeOIDCToken(oidcToken: .value("oidc-jwt-token"), serverURL: .any)
+                .willReturn("tuist-access-token")
+
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            given(serverCredentialsStore)
+                .store(
+                    credentials: .value(
+                        ServerCredentials(
+                            accessToken: "tuist-access-token"
+                        )
+                    ),
+                    serverURL: .any
+                )
+                .willReturn()
+
+            try await subject.run(
+                email: nil,
+                password: nil,
+                serverURL: serverURL.absoluteString
+            )
+
+            verify(ciOIDCAuthenticator)
+                .fetchOIDCToken()
+                .called(3)
+
+            #expect(retryProvider.runWithRetriesCallCount == 1)
+        }
+    #endif
+}
+
+#if os(macOS)
+    private final class MockRetryProviding: RetryProviding {
+        private(set) var runWithRetriesCallCount = 0
+
+        func runWithRetries<T>(
+            operation: @Sendable @escaping () async throws -> T
+        ) async throws -> T {
+            runWithRetriesCallCount += 1
+
+            var lastError: Error?
+
+            for _ in 0 ..< 4 {
+                do {
+                    return try await operation()
+                } catch {
+                    lastError = error
+                }
+            }
+
+            throw lastError ?? RetryTestError.failed
+        }
+    }
+
+    private enum RetryTestError: Error {
+        case failed
+    }
+#endif

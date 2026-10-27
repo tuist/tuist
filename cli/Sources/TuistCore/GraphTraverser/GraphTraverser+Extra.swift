@@ -1,4 +1,5 @@
 import Foundation
+import TuistConfig
 import XcodeGraph
 
 extension GraphTraversing {

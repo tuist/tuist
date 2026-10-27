@@ -1,0 +1,93 @@
+name: Gradle
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - gradle/**
+      - .github/workflows/gradle.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - gradle/**
+      - .github/workflows/gradle.yml
+  merge_group:
+
+concurrency:
+  group: gradle-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  MISE_GITHUB_ATTESTATIONS: 0
+  MISE_LOCKED: 1
+  GRADLE_USER_HOME: ${{ github.workspace }}/../tuist-gradle
+
+defaults:
+  run:
+    working-directory: gradle
+
+jobs:
+  # Split into non-fork (`test`) and fork (`test-fork`) like android.yml
+  # so only trusted runs get `id-token: write`. GitHub exposes the OIDC
+  # token request env whenever that permission is granted, and the fork
+  # path skips `tuist auth login` (the only OIDC consumer), so fork
+  # executions must run with `contents: read` alone.
+  test:
+    name: Test
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    if: |
+      github.repository == 'tuist/tuist' &&
+      (github.event.pull_request.draft == false || github.event_name != 'pull_request') &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork != true)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tuist/gradle-cache@v1
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-disabled: true
+      - uses: ./.github/actions/mise
+        with:
+          install_args: tuist
+          cache: "false"
+          working_directory: .
+      - name: Authenticate with Tuist
+        run: tuist auth login
+      - run: ./gradlew test
+
+  test-fork:
+    name: Test Fork
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.event.pull_request.head.repo.fork == true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: tuist/gradle-cache@v1
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-disabled: true
+      - uses: ./.github/actions/mise
+        with:
+          install_args: tuist
+          cache: "false"
+          working_directory: .
+      - run: ./gradlew test

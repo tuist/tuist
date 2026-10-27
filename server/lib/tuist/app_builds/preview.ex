@@ -33,6 +33,7 @@ defmodule Tuist.AppBuilds.Preview do
     field :git_commit_sha, :string
     field :git_ref, :string
     field :track, :string, default: ""
+    field :release_notes, :string
 
     field :supported_platforms, {:array, Ecto.Enum},
       values: [
@@ -44,7 +45,8 @@ defmodule Tuist.AppBuilds.Preview do
         watchos_simulator: 5,
         visionos: 6,
         visionos_simulator: 7,
-        macos: 8
+        macos: 8,
+        android: 9
       ]
 
     field :visibility, Ecto.Enum,
@@ -70,8 +72,10 @@ defmodule Tuist.AppBuilds.Preview do
       :created_by_account_id,
       :supported_platforms,
       :visibility,
-      :track
+      :track,
+      :release_notes
     ])
+    |> validate_length(:release_notes, max: 10_000)
     |> validate_subset(:supported_platforms, Ecto.Enum.values(__MODULE__, :supported_platforms))
     |> validate_required([:project_id])
   end

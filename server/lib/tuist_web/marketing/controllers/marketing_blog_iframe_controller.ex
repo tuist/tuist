@@ -10,34 +10,43 @@ defmodule TuistWeb.Marketing.MarketingBlogIframeController do
   def show(conn, params) do
     case Map.get(params, "id") do
       nil ->
-        # No id parameter - return empty page
-        conn
-        |> put_resp_content_type("text/html")
-        |> send_resp(200, "")
+        empty_page(conn, 200)
 
       id ->
-        # Extract the blog post path from the request
-        path = conn.request_path
+        case iframe_template(params, id) do
+          {:ok, template} ->
+            conn
+            |> put_resp_content_type("text/html")
+            |> put_layout(false)
+            |> put_view(MarketingHTML)
+            |> assign(:support_chat_disabled?, true)
+            |> assign(:analytics_disabled?, true)
+            |> render(template)
 
-        # Convert path to template name
-        # e.g., "/blog/2025/11/6/zero-to-many/iframe.html?id=lone_wolf"
-        # becomes "blog_2025_11_6_zero_to_many_lone_wolf"
-        template =
-          path
-          |> String.trim_leading("/")
-          |> String.replace("/iframe.html", "")
-          |> String.replace(~r/[-\/]/, "_")
-          |> Kernel.<>("_#{id}")
-          |> String.to_atom()
-
-        # Render the template directly without LiveView
-        conn
-        |> put_resp_content_type("text/html")
-        |> put_layout(false)
-        |> put_view(MarketingHTML)
-        |> assign(:plain_disabled?, true)
-        |> assign(:analytics_disabled?, true)
-        |> render(template)
+          :error ->
+            empty_page(conn, 404)
+        end
     end
+  end
+
+  defp iframe_template(params, id) do
+    template_name =
+      String.replace("blog_#{params["year"]}_#{params["month"]}_#{params["day"]}_#{params["slug"]}_#{id}", "-", "_")
+
+    :functions
+    |> MarketingHTML.__info__()
+    |> Enum.find_value(:error, fn
+      {name, 1} ->
+        if Atom.to_string(name) == template_name, do: {:ok, name}
+
+      _ ->
+        nil
+    end)
+  end
+
+  defp empty_page(conn, status) do
+    conn
+    |> put_resp_content_type("text/html")
+    |> send_resp(status, "")
   end
 end

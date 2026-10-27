@@ -1,6 +1,10 @@
+import FileSystem
 import Foundation
+import Path
 import ProjectDescription
+import TuistAlert
 import TuistCore
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 
@@ -76,13 +80,45 @@ extension XcodeGraph.TargetDependency {
         case let .package(product, type, condition):
             switch type {
             case .macro:
-                return [.package(product: product, type: .macro, condition: condition?.asGraphCondition)]
+                return [
+                    .package(
+                        product: product,
+                        type: .macro,
+                        condition: condition?.asGraphCondition
+                    ),
+                ]
             case .runtime:
-                return [.package(product: product, type: .runtime, condition: condition?.asGraphCondition)]
+                return [
+                    .package(
+                        product: product,
+                        type: .runtime,
+                        condition: condition?.asGraphCondition
+                    ),
+                ]
             case .runtimeEmbedded:
-                return [.package(product: product, type: .runtimeEmbedded, condition: condition?.asGraphCondition)]
+                return [
+                    .package(
+                        product: product,
+                        type: .runtimeEmbedded,
+                        condition: condition?.asGraphCondition
+                    ),
+                ]
+            case .runtimeDynamic:
+                return [
+                    .package(product: product, type: .runtimeDynamic, condition: condition?.asGraphCondition),
+                ]
+            case .runtimeDynamicEmbedded:
+                return [
+                    .package(product: product, type: .runtimeDynamicEmbedded, condition: condition?.asGraphCondition),
+                ]
             case .plugin:
-                return [.package(product: product, type: .plugin, condition: condition?.asGraphCondition)]
+                return [
+                    .package(
+                        product: product,
+                        type: .plugin,
+                        condition: condition?.asGraphCondition
+                    ),
+                ]
             }
         case let .sdk(name, type, status, condition):
             return [
@@ -111,6 +147,34 @@ extension XcodeGraph.TargetDependency {
             }
 
             return dependencies.map { $0.withCondition(condition?.asGraphCondition) }
+        }
+    }
+}
+
+extension XcodeGraph.ForeignBuild.Input {
+    static func from(
+        manifest: ProjectDescription.Target.ForeignBuild.Input,
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming
+    ) async throws -> [XcodeGraph.ForeignBuild.Input] {
+        switch manifest {
+        case let .file(path):
+            return [.file(try generatorPaths.resolve(path: path))]
+        case let .folder(path):
+            return [.folder(try generatorPaths.resolve(path: path))]
+        case let .glob(path):
+            let resolvedPath = try generatorPaths.resolve(path: path)
+            let pattern = String(resolvedPath.pathString.dropFirst())
+            let matchedPaths = try await fileSystem.manifestGlob(directory: AbsolutePath.root, include: [pattern]).collect()
+                .sorted()
+            if matchedPaths.isEmpty {
+                AlertController.current.warning(.alert(
+                    "Foreign build glob input '\(resolvedPath.pathString)' matched no files. Verify the path is correct, otherwise Xcode will not detect changes to the matched files and the foreign build script may not re-run."
+                ))
+            }
+            return matchedPaths.map { .file($0) }
+        case let .script(script):
+            return [.script(script)]
         }
     }
 }
@@ -181,6 +245,30 @@ extension XcodeGraph.XCFrameworkSignature {
             return .selfSigned(fingerprint: fingerprint)
         case let .signedWithAppleCertificate(teamIdentifier, teamName):
             return .signedWithAppleCertificate(teamIdentifier: teamIdentifier, teamName: teamName)
+        }
+    }
+}
+
+extension XcodeGraph.BinaryLinking {
+    static func from(manifest: ProjectDescription.Target.ForeignBuild.Output.Linking) -> Self {
+        switch manifest {
+        case .static: return .static
+        case .dynamic: return .dynamic
+        }
+    }
+}
+
+extension XcodeGraph.ForeignBuild.Artifact {
+    static func from(
+        manifest: ProjectDescription.Target.ForeignBuild.Output,
+        generatorPaths: GeneratorPaths
+    ) throws -> Self {
+        switch manifest {
+        case let .xcframework(path, linking):
+            return .xcframework(
+                path: try generatorPaths.resolve(path: path),
+                linking: .from(manifest: linking)
+            )
         }
     }
 }

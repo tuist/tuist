@@ -1,6 +1,8 @@
+import FileSystem
 import Foundation
 import Path
 import TuistCore
+import TuistLogging
 import TuistSupport
 import XcodeProj
 
@@ -21,7 +23,7 @@ enum WorkspaceDescriptorGeneratorError: FatalError {
     }
 }
 
-protocol WorkspaceDescriptorGenerating: AnyObject {
+protocol WorkspaceDescriptorGenerating {
     /// Generates the given workspace.
     ///
     /// - Parameters:
@@ -31,7 +33,7 @@ protocol WorkspaceDescriptorGenerating: AnyObject {
     func generate(graphTraverser: GraphTraversing) async throws -> WorkspaceDescriptor
 }
 
-final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
+struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     struct Config {
         /// The execution context to use when generating
         /// descriptors for each project within the workspace / graph
@@ -47,13 +49,16 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
     private let schemeDescriptorsGenerator: SchemeDescriptorsGenerating
     private let workspaceSettingsGenerator: WorkspaceSettingsDescriptorGenerating
+    private let crossProjectTargetDependencyGenerator: CrossProjectTargetDependencyGenerating
+    private let fileSystem: FileSysteming
     private let config: Config
 
     // MARK: - Init
 
-    convenience init(
+    init(
         defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
-        config: Config = .default
+        config: Config = .default,
+        fileSystem: FileSysteming = FileSystem()
     ) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
@@ -66,7 +71,9 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             workspaceStructureGenerator: WorkspaceStructureGenerator(),
             schemeDescriptorsGenerator: SchemeDescriptorsGenerator(),
             workspaceSettingsGenerator: WorkspaceSettingsDescriptorGenerator(),
-            config: config
+            crossProjectTargetDependencyGenerator: CrossProjectTargetDependencyGenerator(),
+            config: config,
+            fileSystem: fileSystem
         )
     }
 
@@ -75,12 +82,17 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         workspaceStructureGenerator: WorkspaceStructureGenerating,
         schemeDescriptorsGenerator: SchemeDescriptorsGenerating,
         workspaceSettingsGenerator: WorkspaceSettingsDescriptorGenerating,
-        config: Config = .default
+        crossProjectTargetDependencyGenerator: CrossProjectTargetDependencyGenerating =
+            CrossProjectTargetDependencyGenerator(),
+        config: Config = .default,
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.projectDescriptorGenerator = projectDescriptorGenerator
         self.workspaceStructureGenerator = workspaceStructureGenerator
         self.schemeDescriptorsGenerator = schemeDescriptorsGenerator
         self.workspaceSettingsGenerator = workspaceSettingsGenerator
+        self.crossProjectTargetDependencyGenerator = crossProjectTargetDependencyGenerator
+        self.fileSystem = fileSystem
         self.config = config
     }
 
@@ -93,12 +105,26 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         Logger.current.notice("Generating workspace \(workspaceName)", metadata: .section)
 
         // Projects
+        let projectCount = graphTraverser.projects.values.count
+        Logger.current.debug("Starting concurrent generation of \(projectCount) projects")
         let projects = try await Array(graphTraverser.projects.values)
             .concurrentCompactMap { project -> ProjectDescriptor? in
-                try await self.projectDescriptorGenerator.generate(project: project, graphTraverser: graphTraverser)
+                let threadId = Thread.current.description
+                Logger.current.debug("Task STARTED for project \(project.name) on thread \(threadId)")
+                let result = try await projectDescriptorGenerator.generate(project: project, graphTraverser: graphTraverser)
+                Logger.current.debug("Task COMPLETED for project \(project.name) on thread \(threadId)")
+                return result
             }
             .sorted(by: { $0.path < $1.path })
+        Logger.current.debug("Finished concurrent generation of \(projects.count) projects")
 
+        Logger.current.debug("Wiring explicit cross-project target dependencies")
+        try crossProjectTargetDependencyGenerator.generate(
+            graphTraverser: graphTraverser,
+            projectDescriptors: projects
+        )
+
+        Logger.current.debug("Creating generated projects dictionary")
         let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(uniqueKeysWithValues: projects.map { project in
             let pbxproj = project.xcodeProj.pbxproj
             let targets = pbxproj.nativeTargets.map {
@@ -116,13 +142,15 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         })
 
         // Workspace structure
-        let structure = workspaceStructureGenerator.generateStructure(
+        Logger.current.debug("Generating workspace structure")
+        let structure = try await workspaceStructureGenerator.generateStructure(
             path: graphTraverser.workspace.xcWorkspacePath.parentDirectory,
             workspace: graphTraverser.workspace,
             xcodeProjPaths: generatedProjects.keys.map { $0 },
-            fileHandler: FileHandler.shared
+            fileSystem: fileSystem
         )
 
+        Logger.current.debug("Creating workspace data and children elements")
         let workspaceData = XCWorkspaceData(children: [])
         let xcWorkspace = XCWorkspace(data: workspaceData)
         try workspaceData.children = structure.contents.map {
@@ -134,19 +162,21 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         }
 
         // Schemes
-        let schemes = try schemeDescriptorsGenerator.generateWorkspaceSchemes(
+        Logger.current.debug("Generating workspace schemes")
+        let (schemes, sideEffects) = try schemeDescriptorsGenerator.generateWorkspaceSchemes(
             workspace: graphTraverser.workspace,
             generatedProjects: generatedProjects,
             graphTraverser: graphTraverser
         )
 
+        Logger.current.debug("Creating and returning WorkspaceDescriptor")
         return WorkspaceDescriptor(
             path: graphTraverser.workspace.path,
             xcworkspacePath: graphTraverser.workspace.xcWorkspacePath,
             xcworkspace: xcWorkspace,
             projectDescriptors: projects,
             schemeDescriptors: schemes,
-            sideEffectDescriptors: [],
+            sideEffectDescriptors: sideEffects,
             workspaceSettingsDescriptor: workspaceSettingsGenerator.generateWorkspaceSettings(workspace: graphTraverser.workspace)
         )
     }
@@ -176,11 +206,14 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
                 lhs: lhsFile.location.path,
                 rhs: rhsFile.location.path
             )
-        case let (.group(lhsGroup), .group(rhsGroup)):
+        case let (.group(lhsGroup), .group(rhsGroup)),
+             let (.group(lhsGroup), .fileSystemSynchronizedGroup(rhsGroup)),
+             let (.fileSystemSynchronizedGroup(lhsGroup), .group(rhsGroup)),
+             let (.fileSystemSynchronizedGroup(lhsGroup), .fileSystemSynchronizedGroup(rhsGroup)):
             return lhsGroup.location.path < rhsGroup.location.path
-        case (.file, .group):
+        case (.file, .group), (.file, .fileSystemSynchronizedGroup):
             return true
-        case (.group, .file):
+        case (.group, .file), (.fileSystemSynchronizedGroup, .file):
             return false
         }
     }

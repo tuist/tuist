@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 import TSCUtility
 
-class Generator {
+struct Generator {
     private let fileSystem: FileSystem
     private let config: GeneratorConfig
     private let sourceTemplate: SourceTemplate

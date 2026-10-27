@@ -3,7 +3,7 @@ import Logging
 import TSCUtility
 import TuistCore
 
-public final class LastUpgradeVersionWorkspaceMapper: WorkspaceMapping {
+public struct LastUpgradeVersionWorkspaceMapper: WorkspaceMapping {
     public init() {}
 
     // MARK: - WorkspaceMapping

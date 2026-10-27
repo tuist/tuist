@@ -1,32 +1,31 @@
 defmodule Tuist.Bundles.Artifact do
-  @moduledoc false
+  @moduledoc """
+  ClickHouse-backed schema for bundle artifacts.
+  """
 
   use Ecto.Schema
 
-  import Ecto.Changeset
+  @artifact_types [:directory, :file, :font, :binary, :localization, :asset, :unknown]
 
-  @primary_key {:id, UUIDv7, autogenerate: true}
-  @foreign_key_type UUIDv7
+  @primary_key {:id, Ch, type: "UUID", autogenerate: false}
   schema "artifacts" do
-    field :artifact_type, Ecto.Enum, values: [:directory, :file, :font, :binary, :localization, :asset, :unknown]
+    field :bundle_id, Ch, type: "UUID"
+    field :artifact_type, Ch, type: "LowCardinality(String)"
+    field :path, Ch, type: "String"
+    field :size, Ch, type: "Int64"
+    field :shasum, Ch, type: "String"
+    field :artifact_id, Ch, type: "Nullable(UUID)"
 
-    field :path, :string
-    field :size, :integer
-    field :shasum, :string
+    field :inserted_at, Ch, type: "DateTime64(6)"
+    field :updated_at, Ch, type: "DateTime64(6)"
 
-    belongs_to :bundle, Tuist.Bundles.Bundle
-    belongs_to :artifact, __MODULE__
-    has_many :children, __MODULE__
-
-    timestamps(type: :utc_datetime)
+    belongs_to :bundle, Tuist.Bundles.Bundle, type: Ecto.UUID, define_field: false
+    belongs_to :artifact, __MODULE__, type: Ecto.UUID, define_field: false
+    has_many :children, __MODULE__, foreign_key: :artifact_id
   end
 
-  def changeset(artifact, attrs) do
-    artifact
-    |> cast(attrs, [:artifact_type, :path, :size, :shasum, :bundle_id, :artifact_id])
-    |> validate_required([:artifact_type, :path, :size, :shasum, :bundle_id])
-    |> validate_inclusion(:artifact_type, Ecto.Enum.values(__MODULE__, :artifact_type))
-    |> foreign_key_constraint(:bundle_id)
-    |> foreign_key_constraint(:artifact_id)
-  end
+  @doc """
+  Atom values accepted as `artifact_type` on bundle artifact uploads.
+  """
+  def artifact_types, do: @artifact_types
 end

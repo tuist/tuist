@@ -1,7 +1,9 @@
 import Foundation
 import Path
 import struct TSCUtility.Version
+import TuistConfig
 import TuistCore
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 import XcodeProj
@@ -20,7 +22,7 @@ public protocol DefaultSettingsProviding {
     ) async throws -> SettingsDictionary
 }
 
-public final class DefaultSettingsProvider: DefaultSettingsProviding {
+public struct DefaultSettingsProvider: DefaultSettingsProviding {
     private static let essentialProjectSettings: Set<String> = [
         "ALWAYS_SEARCH_USER_PATHS",
         "DEBUG_INFORMATION_FORMAT",
@@ -49,6 +51,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         "SDKROOT",
         "CODE_SIGN_IDENTITY",
         "LD_RUNPATH_SEARCH_PATHS",
+        "ONLY_ACTIVE_ARCH",
         "SWIFT_OPTIMIZATION_LEVEL",
         "SWIFT_ACTIVE_COMPILATION_CONDITIONS",
         "CURRENT_PROJECT_VERSION",
@@ -88,7 +91,13 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         ],
     ]
 
-    public init() {}
+    private let defaultSwiftVersion: String
+
+    public init(
+        defaultSwiftVersion: String = TuistGeneratedProjectOptions.GenerationOptions.defaultSwiftVersionValue
+    ) {
+        self.defaultSwiftVersion = defaultSwiftVersion
+    }
 
     // MARK: - DefaultSettingsProviding
 
@@ -200,7 +209,10 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         settingsHelper.extend(buildSettings: &settings, with: additionalTargetDefaults)
         settingsHelper.extend(buildSettings: &settings, with: targetDefaultVariant)
         settingsHelper.extend(buildSettings: &settings, with: mergeableSettings)
-        settingsHelper.extend(buildSettings: &settings, with: projectOverridableTargetDefaultSettings(for: project))
+        settingsHelper.extend(
+            buildSettings: &settings,
+            with: projectOverridableTargetDefaultSettings(for: project, target: target)
+        )
         settingsHelper.extend(
             buildSettings: &settings,
             with: testBundleTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)
@@ -248,14 +260,20 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         }
     }
 
-    private func projectOverridableTargetDefaultSettings(for project: Project) -> SettingsDictionary {
+    private func projectOverridableTargetDefaultSettings(for project: Project, target: Target) -> SettingsDictionary {
         var settings = SettingsDictionary()
+        // Remote targets (e.g. SwiftPM packages) always have SWIFT_VERSION set by
+        // PackageInfoMapper — either from swiftLanguageVersions or derived from the
+        // package's tools-version, matching SPM's behavior.
+        if target.type == .remote {
+            return settings
+        }
         // If swift version is already specified at the project level settings, there is no need to
         // override it with a default version. This allows users to set `SWIFT_VERSION`
         // at the project level and it automatically applying to all targets without it getting
         // overwritten.
         if project.settings.base["SWIFT_VERSION"] == nil {
-            settings["SWIFT_VERSION"] = "5.0"
+            settings["SWIFT_VERSION"] = .string(defaultSwiftVersion)
         }
         return settings
     }
@@ -270,6 +288,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
             ]
         } else if target.product == .macro {
             return [
+                "ONLY_ACTIVE_ARCH": "YES",
                 "SKIP_INSTALL": "YES",
             ]
         } else {
@@ -286,7 +305,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
             return [:]
         }
 
-        let targetDependencies = graphTraverser.directLocalTargetDependencies(path: projectPath, name: target.name).sorted()
+        let targetDependencies = graphTraverser.directTargetDependencies(path: projectPath, name: target.name).sorted()
         let appDependency = targetDependencies.first { $0.target.product.canHostTests() }
 
         guard let app = appDependency else {

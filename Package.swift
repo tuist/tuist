@@ -10,22 +10,1436 @@ let loggingDependency: Target.Dependency = .product(name: "Logging", package: "a
 let argumentParserDependency: Target.Dependency = .product(
     name: "ArgumentParser", package: "apple.swift-argument-parser"
 )
-let swiftGenKitDependency: Target.Dependency = .product(
-    name: "SwiftGenKit", package: "swiftGen.SwiftGen")
 let fileSystemDependency: Target.Dependency = .product(name: "FileSystem", package: "tuist.FileSystem")
-let commandDependency: Target.Dependency = .product(name: "Command", package: "tuist.Command")
-let xcodeGraphDependency: Target.Dependency = .product(name: "XcodeGraph", package: "tuist.XcodeGraph")
+let processDependency: Target.Dependency = "TuistProcess"
+let xcodeGraphDependency: Target.Dependency = "XcodeGraph"
+let xcodeMetadataDependency: Target.Dependency = "XcodeMetadata"
+let xcodeGraphMapperDependency: Target.Dependency = "XcodeGraphMapper"
 let xcodeProjDependency: Target.Dependency = .product(name: "XcodeProj", package: "tuist.XcodeProj")
 let mockableDependency: Target.Dependency = .product(name: "Mockable", package: "kolos65.Mockable")
 let zipFoundationDependency: Target.Dependency = .product(name: "ZIPFoundation", package: "tuist.ZIPFoundation")
 let stencilDependency: Target.Dependency = .product(name: "Stencil", package: "stencilproject.Stencil")
-let stencilSwiftKitDependency: Target.Dependency = .product(name: "StencilSwiftKit", package: "swiftGen.StencilSwiftKit")
 let graphVizDependency: Target.Dependency = .product(name: "GraphViz", package: "tuist.GraphViz")
 let differenceDependency: Target.Dependency = .product(name: "Difference", package: "krzysztofzablocki.Difference")
-let keychainAccessDependency: Target.Dependency = .product(name: "KeychainAccess", package: "kishikawakatsumi.KeychainAccess")
 let anyCodableDependency: Target.Dependency = .product(name: "AnyCodable", package: "flight-school.AnyCodable")
+let tomlDecoderDependency: Target.Dependency = .product(name: "TOMLDecoder", package: "dduan.TOMLDecoder")
+let algorithmsDependency: Target.Dependency = .product(name: "Algorithms", package: "apple.swift-algorithms")
+let subprocessDependency: Target.Dependency = .product(name: "Subprocess", package: "swiftlang.swift-subprocess")
+let systemPackageDependency: Target.Dependency = .product(name: "SystemPackage", package: "apple.swift-system")
+let swifterPMCoreDependency: Target.Dependency = "SwifterPMCore"
+let rosalindDependency: Target.Dependency = .target(
+    name: "Rosalind",
+    condition: .when(platforms: [.macOS, .linux])
+)
 
-let targets: [Target] = [
+// MARK: - Targets
+
+// Cross-platform dependency arrays with macOS-only additions
+var tuistDependencies: [Target.Dependency] = [
+    "TuistConstants",
+    "TuistConfigLoader",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistNooraExtension",
+    "TuistAlert",
+    .product(name: "Noora", package: "tuist.Noora"),
+    .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
+    "TuistAuthCommand",
+    "TuistCacheCommand",
+    "TuistCargoCommand",
+    "TuistBazelCommand",
+    "TuistVersionCommand",
+    "TuistAccountCommand",
+    "TuistProjectCommand",
+    "TuistOrganizationCommand",
+    "TuistBundleCommand",
+    "TuistRegistryCommand",
+    "TuistBuildCommand",
+    "TuistGenerateCommand",
+    "TuistTestCommand",
+    "TuistInitCommand",
+    "TuistShareCommand",
+    "TuistRunCommand",
+    "TuistRunnerCommand",
+    "TuistInspectCommand",
+    argumentParserDependency,
+    "TuistServer",
+    pathDependency,
+    fileSystemDependency,
+    swiftToolsSupportDependency,
+]
+#if os(Linux)
+let tuistCargoCacheDependency: Target.Dependency = "TuistCoreCache"
+#else
+let tuistCargoCacheDependency: Target.Dependency = "TuistCore"
+#endif
+var tuistCargoCommandDependencies: [Target.Dependency] = [
+    "TuistCAS",
+    tuistCargoCacheDependency,
+    "TuistREAPI",
+    .product(name: "Crypto", package: "apple.swift-crypto"),
+    processDependency,
+    pathDependency,
+    argumentParserDependency,
+    fileSystemDependency,
+    tomlDecoderDependency,
+    "TuistAlert",
+    "TuistConfigLoader",
+    "TuistEnvironment",
+    "TuistServer",
+    "TuistCI",
+]
+var tuistBazelCommandDependencies: [Target.Dependency] = [
+    processDependency,
+    pathDependency,
+    argumentParserDependency,
+    fileSystemDependency,
+    "TuistEnvironment",
+    "TuistNooraExtension",
+    .product(name: "Noora", package: "tuist.Noora"),
+    "TuistServer",
+    "TuistEnvKey",
+    "TuistCAS",
+    "TuistREAPI",
+    "TuistHTTP",
+    "TuistAlert",
+    "TuistConfigLoader",
+    "TuistSupport",
+]
+
+var tuistCacheCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    fileSystemDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistNooraExtension",
+    .product(name: "Noora", package: "tuist.Noora"),
+    "TuistServer",
+    "TuistOIDC",
+    "TuistEnvKey",
+    "TuistCAS",
+    "TuistEncodable",
+    "TuistHTTP",
+    "TuistAlert",
+    "TuistConfig",
+    "TuistConfigLoader",
+]
+var tuistAuthCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    fileSystemDependency,
+    mockableDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistServer",
+    "TuistOIDC",
+    "TuistUserInputReader",
+    "TuistConfigLoader",
+]
+var tuistServerDependencies: [Target.Dependency] = [
+    "TuistAndroid",
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistHTTP",
+    "TuistThreadSafe",
+    "TuistOpener",
+    "TuistUniqueIDGenerator",
+    "TuistSupport",
+    "TuistSimulator",
+    fileSystemDependency,
+    mockableDependency,
+    pathDependency,
+    swiftToolsSupportDependency,
+    .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
+    .product(name: "HTTPTypes", package: "apple.swift-http-types"),
+    .product(name: "KeychainAccess", package: "kishikawakatsumi.KeychainAccess", condition: .when(platforms: [.macOS])),
+    rosalindDependency,
+    .product(name: "Crypto", package: "apple.swift-crypto"),
+]
+var tuistHTTPDependencies: [Target.Dependency] = [
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistAlert",
+    pathDependency,
+    mockableDependency,
+    fileSystemDependency,
+    .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
+    .product(name: "HTTPTypes", package: "apple.swift-http-types"),
+]
+var tuistCASDependencies: [Target.Dependency] = [
+    fileSystemDependency,
+    pathDependency,
+    swiftToolsSupportDependency,
+    "TuistServer",
+    "TuistHTTP",
+    "TuistEnvironment",
+    "TuistLogging",
+    mockableDependency,
+]
+var tuistREAPIDependencies: [Target.Dependency] = [
+    .product(name: "Crypto", package: "apple.swift-crypto"),
+    fileSystemDependency,
+    .product(name: "libzstd", package: "facebook.zstd"),
+    pathDependency,
+    "TuistEnvironment",
+    "TuistHTTP",
+    .product(name: "NIOCore", package: "apple.swift-nio"),
+    .product(name: "NIOSSL", package: "apple.swift-nio-ssl"),
+    "TuistLogging",
+    .product(name: "GRPCCore", package: "grpc.grpc-swift-2"),
+    .product(name: "GRPCProtobuf", package: "grpc.grpc-swift-protobuf"),
+    .product(name: "GRPCNIOTransportHTTP2", package: "grpc.grpc-swift-nio-transport"),
+    .product(name: "SwiftProtobuf", package: "apple.swift-protobuf"),
+    mockableDependency,
+]
+var tuistAccountCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    fileSystemDependency,
+    mockableDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistServer",
+    "TuistAlert",
+    "TuistNooraExtension",
+    "TuistConfigLoader",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistProjectCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    fileSystemDependency,
+    mockableDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistServer",
+    "TuistAlert",
+    "TuistConfigLoader",
+    "TuistEncodable",
+    "TuistOpener",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistOrganizationCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    fileSystemDependency,
+    mockableDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistServer",
+    "TuistConfigLoader",
+    "TuistEncodable",
+    "TuistOpener",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistBundleCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    fileSystemDependency,
+    mockableDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistServer",
+    "TuistNooraExtension",
+    "TuistConfigLoader",
+    .product(name: "Noora", package: "tuist.Noora"),
+    .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
+]
+var tuistRegistryCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    fileSystemDependency,
+    mockableDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistServer",
+    "TuistAlert",
+    "TuistNooraExtension",
+    "TuistHTTP",
+    "TuistConfigLoader",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistBuildCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    fileSystemDependency,
+    mockableDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistServer",
+    "TuistNooraExtension",
+    "TuistConfigLoader",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistGenerateCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    fileSystemDependency,
+    mockableDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistServer",
+    "TuistNooraExtension",
+    "TuistConfigLoader",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistTestCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    fileSystemDependency,
+    mockableDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistServer",
+    "TuistNooraExtension",
+    "TuistConfigLoader",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistInitCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    fileSystemDependency,
+    mockableDependency,
+    processDependency,
+    "TuistConstants",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistServer",
+    "TuistAuthCommand",
+    "TuistBazelCommand",
+    "TuistAlert",
+    "TuistNooraExtension",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistConfigLoaderDependencies: [Target.Dependency] = [
+    pathDependency,
+    fileSystemDependency,
+    mockableDependency,
+    "TuistConfig",
+    "TuistConstants",
+    "TuistHTTP",
+    "TuistRootDirectoryLocator",
+    tomlDecoderDependency,
+]
+var tuistConfigLoaderTestDependencies: [Target.Dependency] = [
+    "TuistConfigLoader",
+    "TuistConfig",
+    "TuistConstants",
+    "TuistHTTP",
+    "TuistRootDirectoryLocator",
+    pathDependency,
+    fileSystemDependency,
+    .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+    mockableDependency,
+]
+var tuistShareCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    fileSystemDependency,
+    processDependency,
+    mockableDependency,
+    loggingDependency,
+    "TuistServer",
+    "TuistEnvironment",
+    "TuistConstants",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistConfigLoader",
+    "TuistNooraExtension",
+    "TuistSupport",
+    "TuistGit",
+    "TuistAlert",
+    "TuistEncodable",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistRunCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    fileSystemDependency,
+    processDependency,
+    mockableDependency,
+    loggingDependency,
+    swiftToolsSupportDependency,
+    "TuistAndroid",
+    "TuistServer",
+    "TuistEnvironment",
+    "TuistConstants",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistConfigLoader",
+    "TuistNooraExtension",
+    "TuistSupport",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistRunnerCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    fileSystemDependency,
+    "TuistServer",
+    "TuistEnvironment",
+    "TuistEnvKey",
+    "TuistConfigLoader",
+    "TuistHTTP",
+    "TuistNooraExtension",
+    .product(name: "Noora", package: "tuist.Noora"),
+]
+var tuistInspectCommandDependencies: [Target.Dependency] = [
+    pathDependency,
+    argumentParserDependency,
+    fileSystemDependency,
+    mockableDependency,
+    loggingDependency,
+    "TuistServer",
+    "TuistEnvironment",
+    "TuistLogging",
+    "TuistEnvKey",
+    "TuistConfigLoader",
+    "TuistNooraExtension",
+    "TuistSupport",
+    "TuistGit",
+    "TuistAlert",
+    "TuistEncodable",
+    .product(name: "Noora", package: "tuist.Noora"),
+    rosalindDependency,
+]
+#if os(macOS)
+tuistDependencies.append(contentsOf: [
+    "TuistKit", "TuistCore", "TuistLoader", "TuistSupport", "TuistExtension", "TuistHAR",
+])
+tuistCacheCommandDependencies.append(contentsOf: ["TuistLoader", "TuistSupport", "TuistExtension"])
+tuistAuthCommandDependencies.append(contentsOf: ["TuistLoader", "TuistSupport"])
+tuistServerDependencies.append(contentsOf: [
+    "TuistCore", "TuistProcess", "TuistCI",
+    "TuistAutomation", "TuistXCActivityLog",
+    "TuistXCResultService",
+    .target(name: "TuistAppleArchiver", condition: .when(platforms: [.macOS])),
+    xcodeGraphDependency,
+])
+tuistHTTPDependencies.append(contentsOf: ["TuistSupport", "TuistHAR"])
+tuistConfigLoaderDependencies.append(contentsOf: [
+    "TuistLoader", "TuistCore", "TuistAlert", "TuistSupport",
+    "ProjectDescription",
+])
+tuistConfigLoaderTestDependencies.append(contentsOf: [
+    "TuistLoader", "TuistTesting",
+    "TuistSupport", "ProjectDescription",
+])
+tuistRegistryCommandDependencies.append(contentsOf: [
+    "TuistLoader", "TuistSupport",
+])
+tuistBuildCommandDependencies.append(contentsOf: [
+    "TuistKit", "TuistSupport", "TuistExtension", "TuistServer",
+    xcodeGraphDependency,
+])
+tuistGenerateCommandDependencies.append(contentsOf: [
+    "TuistKit", "TuistAlert", "TuistConfig", "TuistCore",
+    "TuistExtension", "TuistServer", "TuistSupport",
+])
+tuistTestCommandDependencies.append(contentsOf: [
+    "TuistKit", "TuistBuildCommand", "TuistCore",
+    "TuistExtension", "TuistServer", "TuistSupport",
+])
+tuistInitCommandDependencies.append(contentsOf: [
+    "TuistCore", "TuistLoader", "TuistScaffold", "TuistSupport",
+    "ProjectDescription",
+    xcodeGraphDependency,
+])
+tuistShareCommandDependencies.append(contentsOf: [
+    "TuistKit", "TuistAutomation", "TuistCore", "TuistLoader",
+    "TuistSimulator", "TuistUserInputReader", "TuistExtension", "TuistXcodeBuildProducts",
+    xcodeGraphDependency,
+])
+tuistRunCommandDependencies.append(contentsOf: [
+    "TuistKit", "TuistAutomation", "TuistCore", "TuistLoader",
+    "TuistSimulator", "TuistXcodeBuildProducts",
+    xcodeGraphDependency,
+])
+tuistInspectCommandDependencies.append(contentsOf: [
+    "TuistKit", "TuistCore", "TuistLoader", "TuistAutomation",
+    "TuistXCActivityLog", "TuistXcodeProjectOrWorkspacePathLocator",
+    "TuistXCResultService", "TuistCI", "TuistProcess", "TuistConfig", "TuistXcodeBuildProducts",
+    "TuistRootDirectoryLocator", "TuistMachineMetrics", "TuistCASAnalytics",
+    xcodeGraphDependency,
+])
+#endif
+
+var targets: [Target] = [
+    // MARK: Cross-platform targets
+    .executableTarget(
+        name: "tuist",
+        dependencies: tuistDependencies,
+        path: "cli/Sources/tuist",
+        exclude: ["AGENTS.md"]
+    ),
+    .executableTarget(
+        name: "swifterpm",
+        dependencies: [
+            "SwifterPMCore",
+        ],
+        path: "swifterpm/Sources/swifterpmCLI",
+        swiftSettings: [
+            .swiftLanguageMode(.v6),
+        ]
+    ),
+    .target(
+        name: "SwifterPMCore",
+        dependencies: [
+            argumentParserDependency,
+            .product(name: "Crypto", package: "apple.swift-crypto", condition: .when(platforms: [.linux])),
+            subprocessDependency,
+            fileSystemDependency,
+            pathDependency,
+        ],
+        path: "swifterpm/Sources/swifterpm",
+        swiftSettings: [
+            .swiftLanguageMode(.v6),
+        ]
+    ),
+    .target(
+        name: "TuistConstants",
+        path: "cli/Sources/TuistConstants"
+    ),
+    .target(
+        name: "XcodeGraph",
+        dependencies: [
+            anyCodableDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/XcodeGraph/Sources/XcodeGraph",
+        swiftSettings: [
+            .enableExperimentalFeature("StrictConcurrency"),
+        ]
+    ),
+    .target(
+        name: "XcodeMetadata",
+        dependencies: [
+            fileSystemDependency,
+            mockableDependency,
+            .product(name: "MachOKitC", package: "p-x9.MachOKit"),
+            "XcodeGraph",
+        ],
+        path: "cli/Sources/XcodeGraph/Sources/XcodeMetadata",
+        swiftSettings: [
+            .enableExperimentalFeature("StrictConcurrency"),
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "XcodeGraphMapper",
+        dependencies: [
+            "XcodeGraph",
+            "XcodeMetadata",
+            subprocessDependency,
+            fileSystemDependency,
+            pathDependency,
+            xcodeProjDependency,
+        ],
+        path: "cli/Sources/XcodeGraph/Sources/XcodeGraphMapper",
+        swiftSettings: [
+            .enableExperimentalFeature("StrictConcurrency"),
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "Rosalind",
+        dependencies: [
+            .product(name: "Crypto", package: "apple.swift-crypto"),
+            pathDependency,
+            fileSystemDependency,
+            processDependency,
+            .product(name: "MachOKit", package: "p-x9.MachOKit", condition: .when(platforms: [.macOS])),
+            .product(name: "SwiftProtobuf", package: "apple.swift-protobuf"),
+            loggingDependency,
+            zipFoundationDependency,
+            mockableDependency,
+        ],
+        path: "cli/Sources/Rosalind",
+        swiftSettings: [
+            .enableExperimentalFeature("StrictConcurrency"),
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .testTarget(
+        name: "RosalindTests",
+        dependencies: [
+            "TuistTestSupport",
+            "Rosalind",
+            mockableDependency,
+            .product(name: "SnapshotTesting", package: "pointfreeco.swift-snapshot-testing"),
+            processDependency,
+            fileSystemDependency,
+            pathDependency,
+        ],
+        path: "cli/Tests/RosalindTests"
+    ),
+    .target(
+        name: "TuistEnvironment",
+        dependencies: [
+            pathDependency,
+            fileSystemDependency,
+            mockableDependency,
+        ],
+        path: "cli/Sources/TuistEnvironment",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistEnvironmentTesting",
+        dependencies: [
+            pathDependency,
+            fileSystemDependency,
+            "TuistEnvironment",
+        ],
+        path: "cli/Sources/TuistEnvironmentTesting"
+    ),
+    .target(
+        name: "TuistLogging",
+        dependencies: [
+            loggingDependency,
+            pathDependency,
+            fileSystemDependency,
+            "TuistConstants",
+            "TuistEnvironment",
+            "TuistAlert",
+            .product(name: "LoggingOSLog", package: "chrisaljoudi.swift-log-oslog", condition: .when(platforms: [.macOS])),
+        ],
+        path: "cli/Sources/TuistLogging"
+    ),
+    .target(
+        name: "TuistUserInputReader",
+        dependencies: [
+            loggingDependency,
+            mockableDependency,
+            "TuistLogging",
+        ],
+        path: "cli/Sources/TuistUserInputReader",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistNooraExtension",
+        dependencies: [
+            .product(name: "Noora", package: "tuist.Noora"),
+        ],
+        path: "cli/Sources/TuistNooraExtension"
+    ),
+    .target(
+        name: "TuistThreadSafe",
+        dependencies: [],
+        path: "cli/Sources/TuistThreadSafe"
+    ),
+    .target(
+        name: "TuistMacOSSDK",
+        dependencies: [
+            mockableDependency,
+            processDependency,
+            "TuistThreadSafe",
+        ],
+        path: "cli/Sources/TuistMacOSSDK",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistEncodable",
+        dependencies: [
+            swiftToolsSupportDependency,
+        ],
+        path: "cli/Sources/TuistEncodable"
+    ),
+    .target(
+        name: "TuistGit",
+        dependencies: [
+            processDependency,
+            "TuistSupport",
+            fileSystemDependency,
+            swiftToolsSupportDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistGit",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistAlert",
+        dependencies: [
+            .product(name: "Noora", package: "tuist.Noora"),
+            .product(name: "OrderedSet", package: "frazer-rbsn.OrderedSet"),
+            "TuistNooraExtension",
+            "TuistThreadSafe",
+        ],
+        path: "cli/Sources/TuistAlert"
+    ),
+    .target(
+        name: "TuistOpener",
+        dependencies: [
+            pathDependency,
+            fileSystemDependency,
+            mockableDependency,
+            "TuistLogging",
+        ],
+        path: "cli/Sources/TuistOpener",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistUniqueIDGenerator",
+        dependencies: [
+            mockableDependency,
+        ],
+        path: "cli/Sources/TuistUniqueIDGenerator",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistEnvKey",
+        dependencies: [
+            argumentParserDependency,
+            "TuistEnvironment",
+        ],
+        path: "cli/Sources/TuistEnvKey"
+    ),
+    .target(
+        name: "TuistCacheCommand",
+        dependencies: tuistCacheCommandDependencies,
+        path: "cli/Sources/TuistCacheCommand"
+    ),
+    .target(
+        name: "TuistCI",
+        dependencies: [
+            "TuistEnvironment",
+            "TuistSupport",
+            mockableDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistCI",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistCargoCommand",
+        dependencies: tuistCargoCommandDependencies,
+        path: "cli/Sources/TuistCargoCommand",
+        exclude: ["AGENTS.md"]
+    ),
+    .target(
+        name: "TuistBazelCommand",
+        dependencies: tuistBazelCommandDependencies,
+        path: "cli/Sources/TuistBazelCommand"
+    ),
+    .target(
+        name: "TuistAuthCommand",
+        dependencies: tuistAuthCommandDependencies,
+        path: "cli/Sources/TuistAuthCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistVersionCommand",
+        dependencies: [
+            argumentParserDependency,
+            .product(name: "Noora", package: "tuist.Noora"),
+            "TuistConstants",
+            "TuistNooraExtension",
+        ],
+        path: "cli/Sources/TuistVersionCommand"
+    ),
+    .target(
+        name: "TuistAccountCommand",
+        dependencies: tuistAccountCommandDependencies,
+        path: "cli/Sources/TuistAccountCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistProjectCommand",
+        dependencies: tuistProjectCommandDependencies,
+        path: "cli/Sources/TuistProjectCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistOrganizationCommand",
+        dependencies: tuistOrganizationCommandDependencies,
+        path: "cli/Sources/TuistOrganizationCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistBundleCommand",
+        dependencies: tuistBundleCommandDependencies,
+        path: "cli/Sources/TuistBundleCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistRegistryCommand",
+        dependencies: tuistRegistryCommandDependencies,
+        path: "cli/Sources/TuistRegistryCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistBuildCommand",
+        dependencies: tuistBuildCommandDependencies,
+        path: "cli/Sources/TuistBuildCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistGenerateCommand",
+        dependencies: tuistGenerateCommandDependencies,
+        path: "cli/Sources/TuistGenerateCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistTestCommand",
+        dependencies: tuistTestCommandDependencies,
+        path: "cli/Sources/TuistTestCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistInitCommand",
+        dependencies: tuistInitCommandDependencies,
+        path: "cli/Sources/TuistInitCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistServer",
+        dependencies: tuistServerDependencies,
+        path: "cli/Sources/TuistServer",
+        exclude: ["OpenAPI/server.yml", "AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistOIDC",
+        dependencies: [
+            "TuistConstants",
+            "TuistEnvironment",
+            "TuistLogging",
+            mockableDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistOIDC",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistHTTP",
+        dependencies: tuistHTTPDependencies,
+        path: "cli/Sources/TuistHTTP",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistCAS",
+        dependencies: tuistCASDependencies,
+        path: "cli/Sources/TuistCAS",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistREAPI",
+        dependencies: tuistREAPIDependencies,
+        path: "cli/Sources/TuistREAPI",
+        exclude: ["capabilities.proto", "cache.proto", "bytestream.proto", "AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistConfig",
+        dependencies: [
+            pathDependency,
+            swiftToolsSupportDependency,
+            "TuistConstants",
+        ],
+        path: "cli/Sources/TuistConfig"
+    ),
+    .target(
+        name: "TuistRootDirectoryLocator",
+        dependencies: [
+            "TuistConstants",
+            "TuistLogging",
+            "TuistThreadSafe",
+            fileSystemDependency,
+            mockableDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistRootDirectoryLocator",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistConfigLoader",
+        dependencies: tuistConfigLoaderDependencies,
+        path: "cli/Sources/TuistConfigLoader",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistNooraTesting",
+        dependencies: [
+            .product(name: "Noora", package: "tuist.Noora"),
+            loggingDependency,
+            "TuistAlert",
+            "TuistLogging",
+            "TuistLoggerTesting",
+        ],
+        path: "cli/Sources/TuistNooraTesting"
+    ),
+    .target(
+        name: "TuistLoggerTesting",
+        dependencies: [
+            "TuistLogging",
+            "TuistEnvironment",
+            loggingDependency,
+        ],
+        path: "cli/Sources/TuistLoggerTesting"
+    ),
+    .target(
+        name: "TuistAndroid",
+        dependencies: [
+            pathDependency,
+            mockableDependency,
+            fileSystemDependency,
+            processDependency,
+            "TuistLogging",
+            "TuistEnvironment",
+        ],
+        path: "cli/Sources/TuistAndroid",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistShareCommand",
+        dependencies: tuistShareCommandDependencies,
+        path: "cli/Sources/TuistShareCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistRunCommand",
+        dependencies: tuistRunCommandDependencies,
+        path: "cli/Sources/TuistRunCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistRunnerCommand",
+        dependencies: tuistRunnerCommandDependencies,
+        path: "cli/Sources/TuistRunnerCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistInspectCommand",
+        dependencies: tuistInspectCommandDependencies,
+        path: "cli/Sources/TuistInspectCommand",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistSupport",
+        dependencies: [
+            pathDependency,
+            loggingDependency,
+            swiftToolsSupportDependency,
+            zipFoundationDependency,
+            mockableDependency,
+            fileSystemDependency,
+            processDependency,
+            swifterPMCoreDependency,
+            "TuistConstants",
+            "TuistLogging",
+            "TuistEnvironment",
+            "TuistNooraExtension",
+            "TuistAlert",
+            "TuistThreadSafe",
+            "TuistUserInputReader",
+            .target(name: "TuistMachineMetrics", condition: .when(platforms: [.macOS])),
+            .product(name: "Noora", package: "tuist.Noora"),
+            .product(name: "Crypto", package: "apple.swift-crypto"),
+        ],
+        path: "cli/Sources/TuistSupport",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistTestSupport",
+        dependencies: [
+            pathDependency,
+            .product(name: "SnapshotTesting", package: "pointfreeco.swift-snapshot-testing"),
+        ],
+        path: "cli/Sources/TuistTestSupport",
+        exclude: ["AGENTS.md"],
+        linkerSettings: [.linkedFramework("XCTest", .when(platforms: [.macOS]))]
+    ),
+    .testTarget(
+        name: "TuistTestSupportTests",
+        dependencies: [
+            "TuistTestSupport",
+            pathDependency,
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+        ],
+        path: "cli/Tests/TuistTestSupportTests"
+    ),
+    .target(
+        name: "TuistTesting",
+        dependencies: [
+            "TuistTestSupport",
+            processDependency,
+            "TuistSupport",
+            "TuistMacOSSDK",
+            "TuistXcodeBuildProducts",
+            .target(name: "TuistServer", condition: .when(platforms: [.macOS])),
+            .target(name: "TuistHTTP", condition: .when(platforms: [.macOS])),
+            "TuistAlert",
+            "TuistNooraTesting",
+            "TuistLoggerTesting",
+            "TuistEnvironmentTesting",
+            pathDependency,
+            differenceDependency,
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+            argumentParserDependency,
+        ],
+        path: "cli/Sources/TuistTesting",
+        linkerSettings: [.linkedFramework("XCTest", .when(platforms: [.macOS]))]
+    ),
+    // MARK: Cross-platform test targets
+    .testTarget(
+        name: "TuistConfigLoaderTests",
+        dependencies: tuistConfigLoaderTestDependencies,
+        path: "cli/Tests/TuistConfigLoaderTests"
+    ),
+    .testTarget(
+        name: "TuistCASTests",
+        dependencies: [
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+            "TuistCAS",
+            "TuistEnvironment",
+            "TuistProcess",
+            "TuistServer",
+            "TuistTesting",
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistCASTests"
+    ),
+    .testTarget(
+        name: "TuistProcessTests",
+        dependencies: [
+            "TuistProcess",
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+        ],
+        path: "cli/Tests/TuistProcessTests"
+    ),
+    .testTarget(
+        name: "TuistOIDCTests",
+        dependencies: [
+            "TuistOIDC",
+            "TuistEnvironment",
+            "TuistEnvironmentTesting",
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistOIDCTests"
+    ),
+    .testTarget(
+        name: "TuistREAPITests",
+        dependencies: [
+            "TuistREAPI",
+            "TuistEnvironmentTesting",
+            .product(name: "GRPCCore", package: "grpc.grpc-swift-2"),
+            .product(name: "GRPCNIOTransportHTTP2", package: "grpc.grpc-swift-nio-transport"),
+        ],
+        path: "cli/Tests/TuistREAPITests"
+    ),
+    .testTarget(
+        name: "TuistHTTPTests",
+        dependencies: [
+            "TuistHTTP",
+            "TuistEnvironment",
+            "TuistEnvironmentTesting",
+            fileSystemDependency,
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistHTTPTests"
+    ),
+    .testTarget(
+        name: "TuistLoggingTests",
+        dependencies: [
+            "TuistLogging",
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+        ],
+        path: "cli/Tests/TuistLoggingTests"
+    ),
+    .testTarget(
+        name: "TuistUserInputReaderTests",
+        dependencies: [
+            "TuistUserInputReader",
+        ],
+        path: "cli/Tests/TuistUserInputReaderTests"
+    ),
+    .testTarget(
+        name: "TuistAuthCommandTests",
+        dependencies: [
+            "TuistAuthCommand",
+            "TuistServer",
+            "TuistEnvironmentTesting",
+            "TuistOIDC",
+            "TuistTesting",
+            "TuistUserInputReader",
+            pathDependency,
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistAuthCommandTests"
+    ),
+    .testTarget(
+        name: "TuistAccountCommandTests",
+        dependencies: [
+            "TuistAccountCommand",
+            "TuistServer",
+            "TuistEnvironmentTesting",
+            "TuistNooraTesting",
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistAccountCommandTests"
+    ),
+    .testTarget(
+        name: "TuistProjectCommandTests",
+        dependencies: [
+            "TuistProjectCommand",
+            "TuistServer",
+            "TuistEnvironmentTesting",
+            "TuistNooraTesting",
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistProjectCommandTests"
+    ),
+    .testTarget(
+        name: "TuistOrganizationCommandTests",
+        dependencies: [
+            "TuistOrganizationCommand",
+            "TuistServer",
+            "TuistEnvironmentTesting",
+            "TuistNooraTesting",
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistOrganizationCommandTests"
+    ),
+    .testTarget(
+        name: "TuistBundleCommandTests",
+        dependencies: [
+            "TuistBundleCommand",
+            "TuistServer",
+            "TuistEnvironmentTesting",
+            "TuistNooraTesting",
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistBundleCommandTests"
+    ),
+    .testTarget(
+        name: "TuistRegistryCommandTests",
+        dependencies: [
+            "TuistRegistryCommand",
+            "TuistServer",
+            "TuistConfigLoader",
+            "TuistEnvironmentTesting",
+            "TuistNooraTesting",
+            "TuistTesting",
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistRegistryCommandTests"
+    ),
+    .testTarget(
+        name: "TuistBuildCommandTests",
+        dependencies: [
+            "TuistBuildCommand",
+            "TuistServer",
+            "TuistEnvironmentTesting",
+            "TuistNooraTesting",
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistBuildCommandTests"
+    ),
+    .testTarget(
+        name: "TuistTestCommandTests",
+        dependencies: [
+            "TuistTestCommand",
+            "TuistServer",
+            "TuistEnvironmentTesting",
+            "TuistNooraTesting",
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistTestCommandTests"
+    ),
+    .testTarget(
+        name: "TuistRunnerCommandTests",
+        dependencies: [
+            "TuistRunnerCommand",
+            "TuistConfig",
+            "TuistConfigLoader",
+            "TuistEnvironment",
+            "TuistEnvironmentTesting",
+            "TuistHTTP",
+            "TuistNooraTesting",
+            "TuistServer",
+            argumentParserDependency,
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistRunnerCommandTests"
+    ),
+    .testTarget(
+        name: "TuistInitCommandTests",
+        dependencies: [
+            "TuistInitCommand",
+            "TuistServer",
+            "TuistAuthCommand",
+            "TuistConstants",
+            "TuistEnvironmentTesting",
+            "TuistNooraTesting",
+            "TuistSupport",
+            "TuistTesting",
+            pathDependency,
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+            processDependency,
+            mockableDependency,
+            .product(name: "Noora", package: "tuist.Noora"),
+        ],
+        path: "cli/Tests/TuistInitCommandTests"
+    ),
+    .testTarget(
+        name: "TuistAndroidTests",
+        dependencies: [
+            "TuistAndroid",
+            pathDependency,
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+            processDependency,
+            mockableDependency,
+        ],
+        path: "cli/Tests/TuistAndroidTests"
+    ),
+]
+
+// MARK: - Cross-platform targets (outside macOS gate)
+
+targets.append(contentsOf: [
+    .target(
+        name: "ProjectDescription",
+        dependencies: [],
+        path: "cli/Sources/ProjectDescription",
+        exclude: ["AGENTS.md"]
+    ),
+    .target(
+        name: "TuistMachineMetrics",
+        dependencies: [
+            fileSystemDependency,
+            swiftToolsSupportDependency,
+            "TuistEnvironment",
+        ],
+        path: "cli/Sources/TuistMachineMetrics",
+        exclude: ["AGENTS.md"]
+    ),
+    .target(
+        name: "TuistSimulator",
+        dependencies: [
+            xcodeGraphDependency,
+            mockableDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistSimulator",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistXcodeBuildProducts",
+        dependencies: [
+            "TuistEnvironment",
+            "TuistSimulator",
+            "TuistSupport",
+            fileSystemDependency,
+            mockableDependency,
+            pathDependency,
+            xcodeGraphDependency,
+            .product(name: "Crypto", package: "apple.swift-crypto"),
+        ],
+        path: "cli/Sources/TuistXcodeBuildProducts",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+])
+
+// A separate module keeps canImport(TuistCore) reserved for Xcode-specific functionality.
+#if os(Linux)
+targets.append(
+    .target(
+        name: "TuistCoreCache",
+        dependencies: [
+            pathDependency,
+            fileSystemDependency,
+            mockableDependency,
+            "TuistEnvironment",
+            "TuistSupport",
+        ],
+        path: "cli/Sources/TuistCore/Cache",
+        exclude: [
+            "BinaryCacheVariant.swift",
+            "CacheItem.swift",
+            "FileContentHashing.swift",
+            "GenerationMetadataStore.swift",
+            "ModuleCacheOutput.swift",
+            "TargetContentHashSubhashes.swift",
+        ],
+        sources: [
+            "CacheBudget.swift",
+            "CacheCategory.swift",
+            "CacheDirectoriesProvider.swift",
+            "SupportCachePruner.swift",
+        ],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    )
+)
+#endif
+
+// MARK: - macOS-only targets
+
+#if os(macOS)
+
+targets.append(contentsOf: [
+    .target(
+        name: "TuistHAR",
+        dependencies: [
+            "TuistConstants",
+            "TuistLogging",
+            pathDependency,
+            .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
+            .product(name: "HTTPTypes", package: "apple.swift-http-types"),
+        ],
+        path: "cli/Sources/TuistHAR",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug))
+        ]
+    ),
+    .target(
+        name: "TuistAppleArchiver",
+        dependencies: [
+            mockableDependency,
+            pathDependency,
+        ],
+        path: "cli/Sources/TuistAppleArchiver",
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .testTarget(
+        name: "TuistAppleArchiverTests",
+        dependencies: [
+            "TuistAppleArchiver",
+            fileSystemDependency,
+            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
+            pathDependency,
+        ],
+        path: "cli/Tests/TuistAppleArchiverTests"
+    ),
     .executableTarget(
         name: "tuistbenchmark",
         dependencies: [
@@ -52,127 +1466,100 @@ let targets: [Target] = [
         name: "TuistCore",
         dependencies: [
             pathDependency,
+            processDependency,
+            "TuistConfig",
             "TuistSupport",
             xcodeGraphDependency,
             xcodeProjDependency,
             mockableDependency,
             fileSystemDependency,
             "TuistSimulator",
-            .product(name: "XcodeMetadata", package: "tuist.XcodeGraph"),
+            xcodeMetadataDependency,
             anyCodableDependency,
         ],
         path: "cli/Sources/TuistCore",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
         name: "TuistKit",
         dependencies: [
-            xcodeProjDependency,
             pathDependency,
             argumentParserDependency,
-            .target(name: "TuistProcess", condition: .when(platforms: [.macOS])),
+            mockableDependency,
+            fileSystemDependency,
+            "TuistConstants",
+            "TuistEnvironment",
+            "TuistLogging",
+            "TuistEnvKey",
+            "TuistNooraExtension",
+            "TuistServer",
+            "TuistOIDC",
+            "TuistCacheCommand",
+            "TuistAuthCommand",
+            "TuistVersionCommand",
+            .product(name: "Noora", package: "tuist.Noora"),
+            .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
+            "TuistCAS",
+            "TuistCASAnalytics",
+            "TuistProcess",
             "TuistCore",
             "TuistSupport",
             "TuistGenerator",
             "TuistAutomation",
-            "ProjectDescription",
-            "ProjectAutomation",
             "TuistLoader",
+            "TuistConfigLoader",
             "TuistHasher",
             "TuistScaffold",
             "TuistDependencies",
-            graphVizDependency,
             "TuistMigration",
             "TuistPlugin",
-            xcodeGraphDependency,
-            mockableDependency,
-            "TuistServer",
-            "TuistOIDC",
             "TuistSimulator",
-            fileSystemDependency,
             "TuistCache",
+            "TuistExtension",
+            "TuistEncodable",
             "TuistRootDirectoryLocator",
             "TuistXcodeProjectOrWorkspacePathLocator",
             "TuistXCResultService",
             "TuistCI",
-            "TuistCAS",
+            "TuistJobSummary",
+            .target(name: "TuistAppleArchiver", condition: .when(platforms: [.macOS])),
             "TuistLaunchctl",
-            .product(name: "Noora", package: "tuist.Noora"),
-            .product(name: "Command", package: "tuist.Command"),
-            .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
-            .product(name: "XcodeGraphMapper", package: "tuist.XcodeGraph"),
-            anyCodableDependency,
-            .product(name: "MCP", package: "modelcontextprotocol.swift-sdk"),
-            .product(name: "SwiftyJSON", package: "swiftyJSON.SwiftyJSON"),
-            .product(name: "Rosalind", package: "tuist.Rosalind"),
-            .product(name: "GRPCNIOTransportHTTP2", package: "grpc.grpc-swift-nio-transport"),
-        ],
-        path: "cli/Sources/TuistKit",
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
-        ]
-    ),
-    .executableTarget(
-        name: "tuist",
-        dependencies: [
-            "TuistKit",
-            "TuistSupport",
-            "TuistLoader",
+            "TuistMachineMetrics",
+            "TuistXcodeBuildProducts",
             "ProjectDescription",
             "ProjectAutomation",
-            .product(name: "Noora", package: "tuist.Noora"),
-            pathDependency,
-            swiftToolsSupportDependency,
+            xcodeProjDependency,
+            graphVizDependency,
+            xcodeGraphDependency,
+            xcodeGraphMapperDependency,
+            anyCodableDependency,
+            .product(name: "SwiftyJSON", package: "swiftyJSON.SwiftyJSON"),
+            "Rosalind",
         ],
-        path: "cli/Sources/tuist",
-    ),
-    .target(
-        name: "ProjectDescription",
-        dependencies: [],
-        path: "cli/Sources/ProjectDescription",
+        path: "cli/Sources/TuistKit",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
     ),
     .target(
         name: "ProjectAutomation",
-        path: "cli/Sources/ProjectAutomation",
+        path: "cli/Sources/ProjectAutomation"
     ),
     .target(
-        name: "TuistSupport",
+        name: "TuistExtension",
         dependencies: [
-            pathDependency,
-            loggingDependency,
-            swiftToolsSupportDependency,
-            zipFoundationDependency,
-            mockableDependency,
-            fileSystemDependency,
-            commandDependency,
-            .product(name: "Noora", package: "tuist.Noora"),
-            .product(name: "LoggingOSLog", package: "chrisaljoudi.swift-log-oslog"),
-            .product(name: "FileLogging", package: "crspybits.swift-log-file"),
-            .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
-            .product(name: "OrderedSet", package: "frazer-rbsn.OrderedSet"),
-        ],
-        path: "cli/Sources/TuistSupport",
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
-        ]
-    ),
-    .target(
-        name: "TuistTesting",
-        dependencies: [
-            "TuistSupport",
+            "TuistCache",
+            "TuistCore",
+            "TuistGenerator",
+            "TuistHasher",
             "TuistServer",
-            "TuistHTTP",
             xcodeGraphDependency,
-            pathDependency,
-            differenceDependency,
-            fileSystemDependency,
-            .product(name: "FileSystemTesting", package: "tuist.FileSystem"),
-            argumentParserDependency,
         ],
-        path: "cli/Sources/TuistTesting",
-        linkerSettings: [.linkedFramework("XCTest")]
+        path: "cli/Sources/TuistExtension"
     ),
     .target(
         name: "TuistAcceptanceTesting",
@@ -181,6 +1568,17 @@ let targets: [Target] = [
             "TuistCore",
             "TuistSupport",
             "TuistTesting",
+            "TuistAccountCommand",
+            "TuistBuildCommand",
+            "TuistGenerateCommand",
+            "TuistTestCommand",
+            "TuistInitCommand",
+            "TuistOrganizationCommand",
+            "TuistProjectCommand",
+            "TuistRegistryCommand",
+            "TuistRunCommand",
+            "TuistRunnerCommand",
+            "TuistShareCommand",
             xcodeProjDependency,
             fileSystemDependency,
             "ProjectDescription",
@@ -195,20 +1593,25 @@ let targets: [Target] = [
         dependencies: [
             xcodeProjDependency,
             pathDependency,
+            processDependency,
+            "TuistConfig",
             "TuistCore",
             xcodeGraphDependency,
             "TuistSupport",
             graphVizDependency,
-            swiftGenKitDependency,
-            stencilSwiftKitDependency,
             mockableDependency,
             fileSystemDependency,
             stencilDependency,
             "TuistRootDirectoryLocator",
+            "TuistLoader",
+            "TuistServer",
+            .product(name: "SwiftGenKit", package: "swiftGen.SwiftGen"),
+            .product(name: "StencilSwiftKit", package: "swiftGen.StencilSwiftKit"),
         ],
         path: "cli/Sources/TuistGenerator",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -218,15 +1621,16 @@ let targets: [Target] = [
             "TuistCore",
             xcodeGraphDependency,
             "TuistSupport",
-            stencilSwiftKitDependency,
             stencilDependency,
             mockableDependency,
             fileSystemDependency,
             "TuistRootDirectoryLocator",
+            .product(name: "StencilSwiftKit", package: "swiftGen.StencilSwiftKit"),
         ],
         path: "cli/Sources/TuistScaffold",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -236,15 +1640,17 @@ let targets: [Target] = [
             pathDependency,
             .product(name: "XcbeautifyLib", package: "cpisciotta.xcbeautify"),
             "TuistCore",
+            "TuistXcodeBuildProducts",
             xcodeGraphDependency,
             "TuistSupport",
             mockableDependency,
             fileSystemDependency,
-            commandDependency,
+            processDependency,
         ],
         path: "cli/Sources/TuistAutomation",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -259,8 +1665,9 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistDependencies",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -276,7 +1683,7 @@ let targets: [Target] = [
         ],
         path: "cli/Sources/TuistMigration",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -284,9 +1691,11 @@ let targets: [Target] = [
         dependencies: [
             xcodeProjDependency,
             pathDependency,
+            processDependency,
             "TuistCore",
             xcodeGraphDependency,
             "TuistSupport",
+            "TuistMacOSSDK",
             mockableDependency,
             "ProjectDescription",
             fileSystemDependency,
@@ -294,23 +1703,29 @@ let targets: [Target] = [
             "TuistGit",
         ],
         path: "cli/Sources/TuistLoader",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
         name: "TuistProcess",
         dependencies: [
-            mockableDependency
+            mockableDependency,
+            pathDependency,
+            subprocessDependency,
+            systemPackageDependency,
         ],
         path: "cli/Sources/TuistProcess",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
         name: "TuistPlugin",
         dependencies: [
+            processDependency,
             xcodeGraphDependency,
             "TuistLoader",
             "TuistCore",
@@ -322,51 +1737,15 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistPlugin",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
-        ]
-    ),
-    .target(
-        name: "TuistServer",
-        dependencies: [
-            "TuistCore",
-            "TuistSupport",
-            "TuistHTTP",
-            "TuistXCActivityLog",
-            "TuistXCResultService",
-            fileSystemDependency,
-            xcodeGraphDependency,
-            mockableDependency,
-            keychainAccessDependency,
-            .target(name: "TuistCI", condition: .when(platforms: [.macOS])),
-            .target(name: "TuistProcess", condition: .when(platforms: [.macOS])),
-            pathDependency,
-            .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
-            .product(name: "HTTPTypes", package: "apple.swift-http-types"),
-            .product(name: "OpenAPIURLSession", package: "apple.swift-openapi-urlsession"),
-            .product(name: "Rosalind", package: "tuist.Rosalind"),
-        ],
-        path: "cli/Sources/TuistServer",
-        exclude: ["OpenAPI/server.yml"],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
-        ]
-    ),
-    .target(
-        name: "TuistOIDC",
-        dependencies: [
-            "TuistSupport",
-            mockableDependency,
-            pathDependency,
-        ],
-        path: "cli/Sources/TuistOIDC",
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
         name: "TuistHasher",
         dependencies: [
+            processDependency,
             "TuistCore",
             "TuistSupport",
             fileSystemDependency,
@@ -376,27 +1755,15 @@ let targets: [Target] = [
             mockableDependency,
         ],
         path: "cli/Sources/TuistHasher",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
-        ]
-    ),
-    .target(
-        name: "TuistHTTP",
-        dependencies: [
-            "TuistSupport",
-            pathDependency,
-            mockableDependency,
-            .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
-            .product(name: "HTTPTypes", package: "apple.swift-http-types"),
-        ],
-        path: "cli/Sources/TuistHTTP",
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
         name: "TuistCache",
         dependencies: [
+            "TuistAlert",
             "TuistCore",
             "TuistSupport",
             "TuistHTTP",
@@ -406,25 +1773,14 @@ let targets: [Target] = [
             pathDependency,
             xcodeGraphDependency,
             "TuistHasher",
+            .product(name: "Crypto", package: "apple.swift-crypto"),
             .product(name: "OpenAPIRuntime", package: "apple.swift-openapi-runtime"),
             .product(name: "OpenAPIURLSession", package: "apple.swift-openapi-urlsession"),
         ],
         path: "cli/Sources/TuistCache",
-        exclude: ["OpenAPI/cache.yml"],
+        exclude: ["OpenAPI/cache.yml", "AGENTS.md"],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
-        ]
-    ),
-    .target(
-        name: "TuistSimulator",
-        dependencies: [
-            xcodeGraphDependency,
-            mockableDependency,
-            pathDependency,
-        ],
-        path: "cli/Sources/TuistSimulator",
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -436,54 +1792,30 @@ let targets: [Target] = [
             "TuistCASAnalytics",
             "TuistGit",
             fileSystemDependency,
-            .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
-            swiftToolsSupportDependency,
             pathDependency,
+            .product(name: "Gzip", package: "1024jp.gzipswift"),
+            .product(name: "XCLogParser", package: "MobileNativeFoundation.XCLogParser"),
+            .product(name: "XCActivityLogParser", package: "xcactivitylog_nif"),
         ],
         path: "cli/Sources/TuistXCActivityLog",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
         name: "TuistXCResultService",
         dependencies: [
             "TuistSupport",
-            "TuistXCActivityLog",
-            .product(name: "Command", package: "tuist.Command"),
+            "TuistAlert",
+            .product(name: "XCResultParser", package: "XCResultNIF"),
             fileSystemDependency,
             mockableDependency,
             pathDependency,
         ],
         path: "cli/Sources/TuistXCResultService",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
-        ]
-    ),
-    .target(
-        name: "TuistGit",
-        dependencies: [
-            "TuistSupport",
-            fileSystemDependency,
-            swiftToolsSupportDependency,
-            pathDependency,
-        ],
-        path: "cli/Sources/TuistGit",
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
-        ]
-    ),
-    .target(
-        name: "TuistRootDirectoryLocator",
-        dependencies: [
-            "TuistCore",
-            "TuistSupport",
-            fileSystemDependency,
-            pathDependency,
-        ],
-        path: "cli/Sources/TuistRootDirectoryLocator",
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
@@ -495,69 +1827,77 @@ let targets: [Target] = [
             pathDependency,
         ],
         path: "cli/Sources/TuistXcodeProjectOrWorkspacePathLocator",
+        exclude: ["AGENTS.md"],
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
-        ]
-    ),
-    .target(
-        name: "TuistCI",
-        dependencies: [
-            "TuistSupport",
-            mockableDependency,
-            pathDependency,
-        ],
-        path: "cli/Sources/TuistCI",
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
-        ]
-    ),
-    .target(
-        name: "TuistCAS",
-        dependencies: [
-            "TuistCache",
-            "TuistServer",
-            "TuistHTTP",
-            "TuistRootDirectoryLocator",
-            "TuistCASAnalytics",
-            .product(name: "GRPCCore", package: "grpc.grpc-swift-2"),
-            .product(name: "GRPCProtobuf", package: "grpc.grpc-swift-protobuf"),
-            .product(name: "SwiftProtobuf", package: "swift-protobuf"),
-            .product(name: "libzstd", package: "facebook.zstd"),
-            mockableDependency,
-            pathDependency,
-        ],
-        path: "cli/Sources/TuistCAS",
-        exclude: ["cas.proto", "keyvalue.proto", "grpc-swift-proto-generator-config.json"],
-        swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
         name: "TuistCASAnalytics",
         dependencies: [
-            "TuistSupport",
-            fileSystemDependency,
+            "TuistEnvironment",
             pathDependency,
             mockableDependency,
+            .product(name: "CASAnalyticsDatabase", package: "xcactivitylog_nif"),
         ],
         path: "cli/Sources/TuistCASAnalytics",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
     .target(
         name: "TuistLaunchctl",
         dependencies: [
-            commandDependency,
+            processDependency,
+            mockableDependency,
+            pathDependency,
+            fileSystemDependency,
+            "TuistEnvironment",
+            "TuistLogging",
+        ],
+        path: "cli/Sources/TuistLaunchctl",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    ),
+    .target(
+        name: "TuistJobSummary",
+        dependencies: [
+            "TuistCore",
+            "TuistCI",
+            "TuistEnvironment",
+            "TuistLogging",
+            fileSystemDependency,
             mockableDependency,
             pathDependency,
         ],
-        path: "cli/Sources/TuistLaunchctl",
+        path: "cli/Sources/TuistJobSummary",
         swiftSettings: [
-            .define("MOCKING", .when(configuration: .debug))
+            .define("MOCKING", .when(configuration: .debug)),
         ]
     ),
-]
+])
+#endif
+
+#if !os(macOS)
+targets.append(
+    .target(
+        name: "TuistProcess",
+        dependencies: [
+            mockableDependency,
+            pathDependency,
+            subprocessDependency,
+            systemPackageDependency,
+        ],
+        path: "cli/Sources/TuistProcess",
+        exclude: ["AGENTS.md"],
+        swiftSettings: [
+            .define("MOCKING", .when(configuration: .debug)),
+        ]
+    )
+)
+#endif
 
 #if TUIST
     import struct ProjectDescription.PackageSettings
@@ -572,116 +1912,143 @@ let targets: [Target] = [
             "TSCLibc": .staticFramework,
             "ArgumentParser": .staticFramework,
             "Mockable": .staticFramework,
+            "Subprocess": .staticFramework,
+            "_NIOFileSystem": .staticFramework,
         ],
         baseSettings: .settings(base: ["GENERATE_MASTER_OBJECT_FILE": "YES"])
     )
+#endif
 
+// MARK: - Products
+
+var products: [Product] = [
+    .executable(name: "tuist", targets: ["tuist"]),
+    .executable(name: "swifterpm", targets: ["swifterpm"]),
+    .library(
+        name: "TuistServer",
+        targets: ["TuistServer"]
+    ),
+    .library(
+        name: "Rosalind",
+        targets: ["Rosalind"]
+    ),
+    .library(
+        name: "TuistOIDC",
+        targets: ["TuistOIDC"]
+    ),
+    .library(
+        name: "TuistProcess",
+        targets: ["TuistProcess"]
+    ),
+]
+
+#if os(macOS)
+products.append(
+    .library(
+        name: "ProjectDescription",
+        type: .dynamic,
+        targets: ["ProjectDescription"]
+    )
+)
+#else
+products.append(
+    .library(
+        name: "ProjectDescription",
+        targets: ["ProjectDescription"]
+    )
+)
+#endif
+
+#if os(macOS)
+products.append(contentsOf: [
+    .executable(name: "tuistbenchmark", targets: ["tuistbenchmark"]),
+    .executable(name: "tuistfixturegenerator", targets: ["tuistfixturegenerator"]),
+    .library(
+        name: "ProjectAutomation",
+        type: .dynamic,
+        targets: ["ProjectAutomation"]
+    ),
+    .library(
+        name: "ProjectAutomation-auto",
+        targets: ["ProjectAutomation"]
+    ),
+    .library(
+        name: "TuistKit",
+        targets: ["TuistKit"]
+    ),
+    .library(
+        name: "TuistSupport",
+        targets: ["TuistSupport"]
+    ),
+    .library(
+        name: "TuistTesting",
+        targets: ["TuistTesting"]
+    ),
+    .library(
+        name: "TuistCore",
+        targets: ["TuistCore"]
+    ),
+    .library(
+        name: "TuistXCActivityLog",
+        targets: ["TuistXCActivityLog"]
+    ),
+    .library(
+        name: "TuistLoader",
+        targets: ["TuistLoader"]
+    ),
+    .library(
+        name: "TuistAutomation",
+        targets: ["TuistAutomation"]
+    ),
+    .library(
+        name: "TuistDependencies",
+        targets: ["TuistDependencies"]
+    ),
+    .library(
+        name: "TuistAcceptanceTesting",
+        targets: ["TuistAcceptanceTesting"]
+    ),
+    .library(
+        name: "TuistHasher",
+        targets: ["TuistHasher"]
+    ),
+    .library(
+        name: "TuistCache",
+        targets: ["TuistCache"]
+    ),
+    .library(
+        name: "TuistGenerator",
+        targets: ["TuistGenerator"]
+    ),
+])
 #endif
 
 let package = Package(
     name: "tuist",
     platforms: [.macOS(.v15)],
-    products: [
-        .executable(name: "tuistbenchmark", targets: ["tuistbenchmark"]),
-        .executable(name: "tuistfixturegenerator", targets: ["tuistfixturegenerator"]),
-        .executable(name: "tuist", targets: ["tuist"]),
-        .library(
-            name: "ProjectDescription",
-            type: .dynamic,
-            targets: ["ProjectDescription"]
-        ),
-        .library(
-            name: "ProjectAutomation",
-            type: .dynamic,
-            targets: ["ProjectAutomation"]
-        ),
-        .library(
-            name: "ProjectAutomation-auto",
-            targets: ["ProjectAutomation"]
-        ),
-        .library(
-            name: "TuistKit",
-            targets: ["TuistKit"]
-        ),
-        .library(
-            name: "TuistSupport",
-            targets: ["TuistSupport"]
-        ),
-        .library(
-            name: "TuistTesting",
-            targets: ["TuistTesting"]
-        ),
-        .library(
-            name: "TuistCore",
-            targets: ["TuistCore"]
-        ),
-        .library(
-            name: "TuistXCActivityLog",
-            targets: ["TuistXCActivityLog"]
-        ),
-        .library(
-            name: "TuistLoader",
-            targets: ["TuistLoader"]
-        ),
-        .library(
-            name: "TuistAutomation",
-            targets: ["TuistAutomation"]
-        ),
-        .library(
-            name: "TuistDependencies",
-            targets: ["TuistDependencies"]
-        ),
-        .library(
-            name: "TuistAcceptanceTesting",
-            targets: ["TuistAcceptanceTesting"]
-        ),
-        .library(
-            name: "TuistServer",
-            targets: ["TuistServer"]
-        ),
-        .library(
-            name: "TuistOIDC",
-            targets: ["TuistOIDC"]
-        ),
-        .library(
-            name: "TuistHasher",
-            targets: ["TuistHasher"]
-        ),
-        .library(
-            name: "TuistCache",
-            targets: ["TuistCache"]
-        ),
-        // TuistGenerator
-        //
-        // A high level Xcode generator library
-        // responsible for generating Xcode projects & workspaces.
-        //
-        // This library can be used in external tools that wish to
-        // leverage Tuist's Xcode generation features.
-        //
-        // Note: This library should be treated as **unstable** as
-        //       it is still under development and may include breaking
-        //       changes in future releases.
-        .library(
-            name: "TuistGenerator",
-            targets: ["TuistGenerator"]
-        ),
-    ],
+    products: products,
     dependencies: [
         .package(id: "apple.swift-argument-parser", from: "1.5.0"),
-        .package(id: "apple.swift-log", from: "1.5.3"),
+        // Capped below 1.14 because `apple.swift-log 1.15` introduced a
+        // second overload of `Logger`'s level-specific helpers (with a
+        // new `error:` parameter). With both signatures accepting a
+        // `Logger.Message` positional argument and everything else
+        // defaulted, plain call sites like `logger.notice("...")` are
+        // ambiguous, and there are ~50 such call sites across the CLI.
+        // Lifting the cap wants a follow-up PR that migrates every
+        // affected call site rather than getting bundled into a
+        // Rosalind/Noora bump.
+        .package(id: "apple.swift-log", "1.5.3" ..< "1.14.0"),
         .package(id: "swiftlang.swift-tools-support-core", from: "0.6.1"),
         .package(id: "flight-school.AnyCodable", from: "0.6.7"),
-        .package(id: "tuist.ZIPFoundation", from: "0.9.19"),
+        .package(id: "tuist.ZIPFoundation", from: "0.9.22"),
         .package(id: "kishikawakatsumi.KeychainAccess", from: "4.2.2"),
         .package(id: "stencilproject.Stencil", exact: "0.15.1"),
         .package(id: "tuist.GraphViz", exact: "0.4.2"),
-        .package(id: "swiftGen.StencilSwiftKit", exact: "2.10.1"),
-        .package(id: "swiftGen.SwiftGen", exact: "6.6.2"),
-        .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.4.3")),
+        .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.17.5")),
         .package(id: "cpisciotta.xcbeautify", from: "3.1.0"),
         .package(id: "krzysztofzablocki.Difference", from: "1.0.2"),
-        .package(id: "kolos65.Mockable", .upToNextMajor(from: "0.3.1")),
+        .package(id: "kolos65.Mockable", .upToNextMajor(from: "0.6.1")),
         .package(
             id: "apple.swift-openapi-runtime", .upToNextMajor(from: "1.5.0")
         ),
@@ -691,56 +2058,47 @@ let package = Package(
         .package(
             id: "apple.swift-openapi-urlsession", .upToNextMajor(from: "1.0.2")
         ),
-        .package(id: "tuist.Path", .upToNextMajor(from: "0.3.0")),
-        .package(id: "tuist.XcodeGraph", .branch(from: "feature/group-path-support")),
-        .package(id: "tuist.Command", .upToNextMajor(from: "0.8.0")),
-        .package(id: "sparkle-project.Sparkle", from: "2.6.4"),
-        // swift-collections 1.3.0 requires Swift 6.2.0
-        .package(id: "apple.swift-collections", "1.1.4"..<"1.3.0"),
-        .package(
-            id: "apple.swift-service-context", .upToNextMajor(from: "1.0.0")
-        ),
-        .package(
-            id: "chrisaljoudi.swift-log-oslog",
-            .upToNextMajor(from: "0.2.2")
-        ),
+        .package(id: "tuist.Path", .upToNextMajor(from: "0.3.8")),
+        .package(id: "p-x9.MachOKit", .upToNextMajor(from: "0.46.1")),
+        .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.19.1")),
+        .package(id: "apple.swift-system", from: "1.5.0"),
+        .package(id: "apple.swift-crypto", from: "3.0.0"),
+        .package(id: "swiftlang.swift-subprocess", exact: "0.4.0"),
         .package(id: "crspybits.swift-log-file", .upToNextMajor(from: "0.1.0")),
-        .package(
-            id: "MobileNativeFoundation.XCLogParser",
-            .upToNextMajor(from: "0.2.45")
-        ),
-        .package(id: "tuist.Noora", .upToNextMajor(from: "0.51.2")),
+        .package(id: "tuist.Noora", from: "0.55.0"),
         .package(
             id: "frazer-rbsn.OrderedSet", .upToNextMajor(from: "2.0.0")
         ),
-        .package(
-            id: "pointfreeco.swift-snapshot-testing",
-            .upToNextMajor(from: "1.18.1")
-        ),
-        .package(
-            id: "modelcontextprotocol.swift-sdk",
-            .upToNextMajor(from: "0.9.0")
-        ),
+        .package(id: "grpc.grpc-swift-2", from: "2.0.0"),
+        .package(id: "apple.swift-protobuf", exact: "1.38.1"),
+        .package(id: "grpc.grpc-swift-protobuf", from: "2.0.0"),
+        .package(id: "grpc.grpc-swift-nio-transport", from: "2.9.2"),
+        .package(id: "apple.swift-nio", from: "2.97.1"),
+        .package(id: "apple.swift-nio-ssl", from: "2.37.4"),
+        .package(id: "facebook.zstd", from: "1.5.0"),
+        .package(id: "chrisaljoudi.swift-log-oslog", .upToNextMajor(from: "0.2.2")),
+        .package(id: "MobileNativeFoundation.XCLogParser", .upToNextMajor(from: "0.2.49")),
+        .package(id: "1024jp.gzipswift", .upToNextMajor(from: "5.2.0")),
+        .package(path: "server/native/xcactivitylog_nif"),
         .package(id: "swiftyJSON.SwiftyJSON", .upToNextMajor(from: "5.0.2")),
-        .package(
-            id: "tuist.Rosalind",
-            .upToNextMajor(from: "0.6.0")
-        ),
+        .package(id: "swiftGen.StencilSwiftKit", exact: "2.10.1"),
+        .package(id: "swiftGen.SwiftGen", exact: "6.6.2"),
+        .package(id: "sparkle-project.Sparkle", from: "2.6.4"),
         .package(id: "kean.Nuke", .upToNextMajor(from: "12.8.0")),
-        .package(id: "leif-ibsen.SwiftECC", exact: "5.5.0"),
         .package(
             url: "https://github.com/lfroms/fluid-menu-bar-extra",
             .upToNextMajor(from: "1.1.0")
         ),
-        .package(id: "grpc.grpc-swift-2", from: "2.0.0"),
-        .package(
-            url: "https://github.com/apple/swift-protobuf.git",
-            from: "1.32.0"
-        ),
-        .package(id: "grpc.grpc-swift-protobuf", from: "2.0.0"),
-        .package(id: "grpc.grpc-swift-nio-transport", from: "2.0.0"),
-        .package(id: "facebook.zstd", from: "1.5.0"),
         .package(id: "tuist.sdk", .upToNextMajor(from: "0.2.0")),
+        .package(id: "apple.swift-collections", "1.1.4"..<"1.3.0"),
+        .package(id: "apple.swift-service-context", .upToNextMajor(from: "1.0.0")),
+        .package(id: "pointfreeco.swift-snapshot-testing", .upToNextMajor(from: "1.18.1")),
+        .package(id: "leif-ibsen.SwiftECC", exact: "5.5.0"),
+        .package(id: "dduan.TOMLDecoder", from: "0.4.1"),
+        .package(id: "apple.swift-algorithms", from: "1.2.1"),
+        .package(id: "swiftlang.swift-docc-plugin", from: "1.4.6"),
+        .package(name: "XCResultNIF", path: "server/native/xcresult_nif"),
+        .package(id: "stephencelis.SQLite_swift", from: "0.16.0"),
     ],
     targets: targets,
     swiftLanguageModes: [.v5]

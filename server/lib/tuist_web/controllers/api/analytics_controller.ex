@@ -4,10 +4,16 @@ defmodule TuistWeb.API.AnalyticsController do
 
   alias OpenApiSpex.Schema
   alias Tuist.CommandEvents
-  alias Tuist.Runs
+  alias Tuist.IdempotentRequests
+  alias Tuist.Kura.Origins
+  alias Tuist.Kura.Regions
   alias Tuist.Storage
+  alias Tuist.Tests
+  alias Tuist.Tests.Coverage
   alias Tuist.VCS
+  alias Tuist.VCS.RemoteURL
   alias Tuist.Xcode
+  alias TuistWeb.API.Responses
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadPart
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadParts
   alias TuistWeb.API.Schemas.ArtifactMultipartUploadUrl
@@ -15,14 +21,19 @@ defmodule TuistWeb.API.AnalyticsController do
   alias TuistWeb.API.Schemas.CommandEvent
   alias TuistWeb.API.Schemas.CommandEventArtifact
   alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.StorageError
   alias TuistWeb.Authentication
+  alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Headers
   alias TuistWeb.Plugs.LoaderPlug
+  alias TuistWeb.RemoteIp
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
+
+  plug(TuistWeb.Plugs.ReportActorPlug when action == :create)
 
   # We don't want to try and load the run when generating the mulitpart URL as the run might not exist, yet, at this point
   plug(
@@ -55,6 +66,7 @@ defmodule TuistWeb.API.AnalyticsController do
     summary: "Create a a new command analytics event",
     operation_id: "createCommandEvent",
     parameters: [
+      "x-tuist-actor-id": TuistWeb.API.Schemas.ReportActor.header(),
       project_id: [
         in: :query,
         type: :string,
@@ -190,6 +202,42 @@ defmodule TuistWeb.API.AnalyticsController do
              type: :string,
              description: "The cache endpoint URL used for this command (regional module cache)."
            },
+           module_cache_outputs: %Schema{
+             type: :array,
+             description:
+               "Per-artifact module (binary) cache transfer operations performed during the command, used for module cache network analytics.",
+             items: %Schema{
+               type: :object,
+               required: [:operation, :name, :hash, :size, :compressed_size, :duration],
+               properties: %{
+                 operation: %Schema{
+                   type: :string,
+                   enum: ["download", "upload"],
+                   description: "Whether the artifact was downloaded from or uploaded to the remote module cache."
+                 },
+                 name: %Schema{
+                   type: :string,
+                   description: "Name of the target the artifact belongs to."
+                 },
+                 hash: %Schema{
+                   type: :string,
+                   description: "Content hash of the cached artifact."
+                 },
+                 size: %Schema{
+                   type: :integer,
+                   description: "Size of the artifact on disk, in bytes."
+                 },
+                 compressed_size: %Schema{
+                   type: :integer,
+                   description: "Number of bytes transferred over the wire (compressed payload)."
+                 },
+                 duration: %Schema{
+                   type: :integer,
+                   description: "Duration of this single transfer operation, in milliseconds."
+                 }
+               }
+             }
+           },
            preview_id: %Schema{
              type: :string,
              description: "The preview identifier."
@@ -201,6 +249,11 @@ defmodule TuistWeb.API.AnalyticsController do
            test_run_id: %Schema{
              type: :string,
              description: "The test run identifier."
+           },
+           id: %Schema{
+             type: :string,
+             description:
+               "Optional client-provided UUID for the command event. `tuist generate` sets this so a later local Xcode build can reference the generation's graph by command event id; when omitted the server assigns one."
            },
            xcode_graph: %Schema{
              type: :object,
@@ -293,6 +346,12 @@ defmodule TuistWeb.API.AnalyticsController do
                                ]
                              }
                            },
+                           dependencies: %Schema{
+                             type: :array,
+                             description:
+                               "Names of the targets this target directly depends on (dependency-graph edges). Used to compute downstream blast radius.",
+                             items: %Schema{type: :string}
+                           },
                            binary_cache_metadata: %Schema{
                              type: :object,
                              description: "Binary cache metadata",
@@ -311,10 +370,39 @@ defmodule TuistWeb.API.AnalyticsController do
                                  type: :integer,
                                  description: "The compilation time of a binary in milliseconds."
                                },
+                               instrumented: %Schema{
+                                 type: :boolean,
+                                 description:
+                                   "Whether the binary taken from the cache carries coverage counters, so a run collecting coverage measures its code. Omitted for a miss."
+                               },
                                subhashes: %Schema{
                                  type: :object,
                                  description: "Individual component hashes that make up the final hash",
                                  properties: %{
+                                   destinations: %Schema{
+                                     type: :array,
+                                     items: %Schema{type: :string},
+                                     description:
+                                       "Sorted raw destinations used to compute this hash. Omitted when unavailable."
+                                   },
+                                   embedded_product_references: %Schema{
+                                     type: :string,
+                                     description:
+                                       "Embedded product references hash. Empty means none; omitted means unavailable."
+                                   },
+                                   foreign_build: %Schema{
+                                     type: :string,
+                                     description: "Foreign build hash. Empty means none; omitted means unavailable."
+                                   },
+                                   test_device: %Schema{
+                                     type: :string,
+                                     description: "UI test device name. Empty means none; omitted means unavailable."
+                                   },
+                                   test_runtime: %Schema{
+                                     type: :string,
+                                     description:
+                                       "UI test runtime identifier. Empty means none; omitted means unavailable."
+                                   },
                                    sources: %Schema{type: :string, description: "Sources hash"},
                                    resources: %Schema{type: :string, description: "Resources hash"},
                                    copy_files: %Schema{type: :string, description: "Copy files hash"},
@@ -329,6 +417,10 @@ defmodule TuistWeb.API.AnalyticsController do
                                    project_settings: %Schema{type: :string, description: "Project settings hash"},
                                    target_settings: %Schema{type: :string, description: "Target settings hash"},
                                    buildable_folders: %Schema{type: :string, description: "Buildable folders hash"},
+                                   additional_hashing_inputs: %Schema{
+                                     type: :string,
+                                     description: "Additional hashing inputs hash"
+                                   },
                                    additional_strings: %Schema{
                                      type: :array,
                                      description: "Additional strings used in the hash",
@@ -352,6 +444,60 @@ defmodule TuistWeb.API.AnalyticsController do
                                  type: :string,
                                  description: "The selective testing hit status",
                                  enum: ["miss", "local", "remote"]
+                               },
+                               subhashes: %Schema{
+                                 type: :object,
+                                 description: "Individual component hashes that make up the final hash",
+                                 properties: %{
+                                   destinations: %Schema{
+                                     type: :array,
+                                     items: %Schema{type: :string},
+                                     description:
+                                       "Sorted raw destinations used to compute this hash. Omitted when unavailable."
+                                   },
+                                   embedded_product_references: %Schema{
+                                     type: :string,
+                                     description:
+                                       "Embedded product references hash. Empty means none; omitted means unavailable."
+                                   },
+                                   foreign_build: %Schema{
+                                     type: :string,
+                                     description: "Foreign build hash. Empty means none; omitted means unavailable."
+                                   },
+                                   test_device: %Schema{
+                                     type: :string,
+                                     description: "UI test device name. Empty means none; omitted means unavailable."
+                                   },
+                                   test_runtime: %Schema{
+                                     type: :string,
+                                     description:
+                                       "UI test runtime identifier. Empty means none; omitted means unavailable."
+                                   },
+                                   sources: %Schema{type: :string, description: "Sources hash"},
+                                   resources: %Schema{type: :string, description: "Resources hash"},
+                                   copy_files: %Schema{type: :string, description: "Copy files hash"},
+                                   core_data_models: %Schema{type: :string, description: "Core data models hash"},
+                                   target_scripts: %Schema{type: :string, description: "Target scripts hash"},
+                                   environment: %Schema{type: :string, description: "Environment hash"},
+                                   headers: %Schema{type: :string, description: "Headers hash"},
+                                   deployment_target: %Schema{type: :string, description: "Deployment target hash"},
+                                   info_plist: %Schema{type: :string, description: "Info.plist hash"},
+                                   entitlements: %Schema{type: :string, description: "Entitlements hash"},
+                                   dependencies: %Schema{type: :string, description: "Dependencies hash"},
+                                   project_settings: %Schema{type: :string, description: "Project settings hash"},
+                                   target_settings: %Schema{type: :string, description: "Target settings hash"},
+                                   buildable_folders: %Schema{type: :string, description: "Buildable folders hash"},
+                                   additional_hashing_inputs: %Schema{
+                                     type: :string,
+                                     description: "Additional hashing inputs hash"
+                                   },
+                                   additional_strings: %Schema{
+                                     type: :array,
+                                     description: "Additional strings used in the hash",
+                                     items: %Schema{type: :string}
+                                   },
+                                   external: %Schema{type: :string, description: "External project hash"}
+                                 }
                                }
                              }
                            }
@@ -377,27 +523,47 @@ defmodule TuistWeb.API.AnalyticsController do
     responses: %{
       ok: {"The run was created", "application/json", CommandEvent},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
-      forbidden: {"You don't have permission to create runs for the project.", "application/json", Error}
+      forbidden: {"You don't have permission to create runs for the project.", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled()
     }
   )
 
-  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
+  # A client retries a run whose response it lost. Command events and their graph,
+  # module cache outputs and cache-origin counts go to tables that don't
+  # deduplicate, so a request carrying an id claims it first and a retry gets the
+  # first request's response back without writing anything.
   def create(%{body_params: body_params, assigns: %{selected_project: selected_project}} = conn, _params) do
-    current_user = Authentication.current_user(conn)
+    case IdempotentRequests.run("command_event", selected_project.id, Map.get(body_params, :id), fn ->
+           {:ok, create_command_event(conn, body_params, selected_project)}
+         end) do
+      {result, response} when result in [:ok, :replayed] ->
+        conn
+        |> put_status(:ok)
+        |> json(response)
 
+      {:error, :in_progress} ->
+        conn
+        |> put_status(:service_unavailable)
+        |> put_resp_header("retry-after", "1")
+        |> json(%{message: "A run with this id is still being created; retry this request"})
+    end
+  end
+
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
+  defp create_command_event(conn, body_params, selected_project) do
     user_id =
-      if is_nil(current_user) do
-        nil
-      else
-        current_user.id
+      case Authentication.attributed_user(conn) do
+        nil -> nil
+        user -> user.id
       end
 
     git_commit_sha = Map.get(body_params, :git_commit_sha)
     git_ref = Map.get(body_params, :git_ref)
-    git_remote_url_origin = Map.get(body_params, :git_remote_url_origin)
+    git_remote_url_origin = body_params |> Map.get(:git_remote_url_origin) |> RemoteURL.strip_credentials()
     preview_id = Map.get(body_params, :preview_id)
     build_run_id = Map.get(body_params, :build_run_id)
     test_run_id = Map.get(body_params, :test_run_id)
+    command_event_id = Map.get(body_params, :id)
 
     # For older versions of CLIs that don't inspect the .xcresult, yet, we want to create a test run from the command event, so these runs show up in the "Test Runs" page.
     cli_version = Headers.get_cli_version(conn)
@@ -407,7 +573,7 @@ defmodule TuistWeb.API.AnalyticsController do
 
     test_run_id =
       if body_params.name == "test" and is_nil(test_run_id) and should_create_test_run do
-        case create_test_run_from_command_event(body_params, selected_project) do
+        case create_test_run_from_command_event(body_params, selected_project, Tuist.ReportActor.attributes(conn)) do
           {:ok, test_run} -> test_run.id
           {:error, _} -> nil
         end
@@ -419,7 +585,8 @@ defmodule TuistWeb.API.AnalyticsController do
     selective_testing_metadata = selective_testing_metadata(body_params)
 
     command_event =
-      CommandEvents.create_command_event(%{
+      %{
+        id: command_event_id,
         name: body_params.name,
         subcommand: Map.get(body_params, :subcommand, nil),
         command_arguments: body_params.command_arguments,
@@ -448,38 +615,64 @@ defmodule TuistWeb.API.AnalyticsController do
         ran_at: date(body_params),
         build_run_id: build_run_id,
         test_run_id: test_run_id
-      })
+      }
+      |> Map.merge(Tuist.ReportActor.attributes(conn))
+      |> CommandEvents.create_command_event()
+      |> case do
+        {:ok, command_event} ->
+          command_event
+
+        {:error, :not_found} ->
+          raise NotFoundError,
+                dgettext("dashboard", "The project %{project_slug} was not found.", %{
+                  project_slug: "#{selected_project.account.name}/#{selected_project.name}"
+                })
+      end
+
+    # Where the account's cache traffic comes from, counted once per run that
+    # used the cache. This is the unit placement thresholds are expressed in:
+    # endpoint resolutions are cached by the client for an hour and refreshed
+    # by an idle launch agent, so counting those would let both biases move
+    # servers.
+    #
+    # A run whose cache traffic went to a private runner cache is not counted:
+    # its origin is the runner site's egress, and no public region served it,
+    # so counting it would pull the account's public regions toward the
+    # runners rather than toward anyone using them.
+    if cache_run?(cache_metadata, body_params) and
+         not Regions.private_endpoint?(Map.get(body_params, :cache_endpoint)) do
+      Origins.record_run(selected_project.account_id, RemoteIp.attributed_origin(conn))
+    end
 
     xcode_graph = Map.get(body_params, :xcode_graph)
 
     if not is_nil(xcode_graph) do
       Xcode.create_xcode_graph(%{command_event: command_event, xcode_graph: xcode_graph})
+      Coverage.refold_after_selective_testing(command_event, xcode_graph)
+    end
+
+    module_cache_outputs = Map.get(body_params, :module_cache_outputs, [])
+
+    if module_cache_outputs != [] do
+      CommandEvents.create_module_cache_outputs(command_event, module_cache_outputs)
     end
 
     if Enum.member?(["test", "share", "bundle"], body_params.name) do
       VCS.enqueue_vcs_pull_request_comment(%{
-        build_id: build_run_id,
         git_commit_sha: git_commit_sha,
         git_ref: git_ref,
         git_remote_url_origin: git_remote_url_origin,
-        project_id: selected_project.id,
-        preview_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id",
-        preview_qr_code_url_template: "#{url(~p"/")}:account_name/:project_name/previews/:preview_id/qr-code.png",
-        command_run_url_template: "#{url(~p"/")}:account_name/:project_name/runs/:command_event_id",
-        test_run_url_template: "#{url(~p"/")}:account_name/:project_name/tests/test-runs/:test_run_id",
-        bundle_url_template: "#{url(~p"/")}:account_name/:project_name/bundles/:bundle_id",
-        build_url_template: "#{url(~p"/")}:account_name/:project_name/builds/build-runs/:build_id"
+        project_id: selected_project.id
       })
     end
 
-    url =
-      if is_nil(build_run_id) do
-        url(~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{command_event.id}")
-      else
-        url(
-          ~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{String.downcase(build_run_id)}"
-        )
-      end
+    # Always the run page, never the build run's. A `build_run_id` on a command
+    # event says the run relates to that build, not that it produced it: every
+    # `test --without-building` shard reuses the build phase's id to link its
+    # report back. Resolving to the build run therefore sent sharded test
+    # executions to the build's page as their own run report. The build run and
+    # test run have their own URLs, carried separately.
+    url = url(~p"/#{selected_project.account.name}/#{selected_project.name}/runs/#{command_event.id}")
 
     test_run_url =
       if is_nil(test_run_id) do
@@ -488,15 +681,21 @@ defmodule TuistWeb.API.AnalyticsController do
         url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run_id}")
       end
 
-    conn
-    |> put_status(:ok)
-    |> json(%{
+    %{
       id: command_event.id,
+      actor: command_event |> Tuist.ReportActor.preload() |> Tuist.ReportActor.actor(),
       project_id: command_event.project_id,
       name: command_event.name,
       url: url,
       test_run_url: test_run_url
-    })
+    }
+  end
+
+  # Cacheable targets or a resolved endpoint both put the cache in the run's
+  # path. A run with neither says nothing about where cache traffic wants to be
+  # served, so it does not vote.
+  defp cache_run?(cache_metadata, body_params) do
+    cache_metadata.cacheable_targets != [] or Map.get(body_params, :cache_endpoint, "") != ""
   end
 
   defp cache_metadata(params) do
@@ -561,10 +760,10 @@ defmodule TuistWeb.API.AnalyticsController do
     end
   end
 
-  defp create_test_run_from_command_event(body_params, project) do
+  defp create_test_run_from_command_event(body_params, project, actor) do
     scheme = extract_scheme_from_command_arguments(Map.get(body_params, :command_arguments, []))
 
-    Runs.create_test(%{
+    attrs = %{
       id: UUIDv7.generate(),
       duration: body_params.duration,
       macos_version: body_params.macos_version,
@@ -581,7 +780,9 @@ defmodule TuistWeb.API.AnalyticsController do
       ran_at: date(body_params),
       test_modules: [],
       test_cases: []
-    })
+    }
+
+    Tests.create_test(Map.merge(attrs, actor))
   end
 
   defp extract_scheme_from_command_arguments([_test_command, scheme_or_flag | _rest]) when is_binary(scheme_or_flag) do
@@ -613,6 +814,7 @@ defmodule TuistWeb.API.AnalyticsController do
       ok: {"The upload has been started", "application/json", ArtifactUploadId},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The run doesn't exist", "application/json", Error}
     }
   )
@@ -640,8 +842,13 @@ defmodule TuistWeb.API.AnalyticsController do
       ) do
     with {:ok, object_key} <-
            get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}, conn) do
-      upload_id = Storage.multipart_start(object_key, selected_project.account)
-      json(conn, %{status: "success", data: %{upload_id: upload_id}})
+      case Storage.multipart_start(object_key, selected_project.account) do
+        {:ok, upload_id} ->
+          json(conn, %{status: "success", data: %{upload_id: upload_id}})
+
+        {:error, _reason} ->
+          StorageError.render(conn)
+      end
     end
   end
 
@@ -673,6 +880,7 @@ defmodule TuistWeb.API.AnalyticsController do
       ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error}
     }
   )
@@ -734,6 +942,7 @@ defmodule TuistWeb.API.AnalyticsController do
       no_content: "The upload has been completed",
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       internal_server_error: {"An internal server error occurred", "application/json", Error}
     }
@@ -752,19 +961,22 @@ defmodule TuistWeb.API.AnalyticsController do
       ) do
     with {:ok, object_key} <-
            get_object_key(%{type: type, run_id: run_id, name: command_event_artifact.name}, conn) do
-      :ok =
-        Storage.multipart_complete_upload(
-          object_key,
-          upload_id,
-          Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
-            {part_number, etag}
-          end),
-          selected_project.account
-        )
+      case Storage.multipart_complete_upload(
+             object_key,
+             upload_id,
+             Enum.map(parts, fn %{part_number: part_number, etag: etag} ->
+               {part_number, etag}
+             end),
+             selected_project.account
+           ) do
+        :ok ->
+          conn
+          |> put_status(:no_content)
+          |> json(%{})
 
-      conn
-      |> put_status(:no_content)
-      |> json(%{})
+        {:error, _reason} ->
+          StorageError.render(conn)
+      end
     end
   end
 
@@ -794,6 +1006,7 @@ defmodule TuistWeb.API.AnalyticsController do
       no_content: "The run artifact uploads were successfully finished",
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The run doesn't exist", "application/json", Error}
     }
   )
@@ -834,6 +1047,7 @@ defmodule TuistWeb.API.AnalyticsController do
       ok: {"The upload has been started", "application/json", ArtifactUploadId},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The run doesn't exist", "application/json", Error}
     }
   )
@@ -879,6 +1093,7 @@ defmodule TuistWeb.API.AnalyticsController do
       ok: {"The URL has been generated", "application/json", ArtifactMultipartUploadUrl},
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error}
     }
   )
@@ -923,6 +1138,7 @@ defmodule TuistWeb.API.AnalyticsController do
       no_content: "The upload has been completed",
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The project doesn't exist", "application/json", Error},
       internal_server_error: {"An internal server error occurred", "application/json", Error}
     }
@@ -966,6 +1182,7 @@ defmodule TuistWeb.API.AnalyticsController do
       no_content: "The run artifact uploads were successfully finished",
       unauthorized: {"You need to be authenticated to access this resource", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
       not_found: {"The run doesn't exist", "application/json", Error}
     }
   )
@@ -981,6 +1198,9 @@ defmodule TuistWeb.API.AnalyticsController do
         "result_bundle" ->
           CommandEvents.get_result_bundle_key(run_id, project)
 
+        "stress_result_bundle" ->
+          CommandEvents.get_stress_result_bundle_key(run_id, project)
+
         "invocation_record" ->
           CommandEvents.get_result_bundle_invocation_record_key(
             run_id,
@@ -989,6 +1209,9 @@ defmodule TuistWeb.API.AnalyticsController do
 
         "result_bundle_object" ->
           CommandEvents.get_result_bundle_object_key(run_id, project, name)
+
+        "session" ->
+          CommandEvents.get_session_key(run_id, project)
       end
 
     {:ok, object_key}

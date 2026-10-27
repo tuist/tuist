@@ -47,6 +47,19 @@ defmodule TuistWeb.UserSessionControllerTest do
       assert redirected_to(conn) == ~p"/#{user.account.name}/projects"
     end
 
+    test "does not log the user in when email auth is disabled", %{conn: conn, user: user} do
+      stub(Tuist.Environment, :email_auth_enabled?, fn -> false end)
+
+      conn =
+        post(conn, ~p"/users/log_in", %{
+          "user" => %{"email" => user.email, "password" => valid_user_password()}
+        })
+
+      refute get_session(conn, :user_token)
+      assert redirected_to(conn) == ~p"/users/log_in"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "disabled"
+    end
+
     test "logs the user in with remember me", %{conn: conn, user: user} do
       conn =
         post(conn, ~p"/users/log_in", %{
@@ -76,6 +89,25 @@ defmodule TuistWeb.UserSessionControllerTest do
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Welcome back!"
     end
 
+    test "does not carry another user's invitation return target across login", %{conn: conn, user: user} do
+      other_user = user_fixture()
+
+      conn =
+        conn
+        |> init_test_session(%{
+          post_invitation_return_to: "/auth/device_codes/AOKJ-1234?type=cli",
+          post_invitation_user_id: other_user.id,
+          post_invitation_token: "invitation-token"
+        })
+        |> post(~p"/users/log_in", %{
+          "user" => %{"email" => user.email, "password" => valid_user_password()}
+        })
+
+      refute get_session(conn, :post_invitation_return_to)
+      refute get_session(conn, :post_invitation_user_id)
+      refute get_session(conn, :post_invitation_token)
+    end
+
     test "login following registration", %{conn: conn, user: user} do
       conn =
         post(conn, ~p"/users/log_in", %{
@@ -96,6 +128,19 @@ defmodule TuistWeb.UserSessionControllerTest do
 
       assert redirected_to(conn) == ~p"/users/settings"
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Password updated successfully"
+    end
+
+    test "redirects unconfirmed users to the confirmation resend page", %{conn: conn} do
+      user = user_fixture(confirmed_at: nil)
+
+      conn =
+        post(conn, ~p"/users/log_in", %{
+          "user" => %{"email" => user.email, "password" => valid_user_password()}
+        })
+
+      refute get_session(conn, :user_token)
+      assert redirected_to(conn) == ~p"/users/confirm"
+      assert get_session(conn, :unconfirmed_email) == user.email
     end
 
     test "redirects to login page with invalid credentials", %{conn: conn} do
@@ -134,6 +179,31 @@ defmodule TuistWeb.UserSessionControllerTest do
     end
   end
 
+  describe "GET /docs/login" do
+    test "redirects to login page", %{conn: conn} do
+      conn = get(conn, ~p"/docs/login")
+      assert redirected_to(conn) == ~p"/users/log_in"
+    end
+
+    test "stores return_to path in session", %{conn: conn} do
+      conn = get(conn, ~p"/docs/login?#{%{return_to: "/en/docs/guides"}}")
+      assert redirected_to(conn) == ~p"/users/log_in?#{%{return_to: "/en/docs/guides"}}"
+      assert get_session(conn, :user_return_to) == "/en/docs/guides"
+    end
+
+    test "ignores non-local return_to paths", %{conn: conn} do
+      conn = get(conn, ~p"/docs/login?#{%{return_to: "https://evil.com"}}")
+      assert redirected_to(conn) == ~p"/users/log_in"
+      refute get_session(conn, :user_return_to)
+    end
+
+    test "ignores protocol-relative return_to paths", %{conn: conn} do
+      conn = get(conn, ~p"/docs/login?#{%{return_to: "//evil.example"}}")
+      assert redirected_to(conn) == ~p"/users/log_in"
+      refute get_session(conn, :user_return_to)
+    end
+  end
+
   describe "DELETE /users/log_out" do
     test "logs the user out", %{conn: conn, user: user} do
       conn = conn |> log_in_user(user) |> delete(~p"/users/log_out")
@@ -143,6 +213,36 @@ defmodule TuistWeb.UserSessionControllerTest do
 
     test "succeeds even if the user is not logged in", %{conn: conn} do
       conn = delete(conn, ~p"/users/log_out")
+      assert redirected_to(conn) == ~p"/"
+      refute get_session(conn, :user_token)
+    end
+
+    test "redirects to return_to when it is a local path", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> log_in_user(user)
+        |> delete(~p"/users/log_out?#{%{return_to: "/en/docs/guides"}}")
+
+      assert redirected_to(conn) == "/en/docs/guides"
+      refute get_session(conn, :user_token)
+    end
+
+    test "ignores protocol-relative return_to paths", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> log_in_user(user)
+        |> delete(~p"/users/log_out?#{%{return_to: "//evil.example/foo"}}")
+
+      assert redirected_to(conn) == ~p"/"
+      refute get_session(conn, :user_token)
+    end
+
+    test "ignores non-local return_to paths", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> log_in_user(user)
+        |> delete(~p"/users/log_out?#{%{return_to: "https://evil.example/foo"}}")
+
       assert redirected_to(conn) == ~p"/"
       refute get_session(conn, :user_token)
     end

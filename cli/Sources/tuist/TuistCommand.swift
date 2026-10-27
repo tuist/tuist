@@ -1,0 +1,424 @@
+@_exported import ArgumentParser
+import Foundation
+import Noora
+import OpenAPIRuntime
+import Path
+import TuistAccountCommand
+import TuistAlert
+import TuistAuthCommand
+import TuistBazelCommand
+import TuistBuildCommand
+import TuistBundleCommand
+import TuistCacheCommand
+import TuistCargoCommand
+import TuistConfigLoader
+import TuistEnvironment
+import TuistGenerateCommand
+import TuistInitCommand
+import TuistInspectCommand
+import TuistLogging
+import TuistNooraExtension
+import TuistOrganizationCommand
+import TuistProjectCommand
+import TuistRegistryCommand
+import TuistRunCommand
+import TuistRunnerCommand
+import TuistShareCommand
+import TuistSupport
+import TuistTestCommand
+import TuistVersionCommand
+
+#if os(macOS)
+    import TuistCore
+    import TuistHAR
+    import TuistHTTP
+    import TuistKit
+    import TuistLoader
+    import TuistServer
+#endif
+
+public struct TuistCommand: AsyncParsableCommand {
+    public init() {}
+
+    public static var configuration: CommandConfiguration {
+        CommandConfiguration(commandName: "tuist", abstract: "Build better apps faster.", groupedSubcommands: groupedSubcommands)
+    }
+
+    private static var groupedSubcommands: [CommandGroup] {
+        var groups: [CommandGroup] = []
+
+        #if os(macOS)
+            groups += [
+                CommandGroup(
+                    name: "Get started",
+                    subcommands: [InitCommand.self]
+                ),
+                CommandGroup(
+                    name: "Develop",
+                    subcommands: [
+                        HashCommand.self,
+                        BazelCommand.self,
+                        CargoCommand.self,
+                        BuildCommand.self,
+                        CacheCommand.self,
+                        CacheProxyCommand.self,
+                        CacheStartCommand.self,
+                        SampleHostMetricsCommand.self,
+                        CleanCommand.self,
+                        DumpCommand.self,
+                        EditCommand.self,
+                        GenerateCommand.self,
+                        GraphCommand.self,
+                        InstallCommand.self,
+                        MigrationCommand.self,
+                        PluginCommand.self,
+                        RegistryCommand.self,
+                        RunCommand.self,
+                        RunnerCommand.self,
+                        ScaffoldCommand.self,
+                        SetupCommand.self,
+                        TeardownCommand.self,
+                        TestCommand.self,
+                        InspectCommand.self,
+                        CoverageCommand.self,
+                        XcodeBuildCommand.self,
+                    ]
+                ),
+                CommandGroup(
+                    name: "Share",
+                    subcommands: [ShareCommand.self]
+                ),
+            ]
+        #endif
+
+        groups.append(CommandGroup(
+            name: "Account",
+            subcommands: accountSubcommands
+        ))
+
+        #if !os(macOS)
+            groups.append(CommandGroup(
+                name: "Get started",
+                subcommands: [InitCommand.self]
+            ))
+            groups.append(CommandGroup(
+                name: "Develop",
+                subcommands: [
+                    BazelCommand.self,
+                    CargoCommand.self,
+                    BuildCommand.self,
+                    CacheCommand.self,
+                    GenerateCommand.self,
+                    RunCommand.self,
+                    RunnerCommand.self,
+                    TestCommand.self,
+                    InspectCommand.self,
+                ]
+            ))
+            groups.append(CommandGroup(
+                name: "Share",
+                subcommands: [ShareCommand.self]
+            ))
+        #endif
+
+        groups.append(CommandGroup(
+            name: "Other",
+            subcommands: otherSubcommands
+        ))
+
+        return groups
+    }
+
+    private static var accountSubcommands: [ParsableCommand.Type] {
+        [
+            AccountCommand.self,
+            ProjectCommand.self,
+            BundleCommand.self,
+            OrganizationCommand.self,
+            AuthCommand.self,
+        ]
+    }
+
+    private static var otherSubcommands: [ParsableCommand.Type] {
+        #if os(macOS)
+            [VersionCommand.self, AnalyticsUploadCommand.self]
+        #else
+            [VersionCommand.self]
+        #endif
+    }
+
+    // swiftlint:disable:next function_body_length
+    public static func main(
+        logFilePath: AbsolutePath,
+        sessionDirectory: AbsolutePath,
+        networkFilePath: AbsolutePath,
+        _ arguments: [String]? = nil,
+        parseAsRoot: ((_ arguments: [String]?) throws -> ParsableCommand) = Self.parseAsRoot
+    ) async throws {
+        if let cargoArguments = CargoCommand.delegatedArguments(in: arguments ?? Array(Environment.current.arguments)) {
+            // Cargo owns its flags and exit status. Compiler hooks must never enter CLI analytics/authentication.
+            do {
+                let command = try CargoCommand.parse(cargoArguments)
+                try await command.run()
+            } catch { CargoCommand.exit(withError: error) }
+            return
+        }
+        let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
+
+        #if os(macOS)
+            try await CacheDirectoriesProvider.bootstrap()
+
+            let executeCommand: () async throws -> Void
+            var parsingError: Error?
+            var logFilePathDisplayStrategy: LogFilePathDisplayStrategy = .onError
+
+            do {
+                if processedArguments.first == ScaffoldCommand.configuration.commandName {
+                    try await ScaffoldCommand.preprocess(processedArguments)
+                }
+                let command = try parseAsRoot(processedArguments)
+                let path = try await CommandArguments.path(in: processedArguments, command: command)
+                let config = try await ConfigLoader().loadConfig(path: path)
+                let serverURL = try ServerEnvironmentService().url(configServerURL: config.url)
+                let shouldRecordHAR = (command as? HARRecordingCommand)?.shouldRecordHAR ?? true
+
+                executeCommand = {
+                    logFilePathDisplayStrategy =
+                        (command as? LogConfigurableCommand)?
+                            .logFilePathDisplayStrategy ?? logFilePathDisplayStrategy
+
+                    let trackableCommand = TrackableCommand(
+                        command: command,
+                        commandArguments: processedArguments,
+                        sessionDirectory: sessionDirectory
+                    )
+                    let shouldTrackAnalytics = processedArguments.prefix(2) != ["inspect", "build"]
+                        && processedArguments.prefix(2) != ["auth", "refresh-token"]
+                        && processedArguments.prefix(2) != ["bazel", "credential-helper"]
+                        && processedArguments.first != "analytics-upload"
+                    let optionalAuthentication = config.project.optionalAuthentication
+                    let runTrackableCommand = {
+                        try await withHARRecorder(
+                            networkFilePath: networkFilePath,
+                            shouldRecordHAR: shouldRecordHAR
+                        ) {
+                            try await trackableCommand.run(
+                                fullHandle: config.fullHandle,
+                                serverURL: serverURL,
+                                shouldTrackAnalytics: shouldTrackAnalytics,
+                                optionalAuthentication: optionalAuthentication
+                            )
+                        }
+                    }
+                    if let nooraReadyCommand = command as? NooraReadyCommand {
+                        let jsonThroughNoora = nooraReadyCommand.jsonThroughNoora
+                        try await withLoggerForNoora(logFilePath: logFilePath) {
+                            try await Noora.$current.withValue(initNoora(jsonThroughNoora: jsonThroughNoora)) {
+                                try await runTrackableCommand()
+                            }
+                        }
+                    } else {
+                        try await runTrackableCommand()
+                    }
+                }
+            } catch {
+                parsingError = error
+                executeCommand = {
+                    try await withHARRecorder(
+                        networkFilePath: networkFilePath,
+                        shouldRecordHAR: true
+                    ) {
+                        try await executeTask(with: processedArguments)
+                    }
+                }
+            }
+
+            do {
+                try await executeCommand()
+                if !MachineReadableOutput.isEnabled(arguments: Environment.current.arguments) {
+                    try await withLoggerForNoora(logFilePath: logFilePath) {
+                        Noora.$current.withValue(initNoora()) {
+                            outputCompletion(
+                                logFilePath: logFilePath,
+                                shouldOutputLogFilePath: logFilePathDisplayStrategy == .always
+                            )
+                        }
+                    }
+                }
+            } catch {
+                try await withLoggerForNoora(logFilePath: logFilePath) {
+                    await Noora.$current.withValue(initNoora()) {
+                        await onError(
+                            parsingError ?? error, isParsingError: parsingError != nil, logFilePath: logFilePath
+                        )
+                    }
+                }
+            }
+        #else
+            try await withLoggerForNoora(logFilePath: logFilePath) {
+                do {
+                    let command = try parseAsRoot(processedArguments)
+                    let jsonThroughNoora = (command as? NooraReadyCommand)?.jsonThroughNoora ?? false
+                    try await Noora.$current.withValue(initNoora(jsonThroughNoora: jsonThroughNoora)) {
+                        if var asyncCommand = command as? AsyncParsableCommand {
+                            try await asyncCommand.run()
+                        } else {
+                            var mutableCommand = command
+                            try mutableCommand.run()
+                        }
+                        outputCompletion(
+                            logFilePath: logFilePath,
+                            shouldOutputLogFilePath: false
+                        )
+                    }
+                } catch {
+                    await onError(error, isParsingError: false, logFilePath: logFilePath)
+                }
+            }
+        #endif
+    }
+
+    private static func onError(_ error: Error, isParsingError: Bool, logFilePath: AbsolutePath) async {
+        var errorAlertMessage: TerminalText?
+        var errorAlertNextSteps: [TerminalText] = [
+            "If the error is actionable, address it",
+            "If the error is not actionable, let's discuss it in the \(.link(title: "Troubleshooting & how to", href: "https://community.tuist.dev/c/troubleshooting-how-to/6"))",
+            "If you are very certain it's a bug, \(.link(title: "file an issue", href: "https://github.com/tuist/tuist"))",
+        ]
+        let exitCode = exitCode(for: error).rawValue
+
+        if error.localizedDescription.contains("ArgumentParser") {
+            await prepareForExit(exitCode: exitCode, error: error)
+            exit(withError: error)
+        }
+
+        if let remoteExit = error as? RunnerShellRemoteExitError {
+            await prepareForExit(exitCode: remoteExit.status, error: error)
+            _exit(remoteExit.status)
+        }
+
+        var errorHandled = false
+
+        #if os(macOS)
+            if let clientError = error as? ClientError,
+               let underlyingAuthError = clientError.underlyingError as? ClientAuthenticationError
+            {
+                errorAlertMessage = "\(underlyingAuthError.errorDescription ?? "Unknown error")"
+                errorHandled = true
+            }
+        #endif
+
+        if !errorHandled, let fatalError = error as? FatalError {
+            let isSilent = fatalError.type == .abortSilent || fatalError.type == .bugSilent
+            if !fatalError.description.isEmpty, !isSilent {
+                errorAlertMessage = "\(fatalError.description)"
+            } else if fatalError.type == .bugSilent {
+                errorAlertMessage = """
+                An unexpected error happened and we believe it's a bug
+                """
+                errorAlertNextSteps = [
+                    "\(.link(title: "File an issue", href: "https://github.com/tuist/tuist")) including reproducible steps and logs.",
+                ]
+            }
+            errorHandled = true
+        }
+
+        if !errorHandled, isParsingError, self.exitCode(for: error).rawValue == 0 {
+            await prepareForExit(exitCode: exitCode, error: error)
+            exit(withError: error)
+        } else if !errorHandled, let localizedError = error as? LocalizedError {
+            errorAlertMessage =
+                "\(localizedError.errorDescription ?? localizedError.localizedDescription)"
+        } else if !errorHandled {
+            errorAlertMessage = "\((error as CustomStringConvertible).description)"
+        }
+
+        outputCompletion(
+            logFilePath: logFilePath,
+            shouldOutputLogFilePath: true,
+            errorAlertMessage: errorAlertMessage,
+            errorAlertNextSteps: errorAlertNextSteps
+        )
+        await prepareForExit(exitCode: exitCode, error: error)
+        _exit(exitCode)
+    }
+
+    private static func prepareForExit(exitCode: Int32, error: Error) async {
+        #if os(macOS)
+            await HARRecorder.finishCurrent()
+        #endif
+        ProgramStatusReporter.current.finish(exitCode: exitCode, cancelled: error is CancellationError)
+        fflush(stdout)
+    }
+
+    private static func outputCompletion(
+        logFilePath: AbsolutePath,
+        shouldOutputLogFilePath: Bool,
+        errorAlertMessage: TerminalText? = nil,
+        errorAlertNextSteps: [TerminalText]? = nil
+    ) {
+        let isJSONOutput = Environment.current.isJSONOutput
+        if isJSONOutput, errorAlertMessage == nil { return }
+
+        let errorAlert: ErrorAlert? =
+            if let errorAlertMessage {
+                .alert(errorAlertMessage, takeaways: errorAlertNextSteps ?? [])
+            } else {
+                nil
+            }
+        let successAlerts = AlertController.current.success()
+        let warningAlerts = AlertController.current.warnings()
+        let takeaways = AlertController.current.takeaways()
+
+        if !warningAlerts.isEmpty, !isJSONOutput {
+            Noora.current.warning(warningAlerts)
+        }
+        let logsNextStep: TerminalText = "Check out the logs at \(logFilePath.pathString)"
+
+        if let errorAlert {
+            var errorAlertNextSteps = errorAlert.takeaways
+            if shouldOutputLogFilePath {
+                errorAlertNextSteps.append(logsNextStep)
+            }
+            Noora.current.error(.alert(errorAlert.message, takeaways: errorAlertNextSteps))
+        } else if let successAlert = successAlerts.last {
+            var successAlertNextSteps = successAlert.takeaways
+            successAlertNextSteps.append(contentsOf: takeaways)
+            if shouldOutputLogFilePath {
+                successAlertNextSteps.append(logsNextStep)
+            }
+            Noora.current.success(.alert(successAlert.message, takeaways: successAlertNextSteps))
+        }
+    }
+
+    #if os(macOS)
+        private static func executeTask(with processedArguments: [String]) async throws {
+            try await TuistService().run(
+                arguments: processedArguments,
+                tuistBinaryPath: processArguments()!.first!
+            )
+        }
+
+        private static func withHARRecorder(
+            networkFilePath: AbsolutePath,
+            shouldRecordHAR: Bool,
+            _ action: () async throws -> Void
+        ) async throws {
+            if shouldRecordHAR, HARRecorder.current != nil {
+                try await action()
+                return
+            }
+
+            let harRecorder: HARRecorder? =
+                shouldRecordHAR ? HARRecorder(filePath: networkFilePath) : nil
+            try await HARRecorder.withCurrent(harRecorder) {
+                try await action()
+            }
+        }
+    #endif
+
+    public static func processArguments(_ arguments: [String]? = nil) -> [String]? {
+        let arguments = arguments ?? Array(Environment.current.arguments)
+        return arguments.filter { $0 != "--verbose" && $0 != "--quiet" }
+    }
+}

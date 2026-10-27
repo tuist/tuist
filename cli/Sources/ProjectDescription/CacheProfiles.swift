@@ -1,5 +1,5 @@
 /// Cache profile type.
-public enum CacheProfileType: Codable, Equatable, Sendable {
+public enum CacheProfileType: Codable, Equatable, Sendable, ExpressibleByStringLiteral {
     /// Replace external dependencies only (system default)
     case onlyExternal
     /// Replace as many targets as possible with cached binaries
@@ -8,9 +8,7 @@ public enum CacheProfileType: Codable, Equatable, Sendable {
     case none
     /// Use named custom profile from `profiles` dictionary
     case custom(String)
-}
 
-extension CacheProfileType: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
         self = .custom(value)
     }
@@ -55,12 +53,17 @@ public struct CacheProfile: Codable, Equatable, Sendable {
     }
 }
 
-public struct CacheProfiles: Codable, Equatable, Sendable {
+public struct CacheProfiles: Codable, Equatable, Sendable, ExpressibleByDictionaryLiteral {
     /// Named custom profiles
     public let profileByName: [String: CacheProfile]
 
     /// Default cache profile to use when none is specified via CLI
     public let defaultProfile: CacheProfileType
+
+    init(profileByName: [String: CacheProfile], defaultProfile: CacheProfileType) {
+        self.profileByName = profileByName
+        self.defaultProfile = defaultProfile
+    }
 
     public static func profiles(
         _ profileByName: [String: CacheProfile] = [:],
@@ -68,9 +71,7 @@ public struct CacheProfiles: Codable, Equatable, Sendable {
     ) -> Self {
         CacheProfiles(profileByName: profileByName, defaultProfile: defaultProfile)
     }
-}
 
-extension CacheProfiles: ExpressibleByDictionaryLiteral {
     public init(dictionaryLiteral elements: (String, CacheProfile)...) {
         profileByName = Dictionary(uniqueKeysWithValues: elements)
         defaultProfile = .onlyExternal

@@ -2,17 +2,23 @@
   <h1 data-part="title">
     {dgettext("dashboard_account", "Settings")}
   </h1>
+  <TuistWeb.AppLayoutComponents.settings_tab_menu
+    selected_account={@selected_account}
+    current_path={@current_path}
+    current_user={@current_user}
+  />
   <%= if is_nil(@selected_account.user_id) do %>
     <.region_selection_section
       region_form={@region_form}
       selected_account={@selected_account}
     />
-    <.cache_endpoints_section
-      :if={@custom_cache_endpoints_available}
-      cache_endpoints={@cache_endpoints}
-      add_cache_endpoint_form={@add_cache_endpoint_form}
-      custom_cache_endpoints_enabled={@selected_account.custom_cache_endpoints_enabled}
-    />
+    <%= if @custom_cache_endpoints_available do %>
+      <.cache_endpoints_section
+        cache_endpoints={@cache_endpoints}
+        add_cache_endpoint_form={@add_cache_endpoint_form}
+        custom_cache_endpoints_enabled={@selected_account.custom_cache_endpoints_enabled}
+      />
+    <% end %>
     <.card_section data-part="rename-card-section">
       <div data-part="header">
         <span data-part="title">
@@ -159,10 +165,18 @@
       </div>
     </.card_section>
   <% else %>
+    <.preferred_locale_section preferred_locale_form={@preferred_locale_form} />
     <.region_selection_section
       region_form={@region_form}
       selected_account={@selected_account}
     />
+    <%= if @custom_cache_endpoints_available do %>
+      <.cache_endpoints_section
+        cache_endpoints={@cache_endpoints}
+        add_cache_endpoint_form={@add_cache_endpoint_form}
+        custom_cache_endpoints_enabled={@selected_account.custom_cache_endpoints_enabled}
+      />
+    <% end %>
     <.card_section data-part="rename-card-section">
       <div data-part="header">
         <span data-part="title">

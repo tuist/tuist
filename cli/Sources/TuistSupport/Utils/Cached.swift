@@ -1,4 +1,5 @@
 import Foundation
+import TuistThreadSafe
 
 @propertyWrapper
 public final class Cached<T: Sendable> {

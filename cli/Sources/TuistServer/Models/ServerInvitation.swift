@@ -21,9 +21,7 @@ public struct ServerInvitation: Codable {
     public let inviter: ServerUser
     public let organizationId: Int
     public let token: String
-}
 
-extension ServerInvitation {
     init(_ invitation: Components.Schemas.Invitation) {
         id = Int(invitation.id)
         inviteeEmail = invitation.invitee_email
@@ -31,10 +29,8 @@ extension ServerInvitation {
         organizationId = Int(invitation.organization_id)
         token = invitation.token
     }
-}
 
-#if MOCKING
-    extension ServerInvitation {
+    #if MOCKING
         public static func test(
             id: Int = 0,
             inviteeEmail: String = "test@tuist.dev",
@@ -50,5 +46,5 @@ extension ServerInvitation {
                 token: token
             )
         }
-    }
-#endif
+    #endif
+}

@@ -6,7 +6,7 @@ import Path
 /// part of generating a project or workspace.
 ///
 /// - seealso: `SideEffectsDescriptor`
-public struct DirectoryDescriptor: Equatable {
+public struct DirectoryDescriptor: Equatable, CustomStringConvertible {
     public enum State {
         case present
         case absent
@@ -29,9 +29,7 @@ public struct DirectoryDescriptor: Equatable {
         self.path = path
         self.state = state
     }
-}
 
-extension DirectoryDescriptor: CustomStringConvertible {
     public var description: String {
         switch state {
         case .absent:

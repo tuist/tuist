@@ -5,10 +5,10 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistConstants
 import TuistCore
 import TuistGit
 import TuistSupport
-
 @testable import TuistKit
 @testable import TuistTesting
 
@@ -34,7 +34,113 @@ struct CommandEventFactoryTests {
 
     // MARK: - Tests
 
-    @Test(.withMockedSwiftVersionProvider, .inTemporaryDirectory) func tagCommand_tagsExpectedCommand() throws {
+    @Test(.withMockedSwiftVersionProvider, .inTemporaryDirectory)
+    func make_counts_build_lookups_once_across_restored_shards() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let build = RunMetadataStorage()
+        await build.update(graph: .test(
+            path: path,
+            projects: [path: .test(path: path, targets: [.test(name: "Local"), .test(name: "Remote"), .test(name: "Miss")])]
+        ))
+        let cacheItems: [AbsolutePath: [String: CacheItem]] = [path: [
+            "Local": .test(name: "Local", hash: "local-key", source: .local, cacheCategory: .binaries),
+            "Remote": .test(name: "Remote", hash: "remote-key", source: .remote, cacheCategory: .binaries),
+            "Miss": .test(name: "Miss", hash: "missing-key", source: .miss, cacheCategory: .binaries),
+        ]]
+        await build.update(binaryCacheItems: cacheItems)
+        await build.update(buildRunId: "original-build")
+        await build.writeMetadata(to: path)
+
+        // Exercise the on-disk snapshot, including the cache results written by older CLIs.
+        let snapshot: RunMetadata = try await FileSystem().readJSONFile(at: path.appending(component: RunMetadata.fileName))
+        #expect(snapshot.binaryCacheItems == cacheItems)
+        let buildEvent = try await makeTestEvent(from: build, path: path, arguments: ["--build-only"])
+        var observations = try #require(buildEvent.graph).projects.flatMap(\.targets).compactMap(\.binaryCacheMetadata)
+        #expect(observations.count == 3)
+
+        for _ in 0 ..< 2 {
+            let shard = RunMetadataStorage()
+            await shard.restoreMetadata(from: path)
+            let event = try await makeTestEvent(from: shard, path: path, arguments: ["--without-building"])
+            let targets = try #require(event.graph).projects.flatMap(\.targets)
+            #expect(targets.count == 3)
+            #expect(event.buildRunId == "original-build")
+            #expect(targets.allSatisfy { $0.binaryCacheMetadata == nil })
+            observations.append(contentsOf: targets.compactMap(\.binaryCacheMetadata))
+        }
+
+        #expect(observations.count == 3)
+        #expect(observations.filter { $0.hit == .miss }.count == 1)
+        #expect(observations.filter { $0.hit == .local }.count == 1)
+        #expect(observations.filter { $0.hit == .remote }.count == 1)
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .inTemporaryDirectory,
+        arguments: ["before", "after", "without-restoration"]
+    )
+    func make_preserves_fresh_lookups_in_test_without_building(restoration: String) async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let original = RunMetadataStorage()
+        await original.update(graph: .test(path: path, projects: [path: .test(path: path, targets: [.test(name: "A")])]))
+        await original.update(binaryCacheItems: [path: [
+            "A": .test(name: "A", hash: "same-key", source: .miss, cacheCategory: .binaries),
+        ]])
+        await original.writeMetadata(to: path)
+
+        let current = RunMetadataStorage()
+        await current.update(graph: original.graph)
+        if restoration == "before" {
+            await current.restoreMetadata(from: path)
+        }
+        // A real lookup of the same key can now hit; it must survive snapshot restoration.
+        await current.update(binaryCacheItems: [path: [
+            "A": .test(name: "A", hash: "same-key", source: .remote, cacheCategory: .binaries, instrumented: true),
+        ]])
+        if restoration == "after" {
+            await current.restoreMetadata(from: path)
+        }
+
+        let event = try await makeTestEvent(from: current, path: path, arguments: ["--without-building"])
+        let targets = try #require(event.graph).projects.flatMap(\.targets)
+        #expect(targets.count == 1)
+        #expect(targets.first?.binaryCacheMetadata?.hash == "same-key")
+        #expect(targets.first?.binaryCacheMetadata?.hit == .remote)
+        #expect(targets.first?.binaryCacheMetadata?.instrumented == true)
+    }
+
+    private func makeTestEvent(
+        from storage: RunMetadataStorage,
+        path: AbsolutePath,
+        arguments: [String]
+    ) async throws -> CommandEvent {
+        given(gitController).gitInfo(workingDirectory: .value(path)).willReturn(.test())
+        let info = await TrackableCommandInfo(
+            runId: UUID().uuidString,
+            name: "test",
+            subcommand: nil,
+            commandArguments: ["test"] + arguments,
+            durationInMs: 1000,
+            status: .success,
+            graph: storage.graph,
+            graphBinaryBuildDuration: nil,
+            binaryCacheItems: storage.binaryCacheItems,
+            selectiveTestingCacheItems: storage.selectiveTestingCacheItems,
+            targetContentHashSubhashes: storage.targetContentHashSubhashes,
+            previewId: nil,
+            resultBundlePath: nil,
+            ranAt: Date(),
+            buildRunId: storage.buildRunId,
+            testRunId: nil,
+            generationId: nil,
+            cacheEndpoint: "",
+            moduleCacheOutputs: []
+        )
+        return try await subject.make(from: info, path: path)
+    }
+
+    @Test(.withMockedSwiftVersionProvider, .inTemporaryDirectory) func tagCommand_tagsExpectedCommand() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let projectPath = path.appending(component: "Project")
@@ -111,11 +217,19 @@ struct CommandEventFactoryTests {
             targetContentHashSubhashes: [
                 "hash-a": .test(
                     sources: "sources-hash-a",
-                    dependencies: "deps-hash-a"
+                    dependencies: "deps-hash-a",
+                    destinations: ["iPhone"],
+                    foreignBuild: "binary-input"
                 ),
                 "hash-b": .test(
                     sources: "sources-hash-b",
                     resources: "resources-hash-b"
+                ),
+                "hash-a-tests": .test(
+                    sources: "sources-hash-a-tests",
+                    dependencies: "deps-hash-a-tests",
+                    destinations: ["mac"],
+                    testDevice: "testing-input"
                 ),
             ],
             previewId: nil,
@@ -123,7 +237,9 @@ struct CommandEventFactoryTests {
             ranAt: ranAt,
             buildRunId: nil,
             testRunId: nil,
-            cacheEndpoint: "https://cache.tuist.dev"
+            generationId: nil,
+            cacheEndpoint: "https://cache.tuist.dev",
+            moduleCacheOutputs: []
         )
         let expectedEvent = CommandEvent(
             runId: "run-id",
@@ -160,7 +276,9 @@ struct CommandEventFactoryTests {
                                     hit: .local,
                                     subhashes: .test(
                                         sources: "sources-hash-a",
-                                        dependencies: "deps-hash-a"
+                                        dependencies: "deps-hash-a",
+                                        destinations: ["iPhone"],
+                                        foreignBuild: "binary-input"
                                     )
                                 ),
                                 selectiveTestingMetdata: nil
@@ -174,7 +292,13 @@ struct CommandEventFactoryTests {
                                 binaryCacheMetadata: nil,
                                 selectiveTestingMetdata: RunCacheTargetMetadata(
                                     hash: "hash-a-tests",
-                                    hit: .local
+                                    hit: .local,
+                                    subhashes: .test(
+                                        sources: "sources-hash-a-tests",
+                                        dependencies: "deps-hash-a-tests",
+                                        destinations: ["mac"],
+                                        testDevice: "testing-input"
+                                    )
                                 )
                             ),
                             .test(
@@ -239,6 +363,7 @@ struct CommandEventFactoryTests {
             ranAt: ranAt,
             buildRunId: nil,
             testRunId: nil,
+            generationId: nil,
             cacheEndpoint: "https://cache.tuist.dev"
         )
 
@@ -270,7 +395,7 @@ struct CommandEventFactoryTests {
             .willReturn(true)
 
         // When
-        let event = try subject.make(
+        let event = try await subject.make(
             from: info,
             path: path
         )
@@ -296,7 +421,7 @@ struct CommandEventFactoryTests {
         )
     }
 
-    @Test(.withMockedSwiftVersionProvider, .inTemporaryDirectory) func make_when_is_not_in_git_repository() throws {
+    @Test(.withMockedSwiftVersionProvider, .inTemporaryDirectory) func make_when_is_not_in_git_repository() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let info = TrackableCommandInfo(
@@ -316,7 +441,9 @@ struct CommandEventFactoryTests {
             ranAt: Date(),
             buildRunId: nil,
             testRunId: nil,
-            cacheEndpoint: ""
+            generationId: nil,
+            cacheEndpoint: "",
+            moduleCacheOutputs: []
         )
 
         given(gitController)
@@ -328,7 +455,7 @@ struct CommandEventFactoryTests {
             .willReturn(false)
 
         // When
-        let event = try subject.make(
+        let event = try await subject.make(
             from: info,
             path: path
         )
@@ -342,7 +469,7 @@ struct CommandEventFactoryTests {
     @Test(
         .withMockedSwiftVersionProvider,
         .inTemporaryDirectory
-    ) func make_when_is_in_git_repository_and_branch_has_no_commits_and_no_remote_url_origin() throws {
+    ) func make_when_is_in_git_repository_and_branch_has_no_commits_and_no_remote_url_origin() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let info = TrackableCommandInfo(
@@ -362,7 +489,9 @@ struct CommandEventFactoryTests {
             ranAt: Date(),
             buildRunId: nil,
             testRunId: nil,
-            cacheEndpoint: ""
+            generationId: nil,
+            cacheEndpoint: "",
+            moduleCacheOutputs: []
         )
 
         given(gitController)
@@ -386,7 +515,7 @@ struct CommandEventFactoryTests {
             .willReturn(.test(ref: nil, branch: nil, sha: "commit-sha"))
 
         // When
-        let event = try subject.make(
+        let event = try await subject.make(
             from: info,
             path: path
         )
@@ -400,7 +529,7 @@ struct CommandEventFactoryTests {
     @Test(
         .withMockedSwiftVersionProvider,
         .inTemporaryDirectory
-    ) func make_when_is_in_git_repository_and_branch_has_commits_and_no_remote_url_origin() throws {
+    ) func make_when_is_in_git_repository_and_branch_has_commits_and_no_remote_url_origin() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let info = TrackableCommandInfo(
@@ -420,7 +549,9 @@ struct CommandEventFactoryTests {
             ranAt: Date(),
             buildRunId: nil,
             testRunId: nil,
-            cacheEndpoint: ""
+            generationId: nil,
+            cacheEndpoint: "",
+            moduleCacheOutputs: []
         )
 
         given(gitController)
@@ -440,7 +571,7 @@ struct CommandEventFactoryTests {
             .willReturn(false)
 
         // When
-        let event = try subject.make(
+        let event = try await subject.make(
             from: info,
             path: path
         )
@@ -454,7 +585,7 @@ struct CommandEventFactoryTests {
     @Test(
         .withMockedSwiftVersionProvider,
         .inTemporaryDirectory
-    ) func make_includes_cache_endpoint_from_trackable_command_info() throws {
+    ) func make_includes_cache_endpoint_from_trackable_command_info() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let cacheEndpoint = "https://eu.cache.tuist.dev"
@@ -475,7 +606,9 @@ struct CommandEventFactoryTests {
             ranAt: Date(),
             buildRunId: nil,
             testRunId: nil,
-            cacheEndpoint: cacheEndpoint
+            generationId: nil,
+            cacheEndpoint: cacheEndpoint,
+            moduleCacheOutputs: []
         )
 
         given(gitController)
@@ -487,7 +620,7 @@ struct CommandEventFactoryTests {
             .willReturn(.test())
 
         // When
-        let event = try subject.make(
+        let event = try await subject.make(
             from: info,
             path: path
         )
@@ -499,7 +632,7 @@ struct CommandEventFactoryTests {
     @Test(
         .withMockedSwiftVersionProvider,
         .inTemporaryDirectory
-    ) func make_includes_empty_cache_endpoint_when_not_set() throws {
+    ) func make_includes_empty_cache_endpoint_when_not_set() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
         let info = TrackableCommandInfo(
@@ -519,7 +652,9 @@ struct CommandEventFactoryTests {
             ranAt: Date(),
             buildRunId: nil,
             testRunId: nil,
-            cacheEndpoint: ""
+            generationId: nil,
+            cacheEndpoint: "",
+            moduleCacheOutputs: []
         )
 
         given(gitController)
@@ -531,7 +666,7 @@ struct CommandEventFactoryTests {
             .willReturn(.test())
 
         // When
-        let event = try subject.make(
+        let event = try await subject.make(
             from: info,
             path: path
         )
@@ -542,11 +677,26 @@ struct CommandEventFactoryTests {
 }
 
 private final class MockMachineEnvironment: MachineEnvironmentRetrieving {
-    var clientId: String { "123" }
-    var macOSVersion: String { "10.15.0" }
-    var swiftVersion: String { "5.1" }
-    var hardwareName: String { "arm64" }
-    var isCI: Bool { false }
+    var clientId: String {
+        "123"
+    }
+
+    var macOSVersion: String {
+        "10.15.0"
+    }
+
+    var swiftVersion: String {
+        "5.1"
+    }
+
+    var hardwareName: String {
+        "arm64"
+    }
+
+    var isCI: Bool {
+        false
+    }
+
     func modelIdentifier() -> String? {
         nil
     }

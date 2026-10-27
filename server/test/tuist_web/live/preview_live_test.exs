@@ -18,6 +18,56 @@ defmodule TuistWeb.PreviewLiveTest do
     %{preview: preview}
   end
 
+  test "renders release notes as escaped plain text", %{conn: conn, organization: organization, project: project} do
+    notes = "Fix sign-in\n<script>alert('test')</script>"
+    preview = AppBuildsFixtures.preview_fixture(project: project, release_notes: notes)
+    app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+    AppBuilds.update_preview_with_app_build(preview.id, app_build)
+
+    {:ok, lv, html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+
+    assert has_element?(lv, "[data-part='release-notes-card']", "Fix sign-in")
+    assert html =~ "&lt;script&gt;"
+    refute html =~ "<script>alert"
+  end
+
+  test "omits release notes when none were uploaded", %{
+    conn: conn,
+    organization: organization,
+    project: project,
+    preview: preview
+  } do
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+    refute has_element?(lv, "[data-part='release-notes-card']")
+  end
+
+  test "lets the preview page be embedded in an iframe on another site", %{
+    conn: conn,
+    organization: organization,
+    project: project,
+    preview: preview
+  } do
+    # When
+    conn = get(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+
+    # Then
+    assert [csp] = get_resp_header(conn, "content-security-policy")
+    assert csp =~ "frame-ancestors *;"
+  end
+
+  test "keeps the previews list out of iframes on other sites", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # When
+    conn = get(conn, ~p"/#{organization.account.name}/#{project.name}/previews")
+
+    # Then
+    assert [csp] = get_resp_header(conn, "content-security-policy")
+    assert csp =~ "frame-ancestors 'self';"
+  end
+
   test "renders none as a commit when git_commit_sha",
        %{
          conn: conn,
@@ -102,6 +152,35 @@ defmodule TuistWeb.PreviewLiveTest do
     assert has_element?(lv, "#preview-run-button span", "Run")
   end
 
+  test "it shows run button for android preview on macOS", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    preview = AppBuildsFixtures.preview_fixture(project: project, supported_platforms: [:android])
+
+    app_build =
+      AppBuildsFixtures.app_build_fixture(
+        preview: preview,
+        type: :apk,
+        supported_platforms: [:android]
+      )
+
+    AppBuilds.update_preview_with_app_build(preview.id, app_build)
+
+    stub(UAParser, :parse, fn _ ->
+      %UAParser.UA{os: %UAParser.OperatingSystem{family: "macOS"}}
+    end)
+
+    # When
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+
+    # Then
+    assert has_element?(lv, "#preview-run-button span", "Run")
+  end
+
   test "it requires authenticated user when the preview is :app_bundle", %{
     conn: conn,
     organization: organization,
@@ -137,6 +216,46 @@ defmodule TuistWeb.PreviewLiveTest do
 
     # Then
     assert has_element?(lv, "#preview-run-button span", "Run")
+  end
+
+  test "it hides delete button for public preview when logged out", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    Authentication.log_out_user(conn)
+    preview = AppBuildsFixtures.preview_fixture(project: project, visibility: :public)
+    app_build = AppBuildsFixtures.app_build_fixture(preview: preview, type: :ipa)
+    AppBuilds.update_preview_with_app_build(preview.id, app_build)
+
+    # When
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+
+    # Then
+    refute has_element?(lv, "button[data-part='delete-button']")
+  end
+
+  test "it allows members to delete previews", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    # Given
+    preview = AppBuildsFixtures.preview_fixture(project: project)
+    app_build = AppBuildsFixtures.app_build_fixture(preview: preview)
+    AppBuilds.update_preview_with_app_build(preview.id, app_build)
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{organization.account.name}/#{project.name}/previews/#{preview.id}")
+
+    # When
+    lv |> element("button[data-part='delete-button']") |> render_click()
+
+    # Then
+    assert_redirect(lv, ~p"/#{organization.account.name}/#{project.name}/previews")
+    assert {:error, :not_found} = AppBuilds.preview_by_id(preview.id)
   end
 
   test "raises not found error when the preview does not exist", %{conn: conn} do

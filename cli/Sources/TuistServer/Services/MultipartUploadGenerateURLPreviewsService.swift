@@ -30,10 +30,10 @@ public enum MultipartUploadGenerateURLPreviewsServiceError: LocalizedError, Equa
     }
 }
 
-public final class MultipartUploadGenerateURLPreviewsService: MultipartUploadGenerateURLPreviewsServicing {
+public struct MultipartUploadGenerateURLPreviewsService: MultipartUploadGenerateURLPreviewsServicing {
     private let fullHandleService: FullHandleServicing
 
-    public convenience init() {
+    public init() {
         self.init(
             fullHandleService: FullHandleService()
         )
@@ -80,6 +80,10 @@ public final class MultipartUploadGenerateURLPreviewsService: MultipartUploadGen
             case let .json(cacheArtifact):
                 return cacheArtifact.data.url
             }
+        case let .tooManyRequests(tooManyRequests):
+            throw AuthorizationThrottledError(
+                retryAfterSeconds: tooManyRequests.headers.retry_hyphen_after.flatMap(Int.init)
+            )
         case let .undocumented(statusCode: statusCode, _):
             throw MultipartUploadGenerateURLPreviewsServiceError.unknownError(statusCode)
         case let .forbidden(forbiddenResponse):

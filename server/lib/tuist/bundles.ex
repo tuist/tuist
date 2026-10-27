@@ -5,103 +5,270 @@ defmodule Tuist.Bundles do
 
   import Ecto.Query
 
+  alias Tuist.Accounts
   alias Tuist.Bundles.Artifact
   alias Tuist.Bundles.Bundle
+  alias Tuist.Bundles.BundleSizeApproval
+  alias Tuist.Bundles.BundleSizeApprover
+  alias Tuist.Bundles.BundleThreshold
+  alias Tuist.ClickHouseFlop
+  alias Tuist.ClickHouseRepo
+  alias Tuist.IngestRepo
   alias Tuist.Projects.Project
   alias Tuist.Repo
+  alias Tuist.VCS
+
+  require Logger
 
   @doc """
   Creates a bundle with associated artifacts.
+
+  Both the bundle row and its artifacts are written to ClickHouse. The
+  artifacts insert happens first so a transient ClickHouse outage on
+  either step surfaces before we report success and we never end up with
+  a bundle row that has no artifacts.
+
+  The returned `%Bundle{}` is materialized from the validated changeset
+  rather than read back from ClickHouse: CH Cloud doesn't guarantee
+  read-your-writes across separate connection pools (writes go through
+  `IngestRepo`, reads through `ClickHouseRepo`), so a SELECT immediately
+  after the INSERT could land on a replica that hasn't seen the new
+  part yet and return `nil`.
+
+  Returns `{:ok, bundle}` on success or `{:error, changeset}` if the
+  input fails validation (invalid `type`, `supported_platforms`, or
+  missing required fields).
   """
-  def create_bundle(attrs \\ %{}, opts \\ []) do
+  def create_bundle(attrs, opts \\ []) do
     {artifacts, bundle_attrs} = Map.pop(attrs, :artifacts, [])
     bundle_id = Map.fetch!(attrs, :id)
-
-    Ecto.Multi.new()
-    |> create_bundle_multi(bundle_attrs)
-    |> create_artifacts_multi(artifacts, bundle_id)
-    |> execute_bundle_transaction(opts)
-  end
-
-  defp create_bundle_multi(multi, bundle_attrs) do
-    Ecto.Multi.insert(multi, :bundle, Bundle.changeset(%Bundle{}, bundle_attrs))
-  end
-
-  defp create_artifacts_multi(multi, artifacts, bundle_id) do
-    Ecto.Multi.run(multi, :artifacts, fn repo, _changes ->
-      insert_artifacts_in_batches(repo, artifacts, bundle_id)
-    end)
-  end
-
-  defp execute_bundle_transaction(multi, opts) do
     preload = Keyword.get(opts, :preload, [])
 
-    case Repo.transaction(multi) do
-      {:ok, %{bundle: bundle}} -> {:ok, Repo.preload(bundle, preload)}
-      {:error, _operation, changeset, _changes} -> {:error, changeset}
+    # Truncate to seconds to match the precision PG `:utc_datetime` stored
+    # before the CH cutover, so callers that compare against
+    # second-truncated values (e.g. the dashboard date picker) keep
+    # matching freshly-created bundles.
+    timestamp = bundle_attrs |> Map.get(:inserted_at) |> truncate_timestamp()
+
+    changeset =
+      bundle_attrs
+      |> Map.merge(%{inserted_at: timestamp, updated_at: timestamp})
+      |> then(&Bundle.create_changeset(%Bundle{}, &1))
+
+    if changeset.valid? do
+      artifacts
+      |> flatten_artifacts(bundle_id, nil, timestamp)
+      |> insert_artifacts_to_clickhouse()
+
+      IngestRepo.insert_all(Bundle, [bundle_row_from_changeset(changeset)])
+
+      bundle =
+        changeset
+        |> Ecto.Changeset.apply_changes()
+        |> Ecto.put_meta(state: :loaded)
+        |> decode_bundle()
+        |> Repo.preload(preload)
+
+      {:ok, bundle}
+    else
+      {:error, changeset}
     end
   end
 
-  defp insert_artifacts_in_batches(repo, artifacts, bundle_id) do
-    artifacts
-    |> flatten_artifacts(bundle_id)
-    |> batch_insert_artifacts(repo)
+  defp bundle_row_from_changeset(changeset) do
+    changeset
+    |> Ecto.Changeset.apply_changes()
+    |> Map.from_struct()
+    |> Map.drop([:__meta__, :project, :uploaded_by_account, :artifacts])
   end
 
-  defp batch_insert_artifacts(flattened_artifacts, repo) do
-    # Each artifact has ~10 fields, so 6000 artifacts per batch keeps us under 65535 params
-    batch_size = 6000
+  defp insert_artifacts_to_clickhouse([]), do: :ok
 
-    flattened_artifacts
-    |> Enum.chunk_every(batch_size)
-    |> Enum.reduce_while({:ok, []}, fn batch, {:ok, acc} ->
-      case repo.insert_all(Artifact, batch, returning: true) do
-        {_count, artifacts} -> {:cont, {:ok, acc ++ artifacts}}
-        error -> {:halt, error}
+  defp insert_artifacts_to_clickhouse(flattened) do
+    IngestRepo.insert_all(Artifact, flattened)
+    :ok
+  end
+
+  defp truncate_timestamp(nil), do: truncate_timestamp(DateTime.utc_now())
+
+  defp truncate_timestamp(%DateTime{} = dt) do
+    dt |> DateTime.truncate(:second) |> DateTime.to_naive() |> bump_usec_precision()
+  end
+
+  defp truncate_timestamp(%NaiveDateTime{} = ndt) do
+    ndt |> NaiveDateTime.truncate(:second) |> bump_usec_precision()
+  end
+
+  defp bump_usec_precision(%NaiveDateTime{microsecond: {value, _}} = ndt) do
+    %{ndt | microsecond: {value, 6}}
+  end
+
+  # ClickHouse stores enum-shaped fields as strings and timestamps as
+  # `DateTime64(6)` (read back as `NaiveDateTime`); the rest of the
+  # codebase works with atoms and `DateTime`, so normalize at every
+  # read boundary that returns a `%Bundle{}` struct.
+  defp decode_bundle(nil), do: nil
+
+  defp decode_bundle(%Bundle{} = bundle) do
+    %{
+      bundle
+      | type: decode_type(bundle.type),
+        supported_platforms: decode_platforms(bundle.supported_platforms),
+        inserted_at: from_naive_usec(bundle.inserted_at),
+        updated_at: from_naive_usec(bundle.updated_at)
+    }
+  end
+
+  # Decode through the known `Bundle.types/0` set instead of calling
+  # `String.to_existing_atom/1` blindly: a malformed backfill, manual
+  # repair, or future enum mismatch would otherwise raise
+  # `ArgumentError` at the read boundary and turn dashboard / API
+  # bundle reads into 500s. Unknown values are dropped (logged so
+  # they're traceable) and the field falls back to `nil`, which the
+  # consumer code already handles via the catch-all `format_bundle_type/1`
+  # clause.
+  defp decode_type(nil), do: nil
+
+  defp decode_type(value) do
+    case lookup_known_atom(value, Bundle.types()) do
+      {:ok, atom} ->
+        atom
+
+      :error ->
+        Logger.warning("Discarding unknown bundle type value from ClickHouse: #{inspect(value)}")
+        nil
+    end
+  end
+
+  # Same protection as `decode_type/1`, but for the
+  # `Array(LowCardinality(String))` column. Unknown entries are
+  # filtered out so a single stray string doesn't take the whole bundle
+  # down on read.
+  defp decode_platforms(nil), do: []
+
+  defp decode_platforms(values) when is_list(values) do
+    known = Bundle.supported_platforms()
+
+    Enum.flat_map(values, fn value ->
+      case lookup_known_atom(value, known) do
+        {:ok, atom} ->
+          [atom]
+
+        :error ->
+          Logger.warning("Discarding unknown bundle supported_platforms value from ClickHouse: #{inspect(value)}")
+
+          []
       end
     end)
   end
+
+  defp lookup_known_atom(value, known) when is_atom(value) do
+    if value in known, do: {:ok, value}, else: :error
+  end
+
+  defp lookup_known_atom(value, known) when is_binary(value) do
+    Enum.find_value(known, :error, fn atom ->
+      if Atom.to_string(atom) == value, do: {:ok, atom}
+    end)
+  end
+
+  # Drop the microsecond precision the CH `DateTime64(6)` column carries
+  # so the API response renders as `2026-05-06T11:12:36Z` rather than
+  # `2026-05-06T11:12:36.000000Z`. The Swift CLI decodes `inserted_at`
+  # with `ISO8601DateFormatter` configured for `.withInternetDateTime`,
+  # which rejects fractional seconds and turned every `createBundle`
+  # response into a client-side decoding error after the CH cutover.
+  # The pre-CH PG column was `:utc_datetime` (second precision), so
+  # truncating here also restores the historical wire format.
+  defp from_naive_usec(nil), do: nil
+  defp from_naive_usec(%DateTime{} = dt), do: DateTime.truncate(dt, :second)
+
+  defp from_naive_usec(%NaiveDateTime{} = ndt) do
+    ndt |> DateTime.from_naive!("Etc/UTC") |> DateTime.truncate(:second)
+  end
+
+  defp decode_bundles(bundles) when is_list(bundles), do: Enum.map(bundles, &decode_bundle/1)
 
   @doc """
   Gets a single bundle.
   """
   def get_bundle(id, opts \\ []) do
-    preload = Keyword.get(opts, :preload, [])
+    preload = opts |> Keyword.get(:preload, []) |> drop_artifacts_preload()
     project_id = Keyword.get(opts, :project_id)
 
     query =
       then(
-        from(b in Bundle, where: b.id == ^id, preload: ^preload),
+        from(b in Bundle, where: b.id == type(^id, Ecto.UUID)),
         &if(is_nil(project_id), do: &1, else: where(&1, [b], b.project_id == ^project_id))
       )
 
-    bundle = Repo.one(query)
+    case ClickHouseRepo.one(query) do
+      nil ->
+        {:error, :not_found}
 
-    if is_nil(bundle) do
-      {:error, :not_found}
-    else
-      {:ok, %{bundle | artifacts: bundle_artifacts(bundle)}}
+      bundle ->
+        bundle = bundle |> decode_bundle() |> Repo.preload(preload)
+        {:ok, %{bundle | artifacts: bundle_artifacts(bundle)}}
     end
   end
 
+  # `:artifacts` is loaded from ClickHouse via `bundle_artifacts/1`, so
+  # strip it from the preload list to avoid `Repo.preload` issuing a
+  # Postgres query against the (no-longer-existing) PG `artifacts` table.
+  defp drop_artifacts_preload(:artifacts), do: []
+  defp drop_artifacts_preload({:artifacts, _}), do: []
+
+  defp drop_artifacts_preload(preload) when is_list(preload) do
+    Enum.reject(preload, fn
+      :artifacts -> true
+      {:artifacts, _} -> true
+      _ -> false
+    end)
+  end
+
+  defp drop_artifacts_preload(other), do: other
+
+  def get_bundle_artifact_tree(bundle_id) do
+    from(a in Artifact,
+      where: a.bundle_id == type(^bundle_id, Ecto.UUID),
+      order_by: [asc: a.path]
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.map(&decode_artifact_type/1)
+  end
+
+  # Same `String.to_existing_atom/1` protection as `decode_type/1` /
+  # `decode_platforms/1`: an unknown `artifact_type` string in CH falls
+  # back to `:unknown` (already a member of `Artifact.artifact_types/0`)
+  # so a stray value can't 500 the bundle detail view.
+  defp decode_artifact_type(%{artifact_type: type} = artifact) when is_binary(type) do
+    case lookup_known_atom(type, Artifact.artifact_types()) do
+      {:ok, atom} ->
+        %{artifact | artifact_type: atom}
+
+      :error ->
+        Logger.warning("Discarding unknown artifact type value from ClickHouse: #{inspect(type)}")
+        %{artifact | artifact_type: :unknown}
+    end
+  end
+
+  defp decode_artifact_type(artifact), do: artifact
+
   defp bundle_artifacts(%Bundle{id: id}) do
-    # Get all artifacts for this bundle in a single query
     all_artifacts =
-      Repo.all(
-        from a in Artifact,
-          where: a.bundle_id == ^id,
-          select: %{
-            id: a.id,
-            artifact_type: a.artifact_type,
-            path: a.path,
-            size: a.size,
-            shasum: a.shasum,
-            artifact_id: a.artifact_id,
-            bundle_id: a.bundle_id,
-            inserted_at: a.inserted_at,
-            updated_at: a.updated_at
-          }
+      from(a in Artifact,
+        where: a.bundle_id == type(^id, Ecto.UUID),
+        select: %{
+          id: a.id,
+          artifact_type: a.artifact_type,
+          path: a.path,
+          size: a.size,
+          shasum: a.shasum,
+          artifact_id: a.artifact_id
+        }
       )
+      |> ClickHouseRepo.all()
+      |> Enum.map(&decode_artifact_type/1)
 
     # Filter top-level artifacts (those with no parent)
     top_level_artifacts =
@@ -183,23 +350,46 @@ defmodule Tuist.Bundles do
 
   def install_size_deviation(%Bundle{} = bundle) do
     project = Repo.preload(bundle, :project).project
-    last_bundle = last_project_bundle(project, git_branch: project.default_branch, bundle: bundle)
+    install_size_deviation(bundle, last_project_bundle(project, git_branch: project.default_branch, bundle: bundle))
+  end
 
-    if is_nil(last_bundle) do
-      0.0
-    else
-      bundle.install_size / last_bundle.install_size - 1
-    end
+  def install_size_deviation(%Bundle{}, nil), do: 0.0
+
+  def install_size_deviation(%Bundle{} = bundle, %Bundle{} = last_bundle) do
+    bundle.install_size / last_bundle.install_size - 1
   end
 
   def distinct_project_app_bundles(%Project{} = project) do
+    # ClickHouse runs `DISTINCT` before `ORDER BY`, so the
+    # PostgreSQL-style `distinct(b.name) |> order_by(desc: inserted_at)`
+    # pattern would deduplicate against an unordered scan and pick an
+    # arbitrary row per name. Fetch the rows ordered by `inserted_at`
+    # first and dedup in Elixir, which keeps the first (newest)
+    # occurrence per name. Bounded by "one project's bundles in the
+    # last 365 days" so the result set stays small in practice.
     from(b in Bundle)
     |> where([b], b.project_id == ^project.id)
     |> where([b], b.inserted_at > ^DateTime.add(DateTime.utc_now(), -365, :day))
     |> order_by([b], desc: b.inserted_at)
-    |> distinct([b], b.name)
-    |> Repo.all()
-    |> Enum.sort_by(fn bundle -> bundle.inserted_at end, {:desc, DateTime})
+    |> ClickHouseRepo.all()
+    |> decode_bundles()
+    |> Enum.uniq_by(& &1.name)
+  end
+
+  def project_app_bundle_options(%Project{} = project) do
+    from(b in Bundle,
+      where: b.project_id == ^project.id,
+      where: b.inserted_at > ^DateTime.add(DateTime.utc_now(), -365, :day),
+      group_by: b.name,
+      order_by: [desc: max(b.inserted_at), asc: b.name],
+      limit: 50,
+      select: %{
+        name: b.name,
+        supported_platforms: fragment("argMax(?, ?)", b.supported_platforms, b.inserted_at)
+      }
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.map(fn app -> %{app | supported_platforms: decode_platforms(app.supported_platforms)} end)
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
@@ -215,7 +405,7 @@ defmodule Tuist.Bundles do
         where(
           query,
           [b],
-          b.id != ^bundle.id and b.app_bundle_id == ^bundle.app_bundle_id and
+          b.id != type(^bundle.id, Ecto.UUID) and b.app_bundle_id == ^bundle.app_bundle_id and
             b.inserted_at < ^bundle.inserted_at
         )
       end
@@ -238,23 +428,44 @@ defmodule Tuist.Bundles do
         where(query, [b], b.inserted_at < ^inserted_before)
       end
 
+    period = Keyword.get(opts, :period)
+
+    query =
+      case period do
+        {from, to} -> where(query, [b], b.inserted_at >= ^from and b.inserted_at <= ^to)
+        _ -> query
+      end
+
+    query =
+      case Keyword.get(opts, :supported_platforms) do
+        platforms when is_list(platforms) and platforms != [] ->
+          where(query, [b], fragment("hasAny(?, ?)", b.supported_platforms, ^Enum.map(platforms, &to_string/1)))
+
+        _ ->
+          query
+      end
+
     git_branch = Keyword.get(opts, :git_branch)
     type = Keyword.get(opts, :type)
+
+    fallback = Keyword.get(opts, :fallback, true)
 
     last_bundle =
       query
       |> then(&if(is_nil(git_branch), do: &1, else: where(&1, [b], b.git_branch == ^git_branch)))
-      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^type)))
+      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^to_string(type))))
       |> order_by([b], desc: b.inserted_at)
       |> limit(1)
-      |> Repo.one()
+      |> ClickHouseRepo.one()
+      |> decode_bundle()
 
-    if is_nil(last_bundle) do
+    if is_nil(last_bundle) && fallback do
       query
-      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^type)))
+      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^to_string(type))))
       |> order_by([b], desc: b.inserted_at)
       |> limit(1)
-      |> Repo.one()
+      |> ClickHouseRepo.one()
+      |> decode_bundle()
     else
       last_bundle
     end
@@ -263,9 +474,9 @@ defmodule Tuist.Bundles do
   def list_bundles(attrs, opts \\ []) do
     preload = Keyword.get(opts, :preload, [])
 
-    Bundle
-    |> preload(^preload)
-    |> Flop.validate_and_run!(attrs, for: Bundle)
+    {bundles, meta} = ClickHouseFlop.validate_and_run!(Bundle, attrs, for: Bundle)
+    bundles = bundles |> decode_bundles() |> Repo.preload(preload)
+    {bundles, meta}
   end
 
   def project_bundle_install_size_analytics(%Project{} = project, opts \\ []) do
@@ -366,23 +577,32 @@ defmodule Tuist.Bundles do
     end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
     git_branch = Keyword.get(opts, :git_branch)
     type = Keyword.get(opts, :type)
+    name = Keyword.get(opts, :name)
     date_period = date_period(start_datetime: start_datetime, end_datetime: end_datetime)
+
+    bucket = date_bucket(date_period)
 
     query =
       from(b in Bundle)
       |> where([b], b.project_id == ^project.id)
+      |> where([b], b.inserted_at >= ^start_datetime and b.inserted_at <= ^end_datetime)
       |> then(&if(is_nil(git_branch), do: &1, else: where(&1, [b], b.git_branch == ^git_branch)))
-      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^type)))
+      |> then(&if(is_nil(type), do: &1, else: where(&1, [b], b.type == ^Atom.to_string(type))))
+      |> then(&if(is_nil(name), do: &1, else: where(&1, [b], b.name == ^name)))
+      |> group_by(^bucket)
       |> select([b], %{
-        id: b.id,
-        inserted_at: b.inserted_at,
-        install_size: b.install_size,
-        download_size: b.download_size
+        id: fragment("argMax(?, ?)", b.id, b.inserted_at),
+        inserted_at: max(b.inserted_at),
+        install_size: fragment("argMax(?, ?)", b.install_size, b.inserted_at),
+        download_size: fragment("tupleElement(argMax(tuple(?), ?), 1)", b.download_size, b.inserted_at)
       })
 
     query
-    |> Repo.all()
+    |> ClickHouseRepo.all()
     |> Enum.map(fn bundle ->
+      inserted_at = from_naive_usec(bundle.inserted_at)
+      bundle = %{bundle | inserted_at: inserted_at}
+
       date =
         case date_period do
           :hour -> bundle.inserted_at |> DateTime.truncate(:second) |> truncate_to_hour()
@@ -394,6 +614,10 @@ defmodule Tuist.Bundles do
     end)
     |> Enum.group_by(fn bundle -> bundle.date end)
   end
+
+  defp date_bucket(:hour), do: dynamic([b], fragment("toStartOfHour(?, 'UTC')", b.inserted_at))
+  defp date_bucket(:day), do: dynamic([b], fragment("toStartOfDay(?, 'UTC')", b.inserted_at))
+  defp date_bucket(:month), do: dynamic([b], fragment("toStartOfMonth(?, 'UTC')", b.inserted_at))
 
   defp truncate_to_hour(%DateTime{} = dt) do
     %{dt | minute: 0, second: 0, microsecond: {0, 0}}
@@ -450,45 +674,298 @@ defmodule Tuist.Bundles do
     end
   end
 
-  def has_bundles_in_project_default_branch?(%Project{} = project) do
+  def has_bundles_in_project_default_branch?(%Project{} = project, opts \\ []) do
+    name = Keyword.get(opts, :name)
+
     from(b in Bundle)
     |> where([b], b.project_id == ^project.id)
     |> where([b], b.git_branch == ^project.default_branch)
+    |> then(&if(is_nil(name), do: &1, else: where(&1, [b], b.name == ^name)))
     |> limit(1)
-    |> Repo.exists?()
+    |> ClickHouseRepo.exists?()
   end
 
   def has_bundles_in_project?(%Project{} = project) do
     from(b in Bundle)
     |> where([b], b.project_id == ^project.id)
     |> limit(1)
-    |> Repo.exists?()
+    |> ClickHouseRepo.exists?()
   end
 
   def delete_bundle!(%Bundle{} = bundle) do
-    Repo.delete!(bundle)
+    # ClickHouse mutations are async by default; force `mutations_sync = 1`
+    # so the row is gone by the time the call returns and follow-up reads
+    # (including the dashboard redirect) cannot observe it.
+    IngestRepo.query!(
+      "ALTER TABLE bundles DELETE WHERE id = {bundle_id:UUID} SETTINGS mutations_sync = 1",
+      %{"bundle_id" => bundle.id}
+    )
+
+    IngestRepo.query!(
+      "ALTER TABLE artifacts DELETE WHERE bundle_id = {bundle_id:UUID} SETTINGS mutations_sync = 1",
+      %{"bundle_id" => bundle.id}
+    )
+
+    :ok
   end
 
-  defp flatten_artifacts(
-         artifacts,
-         bundle_id,
-         parent_id \\ nil,
-         current_timestamp \\ DateTime.truncate(DateTime.utc_now(), :second)
-       ) do
-    valid_artifact_types =
-      Artifact |> Ecto.Enum.values(:artifact_type) |> Enum.map(&Atom.to_string/1)
+  def get_project_bundle_thresholds(%Project{} = project) do
+    Repo.all(from(bt in BundleThreshold, where: bt.project_id == ^project.id, order_by: [asc: bt.inserted_at]))
+  end
+
+  def get_bundle_threshold(id) do
+    case Repo.get(BundleThreshold, id) do
+      nil -> {:error, :not_found}
+      threshold -> {:ok, threshold}
+    end
+  end
+
+  def create_bundle_threshold(attrs) do
+    %BundleThreshold{id: UUIDv7.generate()}
+    |> BundleThreshold.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def update_bundle_threshold(%BundleThreshold{} = threshold, attrs) do
+    threshold
+    |> BundleThreshold.changeset(attrs)
+    |> Repo.update()
+  end
+
+  def delete_bundle_threshold(%BundleThreshold{} = threshold) do
+    Repo.delete(threshold)
+  end
+
+  def evaluate_project_thresholds(%Project{} = project, %Bundle{} = bundle) do
+    thresholds = get_project_bundle_thresholds(project)
+
+    Enum.reduce_while(thresholds, :ok, fn threshold, :ok ->
+      case evaluate_single_threshold(project, bundle, threshold) do
+        :ok -> {:cont, :ok}
+        {:violated, _, _} = violation -> {:halt, violation}
+      end
+    end)
+  end
+
+  defp evaluate_single_threshold(project, bundle, threshold) do
+    if threshold.bundle_name && threshold.bundle_name != bundle.name do
+      :ok
+    else
+      baseline =
+        last_project_bundle(project,
+          git_branch: threshold.baseline_branch,
+          name: bundle.name,
+          type: bundle.type,
+          supported_platforms: bundle.supported_platforms,
+          fallback: false
+        )
+
+      check_threshold_deviation(threshold, bundle, baseline)
+    end
+  end
+
+  defp check_threshold_deviation(_threshold, _bundle, nil), do: :ok
+
+  defp check_threshold_deviation(threshold, bundle, baseline) do
+    {current_size, baseline_size} =
+      case threshold.metric do
+        :install_size -> {bundle.install_size, baseline.install_size}
+        :download_size -> {bundle.download_size, baseline.download_size}
+      end
+
+    if is_nil(current_size) || is_nil(baseline_size) do
+      :ok
+    else
+      growth = current_size - baseline_size
+
+      if threshold_exceeded?(threshold, growth, baseline_size) do
+        deviation = if baseline_size == 0, do: nil, else: growth / baseline_size * 100
+        {:violated, threshold, %{current_size: current_size, baseline_size: baseline_size, deviation: deviation}}
+      else
+        :ok
+      end
+    end
+  end
+
+  defp threshold_exceeded?(%{deviation_bytes: bytes}, growth, _baseline_size) when is_integer(bytes), do: growth > bytes
+  defp threshold_exceeded?(_threshold, _growth, 0), do: false
+
+  defp threshold_exceeded?(%{deviation_percentage: percentage}, growth, baseline_size) do
+    growth / baseline_size * 100 > percentage
+  end
+
+  def list_bundle_size_approvers(%Project{} = project) do
+    Repo.all(from(a in BundleSizeApprover, where: a.project_id == ^project.id, order_by: [asc: a.github_handle]))
+  end
+
+  def get_bundle_size_approver(%Project{} = project, id) do
+    case Repo.get_by(BundleSizeApprover, id: id, project_id: project.id) do
+      nil -> {:error, :not_found}
+      approver -> {:ok, approver}
+    end
+  rescue
+    Ecto.Query.CastError -> {:error, :not_found}
+  end
+
+  @doc """
+  Adds an approver by GitHub username.
+
+  The username is resolved against GitHub so the row can store the account's
+  numeric id, which is what authorization compares. A username is not a
+  durable identifier: its owner can change it, and the old one becomes
+  available for someone else to claim, so an allowlist keyed on it can be
+  inherited. Resolving also rejects a username that does not exist, which a
+  format check alone cannot do.
+  """
+  def add_bundle_size_approver(%Project{} = project, handle) do
+    handle = normalize_github_handle(handle)
+
+    # Checked before the call rather than only in the changeset, which runs at
+    # insert time. Input that cannot be a username has no account to find, so
+    # asking GitHub about it is a wasted round-trip.
+    if BundleSizeApprover.valid_handle?(handle) do
+      resolve_and_insert_approver(project, handle)
+    else
+      {:error, :invalid_github_handle}
+    end
+  end
+
+  defp resolve_and_insert_approver(project, handle) do
+    case VCS.get_user_by_username(%{username: handle, project: project}) do
+      {:ok, %VCS.User{id: github_id, username: username}} when is_binary(github_id) ->
+        %BundleSizeApprover{id: UUIDv7.generate()}
+        |> BundleSizeApprover.changeset(%{
+          project_id: project.id,
+          github_handle: username,
+          github_id: github_id
+        })
+        |> Repo.insert()
+
+      {:error, :no_vcs_connection} = error ->
+        error
+
+      {:error, :not_found} ->
+        {:error, :github_user_not_found}
+
+      # Anything else means GitHub could not be asked, which must not be
+      # reported to the caller as the account not existing.
+      _ ->
+        {:error, :github_unavailable}
+    end
+  end
+
+  @doc """
+  The project a bundle belongs to, without loading the bundle itself.
+
+  `get_bundle/2` builds the artifact tree, which is an unbounded read over
+  ClickHouse plus an in-memory recursive build. Callers that only need to know
+  which project owns a bundle should not pay for that, especially inside a
+  webhook GitHub gives about ten seconds.
+  """
+  def get_bundle_project_id(bundle_id) do
+    case Ecto.UUID.cast(bundle_id) do
+      {:ok, uuid} ->
+        ClickHouseRepo.one(from(b in Bundle, where: b.id == type(^uuid, Ecto.UUID), select: b.project_id))
+
+      :error ->
+        nil
+    end
+  end
+
+  def delete_bundle_size_approver(%BundleSizeApprover{} = approver) do
+    Repo.delete(approver)
+  end
+
+  @doc """
+  Whether the GitHub user who requested the `accept_bundle_size` check run
+  action is allowed to accept a size increase for `project`.
+
+  `:everyone` applies no check of its own. GitHub only offers the button to
+  someone with write access to the repository, which is the effective floor
+  either way, and this policy leaves it there.
+
+  `:selected` matches the allowlist on GitHub's numeric id for the sender,
+  which is recorded when the approver is added. Nothing here resolves the
+  sender to a Tuist account, so the policy works the same for members who
+  sign in through SSO and have never linked GitHub.
+  """
+  def authorize_bundle_size_approval(project, sender)
+
+  def authorize_bundle_size_approval(%Project{bundle_size_approval_policy: :everyone}, _sender), do: :ok
+
+  def authorize_bundle_size_approval(%Project{bundle_size_approval_policy: :selected} = project, %{id: github_id})
+      when is_binary(github_id) and github_id != "" do
+    if Repo.exists?(from(a in BundleSizeApprover, where: a.project_id == ^project.id and a.github_id == ^github_id)) do
+      :ok
+    else
+      {:error, :not_an_approver}
+    end
+  end
+
+  def authorize_bundle_size_approval(%Project{bundle_size_approval_policy: :selected}, _sender),
+    do: {:error, :not_an_approver}
+
+  @doc """
+  Records who accepted a bundle size increase.
+
+  Lives in Postgres rather than on the bundle row because `bundles` is a
+  ClickHouse MergeTree, where updating a single row is an asynchronous
+  mutation.
+
+  The GitHub handle is always stored; the Tuist user is resolved on a
+  best-effort basis and stays `nil` for a sender who never linked GitHub.
+  Resolution here never gates the acceptance, so it runs under every policy.
+  """
+  def record_bundle_size_approval(%{bundle_id: bundle_id, project_id: project_id, sender: sender}) do
+    attrs = %{
+      bundle_id: bundle_id,
+      project_id: project_id,
+      approved_by_handle: normalize_github_handle(sender.handle),
+      approved_by_user_id: sender |> user_for_github_sender() |> then(&(&1 && &1.id))
+    }
+
+    %BundleSizeApproval{id: UUIDv7.generate()}
+    |> BundleSizeApproval.changeset(attrs)
+    |> Repo.insert(on_conflict: :nothing, conflict_target: :bundle_id)
+  end
+
+  def get_bundle_size_approval(bundle_id) do
+    BundleSizeApproval
+    |> Repo.get_by(bundle_id: bundle_id)
+    |> Repo.preload(:approved_by_user)
+  end
+
+  defp user_for_github_sender(%{id: nil}), do: nil
+
+  defp user_for_github_sender(%{id: id}) do
+    case Accounts.get_oauth2_identity_by_provider_and_id(:github, id) do
+      nil -> nil
+      identity -> Accounts.get_user_by_id(identity.user_id)
+    end
+  end
+
+  defp user_for_github_sender(_sender), do: nil
+
+  defp normalize_github_handle(nil), do: ""
+
+  defp normalize_github_handle(handle) do
+    handle |> String.trim() |> String.trim_leading("@") |> String.downcase()
+  end
+
+  defp flatten_artifacts(artifacts, bundle_id, parent_id, current_timestamp) do
+    valid_artifact_types = Enum.map(Artifact.artifact_types(), &Atom.to_string/1)
 
     Enum.flat_map(artifacts, fn artifact ->
       artifact_id = UUIDv7.generate()
-      artifact_type = Map.get(artifact, :artifact_type)
+      artifact_type = Atom.to_string(Map.fetch!(artifact, :artifact_type))
 
-      if !Enum.member?(valid_artifact_types, Atom.to_string(artifact_type)) do
+      if !Enum.member?(valid_artifact_types, artifact_type) do
         raise "Invalid artifact type: #{artifact_type}. Must be one of #{inspect(valid_artifact_types)}."
       end
 
       current_artifact = %{
         id: artifact_id,
-        artifact_type: Map.get(artifact, :artifact_type),
+        artifact_type: artifact_type,
         path: Map.get(artifact, :path),
         size: Map.get(artifact, :size),
         shasum: Map.get(artifact, :shasum),

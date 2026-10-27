@@ -1,18 +1,31 @@
 import Foundation
 import Mockable
 
-#if canImport(TuistSupport) && !os(iOS)
+#if !os(iOS)
     import FileSystem
     import Path
     import TSCBasic
-    import TuistSupport
+    import TuistEnvironment
+    import TuistLogging
 #endif
 
 public enum CachedValueStoreBackend: Sendable {
-    #if os(macOS) || os(Linux) || os(Windows)
+    #if !os(iOS)
         case fileSystem
     #endif
     case inSystemProcess
+}
+
+/// Thrown when the file-system-backed cache cannot acquire its cross-process
+/// lock within the configured wall-clock ceiling. Wrapping `flock()` in a
+/// bounded polling loop turns "a peer holds the lock and never releases it"
+/// from a silent, uncancellable stall into a clear error the caller can retry.
+public struct CachedValueStoreFileLockTimeoutError: LocalizedError, Sendable {
+    public let seconds: TimeInterval
+
+    public var errorDescription: String? {
+        "Timed out after \(Int(seconds))s waiting to acquire the cached-value-store file lock. Another Tuist process may be holding it."
+    }
 }
 
 /// Actor that caches a piece of work asynchronously in a thread-safe manner.
@@ -25,7 +38,7 @@ public protocol CachedValueStoring: Sendable {
 }
 
 public actor CachedValueStore: CachedValueStoring {
-    #if os(macOS) || os(Linux) || os(Windows)
+    #if !os(iOS)
         @TaskLocal public static var current: CachedValueStoring = CachedValueStore(backend: .fileSystem)
     #else
         @TaskLocal public static var current: CachedValueStoring = CachedValueStore(backend: .inSystemProcess)
@@ -52,7 +65,7 @@ public actor CachedValueStore: CachedValueStoring {
     private var tasks: [String: Task<Any?, any Error>] = [:]
     private var cache: [String: Any] = [:]
 
-    #if canImport(TuistSupport) && !os(iOS)
+    #if !os(iOS)
         private let fileSystem = FileSystem()
 
         /// Returns the path to the lock file for a given key
@@ -66,18 +79,55 @@ public actor CachedValueStore: CachedValueStoring {
                 .appending(component: "cached_value_store")
                 .appending(component: "\(sanitizedKey).lock")
         }
+
+        /// Wall-clock ceiling for acquiring the cross-process file lock.
+        /// A peer `tuist` process that holds the lock while its own work
+        /// stalls (e.g. a slow HTTPS refresh on a flaky Linux runner) would
+        /// otherwise block every subsequent invocation on this host forever.
+        private static let fileLockAcquisitionTimeout: TimeInterval = 30
+
+        /// Interval between non-blocking `flock` attempts. Kept short enough
+        /// that a well-behaved peer that releases quickly barely notices,
+        /// long enough that the polling cost is negligible.
+        private static let fileLockRetryInterval: TimeInterval = 0.1
+
+        /// Acquires `fileLock` with a bounded wall-clock timeout by polling
+        /// its non-blocking variant with backoff. `TSCBasic.FileLock` wraps
+        /// `flock(_:LOCK_EX)`, which is not cancellable via Swift Concurrency
+        /// and does not honour any deadline; using `blocking: false` in a
+        /// timed loop is the only way to bound it. On acquisition the caller
+        /// is responsible for calling `fileLock.unlock()` (typically via
+        /// `defer`).
+        static func acquireFileLockWithTimeout(
+            _ fileLock: FileLock,
+            timeout: TimeInterval = CachedValueStore.fileLockAcquisitionTimeout,
+            retryInterval: TimeInterval = CachedValueStore.fileLockRetryInterval
+        ) async throws {
+            let deadline = Date().addingTimeInterval(timeout)
+            while true {
+                do {
+                    try fileLock.lock(type: .exclusive, blocking: false)
+                    return
+                } catch ProcessLockError.unableToAquireLock {
+                    if Date() >= deadline {
+                        throw CachedValueStoreFileLockTimeoutError(seconds: timeout)
+                    }
+                    try await Task.sleep(nanoseconds: UInt64(retryInterval * 1_000_000_000))
+                }
+            }
+        }
     #endif
 
     public func getValue<Value>(
         key: String,
         computeIfNeeded: @escaping () async throws -> (value: Value, expiresAt: Date?)?
     ) async throws -> Value? {
-        #if canImport(TuistSupport)
+        #if !os(iOS)
             Logger.current.debug("Getting cached value for \(key)")
         #endif
         // Check if we have a cached value that isn't expired
         if let cacheEntry = cache[key] as? CacheEntry<Value>, !cacheEntry.isExpired {
-            #if canImport(TuistSupport)
+            #if !os(iOS)
                 Logger.current.debug("\(key) is cached and not expired")
             #endif
             return cacheEntry.value
@@ -88,20 +138,20 @@ public actor CachedValueStore: CachedValueStoring {
         // and clears tasks[key] before we can await it
         let task: Task<Any?, any Error>
         if let existingTask = tasks[key] {
-            #if canImport(TuistSupport)
+            #if !os(iOS)
                 Logger.current
                     .debug("\(key)'s value is already being computed from a different thread, waiting for it to complete...")
             #endif
             task = existingTask
         } else {
             let newTask = Task<Any?, any Error> {
-                #if canImport(TuistSupport)
+                #if !os(iOS)
                     Logger.current.debug("Triggered a new task to compute value for \(key)")
                 #endif
                 defer { tasks[key] = nil }
 
                 switch backend {
-                #if os(macOS) || os(Linux) || os(Windows)
+                #if !os(iOS)
                     case .fileSystem:
                         // Use file-based lock for cross-process synchronization
                         let lockPath = lockFilePath(for: key)
@@ -116,32 +166,33 @@ public actor CachedValueStore: CachedValueStoring {
                             at: try TSCBasic.AbsolutePath(validating: lockPath.pathString)
                         )
 
-                        return try await fileLock.withLock(type: .exclusive) {
-                            // Double-check cache after acquiring lock
-                            // Another process might have computed the value
-                            if let cacheEntry = cache[key] as? CacheEntry<Value>, !cacheEntry.isExpired {
-                                Logger.current
-                                    .debug(
-                                        "The value for \(key) has been computed from a different process, returning its value early"
-                                    )
-                                return cacheEntry.value
-                            }
+                        try await Self.acquireFileLockWithTimeout(fileLock)
+                        defer { fileLock.unlock() }
 
-                            Logger.current.debug("Computing the value for \(key) if needed")
-                            if let result = try await computeIfNeeded() {
-                                let value = result.value
-                                let expirationDate = result.expiresAt
+                        // Double-check cache after acquiring lock
+                        // Another process might have computed the value
+                        if let cacheEntry = cache[key] as? CacheEntry<Value>, !cacheEntry.isExpired {
+                            Logger.current
+                                .debug(
+                                    "The value for \(key) has been computed from a different process, returning its value early"
+                                )
+                            return cacheEntry.value
+                        }
 
-                                // Store in cache
-                                let entry = CacheEntry(value: value, expirationDate: expirationDate)
-                                cache[key] = entry
+                        Logger.current.debug("Computing the value for \(key) if needed")
+                        if let result = try await computeIfNeeded() {
+                            let value = result.value
+                            let expirationDate = result.expiresAt
 
-                                Logger.current.debug("Computed value for \(key)")
-                                return value
-                            } else {
-                                Logger.current.debug("Computed value for \(key) is nil")
-                                return nil
-                            }
+                            // Store in cache
+                            let entry = CacheEntry(value: value, expirationDate: expirationDate)
+                            cache[key] = entry
+
+                            Logger.current.debug("Computed value for \(key)")
+                            return value
+                        } else {
+                            Logger.current.debug("Computed value for \(key) is nil")
+                            return nil
                         }
                 #endif
                 case .inSystemProcess:
@@ -171,15 +222,13 @@ public actor CachedValueStore: CachedValueStoring {
 
         // Wait for the task to complete and return its value
         let value = try await task.value as? Value
-        #if canImport(TuistSupport)
+        #if !os(iOS)
             Logger.current.debug("Returning value for \(key)")
         #endif
         return value
     }
-}
 
-#if DEBUG
-    extension CachedValueStore {
+    #if DEBUG
         public static var mocked: MockCachedValueStoring? { current as? MockCachedValueStoring }
-    }
-#endif
+    #endif
+}

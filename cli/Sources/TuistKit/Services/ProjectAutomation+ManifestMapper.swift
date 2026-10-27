@@ -1,6 +1,8 @@
+import FileSystem
 import Foundation
 import Path
 import ProjectAutomation
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 
@@ -20,7 +22,7 @@ extension ProjectAutomation.Graph {
         return ProjectAutomation.Graph(name: graph.name, path: graph.path.pathString, projects: projects)
     }
 
-    func export(to filePath: AbsolutePath) throws {
+    func export(to filePath: AbsolutePath) async throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .prettyPrinted, .withoutEscapingSlashes]
         let jsonData = try encoder.encode(self)
@@ -29,7 +31,7 @@ extension ProjectAutomation.Graph {
             throw GraphServiceError.encodingError(GraphFormat.json.rawValue)
         }
 
-        try FileHandler.shared.write(jsonString, path: filePath, atomically: true)
+        try await FileSystem().writeText(jsonString, at: filePath)
     }
 }
 
@@ -141,9 +143,9 @@ extension ProjectAutomation.Target {
                 return .packageMacro(product: product)
             case .plugin:
                 return .packagePlugin(product: product)
-            case .runtime:
+            case .runtime, .runtimeDynamic:
                 return .package(product: product)
-            case .runtimeEmbedded:
+            case .runtimeEmbedded, .runtimeDynamicEmbedded:
                 return .package(product: product, embedded: true)
             }
         case let .sdk(name, status, _):

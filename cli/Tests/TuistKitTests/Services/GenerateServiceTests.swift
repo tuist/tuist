@@ -1,13 +1,22 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
 import Testing
+import TuistAlert
 import TuistCache
+import TuistCAS
+import TuistConfig
+import TuistConstants
 import TuistCore
+import TuistEnvironment
+import TuistGenerator
+import TuistOpener
 import TuistServer
 import TuistSupport
 import XcodeProj
-
+@testable import TuistConfigLoader
 @testable import TuistKit
 @testable import TuistLoader
 @testable import TuistTesting
@@ -20,19 +29,30 @@ struct GenerateServiceTests {
     private var cacheStorageFactory: MockCacheStorageFactorying!
     private var clock: StubClock!
     private var configLoader: MockConfigLoading!
+    private var generationMetadataStore: MockGenerationMetadataStoring!
+    private let cacheInstallationChecker = MockXcodeCacheInstallationStoring()
+    private let resourceLocator = MockResourceLocator()
 
     init() {
         opener = .init()
         generator = .init()
         generatorFactory = .init()
         configLoader = .init()
+        generationMetadataStore = .init()
+        given(cacheInstallationChecker).update(executable: .any, tuistVersion: .any, onlyIfInstalled: .any).willReturn(true)
+        resourceLocator.casProxyStub = { "/release/tuist-cas-proxy" }
+        resourceLocator.casPluginStub = { "/release/libtuist_cas_plugin.dylib" }
+        resourceLocator.cliPathStub = { "/release/tuist" }
+        given(generationMetadataStore).store(generationId: .any, for: .any).willReturn()
+        given(generationMetadataStore).prune().willReturn()
         given(generatorFactory)
             .generation(
                 config: .any,
                 includedTargets: .any,
                 configuration: .any,
                 cacheProfile: .any,
-                cacheStorage: .any
+                cacheStorage: .any,
+                coverage: .any
             )
             .willReturn(generator)
         cacheStorageFactory = .init()
@@ -45,11 +65,129 @@ struct GenerateServiceTests {
             generatorFactory: generatorFactory,
             clock: clock,
             opener: opener,
-            configLoader: configLoader
+            configLoader: configLoader,
+            generationMetadataStore: generationMetadataStore,
+            cacheInstallationChecker: cacheInstallationChecker,
+            resourceLocator: resourceLocator
         )
     }
 
-    @Test func throws_when_the_configuration_is_not_for_a_generated_project() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: [true, false])
+    func run_advances_cache_proxy_only_when_remote_caching_is_enabled(enabled: Bool) async throws {
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = "/stable/bin/tuist"
+        given(configLoader).loadConfig(path: .any).willReturn(.test(
+            project: .generated(.test(generationOptions: .test(enableCaching: enabled))),
+            fullHandle: "org/project"
+        ))
+        given(generator).generateWithGraph(path: .any, options: .any)
+            .willReturn(("/test.xcworkspace", .test(), MapperEnvironment()))
+        let alerts = AlertController()
+
+        try await AlertController.$current.withValue(alerts) {
+            try await subject.run(
+                path: nil, includedTargets: [], noOpen: true, configuration: nil,
+                ignoreBinaryCache: false, cacheProfile: nil
+            )
+        }
+
+        verify(cacheInstallationChecker)
+            .update(
+                executable: .value("/stable/bin/tuist"),
+                tuistVersion: .value(Constants.version),
+                onlyIfInstalled: .value(true)
+            )
+            .called(enabled ? 1 : 0)
+        #expect(resourceLocator.cliPathCount == 0)
+        #expect(alerts.warnings().isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func run_does_not_fail_when_advancing_proxy_fails() async throws {
+        cacheInstallationChecker.reset()
+        given(cacheInstallationChecker).update(executable: .any, tuistVersion: .any, onlyIfInstalled: .any)
+            .willThrow(NSError(domain: "test", code: 1))
+        given(configLoader).loadConfig(path: .any).willReturn(.test(
+            project: .generated(.test(generationOptions: .test(enableCaching: true))),
+            fullHandle: "org/project"
+        ))
+        given(generator).generateWithGraph(path: .any, options: .any)
+            .willReturn(("/test.xcworkspace", .test(), MapperEnvironment()))
+
+        try await subject.run(
+            path: nil, includedTargets: [], noOpen: true, configuration: nil,
+            ignoreBinaryCache: false, cacheProfile: nil
+        )
+
+        verify(cacheInstallationChecker).update(executable: .any, tuistVersion: .any, onlyIfInstalled: .value(true)).called(1)
+    }
+
+    @Test(
+        .inTemporaryDirectory, .withMockedEnvironment(),
+        arguments: ["TUIST_CAS_PLUGIN_PATH", "TUIST_CAS_PROXY_PATH", "TUIST_CAS_PROXY_SOCKET", "TUIST_CAS_PROXY_REGISTRY"]
+    )
+    func run_does_not_check_custom_cache_integrations(override: String) async throws {
+        let environment = try #require(Environment.mocked)
+        environment.variables[override] = "/custom/cache"
+        given(configLoader).loadConfig(path: .any).willReturn(.test(
+            project: .generated(.test(generationOptions: .test(enableCaching: true))),
+            fullHandle: "org/project"
+        ))
+        given(generator).generateWithGraph(path: .any, options: .any)
+            .willReturn(("/test.xcworkspace", .test(), MapperEnvironment()))
+
+        try await subject.run(
+            path: nil, includedTargets: [], noOpen: true, configuration: nil,
+            ignoreBinaryCache: false, cacheProfile: nil
+        )
+
+        verify(cacheInstallationChecker).update(executable: .any, tuistVersion: .any, onlyIfInstalled: .any).called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func run_does_not_check_local_only_caching() async throws {
+        given(configLoader).loadConfig(path: .any).willReturn(.test(
+            project: .generated(.test(generationOptions: .test(enableCaching: true))),
+            fullHandle: nil
+        ))
+        given(generator).generateWithGraph(path: .any, options: .any)
+            .willReturn(("/test.xcworkspace", .test(), MapperEnvironment()))
+
+        try await subject.run(
+            path: nil, includedTargets: [], noOpen: true, configuration: nil,
+            ignoreBinaryCache: false, cacheProfile: nil
+        )
+
+        verify(cacheInstallationChecker).update(executable: .any, tuistVersion: .any, onlyIfInstalled: .any).called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), arguments: [true, false])
+    func run_does_not_select_source_builds_without_bundled_cache_components(missingProxy: Bool) async throws {
+        if missingProxy {
+            resourceLocator.casProxyStub = { nil }
+        } else {
+            resourceLocator.casPluginStub = { nil }
+        }
+        given(configLoader).loadConfig(path: .any).willReturn(.test(
+            project: .generated(.test(generationOptions: .test(enableCaching: true))),
+            fullHandle: "org/project"
+        ))
+        given(generator).generateWithGraph(path: .any, options: .any)
+            .willReturn(("/test.xcworkspace", .test(), MapperEnvironment()))
+
+        try await subject.run(
+            path: nil,
+            includedTargets: [],
+            noOpen: true,
+            configuration: nil,
+            ignoreBinaryCache: false,
+            cacheProfile: nil
+        )
+
+        verify(cacheInstallationChecker).update(executable: .any, tuistVersion: .any, onlyIfInstalled: .any).called(0)
+    }
+
+    @Test func throws_when_the_configuration_is_not_for_a_generated_project() async {
         given(configLoader).loadConfig(path: .any).willReturn(.test(project: .testXcodeProject()))
 
         await #expect(
@@ -73,7 +211,7 @@ struct GenerateServiceTests {
         )
     }
 
-    @Test func run_fatalErrors_when_theworkspaceGenerationFails() async throws {
+    @Test func run_fatalErrors_when_theworkspaceGenerationFails() async {
         let expectedError = NSError.test()
         given(configLoader).loadConfig(path: .any).willReturn(
             .test(project: .testGeneratedProject())
@@ -133,6 +271,38 @@ struct GenerateServiceTests {
         verify(opener)
             .open(path: .value(workspacePath))
             .called(1)
+    }
+
+    @Test func run_persists_generation_metadata_keyed_by_workspace() async throws {
+        try await RunMetadataStorage.$current.withValue(RunMetadataStorage()) {
+            // Given
+            let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+            given(configLoader).loadConfig(path: .any).willReturn(
+                .test(project: .testGeneratedProject())
+            )
+            given(generator)
+                .generateWithGraph(path: .any, options: .any)
+                .willReturn((workspacePath, .test(), MapperEnvironment()))
+
+            // When
+            try await subject.run(
+                path: nil,
+                includedTargets: [],
+                noOpen: true,
+                configuration: nil,
+                ignoreBinaryCache: false,
+                cacheProfile: nil
+            )
+
+            // Then
+            let generationId = try #require(await RunMetadataStorage.current.generationId)
+            verify(generationMetadataStore)
+                .store(generationId: .value(generationId), for: .value(workspacePath))
+                .called(1)
+            verify(generationMetadataStore)
+                .prune()
+                .called(1)
+        }
     }
 
     @Test func run_timeIsPrinted() async throws {
@@ -205,7 +375,8 @@ struct GenerateServiceTests {
                 includedTargets: .value(["App"]),
                 configuration: .any,
                 cacheProfile: .matching { $0 == .allPossible },
-                cacheStorage: .any
+                cacheStorage: .any,
+                coverage: .any
             )
             .called(1)
     }
@@ -244,7 +415,8 @@ struct GenerateServiceTests {
                 includedTargets: .value([]),
                 configuration: .any,
                 cacheProfile: .matching { $0 == .allPossible },
-                cacheStorage: .any
+                cacheStorage: .any,
+                coverage: .any
             )
             .called(1)
     }
@@ -283,7 +455,8 @@ struct GenerateServiceTests {
                 includedTargets: .value([]),
                 configuration: .any,
                 cacheProfile: .matching { $0 == .none },
-                cacheStorage: .any
+                cacheStorage: .any,
+                coverage: .any
             )
             .called(1)
     }
@@ -331,7 +504,8 @@ struct GenerateServiceTests {
                 includedTargets: .value([]),
                 configuration: .any,
                 cacheProfile: .matching { $0 == .init(base: .onlyExternal, targetQueries: ["tag:cacheable"]) },
-                cacheStorage: .any
+                cacheStorage: .any,
+                coverage: .any
             )
             .called(1)
     }
@@ -372,5 +546,280 @@ struct GenerateServiceTests {
                 cacheProfile: "missing"
             )
         }
+    }
+
+    @Test func usesLocalCacheStorageWhenRemoteCacheHasTransientServerFailure() async throws {
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .testGeneratedProject())
+        )
+        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+        let localCacheStorage = MockCacheStoring()
+        let cacheStorageFactory = MockCacheStorageFactorying()
+        let alertController = AlertController()
+        let subject = GenerateService(
+            cacheStorageFactory: cacheStorageFactory,
+            generatorFactory: generatorFactory,
+            configLoader: configLoader,
+            generationMetadataStore: generationMetadataStore
+        )
+        given(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .willThrow(RefreshAuthTokenServiceError.unknownError(503))
+        given(cacheStorageFactory)
+            .cacheLocalStorage()
+            .willReturn(localCacheStorage)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn((workspacePath, .test(), MapperEnvironment()))
+
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(
+                path: nil,
+                includedTargets: [],
+                noOpen: true,
+                configuration: nil,
+                ignoreBinaryCache: false,
+                cacheProfile: nil
+            )
+        }
+
+        verify(cacheStorageFactory)
+            .cacheLocalStorage()
+            .called(1)
+        #expect(
+            alertController.warnings().map(\.message).map { $0.plain() } == [
+                "The remote cache is temporarily unavailable.",
+            ]
+        )
+    }
+
+    @Test(arguments: [CacheURLStoreError.noEndpointsAvailable])
+    func usesLocalCacheStorageWhenNoRemoteCacheEndpointIsServing(error: CacheURLStoreError) async throws {
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .testGeneratedProject())
+        )
+        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+        let localCacheStorage = MockCacheStoring()
+        let cacheStorageFactory = MockCacheStorageFactorying()
+        let subject = GenerateService(
+            cacheStorageFactory: cacheStorageFactory,
+            generatorFactory: generatorFactory,
+            configLoader: configLoader,
+            generationMetadataStore: generationMetadataStore
+        )
+        given(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .willThrow(error)
+        given(cacheStorageFactory)
+            .cacheLocalStorage()
+            .willReturn(localCacheStorage)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn((workspacePath, .test(), MapperEnvironment()))
+
+        try await subject.run(
+            path: nil,
+            includedTargets: [],
+            noOpen: true,
+            configuration: nil,
+            ignoreBinaryCache: false,
+            cacheProfile: nil
+        )
+
+        verify(cacheStorageFactory)
+            .cacheLocalStorage()
+            .called(1)
+    }
+
+    @Test func propagatesPermanentAuthenticationFailure() async {
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .testGeneratedProject())
+        )
+        let cacheStorageFactory = MockCacheStorageFactorying()
+        let expectedError = RefreshAuthTokenServiceError.unauthorized("Invalid token")
+        let subject = GenerateService(
+            cacheStorageFactory: cacheStorageFactory,
+            generatorFactory: generatorFactory,
+            configLoader: configLoader,
+            generationMetadataStore: generationMetadataStore
+        )
+        given(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .willThrow(expectedError)
+
+        await #expect(throws: expectedError) {
+            try await subject.run(
+                path: nil,
+                includedTargets: [],
+                noOpen: true,
+                configuration: nil,
+                ignoreBinaryCache: false,
+                cacheProfile: nil
+            )
+        }
+
+        verify(cacheStorageFactory)
+            .cacheLocalStorage()
+            .called(0)
+    }
+}
+
+/// Kept separate from `GenerateServiceTests` because combining `MockInstallServicing` and
+/// `MockOpening` in the same struct triggers a Swift Testing struct-destroy crash on parallel
+/// execution. Until that's investigated upstream, the outdated-dependency cases live here.
+struct GenerateServiceOutdatedDependenciesTests {
+    private var subject: GenerateService!
+    private var generator: MockGenerating!
+    private var generatorFactory: MockGeneratorFactorying!
+    private var cacheStorageFactory: MockCacheStorageFactorying!
+    private var configLoader: MockConfigLoading!
+    private var installService: MockInstallServicing!
+    private var outdatedDependenciesChecker: MockOutdatedDependenciesChecking!
+
+    init() {
+        generator = .init()
+        generatorFactory = .init()
+        cacheStorageFactory = .init()
+        configLoader = .init()
+        installService = .init()
+        outdatedDependenciesChecker = .init()
+
+        given(generatorFactory)
+            .generation(
+                config: .any,
+                includedTargets: .any,
+                configuration: .any,
+                cacheProfile: .any,
+                cacheStorage: .any,
+                coverage: .any
+            )
+            .willReturn(generator)
+        given(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .willReturn(MockCacheStoring())
+
+        subject = GenerateService(
+            cacheStorageFactory: cacheStorageFactory,
+            generatorFactory: generatorFactory,
+            configLoader: configLoader,
+            installService: installService,
+            outdatedDependenciesChecker: outdatedDependenciesChecker
+        )
+    }
+
+    @Test
+    func runs_install_when_action_is_install_and_dependencies_are_outdated() async throws {
+        // Given
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .generated(.test(generationOptions: .test(onOutdatedDependencies: .install))))
+        )
+        given(outdatedDependenciesChecker)
+            .packageDependenciesAreOutdated(at: .any)
+            .willReturn(true)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn((try AbsolutePath(validating: "/test.xcworkspace"), .test(), MapperEnvironment()))
+        given(installService)
+            .run(path: .any, update: .any, passthroughArguments: .any)
+            .willReturn()
+
+        // When
+        try await subject.run(
+            path: nil,
+            includedTargets: [],
+            noOpen: true,
+            configuration: nil,
+            ignoreBinaryCache: false,
+            cacheProfile: nil
+        )
+
+        // Then
+        verify(installService)
+            .run(path: .any, update: .value(false), passthroughArguments: .value([]))
+            .called(1)
+    }
+
+    @Test
+    func does_not_run_install_when_action_is_warn_and_dependencies_are_outdated() async throws {
+        // Given
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .generated(.test(generationOptions: .test(onOutdatedDependencies: .warn))))
+        )
+        given(outdatedDependenciesChecker)
+            .packageDependenciesAreOutdated(at: .any)
+            .willReturn(true)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn((try AbsolutePath(validating: "/test.xcworkspace"), .test(), MapperEnvironment()))
+
+        // When
+        try await subject.run(
+            path: nil,
+            includedTargets: [],
+            noOpen: true,
+            configuration: nil,
+            ignoreBinaryCache: false,
+            cacheProfile: nil
+        )
+
+        // Then
+        verify(installService)
+            .run(path: .any, update: .any, passthroughArguments: .any)
+            .called(0)
+    }
+
+    @Test
+    func does_not_run_install_when_action_is_install_and_dependencies_are_up_to_date() async throws {
+        // Given
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .generated(.test(generationOptions: .test(onOutdatedDependencies: .install))))
+        )
+        given(outdatedDependenciesChecker)
+            .packageDependenciesAreOutdated(at: .any)
+            .willReturn(false)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn((try AbsolutePath(validating: "/test.xcworkspace"), .test(), MapperEnvironment()))
+
+        // When
+        try await subject.run(
+            path: nil,
+            includedTargets: [],
+            noOpen: true,
+            configuration: nil,
+            ignoreBinaryCache: false,
+            cacheProfile: nil
+        )
+
+        // Then
+        verify(installService)
+            .run(path: .any, update: .any, passthroughArguments: .any)
+            .called(0)
+    }
+
+    @Test
+    func throws_when_action_is_fail_and_dependencies_are_outdated() async throws {
+        // Given
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .generated(.test(generationOptions: .test(onOutdatedDependencies: .fail))))
+        )
+        given(outdatedDependenciesChecker)
+            .packageDependenciesAreOutdated(at: .any)
+            .willReturn(true)
+
+        // When / Then
+        await #expect(throws: GenerateServiceError.outdatedDependencies) {
+            try await subject.run(
+                path: nil,
+                includedTargets: [],
+                noOpen: true,
+                configuration: nil,
+                ignoreBinaryCache: false,
+                cacheProfile: nil
+            )
+        }
+        verify(installService)
+            .run(path: .any, update: .any, passthroughArguments: .any)
+            .called(0)
     }
 }

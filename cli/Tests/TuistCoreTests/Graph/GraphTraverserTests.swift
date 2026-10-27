@@ -1,11 +1,122 @@
 import FileSystem
 import Foundation
 import Path
+import Testing
 import TuistSupport
 import XcodeGraph
 import XCTest
 @testable import TuistCore
 @testable import TuistTesting
+
+struct GraphTraverserPackageProductTests {
+    @Test func packageProductsLinkedThroughStaticTargetsIncludesDirectAndTransitiveProducts() {
+        // Given
+        let feature = Target.test(name: "Feature", product: .staticFramework)
+        let featureCore = Target.test(name: "FeatureCore", product: .staticFramework)
+        let project = Project.test(path: "/path/project", targets: [feature, featureCore])
+        let featureDependency = GraphDependency.target(name: feature.name, path: project.path)
+        let featureCoreDependency = GraphDependency.target(name: featureCore.name, path: project.path)
+        let packageProduct = GraphDependency.packageProduct(
+            path: "/path/package",
+            product: "SwiftProtobuf",
+            type: .runtime
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                featureDependency: [featureCoreDependency],
+                featureCoreDependency: [packageProduct],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let packageProducts = subject.packageProductsLinkedThroughStaticTargets(
+            path: project.path,
+            name: feature.name
+        )
+        let directPackageProducts = subject.packageProductsLinkedThroughStaticTargets(
+            path: project.path,
+            name: featureCore.name
+        )
+
+        // Then
+        #expect(packageProducts == [.packageProduct(product: "SwiftProtobuf")])
+        #expect(directPackageProducts == [.packageProduct(product: "SwiftProtobuf")])
+    }
+
+    @Test func packageProductsLinkedThroughStaticTargetsIncludesProductsBehindCachedXCFrameworks() throws {
+        // Given
+        let feature = Target.test(name: "Feature", product: .staticFramework)
+        let project = Project.test(path: "/path/project", targets: [feature])
+        let featureDependency = GraphDependency.target(name: feature.name, path: project.path)
+        let staticXCFramework = GraphDependency.testXCFramework(path: "/cache/ServicesMockSupport.xcframework", linking: .static)
+        let dynamicXCFramework = GraphDependency.testXCFramework(path: "/cache/Services.xcframework", linking: .dynamic)
+        let analytics = GraphDependency.packageProduct(path: "/path/support", product: "Analytics", type: .runtime)
+        let networking = GraphDependency.packageProduct(path: "/path/services", product: "Networking", type: .runtime)
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                featureDependency: [staticXCFramework],
+                staticXCFramework: [dynamicXCFramework, analytics],
+                dynamicXCFramework: [networking],
+            ],
+            dependencyConditions: [
+                GraphEdge(from: featureDependency, to: staticXCFramework): try #require(.when([.ios])),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.packageProductsLinkedThroughStaticTargets(path: project.path, name: feature.name)
+
+        // Then
+        #expect(got == [
+            .packageProduct(product: "Analytics", condition: .when([.ios])),
+            .packageProduct(product: "Networking", condition: .when([.ios])),
+        ])
+    }
+
+    @Test func linkableDependenciesLinksProductsBehindStaticXCFrameworksOnly() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let feature = Target.test(name: "Feature", product: .staticFramework)
+        let project = Project.test(path: "/path/project", targets: [app, feature])
+        let appDependency = GraphDependency.target(name: app.name, path: project.path)
+        let featureDependency = GraphDependency.target(name: feature.name, path: project.path)
+        let staticXCFramework = GraphDependency.testXCFramework(path: "/cache/ServicesMockSupport.xcframework", linking: .static)
+        let dynamicXCFramework = GraphDependency.testXCFramework(path: "/cache/Services.xcframework", linking: .dynamic)
+        let analytics = GraphDependency.packageProduct(path: "/path/support", product: "Analytics", type: .runtime)
+        let networking = GraphDependency.packageProduct(path: "/path/services", product: "Networking", type: .runtime)
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                appDependency: [featureDependency],
+                featureDependency: [staticXCFramework, dynamicXCFramework],
+                staticXCFramework: [analytics],
+                dynamicXCFramework: [networking],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let featurePackageProducts = subject.packageProductsLinkedThroughStaticTargets(
+            path: project.path,
+            name: feature.name
+        )
+        let appDependencies = try subject.linkableDependencies(path: project.path, name: app.name)
+
+        // Then
+        #expect(featurePackageProducts == [
+            .packageProduct(product: "Analytics"),
+            .packageProduct(product: "Networking"),
+        ])
+        #expect(
+            appDependencies.filter { if case .packageProduct = $0 { true } else { false } }
+                == [.packageProduct(product: "Analytics")]
+        )
+    }
+}
 
 final class GraphTraverserTests: TuistUnitTestCase {
     func test_dependsOnXCTest_when_is_framework() {
@@ -517,6 +628,46 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_resourceBundleTargetDependencies_preservesProducerPathWhenTargetNamesCollide() {
+        let bundleA = Target.test(name: "ResourceBundle", product: .bundle)
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let projectA = Project.test(path: "/path/a", targets: [bundleA, staticFramework])
+        let bundleB = Target.test(name: "ResourceBundle", product: .bundle)
+        let projectB = Project.test(path: "/path/b", targets: [bundleB])
+        let app = Target.test(name: "App", product: .app)
+        let appProject = Project.test(path: "/path/app", targets: [app])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: appProject.path): [
+                .target(name: staticFramework.name, path: projectA.path),
+            ],
+            .target(name: staticFramework.name, path: projectA.path): [
+                .target(name: bundleA.name, path: projectA.path),
+            ],
+            .target(name: bundleA.name, path: projectA.path): [],
+            .target(name: bundleB.name, path: projectB.path): [],
+        ]
+        let graph = Graph.test(
+            path: .root,
+            projects: [
+                projectA.path: projectA,
+                projectB.path: projectB,
+                appProject.path: appProject,
+            ],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        let got = subject.resourceBundleTargetDependencies(path: appProject.path, name: app.name)
+
+        XCTAssertEqual(got, [
+            GraphTargetReference(
+                target: GraphTarget(path: projectA.path, target: bundleA, project: projectA),
+                condition: nil
+            ),
+        ])
+    }
+
     func test_resourceBundleDependencies_transitivelyViaSingleStaticFramework() {
         // Given
         let bundle = Target.test(name: "ResourceBundle", product: .bundle)
@@ -816,6 +967,108 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 .bundle(path: bundlePath),
             ]
         )
+    }
+
+    func test_containsResources_is_true_when_buildable_folders_contain_resources() {
+        let target = Target.test(
+            product: .staticFramework,
+            resources: .init([]),
+            buildableFolders: [
+                BuildableFolder(
+                    path: "/Sources",
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: [
+                        BuildableFolderFile(path: "/Sources/File.swift", compilerFlags: nil),
+                        BuildableFolderFile(path: "/Sources/greeting.md", compilerFlags: nil),
+                    ]
+                ),
+            ]
+        )
+        XCTAssertTrue(target.containsResources)
+    }
+
+    func test_containsResources_is_false_when_buildable_folders_contain_only_sources() {
+        let target = Target.test(
+            product: .staticFramework,
+            resources: .init([]),
+            buildableFolders: [
+                BuildableFolder(
+                    path: "/Sources",
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: [
+                        BuildableFolderFile(path: "/Sources/File.swift", compilerFlags: nil),
+                        BuildableFolderFile(path: "/Sources/Header.h", compilerFlags: nil),
+                    ]
+                ),
+            ]
+        )
+        XCTAssertFalse(target.containsResources)
+    }
+
+    func test_containsResources_is_true_when_buildable_folders_contain_non_allowlisted_resources() {
+        let target = Target.test(
+            product: .staticFramework,
+            resources: .init([]),
+            buildableFolders: [
+                BuildableFolder(
+                    path: "/Sources",
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: [
+                        BuildableFolderFile(path: "/Sources/File.swift", compilerFlags: nil),
+                        BuildableFolderFile(path: "/Sources/image.jpg", compilerFlags: nil),
+                    ]
+                ),
+            ]
+        )
+        XCTAssertTrue(target.containsResources)
+    }
+
+    func test_resourceBundleDependencies_when_static_framework_has_resources_in_buildable_folders() {
+        // Given
+        // App -> StaticFramework (buildable folder resources) -> ResourceBundle
+        let bundle = Target.test(name: "App_StaticFramework", product: .bundle)
+        let staticFramework = Target.test(
+            name: "StaticFramework",
+            product: .staticFramework,
+            resources: .init([]),
+            buildableFolders: [
+                BuildableFolder(
+                    path: "/StaticFramework",
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: [
+                        BuildableFolderFile(path: "/StaticFramework/File.swift", compilerFlags: nil),
+                        BuildableFolderFile(path: "/StaticFramework/image.png", compilerFlags: nil),
+                    ]
+                ),
+            ]
+        )
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(targets: [app, staticFramework, bundle])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): Set([
+                .target(name: staticFramework.name, path: project.path),
+            ]),
+            .target(name: staticFramework.name, path: project.path): Set([
+                .target(name: bundle.name, path: project.path),
+            ]),
+            .target(name: bundle.name, path: project.path): Set([]),
+        ]
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.resourceBundleDependencies(path: project.path, name: app.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, [
+            .product(target: bundle.name, productName: bundle.productNameWithExtension),
+        ])
     }
 
     func test_target_from_dependency() {
@@ -1207,110 +1460,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 .product(target: "DependencyB", productName: "DependencyB.framework"),
             ]
         )
-    }
-
-    func test_embeddableFrameworks_when_dependencyIsStaticFrameworkWithMetalSources() throws {
-        // Given
-        let target = Target.test(name: "Main", product: .app)
-        let staticFramework = Target.test(
-            name: "MetalFramework",
-            product: .staticFramework,
-            sources: ["/Absolute/Shader.metal"]
-        )
-        let project = Project.test(targets: [target, staticFramework])
-
-        // Given: Value Graph
-        let graph = Graph.test(
-            projects: [project.path: project],
-            dependencies: [
-                .target(
-                    name: target.name,
-                    path: project.path
-                ): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
-            ]
-        )
-        let subject = GraphTraverser(graph: graph)
-
-        // When
-        let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
-
-        // Then
-        // Metal compilation generates a default.metallib resource, so the framework must be embedded in the app bundle.
-        XCTAssertEqual(
-            got, [
-                .product(target: "MetalFramework", productName: "MetalFramework.framework"),
-            ]
-        )
-    }
-
-    func test_embeddableFrameworks_when_dependencyIsStaticFrameworkWithResources() throws {
-        // Given
-        let target = Target.test(name: "Main", product: .app)
-        let staticFramework = Target.test(
-            name: "StaticResourcesFramework",
-            product: .staticFramework,
-            resources: .init([.file(path: "/Absolute/Asset.png")])
-        )
-        let project = Project.test(targets: [target, staticFramework])
-
-        // Given: Value Graph
-        let graph = Graph.test(
-            projects: [project.path: project],
-            dependencies: [
-                .target(
-                    name: target.name,
-                    path: project.path
-                ): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
-            ]
-        )
-        let subject = GraphTraverser(graph: graph)
-
-        // When
-        let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
-
-        // Then
-        XCTAssertEqual(
-            got, [
-                .product(target: "StaticResourcesFramework", productName: "StaticResourcesFramework.framework"),
-            ]
-        )
-    }
-
-    func test_embeddableFrameworks_when_dependencyIsExternalStaticFrameworkWithResources() throws {
-        // Given
-        let app = Target.test(name: "Main", product: .app)
-        let staticFramework = Target.test(
-            name: "ExternalResourcesFramework",
-            product: .staticFramework,
-            resources: .init([.file(path: "/Absolute/Asset.png")])
-        )
-        let project = Project.test(path: "/App", targets: [app])
-        let externalProject = Project.test(
-            path: "/External",
-            targets: [staticFramework],
-            type: .external(hash: nil)
-        )
-
-        // Given: Value Graph
-        let graph = Graph.test(
-            projects: [
-                project.path: project,
-                externalProject.path: externalProject,
-            ],
-            dependencies: [
-                .target(
-                    name: app.name,
-                    path: project.path
-                ): Set(arrayLiteral: .target(name: staticFramework.name, path: externalProject.path)),
-            ]
-        )
-        let subject = GraphTraverser(graph: graph)
-
-        // When
-        let got = subject.embeddableFrameworks(path: project.path, name: app.name).sorted()
-
-        // Then
-        XCTAssertEqual(got, [])
     }
 
     func test_embeddableFrameworks_when_appIsMergeableAndDependencyIsATarget() throws {
@@ -1743,6 +1892,42 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertTrue(got.isEmpty)
     }
 
+    func test_embeddableFrameworks_whenHostedTestTarget_withDirectFrameworkNotInHost() throws {
+        // Given: Unit test depends on a host app AND a framework that the host does NOT depend on.
+        // The framework MUST be embedded in the .xctest bundle — otherwise dyld finds the
+        // unsigned framework in BUILT_PRODUCTS_DIR and a hardened host rejects it at launch.
+        let featureFramework = Target.test(name: "FeatureA", product: .framework)
+        let app = Target.test(name: "SharedTestHost", product: .app)
+        let tests = Target.test(name: "FeatureATests", product: .unitTests)
+        let hostProject = Project.test(path: "/path/host", targets: [app])
+        let featureProject = Project.test(path: "/path/feature", targets: [featureFramework, tests])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: hostProject.path): Set(),
+            .target(name: featureFramework.name, path: featureProject.path): Set(),
+            .target(name: tests.name, path: featureProject.path): Set([
+                .target(name: app.name, path: hostProject.path),
+                .target(name: featureFramework.name, path: featureProject.path),
+            ]),
+        ]
+        let graph = Graph.test(
+            projects: [hostProject.path: hostProject, featureProject.path: featureProject],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.embeddableFrameworks(path: featureProject.path, name: tests.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, [
+            GraphDependencyReference.product(
+                target: featureFramework.name,
+                productName: featureFramework.productNameWithExtension
+            ),
+        ])
+    }
+
     func test_embeddableFrameworks_whenUITest_andAppPrecompiledDependencies() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
@@ -1826,6 +2011,108 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.first, publicHeadersPath)
+    }
+
+    func test_librariesPublicHeadersFolders_includesLibraryXCFrameworkHeaders() throws {
+        // Given
+        let target = Target.test(name: "Main")
+        let project = Project.test(targets: [target])
+        let dynamicLibraryPath = try AbsolutePath(validating: "/cache/DynamicLibrary.xcframework")
+        let staticLibraryPath = try AbsolutePath(validating: "/cache/StaticLibrary.xcframework")
+        let dynamicLibrary = GraphDependency.testXCFramework(
+            path: dynamicLibraryPath,
+            infoPlist: .test(libraries: [
+                .test(
+                    identifier: "macos-arm64_x86_64",
+                    path: try RelativePath(validating: "libDynamicLibrary.dylib"),
+                    headersPath: try RelativePath(validating: "Headers"),
+                    platform: .macOS,
+                    architectures: [.arm64, .x8664]
+                ),
+            ]),
+            linking: .dynamic
+        )
+        let staticLibrary = GraphDependency.testXCFramework(
+            path: staticLibraryPath,
+            infoPlist: .test(libraries: [
+                .test(
+                    identifier: "macos-arm64_x86_64",
+                    path: try RelativePath(validating: "libStaticLibrary.a"),
+                    headersPath: try RelativePath(validating: "Headers"),
+                    platform: .macOS,
+                    architectures: [.arm64, .x8664]
+                ),
+            ]),
+            linking: .static
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: target.name, path: project.path): Set([dynamicLibrary]),
+                dynamicLibrary: Set([staticLibrary]),
+                staticLibrary: Set([]),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.librariesPublicHeadersFolders(path: project.path, name: target.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, [
+            dynamicLibraryPath.appending(components: "macos-arm64_x86_64", "Headers"),
+            staticLibraryPath.appending(components: "macos-arm64_x86_64", "Headers"),
+        ])
+    }
+
+    func test_librariesPublicHeadersFolders_excludesHeadersOfXCFrameworksShippingAModuleMap() throws {
+        // Given
+        // An xcframework that ships a `module.modulemap` per slice. Xcode's `ProcessXCFramework` already
+        // exposes the SDK-matching slice's headers (and module map) via `$(BUILT_PRODUCTS_DIR)/include`, so
+        // re-adding the slice `Headers` would put a second copy of the module on the search path and the
+        // compiler would fail with "redefinition of module". These headers must therefore be excluded.
+        let target = Target.test(name: "Main")
+        let project = Project.test(targets: [target])
+        let xcframeworkPath = try AbsolutePath(validating: "/cache/ModularLibrary.xcframework")
+        let xcframework = GraphDependency.testXCFramework(
+            path: xcframeworkPath,
+            infoPlist: .test(libraries: [
+                .test(
+                    identifier: "ios-arm64",
+                    path: try RelativePath(validating: "libModularLibrary.a"),
+                    headersPath: try RelativePath(validating: "Headers"),
+                    platform: .iOS,
+                    architectures: [.arm64]
+                ),
+                .test(
+                    identifier: "ios-arm64-simulator",
+                    path: try RelativePath(validating: "libModularLibrary.a"),
+                    headersPath: try RelativePath(validating: "Headers"),
+                    platform: .iOS,
+                    platformVariant: .simulator,
+                    architectures: [.arm64]
+                ),
+            ]),
+            linking: .static,
+            moduleMaps: [
+                xcframeworkPath.appending(components: "ios-arm64", "Headers", "module.modulemap"),
+                xcframeworkPath.appending(components: "ios-arm64-simulator", "Headers", "module.modulemap"),
+            ]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: target.name, path: project.path): Set([xcframework]),
+                xcframework: Set([]),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.librariesPublicHeadersFolders(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertEqual(got, [])
     }
 
     func test_librariesSearchPaths() throws {
@@ -2081,12 +2368,20 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // When
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
-        // Then
+        // Then: static xcframeworks reached through a dynamic xcframework are NOT relinked
+        // at the consumer level. The dynamic xcframework absorbs their symbols at build time;
+        // relinking would duplicate symbols and break libraries with global state.
         XCTAssertEqual(got, [
             GraphDependencyReference(dependencyDynamicXCFramework),
-            GraphDependencyReference(dependencyStaticXCFrameworkA),
-            GraphDependencyReference(dependencyStaticXCFrameworkB),
         ])
+
+        // When
+        let searchablePaths = try subject.searchablePathDependencies(path: project.path, name: target.name)
+
+        // Then: static xcframeworks remain reachable via FRAMEWORK_SEARCH_PATHS so the
+        // compiler can resolve `import StaticFrameworkA` / `import StaticFrameworkB`.
+        XCTAssertTrue(searchablePaths.contains(GraphDependencyReference(dependencyStaticXCFrameworkA)))
+        XCTAssertTrue(searchablePaths.contains(GraphDependencyReference(dependencyStaticXCFrameworkB)))
 
         // When
         let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
@@ -2181,7 +2476,9 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // When
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
-        // Then
+        // Then: the static xcframework itself is not relinked, but the system library it
+        // declared as a dependency must still be linked at the consumer level (otherwise
+        // unresolved system symbols would surface during the consumer's link step).
         XCTAssertBetterEqual(got, [
             .sdk(
                 path: try AbsolutePath(validating: "/libc++.tbd"),
@@ -2190,8 +2487,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 condition: nil
             ),
             GraphDependencyReference(dependencyDynamicXCFramework),
-            GraphDependencyReference(dependencyStaticXCFrameworkA),
         ])
+
+        // When
+        let searchablePaths = try subject.searchablePathDependencies(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertTrue(searchablePaths.contains(GraphDependencyReference(dependencyStaticXCFrameworkA)))
 
         // When
         let embeddable = subject.embeddableFrameworks(path: project.path, name: target.name)
@@ -2873,6 +3175,282 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(
             got.compactMap(sdkDependency),
             [SDKPathAndStatus(name: "ThingOne.framework", status: .optional)]
+        )
+    }
+
+    func test_linkableDependencies_linksSharedPackageProductOnceAtStaticProductsBoundary() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let featureA = Target.test(name: "FeatureA", product: .staticFramework)
+        let featureB = Target.test(name: "FeatureB", product: .staticFramework)
+        let project = Project.test(path: "/path/project", targets: [app, featureA, featureB])
+        let appDependency = GraphDependency.target(name: app.name, path: project.path)
+        let featureADependency = GraphDependency.target(name: featureA.name, path: project.path)
+        let featureBDependency = GraphDependency.target(name: featureB.name, path: project.path)
+        let packageProduct = GraphDependency.packageProduct(
+            path: "/path/package",
+            product: "SwiftProtobuf",
+            type: .runtime
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                appDependency: [featureADependency, featureBDependency],
+                featureADependency: [packageProduct],
+                featureBDependency: [packageProduct],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let appDependencies = try subject.linkableDependencies(path: project.path, name: app.name)
+        let featureADependencies = try subject.linkableDependencies(path: project.path, name: featureA.name)
+        let featureBDependencies = try subject.linkableDependencies(path: project.path, name: featureB.name)
+
+        // Then
+        XCTAssertEqual(
+            appDependencies.filter { if case .packageProduct = $0 { true } else { false } },
+            [.packageProduct(product: "SwiftProtobuf")]
+        )
+        XCTAssertFalse(featureADependencies.contains(.packageProduct(product: "SwiftProtobuf")))
+        XCTAssertFalse(featureBDependencies.contains(.packageProduct(product: "SwiftProtobuf")))
+    }
+
+    func test_linkableDependencies_excludesPackageProductsLinkedByHostedTestApplication() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let tests = Target.test(name: "AppTests", product: .unitTests)
+        let feature = Target.test(name: "Feature", product: .staticFramework)
+        let project = Project.test(path: "/path/project", targets: [app, tests, feature])
+        let appDependency = GraphDependency.target(name: app.name, path: project.path)
+        let testsDependency = GraphDependency.target(name: tests.name, path: project.path)
+        let featureDependency = GraphDependency.target(name: feature.name, path: project.path)
+        let packageProduct = GraphDependency.packageProduct(
+            path: "/path/package",
+            product: "SwiftProtobuf",
+            type: .runtime
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                appDependency: [featureDependency],
+                testsDependency: [appDependency, featureDependency],
+                featureDependency: [packageProduct],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let dependencies = try subject.linkableDependencies(path: project.path, name: tests.name)
+
+        // Then
+        XCTAssertTrue(dependencies.isEmpty)
+    }
+
+    func test_linkableDependencies_preservesPackageProductsUsedOnlyByHostedTests() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let tests = Target.test(name: "AppTests", product: .unitTests)
+        let feature = Target.test(name: "Feature", product: .staticFramework)
+        let testSupport = Target.test(name: "TestSupport", product: .staticFramework)
+        let project = Project.test(path: "/path/project", targets: [app, tests, feature, testSupport])
+        let appDependency = GraphDependency.target(name: app.name, path: project.path)
+        let testsDependency = GraphDependency.target(name: tests.name, path: project.path)
+        let featureDependency = GraphDependency.target(name: feature.name, path: project.path)
+        let testSupportDependency = GraphDependency.target(name: testSupport.name, path: project.path)
+        let sharedPackageProduct = GraphDependency.packageProduct(
+            path: "/path/shared-package",
+            product: "SwiftProtobuf",
+            type: .runtime
+        )
+        let testPackageProduct = GraphDependency.packageProduct(
+            path: "/path/test-package",
+            product: "SnapshotTesting",
+            type: .runtime
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                appDependency: [featureDependency],
+                testsDependency: [appDependency, featureDependency, testSupportDependency],
+                featureDependency: [sharedPackageProduct],
+                testSupportDependency: [testPackageProduct],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let dependencies = try subject.linkableDependencies(path: project.path, name: tests.name)
+
+        // Then
+        XCTAssertEqual(
+            dependencies,
+            [
+                .packageProduct(product: "SnapshotTesting"),
+                .product(target: testSupport.name, productName: testSupport.productNameWithExtension),
+            ]
+        )
+    }
+
+    func test_linkableDependencies_preservesPackageProductPlatformsNotCoveredByHostedTestApplication() throws {
+        // Given
+        let app = Target.test(name: "App", destinations: [.iPhone, .mac], product: .app)
+        let tests = Target.test(name: "AppTests", destinations: [.iPhone, .mac], product: .unitTests)
+        let appFeature = Target.test(name: "AppFeature", product: .staticFramework)
+        let testFeature = Target.test(name: "TestFeature", product: .staticFramework)
+        let project = Project.test(path: "/path/project", targets: [app, tests, appFeature, testFeature])
+        let appDependency = GraphDependency.target(name: app.name, path: project.path)
+        let testsDependency = GraphDependency.target(name: tests.name, path: project.path)
+        let appFeatureDependency = GraphDependency.target(name: appFeature.name, path: project.path)
+        let testFeatureDependency = GraphDependency.target(name: testFeature.name, path: project.path)
+        let packageProduct = GraphDependency.packageProduct(
+            path: "/path/package",
+            product: "SharedPackage",
+            type: .runtime
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                appDependency: [appFeatureDependency],
+                testsDependency: [appDependency, testFeatureDependency],
+                appFeatureDependency: [packageProduct],
+                testFeatureDependency: [packageProduct],
+            ],
+            dependencyConditions: [
+                GraphEdge(from: appDependency, to: appFeatureDependency): try XCTUnwrap(.when([.ios])),
+                GraphEdge(from: testsDependency, to: testFeatureDependency): try XCTUnwrap(.when([.ios, .macos])),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let dependencies = try subject.linkableDependencies(path: project.path, name: tests.name)
+
+        // Then
+        XCTAssertTrue(
+            dependencies.contains(
+                .packageProduct(product: "SharedPackage", condition: .when([.macos]))
+            )
+        )
+        XCTAssertFalse(
+            dependencies.contains(
+                .packageProduct(product: "SharedPackage", condition: .when([.ios]))
+            )
+        )
+    }
+
+    func test_linkableDependencies_stopsPackageProductPropagationAtDynamicBoundary() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let dynamicFeature = Target.test(name: "DynamicFeature", product: .framework)
+        let staticFeature = Target.test(name: "StaticFeature", product: .staticFramework)
+        let project = Project.test(path: "/path/project", targets: [app, dynamicFeature, staticFeature])
+        let appDependency = GraphDependency.target(name: app.name, path: project.path)
+        let dynamicFeatureDependency = GraphDependency.target(name: dynamicFeature.name, path: project.path)
+        let staticFeatureDependency = GraphDependency.target(name: staticFeature.name, path: project.path)
+        let packageProduct = GraphDependency.packageProduct(
+            path: "/path/package",
+            product: "SwiftProtobuf",
+            type: .runtime
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                appDependency: [dynamicFeatureDependency],
+                dynamicFeatureDependency: [staticFeatureDependency],
+                staticFeatureDependency: [packageProduct],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let appDependencies = try subject.linkableDependencies(path: project.path, name: app.name)
+        let dynamicFeatureDependencies = try subject.linkableDependencies(path: project.path, name: dynamicFeature.name)
+
+        // Then
+        XCTAssertFalse(appDependencies.contains(.packageProduct(product: "SwiftProtobuf")))
+        XCTAssertTrue(dynamicFeatureDependencies.contains(.packageProduct(product: "SwiftProtobuf")))
+    }
+
+    func test_linkableDependencies_stopsPackageProductPropagationAtDynamicLibraryBoundary() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let dynamicLibrary = Target.test(name: "DynamicLibrary", product: .dynamicLibrary)
+        let project = Project.test(path: "/path/project", targets: [app, dynamicLibrary])
+        let appDependency = GraphDependency.target(name: app.name, path: project.path)
+        let dynamicLibraryDependency = GraphDependency.target(name: dynamicLibrary.name, path: project.path)
+        let packageProduct = GraphDependency.packageProduct(
+            path: "/path/package",
+            product: "SwiftProtobuf",
+            type: .runtime
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                appDependency: [dynamicLibraryDependency],
+                dynamicLibraryDependency: [packageProduct],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let appDependencies = try subject.linkableDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertFalse(appDependencies.contains(.packageProduct(product: "SwiftProtobuf")))
+    }
+
+    func test_linkableDependencies_combinesPackageProductConditionsOnlyAcrossStaticPaths() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let iosFeature = Target.test(name: "iOSFeature", product: .staticFramework)
+        let macOSFeature = Target.test(name: "macOSFeature", product: .staticFramework)
+        let dynamicFeature = Target.test(name: "DynamicFeature", product: .framework)
+        let project = Project.test(path: "/path/project", targets: [app, iosFeature, macOSFeature, dynamicFeature])
+        let appDependency = GraphDependency.target(name: app.name, path: project.path)
+        let iosFeatureDependency = GraphDependency.target(name: iosFeature.name, path: project.path)
+        let macOSFeatureDependency = GraphDependency.target(name: macOSFeature.name, path: project.path)
+        let dynamicFeatureDependency = GraphDependency.target(name: dynamicFeature.name, path: project.path)
+        let packageProduct = GraphDependency.packageProduct(
+            path: "/path/package",
+            product: "SharedPackage",
+            type: .runtimeEmbedded
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                appDependency: [iosFeatureDependency, macOSFeatureDependency, dynamicFeatureDependency],
+                iosFeatureDependency: [packageProduct],
+                macOSFeatureDependency: [packageProduct],
+                dynamicFeatureDependency: [packageProduct],
+            ],
+            dependencyConditions: [
+                GraphEdge(from: appDependency, to: iosFeatureDependency): try XCTUnwrap(.when([.ios])),
+                GraphEdge(from: appDependency, to: macOSFeatureDependency): try XCTUnwrap(.when([.macos])),
+                GraphEdge(from: appDependency, to: dynamicFeatureDependency): try XCTUnwrap(.when([.visionos])),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let dependencies = try subject.linkableDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertTrue(
+            dependencies.contains(
+                .packageProduct(
+                    product: "SharedPackage",
+                    condition: .when([.ios, .macos])
+                )
+            )
+        )
+        XCTAssertFalse(
+            dependencies.contains(
+                .packageProduct(
+                    product: "SharedPackage",
+                    condition: .when([.visionos])
+                )
+            )
         )
     }
 
@@ -3619,7 +4197,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(staticFrameworkLibrarySearchPaths.sorted(), [
             "/test/PrecompiledStaticLibrary",
         ])
-        XCTAssertEqual(staticFrameworkSwiftIncludePaths.sorted(), [
+        XCTAssertEqual(staticFrameworkSwiftIncludePaths.map(\.path).sorted(), [
             "/test/PrecompiledStaticLibrary",
         ])
     }
@@ -3824,6 +4402,45 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_searchablePathDependencies_when_transitiveStaticDependenciesThroughDynamicFramework() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let dynamicFramework = Target.test(name: "MyDynamicFramework", product: .framework)
+        let staticFramework = Target.test(name: "StaticLib", product: .staticFramework)
+        let project = Project.test(targets: [app, dynamicFramework, staticFramework])
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): [
+                .target(name: dynamicFramework.name, path: project.path),
+            ],
+            .target(name: dynamicFramework.name, path: project.path): [
+                .target(name: staticFramework.name, path: project.path),
+            ],
+            .target(name: staticFramework.name, path: project.path): [],
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let searchablePaths = try subject.searchablePathDependencies(path: project.path, name: app.name)
+        let linkableDeps = try subject.linkableDependencies(path: project.path, name: app.name)
+
+        // Then: searchablePathDependencies includes the transitive static dep
+        XCTAssertTrue(
+            searchablePaths.contains(
+                .product(target: staticFramework.name, productName: staticFramework.productNameWithExtension)
+            )
+        )
+        // And: linkableDependencies does NOT include the transitive static dep (it's inside the dynamic framework)
+        XCTAssertFalse(
+            linkableDeps.contains(
+                .product(target: staticFramework.name, productName: staticFramework.productNameWithExtension)
+            )
+        )
+    }
+
     func test_librariesSwiftIncludePaths() throws {
         // Given
         let target = Target.test(name: "Main")
@@ -3844,10 +4461,280 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let subject = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.librariesSwiftIncludePaths(path: project.path, name: target.name).sorted()
+        let got = subject.librariesSwiftIncludePaths(path: project.path, name: target.name)
 
         // Then
-        XCTAssertEqual(got, try [AbsolutePath(validating: "/test/modules")])
+        XCTAssertEqual(got, [SwiftIncludePath(path: try AbsolutePath(validating: "/test/modules"))])
+    }
+
+    func test_librariesSwiftIncludePaths_includesLibraryXCFrameworkSwiftModules() throws {
+        // Given
+        let target = Target.test(name: "Main", destinations: [.mac])
+        let project = Project.test(targets: [target])
+        let dynamicLibraryPath = try AbsolutePath(validating: "/cache/DynamicLibrary.xcframework")
+        let staticLibraryPath = try AbsolutePath(validating: "/cache/StaticLibrary.xcframework")
+        let frameworkPath = try AbsolutePath(validating: "/cache/Framework.xcframework")
+        let dynamicLibraryModulePath = dynamicLibraryPath.appending(
+            components: "macos-arm64_x86_64",
+            "DynamicLibrary.swiftmodule"
+        )
+        let staticLibraryModulePath = staticLibraryPath.appending(
+            components: "macos-arm64_x86_64",
+            "StaticLibrary.swiftmodule"
+        )
+        let dynamicLibrary = GraphDependency.testXCFramework(
+            path: dynamicLibraryPath,
+            infoPlist: .test(libraries: [
+                .test(
+                    identifier: "macos-arm64_x86_64",
+                    path: try RelativePath(validating: "libDynamicLibrary.dylib"),
+                    platform: .macOS,
+                    architectures: [.arm64, .x8664]
+                ),
+            ]),
+            linking: .dynamic,
+            swiftModules: [
+                dynamicLibraryModulePath,
+                dynamicLibraryModulePath.appending(component: "arm64-apple-macos.swiftmodule"),
+            ]
+        )
+        let staticLibrary = GraphDependency.testXCFramework(
+            path: staticLibraryPath,
+            infoPlist: .test(libraries: [
+                .test(
+                    identifier: "macos-arm64_x86_64",
+                    path: try RelativePath(validating: "libStaticLibrary.a"),
+                    platform: .macOS,
+                    architectures: [.arm64, .x8664]
+                ),
+            ]),
+            linking: .static,
+            swiftModules: [
+                staticLibraryModulePath,
+                staticLibraryModulePath.appending(component: "arm64-apple-macos.swiftmodule"),
+            ]
+        )
+        let framework = GraphDependency.testXCFramework(
+            path: frameworkPath,
+            infoPlist: .test(libraries: [
+                .test(
+                    identifier: "macos-arm64_x86_64",
+                    path: try RelativePath(validating: "Framework.framework"),
+                    platform: .macOS,
+                    architectures: [.arm64, .x8664]
+                ),
+            ]),
+            linking: .dynamic,
+            swiftModules: [
+                frameworkPath.appending(
+                    components: "macos-arm64_x86_64",
+                    "Framework.framework",
+                    "Modules",
+                    "Framework.swiftmodule"
+                ),
+            ]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: target.name, path: project.path): Set([dynamicLibrary, framework]),
+                dynamicLibrary: Set([staticLibrary]),
+                staticLibrary: Set([]),
+                framework: Set([]),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.librariesSwiftIncludePaths(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertEqual(got, [
+            SwiftIncludePath(
+                path: dynamicLibraryPath.appending(component: "macos-arm64_x86_64"),
+                sdkCondition: "sdk=macosx*"
+            ),
+            SwiftIncludePath(
+                path: staticLibraryPath.appending(component: "macos-arm64_x86_64"),
+                sdkCondition: "sdk=macosx*"
+            ),
+        ])
+    }
+
+    func test_librariesSwiftIncludePaths_conditionsLibraryXCFrameworkSlicesBySDK() throws {
+        // Given
+        let target = Target.test(name: "App", destinations: [.iPhone])
+        let project = Project.test(targets: [target])
+        let frameworkPath = try AbsolutePath(validating: "/cache/Kit.xcframework")
+        let staticLibraryPath = try AbsolutePath(validating: "/Deps/BinaryLib.xcframework")
+        let deviceModulePath = staticLibraryPath.appending(components: "ios-arm64", "BinaryLib.swiftmodule")
+        let simulatorModulePath = staticLibraryPath.appending(
+            components: "ios-arm64_x86_64-simulator",
+            "BinaryLib.swiftmodule"
+        )
+        let framework = GraphDependency.testXCFramework(
+            path: frameworkPath,
+            infoPlist: .test(libraries: [
+                .test(
+                    identifier: "ios-arm64",
+                    path: try RelativePath(validating: "Kit.framework"),
+                    platform: .iOS,
+                    architectures: [.arm64]
+                ),
+            ]),
+            linking: .dynamic
+        )
+        let staticLibrary = GraphDependency.testXCFramework(
+            path: staticLibraryPath,
+            infoPlist: .test(libraries: [
+                .test(
+                    identifier: "ios-arm64",
+                    path: try RelativePath(validating: "BinaryLib.a"),
+                    platform: .iOS,
+                    architectures: [.arm64]
+                ),
+                .test(
+                    identifier: "ios-arm64_x86_64-simulator",
+                    path: try RelativePath(validating: "BinaryLib.a"),
+                    platform: .iOS,
+                    platformVariant: .simulator,
+                    architectures: [.arm64, .x8664]
+                ),
+            ]),
+            linking: .static,
+            swiftModules: [
+                deviceModulePath.appending(component: "arm64.swiftinterface"),
+                simulatorModulePath.appending(component: "arm64.swiftinterface"),
+                simulatorModulePath.appending(component: "x86_64.swiftinterface"),
+            ]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: target.name, path: project.path): Set([framework]),
+                framework: Set([staticLibrary]),
+                staticLibrary: Set([]),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.librariesSwiftIncludePaths(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertEqual(got, [
+            SwiftIncludePath(
+                path: staticLibraryPath.appending(component: "ios-arm64"),
+                sdkCondition: "sdk=iphoneos*"
+            ),
+            SwiftIncludePath(
+                path: staticLibraryPath.appending(component: "ios-arm64_x86_64-simulator"),
+                sdkCondition: "sdk=iphonesimulator*"
+            ),
+        ])
+    }
+
+    func test_librariesSwiftIncludePaths_keepsOnlyTheMacSliceTheTargetBuildsFor() throws {
+        // Given
+        let macApp = Target.test(name: "MacApp", destinations: [.mac])
+        let catalystApp = Target.test(name: "CatalystApp", destinations: [.iPad, .macCatalyst])
+        let project = Project.test(targets: [macApp, catalystApp])
+        let staticLibraryPath = try AbsolutePath(validating: "/Deps/BinaryLib.xcframework")
+        let staticLibrary = GraphDependency.testXCFramework(
+            path: staticLibraryPath,
+            infoPlist: .test(libraries: [
+                .test(
+                    identifier: "ios-arm64",
+                    path: try RelativePath(validating: "BinaryLib.a"),
+                    platform: .iOS,
+                    architectures: [.arm64]
+                ),
+                .test(
+                    identifier: "ios-arm64_x86_64-maccatalyst",
+                    path: try RelativePath(validating: "BinaryLib.a"),
+                    platform: .iOS,
+                    platformVariant: .maccatalyst,
+                    architectures: [.arm64, .x8664]
+                ),
+                .test(
+                    identifier: "macos-arm64_x86_64",
+                    path: try RelativePath(validating: "BinaryLib.a"),
+                    platform: .macOS,
+                    architectures: [.arm64, .x8664]
+                ),
+            ]),
+            linking: .static,
+            swiftModules: ["ios-arm64", "ios-arm64_x86_64-maccatalyst", "macos-arm64_x86_64"].map {
+                staticLibraryPath.appending(components: $0, "BinaryLib.swiftmodule", "arm64.swiftinterface")
+            }
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: macApp.name, path: project.path): Set([staticLibrary]),
+                .target(name: catalystApp.name, path: project.path): Set([staticLibrary]),
+                staticLibrary: Set([]),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let macAppPaths = subject.librariesSwiftIncludePaths(path: project.path, name: macApp.name)
+        let catalystAppPaths = subject.librariesSwiftIncludePaths(path: project.path, name: catalystApp.name)
+
+        // Then
+        XCTAssertEqual(macAppPaths, [
+            SwiftIncludePath(
+                path: staticLibraryPath.appending(component: "macos-arm64_x86_64"),
+                sdkCondition: "sdk=macosx*"
+            ),
+        ])
+        XCTAssertEqual(catalystAppPaths, [
+            SwiftIncludePath(
+                path: staticLibraryPath.appending(component: "ios-arm64"),
+                sdkCondition: "sdk=iphoneos*"
+            ),
+            SwiftIncludePath(
+                path: staticLibraryPath.appending(component: "ios-arm64_x86_64-maccatalyst"),
+                sdkCondition: "sdk=macosx*"
+            ),
+        ])
+    }
+
+    func test_librariesSwiftIncludePaths_leavesSwiftModulesOutsideASliceUnconditioned() throws {
+        // Given
+        let target = Target.test(name: "App", destinations: [.iPhone])
+        let project = Project.test(targets: [target])
+        let staticLibraryPath = try AbsolutePath(validating: "/Deps/BinaryLib.xcframework")
+        let staticLibrary = GraphDependency.testXCFramework(
+            path: staticLibraryPath,
+            infoPlist: .test(libraries: [
+                .test(
+                    identifier: "ios-arm64",
+                    path: try RelativePath(validating: "BinaryLib.a"),
+                    platform: .iOS,
+                    architectures: [.arm64]
+                ),
+            ]),
+            linking: .static,
+            swiftModules: [
+                staticLibraryPath.appending(components: "Modules", "BinaryLib.swiftmodule", "arm64.swiftinterface"),
+            ]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: target.name, path: project.path): Set([staticLibrary]),
+                staticLibrary: Set([]),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.librariesSwiftIncludePaths(path: project.path, name: target.name)
+
+        // Then
+        XCTAssertEqual(got, [SwiftIncludePath(path: staticLibraryPath.appending(component: "Modules"))])
     }
 
     func test_runPathSearchPaths() throws {
@@ -3890,6 +4777,52 @@ final class GraphTraverserTests: TuistUnitTestCase {
             got,
             try [AbsolutePath(validating: "/test")]
         )
+    }
+
+    func test_runPathSearchPaths_excludes_xcframeworks_and_keeps_frameworks() throws {
+        // Given
+        let unitTests = Target.test(name: "AppUnitTests", product: .unitTests)
+        let project = Project.test(path: "/path/a", targets: [unitTests])
+        let frameworkDependency = GraphDependency.testFramework(
+            path: "/frameworks/Framework.framework",
+            binaryPath: "/frameworks/Framework.framework/Framework",
+            linking: .dynamic
+        )
+        let xcframeworkDependency = GraphDependency.testXCFramework(
+            path: "/binaries/hash-a/Cached.xcframework",
+            linking: .dynamic
+        )
+        let foreignXCFrameworkDependency = GraphDependency.foreignBuildOutput(
+            .init(name: "Foreign", path: "/binaries/hash-b/Foreign.xcframework", linking: .dynamic)
+        )
+        let foreignFrameworkDependency = GraphDependency.foreignBuildOutput(
+            .init(name: "ForeignFramework", path: "/foreign/ForeignFramework.framework", linking: .dynamic)
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: unitTests.name, path: project.path): Set([
+                    frameworkDependency,
+                    xcframeworkDependency,
+                    foreignXCFrameworkDependency,
+                    foreignFrameworkDependency,
+                ]),
+                frameworkDependency: Set(),
+                xcframeworkDependency: Set(),
+                foreignXCFrameworkDependency: Set(),
+                foreignFrameworkDependency: Set(),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.runPathSearchPaths(path: project.path, name: unitTests.name).sorted()
+
+        // Then
+        XCTAssertEqual(got, [
+            try AbsolutePath(validating: "/foreign"),
+            try AbsolutePath(validating: "/frameworks"),
+        ])
     }
 
     func test_runPathSearchPaths_when_unit_tests_with_hosted_target() throws {
@@ -4117,6 +5050,105 @@ final class GraphTraverserTests: TuistUnitTestCase {
             graphTargetC,
             graphTargetD,
         ])
+    }
+
+    func test_staticXCFrameworkAppIntentsMetadata_returns_direct_and_transitive_static_xcframework_metadata() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let feature = Target.test(name: "Feature", product: .framework)
+        let project = Project.test(targets: [app, feature])
+        let directXCFramework: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/direct.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "ios-arm64",
+                path: try RelativePath(validating: "Direct.framework"),
+                architectures: [.arm64]
+            )]),
+            linking: .static
+        )
+        let transitiveXCFramework: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/transitive.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "ios-arm64",
+                path: try RelativePath(validating: "Transitive.framework"),
+                architectures: [.arm64]
+            )]),
+            linking: .static
+        )
+        let dynamicXCFramework: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/dynamic.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "ios-arm64",
+                path: try RelativePath(validating: "Dynamic.framework"),
+                architectures: [.arm64]
+            )]),
+            linking: .dynamic
+        )
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: project.path): Set([
+                .target(name: feature.name, path: project.path),
+                dynamicXCFramework,
+            ]),
+            .target(name: feature.name, path: project.path): Set([
+                directXCFramework,
+            ]),
+            directXCFramework: Set([
+                transitiveXCFramework,
+            ]),
+        ]
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.staticXCFrameworkAppIntentsMetadata(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEqual(got, Set([
+            .init(
+                frameworkName: "Direct",
+                metadataPath: "/xcframeworks/direct.xcframework/ios-arm64/Direct.framework/Metadata.appintents"
+            ),
+            .init(
+                frameworkName: "Transitive",
+                metadataPath: "/xcframeworks/transitive.xcframework/ios-arm64/Transitive.framework/Metadata.appintents"
+            ),
+        ]))
+    }
+
+    func test_staticXCFrameworkAppIntentsMetadata_ignores_non_framework_libraries() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(targets: [app])
+        let staticLibraryXCFramework: GraphDependency = .testXCFramework(
+            path: "/xcframeworks/library.xcframework",
+            infoPlist: .test(libraries: [.test(
+                identifier: "ios-arm64",
+                path: try RelativePath(validating: "libLibrary.a"),
+                architectures: [.arm64]
+            )]),
+            linking: .static
+        )
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            dependencies: [
+                .target(name: app.name, path: project.path): Set([
+                    staticLibraryXCFramework,
+                ]),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.staticXCFrameworkAppIntentsMetadata(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertEmpty(got)
     }
 
     func test_copyProductDependencies_when_targetHasTransitiveStaticXCFrameworks() throws {
@@ -5417,7 +6449,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ]))
     }
 
-    func test_allSwiftPluginExecutables_includesAllXCFrameworkMacros_when_theyAreDirectOrTransitiveDependencies() throws {
+    func test_allPrecompiledSwiftMacroExecutables_includesAllXCFrameworkMacros_when_theyAreDirectOrTransitiveDependencies(
+    ) throws {
         // Given
         let directory = try temporaryPath()
         let appTarget = Target.test(name: "App", destinations: [.appleWatch])
@@ -5438,14 +6471,17 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
 
         // When
-        let got = GraphTraverser(graph: graph).allSwiftPluginExecutables(path: project.path, name: appTarget.name)
+        let got = GraphTraverser(graph: graph).allPrecompiledSwiftMacroExecutables(
+            path: project.path,
+            name: appTarget.name
+        )
 
         XCTAssertEqual(got.sorted(), [
             "\(macroPath.pathString)#\(macroPath.basename.replacingOccurrences(of: ".macro", with: ""))",
         ])
     }
 
-    func test_allSwiftPluginExecutables_staticFrameworksThatDependOnMacroTargets_when_theyAreDirectOrTransitiveDependencies(
+    func test_allPrecompiledSwiftMacroExecutables_excludesSourceMacroTargets(
     ) throws {
         // Given
         let directory = try temporaryPath()
@@ -5503,15 +6539,15 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
 
         // When
-        let got = GraphTraverser(graph: graph).allSwiftPluginExecutables(path: project.path, name: appTarget.name)
+        let got = GraphTraverser(graph: graph).allPrecompiledSwiftMacroExecutables(
+            path: project.path,
+            name: appTarget.name
+        )
 
-        XCTAssertEqual(got.sorted(), [
-            "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/DirectMacro#DirectMacro",
-            "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/TransitiveMacro#TransitiveMacro",
-        ])
+        XCTAssertEqual(got, [])
     }
 
-    func test_allSwiftPluginExecutables_when_staticMacroFrameworkThatDependOnMacroPrecompiledExecutable(
+    func test_allPrecompiledSwiftMacroExecutables_when_staticMacroFrameworkDependsOnPrecompiledMacroExecutable(
     ) throws {
         // Given
         let directory = try temporaryPath()
@@ -5544,7 +6580,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
 
         // When
-        let got = GraphTraverser(graph: graph).allSwiftPluginExecutables(path: project.path, name: appTarget.name)
+        let got = GraphTraverser(graph: graph).allPrecompiledSwiftMacroExecutables(
+            path: project.path,
+            name: appTarget.name
+        )
 
         // Then
         XCTAssertEqual(got.sorted(), [
@@ -5643,6 +6682,128 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEmpty(got)
     }
 
+    func test_testTargets_when_scheme_has_test_targets() {
+        // Given
+        let appTarget = Target.test(name: "App", product: .app)
+        let appTests = Target.test(name: "AppTests", product: .unitTests)
+        let otherTests = Target.test(name: "OtherTests", product: .unitTests)
+        let project = Project.test(targets: [appTarget, appTests, otherTests])
+        let scheme = Scheme.test(
+            name: "AppTests",
+            testAction: .test(
+                targets: [.test(target: TargetReference(projectPath: project.path, name: "AppTests"))]
+            )
+        )
+        let graph = Graph.test(
+            workspace: .test(schemes: [scheme]),
+            projects: [project.path: project]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let result = subject.testTargets(for: "AppTests")
+
+        // Then
+        XCTAssertEqual(result.map(\.target.name), ["AppTests"])
+    }
+
+    func test_testTargets_when_scheme_not_found() {
+        // Given
+        let graph = Graph.test(projects: [:])
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let result = subject.testTargets(for: "NonExistent")
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func test_testTargets_when_scheme_has_no_test_action() {
+        // Given
+        let target = Target.test(name: "App", product: .app)
+        let project = Project.test(targets: [target])
+        let scheme = Scheme.test(name: "App", testAction: nil)
+        let graph = Graph.test(
+            workspace: .test(schemes: [scheme]),
+            projects: [project.path: project]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let result = subject.testTargets(for: "App")
+
+        // Then
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func test_testTargets_when_scheme_has_test_plans() throws {
+        // Given
+        let appTarget = Target.test(name: "App", product: .app)
+        let appTests = Target.test(name: "AppTests", product: .unitTests)
+        let otherTests = Target.test(name: "OtherTests", product: .unitTests)
+        let project = Project.test(targets: [appTarget, appTests, otherTests])
+        let testPlan = TestPlan(
+            path: try AbsolutePath(validating: "/Plans/App.xctestplan"),
+            testTargets: [
+                .test(target: TargetReference(projectPath: project.path, name: "AppTests")),
+            ],
+            isDefault: true
+        )
+        let scheme = Scheme.test(
+            name: "App",
+            testAction: .test(
+                targets: [],
+                testPlans: [testPlan]
+            )
+        )
+        let graph = Graph.test(
+            workspace: .test(schemes: [scheme]),
+            projects: [project.path: project]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let result = subject.testTargets(for: "App")
+
+        // Then
+        XCTAssertEqual(result.map(\.target.name), ["AppTests"])
+    }
+
+    func test_testTargets_when_scheme_has_both_test_plans_and_targets() throws {
+        // Given
+        let appTarget = Target.test(name: "App", product: .app)
+        let planTests = Target.test(name: "PlanTests", product: .unitTests)
+        let inlineTests = Target.test(name: "InlineTests", product: .unitTests)
+        let unrelatedTests = Target.test(name: "UnrelatedTests", product: .unitTests)
+        let project = Project.test(targets: [appTarget, planTests, inlineTests, unrelatedTests])
+        let testPlan = TestPlan(
+            path: try AbsolutePath(validating: "/Plans/App.xctestplan"),
+            testTargets: [
+                .test(target: TargetReference(projectPath: project.path, name: "PlanTests")),
+            ],
+            isDefault: true
+        )
+        let scheme = Scheme.test(
+            name: "App",
+            testAction: .test(
+                targets: [.test(target: TargetReference(projectPath: project.path, name: "InlineTests"))],
+                testPlans: [testPlan]
+            )
+        )
+        let graph = Graph.test(
+            workspace: .test(schemes: [scheme]),
+            projects: [project.path: project]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let result = subject.testTargets(for: "App")
+
+        // Then
+        XCTAssertEqual(Set(result.map(\.target.name)), Set(["PlanTests", "InlineTests"]))
+    }
+
     func test_schemeRunnableTarget_when_no_executable_nor_build_targets() {
         // Given
         let scheme = Scheme.test(buildAction: .test(targets: []), runAction: .test(executable: nil))
@@ -5718,4 +6879,252 @@ final class GraphTraverserTests: TuistUnitTestCase {
 private struct SDKPathAndStatus: Equatable {
     var name: String
     var status: LinkingStatus
+}
+
+struct GraphTraverserStaticXCFrameworksReachableViaCachedTargetsTests {
+    private let projectPath = try! AbsolutePath(validating: "/Project")
+    private let renderer = GraphDependency.testXCFramework(
+        path: try! AbsolutePath(validating: "/XRendererRustFramework.xcframework"),
+        linking: .static,
+        moduleMaps: [try! AbsolutePath(validating: "/XRendererRustFramework.xcframework/ios-arm64/Headers/module.modulemap")]
+    )
+
+    @Test func excludesStaticXCFrameworksTheTargetLinksItself() {
+        // Given
+        let graph = Graph.test(
+            projects: [projectPath: .test(path: projectPath, targets: [.test(name: "XRendererKit")])],
+            dependencies: [
+                .target(name: "XRendererKit", path: projectPath): [renderer],
+            ]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graph).staticObjcXCFrameworksReachableViaCachedTargets(
+            path: projectPath,
+            name: "XRendererKit",
+            currentGraph: graph
+        )
+
+        // Then
+        #expect(got.isEmpty)
+    }
+
+    @Test func includesStaticXCFrameworksBehindReplacedTargets() {
+        // Given
+        let graphWithSources = Graph.test(
+            projects: [projectPath: .test(path: projectPath, targets: [.test(name: "App"), .test(name: "XRendererKit")])],
+            dependencies: [
+                .target(name: "App", path: projectPath): [
+                    .target(name: "XRendererKit", path: projectPath),
+                    renderer,
+                ],
+                .target(name: "XRendererKit", path: projectPath): [renderer],
+            ]
+        )
+        let graphWithBinaryCache = Graph.test(
+            projects: [projectPath: .test(path: projectPath, targets: [.test(name: "App")])]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graphWithSources).staticObjcXCFrameworksReachableViaCachedTargets(
+            path: projectPath,
+            name: "App",
+            currentGraph: graphWithBinaryCache
+        )
+
+        // Then
+        #expect(got == [renderer])
+    }
+
+    @Test func includesStaticXCFrameworksBehindReplacedTargetsReachableAlongSeveralPaths() throws {
+        for iteration in 0 ..< 50 {
+            // Given
+            let renderer = GraphDependency.testXCFramework(
+                path: try AbsolutePath(validating: "/XRendererRustFramework\(iteration).xcframework"),
+                linking: .static,
+                moduleMaps: [
+                    try AbsolutePath(
+                        validating: "/XRendererRustFramework\(iteration).xcframework/ios-arm64/Headers/module.modulemap"
+                    ),
+                ]
+            )
+            func target(_ name: String) -> GraphDependency {
+                .target(name: "\(name)\(iteration)", path: projectPath)
+            }
+            let graphWithSources = Graph.test(
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: ["App", "AppExtension", "FeatureKit", "CoreKit", "XRendererKit"]
+                            .map { .test(name: "\($0)\(iteration)") }
+                    ),
+                ],
+                dependencies: [
+                    target("App"): [target("FeatureKit")],
+                    target("AppExtension"): [target("CoreKit")],
+                    target("FeatureKit"): [target("CoreKit"), target("XRendererKit")],
+                    target("CoreKit"): [target("XRendererKit")],
+                    target("XRendererKit"): [renderer],
+                ]
+            )
+            let graphWithBinaryCache = Graph.test(
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: ["App", "AppExtension"].map { .test(name: "\($0)\(iteration)") }
+                    ),
+                ]
+            )
+            let subject = GraphTraverser(graph: graphWithSources)
+
+            // When
+            let gotApp = subject.staticObjcXCFrameworksReachableViaCachedTargets(
+                path: projectPath,
+                name: "App\(iteration)",
+                currentGraph: graphWithBinaryCache
+            )
+            let gotAppExtension = subject.staticObjcXCFrameworksReachableViaCachedTargets(
+                path: projectPath,
+                name: "AppExtension\(iteration)",
+                currentGraph: graphWithBinaryCache
+            )
+
+            // Then
+            #expect(gotApp == [renderer])
+            #expect(gotAppExtension == [renderer])
+        }
+    }
+}
+
+struct GraphTraverserTargetsProcessingStaticXCFrameworkTests {
+    private let projectPath = try! AbsolutePath(validating: "/Project")
+
+    private func xcframework(_ name: String, linking: BinaryLinking) -> GraphDependency {
+        .testXCFramework(path: try! AbsolutePath(validating: "/\(name).xcframework"), linking: linking)
+    }
+
+    private func target(_ name: String) -> GraphDependency {
+        .target(name: name, path: projectPath)
+    }
+
+    /// What `targetsProcessingStaticXCFramework(at:)` replaces: filtering `linkableDependencies` and
+    /// `copyProductDependencies` of every target for the xcframework.
+    private func targetsProcessingXCFrameworkForwards(
+        at path: AbsolutePath,
+        graph: Graph
+    ) throws -> Set<GraphTargetReference> {
+        let subject = GraphTraverser(graph: graph)
+        var references = Set<GraphTargetReference>()
+        for graphTarget in subject.allTargets() {
+            let linked = try subject.linkableDependencies(
+                path: graphTarget.path,
+                name: graphTarget.target.name,
+                shouldExcludeHostAppDependencies: false
+            )
+            let copied = subject.copyProductDependencies(path: graphTarget.path, name: graphTarget.target.name)
+            for case let .xcframework(referencePath, _, _, _, condition) in linked.union(copied)
+                where referencePath == path
+            {
+                references.insert(GraphTargetReference(target: graphTarget, condition: condition))
+            }
+        }
+        return references
+    }
+
+    @Test func returnsTheTargetsThatLinkOrCopyTheXCFramework() throws {
+        // Given
+        let renderer = xcframework("Renderer", linking: .static)
+        let cachedStaticFeature = xcframework("CachedStaticFeature", linking: .static)
+        let cachedDynamicFeature = xcframework("CachedDynamicFeature", linking: .dynamic)
+        let project = Project.test(path: projectPath, targets: [
+            .test(name: "App", product: .app),
+            .test(name: "AppTests", product: .unitTests),
+            .test(name: "DynamicKit", product: .framework),
+            .test(name: "StaticKit", product: .staticFramework),
+            .test(name: "StaticShim", product: .staticFramework),
+            .test(name: "StaticConsumer", product: .staticFramework),
+            .test(name: "Tool", product: .commandLineTool),
+        ])
+        let graph = Graph.test(
+            projects: [projectPath: project],
+            dependencies: [
+                target("App"): [target("StaticKit")],
+                target("AppTests"): [target("App"), target("StaticShim")],
+                target("DynamicKit"): [renderer],
+                target("StaticKit"): [target("StaticShim")],
+                target("StaticShim"): [renderer],
+                target("StaticConsumer"): [cachedStaticFeature, cachedDynamicFeature],
+                target("Tool"): [target("StaticShim")],
+                cachedStaticFeature: [renderer],
+                cachedDynamicFeature: [renderer],
+            ],
+            dependencyConditions: [
+                GraphEdge(from: target("App"), to: target("StaticKit")): try #require(.when([.ios])),
+            ]
+        )
+
+        // When
+        let got = GraphTraverser(graph: graph).targetsProcessingStaticXCFramework(
+            at: try AbsolutePath(validating: "/Renderer.xcframework")
+        )
+
+        // Then
+        let graphTarget: (String) throws -> GraphTarget = { name in
+            try #require(GraphTraverser(graph: graph).target(path: projectPath, name: name))
+        }
+        #expect(got == [
+            GraphTargetReference(target: try graphTarget("App"), condition: .when([.ios])),
+            GraphTargetReference(target: try graphTarget("AppTests"), condition: nil),
+            GraphTargetReference(target: try graphTarget("DynamicKit"), condition: nil),
+            GraphTargetReference(target: try graphTarget("StaticShim"), condition: nil),
+            GraphTargetReference(target: try graphTarget("StaticConsumer"), condition: nil),
+            GraphTargetReference(target: try graphTarget("Tool"), condition: nil),
+        ])
+        #expect(got == (try targetsProcessingXCFrameworkForwards(at: "/Renderer.xcframework", graph: graph)))
+    }
+
+    @Test func matchesFilteringLinkableAndCopiedDependenciesOfEveryTarget() throws {
+        // Given
+        let staticXCFrameworks = (0 ..< 4).map { xcframework("Static\($0)", linking: .static) }
+        let dynamicXCFramework = xcframework("Dynamic", linking: .dynamic)
+        let products: [Product] = [.app, .unitTests, .framework, .staticFramework, .staticLibrary, .bundle, .macro]
+        let targets = (0 ..< 21).map { index in
+            Target.test(name: "Target\(index)", product: products[index % products.count])
+        }
+        var dependencies: [GraphDependency: Set<GraphDependency>] = [:]
+        var dependencyConditions: [GraphEdge: PlatformCondition] = [:]
+        for index in targets.indices {
+            let from = target("Target\(index)")
+            for offset in [1, 3, 5] where index + offset < targets.count {
+                dependencies[from, default: []].insert(target("Target\(index + offset)"))
+            }
+            dependencies[from, default: []].insert(staticXCFrameworks[index % staticXCFrameworks.count])
+            if index % 4 == 0 {
+                dependencies[from, default: []].insert(dynamicXCFramework)
+            }
+            if index % 6 == 0, index + 1 < targets.count {
+                dependencyConditions[GraphEdge(from: from, to: target("Target\(index + 1)"))] = try #require(.when([.ios]))
+            }
+        }
+        dependencies[staticXCFrameworks[0]] = [staticXCFrameworks[1], dynamicXCFramework]
+        dependencies[dynamicXCFramework] = [staticXCFrameworks[2]]
+        dependencies[staticXCFrameworks[1]] = [staticXCFrameworks[3]]
+        let graph = Graph.test(
+            projects: [projectPath: .test(path: projectPath, targets: targets)],
+            dependencies: dependencies,
+            dependencyConditions: dependencyConditions
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        for index in staticXCFrameworks.indices {
+            let path = try AbsolutePath(validating: "/Static\(index).xcframework")
+
+            // When
+            let got = subject.targetsProcessingStaticXCFramework(at: path)
+
+            // Then
+            #expect(!got.isEmpty)
+            #expect(got == (try targetsProcessingXCFrameworkForwards(at: path, graph: graph)))
+        }
+    }
 }

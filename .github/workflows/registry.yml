@@ -1,0 +1,123 @@
+name: Registry
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - registry/**
+      - tuist_common/**
+      - .github/workflows/registry.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - registry/**
+      - tuist_common/**
+      - .github/workflows/registry.yml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: registry-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: registry
+
+env:
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  MISE_GITHUB_ATTESTATIONS: 0
+  MISE_CEILING_PATHS: ${{ github.workspace }}
+
+jobs:
+  format:
+    name: Format
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.repository == 'tuist/tuist'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "erlang elixir ruby"
+          working_directory: registry
+      - uses: tuist/cache-volume@v1
+        with:
+          key: ci-registry-${{ github.job }}-mix-v1
+          path: |
+            registry/deps
+            registry/_build
+      - name: Install dependencies
+        run: mise run install
+      - name: Check format
+        run: mise run format --check
+
+  credo:
+    name: Credo
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "erlang elixir ruby"
+          working_directory: registry
+      - uses: tuist/cache-volume@v1
+        with:
+          key: ci-registry-${{ github.job }}-mix-v1
+          path: |
+            registry/deps
+            registry/_build
+      - name: Install dependencies
+        run: mise run install
+      - name: Run Credo
+        run: mise run credo
+
+  test:
+    name: Test
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "erlang elixir ruby"
+          working_directory: registry
+      - uses: tuist/cache-volume@v1
+        with:
+          key: ci-registry-${{ github.job }}-mix-v1
+          path: |
+            registry/deps
+            registry/_build
+      - name: Install dependencies
+        run: mise run install
+      - name: Run tests
+        run: mise run test
+
+  compile-prod:
+    name: Compile (prod)
+    runs-on: tuist-linux
+    timeout-minutes: 15
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/mise
+        with:
+          install_args: "erlang elixir ruby"
+          working_directory: registry
+      - uses: tuist/cache-volume@v1
+        with:
+          key: ci-registry-${{ github.job }}-mix-v1
+          path: |
+            registry/deps
+            registry/_build
+      - name: Install dependencies
+        run: mise run install
+      - name: Compile with MIX_ENV=prod
+        run: MIX_ENV=prod mix compile --warnings-as-errors

@@ -1,0 +1,128 @@
+<div
+  id="docs-search"
+  data-host={@host}
+  data-api-key={@api_key}
+  data-locale={@locale}
+>
+  <div data-part="backdrop"></div>
+  <div data-part="modal">
+    <div data-part="search-wrapper">
+      <div data-part="input-container">
+        <span data-part="search-icon"><.search /></span>
+        <input
+          data-part="search-input"
+          type="text"
+          placeholder={@placeholder}
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </div>
+    </div>
+    <div data-part="body">
+      <p data-part="empty-state">{dgettext("docs", "No search history")}</p>
+      <div data-part="results"></div>
+    </div>
+    <div data-part="footer">
+      <div data-part="footer-hints">
+        <span data-part="footer-hint">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <polyline points="9 10 4 15 9 20" /><path d="M20 4v7a4 4 0 0 1-4 4H4" />
+          </svg>
+          {dgettext("docs", "Select")}
+        </span>
+        <span data-part="footer-hint">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" />
+          </svg>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" />
+          </svg>
+          {dgettext("docs", "Navigate")}
+        </span>
+        <span data-part="footer-hint">
+          <.shortcut_key size="small">esc</.shortcut_key>
+          {dgettext("docs", "Close")}
+        </span>
+      </div>
+    </div>
+  </div>
+  <%!-- Templates for result groups --%>
+  <template data-template="group">
+    <div data-part="result-group">
+      <p data-part="group-label"></p>
+    </div>
+  </template>
+  <template data-template="result">
+    <a data-part="result-item">
+      <span data-part="result-text">
+        <span data-part="result-title"></span>
+        <span data-part="result-subtitle"></span>
+        <span data-part="result-url"></span>
+      </span>
+      <span data-part="result-enter">
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <polyline points="9 10 4 15 9 20" /><path d="M20 4v7a4 4 0 0 1-4 4H4" />
+        </svg>
+      </span>
+    </a>
+  </template>
+  <%!-- Group label icons (hidden, cloned by JS) --%>
+  <template data-icon="hash">
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <line x1="4" y1="9" x2="20" y2="9" /><line x1="4" y1="15" x2="20" y2="15" /><line
+        x1="10"
+        y1="3"
+        x2="8"
+        y2="21"
+      /><line x1="16" y1="3" x2="14" y2="21" />
+    </svg>
+  </template>
+  <template data-icon="swift"><.brand_swift /></template>
+  <template data-icon="github"><.brand_github /></template>
+  <template data-icon="community"><.message_circle /></template>
+</div>

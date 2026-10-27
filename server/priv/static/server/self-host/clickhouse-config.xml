@@ -1,0 +1,11 @@
+<clickhouse>
+  <listen_host>0.0.0.0</listen_host>
+  <timezone>UTC</timezone>
+
+  <zookeeper>
+    <node>
+      <host>clickhouse-keeper</host>
+      <port>9181</port>
+    </node>
+  </zookeeper>
+</clickhouse>

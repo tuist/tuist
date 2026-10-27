@@ -5,36 +5,72 @@ defmodule Tuist.Xcode do
 
   import Ecto.Query
 
+  alias Tuist.BuildEntities
   alias Tuist.ClickHouseRepo
   alias Tuist.Xcode.XcodeGraph.Buffer, as: XcodeGraphBuffer
   alias Tuist.Xcode.XcodeProject.Buffer, as: XcodeProjectBuffer
   alias Tuist.Xcode.XcodeTarget
   alias Tuist.Xcode.XcodeTarget.Buffer, as: XcodeTargetBuffer
 
-  require Logger
-
-  def create_xcode_graph(%{command_event: %{id: command_event_id}, xcode_graph: %{name: name} = xcode_graph}) do
+  def create_xcode_graph(%{
+        command_event: %{id: command_event_id, project_id: project_id} = command_event,
+        xcode_graph: %{name: name} = xcode_graph
+      }) do
     {xcode_graph_data, projects_data, targets_data, xcode_graph_id} =
-      prepare_xcode_graph(xcode_graph, command_event_id)
+      prepare_xcode_graph(xcode_graph, command_event_id, project_id)
 
     XcodeGraphBuffer.insert(xcode_graph_data)
-    XcodeProjectBuffer.insert(projects_data)
-    XcodeTargetBuffer.insert(targets_data)
+    XcodeProjectBuffer.insert_all(projects_data)
+    XcodeTargetBuffer.insert_all(targets_data)
+
+    if BuildEntities.enabled?(command_event.project_id) do
+      BuildEntities.Producers.xcode_graph(command_event, projects_data, targets_data)
+    end
 
     xcode_graph = %{id: xcode_graph_id, name: name, command_event_id: command_event_id}
     {:ok, xcode_graph}
   end
 
   def selective_testing_analytics(run, flop_params \\ %{}) do
+    {start_dt, end_dt} = event_date_range(run)
+
     base_query =
       from(xt in XcodeTarget,
         where: xt.command_event_id == ^run.id,
+        where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt,
         where: not is_nil(xt.selective_testing_hash),
         select: %{
+          hashed_destinations: xt.hashed_destinations,
+          embedded_product_references_hash: xt.embedded_product_references_hash,
+          foreign_build_hash: xt.foreign_build_hash,
+          test_device: xt.test_device,
+          test_runtime: xt.test_runtime,
           id: xt.id,
           name: xt.name,
           selective_testing_hit: xt.selective_testing_hit,
-          selective_testing_hash: xt.selective_testing_hash
+          selective_testing_hash: xt.selective_testing_hash,
+          product: xt.product,
+          bundle_id: xt.bundle_id,
+          product_name: xt.product_name,
+          external_hash: xt.external_hash,
+          sources_hash: xt.sources_hash,
+          resources_hash: xt.resources_hash,
+          copy_files_hash: xt.copy_files_hash,
+          core_data_models_hash: xt.core_data_models_hash,
+          target_scripts_hash: xt.target_scripts_hash,
+          environment_hash: xt.environment_hash,
+          headers_hash: xt.headers_hash,
+          deployment_target_hash: xt.deployment_target_hash,
+          info_plist_hash: xt.info_plist_hash,
+          entitlements_hash: xt.entitlements_hash,
+          dependencies_hash: xt.dependencies_hash,
+          dependencies: xt.dependencies,
+          project_settings_hash: xt.project_settings_hash,
+          target_settings_hash: xt.target_settings_hash,
+          buildable_folders_hash: xt.buildable_folders_hash,
+          additional_hashing_inputs_hash: xt.additional_hashing_inputs_hash,
+          destinations: xt.destinations,
+          additional_strings: xt.additional_strings
         }
       )
 
@@ -44,9 +80,36 @@ defmodule Tuist.Xcode do
     test_modules =
       Enum.map(targets, fn target ->
         %{
+          hashed_destinations: XcodeTarget.hashed_destinations(target, run),
+          embedded_product_references_hash: target.embedded_product_references_hash,
+          foreign_build_hash: target.foreign_build_hash,
+          test_device: target.test_device,
+          test_runtime: target.test_runtime,
           name: target.name,
           selective_testing_hit: String.to_existing_atom(target.selective_testing_hit),
-          selective_testing_hash: target.selective_testing_hash
+          selective_testing_hash: target.selective_testing_hash,
+          product: target.product,
+          bundle_id: target.bundle_id,
+          product_name: target.product_name,
+          external_hash: target.external_hash,
+          sources_hash: target.sources_hash,
+          resources_hash: target.resources_hash,
+          copy_files_hash: target.copy_files_hash,
+          core_data_models_hash: target.core_data_models_hash,
+          target_scripts_hash: target.target_scripts_hash,
+          environment_hash: target.environment_hash,
+          headers_hash: target.headers_hash,
+          deployment_target_hash: target.deployment_target_hash,
+          info_plist_hash: target.info_plist_hash,
+          entitlements_hash: target.entitlements_hash,
+          dependencies_hash: target.dependencies_hash,
+          dependencies: target.dependencies,
+          project_settings_hash: target.project_settings_hash,
+          target_settings_hash: target.target_settings_hash,
+          buildable_folders_hash: target.buildable_folders_hash,
+          additional_hashing_inputs_hash: target.additional_hashing_inputs_hash,
+          destinations: target.destinations,
+          additional_strings: target.additional_strings
         }
       end)
 
@@ -55,11 +118,19 @@ defmodule Tuist.Xcode do
   end
 
   def binary_cache_analytics(run, flop_params \\ %{}) do
+    {start_dt, end_dt} = event_date_range(run)
+
     base_query =
       from(xt in XcodeTarget,
         where: xt.command_event_id == ^run.id,
+        where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt,
         where: not is_nil(xt.binary_cache_hash),
         select: %{
+          hashed_destinations: xt.hashed_destinations,
+          embedded_product_references_hash: xt.embedded_product_references_hash,
+          foreign_build_hash: xt.foreign_build_hash,
+          test_device: xt.test_device,
+          test_runtime: xt.test_runtime,
           id: xt.id,
           name: xt.name,
           binary_cache_hit: xt.binary_cache_hit,
@@ -79,9 +150,11 @@ defmodule Tuist.Xcode do
           info_plist_hash: xt.info_plist_hash,
           entitlements_hash: xt.entitlements_hash,
           dependencies_hash: xt.dependencies_hash,
+          dependencies: xt.dependencies,
           project_settings_hash: xt.project_settings_hash,
           target_settings_hash: xt.target_settings_hash,
           buildable_folders_hash: xt.buildable_folders_hash,
+          additional_hashing_inputs_hash: xt.additional_hashing_inputs_hash,
           destinations: xt.destinations,
           additional_strings: xt.additional_strings
         }
@@ -93,6 +166,11 @@ defmodule Tuist.Xcode do
     cacheable_targets =
       Enum.map(targets, fn target ->
         %{
+          hashed_destinations: XcodeTarget.hashed_destinations(target, run),
+          embedded_product_references_hash: target.embedded_product_references_hash,
+          foreign_build_hash: target.foreign_build_hash,
+          test_device: target.test_device,
+          test_runtime: target.test_runtime,
           name: target.name,
           binary_cache_hit: String.to_existing_atom(target.binary_cache_hit),
           binary_cache_hash: target.binary_cache_hash,
@@ -111,9 +189,11 @@ defmodule Tuist.Xcode do
           info_plist_hash: target.info_plist_hash,
           entitlements_hash: target.entitlements_hash,
           dependencies_hash: target.dependencies_hash,
+          dependencies: target.dependencies,
           project_settings_hash: target.project_settings_hash,
           target_settings_hash: target.target_settings_hash,
           buildable_folders_hash: target.buildable_folders_hash,
+          additional_hashing_inputs_hash: target.additional_hashing_inputs_hash,
           destinations: target.destinations,
           additional_strings: target.additional_strings
         }
@@ -124,10 +204,13 @@ defmodule Tuist.Xcode do
   end
 
   def selective_testing_counts(run) do
+    {start_dt, end_dt} = event_date_range(run)
+
     result =
       ClickHouseRepo.one(
         from(xt in XcodeTarget,
           where: xt.command_event_id == ^run.id,
+          where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt,
           where: not is_nil(xt.selective_testing_hash),
           select: %{
             local: fragment("countIf(selective_testing_hit = 'local')"),
@@ -148,10 +231,13 @@ defmodule Tuist.Xcode do
   end
 
   def binary_cache_counts(run) do
+    {start_dt, end_dt} = event_date_range(run)
+
     result =
       ClickHouseRepo.one(
         from(xt in XcodeTarget,
           where: xt.command_event_id == ^run.id,
+          where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt,
           where: not is_nil(xt.binary_cache_hash),
           select: %{
             local: fragment("countIf(binary_cache_hit = 'local')"),
@@ -185,30 +271,67 @@ defmodule Tuist.Xcode do
   end
 
   def has_selective_testing_data?(run) do
+    {start_dt, end_dt} = event_date_range(run)
+
     ClickHouseRepo.exists?(
       from(xt in XcodeTarget,
         where: xt.command_event_id == ^run.id,
+        where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt,
         where: not is_nil(xt.selective_testing_hash)
       )
     )
   end
 
   def has_binary_cache_data?(run) do
+    {start_dt, end_dt} = event_date_range(run)
+
     ClickHouseRepo.exists?(
       from(xt in XcodeTarget,
         where: xt.command_event_id == ^run.id,
+        where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt,
         where: not is_nil(xt.binary_cache_hash)
       )
     )
   end
 
-  defp prepare_xcode_graph(xcode_graph, command_event_id) do
+  @doc """
+  Returns a preload query for xcode_targets scoped to the run's date range.
+
+  The xcode_targets table is ordered by (inserted_at, id). A plain
+  `preload(run, [:xcode_targets])` generates `WHERE command_event_id = ?`
+  without inserted_at bounds, causing ClickHouse to scan all partitions
+  (~887K rows). Use this function instead to add a tight inserted_at range
+  (-5 min to +2 hours around created_at) for efficient primary key lookup.
+
+  Usage: `ClickHouseRepo.preload(run, xcode_targets: Xcode.xcode_targets_preload_query(run))`
+  """
+  def xcode_targets_preload_query(run) do
+    {start_dt, end_dt} = event_date_range(run)
+
+    from(xt in XcodeTarget,
+      where: xt.inserted_at >= ^start_dt and xt.inserted_at < ^end_dt
+    )
+  end
+
+  # Returns a range from 5 min before to 2 hours after the event's created_at.
+  # The xcode_targets table is ordered by (inserted_at, id), so a tight range
+  # lets ClickHouse binary search instead of scanning full daily partitions.
+  # inserted_at lags behind created_at by build duration + buffer flush delay,
+  # so 2 hours covers even long builds with margin.
+  defp event_date_range(event) do
+    start_dt = NaiveDateTime.add(event.created_at, -300, :second)
+    end_dt = NaiveDateTime.add(event.created_at, 7200, :second)
+    {start_dt, end_dt}
+  end
+
+  defp prepare_xcode_graph(xcode_graph, command_event_id, project_id) do
     xcode_graph_id = UUIDv7.generate()
     inserted_at = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
 
     xcode_graph_data = %{
       id: xcode_graph_id,
       name: xcode_graph.name,
+      project_id: project_id,
       command_event_id: command_event_id,
       binary_build_duration: Map.get(xcode_graph, :binary_build_duration),
       inserted_at: inserted_at
@@ -239,6 +362,7 @@ defmodule Tuist.Xcode do
           xcode_project.targets,
           &XcodeTarget.changeset(
             xcode_project.project.command_event_id,
+            project_id,
             xcode_project.project.id,
             &1,
             inserted_at
@@ -246,7 +370,13 @@ defmodule Tuist.Xcode do
         )
       end)
 
-    {xcode_graph_data, projects_data, targets_data, xcode_graph_id}
+    modules_count =
+      xcode_graph.projects
+      |> Enum.flat_map(fn project -> Enum.map(project["targets"], &{project["name"], &1["name"]}) end)
+      |> Enum.uniq()
+      |> length()
+
+    {Map.put(xcode_graph_data, :modules_count, modules_count), projects_data, targets_data, xcode_graph_id}
   end
 
   def normalize_hit_value(value) when value in ["miss", "local", "remote"], do: String.to_atom(value)

@@ -1,0 +1,62 @@
+{{- if .Values.indexers.enabled }}
+{{- $imageTag := required "image.tag is required" .Values.image.tag -}}
+{{- $nodeSelector := merge (dict) (.Values.global.nodeSelector | default (dict)) (.Values.nodeSelector | default (dict)) -}}
+{{- $tolerations := concat (.Values.global.tolerations | default (list)) (.Values.tolerations | default (list)) -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "typesense.fullname" . }}-indexers
+  labels:
+    {{- include "typesense.labels" . | nindent 4 }}
+    app.kubernetes.io/component: search-indexer
+spec:
+  schedule: {{ .Values.indexers.schedule | quote }}
+  concurrencyPolicy: {{ .Values.indexers.concurrencyPolicy }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.indexers.backoffLimit }}
+      activeDeadlineSeconds: {{ .Values.indexers.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            {{- include "typesense.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: search-indexer
+        spec:
+          restartPolicy: {{ .Values.indexers.restartPolicy }}
+          serviceAccountName: {{ include "typesense.serviceAccountName" . }}
+          automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+          {{- include "typesense.podScheduling" . | nindent 10 }}
+          {{- with .Values.podSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: indexers
+              image: "{{ .Values.image.repository }}:{{ $imageTag }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command: ["/opt/docsearch/run-indexers.sh"]
+              securityContext:
+                {{- toYaml .Values.containerSecurityContext | nindent 16 }}
+              env:
+                - name: TYPESENSE_HOST
+                  value: {{ printf "http://%s:%v" (include "typesense.fullname" .) .Values.service.port | quote }}
+              envFrom:
+                - secretRef:
+                    name: {{ include "typesense.runtimeSecretName" . }}
+              resources:
+                {{- toYaml .Values.indexers.resources | nindent 16 }}
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}
+{{- end }}

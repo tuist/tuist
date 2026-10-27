@@ -1,0 +1,164 @@
+import FileSystem
+import Foundation
+import Path
+import Testing
+import TuistEnvironment
+
+public final class MockEnvironment: Environmenting, @unchecked Sendable {
+    private let baseDirectory: AbsolutePath
+
+    public init() async throws {
+        let fileSystem = FileSystem()
+        let tempDir = FileManager.default.temporaryDirectory
+        let uniqueDir = tempDir.appendingPathComponent(UUID().uuidString)
+        baseDirectory = try AbsolutePath(validating: uniqueDir.path)
+        try await fileSystem.makeDirectory(at: baseDirectory)
+        stateDirectory = baseDirectory.appending(component: "state")
+        cacheDirectory = baseDirectory.appending(component: ".cache")
+        homeDirectory = baseDirectory.appending(component: "home")
+        try await fileSystem.makeDirectory(at: stateDirectory)
+        try await fileSystem.makeDirectory(at: baseDirectory.appending(component: "current"))
+    }
+
+    deinit {
+        try? FileManager.default.removeItem(atPath: baseDirectory.pathString)
+    }
+
+    public var processId: String = UUID().uuidString
+    public var isJSONOutput: Bool = false
+    public var isVerbose: Bool = false
+    public var queueDirectoryStub: AbsolutePath?
+    public var shouldOutputBeColoured: Bool = false
+    public var isStandardOutputInteractive: Bool = false
+    public var manifestLoadingVariables: [String: String] = [:]
+    public var isStatsEnabled: Bool = true
+    public var isGitHubActions: Bool = false
+    public var variables: [String: String] = [:]
+    public var arguments: [String] = []
+    public var workspacePath: AbsolutePath?
+    public var schemeName: String?
+    public var currentExecutablePathStub: AbsolutePath?
+
+    public func currentExecutablePath() -> AbsolutePath? {
+        currentExecutablePathStub ?? Environment.currentExecutablePath()
+    }
+
+    public var homeDirectory: AbsolutePath
+
+    public func derivedDataDirectory() async throws -> Path.AbsolutePath {
+        baseDirectory.appending(component: "DerivedData")
+    }
+
+    public var derivedDataLocationStub: DerivedDataLocation?
+    public func derivedDataLocation() async throws -> DerivedDataLocation {
+        derivedDataLocationStub ?? .default
+    }
+
+    public var stubbedArchitecture: MacArchitecture = .arm64
+    public func architecture() async throws -> MacArchitecture {
+        stubbedArchitecture
+    }
+
+    public func currentWorkingDirectory() async throws -> AbsolutePath {
+        baseDirectory.appending(component: "current")
+    }
+
+    public var cacheDirectory: AbsolutePath
+
+    public var stateDirectory: AbsolutePath
+
+    public var configDirectory: AbsolutePath {
+        baseDirectory.appending(component: "config")
+    }
+
+    public var queueDirectory: AbsolutePath {
+        queueDirectoryStub ?? baseDirectory.appending(component: "Queue")
+    }
+
+    public func cacheSocketPath(for fullHandle: String) -> AbsolutePath {
+        stateDirectory.appending(component: "\(fullHandle.replacingOccurrences(of: "/", with: "_")).sock")
+    }
+
+    public func cacheLaunchAgentLabel(for fullHandle: String) -> String {
+        "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_"))"
+    }
+
+    public func casProxySocketPath() -> AbsolutePath {
+        stateDirectory.appending(component: "cas-proxy.sock")
+    }
+
+    public func casProxySocketPathString() -> String {
+        homeRelativePathString(casProxySocketPath())
+    }
+
+    public func casPluginInstallPath() -> AbsolutePath {
+        homeDirectory.appending(components: [".local", "state", "tuist", "libtuist_cas_plugin.dylib"])
+    }
+
+    public func casLogPath() -> AbsolutePath {
+        stateDirectory.appending(component: "cas.log")
+    }
+
+    public func homeRelativePathString(_ path: AbsolutePath) -> String {
+        guard path.isDescendantOfOrEqual(to: homeDirectory) else { return path.pathString }
+        let relativePath = path.relative(to: homeDirectory).pathString
+        return relativePath == "." ? "$HOME" : "$HOME/\(relativePath)"
+    }
+
+    public func casProxyLaunchAgentLabel() -> String {
+        "tuist.cas-proxy"
+    }
+
+    public func metricsSamplerLaunchAgentLabel() -> String {
+        "tuist.metrics-sampler"
+    }
+}
+
+extension Environment {
+    public static var mocked: MockEnvironment? { current as? MockEnvironment }
+}
+
+public struct EnvironmentTestingTrait: TestTrait, SuiteTrait, TestScoping {
+    let inheritedVariables: [String]
+    let arguments: [String]
+    let legacyModuleCache: Bool
+
+    public func provideScope(
+        for _: Test,
+        testCase _: Test.Case?,
+        performing function: @Sendable () async throws -> Void
+    ) async throws {
+        let mockEnvironment = try await MockEnvironment()
+        mockEnvironment.variables = ProcessInfo.processInfo.environment.filter { inheritedVariables.contains($0.key) }
+        mockEnvironment.arguments = arguments
+        if legacyModuleCache {
+            mockEnvironment.variables["TUIST_LEGACY_MODULE_CACHE"] = "1"
+        }
+        try await Environment.$current.withValue(mockEnvironment) {
+            try await function()
+        }
+    }
+}
+
+extension Trait where Self == EnvironmentTestingTrait {
+    public static func withMockedEnvironment(
+        inheritingVariables inheritedVariables: [String] = [],
+        arguments: [String] = [],
+        legacyModuleCache: Bool = false
+    ) -> Self {
+        Self(
+            inheritedVariables: inheritedVariables,
+            arguments: arguments,
+            legacyModuleCache: legacyModuleCache
+        )
+    }
+}
+
+public func withMockedEnvironment(
+    _ closure: () async throws -> Void
+) async throws {
+    let mockEnvironment = try await MockEnvironment()
+    try await Environment.$current.withValue(mockEnvironment) {
+        try await closure()
+    }
+}

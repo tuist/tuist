@@ -5,11 +5,13 @@ defmodule TuistWeb.API.AuthController do
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
   alias Tuist.Authentication
+  alias Tuist.Authentication.RefreshReplays
+  alias Tuist.Environment
   alias Tuist.OAuth.Apple
   alias Tuist.Time
   alias TuistWeb.API.Schemas.AuthenticationTokens
 
-  plug(OpenApiSpex.Plug.CastAndValidate,
+  plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
     render_error: TuistWeb.RenderAPIErrorPlug
   )
@@ -155,21 +157,35 @@ defmodule TuistWeb.API.AuthController do
   )
 
   def refresh_token(%{body_params: %{refresh_token: refresh_token}} = conn, _params) do
-    case Authentication.refresh(refresh_token, ttl: @refresh_token_ttl) do
-      {:error, _} ->
+    case RefreshReplays.exchange("api", refresh_token, fn -> refresh_tokens(conn, refresh_token) end) do
+      {:ok, tokens} ->
+        conn
+        |> put_status(:ok)
+        |> json(tokens)
+
+      {:error, :invalid_refresh_token} ->
         conn
         |> put_status(:unauthorized)
         |> json(%{message: "The refresh token is expired or invalid"})
 
+      {:error, :access_token_exchange_failed} ->
+        conn
+        |> put_status(:unauthorized)
+        |> json(%{
+          message: "The refresh token is invalid."
+        })
+    end
+  end
+
+  defp refresh_tokens(conn, refresh_token) do
+    case Authentication.refresh(refresh_token, ttl: @refresh_token_ttl) do
+      {:error, _} ->
+        {:error, :invalid_refresh_token}
+
       {:ok, {_old_token, _old_claims}, {new_refresh_token, _new_claims}} ->
         case Authentication.exchange(new_refresh_token, "refresh", "access", ttl: @access_token_ttl) do
           {:ok, _old_token_with_claims, {new_access_token, _new_access_token_claims}} ->
-            conn
-            |> put_status(:ok)
-            |> json(%{
-              access_token: new_access_token,
-              refresh_token: new_refresh_token
-            })
+            {:ok, %{access_token: new_access_token, refresh_token: new_refresh_token}}
 
           {:error, reason} ->
             Tuist.Analytics.authentication_token_refresh_error(%{
@@ -177,11 +193,7 @@ defmodule TuistWeb.API.AuthController do
               cli_version: TuistWeb.Headers.get_cli_version_string(conn)
             })
 
-            conn
-            |> put_status(:unauthorized)
-            |> json(%{
-              message: "The refresh token is invalid."
-            })
+            {:error, :access_token_exchange_failed}
         end
     end
   end
@@ -262,6 +274,16 @@ defmodule TuistWeb.API.AuthController do
   end
 
   def do_authenticate(%{body_params: %{email: email, password: password}} = conn, _params) do
+    if Environment.email_auth_enabled?() do
+      authenticate_with_password(conn, email, password)
+    else
+      conn
+      |> put_status(:forbidden)
+      |> json(%{message: "Email and password sign-in is disabled."})
+    end
+  end
+
+  defp authenticate_with_password(conn, email, password) do
     case Accounts.get_user_by_email_and_password(email, password) do
       {:error, :not_confirmed} ->
         conn

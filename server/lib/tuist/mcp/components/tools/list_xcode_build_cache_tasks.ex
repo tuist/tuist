@@ -1,0 +1,132 @@
+defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCacheTasks do
+  @moduledoc """
+  List cacheable tasks (cache hits/misses) for a specific Xcode build run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}.
+  """
+
+  use Tuist.MCP.Tool,
+    name: "list_xcode_build_cache_tasks",
+    title: "List Xcode Build Cache Tasks",
+    read_only_hint: true,
+    schema: %{
+      "type" => "object",
+      "properties" => %{
+        "build_run_id" => %{
+          "type" => "string",
+          "description" => "The ID of the build run, or a Tuist dashboard URL."
+        },
+        "status" => %{
+          "type" => "string",
+          "enum" => ["hit_local", "hit_remote", "miss"],
+          "description" => "Filter by cache status: hit_local, hit_remote, or miss."
+        },
+        "type" => %{
+          "type" => "string",
+          "enum" => ["clang", "swift"],
+          "description" => "Filter by task type: clang or swift."
+        },
+        "page" => %{
+          "type" => "integer",
+          "description" => "Page number (default: 1)."
+        },
+        "page_size" => %{
+          "type" => "integer",
+          "description" => "Results per page (default: 20, max: 100)."
+        }
+      },
+      "required" => ["build_run_id"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "tasks" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "type" => %{"type" => "string", "enum" => ["clang", "swift"]},
+              "status" => %{"type" => "string", "enum" => ["hit_local", "hit_remote", "miss"]},
+              "key" => %{"type" => "string"},
+              "read_duration" => %{"type" => ["number", "null"]},
+              "write_duration" => %{"type" => ["number", "null"]},
+              "description" => %{"type" => ["string", "null"]},
+              "cas_output_node_ids" => %{
+                "type" => "array",
+                "items" => %{"type" => "string"}
+              }
+            },
+            "required" => [
+              "type",
+              "status",
+              "key",
+              "read_duration",
+              "write_duration",
+              "description",
+              "cas_output_node_ids"
+            ],
+            "additionalProperties" => false
+          }
+        },
+        "pagination_metadata" => Tuist.MCP.Tool.pagination_metadata_schema()
+      },
+      "required" => ["tasks", "pagination_metadata"],
+      "additionalProperties" => false
+    }
+
+  alias Tuist.Builds
+  alias Tuist.MCP.Tool, as: MCPTool
+
+  @impl EMCP.Tool
+  def description,
+    do:
+      "List cacheable tasks (cache hits/misses) for a specific Xcode build run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/builds/build-runs/{id}."
+
+  def execute(conn, args) do
+    build_run_id = MCPTool.resource_id(Map.get(args, "build_run_id"))
+
+    with {:ok, _build, _project} <-
+           MCPTool.load_and_authorize(
+             Builds.get_build(build_run_id),
+             conn.assigns,
+             :read,
+             :build,
+             "Build not found: #{build_run_id}"
+           ) do
+      with {:ok, {tasks, meta}} <-
+             Builds.list_cacheable_tasks(%{
+               filters: build_filters(build_run_id, args),
+               order_by: [:inserted_at],
+               order_directions: [:desc],
+               page: MCPTool.page(args),
+               page_size: MCPTool.page_size(args)
+             }) do
+        {:ok,
+         %{
+           tasks:
+             Enum.map(tasks, fn task ->
+               %{
+                 type: to_string(task.type),
+                 status: to_string(task.status),
+                 key: task.key,
+                 read_duration: task.read_duration,
+                 write_duration: task.write_duration,
+                 description: task.description,
+                 cas_output_node_ids: task.cas_output_node_ids
+               }
+             end),
+           pagination_metadata: MCPTool.pagination_metadata(meta)
+         }}
+      end
+    end
+  end
+
+  defp build_filters(build_run_id, args) do
+    base = [%{field: :build_run_id, op: :==, value: build_run_id}]
+
+    Enum.reduce([:status, :type], base, fn field, acc ->
+      case Map.get(args, to_string(field)) do
+        nil -> acc
+        value -> acc ++ [%{field: field, op: :==, value: value}]
+      end
+    end)
+  end
+end

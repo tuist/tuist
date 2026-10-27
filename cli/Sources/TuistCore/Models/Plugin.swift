@@ -1,7 +1,7 @@
 import Foundation
 
 /// A `Plugin` used to extend Tuist.
-public struct Plugin: Equatable, Hashable {
+public struct Plugin: Equatable, Hashable, CustomStringConvertible {
     /// The name of the plugin.
     public let name: String
 
@@ -12,9 +12,7 @@ public struct Plugin: Equatable, Hashable {
     public init(name: String) {
         self.name = name
     }
-}
 
-extension Plugin: CustomStringConvertible {
     public var description: String {
         "Plugin: \(name)"
     }

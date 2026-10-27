@@ -7,8 +7,8 @@ import Path
 /// part of generating a project or workspace.
 ///
 /// - seealso: `SideEffectsDescriptor`
-public struct FileDescriptor: Equatable {
-    public enum State {
+public struct FileDescriptor: Equatable, CustomStringConvertible, Sendable {
+    public enum State: Sendable {
         case present
         case absent
     }
@@ -36,9 +36,7 @@ public struct FileDescriptor: Equatable {
         self.contents = contents
         self.state = state
     }
-}
 
-extension FileDescriptor: CustomStringConvertible {
     public var description: String {
         switch state {
         case .absent:

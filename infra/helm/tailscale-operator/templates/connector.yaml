@@ -1,0 +1,56 @@
+{{- if and .Values.connector.enabled (include "tuist-tailscale-operator.crdsInstalled" .) }}
+apiVersion: tailscale.com/v1alpha1
+kind: Connector
+metadata:
+  name: {{ .Values.connector.name | default "tuist-cluster-subnet-router" }}
+  labels:
+    app.kubernetes.io/name: tuist-tailscale-operator
+    app.kubernetes.io/component: connector
+spec:
+  # Advertise the cluster's reachability to the tailnet's 100.64.0.0/10
+  # range *into the tailnet*, so tailnet devices can dial in-cluster
+  # Services through the Connector. The Tailscale ACLs (see
+  # infra/tailscale/acls.json) gate who can use this path.
+  #
+  # This does NOT make 100.x.y.z addresses reachable from arbitrary
+  # cluster Pods — only the Connector Pod's own `tailscaled` learns
+  # the routes. For the reverse direction (cluster Pod → Mac mini),
+  # see templates/macmini-egress.yaml.
+  hostname: {{ .Values.connector.hostname | default "tuist-cluster-router" }}
+  tags:
+    {{- toYaml .Values.connector.tags | nindent 4 }}
+  {{- if .Values.connector.proxyClass.enabled }}
+  proxyClass: {{ .Values.connector.proxyClass.name | default "tuist-connector" }}
+  {{- end }}
+  subnetRouter:
+    advertiseRoutes:
+      {{- toYaml .Values.connector.advertiseRoutes | nindent 6 }}
+{{- if .Values.connector.proxyClass.enabled }}
+---
+# Pod-spec overrides for the Connector's proxy StatefulSet —
+# the supported way to pin the subnet router to specific nodes.
+# Used to keep the router next to the workloads it fronts: the
+# runner-cache path is Mac mini -> router -> kura Pod, and if the
+# router sits in a different region than the kura node pool the
+# traffic hairpins across the WAN twice, defeating the co-location
+# the private region exists for.
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: {{ .Values.connector.proxyClass.name | default "tuist-connector" }}
+  labels:
+    app.kubernetes.io/name: tuist-tailscale-operator
+    app.kubernetes.io/component: connector-proxy-class
+spec:
+  statefulSet:
+    pod:
+      {{- with .Values.connector.proxyClass.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.connector.proxyClass.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+{{- end }}

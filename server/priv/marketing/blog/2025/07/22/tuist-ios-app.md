@@ -20,7 +20,7 @@ We're really excited to announce that Tuist is now available on the App Store. W
 
 Delivering a high-quality iOS app is not easy. To ensure the best experience for your users, you need to test apps often, otherwise, bugs will inevitably creep in. And the best time to test a new feature is still in the PR stage. Instead of checking out a branch and compiling the changes, a time-consuming process, teams often fully re-test the new changes from a nightly build. But at that point, it's really difficult to pinpoint when a regression was introduced. 
 
-[Tuist Previews](https://docs.tuist.dev/en/guides/features/previews) aim to solve this problem by providing an extremely easy way to test your app. What started as a CLI command to share apps via links has evolved into a comprehensive ecosystem of tools that bring testing closer to where development and QA teams actually work. We've already made installing previews on macOS as easy as clicking a button with our [menu bar app](/blog/2024/08/28/tuist-macos-app). Now, we're taking the same step on iOS with our Tuist app, creating a unified experience across Apple's platforms.
+[Tuist Previews](https://tuist.dev/en/docs/guides/features/previews) aim to solve this problem by providing an extremely easy way to test your app. What started as a CLI command to share apps via links has evolved into a comprehensive ecosystem of tools that bring testing closer to where development and QA teams actually work. We've already made installing previews on macOS as easy as clicking a button with our [menu bar app](/blog/2024/08/28/tuist-macos-app). Now, we're taking the same step on iOS with our Tuist app, creating a unified experience across Apple's platforms.
 
 ## Tuist app features
 

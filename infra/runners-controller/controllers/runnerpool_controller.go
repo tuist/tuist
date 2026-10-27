@@ -1,0 +1,1251 @@
+// Package controllers contains the reconcilers for the Tuist
+// runner-pool CRD.
+package controllers
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"sort"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+
+	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
+	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
+	"github.com/tuist/tuist/infra/runners-controller/internal/podtemplate"
+	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
+	"github.com/tuist/tuist/infra/runners-controller/internal/sessions"
+)
+
+// runnerPoolFinalizer gates RunnerPool deletion on a graceful drain
+// of in-flight runners. Without it, deleting (or renaming, via a
+// helm pool-topology change) a RunnerPool would let Kubernetes GC
+// cascade-delete the owned Pods, killing runners mid-job. See
+// reconcileDelete.
+const runnerPoolFinalizer = "tuist.dev/runner-pool-drain"
+
+// drainEligibleLabel marks a stale-image Pod the controller has
+// selected to retire in the current roll wave. The Tuist server 410s a
+// stale Pod only when it carries this label, so the controller — which
+// sees Pod readiness and can bound concurrency — paces the rollout
+// rather than the server draining every stale Pod on the same tick.
+const drainEligibleLabel = "tuist.dev/drain-eligible"
+
+// defaultRollMaxConcurrentPercent applies when a pool omits
+// spec.rollout.maxConcurrentPercent.
+const defaultRollMaxConcurrentPercent = 5
+
+// Guest heartbeat, published on macOS Pods by tart-kubelet from the
+// per-VM status share (see publishRunnerHeartbeat in
+// infra/tart-kubelet/internal/podagent). This controller never sees the
+// beat itself — the file lives on the Mac host — so these keys are the
+// whole interface, and the writer keeps a matching pair of constants.
+const (
+	guestHeartbeatStateAnnotation = "tuist.dev/runner-heartbeat-state"
+	guestHeartbeatAtAnnotation    = "tuist.dev/runner-heartbeat-at"
+
+	// guestHeartbeatStatePolling is the state a guest reports while it is
+	// in its warm-standby loop. The other state a guest publishes,
+	// `claimed`, needs no constant here: everything that is not polling
+	// is not warm capacity.
+	guestHeartbeatStatePolling = "polling"
+)
+
+// guestHeartbeatStaleAfter is how long a `polling` beat stays good.
+//
+// It has to clear the whole publish chain, not just the guest's own
+// cadence: the guest beats every couple of seconds, but tart-kubelet
+// observes it on a 30s reconcile and throttles republishing an advancing
+// timestamp to once a minute. A healthy Pod's published beat can
+// therefore trail reality by ~90s, and this leaves better than 3x that
+// as headroom. Detection is correspondingly unhurried — a wedged guest
+// leaves warm capacity within about five minutes — which is the right
+// trade for a signal whose false positives cost a reaped healthy runner.
+const guestHeartbeatStaleAfter = 5 * time.Minute
+
+// RunnerPoolReconciler maintains a fleet of runner Pods + per-Pod
+// ServiceAccounts. Pods are owned directly by the RunnerPool (no
+// RunnerAssignment intermediate). When a Pod hits a terminal
+// phase, the reconciler creates a replacement on whichever host
+// the previous Pod freed.
+type RunnerPoolReconciler struct {
+	client.Client
+
+	// APIReader is an uncached reader. The reservation path confirms the
+	// fleet-wide reservation limit through it, because the informer
+	// cache can lag a taint written moments earlier by another pool's
+	// reconcile. Optional: falls back to the cached client when unset.
+	APIReader client.Reader
+	Scheme    *runtime.Scheme
+
+	// SessionsClient closes a Pod's billing session immediately before
+	// the reap deletes it — see reapRunner for why the ordering matters.
+	// nil disables reporting; the reap itself still runs.
+	SessionsClient *sessions.Client
+
+	// DispatchURL is the customer-server's runner dispatch endpoint
+	// threaded into every Pod via env. Set from the manager's
+	// --dispatch-url flag. Used as-is for macOS pools (Tart VMs
+	// bypass CNI and reach the public ingress via vmnet/NAT).
+	DispatchURL string
+
+	// DispatchInternalURL is the in-cluster (Service-based)
+	// dispatch endpoint, used for Linux pools whose Pods live on
+	// the cluster's CNI and can't reach the public ingress IP
+	// from inside (Hetzner Cloud LB has no hairpin). Optional;
+	// when empty, Linux pools fall back to DispatchURL — which
+	// will silently fail to reach the server in the hairpin case.
+	DispatchInternalURL string
+
+	// DindImage is the OCI ref for the dockerd sidecar stamped on
+	// Linux runner Pods. The chart pins it; Renovate keeps it
+	// bumped. Empty means Linux pods skip the sidecar — fine for
+	// macOS-only installs.
+	DindImage string
+
+	// RegistryMirror is the in-cluster Docker Hub pull-through cache
+	// URL stamped into the dind sidecar's dockerd as --registry-mirror
+	// (with a matching --insecure-registry, since it's http in-cluster).
+	// Empty leaves dockerd pulling docker.io directly.
+	RegistryMirror string
+
+	// ClusterDNSIP / ClusterDomain configure in-VM cluster DNS for
+	// macOS pools: when ClusterDNSIP is set, macOS runner Pods carry
+	// TUIST_CLUSTER_DNS_IP (+ TUIST_CLUSTER_DOMAIN) and
+	// dispatch-poll.sh inside the Tart VM writes an
+	// /etc/resolver/<domain> entry pointing at it, so the
+	// dispatch-provided `cache_endpoint_url`
+	// (`*.svc.cluster.local`) resolves. Linux Pods ride the CNI's
+	// DNS and never need these. Empty disables the env injection.
+	ClusterDNSIP  string
+	ClusterDomain string
+
+	Recorder record.EventRecorder
+
+	// SignalsClient is the autoscaler's client for the server's scaling
+	// signals, shared so its cache serves both. nil leaves new Pods without
+	// cache volume placement preferences.
+	SignalsClient *scaling.Client
+
+	creationReservations creationReservationStore
+
+	// Now is overridable in tests; defaults to time.Now.
+	Now func() time.Time
+}
+
+func (r *RunnerPoolReconciler) now() time.Time {
+	if r.Now != nil {
+		return r.Now()
+	}
+	return time.Now()
+}
+
+// +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools,verbs=get;list;watch;update;patch
+// +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;patch;delete
+// +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;delete
+// +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch;patch
+
+func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	logger := log.FromContext(ctx).WithValues("pool", req.NamespacedName)
+
+	pool := &tuistv1.RunnerPool{}
+	if err := r.Get(ctx, req.NamespacedName, pool); err != nil {
+		if apierrors.IsNotFound(err) {
+			// Pool object is gone — drop its metric series so deleted
+			// pools (including static, non-autoscaling ones the autoscaler
+			// never tracks) stop reporting stale roll/allocation gauges.
+			metrics.Clear(req.Name)
+			return ctrl.Result{}, nil
+		}
+		return ctrl.Result{}, err
+	}
+
+	// Graceful drain on delete/rename. A helm upgrade that drops or
+	// renames a RunnerPool deletes the CR; because Pods carry an owner
+	// reference to it, Kubernetes GC would cascade-delete them, busy
+	// or not. The finalizer holds the CR in etcd (GC leaves owned Pods
+	// alone while the owner still exists) until reconcileDelete has
+	// drained the pool: idle Pods deleted now, mid-job Pods left to
+	// finish their single-shot job. Only then is the finalizer
+	// dropped, letting the CR and any remaining terminal Pods/SAs GC.
+	if !pool.DeletionTimestamp.IsZero() {
+		// Before the drain, hand back any host this pool was holding.
+		// reconcileDelete returns without reaching reconcileReservation,
+		// and once the CR is gone nothing can match the taint's value,
+		// so the host would be tainted out of the fleet permanently.
+		if err := r.ReleaseReservationsForPool(ctx, pool); err != nil {
+			logger.Error(err, "release node reservation for a deleting pool; will retry")
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+		return r.reconcileDelete(ctx, pool)
+	}
+	// Patched, not Updated. A full-object Update writes back every
+	// field the controller decoded, including an
+	// `autoscaling.minWarmPoolFloor` the API server supplied from the
+	// CRD default because helm rendered none. That pins the floor and
+	// moves the field's manager from `helm` to this controller, after
+	// which the chart can no longer set it.
+	beforeFinalizer := pool.DeepCopy()
+	if controllerutil.AddFinalizer(pool, runnerPoolFinalizer) {
+		if err := r.Patch(ctx, pool, client.MergeFrom(beforeFinalizer)); err != nil {
+			return ctrl.Result{}, fmt.Errorf("add drain finalizer: %w", err)
+		}
+	}
+
+	// Track image rolls. The server-side drain endpoint reads
+	// `status.imageRolledAt` and gates HTTP 410 on a per-Pod time
+	// slot derived from the Pod name, so stale Pods halt in waves
+	// rather than all on the first poll after a digest-pin bump.
+	// Setting on first reconcile (when `ObservedImage` is empty) is
+	// fine — there are no stale Pods yet, and the timestamp just
+	// establishes the t=0 baseline for any future roll.
+	//
+	// The image being replaced goes to `status.previousImage`, which
+	// tart-kubelet reads to pull the new image on hosts holding the old one
+	// before its GC reaps the old one.
+	if pool.Status.ObservedImage != pool.Spec.Image {
+		if pool.Status.ObservedImage != "" {
+			pool.Status.PreviousImage = pool.Status.ObservedImage
+		}
+		pool.Status.ObservedImage = pool.Spec.Image
+		pool.Status.ImageRolledAt = metav1.Now()
+	}
+
+	// Count Pods owned by this pool that are alive (not in a
+	// terminal phase, not being deleted). Terminal Pods aren't
+	// counted toward `replicas` — they're on their way out and a
+	// replacement is needed.
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods,
+		client.InNamespace(pool.Namespace),
+		client.MatchingLabels{"tuist.dev/runner-pool": pool.Name},
+	); err != nil {
+		return ctrl.Result{}, fmt.Errorf("list pods: %w", err)
+	}
+
+	// Graceful node drain. This runs before any accounting below so a
+	// Pod retired here is never counted as capacity the pool still has.
+	// See reapIdlePodsOnCordonedNodes for why the drain cannot converge
+	// without it.
+	survivors, cordonReaped, err := r.reapIdlePodsOnCordonedNodes(ctx, pods.Items)
+	if err != nil {
+		logger.Error(err, "retire idle pods on draining nodes; will retry")
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+	pods.Items = survivors
+	if cordonReaped > 0 {
+		logger.Info("retired idle runner pods for node drain", "count", cordonReaped)
+	}
+
+	// Node reservation. Runs after the drain reap so a Pod already
+	// retired above is not counted as an occupant a reservation must
+	// wait on, and before the accounting below because retiring another
+	// pool's idle Pod here changes what this fleet has free. Failures are
+	// logged and skipped rather than returned: a reservation is an
+	// optimization for a starved shape, and a fleet that cannot take one
+	// must still converge its Pods.
+	if err := r.reconcileReservation(ctx, pool, pods.Items); err != nil {
+		logger.Error(err, "reconcile node reservation; will retry next tick")
+	}
+
+	// Warm capacity is counted here, in the one pass with no early
+	// returns, rather than alongside the classification below. The reap
+	// path can bail mid-loop, and a deferred publish of a not-yet-
+	// assigned counter would report 0 warm Pods on an error path — which
+	// reads as "no capacity" and masks exactly the starvation this series
+	// exists to surface.
+	phaseReplicas := podPhaseReplicaCounts{}
+	idleCount := 0
+	for i := range pods.Items {
+		p := &pods.Items[i]
+		if !isAlive(p) {
+			continue
+		}
+		phaseReplicas.add(p)
+		// Mirrors the classification below: stale Pods are retired
+		// by the roll throttle rather than counted as available.
+		if !isStaleRunner(p, pool) && isIdle(p) && isWarmCapacity(p, pool) {
+			idleCount++
+		}
+	}
+	defer func() {
+		metrics.RecordPodPhases(pool.Name, phaseReplicas.pending, phaseReplicas.running, phaseReplicas.unknown)
+		metrics.RecordIdleReplicas(pool.Name, idleCount)
+		// darwin only: Pending means "no VM yet" for a Tart pool, but it
+		// is the healthy steady state for a Linux one. Linux warm-standby
+		// Pods run their dispatch poller as an init container and kubelet
+		// holds a Pod in Pending for as long as any init container runs,
+		// so an idle Linux runner reports Pending for its whole life —
+		// hours, by design. Publishing this for Linux would peg every
+		// idle pool at its warm-pool age. A Linux equivalent has to read
+		// the poller's own lifecycle, not the Pod phase.
+		if pool.Spec.OS == "darwin" {
+			metrics.RecordOldestPendingPodAge(pool.Name, phaseReplicas.oldestPendingAge(r.now()))
+		}
+	}()
+
+	alive := 0
+	reaped := 0
+	staleAlive := 0
+	markedStale := 0
+	unavailableRolloutCapacity := 0
+	var idleAlive []*corev1.Pod
+	// Stale idle Pods are retired under the roll cap (below), not all
+	// at once. Running stale-image Pods get the drain-eligible label so
+	// the server can stop them through the normal dispatch lifecycle.
+	// Idle Pending Pods are safe to reap directly, including Linux warm
+	// runners on a stale RuntimeClass revision. Both paths share one
+	// availability budget. A macOS Pod whose seat is still in flight is
+	// neither: it was created for demand, and retiring it mid-pull or
+	// before its first poll makes that job wait for a replacement to pull
+	// the new image from scratch. It runs one job on the old image and
+	// exits like any other single-shot runner.
+	var drainCandidates []*corev1.Pod
+	var reapCandidates []*corev1.Pod
+	for i := range pods.Items {
+		p := &pods.Items[i]
+		if startTimedOut(p, pool, r.now()) {
+			startedAt, _ := linuxProvisioningStartedAt(p)
+			nodeConditions := r.nodeConditionSummary(ctx, p.Spec.NodeName)
+			logger.Info("reap runner pod whose dispatch poller did not start",
+				"pod", p.Name,
+				"node", p.Spec.NodeName,
+				"bound", true,
+				"age", r.now().Sub(startedAt).String(),
+				"nodeConditions", nodeConditions,
+			)
+			if r.Recorder != nil {
+				r.Recorder.Eventf(p, corev1.EventTypeWarning, "RunnerPodStartTimedOut",
+					"Dispatch poller did not start within %d seconds after binding to node %s; node conditions: %s",
+					pool.Spec.Provisioning.StartTimeoutSecondsOrDefault(), p.Spec.NodeName, nodeConditions)
+			}
+			metrics.RecordPodStartTimeout(pool.Name, pollerNotStartedTimeoutReason)
+			if err := r.reapRunner(ctx, p); err != nil {
+				logger.Error(err, "reap runner pod after start timeout; will retry", "pod", p.Name)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			phaseReplicas.remove(p)
+			reaped++
+			continue
+		}
+
+		if terminationTimedOut(p, r.now()) {
+			// A force delete cannot bypass a finalizer: the Delete succeeds as
+			// a no-op on an already-deleting Pod and the object stays, so
+			// retrying every reconcile spins forever and inflates the counter.
+			// A finalizer this controller does not own may also still be doing
+			// real work — tart-kubelet tears the guest VM down under
+			// tart-kubelet.tuist.dev/vm-cleanup — so leave it to its owner
+			// while that owner can still run.
+			//
+			// Unless the node is gone. Then the cleanup can never run and
+			// never needs to: the VM went with the host, and the finalizer is
+			// pinning an object whose only effect now is to keep this branch
+			// firing. One such Pod sat deleting for nine days.
+			nodeGone := r.nodeMissing(ctx, p.Spec.NodeName)
+			if len(p.Finalizers) > 0 && !nodeGone {
+				logger.V(1).Info("stuck terminating runner pod is finalizer-pinned; leaving it to its owner",
+					"pod", p.Name,
+					"node", p.Spec.NodeName,
+					"finalizers", p.Finalizers,
+					"deletingFor", r.now().Sub(p.DeletionTimestamp.Time).String(),
+				)
+				continue
+			}
+			nodeConditions := r.nodeConditionSummary(ctx, p.Spec.NodeName)
+			logger.Info("force reap runner pod kubelet did not finish terminating",
+				"pod", p.Name,
+				"node", p.Spec.NodeName,
+				"deletingFor", r.now().Sub(p.DeletionTimestamp.Time).String(),
+				"nodeConditions", nodeConditions,
+				"clearingFinalizers", p.Finalizers,
+			)
+			if r.Recorder != nil {
+				r.Recorder.Eventf(p, corev1.EventTypeWarning, "RunnerPodTerminationStuck",
+					"Pod has been terminating for %s without kubelet completing it; dropping the object to release node %s. The sandbox may still be running there; node conditions: %s",
+					r.now().Sub(p.DeletionTimestamp.Time).Truncate(time.Second), p.Spec.NodeName, nodeConditions)
+			}
+			metrics.RecordStuckTermination(pool.Name)
+			if err := r.forceReapRunner(ctx, p, nodeGone); err != nil {
+				logger.Error(err, "force reap stuck terminating runner pod; will retry", "pod", p.Name)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			phaseReplicas.remove(p)
+			reaped++
+			continue
+		}
+
+		if unschedulableTimedOut(p, pool, r.now()) {
+			rejectedAt, _ := unschedulableSince(p)
+			logger.Info("reap runner pod the scheduler could not place",
+				"pod", p.Name,
+				"bound", false,
+				"age", r.now().Sub(rejectedAt).String(),
+			)
+			if r.Recorder != nil {
+				r.Recorder.Eventf(p, corev1.EventTypeWarning, "RunnerPodUnschedulable",
+					"No node could accommodate this Pod for %d seconds; releasing its fleet provisioning slot",
+					pool.Spec.Provisioning.StartTimeoutSecondsOrDefault())
+			}
+			metrics.RecordPodStartTimeout(pool.Name, unschedulableTimeoutReason)
+			if err := r.reapRunner(ctx, p); err != nil {
+				logger.Error(err, "reap unschedulable runner pod; will retry", "pod", p.Name)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			phaseReplicas.remove(p)
+			reaped++
+			continue
+		}
+
+		switch {
+		case isAlive(p):
+			alive++
+			staleImage := isStaleImage(p, pool)
+			staleRuntimeClassRevision := isStaleRuntimeClassRevision(p, pool) || isStaleCacheVolumes(p, pool)
+			switch {
+			case staleImage || staleRuntimeClassRevision:
+				staleAlive++
+				if staleImage && p.Labels[drainEligibleLabel] == "true" {
+					markedStale++
+				} else if isIdle(p) && !macOSSeatInFlight(p, r.now()) {
+					if p.Status.Phase == corev1.PodPending {
+						reapCandidates = append(reapCandidates, p)
+					} else if staleImage {
+						drainCandidates = append(drainCandidates, p)
+					}
+				}
+			default:
+				// Current-template Pod. Idle ones are scale-down
+				// candidates. A replacement that is not warm yet consumes
+				// roll-concurrency budget. Stale Pods are excluded from
+				// idleAlive on purpose: the roll throttle retires them.
+				if isIdle(p) {
+					idleAlive = append(idleAlive, p)
+					if !isWarmCapacity(p, pool) {
+						// This deliberately follows Deployment-style
+						// maxUnavailable semantics: ordinary scale-up
+						// Pods consume the same availability budget as
+						// roll replacements until they become warm.
+						unavailableRolloutCapacity++
+					}
+				}
+			}
+		case p.DeletionTimestamp.IsZero():
+			// Terminal Pod (Succeeded/Failed) with no deletion in
+			// flight. Reap the Pod and its sibling ServiceAccount.
+			// Without explicit cleanup the namespace fills with
+			// stopped Pods + orphaned SAs, and the projected-token
+			// cache in tart-kubelet keeps re-validating SAs whose
+			// Pods are already gone.
+			//
+			// Log the runner container's exit code + reason first: it is
+			// the durable, image-independent fingerprint of HOW the job
+			// ended, captured before the Pod is reaped. A runner that
+			// "lost communication with the server" can then be classified
+			// from the controller logs (which land in Loki) instead of
+			// from the reaped Pod (long gone) or the runner image's vitals
+			// (absent on older images): 0 = clean exit (the runner
+			// finished; a lost-comms here is the GitHub completion
+			// handshake, not a death), 137 + reason=OOMKilled = host
+			// cgroup OOM, 137 + reason=Error = guest-internal OOM or in-VM
+			// kill, signal 15 = SIGTERM/deletion, other = crash.
+			if t := runnerTerminated(p); t != nil {
+				logger.Info("runner pod terminated",
+					"pod", p.Name,
+					"phase", string(p.Status.Phase),
+					"exitCode", t.ExitCode,
+					"signal", t.Signal,
+					"reason", t.Reason,
+				)
+			}
+			if err := r.reapRunner(ctx, p); err != nil {
+				logger.Error(err, "reap terminal runner; will retry", "pod", p.Name)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			reaped++
+		}
+	}
+
+	// Roll throttle (runs before the gap-fill so a reaped Pod's
+	// current-template replacement is created this same reconcile).
+	// Retire stale Pods up to a concurrency cap so an image or
+	// RuntimeClass-revision change cannot collapse the warm pool.
+	// In-flight is stale Pods already committed to drain plus, while
+	// a roll is active, current-template Pods that are not warm. This
+	// includes ordinary scale-up Pods by design: the cap represents
+	// unavailable serving capacity, regardless of why it is unavailable.
+	// Best-effort: a failed reap/patch just retries next tick.
+	rollPct := int32(defaultRollMaxConcurrentPercent)
+	if pool.Spec.Rollout != nil && pool.Spec.Rollout.MaxConcurrentPercent > 0 {
+		rollPct = pool.Spec.Rollout.MaxConcurrentPercent
+	}
+	capN := rollConcurrencyCap(pool.Spec.Replicas, rollPct)
+	rolling := markedStale
+	if staleAlive > 0 {
+		rolling += unavailableRolloutCapacity
+	}
+	for _, p := range reapCandidates {
+		if rolling >= capN {
+			break
+		}
+		if err := r.reapAlivePod(ctx, p); err != nil {
+			logger.Error(err, "reap stale idle pod; will retry next tick", "pod", p.Name)
+			continue
+		}
+		alive--
+		phaseReplicas.remove(p)
+		rolling++
+	}
+	for _, p := range drainCandidates {
+		if rolling >= capN {
+			break
+		}
+		if err := r.markDrainEligible(ctx, p); err != nil {
+			logger.Error(err, "mark drain-eligible; will retry next tick", "pod", p.Name)
+			continue
+		}
+		rolling++
+	}
+	metrics.RecordRoll(pool.Name, rolling, staleAlive, capN)
+
+	gap := int(pool.Spec.Replicas) - alive
+	overflow := 0
+	if gap < 0 {
+		overflow = -gap
+		gap = 0
+	}
+
+	logger.Info("reconcile",
+		"target", pool.Spec.Replicas,
+		"observed", alive,
+		"reaped", reaped,
+		"gap", gap,
+		"overflow", overflow,
+		"idleAlive", len(idleAlive),
+	)
+
+	createLimit := gap
+	admissionBlocked := false
+	pendingProvisioningForPool := 0
+	if isLinuxKataPool(pool) {
+		admission, err := r.provisioningAdmission(ctx, pool)
+		if err != nil {
+			logger.Error(err, "read Linux provisioning admission; leaving replica gap")
+			createLimit = 0
+			admissionBlocked = gap > 0
+			if admissionBlocked {
+				metrics.RecordAdmissionBlocked(pool.Name, "fleet_view_error")
+			}
+		} else if admission.available < createLimit {
+			pendingProvisioningForPool = admission.pendingForPool
+			createLimit = admission.available
+			admissionBlocked = gap > createLimit
+			if admissionBlocked {
+				reason := admission.blockedReason
+				if reason == "" {
+					reason = admission.limitedBy
+				}
+				if reason == "" {
+					reason = "fleet_cap"
+				}
+				metrics.RecordAdmissionBlocked(pool.Name, reason)
+				logger.Info("Linux provisioning admission left replica gap",
+					"reason", reason,
+					"gap", gap,
+					"creating", createLimit,
+					"pendingForPool", admission.pendingForPool,
+					"pendingForFleet", admission.pendingForFleet,
+					"awaitingPlacement", admission.awaitingPlacement,
+					"perNode", admission.perNode,
+					"cap", admission.cap,
+					"fleetCap", admission.fleetCap,
+					"poolCap", admission.poolCap,
+					"healthyNodes", admission.healthyNodes,
+				)
+			}
+		} else {
+			pendingProvisioningForPool = admission.pendingForPool
+		}
+	}
+
+	// Idle Pods take the oldest queued jobs first, so a new Pod's cache
+	// volume preference is the one for the job after them.
+	queuePosition := len(idleAlive)
+	created := 0
+	for i := 0; i < createLimit; i++ {
+		name, err := r.createRunner(ctx, pool, queuePosition+i)
+		if err != nil {
+			logger.Error(err, "create runner; will retry")
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+		if isLinuxKataPool(pool) {
+			r.reserveCreatedRunner(pool, name)
+		}
+		created++
+		phaseReplicas.pending++
+	}
+	if isLinuxKataPool(pool) {
+		metrics.RecordPendingProvisioningPods(pool.Name, pendingProvisioningForPool+created)
+	}
+
+	// Scale-down: alive > target. Delete IDLE Pods first — those
+	// without `tuist.dev/runner-pool-owner` are warm-polling and
+	// not currently running a customer job, so terminating them is
+	// safe. Owned Pods (currently running a job) are never deleted
+	// by the reconciler; the autoscaler's targets must be reached
+	// over time, as owned Pods finish their jobs and exit.
+	//
+	// Runners the autoscaler marked for a starved sibling go first, so the
+	// replicas it gave up are the ones it chose.
+	now := r.now()
+	sort.SliceStable(idleAlive, func(a, b int) bool {
+		_, markedA := preemptionMark(idleAlive[a], now)
+		_, markedB := preemptionMark(idleAlive[b], now)
+		return markedA && !markedB
+	})
+	scaledDown := 0
+	for i := 0; i < overflow && i < len(idleAlive); i++ {
+		p := idleAlive[i]
+		preemptedFor, preempted := preemptionMark(p, now)
+		if preempted {
+			logger.Info("retire idle runner pod for starved sibling pools",
+				"pod", p.Name, "node", p.Spec.NodeName, "for", preemptedFor)
+			if r.Recorder != nil {
+				r.Recorder.Eventf(p, corev1.EventTypeNormal, "RunnerPodPreemptedForSiblingDemand",
+					"Fleet %s is full and %s has queued jobs it cannot place; retiring this idle runner ahead of the scale-down cooldown. "+
+						"Runners executing a job are left to complete.",
+					pool.Spec.FleetSelector, preemptedFor)
+			}
+		}
+		if err := r.reapAlivePod(ctx, p); err != nil {
+			logger.Error(err, "scale-down delete; will retry", "pod", p.Name)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+		if preempted {
+			metrics.RecordPreemption(pool.Spec.FleetSelector, pool.Name)
+		}
+		phaseReplicas.remove(p)
+		if isWarmCapacity(p, pool) {
+			idleCount--
+		}
+		scaledDown++
+	}
+
+	observed := alive - scaledDown + created
+	pool.Status.ObservedReplicas = int32(observed)
+	pool.Status.LastReconcile = metav1.Now()
+	if err := r.Status().Update(ctx, pool); err != nil {
+		if !apierrors.IsConflict(err) && !apierrors.IsNotFound(err) {
+			return ctrl.Result{}, fmt.Errorf("status update: %w", err)
+		}
+	}
+
+	// Steady-state requeue: re-run every 60 s as a safety net for
+	// missed events. Pod-event-driven reconcile via Owns() is the
+	// primary trigger; this is the catch-all.
+	if admissionBlocked {
+		return ctrl.Result{RequeueAfter: provisioningRequeueAfter}, nil
+	}
+	return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+}
+
+// reconcileDelete drains a RunnerPool that's being deleted before
+// releasing the finalizer. Idle Pods are reaped immediately; Pods
+// running a job (carrying the `tuist.dev/runner-pool-owner` label)
+// are left to finish their single-shot lifecycle. The CR stays
+// Terminating until no live Pod remains, so GC never cascade-deletes
+// a mid-job runner. Terminal Pods and the per-Pod SAs are collected
+// by GC alongside the CR once the finalizer clears.
+func (r *RunnerPoolReconciler) reconcileDelete(ctx context.Context, pool *tuistv1.RunnerPool) (ctrl.Result, error) {
+	logger := log.FromContext(ctx).WithValues("pool", client.ObjectKeyFromObject(pool))
+
+	if !controllerutil.ContainsFinalizer(pool, runnerPoolFinalizer) {
+		// Already drained, or never managed by us — let GC proceed.
+		return ctrl.Result{}, nil
+	}
+
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods,
+		client.InNamespace(pool.Namespace),
+		client.MatchingLabels{"tuist.dev/runner-pool": pool.Name},
+	); err != nil {
+		return ctrl.Result{}, fmt.Errorf("list pods: %w", err)
+	}
+
+	running := 0
+	drainedIdle := 0
+	for i := range pods.Items {
+		p := &pods.Items[i]
+		switch {
+		case !isAlive(p):
+			// Terminal or already deleting — GC takes it with the CR.
+		case isIdle(p):
+			if err := r.reapRunner(ctx, p); err != nil {
+				logger.Error(err, "drain idle pod; will retry", "pod", p.Name)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			drainedIdle++
+		default:
+			running++
+		}
+	}
+
+	if running > 0 {
+		// Mid-job runners still finishing. Hold the finalizer and
+		// re-check; single-shot Pods turn over to terminal on exit.
+		// Bounded in practice by the GitHub Actions job timeout.
+		logger.Info("draining pool; waiting on in-flight runners",
+			"running", running, "drainedIdle", drainedIdle)
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+
+	original := pool.DeepCopy()
+	controllerutil.RemoveFinalizer(pool, runnerPoolFinalizer)
+	if err := r.Patch(ctx, pool, client.MergeFrom(original)); err != nil {
+		return ctrl.Result{}, fmt.Errorf("remove drain finalizer: %w", err)
+	}
+	logger.Info("pool drained; finalizer released", "drainedIdle", drainedIdle)
+	return ctrl.Result{}, nil
+}
+
+// createRunner provisions one Pod + per-Pod ServiceAccount pair,
+// both owned by the RunnerPool. Pod and SA share the same name so
+// the dispatch endpoint can look up "which Pod is this SA mounted
+// on" from the validated SA name alone. `queuePosition` is the queued
+// job the Pod is expected to take, counted from the oldest, which picks
+// its cache volume placement preference.
+func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.RunnerPool, queuePosition int) (string, error) {
+	suffix, err := randHex(4)
+	if err != nil {
+		return "", fmt.Errorf("generate suffix: %w", err)
+	}
+	name := fmt.Sprintf("%s-runner-%s", pool.Name, suffix)
+
+	sa := podtemplate.BuildServiceAccount(pool, name)
+	if err := controllerutil.SetControllerReference(pool, sa, r.Scheme); err != nil {
+		return "", fmt.Errorf("sa owner ref: %w", err)
+	}
+	if err := r.Create(ctx, sa); err != nil && !apierrors.IsAlreadyExists(err) {
+		return "", fmt.Errorf("create sa: %w", err)
+	}
+
+	pod, err := podtemplate.Build(pool, name, name, r.DispatchURL, r.DispatchInternalURL, r.DindImage, r.RegistryMirror, r.ClusterDNSIP, r.ClusterDomain)
+	if err != nil {
+		return "", fmt.Errorf("build pod: %w", err)
+	}
+	r.preferCacheVolumeNode(ctx, pool, pod, queuePosition)
+	if err := controllerutil.SetControllerReference(pool, pod, r.Scheme); err != nil {
+		return "", fmt.Errorf("pod owner ref: %w", err)
+	}
+	if err := r.Create(ctx, pod); err != nil && !apierrors.IsAlreadyExists(err) {
+		return "", fmt.Errorf("create pod: %w", err)
+	}
+
+	return name, nil
+}
+
+// preferCacheVolumeNode steers a macOS Pod toward a host holding the custom
+// cache volumes of the queued job it is created for. A macOS Pod is placed
+// before any job is assigned to it, and a host with no copy of a volume starts
+// it empty. The server lists one host per queued job, repeating a host once per
+// job its cache disk can fit, so the Pod for the i-th queued job takes the
+// i-th host and concurrent Pods never stack on a host that cannot hold all of
+// their volumes. Pods beyond the list, and Pods created without signals, keep
+// only the golden preference.
+func (r *RunnerPoolReconciler) preferCacheVolumeNode(ctx context.Context, pool *tuistv1.RunnerPool, pod *corev1.Pod, queuePosition int) {
+	if r.SignalsClient == nil || pool.Spec.OS == "linux" {
+		return
+	}
+	signals, err := r.SignalsClient.Signals(ctx, pool.Name)
+	if err != nil {
+		log.FromContext(ctx).V(1).Info("no scaling signals for cache volume placement", "pool", pool.Name, "error", err.Error())
+		return
+	}
+	if queuePosition < len(signals.PreferredNodes) {
+		podtemplate.PreferCacheVolumeNode(pod, signals.PreferredNodes[queuePosition])
+	}
+}
+
+// reapRunner deletes a Pod and its same-named ServiceAccount.
+// Both are owned by the RunnerPool as siblings — deleting the
+// Pod alone leaves the SA behind. Pod and SA share a name by
+// construction (see createRunner), so we issue both deletes by
+// name. NotFound on either is treated as success: the goal is
+// "nothing left," not "I'm the one that deleted it."
+//
+// Called for both terminal Pods (Succeeded/Failed → natural
+// turnover) and stale Pending Pods (Pod-template rollout →
+// recycle on the current template). The cleanup contract is the same.
+//
+// The Pod's billing session is closed BEFORE the Delete, and that
+// ordering is the whole point. `PodLifecycleReconciler` also reports,
+// on the terminal-phase transition, but it runs in a separate workqueue
+// woken by the same watch event with no ordering against this one — so
+// under load the reap got there first and the Pod was gone before the
+// report was attempted. That race closed 22% of runner sessions never:
+// 264 of 1185 on 2026-08-14, holding on every fleet and every working
+// day back to at least 2026-07-07. A grace period does not help, since
+// a Pod already in a terminal phase has no live containers to wait for
+// and is removed in milliseconds.
+//
+// Doing it here removes the race rather than compensating for it: one
+// goroutine, report then delete. The other reconciler's report stays as
+// the faster path (it fires on the phase transition, ahead of the reap)
+// and the two are idempotent, MIN-biased on the server, so a double
+// report cannot extend a billed window.
+func (r *RunnerPoolReconciler) reapRunner(ctx context.Context, pod *corev1.Pod) error {
+	r.reportStopped(ctx, pod)
+
+	if err := r.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete pod %s: %w", pod.Name, err)
+	}
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+		},
+	}
+	if err := r.Delete(ctx, sa); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete sa %s: %w", pod.Name, err)
+	}
+	return nil
+}
+
+// forceReapRunner drops a Pod the kubelet will not finish terminating. The
+// ordinary reap issues a plain Delete, which is a no-op on a Pod that already
+// carries a deletionTimestamp, so dropping the object is the only way to hand
+// its node's CPU and memory back to the scheduler.
+//
+// The sandbox can outlive the object: a force delete does not reach the stuck
+// shim, so the QEMU process may keep running and the node is then oversubscribed
+// against what the scheduler believes. That is still the better trade — the
+// alternative is capacity reserved forever for a VM doing no work — but it is
+// why the caller logs the node and raises an Event: a node that produces these
+// repeatedly wants draining, not another force delete.
+//
+// `clearFinalizers` additionally strips the Pod's finalizers. Reserve it for a
+// Pod whose node is gone: a finalizer whose owner still exists may be doing
+// real cleanup, and removing it out from under them leaks whatever it was
+// releasing.
+func (r *RunnerPoolReconciler) forceReapRunner(ctx context.Context, pod *corev1.Pod, clearFinalizers bool) error {
+	r.reportStopped(ctx, pod)
+
+	// Grace period 0 does not bypass a finalizer; only removing it does. The
+	// caller decides when that is safe, which is when the finalizer's owner is
+	// gone with its node and can never run again.
+	if clearFinalizers && len(pod.Finalizers) > 0 {
+		patched := pod.DeepCopy()
+		patched.Finalizers = nil
+		if err := r.Patch(ctx, patched, client.MergeFrom(pod)); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("clear finalizers on pod %s: %w", pod.Name, err)
+		}
+	}
+	if err := r.Delete(ctx, pod, client.GracePeriodSeconds(0)); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("force delete pod %s: %w", pod.Name, err)
+	}
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+		},
+	}
+	if err := r.Delete(ctx, sa); err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete sa %s: %w", pod.Name, err)
+	}
+	return nil
+}
+
+// reapAlivePod is the scale-down path. Same shape as
+// reapRunner (delete Pod + sibling SA) but we hit it from
+// the autoscaler-driven branch where the Pod is still alive and
+// merely idle. kubelet handles graceful container shutdown for us
+// once Pod.DeletionTimestamp is set.
+func (r *RunnerPoolReconciler) reapAlivePod(ctx context.Context, pod *corev1.Pod) error {
+	return r.reapRunner(ctx, pod)
+}
+
+// reportStopped closes the Pod's billing session before the Pod is
+// deleted. Best-effort by design: a Pod we cannot report must still be
+// reaped, or a Tuist-server outage would leave terminal Pods and their
+// ServiceAccounts accumulating in the namespace — which is what this
+// reap exists to prevent, and a worse failure than a late close.
+// `PodReconciliationWorker` is the level-triggered backstop for
+// whatever this drops, and it resolves a better `ended_at` than we
+// could here (the job's real completion) when it does.
+//
+// nil client disables reporting, matching how the pod-lifecycle
+// reconciler is only wired when the sessions URL is configured.
+func (r *RunnerPoolReconciler) reportStopped(ctx context.Context, pod *corev1.Pod) {
+	if r.SessionsClient == nil {
+		return
+	}
+
+	endedAt := podEndedAt(pod, r.now())
+	if err := r.SessionsClient.Stopped(ctx, pod.Name, endedAt); err != nil {
+		log.FromContext(ctx).Error(err, "close session before reap; backstop will retry", "pod", pod.Name)
+		return
+	}
+	// Logged for the same reason as the pod-lifecycle reconciler's
+	// report, and tagged so the two are distinguishable: the reconcilers
+	// race for the same Pod, and which one lands decides whether the
+	// report happens before or after the Pod is deleted.
+	log.FromContext(ctx).Info("reported pod stopped", "pod", pod.Name, "endedAt", endedAt, "source", "reap")
+}
+
+type podPhaseReplicaCounts struct {
+	pending int
+	running int
+	unknown int
+
+	// Creation timestamps of the Pods counted in `pending`, keyed by Pod
+	// name so `remove` can drop the right one. A running max can't be
+	// maintained through the reconcile's add/remove churn — reaping the
+	// oldest Pod has to reveal the next-oldest, not leave a stale peak.
+	// Pods this tick creates are deliberately absent: they're
+	// milliseconds old, so they can never be the oldest, and tracking
+	// them would mean threading a clock through createRunner.
+	pendingSince map[string]time.Time
+}
+
+func (c *podPhaseReplicaCounts) add(pod *corev1.Pod) {
+	switch pod.Status.Phase {
+	case corev1.PodPending:
+		c.pending++
+		if c.pendingSince == nil {
+			c.pendingSince = map[string]time.Time{}
+		}
+		c.pendingSince[pod.Name] = pod.CreationTimestamp.Time
+	case corev1.PodRunning:
+		c.running++
+	default:
+		c.unknown++
+	}
+}
+
+// oldestPendingAge is how long the least-recently-created Pending Pod
+// has been waiting as of `now`, or 0 when the pool has none.
+func (c *podPhaseReplicaCounts) oldestPendingAge(now time.Time) time.Duration {
+	var oldest time.Duration
+	for _, since := range c.pendingSince {
+		if age := now.Sub(since); age > oldest {
+			oldest = age
+		}
+	}
+	return oldest
+}
+
+func (c *podPhaseReplicaCounts) remove(pod *corev1.Pod) {
+	switch pod.Status.Phase {
+	case corev1.PodPending:
+		if c.pending > 0 {
+			c.pending--
+		}
+		delete(c.pendingSince, pod.Name)
+	case corev1.PodRunning:
+		if c.running > 0 {
+			c.running--
+		}
+	default:
+		if c.unknown > 0 {
+			c.unknown--
+		}
+	}
+}
+
+// isAlive returns true for Pods that should count toward `replicas`:
+// not in a terminal phase, not pending deletion.
+func isAlive(pod *corev1.Pod) bool {
+	if !pod.DeletionTimestamp.IsZero() {
+		return false
+	}
+	switch pod.Status.Phase {
+	case corev1.PodSucceeded, corev1.PodFailed:
+		return false
+	default:
+		return true
+	}
+}
+
+// isIdle returns true for alive Pods that have NOT yet claimed a
+// customer's workflow_job. Two independent signals say "claimed",
+// and either one is enough to treat the Pod as busy:
+//
+//   - The Tuist server stamps `tuist.dev/runner-pool-owner=<account>`
+//     on the Pod when it claims a queue entry. This is the primary
+//     signal, but it's best-effort: the server degrades to "running
+//     without the label" rather than dropping a job if the apiserver
+//     patch keeps failing (Tuist.Runners.patch_pod_labels), so the
+//     label can be absent on a genuinely-claimed Pod.
+//   - On Linux (split shape) the `poller` init container exits as
+//     soon as it stages the JIT for a claim, so a terminated poller
+//     means the Pod has claimed (or is draining on a 410) and the
+//     runner is about to run — independent of whether the label
+//     stamp landed. This closes the window where a just-claimed Pod
+//     is briefly Pending while the runner container starts and an
+//     unlucky reconcile would otherwise see it as idle and reap it.
+//
+// macOS Pods have no poller init container, so they fall back to the
+// label signal alone (their single Tart-VM container never produces
+// this transition). Scale-down, drain, and the stale-Pending reap
+// all key off this so we never kill a runner mid-job.
+func isIdle(pod *corev1.Pod) bool {
+	if v, ok := pod.Labels["tuist.dev/runner-pool-owner"]; ok && v != "" {
+		return false
+	}
+	return !pollerTerminated(pod)
+}
+
+// isWarmCapacity reports whether an idle Pod can actually accept a job
+// right now. `isIdle` alone can't answer that: it only asks "unclaimed
+// and still polling", which a Pod that has never been scheduled also
+// satisfies. On a contended Tart fleet such a Pod can sit Pending for
+// hours with no node and no VM, and counting it as available capacity
+// inverts the reading it feeds — a pool starved of hosts would report
+// idle Pods sitting on queued work, the signature of the opposite
+// failure.
+//
+// The test is OS-dependent for the same reason oldestPendingPodAge is
+// darwin-only, but neither platform can use the Pod phase alone:
+//
+//   - darwin: Pending means the VM isn't up, so only Running is capacity.
+//   - linux: Pending is the healthy steady state, because the dispatch
+//     poller is an init container and kubelet holds the Pod in Pending
+//     for as long as it runs. But an *unscheduled* Linux Pod is equally
+//     Pending, equally unowned, and `pollerTerminated` reports false for
+//     it because no poller status exists at all. Treating every non-
+//     darwin Pod as capacity would therefore classify a Linux pool that
+//     is simply out of hosts as starved — the exact inversion this
+//     function exists to prevent, just on the other platform.
+//
+// So Linux asks whether the poller is *actively running*, which is only
+// true once the Pod has a node and kubelet has started the container.
+//
+// Running is necessary on darwin but not sufficient, which is why the
+// guest heartbeat is consulted on top of it. A macOS Pod's phase and
+// Ready condition are synthesized by tart-kubelet from "the VM process
+// is alive and has an IP" — it runs no container probes — so a guest
+// whose dispatch poller died reads 1/1 Running for the rest of the VM's
+// life. Nothing bounds that life either: warm standby is deliberately
+// unbounded, and in practice a macOS runner is recycled only when its
+// SA token expires around the 8h mark. Without the heartbeat such a Pod
+// is indistinguishable from a healthy warm one and is counted as
+// capacity for hours, which is the same inversion the paragraph above
+// describes — a pool reporting idle Pods sitting on queued work.
+func isWarmCapacity(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
+	if pool.Spec.OS == "darwin" {
+		return pod.Status.Phase == corev1.PodRunning && guestPolling(pod, time.Now())
+	}
+	return pollerRunning(pod)
+}
+
+// guestPolling reads the beat tart-kubelet publishes from the macOS
+// guest's status share (see publishRunnerHeartbeat there) and reports
+// whether the guest is still in its warm-standby loop.
+//
+// A Pod carrying no beat at all is *not* treated as dead. The host only
+// publishes one when it can see the guest — a pool with the cache-volume
+// feature off has no status share to read, and a runner image from
+// before the guest wrote a beat produces none either. Reading absence as
+// dead would drop every such Pod out of warm capacity at once, which
+// besides being wrong is the shape that stalls rolls fleet-wide:
+// isWarmCapacity also decides what counts against the roll's
+// availability budget. So absence means "no signal" and the Pod keeps
+// its former benefit of the doubt; only a beat that exists and has gone
+// stale withdraws it.
+//
+// `claimed` is not stale-checked. The guest beats it once as it takes a
+// job and then blocks running that job, so its age says nothing about
+// health — the state itself says the Pod is no longer warm, and it says
+// so without depending on the server's best-effort owner label landing.
+func guestPolling(pod *corev1.Pod, now time.Time) bool {
+	// Empty counts as absent, not as a state: the writer only ever
+	// publishes a state it validated, so a blank one reached the Pod some
+	// other way and is not evidence about the guest.
+	state := pod.Annotations[guestHeartbeatStateAnnotation]
+	if state == "" {
+		return true
+	}
+	if state != guestHeartbeatStatePolling {
+		return false
+	}
+	at, err := time.Parse(time.RFC3339, pod.Annotations[guestHeartbeatAtAnnotation])
+	if err != nil {
+		// State published without a readable timestamp. Nothing to age
+		// the beat against, so this falls back to the no-signal reading
+		// rather than condemning the Pod on a malformed annotation.
+		return true
+	}
+	return now.Sub(at) < guestHeartbeatStaleAfter
+}
+
+// pollerRunning reports whether the Linux `poller` init container is
+// currently executing. Absent status means the Pod has not started it
+// (unscheduled, or still pulling), which is not warm capacity.
+func pollerRunning(pod *corev1.Pod) bool {
+	for _, cs := range pod.Status.InitContainerStatuses {
+		if cs.Name == "poller" {
+			return cs.State.Running != nil
+		}
+	}
+	return false
+}
+
+// pollerTerminated reports whether the Linux `poller` init container
+// has exited. The poller exits 0 the instant it stages a claimed
+// JIT (or drains on a 410), so its termination is a label-independent
+// "this Pod is no longer warm-polling" signal. Returns false when
+// there is no poller container status yet (still Waiting/Running) or
+// at all (macOS single-container Pods).
+func pollerTerminated(pod *corev1.Pod) bool {
+	for _, cs := range pod.Status.InitContainerStatuses {
+		if cs.Name == "poller" {
+			return cs.State.Terminated != nil
+		}
+	}
+	return false
+}
+
+// runnerTerminated returns the terminated state of the `runner`
+// container, or nil if the container is absent or has no recorded
+// termination. Prefers the current terminated state; falls back to the
+// last termination. The exitCode + reason are the post-mortem
+// fingerprint logged on reap (see the terminal branch in Reconcile).
+func runnerTerminated(pod *corev1.Pod) *corev1.ContainerStateTerminated {
+	for i := range pod.Status.ContainerStatuses {
+		cs := &pod.Status.ContainerStatuses[i]
+		if cs.Name != "runner" {
+			continue
+		}
+		if cs.State.Terminated != nil {
+			return cs.State.Terminated
+		}
+		return cs.LastTerminationState.Terminated
+	}
+	return nil
+}
+
+// isStaleRunner reports whether an alive Pod needs controlled
+// replacement because its image or RuntimeClass revision no longer
+// matches the pool's current template.
+func isStaleRunner(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
+	return isStaleImage(pod, pool) || isStaleRuntimeClassRevision(pod, pool) || isStaleCacheVolumes(pod, pool)
+}
+
+// isStaleImage returns true when the Pod's runner container image
+// no longer matches the RunnerPool's spec.image — i.e., the chart
+// has rolled the image pin since this Pod was created. Used to
+// recycle Pending Pods on the next reconcile so a fresh image rolls
+// out without an operator-driven `kubectl delete pod` dance.
+func isStaleImage(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
+	if len(pod.Spec.Containers) == 0 {
+		return false
+	}
+	return pod.Spec.Containers[0].Image != pool.Spec.Image
+}
+
+// isStaleRuntimeClassRevision compares the revision Helm stamped on
+// the Linux RunnerPool with the revision copied into the Pod at
+// creation. RuntimeClass admission does not rewrite existing Pods when
+// overhead changes, so a revision mismatch triggers bounded turnover
+// without comparing admission-mutated fields to live cluster state.
+func isStaleRuntimeClassRevision(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
+	if pool.Spec.OS != "linux" || pool.Spec.RuntimeClass == "" {
+		return false
+	}
+	revision := pool.Annotations[podtemplate.RuntimeClassRevisionAnnotation]
+	if revision == "" {
+		return false
+	}
+	return pod.Annotations[podtemplate.RuntimeClassRevisionAnnotation] != revision
+}
+
+// rollConcurrencyCap is max(1, floor(pct/100 * replicas)): at least one
+// Pod may always roll (so a rollout never wedges), at most ~pct% of the
+// pool mid-roll at once.
+func rollConcurrencyCap(replicas, pct int32) int {
+	if replicas <= 0 || pct <= 0 {
+		return 1
+	}
+	n := int(replicas) * int(pct) / 100
+	if n < 1 {
+		return 1
+	}
+	return n
+}
+
+// markDrainEligible stamps drainEligibleLabel on a stale Pod so the
+// server will 410-drain it. Idempotent; a merge patch avoids clobbering
+// concurrent label writes (e.g. the server's owner stamp).
+func (r *RunnerPoolReconciler) markDrainEligible(ctx context.Context, pod *corev1.Pod) error {
+	if pod.Labels[drainEligibleLabel] == "true" {
+		return nil
+	}
+	patch := client.MergeFrom(pod.DeepCopy())
+	if pod.Labels == nil {
+		pod.Labels = map[string]string{}
+	}
+	pod.Labels[drainEligibleLabel] = "true"
+	return r.Patch(ctx, pod, patch)
+}
+
+// runnerLabelPredicate filters the Pod watch down to Pods carrying
+// `tuist.dev/runner=true` so the reconciler isn't woken by
+// unrelated Pods that might land in the namespace.
+func runnerLabelPredicate() predicate.Predicate {
+	return predicate.NewPredicateFuncs(func(obj client.Object) bool {
+		v, ok := obj.GetLabels()["tuist.dev/runner"]
+		return ok && v == "true"
+	})
+}
+
+func (r *RunnerPoolReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&tuistv1.RunnerPool{}).
+		Owns(&corev1.Pod{}, builder.WithPredicates(runnerLabelPredicate())).
+		Owns(&corev1.ServiceAccount{}).
+		// Cordoned nodes drive the graceful-drain reap. See
+		// reapIdlePodsOnCordonedNodes.
+		Watches(&corev1.Node{},
+			handler.EnqueueRequestsFromMapFunc(r.enqueueAllRunnerPools),
+			builder.WithPredicates(drainingNodePredicate()),
+		).
+		// The shared provisioning admission reads the fleet count and then
+		// creates Pods. Keep that decision serial within the elected manager;
+		// raising this requires an atomic cross-reconcile reservation step.
+		WithOptions(controller.Options{MaxConcurrentReconciles: 1}).
+		Complete(r)
+}
+
+func randHex(n int) (string, error) {
+	buf := make([]byte, n)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buf), nil
+}
+
+func isStaleCacheVolumes(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
+	if pool.Spec.OS != "linux" {
+		return false
+	}
+	revision := pod.Annotations["tuist.dev/cache-volume-revision"]
+	if revision == "" && pool.Spec.CacheVolumeRoot == "" {
+		return false
+	}
+	return revision != podtemplate.CacheVolumeRevision(pool)
+}

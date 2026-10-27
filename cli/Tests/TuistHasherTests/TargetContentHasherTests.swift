@@ -20,6 +20,8 @@ struct TargetContentHasherTests {
     private var plistContentHasher: MockPlistContentHashing!
     private var settingsContentHasher: MockSettingsContentHashing!
     private var dependenciesContentHasher: MockDependenciesContentHashing!
+    private var foreignBuildHasher: MockForeignBuildHashing!
+    private var additionalHashingInputsHasher: MockAdditionalHashingInputsHashing!
     private var subject: TargetContentHasher!
 
     init() async throws {
@@ -34,6 +36,8 @@ struct TargetContentHasherTests {
         plistContentHasher = MockPlistContentHashing()
         settingsContentHasher = MockSettingsContentHashing()
         dependenciesContentHasher = MockDependenciesContentHashing()
+        foreignBuildHasher = MockForeignBuildHashing()
+        additionalHashingInputsHasher = MockAdditionalHashingInputsHashing()
         subject = TargetContentHasher(
             contentHasher: contentHasher,
             sourceFilesContentHasher: sourceFilesContentHasher,
@@ -45,7 +49,9 @@ struct TargetContentHasherTests {
             deploymentTargetContentHasher: deploymentTargetContentHasher,
             plistContentHasher: plistContentHasher,
             settingsContentHasher: settingsContentHasher,
-            dependenciesContentHasher: dependenciesContentHasher
+            dependenciesContentHasher: dependenciesContentHasher,
+            foreignBuildHasher: foreignBuildHasher,
+            additionalHashingInputsHasher: additionalHashingInputsHasher
         )
 
         given(contentHasher)
@@ -77,6 +83,9 @@ struct TargetContentHasherTests {
         given(dependenciesContentHasher)
             .hash(graphTarget: .any, hashedTargets: .any, hashedPaths: .any)
             .willReturn(DependenciesContentHash(hashedPaths: [:], hash: "dependencies_hash"))
+        given(additionalHashingInputsHasher)
+            .hash(inputs: .any, hashedPaths: .any, sourceRootPath: .any)
+            .willReturn((hash: nil, hashedPaths: [:]))
         given(targetScriptsContentHasher)
             .hash(targetScripts: .any, sourceRootPath: .any)
             .willReturn("target_scripts_hash")
@@ -107,7 +116,8 @@ struct TargetContentHasherTests {
                 dependencies: "dependencies_hash",
                 projectSettings: "settings_hash",
                 targetSettings: "settings_hash",
-                external: "hash"
+                external: "hash",
+                destinations: ["iPad", "iPhone"]
             )
         )
     }
@@ -136,7 +146,8 @@ struct TargetContentHasherTests {
                 projectSettings: "settings_hash",
                 targetSettings: "settings_hash",
                 additionalStrings: ["additional_string_one", "additional_string_two"],
-                external: "hash"
+                external: "hash",
+                destinations: ["iPad", "iPhone"]
             )
         )
     }
@@ -178,9 +189,51 @@ struct TargetContentHasherTests {
                 deploymentTarget: "deployment_targets_hash",
                 projectSettings: "settings_hash",
                 targetSettings: "settings_hash",
-                additionalStrings: ["additional_string"]
+                additionalStrings: ["additional_string"],
+                destinations: ["iPad", "iPhone"]
             )
         )
+    }
+
+    @Test func hash_with_additional_hashing_inputs() async throws {
+        // Given
+        let hashingInputs: [TargetHashingInput] = [.string("codegen-version")]
+        let inputPath = try AbsolutePath(validating: "/test/template.stencil")
+        let target = GraphTarget.test(
+            target: .test(additionalHashingInputs: hashingInputs),
+            project: .test()
+        )
+        additionalHashingInputsHasher.reset([.given])
+        given(additionalHashingInputsHasher)
+            .hash(
+                inputs: .any,
+                hashedPaths: .any,
+                sourceRootPath: .any
+            )
+            .willReturn((
+                hash: "additional_hashing_inputs_hash",
+                hashedPaths: [inputPath: "template_hash"]
+            ))
+
+        // When
+        let got = try await subject.contentHash(
+            for: target,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: nil
+        )
+
+        // Then
+        #expect(got.hash.contains("additional_hashing_inputs_hash"))
+        #expect(got.hashedPaths[inputPath] == "template_hash")
+        #expect(got.subhashes.additionalHashingInputs == "additional_hashing_inputs_hash")
+        verify(additionalHashingInputsHasher)
+            .hash(
+                inputs: .value(hashingInputs),
+                hashedPaths: .any,
+                sourceRootPath: .any
+            )
+            .called(1)
     }
 
     @Test func hash_with_buildable_folders() async throws {
@@ -260,9 +313,193 @@ struct TargetContentHasherTests {
                 projectSettings: "settings_hash",
                 targetSettings: "settings_hash",
                 buildableFolders:
-                "/test/Resources/Image.png--/test/Sources/File.swift-compiler-flags-/test/headers/private.h--private-header-/test/headers/public.h--public-header"
+                "/test/Resources/Image.png--/test/Sources/File.swift-compiler-flags-/test/headers/private.h--private-header-/test/headers/public.h--public-header",
+                destinations: ["iPad", "iPhone"]
             )
         )
+    }
+
+    @Test func hash_changes_when_sibling_target_adds_cross_target_membership() async throws {
+        // Given: target "B" has no buildable folders of its own; sibling "A" optionally adds one of its
+        // buildable-folder files to "B" via an additive cross-target membership exception.
+        let includedPath = try AbsolutePath(validating: "/test/A/Shared.swift")
+        let folderPath = try AbsolutePath(validating: "/test/A")
+        let targetB = Target.test(name: "B", buildableFolders: [])
+
+        func graphTarget(includingIntoB: Bool) -> GraphTarget {
+            let exceptions: BuildableFolderExceptions = includingIntoB
+                ? BuildableFolderExceptions(exceptions: [
+                    BuildableFolderException(
+                        excluded: [],
+                        compilerFlags: [:],
+                        publicHeaders: [],
+                        privateHeaders: [],
+                        target: "B",
+                        included: [includedPath]
+                    ),
+                ])
+                : BuildableFolderExceptions(exceptions: [])
+            let targetA = Target.test(name: "A", buildableFolders: [
+                BuildableFolder(
+                    path: folderPath,
+                    exceptions: exceptions,
+                    resolvedFiles: [BuildableFolderFile(path: includedPath, compilerFlags: nil)]
+                ),
+            ])
+            return GraphTarget.test(target: targetB, project: .test(targets: [targetA, targetB]))
+        }
+
+        // When
+        let withMembership = try await subject.contentHash(
+            for: graphTarget(includingIntoB: true),
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: nil
+        )
+        let withoutMembership = try await subject.contentHash(
+            for: graphTarget(includingIntoB: false),
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: nil
+        )
+
+        // Then: B's hash reflects the file added to it from A's folder.
+        #expect(withMembership.hash != withoutMembership.hash)
+        #expect(withMembership.subhashes.buildableFolders != withoutMembership.subhashes.buildableFolders)
+    }
+
+    @Test func hash_with_buildable_folders_ignores_ds_store_files() async throws {
+        // Given
+        let targetWithDSStore = GraphTarget.test(target: .test(buildableFolders: [
+            BuildableFolder(
+                path: try AbsolutePath(validating: "/test/Sources"),
+                exceptions: BuildableFolderExceptions(exceptions: []),
+                resolvedFiles: [
+                    BuildableFolderFile(
+                        path: try AbsolutePath(validating: "/test/Sources/.DS_Store"),
+                        compilerFlags: nil
+                    ),
+                    BuildableFolderFile(
+                        path: try AbsolutePath(validating: "/test/Sources/File.swift"),
+                        compilerFlags: nil
+                    ),
+                ]
+            ),
+        ]), project: .test())
+        let targetWithoutDSStore = GraphTarget.test(target: .test(buildableFolders: [
+            BuildableFolder(
+                path: try AbsolutePath(validating: "/test/Sources"),
+                exceptions: BuildableFolderExceptions(exceptions: []),
+                resolvedFiles: [
+                    BuildableFolderFile(
+                        path: try AbsolutePath(validating: "/test/Sources/File.swift"),
+                        compilerFlags: nil
+                    ),
+                ]
+            ),
+        ]), project: .test())
+
+        // When
+        let gotWithDSStore = try await subject.contentHash(
+            for: targetWithDSStore,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: .test(
+                device: .test(name: "iPhone 16"),
+                runtime: .test(name: "iOS-16")
+            ),
+            additionalStrings: []
+        )
+        let gotWithoutDSStore = try await subject.contentHash(
+            for: targetWithoutDSStore,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: .test(
+                device: .test(name: "iPhone 16"),
+                runtime: .test(name: "iOS-16")
+            ),
+            additionalStrings: []
+        )
+
+        // Then
+        #expect(gotWithDSStore.hash == gotWithoutDSStore.hash)
+        #expect(gotWithDSStore.subhashes == gotWithoutDSStore.subhashes)
+    }
+
+    @Test func hash_changes_when_embedded_product_references_differ() async throws {
+        // Given
+        let target = GraphTarget.test(project: .test())
+
+        // When
+        let withoutEmbedded = try await subject.contentHash(
+            for: target,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: nil,
+            embeddedProductReferences: []
+        )
+        let withEmbedded = try await subject.contentHash(
+            for: target,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: nil,
+            embeddedProductReferences: ["product:Resources:Resources.bundle"]
+        )
+
+        // Then
+        #expect(withoutEmbedded.hash != withEmbedded.hash)
+        #expect(withoutEmbedded.subhashes.embeddedProductReferences == nil)
+        #expect(withEmbedded.subhashes.embeddedProductReferences != nil)
+    }
+
+    @Test func hash_is_stable_regardless_of_embedded_product_references_order() async throws {
+        // Given
+        let target = GraphTarget.test(project: .test())
+
+        // When
+        let ordered = try await subject.contentHash(
+            for: target,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: nil,
+            embeddedProductReferences: ["product:A:A.bundle", "product:B:B.bundle"]
+        )
+        let reordered = try await subject.contentHash(
+            for: target,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: nil,
+            embeddedProductReferences: ["product:B:B.bundle", "product:A:A.bundle"]
+        )
+
+        // Then
+        #expect(ordered.hash == reordered.hash)
+    }
+
+    @Test func hash_for_external_target_changes_when_embedded_product_references_differ() async throws {
+        // Given
+        let target = GraphTarget.test(project: .test(type: .external(hash: "hash")))
+
+        // When
+        let withoutEmbedded = try await subject.contentHash(
+            for: target,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: nil,
+            embeddedProductReferences: []
+        )
+        let withEmbedded = try await subject.contentHash(
+            for: target,
+            hashedTargets: [:],
+            hashedPaths: [:],
+            destination: nil,
+            embeddedProductReferences: ["product:Resources:Resources.bundle"]
+        )
+
+        // Then
+        #expect(withoutEmbedded.hash != withEmbedded.hash)
+        #expect(withoutEmbedded.subhashes.embeddedProductReferences == nil)
+        #expect(withEmbedded.subhashes.embeddedProductReferences != nil)
     }
 
     @Test func hash_with_destination() async throws {
@@ -306,8 +543,60 @@ struct TargetContentHasherTests {
                 environment: "dictionary_hash",
                 deploymentTarget: "deployment_targets_hash",
                 projectSettings: "settings_hash",
-                targetSettings: "settings_hash"
+                targetSettings: "settings_hash",
+                destinations: ["iPad", "iPhone"],
+                testDevice: "iPhone 16",
+                testRuntime: "iOS-16"
             )
         )
+    }
+
+    @Test(arguments: [false, true]) func captures_effective_destinations_used_for_hash(external: Bool) async throws {
+        let project = Project.test(type: external ? .external(hash: "external-hash") : .local)
+        let broad = GraphTarget.test(
+            target: .test(destinations: [.iPad, .iPhone, .mac, .macWithiPadDesign], product: .staticFramework),
+            project: project
+        )
+        let narrow = GraphTarget.test(
+            target: .test(destinations: [.iPad, .iPhone, .macWithiPadDesign], product: .staticFramework),
+            project: project
+        )
+        let first = try await subject.contentHash(for: broad, hashedTargets: [:], hashedPaths: [:], destination: nil)
+        let second = try await subject.contentHash(for: narrow, hashedTargets: [:], hashedPaths: [:], destination: nil)
+
+        #expect(first.hash != second.hash)
+        #expect(first.subhashes.destinations == ["iPad", "iPhone", "mac", "macWithiPadDesign"])
+        #expect(second.subhashes.destinations == ["iPad", "iPhone", "macWithiPadDesign"])
+        #expect(first.hash.replacingOccurrences(of: "-mac-", with: "-") == second.hash)
+        #expect(first.subhashes.projectSettings == second.subhashes.projectSettings)
+        #expect(first.subhashes.dependencies == second.subhashes.dependencies)
+        #expect(first.subhashes.external == second.subhashes.external)
+    }
+
+    @Test func captures_foreign_build_hash_without_changing_composition() async throws {
+        let target = GraphTarget.test(target: .test(foreignBuild: ForeignBuild(
+            script: "build-library",
+            inputs: [],
+            output: .xcframework(path: try AbsolutePath(validating: "/tmp/Library.xcframework"), linking: .static)
+        )))
+        given(foreignBuildHasher).hash(inputs: .any, hashedPaths: .any)
+            .willReturn((hash: "foreign-inputs", hashedPaths: [:]))
+
+        let result = try await subject.contentHash(for: target, hashedTargets: [:], hashedPaths: [:], destination: nil)
+
+        #expect(result.subhashes.foreignBuild == "foreignBuild-Target-build-library-foreign-inputs")
+        #expect(result.hash.hasSuffix("-foreignBuild-Target-build-library-foreign-inputs"))
+        #expect(result.subhashes.testDevice == nil)
+        #expect(result.subhashes.testRuntime == nil)
+    }
+
+    @Test func historical_subhashes_decode_without_inventing_inputs() throws {
+        let historical = Data(#"{"projectSettings":"settings","additionalStrings":[]}"#.utf8)
+        let subhashes = try JSONDecoder().decode(TargetContentHashSubhashes.self, from: historical)
+        #expect(subhashes.destinations == nil)
+        #expect(subhashes.foreignBuild == nil)
+        #expect(subhashes.testDevice == nil)
+        #expect(subhashes.testRuntime == nil)
+        #expect(subhashes.embeddedProductReferences == nil)
     }
 }

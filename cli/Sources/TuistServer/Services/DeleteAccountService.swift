@@ -1,5 +1,5 @@
 import Foundation
-import OpenAPIURLSession
+import OpenAPIRuntime
 
 public protocol DeleteAccountServicing: Sendable {
     func deleteAccount(
@@ -24,7 +24,7 @@ enum DeleteOrganizationServiceError: LocalizedError {
     }
 }
 
-public final class DeleteAccountService: DeleteAccountServicing {
+public struct DeleteAccountService: DeleteAccountServicing {
     public init() {}
 
     public func deleteAccount(

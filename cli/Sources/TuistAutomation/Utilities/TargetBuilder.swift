@@ -1,7 +1,9 @@
 import FileSystem
 import Path
 import TuistCore
+import TuistLogging
 import TuistSupport
+import TuistXcodeBuildProducts
 import XcodeGraph
 
 public protocol TargetBuilding {
@@ -59,7 +61,7 @@ public enum TargetBuilderError: FatalError {
     }
 }
 
-public final class TargetBuilder: TargetBuilding {
+public struct TargetBuilder: TargetBuilding {
     private let buildGraphInspector: BuildGraphInspecting
     private let xcodeBuildController: XcodeBuildControlling
     private let xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating
@@ -157,7 +159,7 @@ public final class TargetBuilder: TargetBuilding {
 
         let buildOutputPath = outputPath.appending(component: xcodeSchemeBuildPath.basename)
         if try await !fileSystem.exists(buildOutputPath) {
-            try FileHandler.shared.createFolder(buildOutputPath)
+            try await fileSystem.makeDirectory(at: buildOutputPath)
         }
         Logger.current.log(
             level: .notice,
@@ -165,7 +167,7 @@ public final class TargetBuilder: TargetBuilding {
             metadata: .subsection
         )
 
-        for product in try FileHandler.shared.contentsOfDirectory(xcodeSchemeBuildPath) {
+        for product in try await fileSystem.contentsOfDirectory(xcodeSchemeBuildPath) {
             let productOutputPath = buildOutputPath.appending(component: product.basename)
             if try await fileSystem.exists(productOutputPath) {
                 try await fileSystem.remove(productOutputPath)

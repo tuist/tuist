@@ -1,0 +1,369 @@
+package dev.tuist.gradle
+
+import dev.tuist.gradle.api.model.Shard
+import org.gradle.api.Action
+import org.gradle.api.IsolatedAction
+import org.gradle.api.Plugin
+import org.gradle.api.Project
+import org.gradle.api.initialization.Settings
+import org.gradle.api.logging.Logger
+import org.gradle.api.logging.Logging
+
+/**
+ * Main Tuist Gradle Settings Plugin.
+ *
+ * This plugin integrates Gradle projects with Tuist services including
+ * remote build caching and analytics.
+ *
+ * Usage in settings.gradle.kts:
+ * ```
+ * plugins {
+ *     id("dev.tuist") version "0.10.0"
+ * }
+ *
+ * tuist {
+ *     // Optional: if not set, the project is read from tuist.toml
+ *     // project = "account/project"
+ *
+ *     uploadInBackground = true // default: true locally, false on CI
+ *
+ *     network {
+ *         proxy = false
+ *     }
+ *
+ *     buildCache {
+ *         enabled = true
+ *         push = System.getenv("CI") != null
+ *     }
+ * }
+ * ```
+ */
+
+/**
+ * Shared configuration passed from the settings plugin to project-level feature plugins.
+ */
+data class TuistGradleConfig(
+    val url: String,
+    val project: String?,
+    val network: Network,
+    val uploadInBackground: Boolean? = null,
+    val testQuarantineEnabled: Boolean? = null,
+    val stressNewTestsMode: String? = null,
+    val stressRepetition: StressRepetitionContext? = null,
+    val customMetadata: BuildCustomMetadata = BuildCustomMetadata(),
+    val actorId: String? = null,
+    val rootProjectName: String = "",
+    val projectPaths: List<String> = listOf(":"),
+    val shard: Shard? = null,
+    val shardIndex: Int? = null
+) {
+    data class Network(val proxy: Boolean)
+
+    companion object {
+        internal const val EXTRA_PROPERTY_KEY = "tuist.config"
+        internal const val STRESS_MODE_ENV = "TUIST_TEST_STRESS_NEW_TESTS"
+        internal const val STRESS_FILTERS_PROPERTY = "tuist.stressNewTests.filters"
+        internal const val STRESS_OUTPUT_PROPERTY = "tuist.stressNewTests.output"
+
+        fun from(settings: Settings, extension: TuistExtension): TuistGradleConfig =
+            TuistGradleConfig(
+                url = ServerUrlResolver.resolve(
+                    extensionUrl = extension.url,
+                    projectDir = settings.settingsDir
+                ),
+                project = extension.project.ifBlank { null },
+                network = Network(
+                    proxy = EnvironmentProxyResolver.resolve(
+                        extensionProxy = extension.network.proxy,
+                        projectDir = settings.settingsDir
+                    )
+                ),
+                uploadInBackground = extension.uploadInBackground,
+                actorId = extension.buildInsights.actorId,
+                testQuarantineEnabled = extension.testQuarantine.enabled,
+                stressNewTestsMode = StressNewTestsMode.resolve(
+                    environmentValue = System.getenv(STRESS_MODE_ENV),
+                    extensionValue = extension.stressNewTests.mode
+                ),
+                stressRepetition = StressRepetitionContext.from(settings.startParameter.projectProperties),
+                customMetadata = BuildCustomMetadata(
+                    tags = extension.buildInsights.tags,
+                    values = extension.buildInsights.values
+                ),
+                rootProjectName = settings.rootProject.name,
+                projectPaths = projectPaths(settings.rootProject)
+            )
+
+        private fun projectPaths(project: org.gradle.api.initialization.ProjectDescriptor): List<String> =
+            listOf(project.path) + project.children.flatMap(::projectPaths)
+
+        fun from(project: org.gradle.api.Project): TuistGradleConfig? =
+            project.extensions.extraProperties.let {
+                if (it.has(EXTRA_PROPERTY_KEY)) it.get(EXTRA_PROPERTY_KEY) as? TuistGradleConfig else null
+            }
+    }
+}
+
+class TuistPlugin : Plugin<Settings> {
+
+    private val logger: Logger = Logging.getLogger(TuistPlugin::class.java)
+
+    override fun apply(settings: Settings) {
+        if (StressRepetitionContext.from(settings.startParameter.projectProperties) == null) {
+            settings.gradle.sharedServices.registerIfAbsent(
+                "tuistMachineMetrics",
+                TuistMachineMetricsService::class.java
+            ) {}.get()
+        }
+
+        val extension = settings.extensions.create(
+            "tuist",
+            TuistExtension::class.java
+        )
+
+        settings.buildCache.registerBuildCacheService(
+            TuistBuildCache::class.java,
+            TuistBuildCacheServiceFactory::class.java
+        )
+
+        settings.gradle.settingsEvaluated {
+            configure(settings, extension)
+        }
+    }
+
+    private fun configure(settings: Settings, extension: TuistExtension) {
+        val baseConfig = TuistGradleConfig.from(settings, extension)
+        val shardIndexValue = settings.providers.environmentVariable("TUIST_SHARD_INDEX").orNull
+        val shardIndex = shardIndexValue?.toIntOrNull()
+        if (shardIndexValue != null && shardIndex == null && baseConfig.stressRepetition == null) {
+            logger.warn("Tuist: TUIST_SHARD_INDEX is not a valid integer: $shardIndexValue")
+        }
+        val config = if (shardIndex != null && baseConfig.stressRepetition == null) {
+            val shard = settings.providers.of(TuistShardValueSource::class.java) {
+                parameters.serverUrl.set(baseConfig.url)
+                baseConfig.project?.let { parameters.tuistProject.set(it) }
+                parameters.useEnvironmentProxy.set(baseConfig.network.proxy)
+                parameters.projectDir.set(settings.settingsDir)
+                parameters.shardIndex.set(shardIndex)
+                parameters.shardReference.set(settings.providers.environmentVariable("TUIST_SHARD_REFERENCE"))
+            }.get()
+            baseConfig.copy(shard = shard, shardIndex = shardIndex)
+        } else baseConfig
+        configureBuildCache(settings, config, extension.buildCache)
+        settings.gradle.lifecycle.beforeProject(ConfigureTuistProject(config))
+        settings.gradle.lifecycle.afterProject(PublishTuistTestModule())
+        val projectLabel = config.project ?: "(from tuist.toml)"
+        logger.lifecycle("Tuist: Build insights configured for $projectLabel")
+        logger.lifecycle("Tuist: Test insights configured for $projectLabel")
+        config.stressNewTestsMode?.let { mode ->
+            logger.lifecycle("Tuist: Stress-testing new tests configured in $mode mode")
+        }
+    }
+
+    private fun configureBuildCache(
+        settings: Settings,
+        config: TuistGradleConfig,
+        buildCacheConfig: BuildCacheExtension
+    ) {
+        if (!buildCacheConfig.enabled) {
+            logger.info("Tuist: Build cache is disabled.")
+            return
+        }
+
+        settings.buildCache {
+            remote(TuistBuildCache::class.java) {
+                this.project = config.project
+                this.url = config.url
+                this.projectDir = settings.settingsDir.absolutePath
+                this.useEnvironmentProxy = config.network.proxy
+                isPush = buildCacheConfig.push
+                this.allowInsecureProtocol = buildCacheConfig.allowInsecureProtocol
+            }
+        }
+
+        val projectLabel = config.project ?: "(from tuist.toml)"
+        logger.lifecycle("Tuist: Remote build cache configured for $projectLabel")
+    }
+}
+
+private class ConfigureTuistProject(private val config: TuistGradleConfig) : IsolatedAction<Project> {
+    override fun execute(project: Project) {
+        project.extensions.extraProperties.set(TuistGradleConfig.EXTRA_PROPERTY_KEY, config)
+        if (config.stressRepetition == null) {
+            project.pluginManager.apply(TuistBuildInsightsPlugin::class.java)
+        }
+        project.pluginManager.apply(TuistTestInsightsPlugin::class.java)
+        if (config.stressRepetition == null) {
+            project.pluginManager.apply(TuistTestShardingPlugin::class.java)
+        }
+    }
+}
+
+/**
+ * Main extension for configuring Tuist integration.
+ */
+open class TuistExtension {
+    /**
+     * The project identifier in format "account/project".
+     * If not set, the plugin reads it from the tuist.toml file in the project root.
+     */
+    var project: String = ""
+
+    @Deprecated("No longer used. The plugin resolves auth natively without the Tuist CLI.")
+    var executablePath: String? = null
+
+    /**
+     * The base URL that points to the Tuist server. Defaults to https://tuist.dev.
+     */
+    var url: String = "https://tuist.dev"
+
+    /**
+     * Whether to upload build insights in the background. When null (default),
+     * the upload runs in the background for local builds and in the foreground on CI
+     * to ensure it completes before ephemeral agents exit.
+     */
+    var uploadInBackground: Boolean? = null
+
+    /**
+     * Network configuration.
+     */
+    val network: NetworkSettings = NetworkSettings()
+
+    /**
+     * Configure network settings.
+     */
+    fun network(action: Action<NetworkSettings>) {
+        action.execute(network)
+    }
+
+    /**
+     * Build cache configuration.
+     */
+    val buildCache: BuildCacheExtension = BuildCacheExtension()
+
+    /**
+     * Configure build cache settings.
+     */
+    fun buildCache(action: Action<BuildCacheExtension>) {
+        action.execute(buildCache)
+    }
+
+    /**
+     * Test quarantine configuration.
+     */
+    val testQuarantine: TestQuarantineExtension = TestQuarantineExtension()
+
+    /**
+     * Configure test quarantine settings.
+     */
+    fun testQuarantine(action: Action<TestQuarantineExtension>) {
+        action.execute(testQuarantine)
+    }
+
+    /**
+     * Stress gate for newly added tests.
+     */
+    val stressNewTests: StressNewTestsExtension = StressNewTestsExtension()
+
+    /**
+     * Configure the stress gate for newly added tests.
+     */
+    fun stressNewTests(action: Action<StressNewTestsExtension>) {
+        action.execute(stressNewTests)
+    }
+
+    /**
+     * Build insight metadata configuration.
+     */
+    val buildInsights: BuildInsightsExtension = BuildInsightsExtension()
+
+    /**
+     * Configure tags and key-value metadata for build insights.
+     */
+    fun buildInsights(action: Action<BuildInsightsExtension>) {
+        action.execute(buildInsights)
+    }
+}
+
+/**
+ * Configuration for Tuist build cache feature.
+ */
+open class BuildCacheExtension {
+    /**
+     * Whether the build cache feature is enabled. Defaults to true.
+     */
+    var enabled: Boolean = true
+
+    /**
+     * Whether to push build outputs to the remote cache. Defaults to true.
+     */
+    var push: Boolean = true
+
+    /**
+     * Whether to allow insecure HTTP connections. Defaults to false.
+     */
+    var allowInsecureProtocol: Boolean = false
+}
+
+/**
+ * Configuration for Tuist's network behavior.
+ */
+open class NetworkSettings {
+    /**
+     * Whether the plugin should use the proxy defined by `HTTPS_PROXY`/`HTTP_PROXY`.
+     * When null (default), the plugin reads `[network].proxy` from `tuist.toml`
+     * and otherwise falls back to `true`.
+     */
+    var proxy: Boolean? = null
+}
+
+/**
+ * Configuration for test quarantine feature.
+ * When enabled, quarantined (flaky) tests are automatically excluded from test runs.
+ */
+open class TestQuarantineExtension {
+    /**
+     * Whether test quarantine is enabled. When null (default), quarantine is
+     * automatically enabled on CI and disabled for local builds.
+     */
+    var enabled: Boolean? = null
+}
+
+/**
+ * Configuration for the stress gate for newly added tests. After the test tasks
+ * run, the test cases that have never run in CI on the project's default branch
+ * are rerun several times each, in a fresh process per repetition, and one that
+ * proves flaky is reported (`report`) or fails the build (`enforce`).
+ * Absent means off, in every environment; the `TUIST_TEST_STRESS_NEW_TESTS`
+ * environment variable overrides the declared mode per invocation.
+ */
+open class StressNewTestsExtension {
+    /**
+     * `report` or `enforce`. When null (default), the gate does not run.
+     */
+    var mode: String? = null
+}
+
+/**
+ * Configuration for build insight tags, key-value metadata, and the shared build/test actor claim.
+ */
+open class BuildInsightsExtension {
+    var actorId: String? = null
+
+    @Deprecated("Credential-free reporting is discovered automatically from the self-hosted server.")
+    var networkTrustedPublishing: Boolean = false
+
+    private val configuredTags = mutableListOf<String>()
+    private val configuredValues = mutableMapOf<String, String>()
+
+    internal val tags: List<String> get() = configuredTags.toList()
+    internal val values: Map<String, String> get() = configuredValues.toMap()
+
+    fun tag(value: String) {
+        configuredTags.add(value)
+    }
+
+    fun value(key: String, value: String) {
+        configuredValues[key] = value
+    }
+}

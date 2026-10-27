@@ -53,6 +53,10 @@ final class DevicesViewModelTests: TuistUnitTestCase {
             .willReturn([])
 
         given(appStorage)
+            .get(.any as Parameter<PinnedAndroidDevicesKey.Type>)
+            .willReturn([])
+
+        given(appStorage)
             .get(.any as Parameter<SelectedDeviceKey.Type>)
             .willReturn(.simulator(id: iPhone15.id))
 
@@ -82,6 +86,10 @@ final class DevicesViewModelTests: TuistUnitTestCase {
         given(appStorage)
             .get(.any as Parameter<PinnedSimulatorsKey.Type>)
             .willReturn([iPhone15])
+
+        given(appStorage)
+            .get(.any as Parameter<PinnedAndroidDevicesKey.Type>)
+            .willReturn([])
 
         given(appStorage)
             .get(.any as Parameter<SelectedDeviceKey.Type>)
@@ -115,6 +123,10 @@ final class DevicesViewModelTests: TuistUnitTestCase {
         given(appStorage)
             .get(.any as Parameter<PinnedSimulatorsKey.Type>)
             .willReturn([iPhone15])
+
+        given(appStorage)
+            .get(.any as Parameter<PinnedAndroidDevicesKey.Type>)
+            .willReturn([])
 
         given(appStorage)
             .get(.any as Parameter<SelectedDeviceKey.Type>)

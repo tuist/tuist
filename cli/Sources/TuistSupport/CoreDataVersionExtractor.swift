@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import TuistLogging
 
 /// Extract version from .xccurrentversion file.
 public enum CoreDataVersionExtractor {

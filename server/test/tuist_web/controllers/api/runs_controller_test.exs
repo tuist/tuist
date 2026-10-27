@@ -2,12 +2,27 @@ defmodule TuistWeb.API.RunsControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use Mimic
 
-  alias Tuist.Runs.Build
+  import Ecto.Query
+
+  alias Tuist.Builds
+  alias Tuist.Builds.Build
+  alias Tuist.Builds.Build.Buffer
+  alias Tuist.ClickHouseRepo
+  alias Tuist.Tests
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.Authentication
+
+  defp get_builds_for_project(project_id, opts \\ []) do
+    preloads = Keyword.get(opts, :preload, [])
+
+    Build
+    |> where([b], b.project_id == ^project_id)
+    |> ClickHouseRepo.all()
+    |> ClickHouseRepo.preload(preloads)
+  end
 
   setup do
     stub(VCS, :enqueue_vcs_pull_request_comment, fn _args -> {:ok, %{}} end)
@@ -46,53 +61,105 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert Enum.at(run_urls, 1) =~ run_two.id
     end
 
-    test "lists second page", %{conn: conn, user: user, project: project} do
+    test "defaults to a page size of 20", %{conn: conn, user: user, project: project} do
+      response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs")
+        |> json_response(:ok)
+
+      assert response["pagination_metadata"]["page_size"] == 20
+    end
+
+    test "accepts a page size of 1000 and returns more than 100 runs", %{conn: conn, user: user, project: project} do
+      runs =
+        Enum.map(1..101, fn _ ->
+          CommandEventsFixtures.command_event_fixture(project_id: project.id)
+        end)
+
+      response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1000")
+        |> json_response(:ok)
+
+      assert response["pagination_metadata"]["page_size"] == 1000
+      assert response["pagination_metadata"]["has_next_page"] == false
+      assert MapSet.new(response["runs"], & &1["id"]) == MapSet.new(runs, & &1.id)
+    end
+
+    test "rejects page sizes above 1000", %{conn: conn, user: user, project: project} do
+      conn
+      |> get("/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1001")
+      |> json_response(:bad_request)
+    end
+
+    test "paginates forward with cursors", %{conn: conn, user: user, project: project} do
       # Given
-      date = DateTime.utc_now()
+      date = ~U[2026-09-01 10:00:00.000000Z]
 
       run_one =
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
-          name: "test",
+          name: "install",
           test_targets: ["ATests", "BTests", "CTests"],
           local_test_target_hits: ["ATests", "BTests"],
           remote_test_target_hits: ["CTests"],
           cacheable_targets: ["A", "B", "C"],
           local_cache_target_hits: ["A", "B"],
           remote_cache_target_hits: ["C"],
-          created_at: date
+          is_ci: true,
+          ran_at: date
         )
 
-      _run_two =
-        CommandEventsFixtures.command_event_fixture(project_id: project.id, created_at: date)
+      run_two =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          ran_at: DateTime.add(date, 1, :second)
+        )
 
-      _run_three =
-        CommandEventsFixtures.command_event_fixture(project_id: project.id, created_at: date)
+      run_three =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          ran_at: DateTime.add(date, 2, :second)
+        )
 
-      _run_four = CommandEventsFixtures.command_event_fixture(created_at: date)
+      _run_of_another_project = CommandEventsFixtures.command_event_fixture(ran_at: date)
 
       # When
-      conn =
-        get(conn, "/api/projects/#{user.account.name}/#{project.name}/runs?page=2&page_size=2")
+      first_page =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?page_size=2")
+        |> json_response(:ok)
 
       # Then
-      response = json_response(conn, :ok)
+      assert Enum.map(first_page["runs"], & &1["id"]) == [run_three.id, run_two.id]
+      assert first_page["pagination_metadata"]["has_next_page"] == true
+      assert first_page["pagination_metadata"]["page_size"] == 2
 
-      # Check the returned run
-      assert length(response["runs"]) == 1
-      run = hd(response["runs"])
+      # When
+      second_page =
+        conn
+        |> get(
+          "/api/projects/#{user.account.name}/#{project.name}/runs?page_size=2&after=#{first_page["pagination_metadata"]["end_cursor"]}"
+        )
+        |> json_response(:ok)
 
-      # Check all the expected fields except id and url which we'll check separately
+      # Then
+      assert length(second_page["runs"]) == 1
+      run = hd(second_page["runs"])
+
+      assert run["id"] == run_one.id
       assert run["git_branch"] == nil
       assert run["git_commit_sha"] == nil
       assert run["cacheable_targets"] == ["A", "B", "C"]
       assert run["command_arguments"] == ""
       assert run["duration"] == 0
+      assert run["error_message"] == nil
       assert run["git_ref"] == nil
+      assert run["is_ci"] == true
       assert run["local_cache_target_hits"] == ["A", "B"]
       assert run["local_test_target_hits"] == ["ATests", "BTests"]
       assert run["macos_version"] == "10.15"
-      assert run["name"] == "test"
+      assert run["name"] == "install"
       assert run["preview_id"] == nil
       assert run["remote_cache_target_hits"] == ["C"]
       assert run["remote_test_target_hits"] == ["CTests"]
@@ -103,9 +170,237 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert run["tuist_version"] == "4.1.0"
       assert run["ran_at"] == DateTime.to_unix(date)
       assert run["ran_by"] == nil
-
-      # Check that URL contains the UUID
       assert run["url"] =~ run_one.id
+    end
+
+    test "paginates backwards with cursors", %{conn: conn, user: user, project: project} do
+      # Given
+      date = ~U[2026-09-01 10:00:00.000000Z]
+
+      run_one = CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: date)
+
+      run_two =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          ran_at: DateTime.add(date, 1, :second)
+        )
+
+      first_page =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1")
+        |> json_response(:ok)
+
+      second_page =
+        conn
+        |> get(
+          "/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1&after=#{first_page["pagination_metadata"]["end_cursor"]}"
+        )
+        |> json_response(:ok)
+
+      assert Enum.map(second_page["runs"], & &1["id"]) == [run_one.id]
+
+      # When
+      previous_page =
+        conn
+        |> get(
+          "/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1&before=#{second_page["pagination_metadata"]["start_cursor"]}"
+        )
+        |> json_response(:ok)
+
+      # Then
+      assert Enum.map(previous_page["runs"], & &1["id"]) == [run_two.id]
+    end
+
+    test "pages across runs that share a timestamp", %{conn: conn, user: user, project: project} do
+      # Given
+      # The CLI sends ran_at as ISO8601 without fractional seconds, so concurrent
+      # runs routinely land on the same timestamp.
+      date = ~U[2026-09-01 10:00:00Z]
+
+      run_one = CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: date)
+      run_two = CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: date)
+
+      # When
+      first_page =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1")
+        |> json_response(:ok)
+
+      second_page =
+        conn
+        |> get(
+          "/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1&after=#{first_page["pagination_metadata"]["end_cursor"]}"
+        )
+        |> json_response(:ok)
+
+      # Then
+      assert length(first_page["runs"]) == 1
+      assert length(second_page["runs"]) == 1
+
+      assert MapSet.new(first_page["runs"] ++ second_page["runs"], & &1["id"]) ==
+               MapSet.new([run_one.id, run_two.id])
+    end
+
+    test "pages backwards across runs that share a timestamp", %{conn: conn, user: user, project: project} do
+      # Given
+      date = ~U[2026-09-01 10:00:00Z]
+
+      run_one = CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: date)
+      run_two = CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: date)
+
+      first_page =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1")
+        |> json_response(:ok)
+
+      second_page =
+        conn
+        |> get(
+          "/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1&after=#{first_page["pagination_metadata"]["end_cursor"]}"
+        )
+        |> json_response(:ok)
+
+      # When
+      previous_page =
+        conn
+        |> get(
+          "/api/projects/#{user.account.name}/#{project.name}/runs?page_size=1&before=#{second_page["pagination_metadata"]["start_cursor"]}"
+        )
+        |> json_response(:ok)
+
+      # Then
+      assert Enum.map(previous_page["runs"], & &1["id"]) == Enum.map(first_page["runs"], & &1["id"])
+
+      assert MapSet.new([run_one.id, run_two.id]) ==
+               MapSet.new(previous_page["runs"] ++ second_page["runs"], & &1["id"])
+    end
+
+    test "returns a bad request when a cursor is malformed", %{conn: conn, user: user, project: project} do
+      # When
+      after_response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?after=invalid")
+        |> json_response(:bad_request)
+
+      before_response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?before=invalid")
+        |> json_response(:bad_request)
+
+      # Then
+      assert after_response["message"] == "`after` and `before` must be cursors returned by a previous response."
+      assert before_response["message"] == "`after` and `before` must be cursors returned by a previous response."
+    end
+
+    test "ignores the deprecated page parameter", %{conn: conn, user: user, project: project} do
+      # Given
+      date = ~U[2026-09-01 10:00:00.000000Z]
+
+      _run_one = CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: date)
+
+      run_two =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          ran_at: DateTime.add(date, 1, :second)
+        )
+
+      # When
+      response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?page=2&page_size=1")
+        |> json_response(:ok)
+
+      # Then
+      assert Enum.map(response["runs"], & &1["id"]) == [run_two.id]
+    end
+
+    test "filters runs by status", %{conn: conn, user: user, project: project} do
+      # Given
+      failed_run =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "install",
+          status: :failure,
+          error_message: "The command 'swift package resolve' terminated with the code 1"
+        )
+
+      _successful_run =
+        CommandEventsFixtures.command_event_fixture(project_id: project.id, name: "install")
+
+      # When
+      response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?name=install&status=failure")
+        |> json_response(:ok)
+
+      # Then
+      assert Enum.map(response["runs"], & &1["id"]) == [failed_run.id]
+      run = hd(response["runs"])
+      assert run["status"] == "failure"
+      assert run["error_message"] == "The command 'swift package resolve' terminated with the code 1"
+    end
+
+    test "filters runs by is_ci", %{conn: conn, user: user, project: project} do
+      # Given
+      ci_run = CommandEventsFixtures.command_event_fixture(project_id: project.id, is_ci: true)
+      local_run = CommandEventsFixtures.command_event_fixture(project_id: project.id, is_ci: false)
+
+      # When
+      ci_response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?is_ci=true")
+        |> json_response(:ok)
+
+      local_response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?is_ci=false")
+        |> json_response(:ok)
+
+      # Then
+      assert Enum.map(ci_response["runs"], & &1["id"]) == [ci_run.id]
+      assert Enum.map(local_response["runs"], & &1["id"]) == [local_run.id]
+    end
+
+    test "filters runs by the ran_at range", %{conn: conn, user: user, project: project} do
+      # Given
+      date = ~U[2026-09-01 10:00:00.000000Z]
+
+      _older_run =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          ran_at: DateTime.add(date, -1, :day)
+        )
+
+      run_in_range = CommandEventsFixtures.command_event_fixture(project_id: project.id, ran_at: date)
+
+      _newer_run =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          ran_at: DateTime.add(date, 1, :day)
+        )
+
+      from = date |> DateTime.add(-1, :hour) |> DateTime.to_unix()
+      to = date |> DateTime.add(1, :hour) |> DateTime.to_unix()
+
+      # When
+      response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?from=#{from}&to=#{to}")
+        |> json_response(:ok)
+
+      # Then
+      assert Enum.map(response["runs"], & &1["id"]) == [run_in_range.id]
+    end
+
+    test "returns a bad request when to is before from", %{conn: conn, user: user, project: project} do
+      # When
+      response =
+        conn
+        |> get("/api/projects/#{user.account.name}/#{project.name}/runs?from=200&to=100")
+        |> json_response(:bad_request)
+
+      # Then
+      assert response["message"] == "`to` must be greater than or equal to `from`."
     end
 
     test "lists no runs when there are none", %{conn: conn, user: user, project: project} do
@@ -213,11 +508,11 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # When
       {404, _, response_json_string} =
-        assert_error_sent :not_found, fn ->
+        assert_error_sent(:not_found, fn ->
           get(conn, "/api/projects/#{user.account.name}/#{non_existent_project_name}/runs")
-        end
+        end)
 
-      assert Jason.decode!(response_json_string) == %{
+      assert JSON.decode!(response_json_string) == %{
                "message" => "The project #{project_slug} was not found."
              }
     end
@@ -244,8 +539,8 @@ defmodule TuistWeb.API.RunsControllerTest do
           model_identifier: "machine-123",
           scheme: "App",
           configuration: "Release",
-          status: :failure,
-          category: :incremental,
+          status: "failure",
+          category: "incremental",
           issues: [
             %{
               type: "error",
@@ -298,21 +593,22 @@ defmodule TuistWeb.API.RunsControllerTest do
               project: "MyProject",
               build_duration: 1000,
               compilation_duration: 2000,
-              status: :success
+              status: "success"
             },
             %{
               name: "MyAppTests",
               project: "MyProject",
               build_duration: 1500,
               compilation_duration: 2500,
-              status: :failure
+              status: "failure"
             }
           ]
         )
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Build |> Tuist.Repo.all() |> Tuist.ClickHouseRepo.preload([:issues, :files, :targets])
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id, preload: [:issues, :files, :targets])
 
       assert build.duration == 1000
       assert build.macos_version == "11.2.3"
@@ -323,10 +619,12 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.configuration == "Release"
       assert build.project_id == project.id
       assert build.account_id == user.account.id
-      assert build.status == :failure
-      assert build.category == :incremental
+      assert build.status == "failure"
+      assert build.category == "incremental"
 
-      assert build.issues |> Enum.map(&Map.take(&1, [:type, :message, :build_run_id])) |> Enum.sort_by(& &1.message) == [
+      assert build.issues
+             |> Enum.map(&Map.take(&1, [:type, :message, :build_run_id]))
+             |> Enum.sort_by(& &1.message) == [
                %{
                  type: "error",
                  message: "Expected ';' after expression",
@@ -339,7 +637,9 @@ defmodule TuistWeb.API.RunsControllerTest do
                }
              ]
 
-      assert build.files |> Enum.map(&Map.take(&1, [:type, :path, :build_run_id])) |> Enum.sort_by(& &1.path) == [
+      assert build.files
+             |> Enum.map(&Map.take(&1, [:type, :path, :build_run_id]))
+             |> Enum.sort_by(& &1.path) == [
                %{
                  type: "c",
                  path: "File.m",
@@ -369,7 +669,7 @@ defmodule TuistWeb.API.RunsControllerTest do
                }
              ]
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1000,
@@ -403,7 +703,8 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id)
 
       assert build.duration == 1000
       assert build.macos_version == "11.2.3"
@@ -414,7 +715,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.project_id == project.id
       assert build.account_id == user.account.id
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1000,
@@ -441,6 +742,9 @@ defmodule TuistWeb.API.RunsControllerTest do
         is_ci: false
       )
 
+      # Flush after first creation so it's visible for the second call
+      Buffer.flush()
+
       # When
       conn =
         conn
@@ -455,9 +759,10 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id)
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1000,
@@ -481,15 +786,22 @@ defmodule TuistWeb.API.RunsControllerTest do
         project_id: project.id,
         account_id: user.account.id,
         is_ci: false,
-        status: :success
+        status: "success"
       }
 
       get_build_call_count = :counters.new(1, [:atomics])
 
-      stub(Tuist.Runs, :get_build, fn ^id ->
+      get_build_response = fn ->
         count = :counters.get(get_build_call_count, 1)
         :counters.add(get_build_call_count, 1, 1)
-        if count == 0, do: nil, else: existing_build
+        if count == 0, do: {:error, :not_found}, else: {:ok, existing_build}
+      end
+
+      stub(Builds, :get_build, fn ^id -> get_build_response.() end)
+
+      stub(Builds, :get_build, fn ^id, opts ->
+        assert opts == [project_id: project.id]
+        get_build_response.()
       end)
 
       error_changeset = %Ecto.Changeset{
@@ -497,7 +809,7 @@ defmodule TuistWeb.API.RunsControllerTest do
         valid?: false
       }
 
-      stub(Tuist.Runs, :create_build, fn _attrs ->
+      stub(Builds, :create_build, fn _attrs ->
         {:error, error_changeset}
       end)
 
@@ -536,24 +848,25 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id)
 
       assert build.duration == 1000
-      assert build.macos_version == nil
-      assert build.xcode_version == nil
+      assert build.macos_version == ""
+      assert build.xcode_version == ""
       assert build.is_ci == false
-      assert build.model_identifier == nil
-      assert build.scheme == nil
-      assert build.configuration == nil
+      assert build.model_identifier == ""
+      assert build.scheme == ""
+      assert build.configuration == ""
       assert build.project_id == project.id
       assert build.account_id == user.account.id
-      assert build.status == :success
-      assert build.ci_run_id == nil
-      assert build.ci_project_handle == nil
-      assert build.ci_host == nil
-      assert build.ci_provider == nil
+      assert build.status == "success"
+      assert build.ci_run_id == ""
+      assert build.ci_project_handle == ""
+      assert build.ci_host == ""
+      assert build.ci_provider == ""
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1000,
@@ -586,18 +899,19 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id)
 
       assert build.duration == 1000
       assert build.is_ci == true
       assert build.ci_run_id == "1234567890"
       assert build.ci_project_handle == "tuist/tuist"
-      assert build.ci_host == nil
-      assert build.ci_provider == :github
+      assert build.ci_host == ""
+      assert build.ci_provider == "github"
       assert build.project_id == project.id
       assert build.account_id == user.account.id
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1000,
@@ -629,16 +943,17 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id)
 
       assert build.duration == 1500
       assert build.is_ci == true
       assert build.ci_run_id == "987654321"
       assert build.ci_project_handle == "group/project"
       assert build.ci_host == "gitlab.example.com"
-      assert build.ci_provider == :gitlab
+      assert build.ci_provider == "gitlab"
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1500,
@@ -693,14 +1008,15 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id)
 
       assert build.cacheable_tasks_count == 5
       assert build.cacheable_task_local_hits_count == 2
       assert build.cacheable_task_remote_hits_count == 2
 
-      {cacheable_tasks, _meta} =
-        Tuist.Runs.list_cacheable_tasks(%{
+      {:ok, {cacheable_tasks, _meta}} =
+        Builds.list_cacheable_tasks(%{
           filters: [%{field: :build_run_id, op: :==, value: build.id}],
           order_by: [:key],
           order_directions: [:asc]
@@ -714,11 +1030,12 @@ defmodule TuistWeb.API.RunsControllerTest do
         %{type: "swift", status: "hit_remote", key: "cache_key_5", build_run_id: build.id}
       ]
 
-      actual_tasks = Enum.map(cacheable_tasks, &Map.take(&1, [:type, :status, :key, :build_run_id]))
+      actual_tasks =
+        Enum.map(cacheable_tasks, &Map.take(&1, [:type, :status, :key, :build_run_id]))
 
       assert actual_tasks == expected_tasks
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1000,
@@ -747,7 +1064,8 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id)
 
       # Verify counts are 0 for empty array
       assert build.cacheable_tasks_count == 0
@@ -755,14 +1073,14 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert build.cacheable_task_remote_hits_count == 0
 
       # Verify no cacheable tasks are created in ClickHouse
-      {cacheable_tasks, _meta} =
-        Tuist.Runs.list_cacheable_tasks(%{
+      {:ok, {cacheable_tasks, _meta}} =
+        Builds.list_cacheable_tasks(%{
           filters: [%{field: :build_run_id, op: :==, value: build.id}]
         })
 
       assert cacheable_tasks == []
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1000,
@@ -819,10 +1137,11 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id)
 
       {cas_outputs, _meta} =
-        Tuist.Runs.list_cas_outputs(%{
+        Builds.list_cas_outputs(%{
           filters: [%{field: :build_run_id, op: :==, value: build.id}],
           order_by: [:node_id],
           order_directions: [:asc]
@@ -864,12 +1183,21 @@ defmodule TuistWeb.API.RunsControllerTest do
       actual_outputs =
         Enum.map(
           cas_outputs,
-          &Map.take(&1, [:node_id, :checksum, :size, :duration, :compressed_size, :operation, :type, :build_run_id])
+          &Map.take(&1, [
+            :node_id,
+            :checksum,
+            :size,
+            :duration,
+            :compressed_size,
+            :operation,
+            :type,
+            :build_run_id
+          ])
         )
 
       assert actual_outputs == expected_outputs
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1000,
@@ -892,7 +1220,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # When
       {404, _, response_json_string} =
-        assert_error_sent :not_found, fn ->
+        assert_error_sent(:not_found, fn ->
           post(
             conn,
             ~p"/api/projects/#{non_existent_account_name}/#{non_existent_project_name}/runs",
@@ -901,9 +1229,9 @@ defmodule TuistWeb.API.RunsControllerTest do
             duration: 1000,
             is_ci: false
           )
-        end
+        end)
 
-      assert Jason.decode!(response_json_string) == %{
+      assert JSON.decode!(response_json_string) == %{
                "message" => "The project #{project_slug} was not found."
              }
     end
@@ -951,14 +1279,15 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id)
 
       assert build.duration == 1000
       assert build.is_ci == false
       assert build.project_id == project.id
       assert build.account_id == user.account.id
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1000,
@@ -1006,10 +1335,11 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      [build] = Tuist.Repo.all(Build)
+      Buffer.flush()
+      [build] = get_builds_for_project(project.id)
 
-      {cacheable_tasks, _meta} =
-        Tuist.Runs.list_cacheable_tasks(%{
+      {:ok, {cacheable_tasks, _meta}} =
+        Builds.list_cacheable_tasks(%{
           filters: [%{field: :build_run_id, op: :==, value: build.id}],
           order_by: [:key],
           order_directions: [:asc]
@@ -1047,7 +1377,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       assert actual_tasks == expected_tasks
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "build",
                "id" => build.id,
                "duration" => 1000,
@@ -1083,7 +1413,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+      {:ok, test_run} = Tests.get_test(response["id"])
 
       assert test_run.duration == 5000
       assert test_run.macos_version == "14.0"
@@ -1098,7 +1428,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert test_run.project_id == project.id
       assert test_run.account_id == user.account.id
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "test",
                "id" => test_run.id,
                "duration" => 5000,
@@ -1186,7 +1516,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+      {:ok, test_run} = Tests.get_test(response["id"])
 
       assert test_run.duration == 10_000
       assert test_run.status == "failure"
@@ -1195,7 +1525,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Verify test modules were stored
       {test_modules, _meta} =
-        Tuist.Runs.list_test_module_runs(%{
+        Tests.list_test_module_runs(%{
           filters: [%{field: :test_run_id, op: :==, value: test_run.id}],
           order_by: [:name],
           order_directions: [:asc]
@@ -1213,16 +1543,11 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert module2.duration == 5000
 
       # Verify test cases were stored
-      {test_cases, _meta} =
-        Tuist.Runs.list_test_case_runs(%{
-          filters: [%{field: :test_run_id, op: :==, value: test_run.id}],
-          order_by: [:name],
-          order_directions: [:asc]
-        })
+      {test_cases, _meta} = wait_for_test_case_runs(test_run.id)
 
       assert length(test_cases) == 3
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "test",
                "id" => test_run.id,
                "duration" => 10_000,
@@ -1312,14 +1637,14 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+      {:ok, test_run} = Tests.get_test(response["id"])
 
       assert test_run.duration == 3000
       assert test_run.status == "success"
 
       # Verify test cases were stored with correct statuses
       {test_cases, _meta} =
-        Tuist.Runs.list_test_case_runs(%{
+        Tests.list_test_case_runs(%{
           filters: [%{field: :test_run_id, op: :==, value: test_run.id}],
           order_by: [:name],
           order_directions: [:asc]
@@ -1361,7 +1686,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+      {:ok, test_run} = Tests.get_test(response["id"])
 
       assert test_run.duration == 0
       assert test_run.status == "skipped"
@@ -1369,7 +1694,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert test_run.project_id == project.id
       assert test_run.account_id == user.account.id
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "test",
                "id" => test_run.id,
                "duration" => 0,
@@ -1422,12 +1747,12 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+      {:ok, test_run} = Tests.get_test(response["id"])
 
       assert test_run.status == "success"
 
       {test_cases, _meta} =
-        Tuist.Runs.list_test_case_runs(%{
+        Tests.list_test_case_runs(%{
           filters: [%{field: :test_run_id, op: :==, value: test_run.id}]
         })
 
@@ -1435,7 +1760,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       [test_case] = test_cases
       assert test_case.status == "skipped"
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "test",
                "id" => test_run.id,
                "duration" => 3000,
@@ -1480,13 +1805,13 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+      {:ok, test_run} = Tests.get_test(response["id"])
 
       assert test_run.build_run_id == build_id
       assert test_run.duration == 5000
       assert test_run.status == "success"
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "test",
                "id" => test_run.id,
                "duration" => 5000,
@@ -1520,7 +1845,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+      {:ok, test_run} = Tests.get_test(response["id"])
 
       assert test_run.duration == 5000
       assert test_run.is_ci == true
@@ -1531,7 +1856,7 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert test_run.project_id == project.id
       assert test_run.account_id == user.account.id
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "test",
                "id" => test_run.id,
                "duration" => 5000,
@@ -1566,7 +1891,7 @@ defmodule TuistWeb.API.RunsControllerTest do
 
       # Then
       response = json_response(conn, :ok)
-      {:ok, test_run} = Tuist.Runs.get_test(response["id"])
+      {:ok, test_run} = Tests.get_test(response["id"])
 
       assert test_run.duration == 8000
       assert test_run.is_ci == true
@@ -1575,13 +1900,34 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert test_run.ci_host == "gitlab.example.com"
       assert test_run.ci_provider == "gitlab"
 
-      assert response == %{
+      assert Map.delete(response, "actor") == %{
                "type" => "test",
                "id" => test_run.id,
                "duration" => 8000,
                "project_id" => project.id,
                "url" => url(~p"/#{project.account.name}/#{project.name}/tests/test-runs/#{test_run.id}")
              }
+    end
+  end
+
+  defp wait_for_test_case_runs(test_run_id, attempts \\ 10) do
+    result =
+      Tests.list_test_case_runs(%{
+        filters: [%{field: :test_run_id, op: :==, value: test_run_id}],
+        order_by: [:name],
+        order_directions: [:asc]
+      })
+
+    case result do
+      {test_cases, _meta} when test_cases != [] ->
+        result
+
+      _ when attempts > 1 ->
+        Process.sleep(50)
+        wait_for_test_case_runs(test_run_id, attempts - 1)
+
+      _ ->
+        result
     end
   end
 end

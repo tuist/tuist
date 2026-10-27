@@ -2,12 +2,19 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistAlert
+import TuistConfig
+import TuistConfigLoader
 import TuistCore
+import TuistGenerator
 import TuistLoader
+import TuistNooraExtension
+import TuistNooraTesting
 import TuistSupport
 import TuistTesting
 import XcodeGraph
 
+@testable import TuistInspectCommand
 @testable import TuistKit
 
 struct InspectDependenciesCommandServiceTests {
@@ -29,6 +36,40 @@ struct InspectDependenciesCommandServiceTests {
         )
     }
 
+    @Test(arguments: [
+        ([], DependencyInspectionOutputFormat.text),
+        (["--output", "summary"], .summary),
+        (["--output", "json"], .json),
+        (["--json"], .json),
+        (["--output", "summary", "--json"], .json),
+    ])
+    func commandSelectsOutputFormat(arguments: [String], expectedOutput: DependencyInspectionOutputFormat) throws {
+        let command = try InspectDependenciesCommand.parse(arguments)
+
+        #expect((command.json ? DependencyInspectionOutputFormat.json : command.output) == expectedOutput)
+    }
+
+    @Test
+    func jsonOutputGoesThroughNoora() throws {
+        let command = try InspectCommand.parseAsRoot(["dependencies", "--json"])
+
+        let nooraReadyCommand = try #require(command as? NooraReadyCommand)
+        #expect(nooraReadyCommand.jsonThroughNoora)
+        #expect((command as? InspectDependenciesCommand)?.json == true)
+    }
+
+    private func xcframeworkDependency(moduleName: String) throws -> GraphDependency {
+        .testXCFramework(
+            path: try AbsolutePath(validating: "/dependencies/\(moduleName).xcframework"),
+            infoPlist: .test(libraries: [
+                .test(
+                    path: try RelativePath(validating: "ios-arm64/\(moduleName).framework"),
+                    architectures: [.arm64]
+                ),
+            ])
+        )
+    }
+
     // MARK: - Both Checks Tests
 
     @Test
@@ -42,10 +83,11 @@ struct InspectDependenciesCommandServiceTests {
         let graph = Graph.test(path: path, projects: [path: project])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
-        given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
 
         // When / Then
         await #expect(
@@ -83,12 +125,13 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app)).willReturn(Set(["FeatureA", "SharedCore"]))
-        given(targetScanner).imports(for: .value(featureA)).willReturn(Set(["SharedCore"]))
-        given(targetScanner).imports(for: .value(sharedCore)).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(unusedFramework)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["FeatureA", "SharedCore"]))
+        given(targetScanner).imports(for: .value(featureA), reachableModules: .any).willReturn(Set(["SharedCore"]))
+        given(targetScanner).imports(for: .value(sharedCore), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(unusedFramework), reachableModules: .any).willReturn(Set([]))
 
         // When / Then
         await #expect(
@@ -99,6 +142,238 @@ struct InspectDependenciesCommandServiceTests {
         ) {
             try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant])
         }
+    }
+
+    @Test(.withMockedNoora)
+    func runWithBothChecksOutputsJSONGroupedByTarget() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+        let app = Target.test(name: "App", product: .app)
+        let feature = Target.test(name: "Feature", product: .framework)
+        let sharedCore = Target.test(name: "SharedCore", product: .framework)
+        let unusedFramework = Target.test(name: "UnusedFramework", product: .framework)
+        let project = Project.test(path: path, targets: [app, feature, sharedCore, unusedFramework])
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: [
+                .target(name: app.name, path: path): Set([
+                    .target(name: feature.name, path: path),
+                    .target(name: unusedFramework.name, path: path),
+                ]),
+                .target(name: feature.name, path: path): Set([
+                    .target(name: sharedCore.name, path: path),
+                ]),
+            ]
+        )
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Feature", "SharedCore"]))
+        given(targetScanner).imports(for: .value(feature), reachableModules: .any).willReturn(Set(["SharedCore"]))
+        given(targetScanner).imports(for: .value(sharedCore), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(unusedFramework), reachableModules: .any).willReturn(Set([]))
+
+        // When
+        await #expect(throws: DependencyInspectionFormattedIssuesFoundError()) {
+            try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant], output: .json)
+        }
+
+        // Then
+        #expect(ui().contains(
+            """
+            [
+              {
+                "implicit" : [
+                  "SharedCore"
+                ],
+                "redundant" : [
+                  "UnusedFramework"
+                ],
+                "target" : "App"
+              }
+            ]
+            """
+        ))
+    }
+
+    @Test(.withMockedNoora)
+    func runImplicitOnlyOutputsJSONWithoutRedundantKey() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+        let app = Target.test(name: "App", product: .app)
+        let framework = Target.test(name: "Framework", product: .framework)
+        let project = Project.test(path: path, targets: [app, framework])
+        let graph = Graph.test(path: path, projects: [path: project])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
+
+        // When
+        await #expect(throws: DependencyInspectionFormattedIssuesFoundError()) {
+            try await subject.run(path: path.pathString, inspectionTypes: [.implicit], output: .json)
+        }
+
+        // Then
+        #expect(ui().contains("\"implicit\""))
+        #expect(!ui().contains("\"redundant\""))
+    }
+
+    @Test(.withMockedNoora)
+    func runWithNoIssuesOutputsEmptyJSONArray() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: path, targets: [app])
+        let graph = Graph.test(path: path, projects: [path: project])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
+
+        // When
+        try await subject.run(path: path.pathString, inspectionTypes: [.implicit], output: .json)
+
+        // Then
+        #expect(ui().contains("[\n\n]"))
+    }
+
+    @Test(.withMockedNoora)
+    func runWithBothChecksOutputsSummaryGroupedByTarget() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+        let app = Target.test(name: "App", product: .app)
+        let feature = Target.test(name: "Feature", product: .framework)
+        let sharedCore = Target.test(name: "SharedCore", product: .framework)
+        let unusedFramework = Target.test(name: "UnusedFramework", product: .framework)
+        let project = Project.test(path: path, targets: [app, feature, sharedCore, unusedFramework])
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: [
+                .target(name: app.name, path: path): Set([
+                    .target(name: feature.name, path: path),
+                    .target(name: unusedFramework.name, path: path),
+                ]),
+                .target(name: feature.name, path: path): Set([
+                    .target(name: sharedCore.name, path: path),
+                ]),
+            ]
+        )
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Feature", "SharedCore"]))
+        given(targetScanner).imports(for: .value(feature), reachableModules: .any).willReturn(Set(["SharedCore"]))
+        given(targetScanner).imports(for: .value(sharedCore), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(unusedFramework), reachableModules: .any).willReturn(Set([]))
+
+        // When
+        await #expect(throws: DependencyInspectionFormattedIssuesFoundError()) {
+            try await subject.run(
+                path: path.pathString,
+                inspectionTypes: [.implicit, .redundant],
+                output: .summary
+            )
+        }
+
+        // Then
+        #expect(ui().contains(
+            """
+            App:
+              implicit: SharedCore
+              redundant: UnusedFramework
+            """
+        ))
+    }
+
+    @Test(.withMockedNoora)
+    func runImplicitOnlyOutputsSummaryWithoutRedundantLine() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+        let app = Target.test(name: "App", product: .app)
+        let framework = Target.test(name: "Framework", product: .framework)
+        let project = Project.test(path: path, targets: [app, framework])
+        let graph = Graph.test(path: path, projects: [path: project])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
+
+        // When
+        await #expect(throws: DependencyInspectionFormattedIssuesFoundError()) {
+            try await subject.run(path: path.pathString, inspectionTypes: [.implicit], output: .summary)
+        }
+
+        // Then
+        #expect(ui().contains("App:\n  implicit: Framework"))
+        #expect(!ui().contains("redundant:"))
+    }
+
+    @Test(.withMockedNoora)
+    func runWithNoIssuesOutputsEmptySummaryMessage() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: path, targets: [app])
+        let graph = Graph.test(path: path, projects: [path: project])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
+
+        // When
+        try await subject.run(path: path.pathString, inspectionTypes: [.implicit], output: .summary)
+
+        // Then
+        #expect(ui().contains("No dependency issues found."))
+    }
+
+    @Test
+    func runWithNoIssuesReportsSuccessAlertInTextMode() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: path, targets: [app])
+        let graph = Graph.test(path: path, projects: [path: project])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
+        let alertController = AlertController()
+
+        // When
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(path: path.pathString, inspectionTypes: [.implicit], output: .text)
+        }
+
+        // Then
+        let success = try #require(alertController.success().last)
+        #expect(success.message.plain() == "We did not find any dependency issues in your project (checked: implicit).")
     }
 
     @Test
@@ -122,11 +397,12 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
-        given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(extraFramework)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(extraFramework), reachableModules: .any).willReturn(Set([]))
 
         // When / Then
         await #expect(
@@ -154,10 +430,11 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
-        given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant])
@@ -183,13 +460,14 @@ struct InspectDependenciesCommandServiceTests {
         let loadCounter = LoadCounter()
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willProduce { _, _ in
             loadCounter.count += 1
             return graph
         }
-        given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
-        given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
 
         // When
         try await subject.run(path: path.pathString, inspectionTypes: [.implicit, .redundant])
@@ -211,10 +489,11 @@ struct InspectDependenciesCommandServiceTests {
         let graph = Graph.test(path: path, projects: [path: project])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
-        given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
 
         // When / Then
         await #expect(
@@ -268,11 +547,12 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app)).willReturn(Set(["TestTargetDependency"]))
-        given(targetScanner).imports(for: .value(testTarget)).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(testTargetDependency)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["TestTargetDependency"]))
+        given(targetScanner).imports(for: .value(testTarget), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(testTargetDependency), reachableModules: .any).willReturn(Set([]))
 
         // When / Then
         await #expect(
@@ -283,6 +563,85 @@ struct InspectDependenciesCommandServiceTests {
         ) {
             try await subject.run(path: path.pathString, inspectionTypes: [.implicit])
         }
+    }
+
+    @Test
+    func runImplicitOnlyWhenXCFrameworkFromSPMPackageIsImplicitlyImported() async throws {
+        // Given
+        let config = Tuist.test()
+
+        let path = try AbsolutePath(validating: "/project")
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: path, targets: [app])
+
+        let packageTarget = Target.test(name: "PackageTarget", product: .staticFramework)
+        let packageTargetPath = try AbsolutePath(validating: "/spm/Package")
+        let packageProject = Project.test(path: packageTargetPath, targets: [packageTarget], type: .external(hash: "hash"))
+        let binaryDependency = try xcframeworkDependency(moduleName: "BinaryKit")
+
+        let graph = Graph.test(
+            path: path,
+            projects: [
+                path: project,
+                packageTargetPath: packageProject,
+            ],
+            dependencies: [
+                .target(name: "PackageTarget", path: packageTargetPath): [
+                    binaryDependency,
+                ],
+            ]
+        )
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["BinaryKit"]))
+
+        // When / Then
+        await #expect(
+            throws: InspectImportsServiceError.issuesFound(implicit: [.init(
+                target: "App",
+                dependencies: ["BinaryKit"]
+            )])
+        ) {
+            try await subject.run(path: path.pathString, inspectionTypes: [.implicit])
+        }
+    }
+
+    @Test
+    func runImplicitOnlyTreatsDirectXCFrameworkDependencyAsExplicitAndReachable() async throws {
+        // Given
+        let config = Tuist.test()
+
+        let path = try AbsolutePath(validating: "/project")
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(path: path, targets: [app])
+        let binaryDependency = try xcframeworkDependency(moduleName: "BinaryKit")
+
+        let graph = Graph.test(
+            path: path,
+            projects: [path: project],
+            dependencies: [
+                .target(name: "App", path: path): [
+                    binaryDependency,
+                ],
+            ]
+        )
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["BinaryKit"]))
+
+        // When
+        try await subject.run(path: path.pathString, inspectionTypes: [.implicit])
+
+        // Then
+        verify(targetScanner)
+            .imports(for: .value(app), reachableModules: .value(["BinaryKit"]))
+            .called(1)
     }
 
     @Test
@@ -300,10 +659,11 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
-        given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.implicit])
@@ -332,11 +692,12 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
-        given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(extraFramework)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(extraFramework), reachableModules: .any).willReturn(Set([]))
 
         // When / Then
         await #expect(
@@ -368,10 +729,11 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
@@ -392,10 +754,11 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app)).willReturn(Set(["Framework"]))
-        given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["Framework"]))
+        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
@@ -433,9 +796,10 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
@@ -465,10 +829,11 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(bundleFramework)).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(bundleFramework), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
@@ -502,11 +867,12 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(unitTests)).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(uiTests)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(unitTests), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(uiTests), reachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
@@ -547,13 +913,14 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(appExtension)).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(stickerPackExtension)).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(appIntentExtension)).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(messageExtension)).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(appExtension), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(stickerPackExtension), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(appIntentExtension), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(messageExtension), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
@@ -588,14 +955,108 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(watch2Extension)).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(watch2App)).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(app)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(watch2Extension), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(watch2App), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
+    }
+
+    @Test
+    func runRedundantOnlyDoesntFlagModernWatchAppDependencies() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+
+        let watchApp = Target.test(name: "WatchApp", destinations: .watchOS, product: .app)
+        let app = Target.test(
+            name: "App",
+            product: .app,
+            dependencies: [TargetDependency.target(name: "WatchApp")]
+        )
+
+        let project = Project.test(path: path, targets: [watchApp, app])
+        let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+            .target(name: app.name, path: project.path): [
+                .target(name: watchApp.name, path: project.path),
+            ],
+        ])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(watchApp), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set([]))
+
+        // When / Then
+        try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
+    }
+
+    @Test
+    func runRedundantOnlyDoesntFlagModernWatchAppDependenciesForWatch2AppContainerHost() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+
+        let watchApp = Target.test(name: "WatchApp", destinations: .watchOS, product: .app)
+        let containerApp = Target.test(
+            name: "ContainerApp",
+            product: .watch2AppContainer,
+            dependencies: [TargetDependency.target(name: "WatchApp")]
+        )
+
+        let project = Project.test(path: path, targets: [watchApp, containerApp])
+        let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+            .target(name: containerApp.name, path: project.path): [
+                .target(name: watchApp.name, path: project.path),
+            ],
+        ])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(watchApp), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(containerApp), reachableModules: .any).willReturn(Set([]))
+
+        // When / Then
+        try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
+    }
+
+    @Test
+    func runImplicitOnlyDoesntFlagDeclaredModernWatchAppDependency() async throws {
+        // Given
+        let path = try AbsolutePath(validating: "/project")
+        let config = Tuist.test()
+
+        let watchApp = Target.test(name: "WatchApp", destinations: .watchOS, product: .app)
+        let app = Target.test(
+            name: "App",
+            product: .app,
+            dependencies: [TargetDependency.target(name: "WatchApp")]
+        )
+
+        let project = Project.test(path: path, targets: [watchApp, app])
+        let graph = Graph.test(path: path, projects: [path: project], dependencies: [
+            .target(name: app.name, path: project.path): [
+                .target(name: watchApp.name, path: project.path),
+            ],
+        ])
+
+        given(configLoader).loadConfig(path: .value(path)).willReturn(config)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
+        given(generator).load(path: .value(path), options: .any).willReturn(graph)
+        given(targetScanner).imports(for: .value(watchApp), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(app), reachableModules: .any).willReturn(Set(["WatchApp"]))
+
+        // When / Then
+        try await subject.run(path: path.pathString, inspectionTypes: [.implicit])
     }
 
     @Test
@@ -618,10 +1079,11 @@ struct InspectDependenciesCommandServiceTests {
         ])
 
         given(configLoader).loadConfig(path: .value(path)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(path), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(framework)).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(macro)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(framework), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(macro), reachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: path.pathString, inspectionTypes: [.redundant])
@@ -657,10 +1119,11 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(projectPath)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(projectPath), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(feature)).willReturn(Set([]))
-        given(targetScanner).imports(for: .value(uiComponent)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(feature), reachableModules: .any).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(uiComponent), reachableModules: .any).willReturn(Set([]))
 
         // When / Then
         await #expect(
@@ -700,10 +1163,11 @@ struct InspectDependenciesCommandServiceTests {
         )
 
         given(configLoader).loadConfig(path: .value(projectPath)).willReturn(config)
-        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any).willReturn(generator)
+        given(generatorFactory).defaultGenerator(config: .value(config), includedTargets: .any, coverage: .any)
+            .willReturn(generator)
         given(generator).load(path: .value(projectPath), options: .any).willReturn(graph)
-        given(targetScanner).imports(for: .value(feature)).willReturn(Set(["UIComponent"]))
-        given(targetScanner).imports(for: .value(uiComponent)).willReturn(Set([]))
+        given(targetScanner).imports(for: .value(feature), reachableModules: .any).willReturn(Set(["UIComponent"]))
+        given(targetScanner).imports(for: .value(uiComponent), reachableModules: .any).willReturn(Set([]))
 
         // When / Then
         try await subject.run(path: projectPath.pathString, inspectionTypes: [.redundant])

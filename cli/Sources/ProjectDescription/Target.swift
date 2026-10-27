@@ -70,6 +70,12 @@ public struct Target: Codable, Equatable, Sendable {
     /// The build phase scripts actions for the target.
     public var scripts: [TargetScript]
 
+    /// Additional inputs whose values contribute to the target's content hash.
+    ///
+    /// Use these inputs when the target's output depends on content that Tuist does not track automatically,
+    /// such as code-generation templates, tool binaries, environment-derived values, or command output.
+    public var additionalHashingInputs: [HashingInput]
+
     /// The target's dependencies.
     public var dependencies: [TargetDependency]
 
@@ -106,6 +112,169 @@ public struct Target: Codable, Equatable, Sendable {
     /// The target's buildable folders.
     public var buildableFolders: [BuildableFolder]
 
+    /// Properties for a foreign build target. Set when this target was created with
+    /// ``foreignBuild(name:destinations:script:inputs:output:metadata:)``.
+    public private(set) var foreignBuild: ForeignBuild?
+
+    /// An additional value that affects a target's output and should contribute to its content hash.
+    public enum HashingInput: Codable, Hashable, Sendable {
+        /// A path or glob pattern whose contents affect the target output.
+        ///
+        /// Exact file paths are hashed directly, directories are hashed recursively, and glob patterns expand to
+        /// all matching paths.
+        case glob(Path)
+
+        /// An arbitrary string that affects the target output, such as an environment-derived value or tool version.
+        case string(String)
+
+        /// An environment variable whose value affects the target output.
+        ///
+        /// Both the variable name and its current value contribute to the hash. A missing variable is distinct from
+        /// a variable with an empty value.
+        case environmentVariable(String)
+
+        /// A shell script whose standard output affects the target output.
+        ///
+        /// The script runs from the project directory while Tuist computes the target hash. Keep it fast,
+        /// deterministic, and free of side effects.
+        case script(String)
+    }
+
+    /// Describes the properties of a foreign (non-Xcode) build target.
+    public struct ForeignBuild: Codable, Equatable, Sendable {
+        public let script: String
+        public let inputs: [Input]
+        public let output: Output
+
+        /// Describes an input that affects a foreign build dependency's output.
+        ///
+        /// Inputs serve two purposes:
+        /// - **Build phase input file list**: file, folder, and glob inputs are passed as input paths to the Xcode
+        ///   build phase so that Xcode can skip re-running the script when inputs haven't changed.
+        /// - **Content hashing**: all inputs (including scripts) are used to compute a content hash for Tuist's
+        ///   binary caching and selective testing, so that the foreign build step can be skipped when inputs are unchanged.
+        ///
+        /// > Important: If folder/glob inputs resolve to no files, Xcode has nothing to track for incremental
+        /// > builds, and the foreign build script is marked as always out-of-date so it re-runs on every build.
+        /// > This is fine when the underlying build system (Gradle, Cargo, CMake, …) handles its own
+        /// > incrementality; otherwise, double-check the configured paths.
+        public enum Input: Codable, Hashable, Sendable {
+            /// A single file whose contents affect the build output.
+            case file(Path)
+
+            /// A folder whose contents (recursively) affect the build output.
+            case folder(Path)
+
+            /// A glob pattern that resolves to files whose contents affect the build output.
+            case glob(Path)
+
+            /// A shell script whose stdout produces a cache key component (e.g. `"git rev-parse HEAD"`).
+            ///
+            /// Script inputs only contribute to the content hash and are not included in the build phase input file list.
+            case script(String)
+        }
+
+        /// Describes the binary artifact produced by a foreign (non-Xcode) build system.
+        public enum Output: Codable, Hashable, Sendable {
+            /// Describes how a binary artifact is linked.
+            public enum Linking: String, Codable, Hashable, Sendable {
+                case `static`, dynamic
+            }
+
+            /// An XCFramework output.
+            ///
+            /// - Parameters:
+            ///   - path: Relative path to the xcframework.
+            ///   - linking: Whether the xcframework is statically or dynamically linked.
+            case xcframework(path: Path, linking: Linking)
+
+            var product: Product {
+                switch self {
+                case let .xcframework(_, linking):
+                    return linking == .static ? .staticFramework : .framework
+                }
+            }
+        }
+    }
+
+    /// Creates a foreign build target that wraps a non-Xcode build system (KMP, Rust, CMake, etc.).
+    ///
+    /// The target will become an aggregate target that runs the build script and produces the output binary.
+    /// Other targets can depend on this target using `.target(name:)`.
+    ///
+    /// ### Example: Kotlin Multiplatform (KMP)
+    ///
+    /// ```swift
+    /// .foreignBuild(
+    ///     name: "SharedKMP",
+    ///     destinations: .iOS,
+    ///     script: """
+    ///         eval "$($HOME/.local/bin/mise activate -C $SRCROOT bash --shims)"
+    ///         cd $SRCROOT/SharedKMP && gradle assembleSharedKMPReleaseXCFramework
+    ///         """,
+    ///     inputs: [
+    ///         .folder("SharedKMP/src"),
+    ///         .file("SharedKMP/build.gradle.kts"),
+    ///     ],
+    ///     output: .xcframework(
+    ///         path: "SharedKMP/build/XCFrameworks/release/SharedKMP.xcframework",
+    ///         linking: .dynamic
+    ///     )
+    /// )
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - name: A unique name for this foreign build target.
+    ///   - destinations: The destinations this target supports.
+    ///   - script: The shell script that builds the artifact. Runs in a shell build phase with `$SRCROOT` set to the project
+    /// directory.
+    ///   - inputs: Inputs that affect the build output, used for the build phase input file list and content hashing.
+    ///   - output: The binary artifact produced by the script (`.xcframework` or `.framework`).
+    ///   - metadata: The target's metadata.
+    public static func foreignBuild(
+        name: String,
+        destinations: Destinations,
+        script: String,
+        inputs: [ForeignBuild.Input] = [],
+        output: ForeignBuild.Output,
+        metadata: TargetMetadata = .default
+    ) -> Self {
+        var target = self.init(
+            name: name,
+            destinations: destinations,
+            product: output.product,
+            productName: nil,
+            bundleId: "tuist.foreign-build.\(name)",
+            deploymentTargets: nil,
+            infoPlist: nil,
+            sources: nil,
+            resources: nil,
+            copyFiles: nil,
+            headers: nil,
+            entitlements: nil,
+            scripts: [],
+            additionalHashingInputs: [],
+            dependencies: [],
+            settings: nil,
+            coreDataModels: [],
+            environmentVariables: [:],
+            launchArguments: [],
+            additionalFiles: [],
+            buildRules: [],
+            mergedBinaryType: .disabled,
+            mergeable: false,
+            onDemandResourcesTags: nil,
+            metadata: metadata,
+            buildableFolders: []
+        )
+        target.foreignBuild = ForeignBuild(
+            script: script,
+            inputs: inputs,
+            output: output
+        )
+        return target
+    }
+
     public static func target(
         name: String,
         destinations: Destinations,
@@ -121,6 +290,7 @@ public struct Target: Codable, Equatable, Sendable {
         headers: Headers? = nil,
         entitlements: Entitlements? = nil,
         scripts: [TargetScript] = [],
+        additionalHashingInputs: [HashingInput] = [],
         dependencies: [TargetDependency] = [],
         settings: Settings? = nil,
         coreDataModels: [CoreDataModel] = [],
@@ -147,6 +317,7 @@ public struct Target: Codable, Equatable, Sendable {
             headers: headers,
             entitlements: entitlements,
             scripts: scripts,
+            additionalHashingInputs: additionalHashingInputs,
             dependencies: dependencies,
             settings: settings,
             coreDataModels: coreDataModels,

@@ -1,0 +1,41 @@
+{
+  "name": "ShortcutKey",
+  "tagName": "noora-shortcut-key",
+  "elementClassName": "NooraShortcutKey",
+  "className": "noora-shortcut-key",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Displays a keyboard shortcut.",
+  "usage": "<noora-shortcut-key>⌘K</noora-shortcut-key>",
+  "attributes": [
+    {
+      "name": "size",
+      "property": "size",
+      "type": "string",
+      "values": ["small", "large"],
+      "default": "large",
+      "description": "Controls the key dimensions."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "The shortcut text."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "key",
+      "description": "The keyboard key."
+    }
+  ],
+  "notes": [],
+  "examples": [
+    {
+      "id": "command",
+      "title": "Command",
+      "description": "Display a command shortcut.",
+      "markup": "<noora-shortcut-key>⌘K</noora-shortcut-key>"
+    }
+  ]
+}

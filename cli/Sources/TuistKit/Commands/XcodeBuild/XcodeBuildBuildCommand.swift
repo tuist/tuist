@@ -1,9 +1,12 @@
 import ArgumentParser
 import Foundation
+import TuistEnvKey
 import TuistSupport
 import XcodeGraph
 
-public struct XcodeBuildBuildCommand: AsyncParsableCommand, TrackableParsableCommand, RecentPathRememberableCommand {
+public struct XcodeBuildBuildCommand: AsyncParsableCommand, TrackableParsableCommand, RunReportingCommand,
+    XcodeBuildPassthroughCommand
+{
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "build",
@@ -12,7 +15,7 @@ public struct XcodeBuildBuildCommand: AsyncParsableCommand, TrackableParsableCom
         )
     }
 
-    var analyticsRequired: Bool { true }
+    public var analyticsRequired: Bool { true }
 
     public init() {}
 
@@ -22,10 +25,20 @@ public struct XcodeBuildBuildCommand: AsyncParsableCommand, TrackableParsableCom
     )
     public var passthroughXcodebuildArguments: [String] = []
 
+    var xcodebuildActionIndex: Int = 0
+
+    @Option(
+        name: .long,
+        help: "Path where a JSON report of the run, including the dashboard URLs, will be saved.",
+        completion: .file(),
+        envKey: .runReportPath
+    )
+    public var runReportPath: String?
+
     public func run() async throws {
         try await XcodeBuildBuildCommandService()
             .run(
-                passthroughXcodebuildArguments: ["build"] + passthroughXcodebuildArguments
+                passthroughXcodebuildArguments: xcodebuildArguments
             )
     }
 }

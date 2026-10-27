@@ -1,37 +1,71 @@
-import Command
-import Mockable
+import Foundation
+import SwifterPMCore
+import Synchronization
 import TSCUtility
 import TuistCore
+import TuistProcess
 import TuistTesting
 import XcodeGraph
 import XCTest
 @testable import TuistSupport
 
+private final class RecordingSwifterPM: SwifterPMResolving {
+    private struct State {
+        var resolveRequests: [SwifterPMResolutionRequest] = []
+        var updateRequests: [SwifterPMResolutionRequest] = []
+    }
+
+    private let state = Mutex(State())
+
+    var resolveRequests: [SwifterPMResolutionRequest] {
+        state.withLock { $0.resolveRequests }
+    }
+
+    var updateRequests: [SwifterPMResolutionRequest] {
+        state.withLock { $0.updateRequests }
+    }
+
+    func resolveDependencies(_ request: SwifterPMResolutionRequest) async throws {
+        state.withLock { $0.resolveRequests.append(request) }
+    }
+
+    func updateDependencies(_ request: SwifterPMResolutionRequest) async throws {
+        state.withLock { $0.updateRequests.append(request) }
+    }
+}
+
 final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
     private var subject: SwiftPackageManagerController!
-    private var commandRunner: MockCommandRunning!
+    private var swifterPM: RecordingSwifterPM!
 
     override func setUp() {
         super.setUp()
 
-        commandRunner = MockCommandRunning()
+        swifterPM = RecordingSwifterPM()
         subject = SwiftPackageManagerController(
-            system: system,
             fileSystem: fileSystem,
-            commandRunner: { self.commandRunner }
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM
         )
     }
 
     override func tearDown() {
         subject = nil
+        swifterPM = nil
 
         super.tearDown()
     }
 
-    func test_resolve() throws {
+    func test_resolve() async throws {
         // Given
         let path = try temporaryPath()
-        system.succeedCommand([
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { ["TUIST_USE_SWIFTERPM": "0"] }
+        )
+        mockCommandRunner.succeedCommand([
             "swift",
             "package",
             "--package-path",
@@ -40,20 +74,344 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "resolve",
         ])
 
-        // When / Then
-        XCTAssertNoThrow(
-            try subject.resolve(
-                at: path,
-                arguments: ["--replace-scm-with-registry"],
-                printOutput: false
-            )
+        // When
+        try await subject.resolve(
+            at: path,
+            arguments: ["--replace-scm-with-registry"],
+            printOutput: false
         )
     }
 
-    func test_update() throws {
+    func test_resolve_when_swifterpm_is_enabled() async throws {
         // Given
         let path = try temporaryPath()
-        system.succeedCommand([
+        let scratchPath = try temporaryPath()
+        let cachePath = try temporaryPath()
+        let configPath = try temporaryPath()
+        let packageInfoCachePath = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { [:] }
+        )
+
+        // When
+        try await subject.resolve(
+            at: path,
+            arguments: [
+                "--scratch-path", scratchPath.pathString,
+                "--cache-path=\(cachePath.pathString)",
+                "--config-path", configPath.pathString,
+                "--default-registry-url", "https://registry.tuist.dev/api/registry/swift",
+                "--package-info-cache-path=\(packageInfoCachePath.pathString)",
+                "--disable-sandbox",
+                "--force-resolved-versions",
+                "--skip-update",
+                "--quiet",
+                "--replace-scm-with-registry",
+            ],
+            printOutput: true
+        )
+
+        // Then
+        XCTAssertEqual(mockCommandRunner.calls, [])
+        let request = try XCTUnwrap(swifterPM.resolveRequests.first)
+        XCTAssertEqual(request.packageDirectory, URL(fileURLWithPath: path.pathString).standardizedFileURL)
+        XCTAssertEqual(request.scratchDirectory, URL(fileURLWithPath: scratchPath.pathString).standardizedFileURL)
+        XCTAssertEqual(request.cacheDirectory, URL(fileURLWithPath: cachePath.pathString).standardizedFileURL)
+        XCTAssertEqual(request.registryConfigurationPath, URL(fileURLWithPath: configPath.pathString).standardizedFileURL)
+        XCTAssertEqual(request.defaultRegistryURL, "https://registry.tuist.dev/api/registry/swift")
+        XCTAssertEqual(
+            request.packageInfoCacheDirectory,
+            URL(fileURLWithPath: packageInfoCachePath.pathString).standardizedFileURL
+        )
+        XCTAssertTrue(request.disableSandbox)
+        XCTAssertTrue(request.forceResolvedVersions)
+        XCTAssertTrue(request.skipUpdate)
+        XCTAssertTrue(request.quiet)
+        XCTAssertEqual(request.scmToRegistryTransformation, .replaceSCMWithRegistry)
+        XCTAssertNil(request.cachedDirectoryMaterialization)
+    }
+
+    func test_resolve_when_swifterpm_is_disabled_usesSwiftPackageManager() async throws {
+        // Given
+        let path = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { ["TUIST_USE_SWIFTERPM": "0"] }
+        )
+        mockCommandRunner.succeedCommand([
+            "swift",
+            "package",
+            "--package-path",
+            path.pathString,
+            "--replace-scm-with-registry",
+            "resolve",
+        ])
+
+        // When
+        try await subject.resolve(
+            at: path,
+            arguments: ["--replace-scm-with-registry"],
+            printOutput: false
+        )
+
+        // Then
+        XCTAssertTrue(swifterPM.resolveRequests.isEmpty)
+    }
+
+    func test_resolve_excludes_configured_manifest_environment_variables() async throws {
+        // Given
+        let path = try temporaryPath()
+        let environment = [
+            "TUIST_USE_SWIFTERPM": "0",
+            "CI_JOB_ID": "first-job",
+            "CI_PIPELINE_ID": "pipeline",
+            "RETAINED": "value",
+        ]
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { environment }
+        )
+        mockCommandRunner.succeedCommand([
+            "swift",
+            "package",
+            "--package-path",
+            path.pathString,
+            "resolve",
+        ])
+
+        // When
+        try await PackageManifestEnvironment.withConfiguration(
+            .init(usesAutomaticProviderDefaults: false, excludedVariablePatterns: ["CI_*"])
+        ) {
+            try await subject.resolve(at: path, arguments: [], printOutput: false)
+        }
+
+        // Then
+        XCTAssertEqual(
+            mockCommandRunner.env,
+            [
+                "TUIST_USE_SWIFTERPM": "0",
+                "RETAINED": "value",
+            ]
+        )
+    }
+
+    func test_resolve_passes_excluded_manifest_environment_to_swifterpm() async throws {
+        // Given
+        let path = try temporaryPath()
+        let environment = [
+            "CI_JOB_ID": "first-job",
+            "RETAINED": "value",
+        ]
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { environment }
+        )
+
+        // When
+        try await PackageManifestEnvironment.withConfiguration(
+            .init(usesAutomaticProviderDefaults: false, excludedVariablePatterns: ["CI_JOB_ID"])
+        ) {
+            try await subject.resolve(at: path, arguments: [], printOutput: false)
+        }
+
+        // Then
+        let request = try XCTUnwrap(swifterPM.resolveRequests.first)
+        XCTAssertEqual(request.manifestEnvironment, ["RETAINED": "value"])
+    }
+
+    func test_resolve_when_swifterpm_is_enabled_and_packagePathArgument_is_passed_usesIt() async throws {
+        // Given
+        let path = try temporaryPath()
+        let overriddenPath = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { [:] }
+        )
+
+        // When
+        try await subject.resolve(
+            at: path,
+            arguments: ["--package-path", overriddenPath.pathString],
+            printOutput: true
+        )
+
+        // Then
+        let request = try XCTUnwrap(swifterPM.resolveRequests.first)
+        XCTAssertEqual(request.packageDirectory, URL(fileURLWithPath: overriddenPath.pathString).standardizedFileURL)
+    }
+
+    func test_resolve_when_swifterpm_is_enabled_and_cached_directory_materialization_argument_is_passed_usesIt()
+        async throws
+    {
+        // Given
+        let path = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { [:] }
+        )
+
+        // When
+        try await subject.resolve(
+            at: path,
+            arguments: ["--cached-directory-materialization", "symlink"],
+            printOutput: true
+        )
+
+        // Then
+        let request = try XCTUnwrap(swifterPM.resolveRequests.first)
+        XCTAssertEqual(request.cachedDirectoryMaterialization, .symlink)
+    }
+
+    func test_resolve_when_swifterpm_is_enabled_and_printOutput_is_false_setsQuiet() async throws {
+        // Given
+        let path = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { [:] }
+        )
+
+        // When
+        try await subject.resolve(
+            at: path,
+            arguments: [],
+            printOutput: false
+        )
+
+        // Then
+        let request = try XCTUnwrap(swifterPM.resolveRequests.first)
+        XCTAssertTrue(request.quiet)
+    }
+
+    func test_resolve_when_swifterpm_is_enabled_and_unsupportedArgument_is_passed_fails() async throws {
+        // Given
+        let path = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { [:] }
+        )
+
+        // When
+        do {
+            try await subject.resolve(
+                at: path,
+                arguments: ["--unsupported"],
+                printOutput: false
+            )
+            XCTFail("Expected resolve to fail")
+        } catch {
+            // Then
+        }
+    }
+
+    func test_resolve_when_swifterpm_is_enabled_and_deprecatedSwiftPackageManagerArgument_is_passed_succeeds() async throws {
+        // Given
+        let path = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { [:] }
+        )
+
+        // When
+        try await subject.resolve(
+            at: path,
+            arguments: ["--disable-prefetching", "--force-resolved-versions"],
+            printOutput: false
+        )
+
+        // Then
+        let request = try XCTUnwrap(swifterPM.resolveRequests.first)
+        XCTAssertTrue(request.forceResolvedVersions)
+    }
+
+    func test_resolve_when_swifterpm_is_enabled_and_transformArgumentsConflict_fails() async throws {
+        // Given
+        let path = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { [:] }
+        )
+
+        // When
+        do {
+            try await subject.resolve(
+                at: path,
+                arguments: [
+                    "--replace-scm-with-registry",
+                    "--use-registry-identity-for-scm",
+                ],
+                printOutput: false
+            )
+            XCTFail("Expected resolve to fail")
+        } catch {
+            // Then
+        }
+    }
+
+    func test_update_when_swifterpm_is_enabled() async throws {
+        // Given
+        let path = try temporaryPath()
+        let buildPath = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { [:] }
+        )
+
+        // When
+        try await subject.update(
+            at: path,
+            arguments: [
+                "--build-path=\(buildPath.pathString)",
+                "--disable-automatic-resolution",
+                "--use-registry-identity-for-scm",
+            ],
+            printOutput: false
+        )
+
+        // Then
+        XCTAssertEqual(mockCommandRunner.calls, [])
+        let request = try XCTUnwrap(swifterPM.updateRequests.first)
+        XCTAssertEqual(request.packageDirectory, URL(fileURLWithPath: path.pathString).standardizedFileURL)
+        XCTAssertEqual(request.scratchDirectory, URL(fileURLWithPath: buildPath.pathString).standardizedFileURL)
+        XCTAssertTrue(request.forceResolvedVersions)
+        XCTAssertTrue(request.quiet)
+        XCTAssertEqual(request.scmToRegistryTransformation, .useRegistryIdentityForSCM)
+        XCTAssertNil(request.cachedDirectoryMaterialization)
+    }
+
+    func test_update() async throws {
+        // Given
+        let path = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { ["TUIST_USE_SWIFTERPM": "0"] }
+        )
+        mockCommandRunner.succeedCommand([
             "swift",
             "package",
             "--package-path",
@@ -62,21 +420,19 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "update",
         ])
 
-        // When / Then
-        XCTAssertNoThrow(
-            try subject.update(
-                at: path,
-                arguments: ["--replace-scm-with-registry"],
-                printOutput: false
-            )
+        // When
+        try await subject.update(
+            at: path,
+            arguments: ["--replace-scm-with-registry"],
+            printOutput: false
         )
     }
 
-    func test_setToolsVersion_specificVersion() throws {
+    func test_setToolsVersion_specificVersion() async throws {
         // Given
         let path = try temporaryPath()
         let version = Version("5.4.0")
-        system.succeedCommand([
+        mockCommandRunner.succeedCommand([
             "swift",
             "package",
             "--package-path",
@@ -86,8 +442,8 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "5.4",
         ])
 
-        // When / Then
-        XCTAssertNoThrow(try subject.setToolsVersion(at: path, to: version!))
+        // When
+        try await subject.setToolsVersion(at: path, to: version!)
     }
 
     func test_buildFatReleaseBinary() async throws {
@@ -97,7 +453,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         let buildPath = try temporaryPath()
         let outputPath = try temporaryPath()
 
-        system.succeedCommand([
+        mockCommandRunner.succeedCommand([
             "swift", "build",
             "--configuration", "release",
             "--disable-sandbox",
@@ -106,7 +462,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "--build-path", buildPath.pathString,
             "--triple", "arm64-apple-macosx",
         ])
-        system.succeedCommand([
+        mockCommandRunner.succeedCommand([
             "swift", "build",
             "--configuration", "release",
             "--disable-sandbox",
@@ -116,7 +472,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "--triple", "x86_64-apple-macosx",
         ])
 
-        system.succeedCommand([
+        mockCommandRunner.succeedCommand([
             "lipo", "-create", "-output", outputPath.appending(component: product).pathString,
             buildPath.appending(components: "arm64-apple-macosx", "release", product).pathString,
             buildPath.appending(components: "x86_64-apple-macosx", "release", product).pathString,
@@ -132,18 +488,22 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
 
         // Then
         // Assert that `outputPath` was created
-        XCTAssertTrue(fileHandler.isFolder(outputPath))
+        let outputPathIsFolder = try await fileSystem.exists(outputPath, isDirectory: true)
+        XCTAssertTrue(outputPathIsFolder)
     }
 
     func test_package_registry_login() async throws {
         // Given
-        given(commandRunner)
-            .run(
-                arguments: .any,
-                environment: .any,
-                workingDirectory: .any
-            )
-            .willReturn(AsyncThrowingStream(unfolding: { nil }))
+        let command = [
+            "/usr/bin/swift",
+            "package-registry",
+            "login",
+            URL.test().appending(path: "login").absoluteString,
+            "--token",
+            "package-token",
+            "--no-confirm",
+        ]
+        mockCommandRunner.succeedCommand(command)
 
         // When
         try await subject.packageRegistryLogin(
@@ -152,34 +512,18 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         )
 
         // Then
-        verify(commandRunner)
-            .run(
-                arguments: .value(
-                    [
-                        "/usr/bin/swift",
-                        "package-registry",
-                        "login",
-                        URL.test().appending(path: "login").absoluteString,
-                        "--token",
-                        "package-token",
-                        "--no-confirm",
-                    ]
-                ),
-                environment: .any,
-                workingDirectory: .any
-            )
-            .called(1)
+        XCTAssertTrue(mockCommandRunner.called(command))
     }
 
     func test_package_registry_logout() async throws {
         // Given
-        given(commandRunner)
-            .run(
-                arguments: .any,
-                environment: .any,
-                workingDirectory: .any
-            )
-            .willReturn(AsyncThrowingStream(unfolding: { nil }))
+        let command = [
+            "/usr/bin/swift",
+            "package-registry",
+            "logout",
+            URL.test().appending(path: "logout").absoluteString,
+        ]
+        mockCommandRunner.succeedCommand(command)
 
         // When
         try await subject.packageRegistryLogout(
@@ -187,19 +531,6 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         )
 
         // Then
-        verify(commandRunner)
-            .run(
-                arguments: .value(
-                    [
-                        "/usr/bin/swift",
-                        "package-registry",
-                        "logout",
-                        URL.test().appending(path: "logout").absoluteString,
-                    ]
-                ),
-                environment: .any,
-                workingDirectory: .any
-            )
-            .called(1)
+        XCTAssertTrue(mockCommandRunner.called(command))
     }
 }

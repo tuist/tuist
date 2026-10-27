@@ -1,0 +1,600 @@
+defmodule TuistWeb.API.ShardsController do
+  use OpenApiSpex.ControllerSpecs
+  use TuistWeb, :controller
+
+  alias OpenApiSpex.Schema
+  alias Tuist.Shards
+  alias TuistWeb.API.Responses
+  alias TuistWeb.API.Schemas.Error
+  alias TuistWeb.API.Schemas.Shards.Shard
+  alias TuistWeb.API.Schemas.Shards.ShardPlan
+  alias TuistWeb.API.StorageError
+  alias TuistWeb.Headers
+
+  @suite_catch_all_minimum_cli_version Version.parse!("4.202.0-canary.21")
+  @suite_catch_all_minimum_gradle_plugin_version Version.parse!("0.17.0")
+
+  plug(OpenApiSpex.Plug.CastAndValidate,
+    json_render_error_v2: true,
+    render_error: TuistWeb.RenderAPIErrorPlug
+  )
+
+  plug(TuistWeb.Plugs.LoaderPlug)
+  plug(TuistWeb.API.Authorization.AuthorizationPlug, :test)
+
+  tags(["Shards"])
+
+  operation(:create,
+    summary: "Create a shard plan.",
+    description: "Creates a new test sharding session that distributes test targets across multiple CI runners.",
+    operation_id: "createShardPlan",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project's account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ]
+    ],
+    request_body:
+      {"Shard plan params", "application/json",
+       %Schema{
+         title: "CreateShardPlanParams",
+         type: :object,
+         properties: %{
+           reference: %Schema{
+             type: :string,
+             description: "A unique shard plan reference, typically derived from CI environment."
+           },
+           modules: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description: "Test module names (for module-level granularity)."
+           },
+           test_suites: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description: "Test suite names (for suite-level granularity)."
+           },
+           skipped_test_suites: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description:
+               "Test suite names the built products take out of the run, as `Module/Suite`. They are excluded from the plan, including when a module's suites would otherwise be resolved from run history."
+           },
+           parallelizable_modules: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description:
+               "Test module names whose suites the test runner executes concurrently. A suite plan sums per-suite durations, which overstates these modules, so their estimates are scaled down by the concurrency their history shows."
+           },
+           concurrent_modules: %Schema{
+             type: :array,
+             items: %Schema{type: :string},
+             description:
+               "Test module names the test runner executes alongside other modules, running the rest one at a time after them, as ExUnit does with `async: true` modules. A module plan then balances the shards' wall clock, with the concurrency their history shows, instead of summing durations. `parallelizable_modules` is the same for the suites within a module."
+           },
+           shard_min: %Schema{type: :integer, description: "Minimum number of shards."},
+           shard_max: %Schema{type: :integer, description: "Maximum number of shards."},
+           shard_total: %Schema{
+             type: :integer,
+             description: "Exact number of shards. With suite granularity, the final shard is the catch-all."
+           },
+           shard_max_duration: %Schema{
+             type: :integer,
+             description: "Target maximum duration per shard in milliseconds."
+           },
+           granularity: %Schema{
+             type: :string,
+             enum: ["module", "suite"],
+             description: "Sharding granularity level."
+           },
+           git_branch: %Schema{
+             type: :string,
+             description:
+               "The git branch the tests are built from. The suite inventory is read from this branch's history, falling back to the project's default branch."
+           },
+           build_run_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "The UUID of the associated Xcode build run."
+           },
+           gradle_build_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "The UUID of the associated Gradle build."
+           }
+         },
+         required: [:reference]
+       }},
+    responses: %{
+      ok: {"The shard plan", "application/json", ShardPlan},
+      unauthorized: {"You need to be authenticated", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
+      not_found: {"The project doesn't exist", "application/json", Error},
+      bad_request: {"Invalid parameters", "application/json", Error}
+    }
+  )
+
+  def create(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
+    params = %{
+      reference: body_params.reference,
+      modules: Map.get(body_params, :modules),
+      test_suites: Map.get(body_params, :test_suites),
+      skipped_test_suites: Map.get(body_params, :skipped_test_suites),
+      parallelizable_modules: Map.get(body_params, :parallelizable_modules),
+      concurrent_modules: Map.get(body_params, :concurrent_modules),
+      shard_min: Map.get(body_params, :shard_min),
+      shard_max: Map.get(body_params, :shard_max),
+      shard_total: Map.get(body_params, :shard_total),
+      shard_max_duration: Map.get(body_params, :shard_max_duration),
+      granularity: Map.get(body_params, :granularity, "module"),
+      git_branch: Map.get(body_params, :git_branch),
+      build_run_id: Map.get(body_params, :build_run_id),
+      gradle_build_id: Map.get(body_params, :gradle_build_id)
+    }
+
+    result = Shards.create_shard_plan(selected_project, params)
+
+    response = %{
+      id: result.plan.id,
+      reference: result.plan.reference,
+      shard_count: result.shard_count,
+      reporting_version: result.plan.reporting_version,
+      upload_url:
+        url(~p"/api/projects/#{selected_project.account.name}/#{selected_project.name}/tests/shards/upload/start"),
+      shards: result.shard_assignments
+    }
+
+    json(conn, response)
+  end
+
+  operation(:start_upload,
+    summary: "Start a multipart upload for the test products bundle.",
+    operation_id: "startShardUpload",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project's account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ]
+    ],
+    request_body:
+      {"Start upload params", "application/json",
+       %Schema{
+         title: "StartShardUploadParams",
+         type: :object,
+         properties: %{
+           shard_plan_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "The shard plan id returned by createShardPlan."
+           },
+           reference: %Schema{type: :string, description: "The shard plan reference."},
+           artifact: %Schema{
+             type: :string,
+             description:
+               ~s(The artifact to upload: "shared" for the shared products, or "module:<name>" for a single module's test bundle. Defaults to the legacy single bundle when omitted.)
+           }
+         }
+       }},
+    responses: %{
+      ok:
+        {"The upload ID", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             data: %Schema{
+               type: :object,
+               properties: %{upload_id: %Schema{type: :string}}
+             }
+           }
+         }},
+      unauthorized: {"You need to be authenticated", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
+      not_found: {"The shard plan was not found", "application/json", Error},
+      bad_request: {"Invalid parameters", "application/json", Error}
+    }
+  )
+
+  def start_upload(%{assigns: %{selected_project: selected_project}, body_params: body_params} = conn, _params) do
+    artifact = Map.get(body_params, :artifact)
+
+    result =
+      case upload_identifier(body_params) do
+        {:plan_id, plan_id} ->
+          Shards.start_upload_for_plan_id(selected_project, selected_project.account, plan_id, artifact)
+
+        {:reference, reference} ->
+          Shards.start_upload(selected_project, selected_project.account, reference, artifact)
+
+        {:error, :missing_shard_plan_identifier} ->
+          {:error, :missing_shard_plan_identifier}
+      end
+
+    case result do
+      {:ok, upload_id} ->
+        json(conn, %{data: %{upload_id: upload_id}})
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "The shard plan was not found."})
+
+      {:error, :missing_shard_plan_identifier} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "Either shard_plan_id or reference is required."})
+
+      {:error, _reason} ->
+        StorageError.render(conn)
+    end
+  end
+
+  operation(:show,
+    summary: "Get a shard.",
+    description: "Returns the test targets and download URLs for a specific shard.",
+    operation_id: "getShard",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project's account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ],
+      reference: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The shard plan reference."
+      ],
+      shard_plan_id: [
+        in: :query,
+        schema: %Schema{type: :string, format: :uuid},
+        description: "The exact shard plan identifier. When present, it takes precedence over the reference."
+      ],
+      shard_index: [
+        in: :path,
+        type: :integer,
+        required: true,
+        description: "The zero-based shard index."
+      ]
+    ],
+    responses: %{
+      ok: {"The shard", "application/json", Shard},
+      bad_request: {"The request parameters are invalid", "application/json", Error},
+      unauthorized: {"You need to be authenticated", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
+      not_found: {"The session or shard was not found", "application/json", Error}
+    }
+  )
+
+  def show(
+        %{
+          assigns: %{selected_project: selected_project},
+          path_params: %{"reference" => reference, "shard_index" => shard_index},
+          query_params: query_params
+        } = conn,
+        _params
+      ) do
+    shard_index = if is_binary(shard_index), do: String.to_integer(shard_index), else: shard_index
+
+    opts = [suite_catch_all?: suite_catch_all_supported?(conn)]
+
+    result =
+      case Map.get(query_params, "shard_plan_id") do
+        plan_id when is_binary(plan_id) and plan_id != "" ->
+          Shards.get_shard_for_plan_id(
+            selected_project,
+            selected_project.account,
+            plan_id,
+            shard_index,
+            opts
+          )
+
+        _ ->
+          Shards.get_shard(
+            selected_project,
+            selected_project.account,
+            reference,
+            shard_index,
+            opts
+          )
+      end
+
+    case result do
+      {:ok, result} ->
+        json(conn, %{
+          shard_plan_id: result.shard_plan_id,
+          modules: result.modules,
+          suites: result.suites,
+          skip: result.skip,
+          download_url: result.download_url,
+          download_urls: result.download_urls
+        })
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "The shard plan was not found."})
+
+      {:error, :invalid_shard_index} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "The shard index is out of range."})
+    end
+  end
+
+  operation(:generate_url,
+    summary: "Generate a signed URL for uploading a part of the test bundle.",
+    operation_id: "generateShardUploadURL",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project's account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ]
+    ],
+    request_body:
+      {"Upload URL params", "application/json",
+       %Schema{
+         title: "GenerateShardUploadURLParams",
+         type: :object,
+         properties: %{
+           shard_plan_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "The shard plan id returned by createShardPlan."
+           },
+           reference: %Schema{type: :string, description: "The shard plan reference."},
+           upload_id: %Schema{type: :string, description: "The multipart upload ID."},
+           part_number: %Schema{type: :integer, description: "The part number."},
+           artifact: %Schema{
+             type: :string,
+             description:
+               ~s{The artifact being uploaded ("shared" or "module:<name>"). Matches the start-upload artifact.}
+           }
+         },
+         required: [:upload_id, :part_number]
+       }},
+    responses: %{
+      ok:
+        {"The signed URL", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             data: %Schema{
+               type: :object,
+               properties: %{url: %Schema{type: :string}}
+             }
+           }
+         }},
+      unauthorized: {"You need to be authenticated", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
+      bad_request: {"Invalid parameters", "application/json", Error}
+    }
+  )
+
+  def generate_url(
+        %{
+          assigns: %{selected_project: selected_project},
+          body_params: %{upload_id: upload_id, part_number: part_number} = body_params
+        } = conn,
+        _params
+      ) do
+    artifact = Map.get(body_params, :artifact)
+
+    result =
+      case upload_identifier(body_params) do
+        {:plan_id, plan_id} ->
+          Shards.generate_upload_url_for_plan(
+            selected_project,
+            selected_project.account,
+            plan_id,
+            upload_id,
+            part_number,
+            artifact
+          )
+
+        {:reference, reference} ->
+          Shards.generate_upload_url(
+            selected_project,
+            selected_project.account,
+            reference,
+            upload_id,
+            part_number,
+            artifact
+          )
+
+        {:error, :missing_shard_plan_identifier} ->
+          {:error, :missing_shard_plan_identifier}
+      end
+
+    case result do
+      {:ok, url} ->
+        json(conn, %{data: %{url: url}})
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "The shard plan was not found."})
+
+      {:error, :missing_shard_plan_identifier} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "Either shard_plan_id or reference is required."})
+    end
+  end
+
+  operation(:complete,
+    summary: "Complete the multipart upload and trigger per-shard xctestrun creation.",
+    operation_id: "completeShardUpload",
+    parameters: [
+      account_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project's account."
+      ],
+      project_handle: [
+        in: :path,
+        type: :string,
+        required: true,
+        description: "The handle of the project."
+      ]
+    ],
+    request_body:
+      {"Complete upload params", "application/json",
+       %Schema{
+         title: "CompleteShardUploadParams",
+         type: :object,
+         properties: %{
+           shard_plan_id: %Schema{
+             type: :string,
+             format: :uuid,
+             description: "The shard plan id returned by createShardPlan."
+           },
+           reference: %Schema{type: :string, description: "The shard plan reference."},
+           upload_id: %Schema{type: :string, description: "The multipart upload ID."},
+           parts: %Schema{
+             type: :array,
+             description: "The uploaded parts with their ETags.",
+             items: %Schema{
+               type: :object,
+               properties: %{
+                 part_number: %Schema{type: :integer},
+                 etag: %Schema{type: :string}
+               },
+               required: [:part_number, :etag]
+             }
+           },
+           artifact: %Schema{
+             type: :string,
+             description:
+               ~s{The artifact being completed ("shared" or "module:<name>"). Matches the start-upload artifact.}
+           }
+         },
+         required: [:upload_id, :parts]
+       }},
+    responses: %{
+      ok:
+        {"Upload completed", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{status: %Schema{type: :string}}
+         }},
+      unauthorized: {"You need to be authenticated", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      too_many_requests: Responses.authorization_throttled(),
+      bad_request: {"Invalid parameters", "application/json", Error}
+    }
+  )
+
+  def complete(
+        %{
+          assigns: %{selected_project: selected_project},
+          body_params: %{upload_id: upload_id, parts: parts} = body_params
+        } = conn,
+        _params
+      ) do
+    parts_list =
+      Enum.map(parts, fn part ->
+        {part.part_number, part.etag}
+      end)
+
+    artifact = Map.get(body_params, :artifact)
+
+    result =
+      case upload_identifier(body_params) do
+        {:plan_id, plan_id} ->
+          Shards.complete_upload_for_plan(
+            selected_project,
+            selected_project.account,
+            plan_id,
+            upload_id,
+            parts_list,
+            artifact
+          )
+
+        {:reference, reference} ->
+          Shards.complete_upload(
+            selected_project,
+            selected_project.account,
+            reference,
+            upload_id,
+            parts_list,
+            artifact
+          )
+
+        {:error, :missing_shard_plan_identifier} ->
+          {:error, :missing_shard_plan_identifier}
+      end
+
+    case result do
+      :ok ->
+        json(conn, %{status: "success"})
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(:not_found)
+        |> json(%{message: "The shard plan was not found."})
+
+      {:error, :missing_shard_plan_identifier} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "Either shard_plan_id or reference is required."})
+
+      {:error, _reason} ->
+        StorageError.render(conn)
+    end
+  end
+
+  defp upload_identifier(body_params) do
+    shard_plan_id = Map.get(body_params, :shard_plan_id)
+    reference = Map.get(body_params, :reference)
+
+    cond do
+      is_binary(shard_plan_id) and shard_plan_id != "" -> {:plan_id, shard_plan_id}
+      is_binary(reference) and reference != "" -> {:reference, reference}
+      true -> {:error, :missing_shard_plan_identifier}
+    end
+  end
+
+  defp suite_catch_all_supported?(conn) do
+    version_at_least?(Headers.get_cli_version(conn), @suite_catch_all_minimum_cli_version) or
+      version_at_least?(Headers.get_gradle_plugin_version(conn), @suite_catch_all_minimum_gradle_plugin_version)
+  end
+
+  defp version_at_least?(nil, _minimum), do: false
+  defp version_at_least?(version, minimum), do: Version.compare(version, minimum) != :lt
+end

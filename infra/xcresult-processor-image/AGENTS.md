@@ -1,0 +1,302 @@
+# Xcresult Processor Image
+
+Tart Layer 2 for the macOS xcresult processor. Xcode and boot scripts live in the image; each deploy pins the server release and NIFs fetched at boot.
+
+Every Pod the tart-cri runtime (`infra/tart-cri/`) schedules onto the
+macOS fleet boots a copy of this image as a Tart VM. The VM runs the
+Tuist server release in xcresult-processor mode under launchd, draining
+`:process_xcresult` from the same Postgres the Linux server pods write to.
+
+The image carries macOS, Xcode, Tailscale and the boot scripts, not the
+server release. At boot, `fetch-release.sh` downloads the release the Pod
+pins (`TUIST_XCRESULT_PROCESSOR_RELEASE_REPOSITORY` and
+`TUIST_XCRESULT_PROCESSOR_RELEASE_DIGEST`, from the chart's
+`xcresultProcessor.release`), verifies it against the digest and installs
+it into `/opt/tuist/release`. A deploy pins the release built from the
+commit it ships, so a server change rolls the Pods onto new VMs from the
+image the host already holds. In managed envs that upgrade is the
+`tuist-xcresult-processor` release (`infra/helm/xcresult-processor`),
+which `server-deployment.yml` installs after the tuist release without
+waiting on it.
+
+## Layout (inside the VM)
+
+| Path | Purpose |
+|---|---|
+| `/opt/tuist/release/` | Server release, installed at boot by `fetch-release.sh` |
+| `/opt/tuist/inject-env.sh` | Reads the kubelet env mount into `/etc/tuist.env` at boot |
+| `/opt/tuist/fetch-release.sh` | Downloads and installs the pinned server release |
+| `/etc/tuist.env` | Runtime configuration imported from the Pod's read-only env share |
+| `/Library/LaunchDaemons/dev.tuist.xcresult-processor.plist` | Boots `tuist start` |
+| `/var/log/xcresult-processor/{stdout,stderr}.log` | Captured output |
+
+## Server release
+
+`.github/actions/xcresult-processor-release` builds the macOS release on a
+`tuist-macos-27-0` runner and pushes it to
+`ghcr.io/tuist/tuist-xcresult-processor-release:sha-<12>`, the server
+image's tag. The artifact has one `release.tar.gz` layer, so the layer
+digest is the tarball's sha256; the package is public, so the guest pulls it
+without credentials. The production cascade's
+`build-xcresult-processor-release` job runs it for every deploy and passes
+the digest to each deploy leg. `server-deployment.yml` runs it alongside an
+image build of its own; a deploy of a pre-built image pins the release
+published for that tag, or keeps the deployed one when the tag has none.
+
+The build fails when a Mach-O file in the release loads a library from
+outside the release and the OS, since the guest has nothing else, and
+`MACOSX_DEPLOYMENT_TARGET` keeps native code loadable on a guest older than
+the runner. Mix's deps and build directories share one cache volume,
+addressed by its resolved path: Mix links `_build` to `deps` with relative
+symlinks and macOS attaches cache volumes as symlinks.
+
+## Building the image
+
+The production cascade's `release-xcresult-processor-image` job builds the
+image when this directory changes, and
+`.github/workflows/xcresult-processor-image.yml` builds a `:<sha>` image on
+demand. Both run on the bare-metal `vm-image-builder` Mac mini fleet (Tart
+needs a live GUI session for Virtualization.framework, so hosted
+runners can't do this). Builder fleet operator runbook:
+[`../vm-image-builder.md`](../vm-image-builder.md).
+
+Registry publication uses the shared
+[`tart-push`](../../.github/actions/tart-push/action.yml)
+action. Its bounded concurrency, chunking, retry, and route diagnostics are
+part of the builder-fleet reliability contract; keep the on-demand and
+production release workflows on that shared path.
+
+Local build from repository root, using an already-published base version:
+
+```bash
+mise run xcresult-processor:build-image <xcode_version>
+```
+
+The [local build task](../../mise/tasks/xcresult-processor/build-image.sh)
+requires `TUIST_OCI_REGISTRY_HOST`, tailnet access and a registry credential
+in `~/.docker/config.json`. It calls Packer against the published base and
+bakes a Tart image named `tuist-xcresult-processor`; publishing is separate.
+
+## Layer 1 dependency
+
+This is **Layer 2** on top of
+`ghcr.io/tuist/macos-tahoe-xcode:<xcode-version-dashes>` (built by
+`infra/macos-xcode-image`). Xcode itself lives in Layer 1 because
+the NIF shells out to `/usr/bin/xcrun xcresulttool`, which only
+ships in full Xcode (not the Command Line Tools).
+
+Unlike `infra/runner-image` (where customers pin a specific runner
+profile to a specific Xcode), the xcresult-processor is a
+**singleton backend service** that has to parse .xcresult bundles
+produced by every customer runner profile. xcresulttool's JSON
+schema changes across Xcode majors, so the processor should run on
+at least as new an Xcode as any active runner-image profile.
+
+The Xcode version lives in [`xcode-version`](xcode-version) (currently
+`27.1`), which `release-xcresult-processor-image` reads for its base image.
+Track the newest stable runner Xcode, not prerelease profiles. Bump it
+alongside the runner-image profile list when promoting a new Xcode to the
+fleet:
+
+1. Publish a Layer 1 image with the new Xcode — first run
+   `mise run xcode-mirror:upload 26.X.Y` on a maintainer Mac to put
+   the .xip into `ghcr.io/tuist/xcode-xips:26.X.Y`, then
+   `gh workflow run macos-xcode-image.yml -f xcode_version=26.X.Y`.
+   See `infra/macos-xcode-image/AGENTS.md` for the runbook.
+2. Add the version to `infra/runner-image/profiles.json` (the list
+   the runner-image build matrix expands) and bump `xcode-version` in
+   the same commit so the processor never lags an active runner
+   profile. Merge with a
+   `feat(xcresult-processor-image): bump to Xcode 26.X.Y` message;
+   check-releases picks it up from `infra/xcresult-processor-image/**`.
+
+To rebuild against a different Xcode without bumping `xcode-version`
+(e.g. testing a 26.X.Y release candidate), dispatch
+`xcresult-processor-image.yml` with `-f xcode_version=26.X.Y`.
+
+## Env injection at runtime
+
+tart-kubelet stages the Pod's env vars as a `KEY=value` file under
+`--dir env:<host-path>:ro`, which the guest sees at
+`/Volumes/My Shared Files/env/tuist.env`. Keep the image environment-neutral:
+`inject-env.sh` materialises that as `/etc/tuist.env` on first boot, and
+launchd sources it before fetching and starting the release.
+
+The [chart runtime wiring](../helm/tuist/templates/xcresult-processor-deployment.yaml)
+is authoritative: `TUIST_MODE=xcresult_processor`, processor-role database
+access through the transaction-mode pooler, license, object-storage and
+ClickHouse configuration, queue concurrency, per-Pod identity, and the
+digest-pinned release. Do not restore obsolete `MASTER_KEY`, encrypted
+bundles, `TUIST_DEPLOY_ENV` or legacy mode flags.
+
+`TAILSCALE_AUTH_KEY` comes from the macOS-fleet ESO Secret and holds an OAuth
+client secret, not an expiring pre-auth key. `TAILSCALE_HOSTNAME` comes from
+the Pod name and `TAILSCALE_TAGS` from `macosFleet.tailscale.tags`; tags are
+required with an OAuth credential. Preserve the join properties below.
+
+## Boot chain and how it fails silently
+
+The launchd unit hard-ANDs the boot steps:
+
+```
+inject-env.sh && source /etc/tuist.env && fetch-release.sh && tailscale-up.sh && exec tuist start
+```
+
+Every step is load-bearing, and the last one is the only one Kubernetes
+can see. The Deployment declares a `readinessProbe` on `GET /ready` (port
+9092, `Tuist.Readiness.Plug`), which tart-kubelet evaluates against the
+guest IP: the Pod stays NotReady until the release answers and can reach
+Postgres, ClickHouse and its Oban queue. A VM that boots and then dies at
+`tailscale-up.sh` then reads `0/1 Running`, the rolling update stops on it,
+and the deploy's "xcresult processor rollout" step fails and annotates the
+run. That step does not fail the deploy, and the processor is not in the
+tuist release's `helm upgrade --atomic --wait`, so a NotReady processor
+never holds or rolls back a server deploy. The probe shares the
+host-to-guest path with the metrics forwarder on 9091, so a Mac mini that
+cannot reach its guest at `192.168.64.x` also shows up as
+`up{job="tuist-macos-pod-metrics"} == 0` for that Pod; check that metric
+before reading a NotReady processor as a dependency outage.
+
+Without the probe (`xcresultProcessor.readinessProbe.enabled: false`),
+tart-kubelet sets `PodReady=True` as soon as the VM has an IP, so such a VM
+reads `1/1 Running` forever, the Deployment reports `Available=True`, and
+`:process_xcresult` simply stops being consumed. This has happened twice,
+from unrelated causes with the same outward shape:
+
+- **2026-06-26.** A clobbered host VM-to-internet NAT left the guest
+  unable to complete a TCP handshake to the Tailscale control plane.
+  `tailscale up` blocked indefinitely. The `--timeout=60s` flag in
+  `tailscale-up.sh` was added in response, so the chain now exits
+  non-zero and launchd's `KeepAlive` retries instead of stranding the
+  VM.
+- **2026-08-12.** The Tailscale pre-auth key expired. `tailscale up`
+  now fails fast rather than hanging, but failing fast in a crash loop
+  is just as invisible: the release still never starts. The queue had
+  zero consumers for roughly thirteen hours, around 4,600 jobs backed
+  up, and roughly 4,000 test runs sat at `status='processing'` across
+  every account using remote processing. It was reported by a customer.
+
+The credential deserves specific attention. `tailscale up` runs on
+**every VM boot**, and a VM is created fresh on every Pod roll, so
+unlike the Mac mini hosts (which join once and keep their tailnet
+identity across rotations) the processor puts it on the critical path
+continuously.
+
+That is why `TAILSCALE_AUTH_KEY` now holds an **OAuth client secret**
+rather than a pre-auth key. Tailscale caps pre-auth keys at 90 days and
+offers no way to extend one, so the 2026-08-12 failure recurred by
+construction unless someone rotated ahead of expiry, which is a control
+that fails eventually. OAuth clients don't expire, and `tailscale up`
+accepts the client secret wherever an auth key goes and mints a fresh
+key per join, so there is no longer a date to miss. ExternalSecrets was
+never the safety net here either: it reports `SecretSynced` /
+`Ready=True` for an expired value exactly as for a valid one, so its
+status is not a signal.
+
+`tailscale-up.sh` pins two properties on the minted key rather than
+inheriting their defaults:
+
+- `preauthorized=true`, because the default is `false` and a device
+  parked awaiting manual approval fails the join exactly like an
+  expired credential, with the same invisible outcome.
+- `ephemeral=true`, so a dead VM's registration goes with it. Tailscale
+  deletes an ephemeral device 30 to 60 minutes after it was last seen,
+  however long it had been online. (Tailscale's docs say an ephemeral
+  device present for four hours "will count as a standard tagged
+  device"; that is billing, not removal.) `TAILSCALE_HOSTNAME` is the
+  Pod name, so every roll registers a new device, and the old one drops
+  out of the netmap within the hour. Ephemeral is already the default
+  for a key minted from an OAuth client; the script spells it out so the
+  property does not rest on that default.
+
+  Renaming the device would not change this: a device is identified by
+  its node key, not its hostname, and a VM booted from an image has no
+  persisted tailscaled state, so every boot mints a new key and
+  therefore a new device whatever it is called. A VM recreated under the
+  same Pod shows up as a second device with the same hostname and tag
+  until the first one ages out.
+
+  The `tailscale-device-reaper` CronJob in the main chart
+  (`infra/helm/tuist/templates/tailscale-device-reaper.yaml`) gives
+  devices on this path a short `disposable` grace window. With ephemeral
+  joins it has nothing to collect; it is the backstop for a join that
+  is not ephemeral, which is what a legacy pre-auth key produces (see
+  below). The Mac mini hosts, which join once and keep their identity,
+  sit behind its long window.
+
+Keys minted through an OAuth client are always tagged and carry no
+default tag, so `TAILSCALE_TAGS` must name one (the chart sources it
+from the fleet's `macosFleet.tailscale.tags`). The script refuses to
+start when the credential is an OAuth secret and the tag is missing,
+rather than letting `tailscale up` fail 60s later with a message that
+reads like a network fault. A legacy pre-auth key is detected by prefix
+and passed through untouched, so the image boots against either
+credential while envs migrate. Such a key joins with whatever
+ephemerality it was created with, and the one the fleet used before the
+OAuth client was not ephemeral: every production device it registered
+stayed on the tailnet after its Pod was gone.
+
+One diagnostic gap this does not close: `tailscale-up.sh` still reports
+a server-side credential rejection and an unreachable control plane
+through the same "did not reach Running within timeout" path, which is
+what made the two incidents above look alike from the outside.
+
+**Detection.** Readiness, when enabled, only gates rollouts; it pages nobody, and
+ExternalSecrets cannot see this class of failure at all, so it is caught
+in the metrics pipeline too. Six rules in
+[`../helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md)
+cover it, and they are cause-independent by design:
+
+| Rule | Catches |
+|---|---|
+| `Remote processing queue has no consumer` | The queue not draining, whatever the reason. Read from Postgres by the Linux web pods, so it survives total loss of this fleet. |
+| `xcresult processor guest metrics unavailable fleet-wide` | No guest PromEx endpoint answering anywhere in production, independent of the readiness probe. |
+| `xcresult processor guest metrics unavailable in canary or staging` | The same for the single-replica clusters, with a 30 minute pending period so a slow image pull during a deploy does not page. |
+| `xcresult processor guest metrics unavailable on one host` | Half capacity, including a mini that is powered on but never joined the cluster. |
+| `xcresult processor replicas unavailable` | The scheduling half: a replica stuck `Pending` while the Deployment still reports `Available=True`. |
+| `xcresult processor rollout failed` | A production rollout that made no progress for `progressDeadlineSeconds`, such as a new release or image that never turns Ready. Production deploys do not wait for the rollout, so this is what reports it. |
+
+**Reading guest logs.** `kubectl logs` does not work here (the apiserver
+cannot resolve the Tailscale-only kubelet hostnames), and neither does
+Alloy's pod-log collection. Use
+`tailscale ssh admin@<vm-tailnet-ip>` and read
+`/var/log/xcresult-processor/{stdout,stderr,diagnostics}.log`. Note the
+circularity: if the failure is that the VM never joined the tailnet,
+there is no tailnet address to ssh to, and the host's own
+`tart exec <vm> ...` (the Tart guest agent) is the only way in.
+
+## Guest access and macOS sshd
+
+The base image's `admin` account keeps its well-known `admin` password,
+which Packer logs in with during the build. The last provisioner writes
+`/etc/ssh/sshd_config.d/000-tuist-no-password.conf`
+(`PasswordAuthentication no`, `KbdInteractiveAuthentication no`) and fails
+the build unless `sshd -T` reports both as `no`. The shipped image's macOS
+sshd therefore refuses every login: no account has an `authorized_keys`.
+sshd keeps the first value it reads for a keyword, so the file has to sort
+ahead of macOS's own `100-macos.conf`.
+
+Remote Login itself stays on, because nothing needs it off and nothing
+uses it:
+
+- Admins use Tailscale SSH (`tailscale ssh admin@<vm-tailnet-ip>`), which
+  `tailscaled` serves itself (`--ssh=true` in `tailscale-up.sh`) without
+  macOS sshd or the account password.
+- tart-kubelet reaches the guest through `tart exec` (its guest disk
+  check), which goes through the Tart guest agent, not SSH.
+
+Keep the sshd provisioner last. sshd reads its config for each new
+connection, so a provisioner after it that needs a fresh password login
+would fail. If `--ssh=true` is ever dropped, the cluster tags' `tcp:22`
+grant would reach this sshd, which accepts no logins.
+
+## Releasing this image
+
+The release gate (`mise/tasks/release/components.json` →
+`xcresult-processor-image`, evaluated by `git cliff` in
+`mise/tasks/release/check.sh`) cuts a new image version for `feat`, `fix` and
+other non-skipped conventional commits that touch this directory. Server
+changes do not release the image: the processor runs the release its deploy
+pins, built from the same commit as the server, so it cannot run older code
+than the schema it reads. To smoke-test image contents without cutting a
+version, dispatch `xcresult-processor-image.yml` for a throwaway `:<sha>` build.

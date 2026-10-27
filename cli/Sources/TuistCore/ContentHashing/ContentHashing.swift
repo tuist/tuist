@@ -3,7 +3,7 @@ import Mockable
 import Path
 
 @Mockable
-public protocol ContentHashing: FileContentHashing {
+public protocol ContentHashing: FileContentHashing, Sendable {
     func hash(_ data: Data) throws -> String
     func hash(_ string: String) throws -> String
     func hash(_ boolean: Bool) throws -> String

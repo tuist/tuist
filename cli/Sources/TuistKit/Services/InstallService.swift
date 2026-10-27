@@ -1,17 +1,33 @@
 import FileSystem
 import Foundation
+import Mockable
 import Path
+import TuistAlert
+import TuistConfig
+import TuistConfigLoader
+import TuistConstants
 import TuistCore
 import TuistDependencies
+import TuistEnvironment
 import TuistLoader
+import TuistLogging
 import TuistPlugin
 import TuistSupport
 
-final class InstallService {
+@Mockable
+protocol InstallServicing {
+    func run(
+        path: String?,
+        update: Bool,
+        passthroughArguments: [String]
+    ) async throws
+}
+
+struct InstallService: InstallServicing {
     private let pluginService: PluginServicing
     private let configLoader: ConfigLoading
     private let swiftPackageManagerController: SwiftPackageManagerControlling
-    private let fileHandler: FileHandling
+    private let swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator
     private let manifestFilesLocator: ManifestFilesLocating
     private let fileSystem: FileSysteming
 
@@ -19,14 +35,15 @@ final class InstallService {
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(),
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
-        fileHandler: FileHandling = FileHandler.shared,
+        swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator =
+            SwiftPackageManagerScratchDirectoryLocator(),
         fileSystem: FileSysteming = FileSystem(),
         manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator()
     ) {
         self.pluginService = pluginService
         self.configLoader = configLoader
         self.swiftPackageManagerController = swiftPackageManagerController
-        self.fileHandler = fileHandler
+        self.swiftPackageManagerScratchDirectoryLocator = swiftPackageManagerScratchDirectoryLocator
         self.fileSystem = fileSystem
         self.manifestFilesLocator = manifestFilesLocator
     }
@@ -36,7 +53,7 @@ final class InstallService {
         update: Bool,
         passthroughArguments: [String]
     ) async throws {
-        let path = try self.path(path)
+        let path = try await self.path(path)
 
         try await fetchPlugins(path: path)
         try await fetchDependencies(path: path, update: update, passthroughArguments: passthroughArguments)
@@ -44,12 +61,8 @@ final class InstallService {
 
     // MARK: - Helpers
 
-    private func path(_ path: String?) throws -> AbsolutePath {
-        if let path {
-            return try AbsolutePath(validating: path, relativeTo: fileHandler.currentPath)
-        } else {
-            return fileHandler.currentPath
-        }
+    private func path(_ path: String?) async throws -> AbsolutePath {
+        try await Environment.current.pathRelativeToWorkingDirectory(path)
     }
 
     private func fetchPlugins(path: AbsolutePath) async throws {
@@ -72,40 +85,70 @@ final class InstallService {
         let config = try await configLoader.loadConfig(path: path)
 
         let mergedArguments = arguments(config: config, passthroughArguments: passthroughArguments)
+        let scratchDirectory = try await swiftPackageManagerScratchDirectory(
+            packagePath: packageManifestPath.parentDirectory,
+            arguments: mergedArguments
+        )
+        let packageManifestEnvironment = config.project.generatedProject?.installOptions.packageManifestEnvironment ?? .init()
 
-        if update {
-            Logger.current.notice("Updating dependencies.", metadata: .section)
-
-            try swiftPackageManagerController.update(
-                at: packageManifestPath.parentDirectory,
-                arguments: mergedArguments,
-                printOutput: true
+        try await PackageManifestEnvironment.withConfiguration(
+            .init(
+                usesAutomaticProviderDefaults: packageManifestEnvironment.usesAutomaticProviderDefaults,
+                includedVariablePatterns: packageManifestEnvironment.includedVariablePatterns,
+                excludedVariablePatterns: packageManifestEnvironment.excludedVariablePatterns
             )
-        } else {
-            Logger.current.notice("Resolving and fetching dependencies.", metadata: .section)
+        ) {
+            if update {
+                Logger.current.notice("Updating dependencies.", metadata: .section)
 
-            try swiftPackageManagerController.resolve(
-                at: packageManifestPath.parentDirectory,
-                arguments: mergedArguments,
-                printOutput: true
-            )
+                try await swiftPackageManagerController.update(
+                    at: packageManifestPath.parentDirectory,
+                    arguments: mergedArguments,
+                    printOutput: true
+                )
+            } else {
+                Logger.current.notice("Resolving and fetching dependencies.", metadata: .section)
+
+                try await swiftPackageManagerController.resolve(
+                    at: packageManifestPath.parentDirectory,
+                    arguments: mergedArguments,
+                    printOutput: true
+                )
+            }
         }
 
-        try await savePackageResolved(at: packageManifestPath.parentDirectory)
+        try await savePackageResolved(
+            at: packageManifestPath.parentDirectory,
+            scratchDirectory: scratchDirectory
+        )
     }
 
     private func arguments(config: Tuist, passthroughArguments: [String]) -> [String] {
         let configArguments = config.project.generatedProject?.installOptions.passthroughSwiftPackageManagerArguments ?? []
-        // Passthrough arguments come last so they override config arguments (last flag wins)
+        // Passthrough arguments come last so duplicate SwiftPM options can be overridden by the command line.
         return configArguments + passthroughArguments
     }
 
-    private func savePackageResolved(at path: AbsolutePath) async throws {
+    private func swiftPackageManagerScratchDirectory(
+        packagePath: AbsolutePath,
+        arguments: [String]
+    ) async throws -> AbsolutePath {
+        try swiftPackageManagerScratchDirectoryLocator.locate(
+            packagePath: packagePath,
+            arguments: arguments,
+            environment: Environment.current.variables,
+            workingDirectory: try await Environment.current.currentWorkingDirectory()
+        )
+    }
+
+    private func savePackageResolved(
+        at path: AbsolutePath,
+        scratchDirectory: AbsolutePath
+    ) async throws {
         let sourcePath = path.appending(component: Constants.SwiftPackageManager.packageResolvedName)
         guard try await fileSystem.exists(sourcePath) else { return }
 
-        let destinationPath = path.appending(components: [
-            Constants.SwiftPackageManager.packageBuildDirectoryName,
+        let destinationPath = scratchDirectory.appending(components: [
             Constants.DerivedDirectory.name,
             Constants.SwiftPackageManager.packageResolvedName,
         ])

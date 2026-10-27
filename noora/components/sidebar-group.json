@@ -1,0 +1,51 @@
+{
+  "name": "SidebarGroup",
+  "tagName": "noora-sidebar-group",
+  "elementClassName": "NooraSidebarGroup",
+  "className": "noora-sidebar-group",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Groups declarative sidebar destinations.",
+  "usage": "<noora-sidebar-group label=\"Projects\" default-open><noora-sidebar-item href=\"/tuist\">Tuist</noora-sidebar-item></noora-sidebar-group>",
+  "standalone": false,
+  "attributes": [
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Sets the group label."
+    },
+    {
+      "name": "default-open",
+      "property": "defaultOpen",
+      "type": "boolean",
+      "default": false,
+      "description": "Expands the group initially."
+    },
+    {
+      "name": "fixed",
+      "property": "fixed",
+      "type": "boolean",
+      "default": false,
+      "description": "Keeps the group expanded and removes its collapse interaction."
+    }
+  ],
+  "properties": [],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "The noora-sidebar-item children."
+    }
+  ],
+  "cssParts": [],
+  "notes": [],
+  "examples": [
+    {
+      "id": "group",
+      "title": "Group",
+      "description": "Group related sidebar destinations.",
+      "markup": "<noora-sidebar-group label=\"Projects\" default-open><noora-sidebar-item href=\"/tuist\">Tuist</noora-sidebar-item></noora-sidebar-group>"
+    }
+  ]
+}

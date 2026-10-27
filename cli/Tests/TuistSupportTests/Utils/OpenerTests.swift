@@ -1,7 +1,9 @@
+import FileSystem
 import Foundation
 import Path
 import XCTest
 
+@testable import TuistOpener
 @testable import TuistSupport
 @testable import TuistTesting
 
@@ -42,8 +44,8 @@ final class OpenerTests: TuistUnitTestCase {
     func test_open_when_wait_is_false() async throws {
         let temporaryPath = try temporaryPath()
         let path = temporaryPath.appending(component: "tool")
-        try FileHandler.shared.touch(path)
-        system.succeedCommand(["/usr/bin/open", path.pathString])
+        try await FileSystem().touch(path)
+        mockCommandRunner.succeedCommand(["/usr/bin/open", path.pathString])
         try await subject.open(path: path)
     }
 }

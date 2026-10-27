@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import TuistConstants
 import TuistCore
 import TuistRootDirectoryLocator
 import TuistSupport
@@ -11,13 +12,13 @@ public protocol HelpersDirectoryLocating {
     func locate(at: AbsolutePath) async throws -> AbsolutePath?
 }
 
-public final class HelpersDirectoryLocator: HelpersDirectoryLocating {
+public struct HelpersDirectoryLocator: HelpersDirectoryLocating {
     /// Instance to locate the root directory of the project.
     private let rootDirectoryLocator: RootDirectoryLocating
     private let fileSystem: FileSysteming
 
     /// Default constructor.
-    public convenience init() {
+    public init() {
         self.init(rootDirectoryLocator: RootDirectoryLocator())
     }
 

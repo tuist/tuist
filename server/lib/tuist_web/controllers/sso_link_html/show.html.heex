@@ -1,0 +1,64 @@
+<.link_frame
+  title={dgettext("dashboard_auth", "Link single sign-on?")}
+  subtitle={
+    dgettext(
+      "dashboard_auth",
+      "Let the %{organization} identity provider sign you in to your Tuist account.",
+      organization: @organization_name
+    )
+  }
+>
+  <.alert
+    type="secondary"
+    status="information"
+    size="small"
+    title={dgettext("dashboard_auth", "Signed in to Tuist as %{email}", email: @email)}
+  />
+  <.alert
+    type="secondary"
+    status="information"
+    size="large"
+    title={@identity_email}
+    description={
+      dgettext(
+        "dashboard_auth",
+        "The %{organization} identity provider account that will sign in to your Tuist account.",
+        organization: @organization_name
+      )
+    }
+  />
+  <form method="post" action={~p"/auth/sso/link"} data-part="form">
+    <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+    <div data-part="actions">
+      <.button
+        id="confirm-sso-link"
+        variant="primary"
+        size="large"
+        type="submit"
+        label={dgettext("dashboard_auth", "Link account")}
+      />
+      <.button
+        id="cancel-sso-link"
+        variant="secondary"
+        size="large"
+        type="submit"
+        form="cancel-sso-link-form"
+        label={dgettext("dashboard_auth", "Cancel")}
+      />
+    </div>
+  </form>
+  <form id="cancel-sso-link-form" method="post" action={~p"/auth/sso/link"}>
+    <input type="hidden" name="_method" value="delete" />
+    <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+  </form>
+  <div data-part="security-note">
+    <span data-part="icon"><.lock /></span>
+    <span>
+      {dgettext(
+        "dashboard_auth",
+        "Link only if %{organization} is your organization. Anyone who can sign in to this identity provider account can sign in to your whole Tuist account.",
+        organization: @organization_name
+      )}
+    </span>
+  </div>
+</.link_frame>

@@ -10,7 +10,7 @@ public protocol DeploymentTargetsContentHashing {
 
 /// `DeploymentTargetsContentHasher`
 /// is responsible for computing a hash that uniquely identifies a `DeploymentTargets`
-public final class DeploymentTargetsContentHasher: DeploymentTargetsContentHashing {
+public struct DeploymentTargetsContentHasher: DeploymentTargetsContentHashing {
     private let contentHasher: ContentHashing
 
     // MARK: - Init

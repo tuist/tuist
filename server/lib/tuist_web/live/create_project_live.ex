@@ -3,14 +3,15 @@ defmodule TuistWeb.CreateProjectLive do
   use TuistWeb, :live_view
   use Noora
 
-  alias Phoenix.Flash
+  import TuistWeb.AppAuthComponents
+
   alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Projects
   alias Tuist.Projects.Project
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(params, session, socket) do
     form = to_form(Project.create_changeset(%{}))
 
     current_user = socket.assigns.current_user
@@ -18,23 +19,23 @@ defmodule TuistWeb.CreateProjectLive do
     organization_accounts =
       current_user |> Accounts.get_user_organization_accounts() |> Enum.map(& &1.account)
 
-    selected_account =
-      if Flash.get(socket.assigns.flash, :organization_id) do
-        organization_accounts
-        |> Enum.find(&(&1.organization_id == Flash.get(socket.assigns.flash, :organization_id)))
-        |> Map.get(:id)
-      else
-        current_user.account.id
-      end
+    if organization_accounts == [] do
+      {:ok, push_navigate(socket, to: ~p"/organizations/new")}
+    else
+      selected_account =
+        preselected_account_id(params, current_user, organization_accounts)
 
-    socket =
-      assign(socket,
-        form: form,
-        selected_account: selected_account,
-        accounts: [current_user.account | organization_accounts]
-      )
+      socket =
+        assign(socket,
+          form: form,
+          selected_account: selected_account,
+          selected_build_system: "xcode",
+          accounts: organization_accounts,
+          origin: session["origin"]
+        )
 
-    {:ok, socket}
+      {:ok, socket}
+    end
   end
 
   @impl true
@@ -44,11 +45,7 @@ defmodule TuistWeb.CreateProjectLive do
       <div data-part="wrapper">
         <div data-part="frame">
           <div data-part="content">
-            <img
-              src="/images/tuist_logo_32x32@2x.png"
-              alt={dgettext("dashboard_projects", "Tuist Logo")}
-              data-part="logo"
-            />
+            <.tuist_mark data-part="logo" aria-label={dgettext("dashboard_projects", "Tuist Logo")} />
             <div data-part="dots">
               <.dots_light />
               <.dots_dark />
@@ -56,29 +53,19 @@ defmodule TuistWeb.CreateProjectLive do
             <div data-part="header">
               <h1 data-part="title">{dgettext("dashboard_projects", "Create a project")}</h1>
               <span data-part="subtitle">
-                {dgettext("dashboard_projects", "Create a Tuist project to continue")}
+                {dgettext("dashboard_projects", "Create a Tuist project")}
               </span>
             </div>
             <.form data-part="form" for={@form} id="create-project-form" phx-submit="create_project">
-              <.text_input
-                field={@form[:name]}
-                type="basic"
-                label={dgettext("dashboard_projects", "Name")}
-                show_required={false}
-                required
-              />
               <div data-part="dropdown">
-                <.label label={dgettext("dashboard_projects", "Select account")} />
+                <.label
+                  label={dgettext("dashboard_projects", "Select organization")}
+                  required
+                />
                 <.select
                   id="account-selection"
                   name="account_id"
-                  label={dgettext("dashboard_projects", "Account")}
-                  hint={
-                    dgettext(
-                      "dashboard_projects",
-                      "Choose an account to create your project or set up a new organization."
-                    )
-                  }
+                  label={dgettext("dashboard_projects", "Organization")}
                   value={@selected_account}
                   on_value_change="select_account"
                 >
@@ -86,21 +73,40 @@ defmodule TuistWeb.CreateProjectLive do
                     :for={account <- @accounts}
                     value={account.id}
                     label={account.name}
-                    icon={if is_nil(account.organization_id), do: "user", else: "building"}
+                    icon="building"
                   />
                 </.select>
               </div>
-
+              <.text_input
+                field={@form[:name]}
+                type="basic"
+                label={dgettext("dashboard_projects", "Name")}
+                show_required
+                required
+              />
+              <div data-part="dropdown">
+                <.label
+                  label={dgettext("dashboard_projects", "Select build system")}
+                  required
+                />
+                <.select
+                  id="build-system-selection"
+                  name="build_system"
+                  label={dgettext("dashboard_projects", "Build system")}
+                  value={@selected_build_system}
+                  on_value_change="select_build_system"
+                >
+                  <:item value="xcode" label="Xcode" />
+                  <:item value="gradle" label="Gradle" />
+                  <:item value="bazel" label="Bazel" />
+                  <:item value="mix" label="Mix (Elixir)" />
+                  <:item value="once" label="Once" />
+                </.select>
+              </div>
               <.button
                 variant="primary"
                 label={dgettext("dashboard_projects", "Continue")}
                 type="submit"
-              />
-              <.line_divider text={dgettext("dashboard_projects", "Or set up a new organization")} />
-              <.button
-                label={dgettext("dashboard_projects", "Create organization")}
-                variant="secondary"
-                navigate={~p"/organizations/new"}
               />
             </.form>
           </div>
@@ -112,8 +118,14 @@ defmodule TuistWeb.CreateProjectLive do
         <div data-part="bottom-left-gradient"></div>
         <div data-part="shell"><.shell /></div>
       </div>
+      <.terms_and_privacy />
     </div>
     """
+  end
+
+  @impl true
+  def handle_event("select_build_system", %{"value" => [value]}, socket) do
+    {:noreply, assign(socket, selected_build_system: value)}
   end
 
   @impl true
@@ -127,7 +139,11 @@ defmodule TuistWeb.CreateProjectLive do
   def handle_event("create_project", %{"project" => params}, socket) do
     with {:ok, account} <- Accounts.get_account_by_id(socket.assigns.selected_account),
          :ok <- Authorization.authorize(:project_create, socket.assigns.current_user, account),
-         {:ok, project} <- Projects.create_project(%{name: params["name"], account: account}) do
+         {:ok, project} <-
+           Projects.create_project(%{name: params["name"], account: account},
+             build_system: String.to_existing_atom(socket.assigns.selected_build_system),
+             origin: socket.assigns.origin
+           ) do
       {:noreply,
        push_navigate(socket,
          to: ~p"/#{account.name}/#{project.name}/connect"
@@ -137,8 +153,37 @@ defmodule TuistWeb.CreateProjectLive do
         {:noreply, assign(socket, form: to_form(changeset))}
 
       _error ->
-        # TODO: Error handling
         {:noreply, socket}
     end
   end
+
+  defp preselected_account_id(params, current_user, organization_accounts) do
+    explicit_id = param_account_id(params, organization_accounts)
+
+    explicit_id || last_visited_account_id(current_user, organization_accounts) ||
+      first_account_id(organization_accounts)
+  end
+
+  defp param_account_id(params, organization_accounts) do
+    with account_id when is_binary(account_id) <- Map.get(params, "account_id"),
+         {id, _} <- Integer.parse(account_id),
+         true <- Enum.any?(organization_accounts, &(&1.id == id)) do
+      id
+    else
+      _ -> nil
+    end
+  end
+
+  defp last_visited_account_id(current_user, organization_accounts) do
+    with project_id when not is_nil(project_id) <- current_user.last_visited_project_id,
+         %{account: account} <- Projects.get_project_account_by_project_id(project_id),
+         true <- Enum.any?(organization_accounts, &(&1.id == account.id)) do
+      account.id
+    else
+      _ -> nil
+    end
+  end
+
+  defp first_account_id([first | _]), do: first.id
+  defp first_account_id([]), do: nil
 end

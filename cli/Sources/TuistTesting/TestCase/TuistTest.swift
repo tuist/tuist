@@ -6,10 +6,22 @@ import Logging
 import Noora
 import Path
 import Testing
-import TuistCore
-import TuistServer
+import TuistAlert
+#if os(macOS)
+    import TuistCore
+#endif
+import TuistEnvironment
+import TuistEnvironmentTesting
+import TuistLoggerTesting
+import TuistLogging
+import TuistNooraTesting
+#if os(macOS)
+    import TuistServer
+#endif
 import TuistSupport
-import XcodeProj
+#if os(macOS)
+    import XcodeProj
+#endif
 
 // It uses service-context, which uses task locals (from structured concurrency), to inject
 // instances of core utilities like logger to mock their behaviour for unit tests.
@@ -26,8 +38,8 @@ func _withMockedDependencies(forwardLogs: Bool = false, _ closure: () async thro
     try await Logger.$current.withValue(logger) {
         try await Logger.$testingLogHandler.withValue(logHandler) {
             try await Noora.$current.withValue(NooraMock(terminal: Terminal(isInteractive: false))) {
-                try await RecentPathsStore.$current.withValue(MockRecentPathsStoring()) {
-                    try await AlertController.$current.withValue(AlertController()) {
+                try await AlertController.$current.withValue(AlertController()) {
+                    #if os(macOS)
                         try await ServerCredentialsStore.$current.withValue(MockServerCredentialsStoring()) {
                             try await CachedValueStore.$current.withValue(MockCachedValueStoring()) {
                                 try await RunMetadataStorage.$current.withValue(RunMetadataStorage()) {
@@ -35,7 +47,9 @@ func _withMockedDependencies(forwardLogs: Bool = false, _ closure: () async thro
                                 }
                             }
                         }
-                    }
+                    #else
+                        try await closure()
+                    #endif
                 }
             }
         }
@@ -56,9 +70,30 @@ public enum TuistTest {
     @TaskLocal public static var fixtureDirectory: AbsolutePath?
     @TaskLocal public static var fixtureAccountHandle: String?
     @TaskLocal public static var fixtureFullHandle: String?
+    @TaskLocal public static var fixtureServerURL: URL?
 
     public static func run(
         _ command: (some AsyncParsableCommand).Type,
+        _ arguments: [String] = [],
+        options: Set<TuistTestRunOption> = Set()
+    )
+        async throws
+    {
+        try await runCommand(command, arguments, options: options)
+    }
+
+    public static func run(
+        _ command: (some ParsableCommand).Type,
+        _ arguments: [String] = [],
+        options: Set<TuistTestRunOption> = Set()
+    )
+        async throws
+    {
+        try await runCommand(command, arguments, options: options)
+    }
+
+    private static func runCommand(
+        _ command: (some ParsableCommand).Type,
         _ arguments: [String] = [],
         options: Set<TuistTestRunOption> = Set()
     )
@@ -69,8 +104,12 @@ public enum TuistTest {
         }
 
         let run = {
-            var parsedCommand = try command.parse(arguments)
-            try await parsedCommand.run()
+            var parsedCommand = try command.parseAsRoot(arguments)
+            if var asyncCommand = parsedCommand as? AsyncParsableCommand {
+                try await asyncCommand.run()
+            } else {
+                try parsedCommand.run()
+            }
         }
         if let mockEnvironment = Environment.mocked {
             mockEnvironment.processId = UUID().uuidString
@@ -86,68 +125,70 @@ public enum TuistTest {
         }
     }
 
-    public static func expectFrameworkNotEmbedded(
-        _ framework: String,
-        by targetName: String,
-        inXcodeProj xcodeprojPath: AbsolutePath,
-        sourceLocation: SourceLocation = #_sourceLocation
-    ) throws {
-        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
-        let targets = xcodeproj.pbxproj.projects.flatMap(\.targets)
-        let target = try #require(targets.first(where: { $0.name == targetName }))
+    #if os(macOS)
+        public static func expectFrameworkNotEmbedded(
+            _ framework: String,
+            by targetName: String,
+            inXcodeProj xcodeprojPath: AbsolutePath,
+            sourceLocation: SourceLocation = #_sourceLocation
+        ) throws {
+            let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+            let targets = xcodeproj.pbxproj.projects.flatMap(\.targets)
+            let target = try #require(targets.first(where: { $0.name == targetName }))
 
-        let embededFrameworks = target.embedFrameworksBuildPhases()
-            .filter { $0.dstSubfolderSpec == .frameworks }
-            .flatMap { phase -> [PBXBuildFile] in
-                return phase.files ?? []
+            let embededFrameworks = target.embedFrameworksBuildPhases()
+                .filter { $0.dstSubfolderSpec == .frameworks }
+                .flatMap { phase -> [PBXBuildFile] in
+                    return phase.files ?? []
+                }
+                .compactMap { (buildFile: PBXBuildFile) -> String? in
+                    return buildFile.file?.name
+                }
+                .filter { $0.contains(".framework") }
+
+            if embededFrameworks.contains("\(framework).framework") {
+                Issue.record(
+                    "Target \(targetName) embeds the framework \(framework)",
+                    sourceLocation: sourceLocation
+                )
+                return
             }
-            .compactMap { (buildFile: PBXBuildFile) -> String? in
-                return buildFile.file?.name
+        }
+
+        public static func expectLinked(
+            _ file: String,
+            by targetName: String,
+            inXcodeProj xcodeprojPath: AbsolutePath,
+            sourceLocation: SourceLocation = #_sourceLocation
+        ) throws {
+            let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+            let targets = xcodeproj.pbxproj.projects.flatMap(\.targets)
+            let target = try #require(targets.first(where: { $0.name == targetName }))
+            let targetLinkedFiles = try target.frameworksBuildPhase()?.files
+            let targetLinkedFileNames = targetLinkedFiles?.compactMap { $0.file?.name ?? $0.file?.path } ?? []
+            if targetLinkedFileNames.first(where: { $0 == file }) == nil {
+                Issue.record(
+                    "Target \(targetName) doesn't link \(file)",
+                    sourceLocation: sourceLocation
+                )
             }
-            .filter { $0.contains(".framework") }
-
-        if embededFrameworks.contains("\(framework).framework") {
-            Issue.record(
-                "Target \(targetName) embeds the framework \(framework)",
-                sourceLocation: sourceLocation
-            )
-            return
         }
-    }
 
-    public static func expectLinked(
-        _ file: String,
-        by targetName: String,
-        inXcodeProj xcodeprojPath: AbsolutePath,
-        sourceLocation: SourceLocation = #_sourceLocation
-    ) throws {
-        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
-        let targets = xcodeproj.pbxproj.projects.flatMap(\.targets)
-        let target = try #require(targets.first(where: { $0.name == targetName }))
-        let targetLinkedFiles = try target.frameworksBuildPhase()?.files
-        let targetLinkedFileNames = targetLinkedFiles?.compactMap { $0.file?.name ?? $0.file?.path } ?? []
-        if targetLinkedFileNames.first(where: { $0 == file }) == nil {
-            Issue.record(
-                "Target \(targetName) doesn't link \(file)",
-                sourceLocation: sourceLocation
-            )
+        public static func expectContainsTarget(
+            _ targetName: String,
+            inXcodeProj xcodeprojPath: AbsolutePath,
+            sourceLocation: SourceLocation = #_sourceLocation
+        ) throws {
+            let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+            let targets = xcodeproj.pbxproj.projects.flatMap(\.targets)
+            if targets.first(where: { $0.name == targetName }) == nil {
+                Issue.record(
+                    "Target \(targetName) not found in Xcode project at path \(xcodeprojPath.pathString)",
+                    sourceLocation: sourceLocation
+                )
+            }
         }
-    }
-
-    public static func expectContainsTarget(
-        _ targetName: String,
-        inXcodeProj xcodeprojPath: AbsolutePath,
-        sourceLocation: SourceLocation = #_sourceLocation
-    ) throws {
-        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
-        let targets = xcodeproj.pbxproj.projects.flatMap(\.targets)
-        if targets.first(where: { $0.name == targetName }) == nil {
-            Issue.record(
-                "Target \(targetName) not found in Xcode project at path \(xcodeprojPath.pathString)",
-                sourceLocation: sourceLocation
-            )
-        }
-    }
+    #endif
 
     public static func expectLogs(
         _ expected: String,

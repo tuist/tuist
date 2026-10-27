@@ -1,0 +1,46 @@
+{{- /*
+Public ingress for ops.tuist.dev. Deliberately only routes the
+Slack webhook paths to the upstream — `/api/v1/policy` and any
+future LiveView paths stay reachable only on the tailnet via the
+Service annotation. This keeps the policy endpoint and (future)
+ops LiveViews off the public internet entirely; only the
+Slack-signed webhook surface is publicly addressable.
+
+When `/ops/db` migrates from server/ and becomes `ops.tuist.dev/db`,
+the access path for humans will be: Pomerium fronts ops.tuist.dev
+with Google OIDC, with `/webhooks/slack/*` carved out as a passthrough.
+For now, no Pomerium in front of ops.tuist.dev — direct ingress to
+this Deployment, Slack-signature plug provides the auth.
+*/}}
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "tuist-ops.fullname" . }}
+  labels:
+    {{- include "tuist-ops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingress
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+      secretName: {{ .Values.ingress.tlsSecretName }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          {{- range .Values.ingress.paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "tuist-ops.fullname" $ }}
+                port:
+                  number: {{ $.Values.service.port }}
+          {{- end }}
+{{- end }}

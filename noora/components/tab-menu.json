@@ -1,0 +1,79 @@
+{
+  "name": "TabMenu",
+  "tagName": "noora-tab-menu",
+  "elementClassName": "NooraTabMenu",
+  "className": "noora-tab-menu-horizontal",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Switches between related views or navigation destinations.",
+  "usage": "<noora-tab-menu value=\"overview\">\n  <noora-tab-item value=\"overview\">Overview</noora-tab-item>\n  <noora-tab-item value=\"settings\">Settings</noora-tab-item>\n</noora-tab-menu>",
+  "attributes": [
+    {
+      "name": "orientation",
+      "property": "orientation",
+      "type": "string",
+      "values": ["horizontal", "vertical"],
+      "default": "horizontal",
+      "description": "Controls the menu layout."
+    },
+    {
+      "name": "value",
+      "property": "value",
+      "type": "string",
+      "description": "Gets or sets the selected item value."
+    }
+  ],
+  "properties": [
+    {
+      "name": "items",
+      "type": "json",
+      "typescriptType": "Array<Record<string, unknown>>",
+      "default": [],
+      "description": "Defines tabs programmatically when declarative noora-tab-item children are not used."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "Declarative noora-tab-item children."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "menu",
+      "description": "The menu container."
+    },
+    {
+      "name": "item",
+      "description": "Each tab item."
+    }
+  ],
+  "events": [
+    {
+      "name": "noora-tab-change",
+      "type": "CustomEvent<{ item: Record<string, unknown>; value: unknown }>",
+      "description": "Emitted when an enabled tab is selected."
+    }
+  ],
+  "notes": ["Selection emits a `noora-tab-change` event."],
+  "examples": [
+    {
+      "id": "horizontal",
+      "title": "Horizontal tabs",
+      "description": "Switch between sibling views.",
+      "markup": "<noora-tab-menu value=\"general\">\n  <noora-tab-item value=\"general\" icon=\"category\">General</noora-tab-item>\n  <noora-tab-item value=\"settings\">Settings</noora-tab-item>\n  <noora-tab-item value=\"members\">Members</noora-tab-item>\n</noora-tab-menu>"
+    },
+    {
+      "id": "vertical",
+      "title": "Vertical tabs",
+      "description": "Use labels with left, right, or paired icons.",
+      "markup": "<noora-tab-menu orientation=\"vertical\">\n  <noora-tab-item value=\"dashboard\">Dashboard</noora-tab-item>\n  <noora-tab-item value=\"analytics\" icon=\"category\">Analytics</noora-tab-item>\n  <noora-tab-item value=\"settings\" right-icon=\"category\">Settings</noora-tab-item>\n  <noora-tab-item value=\"users\" icon=\"category\" right-icon=\"category\">Users</noora-tab-item>\n</noora-tab-menu>"
+    },
+    {
+      "id": "vertical-edge-cases",
+      "title": "Vertical edge cases",
+      "description": "Handle especially long and short labels.",
+      "markup": "<noora-tab-menu orientation=\"vertical\">\n  <noora-tab-item value=\"long\">Very Long Tab Label That Might Wrap</noora-tab-item>\n  <noora-tab-item value=\"short\">A</noora-tab-item>\n</noora-tab-menu>"
+    }
+  ]
+}

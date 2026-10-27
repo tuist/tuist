@@ -1,0 +1,142 @@
+# Hourly etcd snapshot of the management cluster, uploaded to Tigris
+# (S3-compatible). Talos has no built-in S3 snapshot upload (k3s does;
+# Talos doesn't), so we run this as a CronJob.
+#
+# Restore is a separate disaster-recovery operation using `talosctl bootstrap
+# --recover-from=<downloaded snapshot>`, not part of this CronJob. See
+# talos/README.md for backup validation and recovery cautions.
+#
+# Talos issues and renews a six-hour, os:etcd:backup-only credential for the
+# ServiceAccount below. Apply talos/patches/10-talos-api-access.yaml first.
+# The generated config uses the in-cluster Talos API Service; no public IP,
+# host networking, or first-node affinity is needed. Only tigris-credentials
+# (access_key_id + secret_access_key) is supplied separately in mgmt-system.
+#
+# Bucket lifecycle policy on the Tigris side enforces 7-day retention,
+# so this CronJob doesn't have to manage cleanup.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mgmt-system
+  labels:
+    # Retain the namespace policy during migration: old Jobs may still exist.
+    # The new snapshot pod itself meets the restricted policy.
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
+---
+apiVersion: talos.dev/v1alpha1
+kind: ServiceAccount
+metadata:
+  name: etcd-snapshot
+  namespace: mgmt-system
+spec:
+  roles:
+    - os:etcd:backup
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: etcd-snapshot
+  namespace: mgmt-system
+spec:
+  schedule: "0 * * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 600
+      template:
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            fsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+          nodeSelector:
+            node-role.kubernetes.io/control-plane: ""
+          initContainers:
+            - name: snapshot
+              image: ghcr.io/siderolabs/talosctl:v1.13.11
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              args:
+                - --talosconfig=/talosconfig/config
+                - --nodes=$(NODE_IP)
+                - etcd
+                - snapshot
+                - /share/snapshot.db
+              env:
+                - name: NODE_IP
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: status.hostIP
+              volumeMounts:
+                - name: talosconfig
+                  mountPath: /talosconfig
+                  readOnly: true
+                - name: share
+                  mountPath: /share
+          containers:
+            # Single-PUT upload (s3api put-object) instead of `s3 cp`. `s3 cp`
+            # switches to multipart for files >8MB, which requires the
+            # CreateMultipartUpload IAM action. Single-PUT only needs
+            # s3:PutObject, matching the bucket-scoped Tigris key's policy.
+            # 14MB snapshots are well under the 5GB single-PUT limit.
+            - name: upload
+              image: amazon/aws-cli:2.17.0
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              command:
+                - sh
+                - -c
+                - |
+                  set -eu
+                  TS=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+                  aws --endpoint-url=https://fly.storage.tigris.dev \
+                    s3api put-object \
+                    --bucket tuist-mgmt-etcd-snapshots \
+                    --key etcd-${TS}.db \
+                    --body /share/snapshot.db
+              env:
+                - name: AWS_EC2_METADATA_DISABLED
+                  value: "true"
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: tigris-credentials
+                      key: access_key_id
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: tigris-credentials
+                      key: secret_access_key
+                - name: AWS_DEFAULT_REGION
+                  value: auto
+              volumeMounts:
+                - name: share
+                  mountPath: /share
+                  readOnly: true
+          volumes:
+            - name: talosconfig
+              secret:
+                secretName: etcd-snapshot
+            - name: share
+              emptyDir: {}

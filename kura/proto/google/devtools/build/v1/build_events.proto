@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package google.devtools.build.v1;
+
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
+
+// The Bazel Build Event Service treats Build Event Protocol payloads as opaque
+// Any values. Kura only needs the stream identity and the Bazel event bytes to
+// derive invocation lifecycle records, so this intentionally carries the
+// compatible subset of Google's public protocol.
+message BuildEvent {
+  google.protobuf.Timestamp event_time = 1;
+
+  oneof event {
+    google.protobuf.Any bazel_event = 60;
+  }
+}
+
+message StreamId {
+  enum BuildComponent {
+    UNKNOWN_COMPONENT = 0;
+    CONTROLLER = 1;
+    WORKER = 2;
+    TOOL = 3;
+  }
+
+  string build_id = 1;
+  string invocation_id = 6;
+  BuildComponent component = 3;
+}

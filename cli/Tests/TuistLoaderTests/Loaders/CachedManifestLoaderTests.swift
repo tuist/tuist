@@ -1,4 +1,3 @@
-import _NIOFileSystem
 import FileSystem
 import FileSystemTesting
 import Foundation
@@ -8,6 +7,7 @@ import ProjectDescription
 import Testing
 import TuistCore
 import struct TuistCore.Plugins
+import TuistEnvironment
 import TuistSupport
 import TuistTesting
 
@@ -29,7 +29,6 @@ class CachedManifestLoaderTests {
     private var recordedLoadConfigCalls: Int = 0
     private var recordedLoadPluginCalls: Int = 0
     private let fileSystem = FileSystem()
-    private let fileHandler = FileHandler.shared
     private var subject: CachedManifestLoader!
 
     init() throws {
@@ -116,6 +115,25 @@ class CachedManifestLoaderTests {
         #expect(recordedLoadProjectCalls == 1)
     }
 
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func load_manifestCachedMarksTheEntryAsUsed() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
+        try await stubProject(Project.test(name: "App"), at: path)
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
+
+        let entry = try #require(try await fileSystem.glob(directory: cacheDirectory, include: ["*"]).collect().first)
+        let cachedAt = Date().addingTimeInterval(-30 * 24 * 60 * 60)
+        try FileManager.default.setAttributes([.modificationDate: cachedAt], ofItemAtPath: entry.pathString)
+
+        // When
+        _ = try await subject.loadProject(at: path, disableSandbox: false)
+
+        // Then: a hit only reads the entry, so without this the support-cache retention drops a
+        // manifest that has been loaded on every run since it was first cached.
+        let lastUsed = try #require(try await fileSystem.fileMetadata(at: entry)?.lastModificationDate)
+        #expect(lastUsed > cachedAt)
+    }
+
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func load_manifestHashChanged() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
@@ -159,12 +177,12 @@ class CachedManifestLoaderTests {
         given(manifestLoader)
             .register(plugins: .any)
             .willReturn()
-        try stubPlugins(withHash: "hash")
+        try await stubPlugins(withHash: "hash")
 
         _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // When
-        try stubPlugins(withHash: "updatedHash")
+        try await stubPlugins(withHash: "updatedHash")
         subject = try createSubject() // we need to re-create the subject as it internally caches hashes
         _ = try await subject.loadProject(at: path, disableSandbox: false)
 
@@ -177,7 +195,7 @@ class CachedManifestLoaderTests {
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
         let project = Project.test(name: "App")
         try await stubProject(project, at: path)
-        let mockEnvironment = try #require(TuistSupport.Environment.mocked)
+        let mockEnvironment = try #require(TuistEnvironment.Environment.mocked)
         mockEnvironment.manifestLoadingVariables = ["NAME": "A"]
 
         // When
@@ -196,7 +214,7 @@ class CachedManifestLoaderTests {
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
         let project = Project.test(name: "App")
         try await stubProject(project, at: path)
-        let mockEnvironment = try #require(TuistSupport.Environment.mocked)
+        let mockEnvironment = try #require(TuistEnvironment.Environment.mocked)
         mockEnvironment.manifestLoadingVariables = ["NAME": "A"]
         _ = try await subject.loadProject(at: path, disableSandbox: false)
 
@@ -248,7 +266,7 @@ class CachedManifestLoaderTests {
         _ = try await subject.loadProject(at: path, disableSandbox: false)
 
         // When
-        try corruptFiles(at: cacheDirectory)
+        try await corruptFiles(at: cacheDirectory)
         let result = try await subject.loadProject(at: path, disableSandbox: false)
 
         // Then
@@ -307,16 +325,16 @@ class CachedManifestLoaderTests {
         })
     }
 
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func notThrowing_fileAlreadyExistsNIOError() async throws {
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func load_returnsTheManifestWhenTheCacheEntryCannotBeWritten() async throws {
         // Given
+        // The manifest itself loads fine and only the cache write fails — a full cache volume, say.
+        // This used to rethrow, and because `TuistCommand` loads the config manifest before it parses
+        // the subcommand, it took down every command for the account rather than costing this one
+        // manifest a cache entry.
         let fileSystem = MockFileSystem()
         fileSystem.writeTextOverride = { _, _, _ in
-            throw _NIOFileSystem.FileSystemError(
-                code: .fileAlreadyExists,
-                message: "",
-                cause: nil,
-                location: .init(function: "", file: "", line: 0)
-            )
+            throw TestError.writeFailed
         }
 
         subject = try createSubject(fileSystem: fileSystem)
@@ -330,32 +348,6 @@ class CachedManifestLoaderTests {
 
         // Then
         #expect(result == project)
-        #expect(result.name == "App")
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func throwing_otherNIOErrors() async throws {
-        // Given
-        let expectedError = _NIOFileSystem.FileSystemError(
-            code: .invalidArgument,
-            message: "",
-            cause: nil,
-            location: .init(function: "", file: "", line: 0)
-        )
-        let fileSystem = MockFileSystem()
-        fileSystem.writeTextOverride = { _, _, _ in
-            throw expectedError
-        }
-
-        subject = try createSubject(fileSystem: fileSystem)
-
-        let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "App")
-        let project = Project.test(name: "App")
-        try await stubProject(project, at: path)
-
-        // When/Then
-        await #expect(throws: expectedError, performing: {
-            try await self.subject.loadProject(at: path, disableSandbox: false)
-        })
     }
 
     // MARK: - Helpers
@@ -374,11 +366,16 @@ class CachedManifestLoaderTests {
     private func stubWorkspace(
         _ workspace: Workspace,
         at path: AbsolutePath
-    ) throws {
+    ) async throws {
         let manifestPath = path.appending(component: Manifest.workspace.fileName(path))
-        try fileHandler.touch(manifestPath)
+        if try await !fileSystem.exists(manifestPath.parentDirectory) {
+            try await fileSystem.makeDirectory(at: manifestPath.parentDirectory)
+        }
         let manifestData = try JSONEncoder().encode(workspace)
-        try fileHandler.write(String(data: manifestData, encoding: .utf8)!, path: manifestPath, atomically: true)
+        if try await fileSystem.exists(manifestPath) {
+            try await fileSystem.remove(manifestPath)
+        }
+        try await fileSystem.writeText(String(data: manifestData, encoding: .utf8)!, at: manifestPath)
         workspaceManifests[path] = workspace
     }
 
@@ -401,11 +398,16 @@ class CachedManifestLoaderTests {
     private func stub(
         deprecatedManifest manifest: ProjectDescription.Config,
         at path: AbsolutePath
-    ) throws {
+    ) async throws {
         let manifestPath = path.appending(component: Manifest.config.fileName(path))
-        try fileHandler.touch(manifestPath)
+        if try await !fileSystem.exists(manifestPath.parentDirectory) {
+            try await fileSystem.makeDirectory(at: manifestPath.parentDirectory)
+        }
         let manifestData = try JSONEncoder().encode(manifest)
-        try fileHandler.write(String(data: manifestData, encoding: .utf8)!, path: manifestPath, atomically: true)
+        if try await fileSystem.exists(manifestPath) {
+            try await fileSystem.remove(manifestPath)
+        }
+        try await fileSystem.writeText(String(data: manifestData, encoding: .utf8)!, at: manifestPath)
         configManifests[path] = manifest
     }
 
@@ -417,13 +419,18 @@ class CachedManifestLoaderTests {
         }
     }
 
-    private func stubPlugins(withHash hash: String) throws {
+    private func stubPlugins(withHash hash: String) async throws {
         let plugin = ProjectDescription.Plugin(name: "TestPlugin")
         let path = try #require(FileSystem.temporaryTestDirectory).appending(component: "TestPlugin")
         let manifestPath = path.appending(component: Manifest.plugin.fileName(path))
-        try fileHandler.touch(manifestPath)
+        if try await !fileSystem.exists(path) {
+            try await fileSystem.makeDirectory(at: path)
+        }
         let manifestData = try JSONEncoder().encode(plugin)
-        try fileHandler.write(String(data: manifestData, encoding: .utf8)!, path: manifestPath, atomically: true)
+        if try await fileSystem.exists(manifestPath) {
+            try await fileSystem.remove(manifestPath)
+        }
+        try await fileSystem.writeText(String(data: manifestData, encoding: .utf8)!, at: manifestPath)
         pluginManifests[path] = plugin
 
         let plugins = Plugins.test(projectDescriptionHelpers: [
@@ -434,15 +441,15 @@ class CachedManifestLoaderTests {
         try subject.register(plugins: plugins)
     }
 
-    private func corruptFiles(at path: AbsolutePath) throws {
-        for filePath in try fileHandler.contentsOfDirectory(path) {
-            try fileHandler.write("corruptedData", path: filePath, atomically: true)
+    private func corruptFiles(at path: AbsolutePath) async throws {
+        let contents = try await fileSystem.contentsOfDirectory(path)
+        for filePath in contents {
+            try await fileSystem.remove(filePath)
+            try await fileSystem.writeText("corruptedData", at: filePath)
         }
     }
 }
 
-extension _NIOFileSystem.FileSystemError: Equatable {
-    public static func == (lhs: _NIOFileSystem.FileSystemError, rhs: _NIOFileSystem.FileSystemError) -> Bool {
-        return lhs.code == rhs.code && lhs.message == rhs.message && lhs.location == rhs.location
-    }
+private enum TestError: Error, Equatable {
+    case writeFailed
 }

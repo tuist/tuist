@@ -1,11 +1,12 @@
 import Foundation
 import Path
 import TuistCore
+import TuistLogging
 import TuistSupport
 import XcodeGraph
 import XcodeProj
 
-protocol ConfigGenerating: AnyObject {
+protocol ConfigGenerating {
     func generateProjectConfig(
         project: Project,
         pbxproj: PBXProj,
@@ -25,7 +26,7 @@ protocol ConfigGenerating: AnyObject {
 }
 
 // swiftlint:disable:next type_body_length
-final class ConfigGenerator: ConfigGenerating {
+struct ConfigGenerator: ConfigGenerating {
     // MARK: - Attributes
 
     private let defaultSettingsProvider: DefaultSettingsProviding
@@ -45,6 +46,7 @@ final class ConfigGenerator: ConfigGenerating {
         pbxproj: PBXProj,
         fileElements: ProjectFileElements
     ) async throws -> XCConfigurationList {
+        Logger.current.debug("Generating project config for \(project.name)")
         // Configuration list
         let defaultConfiguration = project.settings.defaultReleaseBuildConfiguration()
             ?? project.settings.defaultDebugBuildConfiguration()
@@ -54,7 +56,9 @@ final class ConfigGenerator: ConfigGenerating {
         )
         pbxproj.add(object: configurationList)
 
-        for item in project.settings.configurations.sortedByBuildConfigurationName() {
+        let configurations = project.settings.configurations.sortedByBuildConfigurationName()
+        Logger.current.debug("Generating \(configurations.count) build configurations for project \(project.name)")
+        for item in configurations {
             try await generateProjectSettingsFor(
                 buildConfiguration: item.key,
                 configuration: item.value,
@@ -65,6 +69,7 @@ final class ConfigGenerator: ConfigGenerating {
             )
         }
 
+        Logger.current.debug("Finished generating project config for \(project.name)")
         return configurationList
     }
 
@@ -78,6 +83,7 @@ final class ConfigGenerator: ConfigGenerating {
         graphTraverser: GraphTraversing,
         sourceRootPath: AbsolutePath
     ) async throws {
+        Logger.current.debug("Generating target config for \(target.name) in project \(project.name)")
         let defaultConfiguration = projectSettings.defaultReleaseBuildConfiguration()
             ?? projectSettings.defaultDebugBuildConfiguration()
         let configurationList = XCConfigurationList(
@@ -101,6 +107,7 @@ final class ConfigGenerator: ConfigGenerating {
         let configurations = Dictionary(uniqueKeysWithValues: configurationsTuples)
         let nonEmptyConfigurations = !configurations.isEmpty ? configurations : Settings.default.configurations
         let orderedConfigurations = nonEmptyConfigurations.sortedByBuildConfigurationName()
+        Logger.current.debug("Generating \(orderedConfigurations.count) build configurations for target \(target.name)")
         for orderedConfiguration in orderedConfigurations {
             try await generateTargetSettingsFor(
                 target: target,
@@ -114,6 +121,7 @@ final class ConfigGenerator: ConfigGenerating {
                 sourceRootPath: sourceRootPath
             )
         }
+        Logger.current.debug("Finished generating target config for \(target.name)")
     }
 
     // MARK: - Fileprivate
@@ -141,8 +149,7 @@ final class ConfigGenerator: ConfigGenerating {
         if let variantConfig = configuration {
             settingsHelper.extend(buildSettings: &settings, with: variantConfig.settings)
             if let xcconfig = variantConfig.xcconfig {
-                let fileReference = fileElements.file(path: xcconfig)
-                variantBuildConfiguration.baseConfiguration = fileReference
+                setBaseConfiguration(variantBuildConfiguration, xcconfig: xcconfig, fileElements: fileElements)
             }
         }
         variantBuildConfiguration.buildSettings = settings.toBuildSettings()
@@ -161,6 +168,18 @@ final class ConfigGenerator: ConfigGenerating {
         configurationList: XCConfigurationList,
         sourceRootPath: AbsolutePath
     ) async throws {
+        if target.isAggregate {
+            try generateAggregateTargetSettingsFor(
+                target: target,
+                buildConfiguration: buildConfiguration,
+                configuration: configuration,
+                fileElements: fileElements,
+                pbxproj: pbxproj,
+                configurationList: configurationList
+            )
+            return
+        }
+
         let settingsHelper = SettingsHelper()
 
         var settings: SettingsDictionary = try await defaultSettingsProvider.targetSettings(
@@ -183,10 +202,21 @@ final class ConfigGenerator: ConfigGenerating {
             settingsHelper.extend(buildSettings: &settings, with: target.settings?.baseDebug ?? [:])
         }
         settingsHelper.extend(buildSettings: &settings, with: configuration?.settings ?? [:])
+        if !target.buildableFolders.isEmpty {
+            // Xcode enumerates synchronized folders itself, including files that FileSystem.glob ignores.
+            // Build settings also cover placeholders added after generation without another directory scan.
+            let exclusionKeys = ["EXCLUDED_SOURCE_FILE_NAMES"] + settings.keys.filter {
+                $0.hasPrefix("EXCLUDED_SOURCE_FILE_NAMES[")
+            }
+            let exclusions: SettingsDictionary = Dictionary(uniqueKeysWithValues: exclusionKeys.map {
+                ($0, .array(["$(inherited)", ".gitkeep", ".DS_Store"]))
+            })
+            settingsHelper.extend(buildSettings: &settings, with: exclusions)
+        }
         settingsHelper
             .extend(
                 buildSettings: &settings,
-                with: swiftMacrosDerivedSettings(
+                with: precompiledSwiftMacrosDerivedSettings(
                     target: target,
                     graphTraverser: graphTraverser,
                     projectPath: project.path
@@ -200,13 +230,59 @@ final class ConfigGenerator: ConfigGenerating {
             buildSettings: [:]
         )
         if let variantConfig = configuration, let xcconfig = variantConfig.xcconfig {
-            let fileReference = fileElements.file(path: xcconfig)
-            variantBuildConfiguration.baseConfiguration = fileReference
+            setBaseConfiguration(variantBuildConfiguration, xcconfig: xcconfig, fileElements: fileElements)
         }
 
         variantBuildConfiguration.buildSettings = settings.toBuildSettings()
         pbxproj.add(object: variantBuildConfiguration)
         configurationList.buildConfigurations.append(variantBuildConfiguration)
+    }
+
+    private func generateAggregateTargetSettingsFor(
+        target: Target,
+        buildConfiguration: BuildConfiguration,
+        configuration: Configuration?,
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj,
+        configurationList: XCConfigurationList
+    ) throws {
+        let settingsHelper = SettingsHelper()
+        var settings: SettingsDictionary = [:]
+        settingsHelper.extend(buildSettings: &settings, with: target.settings?.base ?? [:])
+        if buildConfiguration.variant == .debug {
+            settingsHelper.extend(buildSettings: &settings, with: target.settings?.baseDebug ?? [:])
+        }
+        settingsHelper.extend(buildSettings: &settings, with: configuration?.settings ?? [:])
+        settings["VERSIONING_SYSTEM"] = ""
+
+        let variantBuildConfiguration = XCBuildConfiguration(
+            name: buildConfiguration.xcodeValue,
+            baseConfiguration: nil,
+            buildSettings: [:]
+        )
+        if let variantConfig = configuration, let xcconfig = variantConfig.xcconfig {
+            setBaseConfiguration(variantBuildConfiguration, xcconfig: xcconfig, fileElements: fileElements)
+        }
+
+        variantBuildConfiguration.buildSettings = settings.toBuildSettings()
+        pbxproj.add(object: variantBuildConfiguration)
+        configurationList.buildConfigurations.append(variantBuildConfiguration)
+    }
+
+    /// Points a build configuration at its base xcconfig. When the xcconfig lives inside a buildable folder (Xcode 16+
+    /// synchronized root group), it is referenced through `baseConfigurationReferenceAnchor` + a relative path so no
+    /// duplicate flat file reference is created at the project root. Otherwise it falls back to a plain file reference.
+    private func setBaseConfiguration(
+        _ buildConfiguration: XCBuildConfiguration,
+        xcconfig: AbsolutePath,
+        fileElements: ProjectFileElements
+    ) {
+        if let synchronized = fileElements.synchronizedRootGroup(containing: xcconfig) {
+            buildConfiguration.baseConfigurationAnchor = synchronized.group
+            buildConfiguration.baseConfigurationReferenceRelativePath = synchronized.relativePath
+        } else {
+            buildConfiguration.baseConfiguration = fileElements.file(path: xcconfig)
+        }
     }
 
     private func updateTargetDerived(
@@ -225,6 +301,7 @@ final class ConfigGenerator: ConfigGenerating {
         ) { $1 }
         settings.merge(destinationsDerivedSettings(target: target)) { $1 }
         settings.merge(deploymentTargetDerivedSettings(target: target)) { $1 }
+        settings.merge(swiftMacroImplementationDerivedSettings(target: target)) { $1 }
         settings
             .merge(watchTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)) { $1 }
     }
@@ -303,17 +380,28 @@ final class ConfigGenerator: ConfigGenerating {
         return settings
     }
 
-    private func swiftMacrosDerivedSettings(
+    private func precompiledSwiftMacrosDerivedSettings(
         target: Target,
         graphTraverser: GraphTraversing,
         projectPath: AbsolutePath
     ) -> SettingsDictionary {
-        let pluginExecutables = graphTraverser.allSwiftPluginExecutables(path: projectPath, name: target.name)
+        let macroExecutables = graphTraverser.allPrecompiledSwiftMacroExecutables(path: projectPath, name: target.name)
         var settings: SettingsDictionary = [:]
-        if pluginExecutables.isEmpty { return settings }
-        let swiftCompilerFlags = pluginExecutables.sorted().flatMap { ["-load-plugin-executable", $0] }
-        settings["OTHER_SWIFT_FLAGS"] = .array(swiftCompilerFlags)
+        if macroExecutables.isEmpty { return settings }
+        settings["SWIFT_LOAD_BINARY_MACROS"] = .array(macroExecutables.sorted())
         return settings
+    }
+
+    private func swiftMacroImplementationDerivedSettings(target: Target) -> SettingsDictionary {
+        guard target.product == .macro else { return [:] }
+        return [
+            "EAGER_COMPILATION_DISABLE": "YES",
+            "SDKROOT": "auto",
+            "SKIP_BUILDING_DOCUMENTATION": "YES",
+            "SUPPORTED_PLATFORMS": "$(HOST_PLATFORM)",
+            "SWIFT_IMPLEMENTS_MACROS_FOR_MODULE_NAMES": "$(PRODUCT_MODULE_NAME)",
+            "SWIFT_INSTALL_MODULE": "NO",
+        ]
     }
 
     private func destinationsDerivedSettings(target: Target) -> SettingsDictionary {
@@ -346,7 +434,6 @@ final class ConfigGenerator: ConfigGenerating {
 
             if target.destinations.contains(.macCatalyst) {
                 settings["SUPPORTS_MACCATALYST"] = "YES"
-                settings["DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER"] = "YES"
             } else {
                 settings["SUPPORTS_MACCATALYST"] = "NO"
             }

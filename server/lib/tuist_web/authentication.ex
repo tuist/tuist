@@ -3,6 +3,7 @@ defmodule TuistWeb.Authentication do
   A module that provides functions for authenticating requests.
   """
   use TuistWeb, :verified_routes
+  use Gettext, backend: TuistWeb.Gettext
 
   import Phoenix.Controller
   import Plug.Conn
@@ -16,6 +17,7 @@ defmodule TuistWeb.Authentication do
   alias Tuist.Authorization
   alias Tuist.Projects
   alias Tuist.Projects.Project
+  alias TuistWeb.Errors.NotFoundError
 
   @current_user_key :current_user
   @current_project_key :current_project
@@ -60,11 +62,51 @@ defmodule TuistWeb.Authentication do
     end
   end
 
+  @doc """
+  Returns the account that owns the authenticated subject, or `nil`.
+
+  Callers that require an account (for ownership, storage, or analytics
+  association) must handle `nil` explicitly and reject the request rather than
+  dereferencing the result or storing a `nil` account.
+  """
   def authenticated_subject_account(conn) do
     case authenticated_subject(conn) do
       %User{account: account} -> account
       %Project{account: account} -> account
       %AuthenticatedAccount{account: account} -> account
+      nil -> nil
+    end
+  end
+
+  @doc """
+  Returns the user an ingested record should be attributed to, or `nil`.
+
+  Falls back to the user that authorized an account token. OAuth-issued account
+  tokens carry their issuer in `issued_by`, and authorization already leans on it
+  to scope an `all_projects: true` token to that user's organizations, so the
+  identity is both available and the right one to record. Without this fallback
+  every run uploaded by a CLI holding such a token is stored with no user and
+  surfaces as "Unknown" in the dashboard.
+
+  `issued_by` and not `created_by_account_id`: the two answer different questions
+  and only the first one attributes a run. `issued_by` is set from the token's
+  `user_id` claim, which is present only when the credential is that person's
+  own — it carries their identity, so it is the best available answer to "who
+  ran this". `created_by_account_id` records who once provisioned a shared
+  secret. The runs that secret uploads are not theirs, and attributing them
+  would put one person's name on every CI run in the account.
+
+  The clauses below are enumerated rather than closed with a catch-all: a
+  subject shape nobody taught this function about should raise, not resolve to
+  "attribute to nobody", which is the failure this function exists to fix.
+  """
+  def attributed_user(conn) do
+    case authenticated_subject(conn) do
+      %User{} = user -> user
+      %AuthenticatedAccount{issued_by: %User{} = user} -> user
+      %AuthenticatedAccount{} -> nil
+      %Project{} -> nil
+      nil -> nil
     end
   end
 
@@ -133,16 +175,50 @@ defmodule TuistWeb.Authentication do
   def log_in_user(conn, user, params \\ %{}) do
     token = Accounts.generate_user_session_token(user)
     user_return_to = get_session(conn, :user_return_to)
+    auth_method = Map.get(params, :auth_method, :password)
+
+    {post_invitation_return_to, post_invitation_token} =
+      case Map.fetch(params, :post_invitation_return_to) do
+        {:ok, return_to} ->
+          {return_to, Map.get(params, :post_invitation_token)}
+
+        :error ->
+          if get_session(conn, :post_invitation_user_id) == user.id do
+            {
+              get_session(conn, :post_invitation_return_to),
+              get_session(conn, :post_invitation_token)
+            }
+          else
+            {nil, nil}
+          end
+      end
 
     Analytics.user_authenticate(user)
+    Accounts.touch_last_sign_in(user)
 
     conn
     |> renew_session()
     |> put_token_in_session(token)
+    |> put_session(:auth_method, auth_method)
+    |> maybe_put_post_invitation_context(
+      post_invitation_return_to,
+      user.id,
+      post_invitation_token
+    )
     |> maybe_write_remember_me_cookie(token, params)
     |> redirect(to: user_return_to || signed_in_path(user))
     |> halt()
   end
+
+  defp maybe_put_post_invitation_context(conn, return_to, user_id, invitation_token)
+       when is_binary(return_to) and is_integer(user_id) and is_binary(invitation_token) do
+    conn
+    |> put_session(:post_invitation_return_to, return_to)
+    |> put_session(:post_invitation_user_id, user_id)
+    |> put_session(:post_invitation_token, invitation_token)
+  end
+
+  defp maybe_put_post_invitation_context(conn, _return_to, _user_id, _invitation_token), do: conn
 
   defp maybe_write_remember_me_cookie(conn, token, %{"remember_me" => "true"}) do
     put_resp_cookie(conn, @remember_me_cookie, token, @remember_me_options)
@@ -178,7 +254,7 @@ defmodule TuistWeb.Authentication do
 
   It clears all session data for safety. See renew_session.
   """
-  def log_out_user(conn) do
+  def log_out_user(conn, opts \\ []) do
     user_token = get_session(conn, :user_token)
     user_token && Accounts.delete_user_session_token(user_token)
 
@@ -186,10 +262,17 @@ defmodule TuistWeb.Authentication do
       TuistWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})
     end
 
+    return_to =
+      case Keyword.get(opts, :return_to) do
+        "//" <> _ -> ~p"/"
+        "/" <> _ = path -> path
+        _ -> ~p"/"
+      end
+
     conn
     |> renew_session()
     |> delete_resp_cookie(@remember_me_cookie)
-    |> redirect(to: ~p"/")
+    |> redirect(to: return_to)
     |> halt()
   end
 
@@ -200,6 +283,10 @@ defmodule TuistWeb.Authentication do
   def fetch_current_user(conn, _opts) do
     {user_token, conn} = ensure_user_token(conn)
     user = user_token && Accounts.get_user_by_session_token(user_token, preload: [:account])
+    # A session resumed from the remember-me cookie is still the account being
+    # used, so it has to count as activity. Otherwise a user who never logs in
+    # again because they never log out looks dormant.
+    user = user && Accounts.touch_last_sign_in(user)
     assign(conn, :current_user, user)
   end
 
@@ -322,15 +409,92 @@ defmodule TuistWeb.Authentication do
     end
   end
 
+  def require_sso_authentication(%{params: %{"account_handle" => account_handle}} = conn, _opts) do
+    cond do
+      TuistWeb.OperatorGrant.active_grant?(conn, account_handle) ->
+        # An operator holding a valid grant for this account bypasses the
+        # customer's SSO enforcement: they authenticated out-of-band at
+        # ops.tuist.dev and the access is reason-logged and time-boxed.
+        # This is the path that makes SSO-enforced orgs reachable.
+        conn
+
+      anonymous_public_account?(conn, account_handle) ->
+        # A signed-out visitor to a public account is only ever served that
+        # account's public data, so there is no identity to enforce a
+        # provider on. Without this they would be bounced to the provider
+        # and the public dashboards would be unreachable. Signed-in users
+        # still fall through: they can see member-level data, so the
+        # organization's enforcement still applies to them.
+        conn
+
+      true ->
+        with account when not is_nil(account) <- Accounts.get_account_by_handle(account_handle),
+             organization_id when not is_nil(organization_id) <- account.organization_id,
+             {:ok, organization} <- Accounts.get_organization_by_id(organization_id),
+             true <- organization.sso_enforced and not is_nil(organization.sso_provider),
+             auth_method = get_session(conn, :auth_method),
+             false <- auth_method == organization.sso_provider do
+          conn
+          |> put_session(:oauth_return_to, current_path(conn))
+          |> redirect(to: sso_provider_path(organization))
+          |> halt()
+        else
+          _ -> conn
+        end
+    end
+  end
+
+  def require_sso_authentication(conn, _opts), do: conn
+
+  defp anonymous_public_account?(conn, account_handle) do
+    if authenticated?(conn) do
+      false
+    else
+      case Accounts.get_account_by_handle(account_handle) do
+        nil -> false
+        account -> Authorization.authorize(:account_dashboard_read, nil, account) == :ok
+      end
+    end
+  end
+
+  defp sso_provider_path(%{sso_provider: :google}), do: ~p"/users/auth/google"
+
+  defp sso_provider_path(%{id: organization_id, sso_provider: :okta}),
+    do: ~p"/users/auth/okta?organization_id=#{organization_id}"
+
+  defp sso_provider_path(%{id: organization_id, sso_provider: :oauth2}),
+    do: ~p"/users/auth/oauth2?organization_id=#{organization_id}"
+
   def require_authenticated_user_for_private_projects(
         %{path_params: %{"account_handle" => account_handle, "project_handle" => project_handle}} = conn,
         opts
       ) do
-    project = Projects.get_project_by_account_and_project_handles(account_handle, project_handle)
+    # An unknown project is a 404 for everyone, signed in or not, so the
+    # public not-found page renders instead of a login redirect; a private
+    # one still sends anonymous visitors to log in.
+    case Projects.get_project_by_account_and_project_handles(account_handle, project_handle) do
+      nil ->
+        raise NotFoundError, dgettext("dashboard", "The project you are looking for doesn't exist or has been moved.")
 
-    if is_nil(project) or Authorization.authorize(:dashboard_read, nil, project) != :ok,
-      do: require_authenticated_user(conn, opts),
-      else: conn
+      project ->
+        if Authorization.authorize(:dashboard_read, nil, project) == :ok,
+          do: conn,
+          else: require_authenticated_user(conn, opts)
+    end
+  end
+
+  def require_authenticated_user_for_private_accounts(%{path_params: %{"account_handle" => account_handle}} = conn, opts) do
+    # Same as for projects: an unknown handle (e.g. tuist.dev/r) is a 404
+    # rather than a login redirect.
+    case Accounts.get_account_by_handle(account_handle) do
+      nil ->
+        raise NotFoundError, dgettext("dashboard", "The account you are looking for doesn't exist or has been moved.")
+
+      account ->
+        if Authorization.authorize(:account_dashboard_read, nil, account) == :ok,
+          do: conn,
+          else: require_authenticated_user(conn, opts)
+    end
   end
 
   def require_authenticated_user_for_previews(%{path_params: %{"id" => preview_id}} = conn, opts) do

@@ -1,13 +1,26 @@
 import Config
 
+alias Ecto.Adapters.SQL.Sandbox
+
 # Only in tests, remove the complexity from the password hashing algorithm
 config :bcrypt_elixir, :log_rounds, 1
+
+# Prevent ExAws.Config.AuthCache from trying to fetch credentials from AWS instance metadata
+config :ex_aws,
+  access_key_id: "test",
+  secret_access_key: "test",
+  region: "us-east-1"
 
 # Print only warnings and errors during test
 config :logger, level: :warning
 
+config :open_api_spex, :cache_adapter, TuistTestSupport.OpenApiSpexCache
+
 # Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
+
+# Disable Sentry in tests
+config :sentry, dsn: nil
 
 # Oban
 config :tuist, Oban, testing: :manual
@@ -16,9 +29,18 @@ config :tuist, Tuist.ClickHouseRepo,
   hostname: "localhost",
   port: 8123,
   database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
+  default_dynamic_repo: Tuist.IngestRepo,
   # Workaround for ClickHouse lazy materialization bug with projections
   # https://github.com/ClickHouse/ClickHouse/issues/80201
-  settings: [readonly: 1, query_plan_optimize_lazy_materialization: 0]
+  settings: [
+    readonly: 1,
+    max_threads: 4,
+    max_memory_usage: 6 * 1024 * 1024 * 1024,
+    query_plan_optimize_lazy_materialization: 0,
+    session_timezone: "UTC"
+  ]
+
+config :tuist, Tuist.CommandEvents, metadata_queries_bypass_dynamic_repo: true
 
 config :tuist, Tuist.IngestRepo,
   hostname: "localhost",
@@ -26,13 +48,44 @@ config :tuist, Tuist.IngestRepo,
   database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
   flush_interval_ms: 5000,
   max_buffer_size: 100_000,
-  pool_size: 5,
+  pool: Sandbox,
+  pool_size: System.schedulers_online() * 2,
+  queue_target: 5000,
+  queue_interval: 1000,
+  sync_writes: true,
   # Workaround for ClickHouse lazy materialization bug with projections
   # https://github.com/ClickHouse/ClickHouse/issues/80201
-  settings: [query_plan_optimize_lazy_materialization: 0]
+  # View engines reject transactions at their own boundary, but their source
+  # MergeTree reads still use the sandbox transaction (including rollback).
+  settings: [
+    query_plan_optimize_lazy_materialization: 0,
+    session_timezone: "UTC",
+    throw_on_unsupported_query_inside_transaction: 0
+  ]
+
+# Same for the Kura cache-demand buffer, which is otherwise process-wide and
+# would let one async test's demand be flushed inside another's transaction.
+config :tuist, Tuist.Kura.Demand, write_through_repo: true
+# A run's clock, tightened so a test can spend it with a handful of slow
+# checks instead of the seven seconds production allows, but left wide enough
+# that the check-count cap is reached long before it on a loaded machine.
+config :tuist, Tuist.Kura.Workers.AwaitActivationWorker, check_interval_ms: 0, run_budget_ms: 1_500
 
 # Configures Bamboo API Client
 config :tuist, Tuist.Mailer, adapter: Bamboo.TestAdapter
+
+config :tuist, Tuist.OpsClickHouseRepo,
+  hostname: "localhost",
+  port: 8123,
+  database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
+  pool_size: 2,
+  settings: [
+    readonly: 1,
+    max_threads: 2,
+    max_memory_usage: 1024 * 1024 * 1024,
+    query_plan_optimize_lazy_materialization: 0,
+    session_timezone: "UTC"
+  ]
 
 # Configure your database
 #
@@ -44,10 +97,21 @@ config :tuist, Tuist.Repo,
   password: "postgres",
   hostname: "localhost",
   database: "tuist_test#{System.get_env("MIX_TEST_PARTITION")}",
-  pool: Ecto.Adapters.SQL.Sandbox,
+  parameters: [timezone: "UTC"],
+  pool: Sandbox,
   pool_size: System.schedulers_online() * 2,
   queue_target: 5000,
-  queue_interval: 1000
+  queue_interval: 1000,
+  # Tolerate transient statement stalls on oversubscribed CI runners where a
+  # single round-trip can block on the socket well past the 15s DBConnection
+  # default; a genuinely hung query still fails within this bound.
+  timeout: 60_000
+
+config :tuist, Tuist.Runners, volume_master_readable_interval_ms: 0
+config :tuist, Tuist.Tasks, sync: true
+
+# Keep ClickHouse buffer writes in the calling test process so they share the sandboxed transaction.
+config :tuist, TuistCommon.Ingestion.Bufferable, write_through_repo: true
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
@@ -55,6 +119,11 @@ config :tuist, TuistWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
   secret_key_base: "pbaHQK0N946e06chs5G1/RUJnkI//2QshGgUvJQkADTV3AiQHV/dXlLdjnaQxtxx",
   server: false
+
+# Production builds keep warm handoffs disabled until the public customer
+# endpoint is owned by a stable account-region binding. Tests enable the
+# transition machinery so its invariants remain covered while that work lands.
+config :tuist, :kura_warm_handoffs_enabled, true
 
 config :tuist,
   api_pipeline_producer_module: Broadway.DummyProducer,

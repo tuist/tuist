@@ -1,0 +1,1793 @@
+msgid ""
+msgstr ""
+"Language: ka\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+
+#: lib/tuist_web/live/test_run_live.html.heex:422
+#, elixir-autogen, elixir-format
+msgid "%{duration}s"
+msgstr "%{duration}წმ"
+
+#: lib/tuist_web/live/tests_live.html.heex:655
+#, elixir-autogen, elixir-format
+msgid "%{selective_test_effectiveness}%"
+msgstr "%{selective_test_effectiveness}%"
+
+#: lib/tuist_web/live/test_case_run_live.html.heex:1094
+#: lib/tuist_web/live/test_run_live.html.heex:1952
+#, elixir-autogen, elixir-format
+msgid "All tests passed!"
+msgstr "ყველა ტესტი წარმატებით შესრულდა!"
+
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:55
+#: lib/tuist_web/live/test_cases_live.html.heex:81
+#: lib/tuist_web/live/test_runs_live.html.heex:81
+#: lib/tuist_web/live/tests_live.html.heex:115
+#, elixir-autogen, elixir-format
+msgid "Analytics"
+msgstr "ანალიტიკა"
+
+#: lib/tuist_web/live/flaky_tests_live.ex:286
+#: lib/tuist_web/live/flaky_tests_live.html.heex:10
+#: lib/tuist_web/live/test_cases_live.ex:390
+#: lib/tuist_web/live/test_cases_live.html.heex:10
+#: lib/tuist_web/live/test_runs_live.ex:364
+#: lib/tuist_web/live/tests_live.ex:418
+#: lib/tuist_web/live/tests_live.ex:427
+#: lib/tuist_web/live/tests_live.html.heex:17
+#: lib/tuist_web/live/tests_live.html.heex:40
+#, elixir-autogen, elixir-format
+msgid "Any"
+msgstr "ნებისმიერი"
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:75
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:45
+#: lib/tuist_web/live/shards_live.html.heex:43
+#: lib/tuist_web/live/test_cases_live.html.heex:73
+#: lib/tuist_web/live/test_runs_live.html.heex:73
+#: lib/tuist_web/live/tests_live.html.heex:105
+#, elixir-autogen, elixir-format
+msgid "Apply"
+msgstr "გაიტანე"
+
+#: lib/tuist_web/live/test_case_run_live.html.heex:511
+#, elixir-autogen, elixir-format
+msgid "Attachments"
+msgstr "დამაგრებები"
+
+#: lib/tuist_web/live/test_case_live.ex:485
+#, elixir-autogen, elixir-format
+msgid "Automatically by Tuist"
+msgstr "ავტომატურად Tuist-ის მიერ"
+
+#: lib/tuist_web/live/shards_live.html.heex:348
+#: lib/tuist_web/live/shards_live.html.heex:466
+#: lib/tuist_web/live/test_cases_live.html.heex:407
+#: lib/tuist_web/live/test_runs_live.html.heex:358
+#: lib/tuist_web/live/tests_live.html.heex:356
+#: lib/tuist_web/live/tests_live.html.heex:751
+#, elixir-autogen, elixir-format
+msgid "Average"
+msgstr "საშუალო"
+
+#: lib/tuist_web/live/test_run_live.html.heex:385
+#, elixir-autogen, elixir-format
+msgid "Average duration of all test cases."
+msgstr "ყველა ტესტის შემთხვევის საშუალო ხანგრძლივობა."
+
+#: lib/tuist_web/live/test_cases_live.html.heex:161
+#, elixir-autogen, elixir-format
+msgid "Average duration of individual test case executions during a given period."
+msgstr "მოცემული პერიოდის განმავლობაში ინდივიდუალური ტესტის პროცესების საშუალო ხანგრძლივობა."
+
+#: lib/tuist_web/live/test_runs_live.html.heex:150
+#, elixir-autogen, elixir-format
+msgid "Average duration of test runs during a given period."
+msgstr "ტესტის გაშვების საშუალო ხანგრძლივობა მოცემულ პერიოდში."
+
+#: lib/tuist_web/live/test_case_live.html.heex:252
+#, elixir-autogen, elixir-format
+msgid "Average duration of this test case across the last 50 runs."
+msgstr "ამ ტესტის შემთხვევის საშუალო ხანგრძლივობა ბოლო 50 გაშვების განმავლობაში."
+
+#: lib/tuist_web/live/test_cases_live.html.heex:486
+#: lib/tuist_web/live/test_cases_live.html.heex:510
+#: lib/tuist_web/live/test_cases_live.html.heex:605
+#, elixir-autogen, elixir-format
+msgid "Avg. duration"
+msgstr "საშუალო ხანგრძლივობა"
+
+#: lib/tuist_web/live/test_run_live.ex:994
+#: lib/tuist_web/live/test_run_live.ex:1051
+#: lib/tuist_web/live/test_run_live.html.heex:384
+#: lib/tuist_web/live/test_run_live.html.heex:1279
+#: lib/tuist_web/live/test_run_live.html.heex:1308
+#: lib/tuist_web/live/test_run_live.html.heex:1386
+#: lib/tuist_web/live/test_run_live.html.heex:1497
+#: lib/tuist_web/live/test_run_live.html.heex:1534
+#: lib/tuist_web/live/test_run_live.html.heex:1626
+#, elixir-autogen, elixir-format
+msgid "Avg. test case duration"
+msgstr "ტესტის საშუალო ხანგრძლივობა"
+
+#: lib/tuist_web/live/test_case_live.html.heex:250
+#: lib/tuist_web/live/test_cases_live.ex:365
+#: lib/tuist_web/live/test_cases_live.html.heex:146
+#, elixir-autogen, elixir-format
+msgid "Avg. test case run duration"
+msgstr "ტესტის შემთხვევის საშუალო გაშვების ხანგრძლივობა"
+
+#: lib/tuist_web/live/test_runs_live.ex:346
+#: lib/tuist_web/live/test_runs_live.html.heex:135
+#: lib/tuist_web/live/tests_live.html.heex:174
+#: lib/tuist_web/live/xcode_overview_live.html.heex:176
+#, elixir-autogen, elixir-format
+msgid "Avg. test run duration"
+msgstr "ტესტის საშუალო გაშვების ხანგრძლივობა"
+
+#: lib/tuist_web/live/test_case_live.ex:94
+#: lib/tuist_web/live/test_case_live.html.heex:547
+#: lib/tuist_web/live/test_case_run_live.html.heex:169
+#: lib/tuist_web/live/test_run_live.html.heex:301
+#: lib/tuist_web/live/test_runs_live.ex:52
+#: lib/tuist_web/live/test_runs_live.html.heex:487
+#: lib/tuist_web/live/tests_live.html.heex:960
+#, elixir-autogen, elixir-format
+msgid "Branch"
+msgstr "ბრენჩი"
+
+#: lib/tuist_web/live/test_run_live.html.heex:86
+#, elixir-autogen, elixir-format
+msgid "Build: %{name}"
+msgstr "შეიქმნა: %{name}"
+
+#: lib/tuist_web/live/test_run_live.html.heex:67
+#, elixir-autogen, elixir-format
+msgid "Build: %{scheme}"
+msgstr "შეიქმნა: %{scheme}"
+
+#: lib/tuist_web/live/flaky_tests_live.ex:288
+#: lib/tuist_web/live/flaky_tests_live.html.heex:26
+#: lib/tuist_web/live/test_case_live.ex:117
+#: lib/tuist_web/live/test_cases_live.ex:392
+#: lib/tuist_web/live/test_cases_live.html.heex:26
+#: lib/tuist_web/live/test_runs_live.ex:366
+#: lib/tuist_web/live/tests_live.ex:420
+#: lib/tuist_web/live/tests_live.ex:421
+#: lib/tuist_web/live/tests_live.html.heex:48
+#, elixir-autogen, elixir-format
+msgid "CI"
+msgstr "CI"
+
+#: lib/tuist_web/live/test_run_live.html.heex:140
+#: lib/tuist_web/live/test_run_live.html.heex:149
+#, elixir-autogen, elixir-format
+msgid "CI Run"
+msgstr "CI გაშვება"
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:66
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:36
+#: lib/tuist_web/live/shards_live.html.heex:36
+#: lib/tuist_web/live/test_cases_live.html.heex:66
+#: lib/tuist_web/live/test_runs_live.html.heex:66
+#: lib/tuist_web/live/tests_live.html.heex:96
+#, elixir-autogen, elixir-format
+msgid "Cancel"
+msgstr "გაუქმება"
+
+#: lib/tuist_web/helpers/failure_message.ex:35
+#, elixir-autogen, elixir-format
+msgid "Caught error"
+msgstr "დაფიქსირდა შეცდომა"
+
+#: lib/tuist_web/helpers/failure_message.ex:60
+#, elixir-autogen, elixir-format
+msgid "Caught error at %{location}"
+msgstr "დაფიქსირდა შეცდომა ადგილას %{location}"
+
+#: lib/tuist_web/helpers/failure_message.ex:63
+#, elixir-autogen, elixir-format
+msgid "Caught error at %{location}: %{message}"
+msgstr "დაფიქსირდა შეცდომა %{location}-ზე: %{message}"
+
+#: lib/tuist_web/helpers/failure_message.ex:38
+#, elixir-autogen, elixir-format
+msgid "Caught error: %{message}"
+msgstr "დაფიქსირდა შეცდომა: %{message}"
+
+#: lib/tuist_web/helpers/test_labels.ex:20
+#, elixir-autogen, elixir-format
+msgid "Class"
+msgstr "კლასი"
+
+#: lib/tuist_web/live/test_run_live.html.heex:399
+#, elixir-autogen, elixir-format
+msgid "Command"
+msgstr "კომანდა"
+
+#: lib/tuist_web/live/test_run_live.html.heex:419
+#, elixir-autogen, elixir-format
+msgid "Command duration"
+msgstr "კომანდის ხანგრძლივობა"
+
+#: lib/tuist_web/live/test_case_run_live.html.heex:179
+#: lib/tuist_web/live/test_run_live.html.heex:311
+#, elixir-autogen, elixir-format
+msgid "Commit"
+msgstr "კომიტი"
+
+#: lib/tuist_web/helpers/attachment_helpers.ex:28
+#: lib/tuist_web/live/test_case_run_live.html.heex:443
+#: lib/tuist_web/live/test_run_live.html.heex:773
+#: lib/tuist_web/live/test_run_live.html.heex:1877
+#, elixir-autogen, elixir-format
+msgid "Crash Report"
+msgstr "ყოველთვის დაშვების ანგარიში"
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:57
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:27
+#: lib/tuist_web/live/shards_live.html.heex:27
+#: lib/tuist_web/live/test_cases_live.html.heex:57
+#: lib/tuist_web/live/test_runs_live.html.heex:57
+#: lib/tuist_web/live/tests_live.html.heex:87
+#, elixir-autogen, elixir-format
+msgid "Custom"
+msgstr "დამამენტებული"
+
+#: lib/tuist_web/live/test_run_live.html.heex:109
+#: lib/tuist_web/live/test_run_live.html.heex:117
+#, elixir-autogen, elixir-format
+msgid "Download result"
+msgstr "გადმოწერე შედეგი"
+
+#: lib/tuist_web/live/shards_live.html.heex:594
+#: lib/tuist_web/live/test_case_live.ex:86
+#: lib/tuist_web/live/test_case_live.html.heex:470
+#: lib/tuist_web/live/test_case_live.html.heex:486
+#: lib/tuist_web/live/test_case_live.html.heex:562
+#: lib/tuist_web/live/test_case_run_live.html.heex:149
+#: lib/tuist_web/live/test_run_live.ex:940
+#: lib/tuist_web/live/test_run_live.ex:1002
+#: lib/tuist_web/live/test_run_live.ex:1059
+#: lib/tuist_web/live/test_run_live.html.heex:278
+#: lib/tuist_web/live/test_run_live.html.heex:475
+#: lib/tuist_web/live/test_run_live.html.heex:1084
+#: lib/tuist_web/live/test_run_live.html.heex:1099
+#: lib/tuist_web/live/test_run_live.html.heex:1192
+#: lib/tuist_web/live/test_run_live.html.heex:1282
+#: lib/tuist_web/live/test_run_live.html.heex:1316
+#: lib/tuist_web/live/test_run_live.html.heex:1424
+#: lib/tuist_web/live/test_run_live.html.heex:1500
+#: lib/tuist_web/live/test_run_live.html.heex:1542
+#: lib/tuist_web/live/test_run_live.html.heex:1659
+#: lib/tuist_web/live/test_runs_live.html.heex:500
+#: lib/tuist_web/live/tests_live.html.heex:973
+#, elixir-autogen, elixir-format
+msgid "Duration"
+msgstr "ხანგრძლივობა"
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:6
+#: lib/tuist_web/live/test_cases_live.html.heex:6
+#: lib/tuist_web/live/test_runs_live.html.heex:6
+#: lib/tuist_web/live/tests_live.html.heex:36
+#, elixir-autogen, elixir-format
+msgid "Environment:"
+msgstr "გარემო:"
+
+#: lib/tuist_web/live/test_case_live.ex:478
+#, elixir-autogen, elixir-format
+msgid "Event"
+msgstr "შემთხვევა"
+
+#: lib/tuist_web/live/test_case_live.html.heex:650
+#, elixir-autogen, elixir-format
+msgid "Events will appear here when the test case status changes."
+msgstr "შემთხვევები გამოჩნდება აქ, როცა ტესტის სტატუსი შეიცვლება."
+
+#: lib/tuist_web/live/test_case_run_live.html.heex:466
+#: lib/tuist_web/live/test_run_live.html.heex:792
+#: lib/tuist_web/live/test_run_live.html.heex:1895
+#, elixir-autogen, elixir-format
+msgid "Exception"
+msgstr "ფრთხილობა"
+
+#: lib/tuist_web/helpers/failure_message.ex:30
+#, elixir-autogen, elixir-format
+msgid "Expectation failed"
+msgstr "მოლოდინი ვერ შესრულდა"
+
+#: lib/tuist_web/helpers/failure_message.ex:50
+#, elixir-autogen, elixir-format
+msgid "Expectation failed at %{location}"
+msgstr "მოლოდინი ვერ შესრულდა %{location}-ზე"
+
+#: lib/tuist_web/helpers/failure_message.ex:53
+#, elixir-autogen, elixir-format
+msgid "Expectation failed at %{location}: %{message}"
+msgstr "მოლოდინი ვერ შესრულდა %{location}-ზე: %{message}"
+
+#: lib/tuist_web/helpers/failure_message.ex:33
+#, elixir-autogen, elixir-format
+msgid "Expectation failed: %{message}"
+msgstr "მოლოდინი ვერ შესრულდა: %{message}"
+
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:381
+#: lib/tuist_web/live/shards_live.ex:32
+#: lib/tuist_web/live/shards_live.html.heex:573
+#: lib/tuist_web/live/test_case_live.ex:77
+#: lib/tuist_web/live/test_case_live.html.heex:163
+#: lib/tuist_web/live/test_case_live.html.heex:371
+#: lib/tuist_web/live/test_case_live.html.heex:415
+#: lib/tuist_web/live/test_case_live.html.heex:538
+#: lib/tuist_web/live/test_case_run_live.html.heex:129
+#: lib/tuist_web/live/test_case_run_live.html.heex:307
+#: lib/tuist_web/live/test_case_run_live.html.heex:364
+#: lib/tuist_web/live/test_case_run_live.html.heex:403
+#: lib/tuist_web/live/test_case_run_live.html.heex:534
+#: lib/tuist_web/live/test_case_run_live.html.heex:756
+#: lib/tuist_web/live/test_case_run_live.html.heex:800
+#: lib/tuist_web/live/test_case_run_live.html.heex:853
+#: lib/tuist_web/live/test_case_run_live.html.heex:952
+#: lib/tuist_web/live/test_case_run_live.html.heex:1007
+#: lib/tuist_web/live/test_case_run_live.html.heex:1044
+#: lib/tuist_web/live/test_cases_live.ex:45
+#: lib/tuist_web/live/test_cases_live.html.heex:632
+#: lib/tuist_web/live/test_run_live.ex:953
+#: lib/tuist_web/live/test_run_live.ex:1015
+#: lib/tuist_web/live/test_run_live.ex:1072
+#: lib/tuist_web/live/test_run_live.html.heex:244
+#: lib/tuist_web/live/test_run_live.html.heex:499
+#: lib/tuist_web/live/test_run_live.html.heex:607
+#: lib/tuist_web/live/test_run_live.html.heex:666
+#: lib/tuist_web/live/test_run_live.html.heex:722
+#: lib/tuist_web/live/test_run_live.html.heex:960
+#: lib/tuist_web/live/test_run_live.html.heex:1005
+#: lib/tuist_web/live/test_run_live.html.heex:1219
+#: lib/tuist_web/live/test_run_live.html.heex:1413
+#: lib/tuist_web/live/test_run_live.html.heex:1653
+#: lib/tuist_web/live/test_run_live.html.heex:1827
+#: lib/tuist_web/live/test_run_live.html.heex:2065
+#: lib/tuist_web/live/test_run_live.html.heex:2110
+#: lib/tuist_web/live/test_runs_live.ex:43
+#: lib/tuist_web/live/test_runs_live.html.heex:468
+#: lib/tuist_web/live/tests_live.ex:484
+#: lib/tuist_web/live/tests_live.html.heex:951
+#, elixir-autogen, elixir-format
+msgid "Failed"
+msgstr "მარცხი"
+
+#: lib/tuist_web/live/test_runs_live.ex:329
+#: lib/tuist_web/live/test_runs_live.html.heex:108
+#, elixir-autogen, elixir-format
+msgid "Failed run count"
+msgstr "მარცხის გაშვების რიცხვი"
+
+#: lib/tuist_web/live/test_runs_live.html.heex:110
+#, elixir-autogen, elixir-format
+msgid "Failed run count represents a number of how many test runs failed during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
+msgstr "მარცხის გაშვების რიცხვი მიუთითებს იმ რიცხვზე, რამდენი ტესტის გაშვება ჩაიშალა მოცემულ პერიოდში. ტესტი გაშვებულია 'tuist test' ან 'tuist xcodebuild test' გამოყენებით."
+
+#: lib/tuist_web/live/tests_live.html.heex:873
+#, elixir-autogen, elixir-format
+msgid "Failed runs"
+msgstr "მარცხი გაშვების"
+
+#: lib/tuist_web/live/test_case_live.html.heex:240
+#: lib/tuist_web/live/test_cases_live.ex:347
+#: lib/tuist_web/live/test_cases_live.html.heex:113
+#, elixir-autogen, elixir-format
+msgid "Failed test case runs"
+msgstr "მარცხი ტესტის გაშვების"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:115
+#, elixir-autogen, elixir-format
+msgid "Failed test case runs represents the number of individual test case executions that failed during a given period."
+msgstr "მარცხი ტესტის გაშვების რიცხვი წარმოადგენს ინდივიდუალური ტესტის გაშვების რიცხვს, რომელიც ჩაიშალა მოცემულ პერიოდში."
+
+#: lib/tuist_web/live/test_run_live.html.heex:370
+#, elixir-autogen, elixir-format
+msgid "Failed test cases"
+msgstr "მარცხი ტესტის შემთხვევები"
+
+#: lib/tuist_web/live/tests_live.html.heex:150
+#: lib/tuist_web/live/tests_live.html.heex:606
+#, elixir-autogen, elixir-format
+msgid "Failed test runs"
+msgstr "მარცხი ტესტის გაშვება"
+
+#: lib/tuist_web/live/test_case_run_live.html.heex:102
+#: lib/tuist_web/live/test_case_run_live.html.heex:230
+#: lib/tuist_web/live/test_case_run_live.html.heex:864
+#: lib/tuist_web/live/test_run_live.html.heex:210
+#: lib/tuist_web/live/test_run_live.html.heex:514
+#: lib/tuist_web/live/test_run_live.html.heex:521
+#: lib/tuist_web/live/test_run_live.html.heex:1734
+#: lib/tuist_web/live/test_run_live.html.heex:1741
+#, elixir-autogen, elixir-format
+msgid "Failures"
+msgstr "მარცხები"
+
+#: lib/tuist_web/helpers/attachment_helpers.ex:29
+#, elixir-autogen, elixir-format
+msgid "File"
+msgstr "ფაილი"
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:106
+#: lib/tuist_web/live/flaky_tests_live.html.heex:375
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:291
+#: lib/tuist_web/live/shards_live.html.heex:531
+#: lib/tuist_web/live/test_case_live.html.heex:495
+#: lib/tuist_web/live/test_cases_live.html.heex:519
+#: lib/tuist_web/live/test_run_live.html.heex:1108
+#: lib/tuist_web/live/test_run_live.html.heex:1325
+#: lib/tuist_web/live/test_run_live.html.heex:1551
+#: lib/tuist_web/live/test_runs_live.html.heex:434
+#, elixir-autogen, elixir-format
+msgid "Filter"
+msgstr "ფილტრი"
+
+#: lib/tuist_web/live/test_case_live.ex:471
+#, elixir-autogen, elixir-format
+msgid "First run of this test"
+msgstr "ტესტის პირველი გაშვება"
+
+#: lib/tuist_web/live/test_case_live.html.heex:200
+#, elixir-autogen, elixir-format
+msgid "Flakiness rate"
+msgstr "ფლაკის დონე"
+
+#: lib/tuist_web/live/test_case_live.html.heex:521
+#: lib/tuist_web/live/test_case_run_live.html.heex:40
+#: lib/tuist_web/live/test_cases_live.ex:74
+#: lib/tuist_web/live/test_cases_live.html.heex:568
+#: lib/tuist_web/live/test_run_live.ex:967
+#: lib/tuist_web/live/test_run_live.html.heex:55
+#: lib/tuist_web/live/test_run_live.html.heex:1145
+#: lib/tuist_web/live/test_run_live.html.heex:1352
+#: lib/tuist_web/live/test_run_live.html.heex:1578
+#, elixir-autogen, elixir-format
+msgid "Flaky"
+msgstr "ფლაკი"
+
+#: lib/tuist_web/live/test_case_live.html.heex:129
+#: lib/tuist_web/live/test_case_live.html.heex:314
+#: lib/tuist_web/live/test_case_run_live.html.heex:667
+#: lib/tuist_web/live/test_run_live.html.heex:217
+#: lib/tuist_web/live/test_run_live.html.heex:857
+#: lib/tuist_web/live/test_run_live.html.heex:864
+#: lib/tuist_web/live/test_run_live.html.heex:1969
+#: lib/tuist_web/live/test_run_live.html.heex:1976
+#, elixir-autogen, elixir-format
+msgid "Flaky Runs"
+msgstr "ფლაკი გაშვებები"
+
+#: lib/tuist_web/live/flaky_tests_live.ex:23
+#: lib/tuist_web/live/flaky_tests_live.html.heex:86
+#, elixir-autogen, elixir-format
+msgid "Flaky Tests"
+msgstr "ფლაკი ტესტები"
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:343
+#: lib/tuist_web/live/flaky_tests_live.html.heex:350
+#: lib/tuist_web/live/flaky_tests_live.html.heex:426
+#, elixir-autogen, elixir-format
+msgid "Flaky runs"
+msgstr "ფლაკი გაშვებები"
+
+#: lib/tuist_web/live/test_run_live.html.heex:376
+#, elixir-autogen, elixir-format
+msgid "Flaky test cases"
+msgstr "ფლაკი ტესტის შემთხვევები"
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:155
+#: lib/tuist_web/live/flaky_tests_live.html.heex:294
+#: lib/tuist_web/live/tests_live.html.heex:133
+#: lib/tuist_web/live/tests_live.html.heex:542
+#, elixir-autogen, elixir-format
+msgid "Flaky test runs"
+msgstr "ფლაკი ტესტის გაშვება"
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:160
+#, elixir-autogen, elixir-format
+msgid "Hash"
+msgstr "ხეში"
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:140
+#: lib/tuist_web/live/test_run_live.ex:1138
+#, elixir-autogen, elixir-format
+msgid "Hit"
+msgstr "ჰითი"
+
+#: lib/tuist_web/helpers/attachment_helpers.ex:22
+#, elixir-autogen, elixir-format
+msgid "Image"
+msgstr "სურათი"
+
+#: lib/tuist_web/helpers/failure_message.ex:40
+#, elixir-autogen, elixir-format
+msgid "Issue recorded"
+msgstr "პრობლემაა ჩანაწერი"
+
+#: lib/tuist_web/helpers/failure_message.ex:70
+#, elixir-autogen, elixir-format
+msgid "Issue recorded at %{location}"
+msgstr "პრობლემაა ჩანაწერი %{location}-ზე"
+
+#: lib/tuist_web/helpers/failure_message.ex:73
+#, elixir-autogen, elixir-format
+msgid "Issue recorded at %{location}: %{message}"
+msgstr "პრობლემაა ჩანაწერი %{location}-ზე: %{message}"
+
+#: lib/tuist_web/helpers/failure_message.ex:43
+#, elixir-autogen, elixir-format
+msgid "Issue recorded: %{message}"
+msgstr "პრობლემაა ჩანაწერი: %{message}"
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:54
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:24
+#: lib/tuist_web/live/shards_live.html.heex:24
+#: lib/tuist_web/live/test_cases_live.html.heex:54
+#: lib/tuist_web/live/test_runs_live.html.heex:54
+#: lib/tuist_web/live/tests_live.html.heex:84
+#, elixir-autogen, elixir-format
+msgid "Last 12 months"
+msgstr "ბოლო 12 თვე"
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:39
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:9
+#: lib/tuist_web/live/shards_live.html.heex:9
+#: lib/tuist_web/live/test_cases_live.html.heex:39
+#: lib/tuist_web/live/test_runs_live.html.heex:39
+#: lib/tuist_web/live/tests_live.html.heex:69
+#, elixir-autogen, elixir-format
+msgid "Last 24 hours"
+msgstr "ბოლო 24 საათი"
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:49
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:19
+#: lib/tuist_web/live/shards_live.html.heex:19
+#: lib/tuist_web/live/test_cases_live.html.heex:49
+#: lib/tuist_web/live/test_runs_live.html.heex:49
+#: lib/tuist_web/live/tests_live.html.heex:79
+#, elixir-autogen, elixir-format
+msgid "Last 30 days"
+msgstr "ბოლო 30 დღე"
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:44
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:14
+#: lib/tuist_web/live/shards_live.html.heex:14
+#: lib/tuist_web/live/test_cases_live.html.heex:44
+#: lib/tuist_web/live/test_runs_live.html.heex:44
+#: lib/tuist_web/live/tests_live.html.heex:74
+#, elixir-autogen, elixir-format
+msgid "Last 7 days"
+msgstr "ბოლო 7 დღე"
+
+#: lib/tuist_web/live/test_case_live.html.heex:153
+#: lib/tuist_web/live/test_cases_live.ex:40
+#, elixir-autogen, elixir-format
+msgid "Last Status"
+msgstr "ბოლო სტატუსი"
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:342
+#: lib/tuist_web/live/flaky_tests_live.html.heex:366
+#: lib/tuist_web/live/flaky_tests_live.html.heex:440
+#, elixir-autogen, elixir-format
+msgid "Last flaky run"
+msgstr "ბოლო ფლაკი გაშვება"
+
+#: lib/tuist_web/live/test_case_live.html.heex:186
+#: lib/tuist_web/live/test_cases_live.html.heex:487
+#: lib/tuist_web/live/test_cases_live.html.heex:494
+#: lib/tuist_web/live/test_cases_live.html.heex:642
+#, elixir-autogen, elixir-format
+msgid "Last ran at"
+msgstr "ბოლო გაშვება იყო"
+
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:267
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:274
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:392
+#, elixir-autogen, elixir-format
+msgid "Last run"
+msgstr "ბოლო გაშვება"
+
+#: lib/tuist_web/live/test_case_live.html.heex:177
+#, elixir-autogen, elixir-format
+msgid "Last run duration"
+msgstr "ბოლო გაშვების ხანგრძლივობა"
+
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:373
+#: lib/tuist_web/live/test_cases_live.html.heex:624
+#, elixir-autogen, elixir-format
+msgid "Last status"
+msgstr "ბოლო სტატუსი"
+
+#: lib/tuist_web/live/test_case_live.html.heex:660
+#, elixir-autogen, elixir-format
+msgid "Load more"
+msgstr "მეტი განφόრქლება"
+
+#: lib/tuist_web/live/test_case_run_live.ex:217
+#: lib/tuist_web/live/test_run_live.ex:1303
+#, elixir-autogen, elixir-format
+msgid "Loading..."
+msgstr "იტვირთება..."
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:149
+#: lib/tuist_web/live/flaky_tests_live.ex:287
+#: lib/tuist_web/live/flaky_tests_live.html.heex:18
+#: lib/tuist_web/live/test_cases_live.ex:391
+#: lib/tuist_web/live/test_cases_live.html.heex:18
+#: lib/tuist_web/live/test_run_live.ex:1143
+#: lib/tuist_web/live/test_runs_live.ex:365
+#: lib/tuist_web/live/tests_live.ex:419
+#: lib/tuist_web/live/tests_live.ex:422
+#: lib/tuist_web/live/tests_live.html.heex:56
+#, elixir-autogen, elixir-format
+msgid "Local"
+msgstr "წინააღმდეგი"
+
+#: lib/tuist_web/helpers/attachment_helpers.ex:24
+#, elixir-autogen, elixir-format
+msgid "Log File"
+msgstr "ლოგის ფაილი"
+
+#: lib/tuist_web/live/test_run_live.html.heex:320
+#, elixir-autogen, elixir-format
+msgid "Mac device"
+msgstr "Mac მოწყობილობა"
+
+#: lib/tuist_web/live/test_case_live.ex:487
+#, elixir-autogen, elixir-format
+msgid "Manually by @%{name}"
+msgstr "მანუალურად @%{name} საშუალებით"
+
+#: lib/tuist_web/live/test_case_live.html.heex:105
+#, elixir-autogen, elixir-format
+msgid "Mark as flaky"
+msgstr "ნიშნე როგორც ფლაკი"
+
+#: lib/tuist_web/live/test_case_live.ex:472
+#, elixir-autogen, elixir-format
+msgid "Marked as flaky"
+msgstr "ნიშნულია როგორც ფლაკი"
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:155
+#: lib/tuist_web/live/test_run_live.ex:1144
+#, elixir-autogen, elixir-format
+msgid "Missed"
+msgstr "გამოტოვებული"
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:126
+#: lib/tuist_web/helpers/test_labels.ex:14
+#, elixir-autogen, elixir-format
+msgid "Module"
+msgstr "მოდული"
+
+#: lib/tuist_web/live/test_run_live.html.heex:203
+#, elixir-autogen, elixir-format
+msgid "Module Cache"
+msgstr "მოდულის ქეში"
+
+#: lib/tuist_web/helpers/test_labels.ex:16
+#: lib/tuist_web/live/test_run_live.html.heex:469
+#, elixir-autogen, elixir-format
+msgid "Modules"
+msgstr "მოდულები"
+
+#: lib/tuist_web/live/tests_live.html.heex:1071
+#, elixir-autogen, elixir-format
+msgid "Most occurring flaky tests"
+msgstr "ყველაზე გავრცელებული ფლაკი ტესტები"
+
+#: lib/tuist_web/live/test_case_run_live.html.heex:47
+#: lib/tuist_web/live/test_run_live.ex:966
+#: lib/tuist_web/live/test_run_live.html.heex:1152
+#, elixir-autogen, elixir-format
+msgid "New"
+msgstr "ახალი"
+
+#: lib/tuist_web/live/shards_live.html.heex:130
+#: lib/tuist_web/live/shards_live.html.heex:192
+#: lib/tuist_web/live/test_case_live.html.heex:223
+#: lib/tuist_web/live/test_case_live.html.heex:266
+#: lib/tuist_web/live/test_cases_live.html.heex:216
+#: lib/tuist_web/live/test_runs_live.html.heex:202
+#, elixir-autogen, elixir-format
+msgid "No data"
+msgstr "მიმდინარე მონაცემები არ არის"
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:316
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:234
+#: lib/tuist_web/live/test_cases_live.html.heex:458
+#: lib/tuist_web/live/test_cases_live.html.heex:672
+#: lib/tuist_web/live/test_runs_live.html.heex:409
+#: lib/tuist_web/live/test_runs_live.html.heex:523
+#: lib/tuist_web/live/tests_live.html.heex:620
+#: lib/tuist_web/live/tests_live.html.heex:988
+#, elixir-autogen, elixir-format
+msgid "No data yet"
+msgstr "მონაცემები ჯერჯერობით არ არის"
+
+#: lib/tuist_web/live/test_case_run_live.html.heex:1093
+#: lib/tuist_web/live/test_run_live.html.heex:1951
+#, elixir-autogen, elixir-format
+msgid "No failures detected"
+msgstr "მარცხები არ არის გამოვლენილი"
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:478
+#, elixir-autogen, elixir-format
+msgid "No flaky tests"
+msgstr "ფლაკი ტესტები არ არის"
+
+#: lib/tuist_web/live/test_case_live.html.heex:648
+#, elixir-autogen, elixir-format
+msgid "No history available"
+msgstr "ისტორია არ არის ხელმისაწვდომი"
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:171
+#, elixir-autogen, elixir-format
+msgid "No modules found"
+msgstr "მოდულები არ მოიძებნა"
+
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:419
+#, elixir-autogen, elixir-format
+msgid "No quarantined tests"
+msgstr "კარანტინში არ არის ტესტები"
+
+#: lib/tuist_web/live/test_case_live.html.heex:598
+#, elixir-autogen, elixir-format
+msgid "No test case runs found"
+msgstr "ტესტის გაშვების შემთხვევები არ არის ნაპოვნი"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1231
+#, elixir-autogen, elixir-format
+msgid "No test cases found"
+msgstr "ტესტის შემთხვევები არ არის ნაპოვნი"
+
+#: lib/tuist_web/live/tests_live.html.heex:1126
+#, elixir-autogen, elixir-format
+msgid "No test cases yet"
+msgstr "ჯერჯერობით ტესტის შემთხვევები არ არის"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1681
+#, elixir-autogen, elixir-format
+msgid "No test modules found"
+msgstr "ტესტის მოდულები არ არის ნაპოვნი"
+
+#: lib/tuist_web/live/test_run_live.html.heex:1446
+#, elixir-autogen, elixir-format
+msgid "No test suites found"
+msgstr "ტესტის სუიტები არ არის ნაპოვნი"
+
+#: lib/tuist_web/live/test_run_live.html.heex:371
+#, elixir-autogen, elixir-format
+msgid "Number of test cases that failed."
+msgstr "მარცხი ტესტის შემთხვევების რაოდენობა."
+
+#: lib/tuist_web/live/test_run_live.html.heex:378
+#, elixir-autogen, elixir-format
+msgid "Number of test cases that passed after retry."
+msgstr "ტესტის შემთხვევების რაოდენობა, რომლებიც გაიარეს ხელმეორედ."
+
+#: lib/tuist_web/live/test_case_live.html.heex:242
+#, elixir-autogen, elixir-format
+msgid "Number of times this test case has failed."
+msgstr "რამდენჯერ მარცხი იყო ამ ტესტის შემთხვევა."
+
+#: lib/tuist_web/live/test_case_run_live.html.heex:635
+#, elixir-autogen, elixir-format
+msgid "Other"
+msgstr "სხვა"
+
+#: lib/tuist_web/live/test_case_live.html.heex:119
+#: lib/tuist_web/live/test_case_run_live.html.heex:96
+#: lib/tuist_web/live/test_run_live.html.heex:189
+#, elixir-autogen, elixir-format
+msgid "Overview"
+msgstr "ზოგადი ხედვა"
+
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:376
+#: lib/tuist_web/live/shards_live.ex:31
+#: lib/tuist_web/live/shards_live.html.heex:568
+#: lib/tuist_web/live/test_case_live.ex:76
+#: lib/tuist_web/live/test_case_live.html.heex:156
+#: lib/tuist_web/live/test_case_live.html.heex:364
+#: lib/tuist_web/live/test_case_live.html.heex:408
+#: lib/tuist_web/live/test_case_live.html.heex:533
+#: lib/tuist_web/live/test_case_run_live.html.heex:122
+#: lib/tuist_web/live/test_case_run_live.html.heex:357
+#: lib/tuist_web/live/test_case_run_live.html.heex:396
+#: lib/tuist_web/live/test_case_run_live.html.heex:527
+#: lib/tuist_web/live/test_case_run_live.html.heex:749
+#: lib/tuist_web/live/test_case_run_live.html.heex:793
+#: lib/tuist_web/live/test_case_run_live.html.heex:848
+#: lib/tuist_web/live/test_case_run_live.html.heex:945
+#: lib/tuist_web/live/test_case_run_live.html.heex:1000
+#: lib/tuist_web/live/test_case_run_live.html.heex:1037
+#: lib/tuist_web/live/test_cases_live.ex:44
+#: lib/tuist_web/live/test_cases_live.html.heex:628
+#: lib/tuist_web/live/test_run_live.ex:952
+#: lib/tuist_web/live/test_run_live.ex:1014
+#: lib/tuist_web/live/test_run_live.ex:1071
+#: lib/tuist_web/live/test_run_live.html.heex:237
+#: lib/tuist_web/live/test_run_live.html.heex:494
+#: lib/tuist_web/live/test_run_live.html.heex:659
+#: lib/tuist_web/live/test_run_live.html.heex:715
+#: lib/tuist_web/live/test_run_live.html.heex:953
+#: lib/tuist_web/live/test_run_live.html.heex:998
+#: lib/tuist_web/live/test_run_live.html.heex:1214
+#: lib/tuist_web/live/test_run_live.html.heex:1408
+#: lib/tuist_web/live/test_run_live.html.heex:1648
+#: lib/tuist_web/live/test_run_live.html.heex:1820
+#: lib/tuist_web/live/test_run_live.html.heex:2058
+#: lib/tuist_web/live/test_run_live.html.heex:2103
+#: lib/tuist_web/live/test_runs_live.ex:42
+#: lib/tuist_web/live/test_runs_live.html.heex:463
+#: lib/tuist_web/live/tests_live.ex:483
+#: lib/tuist_web/live/tests_live.html.heex:946
+#, elixir-autogen, elixir-format
+msgid "Passed"
+msgstr "წარმატებული"
+
+#: lib/tuist_web/live/tests_live.html.heex:868
+#, elixir-autogen, elixir-format
+msgid "Passed runs"
+msgstr "წარმატებული გაშვებები"
+
+#: lib/tuist_web/live/test_case_live.html.heex:202
+#, elixir-autogen, elixir-format
+msgid "Percentage of test runs that were flaky in the last 30 days."
+msgstr "ტესტი გაშვების პროცენტული რაოდენობა, რომლებიც იყვნენ ფლაკი ბოლო 30 დღის განმავლობაში."
+
+#: lib/tuist_web/helpers/test_labels.ex:29
+#, elixir-autogen, elixir-format
+msgid "Project"
+msgstr "პროექტი"
+
+#: lib/tuist_web/live/test_case_run_live.html.heex:54
+#: lib/tuist_web/live/test_run_live.html.heex:556
+#: lib/tuist_web/live/test_run_live.html.heex:901
+#: lib/tuist_web/live/test_run_live.html.heex:1159
+#: lib/tuist_web/live/test_run_live.html.heex:1770
+#: lib/tuist_web/live/test_run_live.html.heex:2006
+#, elixir-autogen, elixir-format
+msgid "Quarantined"
+msgstr "კარანტინშია"
+
+#: lib/tuist_web/live/quarantined_tests_live.ex:25
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:245
+#, elixir-autogen, elixir-format
+msgid "Quarantined Tests"
+msgstr "კარანტინში მოქცეული ტესტები"
+
+#: lib/tuist_web/live/quarantined_tests_live.ex:75
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:356
+#, elixir-autogen, elixir-format
+msgid "Quarantined by"
+msgstr "კარანტინში მოთავსებულია (ავტორი)"
+
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:60
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:212
+#, elixir-autogen, elixir-format
+msgid "Quarantined tests"
+msgstr "კარანტინში მოქცეული ტესტები"
+
+#: lib/tuist_web/live/shards_live.html.heex:610
+#: lib/tuist_web/live/test_case_live.html.heex:471
+#: lib/tuist_web/live/test_case_live.html.heex:478
+#: lib/tuist_web/live/test_case_live.html.heex:583
+#: lib/tuist_web/live/test_case_run_live.html.heex:158
+#: lib/tuist_web/live/test_run_live.html.heex:293
+#: lib/tuist_web/live/test_run_live.html.heex:429
+#: lib/tuist_web/live/test_runs_live.html.heex:508
+#: lib/tuist_web/live/tests_live.html.heex:981
+#, elixir-autogen, elixir-format
+msgid "Ran at"
+msgstr "გაშვება დროა"
+
+#: lib/tuist_web/live/test_case_live.ex:111
+#: lib/tuist_web/live/test_case_live.html.heex:557
+#: lib/tuist_web/live/test_case_run_live.html.heex:143
+#: lib/tuist_web/live/test_run_live.html.heex:272
+#: lib/tuist_web/live/test_runs_live.ex:69
+#: lib/tuist_web/live/test_runs_live.html.heex:497
+#: lib/tuist_web/live/tests_live.html.heex:970
+#, elixir-autogen, elixir-format
+msgid "Ran by"
+msgstr "გაშვებულია (ავტორი)"
+
+#: lib/tuist_web/live/tests_live.html.heex:839
+#, elixir-autogen, elixir-format
+msgid "Recent Test Runs"
+msgstr "તાજેતინდელი ტესტის გაშვებები"
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:143
+#: lib/tuist_web/live/test_run_live.ex:1142
+#, elixir-autogen, elixir-format
+msgid "Remote"
+msgstr "საგარეო"
+
+#: lib/tuist_web/live/test_case_run_live.html.heex:111
+#, elixir-autogen, elixir-format
+msgid "Run Details"
+msgstr "გაშვების დეტალები"
+
+#: lib/tuist_web/helpers/test_labels.ex:30
+#: lib/tuist_web/live/shards_live.html.heex:551
+#: lib/tuist_web/live/tests_live.ex:467
+#: lib/tuist_web/live/tests_live.html.heex:267
+#, elixir-autogen, elixir-format
+msgid "Scheme"
+msgstr "სქემა"
+
+#: lib/tuist_web/live/tests_live.html.heex:6
+#, elixir-autogen, elixir-format
+msgid "Scheme:"
+msgstr "სქემა:"
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:98
+#: lib/tuist_web/live/flaky_tests_live.html.heex:331
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:256
+#: lib/tuist_web/live/shards_live.html.heex:523
+#: lib/tuist_web/live/test_case_live.html.heex:460
+#: lib/tuist_web/live/test_cases_live.html.heex:475
+#: lib/tuist_web/live/test_run_live.html.heex:1073
+#: lib/tuist_web/live/test_run_live.html.heex:1262
+#: lib/tuist_web/live/test_run_live.html.heex:1477
+#: lib/tuist_web/live/test_runs_live.html.heex:426
+#: lib/tuist_web/live/tests_live.html.heex:11
+#, elixir-autogen, elixir-format
+msgid "Search..."
+msgstr "ძიება..."
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:74
+#: lib/tuist_web/live/test_run_live.html.heex:196
+#: lib/tuist_web/live/tests_live.html.heex:631
+#, elixir-autogen, elixir-format
+msgid "Selective Testing"
+msgstr "სელექტიური ტესტირება"
+
+#: lib/tuist_web/live/tests_live.html.heex:653
+#, elixir-autogen, elixir-format
+msgid "Selective test effectiveness"
+msgstr "სელექტიური ტესტირების ეფექტურობა"
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:47
+#, elixir-autogen, elixir-format
+msgid "Selective test hits"
+msgstr "სელექტიური ტესტირების ჰიტები"
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:49
+#, elixir-autogen, elixir-format
+msgid "Selective test hits represents the number of test modules that were skipped thanks to the selective testing."
+msgstr "სელექტიური ტესტირების ჰიტები აღნიშნავს იმ ტესტის მოდულების რაოდენობას, რომლებსაც სელექტიური ტესტირების წყალობით არ გაუშვეს."
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:61
+#, elixir-autogen, elixir-format
+msgid "Selective test misses"
+msgstr "სელექტიური ტესტირების მიტოვებები"
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:63
+#, elixir-autogen, elixir-format
+msgid "Selective test misses represents the number of test modules that were run as they were not successfully run before."
+msgstr "სელექტიური ტესტირების მიტოვებები აღნიშნავს იმ ტესტის მოდულების რაოდენობას, რომლებიც გაშვებული იყო იმიტომ, რომ ადრე წარმატებით არ გაშვებულა."
+
+#: lib/tuist_web/live/tests_live.html.heex:828
+#, elixir-autogen, elixir-format
+msgid "Selective testing: no data yet"
+msgstr "სელექტიური ტესტირება: მონაცემები ჯერ არ არის"
+
+#: lib/tuist_web/live/test_case_run_live.html.heex:473
+#: lib/tuist_web/live/test_run_live.html.heex:802
+#: lib/tuist_web/live/test_run_live.html.heex:1904
+#, elixir-autogen, elixir-format
+msgid "Signal"
+msgstr "სიგნალი"
+
+#: lib/tuist_web/live/quarantined_tests_live.ex:64
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:350
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:386
+#: lib/tuist_web/live/shards_live.html.heex:583
+#: lib/tuist_web/live/test_case_live.ex:78
+#: lib/tuist_web/live/test_case_live.ex:446
+#: lib/tuist_web/live/test_case_live.ex:476
+#: lib/tuist_web/live/test_case_live.html.heex:84
+#: lib/tuist_web/live/test_case_live.html.heex:170
+#: lib/tuist_web/live/test_case_live.html.heex:543
+#: lib/tuist_web/live/test_case_run_live.html.heex:136
+#: lib/tuist_web/live/test_cases_live.ex:46
+#: lib/tuist_web/live/test_cases_live.ex:76
+#: lib/tuist_web/live/test_cases_live.html.heex:582
+#: lib/tuist_web/live/test_cases_live.html.heex:635
+#: lib/tuist_web/live/test_run_live.ex:954
+#: lib/tuist_web/live/test_run_live.ex:1016
+#: lib/tuist_web/live/test_run_live.html.heex:258
+#: lib/tuist_web/live/test_run_live.html.heex:1224
+#: lib/tuist_web/live/test_run_live.html.heex:1418
+#: lib/tuist_web/live/test_runs_live.ex:44
+#: lib/tuist_web/live/test_runs_live.html.heex:473
+#: lib/tuist_web/live/tests_live.html.heex:956
+#, elixir-autogen, elixir-format
+msgid "Skipped"
+msgstr "გამოტოვებული"
+
+#: lib/tuist_web/live/tests_live.html.heex:1015
+#, elixir-autogen, elixir-format
+msgid "Slowest test cases"
+msgstr "ყველა ნელი ტესტის შემთხვევები"
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:346
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:270
+#: lib/tuist_web/live/test_case_live.html.heex:474
+#: lib/tuist_web/live/test_cases_live.html.heex:490
+#: lib/tuist_web/live/test_run_live.html.heex:1087
+#: lib/tuist_web/live/test_run_live.html.heex:1288
+#: lib/tuist_web/live/test_run_live.html.heex:1506
+#, elixir-autogen, elixir-format
+msgid "Sort by:"
+msgstr "სორტირება:" 
+
+#: lib/tuist_web/live/shards_live.ex:27
+#: lib/tuist_web/live/shards_live.html.heex:565
+#: lib/tuist_web/live/test_case_live.ex:72
+#: lib/tuist_web/live/test_case_live.html.heex:530
+#: lib/tuist_web/live/test_case_run_live.html.heex:119
+#: lib/tuist_web/live/test_case_run_live.html.heex:845
+#: lib/tuist_web/live/test_run_live.ex:948
+#: lib/tuist_web/live/test_run_live.ex:1010
+#: lib/tuist_web/live/test_run_live.ex:1067
+#: lib/tuist_web/live/test_run_live.html.heex:234
+#: lib/tuist_web/live/test_run_live.html.heex:491
+#: lib/tuist_web/live/test_run_live.html.heex:1405
+#: lib/tuist_web/live/test_run_live.html.heex:1645
+#: lib/tuist_web/live/test_runs_live.ex:38
+#: lib/tuist_web/live/tests_live.ex:468
+#, elixir-autogen, elixir-format
+msgid "Status"
+msgstr "სტატუსი"
+
+#: lib/tuist_web/live/test_case_run_live.html.heex:480
+#: lib/tuist_web/live/test_run_live.html.heex:809
+#: lib/tuist_web/live/test_run_live.html.heex:1911
+#, elixir-autogen, elixir-format
+msgid "Subtype"
+msgstr "საბმატი ტიპი"
+
+#: lib/tuist_web/live/test_case_live.html.heex:214
+#, elixir-autogen, elixir-format
+msgid "Success rate based on runs from the %{branch} branch. Falls back to all branches if no runs exist on %{branch}."
+msgstr "წარმატების მაჩვენებელი დაფუძნებულია %{branch} ბრენჩიდან გაშვებებზე. სრულად მოიცავს ყველა ბრენჩს თუ %{branch}-ზე გაშვებები არ არსებობს."
+
+#: lib/tuist_web/helpers/test_labels.ex:21
+#, elixir-autogen, elixir-format
+msgid "Suite"
+msgstr "სუიტა"
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:30
+#: lib/tuist_web/live/test_case_live.html.heex:144
+#, elixir-autogen, elixir-format
+msgid "Summary"
+msgstr "შეჯამება"
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:341
+#: lib/tuist_web/live/flaky_tests_live.html.heex:358
+#: lib/tuist_web/live/flaky_tests_live.html.heex:398
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:266
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:282
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:314
+#: lib/tuist_web/live/test_cases_live.html.heex:485
+#: lib/tuist_web/live/test_cases_live.html.heex:502
+#: lib/tuist_web/live/test_cases_live.html.heex:552
+#: lib/tuist_web/live/test_run_live.ex:962
+#, elixir-autogen, elixir-format
+msgid "Test Case"
+msgstr "ტესტის შემთხვევა"
+
+#: lib/tuist_web/live/test_case_live.html.heex:449
+#, elixir-autogen, elixir-format
+msgid "Test Case Runs"
+msgstr "ტესტის გაშვების შემთხვევები"
+
+#: lib/tuist_web/live/test_case_run_live.html.heex:65
+#, elixir-autogen, elixir-format
+msgid "Test Case: %{name}"
+msgstr "ტესტის შემთხვევა: %{name}"
+
+#: lib/tuist_web/live/test_case_live.html.heex:3
+#: lib/tuist_web/live/test_cases_live.ex:24
+#: lib/tuist_web/live/test_cases_live.html.heex:467
+#: lib/tuist_web/live/test_run_live.html.heex:1044
+#: lib/tuist_web/live/test_run_live.html.heex:1062
+#: lib/tuist_web/live/tests_live.html.heex:998
+#, elixir-autogen, elixir-format
+msgid "Test Cases"
+msgstr "ტესტის შემთხვევები"
+
+#: lib/tuist_web/helpers/test_labels.ex:23
+#, elixir-autogen, elixir-format
+msgid "Test Class"
+msgstr "ტესტის კლასი"
+
+#: lib/tuist_web/helpers/test_labels.ex:26
+#, elixir-autogen, elixir-format
+msgid "Test Classes"
+msgstr "ტესტის კლასები"
+
+#: lib/tuist_web/live/test_run_live.html.heex:226
+#, elixir-autogen, elixir-format
+msgid "Test Details"
+msgstr "ტესტის დეტალები"
+
+#: lib/tuist_web/live/test_case_live.html.heex:135
+#: lib/tuist_web/live/test_case_live.html.heex:618
+#, elixir-autogen, elixir-format
+msgid "Test History"
+msgstr "ტესტის ისტორია"
+
+#: lib/tuist_web/helpers/test_labels.ex:18
+#, elixir-autogen, elixir-format
+msgid "Test Modules"
+msgstr "ტესტის მოდულები"
+
+#: lib/tuist_web/live/test_case_run_live.html.heex:4
+#: lib/tuist_web/live/test_case_run_live.html.heex:212
+#: lib/tuist_web/live/test_run_live.ex:72
+#, elixir-autogen, elixir-format
+msgid "Test Run"
+msgstr "ტესტის გაშვება"
+
+#: lib/tuist_web/live/test_run_live.html.heex:3
+#: lib/tuist_web/live/test_runs_live.ex:26
+#: lib/tuist_web/live/test_runs_live.html.heex:418
+#, elixir-autogen, elixir-format
+msgid "Test Runs"
+msgstr "ტესტის გაშვები"
+
+#: lib/tuist_web/helpers/test_labels.ex:24
+#, elixir-autogen, elixir-format
+msgid "Test Suite"
+msgstr "ტესტის სუიტა"
+
+#: lib/tuist_web/helpers/test_labels.ex:27
+#: lib/tuist_web/live/test_run_live.html.heex:468
+#, elixir-autogen, elixir-format
+msgid "Test Suites"
+msgstr "ტესტის სუიტები"
+
+#: lib/tuist_web/live/test_cases_live.ex:70
+#: lib/tuist_web/live/test_run_live.html.heex:1083
+#: lib/tuist_web/live/test_run_live.html.heex:1091
+#: lib/tuist_web/live/test_run_live.html.heex:1129
+#, elixir-autogen, elixir-format
+msgid "Test case"
+msgstr "ტესტის შემთხვევა"
+
+#: lib/tuist_web/live/test_case_live.ex:31
+#: lib/tuist_web/live/test_case_live.ex:36
+#, elixir-autogen, elixir-format
+msgid "Test case not found."
+msgstr "ტესტის შემთხვევა არ მოიძებნა."
+
+#: lib/tuist_web/live/test_case_run_live.ex:37
+#: lib/tuist_web/live/test_case_run_live.ex:41
+#, elixir-autogen, elixir-format
+msgid "Test case run not found."
+msgstr "ტესტის გაშვების მაგალითი ვერ მოიძებნა."
+
+#: lib/tuist_web/live/test_case_live.html.heex:227
+#: lib/tuist_web/live/test_cases_live.ex:338
+#: lib/tuist_web/live/test_cases_live.html.heex:86
+#, elixir-autogen, elixir-format
+msgid "Test case runs"
+msgstr "ტესტის გაშვების შემთხვევები"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:88
+#, elixir-autogen, elixir-format
+msgid "Test case runs represents the total number of individual test case executions during a given period."
+msgstr "ტესტის გაშვების რიცხვი წარმოადგენს ინდივიდუალური ტესტის გაშვები რაოდენობას მოცემულ პერიოდში."
+
+#: lib/tuist_web/live/test_cases_live.ex:329
+#: lib/tuist_web/live/test_cases_live.html.heex:220
+#: lib/tuist_web/live/test_run_live.ex:986
+#: lib/tuist_web/live/test_run_live.ex:1043
+#: lib/tuist_web/live/test_run_live.html.heex:364
+#: lib/tuist_web/live/test_run_live.html.heex:1276
+#: lib/tuist_web/live/test_run_live.html.heex:1300
+#: lib/tuist_web/live/test_run_live.html.heex:1372
+#: lib/tuist_web/live/test_run_live.html.heex:1494
+#: lib/tuist_web/live/test_run_live.html.heex:1526
+#: lib/tuist_web/live/test_run_live.html.heex:1612
+#, elixir-autogen, elixir-format
+msgid "Test cases"
+msgstr "ტესტის შემთხვევები"
+
+#: lib/tuist_web/live/test_case_live.html.heex:276
+#, elixir-autogen, elixir-format
+msgid "Test history"
+msgstr "ტესტის ისტორია"
+
+#: lib/tuist_web/live/test_case_live.html.heex:212
+#, elixir-autogen, elixir-format
+msgid "Test reliability"
+msgstr "ტესტის სანდოობა"
+
+#: lib/tuist_web/live/test_runs_live.ex:321
+#: lib/tuist_web/live/test_runs_live.html.heex:86
+#, elixir-autogen, elixir-format
+msgid "Test run count"
+msgstr "ტესტის გაშვების რაოდენობა"
+
+#: lib/tuist_web/live/test_runs_live.html.heex:88
+#, elixir-autogen, elixir-format
+msgid "Test run count represents a number of how many test runs were run during a given period. A test run is executed by either running 'tuist test' or 'tuist xcodebuild test'."
+msgstr "ტესტის გაშვების რაოდენობა აღნიშნავს, რამდენი ტესტის გაშვება იქნა გაკეთებული მოცემულ პერიოდში. ტესტი გაშვებულია 'tuist test' ან 'tuist xcodebuild test' ბრძანების საშუალებით."
+
+#: lib/tuist_web/live/test_run_live.ex:40
+#: lib/tuist_web/live/test_run_live.ex:44
+#, elixir-autogen, elixir-format
+msgid "Test run not found."
+msgstr "ტესტის გაშვება ვერ მოიძებნა."
+
+#: lib/tuist_web/live/tests_live.html.heex:118
+#: lib/tuist_web/live/tests_live.html.heex:478
+#, elixir-autogen, elixir-format
+msgid "Test runs"
+msgstr "ტესტის გაშვები"
+
+#: lib/tuist_web/live/tests_live.ex:27
+#, elixir-autogen, elixir-format
+msgid "Tests"
+msgstr "ტესტები"
+
+#: lib/tuist_web/helpers/attachment_helpers.ex:23
+#, elixir-autogen, elixir-format
+msgid "Text File"
+msgstr "ტექსტის ფაილი"
+
+#: lib/tuist_web/live/tests_live.html.heex:186
+#, elixir-autogen, elixir-format
+msgid "The average test run duration with individual percentile intervals."
+msgstr "ტესტის საშუალო გაშვების ხანგრძლივობა ინდივიდუალური პროცენტული ინტერვალებით."
+
+#: lib/tuist_web/live/tests_live.html.heex:152
+#, elixir-autogen, elixir-format
+msgid "The number of test runs that failed."
+msgstr "მარცხის რაოდენობა ტესტის გაშვების."
+
+#: lib/tuist_web/live/tests_live.html.heex:135
+#, elixir-autogen, elixir-format
+msgid "The number of test runs with flaky tests."
+msgstr "ტესტის გაშვების რაოდენობა, რომელშიც იყო ფლაკი ტესტები."
+
+#: lib/tuist_web/live/tests_live.html.heex:120
+#, elixir-autogen, elixir-format
+msgid "The total number of test runs."
+msgstr "ტესტის გაშვების ჯამური რაოდენობა."
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:36
+#, elixir-autogen, elixir-format
+msgid "Total modules"
+msgstr "მთლიანად მოდულები"
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:38
+#, elixir-autogen, elixir-format
+msgid "Total modules represents the total number of testable modules."
+msgstr "მთლიანად მოდულები წარმოადგენს ყველა ტესტირებად მოდულს."
+
+#: lib/tuist_web/live/test_run_live.html.heex:365
+#, elixir-autogen, elixir-format
+msgid "Total number of test cases executed."
+msgstr "ტესტის გაშვების საერთო რაოდენობა."
+
+#: lib/tuist_web/live/test_case_live.html.heex:229
+#, elixir-autogen, elixir-format
+msgid "Total number of times this test case has been executed."
+msgstr "რამდენჯერ გაშვებულა ეს ტესტის შემთხვევა."
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:172
+#, elixir-autogen, elixir-format
+msgid "Try changing your search term"
+msgstr "ცადეთ შეცვალოთ საძიებო ტერმინი"
+
+#: lib/tuist_web/live/test_case_live.html.heex:599
+#: lib/tuist_web/live/test_run_live.html.heex:1232
+#: lib/tuist_web/live/test_run_live.html.heex:1447
+#: lib/tuist_web/live/test_run_live.html.heex:1682
+#, elixir-autogen, elixir-format
+msgid "Try updating your search"
+msgstr "ცადეთ განაახლოთ თქვენი საძიებო სისტემის მონაცემები"
+
+#: lib/tuist_web/live/quarantined_tests_live.ex:80
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:359
+#, elixir-autogen, elixir-format
+msgid "Tuist"
+msgstr "Tuist"
+
+#: lib/tuist_web/live/test_run_live.html.heex:412
+#, elixir-autogen, elixir-format
+msgid "Tuist version"
+msgstr "Tuist-ის ვერსია"
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:162
+#: lib/tuist_web/live/shards_live.html.heex:555
+#: lib/tuist_web/live/shards_live.html.heex:562
+#: lib/tuist_web/live/test_case_live.html.heex:518
+#: lib/tuist_web/live/test_case_live.html.heex:552
+#: lib/tuist_web/live/test_case_run_live.html.heex:174
+#: lib/tuist_web/live/test_case_run_live.html.heex:183
+#: lib/tuist_web/live/test_case_run_live.html.heex:190
+#: lib/tuist_web/live/test_case_run_live.html.heex:219
+#: lib/tuist_web/live/test_run_live.html.heex:49
+#: lib/tuist_web/live/test_run_live.html.heex:70
+#: lib/tuist_web/live/test_run_live.html.heex:89
+#: lib/tuist_web/live/test_run_live.html.heex:306
+#: lib/tuist_web/live/test_run_live.html.heex:315
+#: lib/tuist_web/live/test_run_live.html.heex:324
+#: lib/tuist_web/live/test_runs_live.html.heex:492
+#: lib/tuist_web/live/tests_live.ex:479
+#: lib/tuist_web/live/tests_live.html.heex:940
+#: lib/tuist_web/live/tests_live.html.heex:965
+#, elixir-autogen, elixir-format
+msgid "Unknown"
+msgstr "უცნობი"
+
+#: lib/tuist_web/helpers/failure_message.ex:45
+#, elixir-autogen, elixir-format
+msgid "Unknown error"
+msgstr "უცნობი შეცდომა"
+
+#: lib/tuist_web/live/test_case_live.html.heex:94
+#, elixir-autogen, elixir-format
+msgid "Unmark as flaky"
+msgstr "გადაახიე როგორც ფლაკი აღარ არის"
+
+#: lib/tuist_web/live/test_case_live.ex:473
+#, elixir-autogen, elixir-format
+msgid "Unmarked as flaky"
+msgstr "მონიშნული აღარ არის როგორც ფლაკი"
+
+#: lib/tuist_web/live/test_case_live.html.heex:299
+#: lib/tuist_web/live/test_case_run_live.html.heex:237
+#: lib/tuist_web/live/test_run_live.html.heex:531
+#: lib/tuist_web/live/test_run_live.html.heex:874
+#: lib/tuist_web/live/tests_live.html.heex:846
+#: lib/tuist_web/live/tests_live.html.heex:1018
+#: lib/tuist_web/live/tests_live.html.heex:1075
+#, elixir-autogen, elixir-format
+msgid "View more"
+msgstr "იხილეთ მეტი"
+
+#: lib/tuist_web/live/test_run_live.html.heex:329
+#, elixir-autogen, elixir-format
+msgid "macOS version"
+msgstr "macOS ვერსია"
+
+#: lib/tuist_web/live/shards_live.html.heex:387
+#: lib/tuist_web/live/shards_live.html.heex:505
+#: lib/tuist_web/live/test_cases_live.html.heex:446
+#: lib/tuist_web/live/test_runs_live.html.heex:397
+#: lib/tuist_web/live/tests_live.html.heex:395
+#: lib/tuist_web/live/tests_live.html.heex:799
+#, elixir-autogen, elixir-format
+msgid "p50"
+msgstr "p50"
+
+#: lib/tuist_web/live/test_cases_live.ex:362
+#: lib/tuist_web/live/test_cases_live.html.heex:149
+#, elixir-autogen, elixir-format
+msgid "p50 test case run duration"
+msgstr "p50 ტესტის გაშვების ხანგრძლივობა"
+
+#: lib/tuist_web/live/test_runs_live.ex:343
+#: lib/tuist_web/live/test_runs_live.html.heex:138
+#: lib/tuist_web/live/tests_live.html.heex:173
+#, elixir-autogen, elixir-format
+msgid "p50 test run duration"
+msgstr "p50 ტესტის გაშვების ხანგრძლივობა"
+
+#: lib/tuist_web/live/shards_live.html.heex:374
+#: lib/tuist_web/live/shards_live.html.heex:492
+#: lib/tuist_web/live/test_cases_live.html.heex:433
+#: lib/tuist_web/live/test_runs_live.html.heex:384
+#: lib/tuist_web/live/tests_live.html.heex:382
+#: lib/tuist_web/live/tests_live.html.heex:783
+#, elixir-autogen, elixir-format
+msgid "p90"
+msgstr "p90"
+
+#: lib/tuist_web/live/test_cases_live.ex:359
+#: lib/tuist_web/live/test_cases_live.html.heex:148
+#, elixir-autogen, elixir-format
+msgid "p90 test case run duration"
+msgstr "p90 ტესტის გაშვების ხანგრძლივობა"
+
+#: lib/tuist_web/live/test_runs_live.ex:340
+#: lib/tuist_web/live/test_runs_live.html.heex:137
+#: lib/tuist_web/live/tests_live.html.heex:172
+#, elixir-autogen, elixir-format
+msgid "p90 test run duration"
+msgstr "p90 ტესტის გაშვების ხანგრძლივობა"
+
+#: lib/tuist_web/live/shards_live.html.heex:361
+#: lib/tuist_web/live/shards_live.html.heex:479
+#: lib/tuist_web/live/test_cases_live.html.heex:420
+#: lib/tuist_web/live/test_runs_live.html.heex:371
+#: lib/tuist_web/live/tests_live.html.heex:369
+#: lib/tuist_web/live/tests_live.html.heex:767
+#, elixir-autogen, elixir-format
+msgid "p99"
+msgstr "p99"
+
+#: lib/tuist_web/live/test_cases_live.ex:356
+#: lib/tuist_web/live/test_cases_live.html.heex:147
+#, elixir-autogen, elixir-format
+msgid "p99 test case run duration"
+msgstr "p99 ტესტის გაშვების ხანგრძლივობა"
+
+#: lib/tuist_web/live/test_runs_live.ex:337
+#: lib/tuist_web/live/test_runs_live.html.heex:136
+#: lib/tuist_web/live/tests_live.html.heex:171
+#, elixir-autogen, elixir-format
+msgid "p99 test run duration"
+msgstr "p99 ტესტის გაშვების ხანგრძლივობა"
+
+#: lib/tuist_web/live/flaky_tests_live.ex:284
+#: lib/tuist_web/live/quarantined_tests_live.ex:280
+#: lib/tuist_web/live/shards_live.ex:338
+#: lib/tuist_web/live/test_cases_live.ex:388
+#: lib/tuist_web/live/test_runs_live.ex:362
+#: lib/tuist_web/live/tests_live.ex:416
+#, elixir-autogen, elixir-format
+msgid "since last month"
+msgstr "ბოლო თვის შემდეგ"
+
+#: lib/tuist_web/live/flaky_tests_live.ex:283
+#: lib/tuist_web/live/quarantined_tests_live.ex:279
+#: lib/tuist_web/live/shards_live.ex:337
+#: lib/tuist_web/live/test_cases_live.ex:387
+#: lib/tuist_web/live/test_runs_live.ex:361
+#: lib/tuist_web/live/tests_live.ex:415
+#, elixir-autogen, elixir-format
+msgid "since last period"
+msgstr "ბოლო პერიოდის შემდეგ"
+
+#: lib/tuist_web/live/flaky_tests_live.ex:281
+#: lib/tuist_web/live/quarantined_tests_live.ex:277
+#: lib/tuist_web/live/shards_live.ex:335
+#: lib/tuist_web/live/test_cases_live.ex:385
+#: lib/tuist_web/live/test_runs_live.ex:359
+#: lib/tuist_web/live/tests_live.ex:413
+#, elixir-autogen, elixir-format
+msgid "since last week"
+msgstr "ბოლო კვირის შემდეგ"
+
+#: lib/tuist_web/live/flaky_tests_live.ex:282
+#: lib/tuist_web/live/quarantined_tests_live.ex:278
+#: lib/tuist_web/live/shards_live.ex:336
+#: lib/tuist_web/live/test_cases_live.ex:386
+#: lib/tuist_web/live/test_runs_live.ex:360
+#: lib/tuist_web/live/tests_live.ex:414
+#, elixir-autogen, elixir-format
+msgid "since last year"
+msgstr "ბოლო წლის შემდეგ"
+
+#: lib/tuist_web/live/flaky_tests_live.ex:280
+#: lib/tuist_web/live/quarantined_tests_live.ex:276
+#: lib/tuist_web/live/shards_live.ex:334
+#: lib/tuist_web/live/test_cases_live.ex:384
+#: lib/tuist_web/live/test_runs_live.ex:358
+#: lib/tuist_web/live/tests_live.ex:412
+#, elixir-autogen, elixir-format
+msgid "since yesterday"
+msgstr "გუშინ მომხდარიდან"
+
+#: lib/tuist_web/live/test_run_live.html.heex:524
+#: lib/tuist_web/live/test_run_live.html.heex:867
+#: lib/tuist_web/live/test_run_live.html.heex:1744
+#: lib/tuist_web/live/test_run_live.html.heex:1979
+#, elixir-autogen, elixir-format
+msgid "•"
+msgstr "•"
+
+#: lib/tuist_web/live/shards_live.ex:322
+#: lib/tuist_web/live/shards_live.html.heex:137
+#, elixir-autogen, elixir-format
+msgid "Avg. shard balance"
+msgstr "შარდის საშუალო ბალანსი"
+
+#: lib/tuist_web/live/shards_live.ex:299
+#: lib/tuist_web/live/shards_live.html.heex:75
+#, elixir-autogen, elixir-format
+msgid "Avg. shard count"
+msgstr "შარდის საშუალო რაოდენობა"
+
+#: lib/tuist_web/live/shards_live.html.heex:558
+#, elixir-autogen, elixir-format
+msgid "Granularity"
+msgstr "გრანულარობა"
+
+#: lib/tuist_web/live/shards_live.html.heex:144
+#, elixir-autogen, elixir-format
+msgid "How evenly test duration is distributed across shards. 100% means perfectly balanced."
+msgstr "როგორ თანაბრად განაწილებულია ტესტის ხანგრძლივობა შარდებს შორის. 100% ნიშნავს სრულად დაბალანსებულს."
+
+#: lib/tuist_web/live/shards_live.ex:33
+#: lib/tuist_web/live/shards_live.html.heex:578
+#: lib/tuist_web/live/shards_live.html.heex:606
+#: lib/tuist_web/live/test_run_live.html.heex:287
+#: lib/tuist_web/live/test_run_live.html.heex:487
+#, elixir-autogen, elixir-format
+msgid "In Progress"
+msgstr "მიმდინარეობს"
+
+#: lib/tuist_web/live/test_run_live.html.heex:251
+#, elixir-autogen, elixir-format
+msgid "In progress"
+msgstr "მიმდინარეობს"
+
+#: lib/tuist_web/live/shards_live.html.heex:625
+#, elixir-autogen, elixir-format
+msgid "No sharded runs"
+msgstr "შარდებული გაშვები არ არის"
+
+#: lib/tuist_web/live/shards_live.html.heex:82
+#, elixir-autogen, elixir-format
+msgid "Number of shards used per sharded run during a given period."
+msgstr "შარდული გაშვების დროს გამოყენებული შარდების რაოდენობა მოცემულ პერიოდში."
+
+#: lib/tuist_web/live/test_run_live.html.heex:504
+#, elixir-autogen, elixir-format
+msgid "Pending"
+msgstr "მოსალოდნელი"
+
+#: lib/tuist_web/live/test_case_run_live.html.heex:197
+#: lib/tuist_web/live/test_run_live.ex:1105
+#: lib/tuist_web/live/test_run_live.html.heex:459
+#: lib/tuist_web/live/test_run_live.html.heex:1184
+#: lib/tuist_web/live/test_run_live.html.heex:1364
+#: lib/tuist_web/live/test_run_live.html.heex:1590
+#, elixir-autogen, elixir-format
+msgid "Shard"
+msgstr "შარდი"
+
+#: lib/tuist_web/live/test_case_run_live.html.heex:201
+#: lib/tuist_web/live/test_run_live.ex:1099
+#: lib/tuist_web/live/test_run_live.html.heex:461
+#: lib/tuist_web/live/test_run_live.html.heex:1187
+#: lib/tuist_web/live/test_run_live.html.heex:1367
+#: lib/tuist_web/live/test_run_live.html.heex:1593
+#, elixir-autogen, elixir-format
+msgid "Shard %{index}"
+msgstr "შარდი %{index}"
+
+#: lib/tuist_web/live/shards_live.ex:282
+#, elixir-autogen, elixir-format
+msgid "Sharded run count"
+msgstr "შარდული გაშვების რაოდენობა"
+
+#: lib/tuist_web/live/shards_live.ex:22
+#: lib/tuist_web/live/shards_live.html.heex:51
+#: lib/tuist_web/live/shards_live.html.heex:587
+#: lib/tuist_web/live/test_run_live.html.heex:444
+#, elixir-autogen, elixir-format
+msgid "Shards"
+msgstr "შარდები"
+
+#: lib/tuist_web/live/test_run_live.html.heex:455
+#, elixir-autogen, elixir-format
+msgid "The shards are in progress..."
+msgstr "შარდები მიმდინარეობს..."
+
+#: lib/tuist_web/live/shards_live.html.heex:57
+#, elixir-autogen, elixir-format
+msgid "Total sharded runs"
+msgstr "საერთო შარდული გაშვები"
+
+#: lib/tuist_web/live/shards_live.ex:319
+#: lib/tuist_web/live/shards_live.html.heex:140
+#, elixir-autogen, elixir-format
+msgid "p50 shard balance"
+msgstr "p50 შარდის ბალანსი"
+
+#: lib/tuist_web/live/shards_live.ex:296
+#: lib/tuist_web/live/shards_live.html.heex:78
+#, elixir-autogen, elixir-format
+msgid "p50 shard count"
+msgstr "p50 შარდის რაოდენობა"
+
+#: lib/tuist_web/live/shards_live.ex:316
+#: lib/tuist_web/live/shards_live.html.heex:139
+#, elixir-autogen, elixir-format
+msgid "p90 shard balance"
+msgstr "p90 შარდის ბალანსი"
+
+#: lib/tuist_web/live/shards_live.ex:293
+#: lib/tuist_web/live/shards_live.html.heex:77
+#, elixir-autogen, elixir-format
+msgid "p90 shard count"
+msgstr "p90 შარდის რაოდენობა"
+
+#: lib/tuist_web/live/shards_live.ex:313
+#: lib/tuist_web/live/shards_live.html.heex:138
+#, elixir-autogen, elixir-format
+msgid "p99 shard balance"
+msgstr "p99 შარდის ბალანსი"
+
+#: lib/tuist_web/live/shards_live.ex:290
+#: lib/tuist_web/live/shards_live.html.heex:76
+#, elixir-autogen, elixir-format
+msgid "p99 shard count"
+msgstr "p99 შარდის რაოდენობა"
+
+#: lib/tuist_web/live/test_runs_live.html.heex:478
+#, elixir-autogen, elixir-format
+msgid "Processing"
+msgstr "პროცესშია"
+
+#: lib/tuist_web/live/test_run_live.html.heex:176
+#, elixir-autogen, elixir-format
+msgid "Refresh"
+msgstr "განახლება"
+
+#: lib/tuist_web/live/test_run_live.html.heex:169
+#, elixir-autogen, elixir-format
+msgid "This usually takes a few seconds. If the page doesn't update automatically, click the refresh button."
+msgstr "ეს ჩვეულებრივ რამდენიმე წამს საჭიროებს. თუ გვერდი არ განახლდება ავტომატურად, დააჭირეთ განახლების ღილაკს."
+
+#: lib/tuist_web/live/test_run_live.html.heex:166
+#, elixir-autogen, elixir-format
+msgid "Your test results are being processed"
+msgstr "თქვენი ტესტის შედეგები მუშავდება"
+
+#: lib/tuist_web/live/test_case_run_live.html.heex:842
+#, elixir-autogen, elixir-format
+msgid "Argument"
+msgstr "არგუმენტი"
+
+#: lib/tuist_web/live/test_case_run_live.html.heex:836
+#, elixir-autogen, elixir-format
+msgid "Arguments"
+msgstr "არგუმენტები"
+
+#: lib/tuist_web/live/xcode_overview_live.html.heex:178
+#, elixir-autogen, elixir-format
+msgid "The average test run duration."
+msgstr "ტესტის გაშვების საშუალო ხანგრძლივობა."
+
+#: lib/tuist_web/live/test_run_live.html.heex:339
+#, elixir-autogen, elixir-format
+msgid "Device"
+msgid_plural "Devices"
+msgstr[0] "მოწყობილობა"
+msgstr[1] "მოწყობილობები"
+
+#: lib/tuist_web/live/tests_live.ex:469
+#: lib/tuist_web/live/tests_live.ex:475
+#: lib/tuist_web/live/tests_live.html.heex:268
+#, elixir-autogen, elixir-format
+msgid "Environment"
+msgstr "გარემო"
+
+#: lib/tuist_web/live/tests_live.ex:482
+#, elixir-autogen, elixir-format
+msgid "Passed (flaky)"
+msgstr "გაიარე (ფლაკი)"
+
+#: lib/tuist_web/live/tests_live.html.heex:415
+#, elixir-autogen, elixir-format
+msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering by scheme or other properties to narrow down the dataset."
+msgstr "მოაღწია 10,000 ჩანაწერის ლიმიტს, მონაცემები შედის მხოლოდ %{date}-მდე. სცადეთ ფილტრაცია სქემის ან სხვა თვისებებით, რათა შეამციროთ მონაცემთა ნაკრები."
+
+#: lib/tuist_web/live/tests_live.html.heex:816
+#, elixir-autogen, elixir-format
+msgid "The 10,000 entry limit has been reached, data is only included up to %{date}. Try filtering to narrow down the dataset."
+msgstr "მოაღწია 10,000 ჩანაწერის ლიმიტს, მონაცემები შედის მხოლოდ %{date}-მდე. სცადეთ ფილტრაცია, რათა შეამციროთ მონაცემთა ნაკრები."
+
+#: lib/tuist_web/live/test_case_live.ex:447
+#: lib/tuist_web/live/test_case_live.ex:475
+#: lib/tuist_web/live/test_case_live.ex:477
+#: lib/tuist_web/live/test_case_live.html.heex:66
+#, elixir-autogen, elixir-format
+msgid "Enabled"
+msgstr "ჩართული"
+
+#: lib/tuist_web/live/test_cases_live.html.heex:222
+#, elixir-autogen, elixir-format
+msgid "Number of distinct test cases with at least one run in the 14 days ending on each date."
+msgstr "შეზღუდვის ტესტების ინდივიდუალური რაოდენობა მინიმუმ ერთი გაშვებით ბოლო 14 დღის განმავლობაში."
+
+#: lib/tuist_web/live/quarantined_tests_live.ex:59
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:340
+#, elixir-autogen, elixir-format
+msgid "Mode"
+msgstr "რეჟიმი"
+
+#: lib/tuist_web/live/quarantined_tests_live.ex:63
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:343
+#: lib/tuist_web/live/test_case_live.ex:445
+#: lib/tuist_web/live/test_case_live.ex:474
+#: lib/tuist_web/live/test_case_live.html.heex:75
+#: lib/tuist_web/live/test_cases_live.ex:75
+#: lib/tuist_web/live/test_cases_live.html.heex:575
+#, elixir-autogen, elixir-format
+msgid "Muted"
+msgstr "მოიმატა"
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:125
+#: lib/tuist_web/live/flaky_tests_live.html.heex:293
+#, elixir-autogen, elixir-format
+msgid "Flaky test case runs"
+msgstr "ფლაკი ტესტის გაშვები"
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:157
+#, elixir-autogen, elixir-format
+msgid "Number of test runs (build-level test invocations) that contained at least one flaky test case. Each test run is counted once even if it contained many flaky executions."
+msgstr "ტესტის გაშვების რაოდენობა (შექმნის დონის ტესტირების გამოძახება), რომლებიც შეიცავდნენ მინიმუმ ერთ ფლაკი ტესტის შემთხვევას. თითოეული გაშვება ითვლება ერთხელ, მიუხედავად იმისა, რამდენი ფლაკი გაშვება ჰქონდა."
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:96
+#, elixir-autogen, elixir-format
+msgid "Number of unique test cases currently flagged as flaky at the end of the period. Each test case is counted at most once, regardless of how often it flaked."
+msgstr "ტესტის ინდივიდუალური შემთხვევების რაოდენობა, რომლებიც ფლაგირებული არიან ფლაკის სახით პერიოდში დასასრულს. თითოეული შემთხვევა ითვლება მაქსიმუმ ერთხელ, რამდენჯერაც ფლაკი იყო."
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:127
+#, elixir-autogen, elixir-format
+msgid "Total number of individual test case executions marked as flaky in the period. A single test case can be counted many times if it flaked across multiple runs."
+msgstr "ტესტის ინდივიდუალური გაშვების რაოდენობა, რომელიც მონიშნულია როგორც ფლაკი პერიოდში. ერთი შემთხვევა შეიძლება რამდენჯერმე ჩაითვალოს, თუ ფლაკი ჩანდა მრავალ გაშვებაზე."
+
+#: lib/tuist_web/live/flaky_tests_live.html.heex:94
+#: lib/tuist_web/live/flaky_tests_live.html.heex:292
+#, elixir-autogen, elixir-format
+msgid "Flagged flaky test cases"
+msgstr "ფლაგირებული ფლაკი ტესტის შემთხვევები"
+
+#: lib/tuist_web/live/test_run_live.html.heex:265
+#: lib/tuist_web/live/test_runs_live.html.heex:483
+#, elixir-autogen, elixir-format
+msgid "Failed processing"
+msgstr "მკვდარი დამუშავება"
+
+#: lib/tuist_web/components/runs/selective_testing_tab.ex:82
+#, elixir-autogen, elixir-format
+msgid "Copy as JSON"
+msgstr "კოპირება JSON-ის სახით"
+
+#: lib/tuist_web/live/test_run_live.html.heex:131
+#, elixir-autogen, elixir-format
+msgid "Download session"
+msgstr "სესიების გადმოწერა"
+
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:84
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:213
+#, elixir-autogen, elixir-format
+msgid "Muted tests"
+msgstr "დაბლოკილი ტესტები"
+
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:86
+#, elixir-autogen, elixir-format
+msgid "Number of muted test cases at the end of the period. Muted tests still execute but their failures are ignored."
+msgstr "დაბლოკილი ტესტის რაოდენობა პერიოდში დასასრულს. დაბლოკილი ტესტები ჯერ კიდევ იშვება, თუმცა მათი მარცხი არ ითვლება."
+
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:112
+#, elixir-autogen, elixir-format
+msgid "Number of skipped test cases at the end of the period. Skipped tests are not executed at all."
+msgstr "გამოტოვებული ტესტის შემთხვევების რაოდენობა პერიოდს დასასრულს. გამოტოვებული ტესტები საერთოდ არ იშვება."
+
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:62
+#, elixir-autogen, elixir-format
+msgid "Number of test cases currently quarantined at the end of the period. Combines both muted and skipped tests."
+msgstr "ტესტის შემთხვევების რაოდენობა, რომლებიც ახლაც კარანტინში არიან პერიოდის ბოლოს. მოიცავს როგორც დაბლოკილ, ასევე გამოტოვებულ ტესტებს."
+
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:110
+#: lib/tuist_web/live/quarantined_tests_live.html.heex:214
+#, elixir-autogen, elixir-format
+msgid "Skipped tests"
+msgstr "გამოტოვებული ტესტები"
+
+#: lib/tuist_web/live/test_case_live.ex:483
+#, elixir-autogen, elixir-format
+msgid "By automation %{name}"
+msgstr "ავტომატიზაციის საშუალებით: %{name}"

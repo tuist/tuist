@@ -15,18 +15,14 @@ public struct ServerUser: Codable {
         self.name = name
         self.email = email
     }
-}
 
-extension ServerUser {
     init(_ user: Components.Schemas.User) {
         id = Int(user.id)
         name = user.name
         email = user.email
     }
-}
 
-#if MOCKING
-    extension ServerUser {
+    #if MOCKING
         public static func test(
             id: Int = 0,
             name: String = "test",
@@ -38,5 +34,5 @@ extension ServerUser {
                 email: email
             )
         }
-    }
-#endif
+    #endif
+}

@@ -1,0 +1,6 @@
+/_build/
+/deps/
+/doc/
+/cover/
+/*.ez
+/*.tar

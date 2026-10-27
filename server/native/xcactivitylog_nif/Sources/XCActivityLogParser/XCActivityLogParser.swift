@@ -1,0 +1,700 @@
+import Foundation
+import Path
+import XCLogParser
+
+public struct XCActivityLogParser: Sendable {
+    public init() {}
+
+    public func parse(
+        xcactivitylogURL: URL,
+        casAnalyticsDatabasePath: AbsolutePath,
+        legacyCASMetadataPath: AbsolutePath? = nil,
+        onBuildStep: (@Sendable (BuildStepData) throws -> Void)? = nil
+    ) async throws -> BuildData {
+        let activityLog = try ActivityParser().parseActivityLogInURL(
+            xcactivitylogURL,
+            redacted: false,
+            withoutBuildSpecificInformation: false
+        )
+
+        let buildStep = try ParserBuildSteps(
+            omitWarningsDetails: false,
+            omitNotesDetails: false,
+            truncLargeIssues: false
+        ).parse(activityLog: activityLog)
+
+        let steps = flattenBuildSteps([buildStep])
+        let targetSteps = steps.filter { $0.type == .target && $0.title.contains("Build target ") }
+
+        let category = determineCategory(steps: steps, targetSteps: targetSteps, activityLog: activityLog)
+        let errorCount = steps.reduce(0) { acc, step in
+            (step.errors ?? []).filter { $0.severity == 2 }.count + acc
+        }
+
+        let targets = targetSteps.map { step -> Target in
+            let subSteps = flattenBuildSteps([step])
+            let hasErrors = subSteps.contains { ($0.errors ?? []).contains { $0.severity == 2 } }
+            return Target(
+                name: step.title.replacingOccurrences(of: "Build target ", with: ""),
+                project: extractProject(from: subSteps.first { extractProject(from: [$0]).first?.project != "" }
+                    .map { [$0] } ?? []).first?.project ?? "",
+                build_duration: SafeNumeric.milliseconds(step.duration),
+                compilation_duration: SafeNumeric.milliseconds(step.compilationDuration),
+                status: hasErrors ? "failure" : "success"
+            )
+        }
+
+        let issues = extractIssues(from: steps)
+        let files = extractFiles(from: steps)
+
+        let casReader = CASMetadataReader(
+            databasePath: casAnalyticsDatabasePath,
+            legacyCASMetadataPath: legacyCASMetadataPath
+        )
+
+        let cacheableTasks = try await analyzeCacheableTasks(
+            buildSteps: steps,
+            casReader: casReader
+        )
+        let casOutputs = try await analyzeCASOutputs(
+            from: steps,
+            casReader: casReader
+        )
+
+        let duration = SafeNumeric.milliseconds(
+            activityLog.mainSection.timeStoppedRecording - activityLog.mainSection.timeStartedRecording,
+            rounding: .towardZero
+        )
+
+        return BuildData(
+            unique_identifier: activityLog.mainSection.uniqueIdentifier,
+            version: activityLog.version,
+            time_started_recording: activityLog.mainSection.timeStartedRecording,
+            time_stopped_recording: activityLog.mainSection.timeStoppedRecording,
+            duration: duration,
+            error_count: errorCount,
+            status: errorCount == 0 ? "success" : "failure",
+            category: category == .clean ? "clean" : "incremental",
+            targets: targets,
+            issues: Array(issues.prefix(1000)),
+            files: files,
+            cacheable_tasks: cacheableTasks,
+            cas_outputs: casOutputs,
+            build_steps: try extractBuildSteps(from: steps, build: buildStep, activityLog: activityLog, onBuildStep: onBuildStep)
+        )
+    }
+
+    // MARK: - Build Steps
+
+    private func extractBuildSteps(from steps: [BuildStep], build: BuildStep, activityLog: IDEActivityLog, onBuildStep: (@Sendable (BuildStepData) throws -> Void)?) throws -> [BuildStepData] {
+        let logs = BuildStepLog(root: activityLog.mainSection)
+        var targets = [String: (String, String)]()
+        var events = [BuildStepData]()
+        var swiftJobs = Set<String>()
+        for (index, step) in steps.enumerated() {
+            let inherited = targets[step.parentIdentifier] ?? ("", "")
+            let target = step.type == .target && step.title.hasPrefix("Build target ")
+                ? step.title.replacingOccurrences(of: "Build target ", with: "")
+                : inherited.0
+            let signatureProject = extractProjectFromSignature(step.signature)
+            let project = signatureProject.isEmpty ? inherited.1 : signatureProject
+            targets[step.identifier] = (target, project)
+
+            if swiftJobs.contains(step.parentIdentifier) {
+                swiftJobs.insert(step.identifier)
+                continue
+            }
+            // Container steps include their children's time. Emitting only leaf
+            // operations avoids counting Swift driver and target wrappers twice.
+            // Swift jobs are the exception: Xcode 27 records their frontend
+            // work only on the job, with a near-instant child at its end, so the
+            // job is emitted and its children are folded into it.
+            let isSwiftJob = step.type == .detail && !step.subSteps.isEmpty && buildStepCategory(step) == "swiftCompilation"
+            if isSwiftJob { swiftJobs.insert(step.identifier) }
+            guard step.type == .detail, step.subSteps.isEmpty || isSwiftJob,
+                  let (start, duration) = BuildStepData.interval(
+                      start: step.startTimestamp, end: step.endTimestamp,
+                      buildStart: build.startTimestamp, buildEnd: build.endTimestamp
+                  )
+            else { continue }
+
+            let folded = isSwiftJob ? flattenBuildSteps([step]) : [step]
+            let log = logs.extract(steps: folded)
+            let event = BuildStepData(
+                event_id: index,
+                title: String(step.title.prefix(1000)),
+                target: target,
+                project: project,
+                category: buildStepCategory(step),
+                start_ms: start,
+                duration_ms: duration,
+                status: folded.contains { ($0.errors ?? []).contains { $0.severity == 2 } } ? "failure" : "success",
+                log: log.text,
+                log_truncated: log.truncated
+            )
+            if let onBuildStep { try onBuildStep(event) } else { events.append(event) }
+        }
+        return events
+    }
+
+    private func buildStepCategory(_ step: BuildStep) -> String {
+        if step.signature.hasPrefix("SwiftCompile ") || step.signature.hasPrefix("SwiftEmitModule ")
+            || step.signature.hasPrefix("EmitSwiftModule ") {
+            return "swiftCompilation"
+        }
+        if step.signature.hasPrefix("PrecompileModule ") {
+            return "cCompilation"
+        }
+        if step.title.hasPrefix("Run custom shell script ") {
+            return "scriptExecution"
+        }
+        return step.detailStepType.rawValue
+    }
+
+    // Iterative DFS so build trees thousands of levels deep don't overflow the
+    // stack. Order matches the recursive walk: parent before children.
+    private func flattenBuildSteps(_ steps: [BuildStep]) -> [BuildStep] {
+        var result = [BuildStep]()
+        var stack = Array(steps.reversed())
+        while let step = stack.popLast() {
+            result.append(step)
+            if !step.subSteps.isEmpty {
+                stack.append(contentsOf: step.subSteps.reversed())
+            }
+        }
+        return result
+    }
+
+    // MARK: - Category
+
+    private enum BuildCategory {
+        case clean, incremental
+    }
+
+    private func determineCategory(
+        steps: [BuildStep],
+        targetSteps: [BuildStep],
+        activityLog: IDEActivityLog
+    ) -> BuildCategory {
+        let hasCompilationCache = steps.contains {
+            $0.title.contains("Swift caching") || $0.title.contains("Clang caching")
+        }
+        if hasCompilationCache {
+            let mainBuildStartTimestamp = Date(
+                timeIntervalSinceReferenceDate: activityLog.mainSection.timeStartedRecording
+            ).timeIntervalSince1970
+            let hasStaleTargets = targetSteps.contains { $0.startTimestamp < mainBuildStartTimestamp }
+            return hasStaleTargets ? .incremental : .clean
+        }
+
+        let detailSteps = steps.filter { $0.type == .detail && $0.detailStepType != .swiftAggregatedCompilation }
+        let buildSteps = detailSteps.filter {
+            $0.detailStepType != .other && $0.detailStepType != .scriptExecution && $0.detailStepType != .copySwiftLibs
+        }
+
+        let targetIdentifiers = buildTargetIdentifiers(from: steps)
+        var targetsCompiledCount = [String: Int]()
+        var targetFilesCount = [String: Int]()
+        for target in targetSteps {
+            targetsCompiledCount[target.identifier] = 0
+            targetFilesCount[target.identifier] = 0
+        }
+
+        // Tally both totals and not-fetched-from-cache counts per target in a
+        // single pass. Filtering buildSteps once per target is O(targets * buildSteps),
+        // which dominates parse time on logs with ~1k targets and ~100k build steps.
+        for step in buildSteps {
+            guard let targetID = targetIdentifiers[step.identifier] else { continue }
+            targetFilesCount[targetID, default: 0] += 1
+            if !step.fetchedFromCache {
+                targetsCompiledCount[targetID, default: 0] += 1
+            }
+        }
+
+        var cleanCount = 0
+        for (target, filesCompiledCount) in targetsCompiledCount {
+            let total = targetFilesCount[target] ?? 0
+            if filesCompiledCount == total && filesCompiledCount > 0 {
+                cleanCount += 1
+            }
+        }
+
+        return cleanCount > targetSteps.count / 2 ? .clean : .incremental
+    }
+
+    private func buildTargetIdentifiers(from steps: [BuildStep]) -> [String: String] {
+        let targetBuildSteps = steps.filter { $0.type == .target && $0.title.contains("Build target ") }
+        var identifiers = [String: String]()
+        for t in targetBuildSteps { identifiers[t.identifier] = t.identifier }
+
+        let detailSteps = steps.filter { $0.type == .detail && $0.detailStepType != .swiftAggregatedCompilation }
+        let swiftAggregated = steps.filter { $0.type == .detail && $0.detailStepType == .swiftAggregatedCompilation }
+        var aggMap = [String: String]()
+        for s in swiftAggregated { aggMap[s.identifier] = s.parentIdentifier }
+
+        for step in detailSteps.filter({ $0.detailStepType != .swiftCompilation }) {
+            identifiers[step.identifier] = step.parentIdentifier
+        }
+        for step in detailSteps.filter({ $0.detailStepType == .swiftCompilation }) {
+            if identifiers[step.parentIdentifier] == nil {
+                if let id = aggMap[step.parentIdentifier] {
+                    identifiers[step.identifier] = id
+                }
+            } else {
+                identifiers[step.identifier] = step.parentIdentifier
+            }
+        }
+        return identifiers
+    }
+
+    // MARK: - Issues
+
+    private func extractIssues(from steps: [BuildStep]) -> [Issue] {
+        var seen = Set<String>()
+        var result = [Issue]()
+        for step in steps {
+            let errors = step.errors ?? []
+            let warnings = step.warnings ?? []
+            for notice in errors + warnings {
+                let issueType: String = notice.severity == 1 ? "warning" : "error"
+
+                let key = "\(step.signature):\(notice.startingLineNumber):\(notice.startingColumnNumber):\(issueType)"
+                guard !seen.contains(key) else { continue }
+                seen.insert(key)
+
+                let path: String? = {
+                    let doc = step.documentURL.replacingOccurrences(of: "file://", with: "")
+                    return doc.isEmpty ? nil : doc
+                }()
+
+                result.append(Issue(
+                    type: issueType,
+                    target: extractTargetFromSignature(step.signature),
+                    project: extractProjectFromSignature(step.signature),
+                    title: step.title,
+                    signature: step.signature,
+                    step_type: stepTypeString(from: step.signature),
+                    path: path,
+                    message: notice.detail.flatMap(cleanIssueDetail),
+                    starting_line: SafeNumeric.location(notice.startingLineNumber),
+                    ending_line: SafeNumeric.location(notice.endingLineNumber),
+                    starting_column: SafeNumeric.location(notice.startingColumnNumber),
+                    ending_column: SafeNumeric.location(notice.endingColumnNumber)
+                ))
+            }
+        }
+        return result
+    }
+
+    // Cap raw detail before searching: pathological diagnostics (e.g. macro
+    // expansion errors) can be megabytes, and `range(of:)` is linear in the
+    // input even with `.literal`. We truncate to the final 1000-char message
+    // limit anyway, plus headroom for the preamble we strip below. UTF-16
+    // length is O(1) on native strings; grapheme `count` is not.
+    private static let issueDetailSearchCap = 4096
+    private static let issueMessageCap = 1000
+
+    private func cleanIssueDetail(_ raw: String) -> String {
+        var detail = raw
+        if detail.utf16.count > Self.issueDetailSearchCap {
+            let cap = detail.utf16.index(
+                detail.utf16.startIndex,
+                offsetBy: Self.issueDetailSearchCap,
+                limitedBy: detail.utf16.endIndex
+            ) ?? detail.utf16.endIndex
+            // Round to a Unicode scalar boundary; bail to the original string
+            // if the cap landed inside a surrogate pair (rare, but cheap to
+            // handle correctly).
+            detail = String.Index(cap, within: detail).map { String(detail[..<$0]) } ?? detail
+        }
+        // `.literal` skips canonical equivalence so the search runs on raw
+        // UTF-16 code units instead of grapheme clusters — this is what
+        // takes the parse from minutes to seconds on builds with thousands
+        // of diagnostics.
+        if let r = detail.range(of: "warning: ", options: .literal) {
+            detail = String(detail[r.upperBound...])
+        }
+        if let r = detail.range(of: "error: ", options: .literal) {
+            detail = String(detail[r.upperBound...])
+        }
+        if let r = detail.range(of: " ^~", options: .literal) {
+            detail = String(detail[..<r.lowerBound])
+        }
+        if detail.utf16.count > Self.issueMessageCap {
+            let cap = detail.utf16.index(
+                detail.utf16.startIndex,
+                offsetBy: Self.issueMessageCap,
+                limitedBy: detail.utf16.endIndex
+            ) ?? detail.utf16.endIndex
+            if let stringIdx = String.Index(cap, within: detail) {
+                detail = String(detail[..<stringIdx]) + "..."
+            }
+        }
+        return detail
+    }
+
+    // MARK: - Files
+
+    private func extractFiles(from steps: [BuildStep]) -> [File] {
+        steps.compactMap { step -> File? in
+            guard step.type == .detail else { return nil }
+            let fileType: String
+            switch step.detailStepType {
+            case .swiftCompilation: fileType = "swift"
+            case .cCompilation: fileType = "c"
+            default:
+                if step.signature.hasPrefix("SwiftCompile ") { fileType = "swift" }
+                else { return nil }
+            }
+            guard !step.title.hasPrefix("Emit") else { return nil }
+
+            let doc = step.documentURL.replacingOccurrences(of: "file://", with: "")
+            guard !doc.isEmpty else { return nil }
+
+            return File(
+                type: fileType,
+                target: extractTargetFromSignature(step.signature),
+                project: extractProjectFromSignature(step.signature),
+                path: doc,
+                compilation_duration: SafeNumeric.milliseconds(step.compilationDuration)
+            )
+        }
+    }
+
+    // MARK: - Cache Analysis
+
+    private func analyzeCacheableTasks(
+        buildSteps: [BuildStep],
+        casReader: CASMetadataReader
+    ) async throws -> [CacheableTask] {
+        var keyStatuses = [String: (taskType: String, hasQuery: Bool, hasMaterialize: Bool, hasUpload: Bool, isMiss: Bool)]()
+        var keyDescriptions = [String: String]()
+        var keyNodeIDs = [String: Set<String>]()
+        var keyNotes = [String: CacheNote]()
+        var jobs = CacheJobs()
+
+        for step in buildSteps {
+            guard step.title.contains("Swift caching") || step.title.contains("Clang caching") else { continue }
+            let taskType = step.title.contains("Swift caching") ? "swift" : "clang"
+            let keys = extractCacheKeys(from: step.title)
+            guard !keys.isEmpty else { continue }
+
+            let operation: String?
+            if step.title.contains("query key") { operation = "query" }
+            else if step.title.contains("materialize key") { operation = "materialize" }
+            else if step.title.contains("upload key") { operation = "upload" }
+            else { operation = nil }
+
+            guard let op = operation else { continue }
+            jobs.join(keys)
+
+            // Swift query steps say `cache key query miss`. Xcode 27's clang query
+            // steps say `cache miss`, and `cache hit` when the remote serves the key.
+            let isMiss = step.notes?.contains { $0.title == "cache key query miss" || $0.title == "cache miss" } ?? false
+            for key in keys {
+                var status = keyStatuses[key] ?? (taskType: taskType, hasQuery: false, hasMaterialize: false, hasUpload: false, isMiss: false)
+                status.taskType = taskType
+                if op == "query" { status.hasQuery = true }
+                if op == "materialize" { status.hasMaterialize = true }
+                if op == "upload" { status.hasUpload = true }
+                if isMiss { status.isMiss = true }
+                keyStatuses[key] = status
+            }
+        }
+
+        for step in buildSteps {
+            guard let notes = step.notes else { continue }
+            let cacheNotes = notes.compactMap { cacheNote($0.title) }
+            for note in cacheNotes {
+                keyDescriptions[note.key] = step.title
+                if keyNotes[note.key]?.isMiss != true { keyNotes[note.key] = note }
+            }
+            jobs.join(cacheNotes.map(\.key))
+            let cacheKey = extractCacheKeys(from: step.title).first ?? cacheNotes.first?.key
+            guard let ck = cacheKey else { continue }
+            for note in notes {
+                if let nodeID = extractNodeIDFromNote(note.title) {
+                    keyNodeIDs[ck, default: []].insert(nodeID)
+                } else if let nodeID = extractNodeIDFromUploadNote(note.title) {
+                    keyNodeIDs[ck, default: []].insert(nodeID)
+                }
+            }
+        }
+
+        let statuses = keyStatuses
+        let descriptions = keyDescriptions
+        let nodeIDs = keyNodeIDs
+        let notes = keyNotes
+
+        // Xcode counts one cacheable task per compile job. A batch-mode Swift job has a key
+        // per primary file, and its caching steps (`materialize key ["0~a", "0~b"]`) and
+        // compile-step notes name them together, so the job's keys become one task under
+        // its first key. The job is a miss when any of its keys missed: a failed query, a
+        // `local cache miss` replay, or a key only ever uploaded (a fresh compile we pushed).
+        return try await jobs.groups().concurrentMap(maxConcurrentTasks: 50) { keys in
+            let key = keys[0]
+            let keyStatuses = keys.compactMap { statuses[$0] }
+            let hasQuery = keyStatuses.contains(where: \.hasQuery)
+            let hasMaterialize = keyStatuses.contains(where: \.hasMaterialize)
+            let missedNote = keys.contains { notes[$0]?.isMiss == true }
+
+            let cacheStatus: String
+            if keyStatuses.isEmpty {
+                cacheStatus = missedNote ? "miss" : "hit_local"
+            } else if keyStatuses.contains(where: \.isMiss) || missedNote || (!hasQuery && !hasMaterialize) {
+                cacheStatus = "miss"
+            } else if hasQuery {
+                cacheStatus = "hit_remote"
+            } else {
+                cacheStatus = "hit_local"
+            }
+
+            var readDuration: Double?
+            var writeDuration: Double?
+            for (key, status) in zip(keys, keys.map { statuses[$0] }) {
+                guard let status else { continue }
+                if cacheStatus == "hit_remote" || cacheStatus == "miss",
+                   let duration = await casReader.readKeyValueMetadata(key: key, operationType: "read")?.duration
+                {
+                    readDuration = max(readDuration ?? 0, duration)
+                }
+                if status.hasUpload,
+                   let duration = await casReader.readKeyValueMetadata(key: key, operationType: "write")?.duration
+                {
+                    writeDuration = max(writeDuration ?? 0, duration)
+                }
+            }
+
+            return CacheableTask(
+                type: keyStatuses.first?.taskType ?? notes[key]?.taskType ?? "swift",
+                status: cacheStatus,
+                key: key,
+                read_duration: readDuration,
+                write_duration: writeDuration,
+                description: keys.lazy.compactMap { descriptions[$0] }.first,
+                cas_output_node_ids: Array(keys.reduce(into: Set<String>()) { $0.formUnion(nodeIDs[$1] ?? []) })
+            )
+        }
+    }
+
+    // MARK: - CAS Outputs
+
+    private func analyzeCASOutputs(
+        from buildSteps: [BuildStep],
+        casReader: CASMetadataReader
+    ) async throws -> [CASOutput] {
+        var downloads = [(nodeID: String, type: String)]()
+        var uploads = [(nodeID: String, type: String)]()
+
+        for step in buildSteps {
+            guard let notes = step.notes else { continue }
+            for note in notes {
+                if let meta = extractNodeIDAndTypeFromNote(note.title) {
+                    downloads.append(meta)
+                }
+            }
+            if step.title.contains("Swift caching upload key") {
+                for note in notes {
+                    if note.title.hasPrefix("uploaded CAS output "),
+                       let meta = extractNodeIDAndTypeFromUploadNote(note.title)
+                    {
+                        uploads.append(meta)
+                    }
+                }
+            }
+        }
+
+        var uniqueDownloads = [(nodeID: String, type: String)]()
+        var seenDownloads = Set<String>()
+        for meta in downloads {
+            guard !seenDownloads.contains(meta.nodeID) else { continue }
+            seenDownloads.insert(meta.nodeID)
+            uniqueDownloads.append(meta)
+        }
+
+        var uniqueUploads = [(nodeID: String, type: String)]()
+        var seenUploads = Set<String>()
+        for meta in uploads {
+            guard !seenUploads.contains(meta.nodeID) else { continue }
+            seenUploads.insert(meta.nodeID)
+            uniqueUploads.append(meta)
+        }
+
+        let allItems: [(nodeID: String, type: String, operation: String)] =
+            uniqueDownloads.map { ($0.nodeID, $0.type, "download") } +
+            uniqueUploads.map { ($0.nodeID, $0.type, "upload") }
+
+        return try await allItems.concurrentCompactMap(maxConcurrentTasks: 50) { item in
+            await createCASOutput(nodeID: item.nodeID, type: item.type, operation: item.operation, casReader: casReader)
+        }
+    }
+
+    private func createCASOutput(
+        nodeID: String,
+        type: String,
+        operation: String,
+        casReader: CASMetadataReader
+    ) async -> CASOutput? {
+        guard let checksum = await casReader.readChecksum(nodeID: nodeID),
+              let metadata = await casReader.readOutputMetadata(checksum: checksum)
+        else { return nil }
+        return CASOutput(
+            node_id: nodeID,
+            checksum: checksum,
+            size: metadata.size,
+            duration: metadata.duration,
+            compressed_size: metadata.compressedSize,
+            operation: operation,
+            type: type
+        )
+    }
+
+    // MARK: - Regex Helpers
+
+    // Swift titles list the job's keys in an array (`query key ["0~a", "0~b"]`), one per
+    // primary file of a batch-mode job. Xcode 27's clang titles carry a single key bare
+    // (`Clang caching query key 0~…`). Uploads name one key each.
+    private func extractCacheKeys(from title: String) -> [String] {
+        if title.contains("query key") || title.contains("materialize key") {
+            guard let range = title.range(of: " key ") else { return [] }
+            let regex = try? NSRegularExpression(pattern: "0~[A-Za-z0-9+/_=-]+")
+            let keys = String(title[range.upperBound...])
+            return regex?.matches(in: keys, range: NSRange(keys.startIndex..., in: keys))
+                .compactMap { Range($0.range, in: keys).map { String(keys[$0]) } } ?? []
+        } else if title.contains("upload key") {
+            return extractWithPattern("upload key ([^\\s]+)", from: title).map { [$0] } ?? []
+        }
+        return []
+    }
+
+    // Groups cache keys into the compile jobs they belong to, keeping first-seen order.
+    private struct CacheJobs {
+        private var parents = [String: String]()
+        private var order = [String]()
+
+        mutating func join(_ keys: [String]) {
+            for key in keys where parents[key] == nil {
+                parents[key] = key
+                order.append(key)
+            }
+            guard let first = keys.first else { return }
+            for key in keys.dropFirst() {
+                let (a, b) = (root(first), root(key))
+                if a != b { parents[b] = a }
+            }
+        }
+
+        mutating func groups() -> [[String]] {
+            var members = [String: [String]]()
+            var roots = [String]()
+            for key in order {
+                let r = root(key)
+                if members[r] == nil { roots.append(r) }
+                members[r, default: []].append(key)
+            }
+            return roots.compactMap { members[$0] }
+        }
+
+        private mutating func root(_ key: String) -> String {
+            var current = key
+            while let parent = parents[current], parent != current {
+                parents[current] = parents[parent]
+                current = parent
+            }
+            return current
+        }
+    }
+
+    private struct CacheNote {
+        let key: String
+        let taskType: String
+        let isMiss: Bool
+    }
+
+    // Xcode 27's clang compile steps name their key in `replayed cache hit: 0~…`
+    // or `cache miss: 0~…` rather than the `local cache … for key:` notes.
+    // swift-frontend capitalises `Local cache`. clang emits it lower-case, including
+    // the explicit module compiles that produce pcms.
+    private func cacheNote(_ noteTitle: String) -> CacheNote? {
+        let pattern = "(?i)(local cache found for key:|local cache miss for key:|replayed cache hit:|^cache miss:)\\s+(0~[A-Za-z0-9+/_=-]+)"
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: noteTitle, range: NSRange(noteTitle.startIndex..., in: noteTitle)),
+              let kindRange = Range(match.range(at: 1), in: noteTitle),
+              let keyRange = Range(match.range(at: 2), in: noteTitle)
+        else { return nil }
+        let kind = noteTitle[kindRange]
+        return CacheNote(
+            key: String(noteTitle[keyRange]),
+            taskType: kind.hasPrefix("Local cache") ? "swift" : "clang",
+            isMiss: kind.lowercased().contains("miss")
+        )
+    }
+
+    private func extractNodeIDFromNote(_ noteTitle: String) -> String? {
+        extractWithPattern("CAS output [^\\s]+: (0~[A-Za-z0-9+/_=-]+)", from: noteTitle)
+    }
+
+    private func extractNodeIDFromUploadNote(_ noteTitle: String) -> String? {
+        extractWithPattern("uploaded CAS output [^\\s]+: (0~[A-Za-z0-9+/_=-]+)", from: noteTitle)
+    }
+
+    private func extractNodeIDAndTypeFromNote(_ noteTitle: String) -> (nodeID: String, type: String)? {
+        let pattern = "(?i)using CAS output ([^\\s]+): (0~[A-Za-z0-9+/_=-]+)"
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: noteTitle, range: NSRange(noteTitle.startIndex..., in: noteTitle)),
+              let typeRange = Range(match.range(at: 1), in: noteTitle),
+              let nodeIDRange = Range(match.range(at: 2), in: noteTitle)
+        else { return nil }
+        return (nodeID: String(noteTitle[nodeIDRange]), type: String(noteTitle[typeRange]))
+    }
+
+    private func extractNodeIDAndTypeFromUploadNote(_ noteTitle: String) -> (nodeID: String, type: String)? {
+        let pattern = "uploaded CAS output ([^\\s]+): (0~[A-Za-z0-9+/_=-]+)"
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: noteTitle, range: NSRange(noteTitle.startIndex..., in: noteTitle)),
+              let typeRange = Range(match.range(at: 1), in: noteTitle),
+              let nodeIDRange = Range(match.range(at: 2), in: noteTitle)
+        else { return nil }
+        return (nodeID: String(noteTitle[nodeIDRange]), type: String(noteTitle[typeRange]))
+    }
+
+    private func extractWithPattern(_ pattern: String, from text: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let range = Range(match.range(at: 1), in: text)
+        else { return nil }
+        return String(text[range])
+    }
+
+    private func extractTargetFromSignature(_ signature: String) -> String {
+        extractWithPattern("in target '([^']+)'", from: signature) ?? ""
+    }
+
+    private func extractProjectFromSignature(_ signature: String) -> String {
+        extractWithPattern("from project '([^']+)'", from: signature) ?? ""
+    }
+
+    private func extractProject(from steps: [BuildStep]) -> [(project: String, Void)] {
+        steps.map { (project: extractProjectFromSignature($0.signature), ()) }
+    }
+
+    private func stepTypeString(from signature: String) -> String {
+        if signature.hasPrefix("CompileC ") { return "c_compilation" }
+        if signature.hasPrefix("SwiftCompile ") || signature.hasPrefix("CompileSwift ") || signature.hasPrefix("CompileSwiftSources ") { return "swift_compilation" }
+        if signature.hasPrefix("PhaseScriptExecution ") { return "script_execution" }
+        if signature.hasPrefix("CreateStaticLibrary ") || signature.hasPrefix("Libtool ") { return "create_static_library" }
+        if signature.hasPrefix("Ld ") || signature.hasPrefix("Link ") { return "linker" }
+        if signature.hasPrefix("CopySwiftLibs ") { return "copy_swift_libs" }
+        if signature.hasPrefix("CompileAssetCatalog ") { return "compile_assets_catalog" }
+        if signature.hasPrefix("CompileStoryboard ") { return "compile_storyboard" }
+        if signature.hasPrefix("WriteAuxiliaryFile ") { return "write_auxiliary_file" }
+        if signature.hasPrefix("LinkStoryboards ") { return "link_storyboards" }
+        if signature.hasPrefix("CopyResourceFile ") || signature.hasPrefix("CpResource ") { return "copy_resource_file" }
+        if signature.hasPrefix("MergeSwiftModule ") { return "merge_swift_module" }
+        if signature.hasPrefix("CompileXIB ") { return "xib_compilation" }
+        if signature.hasPrefix("PrecompileBridgingHeader ") { return "precompile_bridging_header" }
+        if signature.hasPrefix("ValidateEmbeddedBinary ") { return "validate_embedded_binary" }
+        if signature.hasPrefix("Validate ") { return "validate" }
+        return "other"
+    }
+}

@@ -1,0 +1,1265 @@
+// Command manager is the controller-manager binary for the Scaleway
+// Apple Silicon CAPI infrastructure provider. Watches
+// ScalewayAppleSiliconMachine + TuistCluster CRs and
+// reconciles them against Scaleway's Apple Silicon API: order/release
+// Mac minis, then SSH-bootstrap each into a real cluster Node.
+//
+// Bootstrap installs `tart-kubelet` on the Mac mini — a small
+// kubelet-shaped agent that registers a Node with the cluster API and
+// runs Pods scheduled to it as Tart VMs. The operator owns lifecycle
+// (provision, bootstrap, release) and produces the kubeconfig the
+// agent uses to authenticate.
+package main
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"flag"
+	"fmt"
+	"os"
+	"strings"
+	"sync"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/kubernetes"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+
+	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/linux"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/macos"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/shared"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/githubapp"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/kubeconfig"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/ovh"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/power"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/runner"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/scaleway"
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/vultr"
+	bootstrap "github.com/tuist/tuist/infra/macos-host-bootstrap"
+)
+
+var (
+	scheme   = runtime.NewScheme()
+	setupLog = ctrl.Log.WithName("setup")
+)
+
+func init() {
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(clusterv1.AddToScheme(scheme))
+	utilruntime.Must(infrav1.AddToScheme(scheme))
+}
+
+func main() {
+	var (
+		metricsAddr               string
+		probeAddr                 string
+		enableLeaderElection      bool
+		secretsNamespace          string
+		ovhPrivateNetworkConfig   string
+		vultrPrivateNetworkConfig string
+		rackCardRootSecret        string
+
+		apiServerURL                 string
+		nodeIdentityClusterRole      string
+		tartKubeletBinaryPath        string
+		tartReleasesDir              string
+		tartVersion                  string
+		tailscaleBinariesPath        string
+		nodeExporterBinaryPath       string
+		hostSensorsBinaryPath        string
+		logShipperBinaryPath         string
+		logShipURL                   string
+		logShipEnv                   string
+		tailscaleAuthKeySecretName   string
+		tailscaleTagsRaw             string
+		tailscaleAcceptRoutes        bool
+		vmKuraEgressCIDR             string
+		vmClusterDNSIP               string
+		vmCachePNName                string
+		vmCachePNCIDR                string
+		sshIngressAllowRaw           string
+		tartKubeletHostCPU           int
+		tartKubeletHostMemory        int
+		tartKubeletMaxPods           int
+		tartKubeletGuestCapacity     int
+		runnerCacheVolumeGiB         int
+		customCacheURL               string
+		customCacheNamespace         string
+		customCacheSA                string
+		tartKubeletMaxUpdateAttempts int
+		terminalRetryAfter           time.Duration
+		bootstrapRebootAfter         int
+		bootstrapMaxAttempts         int
+
+		machineMaxConcurrentReconciles int
+
+		fleetSpreadDeployment string
+		fleetSpreadNamespace  string
+
+		egressNamespace      string
+		egressProxyGroup     string
+		egressMagicDNSSuffix string
+		egressProxyTags      string
+
+		defaultAdoptPoolPrefix       string
+		orphanReclaimClaimNamePrefix string
+		orphanReclaimZonesRaw        string
+		orphanReclaimInterval        time.Duration
+	)
+	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
+	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
+	flag.BoolVar(&enableLeaderElection, "leader-elect", true,
+		"Single-leader election; required when running >1 replica")
+	flag.StringVar(&secretsNamespace, "secrets-namespace", "default",
+		"Namespace where the operator stores per-fleet SSH key Secrets")
+	flag.StringVar(&vultrPrivateNetworkConfig, "vultr-private-network-config", "",
+		"ConfigMap in the secrets namespace declaring regional Vultr private networks")
+	flag.StringVar(&ovhPrivateNetworkConfig, "ovh-private-network-config", "",
+		"ConfigMap in the secrets namespace declaring the private-only OVH cache network")
+	flag.StringVar(&rackCardRootSecret, "rack-card-root-secret", "rack-card-root",
+		"Secret in --secrets-namespace whose `key` every rack power card's passwords are derived from. Without it no RackPDU or RackATS card is adopted")
+
+	flag.StringVar(&apiServerURL, "api-server-url", os.Getenv("CAPI_TARTKUBELET_API_SERVER_URL"),
+		"External API server URL Mac minis dial when joining (https://...). "+
+			"When unset, auto-discovered from the kube-public/cluster-info ConfigMap that "+
+			"kubeadm/CAPI populate during cluster bootstrap. Override only if the ConfigMap "+
+			"isn't usable (non-kubeadm cluster, split-horizon DNS, etc.).")
+	flag.StringVar(&nodeIdentityClusterRole, "node-identity-cluster-role",
+		envOrDefault("CAPI_NODE_IDENTITY_CLUSTER_ROLE", "tart-kubelet"),
+		"Name of the chart-managed ClusterRole each per-machine ServiceAccount binds to. "+
+			"Chart's deployment template injects the rendered name.")
+	flag.StringVar(&tartKubeletBinaryPath, "tartkubelet-binary-path",
+		envOrDefault("CAPI_TARTKUBELET_BINARY_PATH", "/opt/tart-kubelet/tart-kubelet-darwin-arm64"),
+		"Local path of the darwin/arm64 tart-kubelet binary baked into this image.")
+	flag.StringVar(&tartReleasesDir, "tart-releases-dir",
+		envOrDefault("CAPI_TART_RELEASES_DIR", "/opt/tart"),
+		"Directory of the upstream tart.app tarballs baked into this image, one per version as <version>/tart.tar.gz. "+
+			"The Dockerfile's TART_RELEASES pins them.")
+	flag.StringVar(&tartVersion, "tart-version",
+		envOrDefault("CAPI_TART_VERSION", ""),
+		"Tart version every Mac mini runs, one of the releases in --tart-releases-dir. A Machine annotated "+
+			"tuist.dev/tart-version runs that release instead. Changing it upgrades or rolls back Tart in place "+
+			"through the host-config drift loop. The image sets CAPI_TART_VERSION to the Dockerfile's TART_DEFAULT_VERSION.")
+	flag.StringVar(&tailscaleBinariesPath, "tailscale-binaries-path",
+		envOrDefault("CAPI_TAILSCALE_BINARIES_PATH", ""),
+		"Local path of the gzipped tarball containing the darwin/arm64 "+
+			"tailscale + tailscaled binaries baked into this image "+
+			"(/opt/tailscale/tailscale-darwin-arm64.tar.gz by default). The "+
+			"bootstrap extracts to /usr/local/bin and calls `tailscaled "+
+			"install-system-daemon` — the open-source variant per Tailscale's "+
+			"own headless-server docs. Empty disables the Tailscale bootstrap "+
+			"step; kubelet then falls back to the public interface as NodeIP.")
+	flag.StringVar(&nodeExporterBinaryPath, "node-exporter-binary-path",
+		envOrDefault("CAPI_NODE_EXPORTER_BINARY_PATH", ""),
+		"Local path of the darwin/arm64 node_exporter binary baked into this "+
+			"image (/opt/node-exporter/node_exporter-darwin-arm64 by default). "+
+			"Empty disables the host-metrics step. Paired with "+
+			"--tailscale-binaries-path: node_exporter without Tailscale would bind "+
+			"to a public interface, which the bootstrap step actively refuses.")
+	flag.StringVar(&hostSensorsBinaryPath, "host-sensors-binary-path",
+		envOrDefault("CAPI_HOST_SENSORS_BINARY_PATH", ""),
+		"Local path of the darwin/arm64 tuist-host-sensors binary baked into this "+
+			"image (/opt/host-sensors/tuist-host-sensors-darwin-arm64 by default). "+
+			"Writes the host's temperatures, fan speeds, power and thermal pressure "+
+			"for node_exporter's textfile collector every 30 seconds. Empty, or no "+
+			"--node-exporter-binary-path to serve the readings, removes the job.")
+	flag.StringVar(&logShipperBinaryPath, "log-shipper-binary-path",
+		envOrDefault("CAPI_LOG_SHIPPER_BINARY_PATH", ""),
+		"Local path of the darwin/arm64 tuist-log-shipper binary baked into this "+
+			"image (/opt/log-shipper/tuist-log-shipper-darwin-arm64 by default). "+
+			"Empty disables the host-log step. The agent tails "+
+			"/var/log/tart-kubelet.log — the launchd sink for everything the "+
+			"reconciler, node agent and volume manager log — and pushes it to "+
+			"--log-ship-url. A DaemonSet cannot do this job: Pods on a macOS Node "+
+			"are Tart VMs, so an in-cluster collector has no view of the host "+
+			"filesystem.")
+	flag.StringVar(&logShipURL, "log-ship-url",
+		envOrDefault("CAPI_LOG_SHIP_URL", ""),
+		"Loki push endpoint (including /loki/api/v1/push) each Mac mini POSTs its "+
+			"host logs to. Points at the tailnet hostname of the Tailscale-operator "+
+			"proxy in front of the k8s-monitoring chart's alloy-receiver, which "+
+			"already serves this endpoint for the xcresult processor's Tart guests. "+
+			"Pushing there rather than to Grafana Cloud keeps every ingest "+
+			"credential off the fleet: the tailnet ACL is the access control and "+
+			"Alloy forwards with the token it already holds. Empty disables the "+
+			"host-log step. Flows from the chart's macosFleet.hostLogs.url.")
+	flag.StringVar(&logShipEnv, "log-ship-env",
+		envOrDefault("CAPI_LOG_SHIP_ENV", ""),
+		"Value of the `env` stream label on shipped host logs (staging / canary / "+
+			"production), mirroring the label the server's own Loki handler sets. "+
+			"Flows from the chart's macosFleet.hostLogs.env.")
+	flag.StringVar(&tailscaleAuthKeySecretName, "tailscale-auth-key-secret-name",
+		envOrDefault("CAPI_TAILSCALE_AUTH_KEY_SECRET_NAME", ""),
+		"Name of the operator-namespace Secret (key `auth-key`) holding the "+
+			"Tailscale pre-auth key the bootstrap uses for `tailscale up`. "+
+			"Synced from 1Password via ESO — see the chart's "+
+			"macos-fleet-tailscale-external-secrets.yaml. Empty disables the "+
+			"Tailscale step even when --tailscale-binaries-path is set, so a chart "+
+			"bring-up where ESO hasn't synced yet falls back cleanly.")
+	flag.StringVar(&tailscaleTagsRaw, "tailscale-tags",
+		envOrDefault("CAPI_TAILSCALE_TAGS", ""),
+		"Comma-separated Tailscale ACL tags every Mac mini in this env's "+
+			"fleet advertises at `tailscale up` time (e.g. "+
+			"`tag:tuist-macmini-staging`). Must be allowed by the auth key's "+
+			"tag binding and declared in the tailnet's tagOwners ACL block "+
+			"(see infra/tailscale/acls.json). Per-env values flow through "+
+			"macosFleet.tailscale.tags in the Helm values. Empty falls back "+
+			"to whatever default tag the auth key carries.")
+	flag.BoolVar(&tailscaleAcceptRoutes, "tailscale-accept-routes",
+		envOrDefault("CAPI_TAILSCALE_ACCEPT_ROUTES", "") == "true",
+		"Run `tailscale up --accept-routes` on every Mac mini, installing the "+
+			"subnet routes the cluster-side Connector advertises (the cluster's "+
+			"Service CIDR) so Tart runner VMs can reach the in-cluster Kura "+
+			"runner-cache Service through the host's tailnet route. Enable only "+
+			"in an env whose Connector is the single advertiser of that CIDR — "+
+			"see infra/helm/tailscale-operator/values.yaml.")
+	flag.StringVar(&vmKuraEgressCIDR, "vm-kura-egress-cidr",
+		envOrDefault("CAPI_VM_KURA_EGRESS_CIDR", ""),
+		"IPv4 CIDR (the cluster's Service CIDR, e.g. 10.128.0.0/12) the VM "+
+			"egress firewall lets Tart VMs reach on the Kura cache port "+
+			"4000 (co-hosted HTTP + gRPC). Empty keeps the firewall a pure "+
+			"RFC1918 blocklist. "+
+			"Pairs with --tailscale-accept-routes; flows from the chart's "+
+			"macosFleet.vmClusterEgress.kuraServiceCIDR.")
+	flag.StringVar(&vmClusterDNSIP, "vm-cluster-dns-ip",
+		envOrDefault("CAPI_VM_CLUSTER_DNS_IP", ""),
+		"IPv4 ClusterIP of kube-dns (e.g. 10.128.0.10) the VM egress firewall "+
+			"lets Tart VMs reach on port 53, so the runner VM's /etc/resolver "+
+			"entry can resolve *.svc.cluster.local. Requires --vm-kura-egress-cidr; "+
+			"flows from the chart's macosFleet.vmClusterEgress.clusterDNSIP.")
+	flag.StringVar(&vmCachePNName, "vm-cache-pn-name",
+		envOrDefault("CAPI_VM_CACHE_PN_NAME", ""),
+		"Name of the Scaleway Private Network carrying the kura runner-cache "+
+			"NodePort endpoints. When set with --vm-cache-pn-cidr, the operator "+
+			"resolves it to an ID (creating the PN from the CIDR if absent), "+
+			"attaches every Mac mini to it, resolves the per-host VLAN, and "+
+			"bootstrap materializes the VLAN interface + VM egress pass + NAT. "+
+			"The same name as the kura fleet's privateNetworkName, so the Macs "+
+			"and the Elastic Metal cache node share one PN per env. Flows from "+
+			"the chart's macosFleet.vmCachePrivateNetwork.name.")
+	flag.StringVar(&vmCachePNCIDR, "vm-cache-pn-cidr",
+		envOrDefault("CAPI_VM_CACHE_PN_CIDR", ""),
+		"IPv4 subnet of the runner-cache Private Network (e.g. 172.16.0.0/22), "+
+			"used only when the operator has to create the PN. The VM egress "+
+			"firewall also lets Tart VMs reach it on the Kubernetes NodePort "+
+			"range only. Flows from the chart's "+
+			"macosFleet.vmCachePrivateNetwork.cidr.")
+	flag.StringVar(&sshIngressAllowRaw, "ssh-ingress-allow-cidrs",
+		envOrDefault("CAPI_SSH_INGRESS_ALLOW_CIDRS", ""),
+		"Comma-separated IPv4 CIDRs, beyond the tailnet and loopback, allowed to "+
+			"reach :22 on each Mac mini. Everything else is dropped by a pf anchor so "+
+			"internet SSH scan traffic can't exhaust launchd's ssh listen backlog and "+
+			"lock the operator out on the public and tailnet paths at once. Put this "+
+			"operator's SSH egress address here to keep the public-IP dial path (the "+
+			"only one that can update Tailscale itself) working; without it the drift "+
+			"loop still converges over the tailnet fallback. The guard is skipped "+
+			"entirely when Tailscale isn't wired. Flows from the chart's "+
+			"macosFleet.sshIngressAllowCIDRs.")
+	flag.IntVar(&runnerCacheVolumeGiB, "runner-cache-volume-gib", 0,
+		"When > 0, bootstrap provisions a quota-bounded APFS volume of this many GiB on each Mac mini "+
+			"to hold the runner cache volumes and turns them on in tart-kubelet. "+
+			"This quota is the aggregate ceiling for all cache volumes on the host — the filesystem bound "+
+			"that keeps cache volumes from ever starving the VM image path. 0 (default) leaves the feature "+
+			"off. Flows from the chart's macosFleet.runnerCacheVolume.gib.")
+	flag.StringVar(&customCacheURL, "custom-cache-url", "", "Opt-in server URL for macOS custom cache volumes")
+	flag.StringVar(&customCacheNamespace, "custom-cache-namespace", "tuist-runners", "Custom cache agent namespace")
+	flag.StringVar(&customCacheSA, "custom-cache-service-account", "tuist-runner-cache-volumes", "Custom cache agent service account")
+	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
+	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
+	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 2,
+		"Max concurrent Pods on each Mac mini. Counts EVERY Pod on the Node, not just Tart-VM Pods: "+
+			"host-system DaemonSets that ignore the macOS taint (hcloud-csi-node) permanently hold a slot, "+
+			"so this is (guests + system Pods + churn headroom). Apple's macOS SLA caps the GUEST count at 2 "+
+			"and Tart refuses to start a third VM, so the SLA is enforced at the virtualization layer "+
+			"regardless of this value. Overridable per Machine via spec.maxPods for heterogeneous fleets.")
+	flag.IntVar(&tartKubeletGuestCapacity, "tartkubelet-guest-capacity", 1,
+		"How many Tart guests each Mac mini is expected to run concurrently, when the Machine does not "+
+			"set spec.guestCapacity. Sizes the per-guest host resources (the VNC relay port range and the "+
+			"disk-pressure goldens floor); it does not itself create or cap capacity, which comes from "+
+			"HostCPU/HostMemoryMB and Tart's own SLA enforcement. 1 preserves one-guest-per-host.")
+	flag.IntVar(&tartKubeletMaxUpdateAttempts, "tartkubelet-max-update-attempts", 5,
+		"Drift-loop retries before transitioning the CR to a terminal Failed state. "+
+			"Set to 0 to disable the cap (not recommended for production).")
+	var rackLinuxTailscaleSecretName string
+	flag.StringVar(&rackLinuxTailscaleSecretName, "rack-linux-tailscale-secret-name", "",
+		"Secret in the operator namespace holding the Tailscale OAuth client (client-id, client-secret) "+
+			"the RackLinuxHost controller finds hosts on the tailnet with. Empty leaves rack Linux hosts unreachable.")
+	var rackLinuxFleetName, rackLinuxInstallServerURL string
+	var rackLinuxAuthorizedKeys []string
+	flag.StringVar(&rackLinuxFleetName, "rack-linux-fleet-name", "",
+		"The rack Linux fleet whose Secrets the RackLinuxHost controller publishes installs with: <fleet>-ssh, <fleet>-boot and <fleet>-console.")
+	flag.StringVar(&rackLinuxInstallServerURL, "rack-linux-install-server-url", "",
+		"The rack boot server's HTTP address as a netbooting host reaches it. Empty, or no --rack-linux-fleet-name, publishes no installs.")
+	var rackLinuxInternetBootServerURL string
+	flag.StringVar(&rackLinuxInternetBootServerURL, "rack-linux-internet-boot-server-url", "",
+		"The boot server preinstalled rack hosts reach over the internet before their site has one. Set, the first edge of a site is published an install once its TPM is pinned.")
+	var rackLinuxPreinstalledProducts []string
+	flag.Func("rack-linux-preinstalled-product",
+		"A hardware model, as its SMBIOS vendor and product name, that arrives with the preinstall image's installer partition, "+
+			"which its installs keep. Repeatable.",
+		func(v string) error {
+			rackLinuxPreinstalledProducts = append(rackLinuxPreinstalledProducts, v)
+			return nil
+		})
+	var rackLinuxAMTProvisioningSecretName string
+	flag.StringVar(&rackLinuxAMTProvisioningSecretName, "rack-linux-amt-provisioning-secret-name", "",
+		"Secret in the operator namespace holding the AMT provisioning certificate (pfx, password) the RackLinuxHost controller "+
+			"activates the AMT of hosts that ask for it with. Empty, or no --rack-linux-fleet-name, activates none.")
+	var rackLinuxAMTProducts []string
+	flag.Func("rack-linux-amt-product",
+		"A hardware model, as its SMBIOS vendor and product name, whose AMT the RackLinuxHost controller activates unless a host "+
+			"sets spec.amt.activate. Repeatable.",
+		func(v string) error {
+			rackLinuxAMTProducts = append(rackLinuxAMTProducts, v)
+			return nil
+		})
+	var rackLinuxAMTAddressRange, rackLinuxAMTGateway string
+	flag.StringVar(&rackLinuxAMTAddressRange, "rack-linux-amt-address-range", "",
+		"The CIDR the RackLinuxHost controller gives activated AMT static addresses from, for hosts without spec.amt.address. "+
+			"Empty leaves such hosts' AMT on DHCP.")
+	flag.StringVar(&rackLinuxAMTGateway, "rack-linux-amt-gateway", "",
+		"The gateway of the segment AMT's static addresses are on, for hosts without spec.amt.gateway.")
+	var rackLinuxClusterName, rackLinuxBootstrapSecretName string
+	flag.StringVar(&rackLinuxClusterName, "rack-linux-cluster-name", "",
+		"The CAPI Cluster the RackLinuxHost controller makes each rack Linux host a Machine of. Empty makes none.")
+	flag.StringVar(&rackLinuxBootstrapSecretName, "rack-linux-bootstrap-secret-name", "",
+		"The Secret each rack Linux Machine names as its bootstrap data; the host joins itself, so it only has to exist.")
+	var rackNodeBinaryPath string
+	flag.StringVar(&rackNodeBinaryPath, "rack-node-binary", "/opt/rack-node/rack-node-linux-amd64",
+		"The rack-node binary (linux/amd64) the operator runs on a rack Linux host over SSH to join it.")
+	flag.Func("rack-linux-authorized-key",
+		"An SSH public key every netbooted install authorizes beside the fleet key. Repeatable.",
+		func(v string) error {
+			rackLinuxAuthorizedKeys = append(rackLinuxAuthorizedKeys, v)
+			return nil
+		})
+	var rackHostQuarantineRetryAfter time.Duration
+	flag.DurationVar(&rackHostQuarantineRetryAfter, "rackhost-quarantine-retry-after", 0,
+		"How long a RackHost's bootstrap is held off after bootstrap exhaustion. "+
+			"0 uses the controller default (30m); a negative value makes a quarantine permanent, "+
+			"which strands the host unless something can write rackhosts/status.")
+	var rackHostFleetName, rackHostClusterName, rackHostBootstrapSecretName string
+	flag.StringVar(&rackHostFleetName, "rackhost-fleet-name", "",
+		"The rack Mac fleet each RackHost's machine joins: its <fleet>-ssh Secret, the prefix of its Machines' names and their tuist.dev/fleet label.")
+	flag.StringVar(&rackHostClusterName, "rackhost-cluster-name", "",
+		"The CAPI Cluster the RackHost controller makes each rack Mac host a Machine of. Empty, or no --rackhost-fleet-name, makes none.")
+	flag.StringVar(&rackHostBootstrapSecretName, "rackhost-bootstrap-secret-name", "",
+		"The Secret each rack Mac Machine names as its bootstrap data; the operator bootstraps the host, so it only has to exist.")
+	var rackHostVMCacheGatewayCIDRsRaw string
+	flag.StringVar(&rackHostVMCacheGatewayCIDRsRaw, "rackhost-vm-cache-gateway-cidrs", "",
+		"Comma-separated IPv4 CIDRs of the rack's runner-cache gateways, which the VM egress firewall on a rack Mac host lets Tart VMs reach on TCP 443. "+
+			"Rack hosts only; the rented fleets never pass them. Flows from the chart's rackFleet.vmCacheGatewayCIDRs.")
+	var rackHostImageMirrorsRaw string
+	flag.StringVar(&rackHostImageMirrorsRaw, "rackhost-image-mirrors", "",
+		"Comma-separated <upstream>=<endpoint> entries naming the rack's VM image caches, which a rack Mac host's tart-kubelet tries "+
+			"in order before the upstream when it pulls a golden base (--image-mirror). Rack hosts only. Flows from the chart's rackFleet.imageCache.")
+	var rackHostImageMirrorHostsRaw string
+	flag.StringVar(&rackHostImageMirrorHostsRaw, "rackhost-image-mirror-hosts", "",
+		"Comma-separated RackHost names that get --rackhost-image-mirrors, or * for every rack host. Empty routes none. "+
+			"Flows from the chart's rackFleet.imageCache.routeHosts.")
+	var rackEnv string
+	flag.StringVar(&rackEnv, "rack-env", "",
+		"This operator's environment (production, canary, staging): the runtime owner every push to a rack Mac host claims, "+
+			"and the lender a RackHostLease it writes names. Empty claims and lends nothing.")
+	rackLeaseBorrowers := map[string]string{}
+	flag.Func("rack-lease-borrower",
+		"<env>=<secret>: an env RackHost.spec.lendTo may name, and the Secret in --secrets-namespace holding the kubeconfig "+
+			"(`kubeconfig`) and namespace (`namespace`) of that env's RackHostLeases. Repeatable.",
+		func(v string) error {
+			env, secret, ok := strings.Cut(v, "=")
+			if !ok || env == "" || secret == "" {
+				return fmt.Errorf("want <env>=<secret>, got %q", v)
+			}
+			rackLeaseBorrowers[env] = secret
+			return nil
+		})
+	var rackLeaseFleetName, rackLeaseHostsRaw string
+	flag.StringVar(&rackLeaseFleetName, "rack-lease-fleet-name", "",
+		"The fleet rack hosts lent to this env join: the prefix of their Nodes' names and their tuist.dev/fleet label. "+
+			"Empty turns the borrowing side (RackHostLease) off.")
+	flag.StringVar(&rackLeaseHostsRaw, "rack-lease-hosts", "",
+		"Comma-separated RackHost names this env runs when another env lends them. A RackHostLease for any other host is refused.")
+	flag.DurationVar(&terminalRetryAfter, "tartkubelet-terminal-retry-after", 30*time.Minute,
+		"How long after a terminal drift-loop failure the host gets a fresh retry budget. "+
+			"Recovers a host that was merely unreachable when the operator tried to push, "+
+			"which config-hash drift alone never lifts. Set to 0 to disable the re-arm.")
+	flag.IntVar(&bootstrapRebootAfter, "bootstrap-reboot-after", 3,
+		"Consecutive BootstrapFailed count at which the controller asks Scaleway to "+
+			"reboot the host once to clear volatile state (PAM lockouts, sshd throttling). "+
+			"Fires once per host. Set to 0 to disable the reboot step.")
+	flag.IntVar(&bootstrapMaxAttempts, "bootstrap-max-attempts", 8,
+		"Consecutive BootstrapFailed count at which the controller returns the host to "+
+			"the adopt pool (triggering ReinstallServer) and claims a different mini on the "+
+			"next reconcile. Set to 0 to disable pool release (host is retried forever).")
+	flag.IntVar(&machineMaxConcurrentReconciles, "machine-max-concurrent-reconciles", 4,
+		"How many ScalewayAppleSiliconMachine reconciles run in parallel. The "+
+			"default of 1 (controller-runtime's default) serializes the whole "+
+			"fleet behind one worker — first-time bring-up of N Mac minis takes "+
+			"N × bootstrap time because each AdoptFromPool + SSH bootstrap "+
+			"blocks the worker for ~50 min. Bumping this lets distinct machines "+
+			"provision in parallel; reconciles for the same machine remain "+
+			"serialized by controller-runtime's per-key locking. 4 covers the "+
+			"production fleet size with headroom; raise if fleets grow.")
+	flag.StringVar(&fleetSpreadDeployment, "fleet-spread-deployment",
+		envOrDefault("CAPI_FLEET_SPREAD_DEPLOYMENT", ""),
+		"Deployment name to roll on fleet-shape change (typically "+
+			"the xcresult-processor). When set, the operator stamps a hash of "+
+			"the Ready Mac mini set onto the Deployment's pod template "+
+			"annotation, forcing a new ReplicaSet whenever the fleet grows or "+
+			"shrinks — the rolling update then redistributes Pods across hosts "+
+			"via the Deployment's existing topologySpreadConstraints. The "+
+			"scheduler doesn't rebalance running Pods on its own, so without "+
+			"this we'd need a manual `kubectl rollout restart` every time a "+
+			"Mac mini joins or leaves. Empty disables the controller (OSS "+
+			"deployments without a workload to spread).")
+	flag.StringVar(&fleetSpreadNamespace, "fleet-spread-namespace",
+		envOrDefault("CAPI_FLEET_SPREAD_NAMESPACE", ""),
+		"Namespace of the Deployment named by --fleet-spread-deployment. "+
+			"Defaults to --secrets-namespace, which matches the chart's "+
+			"single-namespace install layout.")
+
+	flag.StringVar(&egressProxyGroup, "tailscale-egress-proxy-group",
+		envOrDefault("CAPI_TAILSCALE_EGRESS_PROXY_GROUP", ""),
+		"Name of the Tailscale ProxyGroup (type: egress) that fronts "+
+			"per-machine ExternalName Services. When set, the reconciler "+
+			"materialises one Service per Mac mini in --tailscale-egress-namespace, "+
+			"annotated with tailscale.com/tailnet-fqdn + tailscale.com/proxy-group, "+
+			"so cluster Pods (alloy-metrics) can dial the mini at its MagicDNS "+
+			"FQDN. Empty disables the behavior — the OSS shape (no tailnet) is "+
+			"untouched.")
+	flag.StringVar(&egressNamespace, "tailscale-egress-namespace",
+		envOrDefault("CAPI_TAILSCALE_EGRESS_NAMESPACE", "tailscale-operator"),
+		"Namespace where per-machine egress Services live. Must match the "+
+			"namespace the tailscale-operator wrapper chart installs the "+
+			"ProxyGroup into. The operator needs `services` get/list/watch/"+
+			"create/update/patch/delete here — granted via a namespaced Role "+
+			"+ RoleBinding rendered by the main tuist chart.")
+	flag.StringVar(&egressProxyTags, "tailscale-egress-proxy-tags",
+		envOrDefault("CAPI_TAILSCALE_EGRESS_PROXY_TAGS", ""),
+		"Comma-separated tags for a proxy the Tailscale operator runs for one "+
+			"Service outside the ProxyGroup, such as a rack Linux host's kubelet "+
+			"proxy: the cluster's own tag (`tag:tuist-k8s-<env>`), which the "+
+			"Tailscale operator's credential can mint. Empty leaves the "+
+			"operator's default, tag:k8s.")
+	flag.StringVar(&egressMagicDNSSuffix, "tailscale-egress-magicdns-suffix",
+		envOrDefault("CAPI_TAILSCALE_EGRESS_MAGICDNS_SUFFIX", ""),
+		"MagicDNS suffix of the tailnet the Mac minis register under "+
+			"(e.g. `taild6d7bb.ts.net`). Per-machine egress Service's "+
+			"tailnet-fqdn annotation is `<machine.Name>.<suffix>`. Read from "+
+			"`tailscale status --json | .MagicDNSSuffix` on any tailnet "+
+			"device. Required when --tailscale-egress-proxy-group is set.")
+
+	flag.StringVar(&defaultAdoptPoolPrefix, "default-adopt-pool-prefix",
+		envOrDefault("CAPI_DEFAULT_ADOPT_POOL_PREFIX", ""),
+		"Pool prefix the controller falls back to when a CR's adoptPoolPrefix is "+
+			"empty, used to adopt and to release such CRs and as the "+
+			"orphan-reclaim sweep's pool prefix. Setting it enables the orphan-reclaim "+
+			"sweep (report-only until --orphan-reclaim-claim-name-prefix is also set). "+
+			"Empty disables both — bare CRs refuse to adopt, skip release, and no sweep runs.")
+	flag.StringVar(&orphanReclaimClaimNamePrefix, "orphan-reclaim-claim-name-prefix",
+		envOrDefault("CAPI_ORPHAN_RECLAIM_CLAIM_NAME_PREFIX", ""),
+		"Claimed-name namespace this cluster owns within the Scaleway project (e.g. "+
+			"`tuist-tuist-`). The orphan-reclaim sweep only returns a stranded host to "+
+			"the pool when its Scaleway name carries this prefix, so a host an operator "+
+			"is mid-provisioning under a Scaleway-default name, or a host owned by "+
+			"another cluster sharing the project, is reported via the "+
+			"scaleway_orphan_servers gauge but never mutated. Empty keeps the sweep "+
+			"report-only. Must be unique to this cluster when the Scaleway project is "+
+			"shared across environments.")
+	flag.StringVar(&orphanReclaimZonesRaw, "orphan-reclaim-zones",
+		envOrDefault("CAPI_ORPHAN_RECLAIM_ZONES", "fr-par-1"),
+		"Comma-separated Scaleway zones the orphan-reclaim sweep scans every cycle, "+
+			"unioned with the distinct zones of all live CRs. The static list keeps a "+
+			"zone covered after its last CR is deleted — the case where a strand is "+
+			"most likely and least visible.")
+	flag.DurationVar(&orphanReclaimInterval, "orphan-reclaim-interval", 15*time.Minute,
+		"How often the orphan-reclaim sweep runs. The sweep is a full Scaleway "+
+			"ListServers per zone plus a CR list, so keep it coarse.")
+
+	opts := zap.Options{Development: false}
+	opts.BindFlags(flag.CommandLine)
+	flag.Parse()
+
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	rackHostImageMirrors := parseCommaList(rackHostImageMirrorsRaw)
+	for _, mirror := range rackHostImageMirrors {
+		if err := bootstrap.ValidateImageMirror(mirror); err != nil {
+			setupLog.Error(err, "parse --rackhost-image-mirrors")
+			os.Exit(1)
+		}
+	}
+
+	scwClient, err := scaleway.NewClient()
+	if err != nil {
+		setupLog.Error(err, "scaleway client init")
+		os.Exit(1)
+	}
+
+	tartKubeletBinary, err := os.ReadFile(tartKubeletBinaryPath)
+	if err != nil {
+		setupLog.Error(err, "read tart-kubelet binary", "path", tartKubeletBinaryPath)
+		os.Exit(1)
+	}
+	binarySHA := sha256Hex(tartKubeletBinary)
+	setupLog.Info("loaded tart-kubelet binary", "path", tartKubeletBinaryPath, "bytes", len(tartKubeletBinary), "sha", binarySHA)
+
+	tartReleases, err := bootstrap.LoadTartReleases(tartReleasesDir)
+	if err != nil {
+		setupLog.Error(err, "read tart releases", "dir", tartReleasesDir)
+		os.Exit(1)
+	}
+	for version, tarball := range tartReleases {
+		setupLog.Info("loaded tart release", "version", version, "bytes", len(tarball), "sha", sha256Hex(tarball))
+	}
+	tartTarball, ok := tartReleases[tartVersion]
+	if !ok {
+		setupLog.Error(fmt.Errorf("no such release"), "--tart-version names no Tart release in this image",
+			"version", tartVersion, "dir", tartReleasesDir)
+		os.Exit(1)
+	}
+
+	// Tailscale binaries tarball and node_exporter binary are both
+	// optional: an empty path means the chart didn't wire the tailnet
+	// into this release. We read on startup (not per reconcile)
+	// because the operator image pins both versions; a bump goes
+	// through an operator-image roll, not a hot reload.
+	var tailscaleBinaries []byte
+	if tailscaleBinariesPath != "" {
+		tailscaleBinaries, err = os.ReadFile(tailscaleBinariesPath)
+		if err != nil {
+			setupLog.Error(err, "read tailscale binaries", "path", tailscaleBinariesPath)
+			os.Exit(1)
+		}
+		setupLog.Info("loaded tailscale binaries", "path", tailscaleBinariesPath, "bytes", len(tailscaleBinaries), "sha", sha256Hex(tailscaleBinaries))
+	}
+	var nodeExporterBinary []byte
+	if nodeExporterBinaryPath != "" {
+		nodeExporterBinary, err = os.ReadFile(nodeExporterBinaryPath)
+		if err != nil {
+			setupLog.Error(err, "read node_exporter binary", "path", nodeExporterBinaryPath)
+			os.Exit(1)
+		}
+		setupLog.Info("loaded node_exporter binary", "path", nodeExporterBinaryPath, "bytes", len(nodeExporterBinary), "sha", sha256Hex(nodeExporterBinary))
+	}
+	var hostSensorsBinary []byte
+	if hostSensorsBinaryPath != "" {
+		hostSensorsBinary, err = os.ReadFile(hostSensorsBinaryPath)
+		if err != nil {
+			setupLog.Error(err, "read host sensors binary", "path", hostSensorsBinaryPath)
+			os.Exit(1)
+		}
+		setupLog.Info("loaded host sensors binary", "path", hostSensorsBinaryPath, "bytes", len(hostSensorsBinary), "sha", sha256Hex(hostSensorsBinary))
+	}
+	var logShipperBinary []byte
+	if logShipperBinaryPath != "" {
+		logShipperBinary, err = os.ReadFile(logShipperBinaryPath)
+		if err != nil {
+			setupLog.Error(err, "read log shipper binary", "path", logShipperBinaryPath)
+			os.Exit(1)
+		}
+		setupLog.Info("loaded log shipper binary", "path", logShipperBinaryPath, "bytes", len(logShipperBinary), "sha", sha256Hex(logShipperBinary))
+	}
+
+	// Canonical host-config hash: a single fleet-wide fingerprint over
+	// everything the operator pushes (rendered install scripts +
+	// embedded binaries). Computed once here, like the binary SHA, from
+	// a Config carrying ONLY operator-image + fleet-config inputs — every
+	// per-host field (NodeName, IP, kubeconfig, VLAN, auth key, ...) is
+	// left empty so the hash is identical across the fleet and drift is a
+	// config change, not a host identity. The reconciler stamps it on
+	// each Machine and re-pushes the host config when it moves.
+	vncRelayPort := 0
+	if egressProxyGroup != "" && egressNamespace != "" {
+		vncRelayPort = macos.DashboardVNCRelayPort
+	}
+	// One fleet config, used for both things that must agree: the hash the
+	// reconciler stamps on a Machine, and the config it pushes to the host.
+	// They were separate literals -- this one, and a field-by-field assembly
+	// in each of the controller's two push paths -- with nothing tying them
+	// together, so a field added here but missed there made the operator
+	// record a host as converged to a config it had never received.
+	fleetConfig := bootstrap.Config{
+		TartKubeletBinary:  tartKubeletBinary,
+		TartTarball:        tartTarball,
+		TartVersion:        tartVersion,
+		TailscaleBinaries:  tailscaleBinaries,
+		NodeExporterBinary: nodeExporterBinary,
+		HostSensorsBinary:  hostSensorsBinary,
+		LogShipperBinary:   logShipperBinary,
+		LogShipURL:         logShipURL,
+		LogShipEnv:         logShipEnv,
+		// Per-env Tailscale tag, e.g. `tag:tuist-macmini-staging`.
+		// Flows in from the Helm chart's macosFleet.tailscale.tags
+		// via --tailscale-tags. ACL grants the matching env's
+		// `tag:tuist-k8s-<env>` dial access to this tag on the
+		// scrape ports; cross-env scraping is blocked once the
+		// wide-open catch-all is removed.
+		//
+		// Load-bearing, not cosmetic: an OAuth-minted credential carries
+		// no default tag, so a host config pushed without these cannot
+		// join the tailnet at all.
+		TailscaleTags:             parseCommaList(tailscaleTagsRaw),
+		TailscaleAcceptRoutes:     tailscaleAcceptRoutes,
+		VMKuraEgressCIDR:          vmKuraEgressCIDR,
+		VMClusterDNSIP:            vmClusterDNSIP,
+		VMCachePNCIDR:             vmCachePNCIDR,
+		SSHIngressAllowCIDRs:      parseCommaList(sshIngressAllowRaw),
+		HostCPU:                   tartKubeletHostCPU,
+		HostMemoryMB:              tartKubeletHostMemory,
+		MaxPods:                   tartKubeletMaxPods,
+		RunnerCacheVolumeGiB:      runnerCacheVolumeGiB,
+		CustomCacheURL:            customCacheURL,
+		CustomCacheNamespace:      customCacheNamespace,
+		CustomCacheServiceAccount: customCacheSA,
+		VNCRelayPort:              vncRelayPort,
+	}
+	hostConfigHash := bootstrap.HostConfigHash(fleetConfig)
+	setupLog.Info("computed host config hash", "hash", hostConfigHash)
+
+	restConfig := ctrl.GetConfigOrDie()
+
+	if apiServerURL == "" {
+		discovered, err := discoverAPIServerURL(restConfig)
+		if err != nil {
+			setupLog.Error(err, "discover api server url from kube-public/cluster-info; "+
+				"set --api-server-url (or CAPI_TARTKUBELET_API_SERVER_URL) to skip discovery")
+			os.Exit(1)
+		}
+		apiServerURL = discovered
+		setupLog.Info("auto-discovered api server url", "source", "kube-public/cluster-info", "url", apiServerURL)
+	}
+
+	mgrOptions := ctrl.Options{
+		Scheme:                 scheme,
+		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
+		HealthProbeBindAddress: probeAddr,
+		LeaderElection:         enableLeaderElection,
+		LeaderElectionID:       "scaleway-applesilicon.infrastructure.cluster.x-k8s.io",
+	}
+	// When the egress reconciler is wired, scope the Services
+	// informer to the egress namespace. The cache's default is a
+	// cluster-wide LIST/WATCH on every Get'd GVK; without this
+	// scoping the controller demands cluster-scoped `services` read
+	// (and the namespaced Role + RoleBinding in the egress
+	// namespace can't satisfy that). The reconciler only ever
+	// touches Services there, so narrowing the cache matches both
+	// the RBAC shape and the actual access pattern.
+	if egressProxyGroup != "" && egressNamespace != "" {
+		mgrOptions.Cache = cache.Options{
+			ByObject: map[client.Object]cache.ByObject{
+				&corev1.Service{}: {
+					Namespaces: map[string]cache.Config{
+						egressNamespace: {},
+					},
+				},
+			},
+		}
+	}
+	mgr, err := ctrl.NewManager(restConfig, mgrOptions)
+	if err != nil {
+		setupLog.Error(err, "create manager")
+		os.Exit(1)
+	}
+
+	if err := (&shared.TuistClusterReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup ClusterReconciler")
+		os.Exit(1)
+	}
+
+	credsManager := &credentials.Manager{
+		Client:                     mgr.GetClient(),
+		Scaleway:                   scwClient,
+		Namespace:                  secretsNamespace,
+		NodeIdentityClusterRole:    nodeIdentityClusterRole,
+		TailscaleAuthKeySecretName: tailscaleAuthKeySecretName,
+	}
+
+	kubeconfigBuilder := &kubeconfig.Builder{
+		APIServerURL: apiServerURL,
+	}
+
+	// One Client per manager process, not per-Machine: the underlying
+	// http.Client keeps its TLS session pool warm across reconciles
+	// so a fleet bring-up doesn't re-handshake api.github.com on
+	// every host.
+	ghAppClient := &githubapp.Client{}
+	runnerResolver := &runner.GitHubAppResolver{
+		Client: mgr.GetClient(),
+		Minter: ghAppClient,
+	}
+
+	// Shared by both reconcilers so the Apple Silicon and Elastic Metal fleets
+	// resolve the runner-cache Private Network by name to one PN per env.
+	vpcClient, err := scaleway.NewVPCClientFromEnv()
+	if err != nil {
+		setupLog.Error(err, "scaleway vpc client")
+		os.Exit(1)
+	}
+
+	if err := (&macos.ScalewayAppleSiliconMachineReconciler{
+		Client:                        mgr.GetClient(),
+		Scheme:                        mgr.GetScheme(),
+		ScalewayClient:                scwClient,
+		CredentialsManager:            credsManager,
+		Recorder:                      mgr.GetEventRecorderFor("scalewayapplesiliconmachine-controller"),
+		Kubeconfig:                    kubeconfigBuilder,
+		TartKubeletBinarySHA:          binarySHA,
+		FleetConfig:                   fleetConfig,
+		TartReleases:                  tartReleases,
+		DefaultGuestCapacity:          tartKubeletGuestCapacity,
+		VMCachePNName:                 vmCachePNName,
+		VPC:                           vpcClient,
+		TartKubeletMaxUpdateAttempts:  int32(tartKubeletMaxUpdateAttempts),
+		TartKubeletTerminalRetryAfter: terminalRetryAfter,
+		BootstrapRebootAfter:          int32(bootstrapRebootAfter),
+		BootstrapMaxAttempts:          int32(bootstrapMaxAttempts),
+		MaxConcurrentReconciles:       machineMaxConcurrentReconciles,
+		DefaultAdoptPoolPrefix:        defaultAdoptPoolPrefix,
+		EgressNamespace:               egressNamespace,
+		EgressProxyGroup:              egressProxyGroup,
+		EgressMagicDNSSuffix:          egressMagicDNSSuffix,
+		RunnerResolver:                runnerResolver,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup MachineReconciler")
+		os.Exit(1)
+	}
+
+	// Rack-owned Mac minis (the BER1 colo programme). Two controllers: the
+	// physical hosts, each of which keeps its own Machine, and the machine
+	// kind that bootstraps the host. Both are registered unconditionally: with
+	// no RackHost declared they have nothing to reconcile.
+	var rackHostMachines *macos.RackMachines
+	if rackHostFleetName != "" && rackHostClusterName != "" && rackHostBootstrapSecretName != "" {
+		rackHostMachines = &macos.RackMachines{
+			ClusterName:     rackHostClusterName,
+			BootstrapSecret: rackHostBootstrapSecretName,
+			FleetName:       rackHostFleetName,
+		}
+	}
+	powerRegistry := power.NewRegistry()
+	// Logs out of the PDU and ATS sessions on shutdown: an Eaton card allows one
+	// session per account, and a stale one refuses the next leader's login.
+	if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+		<-ctx.Done()
+		closeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := powerRegistry.Close(closeCtx); err != nil {
+			setupLog.Error(err, "log out of PDU sessions")
+		}
+		return nil
+	})); err != nil {
+		setupLog.Error(err, "add power session cleanup")
+		os.Exit(1)
+	}
+	if err := (&macos.RackPDUReconciler{
+		Client:           mgr.GetClient(),
+		APIReader:        mgr.GetAPIReader(),
+		Scheme:           mgr.GetScheme(),
+		Recorder:         mgr.GetEventRecorderFor("rackpdu-controller"),
+		Power:            powerRegistry,
+		EgressNamespace:  egressNamespace,
+		EgressProxyGroup: egressProxyGroup,
+		RootKeySecret:    types.NamespacedName{Namespace: secretsNamespace, Name: rackCardRootSecret},
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackPDUReconciler")
+		os.Exit(1)
+	}
+	if err := (&macos.RackATSReconciler{
+		Client:           mgr.GetClient(),
+		Scheme:           mgr.GetScheme(),
+		Recorder:         mgr.GetEventRecorderFor("rackats-controller"),
+		APIReader:        mgr.GetAPIReader(),
+		Power:            powerRegistry,
+		EgressNamespace:  egressNamespace,
+		EgressProxyGroup: egressProxyGroup,
+		RootKeySecret:    types.NamespacedName{Namespace: secretsNamespace, Name: rackCardRootSecret},
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackATSReconciler")
+		os.Exit(1)
+	}
+	if err := (&macos.RackSiteReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackSiteReconciler")
+		os.Exit(1)
+	}
+	if err := (&macos.RackHostReconciler{
+		Client:               mgr.GetClient(),
+		Scheme:               mgr.GetScheme(),
+		Recorder:             mgr.GetEventRecorderFor("rackhost-controller"),
+		Machines:             rackHostMachines,
+		Power:                powerRegistry,
+		SecretsNamespace:     secretsNamespace,
+		QuarantineRetryAfter: rackHostQuarantineRetryAfter,
+		EgressNamespace:      egressNamespace,
+		EgressProxyGroup:     egressProxyGroup,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackHostReconciler")
+		os.Exit(1)
+	}
+
+	// The rack's tailnet API: the rack Linux hosts' devices, and the devices a
+	// returned rack Mac ran as.
+	var rackTailnet linux.TailnetAPI
+	if rackLinuxTailscaleSecretName != "" {
+		rackTailnet = &linux.SecretTailnetAPI{Reader: mgr.GetClient(), Namespace: secretsNamespace, Name: rackLinuxTailscaleSecretName}
+	}
+
+	// A rack host this operator lends reaches the borrowing env's cluster
+	// through the kubeconfig Secret its --rack-lease-borrower names.
+	var rackBorrowers macos.BorrowerClients
+	if len(rackLeaseBorrowers) > 0 {
+		rackBorrowers = &macos.SecretBorrowerClients{
+			Reader:    mgr.GetClient(),
+			Namespace: secretsNamespace,
+			Secrets:   rackLeaseBorrowers,
+			Scheme:    mgr.GetScheme(),
+		}
+	}
+
+	if err := (&macos.RackAppleSiliconMachineReconciler{
+		Client:             mgr.GetClient(),
+		Scheme:             mgr.GetScheme(),
+		CredentialsManager: credsManager,
+		Recorder:           mgr.GetEventRecorderFor("rackapplesiliconmachine-controller"),
+		Kubeconfig:         kubeconfigBuilder,
+		// The same fleet config the Scaleway kind gets: a rack mini and a
+		// rented one run the same host config, which is what lets one workload
+		// target both and one operator image roll both.
+		FleetConfig:                   fleetConfig,
+		TartReleases:                  tartReleases,
+		VMCacheGatewayCIDRs:           parseCommaList(rackHostVMCacheGatewayCIDRsRaw),
+		ImageMirrors:                  rackHostImageMirrors,
+		ImageMirrorHosts:              parseCommaList(rackHostImageMirrorHostsRaw),
+		DefaultGuestCapacity:          tartKubeletGuestCapacity,
+		TartKubeletBinarySHA:          binarySHA,
+		TartKubeletMaxUpdateAttempts:  int32(tartKubeletMaxUpdateAttempts),
+		TartKubeletTerminalRetryAfter: terminalRetryAfter,
+		BootstrapRebootAfter:          int32(bootstrapRebootAfter),
+		BootstrapMaxAttempts:          int32(bootstrapMaxAttempts),
+		MaxConcurrentReconciles:       machineMaxConcurrentReconciles,
+		EgressNamespace:               egressNamespace,
+		EgressProxyGroup:              egressProxyGroup,
+		EgressMagicDNSSuffix:          egressMagicDNSSuffix,
+		Power:                         powerRegistry,
+		SecretsNamespace:              secretsNamespace,
+		Env:                           rackEnv,
+		Borrowers:                     rackBorrowers,
+		Tailnet:                       rackTailnet,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackAppleSiliconMachineReconciler")
+		os.Exit(1)
+	}
+
+	// Rack hosts another env lends this one: the borrowing side, which runs
+	// their runner runtime from this operator's fleet config.
+	if rackLeaseFleetName != "" {
+		if rackEnv == "" {
+			setupLog.Error(fmt.Errorf("--rack-env is empty"), "--rack-lease-fleet-name needs --rack-env, the runtime owner its pushes claim")
+			os.Exit(1)
+		}
+		if err := (&macos.RackHostLeaseReconciler{
+			Client:                        mgr.GetClient(),
+			Scheme:                        mgr.GetScheme(),
+			Recorder:                      mgr.GetEventRecorderFor("rackhostlease-controller"),
+			CredentialsManager:            credsManager,
+			Kubeconfig:                    kubeconfigBuilder,
+			Env:                           rackEnv,
+			FleetName:                     rackLeaseFleetName,
+			Hosts:                         parseCommaList(rackLeaseHostsRaw),
+			FleetConfig:                   fleetConfig,
+			TartReleases:                  tartReleases,
+			VMCacheGatewayCIDRs:           parseCommaList(rackHostVMCacheGatewayCIDRsRaw),
+			ImageMirrors:                  rackHostImageMirrors,
+			DefaultGuestCapacity:          tartKubeletGuestCapacity,
+			TartKubeletBinarySHA:          binarySHA,
+			TartKubeletMaxUpdateAttempts:  int32(tartKubeletMaxUpdateAttempts),
+			TartKubeletTerminalRetryAfter: terminalRetryAfter,
+			EgressNamespace:               egressNamespace,
+			EgressProxyGroup:              egressProxyGroup,
+			EgressMagicDNSSuffix:          egressMagicDNSSuffix,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "setup RackHostLeaseReconciler")
+			os.Exit(1)
+		}
+	}
+
+	var rackInstall *linux.RackInstall
+	if rackLinuxFleetName != "" && rackLinuxInstallServerURL != "" {
+		rackInstall = &linux.RackInstall{FleetName: rackLinuxFleetName, ServerURL: rackLinuxInstallServerURL, InternetServerURL: rackLinuxInternetBootServerURL,
+			PreinstalledProducts: rackLinuxPreinstalledProducts, AuthorizedKeys: rackLinuxAuthorizedKeys}
+	}
+	var rackAMT *linux.RackAMT
+	if rackLinuxFleetName != "" && rackLinuxAMTProvisioningSecretName != "" {
+		rackAMT = &linux.RackAMT{
+			FleetName:          rackLinuxFleetName,
+			ProvisioningSecret: rackLinuxAMTProvisioningSecretName,
+			Products:           rackLinuxAMTProducts,
+			AddressRange:       rackLinuxAMTAddressRange,
+			Gateway:            rackLinuxAMTGateway,
+		}
+	}
+	var rackMachines *linux.RackMachines
+	if rackLinuxClusterName != "" && rackLinuxBootstrapSecretName != "" {
+		rackMachines = &linux.RackMachines{ClusterName: rackLinuxClusterName, BootstrapSecret: rackLinuxBootstrapSecretName}
+	}
+	rackNodeBinary := readRackNodeBinary(rackNodeBinaryPath, rackLinuxFleetName)
+	if err := (&linux.RackLinuxHostReconciler{
+		Client:             mgr.GetClient(),
+		APIReader:          mgr.GetAPIReader(),
+		Scheme:             mgr.GetScheme(),
+		Recorder:           mgr.GetEventRecorderFor("racklinuxhost-controller"),
+		Tailnet:            rackTailnet,
+		Install:            rackInstall,
+		Machines:           rackMachines,
+		AMT:                rackAMT,
+		CredentialsManager: credsManager,
+		EgressNamespace:    egressNamespace,
+		EgressProxyGroup:   egressProxyGroup,
+		NodeBinary:         rackNodeBinary,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackLinuxHostReconciler")
+		os.Exit(1)
+	}
+	if rackInstall != nil {
+		if err := mgr.Add(&linux.RackLinuxCandidates{Client: mgr.GetClient()}); err != nil {
+			setupLog.Error(err, "setup RackLinuxCandidates")
+			os.Exit(1)
+		}
+	}
+
+	if err := (&linux.RackLinuxMachineReconciler{
+		Client:              mgr.GetClient(),
+		APIReader:           mgr.GetAPIReader(),
+		Scheme:              mgr.GetScheme(),
+		Recorder:            mgr.GetEventRecorderFor("racklinuxmachine-controller"),
+		CredentialsManager:  credsManager,
+		FleetName:           rackLinuxFleetName,
+		APIServerURL:        apiServerURL,
+		KubernetesMinor:     "v1.34",
+		ControlPlaneVersion: controlPlaneVersion(restConfig),
+		EgressNamespace:     egressNamespace,
+		EgressProxyGroup:    egressProxyGroup,
+		EgressProxyTags:     egressProxyTags,
+		AMTProducts:         rackLinuxAMTProducts,
+		NodeBinary:          rackNodeBinary,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RackLinuxMachineReconciler")
+		os.Exit(1)
+	}
+
+	// Elastic Metal (bare-metal) machines: the kura runner-cache pool. Same
+	// provider, separate reconciler from Apple Silicon: bare-metal servers
+	// ordered through the Baremetal API that pass through an OS-install wait,
+	// attach the PN as a tagged VLAN, then SSH-bootstrap a rendered self-join.
+	baremetalClient, err := scaleway.NewBaremetalClientFromEnv()
+	if err != nil {
+		setupLog.Error(err, "scaleway baremetal client")
+		os.Exit(1)
+	}
+	if err := (&linux.ScalewayElasticMetalMachineReconciler{
+		Client:             mgr.GetClient(),
+		APIReader:          mgr.GetAPIReader(),
+		Scheme:             mgr.GetScheme(),
+		ScalewayClient:     baremetalClient,
+		VPC:                vpcClient,
+		Recorder:           mgr.GetEventRecorderFor("scalewayelasticmetalmachine-controller"),
+		CredentialsManager: credsManager,
+		Kubeconfig:         kubeconfigBuilder,
+		KubernetesMinor:    "v1.34",
+		DefaultOfferType:   "EM-B220E-NVME",
+		DefaultOS:          "ubuntu_noble",
+		DefaultZone:        "fr-par-1",
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup ScalewayElasticMetalMachineReconciler")
+		os.Exit(1)
+	}
+
+	// OVH dedicated (bare-metal) machines (customer-facing Kura cache regions).
+	// Per-vendor failover-IP movers, populated below for whichever vendors have
+	// creds in this environment. The FailoverIP placement reconciler (registered
+	// after the vendor blocks) keeps each region's public peer failover IP routed
+	// to a healthy box of its pool.
+	failoverMovers := map[string]shared.FailoverIPMover{}
+
+	// Same provider, separate reconciler: pre-ordered OVH boxes adopted by
+	// display-name prefix that pass through an OS install, then SSH-bootstrap
+	// the shared Linux self-join over their public IP (no Scaleway Private
+	// Network). Gated on OVH_APPLICATION_KEY so the reconciler stays dormant
+	// until an env wires OVH creds into this Deployment (an ESO-synced OVH_API
+	// secret + env lands with the chart's OVH enablement, not in this PR); envs
+	// without them (and the OSS shape) don't crash-loop on a missing config.
+	if os.Getenv("OVH_APPLICATION_KEY") != "" {
+		ovhClient, err := ovh.NewClientFromEnv()
+		if err != nil {
+			setupLog.Error(err, "ovh client")
+			os.Exit(1)
+		}
+		if err := (&linux.OVHDedicatedMachineReconciler{
+			Client:                   mgr.GetClient(),
+			APIReader:                mgr.GetAPIReader(),
+			Scheme:                   mgr.GetScheme(),
+			OVHClient:                ovhClient,
+			Recorder:                 mgr.GetEventRecorderFor("ovhdedicatedmachine-controller"),
+			CredentialsManager:       credsManager,
+			Kubeconfig:               kubeconfigBuilder,
+			KubernetesMinor:          "v1.34",
+			DefaultDatacenter:        "vin",
+			DefaultOS:                "ubuntu_24.04",
+			PrivateNetworkConfigName: ovhPrivateNetworkConfig,
+			PrivateNetworkNamespace:  secretsNamespace,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "setup OVHDedicatedMachineReconciler")
+			os.Exit(1)
+		}
+		failoverMovers["ovh"] = shared.OVHFailoverMover{Client: ovhClient}
+		setupLog.Info("OVH dedicated machine reconciler enabled")
+	}
+
+	// Vultr bare metal: the South America cache region, on the one provider that
+	// sells there. Gated on VULTR_API_KEY so it stays dormant until an env opts
+	// in. Note the key is useless without its source IP on Vultr's ACL, which the
+	// other providers have no equivalent of: a controller 401 here is usually the
+	// cluster's egress address missing from the allowlist rather than a bad key.
+	if os.Getenv("VULTR_API_KEY") != "" {
+		vultrClient, err := vultr.NewClientFromEnv()
+		if err != nil {
+			setupLog.Error(err, "vultr client")
+			os.Exit(1)
+		}
+		if err := (&linux.VultrMachineReconciler{
+			Client:                   mgr.GetClient(),
+			APIReader:                mgr.GetAPIReader(),
+			Scheme:                   mgr.GetScheme(),
+			VultrClient:              vultrClient,
+			Recorder:                 mgr.GetEventRecorderFor("vultrmachine-controller"),
+			CredentialsManager:       credsManager,
+			Kubeconfig:               kubeconfigBuilder,
+			KubernetesMinor:          "v1.34",
+			DefaultRegion:            "scl",
+			PrivateNetworkConfigName: vultrPrivateNetworkConfig,
+			PrivateNetworkNamespace:  secretsNamespace,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "setup VultrMachineReconciler")
+			os.Exit(1)
+		}
+		setupLog.Info("Vultr machine reconciler enabled")
+	}
+
+	// Failover-IP placement: keep each region's public peer failover IP routed to
+	// a healthy box of its pool. Registered only when at least one vendor's creds
+	// are present (so the mover map is non-empty); a FailoverIP whose vendor has
+	// no mover is a surfaced no-op rather than an error.
+	if len(failoverMovers) > 0 {
+		if err := (&shared.FailoverIPReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+			Movers: failoverMovers,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "setup FailoverIPReconciler")
+			os.Exit(1)
+		}
+		setupLog.Info("failover IP reconciler enabled", "vendors", len(failoverMovers))
+	}
+
+	if fleetSpreadDeployment != "" {
+		ns := fleetSpreadNamespace
+		if ns == "" {
+			ns = secretsNamespace
+		}
+		if err := (&macos.FleetSpreadReconciler{
+			Client:         mgr.GetClient(),
+			APIReader:      mgr.GetAPIReader(),
+			DeploymentName: fleetSpreadDeployment,
+			Namespace:      ns,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "setup FleetSpreadReconciler")
+			os.Exit(1)
+		}
+		setupLog.Info("fleet-spread controller enabled",
+			"deployment", fleetSpreadDeployment, "namespace", ns)
+	}
+
+	// Orphan-reclaim sweep: enabled once a pool prefix is configured
+	// (the same prefix the delete path falls back to). Report-only
+	// until a claim-name prefix is also set; see the flag help.
+	if defaultAdoptPoolPrefix != "" {
+		reclaimZones := parseCommaList(orphanReclaimZonesRaw)
+		if err := mgr.Add(&macos.OrphanReclaimer{
+			Client:          mgr.GetClient(),
+			APIReader:       mgr.GetAPIReader(),
+			Scaleway:        scwClient,
+			Interval:        orphanReclaimInterval,
+			Zones:           reclaimZones,
+			PoolPrefix:      defaultAdoptPoolPrefix,
+			ClaimNamePrefix: orphanReclaimClaimNamePrefix,
+			Log:             ctrl.Log.WithName("orphan-reclaim"),
+		}); err != nil {
+			setupLog.Error(err, "setup OrphanReclaimer")
+			os.Exit(1)
+		}
+		setupLog.Info("orphan-reclaim sweep enabled",
+			"poolPrefix", defaultAdoptPoolPrefix,
+			"claimNamePrefix", orphanReclaimClaimNamePrefix,
+			"zones", reclaimZones, "interval", orphanReclaimInterval)
+	}
+
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		setupLog.Error(err, "set up health check")
+		os.Exit(1)
+	}
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		setupLog.Error(err, "set up ready check")
+		os.Exit(1)
+	}
+
+	setupLog.Info("starting manager")
+	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+		setupLog.Error(err, "manager exited")
+		os.Exit(1)
+	}
+}
+
+func envOrDefault(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+// parseCommaList splits a comma-separated flag value into a slice.
+// Empty input returns nil. Whitespace around each entry is trimmed;
+// blank entries (e.g. a trailing comma) are dropped.
+func parseCommaList(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+func sha256Hex(b []byte) string {
+	h := sha256.Sum256(b)
+	return hex.EncodeToString(h[:])
+}
+
+// discoverAPIServerURL reads the cluster's externally-reachable
+// kube-apiserver URL from the kube-public/cluster-info ConfigMap.
+//
+// kubeadm (and CAPI's KubeadmControlPlane on top of it) write that
+// ConfigMap during cluster bootstrap with whatever
+// `controlPlaneEndpoint` was configured (IP or DNS) plus the cluster
+// CA. It's intentionally world-readable so `kubeadm join` can fetch
+// it before establishing TLS — the operator's ServiceAccount can read
+// it without extra RBAC.
+//
+// Reading from cluster-info instead of taking a chart-injected URL
+// removes a hardcoded value from the chart values: the chart no
+// longer needs to know the cluster's LB IP, and the value tracks
+// whatever caph reconciles the LB to in the future.
+func discoverAPIServerURL(restConfig *rest.Config) (string, error) {
+	clientset, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return "", fmt.Errorf("clientset for cluster-info read: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cm, err := clientset.CoreV1().ConfigMaps(metav1.NamespacePublic).
+		Get(ctx, "cluster-info", metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return "", fmt.Errorf("kube-public/cluster-info ConfigMap not found (cluster not bootstrapped via kubeadm/CAPI?)")
+		}
+		return "", fmt.Errorf("get kube-public/cluster-info: %w", err)
+	}
+	raw, ok := cm.Data["kubeconfig"]
+	if !ok {
+		return "", fmt.Errorf("kube-public/cluster-info has no `kubeconfig` key")
+	}
+	cfg, err := clientcmd.Load([]byte(raw))
+	if err != nil {
+		return "", fmt.Errorf("parse cluster-info kubeconfig: %w", err)
+	}
+	for _, cluster := range cfg.Clusters {
+		if cluster != nil && cluster.Server != "" {
+			return cluster.Server, nil
+		}
+	}
+	return "", fmt.Errorf("cluster-info kubeconfig has no cluster.server entry")
+}
+
+// controlPlaneVersion reads the API server's gitVersion, at most once a
+// minute.
+func controlPlaneVersion(cfg *rest.Config) func(context.Context) (string, error) {
+	var (
+		mu      sync.Mutex
+		version string
+		readAt  time.Time
+	)
+	return func(context.Context) (string, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if version != "" && time.Since(readAt) < time.Minute {
+			return version, nil
+		}
+		dc, err := discovery.NewDiscoveryClientForConfig(cfg)
+		if err != nil {
+			return "", err
+		}
+		info, err := dc.ServerVersion()
+		if err != nil {
+			return "", err
+		}
+		version, readAt = info.GitVersion, time.Now()
+		return version, nil
+	}
+}
+
+// readRackNodeBinary reads the rack-node binary a rack Linux fleet joins its
+// hosts with. Without a fleet, or without the binary, it is nil, and a join
+// reports that it has none.
+func readRackNodeBinary(path, fleet string) []byte {
+	if fleet == "" || path == "" {
+		return nil
+	}
+	binary, err := os.ReadFile(path)
+	if err != nil {
+		setupLog.Error(err, "read the rack-node binary; rack Linux hosts cannot be joined", "path", path)
+		return nil
+	}
+	return binary
+}

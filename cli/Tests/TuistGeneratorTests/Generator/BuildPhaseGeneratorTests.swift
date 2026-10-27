@@ -17,8 +17,8 @@ struct BuildPhaseGenerationErrorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func description_when_missingFileReference() {
-        let path = try! AbsolutePath(validating: "/test")
+    ) func description_when_missingFileReference() throws {
+        let path = try AbsolutePath(validating: "/test")
         let expected = "Trying to add a file at path \(path.pathString) to a build phase that hasn't been added to the project."
         #expect(BuildPhaseGenerationError.missingFileReference(path).description == expected)
     }
@@ -27,13 +27,12 @@ struct BuildPhaseGenerationErrorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func type_when_missingFileReference() {
-        let path = try! AbsolutePath(validating: "/test")
+    ) func type_when_missingFileReference() throws {
+        let path = try AbsolutePath(validating: "/test")
         #expect(BuildPhaseGenerationError.missingFileReference(path).type == .bug)
     }
 }
 
-@Suite
 struct BuildPhaseGeneratorTests {
     var subject: BuildPhaseGenerator!
 
@@ -364,7 +363,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedXcodeController,
         .inTemporaryDirectory
     ) func generateSourcesBuildPhase_throws_when_theFileReferenceIsMissing() async throws {
-        let path = try! AbsolutePath(validating: "/test/file.swift")
+        let path = try AbsolutePath(validating: "/test/file.swift")
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
         pbxproj.add(object: pbxTarget)
@@ -466,7 +465,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedXcodeController,
         .inTemporaryDirectory
     ) func generateSourcesBuildPhase_throws_whenLocalizedFileAndFileReferenceIsMissing() async throws {
-        let path = try! AbsolutePath(validating: "/test/Base.lproj/file.intentdefinition")
+        let path = try AbsolutePath(validating: "/test/Base.lproj/file.intentdefinition")
         let pbxTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
         pbxproj.add(object: pbxTarget)
@@ -507,6 +506,7 @@ struct BuildPhaseGeneratorTests {
         // When
         try subject.generateHeadersBuildPhase(
             headers: headers,
+            buildableFolders: [],
             pbxTarget: target,
             fileElements: fileElements,
             pbxproj: pbxproj
@@ -533,6 +533,43 @@ struct BuildPhaseGeneratorTests {
             FileWithSettings(name: "Public1.h", attributes: ["Public"]),
             FileWithSettings(name: "Project1.h", attributes: nil),
         ])
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func generateHeadersBuildPhase_skipsHeadersFromBuildableFolders() throws {
+        // Given
+        let target = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: target)
+
+        let headers = Headers(
+            public: ["/test/Sources/Public1.h"],
+            private: ["/test/Sources/Private1.h"],
+            project: ["/test/Sources/Project1.h"]
+        )
+        let buildableFolders = [
+            BuildableFolder(
+                path: "/test/Sources",
+                exceptions: BuildableFolderExceptions(exceptions: []),
+                resolvedFiles: []
+            ),
+        ]
+
+        // When
+        try subject.generateHeadersBuildPhase(
+            headers: headers,
+            buildableFolders: buildableFolders,
+            pbxTarget: target,
+            fileElements: .init(),
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildPhase = try #require(target.buildPhases.first as? PBXHeadersBuildPhase)
+        #expect(buildPhase.files?.isEmpty == true)
     }
 
     @Test(
@@ -1080,7 +1117,7 @@ struct BuildPhaseGeneratorTests {
 
         let pbxproj = PBXProj()
         let nativeTarget = PBXNativeTarget(name: "Test")
-        let fileElements = createFileElements(for: (fonts + templates).map(\.path))
+        let fileElements = createFileElements(for: (fonts + templates).compactMap(\.path))
 
         let target = Target.test(copyFiles: [
             CopyFilesAction(name: "Copy Fonts", destination: .resources, subpath: "Fonts", files: fonts),
@@ -1138,6 +1175,138 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
+    ) func generateCopyFilesBuildPhases_withBuildProduct() throws {
+        // Given
+        let files: [CopyFileElement] = [
+            .buildProduct(name: "LoginItemHelper", codeSignOnCopy: true),
+            .buildProduct(name: "AnotherHelper"),
+        ]
+
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "App")
+        let fileElements = createProductFileElements(for: [
+            Target.test(name: "LoginItemHelper", product: .app),
+            Target.test(name: "AnotherHelper", product: .app),
+        ])
+
+        let target = Target.test(copyFiles: [
+            CopyFilesAction(
+                name: "Embed Login Items",
+                destination: .wrapper,
+                subpath: "Contents/Library/LoginItems",
+                files: files
+            ),
+        ])
+
+        // When
+        try subject.generateCopyFilesBuildPhases(
+            target: target,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildPhase = try #require(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        #expect(buildPhase.name == "Embed Login Items")
+        #expect(buildPhase.dstSubfolderSpec == .wrapper)
+        #expect(buildPhase.dstPath == "Contents/Library/LoginItems")
+        #expect(buildPhase.files?.compactMap { $0.file?.nameOrPath } == [
+            "AnotherHelper",
+            "LoginItemHelper",
+        ])
+        #expect(buildPhase.files?.map(\.settings) == [
+            nil,
+            ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
+        ])
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func generateCopyFilesBuildPhases_withBuildProduct_throwsWhenProductIsMissing() throws {
+        // Given
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "App")
+        let fileElements = ProjectFileElements()
+
+        let target = Target.test(copyFiles: [
+            CopyFilesAction(
+                name: "Embed Login Items",
+                destination: .wrapper,
+                subpath: "Contents/Library/LoginItems",
+                files: [.buildProduct(name: "MissingHelper")]
+            ),
+        ])
+
+        // When / Then
+        #expect {
+            try subject.generateCopyFilesBuildPhases(
+                target: target,
+                pbxTarget: nativeTarget,
+                fileElements: fileElements,
+                pbxproj: pbxproj
+            )
+        } throws: { error in
+            error as? BuildPhaseGenerationError == .missingProductReference(targetName: "MissingHelper")
+        }
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func generateCopyFilesBuildPhases_withMixedFilesAndBuildProducts() throws {
+        // Given
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "App")
+
+        let configPath = try AbsolutePath(validating: "/path/config.plist")
+        let fileElements = createFileElements(for: [configPath])
+        fileElements.products = createProductFileElements(
+            for: [Target.test(name: "LoginItemHelper", product: .app)]
+        ).products
+
+        let files: [CopyFileElement] = [
+            .file(path: configPath),
+            .buildProduct(name: "LoginItemHelper", codeSignOnCopy: true),
+        ]
+
+        let target = Target.test(copyFiles: [
+            CopyFilesAction(
+                name: "Embed Items",
+                destination: .wrapper,
+                subpath: "Contents/Library/LoginItems",
+                files: files
+            ),
+        ])
+
+        // When
+        try subject.generateCopyFilesBuildPhases(
+            target: target,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildPhase = try #require(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        #expect(buildPhase.files?.count == 2)
+        #expect(buildPhase.files?.compactMap { $0.file?.nameOrPath } == [
+            "config.plist",
+            "LoginItemHelper",
+        ])
+        #expect(buildPhase.files?.map(\.settings) == [
+            nil,
+            ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
+        ])
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
     ) func test_generateAppExtensionsBuildPhase() throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)
@@ -1163,7 +1332,7 @@ struct BuildPhaseGeneratorTests {
             ]),
         ]
         let dependencyConditions: [GraphEdge: PlatformCondition] = [
-            .init(from: appGraphDependency, to: stickerPackGraphDependency): .when([.ios])!,
+            .init(from: appGraphDependency, to: stickerPackGraphDependency): try #require(.when([.ios])),
         ]
 
         let graph = Graph.test(
@@ -1203,6 +1372,49 @@ struct BuildPhaseGeneratorTests {
                     ["ATTRIBUTES": ["RemoveHeadersOnCopy"]],
                 ]
         )
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func generateAppExtensionsBuildPhase_noBuildPhase_when_unitTestDependsOnWatchExtension() throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let watchExtension = Target.test(name: "WatchExtension", product: .watch2Extension)
+        let unitTests = Target.test(name: "WatchAppTests", product: .unitTests)
+        let pbxproj = PBXProj()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let fileElements = createProductFileElements(for: [watchExtension])
+        let project = Project.test(path: path, targets: [watchExtension, unitTests])
+        let unitTestsDep: GraphDependency = .target(name: unitTests.name, path: project.path)
+        let watchExtensionDep: GraphDependency = .target(name: watchExtension.name, path: project.path)
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            unitTestsDep: Set([watchExtensionDep]),
+            watchExtensionDep: Set(),
+        ]
+
+        let graph = Graph.test(
+            path: path,
+            projects: [project.path: project],
+            dependencies: dependencies
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try subject.generateAppExtensionsBuildPhase(
+            path: project.path,
+            target: unitTests,
+            graphTraverser: graphTraverser,
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then — unit tests must not embed extensions to avoid circular dependency
+        // with the test host
+        #expect(nativeTarget.buildPhases.isEmpty == true)
     }
 
     @Test(
@@ -1259,7 +1471,7 @@ struct BuildPhaseGeneratorTests {
             appGraphDependency: Set([watchAppGraphDependency]),
         ]
         let dependencyConditions: [GraphEdge: PlatformCondition] = [
-            .init(from: appGraphDependency, to: watchAppGraphDependency): .when([.ios])!,
+            .init(from: appGraphDependency, to: watchAppGraphDependency): try #require(.when([.ios])),
         ]
         let graph = Graph.test(
             path: project.path,
@@ -1311,7 +1523,7 @@ struct BuildPhaseGeneratorTests {
         ]
 
         let dependencyConditions: [GraphEdge: PlatformCondition] = [
-            .init(from: appGraphDependency, to: watchAppGraphDependency): .when([.ios])!,
+            .init(from: appGraphDependency, to: watchAppGraphDependency): try #require(.when([.ios])),
         ]
 
         let graph = Graph.test(
@@ -1591,6 +1803,12 @@ struct BuildPhaseGeneratorTests {
                     name: "post",
                     order: .post,
                     script: .scriptPath(path: path.appending(component: "script.sh"), args: ["arg"]),
+                    inputFileListPaths: [
+                        .generated(path.appending(components: "Generated", "Inputs.xcfilelist")),
+                    ],
+                    outputFileListPaths: [
+                        .generated(path.appending(components: "Generated", "Outputs.xcfilelist")),
+                    ],
                     showEnvVarsInLog: false,
                     basedOnDependencyAnalysis: false,
                     runForInstallBuildsOnly: true
@@ -1620,7 +1838,7 @@ struct BuildPhaseGeneratorTests {
         )
 
         // When
-        let pbxTarget = try await TargetGenerator().generateTarget(
+        let (pbxTarget, _) = try await TargetGenerator().generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -1644,6 +1862,8 @@ struct BuildPhaseGeneratorTests {
         #expect(postBuildPhase.name == "post")
         #expect(postBuildPhase.shellPath == "/bin/sh")
         #expect(postBuildPhase.shellScript == "\"$SRCROOT\"/script.sh arg")
+        #expect(postBuildPhase.inputFileListPaths == ["Generated/Inputs.xcfilelist"])
+        #expect(postBuildPhase.outputFileListPaths == ["Generated/Outputs.xcfilelist"])
         #expect(postBuildPhase.showEnvVarsInLog == false)
         #expect(postBuildPhase.alwaysOutOfDate == true)
         #expect(postBuildPhase.runOnlyForDeploymentPostprocessing == true)
@@ -1704,7 +1924,7 @@ struct BuildPhaseGeneratorTests {
         )
 
         // When
-        let pbxTarget = try await TargetGenerator().generateTarget(
+        let (pbxTarget, _) = try await TargetGenerator().generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -1777,7 +1997,7 @@ struct BuildPhaseGeneratorTests {
         )
 
         // When
-        let pbxTarget = try await TargetGenerator().generateTarget(
+        let (pbxTarget, _) = try await TargetGenerator().generateTarget(
             target: target,
             project: project,
             pbxproj: pbxproj,
@@ -1816,7 +2036,7 @@ struct BuildPhaseGeneratorTests {
         ]
 
         let dependencyConditions: [GraphEdge: PlatformCondition] = [
-            .init(from: appGraphDependency, to: appClipGraphDependency): .when([.ios])!,
+            .init(from: appGraphDependency, to: appClipGraphDependency): try #require(.when([.ios])),
         ]
 
         let graph = Graph.test(
@@ -1944,7 +2164,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateLinks_generatesAShellScriptBuildPhase_when_targetIsAMacroFramework() async throws {
+    ) func generateBuildPhases_doesntGenerateACopyScript_when_targetDependsOnAMacro() async throws {
         // Given
         let app = Target.test(name: "app", platform: .iOS, product: .app)
         let macroFramework = Target.test(name: "framework", platform: .iOS, product: .staticFramework)
@@ -1980,19 +2200,93 @@ struct BuildPhaseGeneratorTests {
             .compactMap { $0 as? PBXShellScriptBuildPhase }
             .first(where: { $0.name() == "Copy Swift Macro executable into $BUILT_PRODUCT_DIR" })
 
-        #expect(buildPhase != nil)
+        #expect(buildPhase == nil)
+    }
 
-        let expectedScript =
-            "if [[ -f \"$BUILD_DIR/$CONFIGURATION/macro\" && ! -f \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro\" ]]; then\n    mkdir -p \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\"\n    cp \"$BUILD_DIR/$CONFIGURATION/macro\" \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro\"\nfi"
-        #expect(buildPhase?.shellScript?.contains(expectedScript) == true)
-        #expect(buildPhase?.inputPaths.contains("$BUILD_DIR/$CONFIGURATION/\(macroExecutable.productName)") == true)
-        #expect(
-            buildPhase?.outputPaths ==
-                [
-                    "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)",
-                    "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)",
-                ]
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func generateBuildPhases_doesntGenerateACopyScript_when_macroFrameworkIsExclusiveToMacOS() async throws {
+        // Given
+        let app = Target.test(name: "app", platform: .macOS, product: .app)
+        let macroFramework = Target.test(name: "framework", platform: .macOS, product: .staticFramework)
+        let macroExecutable = Target.test(name: "macro", platform: .macOS, product: .macro)
+        let project = Project.test(targets: [app, macroFramework, macroExecutable])
+        let fileElements = createProductFileElements(for: [app, macroFramework, macroExecutable])
+        let pbxproj = PBXProj()
+        let pbxTarget = PBXNativeTarget(name: app.name)
+
+        let graph = Graph.test(path: project.path, projects: [project.path: project], dependencies: [
+            .target(name: app.name, path: project.path): Set([.target(name: macroFramework.name, path: project.path)]),
+            .target(name: macroFramework.name, path: project.path): Set([.target(
+                name: macroExecutable.name,
+                path: project.path
+            )]),
+            .target(name: macroExecutable.name, path: project.path): Set([]),
+        ])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try await subject.generateBuildPhases(
+            path: "/Project",
+            target: macroFramework,
+            graphTraverser: graphTraverser,
+            pbxTarget: pbxTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
         )
+
+        // Then
+        let buildPhase = pbxTarget
+            .buildPhases
+            .compactMap { $0 as? PBXShellScriptBuildPhase }
+            .first(where: { $0.name() == "Copy Swift Macro executable into $BUILT_PRODUCT_DIR" })
+
+        #expect(buildPhase == nil)
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider,
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func generateBuildPhases_doesntGenerateACopyScript_when_macroFrameworkHasMixedDestinations() async throws {
+        // Given
+        let app = Target.test(name: "app", destinations: [.iPhone, .mac], product: .app)
+        let macroFramework = Target.test(name: "framework", destinations: [.iPhone, .mac], product: .staticFramework)
+        let macroExecutable = Target.test(name: "macro", platform: .macOS, product: .macro)
+        let project = Project.test(targets: [app, macroFramework, macroExecutable])
+        let fileElements = createProductFileElements(for: [app, macroFramework, macroExecutable])
+        let pbxproj = PBXProj()
+        let pbxTarget = PBXNativeTarget(name: app.name)
+
+        let graph = Graph.test(path: project.path, projects: [project.path: project], dependencies: [
+            .target(name: app.name, path: project.path): Set([.target(name: macroFramework.name, path: project.path)]),
+            .target(name: macroFramework.name, path: project.path): Set([.target(
+                name: macroExecutable.name,
+                path: project.path
+            )]),
+            .target(name: macroExecutable.name, path: project.path): Set([]),
+        ])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        try await subject.generateBuildPhases(
+            path: "/Project",
+            target: macroFramework,
+            graphTraverser: graphTraverser,
+            pbxTarget: pbxTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildPhase = pbxTarget
+            .buildPhases
+            .compactMap { $0 as? PBXShellScriptBuildPhase }
+            .first(where: { $0.name() == "Copy Swift Macro executable into $BUILT_PRODUCT_DIR" })
+
+        #expect(buildPhase == nil)
     }
 
     // MARK: - Helpers

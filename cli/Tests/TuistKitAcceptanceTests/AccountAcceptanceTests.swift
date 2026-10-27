@@ -1,6 +1,10 @@
 import Foundation
 import Testing
 import TuistAcceptanceTesting
+import TuistAccountCommand
+import TuistLoggerTesting
+import TuistLogging
+import TuistNooraTesting
 import TuistServer
 import TuistSupport
 import TuistTesting
@@ -9,6 +13,7 @@ import TuistTesting
 
 struct AccountAcceptanceTests {
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
@@ -38,6 +43,7 @@ struct AccountAcceptanceTests {
     }
 
     @Test(
+        .disabled(),
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,

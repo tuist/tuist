@@ -1,0 +1,106 @@
+{{- if .Values.registryCache.enabled }}
+# Docker Hub pull-through cache (CNCF distribution `registry:2` in proxy
+# mode). The runner fleet's dind sidecars point `--registry-mirror` here
+# instead of pulling docker.io directly: every microVM on a bare-metal
+# host shares one egress IP and one anonymous Docker Hub per-IP budget,
+# so direct pulls trip "toomanyrequests". The cache fetches each digest
+# from Docker Hub once, stores it in S3, and serves every later pull from
+# there — turning N anonymous runners into one cache client.
+#
+# Runs on the elastic md-0 pool, NOT the bare-metal runner fleet: it
+# carries no toleration for `tuist.dev/runner-tier=bare-metal:NoSchedule`,
+# so the scheduler keeps it off the rate-limited hosts. That also means
+# its own image is pulled from a different egress IP — and from a non-Hub
+# registry (see registryCache.image) — so the cache can't deadlock on
+# bootstrapping itself.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "registry-cache") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: registry-cache
+spec:
+  replicas: {{ .Values.registryCache.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "registry-cache") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "registry-cache") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+{{ include "tuist.podScheduling" . | nindent 6 }}
+      containers:
+        - name: registry-cache
+          image: "{{ .Values.registryCache.image.repository }}:{{ .Values.registryCache.image.tag }}"
+          imagePullPolicy: {{ .Values.registryCache.image.pullPolicy }}
+          ports:
+            - name: registry
+              containerPort: 5000
+          env:
+            - name: REGISTRY_HTTP_ADDR
+              value: ":5000"
+            - name: REGISTRY_LOG_LEVEL
+              value: {{ .Values.registryCache.logLevel | quote }}
+            - name: REGISTRY_PROXY_REMOTEURL
+              value: {{ .Values.registryCache.proxy.remoteUrl | quote }}
+            {{- with .Values.registryCache.proxy.ttl }}
+            - name: REGISTRY_PROXY_TTL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if .Values.registryCache.proxy.auth.enabled }}
+            # Authenticated upstream: the cache becomes a single
+            # authenticated Docker Hub client, lifting the anonymous
+            # per-IP ceiling that otherwise bounds the cold-cache fill.
+            # The Secret (username/password keys) comes from the chart's
+            # ExternalSecret when externalSecret.enabled, else from an
+            # operator-managed Secret named in proxy.auth.existingSecret.
+            # Fail closed rather than reference a Secret nothing creates.
+            {{- $upstreamSecret := "" }}
+            {{- if .Values.registryCache.proxy.auth.externalSecret.enabled }}
+            {{- $upstreamSecret = include "tuist.componentName" (dict "root" . "component" "registry-cache-upstream") }}
+            {{- else if .Values.registryCache.proxy.auth.existingSecret }}
+            {{- $upstreamSecret = .Values.registryCache.proxy.auth.existingSecret }}
+            {{- else }}
+            {{- fail "registryCache.proxy.auth.enabled requires registryCache.proxy.auth.externalSecret.enabled, or proxy.auth.existingSecret naming a Secret with username/password keys" }}
+            {{- end }}
+            - name: REGISTRY_PROXY_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $upstreamSecret }}
+                  key: username
+            - name: REGISTRY_PROXY_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $upstreamSecret }}
+                  key: password
+            {{- end }}
+            {{- with .Values.registryCache.httpSecret }}
+            # Shared across replicas behind the Service so signed state
+            # validates regardless of which replica serves a request.
+            - name: REGISTRY_HTTP_SECRET
+              value: {{ . | quote }}
+            {{- end }}
+            {{- include "tuist.registryStorageEnv" (dict "root" . "s3" .Values.registryCache.s3) | nindent 12 }}
+            {{- with .Values.registryCache.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /v2/
+              port: registry
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /v2/
+              port: registry
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.registryCache.resources | nindent 12 }}
+{{- end }}

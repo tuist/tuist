@@ -15,10 +15,8 @@ public struct PluginResourceSynthesizer: Equatable {
         self.name = name
         self.path = path
     }
-}
 
-#if DEBUG
-    extension PluginResourceSynthesizer {
+    #if DEBUG
         public static func test(
             name: String = "Plugin",
             path: AbsolutePath = try! AbsolutePath(validating: "/test") // swiftlint:disable:this force_try
@@ -28,5 +26,5 @@ public struct PluginResourceSynthesizer: Equatable {
                 path: path
             )
         }
-    }
-#endif
+    #endif
+}

@@ -1,9 +1,8 @@
 defmodule Tuist.AccountTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.Accounts.Account
-  alias Tuist.Accounts.User
 
   test "account is created when customer_id is present and billing is enabled" do
     # Given
@@ -26,7 +25,22 @@ defmodule Tuist.AccountTest do
     assert "must contain only alphanumeric characters" in errors_on(changeset).name
   end
 
+  test "environment suffixes are reserved case-insensitively" do
+    for name <- ["acme-staging", "acme-canary", "Acme-STAGING", "Acme-CANARY"] do
+      changeset = Account.create_changeset(%Account{}, %{name: name, user_id: 1})
+      assert "must not end in -staging or -canary" in errors_on(changeset).name
+    end
+  end
+
   describe "handle validity" do
+    test "it fails the validation if a handle starts or ends with a hyphen" do
+      for name <- ["-handle", "handle-", "-"] do
+        changeset = Account.create_changeset(%Account{}, %{name: name, user_id: 1})
+
+        assert "must start and end with a letter or number" in errors_on(changeset).name
+      end
+    end
+
     test "it fails the validation if a handle is included in the block list" do
       changeset =
         Account.create_changeset(%Account{}, %{
@@ -91,12 +105,6 @@ defmodule Tuist.AccountTest do
       refute Account.update_changeset(%Account{}, %{name: "my.name"}).valid?
     end
 
-    test "allows updating namespace_tenant_id" do
-      changeset = Account.update_changeset(%Account{}, %{namespace_tenant_id: "tenant-123"})
-      assert changeset.valid?
-      assert changeset.changes.namespace_tenant_id == "tenant-123"
-    end
-
     test "validates region inclusion" do
       assert Account.update_changeset(%Account{}, %{region: :all}).valid?
       assert Account.update_changeset(%Account{}, %{region: :europe}).valid?
@@ -151,34 +159,6 @@ defmodule Tuist.AccountTest do
       long_name = String.duplicate("a", 33)
       changeset = Account.create_changeset(%Account{}, %{name: long_name, user_id: 1})
       assert "should be at most 32 character(s)" in errors_on(changeset).name
-    end
-
-    test "validates namespace_tenant_id uniqueness on update" do
-      {:ok, user1} = Tuist.Repo.insert(%User{email: "user1@test.com", token: "token-a"})
-      {:ok, user2} = Tuist.Repo.insert(%User{email: "user2@test.com", token: "token-b"})
-
-      {:ok, account1} =
-        %Account{}
-        |> Account.create_changeset(%{
-          name: "account1",
-          user_id: user1.id,
-          billing_email: "#{UUIDv7.generate()}@tuist.dev"
-        })
-        |> Tuist.Repo.insert()
-
-      {:ok, account2} =
-        %Account{}
-        |> Account.create_changeset(%{
-          name: "account2",
-          user_id: user2.id,
-          billing_email: "#{UUIDv7.generate()}@tuist.dev"
-        })
-        |> Tuist.Repo.insert()
-
-      Tuist.Repo.update(Account.update_changeset(account1, %{namespace_tenant_id: "tenant-123"}))
-      changeset = Account.update_changeset(account2, %{namespace_tenant_id: "tenant-123"})
-      {:error, changeset} = Tuist.Repo.update(changeset)
-      assert "has already been taken" in errors_on(changeset).namespace_tenant_id
     end
   end
 

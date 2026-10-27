@@ -1,0 +1,130 @@
+# pomerium chart
+
+Self-contained chart (not a wrapper) deploying Pomerium in
+all-in-one mode plus the `kube-impersonator` sidecar as the
+per-env kubectl gateway. One Helm release per workload env
+(staging / canary / production), deployed into that cluster.
+
+## What it provides
+
+- `https://kube-<env>.tuist.dev` — kubectl gateway. Users dial
+  this via `pomerium-cli k8s exec-credential` registered as a
+  kubeconfig exec plugin; on first call the plugin opens a
+  browser for Google OIDC and caches the session for ~24h.
+- `https://authenticate.kube-<env>.tuist.dev` — Pomerium's
+  authenticate service (OAuth callback target).
+- ClusterRoleBindings for `tuist-admins` / `tuist-eng` /
+  `tuist-<env>-write` → `view` / `view` / `edit` respectively
+  (`templates/access-tiers.yaml`).
+- Controlled CNPG switchovers through `tuist-edit-cnpg-write`, aggregated
+  into `edit`: `patch` on `clusters/status` in `postgresql.cnpg.io`.
+  Canary/production require a human-driven JIT elevation; staging retains
+  standing write access. The grant covers the status subresource, not just
+  promotion fields, so use it only for the authorized incident action.
+  Follow the [switchover runbook](../../k8s/onboarding.md#controlled-cnpg-switchover)
+  for health checks and explicit subresource authorization checks.
+
+Local RBAC regression checks (Helm, mikefarah/yq, jq; no cluster access):
+
+```bash
+bash infra/helm/pomerium/test-access-tiers.sh
+```
+
+## Staging: the gateway is no longer the primary door
+
+Staging's write tier is standing access rather than a per-request
+elevation, so nothing there needs the per-request PolicyController
+lookup this gateway exists to carry. Human kubectl for staging goes
+over the tailnet instead, to `tuist-k8s-staging.taild6d7bb.ts.net`
+(Tailscale's in-process API server proxy, enabled in
+`infra/helm/tailscale-operator/values-staging.yaml`), with the tier
+coming from `tailscale.com/cap/kubernetes` grants in
+`infra/tailscale/acls.json`.
+
+The release still deploys to staging, for two reasons:
+`templates/access-tiers.yaml` binds the groups BOTH doors
+impersonate, and `kube-staging.tuist.dev` stays a working way in
+from off the tailnet. Canary and production are unchanged — the
+gateway is their only door.
+
+## Identity flow
+
+Canary and production always; staging only when someone uses the
+gateway fallback above.
+
+1. `kubectl --context kube-<env>.tuist.dev get pods`
+2. `pomerium-cli` injects the cached Pomerium session JWT as a Bearer.
+3. Pomerium validates the session (signed by us, not expired,
+   email in `tuist.dev`).
+4. Pomerium's route forwards to the `kube-impersonator` sidecar
+   on `127.0.0.1:8081`. `pass_identity_headers: true` +
+   `jwt_claims_headers: { X-Pomerium-Claim-Email: email }`
+   attach the user's email.
+5. Sidecar issues `GET http://tuist-ops-egress/api/v1/policy`
+   over the tailnet (the egress Service is operator-managed,
+   proxying to `ops.<tailnet>.ts.net`).
+6. tuist-ops reads `host` to derive the env + the claim header
+   to identify the user, adds the env write group (staging:
+   always; canary / production: only against an active elevation
+   row for `(subject, env)`), returns HTTP 200 +
+   `Impersonate-User` + one-or-more `Impersonate-Group` response
+   headers.
+7. Sidecar strips the inbound bearer, attaches the pod
+   ServiceAccount token, copies the policy headers onto the
+   request, forwards to `https://kubernetes.default.svc:443`.
+8. apiserver impersonates, RBAC binds the group(s) to the right
+   ClusterRole (view / edit), request succeeds or fails on
+   that authorisation.
+
+## Manual prereqs (per env)
+
+1. **Create the Pomerium 1P item** `POMERIUM_<TUIST_ENV>` in the
+   matching env's vault with:
+   - `shared_secret` (32 bytes base64): `openssl rand -base64 32`
+     — Pomerium's internal RPC signing key (not the databroker
+     store).
+   - `cookie_secret` (32 bytes base64): same generator.
+   - `idp_client_id` / `idp_client_secret`: Google Workspace
+     OIDC credentials. Today **one shared OAuth client covers
+     all three envs** (intentional simplification at our scale):
+     the same client_id / client_secret live in
+     `POMERIUM_STAGING`, `POMERIUM_CANARY`, and
+     `POMERIUM_PRODUCTION`. The client's "Authorized redirect
+     URIs" list must include all three env hosts:
+       - `https://authenticate.kube-staging.tuist.dev/oauth2/callback`
+       - `https://authenticate.kube-canary.tuist.dev/oauth2/callback`
+       - `https://authenticate.kube-prod.tuist.dev/oauth2/callback`
+     Trade-off: a leaked credential affects all envs, not one.
+     When the team grows, split into three per-env clients to
+     match the rest of the design's per-env credential
+     isolation (separate Tailscale OAuth clients, separate 1P
+     vaults, etc.).
+
+   Databroker is memory-backed (single replica, sessions
+   invalidate on pod restart and users re-auth — acceptable at
+   our scale). No connection string needed.
+
+2. **DNS** for `kube-<env>.tuist.dev` and
+   `authenticate.kube-<env>.tuist.dev` is created automatically
+   by `external-dns` from the chart's Ingress hosts.
+
+3. **cert-manager** must already have a
+   `letsencrypt-cloudflare` ClusterIssuer (it does — used by
+   the existing Tuist server ingress).
+
+4. **Tailscale operator** must already be deployed in the
+   cluster with the `tuist-ops-egress` ExternalName Service
+   path working — that's what the sidecar dials.
+
+## Deploy
+
+```bash
+helm upgrade --install pomerium-kube infra/helm/pomerium \
+  -n pomerium --create-namespace \
+  -f infra/helm/pomerium/values-staging.yaml \
+  --kube-context tuist-k8s-staging
+```
+
+Repeat for canary + production once staging is proven. The
+deployment workflow at `.github/workflows/pomerium-deployment.yml`
+wraps this with the 1P kubeconfig fetch + per-env matrix.

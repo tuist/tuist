@@ -1,0 +1,35 @@
+{{- if and .Values.cache.enabled .Values.cache.storage.pvc.create }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "cache-storage") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.cache.storage.pvc.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.cache.storage.pvc.size }}
+  {{- if .Values.cache.storage.pvc.storageClassName }}
+  storageClassName: {{ .Values.cache.storage.pvc.storageClassName }}
+  {{- end }}
+---
+{{- end }}
+{{- if and .Values.cache.enabled .Values.cache.data.pvc.create }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "cache-data") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.cache.data.pvc.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.cache.data.pvc.size }}
+  {{- if .Values.cache.data.pvc.storageClassName }}
+  storageClassName: {{ .Values.cache.data.pvc.storageClassName }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,745 @@
+defmodule Tuist.Runners.PromExPlugin do
+  @moduledoc """
+  PromEx plugin for the customer-runner dispatch path.
+
+  Two metric families:
+
+    * **Event metrics.** Counters + duration histograms attached to
+      the `:tuist, :runners, ...` events emitted by `Tuist.Runners`,
+      `Tuist.Runners.Jobs`, `Tuist.Runners.Dispatch`, and the
+      recovery workers. Counters cover throughput (`enqueued`,
+      `claim`, `running`, `completed`); histograms cover wall-clock
+      durations (`queue_time_ms` at claim, `queue_to_running_ms` at
+      mint, `run_time_ms` / `total_time_ms` at completion). The
+      dispatch endpoint emits its own count + latency histogram
+      tagged by fleet and outcome so a real dispatch stall on one
+      shape is visible separately from an idle warm pool polling, and
+      separately from a slow CH/PG.
+
+    * **Polling metrics.** Four poll loops at a coarse 30s cadence
+      query authoritative state and emit gauges: queue length per
+      fleet from Postgres, inflight claim counts per fleet /
+      lifecycle state from Postgres, open sessions past the six-hour
+      safety bound per fleet from Postgres, RunnerPool desired /
+      observed / capacity-ceiling replica counts from the K8s
+      apiserver. Polled gauges are
+      deliberately separate from the event counters —
+      `runner_pool_replicas` is a level (current capacity), not a
+      flux (boot/teardown rate already covered by tart-kubelet's
+      boot duration histogram).
+
+  Cardinality budget: `fleet` is bounded by the number of
+  RunnerPool CRs (one per Linux shape + macOS Xcode image, O(10)).
+  Per-account fan-out is *not* tagged on event metrics; account-level
+  views are exposed as polled aggregates only.
+  """
+
+  use PromEx.Plugin
+
+  import Ecto.Query, only: [from: 2]
+
+  alias Tuist.ClickHouseRepo
+  alias Tuist.Environment
+  alias Tuist.Kubernetes.Client, as: K8sClient
+  alias Tuist.Repo
+  alias Tuist.Runners.Catalog
+  alias Tuist.Runners.Claim
+  alias Tuist.Runners.Concurrency
+  alias Tuist.Runners.Jobs
+  alias Tuist.Runners.RunnerSessions
+  alias Tuist.Runners.Telemetry
+  alias TuistCommon.Repo.PoolMetrics
+
+  @metric_prefix [:tuist, :runners]
+
+  # The bounded universe of lifecycle states a `runner_claims` row
+  # can carry. The poll iterates this list so a fleet whose final
+  # `claimed` row was just released drains the gauge to zero on the
+  # next tick instead of `last_value` keeping a phantom non-zero
+  # series until process restart.
+  @lifecycle_states ~w(claimed running)
+
+  # Process-dict key for the set of RunnerPool fleet names emitted
+  # on the previous `execute_pool_replicas_telemetry_event/0` tick.
+  # Lets the poll emit an explicit `0` for a fleet that was visible
+  # in the cluster on the prior tick but isn't now — without this,
+  # `last_value` keeps the last `desired`/`observed` sample forever
+  # after a RunnerPool is deleted.
+  @pool_replicas_seen_key :tuist_runners_pool_replicas_seen_fleets
+
+  # Same idea for the queue poll. `universe_fleets/1` keeps a fleet
+  # emitting zeros while it is either an active RunnerPool or still has
+  # queued rows, but a fleet that loses both at once (pool deleted while
+  # a row is queued, then that row leaves `queued`) is in neither set,
+  # so nothing is emitted and `last_value` holds the fleet's last
+  # non-zero `queue_length` / `queue_oldest_age_seconds` forever — a
+  # growing age that keeps the queue-age alert firing after the queue
+  # has cleared. Emit one final zero for such fleets.
+  @queue_seen_key :tuist_runners_queue_seen_fleets
+
+  # Same drain for the session-clamp poll: a fleet can lose its pool and
+  # its clamped rows in one step, and a leak gauge stuck non-zero after
+  # the leak cleared is an alert nobody can silence.
+  @session_clamp_seen_key :tuist_runners_session_clamp_seen_fleets
+
+  # Same drain for the replica-divergence poll.
+  @divergence_seen_key :tuist_runners_divergence_seen_fleets
+
+  # Buckets cover the realistic wall-clock range for each duration.
+  # `queue_time` and `queue_to_running` are sub-minute on the happy
+  # path; `run_time` / `total_time` span seconds to the GH-side
+  # 6-hour ceiling, so the upper bucket sits at 6 * 3600 * 1000 ms.
+  @short_duration_buckets [50, 100, 250, 500, 1_000, 2_500, 5_000, 10_000, 30_000, 60_000, 300_000]
+  @long_duration_buckets [
+    1_000,
+    5_000,
+    30_000,
+    60_000,
+    300_000,
+    900_000,
+    1_800_000,
+    3_600_000,
+    7_200_000,
+    14_400_000,
+    21_600_000
+  ]
+  @dispatch_duration_buckets [10, 50, 100, 250, 500, 1_000, 2_500, 5_000, 10_000]
+
+  @impl true
+  def event_metrics(_opts) do
+    [
+      Event.build(
+        :tuist_runners_lifecycle_event_metrics,
+        [
+          counter(
+            @metric_prefix ++ [:job, :enqueued, :count],
+            event_name: Telemetry.event_name_job_enqueued(),
+            description: "Workflow jobs enqueued for a Tuist-managed runner fleet.",
+            tags: [:fleet]
+          ),
+          counter(
+            @metric_prefix ++ [:job, :claim, :count],
+            event_name: Telemetry.event_name_job_claim(),
+            description: "Workflow jobs claimed off the queue by a polling runner Pod.",
+            tags: [:fleet, :outcome]
+          ),
+          distribution(
+            @metric_prefix ++ [:job, :queue, :time, :milliseconds],
+            event_name: Telemetry.event_name_job_claim(),
+            measurement: :queue_time_ms,
+            description: "Time between webhook enqueue and the first successful claim.",
+            reporter_options: [buckets: @short_duration_buckets],
+            tags: [:fleet],
+            unit: :millisecond
+          ),
+          counter(
+            @metric_prefix ++ [:job, :running, :count],
+            event_name: Telemetry.event_name_job_running(),
+            description: "Workflow jobs that reached the running state after a successful JIT mint.",
+            tags: [:fleet]
+          ),
+          distribution(
+            @metric_prefix ++ [:job, :queue_to_running, :time, :milliseconds],
+            event_name: Telemetry.event_name_job_running(),
+            measurement: :queue_to_running_ms,
+            description: "Time between webhook enqueue and the running transition (queue + claim + mint).",
+            reporter_options: [buckets: @short_duration_buckets],
+            tags: [:fleet],
+            unit: :millisecond
+          ),
+          distribution(
+            @metric_prefix ++ [:job, :claim_to_running, :time, :milliseconds],
+            event_name: Telemetry.event_name_job_running(),
+            measurement: :claim_to_running_ms,
+            description: "Time between claim and the running transition — JIT mint plus pod label patch.",
+            reporter_options: [buckets: @short_duration_buckets],
+            tags: [:fleet],
+            unit: :millisecond
+          ),
+          counter(
+            @metric_prefix ++ [:job, :completed, :count],
+            event_name: Telemetry.event_name_job_completed(),
+            description: "Workflow jobs that reached a terminal GitHub conclusion.",
+            tags: [:fleet, :conclusion]
+          ),
+          distribution(
+            @metric_prefix ++ [:job, :run, :time, :milliseconds],
+            event_name: Telemetry.event_name_job_completed(),
+            measurement: :run_time_ms,
+            description: "Time between running and completed — the actual execution window on the runner.",
+            reporter_options: [buckets: @long_duration_buckets],
+            tags: [:fleet],
+            unit: :millisecond
+          ),
+          distribution(
+            @metric_prefix ++ [:job, :total, :time, :milliseconds],
+            event_name: Telemetry.event_name_job_completed(),
+            measurement: :total_time_ms,
+            description: "End-to-end time from webhook enqueue to completion.",
+            reporter_options: [buckets: @long_duration_buckets],
+            tags: [:fleet],
+            unit: :millisecond
+          ),
+          counter(
+            @metric_prefix ++ [:job, :requeued, :count],
+            event_name: Telemetry.event_name_job_requeued(),
+            description: "Workflow jobs returned to the queued state via release or recovery.",
+            tags: [:fleet]
+          )
+        ]
+      ),
+      Event.build(
+        :tuist_runners_dispatch_event_metrics,
+        [
+          counter(
+            @metric_prefix ++ [:dispatch, :request, :count],
+            event_name: Telemetry.event_name_dispatch_request() ++ [:stop],
+            description:
+              "Polling Pod dispatch requests bucketed by fleet and outcome. " <>
+                "`outcome` is granular: served, drain, empty (queue had nothing), " <>
+                "lost_race / pod_in_use (claim contention), plus SA/label errors.",
+            tags: [:fleet, :outcome]
+          ),
+          distribution(
+            @metric_prefix ++ [:dispatch, :request, :duration, :milliseconds],
+            event_name: Telemetry.event_name_dispatch_request() ++ [:stop],
+            measurement: :duration,
+            description: "Wall-clock time the dispatch endpoint spent serving a polling Pod.",
+            reporter_options: [buckets: @dispatch_duration_buckets],
+            tags: [:fleet, :outcome],
+            unit: {:native, :millisecond}
+          ),
+          counter(
+            @metric_prefix ++ [:dispatch, :affinity, :count],
+            event_name: Telemetry.event_name_dispatch_affinity(),
+            measurement: :count,
+            description:
+              "Cache-volume residency decisions at dispatch, bucketed by fleet and outcome. " <>
+                "One sample per COMMITTED dispatch. `resident` (a job with a resident custom " <>
+                "volume was preferred) and `head_resident` are the warm placements; " <>
+                "`no_resident_candidate` means nothing queued matched the node's masters, " <>
+                "`no_room` means queued jobs matched them but the node's cache disk cannot fit " <>
+                "their volumes, `head_overdue` means the starvation bound took precedence, and " <>
+                "`no_residency` means the node advertises no masters.",
+            tags: [:fleet, :outcome]
+          )
+        ]
+      ),
+      Event.build(
+        :tuist_runners_webhook_event_metrics,
+        [
+          counter(
+            @metric_prefix ++ [:webhook, :count],
+            event_name: Telemetry.event_name_webhook(),
+            description: "GitHub workflow_job webhook deliveries bucketed by action and outcome.",
+            tags: [:action, :outcome]
+          )
+        ]
+      ),
+      Event.build(
+        :tuist_runners_recovery_event_metrics,
+        [
+          counter(
+            @metric_prefix ++ [:recovery, :count],
+            event_name: Telemetry.event_name_recovery(),
+            measurement: :count,
+            description: "Stale or orphaned rows recovered by the recovery workers, by kind.",
+            tags: [:kind]
+          ),
+          # Only the orphan re-queue carries `stranded_ms`, so this fires
+          # for that recovery alone even though every worker shares the
+          # event — a measurement key absent from the event is skipped.
+          # This is the ONLY series that sees a job dispatched to a runner
+          # that never registered: the row is `running` for the whole
+          # stall, so `queue_length` and `queue_oldest_age_seconds` both
+          # read zero while the customer watches "waiting for a runner".
+          # Its `_count` doubles as the per-fleet strand rate, which is why
+          # the shared counter above is left untagged.
+          distribution(
+            @metric_prefix ++ [:recovery, :stranded, :time, :milliseconds],
+            event_name: Telemetry.event_name_recovery(),
+            measurement: :stranded_ms,
+            description:
+              "Time a workflow_job sat claimed by a runner that never registered with GitHub, until recovery re-queued it.",
+            reporter_options: [buckets: @long_duration_buckets],
+            tags: [:fleet],
+            unit: :millisecond
+          )
+        ]
+      )
+    ]
+  end
+
+  @impl true
+  def polling_metrics(opts) do
+    poll_rate = Keyword.get(opts, :poll_rate, to_timeout(second: 30))
+
+    [
+      Polling.build(
+        :tuist_runners_queue_length_metrics,
+        poll_rate,
+        {__MODULE__, :execute_queue_length_telemetry_event, []},
+        [
+          last_value(
+            @metric_prefix ++ [:queue, :length],
+            event_name: Telemetry.event_name_queue_length(),
+            description: "Queued workflow jobs per fleet (Postgres runner_workflow_jobs).",
+            measurement: :count,
+            tags: [:fleet]
+          ),
+          # Rides the `queue_length` event: both values come out of one
+          # Postgres scan. Depth alone can't distinguish a queue that
+          # is never empty because arrivals are served promptly from one
+          # job wedged for hours — both sit at 1.
+          last_value(
+            @metric_prefix ++ [:queue, :oldest, :age, :seconds],
+            event_name: Telemetry.event_name_queue_length(),
+            description: "Age of the oldest still-queued workflow job per fleet, in seconds (0 when the queue is empty).",
+            measurement: :oldest_age_seconds,
+            tags: [:fleet]
+          ),
+          # Also rides the `queue_length` event, and is the measurement
+          # the queue-age alert reads. `oldest_age_seconds` counts every
+          # queued row, including work the server withholds because its
+          # account is at its concurrency limit — and that is admission
+          # control working, not a fault: dispatch declines those jobs on
+          # purpose and the autoscaler declines to grow for them. An
+          # alert on the raw age pages on a design decision and hands
+          # whoever answers it no lever but a commercial one. This is the
+          # same queue with the withheld rows removed, so it reads zero
+          # exactly when there is nothing a healthy fleet should be
+          # starting.
+          last_value(
+            @metric_prefix ++ [:queue, :oldest, :dispatchable, :age, :seconds],
+            event_name: Telemetry.event_name_queue_length(),
+            description:
+              "Age of the oldest still-queued workflow job per fleet that its account has the concurrency headroom to run, in seconds (0 when nothing queued is dispatchable).",
+            measurement: :oldest_dispatchable_age_seconds,
+            tags: [:fleet]
+          ),
+          # Emitted from the autoscaler's signal path, not this poll: it
+          # is the gap between raw queue depth and what dispatch would
+          # actually hand out. Depth alone reads the same whether a
+          # queue is deep with claimable work or deep because one
+          # account is parked at its concurrency cap, and only the
+          # second means "do not grow the fleet for this".
+          last_value(
+            @metric_prefix ++ [:queue, :withheld],
+            event_name: Telemetry.event_name_queue_withheld(),
+            description:
+              "Queued workflow jobs per fleet excluded from the autoscaler's demand signal because their account is at its concurrency limit.",
+            measurement: :count,
+            tags: [:fleet]
+          )
+        ]
+      ),
+      Polling.build(
+        :tuist_runners_claims_metrics,
+        poll_rate,
+        {__MODULE__, :execute_claims_telemetry_event, []},
+        [
+          last_value(
+            @metric_prefix ++ [:claims, :count],
+            event_name: Telemetry.event_name_claims_count(),
+            description: "Active PG claims per fleet and lifecycle state (claimed or running).",
+            measurement: :count,
+            tags: [:fleet, :lifecycle_state]
+          )
+        ]
+      ),
+      Polling.build(
+        :tuist_runners_session_clamp_metrics,
+        poll_rate,
+        {__MODULE__, :execute_session_clamp_telemetry_event, []},
+        [
+          last_value(
+            @metric_prefix ++ [:session, :clamped, :count],
+            event_name: Telemetry.event_name_session_clamp(),
+            description:
+              "Open runner sessions per fleet whose start is more than the six-hour safety bound ago — the rows the autoscaler has stopped counting as occupied and billing has stopped charging for. Counts by age alone, with no check on whether the Pod is still there, so a job running near GitHub's own six-hour ceiling crosses the bound while alive and legitimately counted here.",
+            measurement: :count,
+            tags: [:fleet]
+          )
+        ]
+      ),
+      Polling.build(
+        :tuist_runners_replica_divergence_metrics,
+        poll_rate,
+        {__MODULE__, :execute_replica_divergence_telemetry_event, []},
+        [
+          last_value(
+            @metric_prefix ++ [:replica, :divergence, :count],
+            event_name: Telemetry.event_name_replica_divergence(),
+            description:
+              "Jobs per fleet whose ClickHouse row is still non-terminal while Postgres holds a terminal state. The outbox makes divergence transient, so this reads zero in steady state; a sustained non-zero value means analytics and the Jobs dashboard are serving a state the job has already left, and nothing will correct it on its own because a terminal job emits no further events.",
+            measurement: :count,
+            tags: [:fleet]
+          )
+        ]
+      ),
+      Polling.build(
+        :tuist_runners_pool_replicas_metrics,
+        poll_rate,
+        {__MODULE__, :execute_pool_replicas_telemetry_event, []},
+        [
+          last_value(
+            @metric_prefix ++ [:pool, :replicas, :desired],
+            event_name: Telemetry.event_name_pool_replicas(),
+            description: "Desired RunnerPool replicas (spec.replicas).",
+            measurement: :desired,
+            tags: [:fleet]
+          ),
+          last_value(
+            @metric_prefix ++ [:pool, :replicas, :observed],
+            event_name: Telemetry.event_name_pool_replicas(),
+            description: "Observed RunnerPool replicas (status.observedReplicas).",
+            measurement: :observed,
+            tags: [:fleet]
+          ),
+          last_value(
+            @metric_prefix ++ [:pool, :replicas, :max],
+            event_name: Telemetry.event_name_pool_replicas(),
+            description: "RunnerPool capacity ceiling (max(spec.autoscaling.maxReplicas, spec.replicas)).",
+            measurement: :max,
+            tags: [:fleet]
+          )
+        ]
+      )
+    ]
+  end
+
+  @doc false
+  def execute_queue_length_telemetry_event do
+    if PoolMetrics.running?(Repo) do
+      now = DateTime.utc_now()
+      stats = Jobs.queue_stats_by_fleet()
+      current_fleets = stats |> universe_fleets() |> MapSet.new()
+      fleet_resources = Map.new(current_fleets, &{&1, Catalog.resources_for_fleet(&1)})
+      snapshots = concurrency_snapshots(stats, fleet_resources)
+
+      Enum.each(current_fleets, fn fleet ->
+        %{count: count, oldest_enqueued_at: oldest_enqueued_at, by_account: by_account} =
+          Map.get(stats, fleet, %{count: 0, oldest_enqueued_at: nil, by_account: %{}})
+
+        :telemetry.execute(
+          Telemetry.event_name_queue_length(),
+          %{
+            count: count,
+            oldest_age_seconds: age_seconds(now, oldest_enqueued_at),
+            oldest_dispatchable_age_seconds:
+              age_seconds(
+                now,
+                oldest_dispatchable_enqueued_at(by_account, Map.get(fleet_resources, fleet), snapshots)
+              )
+          },
+          %{fleet: fleet}
+        )
+      end)
+
+      @queue_seen_key
+      |> Process.get(MapSet.new())
+      |> MapSet.difference(current_fleets)
+      |> Enum.each(fn fleet ->
+        :telemetry.execute(
+          Telemetry.event_name_queue_length(),
+          %{count: 0, oldest_age_seconds: 0, oldest_dispatchable_age_seconds: 0},
+          %{fleet: fleet}
+        )
+      end)
+
+      Process.put(@queue_seen_key, current_fleets)
+    end
+  end
+
+  # Horizon for the ClickHouse side of the divergence scan. The
+  # `enqueued_at >= cutoff` prunes partitions (the table is
+  # `PARTITION BY toYYYYMM(enqueued_at)` and every state-transition
+  # INSERT carries the original `enqueued_at` forward, so all rows
+  # for a workflow_job live in the same partition). Seven days matches
+  # `Jobs`' own queued floor, so a row old enough to fall out of this
+  # scan is also one nothing will ever dispatch.
+  @queue_lookback_days 7
+
+  # Clamped at 0 so clock skew between the pod that wrote `enqueued_at`
+  # and the pod polling can't report a negative age, which would read as
+  # a healthy queue. `nil` means the fleet has nothing queued.
+  # One limits+usage read per PLATFORM per poll, over every account queued
+  # anywhere on that platform's fleets.
+  #
+  # Headroom depends on the shape, but the two reads behind it depend only
+  # on the account and platform, so they are taken once here and every
+  # fleet is answered from them. Resolving per fleet instead made the cost
+  # scale with fleet count — this runs every 30 seconds on every replica,
+  # and a busy queue spans many fleets at once — while re-reading the same
+  # accounts for each fleet they are queued on.
+  defp concurrency_snapshots(stats, fleet_resources) do
+    fleet_resources
+    |> Enum.reduce(%{}, fn
+      {fleet, {:ok, %{platform: platform}}}, acc ->
+        accounts =
+          stats
+          |> Map.get(fleet, %{})
+          |> Map.get(:by_account, %{})
+          |> Map.keys()
+
+        Map.update(acc, platform, accounts, &(accounts ++ &1))
+
+      {_fleet, {:error, _reason}}, acc ->
+        acc
+    end)
+    |> Map.new(fn {platform, account_ids} ->
+      {platform, Concurrency.usage_snapshot(account_ids, platform)}
+    end)
+  end
+
+  # The oldest arrival dispatch could actually hand out right now: the
+  # queue minus the accounts measured to have no concurrency headroom.
+  #
+  # Per account, not per job, because headroom is an account-level
+  # budget — an account with headroom can be handed its own oldest
+  # queued job, and one without can be handed none of them.
+  #
+  # Falls back to the raw oldest when the fleet's shape is unknown,
+  # matching `Tuist.Runners.dispatchable_queued_count/1`: an
+  # unrecognised fleet should report the signal it has rather than read
+  # zero and mask a genuine stall behind a catalog gap.
+  defp oldest_dispatchable_enqueued_at(by_account, _resources, _snapshots) when map_size(by_account) == 0, do: nil
+
+  defp oldest_dispatchable_enqueued_at(by_account, {:ok, resources}, snapshots) do
+    case Map.fetch(snapshots, resources.platform) do
+      {:ok, snapshot} ->
+        by_account
+        |> Enum.filter(fn {account_id, _oldest} -> dispatchable_account?(snapshot, account_id, resources) end)
+        |> Enum.map(fn {_account_id, oldest} -> oldest end)
+        |> earliest()
+
+      :error ->
+        by_account |> Map.values() |> earliest()
+    end
+  end
+
+  defp oldest_dispatchable_enqueued_at(by_account, _resources, _snapshots) do
+    by_account |> Map.values() |> earliest()
+  end
+
+  # Only a MEASURED cap filters an account out. A missing limit row is not
+  # a cap: `Claims.attempt/5` fails it as `:concurrency_limit_missing`, so
+  # nothing for that account can be dispatched at all. Reading that as "no
+  # headroom" would report a healthy zero for a queue that is entirely
+  # stuck, which is precisely the stall the queue-age alert exists to
+  # catch. Anything other than a real headroom figure keeps the account's
+  # wait visible.
+  defp dispatchable_account?(snapshot, account_id, resources) do
+    case Concurrency.headroom_from_snapshot(snapshot, account_id, resources) do
+      {:ok, headroom} -> headroom > 0
+      {:error, _reason} -> true
+    end
+  end
+
+  defp earliest([]), do: nil
+  defp earliest(enqueued_ats), do: Enum.min(enqueued_ats, DateTime)
+
+  defp age_seconds(_now, nil), do: 0
+
+  defp age_seconds(now, %DateTime{} = enqueued_at) do
+    now |> DateTime.diff(enqueued_at, :second) |> max(0)
+  end
+
+  defp age_seconds(now, %NaiveDateTime{} = enqueued_at) do
+    age_seconds(now, DateTime.from_naive!(enqueued_at, "Etc/UTC"))
+  end
+
+  # Settle window before a non-terminal ClickHouse row counts as
+  # diverged. The flusher runs every minute, so anything younger is
+  # in-flight lag rather than a replica that has stopped converging.
+  @divergence_settle_minutes 5
+
+  @doc false
+  def execute_replica_divergence_telemetry_event do
+    if PoolMetrics.running?(ClickHouseRepo) and PoolMetrics.running?(Repo) do
+      now = DateTime.utc_now()
+
+      counts =
+        Jobs.count_replica_divergence(
+          DateTime.add(now, -@divergence_settle_minutes, :minute),
+          DateTime.add(now, -@queue_lookback_days, :day)
+        )
+
+      current_fleets = counts |> Map.keys() |> MapSet.new()
+
+      Enum.each(counts, fn {fleet, count} ->
+        :telemetry.execute(Telemetry.event_name_replica_divergence(), %{count: count}, %{fleet: fleet})
+      end)
+
+      @divergence_seen_key
+      |> Process.get(MapSet.new())
+      |> MapSet.difference(current_fleets)
+      |> Enum.each(fn fleet ->
+        :telemetry.execute(Telemetry.event_name_replica_divergence(), %{count: 0}, %{fleet: fleet})
+      end)
+
+      Process.put(@divergence_seen_key, current_fleets)
+    end
+  end
+
+  # Polled rather than emitted from `p95_concurrent_last_hour/1`, which
+  # is where this gauge used to ride. That path only runs for fleets the
+  # autoscaler happens to be polling, on whichever replica serves the
+  # request, and the striped Peep storage is flushed on every scrape — so
+  # the sample had to land in the same 15s window on the same pod to be
+  # exported at all. It never was: the metric was defined and registered
+  # while production leaked sessions for hours with no series to show for
+  # it. As a poll it behaves like every other gauge here, including the
+  # zero-drain for fleets that recovered.
+  @doc false
+  def execute_session_clamp_telemetry_event do
+    if PoolMetrics.running?(Repo) do
+      counts = RunnerSessions.clamped_open_session_counts_per_fleet()
+      current_fleets = counts |> universe_fleets() |> MapSet.new()
+
+      Enum.each(current_fleets, fn fleet ->
+        :telemetry.execute(
+          Telemetry.event_name_session_clamp(),
+          %{count: Map.get(counts, fleet, 0)},
+          %{fleet: fleet}
+        )
+      end)
+
+      # A fleet whose pool was deleted while it still held clamped
+      # sessions leaves both sets at once when those rows close, so
+      # nothing would be emitted and `last_value` would hold its last
+      # non-zero sample forever — a leak alert that never clears after
+      # the leak is gone. Emit one final zero.
+      @session_clamp_seen_key
+      |> Process.get(MapSet.new())
+      |> MapSet.difference(current_fleets)
+      |> Enum.each(fn fleet ->
+        :telemetry.execute(Telemetry.event_name_session_clamp(), %{count: 0}, %{fleet: fleet})
+      end)
+
+      Process.put(@session_clamp_seen_key, current_fleets)
+    end
+  end
+
+  @doc false
+  def execute_claims_telemetry_event do
+    if PoolMetrics.running?(Repo) do
+      counts = fetch_claim_counts()
+      observed_fleets = counts |> Map.keys() |> Enum.map(&elem(&1, 0))
+
+      observed_fleets
+      |> universe_fleets()
+      |> Enum.each(fn fleet ->
+        Enum.each(@lifecycle_states, fn state ->
+          :telemetry.execute(
+            Telemetry.event_name_claims_count(),
+            %{count: Map.get(counts, {fleet, state}, 0)},
+            %{fleet: fleet, lifecycle_state: state}
+          )
+        end)
+      end)
+    end
+  end
+
+  defp fetch_claim_counts do
+    query =
+      from(c in Claim,
+        group_by: [c.fleet_name, c.lifecycle_state],
+        select: {c.fleet_name, c.lifecycle_state, count(c.pod_name)}
+      )
+
+    query
+    |> Repo.all()
+    |> Map.new(fn {fleet, state, count} -> {{fleet || "", state || ""}, count} end)
+  end
+
+  # Union of (RunnerPool CRs currently in the cluster) and any
+  # fleets observed in the source-of-truth query. The cluster set
+  # ensures we emit a `0` for a fleet that just drained — otherwise
+  # `last_value` would keep the previous non-zero sample
+  # indefinitely. The observed set covers the edge case where a
+  # RunnerPool was deleted with leftover queued / claimed rows; we
+  # still surface those until the rows are cleared.
+  defp universe_fleets(observed) when is_list(observed) or is_map(observed) do
+    cluster_fleets = active_fleets()
+    observed_set = observed |> ensure_list() |> MapSet.new()
+
+    cluster_fleets
+    |> MapSet.union(observed_set)
+    |> MapSet.delete(nil)
+    |> MapSet.to_list()
+  end
+
+  defp ensure_list(map) when is_map(map), do: Map.keys(map)
+  defp ensure_list(list) when is_list(list), do: list
+
+  defp active_fleets do
+    case K8sClient.list_runner_pools(Environment.runners_namespace()) do
+      {:ok, items} ->
+        items
+        |> Enum.map(&pool_name/1)
+        |> Enum.reject(&is_nil/1)
+        |> MapSet.new()
+
+      _ ->
+        MapSet.new()
+    end
+  end
+
+  defp pool_name(%{"metadata" => %{"name" => name}}) when is_binary(name) and name != "", do: name
+  defp pool_name(_), do: nil
+
+  @doc false
+  def execute_pool_replicas_telemetry_event do
+    case K8sClient.list_runner_pools(Environment.runners_namespace()) do
+      {:ok, items} ->
+        current = pool_replicas_from_items(items)
+        current_fleets = current |> Map.keys() |> MapSet.new()
+        previous_fleets = Process.get(@pool_replicas_seen_key, MapSet.new())
+
+        Enum.each(current, fn {fleet, {desired, observed, max}} ->
+          :telemetry.execute(
+            Telemetry.event_name_pool_replicas(),
+            %{desired: desired, observed: observed, max: max},
+            %{fleet: fleet}
+          )
+        end)
+
+        previous_fleets
+        |> MapSet.difference(current_fleets)
+        |> Enum.each(fn fleet ->
+          :telemetry.execute(
+            Telemetry.event_name_pool_replicas(),
+            %{desired: 0, observed: 0, max: 0},
+            %{fleet: fleet}
+          )
+        end)
+
+        Process.put(@pool_replicas_seen_key, current_fleets)
+        :ok
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp pool_replicas_from_items(items) do
+    items
+    |> Enum.flat_map(fn pool ->
+      case pool_name(pool) do
+        nil ->
+          []
+
+        name ->
+          spec = Map.get(pool, "spec", %{})
+          status = Map.get(pool, "status", %{})
+          replicas = Map.get(spec, "replicas", 0)
+          autoscaling = Map.get(spec, "autoscaling", %{})
+          ceiling = Kernel.max(Map.get(autoscaling, "maxReplicas", 0), replicas)
+
+          [{name, {replicas, Map.get(status, "observedReplicas", 0), ceiling}}]
+      end
+    end)
+    |> Map.new()
+  end
+end

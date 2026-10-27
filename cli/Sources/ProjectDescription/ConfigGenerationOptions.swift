@@ -9,6 +9,76 @@ extension Tuist {
             case excluding([String])
         }
 
+        /// Categories of warnings that can be promoted to errors.
+        public enum GenerationWarning: String, Codable, Equatable, Hashable, Sendable {
+            case outdatedDependencies
+            case staticSideEffects
+            case schemeTargetNotFound
+            case mismatchedConfigurations
+            case duplicateProductNames
+        }
+
+        /// Controls which generation warnings are promoted to errors.
+        public enum WarningsAsErrors: Codable, Equatable, Sendable {
+            /// No warnings are promoted to errors (default behavior).
+            case none
+            /// All warnings are promoted to errors.
+            case all
+            /// Only the specified warning categories are promoted to errors.
+            case only([GenerationWarning])
+        }
+
+        /// How `tuist generate` reacts when it detects that dependencies are outdated
+        /// (i.e. `Package.resolved` has changed since the last `tuist install`).
+        public enum OutdatedDependenciesAction: String, Codable, Equatable, Sendable {
+            /// Print a warning and continue generation (default).
+            case warn
+            /// Run `tuist install` automatically and then continue generation.
+            case install
+            /// Fail generation, requiring the user to run `tuist install` first.
+            case fail
+        }
+
+        /// The on-disk format used to serialize each generated `.xcodeproj`.
+        public enum ProjectFormat: String, Codable, Equatable, Sendable {
+            /// The classic OpenStep property list format stored in `project.pbxproj`.
+            case pbxproj
+            /// The experimental JSON5 format introduced in Xcode 27.2, stored in `project.xcproj`.
+            /// Requires Xcode 27.2 or later to open the generated projects.
+            case xcproj
+        }
+
+        /// Code coverage of the project's own targets with the binary cache.
+        ///
+        /// Both values feed the build settings and binary-cache keys of the project's own targets, so they must be the
+        /// same on every machine that shares a cache: a value that differs between CI and local machines gives them
+        /// different keys. Don't derive them from the environment, for example from `Environment.isCI`.
+        public struct Coverage: Codable, Equatable, Sendable {
+            /// Whether coverage is on for the project. The project's own targets are read from and warmed into the
+            /// binary cache with coverage counters in configurations Xcode treats as Debug, so a test run that collects
+            /// coverage measures the cached code too; external packages and Release configurations stay plain.
+            /// Tuist's automatic schemes, and schemes you define that leave `TestActionOptions.coverage` unset, collect
+            /// coverage in their test action, and Debug configurations link the profile runtime
+            /// (`CLANG_COVERAGE_MAPPING_LINKER_ARGS`). A scheme that sets `coverage` keeps its value, and test plans
+            /// decide coverage themselves. The `TUIST_COVERAGE_ENABLED` environment variable takes precedence over this
+            /// value.
+            public var enabled: Bool
+
+            /// Keeps compilation-cache prefix mapping enabled for coverage builds on Xcode 27 and later.
+            /// Defaults to `false` because Xcode's coverage report and `xccov` can omit sources with mapped paths.
+            /// The coverage `tuist test` uploads reads them with `llvm-cov`. Requires `enableCaching`.
+            /// The `TUIST_COVERAGE_PREFIX_MAPPING` environment variable takes precedence over this value.
+            public var prefixMapping: Bool
+
+            /// Creates coverage options.
+            /// - Parameters:
+            ///   - enabled: Whether coverage is on for the project. Defaults to `false`.
+            ///   - prefixMapping: Whether coverage builds keep compilation-cache prefix mapping. Defaults to `false`.
+            public static func coverage(enabled: Bool = false, prefixMapping: Bool = false) -> Self {
+                Coverage(enabled: enabled, prefixMapping: prefixMapping)
+            }
+        }
+
         /// This is now deprecated.
         ///
         /// To achieve the same behaviour, use `additionalPackageResolutionArguments` like so:
@@ -78,8 +148,47 @@ extension Tuist {
         /// When true, it includes a scheme to run "tuist generate"
         public var includeGenerateScheme: Bool
 
-        /// When enabled, adds Xcode cache compilation settings to the project
+        /// When enabled, adds Xcode compilation-cache settings and configures LLDB source mappings
+        /// for the workspace's Run and Test actions, including automatically generated schemes.
+        /// Sources are mapped to workspace-wide prefixes such as `/^root`. Xcode's per-project mappings
+        /// (`SWIFT_ENABLE_PROJECT_PREFIX_MAPPING` and `CLANG_ENABLE_PROJECT_PREFIX_MAPPING`, which map to `/^src`)
+        /// stay off unless a project sets them, because a single debugger source map cannot resolve a prefix
+        /// that names a different directory in every project.
         public var enableCaching: Bool
+
+        /// Code coverage of the project's own targets with the binary cache. Off by default.
+        public var coverage: Coverage
+
+        /// When enabled, generates the Swift Package Registry configuration file during project generation.
+        /// This eliminates the need to run `tuist registry setup` separately.
+        public var registryEnabled: Bool
+
+        /// Controls which generation warnings are promoted to errors, causing `tuist generate` to fail.
+        public var warningsAsErrors: WarningsAsErrors
+
+        /// The default Swift language mode (`SWIFT_VERSION` build setting) applied to local targets
+        /// that don't specify one. This controls which Swift language mode the compiler uses
+        /// (e.g. `"5"` for Swift 5 mode, `"6"` for Swift 6 strict concurrency mode).
+        /// External SPM packages are not affected — their language mode is derived from their
+        /// own `Package.swift` manifest, matching SPM's behavior.
+        public var defaultSwiftVersion: String
+
+        /// Names of process environment variables that Tuist forwards to manifest evaluation
+        /// in addition to the default set (`TUIST_*`, `CI`, and `DEVELOPER_DIR`).
+        ///
+        /// Each entry is either a literal name (e.g. `OPENSWIFTUI_LIBRARY_TYPE`) or a name
+        /// ending in `*` for prefix matching (e.g. `OPENSWIFTUI_*`).
+        ///
+        /// Listed variables also participate in the manifest cache hash, so changes invalidate
+        /// the cache as expected.
+        public var manifestEnvironment: [String]
+
+        /// Controls how `tuist generate` reacts to outdated dependencies. Defaults to `.warn`.
+        public var onOutdatedDependencies: OutdatedDependenciesAction
+
+        /// The on-disk format used to serialize each generated `.xcodeproj`. Defaults to `.pbxproj`.
+        /// Set to `.xcproj` to opt into Xcode 27.2's experimental JSON5 project format.
+        public var projectFormat: ProjectFormat
 
         public static func options(
             disablePackageVersionLocking: Bool = false,
@@ -91,7 +200,55 @@ extension Tuist {
             disableSandbox: Bool = true,
             includeGenerateScheme: Bool = true,
             enableCaching: Bool = false,
-            additionalPackageResolutionArguments: [String] = []
+            registryEnabled: Bool = false,
+            additionalPackageResolutionArguments: [String] = [],
+            warningsAsErrors: WarningsAsErrors = .none,
+            defaultSwiftVersion: String = "5",
+            manifestEnvironment: [String] = [],
+            onOutdatedDependencies: OutdatedDependenciesAction = .warn,
+            projectFormat: ProjectFormat = .pbxproj
+        ) -> Self {
+            options(
+                disablePackageVersionLocking: disablePackageVersionLocking,
+                staticSideEffectsWarningTargets: staticSideEffectsWarningTargets,
+                defaultConfiguration: defaultConfiguration,
+                optionalAuthentication: optionalAuthentication,
+                buildInsightsDisabled: buildInsightsDisabled,
+                testInsightsDisabled: testInsightsDisabled,
+                disableSandbox: disableSandbox,
+                includeGenerateScheme: includeGenerateScheme,
+                enableCaching: enableCaching,
+                coverage: .coverage(),
+                registryEnabled: registryEnabled,
+                additionalPackageResolutionArguments: additionalPackageResolutionArguments,
+                warningsAsErrors: warningsAsErrors,
+                defaultSwiftVersion: defaultSwiftVersion,
+                manifestEnvironment: manifestEnvironment,
+                onOutdatedDependencies: onOutdatedDependencies,
+                projectFormat: projectFormat
+            )
+        }
+
+        /// Creates generation options with code coverage options for the binary cache.
+        @_disfavoredOverload
+        public static func options(
+            disablePackageVersionLocking: Bool = false,
+            staticSideEffectsWarningTargets: StaticSideEffectsWarningTargets = .all,
+            defaultConfiguration: String? = nil,
+            optionalAuthentication: Bool = false,
+            buildInsightsDisabled: Bool = false,
+            testInsightsDisabled: Bool = false,
+            disableSandbox: Bool = true,
+            includeGenerateScheme: Bool = true,
+            enableCaching: Bool = false,
+            coverage: Coverage,
+            registryEnabled: Bool = false,
+            additionalPackageResolutionArguments: [String] = [],
+            warningsAsErrors: WarningsAsErrors = .none,
+            defaultSwiftVersion: String = "5",
+            manifestEnvironment: [String] = [],
+            onOutdatedDependencies: OutdatedDependenciesAction = .warn,
+            projectFormat: ProjectFormat = .pbxproj
         ) -> Self {
             self.init(
                 resolveDependenciesWithSystemScm: false,
@@ -106,10 +263,18 @@ extension Tuist {
                 testInsightsDisabled: testInsightsDisabled,
                 disableSandbox: disableSandbox,
                 includeGenerateScheme: includeGenerateScheme,
-                enableCaching: enableCaching
+                enableCaching: enableCaching,
+                coverage: coverage,
+                registryEnabled: registryEnabled,
+                warningsAsErrors: warningsAsErrors,
+                defaultSwiftVersion: defaultSwiftVersion,
+                manifestEnvironment: manifestEnvironment,
+                onOutdatedDependencies: onOutdatedDependencies,
+                projectFormat: projectFormat
             )
         }
 
+        @_disfavoredOverload
         @available(
             *,
             deprecated,
@@ -141,7 +306,14 @@ extension Tuist {
                 testInsightsDisabled: testInsightsDisabled,
                 disableSandbox: disableSandbox,
                 includeGenerateScheme: includeGenerateScheme,
-                enableCaching: enableCaching
+                enableCaching: enableCaching,
+                coverage: .coverage(),
+                registryEnabled: false,
+                warningsAsErrors: .none,
+                defaultSwiftVersion: "5",
+                manifestEnvironment: [],
+                onOutdatedDependencies: .warn,
+                projectFormat: .pbxproj
             )
         }
 
@@ -172,8 +344,50 @@ extension Tuist {
                 testInsightsDisabled: false,
                 disableSandbox: true,
                 includeGenerateScheme: false,
-                enableCaching: false
+                enableCaching: false,
+                coverage: .coverage(),
+                registryEnabled: false,
+                warningsAsErrors: .none,
+                defaultSwiftVersion: "5",
+                manifestEnvironment: [],
+                onOutdatedDependencies: .warn,
+                projectFormat: .pbxproj
             )
         }
+    }
+}
+
+extension Tuist.GenerationOptions {
+    /// A manifest encoded before `coverage` existed decodes with coverage off.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            resolveDependenciesWithSystemScm: try container.decode(Bool.self, forKey: .resolveDependenciesWithSystemScm),
+            disablePackageVersionLocking: try container.decode(Bool.self, forKey: .disablePackageVersionLocking),
+            clonedSourcePackagesDirPath: try container.decodeIfPresent(Path.self, forKey: .clonedSourcePackagesDirPath),
+            additionalPackageResolutionArguments: try container.decode(
+                [String].self,
+                forKey: .additionalPackageResolutionArguments
+            ),
+            staticSideEffectsWarningTargets: try container.decode(
+                StaticSideEffectsWarningTargets.self,
+                forKey: .staticSideEffectsWarningTargets
+            ),
+            enforceExplicitDependencies: try container.decode(Bool.self, forKey: .enforceExplicitDependencies),
+            defaultConfiguration: try container.decodeIfPresent(String.self, forKey: .defaultConfiguration),
+            optionalAuthentication: try container.decode(Bool.self, forKey: .optionalAuthentication),
+            buildInsightsDisabled: try container.decode(Bool.self, forKey: .buildInsightsDisabled),
+            testInsightsDisabled: try container.decode(Bool.self, forKey: .testInsightsDisabled),
+            disableSandbox: try container.decode(Bool.self, forKey: .disableSandbox),
+            includeGenerateScheme: try container.decode(Bool.self, forKey: .includeGenerateScheme),
+            enableCaching: try container.decode(Bool.self, forKey: .enableCaching),
+            coverage: try container.decodeIfPresent(Coverage.self, forKey: .coverage) ?? .coverage(),
+            registryEnabled: try container.decode(Bool.self, forKey: .registryEnabled),
+            warningsAsErrors: try container.decode(WarningsAsErrors.self, forKey: .warningsAsErrors),
+            defaultSwiftVersion: try container.decode(String.self, forKey: .defaultSwiftVersion),
+            manifestEnvironment: try container.decode([String].self, forKey: .manifestEnvironment),
+            onOutdatedDependencies: try container.decode(OutdatedDependenciesAction.self, forKey: .onOutdatedDependencies),
+            projectFormat: try container.decode(ProjectFormat.self, forKey: .projectFormat)
+        )
     }
 }

@@ -1,0 +1,110 @@
+name: Status
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - status/**
+      - .github/workflows/status.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - status/**
+      - .github/workflows/status.yml
+  merge_group:
+
+concurrency:
+  group: status-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: status
+
+env:
+  MISE_GITHUB_TOKEN: ${{ github.token }}
+
+jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Restore Aube Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/aube
+            ~/.cache/aube
+          key: aube-${{ hashFiles('status/aube-lock.yaml') }}
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "node aube npm:wrangler"
+          working-directory: status
+      - run: aube run typecheck
+
+  style:
+    name: Style
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Restore Aube Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/aube
+            ~/.cache/aube
+          key: aube-${{ hashFiles('status/aube-lock.yaml') }}
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "node aube npm:wrangler"
+          working-directory: status
+      - run: aube run format:check
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Restore Aube Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/aube
+            ~/.cache/aube
+          key: aube-${{ hashFiles('status/aube-lock.yaml') }}
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "node aube npm:wrangler"
+          working-directory: status
+      - run: aube run test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.repository == 'tuist/tuist' && (github.event.pull_request.draft == false || github.event_name != 'pull_request')
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Restore Aube Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/aube
+            ~/.cache/aube
+          key: aube-${{ hashFiles('status/aube-lock.yaml') }}
+      - uses: ./.github/actions/mise-install
+        with:
+          install: "node aube npm:wrangler"
+          working-directory: status
+      - run: aube run build

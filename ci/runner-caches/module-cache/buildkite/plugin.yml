@@ -1,0 +1,11 @@
+name: Tuist module cache
+description: Keep the Tuist module cache across jobs on Tuist macOS runners.
+author: https://github.com/tuist
+requirements: [bash]
+configuration:
+  type: object
+  additionalProperties: false
+  properties:
+    size:
+      type: string
+      pattern: "^[0-9]+[gG][bB]$"

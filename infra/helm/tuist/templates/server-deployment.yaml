@@ -1,0 +1,581 @@
+{{- if .Values.server.enabled }}
+{{- if and (not .Values.server.cluster.enabled) (or (gt (int .Values.server.replicaCount) 1) (and .Values.server.autoscaling.enabled (gt (int .Values.server.autoscaling.maxReplicas) 1))) }}
+{{- fail "Multiple server replicas require server.cluster.enabled=true so Erlang nodes can discover one another." }}
+{{- end }}
+{{- $secretName := include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+{{- $objectStorageAccessKey := include "tuist.objectStorageAccessKey" . -}}
+{{- $objectStorageSecretKey := include "tuist.objectStorageSecretKey" . -}}
+{{- $registryRuntimeSecretName := .Values.registry.runtimeSecretName | default (include "tuist.componentName" (dict "root" . "component" "registry-runtime")) -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "server") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  {{- if not .Values.server.autoscaling.enabled }}
+  replicas: {{ .Values.server.replicaCount }}
+  {{- end }}
+  strategy:
+    {{- toYaml .Values.server.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "server") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "server") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.server.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        # Ports declared on this Pod: http, metrics, epmd (HA prod).
+        # Without a port-name discriminator, Kubernetes pod-role
+        # discovery emits one scrape target per declared port — naming
+        # the metrics one explicitly keeps Alloy on a single target
+        # per pod. See helm/k8s-monitoring/values.yaml for the
+        # annotation→config mapping.
+        prometheus.io/port-name: metrics
+        {{- with .Values.server.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
+      automountServiceAccountToken: {{ .Values.server.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.server.terminationGracePeriodSeconds }}
+      {{- include "tuist.podScheduling" . | nindent 6 }}
+      {{- with .Values.server.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: server
+          image: {{ include "tuist.serverImage" . | quote }}
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          {{- with .Values.server.seedAccountCredentials.secretName }}
+          volumeMounts:
+            - name: seed-account-credentials
+              mountPath: /var/run/tuist/seed-account
+              readOnly: true
+          {{- end }}
+          command:
+            - /app/bin/tuist
+            - start
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: metrics
+              containerPort: 9091
+            {{- if .Values.server.eventsGrpc.enabled }}
+            - name: grpc
+              containerPort: {{ .Values.server.service.grpcTargetPort | default 4001 }}
+            {{- end }}
+            {{- if .Values.server.cluster.enabled }}
+            - name: epmd
+              containerPort: 4369
+            - name: erlang-dist
+              containerPort: {{ .Values.server.cluster.distributionPort }}
+            {{- end }}
+          env:
+            # TUIST_MODE defaults to :web in Tuist.Environment.mode/0 — no
+            # need to set it explicitly here. The processor Deployment sets
+            # TUIST_MODE=processor; everything else is :web.
+            {{- if eq .Values.postgresql.mode "cnpg" }}
+            # Managed CNPG uses the least-privilege runtime role
+            # (`tuist_web` by default). Self-hosted chart installs without
+            # managedSecrets keep using the owner Secret for backwards
+            # compatibility. The service hostname (`<cluster>-rw`) only
+            # resolves to the current primary; CNPG fails the Service over
+            # during a promotion.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.server.managedSecrets }}
+                  name: {{ include "tuist.cnpgWebRoleSecretName" . }}
+                  {{- else }}
+                  name: {{ include "tuist.cnpgAppSecretName" . }}
+                  {{- end }}
+                  key: uri
+            - name: TUIST_USE_SSL_FOR_DATABASE
+              value: "0"
+            {{- end }}
+            - name: TUIST_DATABASE_SCHEMA
+              value: {{ .Values.postgresql.schema | quote }}
+            {{- if not .Values.server.managedSecrets }}
+            {{- if ne .Values.postgresql.mode "cnpg" }}
+            {{- include "tuist.externalPostgresqlSecretEnv" . | nindent 12 }}
+            - name: DATABASE_URL
+              value: {{ include "tuist.databaseUrl" . | quote }}
+            - name: TUIST_USE_SSL_FOR_DATABASE
+              value: {{ .Values.server.database.ssl | ternary "1" "0" | quote }}
+            {{- end }}
+            {{- include "tuist.clickhouseUrlEnv" . | nindent 12 }}
+            {{- include "tuist.secretKeyBaseEnv" . | nindent 12 }}
+            {{- end }}
+            - name: TUIST_APP_URL
+              value: {{ .Values.server.appUrl | quote }}
+            - name: TUIST_LOG_LEVEL
+              value: {{ .Values.server.logLevel | quote }}
+            - name: TUIST_HOSTED
+              value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            {{- if .Values.server.turnstile.enabled }}
+            - name: TUIST_TURNSTILE_ENABLED
+              value: "1"
+            {{- end }}
+            {{- if .Values.server.publicPageChallenge.enabled }}
+            - name: TUIST_PUBLIC_PAGE_CHALLENGE_ENABLED
+              value: "1"
+            {{- end }}
+            {{- if .Values.server.kuraCapacityAdmission.enabled }}
+            - name: TUIST_KURA_CAPACITY_ADMISSION_ENABLED
+              value: "1"
+            {{- end }}
+            {{- if .Values.server.eventsGrpc.enabled }}
+            - name: TUIST_ONCE_EVENTS_GRPC
+              value: "on"
+            - name: TUIST_ONCE_EVENTS_GRPC_PORT
+              value: {{ .Values.server.service.grpcTargetPort | default 4001 | quote }}
+            {{- $events := include "tuist.serverEventsConfig" . | fromYaml }}
+            {{- $scheme := include "tuist.serverEventsScheme" . }}
+            {{- if and $events.enabled $events.host }}
+            # Discovery doc source of truth for the gRPC hostname. The server's
+            # string-prefix fallback (`events.<request-host>`) only lines up on
+            # apex deployments; managed envs run on sub-prefix hosts
+            # (`staging.tuist.dev`) where the ingress is at
+            # `events-staging.tuist.dev` (dash, not dot), so the controller
+            # must be told the real ingress hostname rather than deriving one.
+            # The scheme follows the ingress's TLS state so a non-TLS
+            # self-hosted install advertises `grpc://`, not `grpcs://`.
+            - name: TUIST_ONCE_EVENTS_ENDPOINTS
+              value: "{{ $scheme }}://{{ $events.host }}"
+            {{- end }}
+            {{- end }}
+            {{- if .Values.server.config.cacheTokenKey.signing }}
+            - name: TUIST_CACHE_TOKEN_SIGNING_ENABLED
+              value: "1"
+            {{- end }}
+            {{- if .Values.registry.enabled }}
+            - name: TUIST_REGISTRY_S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registryRuntimeSecretName }}
+                  key: S3_REGISTRY_BUCKET
+            - name: TUIST_REGISTRY_S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registryRuntimeSecretName }}
+                  key: S3_ENDPOINT
+                  optional: true
+            - name: TUIST_REGISTRY_S3_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registryRuntimeSecretName }}
+                  key: S3_HOST
+            - name: TUIST_REGISTRY_S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registryRuntimeSecretName }}
+                  key: S3_REGION
+            - name: TUIST_REGISTRY_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registryRuntimeSecretName }}
+                  key: S3_ACCESS_KEY_ID
+            - name: TUIST_REGISTRY_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registryRuntimeSecretName }}
+                  key: S3_SECRET_ACCESS_KEY
+            {{- end }}
+            {{- if .Values.codebaseSearch.enabled }}
+            - name: TUIST_CODEBASE_SEARCH_URL
+              value: {{ printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "codebase-search")) .Values.codebaseSearch.service.port | quote }}
+            {{- end }}
+            {{- with .Values.server.faro.collectorUrl }}
+            - name: TUIST_FARO_COLLECTOR_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if .Values.server.faro.receiverHost }}
+            - name: TUIST_FARO_RECEIVER_URL
+              value: {{ printf "http://%s:%v/collect" .Values.server.faro.receiverHost .Values.server.faro.receiverPort | quote }}
+            {{- end }}
+            {{- with (.Values.server.artifactRetentionDays.cacheArtifacts | toString) }}
+            - name: TUIST_CACHE_ARTIFACT_RETENTION_DAYS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with (.Values.server.artifactRetentionDays.appPreviews | toString) }}
+            - name: TUIST_APP_PREVIEW_RETENTION_DAYS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with (.Values.server.artifactRetentionDays.buildArchives | toString) }}
+            - name: TUIST_BUILD_ARCHIVE_RETENTION_DAYS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with (.Values.server.artifactRetentionDays.runArtifacts | toString) }}
+            - name: TUIST_RUN_ARTIFACT_RETENTION_DAYS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with (.Values.server.artifactRetentionDays.testAttachments | toString) }}
+            - name: TUIST_TEST_ATTACHMENT_RETENTION_DAYS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with (.Values.server.artifactRetentionDays.shardBundles | toString) }}
+            - name: TUIST_SHARD_BUNDLE_RETENTION_DAYS
+              value: {{ . | quote }}
+            {{- end }}
+            - name: TUIST_SKIP_EMAIL_CONFIRMATION
+              value: {{ .Values.server.skipEmailConfirmation | ternary "1" "0" | quote }}
+            - name: TUIST_SELF_HOSTING_DEVELOPMENT_MODE
+              value: {{ .Values.server.license.selfHostingDevelopmentMode | ternary "1" "0" | quote }}
+            {{- if .Values.processor.enabled }}
+            # Hand off the :process_build queue entirely to processor pods —
+            # without this the server's local Oban worker (default concurrency
+            # 2) races the dedicated processor and steals jobs the processor
+            # was meant to do, defeating the whole point of a separate parse
+            # fleet.
+            - name: TUIST_DELEGATE_PROCESS_BUILD
+              value: "1"
+            # Bazel test reports have a separate queue and concurrency limit,
+            # but share the processor deployment. Keep their untrusted parsing
+            # off the web pods whenever that deployment is enabled.
+            - name: TUIST_DELEGATE_PROCESS_BAZEL_TESTS
+              value: "1"
+            {{- end }}
+            {{- if .Values.xcresultProcessor.enabled }}
+            # Hand off the :process_xcresult queue to the macOS xcresult-
+            # processor Pods scheduled onto Mac mini nodes via tart-cri.
+            # Linux pods don't ship the macOS-only xcresult NIF, so
+            # without this flag the server's local Oban worker would
+            # claim jobs and crash on `:nif_not_loaded` for every
+            # test-result archive.
+            - name: TUIST_DELEGATE_PROCESS_XCRESULT
+              value: "1"
+            {{- end }}
+            {{- if or .Values.runnersFleet.enabled .Values.runnersFleetLinux.enabled }}
+            # Runners namespace. The server reads RunnerPool CRs at
+            # dispatch time to discover the fleet name; runner
+            # availability is gated by the `:runners` feature flag and
+            # has no chart-level setting.
+            - name: TUIST_RUNNER_CACHE_VOLUMES_NAMESPACE
+              value: {{ include "tuist.runnerCacheVolumesNamespace" . | quote }}
+            - name: TUIST_RUNNER_CACHE_VOLUMES_SA_NAME
+              value: {{ include "tuist.componentName" (dict "root" . "component" "runner-cache-volumes") | quote }}
+            - name: TUIST_RUNNER_MACOS_CACHE_VOLUMES
+              value: {{ .Values.runnersFleet.customCacheVolumes.enabled | quote }}
+            - name: TUIST_RUNNER_LINUX_CACHE_VOLUMES
+              value: {{ .Values.runnersFleetLinux.cacheVolumes.enabled | quote }}
+            - name: TUIST_RUNNERS_NAMESPACE
+              value: {{ .Values.runnersFleet.namespace | default "tuist-runners" | quote }}
+            # Identity gate for `POST /api/internal/runners/pods/stopped`:
+            # only the rendered runners-controller SA can close billing
+            # sessions. Mirrors the deployment-time identity defined in
+            # `runners-controller-deployment.yaml`.
+            - name: TUIST_RUNNERS_CONTROLLER_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: TUIST_RUNNERS_CONTROLLER_SA_NAME
+              value: {{ include "tuist.componentName" (dict "root" . "component" "runners-controller") | quote }}
+            # The macOS host operator creates each host's `tart-kubelet-<machine>`
+            # ServiceAccount here (`--secrets-namespace`). A host authenticates as
+            # it to list the cache masters it should prefetch.
+            - name: TUIST_RUNNER_HOST_IDENTITY_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            {{- end }}
+            {{- if .Values.runnersFleetLinux.enabled }}
+            # Prefix the dispatch path prepends to a shape key to address
+            # a shape pool's RunnerPool CR (`<prefix>-<vcpus>vcpu-<gb>gb`).
+            # Injected from the same helper that names the CRs in
+            # runner-pool.yaml so the server always resolves to a pool a
+            # Pod actually polls, regardless of the helm release name.
+            - name: TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX
+              value: {{ include "tuist.componentName" (dict "root" . "component" "runner-pool-linux") | quote }}
+            {{- with .Values.runnersFleetLinux.pools }}
+            # Operator-defined pools predate persisted runner resources.
+            # Inject their pod sizing so new replicas can account for queued
+            # jobs and live claims written by old replicas.
+            {{- $serverPools := list }}
+            {{- range . }}
+            {{- $podCPU := dig "pod" "cpuMilli" 4000 . | int }}
+            {{- $podMemory := dig "pod" "memoryMB" 16384 . | int }}
+            {{- $pool := dict "name" (.name | toString) "cpuMilli" $podCPU "memoryMB" $podMemory }}
+            {{- $serverPools = append $serverPools $pool }}
+            {{- end }}
+            - name: TUIST_RUNNER_LINUX_POOLS
+              value: {{ $serverPools | toJson | quote }}
+            {{- end }}
+            {{- with .Values.runnersFleetLinux.shapes }}
+            # Single source of truth for the shape catalog: inject the
+            # same `runnersFleetLinux.shapes` list that renders the
+            # RunnerPool CRs so the server's catalog (dashboard dropdown,
+            # profile validation, dispatch) can't drift from the pools
+            # that exist. Projected to the fields the server reads;
+            # config/runtime.exs parses it into `:runner_linux_shapes`.
+            {{- $serverShapes := list }}
+            {{- range . }}
+            {{- $shape := dict "vcpus" (.vcpus | int) "memoryGb" (.memoryGb | int) }}
+            {{- if .default }}{{- $_ := set $shape "default" true }}{{- end }}
+            {{- $serverShapes = append $serverShapes $shape }}
+            {{- end }}
+            - name: TUIST_RUNNER_LINUX_SHAPES
+              value: {{ $serverShapes | toJson | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.runnersFleet.enabled }}
+            # macOS analogue of the Linux pool name prefix above. The
+            # chart's macOS RunnerPool CRs are named
+            # `<componentName>-runner-pool-macos-<xcode-dashes>` (per
+            # Xcode profile); injecting the prefix here keeps
+            # `Catalog.pool_name/1` in lockstep with the rendered CRs.
+            - name: TUIST_RUNNERS_MACOS_POOL_NAME_PREFIX
+              value: {{ include "tuist.componentName" (dict "root" . "component" "runner-pool-macos") | quote }}
+            {{- $sitePools := list }}
+            {{- range .Values.runnersFleet.pools }}
+            {{- if .site }}
+            {{- $platform := required (printf "runnersFleet.pools[%s].platform is required with a site" .name) .platform }}
+            {{- $sitePools = append $sitePools (printf "%s-%s=%s:%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool")) .name .site $platform) }}
+            {{- end }}
+            {{- end }}
+            {{- range include "tuist.rackCatalogPools" . | fromJsonArray }}
+            {{- $sitePools = append $sitePools (printf "%s=%s:macos" .name .site) }}
+            {{- end }}
+            {{- with $sitePools }}
+            # Pools racked at a site, as `<RunnerPool name>=<site>:<platform>`.
+            # Their jobs take the site's runner-cache region, and an account
+            # on the `runner_site` flag has its profiles routed to the site's
+            # catalog pools listed here.
+            - name: TUIST_RUNNERS_SITE_POOLS
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- if eq (include "tuist.runnersFleetRentsMacOS" .) "false" }}
+            # No rented macOS hosts back the site's pools, so their jobs
+            # wait at the site rather than falling back to the rented fleet.
+            - name: TUIST_RUNNERS_RENTED_MACOS_FLEET
+              value: "false"
+            {{- end }}
+            {{- with .Values.runnersFleet.shapes }}
+            # Same projection as the Linux shapes above, for the macOS
+            # fleet. M2-L is the only shape today; this is wired now so
+            # future shape diversity doesn't need a chart change.
+            {{- $serverMacosShapes := list }}
+            {{- range . }}
+            {{- $shape := dict "vcpus" (.vcpus | int) "memoryGb" (.memoryGb | int) }}
+            {{- if .default }}{{- $_ := set $shape "default" true }}{{- end }}
+            {{- $serverMacosShapes = append $serverMacosShapes $shape }}
+            {{- end }}
+            - name: TUIST_RUNNER_MACOS_SHAPES
+              value: {{ $serverMacosShapes | toJson | quote }}
+            {{- end }}
+            {{- with .Values.runnersFleet.xcodeVersions }}
+            # macOS Xcode catalog injection. Mirrors the shape pattern:
+            # one source for the chart pool rendering (planned) and the
+            # server's `:runner_macos_xcode_versions` validation.
+            {{- $serverXcodeVersions := list }}
+            {{- range . }}
+            {{- $entry := dict "xcodeVersion" (.xcodeVersion | toString) }}
+            {{- if .default }}{{- $_ := set $entry "default" true }}{{- end }}
+            {{- $serverXcodeVersions = append $serverXcodeVersions $entry }}
+            {{- end }}
+            - name: TUIST_RUNNER_MACOS_XCODE_VERSIONS
+              value: {{ $serverXcodeVersions | toJson | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if or .Values.postgresql.cnpg.enabled (eq .Values.postgresql.mode "cnpg") }}
+            # Namespace of the CNPG Cluster + Backup CRs (this release's
+            # namespace). The /ops/db Backups tab lists those CRs via the
+            # K8s API; the server SA's read grant is in postgresql-cnpg.yaml.
+            - name: TUIST_CNPG_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            {{- end }}
+            {{- include "tuist.licenseEnv" . | nindent 12 }}
+            {{- include "tuist.kuraIntrospectionEnv" . | nindent 12 }}
+            {{- include "tuist.githubEnv" . | nindent 12 }}
+            {{- include "tuist.googleEnv" . | nindent 12 }}
+            {{- include "tuist.stripePricesEnv" . | nindent 12 }}
+            {{- include "tuist.mailingEnv" . | nindent 12 }}
+            {{- if .Values.server.cluster.enabled }}
+            - name: TUIST_CLUSTER_DNS_SERVICE
+              value: {{ include "tuist.serverHeadlessServiceName" . | quote }}
+            - name: TUIST_CLUSTER_APP_NAME
+              value: {{ .Values.server.cluster.applicationName | quote }}
+            - name: TUIST_CLUSTER_DISTRIBUTION_PORT
+              value: {{ .Values.server.cluster.distributionPort | quote }}
+            - name: RELEASE_COOKIE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.server.cluster.cookieExistingSecret | default (include "tuist.componentName" (dict "root" . "component" "server-cluster")) }}
+                  key: {{ .Values.server.cluster.cookieExistingSecretKey | quote }}
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: RELEASE_DISTRIBUTION
+              value: "name"
+            - name: RELEASE_NODE
+              value: "$(TUIST_CLUSTER_APP_NAME)@$(POD_IP)"
+            {{- end }}
+            {{- include "tuist.serverObjectStorageEnv" . | nindent 12 }}
+            - name: TUIST_S3_BUCKET_NAME
+              value: {{ include "tuist.objectStorageBucketDefault" . | quote }}
+            - name: TUIST_S3_ENDPOINT
+              value: {{ include "tuist.objectStorageEndpoint" . | quote }}
+            - name: TUIST_S3_REGION
+              value: {{ include "tuist.objectStorageRegion" . | quote }}
+            - name: TUIST_S3_VIRTUAL_HOST
+              value: {{ .Values.server.s3.virtualHost | ternary "1" "0" | quote }}
+            - name: TUIST_S3_BUCKET_AS_HOST
+              value: {{ .Values.server.s3.bucketAsHost | ternary "1" "0" | quote }}
+            {{- if and (eq .Values.objectStorage.mode "external") .Values.objectStorage.external.managedSecrets }}
+            - name: TUIST_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
+                  key: object-storage-access-key
+            - name: TUIST_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "object-storage-external-secrets") }}
+                  key: object-storage-secret-key
+            {{- else if and $objectStorageAccessKey $objectStorageSecretKey }}
+            - name: TUIST_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: object-storage-access-key
+            - name: TUIST_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: object-storage-secret-key
+            {{- end }}
+            {{- if or .Values.cache.enabled .Values.server.cacheEndpointUrl }}
+            - name: TUIST_CACHE_ENDPOINTS
+              value: {{ .Values.server.cacheEndpointUrl | default (printf "http://%s:%v" (include "tuist.componentName" (dict "root" . "component" "cache")) .Values.cache.service.port) | quote }}
+            {{- end }}
+            - name: TUIST_CACHE_S3_BUCKET_NAME
+              value: {{ .Values.cache.s3.bucket | quote }}
+            - name: TUIST_CACHE_XCODE_S3_BUCKET_NAME
+              value: {{ .Values.cache.s3.xcodeCacheBucket | quote }}
+            {{- with .Values.server.kuraEndpointUrls }}
+            - name: TUIST_KURA_ENDPOINTS
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- with .Values.server.kuraDedicatedGatewayAccounts }}
+            - name: TUIST_KURA_DEDICATED_GATEWAY_ACCOUNTS
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- if .Values.kuraRuntime.image.tag }}
+            - name: TUIST_KURA_RUNTIME_IMAGE_TAG
+              value: {{ .Values.kuraRuntime.image.tag | quote }}
+            {{- end }}
+            {{- if .Values.kuraRuntime.rollout.expediteTag }}
+            - name: TUIST_KURA_ROLLOUT_EXPEDITE_TAG
+              value: {{ .Values.kuraRuntime.rollout.expediteTag | quote }}
+            {{- end }}
+            {{- if .Values.kuraRuntime.rollout.opsSlackWebhookSecret.name }}
+            - name: TUIST_OPS_SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.kuraRuntime.rollout.opsSlackWebhookSecret.name | quote }}
+                  key: {{ .Values.kuraRuntime.rollout.opsSlackWebhookSecret.key | quote }}
+            {{- end }}
+            # Absolute (trailing dot), like KURA_ANALYTICS_SERVER_URL: with
+            # `ndots: 5` a Kura pod outside the control plane's region would
+            # otherwise pay a WAN round trip to CoreDNS for every search
+            # domain before the lookup that answers.
+            - name: TUIST_KURA_TUIST_BASE_URL
+              value: {{ printf "http://%s.%s.svc.cluster.local.:%v" (include "tuist.componentName" (dict "root" . "component" "server")) .Release.Namespace (.Values.server.service.port | default 80) | quote }}
+            {{- $redisUrl := include "tuist.redisUrl" . }}
+            {{- if and .Values.redis.enabled $redisUrl }}
+            - name: TUIST_REDIS_URL
+              value: {{ $redisUrl | quote }}
+            {{- end }}
+            {{- if and .Values.observability.enabled (include "tuist.observabilityOtlpEndpoint" .) }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ include "tuist.observabilityOtlpEndpoint" . | quote }}
+            - name: TUIST_LOKI_URL
+              value: "http://{{ include "tuist.componentName" (dict "root" . "component" "loki") }}:3100"
+            {{- end }}
+            {{- if .Values.server.kuraPeerFailoverIps }}
+            - name: TUIST_KURA_PEER_FAILOVER_IPS
+              value: "{{- range $i, $e := .Values.server.kuraPeerFailoverIps }}{{ if $i }},{{ end }}{{ $e.region }}={{ $e.ip }}{{- end }}"
+            {{- end }}
+            {{- include "tuist.opsClickHouseEnv" . | nindent 12 }}
+            {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
+            {{- include "tuist.clickhouseManagedEnv" . | nindent 12 }}
+            {{- with .Values.server.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- if ne (.Values.server.externalSecrets.cacheGrant.item | default "") "" }}
+            # Cache-signing grant key: read as an env var because
+            # decrypt_secrets/0 is empty outside dev, so the getter takes it
+            # from TUIST_CACHE_GRANT_PRIVATE_KEY. Synced from 1Password by the
+            # server-external-secrets ExternalSecret.
+            - name: TUIST_CACHE_GRANT_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "server-external-secrets") }}
+                  key: cache-grant-private-key
+            {{- end }}
+          {{- $serverConfigEnvFrom := include "tuist.serverConfigEnvFrom" . | trim }}
+          {{- if or $serverConfigEnvFrom .Values.server.extraEnvFrom }}
+          envFrom:
+            {{- with $serverConfigEnvFrom }}
+            {{- . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.server.extraEnvFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.server.probes.startup.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.server.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.server.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.server.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.server.probes.startup.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.server.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.server.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.server.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.server.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.server.probes.readiness.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.server.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.server.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.server.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.server.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.server.probes.liveness.failureThreshold }}
+          lifecycle:
+            preStop:
+              exec:
+                # Drain while endpoints stop routing here: the release answers with
+                # `Connection: close` once the file exists (TuistWeb.Draining).
+                command: ["sh", "-c", "touch /tmp/tuist-server-draining; sleep 15"]
+          resources:
+            {{- toYaml .Values.server.resources | nindent 12 }}
+      {{- with .Values.server.seedAccountCredentials.secretName }}
+      volumes:
+        - name: seed-account-credentials
+          secret:
+            secretName: {{ . }}
+            optional: true
+      {{- end }}
+{{- end }}

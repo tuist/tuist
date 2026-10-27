@@ -1,9 +1,15 @@
 import FileSystem
 import Foundation
 import Path
+import TuistAlert
 import TuistCache
+import TuistCAS
+import TuistConfigLoader
+import TuistConstants
 import TuistCore
+import TuistEnvironment
 import TuistLoader
+import TuistLogging
 import TuistRootDirectoryLocator
 import TuistServer
 import TuistSupport
@@ -40,23 +46,9 @@ enum TuistCleanCategory: ExpressibleByArgument, CaseIterable, Equatable {
             return nil
         }
     }
-
-    func directory(
-        packageDirectory: AbsolutePath?
-    ) throws -> Path.AbsolutePath? {
-        switch self {
-        case let .global(category):
-            return try CacheDirectoriesProvider().cacheDirectory(for: category)
-        case .dependencies:
-            return packageDirectory?.appending(
-                component: Constants.SwiftPackageManager.packageBuildDirectoryName
-            )
-        }
-    }
 }
 
-final class CleanService {
-    private let fileHandler: FileHandling
+struct CleanService {
     private let rootDirectoryLocator: RootDirectoryLocating
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
     private let manifestFilesLocator: ManifestFilesLocating
@@ -64,12 +56,12 @@ final class CleanService {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let cleanCacheService: CleanCacheServicing
     private let cleanProjectCacheService: CleanProjectCacheServicing
-    private let getCacheEndpointsService: GetCacheEndpointsServicing
+    private let cacheURLStore: CacheURLStoring
     private let serverAuthenticationController: ServerAuthenticationControlling
+    private let swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator
     private let fileSystem: FileSystem
 
     init(
-        fileHandler: FileHandling,
         rootDirectoryLocator: RootDirectoryLocating,
         cacheDirectoriesProvider: CacheDirectoriesProviding,
         manifestFilesLocator: ManifestFilesLocating,
@@ -77,11 +69,12 @@ final class CleanService {
         serverEnvironmentService: ServerEnvironmentServicing,
         cleanCacheService: CleanCacheServicing,
         cleanProjectCacheService: CleanProjectCacheServicing,
-        getCacheEndpointsService: GetCacheEndpointsServicing,
+        cacheURLStore: CacheURLStoring,
         serverAuthenticationController: ServerAuthenticationControlling,
+        swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator =
+            SwiftPackageManagerScratchDirectoryLocator(),
         fileSystem: FileSystem
     ) {
-        self.fileHandler = fileHandler
         self.rootDirectoryLocator = rootDirectoryLocator
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
         self.manifestFilesLocator = manifestFilesLocator
@@ -89,14 +82,14 @@ final class CleanService {
         self.serverEnvironmentService = serverEnvironmentService
         self.cleanCacheService = cleanCacheService
         self.cleanProjectCacheService = cleanProjectCacheService
-        self.getCacheEndpointsService = getCacheEndpointsService
+        self.cacheURLStore = cacheURLStore
         self.serverAuthenticationController = serverAuthenticationController
+        self.swiftPackageManagerScratchDirectoryLocator = swiftPackageManagerScratchDirectoryLocator
         self.fileSystem = fileSystem
     }
 
-    convenience init() {
+    init() {
         self.init(
-            fileHandler: FileHandler.shared,
             rootDirectoryLocator: RootDirectoryLocator(),
             cacheDirectoriesProvider: CacheDirectoriesProvider(),
             manifestFilesLocator: ManifestFilesLocator(),
@@ -104,8 +97,9 @@ final class CleanService {
             serverEnvironmentService: ServerEnvironmentService(),
             cleanCacheService: CleanCacheService(),
             cleanProjectCacheService: CleanProjectCacheService(),
-            getCacheEndpointsService: GetCacheEndpointsService(),
+            cacheURLStore: CacheURLStore(),
             serverAuthenticationController: ServerAuthenticationController(),
+            swiftPackageManagerScratchDirectoryLocator: SwiftPackageManagerScratchDirectoryLocator(),
             fileSystem: FileSystem()
         )
     }
@@ -115,13 +109,13 @@ final class CleanService {
         remote: Bool,
         path: String?
     ) async throws {
-        let resolvedPath = if let path {
-            try AbsolutePath(validating: path, relativeTo: FileHandler.shared.currentPath)
-        } else {
-            FileHandler.shared.currentPath
-        }
+        let resolvedPath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 
         let packageDirectory = try await manifestFilesLocator.locatePackageManifest(at: resolvedPath)?.parentDirectory
+        let swiftPackageManagerScratchDirectory = try await swiftPackageManagerScratchDirectory(
+            packageDirectory: packageDirectory,
+            path: resolvedPath
+        )
 
         for category in categories {
             let directory: AbsolutePath?
@@ -129,9 +123,7 @@ final class CleanService {
             case let .global(category):
                 directory = try cacheDirectoriesProvider.cacheDirectory(for: category)
             case .dependencies:
-                directory = packageDirectory?.appending(
-                    component: Constants.SwiftPackageManager.packageBuildDirectoryName
-                )
+                directory = swiftPackageManagerScratchDirectory
             }
             if let directory,
                try await fileSystem.exists(directory)
@@ -161,29 +153,33 @@ final class CleanService {
                 let accountHandle = handles[0]
                 let projectHandle = handles[1]
 
-                let endpoints = try await getCacheEndpointsService.getCacheEndpoints(
-                    serverURL: serverURL,
-                    accountHandle: accountHandle
+                let cacheURL = try await cacheURLStore.getCacheURL(for: serverURL, accountHandle: accountHandle)
+                try await cleanProjectCacheService.cleanProjectCache(
+                    accountHandle: accountHandle,
+                    projectHandle: projectHandle,
+                    serverURL: cacheURL,
+                    authenticationURL: serverURL,
+                    serverAuthenticationController: serverAuthenticationController
                 )
-
-                try await withThrowingTaskGroup(of: Void.self) { group in
-                    for endpoint in endpoints {
-                        guard let cacheURL = URL(string: endpoint) else { continue }
-                        group.addTask {
-                            try await self.cleanProjectCacheService.cleanProjectCache(
-                                accountHandle: accountHandle,
-                                projectHandle: projectHandle,
-                                serverURL: cacheURL,
-                                authenticationURL: serverURL,
-                                serverAuthenticationController: self.serverAuthenticationController
-                            )
-                        }
-                    }
-                    try await group.waitForAll()
-                }
             }
 
             Logger.current.notice("Successfully cleaned the remote storage.")
         }
+    }
+
+    private func swiftPackageManagerScratchDirectory(
+        packageDirectory: AbsolutePath?,
+        path: AbsolutePath
+    ) async throws -> AbsolutePath? {
+        guard let packageDirectory else { return nil }
+
+        let config = try await configLoader.loadConfig(path: path)
+        let arguments = config.project.generatedProject?.installOptions.passthroughSwiftPackageManagerArguments ?? []
+        return try swiftPackageManagerScratchDirectoryLocator.locate(
+            packagePath: packageDirectory,
+            arguments: arguments,
+            environment: Environment.current.variables,
+            workingDirectory: try await Environment.current.currentWorkingDirectory()
+        )
     }
 }

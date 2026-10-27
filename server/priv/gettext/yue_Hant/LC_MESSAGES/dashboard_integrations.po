@@ -1,111 +1,138 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: PACKAGE VERSION\n"
-"Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-12-24 14:49+0000\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: Automatically generated\n"
-"Language-Team: none\n"
 "Language: yue_Hant\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
-"X-Generator: Translate Toolkit 3.17.5\n"
 
-## This file is a PO Template file.
-##
-## "msgid"s here are often extracted from source code.
-## Add new messages manually only if they're dynamic
-## messages that can't be statically extracted.
-##
-## Run "mix gettext.extract" to bring this file up to
-## date. Leave "msgstr"s empty as changing them here has no
-## effect: edit them in PO (.po) files instead.
-#
-
-#: lib/tuist_web/live/integrations_live.html.heex:50
+#: lib/tuist_web/live/integrations_live.html.heex:82
 #, elixir-autogen, elixir-format
 msgid "Add new project connection"
-msgstr ""
+msgstr "新增項目連接"
 
-#: lib/tuist_web/live/integrations_live.html.heex:113
+#: lib/tuist_web/live/integrations_live.html.heex:145
 #, elixir-autogen, elixir-format
 msgid "Cancel"
-msgstr ""
+msgstr "取消"
 
-#: lib/tuist_web/live/integrations_live.html.heex:65
+#: lib/tuist_web/live/integrations_live.html.heex:97
 #, elixir-autogen, elixir-format
 msgid "Choose Tuist project"
-msgstr ""
+msgstr "選擇 Tuist 項目"
 
-#: lib/tuist_web/live/integrations_live.html.heex:92
+#: lib/tuist_web/live/integrations_live.html.heex:124
 #, elixir-autogen, elixir-format
 msgid "Choose a repository"
-msgstr ""
+msgstr "選擇一個儲存庫"
 
-#: lib/tuist_web/live/integrations_live.html.heex:43
+#: lib/tuist_web/live/integrations_live.html.heex:75
 #, elixir-autogen, elixir-format
 msgid "Choose repository to connect to"
-msgstr ""
+msgstr "選擇要連接的儲存庫"
 
 #: lib/tuist_web/live/integrations_live.html.heex:9
 #, elixir-autogen, elixir-format
 msgid "Connect any of your GitHub repositories to a project"
-msgstr ""
+msgstr "將你任何 GitHub 儲存庫連接到項目"
 
-#: lib/tuist_web/live/integrations_live.ex:147
+#: lib/tuist_web/live/integrations_live.ex:215
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago}"
-msgstr ""
+msgstr "已於 %{time_ago} 連接"
 
-#: lib/tuist_web/live/integrations_live.ex:149
+#: lib/tuist_web/live/integrations_live.ex:217
 #, elixir-autogen, elixir-format
 msgid "Connected %{time_ago} by %{name}"
-msgstr ""
+msgstr "由 %{name} 於 %{time_ago} 連接"
 
-#: lib/tuist_web/live/integrations_live.html.heex:120
+#: lib/tuist_web/live/integrations_live.html.heex:152
 #, elixir-autogen, elixir-format
 msgid "Create Connection"
-msgstr ""
+msgstr "建立連接"
 
 #: lib/tuist_web/live/integrations_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "GitHub"
-msgstr ""
+msgstr "GitHub"
 
-#: lib/tuist_web/live/integrations_live.html.heex:19
+#: lib/tuist_web/live/integrations_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "Install GitHub App"
-msgstr ""
+msgstr "安裝 GitHub 應用程式"
 
-#: lib/tuist_web/live/integrations_live.ex:30
+#: lib/tuist_web/live/integrations_live.ex:52
 #: lib/tuist_web/live/integrations_live.html.heex:2
 #, elixir-autogen, elixir-format
 msgid "Integrations"
-msgstr ""
+msgstr "整合"
 
-#: lib/tuist_web/live/integrations_live.html.heex:159
+#: lib/tuist_web/live/integrations_live.html.heex:191
 #, elixir-autogen, elixir-format
 msgid "Manage"
-msgstr ""
+msgstr "管理"
 
-#: lib/tuist_web/live/integrations_live.html.heex:27
+#: lib/tuist_web/live/integrations_live.html.heex:59
 #, elixir-autogen, elixir-format
 msgid "Manage integration"
-msgstr ""
+msgstr "管理整合"
 
-#: lib/tuist_web/live/integrations_live.html.heex:162
+#: lib/tuist_web/live/integrations_live.html.heex:194
 #, elixir-autogen, elixir-format
 msgid "Remove connection"
-msgstr ""
+msgstr "移除連接"
 
-#: lib/tuist_web/live/integrations_live.ex:15
+#: lib/tuist_web/live/integrations_live.ex:16
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to perform this action."
-msgstr ""
+msgstr "你無權執行此操作。"
+
+#: lib/tuist_web/live/integrations_live.html.heex:70
+#, elixir-autogen, elixir-format
+msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
+msgstr "你對儲存庫的存取取決於你嘅 GitHub 同 Tuist 整合設置。"
+
+#: lib/tuist_web/live/integrations_live.ex:255
+#, elixir-autogen, elixir-format
+msgid "Invalid URL"
+msgstr "無效嘅 URL"
+
+#: lib/tuist_web/live/integrations_live.ex:287
+#, elixir-autogen, elixir-format
+msgid "Invalid organization"
+msgstr "無效嘅組織"
 
 #: lib/tuist_web/live/integrations_live.html.heex:38
 #, elixir-autogen, elixir-format
-msgid "Your access to repositories depends on your GitHub and Tuist integration setup."
-msgstr ""
+msgid "Server URL"
+msgstr "伺服器 URL"
+
+#: lib/tuist_web/live/integrations_live.html.heex:27
+#, elixir-autogen, elixir-format
+msgid "Enterprise server"
+msgstr "企業伺服器"
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:213
+#, elixir-autogen, elixir-format
+msgid "Continue"
+msgstr "繼續"
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:212
+#, elixir-autogen, elixir-format
+msgid "Redirecting to GitHub Enterprise Server"
+msgstr "正在重新導向至 GitHub 企業伺服器"
+
+#: lib/tuist_web/controllers/github_app_manifest_controller.ex:210
+#, elixir-autogen, elixir-format
+msgid "Redirecting to GitHub Enterprise Server to register the Tuist app…"
+msgstr "正在重新導向至 GitHub 企業伺服器以註冊 Tuist 應用程式…"
+
+#: lib/tuist_web/live/integrations_live.ex:244
+#, elixir-autogen, elixir-format
+msgid "Required"
+msgstr "必填項目"
+
+#: lib/tuist_web/live/integrations_live.ex:250
+#, elixir-autogen, elixir-format
+msgid "Use a GitHub Enterprise Server URL"
+msgstr "使用 GitHub 企業伺服器 URL"

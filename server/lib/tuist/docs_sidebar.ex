@@ -1,0 +1,704 @@
+defmodule Tuist.Docs.Sidebar do
+  @moduledoc """
+  Defines the navigation sidebar tree for the documentation pages.
+  """
+
+  alias Tuist.Environment
+
+  defmodule Item do
+    @moduledoc false
+    defstruct [:label, :slug, :url, :icon, :text_path, items: []]
+  end
+
+  defmodule Group do
+    @moduledoc false
+    defstruct [:label, :category, weight: :semibold, items: []]
+  end
+
+  @strings_dir Path.expand("../../priv/docs/strings", __DIR__)
+
+  extract_texts = fn extract_texts, map, prefix ->
+    map
+    |> Enum.flat_map(fn
+      {"text", value} when is_binary(value) ->
+        [{prefix |> Enum.reverse() |> Enum.join("."), value}]
+
+      {key, value} when is_map(value) ->
+        extract_texts.(extract_texts, value, [key | prefix])
+
+      _ ->
+        []
+    end)
+    |> Map.new()
+  end
+
+  en_path = Path.join(@strings_dir, "en.json")
+
+  translations =
+    if File.exists?(en_path) do
+      {:ok, en_content} = File.read(en_path)
+      {:ok, en_data} = JSON.decode(en_content)
+      en_strings = extract_texts.(extract_texts, en_data, [])
+
+      @strings_dir
+      |> Path.join("*.json")
+      |> Path.wildcard()
+      |> Enum.reject(&(Path.basename(&1) == "en.json"))
+      |> Map.new(fn path ->
+        locale = Path.basename(path, ".json")
+        {:ok, content} = File.read(path)
+        {:ok, data} = JSON.decode(content)
+        locale_texts = extract_texts.(extract_texts, data, [])
+
+        label_map =
+          Map.new(en_strings, fn {text_path, en_text} ->
+            {en_text, Map.get(locale_texts, text_path, en_text)}
+          end)
+
+        path_map =
+          Map.new(en_strings, fn {text_path, en_text} ->
+            {text_path, Map.get(locale_texts, text_path, en_text)}
+          end)
+
+        {locale, %{by_label: label_map, by_path: path_map}}
+      end)
+    else
+      %{}
+    end
+
+  @translations translations
+
+  def tree do
+    guides_tree() ++ resources_tree() ++ references_tree() ++ cli_tree()
+  end
+
+  def tab_for_slug(slug) do
+    path = Regex.replace(~r{^/[^/]+/}, slug, "/")
+
+    cond do
+      String.starts_with?(path, "/cli") -> :cli
+      String.starts_with?(path, "/references") -> :references
+      String.starts_with?(path, "/contributors") -> :resources
+      true -> :guides
+    end
+  end
+
+  def category_for_slug(slug) do
+    english_slug = String.replace(slug, ~r{^/[^/]+/}, "/en/")
+    Map.get_lazy(category_map(), english_slug, fn -> fallback_category(english_slug) end)
+  end
+
+  def tree_for_tab(tab, locale \\ "en")
+  def tree_for_tab(:guides, locale), do: localize_tree(guides_tree(), locale)
+  def tree_for_tab(:references, locale), do: localize_tree(references_tree(), locale)
+  def tree_for_tab(:resources, locale), do: localize_tree(resources_tree(), locale)
+  def tree_for_tab(:cli, locale), do: localize_tree(cli_tree(), locale)
+
+  defp category_map do
+    if Environment.dev?() do
+      build_category_map()
+    else
+      case :persistent_term.get({__MODULE__, :category_map}, nil) do
+        nil ->
+          map = build_category_map()
+          :persistent_term.put({__MODULE__, :category_map}, map)
+          map
+
+        map ->
+          map
+      end
+    end
+  end
+
+  defp build_category_map do
+    tree()
+    |> Enum.flat_map(fn group ->
+      collect_slugs_with_category(group.category || group.label || "Docs", group.items)
+    end)
+    |> Map.new()
+  end
+
+  defp fallback_category("/en/guides/" <> _rest), do: "Guides"
+  defp fallback_category("/en/tutorials/" <> _rest), do: "Tutorials"
+  defp fallback_category("/en/references/" <> _rest), do: "References"
+  defp fallback_category("/en/contributors/" <> _rest), do: "Resources"
+  defp fallback_category("/en/cli/" <> _rest), do: "CLI"
+  defp fallback_category(_slug), do: "Docs"
+
+  defp collect_slugs_with_category(category, items) do
+    Enum.flat_map(items, fn item ->
+      own = if item.slug, do: [{item.slug, category}], else: []
+      own ++ collect_slugs_with_category(category, item.items)
+    end)
+  end
+
+  defp localize_tree(tree, "en"), do: tree
+
+  defp localize_tree(tree, locale) do
+    maps = Map.get(@translations, locale, %{by_label: %{}, by_path: %{}})
+
+    Enum.map(tree, fn
+      %Group{label: label, items: items} = group ->
+        %{group | label: translate(label, nil, maps), items: Enum.map(items, &localize_item(&1, locale, maps))}
+    end)
+  end
+
+  defp localize_item(%Item{slug: nil, label: label, text_path: text_path, items: items} = item, locale, maps) do
+    %{item | label: translate(label, text_path, maps), items: Enum.map(items, &localize_item(&1, locale, maps))}
+  end
+
+  defp localize_item(%Item{slug: "/en/" <> rest, label: label, text_path: text_path, items: items} = item, locale, maps) do
+    %{
+      item
+      | slug: "/#{locale}/#{rest}",
+        label: translate(label, text_path, maps),
+        items: Enum.map(items, &localize_item(&1, locale, maps))
+    }
+  end
+
+  defp localize_item(%Item{label: label, text_path: text_path, items: items} = item, locale, maps) do
+    %{item | label: translate(label, text_path, maps), items: Enum.map(items, &localize_item(&1, locale, maps))}
+  end
+
+  defp translate(nil, _text_path, _maps), do: nil
+
+  defp translate(label, text_path, %{by_label: by_label, by_path: by_path}) do
+    case text_path && Map.get(by_path, text_path) do
+      nil -> Map.get(by_label, label, label)
+      translated -> translated
+    end
+  end
+
+  def item_active?(%Item{slug: slug}, current_slug) when is_binary(slug), do: slug == current_slug
+
+  def item_active?(%Item{}, _current_slug), do: false
+
+  def item_or_children_active?(%Item{slug: slug, items: items}, current_slug) do
+    slug == current_slug or Enum.any?(items, &item_or_children_active?(&1, current_slug))
+  end
+
+  def guides_tree do
+    [
+      %Group{
+        label: nil,
+        category: "Guides",
+        items: [
+          %Item{
+            label: "Install Tuist",
+            slug: "/en/guides/install-tuist",
+            icon: "download"
+          },
+          %Item{
+            label: "Get started",
+            slug: "/en/guides/get-started",
+            icon: "bulb",
+            items: [
+              %Item{
+                label: "Xcode project",
+                slug: "/en/guides/get-started/existing-xcode-project",
+                icon: "brand_apple"
+              },
+              %Item{
+                label: "Generated Xcode project",
+                slug: "/en/guides/get-started/generated-xcode-project",
+                icon: "brand_apple"
+              },
+              %Item{
+                label: "Gradle project",
+                slug: "/en/guides/get-started/gradle-project",
+                icon: "brand_gradle"
+              },
+              %Item{
+                label: "Elixir project",
+                slug: "/en/guides/get-started/elixir-project",
+                icon: "brand_elixir"
+              },
+              %Item{
+                label: "Rust project",
+                slug: "/en/guides/get-started/rust-project",
+                icon: "brand_rust"
+              },
+              %Item{
+                label: "Bazel project",
+                slug: "/en/guides/get-started/bazel-project",
+                icon: "brand_bazel"
+              }
+            ]
+          }
+        ]
+      },
+      %Group{
+        label: "Builds",
+        weight: :medium,
+        items: [
+          %Item{
+            label: "Cache",
+            slug: "/en/guides/features/cache",
+            items: [
+              %Item{label: "Xcode cache", slug: "/en/guides/features/cache/xcode-cache", icon: "brand_apple"},
+              %Item{label: "Module cache", slug: "/en/guides/features/cache/module-cache", icon: "brand_apple"},
+              %Item{label: "Gradle cache", slug: "/en/guides/features/cache/gradle-cache", icon: "brand_gradle"},
+              %Item{label: "Bazel cache", slug: "/en/guides/features/cache/bazel-cache", icon: "brand_bazel"},
+              %Item{label: "Elixir cache", slug: "/en/guides/features/cache/elixir", icon: "brand_elixir"},
+              %Item{label: "Rust cache", slug: "/en/guides/features/cache/rust", icon: "brand_rust"}
+            ]
+          },
+          %Item{
+            label: "Insights",
+            text_path: "sidebars.guides.items.develop.items.insights",
+            slug: "/en/guides/features/build-insights",
+            items: [
+              %Item{label: "Xcode", slug: "/en/guides/features/build-insights/xcode", icon: "brand_apple"},
+              %Item{
+                label: "Generated Xcode project",
+                slug: "/en/guides/features/build-insights/generated-xcode-project",
+                icon: "brand_apple"
+              },
+              %Item{label: "Gradle", slug: "/en/guides/features/build-insights/gradle", icon: "brand_gradle"},
+              %Item{label: "Bazel", slug: "/en/guides/features/build-insights/bazel", icon: "brand_bazel"},
+              %Item{label: "Elixir", slug: "/en/guides/features/build-insights/elixir", icon: "brand_elixir"},
+              %Item{label: "Rust", slug: "/en/guides/features/build-insights/rust", icon: "brand_rust"}
+            ]
+          }
+        ]
+      },
+      %Group{
+        label: "Tests",
+        weight: :medium,
+        items: [
+          %Item{
+            label: "Selection",
+            slug: "/en/guides/features/selective-testing",
+            items: [
+              %Item{
+                label: "Generated Xcode project",
+                slug: "/en/guides/features/selective-testing/generated-xcode-project",
+                icon: "brand_apple"
+              }
+            ]
+          },
+          %Item{
+            label: "Insights",
+            text_path: "sidebars.guides.items.develop.items.test-insights",
+            slug: "/en/guides/features/test-insights",
+            items: [
+              %Item{label: "Xcode", slug: "/en/guides/features/test-insights/xcode", icon: "brand_apple"},
+              %Item{label: "Gradle", slug: "/en/guides/features/test-insights/gradle", icon: "brand_gradle"},
+              %Item{label: "Bazel", slug: "/en/guides/features/test-insights/bazel", icon: "brand_bazel"},
+              %Item{label: "Elixir", slug: "/en/guides/features/test-insights/elixir", icon: "brand_elixir"},
+              %Item{label: "Rust", slug: "/en/guides/features/test-insights/rust", icon: "brand_rust"}
+            ]
+          },
+          %Item{
+            label: "Flakiness",
+            slug: "/en/guides/features/test-insights/flaky-tests",
+            items: [
+              %Item{
+                label: "Xcode",
+                slug: "/en/guides/features/test-insights/flaky-tests/xcode",
+                icon: "brand_apple"
+              },
+              %Item{
+                label: "Generated Xcode project",
+                slug: "/en/guides/features/test-insights/flaky-tests/generated-xcode-project",
+                icon: "brand_apple"
+              },
+              %Item{
+                label: "Gradle",
+                slug: "/en/guides/features/test-insights/flaky-tests/gradle",
+                icon: "brand_gradle"
+              },
+              %Item{
+                label: "Bazel",
+                slug: "/en/guides/features/test-insights/flaky-tests/bazel",
+                icon: "brand_bazel"
+              },
+              %Item{
+                label: "Elixir",
+                slug: "/en/guides/features/test-insights/flaky-tests/elixir",
+                icon: "brand_elixir"
+              },
+              %Item{
+                label: "Rust",
+                slug: "/en/guides/features/test-insights/flaky-tests/rust",
+                icon: "brand_rust"
+              }
+            ]
+          },
+          %Item{
+            label: "Sharding",
+            slug: "/en/guides/features/test-sharding",
+            items: [
+              %Item{label: "Xcode", slug: "/en/guides/features/test-sharding/xcode", icon: "brand_apple"},
+              %Item{
+                label: "Generated Xcode project",
+                slug: "/en/guides/features/test-sharding/generated-xcode-project",
+                icon: "brand_apple"
+              },
+              %Item{label: "Gradle", slug: "/en/guides/features/test-sharding/gradle", icon: "brand_gradle"},
+              %Item{label: "Elixir", slug: "/en/guides/features/test-sharding/elixir", icon: "brand_elixir"},
+              %Item{label: "Rust", slug: "/en/guides/features/test-sharding/rust", icon: "brand_rust"}
+            ]
+          }
+        ]
+      },
+      %Group{
+        label: "Compute",
+        weight: :medium,
+        items: [
+          %Item{
+            label: "Runners",
+            slug: "/en/guides/features/runners",
+            items: [
+              %Item{
+                label: "CI providers",
+                items: [
+                  %Item{
+                    label: "GitHub Actions",
+                    slug: "/en/guides/features/runners/ci-providers/github-actions",
+                    icon: "brand_github"
+                  },
+                  %Item{
+                    label: "Buildkite",
+                    slug: "/en/guides/features/runners/ci-providers/buildkite",
+                    icon: "brand_buildkite"
+                  },
+                  %Item{
+                    label: "GitLab CI",
+                    slug: "/en/guides/features/runners/ci-providers/gitlab-ci",
+                    icon: "brand_gitlab"
+                  }
+                ]
+              },
+              %Item{label: "Profiles", slug: "/en/guides/features/runners/profiles"},
+              %Item{label: "Cache volumes", slug: "/en/guides/features/runners/cache-volumes"},
+              %Item{
+                label: "Docker",
+                slug: "/en/guides/features/runners/docker",
+                icon: "brand_docker"
+              }
+            ]
+          }
+        ]
+      },
+      %Group{
+        label: "Bundles",
+        weight: :medium,
+        items: [
+          %Item{label: "Previews", slug: "/en/guides/features/previews"},
+          %Item{
+            label: "Insights",
+            text_path: "sidebars.guides.items.develop.items.bundle-insights",
+            slug: "/en/guides/features/bundle-insights",
+            items: [
+              %Item{
+                label: "Apple",
+                slug: "/en/guides/features/bundle-insights/apple",
+                icon: "brand_apple"
+              },
+              %Item{
+                label: "Android",
+                slug: "/en/guides/features/bundle-insights/android",
+                icon: "brand_android"
+              }
+            ]
+          }
+        ]
+      },
+      %Group{
+        label: "Other features",
+        weight: :medium,
+        items: [
+          %Item{
+            label: "Generated projects",
+            slug: "/en/guides/features/projects",
+            icon: "brand_apple",
+            items: [
+              %Item{
+                label: "Adoption",
+                items: [
+                  %Item{
+                    label: "New project",
+                    slug: "/en/guides/features/projects/adoption/new-project"
+                  },
+                  %Item{
+                    label: "Swift package",
+                    slug: "/en/guides/features/projects/adoption/swift-package"
+                  },
+                  %Item{
+                    label: "Migrate",
+                    items: [
+                      %Item{
+                        label: "Xcode project",
+                        slug: "/en/guides/features/projects/adoption/migrate/xcode-project",
+                        icon: "brand_apple"
+                      },
+                      %Item{
+                        label: "Swift package",
+                        slug: "/en/guides/features/projects/adoption/migrate/swift-package"
+                      },
+                      %Item{
+                        label: "XcodeGen project",
+                        slug: "/en/guides/features/projects/adoption/migrate/xcodegen-project"
+                      },
+                      %Item{
+                        label: "Bazel project",
+                        slug: "/en/guides/features/projects/adoption/migrate/bazel-project",
+                        icon: "brand_bazel"
+                      }
+                    ]
+                  }
+                ]
+              },
+              %Item{label: "Manifests", slug: "/en/guides/features/projects/manifests"},
+              %Item{
+                label: "Directory structure",
+                slug: "/en/guides/features/projects/directory-structure"
+              },
+              %Item{label: "Editing", slug: "/en/guides/features/projects/editing"},
+              %Item{label: "Dependencies", slug: "/en/guides/features/projects/dependencies"},
+              %Item{label: "Code sharing", slug: "/en/guides/features/projects/code-sharing"},
+              %Item{
+                label: "Synthesized files",
+                slug: "/en/guides/features/projects/synthesized-files"
+              },
+              %Item{
+                label: "Dynamic configuration",
+                slug: "/en/guides/features/projects/dynamic-configuration"
+              },
+              %Item{label: "Templates", slug: "/en/guides/features/projects/templates"},
+              %Item{label: "Plugins", slug: "/en/guides/features/projects/plugins"},
+              %Item{label: "Hashing", slug: "/en/guides/features/projects/hashing"},
+              %Item{
+                label: "Inspect",
+                items: [
+                  %Item{
+                    label: "Implicit dependencies",
+                    slug: "/en/guides/features/projects/inspect/implicit-dependencies"
+                  }
+                ]
+              },
+              %Item{
+                label: "The cost of convenience",
+                slug: "/en/guides/features/projects/cost-of-convenience"
+              },
+              %Item{
+                label: "uFeatures architecture",
+                slug: "/en/guides/features/projects/tma-architecture"
+              },
+              %Item{label: "Metadata tags", slug: "/en/guides/features/projects/metadata-tags"},
+              %Item{label: "Best practices", slug: "/en/guides/features/projects/best-practices"}
+            ]
+          },
+          %Item{
+            label: "Package Registries",
+            items: [
+              %Item{
+                label: "Swift",
+                slug: "/en/guides/features/package-registries/swift",
+                icon: "brand_swift",
+                items: [
+                  %Item{
+                    label: "Xcode project",
+                    slug: "/en/guides/features/package-registries/swift/xcode-project"
+                  },
+                  %Item{
+                    label: "Generated project",
+                    slug: "/en/guides/features/package-registries/swift/generated-project"
+                  },
+                  %Item{
+                    label: "Xcodeproj integration",
+                    slug: "/en/guides/features/package-registries/swift/xcodeproj-integration"
+                  },
+                  %Item{
+                    label: "Swift package",
+                    slug: "/en/guides/features/package-registries/swift/swift-package"
+                  },
+                  %Item{
+                    label: "Continuous integration",
+                    slug: "/en/guides/features/package-registries/swift/continuous-integration"
+                  }
+                ]
+              }
+            ]
+          },
+          %Item{
+            label: "Agentic coding",
+            items: [
+              %Item{label: "Plugins", slug: "/en/guides/features/agentic-coding/plugins"},
+              %Item{label: "MCP", slug: "/en/guides/features/agentic-coding/mcp"},
+              %Item{label: "Skills", slug: "/en/guides/features/agentic-coding/skills"}
+            ]
+          }
+        ]
+      },
+      %Group{
+        label: "Integrations",
+        items: [
+          %Item{
+            label: "Continuous integration",
+            slug: "/en/guides/integrations/continuous-integration"
+          },
+          %Item{label: "HTTP proxy", slug: "/en/guides/integrations/http-proxy"},
+          %Item{
+            label: "Authentication",
+            items: [
+              %Item{
+                label: "Single Sign-On",
+                slug: "/en/guides/integrations/authentication/sso"
+              },
+              %Item{
+                label: "SCIM provisioning",
+                slug: "/en/guides/integrations/authentication/scim"
+              }
+            ]
+          },
+          %Item{label: "Grafana", slug: "/en/guides/integrations/grafana"},
+          %Item{label: "Slack", slug: "/en/guides/integrations/slack"},
+          %Item{label: "Webhooks", slug: "/en/guides/integrations/webhooks"},
+          %Item{
+            label: "Git forges",
+            items: [
+              %Item{label: "GitHub", slug: "/en/guides/integrations/gitforge/github"},
+              %Item{label: "Origin", slug: "/en/guides/integrations/gitforge/origin"}
+            ]
+          }
+        ]
+      },
+      %Group{
+        label: "Server",
+        items: [
+          %Item{
+            label: "Accounts and projects",
+            slug: "/en/guides/server/accounts-and-projects"
+          },
+          %Item{label: "Authentication", slug: "/en/guides/server/authentication"},
+          %Item{label: "Data retention", slug: "/en/guides/server/data-retention"},
+          %Item{label: "Network", slug: "/en/guides/server/network"},
+          %Item{
+            label: "Self-hosting",
+            items: [
+              %Item{label: "Server", slug: "/en/guides/server/self-host/server"},
+              %Item{label: "Release channels", slug: "/en/guides/server/self-host/release-channels"},
+              %Item{label: "Cache", slug: "/en/guides/features/cache/self-hosting"},
+              %Item{label: "Telemetry", slug: "/en/guides/server/self-host/telemetry"}
+            ]
+          }
+        ]
+      }
+    ]
+  end
+
+  def resources_tree do
+    [
+      %Group{
+        label: nil,
+        items: [
+          %Item{label: "Changelog", url: "/changelog"},
+          %Item{label: "Releases", url: "https://github.com/tuist/tuist/releases"},
+          %Item{label: "API documentation", url: "https://tuist.dev/api/docs"},
+          %Item{label: "Status", url: "https://status.tuist.io"},
+          %Item{
+            label: "Metrics dashboard",
+            url: "https://tuist.grafana.net/public-dashboards/1f85f1c3895e48febd02cc7350ade2d9"
+          }
+        ]
+      },
+      %Group{
+        label: "Contributors",
+        items: [
+          %Item{
+            label: "Code",
+            slug: "/en/contributors/code",
+            items: [
+              %Item{label: "CLI", slug: "/en/contributors/code/cli"},
+              %Item{label: "Server", slug: "/en/contributors/code/server"},
+              %Item{label: "Handbook", slug: "/en/contributors/code/handbook"},
+              %Item{label: "Docs", slug: "/en/contributors/code/docs"}
+            ]
+          },
+          %Item{label: "Issue reporting", slug: "/en/contributors/issue-reporting"},
+          %Item{label: "Code reviews", slug: "/en/contributors/code-reviews"},
+          %Item{label: "Principles", slug: "/en/contributors/principles"},
+          %Item{label: "Debugging", slug: "/en/contributors/debugging"},
+          %Item{label: "Languages", slug: "/en/contributors/languages"},
+          %Item{label: "Releases", slug: "/en/contributors/releases"},
+          %Item{
+            label: "CLI",
+            items: [
+              %Item{label: "Logging", slug: "/en/contributors/cli/logging"}
+            ]
+          }
+        ]
+      }
+    ]
+  end
+
+  @example_tuples Tuist.Docs.Loader.load_example_items!()
+
+  def references_tree do
+    example_items =
+      Enum.map(@example_tuples, fn {title, slug} -> %Item{label: title, slug: slug} end)
+
+    [
+      %Group{
+        label: "Examples",
+        items: [
+          %Item{
+            label: "Generated projects",
+            slug: "/en/references/examples/generated-projects",
+            items: example_items
+          }
+        ]
+      },
+      %Group{
+        label: "References",
+        items: [
+          %Item{label: "tuist.toml", slug: "/en/references/tuist-toml"},
+          %Item{
+            label: "Project description",
+            url: "https://projectdescription.tuist.dev/documentation/projectdescription"
+          },
+          %Item{
+            label: "Server API",
+            url: "https://tuist.dev/api/docs"
+          },
+          %Item{
+            label: "Migrations",
+            items: [
+              %Item{label: "From v3 to v4", slug: "/en/references/migrations/from-v3-to-v4"}
+            ]
+          }
+        ]
+      },
+      %Group{
+        label: "Libraries",
+        items: [
+          %Item{label: "Elixir", url: "https://hexdocs.pm/tuist_ex", icon: "brand_elixir"}
+        ]
+      }
+    ]
+  end
+
+  def cli_tree do
+    case Tuist.Docs.CLI.sidebar_items() do
+      [] -> default_cli_tree()
+      items -> items
+    end
+  end
+
+  defp default_cli_tree do
+    [
+      %Group{
+        label: "CLI",
+        items: [
+          %Item{label: "Release channels", slug: "/en/cli/release-channels"},
+          %Item{label: "Compatibility", slug: "/en/cli/compatibility"},
+          %Item{label: "Debugging", slug: "/en/cli/debugging"},
+          %Item{label: "Directories", slug: "/en/cli/directories"},
+          %Item{label: "Shell completions", slug: "/en/cli/shell-completions"}
+        ]
+      }
+    ]
+  end
+end

@@ -10,6 +10,6 @@ defmodule TuistWeb.API.Schemas.BundleSupportedPlatform do
     title: "BundleSupportedPlatform",
     description: "A platform that a bundle can support (e.g. iOS)",
     type: :string,
-    enum: Ecto.Enum.values(Bundle, :supported_platforms)
+    enum: Bundle.supported_platforms()
   })
 end

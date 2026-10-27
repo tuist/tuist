@@ -1,34 +1,39 @@
 defmodule Cache.DiskEvictionWorkerTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   use Mimic
 
   import Ecto.Query
 
   alias Cache.CacheArtifact
   alias Cache.CacheArtifacts
+  alias Cache.CacheArtifactsBuffer
   alias Cache.Disk
   alias Cache.DiskEvictionWorker
   alias Cache.Repo
   alias Ecto.Adapters.SQL.Sandbox
 
-  setup do
+  setup :set_mimic_from_context
+
+  setup context do
     :ok = Sandbox.checkout(Repo)
 
-    {:ok, storage_dir} = Briefly.create(directory: true)
+    context = Cache.BufferTestHelpers.setup_cache_artifacts_buffer(context)
 
+    {:ok, storage_dir} = Briefly.create(directory: true)
     stub(Disk, :storage_dir, fn -> storage_dir end)
 
-    {:ok, storage_dir: storage_dir}
+    {:ok, Map.put(context, :storage_dir, storage_dir)}
   end
 
   test "skips eviction when usage is below threshold", %{storage_dir: storage_dir} do
-    key = "account/project/cas/file"
+    key = "account/project/xcode/file"
     path = Disk.artifact_path(key)
 
     File.mkdir_p!(Path.dirname(path))
     File.write!(path, :binary.copy("a", 1024))
 
     :ok = CacheArtifacts.track_artifact_access(key)
+    :ok = CacheArtifactsBuffer.flush()
 
     expect(Disk, :usage, fn ^storage_dir ->
       {:ok,
@@ -45,9 +50,9 @@ defmodule Cache.DiskEvictionWorkerTest do
   end
 
   test "evicts least recently used artifacts when disk usage is high", %{storage_dir: storage_dir} do
-    key_old = "acct/project/cas/old"
-    key_new = "acct/project/cas/new"
-    key_newest = "acct/project/cas/newest"
+    key_old = "acct/project/xcode/old"
+    key_new = "acct/project/xcode/new"
+    key_newest = "acct/project/xcode/newest"
 
     older = Disk.artifact_path(key_old)
     newer = Disk.artifact_path(key_new)
@@ -62,6 +67,7 @@ defmodule Cache.DiskEvictionWorkerTest do
     :ok = CacheArtifacts.track_artifact_access(key_old)
     :ok = CacheArtifacts.track_artifact_access(key_new)
     :ok = CacheArtifacts.track_artifact_access(key_newest)
+    :ok = CacheArtifactsBuffer.flush()
 
     set_last_access(key_old, ~U[2024-01-01 00:00:00Z])
     set_last_access(key_new, ~U[2024-06-01 00:00:00Z])
@@ -78,6 +84,7 @@ defmodule Cache.DiskEvictionWorkerTest do
     end)
 
     assert :ok = DiskEvictionWorker.perform(%Oban.Job{args: %{}})
+    :ok = CacheArtifactsBuffer.flush()
 
     refute File.exists?(older)
     assert File.exists?(newer)

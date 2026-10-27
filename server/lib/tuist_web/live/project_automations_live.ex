@@ -1,0 +1,1160 @@
+defmodule TuistWeb.ProjectAutomationsLive do
+  @moduledoc false
+  use TuistWeb, :live_view
+  use Noora
+
+  import Noora.CheckboxControl
+
+  alias Tuist.Authorization
+  alias Tuist.Automations
+  alias Tuist.Automations.Alerts.Alert
+  alias Tuist.Environment
+  alias Tuist.Slack
+  alias TuistWeb.Helpers.OpenGraph
+  alias TuistWeb.SlackOAuthController
+
+  @impl true
+  def mount(
+        _params,
+        _uri,
+        %{assigns: %{selected_project: selected_project, selected_account: selected_account, current_user: current_user}} =
+          socket
+      ) do
+    if Authorization.authorize(:automation_alert_read, current_user, selected_project) != :ok do
+      raise TuistWeb.Errors.UnauthorizedError,
+            dgettext("dashboard_projects", "You are not authorized to perform this action.")
+    end
+
+    socket =
+      socket
+      |> assign(:slack_configured, Environment.slack_configured?())
+      |> assign(
+        :can_manage_automations,
+        Authorization.authorize(:automation_alert_create, current_user, selected_project) == :ok
+      )
+      |> assign(:flash_message, nil)
+      |> assign(:head_title, "#{dgettext("dashboard_projects", "Automations")} · #{selected_project.name} · Tuist")
+      |> assign(
+        OpenGraph.project_image_assigns(selected_project,
+          title: dgettext("dashboard_projects", "Automations"),
+          subtitle: dgettext("dashboard_projects", "Project settings")
+        )
+      )
+      |> assign(
+        :automation_channel_selection_url,
+        SlackOAuthController.alert_channel_selection_url(selected_account.id)
+      )
+      |> assign_automations(selected_project)
+      |> assign_create_automation_form_defaults()
+      |> assign(match_count: :idle, match_count_ref: nil, match_count_timer: nil, match_count_running_ref: nil)
+      |> attach_hook(:match_count, :handle_event, &refresh_match_count_on_event/3)
+
+    {:ok, socket}
+  end
+
+  @match_count_events ~w(
+    open_create_automation_modal edit_automation
+    update_create_automation_form_metric update_create_automation_form_comparison
+    update_create_automation_form_threshold toggle_create_automation_form_trigger_state
+    update_create_automation_form_window update_create_automation_form_window_type
+    update_create_automation_form_rolling_window_size
+  )
+
+  defp refresh_match_count_on_event(event, _params, socket) when event in @match_count_events do
+    if socket.assigns.can_manage_automations do
+      socket = cancel_match_count(socket)
+      ref = make_ref()
+      delay = if event in ["open_create_automation_modal", "edit_automation"], do: 0, else: 500
+
+      timer =
+        if delay == 0 do
+          send(self(), {:refresh_match_count, ref})
+          nil
+        else
+          Process.send_after(self(), {:refresh_match_count, ref}, delay)
+        end
+
+      {:cont, assign(socket, match_count: :loading, match_count_ref: ref, match_count_timer: timer)}
+    else
+      {:cont, socket}
+    end
+  end
+
+  defp refresh_match_count_on_event(event, params, socket)
+       when event in ["close_create_automation_modal", "create_automation_modal_open_change"] do
+    # Noora wires `on_dismiss` to the ✕ only; Escape and click-outside close the
+    # dialog client-side and surface here through `on_open_change` instead.
+    if event == "close_create_automation_modal" or params["open"] == false do
+      {:cont, socket |> cancel_match_count() |> assign(match_count: :idle, match_count_ref: nil)}
+    else
+      {:cont, socket}
+    end
+  end
+
+  defp refresh_match_count_on_event(_event, _params, socket), do: {:cont, socket}
+
+  defp cancel_match_count(socket) do
+    if socket.assigns.match_count_timer, do: Process.cancel_timer(socket.assigns.match_count_timer)
+
+    socket
+    |> cancel_async(:match_count)
+    |> assign(match_count_timer: nil, match_count_running_ref: nil)
+  end
+
+  @impl true
+  def handle_info({:refresh_match_count, ref}, %{assigns: %{match_count_ref: ref}} = socket) do
+    socket = assign(socket, match_count_timer: nil)
+
+    case match_count_alert(socket.assigns) do
+      {:ok, alert} ->
+        {:noreply,
+         socket
+         |> assign(match_count_running_ref: ref)
+         |> start_async(:match_count, fn -> {ref, Automations.count_existing_matches(alert)} end)}
+
+      :invalid ->
+        {:noreply, assign(socket, match_count: :invalid)}
+    end
+  end
+
+  def handle_info({:refresh_match_count, _ref}, socket), do: {:noreply, socket}
+
+  @impl true
+  def handle_async(:match_count, {:ok, {ref, count}}, %{assigns: %{match_count_ref: ref}} = socket) do
+    {:noreply, assign(socket, match_count: {:ok, count}, match_count_running_ref: nil)}
+  end
+
+  def handle_async(
+        :match_count,
+        {:exit, _reason},
+        %{assigns: %{match_count_ref: ref, match_count_running_ref: ref}} = socket
+      )
+      when not is_nil(ref) do
+    {:noreply, assign(socket, match_count: :failed, match_count_running_ref: nil)}
+  end
+
+  def handle_async(:match_count, _result, socket), do: {:noreply, socket}
+
+  defp condition_inputs_valid?(assigns) do
+    condition_alert(assigns) != :invalid
+  end
+
+  defp match_count_alert(assigns) do
+    if event_driven_monitor_type?(assigns.create_automation_form_metric), do: :invalid, else: condition_alert(assigns)
+  end
+
+  defp condition_alert(assigns) do
+    metric = assigns.create_automation_form_metric
+    integer_threshold? = metric == "flaky_run_count"
+
+    valid_numbers? =
+      event_driven_monitor_type?(metric) or
+        (valid_preview_number?(assigns.create_automation_form_threshold, integer_threshold?) and
+           (assigns.create_automation_form_window_type != "rolling" or
+              valid_preview_number?(assigns.create_automation_form_rolling_window_size, true)))
+
+    changeset =
+      Alert.changeset(%Alert{}, %{
+        project_id: assigns.selected_project.id,
+        name: "Condition validation",
+        monitor_type: metric,
+        trigger_config: trigger_config_for(metric, assigns),
+        trigger_actions: [default_change_state_action("muted")]
+      })
+
+    if valid_numbers? and changeset.valid? do
+      {:ok, Ecto.Changeset.apply_changes(changeset)}
+    else
+      :invalid
+    end
+  end
+
+  defp valid_preview_number?(value, integer?) do
+    case if(integer?, do: Integer.parse(value), else: Float.parse(value)) do
+      {_number, ""} -> true
+      _ -> false
+    end
+  end
+
+  defp assign_automations(socket, project) do
+    automations = Automations.list_alerts(project.id)
+    edit_forms = Map.new(automations, fn a -> {a.id, automation_to_form(a)} end)
+
+    socket
+    |> assign(automations: automations)
+    |> assign(edit_automation_forms: edit_forms)
+  end
+
+  defp assign_create_automation_form_defaults(socket) do
+    # Trigger defaults to "mark as flaky" (label-only) so a brand-new automation
+    # is non-destructive out of the box — matches the seeded default alert on
+    # project creation. Quarantining is an explicit opt-in via "Add action".
+    socket
+    |> assign(editing_automation_id: nil)
+    |> assign(create_automation_form_sections: ["condition", "actions"])
+    |> assign(create_automation_form_name: "")
+    |> assign(create_automation_form_metric: "flakiness_rate")
+    |> assign(create_automation_form_comparison: "gte")
+    |> assign(create_automation_form_threshold: "10")
+    |> assign(create_automation_form_window_type: "last_days")
+    |> assign(create_automation_form_window: "30d")
+    |> assign(create_automation_form_rolling_window_size: "75")
+    |> assign(create_automation_form_events: ["marked_flaky"])
+    |> assign(create_automation_form_trigger_states: [])
+    |> assign(create_automation_form_apply_existing_matches: false)
+    |> assign(create_automation_form_existing_matches_pending: false)
+    |> assign(create_automation_form_trigger_actions: [default_add_label_action()])
+    |> assign(create_automation_form_recovery_enabled: false)
+    |> assign(create_automation_form_recovery_window_type: "last_days")
+    |> assign(create_automation_form_recovery_window: "14d")
+    |> assign(create_automation_form_recovery_rolling_window_size: "100")
+    |> assign(create_automation_form_recovery_states: [])
+    |> assign(create_automation_form_recovery_actions: [default_remove_label_action()])
+  end
+
+  @comparisons ~w(gte gt lt lte)
+  @window_types ~w(last_days rolling)
+
+  # These defaults encode the metric's unhealthy direction: flakiness should
+  # rise above the threshold, while reliability should fall below it.
+  defp default_threshold("flakiness_rate"), do: "10"
+  defp default_threshold("flaky_run_count"), do: "3"
+  defp default_threshold("reliability_rate"), do: "90"
+  defp default_threshold(_), do: "1"
+
+  defp default_comparison("reliability_rate"), do: "lt"
+  defp default_comparison(_), do: "gte"
+
+  defp default_change_state_action(state), do: %{"type" => "change_state", "state" => state}
+  defp default_add_label_action, do: %{"type" => "add_label", "label" => "flaky"}
+  defp default_remove_label_action, do: %{"type" => "remove_label", "label" => "flaky"}
+
+  @default_trigger_slack_message ":warning: *{{test_case.name}}* in module `{{test_case.module_name}}` has been detected as flaky by automation *{{automation.name}}*.\n\n<{{test_case.url}}|View test case>"
+  @default_recovery_slack_message ":white_check_mark: *{{test_case.name}}* in module `{{test_case.module_name}}` has recovered.\n\n<{{test_case.url}}|View test case>"
+
+  defp default_send_slack_action(:trigger),
+    do: %{
+      "type" => "send_slack",
+      "channel" => "",
+      "channel_name" => "",
+      "webhook_url_encrypted" => "",
+      "message" => @default_trigger_slack_message
+    }
+
+  defp default_send_slack_action(:recovery),
+    do: %{
+      "type" => "send_slack",
+      "channel" => "",
+      "channel_name" => "",
+      "webhook_url_encrypted" => "",
+      "message" => @default_recovery_slack_message
+    }
+
+  defp automation_to_form(automation) do
+    %{
+      name: automation.name,
+      metric: automation.monitor_type,
+      comparison: parse_comparison(automation.trigger_config["comparison"]),
+      threshold: to_string(automation.trigger_config["threshold"] || ""),
+      window_type: parse_window_type(automation.trigger_config["window_type"]),
+      window: automation.trigger_config["window"] || "30d",
+      rolling_window_size: to_string(automation.trigger_config["rolling_window_size"] || 75),
+      events: parse_events(automation.trigger_config["events"]),
+      trigger_states: parse_states(automation.trigger_config["states"]),
+      apply_existing_matches: false,
+      existing_matches_pending: Alert.apply_actions_to_existing_matches?(automation),
+      trigger_actions: automation.trigger_actions,
+      recovery_enabled: automation.recovery_enabled,
+      recovery_window_type: parse_window_type(automation.recovery_config["window_type"]),
+      recovery_window: automation.recovery_config["window"] || "14d",
+      recovery_rolling_window_size: to_string(automation.recovery_config["rolling_window_size"] || 100),
+      recovery_states: parse_states(automation.recovery_config["states"]),
+      recovery_actions: automation.recovery_actions,
+      enabled: automation.enabled
+    }
+  end
+
+  defp parse_events(events) when is_list(events) do
+    Enum.filter(events, &(&1 in Alert.test_updated_events()))
+  end
+
+  defp parse_events(_), do: ["marked_flaky"]
+
+  defp parse_comparison(comparison) when comparison in @comparisons, do: comparison
+  defp parse_comparison(_), do: "gte"
+
+  defp parse_window_type(window_type) when window_type in @window_types, do: window_type
+  defp parse_window_type(_), do: "last_days"
+
+  defp parse_states(states) when is_list(states) do
+    Enum.filter(states, &(&1 in ["enabled", "muted", "skipped"]))
+  end
+
+  defp parse_states(_), do: []
+
+  @impl true
+  def handle_params(_params, _uri, socket) do
+    {:noreply, socket}
+  end
+
+  @impl true
+
+  # Automation create form handlers
+
+  def handle_event("open_create_automation_modal", _params, socket) do
+    {:noreply, assign_create_automation_form_defaults(socket)}
+  end
+
+  def handle_event("edit_automation", %{"id" => id}, %{assigns: %{selected_project: project}} = socket) do
+    with {:ok, automation} <- Automations.get_alert(id),
+         true <- automation.project_id == project.id do
+      form = automation_to_form(automation)
+
+      socket =
+        socket
+        |> assign(editing_automation_id: automation.id)
+        |> assign(create_automation_form_sections: [])
+        |> assign(create_automation_form_name: form.name)
+        |> assign(create_automation_form_metric: form.metric)
+        |> assign(create_automation_form_comparison: form.comparison)
+        |> assign(create_automation_form_threshold: form.threshold)
+        |> assign(create_automation_form_window_type: form.window_type)
+        |> assign(create_automation_form_window: form.window)
+        |> assign(create_automation_form_rolling_window_size: form.rolling_window_size)
+        |> assign(create_automation_form_events: form.events)
+        |> assign(create_automation_form_trigger_states: form.trigger_states)
+        |> assign(create_automation_form_apply_existing_matches: form.apply_existing_matches)
+        |> assign(create_automation_form_existing_matches_pending: form.existing_matches_pending)
+        |> assign(create_automation_form_trigger_actions: form.trigger_actions)
+        |> assign(create_automation_form_recovery_enabled: form.recovery_enabled)
+        |> assign(create_automation_form_recovery_window_type: form.recovery_window_type)
+        |> assign(create_automation_form_recovery_window: form.recovery_window)
+        |> assign(create_automation_form_recovery_rolling_window_size: form.recovery_rolling_window_size)
+        |> assign(create_automation_form_recovery_states: form.recovery_states)
+        |> assign(create_automation_form_recovery_actions: form.recovery_actions)
+        |> push_event("open-modal", %{id: "create-automation-modal"})
+
+      {:noreply, socket}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("close_create_automation_modal", _params, socket) do
+    {:noreply, push_event(socket, "close-modal", %{id: "create-automation-modal"})}
+  end
+
+  def handle_event("create_automation_modal_open_change", _params, socket), do: {:noreply, socket}
+
+  def handle_event("toggle_create_automation_form_section", %{"section" => section}, socket)
+      when section in ["condition", "actions", "recovery"] do
+    sections = socket.assigns.create_automation_form_sections
+    sections = if section in sections, do: List.delete(sections, section), else: [section | sections]
+    {:noreply, assign(socket, create_automation_form_sections: sections)}
+  end
+
+  def handle_event("toggle_create_automation_form_section", _params, socket), do: {:noreply, socket}
+
+  def handle_event("update_create_automation_form_name", %{"value" => name}, socket) do
+    {:noreply, assign(socket, create_automation_form_name: name)}
+  end
+
+  def handle_event("update_create_automation_form_metric", %{"data" => metric}, socket) do
+    event_driven? = event_driven_monitor_type?(metric)
+
+    trigger_actions = strip_redundant_actions(socket.assigns.create_automation_form_trigger_actions, metric)
+
+    # Event-driven monitors are discrete one-shots — there's no "condition no
+    # longer holds" semantic, so we force recovery off when switching to one.
+    {recovery_enabled, recovery_actions} =
+      if event_driven? do
+        {false, socket.assigns.create_automation_form_recovery_actions}
+      else
+        {socket.assigns.create_automation_form_recovery_enabled, socket.assigns.create_automation_form_recovery_actions}
+      end
+
+    {:noreply,
+     socket
+     |> assign(create_automation_form_metric: metric)
+     |> assign(create_automation_form_comparison: default_comparison(metric))
+     |> assign(create_automation_form_threshold: default_threshold(metric))
+     |> assign(create_automation_form_trigger_actions: trigger_actions)
+     |> assign(create_automation_form_recovery_enabled: recovery_enabled)
+     |> assign(create_automation_form_recovery_actions: recovery_actions)}
+  end
+
+  def handle_event("update_create_automation_form_comparison", %{"data" => comparison}, socket) do
+    {:noreply, assign(socket, create_automation_form_comparison: comparison)}
+  end
+
+  def handle_event("toggle_create_automation_form_event", %{"data" => event}, socket) do
+    current = socket.assigns.create_automation_form_events
+
+    next =
+      if event in current do
+        List.delete(current, event)
+      else
+        current ++ [event]
+      end
+
+    {:noreply, assign(socket, create_automation_form_events: next)}
+  end
+
+  def handle_event("update_create_automation_form_threshold", %{"value" => value}, socket) do
+    {:noreply, assign(socket, create_automation_form_threshold: value)}
+  end
+
+  def handle_event("toggle_create_automation_form_trigger_state", %{"data" => state}, socket) do
+    {:noreply,
+     assign(
+       socket,
+       :create_automation_form_trigger_states,
+       toggle_state(socket.assigns.create_automation_form_trigger_states, state)
+     )}
+  end
+
+  def handle_event("update_create_automation_form_window", %{"value" => value}, socket) do
+    {:noreply, assign(socket, create_automation_form_window: value)}
+  end
+
+  def handle_event("update_create_automation_form_window_type", %{"data" => window_type}, socket) do
+    if window_type in @window_types do
+      {:noreply, assign(socket, create_automation_form_window_type: window_type)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_create_automation_form_rolling_window_size", %{"value" => value}, socket) do
+    {:noreply, assign(socket, create_automation_form_rolling_window_size: value)}
+  end
+
+  def handle_event("add_create_automation_form_trigger_action", %{"data" => type}, socket) do
+    actions = socket.assigns.create_automation_form_trigger_actions ++ [new_action(type, :trigger)]
+    {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
+  end
+
+  def handle_event("delete_create_automation_form_trigger_action", %{"index" => index}, socket) do
+    index = String.to_integer(index)
+    actions = List.delete_at(socket.assigns.create_automation_form_trigger_actions, index)
+    {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
+  end
+
+  def handle_event("update_create_automation_form_trigger_action_state", %{"data" => state, "index" => index}, socket) do
+    index = String.to_integer(index)
+
+    actions =
+      update_action_at(socket.assigns.create_automation_form_trigger_actions, index, fn action ->
+        Map.put(action, "state", state)
+      end)
+
+    {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
+  end
+
+  def handle_event("trigger_action_channel_selected", %{"id" => index, "channel_token" => channel_token}, socket) do
+    case verify_and_encrypt(channel_token) do
+      {:ok, %{channel_id: channel_id, channel_name: channel_name, encrypted_webhook_url: encrypted}} ->
+        index = String.to_integer(index)
+
+        actions =
+          update_action_at(socket.assigns.create_automation_form_trigger_actions, index, fn action ->
+            action
+            |> Map.put("channel", channel_id)
+            |> Map.put("channel_name", channel_name)
+            |> Map.put("webhook_url_encrypted", encrypted)
+          end)
+
+        {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
+
+      {:error, _reason} ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("trigger_action_channel_selected", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "update_create_automation_form_trigger_action_message",
+        %{"value" => message, "index" => index},
+        socket
+      ) do
+    index = String.to_integer(index)
+
+    actions =
+      update_action_at(socket.assigns.create_automation_form_trigger_actions, index, fn action ->
+        Map.put(action, "message", message)
+      end)
+
+    {:noreply, assign(socket, create_automation_form_trigger_actions: actions)}
+  end
+
+  def handle_event("toggle_create_automation_form_recovery", _params, socket) do
+    {:noreply,
+     assign(socket, create_automation_form_recovery_enabled: not socket.assigns.create_automation_form_recovery_enabled)}
+  end
+
+  def handle_event("toggle_create_automation_form_apply_existing_matches", _params, socket) do
+    {:noreply,
+     assign(socket,
+       create_automation_form_apply_existing_matches: not socket.assigns.create_automation_form_apply_existing_matches
+     )}
+  end
+
+  def handle_event("update_create_automation_form_recovery_window", %{"value" => value}, socket) do
+    {:noreply, assign(socket, create_automation_form_recovery_window: value)}
+  end
+
+  def handle_event("toggle_create_automation_form_recovery_state", %{"data" => state}, socket) do
+    {:noreply,
+     assign(
+       socket,
+       :create_automation_form_recovery_states,
+       toggle_state(socket.assigns.create_automation_form_recovery_states, state)
+     )}
+  end
+
+  def handle_event("update_create_automation_form_recovery_window_type", %{"data" => window_type}, socket) do
+    if window_type in @window_types do
+      {:noreply, assign(socket, create_automation_form_recovery_window_type: window_type)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("update_create_automation_form_recovery_rolling_window_size", %{"value" => value}, socket) do
+    {:noreply, assign(socket, create_automation_form_recovery_rolling_window_size: value)}
+  end
+
+  def handle_event("add_create_automation_form_recovery_action", %{"data" => type}, socket) do
+    actions = socket.assigns.create_automation_form_recovery_actions ++ [new_action(type, :recovery)]
+    {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
+  end
+
+  def handle_event("delete_create_automation_form_recovery_action", %{"index" => index}, socket) do
+    index = String.to_integer(index)
+    actions = List.delete_at(socket.assigns.create_automation_form_recovery_actions, index)
+    {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
+  end
+
+  def handle_event("update_create_automation_form_recovery_action_state", %{"data" => state, "index" => index}, socket) do
+    index = String.to_integer(index)
+
+    actions =
+      update_action_at(socket.assigns.create_automation_form_recovery_actions, index, fn action ->
+        Map.put(action, "state", state)
+      end)
+
+    {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
+  end
+
+  def handle_event("recovery_action_channel_selected", %{"id" => index, "channel_token" => channel_token}, socket) do
+    case verify_and_encrypt(channel_token) do
+      {:ok, %{channel_id: channel_id, channel_name: channel_name, encrypted_webhook_url: encrypted}} ->
+        index = String.to_integer(index)
+
+        actions =
+          update_action_at(socket.assigns.create_automation_form_recovery_actions, index, fn action ->
+            action
+            |> Map.put("channel", channel_id)
+            |> Map.put("channel_name", channel_name)
+            |> Map.put("webhook_url_encrypted", encrypted)
+          end)
+
+        {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
+
+      {:error, _reason} ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("recovery_action_channel_selected", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event(
+        "update_create_automation_form_recovery_action_message",
+        %{"value" => message, "index" => index},
+        socket
+      ) do
+    index = String.to_integer(index)
+
+    actions =
+      update_action_at(socket.assigns.create_automation_form_recovery_actions, index, fn action ->
+        Map.put(action, "message", message)
+      end)
+
+    {:noreply, assign(socket, create_automation_form_recovery_actions: actions)}
+  end
+
+  def handle_event("save_automation", _params, %{assigns: assigns} = socket) do
+    if condition_inputs_valid?(assigns) and rolling_window_inputs_valid?(assigns) and
+         day_window_inputs_valid?(assigns) do
+      save_automation(socket)
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event(
+        "toggle_automation_enabled",
+        %{"id" => id},
+        %{assigns: %{selected_project: project, current_user: current_user}} = socket
+      ) do
+    with :ok <- Authorization.authorize(:automation_alert_update, current_user, project),
+         {:ok, automation} <- Automations.get_alert(id),
+         true <- automation.project_id == project.id,
+         {:ok, _} <-
+           Automations.update_alert(automation, %{enabled: not automation.enabled},
+             actor: current_user,
+             source: "dashboard"
+           ) do
+      {:noreply, socket |> assign(:flash_message, nil) |> assign_automations(project)}
+    else
+      {:error, %Ecto.Changeset{}} ->
+        {:noreply,
+         assign(
+           socket,
+           :flash_message,
+           {"error",
+            dgettext(
+              "dashboard_projects",
+              "This automation uses an unsupported trigger configuration. Edit it before enabling it."
+            )}
+         )}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event(
+        "delete_automation",
+        %{"id" => id},
+        %{assigns: %{selected_project: project, current_user: current_user}} = socket
+      ) do
+    with :ok <- Authorization.authorize(:automation_alert_delete, current_user, project),
+         {:ok, automation} <- Automations.get_alert(id),
+         true <- automation.project_id == project.id,
+         {:ok, _} <- Automations.delete_alert(automation) do
+      {:noreply, assign_automations(socket, project)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  defp new_action("change_state", :trigger), do: default_change_state_action("muted")
+  defp new_action("change_state", :recovery), do: default_change_state_action("enabled")
+  defp new_action("send_slack", context), do: default_send_slack_action(context)
+  defp new_action("add_label_flaky", _context), do: %{"type" => "add_label", "label" => "flaky"}
+  defp new_action("remove_label_flaky", _context), do: %{"type" => "remove_label", "label" => "flaky"}
+  defp new_action(_, :recovery), do: default_change_state_action("enabled")
+  defp new_action(_, _), do: default_change_state_action("muted")
+
+  defp save_automation(%{assigns: assigns} = socket) do
+    attrs = build_automation_attrs(assigns.selected_project.id, assigns)
+
+    result =
+      case assigns.editing_automation_id do
+        nil ->
+          with :ok <-
+                 Authorization.authorize(
+                   :automation_alert_create,
+                   assigns.current_user,
+                   assigns.selected_project
+                 ) do
+            Automations.create_alert(attrs, actor: assigns.current_user, source: "dashboard")
+          end
+
+        id ->
+          with :ok <-
+                 Authorization.authorize(
+                   :automation_alert_update,
+                   assigns.current_user,
+                   assigns.selected_project
+                 ),
+               {:ok, automation} <- Automations.get_alert(id),
+               true <- automation.project_id == assigns.selected_project.id do
+            Automations.update_alert(automation, attrs, actor: assigns.current_user, source: "dashboard")
+          end
+      end
+
+    case result do
+      {:ok, _automation} ->
+        socket =
+          socket
+          |> cancel_match_count()
+          |> assign(match_count: :idle, match_count_ref: nil)
+          |> assign_automations(assigns.selected_project)
+          |> assign_create_automation_form_defaults()
+          |> push_event("close-modal", %{id: "create-automation-modal"})
+
+        {:noreply, socket}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  defp update_action_at(actions, index, fun) do
+    case Enum.at(actions, index) do
+      nil -> actions
+      action -> List.replace_at(actions, index, fun.(action))
+    end
+  end
+
+  defp form_condition_summary(assigns) do
+    if condition_inputs_valid?(assigns) do
+      valid_form_condition_summary(assigns)
+    else
+      dgettext("dashboard_projects", "Complete a valid condition.")
+    end
+  end
+
+  defp valid_form_condition_summary(assigns) do
+    summary =
+      automation_summary(%{
+        monitor_type: assigns.create_automation_form_metric,
+        trigger_config: trigger_config_for(assigns.create_automation_form_metric, assigns)
+      })
+
+    case assigns.create_automation_form_trigger_states do
+      [] -> summary
+      states -> summary <> " · " <> Enum.map_join(states, ", ", &trigger_action_label/1)
+    end
+  end
+
+  defp form_actions_summary(assigns) do
+    case assigns.create_automation_form_trigger_actions do
+      [] ->
+        dgettext("dashboard_projects", "No actions selected.")
+
+      actions ->
+        dgettext("dashboard_projects", "For each matching test: %{actions}.",
+          actions: Enum.map_join(actions, ", ", &form_action_summary/1)
+        )
+    end
+  end
+
+  defp form_recovery_summary(assigns) do
+    if assigns.create_automation_form_recovery_enabled do
+      dgettext("dashboard_projects", "After %{window} without a trigger: %{actions}.",
+        window: window_summary(recovery_config_for(assigns.create_automation_form_metric, assigns)),
+        actions: Enum.map_join(assigns.create_automation_form_recovery_actions, ", ", &form_action_summary/1)
+      )
+    else
+      dgettext("dashboard_projects", "Recovery is disabled.")
+    end
+  end
+
+  defp form_action_summary(%{"type" => "add_label", "label" => "flaky"}),
+    do: dgettext("dashboard_projects", "Mark test as flaky")
+
+  defp form_action_summary(%{"type" => "remove_label", "label" => "flaky"}),
+    do: dgettext("dashboard_projects", "Unmark test as flaky")
+
+  defp form_action_summary(action), do: action_row_summary(action)
+
+  defp build_automation_attrs(project_id, assigns) do
+    metric = assigns.create_automation_form_metric
+
+    base = %{
+      "project_id" => project_id,
+      "name" => assigns.create_automation_form_name,
+      "monitor_type" => metric,
+      "trigger_config" => trigger_config_for(metric, assigns),
+      "trigger_actions" => assigns.create_automation_form_trigger_actions,
+      "recovery_enabled" => assigns.create_automation_form_recovery_enabled
+    }
+
+    if assigns.create_automation_form_recovery_enabled do
+      base
+      |> Map.put("recovery_config", recovery_config_for(metric, assigns))
+      |> Map.put("recovery_actions", assigns.create_automation_form_recovery_actions)
+    else
+      base
+    end
+  end
+
+  defp trigger_config_for("test_updated", assigns) do
+    maybe_put_states(
+      %{"events" => assigns.create_automation_form_events},
+      assigns.create_automation_form_trigger_states
+    )
+  end
+
+  defp trigger_config_for(metric, assigns) do
+    metric
+    |> parse_threshold(assigns.create_automation_form_threshold)
+    |> build_trigger_config(
+      assigns.create_automation_form_comparison,
+      assigns.create_automation_form_window_type,
+      assigns.create_automation_form_window,
+      assigns.create_automation_form_rolling_window_size
+    )
+    |> maybe_put_states(assigns.create_automation_form_trigger_states)
+    |> maybe_put_apply_existing_matches(
+      assigns.create_automation_form_apply_existing_matches,
+      assigns.create_automation_form_existing_matches_pending
+    )
+  end
+
+  # The key records a pending operation for one save, not a persistent
+  # preference, so an unchecked box only writes `false` when there is a request
+  # to cancel. Writing it unconditionally made every no-op save of a metric
+  # automation record a `trigger_config` revision whose from/to render
+  # identically, and ping-ponged with API updates that omit `trigger_config`.
+  defp maybe_put_apply_existing_matches(config, true, _pending),
+    do: Map.put(config, "apply_actions_to_existing_matches", true)
+
+  defp maybe_put_apply_existing_matches(config, false, true),
+    do: Map.put(config, "apply_actions_to_existing_matches", false)
+
+  defp maybe_put_apply_existing_matches(config, false, false), do: config
+
+  defp recovery_config_for("test_updated", _assigns), do: %{}
+
+  defp recovery_config_for(_metric, assigns) do
+    assigns.create_automation_form_recovery_window_type
+    |> build_recovery_config(
+      assigns.create_automation_form_recovery_window,
+      assigns.create_automation_form_recovery_rolling_window_size
+    )
+    |> maybe_put_states(assigns.create_automation_form_recovery_states)
+  end
+
+  defp build_trigger_config(threshold, comparison, "rolling", _window, rolling_window_size) do
+    %{
+      "threshold" => threshold,
+      "comparison" => comparison,
+      "window_type" => "rolling",
+      "rolling_window_size" => parse_int(rolling_window_size, 75)
+    }
+  end
+
+  defp build_trigger_config(threshold, comparison, _window_type, window, _rolling_window_size) do
+    %{
+      "threshold" => threshold,
+      "comparison" => comparison,
+      "window_type" => "last_days",
+      "window" => window
+    }
+  end
+
+  defp build_recovery_config("rolling", _window, rolling_window_size) do
+    %{
+      "window_type" => "rolling",
+      "rolling_window_size" => parse_int(rolling_window_size, 100)
+    }
+  end
+
+  defp build_recovery_config(_window_type, window, _rolling_window_size) do
+    %{
+      "window_type" => "last_days",
+      "window" => window
+    }
+  end
+
+  defp maybe_put_states(config, []), do: config
+  defp maybe_put_states(config, states), do: Map.put(config, "states", states)
+
+  defp toggle_state(states, state) do
+    if state in states, do: List.delete(states, state), else: states ++ [state]
+  end
+
+  # The default `add_label flaky` / `remove_label flaky` trigger actions
+  # presume the threshold-monitor mental model. For the event-driven
+  # `test_updated` trigger they're a confusing default — the user picks
+  # which sub-events to react to (mark / unmark / state change), and a
+  # blanket label flip tends to fight at least one of those sub-events.
+  # Strip them on switch; the user can opt back in via "Add action".
+  defp strip_redundant_actions(actions, "test_updated") do
+    Enum.reject(actions, fn action ->
+      action["label"] == "flaky" and action["type"] in ["add_label", "remove_label"]
+    end)
+  end
+
+  defp strip_redundant_actions(actions, _), do: actions
+
+  def event_driven_monitor_type?(monitor_type), do: Alert.event_driven?(monitor_type)
+
+  defp parse_threshold(metric, value) when metric in ["flakiness_rate", "reliability_rate"] do
+    case Float.parse(value) do
+      {n, _} -> n
+      :error -> metric |> default_threshold() |> parse_default_rate_threshold()
+    end
+  end
+
+  defp parse_threshold(_metric, value) do
+    parse_int(value, 1)
+  end
+
+  defp parse_default_rate_threshold(value) do
+    {threshold, _} = Float.parse(value)
+    threshold
+  end
+
+  defp parse_int(value, default) do
+    case Integer.parse(to_string(value)) do
+      {n, _} -> n
+      :error -> default
+    end
+  end
+
+  def metric_label("flakiness_rate"), do: dgettext("dashboard_projects", "Flakiness rate")
+  def metric_label("flaky_run_count"), do: dgettext("dashboard_projects", "Flaky runs")
+  def metric_label("reliability_rate"), do: dgettext("dashboard_projects", "Test reliability")
+  def metric_label("test_updated"), do: dgettext("dashboard_projects", "Test updated")
+  def metric_label(_), do: dgettext("dashboard_projects", "Unknown")
+
+  def test_updated_event_label("marked_flaky"), do: dgettext("dashboard_projects", "Marked as flaky")
+  def test_updated_event_label("unmarked_flaky"), do: dgettext("dashboard_projects", "Unmarked as flaky")
+
+  def test_updated_event_label("state_changed_to_enabled"), do: dgettext("dashboard_projects", "State changed to Enabled")
+
+  def test_updated_event_label("state_changed_to_muted"), do: dgettext("dashboard_projects", "State changed to Muted")
+
+  def test_updated_event_label("state_changed_to_skipped"), do: dgettext("dashboard_projects", "State changed to Skipped")
+
+  def test_updated_event_label(_), do: dgettext("dashboard_projects", "Unknown")
+
+  def test_updated_event_description("marked_flaky"),
+    do: dgettext("dashboard_projects", "Fires when a test is manually flagged as flaky.")
+
+  def test_updated_event_description("unmarked_flaky"),
+    do: dgettext("dashboard_projects", "Fires when the flaky flag is manually removed.")
+
+  def test_updated_event_description("state_changed_to_enabled"),
+    do: dgettext("dashboard_projects", "Fires when a test returns to the default enabled state.")
+
+  def test_updated_event_description("state_changed_to_muted"),
+    do: dgettext("dashboard_projects", "Fires when a test is muted (still runs, failures ignored).")
+
+  def test_updated_event_description("state_changed_to_skipped"),
+    do: dgettext("dashboard_projects", "Fires when a test is skipped entirely.")
+
+  def test_updated_event_description(_), do: ""
+
+  def comparison_label("gte"), do: dgettext("dashboard_projects", "Greater or equal")
+  def comparison_label("gt"), do: dgettext("dashboard_projects", "Greater than")
+  def comparison_label("lt"), do: dgettext("dashboard_projects", "Less than")
+  def comparison_label("lte"), do: dgettext("dashboard_projects", "Less or equal")
+  def comparison_label(_), do: dgettext("dashboard_projects", "Unknown")
+
+  def comparison_symbol("gte"), do: "≥"
+  def comparison_symbol("gt"), do: ">"
+  def comparison_symbol("lt"), do: "<"
+  def comparison_symbol("lte"), do: "≤"
+  def comparison_symbol(_), do: "≥"
+
+  def threshold_label("flakiness_rate"), do: dgettext("dashboard_projects", "Percent")
+  def threshold_label("reliability_rate"), do: dgettext("dashboard_projects", "Percent")
+  def threshold_label("flaky_run_count"), do: dgettext("dashboard_projects", "Count")
+  def threshold_label(_), do: dgettext("dashboard_projects", "Threshold")
+
+  def state_action_label("muted"), do: dgettext("dashboard_projects", "Mute")
+  def state_action_label("skipped"), do: dgettext("dashboard_projects", "Skip")
+  def state_action_label("enabled"), do: dgettext("dashboard_projects", "Enable")
+  def state_action_label(_), do: dgettext("dashboard_projects", "Unknown")
+
+  def trigger_action_label("muted"), do: dgettext("dashboard_projects", "Muted")
+  def trigger_action_label("skipped"), do: dgettext("dashboard_projects", "Skipped")
+  def trigger_action_label("enabled"), do: dgettext("dashboard_projects", "Enabled")
+  def trigger_action_label(_), do: dgettext("dashboard_projects", "Unknown")
+
+  def action_type_label("change_state"), do: dgettext("dashboard_projects", "Change state")
+  def action_type_label("send_slack"), do: dgettext("dashboard_projects", "Send Slack notification")
+  def action_type_label("add_label"), do: dgettext("dashboard_projects", "Add label")
+  def action_type_label("remove_label"), do: dgettext("dashboard_projects", "Remove label")
+  def action_type_label(_), do: dgettext("dashboard_projects", "Unknown")
+
+  def has_action_type?(actions, type) do
+    Enum.any?(actions, fn action -> action["type"] == type end)
+  end
+
+  def has_label_action?(actions, type, label) do
+    Enum.any?(actions, fn action -> action["type"] == type and action["label"] == label end)
+  end
+
+  def has_change_state_action?(actions), do: has_action_type?(actions, "change_state")
+
+  def action_row_summary(%{"type" => "change_state", "state" => state}), do: trigger_action_label(state)
+
+  def action_row_summary(%{"type" => "send_slack", "channel" => channel}) when channel != "", do: "Slack: #{channel}"
+
+  def action_row_summary(%{"type" => "send_slack"}), do: dgettext("dashboard_projects", "Slack: not configured")
+
+  def action_row_summary(%{"type" => "add_label", "label" => label}),
+    do: dgettext("dashboard_projects", "Add label: %{label}", label: label)
+
+  def action_row_summary(%{"type" => "remove_label", "label" => label}),
+    do: dgettext("dashboard_projects", "Remove label: %{label}", label: label)
+
+  def action_row_summary(_), do: ""
+
+  def automation_summary(%{monitor_type: "flakiness_rate", trigger_config: trigger_config}) do
+    threshold = format_threshold(trigger_config["threshold"] || 0)
+    symbol = comparison_symbol(parse_comparison(trigger_config["comparison"]))
+
+    dgettext(
+      "dashboard_projects",
+      "When flakiness rate %{symbol} %{threshold}% over %{window}",
+      symbol: symbol,
+      threshold: threshold,
+      window: window_summary(trigger_config)
+    )
+  end
+
+  def automation_summary(%{monitor_type: "flaky_run_count", trigger_config: trigger_config}) do
+    threshold = format_threshold(trigger_config["threshold"] || 0)
+    symbol = comparison_symbol(parse_comparison(trigger_config["comparison"]))
+
+    dgettext(
+      "dashboard_projects",
+      "When flaky runs %{symbol} %{threshold} over %{window}",
+      symbol: symbol,
+      threshold: threshold,
+      window: window_summary(trigger_config)
+    )
+  end
+
+  def automation_summary(%{monitor_type: "reliability_rate", trigger_config: trigger_config}) do
+    threshold = format_threshold(trigger_config["threshold"] || 0)
+    symbol = comparison_symbol(parse_comparison(trigger_config["comparison"]))
+
+    dgettext(
+      "dashboard_projects",
+      "When test reliability on the default branch %{symbol} %{threshold}% over %{window}",
+      symbol: symbol,
+      threshold: threshold,
+      window: window_summary(trigger_config)
+    )
+  end
+
+  def automation_summary(%{monitor_type: "test_updated", trigger_config: trigger_config}) do
+    events = trigger_config["events"] || []
+
+    case events do
+      [] ->
+        dgettext("dashboard_projects", "When a test is updated")
+
+      _ ->
+        labels = Enum.map_join(events, ", ", &test_updated_event_label/1)
+        dgettext("dashboard_projects", "When a test is updated: %{events}", events: labels)
+    end
+  end
+
+  def automation_summary(_), do: ""
+
+  defp window_summary(%{"window_type" => "rolling"} = trigger_config) do
+    size = trigger_config["rolling_window_size"] || 100
+
+    dgettext(
+      "dashboard_projects",
+      "the last %{size} runs",
+      size: size
+    )
+  end
+
+  defp window_summary(trigger_config), do: trigger_config["window"] || "30d"
+
+  defp format_threshold(n) when is_float(n) and trunc(n) == n, do: trunc(n)
+  defp format_threshold(n), do: n
+
+  def window_type_label("rolling"), do: dgettext("dashboard_projects", "Rolling window")
+  def window_type_label(_), do: dgettext("dashboard_projects", "Last days")
+
+  @doc """
+  True when the form's rolling-window inputs are within the schema cap.
+  Drives the Save button's disabled state so a too-large value can't be
+  submitted silently — the changeset already rejects it server-side, but
+  Save dispatches via `phx-click` not a form submit, so the browser's
+  `max` attribute doesn't intercept the click.
+  """
+  def rolling_window_inputs_valid?(assigns) do
+    (event_driven_monitor_type?(assigns.create_automation_form_metric) or
+       is_nil(
+         rolling_size_error(
+           assigns.create_automation_form_window_type,
+           assigns.create_automation_form_rolling_window_size,
+           Alert.max_rolling_trigger_window_size()
+         )
+       )) and
+      (not assigns.create_automation_form_recovery_enabled or
+         is_nil(
+           rolling_size_error(
+             assigns.create_automation_form_recovery_window_type,
+             assigns.create_automation_form_recovery_rolling_window_size,
+             Alert.max_rolling_window_size()
+           )
+         ))
+  end
+
+  @doc """
+  True when both day-level window inputs hold a value the schema accepts.
+
+  `condition_alert/1` builds its changeset from a bare `%Alert{}` and never
+  sets `recovery_enabled`, so `Alert.validate_recovery_config/1` short-circuits
+  and nothing validates the recovery `last_days` window. Without this the Save
+  button stayed enabled for `14` instead of `14d` and the click landed on the
+  catch-all handler, leaving the modal open with no feedback.
+
+  Event-driven monitors hide both window fields and ignore them when building
+  the config, so a value left over from the metric the user started on must not
+  disable a Save they have no field to correct.
+  """
+  def day_window_inputs_valid?(assigns) do
+    (event_driven_monitor_type?(assigns.create_automation_form_metric) or
+       is_nil(
+         day_window_error(
+           assigns.create_automation_form_window_type,
+           assigns.create_automation_form_window
+         )
+       )) and
+      (not assigns.create_automation_form_recovery_enabled or
+         is_nil(
+           day_window_error(
+             assigns.create_automation_form_recovery_window_type,
+             assigns.create_automation_form_recovery_window
+           )
+         ))
+  end
+
+  @doc """
+  User-facing error string for a day-level window input, or `nil` when the
+  value is valid (or the window mode isn't `last_days`).
+  """
+  def day_window_error("last_days", raw_window) do
+    if Alert.valid_day_window?(to_string(raw_window)),
+      do: nil,
+      else: dgettext("dashboard_projects", "e.g. 30d")
+  end
+
+  def day_window_error(_window_type, _raw_window), do: nil
+
+  @doc """
+  User-facing error string for a rolling-window size input, or `nil` when
+  the value is valid (or the window mode isn't rolling). Wired into the
+  `error` attribute on the noora `text_input` so the same constraint that
+  disables Save is visible inline on the field.
+  """
+  def rolling_size_error("rolling", raw_size, max) do
+    case Integer.parse(to_string(raw_size)) do
+      {n, ""} when n >= 1 and n <= max -> nil
+      _ -> dgettext("dashboard_projects", "1–%{max}", max: max)
+    end
+  end
+
+  def rolling_size_error(_window_type, _raw_size, _max), do: nil
+
+  # Decode the signed channel-result token, then encrypt the webhook URL so
+  # we never store it as plaintext inside the action JSON.
+  defp verify_and_encrypt(channel_token) do
+    with {:ok, %{channel_id: channel_id, channel_name: channel_name, webhook_url: webhook_url}} <-
+           Slack.verify_channel_result(channel_token),
+         {:ok, encrypted} <- Slack.encrypt_webhook_url(webhook_url) do
+      {:ok, %{channel_id: channel_id, channel_name: channel_name, encrypted_webhook_url: encrypted}}
+    end
+  end
+end

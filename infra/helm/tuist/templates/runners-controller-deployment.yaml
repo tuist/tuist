@@ -1,0 +1,276 @@
+{{- if .Values.runnersFleet.enabled }}
+{{- $namespace := .Values.runnersFleet.namespace | default "tuist-runners" }}
+{{- $controllerName := include "tuist.componentName" (dict "root" . "component" "runners-controller") }}
+{{- $controllerSA := $controllerName }}
+{{- /*
+The runners-controller Deployment runs in the chart's release
+namespace; its workload (Pods + SAs owned by the helm-rendered
+RunnerPool CR) lives in tuist-runners. Single-replica with
+leader election so a future scale-up to two replicas is a values
+change, not a rewrite.
+*/}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $controllerSA }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+---
+# Cluster-scoped reads for CRDs (controller-runtime walks them at
+# startup) and the leader-lease lives in the chart namespace via
+# the namespaced Role below.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $controllerName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+rules:
+  - apiGroups: [apiextensions.k8s.io]
+    resources: [customresourcedefinitions]
+    verbs: [get, list, watch]
+  # The fleet-aware autoscaler sums allocatable memory across the
+  # bare-metal Linux node pool to bin-pack shape replicas against real
+  # host capacity, and the RunnerPool reconciler reads a Pod's node to
+  # tell whether it is draining, so idle runners on a node Cluster API
+  # is replacing are retired instead of holding the drain open. Nodes
+  # are cluster-scoped, so this read can't live in the namespaced Role
+  # below.
+  #
+  # `patch` is for node reservation: a macOS shape that needs more than
+  # one guest slot on a host (12 vCPU on an M4-XL) can otherwise never
+  # accumulate them, because each slot that frees is taken by a smaller
+  # Pod that fits. The reconciler taints one eligible host
+  # `tuist.dev/reserved-for=<pool>:NoSchedule`, lets its running jobs
+  # finish, retires only its idle Pods, and removes the taint once the
+  # Pod lands or the reservation times out. Scoped to `patch` rather than
+  # `update` so the controller can only merge the taint and its
+  # timestamp, never rewrite a Node object wholesale.
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list, watch, patch]
+  # RuntimeClass podFixed memory is part of the scheduler's per-Pod
+  # cost. The autoscaler reads it directly so its fleet allocation
+  # cannot drift from the admission-time scheduling calculation.
+  - apiGroups: [node.k8s.io]
+    resources: [runtimeclasses]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $controllerName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+subjects:
+  - kind: ServiceAccount
+    name: {{ $controllerSA }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $controllerName }}
+---
+# Leader election lease + events in the chart namespace. Standard
+# controller-runtime requirement; the lease holder is the active
+# reconciler when we run >1 replica.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $controllerName }}-leader-election
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+rules:
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $controllerName }}-leader-election
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+subjects:
+  - kind: ServiceAccount
+    name: {{ $controllerSA }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $controllerName }}-leader-election
+---
+# All reconcile work happens in the runners namespace. The Role is
+# scoped there so a controller compromise can't write Pods or SAs
+# anywhere else in the cluster.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $controllerName }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+rules:
+  - apiGroups: [tuist.dev]
+    resources: [runnerpools]
+    verbs: [get, list, watch, update, patch]
+  - apiGroups: [tuist.dev]
+    resources: [runnerpools/status]
+    verbs: [get, update, patch]
+  - apiGroups: [""]
+    # Pods are direct owner-ref children of the RunnerPool. The
+    # reconciler creates them to bring the alive Pod count up to
+    # `spec.replicas`, deletes terminal Pods before booting
+    # replacements, and `patch`es the `tuist.dev/drain-eligible`
+    # label onto stale Pods to pace an image roll (see
+    # markDrainEligible) — so `patch` is required here.
+    resources: [pods]
+    verbs: [get, list, watch, create, patch, delete]
+  - apiGroups: [""]
+    # Read a terminated runner's container log to re-emit its final
+    # RUNNER_VITALS/_diag trail to the controller's own durable stdout
+    # before the reap deletes the Pod (mid-job death forensics).
+    resources: [pods/log]
+    verbs: [get]
+  - apiGroups: [""]
+    # Sibling SAs of each Pod; created and deleted alongside, never
+    # patched.
+    resources: [serviceaccounts]
+    verbs: [get, list, watch, create, delete]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $controllerName }}
+  namespace: {{ $namespace | quote }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+subjects:
+  - kind: ServiceAccount
+    name: {{ $controllerSA }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $controllerName }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $controllerName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runners-controller
+spec:
+  replicas: {{ .Values.runnersController.replicaCount | default 1 }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "runners-controller") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "runners-controller") | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      serviceAccountName: {{ $controllerSA }}
+      {{- include "tuist.podScheduling" . | nindent 6 }}
+      {{- with .Values.runnersController.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: manager
+          image: "{{ .Values.runnersController.image.repository }}:{{ .Values.runnersController.image.tag }}"
+          imagePullPolicy: {{ .Values.runnersController.image.pullPolicy | default "IfNotPresent" }}
+          args:
+            - --metrics-bind-address=:8080
+            - --health-probe-bind-address=:8081
+            - --namespace={{ $namespace }}
+            # External dispatch URL for macOS Tart VMs (vmnet
+            # bypasses CNI; they reach the public ingress directly).
+            - --dispatch-url={{ .Values.server.appUrl }}/api/internal/runners/dispatch
+            # In-cluster dispatch URL for Linux Pods (CNI-attached;
+            # Hetzner Cloud LB has no hairpin, so they can't reach
+            # the public ingress from inside the cluster).
+            - --dispatch-internal-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners/dispatch
+            # Autoscaler reconciler runs in the cluster; always use
+            # the in-cluster Service URL for the same reason.
+            - --scaling-signals-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners/desired_replicas
+            {{- with .Values.runnersController.clusterDNS.ip }}
+            # kube-dns ClusterIP staged into macOS pool Pods as
+            # TUIST_CLUSTER_DNS_IP so the Tart VM can point an
+            # /etc/resolver entry at cluster DNS and resolve the
+            # dispatch-provided in-cluster cache_endpoint_url.
+            - --cluster-dns-ip={{ . }}
+            - --cluster-domain={{ $.Values.runnersController.clusterDNS.domain | default "cluster.local" }}
+            {{- end }}
+            {{- if .Values.runnersController.features.dindImage }}
+            # dockerd sidecar image stamped on every Linux runner Pod.
+            # Gated on the controller binary recognising the flag —
+            # see `runnersController.features.dindImage` in values.yaml.
+            - --dind-image={{ .Values.runnersController.dindImage }}
+            {{- end }}
+            {{- if .Values.runnersController.features.registryMirror }}
+            # In-cluster pull-through cache the dind dockerd mirrors
+            # docker.io through. Gated on the controller binary
+            # recognising --registry-mirror-url (see features.registryMirror).
+            # Defaults to this release's registry-cache Service, so an env
+            # only flips the feature gate; override registryMirror to point
+            # elsewhere.
+            - --registry-mirror-url={{ .Values.runnersController.registryMirror | default (printf "http://%s.%s.svc.cluster.local:5000" (include "tuist.componentName" (dict "root" . "component" "registry-cache")) .Release.Namespace) }}
+            {{- end }}
+            # Pod-lifecycle reconciler reports terminal-phase
+            # transitions to the server's RunnerSessions store so
+            # billing closes off K8s-authoritative timestamps
+            # instead of the flaky `workflow_job.completed`
+            # webhook. In-cluster Service URL — same path used by
+            # the autoscaler.
+            - --sessions-url=http://{{ include "tuist.componentName" (dict "root" . "component" "server") }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.server.service.port | default 80 }}/api/internal/runners
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: probes
+              containerPort: 8081
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: probes
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: probes
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml (.Values.runnersController.resources | default dict) | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+{{- end }}

@@ -1,0 +1,105 @@
+{
+  "name": "LinkButton",
+  "tagName": "noora-link-button",
+  "elementClassName": "NooraLinkButton",
+  "className": "noora-link-button",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Presents a text-oriented button or link.",
+  "previewLayout": "stack-center",
+  "usage": "<noora-link-button href=\"/docs\" label=\"Documentation\"></noora-link-button>",
+  "attributes": [
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Sets the visible label."
+    },
+    {
+      "name": "variant",
+      "property": "variant",
+      "type": "string",
+      "values": ["primary", "secondary", "destructive"],
+      "default": "primary",
+      "description": "Controls semantic emphasis."
+    },
+    {
+      "name": "size",
+      "property": "size",
+      "type": "string",
+      "values": ["small", "medium", "large"],
+      "default": "large",
+      "description": "Controls dimensions."
+    },
+    {
+      "name": "href",
+      "property": "href",
+      "type": "string",
+      "description": "Renders a native link to this location."
+    },
+    {
+      "name": "underline",
+      "property": "underline",
+      "type": "boolean",
+      "default": false,
+      "description": "Underlines the label."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Disables activation."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "icon-left",
+      "description": "An icon before the label."
+    },
+    {
+      "name": "icon-right",
+      "description": "An icon after the label."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "control",
+      "description": "The native link or button."
+    }
+  ],
+  "notes": [],
+  "examples": [
+    {
+      "id": "variants",
+      "title": "Variant",
+      "description": "Match the LiveView primary, secondary, and destructive variations.",
+      "markup": "<noora-link-button href=\"#\" label=\"Primary\" variant=\"primary\"></noora-link-button>\n<noora-link-button href=\"#\" label=\"Secondary\" variant=\"secondary\"></noora-link-button>\n<noora-link-button href=\"#\" label=\"Destructive\" variant=\"destructive\"></noora-link-button>"
+    },
+    {
+      "id": "sizes",
+      "title": "Size",
+      "description": "Match the LiveView large, medium, and small variations.",
+      "markup": "<noora-link-button href=\"#\" label=\"Large\" size=\"large\"></noora-link-button>\n<noora-link-button href=\"#\" label=\"Medium\" size=\"medium\"></noora-link-button>\n<noora-link-button href=\"#\" label=\"Small\" size=\"small\"></noora-link-button>"
+    },
+    {
+      "id": "disabled",
+      "title": "Disabled",
+      "description": "Disable the primary link button.",
+      "markup": "<noora-link-button label=\"Disabled\" variant=\"primary\" disabled></noora-link-button>"
+    },
+    {
+      "id": "underline",
+      "title": "Underline",
+      "description": "Render an underlined link button.",
+      "markup": "<noora-link-button href=\"#\" label=\"Underline\" underline></noora-link-button>"
+    },
+    {
+      "id": "icons",
+      "title": "Icon",
+      "description": "Match the LiveView left, right, and two-sided icon variations.",
+      "markup": "<noora-link-button href=\"#\" label=\"Icon\"><noora-icon slot=\"icon-left\" name=\"chevron_left\"></noora-icon></noora-link-button>\n<noora-link-button href=\"#\" label=\"Icon\"><noora-icon slot=\"icon-right\" name=\"chevron_right\"></noora-icon></noora-link-button>\n<noora-link-button href=\"#\" label=\"Icon\"><noora-icon slot=\"icon-left\" name=\"chevron_left\"></noora-icon><noora-icon slot=\"icon-right\" name=\"chevron_right\"></noora-icon></noora-link-button>"
+    }
+  ]
+}

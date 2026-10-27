@@ -1,5 +1,5 @@
 defmodule Tuist.Accounts.UserTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
 
   alias Tuist.Accounts.User
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -61,6 +61,29 @@ defmodule Tuist.Accounts.UserTest do
 
       assert "Add another word or two. Uncommon words are better." in errors_on(got).password
       assert "Avoid sequences" in errors_on(got).password
+    end
+  end
+
+  describe "preferred_locale_changeset/2" do
+    # "es" is only a valid supported locale when TUIST_DEV_ALL_LOCALES=1.
+    @tag :locale
+    test "accepts a supported locale" do
+      got = User.preferred_locale_changeset(%User{}, %{preferred_locale: "es"})
+
+      assert got.valid?
+    end
+
+    test "accepts nil to clear the preference" do
+      got = User.preferred_locale_changeset(%User{}, %{preferred_locale: nil})
+
+      assert got.valid?
+    end
+
+    test "rejects an unsupported locale" do
+      got = User.preferred_locale_changeset(%User{}, %{preferred_locale: "xx"})
+
+      assert got.valid? == false
+      assert "is invalid" in errors_on(got).preferred_locale
     end
   end
 

@@ -1,0 +1,279 @@
+defmodule TuistWeb.SCIM.UsersControllerTest do
+  use TuistTestSupport.Cases.ConnCase, async: true
+
+  import TuistTestSupport.Fixtures.AccountsFixtures
+
+  alias Tuist.Accounts
+  alias Tuist.SCIM
+
+  setup %{conn: conn} do
+    organization = organization_fixture()
+    {:ok, {_token, plaintext}} = SCIM.create_token(organization, %{name: "test"})
+
+    conn =
+      conn
+      |> put_req_header("authorization", "Bearer #{plaintext}")
+      |> put_req_header("content-type", "application/scim+json")
+
+    %{conn: conn, organization: organization, plaintext: plaintext}
+  end
+
+  describe "auth" do
+    test "401 without bearer" do
+      conn = get(build_conn(), "/scim/v2/Users")
+      assert json_response(conn, 401)["status"] == "401"
+    end
+
+    test "401 with bad bearer" do
+      conn = build_conn() |> put_req_header("authorization", "Bearer garbage") |> get("/scim/v2/Users")
+      assert json_response(conn, 401)["status"] == "401"
+    end
+  end
+
+  describe "POST /Users" do
+    test "creates a new user and returns a SCIM resource", %{conn: conn} do
+      conn = post(conn, "/scim/v2/Users", JSON.encode!(%{userName: "alice@example.com", active: true}))
+
+      body = json_response(conn, 201)
+      assert body["userName"] == "alice@example.com"
+      assert body["active"] == true
+      assert is_binary(body["id"])
+      assert hd(get_resp_header(conn, "location")) =~ "/scim/v2/Users/#{body["id"]}"
+    end
+
+    for role <- [:user, :admin, :viewer] do
+      @role role
+
+      test "preserves an existing #{@role} when roles are omitted", %{conn: conn, organization: org} do
+        default_role = if @role == :viewer, do: "user", else: "viewer"
+        {:ok, org} = Accounts.update_organization(org, %{sso_default_role: default_role})
+        existing = user_fixture()
+        :ok = Accounts.add_user_to_organization(existing, org, role: @role)
+
+        conn = post(conn, "/scim/v2/Users", JSON.encode!(%{userName: existing.email, active: true}))
+
+        assert json_response(conn, 201)["id"] == to_string(existing.id)
+        assert %{name: role} = Accounts.get_user_role_in_organization(existing, org)
+        assert role == Atom.to_string(@role)
+      end
+    end
+
+    test "preserves an existing role when no supplied role is recognized", %{conn: conn, organization: org} do
+      {:ok, org} = Accounts.update_organization(org, %{sso_default_role: "viewer"})
+      existing = user_fixture()
+      :ok = Accounts.add_user_to_organization(existing, org, role: :admin)
+
+      conn =
+        post(conn, "/scim/v2/Users", JSON.encode!(%{userName: existing.email, roles: [%{value: "Owner"}]}))
+
+      assert json_response(conn, 201)["id"] == to_string(existing.id)
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(existing, org)
+    end
+
+    test "honors an explicit downgrade for an existing member", %{conn: conn, organization: org} do
+      existing = user_fixture()
+      :ok = Accounts.add_user_to_organization(existing, org, role: :admin)
+
+      conn =
+        post(conn, "/scim/v2/Users", JSON.encode!(%{userName: existing.email, roles: [%{value: "Viewer"}]}))
+
+      assert json_response(conn, 201)["id"] == to_string(existing.id)
+      assert %{name: "viewer"} = Accounts.get_user_role_in_organization(existing, org)
+    end
+
+    test "uses the enrollment default for new memberships without roles", %{conn: conn, organization: org} do
+      {:ok, org} = Accounts.update_organization(org, %{sso_default_role: "viewer"})
+
+      conn = post(conn, "/scim/v2/Users", JSON.encode!(%{userName: "new-viewer@example.com"}))
+
+      body = json_response(conn, 201)
+      assert {:ok, user} = SCIM.get_user(org, body["id"])
+      assert %{name: "viewer"} = Accounts.get_user_role_in_organization(user, org)
+    end
+
+    test "rejects missing userName", %{conn: conn} do
+      conn = post(conn, "/scim/v2/Users", JSON.encode!(%{}))
+      assert json_response(conn, 400)["scimType"] == "invalidValue"
+    end
+
+    test "rejects an invalid email", %{conn: conn} do
+      conn = post(conn, "/scim/v2/Users", JSON.encode!(%{userName: "not-an-email"}))
+      assert json_response(conn, 400)["scimType"] == "invalidValue"
+    end
+
+    test "attaches an existing Tuist user to the organization on POST", %{conn: conn, organization: org} do
+      existing = user_fixture(email: "taken@example.com")
+      refute Accounts.belongs_to_organization?(existing, org)
+
+      conn = post(conn, "/scim/v2/Users", JSON.encode!(%{userName: "taken@example.com"}))
+
+      body = json_response(conn, 201)
+      assert body["userName"] == "taken@example.com"
+      assert Accounts.belongs_to_organization?(existing, org)
+    end
+
+    test "returns conflict when active=false targets an existing non-member", %{conn: conn, organization: org} do
+      existing = user_fixture(email: "inactive@example.com")
+      refute Accounts.belongs_to_organization?(existing, org)
+
+      conn = post(conn, "/scim/v2/Users", JSON.encode!(%{userName: "inactive@example.com", active: false}))
+
+      assert json_response(conn, 409)["scimType"] == "uniqueness"
+      refute Accounts.belongs_to_organization?(existing, org)
+    end
+
+    test "assigns the role from a roles string", %{conn: conn, organization: org} do
+      conn = post(conn, "/scim/v2/Users", JSON.encode!(%{userName: "alice@example.com", roles: "admin"}))
+
+      body = json_response(conn, 201)
+      {:ok, user} = SCIM.get_user(org, body["id"])
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(user, org)
+    end
+
+    test "assigns the most privileged role when several are sent", %{conn: conn, organization: org} do
+      conn =
+        post(
+          conn,
+          "/scim/v2/Users",
+          JSON.encode!(%{userName: "alice@example.com", roles: [%{value: "User"}, %{value: "Admin"}]})
+        )
+
+      body = json_response(conn, 201)
+      {:ok, user} = SCIM.get_user(org, body["id"])
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(user, org)
+    end
+  end
+
+  describe "PUT /Users/:id" do
+    test "updates the role from a roles list", %{conn: conn, organization: org} do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "alice@example.com"})
+
+      conn =
+        put(
+          conn,
+          "/scim/v2/Users/#{user.id}",
+          JSON.encode!(%{userName: "alice@example.com", active: true, roles: [%{value: "admin"}]})
+        )
+
+      assert json_response(conn, 200)
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(user, org)
+    end
+
+    test "updates the role from a roles string", %{conn: conn, organization: org} do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "alice@example.com"})
+
+      conn =
+        put(conn, "/scim/v2/Users/#{user.id}", JSON.encode!(%{userName: "alice@example.com", roles: "viewer"}))
+
+      assert json_response(conn, 200)
+      assert %{name: "viewer"} = Accounts.get_user_role_in_organization(user, org)
+    end
+
+    test "keeps the role when the payload has no roles", %{conn: conn, organization: org} do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "alice@example.com", role: :admin})
+
+      conn = put(conn, "/scim/v2/Users/#{user.id}", JSON.encode!(%{userName: "alice@example.com", active: true}))
+
+      assert json_response(conn, 200)
+      assert %{name: "admin"} = Accounts.get_user_role_in_organization(user, org)
+    end
+  end
+
+  describe "GET /Users" do
+    test "returns a SCIM list response", %{conn: conn, organization: org} do
+      {:ok, _} = SCIM.provision_user(org, %{user_name: "alice@example.com"})
+      {:ok, _} = SCIM.provision_user(org, %{user_name: "bob@example.com"})
+
+      conn = get(conn, "/scim/v2/Users")
+      body = json_response(conn, 200)
+
+      emails = Enum.map(body["Resources"], & &1["userName"])
+      assert "alice@example.com" in emails
+      assert "bob@example.com" in emails
+      assert body["totalResults"] == length(body["Resources"])
+    end
+
+    test "filter by userName", %{conn: conn, organization: org} do
+      {:ok, _} = SCIM.provision_user(org, %{user_name: "alice@example.com"})
+      {:ok, _} = SCIM.provision_user(org, %{user_name: "bob@example.com"})
+
+      conn = get(conn, ~s(/scim/v2/Users?filter=userName eq "alice@example.com"))
+      body = json_response(conn, 200)
+
+      assert body["totalResults"] == 1
+      assert hd(body["Resources"])["userName"] == "alice@example.com"
+    end
+
+    test "rejects an unsupported filter", %{conn: conn} do
+      conn = get(conn, "/scim/v2/Users?filter=foo bar baz")
+      assert json_response(conn, 400)["scimType"] == "invalidFilter"
+    end
+
+    test "rejects unsupported filter attributes", %{conn: conn} do
+      conn = get(conn, ~s(/scim/v2/Users?filter=displayName eq "Alice"))
+      assert json_response(conn, 400)["scimType"] == "invalidFilter"
+    end
+  end
+
+  describe "PATCH /Users/:id" do
+    test "deactivates via replace active=false", %{conn: conn, organization: org} do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "alice@example.com"})
+
+      body =
+        JSON.encode!(%{
+          schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+          Operations: [%{op: "replace", path: "active", value: false}]
+        })
+
+      conn = patch(conn, "/scim/v2/Users/#{user.id}", body)
+      assert json_response(conn, 200)["active"] == false
+      assert {:error, :not_found} = SCIM.get_user(org, user.id)
+      assert Accounts.get_user_by_id(user.id).active == true
+    end
+
+    test "deactivates when Entra ID sends active as a string", %{conn: conn, organization: org} do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "entra@example.com"})
+
+      body =
+        JSON.encode!(%{
+          schemas: ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+          Operations: [%{op: "Replace", path: "active", value: "False"}]
+        })
+
+      conn = patch(conn, "/scim/v2/Users/#{user.id}", body)
+      assert json_response(conn, 200)["active"] == false
+      assert {:error, :not_found} = SCIM.get_user(org, user.id)
+    end
+  end
+
+  describe "DELETE /Users/:id" do
+    test "deactivates and removes from org", %{conn: conn, organization: org} do
+      {:ok, user} = SCIM.provision_user(org, %{user_name: "alice@example.com"})
+
+      conn = delete(conn, "/scim/v2/Users/#{user.id}")
+      assert response(conn, 204)
+
+      assert {:error, :not_found} = SCIM.get_user(org, user.id)
+      assert Accounts.get_user_by_id(user.id).active == true
+    end
+  end
+
+  describe "discovery" do
+    test "ServiceProviderConfig exposes the supported features", %{conn: conn} do
+      conn = get(conn, "/scim/v2/ServiceProviderConfig")
+      body = json_response(conn, 200)
+
+      assert body["patch"]["supported"] == true
+      assert body["filter"]["supported"] == true
+      assert body["bulk"]["supported"] == false
+    end
+
+    test "ResourceTypes lists User and Group", %{conn: conn} do
+      conn = get(conn, "/scim/v2/ResourceTypes")
+      body = json_response(conn, 200)
+
+      ids = MapSet.new(body["Resources"], & &1["id"])
+      assert MapSet.equal?(ids, MapSet.new(["User", "Group"]))
+    end
+  end
+end

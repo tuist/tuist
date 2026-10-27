@@ -1,0 +1,221 @@
+// Command tuist-runners-controller reconciles RunnerPool CRDs into
+// Pod + ServiceAccount pairs that the Tuist server's dispatch
+// endpoint can authenticate via the Kubernetes TokenReview API.
+//
+// Runs as one Deployment in the chart's release namespace. Uses
+// controller-runtime's leader election so multiple replicas don't
+// race on Pod creation.
+package main
+
+import (
+	"flag"
+	"os"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+
+	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
+	"github.com/tuist/tuist/infra/runners-controller/controllers"
+	"github.com/tuist/tuist/infra/runners-controller/internal/scaling"
+	"github.com/tuist/tuist/infra/runners-controller/internal/sessions"
+)
+
+var (
+	scheme   = runtime.NewScheme()
+	setupLog = ctrl.Log.WithName("setup")
+)
+
+func init() {
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+}
+
+func main() {
+	var (
+		metricsAddr         string
+		probeAddr           string
+		dispatchURL         string
+		dispatchInternalURL string
+		scalingSignalsURL   string
+		sessionsURL         string
+		watchedNS           string
+		dindImage           string
+		registryMirror      string
+		clusterDNSIP        string
+		clusterDomain       string
+	)
+	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
+	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
+	flag.StringVar(&dispatchURL, "dispatch-url", envOr("TUIST_RUNNER_DISPATCH_URL", ""),
+		"Externally-reachable dispatch URL the runner Pod's VM polls for its JIT config. Used by macOS Tart VMs (bypass CNI via vmnet). Required.")
+	flag.StringVar(&dispatchInternalURL, "dispatch-internal-url", envOr("TUIST_RUNNER_DISPATCH_INTERNAL_URL", ""),
+		"In-cluster (Service-based) dispatch URL injected into Linux pool Pods. Linux Pods can't reach the public ingress IP from inside the cluster (Hetzner Cloud LB has no hairpin). Optional; falls back to --dispatch-url when empty.")
+	flag.StringVar(&scalingSignalsURL, "scaling-signals-url", envOr("TUIST_SCALING_SIGNALS_URL", ""),
+		"URL the autoscaler reconciler GETs for fleet load signals (`?fleet=<name>` appended). Optional; if empty, autoscaling is silently disabled (existing macOS pools work unchanged).")
+	flag.StringVar(&sessionsURL, "sessions-url", envOr("TUIST_RUNNER_SESSIONS_URL", ""),
+		"URL prefix the pod-lifecycle reconciler POSTs Pod terminal-phase events to (`/pods/stopped` is appended). Required for billing; until configured, the server falls back to its safety clamp.")
+	flag.StringVar(&watchedNS, "namespace", envOr("TUIST_RUNNERS_NAMESPACE", "tuist-runners"),
+		"Namespace the controller watches. Defaults to tuist-runners.")
+	flag.StringVar(&dindImage, "dind-image", envOr("TUIST_RUNNER_DIND_IMAGE", ""),
+		"OCI ref for the dockerd sidecar image stamped on Linux runner Pods (e.g. docker:28-dind@sha256:...). Required when any RunnerPool has spec.os=linux.")
+	flag.StringVar(&registryMirror, "registry-mirror-url", envOr("TUIST_RUNNER_REGISTRY_MIRROR_URL", ""),
+		"In-cluster Docker Hub pull-through cache URL stamped into the dind dockerd's --registry-mirror (with a matching --insecure-registry, since it's http in-cluster). Optional; empty leaves dockerd pulling docker.io directly.")
+	flag.StringVar(&clusterDNSIP, "cluster-dns-ip", envOr("TUIST_RUNNER_CLUSTER_DNS_IP", ""),
+		"kube-dns ClusterIP injected into macOS pool Pods as TUIST_CLUSTER_DNS_IP. dispatch-poll.sh inside the Tart VM writes /etc/resolver/<cluster-domain> from it so the dispatch-provided cache_endpoint_url (*.svc.cluster.local) resolves in the VM. Optional; empty skips the injection (macOS runners then never receive a resolvable in-cluster cache URL — pair with the server's TUIST_RUNNERS_CLUSTER_NETWORK_PLATFORMS gate).")
+	flag.StringVar(&clusterDomain, "cluster-domain", envOr("TUIST_RUNNER_CLUSTER_DOMAIN", "cluster.local"),
+		"Cluster DNS suffix paired with --cluster-dns-ip (TUIST_CLUSTER_DOMAIN in macOS pool Pods; names the /etc/resolver file in the VM).")
+
+	opts := zap.Options{Development: false}
+	opts.BindFlags(flag.CommandLine)
+	flag.Parse()
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	if dispatchURL == "" {
+		setupLog.Error(nil, "--dispatch-url required")
+		os.Exit(1)
+	}
+
+	cfg := ctrl.GetConfigOrDie()
+
+	mgr, err := ctrl.NewManager(cfg, manager.Options{
+		Scheme:                 scheme,
+		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
+		HealthProbeBindAddress: probeAddr,
+		LeaderElection:         true,
+		LeaderElectionID:       "runners-controller.tuist.dev",
+		// Watch only the runners namespace. The controller has no
+		// reason to inspect Pods / SAs anywhere else, and
+		// narrowing the cache cuts memory + apiserver load.
+		Cache: cache.Options{
+			DefaultNamespaces: map[string]cache.Config{watchedNS: {}},
+		},
+	})
+	if err != nil {
+		setupLog.Error(err, "create manager")
+		os.Exit(1)
+	}
+
+	// One sessions client for both reconcilers: the pool reconciler
+	// closes a Pod's session immediately before reaping it, and the
+	// pod-lifecycle reconciler reports the earlier terminal transition.
+	// nil when unconfigured, which disables reporting on both.
+	var sessionsClient *sessions.Client
+	if sessionsURL != "" {
+		sessionsClient = sessions.NewClient(sessionsURL)
+	}
+
+	// Shared by the autoscaler and the pool reconciler's placement preferences.
+	// Cache just under the poll interval so the fleet-aware pass (which fetches
+	// every sibling shape's signals each reconcile) collapses an N-shape fleet's
+	// N² requests down to ~N per cycle.
+	var signalsClient *scaling.Client
+	if scalingSignalsURL != "" {
+		signalsClient = scaling.NewClient(scalingSignalsURL)
+		signalsClient.CacheTTL = 4 * time.Second
+	}
+
+	if err := (&controllers.RunnerPoolReconciler{
+		Client:              mgr.GetClient(),
+		APIReader:           mgr.GetAPIReader(),
+		Scheme:              mgr.GetScheme(),
+		SessionsClient:      sessionsClient,
+		DispatchURL:         dispatchURL,
+		DispatchInternalURL: dispatchInternalURL,
+		DindImage:           dindImage,
+		RegistryMirror:      registryMirror,
+		ClusterDNSIP:        clusterDNSIP,
+		ClusterDomain:       clusterDomain,
+		Recorder:            mgr.GetEventRecorderFor("runnerpool-controller"),
+		SignalsClient:       signalsClient,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "setup RunnerPool reconciler")
+		os.Exit(1)
+	}
+
+	// Autoscaler reconciler runs alongside the primary one. When
+	// the scaling URL isn't configured (the v1 macOS-only chart
+	// shape) we skip wiring it up — autoscaling pools fail open
+	// (no scaling-driven changes), static pools work as before.
+	if signalsClient != nil {
+		if err := (&controllers.AutoscalerReconciler{
+			Client:        mgr.GetClient(),
+			Scheme:        mgr.GetScheme(),
+			SignalsClient: signalsClient,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "setup Autoscaler reconciler")
+			os.Exit(1)
+		}
+	}
+
+	// Pod-lifecycle reconciler watches runner Pods for terminal-
+	// phase transitions and reports them to the Tuist server so
+	// billing sessions close off K8s-authoritative timestamps
+	// rather than the flaky `workflow_job.completed` webhook. When
+	// the URL isn't configured we skip wiring it up — the server
+	// keeps its max-lifetime safety clamp, which bounds the
+	// over-bill while we get the controller plumbed in.
+	if sessionsURL != "" {
+		// Typed clientset for the `pods/log` subresource: the cached
+		// controller-runtime client can't read container logs, and the
+		// PodLifecycle reconciler re-emits an abnormally-ended runner's
+		// log before the reap deletes it.
+		clientset, err := kubernetes.NewForConfig(cfg)
+		if err != nil {
+			setupLog.Error(err, "build clientset for log capture")
+			os.Exit(1)
+		}
+		if err := (&controllers.PodLifecycleReconciler{
+			Client:         mgr.GetClient(),
+			Scheme:         mgr.GetScheme(),
+			SessionsClient: sessionsClient,
+			Logs:           clientset,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "setup PodLifecycle reconciler")
+			os.Exit(1)
+		}
+	}
+
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		setupLog.Error(err, "set up health check")
+		os.Exit(1)
+	}
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		setupLog.Error(err, "set up readiness check")
+		os.Exit(1)
+	}
+
+	setupLog.Info("starting runners-controller", "namespace", watchedNS)
+	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+		setupLog.Error(err, "manager exited")
+		os.Exit(1)
+	}
+}
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+// Compile-time check that we're not accidentally pulling unused
+// imports if the GC reconciler wires move around. The previous
+// form dereferenced a nil *RunnerPoolReconciler at package-init
+// time and segfaulted before main() ran; these versions are
+// type-only (no value evaluation, no nil deref).
+var (
+	_ client.Client = (client.Client)(nil)
+	_               = controllers.RunnerPoolReconciler{}
+	_               = controllers.AutoscalerReconciler{}
+	_               = corev1.Pod{}
+)

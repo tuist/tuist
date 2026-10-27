@@ -20,8 +20,17 @@ extension XcodeGraph.Headers {
         fileSystem: FileSysteming
     ) async throws -> XcodeGraph.Headers {
         let resolvedUmbrellaPath = try manifest.umbrellaHeader.map { try generatorPaths.resolve(path: $0) }
-        let headersFromUmbrella = try resolvedUmbrellaPath.map {
-            Set(try UmbrellaHeaderHeadersExtractor.headers(from: $0, for: productName))
+        let headersFromUmbrella: Set<String>?
+        if let resolvedUmbrellaPath {
+            headersFromUmbrella = Set(
+                try await UmbrellaHeaderHeadersExtractor.headers(
+                    from: resolvedUmbrellaPath,
+                    for: productName,
+                    fileSystem: fileSystem
+                )
+            )
+        } else {
+            headersFromUmbrella = nil
         }
 
         var autoExlcudedPaths = Set<AbsolutePath>()

@@ -1,7 +1,9 @@
 import FileSystem
 import Foundation
 import Path
+import TuistConstants
 import TuistCore
+import TuistLogging
 import TuistRootDirectoryLocator
 import TuistSupport
 
@@ -42,7 +44,7 @@ enum StencilPathLocatorError: FatalError, Equatable {
     }
 }
 
-public final class StencilPathLocator: StencilPathLocating {
+public struct StencilPathLocator: StencilPathLocating {
     private let rootDirectoryLocator: RootDirectoryLocating
     private let fileSystem: FileSysteming
 

@@ -4,7 +4,7 @@ public protocol ProjectMapping {
     func map(project: Project) async throws -> (Project, [SideEffectDescriptor])
 }
 
-public class SequentialProjectMapper: ProjectMapping {
+public struct SequentialProjectMapper: ProjectMapping {
     let mappers: [ProjectMapping]
 
     public init(mappers: [ProjectMapping]) {
@@ -24,7 +24,7 @@ public class SequentialProjectMapper: ProjectMapping {
     }
 }
 
-public class TargetProjectMapper: ProjectMapping {
+public struct TargetProjectMapper: ProjectMapping {
     private let mapper: TargetMapping
 
     public init(mapper: TargetMapping) {

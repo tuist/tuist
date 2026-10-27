@@ -2,6 +2,8 @@ import Foundation
 import Mockable
 import Path
 import TSCUtility
+import TuistProcess
+import TuistThreadSafe
 
 @Mockable
 public protocol XcodeControlling: Sendable {
@@ -17,12 +19,28 @@ public protocol XcodeControlling: Sendable {
     /// - Returns: `Version` of selected Xcode
     /// - Throws: An error if it can't be obtained
     func selectedVersion() async throws -> Version
+
+    /// The developer directory `xcode-select -p` reports: `DEVELOPER_DIR` when
+    /// this process sets it, and the system-wide selection otherwise.
+    func developerDirectory() async throws -> AbsolutePath
+
+    /// Returns the build version of the selected Xcode (e.g. 27A266a).
+    func selectedBuildVersion() async throws -> String
 }
 
 public final class XcodeController: XcodeControlling, @unchecked Sendable {
     @TaskLocal public static var current: XcodeControlling = XcodeController()
 
-    public init() {}
+    private let commandRunner: CommandRunning
+
+    public init(commandRunner: CommandRunning = CommandRunner()) {
+        self.commandRunner = commandRunner
+    }
+
+    public func developerDirectory() async throws -> AbsolutePath {
+        let path = try await commandRunner.capture(arguments: ["xcode-select", "-p"]).spm_chomp()
+        return try AbsolutePath(validating: path)
+    }
 
     /// Cached response of `xcode-select` command
     private let selectedXcode: ThreadSafe<Xcode?> = ThreadSafe(nil)
@@ -36,7 +54,7 @@ public final class XcodeController: XcodeControlling, @unchecked Sendable {
         if let selectedXcode = selectedXcode.value {
             return selectedXcode
         } else {
-            let path = try System.shared.capture(["xcode-select", "-p"]).spm_chomp()
+            let path = try await commandRunner.capture(arguments: ["xcode-select", "-p"]).spm_chomp()
             let value = try await Xcode.read(path: try AbsolutePath(validating: path).parentDirectory.parentDirectory)
             selectedXcode.mutate { $0 = value }
             return value
@@ -46,5 +64,28 @@ public final class XcodeController: XcodeControlling, @unchecked Sendable {
     public func selectedVersion() async throws -> Version {
         let xcode = try await selected()
         return try Version(versionString: xcode.infoPlist.version, usesLenientParsing: true)
+    }
+
+    private let selectedXcodeBuildVersion: ThreadSafe<String?> = ThreadSafe(nil)
+
+    public func selectedBuildVersion() async throws -> String {
+        if let buildVersion = selectedXcodeBuildVersion.value {
+            return buildVersion
+        }
+        let versionPlistPath = try await developerDirectory().parentDirectory.appending(component: "version.plist")
+        guard let data = try? Data(contentsOf: versionPlistPath.url) else {
+            throw XcodeError.versionPlistNotFound(versionPlistPath)
+        }
+        let buildVersion = try PropertyListDecoder().decode(VersionPlist.self, from: data).productBuildVersion
+        selectedXcodeBuildVersion.mutate { $0 = buildVersion }
+        return buildVersion
+    }
+}
+
+private struct VersionPlist: Decodable {
+    let productBuildVersion: String
+
+    enum CodingKeys: String, CodingKey {
+        case productBuildVersion = "ProductBuildVersion"
     }
 }

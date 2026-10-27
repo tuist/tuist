@@ -4,31 +4,19 @@ defmodule Tuist.Authorization.Checks do
   """
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
+  alias Tuist.Accounts.AccountToken
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Accounts.Organization
   alias Tuist.Accounts.User
+  alias Tuist.Projects
   alias Tuist.Projects.Project
 
-  @scope_groups %{
-    "ci" => [
-      "project:cache:write",
-      "project:previews:write",
-      "project:bundles:write",
-      "project:tests:write",
-      "project:builds:write",
-      "project:runs:write"
-    ]
-  }
-
   def user_role(%User{} = authenticated_user, %Project{} = project, role) when role == :user do
-    Accounts.owns_account_or_belongs_to_account_organization?(authenticated_user, %{
-      id: project.account_id
-    })
+    Accounts.owns_account_or_belongs_to_account_organization?(authenticated_user, project_account(project))
   end
 
   def user_role(%User{} = authenticated_user, %Project{} = project, role) when role == :admin do
-    Accounts.owns_account_or_is_admin_to_account_organization?(authenticated_user, %{
-      id: project.account_id
-    })
+    Accounts.owns_account_or_is_admin_to_account_organization?(authenticated_user, project_account(project))
   end
 
   def user_role(%User{} = authenticated_user, %Account{} = account, role) when role == :user do
@@ -43,9 +31,38 @@ defmodule Tuist.Authorization.Checks do
     })
   end
 
+  def user_role(%User{} = authenticated_user, %Project{} = project, role) when role == :viewer do
+    Accounts.owns_account_or_is_viewer_of_account_organization?(authenticated_user, project_account(project))
+  end
+
+  def user_role(%User{} = authenticated_user, %Account{} = account, role) when role == :viewer do
+    Accounts.owns_account_or_is_viewer_of_account_organization?(authenticated_user, %{
+      id: account.id
+    })
+  end
+
   def user_role(_, _, _) do
     false
   end
+
+  @doc """
+  Whether the user a credential was issued to (an OAuth grant or a claimed agent
+  credential) holds `role` on the object's account. Account tokens have no issuer
+  and can only be minted by an account admin, so their scopes alone decide.
+  """
+  def issuer_role(%AuthenticatedAccount{issued_by: %User{} = user}, object, role), do: user_role(user, object, role)
+  def issuer_role(%AuthenticatedAccount{issued_by: nil}, _object, _role), do: true
+  def issuer_role(_, _, _), do: false
+
+  def covers_all_projects(%AuthenticatedAccount{all_projects: true}, _object), do: true
+  def covers_all_projects(_, _), do: false
+
+  # Hands over the account itself when the caller preloaded it (with its
+  # organization), so the membership check does not have to read it back. Falls
+  # back to the id when either association is missing.
+  defp project_account(%Project{account: %Account{organization: %Organization{}} = account}), do: account
+  defp project_account(%Project{account: %Account{organization: nil} = account}), do: account
+  defp project_account(%Project{account_id: account_id}), do: %{id: account_id}
 
   def authenticated_as_user(%User{}, _) do
     true
@@ -71,6 +88,10 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
+  def accounts_match(%AuthenticatedAccount{issued_by: %User{} = user}, %Account{} = account) do
+    Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: account.id})
+  end
+
   def accounts_match(%AuthenticatedAccount{account: %Account{} = authenticated_account}, %Account{} = account) do
     authenticated_account.id == account.id
   end
@@ -87,7 +108,7 @@ defmodule Tuist.Authorization.Checks do
   Checks if the authenticated account's scopes include the required scope.
 
   Scopes are expected to be strings in the format "entity:object:action"
-  (e.g., "project:cache:read", "account:registry:read").
+  (e.g., "project:cache:read", "account:members:read").
 
   Scope groups (e.g., "ci") are automatically expanded to their component scopes.
 
@@ -96,12 +117,12 @@ defmodule Tuist.Authorization.Checks do
   """
   def scopes_permit(%AuthenticatedAccount{scopes: scopes} = auth_account, %Project{} = project, scope)
       when is_binary(scope) do
-    expanded_scopes = expand_scope_groups(scopes)
+    expanded_scopes = expand_scopes(scopes)
     Enum.member?(expanded_scopes, scope) and project_access_permitted(auth_account, project)
   end
 
   def scopes_permit(%AuthenticatedAccount{scopes: scopes}, _, scope) when is_binary(scope) do
-    expanded_scopes = expand_scope_groups(scopes)
+    expanded_scopes = expand_scopes(scopes)
     Enum.member?(expanded_scopes, scope)
   end
 
@@ -109,10 +130,20 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
-  defp expand_scope_groups(scopes) do
-    Enum.flat_map(scopes, fn scope ->
-      Map.get(@scope_groups, scope, [scope])
-    end)
+  def cache_write_policy_permits_subject(%User{}, resource) do
+    cache_write_policy_permits_members?(resource)
+  end
+
+  def cache_write_policy_permits_subject(%AuthenticatedAccount{issued_by: %User{}}, resource) do
+    cache_write_policy_permits_members?(resource)
+  end
+
+  def cache_write_policy_permits_subject(_, _) do
+    true
+  end
+
+  def expand_scopes(scopes) do
+    AccountToken.expand_scopes(scopes)
   end
 
   @doc """
@@ -121,8 +152,14 @@ defmodule Tuist.Authorization.Checks do
   When `all_projects` is true, the token has access to all projects under the account.
   When `all_projects` is false, access is restricted to projects in `project_ids`.
   """
-  def project_access_permitted(%AuthenticatedAccount{all_projects: true}, _project) do
-    true
+  def project_access_permitted(%AuthenticatedAccount{issued_by: %User{} = user, all_projects: true}, %Project{} = project) do
+    Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: project.account_id})
+  end
+
+  def project_access_permitted(%AuthenticatedAccount{account: %Account{id: account_id}, all_projects: true}, %Project{
+        account_id: project_account_id
+      }) do
+    account_id == project_account_id
   end
 
   def project_access_permitted(%AuthenticatedAccount{all_projects: false, project_ids: nil}, _project) do
@@ -133,15 +170,45 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
-  def project_access_permitted(%AuthenticatedAccount{all_projects: false, project_ids: project_ids}, %Project{
-        id: project_id
-      }) do
-    project_id in project_ids
+  def project_access_permitted(
+        %AuthenticatedAccount{account: %Account{id: account_id}, all_projects: false, project_ids: project_ids},
+        %Project{id: project_id, account_id: project_account_id}
+      ) do
+    account_id == project_account_id and project_id in project_ids
   end
 
   def project_access_permitted(_, _) do
-    true
+    false
   end
+
+  def project_cache_scope_permits_account(%AuthenticatedAccount{scopes: scopes} = subject, %Account{id: account_id}) do
+    scopes = expand_scopes(scopes)
+
+    ("project:cache:read" in scopes or "project:cache:write" in scopes) and
+      Enum.any?(Projects.list_accessible_projects(subject, preload: []), &(&1.account_id == account_id))
+  end
+
+  def project_cache_scope_permits_account(_, _), do: false
+
+  defp cache_write_policy_permits_members?(resource) do
+    case resource_account(resource) do
+      %Account{cache_write_policy: :tokens_only} -> false
+      %Account{} -> true
+      _ -> false
+    end
+  end
+
+  defp resource_account(%Account{} = account), do: account
+  defp resource_account(%Project{account: %Account{} = account}), do: account
+
+  defp resource_account(%Project{account_id: account_id}) when not is_nil(account_id) do
+    case Accounts.get_account_by_id(account_id) do
+      {:ok, account} -> account
+      _ -> nil
+    end
+  end
+
+  defp resource_account(_), do: nil
 
   def projects_match(%User{}, %Project{}) do
     false
@@ -167,6 +234,18 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
+  def public_account(_, %Account{visibility: :public}) do
+    true
+  end
+
+  def public_account(_, %Account{}) do
+    false
+  end
+
+  def public_account(_, _) do
+    false
+  end
+
   def billing_access(%User{} = user, %Account{} = account) do
     subscription = Tuist.Billing.get_current_active_subscription(account)
 
@@ -178,36 +257,104 @@ defmodule Tuist.Authorization.Checks do
     end
   end
 
-  def ops_access(%User{} = user, _) do
-    if Tuist.Environment.dev?() do
-      true
-    else
-      user.account.name in Tuist.Environment.ops_user_handles()
-    end
-  end
-
-  def ops_access(_, _) do
+  def billing_access(_, _) do
     false
   end
 
+  @doc """
+  Gates the INTERNAL ops admin panel (`/ops`, the `:ops` policy
+  object). Unlike `ops_access/2` this is not tied to a customer
+  account and is not grant-based — it's the "is this person Tuist
+  staff" check. The object is ignored (the panel passes `nil`/`:ops`).
+  """
+  def internal_ops_access(%User{} = user, _object) do
+    Accounts.tuist_operator?(user)
+  end
+
+  def internal_ops_access(_, _), do: false
+
+  @doc """
+  Operator READ access to a customer's data. Granted only by an
+  active, unexpired operator grant (minted at ops.tuist.dev, verified
+  offline, attached to `user.operator_grant`) that covers the object's
+  account. Fail-closed: no grant, wrong account, wrong tier, expired,
+  or unknown object shape → false.
+  """
+  def ops_access(%User{} = user, object) do
+    operator_grant_covers?(user, object, [:read, :admin])
+  end
+
+  def ops_access(_, _), do: false
+
+  @doc """
+  Operator ADMIN access to a customer's data ("sign in as admins").
+  Requires an `:admin`-tier grant (which only exists after a Slack
+  approval), covering the object's account.
+  """
+  def ops_write_access(%User{} = user, object) do
+    operator_grant_covers?(user, object, [:admin])
+  end
+
+  def ops_write_access(_, _), do: false
+
+  defp operator_grant_covers?(%User{operator_grant: %{} = grant} = user, object, allowed_tiers) do
+    account_id = object_account_id(object)
+
+    # The grant binds to the operator it was minted for: the current user
+    # must be a confirmed Tuist operator AND the one named in `sub`. This
+    # is the authorization-side half of the bearer-token guard in
+    # `TuistWeb.OperatorGrant` (defence in depth — a grant that somehow
+    # lands on the wrong session still authorizes nothing).
+    Accounts.tuist_operator?(user) and
+      operator_grant_subject_matches?(user, grant) and
+      not is_nil(account_id) and
+      grant[:account_id] == account_id and
+      grant[:tier] in allowed_tiers and
+      not grant_expired?(grant)
+  end
+
+  defp operator_grant_covers?(_user, _object, _allowed_tiers), do: false
+
+  defp operator_grant_subject_matches?(%User{email: email}, %{sub: sub}) when is_binary(email) and is_binary(sub) do
+    String.downcase(email) == String.downcase(sub)
+  end
+
+  defp operator_grant_subject_matches?(_, _), do: false
+
+  defp grant_expired?(%{exp: exp}) when is_integer(exp), do: exp <= System.system_time(:second)
+  defp grant_expired?(_), do: true
+
+  @doc """
+  Resolves any object passed to ops_access/ops_write_access to the customer
+  account id it belongs to (mirrors user_role/3's object handling). Unknown
+  shapes return nil so the grant check fails closed.
+  """
+  def object_account_id(%Project{account_id: account_id}), do: account_id
+  def object_account_id(%Account{id: id}), do: id
+  def object_account_id(%{project: %Project{account_id: account_id}}), do: account_id
+  def object_account_id(%{account: %Account{id: id}}), do: id
+
+  def object_account_id(%{project_id: project_id}) when not is_nil(project_id) do
+    case Projects.get_project_by_id(project_id) do
+      %Project{account_id: account_id} -> account_id
+      _ -> nil
+    end
+  end
+
+  def object_account_id(_), do: nil
+
   def project_command_event_access(%User{} = user, %{project: %Project{} = project}) do
-    user_role(user, project, :user)
+    project_reader?(user, project)
   end
 
   def project_command_event_access(%User{} = user, command_event) when is_struct(command_event) do
-    case Map.get(command_event, :project) do
-      %Project{} = project ->
-        user_role(user, project, :user)
+    case Map.get(command_event, :project_id) do
+      project_id when not is_nil(project_id) ->
+        project = Projects.get_project_by_id(project_id)
+        project_reader?(user, project)
 
       _ ->
-        case Map.get(command_event, :project_id) do
-          project_id when not is_nil(project_id) ->
-            project = Tuist.Projects.get_project_by_id(project_id)
-            user_role(user, project, :user)
-
-          _ ->
-            false
-        end
+        false
     end
   end
 
@@ -219,7 +366,7 @@ defmodule Tuist.Authorization.Checks do
       _ ->
         case Map.get(command_event, :project_id) do
           project_id when not is_nil(project_id) ->
-            project = Tuist.Projects.get_project_by_id(project_id)
+            project = Projects.get_project_by_id(project_id)
             public_project(nil, project)
 
           _ ->
@@ -242,7 +389,7 @@ defmodule Tuist.Authorization.Checks do
         _ ->
           case Map.get(command_event, :project_id) do
             project_id when not is_nil(project_id) ->
-              Tuist.Projects.get_project_by_id(project_id)
+              Projects.get_project_by_id(project_id)
 
             _ ->
               nil
@@ -256,7 +403,7 @@ defmodule Tuist.Authorization.Checks do
         else
           case user_or_nil do
             %User{} = user ->
-              user_role(user, project, :user)
+              project_reader?(user, project)
 
             _ ->
               false
@@ -270,5 +417,11 @@ defmodule Tuist.Authorization.Checks do
 
   def command_event_project_access(_, _) do
     false
+  end
+
+  # Reading a project is where the viewer role lives, so the command-event
+  # gates accept it alongside members that can also write.
+  defp project_reader?(user, project) do
+    user_role(user, project, :user) or user_role(user, project, :viewer)
   end
 end

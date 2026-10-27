@@ -5,15 +5,20 @@ import Mockable
 import Path
 import Testing
 import TuistAutomation
+import TuistConfigLoader
 import TuistCore
+import TuistEnvironment
+import TuistEnvironmentTesting
+import TuistGit
 import TuistLoader
+import TuistServer
 import TuistSupport
 import TuistTesting
+import TuistUniqueIDGenerator
 import TuistXCActivityLog
-
+import TuistXcodeBuildProducts
 @testable import TuistKit
 
-@Suite
 struct XcodeBuildBuildCommandServiceTests {
     private let fileSystem = FileSystem()
     private let xcodeBuildController = MockXcodeBuildControlling()
@@ -23,6 +28,9 @@ struct XcodeBuildBuildCommandServiceTests {
     private let xcodeBuildArgumentParser = MockXcodeBuildArgumentParsing()
     private let derivedDataLocator = MockDerivedDataLocating()
     private let xcActivityLogController = MockXCActivityLogControlling()
+    private let shardPlanService = MockShardPlanServicing()
+    private let serverEnvironmentService = MockServerEnvironmentServicing()
+    private let uploadBuildRunService = MockUploadBuildRunServicing()
     private let subject: XcodeBuildBuildCommandService
 
     init() {
@@ -34,14 +42,16 @@ struct XcodeBuildBuildCommandServiceTests {
             uniqueIDGenerator: uniqueIDGenerator,
             xcodeBuildArgumentParser: xcodeBuildArgumentParser,
             derivedDataLocator: derivedDataLocator,
-            xcActivityLogController: xcActivityLogController
+            xcActivityLogController: xcActivityLogController,
+            shardPlanService: shardPlanService,
+            serverEnvironmentService: serverEnvironmentService,
+            uploadBuildRunService: uploadBuildRunService
         )
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
     func runsXcodeBuildWithPassthroughArguments() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        // Given
         let arguments = ["-scheme", "MyApp"]
         let uniqueID = "unique-id-123"
         let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
@@ -72,10 +82,16 @@ struct XcodeBuildBuildCommandServiceTests {
             .run(arguments: .any)
             .willReturn()
 
-        // When
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        given(uploadBuildRunService)
+            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
+            .willReturn(try #require(URL(string: "https://tuist.dev/test")))
+
         try await subject.run(passthroughXcodebuildArguments: arguments)
 
-        // Then
         verify(xcodeBuildController)
             .run(arguments: .any)
             .called(1)
@@ -83,5 +99,335 @@ struct XcodeBuildBuildCommandServiceTests {
         let expectedResultBundlePath = temporaryDirectory.appending(components: "cache", uniqueID)
         await #expect(RunMetadataStorage.current.resultBundlePath == expectedResultBundlePath)
         await #expect(RunMetadataStorage.current.buildRunId == activityLogPath.basenameWithoutExt)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDependencies())
+    func writesTheBuildsPrefixMapsIntoTheTestProducts() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        let gitController = MockGitControlling()
+        given(gitController).isInGitRepository(workingDirectory: .any).willReturn(true)
+        given(gitController).topLevelGitDirectory(workingDirectory: .any).willReturn(temporaryDirectory)
+        given(gitController).sourceFileBlobIds(workingDirectory: .any, pathExtensions: .any).willReturn([:])
+        let subject = XcodeBuildBuildCommandService(
+            fileSystem: fileSystem,
+            xcodeBuildController: xcodeBuildController,
+            configLoader: configLoader,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            uniqueIDGenerator: uniqueIDGenerator,
+            xcodeBuildArgumentParser: xcodeBuildArgumentParser,
+            derivedDataLocator: derivedDataLocator,
+            xcActivityLogController: xcActivityLogController,
+            shardPlanService: shardPlanService,
+            serverEnvironmentService: serverEnvironmentService,
+            uploadBuildRunService: uploadBuildRunService,
+            coverageBuildSourcesService: CoverageBuildSourcesService(fileSystem: fileSystem, gitController: gitController)
+        )
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+        let targetDirectory = derivedDataPath.appending(
+            components: "Build",
+            "Intermediates.noindex",
+            "App.build",
+            "Debug",
+            "Lib.build"
+        )
+        try await fileSystem.makeDirectory(at: targetDirectory)
+        try await fileSystem.writeAsJSON(
+            ["/^src": temporaryDirectory.appending(component: "Lib").pathString],
+            at: targetDirectory.appending(component: "compilation-prefix-map.json")
+        )
+        let testProductsPath = temporaryDirectory.appending(component: "App.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory.appending(component: "cache"))
+        given(uniqueIDGenerator).uniqueID().willReturn("unique-id")
+        given(xcodeBuildArgumentParser).parse(.any).willReturn(.test(derivedDataPath: derivedDataPath))
+        given(xcActivityLogController)
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
+            .willReturn(nil)
+        given(xcodeBuildController).run(arguments: .any).willReturn()
+        given(configLoader).loadConfig(path: .any).willReturn(.test(fullHandle: "tuist/tuist"))
+
+        try await subject.run(passthroughXcodebuildArguments: [
+            "build-for-testing", "-scheme", "App", "-testProductsPath", testProductsPath.pathString,
+        ])
+
+        let restored = RunMetadataStorage()
+        await restored.restoreCoverageBuildSources(from: testProductsPath)
+        #expect(
+            await restored.coverageBuildSources?.prefixMaps
+                == ["Lib": ["/^src": temporaryDirectory.appending(component: "Lib").pathString]]
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedDependencies(), arguments: [true, false])
+    func bumpsCoverageCountersAtomicallyWhenBuildingForTestingWithCoverageUploads(uploadsCoverage: Bool) async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        Environment.mocked?.variables["TUIST_FEATURE_FLAG_COVERAGE"] = "1"
+        Environment.mocked?.variables["TUIST_COVERAGE_UPLOAD"] = uploadsCoverage ? "1" : "0"
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory.appending(component: "cache"))
+        given(uniqueIDGenerator)
+            .uniqueID()
+            .willReturn("unique-id")
+        given(xcodeBuildArgumentParser)
+            .parse(.any)
+            .willReturn(.test(derivedDataPath: temporaryDirectory.appending(component: "DerivedData")))
+        given(xcActivityLogController)
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .any, filter: .any)
+            .willReturn(nil)
+        given(xcodeBuildController)
+            .run(arguments: .any)
+            .willReturn()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test())
+
+        try await subject.run(passthroughXcodebuildArguments: ["build-for-testing", "-scheme", "MyApp"])
+
+        let resultBundlePath = temporaryDirectory.appending(components: "cache", "unique-id").pathString
+        let arguments = ["build-for-testing", "-scheme", "MyApp", "-resultBundlePath", resultBundlePath]
+        verify(xcodeBuildController)
+            .run(arguments: .value(uploadsCoverage ? AtomicCoverageCounters.adding(to: arguments) : arguments))
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func uploadsBuildRunWhenFullHandleConfigured() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let arguments = ["-scheme", "MyApp"]
+        let uniqueID = "unique-id-123"
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+        let activityLogPath = derivedDataPath.appending(components: "Logs", "Build", "activity.xcactivitylog")
+        let activityLogFile: XCActivityLogFile = .test(path: activityLogPath)
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory.appending(component: "cache"))
+
+        given(uniqueIDGenerator)
+            .uniqueID()
+            .willReturn(uniqueID)
+
+        given(xcodeBuildArgumentParser)
+            .parse(.any)
+            .willReturn(
+                .test(
+                    derivedDataPath: derivedDataPath
+                )
+            )
+
+        given(xcActivityLogController)
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .value(derivedDataPath), filter: .any)
+            .willReturn(activityLogFile)
+
+        given(xcodeBuildController)
+            .run(arguments: .any)
+            .willReturn()
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        given(uploadBuildRunService)
+            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
+            .willReturn(try #require(URL(string: "https://tuist.dev/test")))
+
+        try await subject.run(passthroughXcodebuildArguments: arguments)
+
+        verify(uploadBuildRunService)
+            .uploadBuildRun(
+                activityLogPath: .value(activityLogFile.path),
+                projectPath: .any,
+                config: .any,
+                scheme: .any,
+                configuration: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func doesNotUploadBuildRunWhenNoFullHandle() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let arguments = ["-scheme", "MyApp"]
+        let uniqueID = "unique-id-123"
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+        let activityLogPath = derivedDataPath.appending(components: "Logs", "Build", "activity.xcactivitylog")
+        let activityLogFile: XCActivityLogFile = .test(path: activityLogPath)
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory.appending(component: "cache"))
+
+        given(uniqueIDGenerator)
+            .uniqueID()
+            .willReturn(uniqueID)
+
+        given(xcodeBuildArgumentParser)
+            .parse(.any)
+            .willReturn(
+                .test(
+                    derivedDataPath: derivedDataPath
+                )
+            )
+
+        given(xcActivityLogController)
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .value(derivedDataPath), filter: .any)
+            .willReturn(activityLogFile)
+
+        given(xcodeBuildController)
+            .run(arguments: .any)
+            .willReturn()
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: nil))
+
+        try await subject.run(passthroughXcodebuildArguments: arguments)
+
+        verify(uploadBuildRunService)
+            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
+            .called(0)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func doesNotFailWhenUploadBuildRunFails() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let arguments = ["-scheme", "MyApp"]
+        let uniqueID = "unique-id-123"
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+        let activityLogPath = derivedDataPath.appending(components: "Logs", "Build", "activity.xcactivitylog")
+        let activityLogFile: XCActivityLogFile = .test(path: activityLogPath)
+
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(temporaryDirectory.appending(component: "cache"))
+
+        given(uniqueIDGenerator)
+            .uniqueID()
+            .willReturn(uniqueID)
+
+        given(xcodeBuildArgumentParser)
+            .parse(.any)
+            .willReturn(
+                .test(
+                    derivedDataPath: derivedDataPath
+                )
+            )
+
+        given(xcActivityLogController)
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .value(derivedDataPath), filter: .any)
+            .willReturn(activityLogFile)
+
+        given(xcodeBuildController)
+            .run(arguments: .any)
+            .willReturn()
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        given(uploadBuildRunService)
+            .uploadBuildRun(activityLogPath: .any, projectPath: .any, config: .any, scheme: .any, configuration: .any)
+            .willProduce { _, _, _, _, _ in
+                throw NSError(domain: "test", code: 1)
+            }
+
+        try await subject.run(passthroughXcodebuildArguments: arguments)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func passesShardArchivePathToShardPlanService() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let testProductsPath = temporaryDirectory.appending(component: "MyAppTests.xctestproducts")
+        let shardArchivePath = temporaryDirectory.appending(components: "artifacts", "bundle.aar")
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+        let resultBundlePath = temporaryDirectory.appending(component: "build.xcresult")
+
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(fullHandle: "tuist/tuist"))
+
+        given(xcodeBuildArgumentParser)
+            .parse(.any)
+            .willReturn(
+                .test(
+                    derivedDataPath: derivedDataPath
+                )
+            )
+
+        given(xcActivityLogController)
+            .mostRecentActivityLogFile(projectDerivedDataDirectory: .value(derivedDataPath), filter: .any)
+            .willReturn(nil)
+
+        given(xcodeBuildController)
+            .run(arguments: .any)
+            .willReturn()
+
+        given(serverEnvironmentService)
+            .url(configServerURL: .any)
+            .willReturn(try #require(URL(string: "https://tuist.dev")))
+
+        given(shardPlanService)
+            .plan(
+                xctestproductsPath: .any,
+                projectPath: .any,
+                reference: .any,
+                shardGranularity: .any,
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .any,
+                shardMaxDuration: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                buildRunId: .any,
+                requestedTestIdentifiers: .any,
+                skipUpload: .any,
+                archivePath: .any
+            )
+            .willReturn(
+                Components.Schemas.ShardPlan(
+                    id: "plan-id",
+                    reference: "ref",
+                    shard_count: 2,
+                    shards: [],
+                    upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
+                )
+            )
+
+        try await subject.run(
+            passthroughXcodebuildArguments: [
+                "build-for-testing",
+                "-scheme", "MyAppTests",
+                "-destination", "platform=iOS Simulator,name=iPhone 16",
+                "-resultBundlePath", resultBundlePath.pathString,
+                "-testProductsPath", testProductsPath.pathString,
+            ],
+            shardTotal: 2,
+            shardArchivePath: shardArchivePath
+        )
+
+        verify(shardPlanService)
+            .plan(
+                xctestproductsPath: .value(testProductsPath),
+                projectPath: .any,
+                reference: .any,
+                shardGranularity: .any,
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .value(2),
+                shardMaxDuration: .any,
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                buildRunId: .any,
+                requestedTestIdentifiers: .any,
+                skipUpload: .value(false),
+                archivePath: .value(shardArchivePath)
+            )
+            .called(1)
     }
 }

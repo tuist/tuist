@@ -1,5 +1,5 @@
 defmodule Tuist.GuardianTest do
-  use TuistTestSupport.Cases.DataCase
+  use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
   alias Tuist.Accounts.Account
@@ -13,6 +13,13 @@ defmodule Tuist.GuardianTest do
 
       assert {:ok, to_string(account.id)} == Guardian.subject_for_token(account, %{})
     end
+
+    test "returns subject for authenticated account with claims" do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+      assert {:ok, to_string(account.id)} ==
+               Guardian.subject_for_token(%AuthenticatedAccount{account: account, scopes: []}, %{})
+    end
   end
 
   describe "resource_from_claims/1" do
@@ -22,14 +29,42 @@ defmodule Tuist.GuardianTest do
       claims = %{
         "sub" => to_string(account.id),
         "type" => "account",
-        "scopes" => ["qa_run_update", "qa_step_create"]
+        "scopes" => ["preview_create", "cache_read"]
       }
 
       assert {:ok, %AuthenticatedAccount{account: %Account{id: account_id}, scopes: scopes}} =
                Guardian.resource_from_claims(claims)
 
       assert account_id == account.id
-      assert scopes == ["qa_run_update", "qa_step_create"]
+      assert scopes == ["preview_create", "cache_read"]
+    end
+
+    test "includes issued_by user when user_id claim is present" do
+      user = AccountsFixtures.user_fixture()
+      org = AccountsFixtures.organization_fixture(creator: user)
+
+      claims = %{
+        "sub" => to_string(org.account.id),
+        "type" => "account",
+        "scopes" => ["mcp"],
+        "all_projects" => true,
+        "user_id" => user.id
+      }
+
+      assert {:ok, %AuthenticatedAccount{issued_by: issued_by}} = Guardian.resource_from_claims(claims)
+      assert issued_by.id == user.id
+    end
+
+    test "issued_by is nil when user_id claim is absent" do
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+      claims = %{
+        "sub" => to_string(account.id),
+        "type" => "account",
+        "scopes" => ["mcp"]
+      }
+
+      assert {:ok, %AuthenticatedAccount{issued_by: nil}} = Guardian.resource_from_claims(claims)
     end
 
     test "returns error when account not found" do
@@ -38,7 +73,7 @@ defmodule Tuist.GuardianTest do
       claims = %{
         "sub" => to_string(non_existent_id),
         "type" => "account",
-        "scopes" => ["qa_run_update"]
+        "scopes" => ["preview_create"]
       }
 
       assert {:error, :resource_not_found} = Guardian.resource_from_claims(claims)

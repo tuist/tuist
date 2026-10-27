@@ -14,6 +14,13 @@
 .tuist-widget {
   position: relative;
   gap: var(--noora-spacing-5);
+  min-height: 154px;
+
+  /* Its tooltip opens inside it, so while open the widget rises above the
+     widgets and cards that follow it, which would otherwise paint over it. */
+  &:has(.noora-tooltip [data-state="open"]) {
+    z-index: var(--noora-z-index-2);
+  }
 
   & [data-part="background"] {
     position: absolute;
@@ -50,6 +57,8 @@
   & > [data-part="header"] {
     display: flex;
     flex-direction: row;
+    align-items: center;
+    min-height: 32px;
     & > [data-part="title"] button {
       box-shadow: unset;
       background: unset;
@@ -66,9 +75,13 @@
 
     & > [data-part="legend"] {
       margin-right: var(--noora-spacing-3);
-      border-radius: var(--noora-radius-xsmall);
+      border-radius: var(--noora-radius-1);
       width: 6px;
       height: 16px;
+
+      &[data-color="amber"] {
+        background-color: var(--noora-chart-flaky);
+      }
 
       &[data-color="primary"] {
         background-color: var(--noora-chart-primary);
@@ -76,6 +89,10 @@
 
       &[data-color="secondary"] {
         background-color: var(--noora-chart-secondary);
+      }
+
+      &[data-color="tertiary"] {
+        background-color: var(--noora-chart-tertiary);
       }
 
       &[data-color="destructive"] {
@@ -125,11 +142,20 @@
 
       & [data-part="trigger"] {
         align-items: center;
+        align-self: flex-start;
         gap: var(--noora-spacing-3);
         box-shadow: unset;
         background: unset;
         padding: unset;
         font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+        /* Noora's dark-theme hover rule is scoped to `html[data-theme]` and so
+           outranks the reset above, which would draw a button border around the
+           widget title. */
+        &:hover {
+          box-shadow: unset;
+          background: unset;
+        }
 
         & [data-part="label-wrapper"] {
           flex-grow: 0;
@@ -181,5 +207,102 @@
     & [data-part="label"] {
       font: var(--noora-font-weight-regular) var(--noora-font-body-small);
     }
+  }
+
+  & .tuist-loading-skeleton {
+    color: transparent;
+  }
+}
+
+.tuist-loading-skeleton {
+  display: inline-block;
+  visibility: hidden;
+  animation:
+    tuist-widget-loading-reveal 0s linear 200ms forwards,
+    tuist-widget-loading-pulse 1.5s ease-in-out 200ms infinite;
+  border-radius: var(--noora-radius-2);
+  background-color: var(--noora-surface-background-secondary);
+  min-width: 80px;
+  color: transparent;
+}
+
+.tuist-loading-skeleton--small {
+  min-width: 120px;
+  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+}
+
+.tuist-widget [data-part="breakdown-item"] {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--noora-spacing-2);
+
+  & > [data-part="dot"] {
+    flex-shrink: 0;
+    border-radius: 50%;
+    width: 8px;
+    height: 8px;
+
+    &[data-color="amber"] {
+      background-color: var(--noora-chart-flaky);
+    }
+
+    &[data-color="primary"] {
+      background-color: var(--noora-chart-primary);
+    }
+
+    &[data-color="secondary"] {
+      background-color: var(--noora-chart-secondary);
+    }
+
+    &[data-color="tertiary"] {
+      background-color: var(--noora-chart-tertiary);
+    }
+
+    &[data-color="destructive"] {
+      background-color: var(--noora-chart-destructive);
+    }
+
+    &[data-color="flaky"] {
+      background-color: var(--noora-chart-flaky);
+    }
+  }
+
+  & > [data-part="label"],
+  & > [data-part="separator"],
+  & > [data-part="value"] {
+    font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  }
+
+  & > [data-part="label"],
+  & > [data-part="value"] {
+    color: var(--noora-surface-label-primary);
+  }
+
+  & > [data-part="separator"] {
+    color: var(--noora-surface-label-secondary);
+  }
+}
+
+@keyframes tuist-widget-loading-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes tuist-widget-loading-reveal {
+  to {
+    visibility: visible;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tuist-loading-skeleton {
+    animation: tuist-widget-loading-reveal 0s linear 200ms forwards;
   }
 }
