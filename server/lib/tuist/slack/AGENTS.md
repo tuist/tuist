@@ -1,5 +1,7 @@
 # Slack OAuth: local end-to-end testing
 
+Automation notifications use `Client.deliver_once/2`: one bounded HTTP request without Req retries or redirects, returning snooze for rate limits, error for transient failures, and discard for permanent rejections. Oban owns retries; keep the existing reporting transports compatible.
+
 Slack's OAuth redirect URI must be HTTPS, and the URI Tuist sends to Slack is built by `Tuist.Environment.app_url/1` from `TUIST_SERVER_URL`. By default `mise/utilities/dev_instance_env.sh` exports `TUIST_SERVER_URL=http://localhost:<port>` per worktree, which Slack rejects. To exercise the real OAuth round-trip:
 
 1. `cloudflared tunnel --url http://localhost:<your-dev-port>` — gives you an HTTPS URL like `https://<random>.trycloudflare.com`. Find your port via `echo $TUIST_SERVER_PORT` inside `mise exec`.

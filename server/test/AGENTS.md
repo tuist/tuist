@@ -1,5 +1,7 @@
 # Server Tests
 
+- Automation batch/notification tests cover bounded dispatch, scoped watermark ordering, current-condition rechecks, ledger-based retries, stale alert cancellation, encrypted queued destinations, and Slack retry/discard results. Existing evaluation unit tests execute the transition step synchronously; exercise the real Oban dispatch boundary in `alert_evaluation_batch_worker_test.exs`.
+
 ## Testing Guidelines
 - Browser telemetry receipt tests use independent PostgreSQL connections to
   verify concurrent overlapping batches, acknowledgment/failure handling and
