@@ -19,5 +19,3 @@
 
 ## Guardrails
 - Preserve the ClickHouse query limits and keep external table functions, cluster table functions, and unrestricted system metadata inaccessible.
-
-- `runner_linux_vrack` is an account-scoped, default-off dispatch flag. Initial rollout enrolls only Tuist after host cohort isolation; disabling affects new dispatch and does not remove routes or terminate recorded jobs.

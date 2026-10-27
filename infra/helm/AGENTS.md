@@ -1,5 +1,8 @@
 # Helm Charts
 
+- Browser RUM alert definitions and validation live in `k8s-monitoring/browser-rum.md`.
+  Keep unique-only rules paused until replay classification has a full 24-hour
+  baseline. The liveness zero fallback must share the sum's empty label set.
 - Model dependencies by capability (`objectStorage`), not implementation brand (`minio`); support embedded and external modes where practical.
 - Keep independently released workloads in standalone charts rather than growing the main umbrella chart. Atlas deployment has [its own guidance](atlas/AGENTS.md).
 - Validate with `helm lint` and `helm template` using the chart's CI placeholder values, then production overlays. Cluster installs are not local validation; follow [infra access rules](../AGENTS.md#cluster-access-for-agents).
@@ -17,10 +20,10 @@ Helm-installed resource; publishing it is a separate rollout step.
 
 ## Conventions
 
-- Canary's Linux runner fleet selects one RISE-M in Gravelines. Prepare its OS
-  and fleet SSH key before adoption. The fleet uses OnDelete, so deploying the
-  offer change preserves the old RISE-S until an explicit drained replacement.
-  Do not enroll the ordinary runner template into vRack as part of this swap.
+- Canary keeps one RISE-M in Gravelines on the shared `runners-linux` pool.
+  Preserve its Machine identity and OnDelete strategy. Drain before explicitly
+  enrolling the existing Machine in vRack; a template update does not backfill
+  that live field. Every Linux job uses the existing regional cache directly.
 
 - Xcode 27.1 RC retirement requires the additive stable chart already deployed
   and a published versioned runner image containing stable. Keep 26.6 as the
@@ -83,6 +86,7 @@ Helm-installed resource; publishing it is a separate rollout step.
   remain unenrolled. See `../kura-controller/linux-runner-private-cache.md`
   for regional-cache reuse, the required staging migration, and rollback.
 
+
 - Production public EU-West runs on three `ovhFleets.eu-west` nodes. Managed
   Dedibox support is removed after all Machine release finalizers completed
   on September 28, 2026: no fleet values, templates, provider implementation,
@@ -126,8 +130,11 @@ Helm-installed resource; publishing it is a separate rollout step.
   runs must preload that image; the smoke values never pull it from a registry.
 - Managed PgBouncer client limits and idle cleanup live in `tuist/values-managed-common.yaml`. Keep the connection lifecycle and rollout validation in [`../cnpg/README.md`](../cnpg/README.md#client-connections-through-tailscale) aligned when changing them.
 - Grafana-managed alert queries and their operational rationale live in
-  `k8s-monitoring/alerts.md`. Keep that runbook aligned with live rule changes;
-  browser LCP p99 also requires distinct affected sessions, not just total samples.
+  `k8s-monitoring/alerts.md`. Keep that runbook aligned with live rule changes.
+  The management restart rule's annotation artifact describes the three-node
+  cluster and planned-maintenance window; wording-only changes must preserve
+  the query, thresholds and notification behavior.
+  Browser LCP p99 also requires distinct affected sessions, not just total samples.
   The Kura admission buffer reduction to 10% requires the two live headroom
   fallback queries and the admission annotation to follow the server rollout;
   the exported headroom gauge already follows the deployed policy.
@@ -222,21 +229,8 @@ Keep the chart-facing [server scaling guide](tuist/README.md#scaling-the-server)
 
 Cluster formation requires a stable shared cookie Secret, a fixed distribution listener, allowed EPMD/distribution ingress, and a headless service. More than one server replica requires clustering. Managed canary runs two replicas so actual membership is exercised before production promotion. Do not promote until the proof-cache and authoritative authentication rollouts are stable and OAuth entity operations no longer depend on replicated invalidations. Boruta's cache and membership supervision still starts; the entity callbacks, not that lifecycle, are disabled. The stable private cookie connects different image versions during rolling upgrades; the first migration from image-baked cookies still creates old/new islands. Qualify PubSub, Oban PG notifications and peer replacement across the actual versions. Offline/GitOps renderers without live Secret lookup must use a separately managed `cookieExistingSecret`; a missing key in an existing generated Secret fails rather than silently rotating it. Managed staging/canary/production configure `server.cluster.externalSecret` with `cookieExistingSecret: tuist-server-cluster-cookie`: the dedicated ESO resource reads `SERVER_CLUSTER_COOKIE/password` from each environment's own 1Password vault, never the shared server-config Secret. It renders only when clustering is enabled, uses `refreshPolicy: OnChange` so source edits alone do not propagate on a timer, and requires an explicit sync during coordinated rotation; self-host defaults require no ESO. Missing/empty source data must not trigger cookie generation. `test-cluster-cookie.py` checks ownership, all three environment overlays, web-only references and invalid configurations in Helm CI. Bootstrap, rebuild and coordinated rotation are documented in [onboarding](../k8s/onboarding.md#5e-durable-server-distribution-cookies). Cookie rotation requires coordinated process replacement. The chart guard rejects previously accepted unclustered multi-web configurations because live PubSub/PG notifications must cross replicas; it is not a runtime replica-count detector. See the [self-host clustering upgrade guidance](../../server/priv/docs/en/guides/server/self-host/server.md#multi-replica-clustering).
 
-- Linux vRack rollout uses default-off account flag `runner_linux_vrack` to select
-  shape-equivalent isolated pools. `runnersFleetLinux.vrack.enabled` only renders
-  pools/mappings with zero warm floors and a disjoint host `fleetSelector`.
-  Shared managed values prepare them in all three environments; self-hosted
-  defaults stay off. Canary's RISE-M replacement passed ordinary-runner
-  acceptance on 2026-10-26 but remains unenrolled in vRack, so prepared pools
-  alone do not qualify it for account enrollment. The preparation switch
-  must never set vRack on ordinary fleet templates. Keep resource sizing and the
-  cache-volume DaemonSet's coverage of both cohorts aligned. Validate with
-  `infra/mise/tasks/helm/linux-vrack.sh`. Host cohort membership must persist
-  through CAPI reconciliation before actor enrollment; a Node-only relabel is
-  insufficient. Flag withdrawal preserves recorded jobs, mappings and routes
-  until those jobs finish.
-  Staging and canary target one RISE-M each. Their ordinary/vRack qualification
-  therefore runs sequentially across drained host transitions; excluded jobs
-  queue while ordinary capacity is absent. A RISE-S-to-RISE-M template update
-  under OnDelete does not replace the live host: prepare the new box first,
-  then explicitly drain and retire the old Machine.
+- Linux runners use one host pool and the existing regional Kura Service for
+  every account. No alternate pools, account-path flag or WAN relay are needed.
+  Canary and production fleet templates declare vRack enrollment; existing
+  OnDelete hosts require a drained backfill and transport validation. Check
+  shared capacity and enrollment with `helm/linux-vrack.sh`.

@@ -230,11 +230,10 @@ server:
     # legacy cache writer was disabled.
     - name: SWIFT_REGISTRY_SYNC_ENABLED
       value: "true"
-    # Single web replica shares this pool between request handling and the
-    # in-node Oban queues (default: 10). Sized well above the default-queue
-    # concurrency so the steady AlertEvaluationWorker load can't starve web
-    # checkouts. Comfortably under CNPG max_connections (100): 30 web + 10
-    # processor + replication/monitoring/superuser overhead.
+    # Each of the two web replicas shares this direct pool between requests
+    # and in-node Oban queues (default: 10). Keep checkout headroom without
+    # increasing application concurrency. The CNPG budget below includes
+    # both outgoing pools during their 60 s termination grace period.
     - name: TUIST_DATABASE_POOL_SIZE
       value: "30"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
@@ -460,6 +459,15 @@ postgresql:
     # mirror the production tuning shape so canary catches any regression
     # before it reaches prod.
     parameters:
+      # One rollout: 2 old + 2 new web pods x 30 = 120 direct connections.
+      # maxSurge=1 excludes terminating pods; maxSurge=0 would not bound
+      # their pools either. Allow 2 overlapping PgBouncers x 3 db/user
+      # pairs x 20 = 120 more (processor + xcresult share tuist_processor,
+      # Swift sync has its own role, auth uses postgres/cnpg_pooler_pgbouncer).
+      # Add 30 for other direct users, notifier/leader, admin/monitoring and
+      # reserved slots: 270, plus 30 spare. max_client_conn=200 is only a
+      # client admission limit. See infra/cnpg/README.md for assumptions.
+      max_connections: "300"
       shared_buffers: "2GB"
       effective_cache_size: "6GB"
       work_mem: "32MB"
@@ -634,10 +642,7 @@ ovhFleet:
 # OVH_FLEET_SSH and the one `endpoint` the reconciler resolves for every OVH
 # fleet.
 ovhFleets:
-  # Replace the legacy RISE-S with one vRack-capable RISE-M in Gravelines.
-  # OnDelete preserves the old host until the prepared replacement is ready.
-  # One host means ordinary/vRack qualification runs sequentially after drain.
-  # Private-network enrollment is a separate rollout after host qualification.
+  # One shared RISE-M pool; every Linux job uses the regional Kura instance.
   runners-linux:
     enabled: true
     # MUST equal the number of boxes prepped and marked for this env. Too high
@@ -651,13 +656,12 @@ ovhFleets:
     # fleet must share one value, because the reconciler resolves a single
     # OVH_ENDPOINT for all of them.
     endpoint: ovh-us
-    # The pool the Linux Runner Profiles select on.
     nodePool: runners-linux
     machine:
       adoptDisplayNamePrefix: tuist-runners-ovh-canary
       offer: rise-m
-      # Ordinary hosts stay unenrolled. Move a drained host into the isolated
-      # vRack cohort before setting its live Machine's vRackID explicitly.
+      # Backfill existing OnDelete hosts during drained network enrollment.
+      vRackID: pn-2024092
       # Prefix-matched, so any gra* datacenter.
       datacenter: gra
       os: ubuntu_24.04

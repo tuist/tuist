@@ -1,6 +1,10 @@
 # Server Tests
 
 ## Testing Guidelines
+- Browser telemetry receipt tests use independent PostgreSQL connections to
+  verify concurrent overlapping batches, acknowledgment/failure handling and
+  stale-owner recovery. Keep pure identity and gateway error-path tests alongside
+  them. Release metadata tests exercise context restoration in cache workers.
 
 - Feature flag control tests cover workload-only routes, actor exclusions/inheritance, deterministic rollout expansion, stale revisions and idempotent audit writes. Resource evaluation regressions use sandboxed persisted gates without populating the shared cache; cover authoritative project ownership, actual environment/dependency/kill-switch helpers, Kura rename eligibility, isolated observability context and a maximum of four database reads for both cold and repeated account/project requests. Reject FunWithFlags cache reads so per-flag query regressions fail independently of cache warmth. The concurrency regression pauses the real legacy adapter after its percentage read on an independent PostgreSQL connection, verifies Atlas blocks, then checks the legacy gate survives and Atlas rejects the stale revision. Restore persisted rules and remove only the test's change audit on cleanup. Write-input regressions cover int8 overflow, percentage-ratio underflow and shared Slack provenance rejection; simulate both advisory/table lock timeouts at the SQL boundary, verify 503 with unchanged gates/audit, and ensure unexpected database errors are not swallowed.
 - Observability regressions exercise actual Sentry context/event construction, Logger output and OTel attribute writes, actor-scoped effective evaluation events, same-process resets, LiveView callback refresh, safe task/fill propagation, and an actual Oban worker exception after authoritative project loading. Task-crash regressions must run the real Sentry logger handler with a conflicting live caller tenant/cohort and parent-only request data; direct event construction alone misses the SDK's caller fallback. Keep unrelated batch actors and run-actor `account_id` arguments separate from selected tenant ownership; preserve short-circuit flag reads and the preloaded flag overload. No production export, trace sampling or timeout-process attribution is established by these unit tests.
@@ -137,6 +141,6 @@
 
 - Zero-hit secondary retirement tests cover ten complete reported UTC days, the exact instance-age boundary, unknown age, missing/duplicate reports, hits anywhere in the window or today, a surviving region with hits, primary exclusion, the rollout gate, and unchanged 28-day low-traffic retirement.
 
-- Linux vRack flag tests cover every environment's default-off behavior, account isolation and opt-out, profile/legacy routing, direct-label bypass rejection, missing pool configuration, and unchanged alternate-pool resource accounting. Helm regression tests assert disjoint selectors and unchanged ordinary capacity.
+- Linux runner tests preserve shared profile/legacy pool selection across accounts and direct regional Kura endpoint selection. Helm checks preserve one runner cohort with no relay or account-path configuration.
 
 - SSO switch regressions seed the retired database flag directly through the fixture, without restoring it to the runtime schema. Cover member-only discovery, linked sign-in/enforcement, denied unverified enrollment/account creation, signed-in link confirmation, editable saved policies, and materialization of implicit memberships without overwriting explicit roles.

@@ -71,10 +71,16 @@ defmodule TuistWeb.BrowserTelemetryTest do
   test "preserves incomplete samples but marks why they cannot drive the percentile" do
     for {payload, reason} <- [
           {put_in(payload("https://tuist.dev/"), ["meta", "session"], %{}), "missing_session"},
+          {put_in(
+             payload("https://tuist.dev/"),
+             ["measurements", Access.at(0), "context", "navigation_entry_id"],
+             "unknown"
+           ), "missing_navigation"},
           {Map.put(payload("https://tuist.dev/"), "measurements", [%{"type" => "web-vitals", "values" => %{"lcp" => 9}}]),
            "missing_navigation"},
-          {Map.put(payload("https://tuist.dev/"), "measurements", [%{"type" => "web-vitals", "values" => %{"lcp" => -1}}]),
-           "invalid_lcp"},
+          {Map.put(payload("https://tuist.dev/"), "measurements", [
+             %{"type" => "web-vitals", "values" => %{"lcp" => -1}}
+           ]), "invalid_lcp"},
           {payload("https://evil.example/en/docs"), "unknown_surface"},
           {payload("https://user@tuist.dev/en/docs"), "unknown_surface"},
           {payload("/en/docs"), "unknown_surface"}

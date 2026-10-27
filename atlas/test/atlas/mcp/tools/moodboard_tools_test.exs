@@ -1,6 +1,7 @@
 defmodule Atlas.MCP.Tools.MoodboardToolsTest do
   use Atlas.MCP.ToolCase
 
+  alias Atlas.LLMs.Runner
   alias Atlas.MCP.Proxy
   alias Atlas.MCP.Server
   alias Atlas.MCP.Tools.AddMoodboardComment
@@ -10,11 +11,13 @@ defmodule Atlas.MCP.Tools.MoodboardToolsTest do
   alias Atlas.MCP.Tools.GetMoodboardResource
   alias Atlas.MCP.Tools.ListMoodboardResources
   alias Atlas.MCP.Tools.SearchMoodboardResources
+  alias Atlas.MCP.Tools.SuggestMoodboardResource
   alias Atlas.MCP.Tools.UpdateMoodboardResource
   alias Atlas.Moodboard.Resource
 
   @tools [
     CreateMoodboardResource,
+    SuggestMoodboardResource,
     ListMoodboardResources,
     UpdateMoodboardResource,
     DeleteMoodboardResource,
@@ -46,6 +49,19 @@ defmodule Atlas.MCP.Tools.MoodboardToolsTest do
              execute_tool(UpdateMoodboardResource, conn, %{"resource_id" => id, "title" => "Revised"})
 
     assert {:ok, %{deleted: true}} = execute_tool(DeleteMoodboardResource, conn, %{"resource_id" => id})
+  end
+
+  test "suggestions and replay-safe saves share the native capture contract" do
+    Mimic.stub(Runner, :fetch_config, fn -> {:error, :llm_not_configured} end)
+    conn = mcp_conn(insert_user!())
+
+    assert {:ok, %{suggestions: %{title: "Original text", generated: false}}} =
+             execute_tool(SuggestMoodboardResource, conn, %{"content" => "Original text"})
+
+    fields = %{"request_id" => Ecto.UUID.generate(), "title" => "Reviewed", "content" => "Original text"}
+    assert {:ok, %{resource: resource}} = execute_tool(CreateMoodboardResource, conn, fields)
+    assert {:ok, %{resource: replayed}} = execute_tool(CreateMoodboardResource, conn, fields)
+    assert replayed.id == resource.id
   end
 
   test "text entries, conversations and content search satisfy their output contracts" do

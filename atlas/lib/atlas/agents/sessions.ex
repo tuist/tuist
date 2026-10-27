@@ -12,15 +12,15 @@ defmodule Atlas.Agents.Sessions do
   import Ecto.Query
 
   alias Atlas.Agents.Sessions.Session
+  alias Atlas.Moodboard.Suggestions
   alias Atlas.Repo
   alias Condukt.SessionID
 
   @atlas_opts [:account_id]
 
-  # Agents whose prompts, results, and failures can contain private
-  # Orbit thread content. Their rows keep only a label and fixed categories;
-  # the thread log is the readable record, scoped to its participants.
-  @redacted_agents [inspect(Atlas.Orbit.Agent)]
+  # Private threads and unpublished shares must not be readable in admin history.
+  # Their rows keep only labels, status and fixed error categories.
+  @redacted_agents [inspect(Atlas.Orbit.Agent), inspect(Suggestions)]
   @category ~r/\A[a-z_]{1,64}\z/
   @label ~r/\A[a-z_]{1,64}:[0-9a-f-]{36}\z/
 

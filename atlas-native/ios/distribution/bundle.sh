@@ -7,11 +7,13 @@ source ios/distribution/keychain.sh
 source ios/distribution/associated-domains.sh
 source ios/distribution/push.sh
 source ios/distribution/live-activity.sh
+source ios/distribution/share.sh
 app_source="$PWD/.once/out/AtlasIOSDevice/Atlas.app"
 plist=/usr/libexec/PlistBuddy
 fail() { echo "$*" >&2; exit 1; }
 test -d "$app_source" || fail "Run mise run build:ios-device first"
 validate_live_activity_bundle "$app_source"
+validate_share_bundle "$app_source"
 
 # Sign a copy, keeping credentials outside Once's cache and the login keychain.
 tmp=$(mktemp -d)
@@ -38,11 +40,18 @@ plutil -extract Entitlements xml1 -o "$tmp/entitlements.plist" "$tmp/profile.pli
 plutil -replace keychain-access-groups -json "[\"$application_id\"]" "$tmp/entitlements.plist"
 configure_associated_domains "$tmp/profile.plist" "$tmp/entitlements.plist"
 configure_push_notifications "$tmp/profile.plist" "$tmp/entitlements.plist"
+configure_share_group "$tmp/profile.plist" "$tmp/entitlements.plist"
 
 identity=$(plutil -extract DeveloperCertificates.0 raw "$tmp/profile.plist" | base64 -D | shasum -a 1 | awk '{print toupper($1)}')
 op read "op://tuist/Atlas Live Activity Ad Hoc/Atlas_Live_Activity_Ad_Hoc.mobileprovision" --out-file "$tmp/activity.mobileprovision"
 security cms -D -i "$tmp/activity.mobileprovision" > "$tmp/activity-profile.plist"
 validate_live_activity_profile "$tmp/activity-profile.plist" "$tmp/profile.plist" "$identity"
+op read "op://tuist/Atlas Share Ad Hoc/Atlas_Share_Ad_Hoc.mobileprovision" --out-file "$tmp/share.mobileprovision"
+security cms -D -i "$tmp/share.mobileprovision" > "$tmp/share-profile.plist"
+validate_live_activity_profile "$tmp/share-profile.plist" "$tmp/profile.plist" "$identity" dev.tuist.atlas.share
+# Validate capability authorization before retrieving any private signing material.
+plutil -extract Entitlements xml1 -o "$tmp/share-entitlements.plist" "$tmp/share-profile.plist"
+configure_share_group "$tmp/share-profile.plist" "$tmp/share-entitlements.plist"
 
 op read "op://tuist/Distribution Certificate/distribution.p12" --out-file "$tmp/certificate.p12"
 certificate_password=$(op read "op://tuist/Distribution Certificate/password")
@@ -64,7 +73,9 @@ cp "$tmp/profile.mobileprovision" "$app/embedded.mobileprovision"
 "$plist" -c "Set :CFBundleVersion $(date +%s)" "$app/Info.plist"
 
 prepare_live_activity_distribution "$app" "$tmp/activity.mobileprovision" "$tmp/activity-entitlements.plist"
-sign_live_activity_distribution "$app" "$identity" "$keychain" "$tmp/entitlements.plist" "$tmp/activity-entitlements.plist"
+prepare_live_activity_distribution "$app" "$tmp/share.mobileprovision" "$tmp/share-entitlements.plist" AtlasShare
+configure_share_group "$tmp/share-profile.plist" "$tmp/share-entitlements.plist"
+sign_live_activity_distribution "$app" "$identity" "$keychain" "$tmp/entitlements.plist" "$tmp/activity-entitlements.plist" "$tmp/share-entitlements.plist"
 mkdir -p delivery/ios-device
 rm -f delivery/ios-device/Atlas.ipa
 ditto -c -k --keepParent "$tmp/Payload" delivery/ios-device/Atlas.ipa

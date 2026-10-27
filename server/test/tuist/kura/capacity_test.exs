@@ -997,6 +997,7 @@ defmodule Tuist.Kura.CapacityTest do
       instance(account(:enterprise), :provisioning)
       instance(account(:enterprise), :provisioning)
 
+      assert Admission.headroom_gib(region) == 26
       assert Capacity.admission_headroom_gib(region) == 90
       assert Capacity.room_for?(@region, :enterprise) == true
     end
