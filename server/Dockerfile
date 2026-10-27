@@ -44,7 +44,7 @@ COPY server/native/xcactivitylog_nif/.swiftpm/ .swiftpm/
 # Caddy verifies HTTPS upstream. Neither Caddy nor its config ships at runtime.
 RUN bash -euo pipefail <<'SH'
 caddy reverse-proxy \
-    --from http://127.0.0.1:8080 --to https://registry.tuist.dev --change-host-header \
+    --from http://127.0.0.1:8080 --to https://tuist.dev --change-host-header \
     > /tmp/registry-proxy.log 2>&1 &
 proxy_pid=$!
 trap 'kill "$proxy_pid" 2>/dev/null || true' EXIT
@@ -59,9 +59,7 @@ for attempt in $(seq 1 30); do
     sleep 1
 done
 swift package-registry set --allow-insecure-http http://127.0.0.1:8080/api/registry/swift
-# Resolve in a separate process, as in the CLI Linux jobs. Swift 6.2 otherwise
-# keeps both the seed lockfile's Git identity and its rewritten registry identity
-# in the first build graph.
+# Match the CLI Linux jobs: resolve first, then build the resolved graph.
 swift package resolve --replace-scm-with-registry
 swift build -c release --replace-scm-with-registry --force-resolved-versions --product xcactivitylog-parser
 cp .build/release/xcactivitylog-parser /nif/xcactivitylog-parser

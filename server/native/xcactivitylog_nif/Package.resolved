@@ -1,5 +1,5 @@
 {
-  "originHash" : "b5e3b05fcb904fbfa5b98f10fb24ac198b2a765ce4ef2a3e24ab7e30d3d441dd",
+  "originHash" : "5c4fadcae9d2100fafcdc9c5710fec5527e80a4d7bdb839526fc5f9990282b06",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -92,6 +92,14 @@
       }
     },
     {
+      "identity" : "MobileNativeFoundation.XCLogParser",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.2.49"
+      }
+    },
+    {
       "identity" : "stephencelis.SQLite_swift",
       "kind" : "registry",
       "location" : "",
@@ -123,14 +131,6 @@
       "originalLocation" : "https://github.com/tuist/ZIPFoundation",
       "state" : {
         "version" : "0.9.21"
-      }
-    },
-    {
-      "identity" : "xclogparser",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/MobileNativeFoundation/XCLogParser.git",
-      "state" : {
-        "revision" : "d0c3c685d3e32606ef04a21cacf7ab0dfbe19362"
       }
     }
   ],

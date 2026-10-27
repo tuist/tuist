@@ -1,5 +1,5 @@
 {
-  "originHash" : "2e4c04844dce7f06f37a5d3ece24f9ebc064145082a87e3c46127e381548fbe7",
+  "originHash" : "6555a46cb78f7d511e1baf4dc0c5243803682276ce3861ae407d8afd325dc769",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -23,7 +23,7 @@
       "identity" : "apple.swift-argument-parser",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-argument-parser",
+      "originalLocation" : "https://github.com/apple/swift-argument-parser.git",
       "state" : {
         "version" : "1.8.2"
       }
@@ -95,7 +95,7 @@
       "identity" : "apple.swift-http-types",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-http-types.git",
+      "originalLocation" : "https://github.com/apple/swift-http-types",
       "state" : {
         "version" : "1.8.0"
       }
@@ -113,7 +113,7 @@
       "identity" : "apple.swift-nio",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-nio.git",
+      "originalLocation" : "https://github.com/apple/swift-nio",
       "state" : {
         "version" : "2.102.0"
       }
@@ -202,7 +202,7 @@
       "identity" : "apple.swift-system",
       "kind" : "registry",
       "location" : "",
-      "originalLocation" : "https://github.com/apple/swift-system",
+      "originalLocation" : "https://github.com/apple/swift-system.git",
       "state" : {
         "version" : "1.8.1"
       }
@@ -435,6 +435,14 @@
       "originalLocation" : "https://github.com/lfroms/fluid-menu-bar-extra",
       "state" : {
         "version" : "1.1.0"
+      }
+    },
+    {
+      "identity" : "MobileNativeFoundation.XCLogParser",
+      "kind" : "registry",
+      "location" : "",
+      "state" : {
+        "version" : "0.2.49"
       }
     },
     {
@@ -709,14 +717,6 @@
       "originalLocation" : "https://github.com/tuist/ZIPFoundation",
       "state" : {
         "version" : "0.9.22"
-      }
-    },
-    {
-      "identity" : "xclogparser",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/MobileNativeFoundation/XCLogParser.git",
-      "state" : {
-        "revision" : "d0c3c685d3e32606ef04a21cacf7ab0dfbe19362"
       }
     }
   ],
