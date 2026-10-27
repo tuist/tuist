@@ -474,9 +474,6 @@ export const NOORA_CSS = String.raw`
     var(--noora-neutral-light-1200),
     var(--noora-neutral-dark-1200)
   );
-  /* Badge text sits between regular and medium: at badge sizes, medium
-     Inter reads heavier than the label needs. */
-  --noora-badge-font-weight: 450;
   --noora-badge-fill-neutral: light-dark(
     var(--noora-neutral-light-900),
     var(--noora-neutral-dark-700)
@@ -603,15 +600,18 @@ export const NOORA_CSS = String.raw`
     var(--noora-neutral-dark-500)
   );
 
-  --noora-badge-status-success: var(--noora-green-500);
+  --noora-badge-status-success: light-dark(
+    var(--noora-green-500),
+    var(--noora-green-400)
+  );
   --noora-badge-status-warning: var(--noora-orange-400);
   --noora-badge-status-error: light-dark(
     var(--noora-red-500),
-    var(--noora-red-600)
+    var(--noora-red-400)
   );
   --noora-badge-status-attention: light-dark(
     var(--noora-yellow-600),
-    var(--noora-yellow-500)
+    var(--noora-yellow-400)
   );
   --noora-badge-status-in-progress: light-dark(
     var(--noora-neutral-light-900),
@@ -1433,7 +1433,7 @@ export const NOORA_CSS = String.raw`
   }
 
   &[data-size="small"] {
-    font: var(--noora-badge-font-weight) var(--noora-font-body-xsmall);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
     /* Optical balance: the xsmall step (10px) plus 1px reads as better
        centered in the small badge. Only the size changes; the token's 12px
        line height, and so the badge's height, stay as they are. */
@@ -1455,7 +1455,7 @@ export const NOORA_CSS = String.raw`
   }
 
   &[data-size="medium"] {
-    font: var(--noora-badge-font-weight) var(--noora-font-body-small);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
 
     &[data-icon] {
       gap: var(--noora-spacing-2);
@@ -1479,7 +1479,7 @@ export const NOORA_CSS = String.raw`
   }
 
   &[data-size="large"] {
-    font: var(--noora-badge-font-weight) var(--noora-font-body-medium);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
     /* Optical balance, as in the small badge: the medium step (14px) minus
        1px. Only the size changes; the token's 20px line height, and so the
        badge's height, stay as they are. */
@@ -1646,9 +1646,9 @@ export const NOORA_CSS = String.raw`
   align-items: center;
   gap: var(--noora-spacing-2);
   box-shadow: var(--noora-border-small-default);
-  border-radius: var(--noora-radius-3);
+  border-radius: var(--noora-radius-2);
   background: var(--noora-surface-background-primary);
-  padding: var(--noora-spacing-2) var(--noora-spacing-4) var(--noora-spacing-2)
+  padding: var(--noora-spacing-1) var(--noora-spacing-4) var(--noora-spacing-1)
     var(--noora-spacing-2);
 
   & [data-part="icon"] {
@@ -1662,8 +1662,11 @@ export const NOORA_CSS = String.raw`
     }
   }
 
+  /* Matches the large badge: the medium font step (14px) minus 1px, keeping
+     the token's 20px line height. */
   & [data-part="label"] {
-    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    font-size: calc(0.875rem - 1px);
   }
 
   &:not([data-status="disabled"]) {
