@@ -13,6 +13,11 @@ Monitoring cost controls must preserve metric identity and operator audit record
 See `k8s-monitoring/README.md` for the staged Kura and API-server migrations.
 Helm CI starts the production Alloy log pipeline to compile LogQL selectors and
 runs the mixed-version latency expression through promtool.
+Runner macOS host-health rules are in `k8s-monitoring/runner-macos-host-alert-rules.json`;
+`test-runner-macos-host-alerts.sh` tests their risk, socket-count and collector
+freshness expressions with promtool. Keep the four `macos_host_*` metric families
+in the Mac scrape allow-list. Rule JSON is a Grafana provisioning payload, not a
+Helm-installed resource; publishing it is a separate rollout step.
 
 ## Conventions
 
@@ -33,6 +38,10 @@ runs the mixed-version latency expression through promtool.
   (a rollback, or a staging deploy of an older branch) leaves the driver
   running: only it can unmount, close and delete existing volumes. Remove it
   by hand once no `kura-encrypted-nvme` PV is left.
+- Canary's Linux runner fleet selects one RISE-M in Gravelines. Prepare its OS
+  and fleet SSH key before adoption. The fleet uses OnDelete, so deploying the
+  offer change preserves the old RISE-S until an explicit drained replacement.
+  Do not enroll the ordinary runner template into vRack as part of this swap.
 
 - Xcode 27.1 RC retirement requires the additive stable chart already deployed
   and a published versioned runner image containing stable. Keep 26.6 as the
@@ -90,6 +99,10 @@ runs the mixed-version latency expression through promtool.
   Managed staging, canary and production enable both settings for their own
   provisioned OVH vRack. Runtime publication still waits for matching host route
   attestations; this does not enable topology for other providers.
+  OVH Kata runner hosts participate only with an explicit matching
+  `ovhFleets.<fleet>.machine.vRackID`; legacy hosts without private NICs must
+  remain unenrolled. See `../kura-controller/linux-runner-private-cache.md`
+  for regional-cache reuse, the required staging migration, and rollback.
 
 - Production public EU-West runs on three `ovhFleets.eu-west` nodes. Managed
   Dedibox support is removed after all Machine release finalizers completed
@@ -99,7 +112,10 @@ runs the mixed-version latency expression through promtool.
   explicit post-deployment cleanup. Follow [the cleanup runbook](../kura-controller/eu-west-ovh-migration.md#post-retirement-cleanup).
   Production EU-West ingress discovers OVH gateway Node addresses automatically.
   Preserve the `kura-dedibox` selector and `scw-local-nvme` StorageClass because
-  OVH uses both. Public staging/canary validation uses OVH `ca-east`; retain the
+  OVH uses both. Staging reuses its prepared Gravelines host as ordinary EU-West
+  capacity after retiring the private Linux experiment; its platform overlay
+  enables the same public EU-West gateway as production. Staging also retains
+  OVH `ca-east` for remote comparisons; canary uses `ca-east`. Retain the
   separate Scaleway Elastic Metal Mac runner cache (`kuraFleet`) and Mac fleets.
 - Stable cache DNS infrastructure is enabled in managed staging, canary, and production. Canary advertises and hands out stable endpoints once ready; staging and production require the `kura_stable_hostname` account/global feature flag, absent by default, with no server environment rollout toggles or account allowlist. Keep environment owner IDs and vault credentials separate. Certificate readiness is an operator bootstrap check, not a routine deployment gate; see `../cache-dns/README.md`.
 - `pomerium/templates/access-tiers.yaml` extends the shared `view` tier with `get`/`list`/`watch` on `dnsendpoints.externaldns.k8s.io` in all namespaces. Keep DNS inspection in this read tier, scoped to that resource; DNS mutation and Secret access are not part of this grant. The Pomerium deployment workflow applies this chart to staging, canary, and production on merge.
@@ -251,3 +267,21 @@ Cluster formation requires a stable shared cookie Secret, a fixed distribution l
   Claim writes/events are a `kura` Role. Run the disposable real-API admission
   test and Helm tests in `../kura-volumes-csi/security/` when changing these
   rules. Do not install the test's intentionally broad role in hosted clusters.
+- Linux vRack rollout uses default-off account flag `runner_linux_vrack` to select
+  shape-equivalent isolated pools. `runnersFleetLinux.vrack.enabled` only renders
+  pools/mappings with zero warm floors and a disjoint host `fleetSelector`.
+  Shared managed values prepare them in all three environments; self-hosted
+  defaults stay off. Canary's RISE-M replacement passed ordinary-runner
+  acceptance on 2026-10-26 but remains unenrolled in vRack, so prepared pools
+  alone do not qualify it for account enrollment. The preparation switch
+  must never set vRack on ordinary fleet templates. Keep resource sizing and the
+  cache-volume DaemonSet's coverage of both cohorts aligned. Validate with
+  `infra/mise/tasks/helm/linux-vrack.sh`. Host cohort membership must persist
+  through CAPI reconciliation before actor enrollment; a Node-only relabel is
+  insufficient. Flag withdrawal preserves recorded jobs, mappings and routes
+  until those jobs finish.
+  Staging and canary target one RISE-M each. Their ordinary/vRack qualification
+  therefore runs sequentially across drained host transitions; excluded jobs
+  queue while ordinary capacity is absent. A RISE-S-to-RISE-M template update
+  under OnDelete does not replace the live host: prepare the new box first,
+  then explicitly drain and retire the old Machine.

@@ -134,6 +134,8 @@ jobs:
           bash infra/helm/k8s-monitoring/test-kura-latency-query.sh
       - name: Test production metric write rules with Alloy
         run: python3 infra/helm/k8s-monitoring/test-metric-cost-controls.py
+      - name: Test runner macOS host health alerts
+        run: bash infra/helm/k8s-monitoring/test-runner-macos-host-alerts.sh
 
   render:
     name: Render
@@ -246,6 +248,8 @@ jobs:
         run: infra/mise/tasks/helm/rack-independence.sh
       - name: Server pods drain and the edge retries only unsent requests
         run: infra/mise/tasks/helm/server-rollout.sh
+      - name: Linux vRack rollout keeps runner cohorts isolated
+        run: infra/mise/tasks/helm/linux-vrack.sh
       # The xcresult processor chart renders the tuist chart's processor
       # templates for the tuist release it names, which the loop above cannot
       # express either.

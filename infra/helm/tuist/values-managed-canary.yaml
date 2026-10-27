@@ -644,23 +644,10 @@ ovhFleet:
 # OVH_FLEET_SSH and the one `endpoint` the reconciler resolves for every OVH
 # fleet.
 ovhFleets:
-  # Canary half of the OVH Linux runner move: production is going to RISE-L in
-  # Gravelines (see values-managed-production.yaml), and this is the box that
-  # exercises the integration in front of it. RISE-S rather than RISE-L on
-  # purpose: same Zen 5 AM5 family, same single-thread class (4,643 vs 4,728),
-  # same soft-RAID NVMe layout and the same OVHDedicatedMachine code path, at a
-  # third of the cost. Canary does not need production throughput; it needs to
-  # run the production integration.
-  #
-  # OVH RISE-S bare metal in Gravelines: Ryzen 7 9700X, 8c/16t, 64 GB,
-  # 2x512 GB NVMe soft RAID. RISE-S rather than production's RISE-L on purpose:
-  # same Zen 5 AM5 family, same single-thread class, same soft-RAID NVMe layout
-  # and the same OVHDedicatedMachine code path, at a third of the cost. This env
-  # does not need production throughput, it needs to exercise the production
-  # integration.
-  #
-  # The one thing this shape cannot rehearse is the private link: RISE-S has no
-  # vRack option, where RISE-L carries 1 Gbit/s.
+  # Replace the legacy RISE-S with one vRack-capable RISE-M in Gravelines.
+  # OnDelete preserves the old host until the prepared replacement is ready.
+  # One host means ordinary/vRack qualification runs sequentially after drain.
+  # Private-network enrollment is a separate rollout after host qualification.
   runners-linux:
     enabled: true
     # MUST equal the number of boxes prepped and marked for this env. Too high
@@ -678,11 +665,9 @@ ovhFleets:
     nodePool: runners-linux
     machine:
       adoptDisplayNamePrefix: tuist-runners-ovh-canary
-      # Case-insensitive substring of the box's commercialRange, which the
-      # catalog bills as "RISE-S | AMD Ryzen 7 9700X". The range token alone
-      # matches without depending on how the CPU suffix is spelled on the server
-      # object. A value matching nothing adopts nothing, silently.
-      offer: rise-s
+      offer: rise-m
+      # Ordinary hosts stay unenrolled. Move a drained host into the isolated
+      # vRack cohort before setting its live Machine's vRackID explicitly.
       # Prefix-matched, so any gra* datacenter.
       datacenter: gra
       os: ubuntu_24.04

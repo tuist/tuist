@@ -1922,7 +1922,8 @@ rackFleet:
 
   # The runner catalog on this fleet. Enabled, every `runnersFleet.xcodeVersions`
   # entry renders a second macOS pool, on the catalog's default shape, that
-  # selects this fleet: `<release>-runner-pool-macos-<site>-<xcode-dashes>`,
+  # selects this fleet, at every site whose runners are on (`sites` below):
+  # `<release>-runner-pool-macos-<site>-<xcode-dashes>`, named after `site`,
   # with the same image as the rented fleet's pool for that Xcode. Accounts on
   # the server's `runner_site` flag have their profiles routed to these pools,
   # and the server falls back to the rented fleet for a profile the site has no
@@ -1974,6 +1975,34 @@ rackFleet:
     #       enabled: true
     #       minWarmPoolFloor: 0
     #       maxReplicas: 9
+
+  # The fleet's other sites, keyed by site name. `site` above is the default
+  # site, and everything else in this block applies to it. A host whose `site`
+  # is a key here belongs to that site:
+  # - While the site's `runners.enabled` is false, its Node carries the site's
+  #   own fleet (`nodeFleet`, by default `<fleet name>-<site>`) instead of the
+  #   rack fleet, so no rack pool places a runner on its minis. The Machine
+  #   keeps the operator's fleet, its name and its credentials, as for any
+  #   `nodeFleet`.
+  # - Once `runners.enabled` is true, its Node joins the rack fleet, and the
+  #   rack's pools (`runners` above) span this site too: a queued job runs at
+  #   whichever site claims it first. A RunnerPool has one guest size, so the
+  #   site runs `runners` above as is: setting any of its other keys here to a
+  #   different value, or `nodeFleet`, fails the render, and so does enabling
+  #   it while `runners` above is off. Keep it disabled until the site has
+  #   hosts.
+  # - Its SSH ingress defaults to the site's `sshIngressAllowCIDRs`, the site's
+  #   edges, never the default site's.
+  # - `vmCacheGatewayCIDRs` joins the operator's fleet-wide list.
+  # A host naming a site that is neither `site` nor a key here fails the
+  # render.
+  sites: {}
+  #   larch:
+  #     nodeFleet: ""                  # default: <fleet name>-larch
+  #     sshIngressAllowCIDRs: [10.20.0.2/32, 10.20.0.3/32]
+  #     vmCacheGatewayCIDRs: []
+  #     runners:
+  #       enabled: false
 
   # The fleet SSH key + the service account's password, synced from 1Password.
   # NOT optional: the controller never mints a replacement, because a credential
@@ -2055,6 +2084,19 @@ rackLinuxFleet:
   #     nodeTaints:
   #       - {key: tuist.dev/rack-edge, value: ber1, effect: NoSchedule}
   roles: {}
+
+  # A role's configuration for the hosts of one site, in place of `roles`
+  # for that role, when the env's cluster holds more than one rack: their
+  # labels and taints name the site.
+  #   larch:
+  #     roles:
+  #       edge:
+  #         tailnetTags: [tag:tuist-rack-edge]
+  #         nodeLabels:
+  #           tuist.dev/rack-edge: larch
+  #         nodeTaints:
+  #           - {key: tuist.dev/rack-edge, value: larch, effect: NoSchedule}
+  sites: {}
 
   # One entry per box, by the SMBIOS UUID its install stick announced
   # (`kubectl get rlc`). The rest is optional:
@@ -2911,6 +2953,12 @@ runnersFleet:
 #      the operator-provisioned host count can accommodate; Pending
 #      Pods are the signal to provision more hosts).
 runnersFleetLinux:
+  # Render isolated shape pools for account-gated vRack dispatch. These reuse
+  # existing cache instances and require a disjoint set of enrolled runner hosts.
+  # They start with no warm floor; the account flag is separately default off.
+  vrack:
+    enabled: false
+    nodePool: runners-linux-vrack
   # Opt-in; hostPath MUST be a dedicated reflink-capable filesystem separate from kubelet.
   cacheVolumes:
     enabled: false
@@ -2925,6 +2973,12 @@ runnersFleetLinux:
     image:
       repository: ghcr.io/tuist/tuist-runner-cache-volumes
       tag: "" # Defaults to the matching runnersController.image.tag release.
+    # Moves each job's dockerd onto its repository's Docker cache volume. Turning it
+    # on replaces the Pods of the pools it covers, so `pools` limits it to those
+    # RunnerPool names during a rollout; an empty list covers every Linux pool.
+    dockerCache:
+      enabled: false
+      pools: []
   enabled: false
   # Default `spec.idleTimeoutSeconds` for every Linux pool / shape (a
   # per-pool or per-shape `idleTimeoutSeconds` wins). Same semantics and

@@ -26,6 +26,9 @@ defmodule Tuist.Runners.Claim do
     # it actually took.
     field :workflow_job_id, :integer
     field :fleet_name, :string
+    # The rack site of the Node the claiming Pod runs on, nil off the rack.
+    # Whichever job GitHub places on the Pod runs there too.
+    field :site, :string
     field :claimed_at, :utc_datetime_usec
     field :platform, Ecto.Enum, values: [:linux, :macos]
     field :vcpus, :integer

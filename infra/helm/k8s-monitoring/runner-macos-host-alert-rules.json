@@ -1,0 +1,257 @@
+[
+  {
+    "annotations": {
+      "summary": "{{ $labels.instance }} has over 40 days uptime on macOS {{ $labels.product_version }} (Darwin {{ $labels.kernel_release }})",
+      "description": "This Tahoe kernel family is at risk of the 32-bit TCP clock wraparound observed on the production fleet. Schedule a drained OS upgrade before another 49.7-day clock wrap. The alert uses OS family and uptime as risk indicators; it does not prove a frozen clock. Upgrade existing hosts to the approved fixed macOS baseline; changing the provisioning image does not upgrade existing machines. If SSH uploads are already slow, read the TCP clock runbook before rebooting: legacy installers may have truncated the live tart-kubelet executable.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/cluster-api-provider-tuist/macos-tcp-clock.md"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "((macos_host_uptime_seconds{job=\"tuist-macos-node-exporter\"} > bool 3456000) * on (instance, job, cluster, env) group_left (kernel_release, product_version) macos_host_info{job=\"tuist-macos-node-exporter\",kernel_release=~\"25\\\\.[0-3]\\\\..*\"}) and on (instance, job, cluster, env) (time() - node_textfile_mtime_seconds{job=\"tuist-macos-node-exporter\",file=~\".*/host_sensors.prom\"} < 180)",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "15m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Runner host health",
+    "title": "Runner macOS TCP clock risk",
+    "uid": "runner-macos-tcp-clock-risk"
+  },
+  {
+    "annotations": {
+      "summary": "{{ $labels.instance }} has over 5000 TCP sockets in TIME_WAIT",
+      "description": "TIME_WAIT sockets have remained above 5000 for 15 minutes. Correlate macos_host_info and macos_host_uptime_seconds, transfer throughput, and repeated TCP timestamp samples. On the October 26 incident, 12714 sockets accumulated on a 102-day-old Darwin 25.3.0 host with frozen TCP timestamps. High connection churn can also cause this alert; the count alone does not prove a kernel bug.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/cluster-api-provider-tuist/macos-tcp-clock.md"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "(macos_host_tcp_time_wait{job=\"tuist-macos-node-exporter\"} > bool 5000) and on (instance, job, cluster, env) (time() - node_textfile_mtime_seconds{job=\"tuist-macos-node-exporter\",file=~\".*/host_sensors.prom\"} < 180)",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "15m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Runner host health",
+    "title": "Runner macOS TCP TIME_WAIT accumulation",
+    "uid": "runner-macos-tcp-time-wait"
+  },
+  {
+    "annotations": {
+      "summary": "{{ $labels.instance }} cannot report fresh macOS host health",
+      "description": "Host sysctl/netstat collection is failing, or host_sensors.prom is older than three minutes. Check launchctl print system/dev.tuist.host-sensors and /var/log/tuist-host-sensors.log. OS/uptime and TCP risk alerts require fresh readings; this alert covers failed commands and a stopped one-shot job while node_exporter still serves the file. A missing exporter or a file that has never existed must be handled by target availability/rollout checks.",
+      "runbook_url": "https://github.com/tuist/tuist/blob/main/infra/cluster-api-provider-tuist/macos-tcp-clock.md"
+    },
+    "condition": "C",
+    "data": [
+      {
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "editorMode": "code",
+          "expr": "max by (instance, job, cluster, env) ((macos_host_health_collection_success{job=\"tuist-macos-node-exporter\"} == bool 0) or (time() - node_textfile_mtime_seconds{job=\"tuist-macos-node-exporter\",file=~\".*/host_sensors.prom\"} > bool 180))",
+          "instant": true,
+          "intervalMs": 1000,
+          "legendFormat": "__auto",
+          "maxDataPoints": 43200,
+          "range": false,
+          "refId": "A"
+        },
+        "queryType": "",
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        }
+      },
+      {
+        "datasourceUid": "__expr__",
+        "model": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [
+                  0
+                ],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": [
+                  "C"
+                ]
+              },
+              "reducer": {
+                "params": [],
+                "type": "last"
+              },
+              "type": "query"
+            }
+          ],
+          "datasource": {
+            "type": "__expr__",
+            "uid": "__expr__"
+          },
+          "expression": "A",
+          "intervalMs": 1000,
+          "maxDataPoints": 43200,
+          "refId": "C",
+          "type": "threshold"
+        },
+        "queryType": "expression",
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        }
+      }
+    ],
+    "execErrState": "Error",
+    "folderUID": "df5dn1g4rckxsf",
+    "for": "5m",
+    "isPaused": false,
+    "keep_firing_for": "0s",
+    "labels": {
+      "severity": "warning"
+    },
+    "noDataState": "OK",
+    "orgID": 1,
+    "ruleGroup": "Runner host health",
+    "title": "Runner macOS host health collection failing",
+    "uid": "runner-macos-host-health"
+  }
+]

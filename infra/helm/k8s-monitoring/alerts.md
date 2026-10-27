@@ -7083,6 +7083,14 @@ site definition changes. If the draw goes over the contracted power by up to
 Above 10%, it may switch off the feeders. Firing at 80% leaves room to move
 load or order more power before either happens.
 
+The alert warns before the RackSite's power budget acts. That budget holds
+every Mac mini at the site against new runner VMs once the transfer switches
+together reach the contracted power less `power_budget.other_watts`, and holds
+a chain's minis at `power_budget.chain_amps`. It is in "Power-aware admission"
+in `infra/cluster-api-provider-tuist/AGENTS.md`. While the alert fires,
+`capt_racksite_site_held` and `capt_racksite_chain_held` say whether admission
+is already holding work back.
+
 The draw is every PDU outlet's active power, plus the output of each transfer
 switch that feeds no reporting PDU. At BER1 that switch is `ber1-ats-1`, which
 powers `ber1-mgmt`, `ber1-tor-a`, `ber1-edge-a`, `ber1-store-a` and the KVMs

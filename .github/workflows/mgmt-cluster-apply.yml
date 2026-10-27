@@ -60,6 +60,7 @@ on:
       - 'infra/k8s/mgmt/hetzner-robot-controller.yaml'
       - 'infra/k8s/mgmt/observability-namespace.yaml'
       - 'infra/k8s/mgmt/controller-replicas.yaml'
+      - 'infra/k8s/mgmt/controller-pdbs.yaml'
       - 'infra/k8s/mgmt/external-secrets-values.yaml'
       - 'infra/k8s/mgmt/talos/hetzner.yaml'
       - 'infra/k8s/mgmt/talos/patches/**'
@@ -371,6 +372,9 @@ jobs:
             --namespace external-secrets \
             -f infra/k8s/mgmt/external-secrets-values.yaml \
             --atomic --cleanup-on-fail --wait --timeout 10m
+      - name: Protect admission webhooks during node maintenance
+        run: |
+          kubectl apply -f infra/k8s/mgmt/controller-pdbs.yaml
       - name: Install management-cluster monitoring
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}

@@ -503,6 +503,26 @@
 			"ip":  ["tcp:443"],
 		},
 
+		// Production cluster -> rack 2's PDU and ATS cards (larch-pdu-a,
+		// larch-pdu-b, larch-ats-a, larch-ats-b), the same path as BER1's above,
+		// on rack 2's management VLAN. HTTPS only.
+		{
+			"src": ["tag:tuist-k8s-production"],
+			"dst": ["192.168.60.14/32", "192.168.60.15/32", "192.168.60.16/32", "192.168.60.17/32"],
+			"ip":  ["tcp:443"],
+		},
+
+		// Production cluster -> rack 2's PicOS ToRs (larch-tor-a, larch-tor-b),
+		// which the rack switch controller configures (the RackSwitch objects
+		// with driver picos): SSH for its CLI and NETCONF over SSH, through the
+		// macmini-egress ProxyGroup. Each ToR's management port is a link of
+		// its own to the edge that provisions it, which advertises its /32.
+		{
+			"src": ["tag:tuist-k8s-production"],
+			"dst": ["192.168.61.2/32", "192.168.61.6/32"],
+			"ip":  ["tcp:22", "tcp:830"],
+		},
+
 		// Production cluster -> the BER1 rack's Linux nodes. SSH: the operator
 		// joins each one over its own tailnet address and keeps it converged
 		// (RackLinuxMachine), through the macmini-egress ProxyGroup. 10250: the
@@ -743,6 +763,11 @@
 	// On the management LAN, only the installed power devices' addresses
 	// are approved: ber1-ats-1, ber1-ats-2, ber1-ats-3, ber1-pdu-a and
 	// ber1-pdu-b.
+	//
+	// Rack 2 (infra/rack-switch-fleet/sites/larch.json) the same way: its
+	// machines segment, its power devices on its management VLAN, and its two
+	// ToRs' management addresses, each on its own link to the edge that
+	// provisions it and advertised by that edge alone.
 	"autoApprovers": {
 		"routes": {
 			"10.128.0.0/12":   ["tag:tuist-k8s-staging"],
@@ -752,6 +777,13 @@
 			"192.168.0.16/32": ["tag:tuist-rack-edge"],
 			"192.168.0.17/32": ["tag:tuist-rack-edge"],
 			"192.168.0.18/32": ["tag:tuist-rack-edge"],
+			"10.20.0.0/24":    ["tag:tuist-rack-edge"],
+			"192.168.60.14/32": ["tag:tuist-rack-edge"],
+			"192.168.60.15/32": ["tag:tuist-rack-edge"],
+			"192.168.60.16/32": ["tag:tuist-rack-edge"],
+			"192.168.60.17/32": ["tag:tuist-rack-edge"],
+			"192.168.61.2/32":  ["tag:tuist-rack-edge"],
+			"192.168.61.6/32":  ["tag:tuist-rack-edge"],
 		},
 		// Tailscale Services the operator's ingress ProxyGroups advertise
 		// (infra/helm/tailscale-operator, `tailnetIngress`). The operator

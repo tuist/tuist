@@ -309,6 +309,7 @@ defmodule Tuist do
       Runners.CacheVolumes,
       Runners.CacheVolumes.Query,
       Runners.CacheVolumes.Schemas,
+      Runners.DockerCache,
       Runners.Analytics,
       Runners.Billing,
       Runners.Catalog,

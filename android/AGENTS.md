@@ -26,6 +26,12 @@ This node covers the Tuist Android companion app under `android/`. The app provi
 - Build release bundle: `cd android && ./gradlew bundleRelease` (requires signing config)
 - Publish to Google Play: `cd android && ./gradlew publishReleaseBundle` (requires service account)
 
+Keep build configuration project-local. KSP's `ksp.project.isolation.enabled`
+and Play Publisher's `isolatedSingleProject` opt-ins are required for Isolated
+Projects; the latter is appropriate because only `:app` publishes. When upgrading
+build plugins, verify assembly, JVM tests, configuration-cache reuse, and the
+publishing task graph with `-Dorg.gradle.unsafe.isolated-projects=true`.
+
 ## Running on Emulator
 
 The debug build defaults to production (`https://tuist.dev`). In debug builds you can override the environment at launch time via an intent extra:

@@ -5,6 +5,15 @@ defmodule Tuist.FeatureFlags do
   alias Tuist.Observability
   alias Tuist.Projects.Project
 
+  @doc "Default-off account opt-in to Linux runner pools isolated on vRack-enrolled hosts."
+  def runner_linux_vrack_enabled?(account, flags \\ nil) do
+    Observability.feature_flag_evaluated(
+      :runner_linux_vrack,
+      account,
+      flag_enabled?(:runner_linux_vrack, account, flags)
+    )
+  end
+
   @doc "Default-off immutable shard creation gate; coverage-enabled accounts remain on legacy plans."
   def immutable_shard_reports_enabled?(account, flags \\ nil) do
     Observability.feature_flag_evaluated(
@@ -75,6 +84,16 @@ defmodule Tuist.FeatureFlags do
   end
 
   defp runner_flag_required?, do: Environment.env() in [:can, :prod]
+
+  @doc """
+  Whether the account's Linux jobs get a persistent Docker data root per
+  repository (`Tuist.Runners.CacheVolumes.allocate_docker/1`). Canary and
+  production require the `:runner_docker_cache` flag for the account during the
+  rollout; development, test and staging default to enabled.
+  """
+  def runner_docker_cache_enabled?(account) do
+    Environment.env() not in [:can, :prod] or FunWithFlags.enabled?(:runner_docker_cache, for: account)
+  end
 
   @doc """
   Whether the account gets a node in the runner-cache region of each site its

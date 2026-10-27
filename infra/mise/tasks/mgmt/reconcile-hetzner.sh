@@ -57,7 +57,7 @@ yq -e '
   (.server.image | tag == "!!str") and
   (.server.firewall | tag == "!!str") and
   (.server.placementGroup | tag == "!!str") and
-  (.nodes | (tag == "!!seq" and length > 0 and all_c((.name | tag == "!!str") and (.privateIP | tag == "!!str"))))
+  (.nodes | (tag == "!!seq" and length > 0 and all_c((.name | tag == "!!str") and (.privateIP | tag == "!!str") and ((.location // "") | tag == "!!str"))))
 ' "$SPEC" >/dev/null || fail "$SPEC is missing a field or has one of the wrong type"
 
 spec() { yq -r "$1" "$SPEC"; }
@@ -83,11 +83,43 @@ firewall_name="$(spec .server.firewall)"
 placement_group_name="$(spec .server.placementGroup)"
 read -r -a nodes <<<"$(spec '[.nodes[].name] | join(" ")')"
 read -r -a node_ips <<<"$(spec '[.nodes[].privateIP] | join(" ")')"
+# shellcheck disable=SC2016 # $s is a yq variable.
+read -r -a node_locations <<<"$(spec '. as $s | [.nodes[] | .location // $s.location] | join(" ")')"
 
 network_zone="$(hcloud location describe "$location" -o json | jq -r .network_zone)"
 
 find_network() { hcloud network list -o json | jq --arg n "$network_name" '.[] | select(.name == $n)'; }
 find_lb() { hcloud load-balancer list -o json | jq --arg n "$lb_name" '.[] | select(.name == $n)'; }
+
+# Re-read health immediately before removal. A count of targets says nothing
+# about whether any remaining target can actually serve API requests.
+require_healthy_other_target() {
+  local removed_id="$1" live
+  live="$(find_lb)"
+  jq -L "$REPO_ROOT/infra/mise/tasks/mgmt" -e --argjson id "$removed_id" \
+    --argjson ports "$(spec '.loadBalancer.ports' | yq -o=json)" '
+      include "health";
+      any(.targets[]?; .server.id != $id and healthy_lb_target($ports))
+    ' <<<"$live" >/dev/null || fail "refusing to remove target $removed_id: no other server target is healthy on every API port"
+}
+
+wait_for_healthy_target() {
+  local id="$1" deadline=$((SECONDS + 300)) live
+  if ! $apply; then
+    echo "would wait for target $id to be healthy on every API port before another removal"
+    return
+  fi
+  while true; do
+    live="$(find_lb)"
+    if jq -L "$REPO_ROOT/infra/mise/tasks/mgmt" -e --argjson id "$id" \
+      --argjson ports "$(spec '.loadBalancer.ports' | yq -o=json)" '
+        include "health";
+        any(.targets[]?; .server.id == $id and healthy_lb_target($ports))
+      ' <<<"$live" >/dev/null; then return; fi
+    (( SECONDS < deadline )) || fail "target $id did not become healthy within 5 minutes; other targets were left in place"
+    sleep 5
+  done
+}
 
 echo "==> Network $network_name"
 network="$(find_network)"
@@ -123,11 +155,12 @@ servers=()
 for i in "${!nodes[@]}"; do
   node="${nodes[$i]}"
   node_ip="${node_ips[$i]}"
+  node_location="${node_locations[$i]}"
   server="$(hcloud server list -o json | jq --arg n "$node" '.[] | select(.name == $n)')"
 
   if [[ -z "$server" ]]; then
     [[ -n "$image_id" ]] || fail "creating server $node needs exactly one snapshot described $server_image"
-    change server create --name "$node" --type "$server_type" --image "$image_id" --location "$location" \
+    change server create --name "$node" --type "$server_type" --image "$image_id" --location "$node_location" \
       --firewall "$firewall_name" --placement-group "$placement_group_name" \
       --label "$LABEL" --label purpose=mgmt-cluster --start-after-create=false
     change server attach-to-network "$node" --network "$network_name" --ip "$node_ip"
@@ -138,6 +171,9 @@ for i in "${!nodes[@]}"; do
     continue
   fi
 
+  if [[ "$(jq -r .location.name <<<"$server")" != "$node_location" ]]; then
+    fail "server $node is in $(jq -r .location.name <<<"$server"), the spec says $node_location; Hetzner cannot move it"
+  fi
   attached_ip="$(jq -r --argjson id "${network_id:-0}" '.private_net[]? | select(.network == $id) | .ip' <<<"$server")"
   if [[ -z "$attached_ip" ]]; then
     change server attach-to-network "$node" --network "$network_name" --ip "$node_ip"
@@ -146,9 +182,6 @@ for i in "${!nodes[@]}"; do
   fi
   if [[ "$(jq -r '.protection.delete and .protection.rebuild' <<<"$server")" != "true" ]]; then
     change server enable-protection "$node" delete rebuild
-  fi
-  if [[ "$(jq -r '.placement_group.name // ""' <<<"$server")" != "$placement_group_name" ]]; then
-    echo "note: server $node is not in placement group $placement_group_name; Hetzner adds a server only while it is powered off"
   fi
   servers+=("$(hcloud server describe "$node" -o json)")
 done
@@ -211,11 +244,14 @@ for i in "${!nodes[@]}"; do
     fail "server $node is not attached to network $network_name, so the load balancer cannot reach its private IP"
   fi
 
+  switched=false
   if [[ -n "$target" && "$(jq -r .use_private_ip <<<"$target")" != "$use_private_ip" ]]; then
     if (( target_count <= 1 )); then
       fail "switching $node to use_private_ip=$use_private_ip means removing the load balancer's only target; add another node first"
     fi
+    require_healthy_other_target "$server_id"
     change load-balancer remove-target "$lb_name" --server "$node"
+    switched=true
     target=""
     target_count=$((target_count - 1))
   fi
@@ -223,6 +259,7 @@ for i in "${!nodes[@]}"; do
     change load-balancer add-target "$lb_name" --server "$node" --use-private-ip="$use_private_ip"
     target_count=$((target_count + 1))
   fi
+  if $switched; then wait_for_healthy_target "$server_id"; fi
 done
 
 if [[ -n "$lb" ]]; then
@@ -232,6 +269,7 @@ if [[ -n "$lb" ]]; then
     if (( target_count <= 1 )); then
       fail "refusing to remove target server $stale_id: it would leave the load balancer without targets"
     fi
+    require_healthy_other_target "$stale_id"
     change load-balancer remove-target "$lb_name" --server "$stale_id"
     target_count=$((target_count - 1))
   done
