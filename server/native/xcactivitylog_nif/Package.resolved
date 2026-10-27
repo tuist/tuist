@@ -1,5 +1,5 @@
 {
-  "originHash" : "5c4fadcae9d2100fafcdc9c5710fec5527e80a4d7bdb839526fc5f9990282b06",
+  "originHash" : "1ad8c070e88b94ae94a3ff8e4698d70efc7741ef726c7c3b8548aa2cd77b87e6",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -96,7 +96,7 @@
       "kind" : "registry",
       "location" : "",
       "state" : {
-        "version" : "0.2.49"
+        "version" : "0.2.50"
       }
     },
     {
