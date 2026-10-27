@@ -92,8 +92,7 @@ public struct CoverageExportService: CoverageExportServicing {
                 async let reports = export(
                     products: products,
                     profile: profile,
-                    architecture: products.first { $0.kind == .image }.flatMap { Self.architecture(ofImage: $0.path) }
-                        ?? Self.hostArchitecture,
+                    architecture: Self.architecture(ofImages: products.filter { $0.kind == .image }.map(\.path)),
                     into: directory
                 )
                 let spans = await Self.spans(of: products)
@@ -382,6 +381,12 @@ public struct CoverageExportService: CoverageExportServicing {
         case 0x0100_0007: return "x86_64"
         default: return nil
         }
+    }
+
+    /// The architecture the run's images were built for, which the host's is not under Rosetta: the
+    /// first thin image's, the host's when every image is universal.
+    static func architecture(ofImages paths: [String]) -> String {
+        paths.lazy.compactMap { architecture(ofImage: $0) }.first ?? hostArchitecture
     }
 
     static var hostArchitecture: String {
