@@ -41,7 +41,7 @@ func TestObservedReadsALAG(t *testing.T) {
 func TestObservedLeavesOutDefaults(t *testing.T) {
 	data := []byte(`<interface xmlns="http://pica8.com/xorplus/interface"><gigabit-ethernet><name>te-1/1/3</name><description/>` +
 		`<family><ethernet-switching><native-vlan-id>1</native-vlan-id><port-mode>access</port-mode></ethernet-switching></family>` +
-		`</gigabit-ethernet><gigabit-ethernet><name>te-1/1/4</name><description>ber2-mini-04</description>` +
+		`</gigabit-ethernet><gigabit-ethernet><name>te-1/1/4</name><description>larch-mini-04</description>` +
 		`<family><ethernet-switching><native-vlan-id>10</native-vlan-id><port-mode>access</port-mode></ethernet-switching></family>` +
 		`</gigabit-ethernet></interface><vlans xmlns="http://pica8.com/xorplus/vlans"><vlan-id><id>1</id></vlan-id>` +
 		`<vlan-id><id>10</id><vlan-name>machines</vlan-name></vlan-id></vlans>`)
@@ -50,7 +50,7 @@ func TestObservedLeavesOutDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{
-		`set interface gigabit-ethernet te-1/1/4 description "ber2-mini-04"`,
+		`set interface gigabit-ethernet te-1/1/4 description "larch-mini-04"`,
 		"set interface gigabit-ethernet te-1/1/4 family ethernet-switching native-vlan-id 10",
 		`set vlans vlan-id 10 vlan-name "machines"`,
 	}

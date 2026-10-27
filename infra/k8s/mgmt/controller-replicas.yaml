@@ -1,7 +1,7 @@
-# Runs the management cluster's admission webhook servers with two replicas,
-# spread across control-plane nodes when there is more than one. Every
-# webhook here has failurePolicy: Fail, so a single replica blocks writes to
-# its resources while it restarts (rollouts, the weekly
+# Runs the management cluster's admission webhook servers with two replicas
+# spread across the three control-plane nodes. Every webhook here has
+# failurePolicy: Fail, so a single replica
+# blocks writes to its resources while it restarts (rollouts, the weekly
 # capi-webhook-cert-reloader restart, clusterctl upgrades). The controllers
 # use leader election, so the second replica only serves webhooks.
 #
@@ -11,8 +11,8 @@
 # which takes those fields from clusterctl and leaves the rest alone, and
 # re-asserts them on every run after a clusterctl upgrade resets them.
 #
-# PodDisruptionBudgets come with the second control-plane node: on one node
-# they would block every drain and protect nothing. External Secrets'
+# controller-pdbs.yaml keeps one replica available during voluntary eviction.
+# External Secrets'
 # webhook gets the same settings through its Helm values
 # (external-secrets-values.yaml).
 apiVersion: apps/v1

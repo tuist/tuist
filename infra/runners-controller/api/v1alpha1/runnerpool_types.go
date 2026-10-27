@@ -28,6 +28,12 @@ type RunnerPoolSpec struct {
 	CacheVolumeRoot string `json:"cacheVolumeRoot,omitempty"`
 	// +optional
 	CacheVolumeURL string `json:"cacheVolumeURL,omitempty"`
+	// DockerCache moves each job's dockerd onto its repository's Docker cache
+	// volume. It needs cache volumes. The dind sidecar then runs a supervisor
+	// that owns dockerd and the mount socket, so turning it on replaces the
+	// pool's Pods.
+	// +optional
+	DockerCache bool `json:"dockerCache,omitempty"`
 
 	// Labels are stamped on the Pods + SAs the controller creates;
 	// not the GitHub Actions runner labels (those come from
@@ -54,6 +60,14 @@ type RunnerPoolSpec struct {
 	// can share a node fleet (bin-pack different images on the
 	// same Mac mini hosts) or split (dedicated capacity per image).
 	FleetSelector string `json:"fleetSelector"`
+
+	// Site, when set, pins the pool's Pods to the rack site's Nodes
+	// (`node.cluster.x-k8s.io/rack-site=<site>`) within its fleet. A rack
+	// fleet spans every site whose runners are on, so a pool that must run
+	// at one site, such as a smoke pool testing that rack, names it. Empty
+	// places the pool anywhere in its fleet.
+	// +optional
+	Site string `json:"site,omitempty"`
 
 	// DispatchLabel is the GitHub Actions runner label customers
 	// put in `runs-on` to target this fleet. The webhook handler

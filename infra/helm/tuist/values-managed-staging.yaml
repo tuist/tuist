@@ -926,6 +926,8 @@ runnersFleetLinux:
     provisioning:
       enabled: true
       sizeGB: 200
+    dockerCache:
+      enabled: true
   # Matches the `node.cluster.x-k8s.io/pool` label stamped on each
   # bare-metal Node by the CAPI MachineDeployment.
   name: runners-linux

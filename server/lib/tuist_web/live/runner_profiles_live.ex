@@ -67,6 +67,7 @@ defmodule TuistWeb.RunnerProfilesLive do
          |> assign(:form_cache_writer_default_branch, profile.cache_writer_default_branch)
          |> assign(:form_cache_writer_branches, profile.cache_writer_branches || [])
          |> assign(:form_cached_checkouts, profile.cached_checkouts)
+         |> assign(:form_docker_cache, profile.docker_cache)
          |> assign(:form_cache_branch_value, "")
          |> assign(:form_cache_branch_error, nil)
          |> assign(:form_cache_saving_expanded, false)
@@ -137,6 +138,10 @@ defmodule TuistWeb.RunnerProfilesLive do
     {:noreply, update(socket, :form_cached_checkouts, &(not &1))}
   end
 
+  def handle_event("toggle_docker_cache", _params, socket) do
+    {:noreply, update(socket, :form_docker_cache, &(not &1))}
+  end
+
   def handle_event("toggle_cache_writer_all_branches", _params, socket) do
     {:noreply, update(socket, :form_cache_writer_all_branches, &(not &1))}
   end
@@ -199,7 +204,11 @@ defmodule TuistWeb.RunnerProfilesLive do
         _ -> attrs
       end
 
-    attrs = Map.put(attrs, "cached_checkouts", assigns.form_cached_checkouts)
+    attrs =
+      Map.merge(attrs, %{
+        "cached_checkouts" => assigns.form_cached_checkouts,
+        "docker_cache" => assigns.form_docker_cache
+      })
 
     handle_save_result(socket, assigns.form_mode, save_profile(assigns, attrs))
   end
@@ -319,6 +328,7 @@ defmodule TuistWeb.RunnerProfilesLive do
     |> assign(:form_cache_writer_default_branch, true)
     |> assign(:form_cache_writer_branches, [])
     |> assign(:form_cached_checkouts, true)
+    |> assign(:form_docker_cache, true)
     |> assign(:form_cache_branch_input, 0)
     |> assign(:form_cache_branch_value, "")
     |> assign(:form_cache_branch_error, nil)

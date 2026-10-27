@@ -133,7 +133,7 @@ func (t *HTTPTransfer) Download(ctx context.Context, slot Slot, path string) err
 		return err
 	}
 	defer file.Close()
-	if err = RestoreImage(ctx, file, path, slot.ContentDigest, t.MaxBytes); err != nil {
+	if err = RestoreImage(ctx, file, path, slot.ContentDigest, t.maxBytes(slot)); err != nil {
 		if ctx.Err() == nil {
 			// A complete archive that does not restore cannot be resumed into one that does.
 			_ = os.Remove(archive)
@@ -154,7 +154,7 @@ func (t *HTTPTransfer) fetchArchive(ctx context.Context, slot Slot, archive stri
 		if result.Generation != slot.BaseGeneration || result.DownloadURL == "" {
 			return errors.New("cache master identity mismatch")
 		}
-		err = t.fetch(ctx, result.DownloadURL, archive)
+		err = t.fetch(ctx, result.DownloadURL, archive, t.maxBytes(slot))
 		var remote *RemoteError
 		if err == nil || ctx.Err() != nil || attempt >= downloadAttempts || errors.Is(err, errArchiveTooLarge) || (errors.As(err, &remote) && remote.StatusCode < 500) {
 			return err
@@ -168,7 +168,7 @@ func (t *HTTPTransfer) fetchArchive(ctx context.Context, slot Slot, archive stri
 }
 
 // fetch appends the rest of the archive to what archive already holds.
-func (t *HTTPTransfer) fetch(ctx context.Context, url, archive string) error {
+func (t *HTTPTransfer) fetch(ctx context.Context, url, archive string, maxBytes int64) error {
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 	var offset int64
@@ -215,7 +215,7 @@ func (t *HTTPTransfer) fetch(ctx context.Context, url, archive string) error {
 		return remoteError("download", response)
 	}
 	// Incompressible payloads can grow slightly when compressed (see RestoreImage).
-	limit := t.MaxBytes + t.MaxBytes/100 + (1 << 20)
+	limit := maxBytes + maxBytes/100 + (1 << 20)
 	if total > limit {
 		_ = os.Remove(archive)
 		return errArchiveTooLarge
@@ -350,4 +350,21 @@ func (t *HTTPTransfer) token(ctx context.Context) (string, error) {
 	}
 	data, err := os.ReadFile(t.TokenPath)
 	return string(data), err
+}
+
+// maxBytes bounds the slot's restored image: a Docker data root is larger than
+// the host's other volumes.
+func (t *HTTPTransfer) maxBytes(slot Slot) int64 {
+	if slot.Kind == KindDocker {
+		return max(t.MaxBytes, DockerVolumeBytes)
+	}
+	return t.MaxBytes
+}
+
+// Rebase moves the slot's use to the lineage's head named by the slot's base,
+// once its data root holds that head's content. The server refuses (ErrConflict)
+// when the head moved again or the use may no longer publish.
+func (t *HTTPTransfer) Rebase(slot Slot) error {
+	_, err := t.requestWith(context.Background(), slot, "rebase", slot.ImageDigest, slot.ContentDigest, map[string]any{"generation": slot.BaseGeneration})
+	return err
 }

@@ -634,10 +634,12 @@ defmodule Tuist.Runners.Dispatch do
        `<prefix>macos` (`tuist-linux` / `tuist-macos` on production,
        env-prefixed elsewhere) resolve here too — no separate legacy
        alias path needed. An account on the `runner_site` flag gets the
-       same Xcode and shape racked at a site when one is
-       (`Catalog.site_pool_name/1`) and the site can serve it
+       rack pool for the same Xcode and shape when the rack runs one
+       (`Catalog.site_pool_name/1`) and the rack can serve it
        (`Sites.available?/1`), or always when the env rents no macOS fleet
-       (`Environment.runners_rented_macos_fleet?/0`).
+       (`Environment.runners_rented_macos_fleet?/0`). The rack pool spans
+       every site whose runners are on, so the job names no site: the
+       Node of the runner that claims it decides (`Sites.claim_site/2`).
     2. **Legacy pool match** — `spec.dispatchLabel` matched against a
        Helm-rendered `RunnerPool`. Backstop for any out-of-rotation
        pool the operator manually renders via `runnersFleet.pools[]`
@@ -673,10 +675,10 @@ defmodule Tuist.Runners.Dispatch do
     linux_pool_name(account, Catalog.pool_name(profile))
   end
 
-  # An account on the `runner_site` flag runs at a site whenever one racks the
+  # An account on the `runner_site` flag runs on the rack whenever it runs the
   # profile's pool and can serve it, and on the rented fleet otherwise. In an
-  # env that rents no macOS fleet the site is the only home, so its jobs wait
-  # there while it is down.
+  # env that rents no macOS fleet the rack is the only home, so its jobs wait
+  # for it while every site is down.
   defp profile_pool_name(account, profile) do
     with true <- FeatureFlags.runner_site_enabled?(account),
          site_pool when is_binary(site_pool) <- Catalog.site_pool_name(profile),

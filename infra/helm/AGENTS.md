@@ -13,8 +13,18 @@ Monitoring cost controls must preserve metric identity and operator audit record
 See `k8s-monitoring/README.md` for the staged Kura and API-server migrations.
 Helm CI starts the production Alloy log pipeline to compile LogQL selectors and
 runs the mixed-version latency expression through promtool.
+Runner macOS host-health rules are in `k8s-monitoring/runner-macos-host-alert-rules.json`;
+`test-runner-macos-host-alerts.sh` tests their risk, socket-count and collector
+freshness expressions with promtool. Keep the four `macos_host_*` metric families
+in the Mac scrape allow-list. Rule JSON is a Grafana provisioning payload, not a
+Helm-installed resource; publishing it is a separate rollout step.
 
 ## Conventions
+
+- Canary's Linux runner fleet selects one RISE-M in Gravelines. Prepare its OS
+  and fleet SSH key before adoption. The fleet uses OnDelete, so deploying the
+  offer change preserves the old RISE-S until an explicit drained replacement.
+  Do not enroll the ordinary runner template into vRack as part of this swap.
 
 - Xcode 27.1 RC retirement requires the additive stable chart already deployed
   and a published versioned runner image containing stable. Keep 26.6 as the

@@ -597,7 +597,14 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 				}
 			}
 			if err == nil {
-				err = b.operation(slot, "format", "empty", func() error { _, err := b.commandContext(ctx, "mkfs.ext4", "-F", "-m", "0", tmp); return err })
+				args := []string{"-F", "-m", "0"}
+				if slot.Kind == KindDocker {
+					args = dockerFormatArgs
+				}
+				err = b.operation(slot, "format", "empty", func() error {
+					_, err := b.commandContext(ctx, "mkfs.ext4", append(append([]string{}, args...), tmp)...)
+					return err
+				})
 			}
 		}
 		if err != nil {
@@ -612,6 +619,9 @@ func (b *LocalImages) Attach(ctx context.Context, slot Slot, path string) (err e
 	}
 	if source == "unknown" {
 		source = "local"
+	}
+	if slot.Kind == KindDocker {
+		return b.operation(slot, "mount", "none", func() error { return b.exposeDocker(slot, path) })
 	}
 	grow := filesystemSmaller(image)
 	device, err := b.deviceContext(ctx, image)
@@ -706,8 +716,17 @@ func writeMarker(slot Slot, path string) error {
 	}
 	return closeErr
 }
-func (b *LocalImages) Measure(_ Slot, path string) (int64, int64, error) { return b.MeasureFS(path) }
+func (b *LocalImages) Measure(slot Slot, path string) (int64, int64, error) {
+	if slot.Kind == KindDocker {
+		return b.measureDocker(slot)
+	}
+	return b.MeasureFS(path)
+}
 func (b *LocalImages) detach(slot Slot, path string) error {
+	// The guest mounted a Docker image inside its VM; the host never did.
+	if slot.Kind == KindDocker {
+		return nil
+	}
 	device, err := b.device(b.image(slot))
 	if err != nil {
 		return err
@@ -736,6 +755,9 @@ func (b *LocalImages) detach(slot Slot, path string) error {
 func (b *LocalImages) Seal(slot Slot, path string) (err error) {
 	done := b.Observe.For(slot).Start("publish", "none")
 	defer func() { done(err) }()
+	if slot.Kind == KindDocker {
+		return b.sealDocker(slot, path)
+	}
 	if b.Cold(slot) && !slot.PublishCold {
 		return ErrWithheld
 	}
@@ -894,10 +916,14 @@ func (b *LocalImages) verify(slot Slot, path string) error {
 }
 
 func (b *LocalImages) Delete(slot Slot, path string) error {
+	suffixes := []string{"", ".tmp", ".zst", ".gz", ".checking", ".detaching", ".verified", ".entries", ".base", ".cold"}
+	if slot.Kind == KindDocker {
+		return b.releaseDocker(slot, path, suffixes)
+	}
 	if err := b.detach(slot, path); err != nil {
 		return err
 	}
-	for _, suffix := range []string{"", ".tmp", ".zst", ".gz", ".checking", ".detaching", ".verified", ".entries", ".base", ".cold"} {
+	for _, suffix := range suffixes {
 		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -915,10 +941,14 @@ func removeMountpoint(path string) error {
 // Keep releases the private branch only after its sealed journal is durable and
 // the server has acknowledged publication. The immutable local master is evictable.
 func (b *LocalImages) Keep(slot Slot, path string) error {
+	suffixes := []string{"", ".verified", ".entries", ".base", ".cold"}
+	if slot.Kind == KindDocker {
+		return b.releaseDocker(slot, path, suffixes)
+	}
 	if err := b.detach(slot, path); err != nil {
 		return err
 	}
-	for _, suffix := range []string{"", ".verified", ".entries", ".base", ".cold"} {
+	for _, suffix := range suffixes {
 		if err := os.Remove(b.image(slot) + suffix); err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -1150,7 +1180,7 @@ func (b *LocalImages) Prefetch(ctx context.Context, slot Slot) error {
 // lineage without a used copy here installs a speculative master, which pressure
 // eviction takes before the masters jobs used.
 func (b *LocalImages) prefetch(ctx context.Context, slot Slot, spare bool) error {
-	return b.fetchMaster(ctx, slot, func(master, older string) error {
+	return b.fetchMaster(ctx, slot, false, func(master, older string) error {
 		if spare && (older == "" || speculative(older)) {
 			_ = os.WriteFile(master+".spare", nil, 0600)
 		}
@@ -1158,12 +1188,18 @@ func (b *LocalImages) prefetch(ctx context.Context, slot Slot, spare bool) error
 	})
 }
 
+type masterFetch struct {
+	done chan struct{}
+	err  error
+}
+
 // fetchMaster downloads the slot's master into staging without the scope lock,
 // so jobs and maintenance keep using the lineage's local masters while it runs,
 // then installs it under the lock and calls installed there with the newest
-// older master. A master already local, or one another fetch is downloading,
-// is left to that copy.
-func (b *LocalImages) fetchMaster(ctx context.Context, slot Slot, installed func(master, older string) error) error {
+// older master. With wait set, concurrent callers wait for that installation
+// or their own context without canceling the fetch they joined; otherwise they
+// leave it to the active fetch. Only the installing caller runs installed.
+func (b *LocalImages) fetchMaster(ctx context.Context, slot Slot, wait bool, installed func(master, older string) error) (err error) {
 	master := b.master(slot)
 	if _, err := os.Stat(master); err == nil {
 		return nil
@@ -1177,10 +1213,30 @@ func (b *LocalImages) fetchMaster(ctx context.Context, slot Slot, installed func
 	// One name per saved version, so the next attempt resumes the archive an
 	// interrupted one left beside it. Maintenance removes it once abandoned.
 	download := filepath.Join(staging, fmt.Sprintf("%s-%d-%s.img", slot.Scope, slot.BaseGeneration, slot.ContentDigest))
-	if _, busy := b.fetching.LoadOrStore(download, struct{}{}); busy {
-		return nil
+	fetch := &masterFetch{done: make(chan struct{})}
+	if active, busy := b.fetching.LoadOrStore(download, fetch); busy {
+		if !wait {
+			return nil
+		}
+		pending := active.(*masterFetch)
+		select {
+		case <-pending.done:
+			return pending.err
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
-	defer b.fetching.Delete(download)
+	defer func() {
+		fetch.err = err
+		b.fetching.Delete(download)
+		close(fetch.done)
+	}()
+	// Another fetch may have finished between the first stat and registration.
+	if _, err := os.Stat(master); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
 	_ = os.Remove(download)
 	defer os.Remove(download)
 	if err := b.operation(slot, "restore", "remote", func() error { return b.Transfer.Download(ctx, slot, download) }); err != nil {

@@ -41,14 +41,14 @@ public struct ProjectDescriptionSearchPaths {
     /// The search path style to use for the library
     var style: Style
 
-    var includeSearchPath: AbsolutePath {
+    var includeSearchPaths: [AbsolutePath] {
         switch style {
         case .commandLine:
-            return path.parentDirectory.appending(component: "Modules")
+            return [path.parentDirectory.appending(component: "Modules"), path.parentDirectory]
         case .xcode:
-            return path.parentDirectory
+            return [path.parentDirectory]
         case .swiftPackageInXcode:
-            return path.parentDirectory.parentDirectory
+            return [path.parentDirectory.parentDirectory]
         }
     }
 

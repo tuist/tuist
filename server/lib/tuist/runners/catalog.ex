@@ -285,15 +285,18 @@ defmodule Tuist.Runners.Catalog do
   defp macos_shape_suffix(_), do: nil
 
   @doc """
-  Name of the `RunnerPool` CR that runs a macOS profile at a site: the pool
-  `pool_name/1` names, racked at the site, which `templates/runner-pool.yaml`
+  Name of the rack `RunnerPool` that runs a macOS profile: the pool
+  `pool_name/1` names, racked on the rack, which `templates/runner-pool.yaml`
   renders as `<macos-prefix>-<site>-<xcode-version-dashes>[-<shape>]` (e.g.
-  `tuist-runner-pool-macos-ber1-26-6`). The site comes before the Xcode so the
-  shape suffix stays last, which `resources_for_fleet/1` matches on.
+  `tuist-runner-pool-macos-ber1-26-6`), named after the rack's home site. The
+  site comes before the Xcode so the shape suffix stays last, which
+  `resources_for_fleet/1` matches on. The pool spans every site whose runners
+  are on, so a job queued on it is bound to its Xcode and shape, and the Node of
+  the runner that claims it decides the site (`Tuist.Runners.Sites`).
 
-  Only pools the environment declares at a site (`TUIST_RUNNERS_SITE_POOLS`)
-  count, so a profile whose Xcode or shape no site racks answers `nil`, and so
-  does a Linux profile. With several sites racking it, the first by name wins.
+  Only pools the environment declares on the rack (`TUIST_RUNNERS_SITE_POOLS`)
+  count, so a profile whose Xcode or shape the rack does not run answers `nil`,
+  and so does a Linux profile. With several listed, the first by name wins.
   """
   def site_pool_name(%{platform: :macos} = profile) do
     site_pools = Tuist.Environment.runners_site_pools()
@@ -382,7 +385,9 @@ defmodule Tuist.Runners.Catalog do
 
   @doc """
   The site a fleet is racked at (`TUIST_RUNNERS_SITE_POOLS`), or `nil` for a
-  fleet that is not at one. A site's fleets take its runner-cache region.
+  fleet that is not on the rack. A rack pool spans every site whose runners are
+  on and is named after this one, so it is the site a claim falls back to for a
+  Node without a site label (`Tuist.Runners.Sites.claim_site/2`).
   """
   def fleet_site(fleet_name) when is_binary(fleet_name) do
     case Map.fetch(Tuist.Environment.runners_site_pools(), fleet_name) do

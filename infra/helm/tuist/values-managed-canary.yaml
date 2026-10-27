@@ -637,6 +637,7 @@ ovhFleets:
   # Replace the legacy RISE-S with one vRack-capable RISE-M in Gravelines.
   # OnDelete preserves the old host until the prepared replacement is ready.
   # One host means ordinary/vRack qualification runs sequentially after drain.
+  # Private-network enrollment is a separate rollout after host qualification.
   runners-linux:
     enabled: true
     # MUST equal the number of boxes prepped and marked for this env. Too high

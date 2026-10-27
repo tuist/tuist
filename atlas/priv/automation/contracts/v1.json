@@ -84,6 +84,14 @@
     }
   ],
   "excluded_tools": {
+    "create_moodboard_resource": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
+    "list_moodboard_resources": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
+    "get_moodboard_resource": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
+    "search_moodboard_resources": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
+    "update_moodboard_resource": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
+    "delete_moodboard_resource": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
+    "add_moodboard_comment": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
+    "delete_moodboard_comment": "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors.",
     "list_tuist_feature_flags": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
     "get_tuist_feature_flag": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",
     "evaluate_tuist_feature_flags": "Remote production control-plane reads are not local transactional workflow behaviors; require an explicitly reviewed adapter.",

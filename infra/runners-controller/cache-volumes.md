@@ -482,3 +482,38 @@ filesystem rather than the pod's work volume. A clone is therefore admitted only
 while free space covers the whole checkout image (60 GB), as the reserve covers
 one custom volume. It never evicts anything for that room: without it the job
 checks out as usual.
+
+## Docker cache volumes
+
+Each repository whose Linux jobs use Docker gets a volume with the reserved key
+`docker` holding its jobs' Docker data root, on pools whose RunnerPool sets
+`dockerCache`. Overlay2 cannot use virtio-fs as an upper layer, so the guest
+loop-mounts the branch image itself, exactly as the sidecar loop-mounts its
+ephemeral `disk.img`; the host never mounts it (`../runner-cache`, `KindDocker`).
+The agent:
+
+- answers `POST /docker` (15 s, its own four request slots) for the live runner
+  pod at the caller's address: it allocates through the server's `/docker` with UID
+  0 and a 100 GB capacity, then clones the master, or formats an empty image, and
+  links it into `pods/<uid>/<scope>/docker.img`. It answers `unseen` when the
+  server has no Docker volume for the repository yet (404), so the runner reports
+  later whether the job used Docker, and `timeout`, `capacity`, `denied` or
+  `error` otherwise. A host without the master prefetches it after the job, like a
+  custom volume.
+- forwards `POST /docker-seen` from the live runner pod to the server.
+- reports a finished Docker use with the inventory from the guest's `docker.json`,
+  including whether the guest formatted it empty because the saved data root
+  would not mount; the server counts such a use as a miss.
+  Publication follows the custom-volume rules; before it the host requires the
+  guest's clean-unmount report, the same inode at the pod's link and an ext4
+  superblock with no journal to recover and no errors, and withholds an unchanged
+  data root or one above 30 GB.
+- answers `POST /docker-merge` from the live runner pod after its job: when the
+  lineage's HEAD moved past the job's base it offers that HEAD's clone as
+  `<scope>/head.img` (`ExposeDockerHead`, up to five minutes with a download, two
+  at a time), so the guest merges the job's images with it before publishing;
+  otherwise it answers no merge.
+
+Staging enables it on every Linux pool (`values-managed-staging.yaml`). The
+server gates it per account with `:runner_docker_cache` on canary and
+production, and each runner profile can turn it off.

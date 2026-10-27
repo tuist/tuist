@@ -134,6 +134,8 @@ jobs:
           bash infra/helm/k8s-monitoring/test-kura-latency-query.sh
       - name: Test production metric write rules with Alloy
         run: python3 infra/helm/k8s-monitoring/test-metric-cost-controls.py
+      - name: Test runner macOS host health alerts
+        run: bash infra/helm/k8s-monitoring/test-runner-macos-host-alerts.sh
 
   render:
     name: Render
