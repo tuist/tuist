@@ -243,3 +243,13 @@ single replica. Before each deletion require fresh Ready/completed-backfill
 reports from its siblings. Mark `kura.tuist.dev/lvm-rebuild` on the outgoing pod,
 demote it from client and peer roles, and wait for observed endpoint handoff.
 Positive-fence backing migrations remain explicit recovery holds.
+
+Regional LVM enrollment alone must not delete legacy claims. Require exactly
+one Node annotated `tuist.dev/kura-lvm-migrate=true`, cordoned, with a prepared
+Ready/schedulable LVM landing node matching the actual StatefulSet selector.
+Only claims pinned to that source may migrate; other legacy replicas stay held.
+The landing check is not a reservation: preflight the whole source node's disk,
+CPU, memory and placement constraints before selection. Never reformat until
+all its claims have moved and replacement replicas have completed backfill.
+Rebuild and verify the emptied node, clear the selection, then select the next.
+Already-LVM volume growth retains its normal per-replica path.

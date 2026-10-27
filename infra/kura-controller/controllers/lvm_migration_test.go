@@ -19,8 +19,10 @@ import (
 
 func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 	for _, tc := range []struct {
-		name, backing, cycle       string
-		paused, single, wantDelete bool
+		name, backing, cycle                      string
+		paused, single, wantDelete                bool
+		skipMark, uncordoned, multiple, noLanding bool
+		sourceOrdinal                             int
 	}{
 		{name: "same class legacy file rebuilds one replica", backing: "file", cycle: backfillCycleComplete, wantDelete: true},
 		{name: "old driver without backing is migrated", cycle: backfillCycleComplete, wantDelete: true},
@@ -28,6 +30,11 @@ func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 		{name: "backfill in progress holds both copies", backing: "file", cycle: "running"},
 		{name: "operator pause holds both copies", backing: "file", cycle: backfillCycleComplete, paused: true},
 		{name: "single copy holds for a standby", backing: "file", cycle: backfillCycleComplete, single: true},
+		{name: "regional enrollment alone holds legacy claims", backing: "file", cycle: backfillCycleComplete, skipMark: true},
+		{name: "no prepared landing node holds the source", backing: "file", cycle: backfillCycleComplete, noLanding: true},
+		{name: "source must be cordoned", backing: "file", cycle: backfillCycleComplete, uncordoned: true},
+		{name: "multiple sources fail closed", backing: "file", cycle: backfillCycleComplete, multiple: true},
+		{name: "skip unselected ordinal and migrate selected host only", backing: "file", cycle: backfillCycleComplete, sourceOrdinal: 1, wantDelete: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			scheme := runtime.NewScheme()
@@ -46,6 +53,9 @@ func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 			sts.Spec.VolumeClaimTemplates[0].Spec.StorageClassName = ptr(encryptedLocalStorageClass)
 			sts.Spec.Template.Spec.Containers[0].Resources.Requests[kuraDiskResource] = resource.MustParse("32Gi")
 			objects := []client.Object{f.instance, sts}
+			if !tc.noLanding {
+				objects = append(objects, &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "prepared-spare"}, Status: corev1.NodeStatus{Allocatable: corev1.ResourceList{kuraDiskResource: resource.MustParse("64Gi")}, Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}}}})
+			}
 			statuses := map[string]runtimeStatus{}
 			for i := 0; i < int(replicas(f.instance)); i++ {
 				claim := f.claim(i, "32Gi")
@@ -53,9 +63,15 @@ func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 				claim.Spec.VolumeName = fmt.Sprintf("pv-%d", i)
 				claim.Status.Phase = corev1.ClaimBound
 				pod := f.servingPod(i, "100m")
+				pod.Spec.NodeName = fmt.Sprintf("source-%d", i)
+				node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: pod.Spec.NodeName}, Spec: corev1.NodeSpec{Unschedulable: !tc.uncordoned}}
+				if !tc.skipMark && (i == tc.sourceOrdinal || tc.multiple) {
+					node.Annotations = map[string]string{lvmMigrationNodeAnnotation: "true"}
+				}
 				pv := &corev1.PersistentVolume{ObjectMeta: metav1.ObjectMeta{Name: claim.Spec.VolumeName}, Spec: corev1.PersistentVolumeSpec{PersistentVolumeSource: corev1.PersistentVolumeSource{CSI: &corev1.CSIPersistentVolumeSource{Driver: "kura-volumes.tuist.dev", VolumeHandle: claim.Spec.VolumeName, VolumeAttributes: map[string]string{"backing": tc.backing}}}}}
-				objects = append(objects, claim, pod, pv)
-				if i == 1 {
+				pv.Spec.NodeAffinity = &corev1.VolumeNodeAffinity{Required: &corev1.NodeSelector{NodeSelectorTerms: []corev1.NodeSelectorTerm{{MatchExpressions: []corev1.NodeSelectorRequirement{{Key: encryptedLocalTopologyKey, Operator: corev1.NodeSelectorOpIn, Values: []string{node.Name}}}}}}}
+				objects = append(objects, claim, pod, pv, node)
+				if i != tc.sourceOrdinal {
 					objects = append(objects, &corev1.Endpoints{ObjectMeta: metav1.ObjectMeta{Name: f.instance.Name, Namespace: f.instance.Namespace}, Subsets: []corev1.EndpointSubset{{Addresses: []corev1.EndpointAddress{{IP: "10.0.0.2", TargetRef: &corev1.ObjectReference{Name: pod.Name}}}}}})
 				}
 
@@ -79,8 +95,8 @@ func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 			}
 			for i := 0; i < int(replicas(f.instance)); i++ {
 				err := c.Get(context.Background(), types.NamespacedName{Name: f.claim(i, "32Gi").Name, Namespace: f.instance.Namespace}, &corev1.PersistentVolumeClaim{})
-				if (err != nil) != (tc.wantDelete && i == 0) {
-					t.Fatalf("claim %d deletion=%v, want %v", i, err, tc.wantDelete && i == 0)
+				if (err != nil) != (tc.wantDelete && i == tc.sourceOrdinal) {
+					t.Fatalf("claim %d deletion=%v, want %v", i, err, tc.wantDelete && i == tc.sourceOrdinal)
 				}
 			}
 			if tc.wantDelete {

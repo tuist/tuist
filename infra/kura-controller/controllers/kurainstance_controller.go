@@ -3711,6 +3711,13 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 	// rebuild would discard the copy that could have recovered first.
 	for _, volume := range replacements {
 		if !serving[volume.ordinal] && othersSettled(volume.ordinal, true) {
+			allowed, err := r.lvmMigrationAllowed(ctx, instance, volume)
+			if err != nil {
+				return true, err
+			}
+			if !allowed {
+				continue
+			}
 			return true, r.rebuildDataVolume(ctx, instance, volume, false)
 		}
 	}
@@ -3720,6 +3727,13 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 	// sibling to read from.
 	for _, volume := range replacements {
 		if serving[volume.ordinal] && othersSettled(volume.ordinal, false) {
+			allowed, err := r.lvmMigrationAllowed(ctx, instance, volume)
+			if err != nil {
+				return true, err
+			}
+			if !allowed {
+				continue
+			}
 			return true, r.rebuildDataVolume(ctx, instance, volume, true)
 		}
 	}

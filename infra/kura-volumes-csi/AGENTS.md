@@ -135,6 +135,16 @@ old file claims even when their encrypted StorageClass is unchanged. Old PVs
 without this evidence are conservatively rebuilt once after LVM enrollment.
 Deploy the new driver before enrolling any region.
 
+Enrollment changes the desired layout; the controller's source-node gate paces
+legacy migration. Cordon one source and set `tuist.dev/kura-lvm-migrate=true`
+only after checking sufficient compatible spare capacity for its claims. Do not
+select multiple nodes or use ordinary node evacuation to bypass this gate.
+Wait for its volumes to be reclaimed and replacements to finish backfill before
+reinstalling it. The verified rebuilt node supplies capacity for the next move;
+this does not require duplicating an entire multi-node fleet. A single-host
+region still needs another host to remain available during conversion, and a
+single-copy instance needs its standby before any destructive migration.
+
 The rack plugin lives in `infra/helm/rack-nodes`, outside the waited main release,
 with explicitly configured `kuraVolumesCSI.rackPools`. Its regression render
 checks the shared host/key contract and disjoint pool ownership against the

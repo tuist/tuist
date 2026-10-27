@@ -2081,8 +2081,7 @@ defmodule Tuist.Environment do
 
       names = [key_name, role, transit_mount, auth_mount | decrypt_names]
 
-      if uri.scheme == "https" and is_binary(uri.host) and uri.host != "" and
-           uri.path in [nil, ""] and is_nil(uri.userinfo) and is_nil(uri.query) and is_nil(uri.fragment) and
+      if valid_openbao_origin?(uri) and
            Enum.all?(names, &Regex.match?(~r/\A[a-zA-Z0-9][a-zA-Z0-9_-]*\z/, &1)) and
            Path.type(token_file) == :absolute and
            (is_nil(ca_cert_file) or Path.type(ca_cert_file) == :absolute) and
@@ -2110,6 +2109,11 @@ defmodule Tuist.Environment do
     end
   rescue
     _ -> {:error, :invalid_openbao_configuration}
+  end
+
+  defp valid_openbao_origin?(uri) do
+    uri.scheme == "https" and is_binary(uri.host) and uri.host != "" and
+      uri.path in [nil, ""] and is_nil(uri.userinfo) and is_nil(uri.query) and is_nil(uri.fragment)
   end
 
   @doc """
