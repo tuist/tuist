@@ -28,3 +28,9 @@ never expose `/dev/kvm` without this kernel.
 `controllers/linux/kata_kvm.go` pins the release hosts install
 (`TestKataKVMKernelMatchesKataVersion`). A Kata bump therefore means: bump
 `release.env`, merge, then bump both provider constants.
+
+The runner-pool end-to-end fixture lives in
+[`android-smoke/`](android-smoke/AGENTS.md). Dispatch the staging Linux smoke
+workflow with `nested_kvm=true` after deploying the controller, provider and
+chart. It exercises the ordinary workflow queue and automatic host proof,
+CDI allocation, unprivileged KVM, Gradle Managed Devices and Macrobenchmark.

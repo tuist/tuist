@@ -603,3 +603,13 @@ relevant main changes through the `install-action` release component after tests
 pass. Bootstrap the distribution repository and release credential first.
 Recover an unrecorded distribution from its original SOURCE_COMMIT before
 publishing newer source; never replace an immutable version.
+
+## Nested KVM runner acceptance
+
+`linux-runners-staging-smoke.yml` has a manual `nested_kvm` mode, isolated from
+its ordinary smoke and cache jobs. It targets `tuist-staging-linux-kvm` as a
+native, non-root job and requires working emulator acceleration before running
+an API 34 x86_64 Gradle Managed Device instrumented test and 15 cold-start
+Macrobenchmark iterations. The pinned fixture and its contract live in
+`infra/kata-kvm-kernel/android-smoke/AGENTS.md`. Retain test results and traces
+on failure too; do not accept a successful build that executed no tests.

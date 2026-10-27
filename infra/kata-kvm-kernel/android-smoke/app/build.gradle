@@ -1,0 +1,41 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'dev.tuist.kvmsmoke'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'dev.tuist.kvmsmoke'
+        minSdk 28
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+    buildTypes {
+        benchmark {
+            initWith release
+            signingConfig signingConfigs.debug
+            matchingFallbacks = ['release']
+            debuggable false
+        }
+    }
+    testOptions {
+        managedDevices {
+            devices {
+                pixel6(com.android.build.api.dsl.ManagedVirtualDevice) {
+                    device = 'Pixel 6'
+                    apiLevel = 34
+                    systemImageSource = 'aosp'
+                }
+            }
+        }
+    }
+}
+
+dependencies {
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+}
