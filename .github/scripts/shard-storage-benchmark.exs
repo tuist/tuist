@@ -26,6 +26,7 @@ defmodule ShardBenchmark do
     rows = Path.join(output, "transfers.jsonl")
     ref_base = "shard-perf-#{System.fetch_env!("GITHUB_RUN_ID")}-#{System.fetch_env!("GITHUB_RUN_ATTEMPT")}"
     Enum.each([64, 512], fn mib ->
+      Enum.each(1..5, fn round ->
       source = Path.join(output, "source")
       File.mkdir_p!(source)
       payload = Path.join(source, "payload")
@@ -37,7 +38,6 @@ defmodule ShardBenchmark do
       :ok = Shards.archive(source, archive)
       bytes = File.stat!(archive).size
       archive_hash = hash(archive)
-      Enum.each(1..5, fn round ->
         modes = if rem(round, 2) == 1, do: [:tigris_serial, :tigris_parallel, :garage_parallel], else: [:garage_parallel, :tigris_parallel, :tigris_serial]
         Enum.each(modes, fn mode ->
           environment = fn
@@ -80,9 +80,9 @@ defmodule ShardBenchmark do
           File.rm!(downloaded)
           File.rm_rf!(extracted)
         end)
-      end)
       File.rm!(archive)
       File.rm_rf!(source)
+      end)
     end)
   end
 end
