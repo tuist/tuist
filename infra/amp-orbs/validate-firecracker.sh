@@ -78,6 +78,7 @@ assert_no_vm() {
 start_daemon
 api POST /v1/sandboxes --data '{"id":"amp-validation","template":"default","vcpus":2,"memory_mb":4096,"workspace_gb":1}' | tee "$evidence/create.json"
 guest 'uname -m; /usr/local/bin/amp --version; /usr/local/bin/amp orb bootstrap --help; runuser -u user -- sudo -n id -u; curl --fail --silent --show-error --max-time 20 --output /dev/null https://ampcode.com'
+guest 'runuser -u user -- bash -euc '\''source <(printf "value=process-substitution-ok\n"); test "$value" = process-substitution-ok; test "$(cat <(printf read-ok))" = read-ok; printf write-ok > /dev/stdout'\'''
 
 # Retain the real Amp executable, then install a credential-free stand-in in
 # this disposable guest only. The production bootstrap helper is unchanged.
