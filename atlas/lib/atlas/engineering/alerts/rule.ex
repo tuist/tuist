@@ -16,6 +16,7 @@ defmodule Atlas.Engineering.Alerts.Rule do
 
   alias Atlas.Engineering.Alerts.Notification
   alias Atlas.Engineering.Projects.Project
+  alias Atlas.Moodboard.SafeHTTP
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -162,8 +163,8 @@ defmodule Atlas.Engineering.Alerts.Rule do
       blank?(url) ->
         add_error(changeset, :webhook_url, "enter an HTTPS URL to POST alerts to")
 
-      not valid_webhook_url?(url) ->
-        add_error(changeset, :webhook_url, "must be a valid http(s) URL")
+      not SafeHTTP.public_url?(url) ->
+        add_error(changeset, :webhook_url, "must be a public HTTPS URL on port 443 without credentials")
 
       true ->
         changeset
@@ -176,19 +177,6 @@ defmodule Atlas.Engineering.Alerts.Rule do
       _ -> put_change(changeset, :webhook_signing_secret, generate_webhook_signing_secret())
     end
   end
-
-  defp valid_webhook_url?(url) when is_binary(url) do
-    case URI.parse(url) do
-      %URI{scheme: scheme, host: host}
-      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
-        true
-
-      _ ->
-        false
-    end
-  end
-
-  defp valid_webhook_url?(_), do: false
 
   defp blank?(nil), do: true
   defp blank?(value) when is_binary(value), do: String.trim(value) == ""

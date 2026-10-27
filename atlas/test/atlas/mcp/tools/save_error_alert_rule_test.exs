@@ -73,6 +73,45 @@ defmodule Atlas.MCP.Tools.SaveErrorAlertRuleTest do
     assert denied["error"] || denied["result"]["isError"]
   end
 
+  test "shared Slack identities cannot discover, dispatch or directly execute alert mutations" do
+    user = insert_user!(%{scopes: ["engineering:write"]})
+    {:ok, project} = Projects.create_project(%{name: "alerts-#{System.unique_integer([:positive])}"})
+    {:ok, rule} = Alerts.create_rule(project, attrs() |> Map.put("enabled", false))
+
+    for context <- [
+          %{audit_interface: "slack"},
+          %{mcp_claims: %{"slack_agent" => "systems_investigator"}},
+          %{audit_interface: "mcp", mcp_claims: %{"slack_agent" => "systems_investigator"}}
+        ] do
+      conn = %{assigns: Map.merge(%{current_user: user}, context)}
+
+      calls = [
+        {SaveErrorAlertRule, %{"project_id" => project.id, "id" => rule.id, "attributes" => %{"enabled" => true}}},
+        {DeleteErrorAlertRule, %{"id" => rule.id}}
+      ]
+
+      listed = Server.handle_message(conn, %{"jsonrpc" => "2.0", "method" => "tools/list", "id" => 1})
+      names = Enum.map(listed["result"]["tools"], & &1["name"])
+
+      for {module, args} <- calls do
+        refute module.name() in names
+        assert {:error, _} = execute_tool(module, conn, args)
+
+        response =
+          Server.handle_message(conn, %{
+            "jsonrpc" => "2.0",
+            "method" => "tools/call",
+            "id" => 2,
+            "params" => %{"name" => module.name(), "arguments" => args}
+          })
+
+        assert response["error"] || response["result"]["isError"]
+      end
+    end
+
+    assert {:ok, %{enabled: false}} = Alerts.get_rule(rule.id)
+  end
+
   test "successful and malformed save calls omit all credentials from tool audits" do
     conn = mcp_conn(insert_user!(%{scopes: ["engineering:write"]}))
     {:ok, project} = Projects.create_project(%{name: "alerts-#{System.unique_integer([:positive])}"})
@@ -103,7 +142,10 @@ defmodule Atlas.MCP.Tools.SaveErrorAlertRuleTest do
           Map.delete(attrs(), "environment"),
           Map.delete(attrs(), "min_level"),
           Map.delete(attrs(), "threshold_window_minutes"),
-          Map.put(attrs(), "threshold_window_minutes", 61)
+          Map.put(attrs(), "threshold_window_minutes", 61),
+          Map.put(attrs(), "webhook_url", "http://receiver.example.org/secret"),
+          Map.put(attrs(), "webhook_url", "https://127.0.0.1/secret"),
+          Map.put(attrs(), "webhook_url", "https://metadata.google.internal/secret")
         ] do
       assert {:error, _} =
                execute_tool(SaveErrorAlertRule, conn, %{"project_id" => project.id, "attributes" => invalid})

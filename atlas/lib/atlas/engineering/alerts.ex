@@ -99,7 +99,7 @@ defmodule Atlas.Engineering.Alerts do
       target_type: "alert_rule",
       target_id: rule.id,
       target_label: rule.name,
-      metadata: Map.put(metadata, "path", "/engineering/projects/#{rule.project_id}/alerts")
+      metadata: Map.put(metadata, "path", "/engineering/projects/#{rule.project_id}#project-alerts")
     })
   end
 
@@ -140,7 +140,7 @@ defmodule Atlas.Engineering.Alerts do
       "issue_id" => issue_id || ""
     }
 
-    case Ecto.Adapters.SQL.query(Atlas.ClickHouseRepo, query, params) do
+    case Ecto.Adapters.SQL.query(Atlas.ClickHouseRepo, query, params, timeout: :timer.seconds(10)) do
       {:ok, %{rows: rows}} -> {:ok, Enum.map(rows, fn [id, count] -> %{issue_id: id, event_count: count} end)}
       {:error, _} -> {:error, :spike_query_failed}
     end

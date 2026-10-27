@@ -5,14 +5,37 @@ defmodule Atlas.Engineering.Alerts.Workers.EvaluateSpikesTest do
   import Oban.Testing, only: [all_enqueued: 1]
 
   alias Atlas.Engineering.Alerts
-  alias Atlas.Engineering.Alerts.Rule
   alias Atlas.Engineering.Alerts.Workers.DeliverRule
   alias Atlas.Engineering.Alerts.Workers.EvaluateSpikes
   alias Atlas.Engineering.Errors
   alias Atlas.Engineering.Projects
   alias Ecto.Adapters.SQL.Sandbox
 
-  test "minute evaluation queues each enabled rule/issue once and leaves disabled rules alone" do
+  test "the minute tick schedules independently committed evaluations without querying event storage" do
+    {:ok, project} = Projects.create_project(%{name: "isolated-#{System.unique_integer([:positive])}"})
+
+    attrs = %{
+      name: "Spike",
+      trigger: :event_spike,
+      threshold_event_count: 100,
+      threshold_window_minutes: 5,
+      environment: "prod",
+      min_level: :error,
+      slack_channel_id: "test-channel"
+    }
+
+    {:ok, first} = Alerts.create_rule(project, attrs)
+    {:ok, second} = Alerts.create_rule(project, %{attrs | name: "Other spike"})
+    stub(Errors, :enabled?, fn -> true end)
+    reject(Alerts, :spike_matches, 2)
+
+    assert :ok = EvaluateSpikes.perform(%Oban.Job{args: %{}})
+    jobs = all_enqueued(repo: Repo, worker: EvaluateSpikes)
+    assert Enum.sort(Enum.map(jobs, & &1.args["rule_id"])) == Enum.sort([first.id, second.id])
+    assert all_enqueued(repo: Repo, worker: DeliverRule) == []
+  end
+
+  test "rule evaluations isolate failures, deduplicate deliveries and leave disabled rules alone" do
     {:ok, project} = Projects.create_project(%{name: "spikes-#{System.unique_integer([:positive])}"})
 
     attrs = %{
@@ -26,7 +49,7 @@ defmodule Atlas.Engineering.Alerts.Workers.EvaluateSpikesTest do
     }
 
     {:ok, enabled} = Alerts.create_rule(project, attrs)
-    {:ok, _disabled} = Alerts.create_rule(project, Map.put(attrs, :enabled, false))
+    {:ok, disabled} = Alerts.create_rule(project, Map.put(attrs, :enabled, false))
     issue_ids = [Ecto.UUID.generate(), Ecto.UUID.generate()]
     stub(Errors, :enabled?, fn -> true end)
 
@@ -35,19 +58,21 @@ defmodule Atlas.Engineering.Alerts.Workers.EvaluateSpikesTest do
       {:ok, Enum.map(issue_ids, &%{issue_id: &1, event_count: 107})}
     end)
 
-    assert :ok = EvaluateSpikes.perform(%Oban.Job{})
-    assert :ok = EvaluateSpikes.perform(%Oban.Job{})
+    assert :ok = EvaluateSpikes.perform(%Oban.Job{args: %{"rule_id" => disabled.id}})
+    assert :ok = EvaluateSpikes.perform(%Oban.Job{args: %{"rule_id" => enabled.id}})
+    assert :ok = EvaluateSpikes.perform(%Oban.Job{args: %{"rule_id" => enabled.id}})
     jobs = all_enqueued(repo: Repo, worker: DeliverRule)
     assert length(jobs) == 2
     assert Enum.sort(Enum.map(jobs, & &1.args["subject_id"])) == Enum.sort(issue_ids)
     assert Enum.all?(jobs, &(&1.args["rule_id"] == enabled.id and &1.args["environment"] == "prod"))
 
-    {:ok, _other} = Alerts.create_rule(project, Map.put(attrs, :name, "Another production spike"))
+    {:ok, other} = Alerts.create_rule(project, Map.put(attrs, :name, "Another production spike"))
     other_issue_id = Ecto.UUID.generate()
     stub(Alerts, :spike_matches, fn _, _ -> {:ok, [%{issue_id: other_issue_id, event_count: 107}]} end)
     expect(Alerts, :spike_matches, fn _, _ -> {:error, :spike_query_failed} end)
 
-    assert {:error, :spike_query_failed} = EvaluateSpikes.perform(%Oban.Job{})
+    assert {:error, :spike_query_failed} = EvaluateSpikes.perform(%Oban.Job{args: %{"rule_id" => enabled.id}})
+    assert :ok = EvaluateSpikes.perform(%Oban.Job{args: %{"rule_id" => other.id}})
     jobs = all_enqueued(repo: Repo, worker: DeliverRule)
     assert length(jobs) == 3
     assert Enum.any?(jobs, &(&1.args["subject_id"] == other_issue_id))
@@ -72,16 +97,15 @@ defmodule Atlas.Engineering.Alerts.Workers.EvaluateSpikesTest do
     refute Oban.insert!(EvaluateSpikes.new(%{})).conflict?
   end
 
-  test "only one replica evaluates at once and losing its connection releases the lock" do
+  test "only one replica schedules at once and losing its connection releases the lock" do
     parent = self()
     stub(Errors, :enabled?, fn -> true end)
-    stub(Repo, :all, fn _query -> [%Rule{}] end)
 
-    stub(Alerts, :spike_matches, fn _, _ ->
+    stub(Repo, :all, fn _query ->
       send(parent, {:evaluating, self()})
 
       receive do
-        :finish -> {:ok, []}
+        :finish -> []
       after
         10_000 -> flunk("evaluation was not released")
       end

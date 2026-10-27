@@ -112,6 +112,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.EnrichGTMOpportunityContacts
   alias Atlas.MCP.Tools.EnrollOutreachCandidate
   alias Atlas.MCP.Tools.EnrollOutreachContact
+  alias Atlas.MCP.Tools.ErrorAlertRules
   alias Atlas.MCP.Tools.EvaluateTuistFeatureFlags
   alias Atlas.MCP.Tools.ExercisePurchaseOption
   alias Atlas.MCP.Tools.ExpireInsurancePolicy
@@ -1033,8 +1034,10 @@ defmodule Atlas.MCP.Server do
   defp error_alert_tool_allowed?(conn, tool_module) when tool_module in @error_alert_read_tools,
     do: Atlas.Users.has_scope?(Tool.current_user(conn), "engineering:read")
 
-  defp error_alert_tool_allowed?(conn, tool_module) when tool_module in @error_alert_write_tools,
-    do: Atlas.Users.has_scope?(Tool.current_user(conn), "engineering:write")
+  defp error_alert_tool_allowed?(conn, tool_module) when tool_module in @error_alert_write_tools do
+    ErrorAlertRules.write_context_allowed?(conn) and
+      Atlas.Users.has_scope?(Tool.current_user(conn), "engineering:write")
+  end
 
   defp error_alert_tool_allowed?(_conn, _tool_module), do: true
 

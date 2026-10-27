@@ -12,10 +12,25 @@ defmodule Atlas.Engineering.Alerts.Workers.EvaluateSpikes do
   alias Atlas.Repo
 
   @impl Oban.Worker
+  def timeout(_job), do: :timer.seconds(30)
+
+  @impl Oban.Worker
+  def perform(%Oban.Job{args: %{"rule_id" => id}}) do
+    if Errors.enabled?() do
+      case Repo.one(from(rule in Rule, where: rule.id == ^id and rule.enabled and rule.trigger == :event_spike)) do
+        nil -> :ok
+        rule -> evaluate_rule(rule)
+      end
+    else
+      :ok
+    end
+  end
+
+  @impl Oban.Worker
   def perform(%Oban.Job{}) do
     if Errors.enabled?() do
-      # The connection owns exclusion, not an executing Oban row that can
-      # outlive a killed replica until Lifeline rescues it.
+      # Only schedule inside the coordination transaction. Event-storage reads
+      # run in independent jobs so a slow rule cannot roll back healthy ones.
       case Repo.transaction(&evaluate_locked/0) do
         {:ok, result} -> result
         {:error, _} = error -> error
@@ -28,20 +43,20 @@ defmodule Atlas.Engineering.Alerts.Workers.EvaluateSpikes do
   defp evaluate_locked do
     case Repo.query!("SELECT pg_try_advisory_xact_lock(hashtext($1))", ["atlas.alert.spike_evaluation"]) do
       %{rows: [[true]]} ->
-        at = DateTime.utc_now()
         rules = Repo.all(from(rule in Rule, where: rule.enabled and rule.trigger == :event_spike))
-        Enum.reduce(rules, :ok, &evaluate_rule(&1, at, &2))
+        Enum.each(rules, fn rule -> Oban.insert!(new(%{"rule_id" => rule.id})) end)
+        :ok
 
       %{rows: [[false]]} ->
         :ok
     end
   end
 
-  defp evaluate_rule(rule, at, result) do
-    case Alerts.spike_matches(rule, at) do
+  defp evaluate_rule(rule) do
+    case Alerts.spike_matches(rule, DateTime.utc_now()) do
       {:ok, matches} ->
         Enum.each(matches, &enqueue(rule, &1))
-        result
+        :ok
 
       {:error, _} = error ->
         error

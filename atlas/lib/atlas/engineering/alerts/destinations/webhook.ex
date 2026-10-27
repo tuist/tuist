@@ -11,6 +11,7 @@ defmodule Atlas.Engineering.Alerts.Destinations.Webhook do
 
   alias Atlas.Engineering.Alerts.Rule
   alias Atlas.Engineering.Errors.Issue
+  alias Atlas.Moodboard.SafeHTTP
   alias AtlasWeb.Endpoint
 
   @user_agent "Atlas-Alerts/1.0"
@@ -37,9 +38,9 @@ defmodule Atlas.Engineering.Alerts.Destinations.Webhook do
   end
 
   defp default_request(url, headers, body) do
-    case Req.post(url, headers: headers, body: body, receive_timeout: :timer.seconds(10)) do
-      {:ok, %Req.Response{status: status}} when status in 200..299 -> :ok
-      {:ok, %Req.Response{status: status}} -> {:error, {:webhook_http, status}}
+    case SafeHTTP.post(url, headers, body) do
+      {:ok, %{status: status}} when status in 200..299 -> :ok
+      {:ok, %{status: status}} -> {:error, {:webhook_http, status}}
       {:error, reason} -> {:error, {:webhook_transport, reason}}
     end
   end

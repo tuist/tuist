@@ -10,7 +10,10 @@ defmodule Atlas.Engineering.Alerts.Workers.DeliverRuleTest do
   alias Atlas.Engineering.Errors
   alias Atlas.Engineering.Errors.Issue
   alias Atlas.Engineering.Projects.Project
+  alias Atlas.Moodboard.Resolver
+  alias Atlas.Moodboard.SafeHTTP
   alias Ecto.Adapters.SQL.Sandbox
+  alias Mint.HTTP
 
   test "concurrent replicas cannot both deliver within a rule's cooldown" do
     parent = self()
@@ -99,9 +102,9 @@ defmodule Atlas.Engineering.Alerts.Workers.DeliverRuleTest do
     parent = self()
     stub(Alerts, :spike_matches, fn _rule, _at, _opts -> {:ok, [%{issue_id: issue.id, event_count: 107}]} end)
 
-    stub(Req, :post, fn _url, opts ->
-      send(parent, {:webhook, opts[:headers], opts[:body]})
-      {:ok, %Req.Response{status: 202}}
+    stub(SafeHTTP, :post, fn _url, headers, body ->
+      send(parent, {:webhook, headers, body})
+      {:ok, %{status: 202}}
     end)
 
     job = %Oban.Job{
@@ -130,7 +133,7 @@ defmodule Atlas.Engineering.Alerts.Workers.DeliverRuleTest do
   test "stale spikes do not page and query failures remain retryable rather than healthy" do
     {rule, issue} = spike_fixtures()
     job = %Oban.Job{args: %{"rule_id" => rule.id, "subject_id" => issue.id, "reason" => "event_spike"}}
-    stub(Req, :post, fn _, _ -> flunk("a stale or unqueryable spike must not send") end)
+    reject(SafeHTTP, :post, 3)
 
     stub(Alerts, :spike_matches, fn _, _, _ -> {:ok, []} end)
     assert :ok = DeliverRule.perform(job)
@@ -138,6 +141,21 @@ defmodule Atlas.Engineering.Alerts.Workers.DeliverRuleTest do
     stub(Alerts, :spike_matches, fn _, _, _ -> {:error, :spike_query_failed} end)
     assert {:error, :spike_query_failed} = DeliverRule.perform(job)
     assert Repo.all(from(n in Notification, where: n.rule_id == ^rule.id)) == []
+  end
+
+  test "legacy unsafe URLs and private DNS cannot deliver a webhook" do
+    {rule, issue} = spike_fixtures()
+    stub(Alerts, :spike_matches, fn _, _, _ -> {:ok, [%{issue_id: issue.id, event_count: 107}]} end)
+    stub(Resolver, :resolve, fn _ -> {:ok, [{93, 184, 216, 34}, {127, 0, 0, 1}]} end)
+    reject(HTTP, :connect, 4)
+    job = %Oban.Job{args: %{"rule_id" => rule.id, "subject_id" => issue.id, "reason" => "event_spike"}}
+
+    for url <- ["http://receiver.example/secret", "https://127.0.0.1/secret", "https://receiver.example/secret"] do
+      Repo.update_all(from(r in Rule, where: r.id == ^rule.id), set: [webhook_url: url])
+      assert {:error, {:webhook_transport, :unsafe_url}} = DeliverRule.perform(job)
+    end
+
+    assert Repo.all(from(n in Notification, where: n.rule_id == ^rule.id and n.status == :sent)) == []
   end
 
   test "changing a rule trigger invalidates queued cumulative and regression firings" do

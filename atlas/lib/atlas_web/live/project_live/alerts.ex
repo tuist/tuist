@@ -1,51 +1,53 @@
 defmodule AtlasWeb.ProjectLive.Alerts do
-  use AtlasWeb, :live_view
+  @moduledoc false
+
+  use AtlasWeb, :html
   use Noora
 
   import AtlasWeb.CoreComponents, only: []
+  import Phoenix.LiveView
 
   alias Atlas.Engineering.Alerts
   alias Atlas.Engineering.Alerts.Rule
   alias Atlas.Engineering.Errors
-  alias Atlas.Engineering.Projects
   alias Atlas.Users
 
-  @impl true
-  def mount(%{"id" => id}, _session, socket) do
+  def attach(socket) do
     user = socket.assigns.current_user
+    socket = assign(socket, :can_view_alerts?, Users.has_scope?(user, "engineering:read"))
 
-    with true <- Users.has_scope?(user, "engineering:read"),
-         {:ok, project} <- Projects.fetch_visible_project(id, user) do
-      {:ok,
-       socket
-       |> assign(:project, project)
-       |> assign(:page_title, gettext("Error alerts"))
-       |> assign(:can_manage?, Users.has_scope?(user, "engineering:write"))
-       |> assign(:preview_rule, nil)
-       |> assign(:preview_result, nil)
-       |> assign(:preview_form, to_form(%{"at" => DateTime.to_iso8601(DateTime.utc_now())}, as: :preview))
-       |> reset_form()
-       |> load_rules()}
+    if socket.assigns.can_view_alerts? do
+      socket
+      |> assign(:can_manage?, Users.has_scope?(user, "engineering:write"))
+      |> assign(:preview_rule, nil)
+      |> assign(:preview_result, nil)
+      |> assign(:preview_form, to_form(%{"at" => DateTime.to_iso8601(DateTime.utc_now())}, as: :preview))
+      |> reset_form()
+      |> load_rules()
+      |> attach_hook(:project_alerts, :handle_event, &handle_event/3)
     else
-      _ ->
-        {:ok,
-         socket
-         |> put_flash(:error, gettext("Project not found or access denied."))
-         |> redirect(to: ~p"/engineering/projects")}
+      socket
     end
   end
 
-  @impl true
-  def handle_event("validate_rule", %{"rule" => params}, socket) do
+  defp handle_event("new_rule", _params, socket) do
+    if can_manage?(socket) do
+      {:halt, socket |> reset_form() |> push_event("open-modal", %{id: "error-alert-modal"})}
+    else
+      {:halt, socket}
+    end
+  end
+
+  defp handle_event("validate_rule", %{"rule" => params}, socket) do
     if can_manage?(socket) do
       changeset = Alerts.change_rule(socket.assigns.editing_rule, clean_params(params))
-      {:noreply, assign_form(socket, changeset)}
+      {:halt, assign_form(socket, %{changeset | action: :validate})}
     else
-      {:noreply, socket}
+      {:halt, socket}
     end
   end
 
-  def handle_event("save_rule", %{"rule" => params}, socket) do
+  defp handle_event("save_rule", %{"rule" => params}, socket) do
     if can_manage?(socket) do
       attrs = clean_params(params)
 
@@ -57,47 +59,60 @@ defmodule AtlasWeb.ProjectLive.Alerts do
 
       case result do
         {:ok, _rule} ->
-          {:noreply, socket |> load_rules() |> reset_form() |> put_flash(:info, gettext("Alert rule saved."))}
+          {:halt,
+           socket
+           |> load_rules()
+           |> reset_form()
+           |> put_flash(:info, gettext("Alert rule saved."))
+           |> push_event("close-modal", %{id: "error-alert-modal"})}
 
         {:error, changeset} ->
-          {:noreply, assign_form(socket, changeset)}
+          {:halt, assign_form(socket, changeset)}
       end
     else
-      {:noreply, socket}
+      {:halt, socket}
     end
   end
 
-  def handle_event("edit_rule", %{"id" => id}, socket) do
+  defp handle_event("edit_rule", %{"id" => id}, socket) do
     with true <- can_manage?(socket), {:ok, rule} <- project_rule(socket, id) do
-      {:noreply, socket |> assign(:editing_rule, rule) |> assign_form(Alerts.change_rule(rule))}
+      {:halt,
+       socket
+       |> assign(:editing_rule, rule)
+       |> assign_form(Alerts.change_rule(rule))
+       |> push_event("open-modal", %{id: "error-alert-modal"})}
     else
-      _ -> {:noreply, socket}
+      _ -> {:halt, socket}
     end
   end
 
-  def handle_event("toggle_rule", %{"id" => id}, socket) do
+  defp handle_event("toggle_rule", %{"id" => id}, socket) do
     with true <- can_manage?(socket),
          {:ok, rule} <- project_rule(socket, id),
          {:ok, _} <- Alerts.update_rule(rule, %{enabled: not rule.enabled}) do
-      {:noreply, load_rules(socket)}
+      {:halt, load_rules(socket)}
     else
-      _ -> {:noreply, socket}
+      _ -> {:halt, socket}
     end
   end
 
-  def handle_event("cancel_rule", _params, socket), do: {:noreply, reset_form(socket)}
+  defp handle_event("cancel_rule", _params, socket),
+    do: {:halt, socket |> reset_form() |> push_event("close-modal", %{id: "error-alert-modal"})}
 
-  def handle_event("select_preview", %{"id" => id}, socket) do
+  defp handle_event("rule_modal_open_change", %{"open" => false}, socket), do: {:halt, reset_form(socket)}
+  defp handle_event("rule_modal_open_change", _params, socket), do: {:halt, socket}
+
+  defp handle_event("select_preview", %{"id" => id}, socket) do
     case project_rule(socket, id) do
       {:ok, %Rule{trigger: :event_spike} = rule} ->
-        {:noreply, socket |> assign(:preview_rule, rule) |> assign(:preview_result, nil)}
+        {:halt, socket |> assign(:preview_rule, rule) |> assign(:preview_result, nil)}
 
       _ ->
-        {:noreply, socket}
+        {:halt, socket}
     end
   end
 
-  def handle_event("preview_rule", %{"preview" => %{"at" => at}}, socket) do
+  defp handle_event("preview_rule", %{"preview" => %{"at" => at}}, socket) do
     result =
       with %Rule{id: id} <- socket.assigns.preview_rule,
            {:ok, %Rule{trigger: :event_spike} = rule} <- project_rule(socket, id),
@@ -109,250 +124,264 @@ defmodule AtlasWeb.ProjectLive.Alerts do
         _ -> {:error, gettext("Could not evaluate this window. Check the time and error storage availability.")}
       end
 
-    {:noreply, socket |> assign(:preview_result, result) |> assign(:preview_form, to_form(%{"at" => at}, as: :preview))}
+    {:halt, socket |> assign(:preview_result, result) |> assign(:preview_form, to_form(%{"at" => at}, as: :preview))}
   end
 
-  @impl true
-  def render(assigns) do
+  defp handle_event(_event, _params, socket), do: {:cont, socket}
+
+  def section(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
-      <section id="project-alerts">
-        <div data-part="header">
-          <div data-part="title-group">
-            <h1>{gettext("Error alerts")}</h1>
-            <p>{@project.name}</p>
-          </div>
-          <.button
-            navigate={~p"/engineering/projects/#{@project.id}"}
-            label={gettext("Back to project")}
-            variant="secondary"
-            size="medium"
-          />
-        </div>
-        <.card title={gettext("Rules")} icon="bell">
-          <.card_section>
+    <section id="project-alerts">
+      <.card title={gettext("Error alerts")} icon="bell">
+        <:actions>
+          <.rule_modal :if={@can_manage?} form={@form} editing_rule={@editing_rule} />
+        </:actions>
+        <.card_section data-part="error-alerts-card">
+          <.table :if={!@rules_empty?} id="error-alert-rules" rows={@streams.rules}>
+            <:col :let={{_id, rule}} label={gettext("Rule")}>
+              <.text_and_description_cell label={rule.name} description={rule_description(rule)} />
+            </:col>
+            <:col :let={{_id, rule}} label={gettext("Destination")}>
+              <.text_cell label={
+                if rule.destination_type == :webhook,
+                  do: gettext("Webhook configured"),
+                  else: rule.slack_channel_id
+              } />
+            </:col>
+            <:col :let={{_id, rule}} label={gettext("Status")}>
+              <.badge
+                label={if rule.enabled, do: gettext("Enabled"), else: gettext("Disabled")}
+                color={if rule.enabled, do: "success", else: "neutral"}
+              />
+            </:col>
+            <:col :let={{_id, rule}} label="">
+              <.button_cell>
+                <:button :if={rule.trigger == :event_spike}>
+                  <.button
+                    label={gettext("Preview")}
+                    phx-click="select_preview"
+                    phx-value-id={rule.id}
+                    variant="secondary"
+                    size="small"
+                  />
+                </:button>
+                <:button :if={@can_manage?}>
+                  <.button
+                    label={gettext("Edit")}
+                    phx-click="edit_rule"
+                    phx-value-id={rule.id}
+                    variant="secondary"
+                    size="small"
+                  />
+                </:button>
+                <:button :if={@can_manage?}>
+                  <.button
+                    label={if rule.enabled, do: gettext("Disable"), else: gettext("Enable")}
+                    phx-click="toggle_rule"
+                    phx-value-id={rule.id}
+                    variant="secondary"
+                    size="small"
+                  />
+                </:button>
+              </.button_cell>
+            </:col>
+          </.table>
+          <.table :if={@rules_empty?} id="error-alert-rules-empty" rows={[]}>
+            <:col label={gettext("Rule")} />
+            <:empty_state>
+              <.table_empty_state
+                icon="bell"
+                title={gettext("No error alert rules")}
+                subtitle={
+                  gettext(
+                    "Create a disabled rule, preview historical windows, then enable it explicitly."
+                  )
+                }
+              />
+            </:empty_state>
+          </.table>
+        </.card_section>
+      </.card>
+
+      <.card :if={@preview_rule} title={gettext("Historical preview")} icon="history">
+        <.card_section>
+          <.form
+            id="error-alert-preview"
+            for={@preview_form}
+            phx-submit="preview_rule"
+            data-part="form"
+          >
+            <p data-part="context-text">{@preview_rule.name}</p>
+            <.text_input
+              field={@preview_form[:at]}
+              label={gettext("Window ending at (ISO8601)")}
+              required
+              hint={
+                gettext(
+                  "Read-only: never sends alerts. Missing retained history is not evidence of a healthy period."
+                )
+              }
+            />
+            <.button label={gettext("Evaluate window")} variant="secondary" size="medium" />
             <.alert
-              status="information"
-              size="large"
-              title={gettext("Incidents are declared by the receiver")}
+              :if={match?({:error, _}, @preview_result)}
+              status="error"
+              size="small"
+              title={elem(@preview_result, 1)}
+            />
+            <div
+              :if={match?({:ok, _}, @preview_result)}
+              id="error-alert-preview-result"
+              data-part="context-text"
             >
-              {gettext(
-                "An incident tier alone does not declare an incident. Send a webhook to Grafana IRM and route matching production incident alerts to an escalation chain with a Declare incident step. Existing Slack rules keep working independently."
-              )}
-            </.alert>
-            <.table :if={!@rules_empty?} id="error-alert-rules" rows={@streams.rules}>
-              <:col :let={{_id, rule}} label={gettext("Rule")}>
-                <.text_and_description_cell label={rule.name} description={rule_description(rule)} />
-              </:col>
-              <:col :let={{_id, rule}} label={gettext("Destination")}>
-                <.text_cell label={
-                  if rule.destination_type == :webhook,
-                    do: gettext("Webhook configured"),
-                    else: rule.slack_channel_id
-                } />
-              </:col>
-              <:col :let={{_id, rule}} label={gettext("Status")}>
-                <.badge
-                  label={if rule.enabled, do: gettext("Enabled"), else: gettext("Disabled")}
-                  color={if rule.enabled, do: "success", else: "neutral"}
-                />
-              </:col>
-              <:col :let={{_id, rule}} label="">
-                <.button_cell>
-                  <:button :if={rule.trigger == :event_spike}>
-                    <.button
-                      label={gettext("Preview")}
-                      phx-click="select_preview"
-                      phx-value-id={rule.id}
-                      variant="secondary"
-                      size="small"
-                    />
-                  </:button>
-                  <:button :if={@can_manage?}>
-                    <.button
-                      label={gettext("Edit")}
-                      phx-click="edit_rule"
-                      phx-value-id={rule.id}
-                      variant="secondary"
-                      size="small"
-                    />
-                  </:button>
-                  <:button :if={@can_manage?}>
-                    <.button
-                      label={if rule.enabled, do: gettext("Disable"), else: gettext("Enable")}
-                      phx-click="toggle_rule"
-                      phx-value-id={rule.id}
-                      variant="secondary"
-                      size="small"
-                    />
-                  </:button>
-                </.button_cell>
-              </:col>
-            </.table>
-            <.table :if={@rules_empty?} id="error-alert-rules-empty" rows={[]}>
-              <:col label={gettext("Rule")} />
-              <:empty_state>
-                <.table_empty_state
-                  icon="bell"
-                  title={gettext("No error alert rules")}
-                  subtitle={
-                    gettext(
-                      "Create a disabled rule, preview historical windows, then enable it explicitly."
-                    )
-                  }
-                />
-              </:empty_state>
-            </.table>
-          </.card_section>
-        </.card>
-
-        <.card :if={@preview_rule} title={gettext("Historical preview")} icon="history">
-          <.card_section>
-            <.form
-              id="error-alert-preview"
-              for={@preview_form}
-              phx-submit="preview_rule"
-              data-part="form"
-            >
-              <p data-part="context-text">{@preview_rule.name}</p>
-              <.text_input
-                field={@preview_form[:at]}
-                label={gettext("Window ending at (ISO8601)")}
-                required
-                hint={
-                  gettext(
-                    "Read-only: never sends alerts. Missing retained history is not evidence of a healthy period."
-                  )
-                }
-              />
-              <.button label={gettext("Evaluate window")} variant="secondary" size="medium" />
-              <.alert
-                :if={match?({:error, _}, @preview_result)}
-                status="error"
-                size="small"
-                title={elem(@preview_result, 1)}
-              />
-              <div
-                :if={match?({:ok, _}, @preview_result)}
-                id="error-alert-preview-result"
-                data-part="context-text"
-              >
-                <p>{gettext("Matching issues: %{count}", count: length(elem(@preview_result, 1)))}</p>
-                <p :for={match <- elem(@preview_result, 1)}>
-                  <.link navigate={~p"/engineering/errors/#{match.issue_id}"}>{match.issue_id}</.link>
-                  {gettext("%{count} events", count: match.event_count)}
-                </p>
-              </div>
-            </.form>
-          </.card_section>
-        </.card>
-
-        <.card
-          :if={@can_manage?}
-          title={if @editing_rule.id, do: gettext("Edit rule"), else: gettext("New rule")}
-          icon="bell"
-        >
-          <.card_section>
-            <.form
-              id="error-alert-form"
-              for={@form}
-              phx-change="validate_rule"
-              phx-submit="save_rule"
-              data-part="form"
-            >
-              <.text_input field={@form[:name]} label={gettext("Name")} required />
-              <.rule_select
-                field={@form[:trigger]}
-                label={gettext("Trigger")}
-                options={[
-                  {"event_spike", gettext("Error spike in a time window")},
-                  {"event_rate", gettext("Cumulative events since last notification")},
-                  {"regression", gettext("Resolved issue regressed")}
-                ]}
-              />
-              <.rule_select
-                field={@form[:tier]}
-                label={gettext("Tier")}
-                options={[{"attention", gettext("Attention")}, {"incident", gettext("Incident")}]}
-              />
-              <.text_input
-                field={@form[:environment]}
-                label={gettext("Exact environment")}
-                hint={
-                  gettext(
-                    "Use the SDK's exact environment value, for example prod rather than production."
-                  )
-                }
-              />
-              <.rule_select
-                field={@form[:min_level]}
-                label={gettext("Minimum level")}
-                options={Enum.map(Rule.levels(), &{to_string(&1), to_string(&1)})}
-              />
-              <.text_input
-                :if={@form[:trigger].value not in [:regression, "regression"]}
-                field={@form[:threshold_event_count]}
-                input_type="number"
-                min={1}
-                label={gettext("Event count threshold")}
-              />
-              <.text_input
-                :if={@form[:trigger].value in [:event_spike, "event_spike"]}
-                field={@form[:threshold_window_minutes]}
-                input_type="number"
-                min={1}
-                max={60}
-                label={gettext("Window (minutes)")}
-              />
-              <.text_input
-                field={@form[:cooldown_minutes]}
-                input_type="number"
-                min={0}
-                label={gettext("Cooldown (minutes)")}
-              />
-              <.rule_select
-                field={@form[:destination_type]}
-                label={gettext("Destination")}
-                options={[{"slack", gettext("Slack")}, {"webhook", gettext("Webhook")}]}
-              />
-              <.text_input
-                :if={@form[:destination_type].value in [:slack, "slack"]}
-                field={@form[:slack_channel_id]}
-                label={gettext("Slack channel ID")}
-              />
-              <.text_input
-                :if={@form[:destination_type].value in [:webhook, "webhook"]}
-                field={@form[:webhook_url]}
-                input_type="password"
-                autocomplete="off"
-                label={gettext("Webhook URL")}
-                hint={
-                  gettext(
-                    "Leave blank when editing to keep the saved URL. URLs and signing secrets are never displayed."
-                  )
-                }
-              />
-              <p data-part="context-text">
-                {gettext(
-                  "New rules start disabled. Preview historical windows, then use Enable in the rules table."
-                )}
+              <p>{gettext("Matching issues: %{count}", count: length(elem(@preview_result, 1)))}</p>
+              <p :for={match <- elem(@preview_result, 1)}>
+                <.link navigate={~p"/engineering/errors/#{match.issue_id}"}>{match.issue_id}</.link>
+                {gettext("%{count} events", count: match.event_count)}
               </p>
-              <div data-part="form-actions">
-                <.button
-                  :if={@editing_rule.id}
-                  label={gettext("Cancel")}
-                  type="button"
-                  phx-click="cancel_rule"
-                  variant="secondary"
-                  size="medium"
-                />
-                <.button label={gettext("Save rule")} variant="primary" size="medium" />
-              </div>
-            </.form>
-          </.card_section>
-        </.card>
-      </section>
-    </Layouts.app>
+            </div>
+          </.form>
+        </.card_section>
+      </.card>
+    </section>
+    """
+  end
+
+  attr :form, :any, required: true
+  attr :editing_rule, :any, required: true
+
+  defp rule_modal(assigns) do
+    ~H"""
+    <.modal
+      id="error-alert-modal"
+      title={if @editing_rule.id, do: gettext("Edit alert rule"), else: gettext("Add alert rule")}
+      description={gettext("Choose which errors to monitor and where to send alerts.")}
+      header_type="icon"
+      header_size="large"
+      on_dismiss="cancel_rule"
+      on_open_change="rule_modal_open_change"
+      data-part="error-alert-modal"
+    >
+      <:header_icon><.bell /></:header_icon>
+      <:trigger :let={attrs}>
+        <.button
+          id="add-error-alert-rule"
+          label={gettext("Add alert rule")}
+          variant="secondary"
+          size="medium"
+          type="button"
+          phx-click="new_rule"
+          {attrs}
+        >
+          <:icon_left><.circle_plus /></:icon_left>
+        </.button>
+      </:trigger>
+      <.form
+        id="error-alert-form"
+        for={@form}
+        phx-change="validate_rule"
+        phx-submit="save_rule"
+        data-part="form"
+      >
+        <.text_input field={@form[:name]} label={gettext("Name")} required />
+        <.rule_select
+          field={@form[:trigger]}
+          label={gettext("Trigger")}
+          options={[
+            {"event_spike", gettext("Error spike in a time window")},
+            {"event_rate", gettext("Cumulative events since last notification")},
+            {"regression", gettext("Resolved issue regressed")}
+          ]}
+        />
+        <.rule_select
+          field={@form[:tier]}
+          label={gettext("Tier")}
+          options={[{"attention", gettext("Attention")}, {"incident", gettext("Incident")}]}
+        />
+        <.text_input
+          field={@form[:environment]}
+          label={gettext("Exact environment")}
+          hint={
+            gettext("Use the SDK's exact environment value, for example prod rather than production.")
+          }
+        />
+        <.rule_select
+          field={@form[:min_level]}
+          label={gettext("Minimum level")}
+          options={Enum.map(Rule.levels(), &{to_string(&1), to_string(&1)})}
+        />
+        <.text_input
+          :if={@form[:trigger].value not in [:regression, "regression"]}
+          field={@form[:threshold_event_count]}
+          input_type="number"
+          min={1}
+          label={gettext("Event count threshold")}
+        />
+        <.text_input
+          :if={@form[:trigger].value in [:event_spike, "event_spike"]}
+          field={@form[:threshold_window_minutes]}
+          input_type="number"
+          min={1}
+          max={60}
+          label={gettext("Window (minutes)")}
+        />
+        <.text_input
+          field={@form[:cooldown_minutes]}
+          input_type="number"
+          min={0}
+          label={gettext("Cooldown (minutes)")}
+        />
+        <.rule_select
+          field={@form[:destination_type]}
+          label={gettext("Destination")}
+          options={[{"slack", gettext("Slack")}, {"webhook", gettext("Webhook")}]}
+        />
+        <.text_input
+          :if={@form[:destination_type].value in [:slack, "slack"]}
+          field={@form[:slack_channel_id]}
+          label={gettext("Slack channel ID")}
+        />
+        <.text_input
+          :if={@form[:destination_type].value in [:webhook, "webhook"]}
+          field={@form[:webhook_url]}
+          input_type="password"
+          autocomplete="off"
+          label={gettext("Webhook URL")}
+          hint={
+            gettext(
+              "Leave blank when editing to keep the saved URL. URLs and signing secrets are never displayed."
+            )
+          }
+        />
+        <p data-part="alert-rule-hint">
+          {gettext(
+            "New rules start disabled. Preview historical windows, then use Enable in the rules table."
+          )}
+        </p>
+      </.form>
+      <:footer>
+        <.modal_footer>
+          <:action>
+            <.button
+              label={gettext("Cancel")}
+              type="button"
+              phx-click="cancel_rule"
+              variant="secondary"
+              size="medium"
+            />
+          </:action>
+          <:action>
+            <.button
+              label={gettext("Save rule")}
+              type="submit"
+              form="error-alert-form"
+              variant="primary"
+              size="medium"
+            />
+          </:action>
+        </.modal_footer>
+      </:footer>
+    </.modal>
     """
   end
 
@@ -399,7 +428,12 @@ defmodule AtlasWeb.ProjectLive.Alerts do
 
   defp assign_form(socket, changeset) do
     changeset = %{changeset | data: %{changeset.data | webhook_url: nil, webhook_signing_secret: nil}}
-    assign(socket, :form, to_form(changeset, as: :rule))
+    form = to_form(changeset, as: :rule)
+
+    errors =
+      Enum.map(form.errors, fn {field, error} -> {field, {AtlasWeb.CoreComponents.translate_error(error), []}} end)
+
+    assign(socket, :form, %{form | errors: errors})
   end
 
   defp load_rules(socket) do

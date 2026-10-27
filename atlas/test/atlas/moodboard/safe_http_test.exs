@@ -50,6 +50,40 @@ defmodule Atlas.Moodboard.SafeHTTPTest do
     assert {:error, :unsafe_url} = SafeHTTP.fetch("https://design.example/")
   end
 
+  test "signed POSTs reject private DNS and never follow redirects" do
+    expect(Resolver, :resolve, fn "receiver.example" -> {:ok, [{93, 184, 216, 34}, {127, 0, 0, 1}]} end)
+    reject(HTTP, :connect, 4)
+    assert {:error, :unsafe_url} = SafeHTTP.post("https://receiver.example/secret", [], "payload")
+  end
+
+  test "signed POSTs pin the address, verify the hostname, and return redirects without another request" do
+    expect(Resolver, :resolve, fn "receiver.example" -> {:ok, [{93, 184, 216, 34}]} end)
+
+    expect(HTTP, :connect, fn :https, {93, 184, 216, 34}, 443, opts ->
+      assert opts[:hostname] == "receiver.example"
+      assert opts[:transport_opts][:verify] == :verify_peer
+      {:ok, :connection}
+    end)
+
+    expect(HTTP, :request, fn :connection, "POST", "/secret?q=value", headers, "signed-body" ->
+      assert {"x-atlas-signature", "signature"} in headers
+      {:ok, :connection, :request}
+    end)
+
+    expect(HTTP, :recv, fn :connection, 0, _ ->
+      {:ok, :connection, events(307, [{"location", "https://127.0.0.1/metadata"}], "")}
+    end)
+
+    expect(HTTP, :close, fn :connection -> {:ok, :closed} end)
+
+    assert {:ok, %{status: 307}} =
+             SafeHTTP.post(
+               "https://receiver.example/secret?q=value",
+               [{"x-atlas-signature", "signature"}],
+               "signed-body"
+             )
+  end
+
   test "pins the validated address while retaining TLS hostname verification, and sends no credentials" do
     expect(Resolver, :resolve, fn "design.example" -> {:ok, [{93, 184, 216, 34}]} end)
 

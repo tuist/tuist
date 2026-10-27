@@ -28,14 +28,19 @@ defmodule Atlas.MCP.Tools.ErrorAlertRules do
   end
 
   def validate(module, conn, args, action) do
-    with :ok <- Tool.authorize_scope(conn, "engineering:#{action}", "Error alert rules"),
+    with true <- action != "write" or write_context_allowed?(conn),
+         :ok <- Tool.authorize_scope(conn, "engineering:#{action}", "Error alert rules"),
          :ok <- ExJsonSchema.Validator.validate(ExJsonSchema.Schema.resolve(module.input_schema()), args) do
       :ok
     else
+      false -> {:error, "Alert mutations are unavailable to shared Slack identities."}
       {:error, message} when is_binary(message) -> {:error, message}
       _ -> {:error, "Arguments do not match the error alert rule schema."}
     end
   end
+
+  def write_context_allowed?(%{assigns: %{mcp_claims: %{"slack_agent" => _}}}), do: false
+  def write_context_allowed?(conn), do: Tool.audit_interface(conn) != "slack"
 
   def project(conn, id), do: Projects.fetch_visible_project(id, Tool.current_user(conn))
 
