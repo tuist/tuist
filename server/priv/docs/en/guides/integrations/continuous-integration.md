@@ -321,6 +321,36 @@ workflows:
 >
 > Create an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> and add it as a secret environment variable named `TUIST_TOKEN`.
 
+### Appcircle {#appcircle}
+
+In [Appcircle](https://appcircle.io), you can use the built-in [Tuist Install](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-install) and [Tuist Commands](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-commands) workflow steps, or add a **Custom Script** step after the **Git Clone** step to install Tuist yourself:
+
+::: code-group
+```bash [Mise]
+cd $AC_REPOSITORY_DIR
+curl https://mise.jdx.dev/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+mise install
+mise exec -- tuist setup cache
+```
+```bash [Homebrew]
+cd $AC_REPOSITORY_DIR
+brew install --formula tuist@x.y.z
+tuist setup cache
+```
+<!-- -->
+:::
+
+> [!NOTE]
+> **Workflow steps**
+>
+> The Tuist Install step installs Tuist with Homebrew and runs `tuist generate`. Set the **Tuist Version** input to pin the version, then add a Tuist Commands step to run commands such as `tuist test` or `tuist build`.
+
+> [!NOTE]
+> **Authentication**
+>
+> Create an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link>, add it as a variable named `TUIST_TOKEN` to an [environment variable group](https://docs.appcircle.io/build/build-environment-variables), and select that group in your build configuration. Mark the variable as secret with the lock icon.
+
 ## Run report {#run-report}
 
 When Tuist uploads a run, the dashboard URLs for it are printed to the logs. To get them without scraping the logs — for example to post the test report link to Slack when a job fails, or to feed a run into your own tooling — pass `--run-report-path` (or set `TUIST_RUN_REPORT_PATH`) to `tuist test`, `tuist xcodebuild test`, or `tuist xcodebuild build`. Tuist writes a JSON report to that path once the run has been uploaded:
@@ -378,39 +408,3 @@ test:
     reports:
       dotenv: run.env
 ```
-
-### Appcircle {#appcircle}
-
-In [Appcircle](https://appcircle.io), you can use the built-in [Tuist Install](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-install) and [Tuist Commands](https://docs.appcircle.io/workflows/ios-specific-workflow-steps/tuist-commands) workflow steps, or add a **Custom Script** step after the **Git Clone** step to install Tuist yourself:
-
-::: code-group
-```bash [Mise]
-cd $AC_REPOSITORY_DIR
-curl https://mise.jdx.dev/install.sh | sh
-export PATH="$HOME/.local/bin:$PATH"
-mise install
-mise exec -- tuist setup cache
-```
-```bash [Homebrew]
-cd $AC_REPOSITORY_DIR
-brew install --formula tuist@x.y.z
-tuist setup cache
-```
-<!-- -->
-:::
-
-> [!NOTE]
-> **Workflow steps**
->
-> The Tuist Install step installs Tuist with Homebrew and runs `tuist generate`. Set the **Tuist Version** input to pin the version, then add a Tuist Commands step to run commands such as `tuist test` or `tuist build`.
-
-> [!NOTE]
-> **Authentication**
->
-> Create an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link>, add it as a variable named `TUIST_TOKEN` to an [environment variable group](https://docs.appcircle.io/build/build-environment-variables), and select that group in your build configuration. Mark the variable as secret with the lock icon.
-
- ## Run report {#run-report}
- 
- When Tuist uploads a run, the dashboard URLs for it are printed to the logs. To get them without scraping the logs — for example to post the test report link to Slack when a job fails, or to feed a run into your own tooling — pass `--run-report-path` (or set `TUIST_RUN_REPORT_PATH`) to `tuist test`, `tuist xcodebuild test`, or `tuist xcodebuild build`. Tuist writes a JSON report to that path once the run has been uploaded:
-
-
