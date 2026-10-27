@@ -103,6 +103,15 @@ jobs:
         options: >-
           --health-cmd pg_isready --health-interval 10s
           --health-timeout 5s --health-retries 5
+      clickhouse:
+        image: clickhouse/clickhouse-server:26.1.2.11
+        env:
+          CLICKHOUSE_SKIP_USER_SETUP: '1'
+        ports:
+          - 8123:8123
+        options: >-
+          --health-cmd 'clickhouse-client --query "SELECT 1"'
+          --health-interval 10s --health-timeout 5s --health-retries 12
     steps:
       - uses: actions/checkout@v4
         with:
@@ -115,12 +124,13 @@ jobs:
           sudo apt-get install -y xfsprogs libvips-dev
       - uses: ./.github/actions/setup-server-mix
         with:
-          mise-install-args: erlang elixir github:ClickHouse/ClickHouse
+          mise-install-args: erlang elixir
           restore-mix-cache: 'false'
       - name: Compile isolated control plane and migrate disposable databases
         working-directory: server
         run: |
-          bash mise/tasks/clickhouse/start.sh
+          export TUIST_SERVER_TEST_POSTGRES_DB=tuist_amp_orbs_live
+          export TUIST_SERVER_TEST_CLICKHOUSE_DB=tuist_amp_orbs_live
           mix compile
           bash mise/tasks/db/migrate.sh --create --no-compile
       - name: Install isolated Kubernetes tools

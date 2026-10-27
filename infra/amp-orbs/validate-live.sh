@@ -69,6 +69,8 @@ docker run --rm -v "$work/data:/host" -e TEMPLATE_TAG=validation sandbox-orbs-te
 
 export TUIST_URL=http://127.0.0.1:4187
 export TUIST_SERVER_TEST_PORT=4187
+export TUIST_SERVER_TEST_POSTGRES_DB=tuist_amp_orbs_live
+export TUIST_SERVER_TEST_CLICKHOUSE_DB=tuist_amp_orbs_live
 export TUIST_ORB_WORKSPACE_GB=1 ORB_IMAGE=default
 (cd "$root/server"; exec env -u AMP_ORB_PROVIDER_TOKEN mix run --no-start --no-compile verification/amp_orbs.exs) > "$work/server.log" 2>&1 &
 server_pid=$!
