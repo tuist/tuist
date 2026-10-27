@@ -457,6 +457,7 @@ value without comparing those immutable Pod fields to live cluster state.
 {{- $runnerLabels := $pool.runnerLabels | default $defaultRunnerLabels }}
 {{- $autoscaling := $pool.autoscaling }}
 {{- $runtimeClass := $pool.runtimeClass | default "" }}
+{{- $nested := dig "nestedVirtualization" $.Values.runnersFleetLinux.nestedVirtualization.defaultEnabled $pool }}
 {{- $provisioning := mergeOverwrite (deepCopy ($.Values.runnersFleetLinux.provisioning | default dict)) (default dict $pool.provisioning) }}
 {{- $poolName := printf "%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-linux")) $name }}
 ---
@@ -467,7 +468,7 @@ metadata:
   namespace: {{ $namespace | quote }}
   {{- if eq $runtimeClass "kata-qemu" }}
   annotations:
-    tuist.dev/runtime-class-revision: {{ $kataRuntimeClassRevision | quote }}
+    tuist.dev/runtime-class-revision: {{ ternary (printf "%s|nested-kvm=v1" $kataRuntimeClassRevision | sha256sum) $kataRuntimeClassRevision $nested | quote }}
   {{- end }}
   labels:
     {{- $labels | nindent 4 }}
@@ -498,7 +499,7 @@ spec:
   {{- if $runtimeClass }}
   runtimeClass: {{ $runtimeClass | quote }}
   {{- end }}
-  {{- if $pool.nestedVirtualization }}
+  {{- if $nested }}
   {{- if ne $runtimeClass "kata-qemu" }}
   {{- fail (printf "runnersFleetLinux.pools[%s].nestedVirtualization requires runtimeClass kata-qemu" $name) }}
   {{- end }}
@@ -548,6 +549,7 @@ autoscaling per-shape (a popular shape may want a higher floor).
 {{- if not $shapeImage }}
   {{- fail "runnersFleetLinux.shapeRunnerImage required when runnersFleetLinux.shapes is non-empty" }}
 {{- end }}
+{{- $nested := dig "nestedVirtualization" $.Values.runnersFleetLinux.nestedVirtualization.defaultEnabled $shape }}
 {{- $shapeKey := printf "%dvcpu-%dgb" $vcpus $memoryGb }}
 {{- $poolName := printf "%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-linux")) $shapeKey }}
 {{- $dispatchLabel := printf "shape-linux-%s" $shapeKey }}
@@ -564,7 +566,7 @@ metadata:
   namespace: {{ $namespace | quote }}
   {{- if eq $shapeRuntimeClass "kata-qemu" }}
   annotations:
-    tuist.dev/runtime-class-revision: {{ $kataRuntimeClassRevision | quote }}
+    tuist.dev/runtime-class-revision: {{ ternary (printf "%s|nested-kvm=v1" $kataRuntimeClassRevision | sha256sum) $kataRuntimeClassRevision $nested | quote }}
   {{- end }}
   labels:
     {{- $labels | nindent 4 }}
@@ -600,6 +602,15 @@ spec:
   {{- end }}
   {{- if $shapeRuntimeClass }}
   runtimeClass: {{ $shapeRuntimeClass | quote }}
+  {{- end }}
+  {{- if $nested }}
+  {{- if ne $shapeRuntimeClass "kata-qemu" }}
+  {{- fail "nested virtualization requires runnersFleetLinux.shapeRuntimeClass kata-qemu" }}
+  {{- end }}
+  {{- if not $.Values.runnersFleetLinux.nestedVirtualization.enabled }}
+  {{- fail "nested virtualization requires runnersFleetLinux.nestedVirtualization.enabled" }}
+  {{- end }}
+  nestedVirtualization: true
   {{- end }}
   provisioning:
     maxConcurrentPerNode: {{ dig "maxConcurrentPerNode" 6 $provisioning }}
