@@ -114,6 +114,8 @@ spec:
             {{- include "tuist.licenseEnv" . | nindent 12 }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            - name: TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION
+              value: {{ .Values.server.ssoRequireLoginDomainVerification | ternary "true" "false" | quote }}
             - name: TUIST_LOG_LEVEL
               value: {{ .Values.server.logLevel | quote }}
             {{- if not .Values.server.managedSecrets }}

@@ -25,7 +25,7 @@ if grep -q "^dependencies:" "${CHART}/Chart.yaml"; then
 fi
 
 helm lint "$CHART" -f "$VALUES"
-helm template "$RELEASE" "$CHART" --include-crds -f "$VALUES" > "$rendered"
+helm template "$RELEASE" "$CHART" --namespace "$NAMESPACE" --include-crds -f "$VALUES" > "$rendered"
 echo "Rendered $(wc -l <"$rendered") lines of manifests."
 
 if [[ "$RENDER_ONLY" == "true" ]]; then
