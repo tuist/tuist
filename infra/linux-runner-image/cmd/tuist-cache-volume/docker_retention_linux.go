@@ -128,6 +128,18 @@ func (d *daemon) retainDocker(ctx context.Context, host, root string, ledger doc
 // their holes. Run after dockerd stops, while mounted, on BOTH merge choices.
 // Failure withholds publication rather than repeatedly uploading deleted data.
 func (d *daemon) trimDocker(ctx context.Context, root string) error {
+	// ext4 defers freeing deleted extents until their journal transaction
+	// commits. Without this flush, FITRIM can succeed while reclaiming almost
+	// none of the files cleanup just removed.
+	file, err := os.Open(root)
+	if err != nil {
+		return err
+	}
+	err = unix.Syncfs(int(file.Fd()))
+	file.Close()
+	if err != nil {
+		return fmt.Errorf("sync Docker cache before trim: %w", err)
+	}
 	if out, err := d.run(ctx, "fstrim", root); err != nil {
 		return fmt.Errorf("trim Docker cache: %s: %w", strings.TrimSpace(string(out)), err)
 	}

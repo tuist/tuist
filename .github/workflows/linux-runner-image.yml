@@ -66,7 +66,9 @@ jobs:
             ubuntu:22.04 /cache-volume.test -test.v
       - name: Verify Docker layers and cache mounts across jobs
         timeout-minutes: 15
+        shell: bash
         run: |
+          set -euo pipefail
           docker run --rm --privileged \
             -e TUIST_TEST_DOCKER_CACHE=1 \
             -e TMPDIR=/var/lib/docker \
