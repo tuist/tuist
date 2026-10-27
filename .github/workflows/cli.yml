@@ -184,11 +184,6 @@ jobs:
       - name: Test global flags
         run: |
           bin_path="$(swift build --cache-path "$PWD/.build/dependency-cache" --configuration debug --replace-scm-with-registry --force-resolved-versions --show-bin-path)"
-          # Swift Build puts modules beside libraries; the source-built loader expects Modules/.
-          if [[ -d "$bin_path/ProjectDescription.swiftmodule" && ! -e "$bin_path/Modules/ProjectDescription.swiftmodule" ]]; then
-            mkdir -p "$bin_path/Modules"
-            ln -s ../ProjectDescription.swiftmodule "$bin_path/Modules/ProjectDescription.swiftmodule"
-          fi
           TUIST_EXECUTABLE="$bin_path/tuist" bats --print-output-on-failure e2e/global_flags.bats
 
   cli-linux-build:

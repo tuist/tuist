@@ -13,13 +13,22 @@ setup() {
     cd "${BATS_TEST_TMPDIR}/project" || return 1
     cat > Project.swift <<'EOF'
 import ProjectDescription
+import ProjectDescriptionHelpers
 
-let project = Project(name: "GlobalFlags", targets: [])
+let project = makeProject()
 EOF
     cat > Tuist.swift <<'EOF'
 import ProjectDescription
 
 let tuist = Tuist()
+EOF
+    mkdir -p Tuist/ProjectDescriptionHelpers
+    cat > Tuist/ProjectDescriptionHelpers/Project.swift <<'EOF'
+import ProjectDescription
+
+public func makeProject() -> Project {
+    Project(name: "GlobalFlags", targets: [])
+}
 EOF
 }
 
