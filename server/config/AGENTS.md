@@ -11,6 +11,8 @@
 
 ## Observability and worker configuration
 
+- Automation planning uses `alert_evaluations`, test batches use `alert_evaluation_batches`, and Slack HTTP uses `automation_notifications`. Separate new queues keep old replicas from claiming unknown workers during rolling deploys. Slack 429 responses defer individual jobs using `Retry-After`.
+
 - Keep console and Loki structured-metadata allowlists aligned for auth/selected IDs, legacy handles and bounded feature decisions. These high-cardinality fields are structured metadata, never Loki stream labels. Customer billing IDs remain Sentry extras only, not log/trace attributes.
 
 - GitLab coordinator polling uses the dedicated `runner_gitlab` queue on web nodes; network waits must not occupy the general `default` queue.
