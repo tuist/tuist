@@ -163,17 +163,45 @@ cordoned host, then verified egress/private-network/KVM readiness and resumed
 scheduling. [Activation acceptance](https://github.com/tuist/tuist/actions/runs/40498958116)
 passed with exact public IP `5.39.98.145` and both real Kotlin tasks restored from
 the private cache. The egress revision matched the current BootID; the temporary
-reconciliation annotation was removed. Canary's enabled values are desired state,
-not evidence of live qualification: its block move and drained enrollment remain
-deployment prerequisites. A deployment from a branch without this configuration
-can overwrite staging's provider/flag, so preserve them in subsequent deployments.
+reconciliation annotation was removed. A deployment from a branch without this
+configuration can overwrite the provider/flag, so preserve them in subsequent
+deployments until the PR is merged and deployed normally.
 
 **Remaining gates:** the earlier reboot took roughly ten minutes and triggered
 OVH server-down monitoring. Busy kubelet mounts appeared in shutdown logs, but
 the full delay's cause is unknown; the host booted an already-installed newer
 kernel. Persistence passed, fast recovery did not. Machine replacement/address
 reuse remains untested on the sole staging runner. Alerts are definitions only.
-These limits and canary/production vRack alignment remain before promotion.
+These limits and production vRack alignment remain before the production switch.
+
+## Canary activation
+
+Canary was left **enabled** on 2026-10-27 after the operator confirmed moving
+`5.196.103.232/29` onto `pn-2024092`. Its existing runner,
+`ns3127017.ip-51-68-34.eu`, was already explicitly enrolled and private-network
+ready at `172.30.242.3`, with cache peer `172.30.242.2`. The
+[normal deployment](https://github.com/tuist/tuist/actions/runs/40511844234)
+installed provider `9e17da02` and the PR chart after the concurrent main release
+completed, preserving its application, cache and runner image versions. The host
+was cordoned and had zero nonterminal runner pods before activation.
+
+`RunnerEgressReady` and `PrivateNetworkReady` were True; the revision matched the
+current BootID. Host route inspection confirmed source `5.196.103.233` used table
+243 and gateway `5.196.103.238` on `enp7s0`, ordinary traffic retained primary IP
+`51.68.34.106`, and the private-cache peer remained directly reachable. Cilium's
+live BPF map selected the reserved address for runner pods and excluded private
+destinations. Scheduling resumed and the temporary reconciliation annotation was
+removed.
+
+| Check | Result |
+| --- | --- |
+| [Baseline](https://github.com/tuist/tuist/actions/runs/40509602466) | Exact `51.68.34.106`; fresh remote Gradle cache upload/restore with local caching disabled. |
+| [Enabled](https://github.com/tuist/tuist/actions/runs/40512653629) | Exact `5.196.103.233` from the job container; the same remote upload/restore passed. |
+| [Full canary runner acceptance](https://github.com/tuist/tuist/actions/runs/40512658030) | Passed Linux and macOS probes, cache round trips, and cache-volume verification. |
+
+Production remains disabled. Publish the advance allowlist notice and allow time
+for updates before its separately authorized switch; retain the existing /32s
+through the rollback window.
 
 ## Monitoring and local checks
 
