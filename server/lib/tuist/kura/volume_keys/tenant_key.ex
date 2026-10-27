@@ -4,8 +4,8 @@ defmodule Tuist.Kura.VolumeKeys.TenantKey do
   concatenated in order, are the input keying material every volume
   passphrase of the account is derived from. At most one version per account
   is `:active`; `:retired` versions stay unwrappable for volumes built under
-  them. Deleting the account deletes its rows, which makes its volumes
-  unreadable.
+  them. Deleting the account deletes its rows, preventing future issuance.
+  Already-open mappings and historical backups have separate lifecycles.
   """
   use Ecto.Schema
 

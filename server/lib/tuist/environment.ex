@@ -2054,15 +2054,52 @@ defmodule Tuist.Environment do
   end
 
   @doc """
-  Root keys that wrap Kura volume tenant keys (`TUIST_KURA_VOLUME_ROOT_KEYS`),
-  as `[{key_id, key}]`: a comma-separated list of `<key_id>:<base64 32-byte key>`.
-  The first entry wraps new tenant keys and every entry can unwrap, so a root
-  key is rotated by prepending its replacement.
+  Dedicated KMS key ARNs and projected workload identity. Partial or malformed
+  configuration fails closed instead of selecting the legacy root provider.
+  """
+  def kura_volume_kms(environment \\ System.get_env()) do
+    key_id = Map.get(environment, "TUIST_KURA_VOLUME_KMS_KEY_ARN", "")
+    role_arn = Map.get(environment, "TUIST_KURA_VOLUME_KMS_ROLE_ARN", "")
 
-  Unset outside canary and production, a single `dev` key is derived from the
-  secret key base so local volumes work without configuration. Unset in canary
-  or production, or set to anything malformed, it is empty and volume keys are
-  not issued.
+    decrypt_keys =
+      environment
+      |> Map.get("TUIST_KURA_VOLUME_KMS_DECRYPT_KEY_ARNS", "")
+      |> String.split(",", trim: true)
+      |> Enum.map(&String.trim/1)
+
+    key_pattern = ~r/\Aarn:aws:kms:([a-z]{2}-[a-z]+-[0-9]):[0-9]{12}:key\/[a-f0-9-]{36}\z/
+
+    case Regex.run(key_pattern, key_id) do
+      [_, region] ->
+        if Regex.match?(~r/\Aarn:aws:iam::[0-9]{12}:role\/[A-Za-z0-9_+=,.@\/-]+\z/, role_arn) and
+             Enum.all?(decrypt_keys, &(Regex.run(key_pattern, &1) == [&1, region])) do
+          {:ok,
+           %{
+             key_id: key_id,
+             region: region,
+             role_arn: role_arn,
+             decrypt_key_ids: Enum.uniq([key_id | decrypt_keys]),
+             token_file: Map.get(environment, "TUIST_KURA_VOLUME_KMS_TOKEN_FILE", "/var/run/tuist/kura-kms/token")
+           }}
+        else
+          {:error, :invalid_kms_configuration}
+        end
+
+      _ ->
+        if key_id == "" and role_arn == "" and decrypt_keys == [],
+          do: :disabled,
+          else: {:error, :invalid_kms_configuration}
+    end
+  end
+
+  @doc """
+  Legacy wrapping roots (`TUIST_KURA_VOLUME_ROOT_KEYS`), as `[{id, key}]`.
+  The first wraps new shares only when KMS is disabled; all entries decrypt.
+  Prepending a replacement does not rewrap existing shares. Use
+  `Tuist.Kura.VolumeKeys.Rotation` before retiring a root, including backups.
+
+  Outside canary/production an unset value derives a development root from
+  secret_key_base. Canary/production require explicit roots or KMS.
   """
   def kura_volume_root_keys(secrets \\ secrets()) do
     case get([:kura, :volume_root_keys], secrets) do

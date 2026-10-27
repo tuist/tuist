@@ -66,11 +66,18 @@ spec:
         - name: server
           image: {{ include "tuist.serverImage" . | quote }}
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
-          {{- with .Values.server.seedAccountCredentials.secretName }}
+          {{- if or .Values.server.seedAccountCredentials.secretName .Values.server.config.kuraVolumeKMS.enabled }}
           volumeMounts:
+            {{- if .Values.server.config.kuraVolumeKMS.enabled }}
+            - name: kura-kms-identity
+              mountPath: /var/run/tuist/kura-kms
+              readOnly: true
+            {{- end }}
+            {{- with .Values.server.seedAccountCredentials.secretName }}
             - name: seed-account-credentials
               mountPath: /var/run/tuist/seed-account
               readOnly: true
+            {{- end }}
           {{- end }}
           command:
             - /app/bin/tuist
@@ -91,6 +98,14 @@ spec:
               containerPort: {{ .Values.server.cluster.distributionPort }}
             {{- end }}
           env:
+            {{- if .Values.server.config.kuraVolumeKMS.enabled }}
+            - name: TUIST_KURA_VOLUME_KMS_KEY_ARN
+              value: {{ required "kuraVolumeKMS.keyArn is required" .Values.server.config.kuraVolumeKMS.keyArn | quote }}
+            - name: TUIST_KURA_VOLUME_KMS_ROLE_ARN
+              value: {{ required "kuraVolumeKMS.roleArn is required" .Values.server.config.kuraVolumeKMS.roleArn | quote }}
+            - name: TUIST_KURA_VOLUME_KMS_DECRYPT_KEY_ARNS
+              value: {{ join "," .Values.server.config.kuraVolumeKMS.decryptKeyArns | quote }}
+            {{- end }}
             # TUIST_MODE defaults to :web in Tuist.Environment.mode/0 — no
             # need to set it explicitly here. The processor Deployment sets
             # TUIST_MODE=processor; everything else is :web.
@@ -575,11 +590,22 @@ spec:
                 command: ["sh", "-c", "touch /tmp/tuist-server-draining; sleep 15"]
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
-      {{- with .Values.server.seedAccountCredentials.secretName }}
+      {{- if or .Values.server.seedAccountCredentials.secretName .Values.server.config.kuraVolumeKMS.enabled }}
       volumes:
+        {{- if .Values.server.config.kuraVolumeKMS.enabled }}
+        - name: kura-kms-identity
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: sts.amazonaws.com
+                  expirationSeconds: 3600
+                  path: token
+        {{- end }}
+        {{- with .Values.server.seedAccountCredentials.secretName }}
         - name: seed-account-credentials
           secret:
             secretName: {{ . }}
             optional: true
+        {{- end }}
       {{- end }}
 {{- end }}

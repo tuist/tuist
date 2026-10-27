@@ -87,16 +87,10 @@ rules:
     verbs: [get, list, watch, create, patch, delete]
   - apiGroups: [""]
     resources: [persistentvolumeclaims]
-    verbs: [get, list, watch, update]
+    verbs: [get, list, watch]
   - apiGroups: [storage.k8s.io]
     resources: [storageclasses]
     verbs: [get, list, watch]
-  - apiGroups: [""]
-    resources: [events]
-    verbs: [list, watch, create, update, patch]
-  - apiGroups: [snapshot.storage.k8s.io]
-    resources: [volumesnapshots, volumesnapshotcontents]
-    verbs: [get, list]
   - apiGroups: [storage.k8s.io]
     resources: [csinodes]
     verbs: [get, list, watch]
@@ -129,6 +123,37 @@ subjects:
   - kind: ServiceAccount
     name: {{ $name }}
     namespace: {{ $namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kura-volumes-csi-claims
+  namespace: kura
+  annotations:
+    helm.sh/resource-policy: keep
+rules:
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [update]
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [get, list, watch, create, update, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kura-volumes-csi-claims
+  namespace: kura
+  annotations:
+    helm.sh/resource-policy: keep
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kura-volumes-csi-claims
+subjects:
+  - kind: ServiceAccount
+    name: kura-volumes-csi-node
+    namespace: kura-volumes
 ---
 apiVersion: storage.k8s.io/v1
 kind: CSIDriver
