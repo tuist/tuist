@@ -29,32 +29,20 @@ defmodule TuistWeb.Noora.Pages.Badge do
   # noora.css.
   example "Surfaces (temporary)",
     description:
-      "Light-fill badges on each surface, drawn two ways. The columns show each label's contrast in light and dark mode; values under 4.5:1 (WCAG AA) are red.",
+      "Light-fill badges on each surface, before and after the new colors. Before is the 100 tint in light mode and the alpha token in dark mode; after is a tint multiplied (light) or screened (dark) onto the surface, tuned with the controls. The columns show each label's contrast in light and dark mode; values under 4.5:1 (WCAG AA) are red.",
     layout: :column do
     ~H"""
     <div class="noora-docs-badge-surfaces">
-      <section
-        :for={
-          {approach, index, title, description} <- [
-            {"current", "1", "Before",
-             "The previous colors: the 100 tint in light mode and the alpha token in dark mode, without blending."},
-            {"blend", "2", "After",
-             "The new colors, now in Noora: a light tint multiplied onto the surface in light mode, and a dark tint screened onto it in dark mode. Adjust them below."}
-          ]
-        }
-        data-approach={approach}
-      >
-        <header data-part="header">
-          <span data-part="index">{index}</span>
-          <div data-part="heading">
-            <span data-part="heading-title">{title}</span>
-            <span data-part="heading-description">{description}</span>
-          </div>
-        </header>
-        <.blend_controls :if={approach == "blend"} />
-        <div data-part="surfaces">
-          <div :for={surface <- ~w(primary tertiary secondary)} data-surface={surface}>
-            <span data-part="surface-name">{String.capitalize(surface)} surface</span>
+      <.blend_controls />
+      <div data-part="surfaces">
+        <div :for={surface <- ~w(primary tertiary secondary)} data-surface={surface}>
+          <span data-part="surface-name">{String.capitalize(surface)} surface</span>
+          <div
+            :for={{approach, title} <- [{"current", "Before"}, {"blend", "After"}]}
+            data-approach={approach}
+            data-part="half"
+          >
+            <span data-part="half-title">{title}</span>
             <span data-part="mode-icon" title="Contrast in light mode"><.sun_high /></span>
             <span data-part="mode-icon" title="Contrast in dark mode"><.moon /></span>
             <div
@@ -76,7 +64,46 @@ defmodule TuistWeb.Noora.Pages.Badge do
             </div>
           </div>
         </div>
-      </section>
+      </div>
+      <div data-part="sizes">
+        <div data-part="sizes-header">
+          <span data-part="surface-name">All sizes</span>
+          <div
+            id="badge-sizes-surface"
+            data-part="surface-switch"
+            role="radiogroup"
+            aria-label="Surface"
+            phx-update="ignore"
+          >
+            <label :for={surface <- ~w(primary tertiary secondary)}>
+              <input
+                type="radio"
+                name="badge-sizes-surface"
+                value={surface}
+                checked={surface == "primary"}
+              />
+              <span>{String.capitalize(surface)}</span>
+            </label>
+          </div>
+        </div>
+        <div
+          :for={{approach, title} <- [{"current", "Before"}, {"blend", "After"}]}
+          data-approach={approach}
+          data-part="sizes-half"
+        >
+          <span data-part="half-title">{title}</span>
+          <span :for={size <- ~w(small medium large)} data-part="size-heading">
+            {String.capitalize(size)}
+          </span>
+          <%= for color <- ~w(neutral primary secondary information focus success attention warning destructive) do %>
+            <span :for={size <- ~w(small medium large)} data-part="size-cell">
+              <.badge size={size} style="light-fill" color={color} label={String.capitalize(color)}>
+                <:icon><.bell /></:icon>
+              </.badge>
+            </span>
+          <% end %>
+        </div>
+      </div>
     </div>
     """
   end
@@ -140,7 +167,7 @@ defmodule TuistWeb.Noora.Pages.Badge do
   # its tint is built from, for one mode. The contrast check clones the
   # surfaces into hidden light and dark copies of the demo, reads their
   # resolved colors, and composites each background over its surface the way
-  # the browser does: normally for the current approach, and with
+  # the browser does: normally for Before, and with
   # multiply (light) or screen (dark) for the blend.
   defp blend_controls(assigns) do
     hue_steps = ~w(50 100 200 300 400 500 600 700 800 900 950)
@@ -389,7 +416,10 @@ defmodule TuistWeb.Noora.Pages.Badge do
         },
 
         measure() {
-          const rows = [...this.demo.querySelectorAll(":scope > [data-approach]")]
+          // The surfaces are cloned into hidden light and dark copies; cells
+          // pair up with their copies by order.
+          const source = this.demo.querySelector('[data-part="surfaces"]')
+          const cells = source.querySelectorAll('[data-part="cell"]')
           const probe = document.createElement("div")
           probe.setAttribute("aria-hidden", "true")
           probe.style.cssText =
@@ -398,50 +428,39 @@ defmodule TuistWeb.Noora.Pages.Badge do
           for (const mode of ["light", "dark"]) {
             const scheme = document.createElement("div")
             scheme.style.colorScheme = mode
-            copies[mode] = rows.map((row) => {
-              const copy = document.createElement("div")
-              copy.dataset.approach = row.dataset.approach
-              for (const surface of row.querySelectorAll("[data-surface]")) {
-                const clone = surface.cloneNode(true)
-                for (const el of clone.querySelectorAll("[id]")) el.removeAttribute("id")
-                copy.append(clone)
-              }
-              scheme.append(copy)
-              return copy
-            })
+            const clone = source.cloneNode(true)
+            for (const el of clone.querySelectorAll("[id]")) el.removeAttribute("id")
+            scheme.append(clone)
             probe.append(scheme)
+            copies[mode] = clone.querySelectorAll('[data-part="cell"]')
           }
           this.demo.append(probe)
 
-          rows.forEach((row, index) => {
-            const blend = row.dataset.approach === "blend"
-            const cells = row.querySelectorAll('[data-part="cell"]')
-            for (const mode of ["light", "dark"]) {
-              const copyCells = copies[mode][index].querySelectorAll('[data-part="cell"]')
-              copyCells.forEach((copyCell, i) => {
-                const badge = copyCell.querySelector(".noora-badge")
-                const surface = this.rgba(getComputedStyle(copyCell.closest("[data-surface]")).backgroundColor)
-                const fill = this.rgba(
-                  blend
-                    ? getComputedStyle(badge, "::before").backgroundColor
-                    : getComputedStyle(badge).backgroundColor
-                )
-                const mix = (cb, cs) => (!blend ? cs : mode === "light" ? cb * cs : cb + cs - cb * cs)
-                const background = [0, 1, 2].map(
-                  (c) => fill[3] * mix(surface[c], fill[c]) + (1 - fill[3]) * surface[c]
-                )
-                const label = this.rgba(getComputedStyle(badge).color)
-                const text = [0, 1, 2].map((c) => label[3] * label[c] + (1 - label[3]) * background[c])
-                const [a, b] = [this.luminance(text), this.luminance(background)]
-                const ratio = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+          for (const mode of ["light", "dark"]) {
+            copies[mode].forEach((copyCell, i) => {
+              const blend = copyCell.closest("[data-approach]").dataset.approach === "blend"
+              const badge = copyCell.querySelector(".noora-badge")
+              const surface = this.rgba(getComputedStyle(copyCell.closest("[data-surface]")).backgroundColor)
+              const fill = this.rgba(
+                blend
+                  ? getComputedStyle(badge, "::before").backgroundColor
+                  : getComputedStyle(badge).backgroundColor
+              )
+              const mix = (cb, cs) => (!blend ? cs : mode === "light" ? cb * cs : cb + cs - cb * cs)
+              const background = [0, 1, 2].map(
+                (c) => fill[3] * mix(surface[c], fill[c]) + (1 - fill[3]) * surface[c]
+              )
+              const label = this.rgba(getComputedStyle(badge).color)
+              const text = [0, 1, 2].map((c) => label[3] * label[c] + (1 - label[3]) * background[c])
+              const [a, b] = [this.luminance(text), this.luminance(background)]
+              const ratio = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
 
-                const output = cells[i].querySelector(`[data-ratio="${mode}"]`)
-                output.textContent = ratio.toFixed(2)
-                output.toggleAttribute("data-fail", ratio < 4.5)
-                output.title = `${ratio.toFixed(2)}:1 in ${mode} mode, ${ratio < 4.5 ? "below" : "meets"} WCAG AA`
-              })
-            }
-          })
+              const output = cells[i].querySelector(`[data-ratio="${mode}"]`)
+              output.textContent = ratio.toFixed(2)
+              output.toggleAttribute("data-fail", ratio < 4.5)
+              output.title = `${ratio.toFixed(2)}:1 in ${mode} mode, ${ratio < 4.5 ? "below" : "meets"} WCAG AA`
+            })
+          }
 
           probe.remove()
         }
