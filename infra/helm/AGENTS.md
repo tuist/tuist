@@ -16,7 +16,10 @@ runs the mixed-version latency expression through promtool.
 Runner macOS host-health rules are in `k8s-monitoring/runner-macos-host-alert-rules.json`;
 `test-runner-macos-host-alerts.sh` tests their risk, socket-count and collector
 freshness expressions with promtool. Keep the four `macos_host_*` metric families
-in the Mac scrape allow-list. Rule JSON is a Grafana provisioning payload, not a
+in the Mac scrape allow-list, and retain the Mac exporter's
+`node_textfile_mtime_seconds` and `node_textfile_scrape_error` through the
+destination's non-production filter so canary and staging retain the freshness
+checks too. Rule JSON is a Grafana provisioning payload, not a
 Helm-installed resource; publishing it is a separate rollout step.
 
 ## Conventions
