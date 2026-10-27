@@ -470,3 +470,15 @@ to the replacement before asynchronous replication arrives. An empty cohort is
 therefore not a data-transfer receipt; zero-error live-write migration remains
 unqualified until destination-bound write completion and serving ownership are
 coordinated. See the [thin qualification report](../../infra/kura-volumes-csi/thin/validation.md).
+
+### Planned legacy thin-storage handoff
+
+`migration.rs` binds a temporary write bridge to a named peer process. A bounded
+retained-content walk plus a pinned feed closes the live-write window before
+the controller changes endpoints. HTTP and REAPI mutation completion verify
+actual destination content while armed; cursor advancement alone is insufficient.
+A successful bridge persists through controller pauses until the donor drains,
+with a weak-reference background task retaining the feed pin. Only a completed,
+failed unarmed preparation can be reset, serialized against acknowledgments.
+This does not change serving-authority grants, cache capacity policy or ordinary
+asynchronous replication. See the [handoff protocol](../../infra/kura-controller/thin-migration.md).

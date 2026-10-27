@@ -123,18 +123,27 @@ pub async fn prepare(
                 .active
                 .lock()
                 .expect("migration lock");
+            let mut maintain = false;
             if let Some(active) = active.as_mut() {
                 match result {
-                    Ok(()) => active.ready = true,
+                    Ok(()) => {
+                        active.ready = true;
+                        maintain = true;
+                    }
                     Err(error) => {
                         worker
                             .runtime
                             .migration
                             .armed
                             .store(false, Ordering::Release);
+                        worker.store.sync_feed().forget_consumer(&consumer(&worker));
                         active.error = Some(error);
                     }
                 }
+            }
+            drop(active);
+            if maintain {
+                maintain_bridge(std::sync::Arc::downgrade(&worker));
             }
         });
     }
@@ -143,11 +152,65 @@ pub async fn prepare(
     if let Some(error) = &active.error {
         return Err(conflict(error.clone()));
     }
-    if Instant::now() >= active.deadline {
+    if !active.ready && Instant::now() >= active.deadline {
         return Err(conflict("migration deadline expired".into()));
     }
     Ok(Json(
         serde_json::json!({"incarnation":state.runtime.connection_incarnation(),"target":active.target,"ready":active.ready}),
+    ))
+}
+
+// Preparation has a fixed deadline. Once routing may have moved, keep the
+// bridge and feed pin until the donor drains. A controller pause must not
+// turn a healthy writer into an outage when that deadline elapses.
+fn maintain_bridge(state: std::sync::Weak<crate::state::AppState>) {
+    tokio::spawn(async move {
+        let mut previous_error = None;
+        loop {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            let Some(state) = state.upgrade() else { break };
+            if state.runtime.is_draining() {
+                state.store.sync_feed().forget_consumer(&consumer(&state));
+                break;
+            }
+            let error = acknowledge(&state).await.err();
+            if error != previous_error
+                && let Some(error) = &error
+            {
+                tracing::warn!(event.name="kura.migration.bridge_failed", %error,
+                    "Migration acknowledgments remain closed until the destination can be verified");
+            }
+            previous_error = error;
+        }
+    });
+}
+
+/// Only a completed, failed preparation can be reset. An armed bridge may
+/// already protect a moved endpoint and must never be cleared by this API.
+pub async fn reset(
+    State(state): State<SharedState>,
+    Json(request): Json<PrepareRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    if request.incarnation != state.runtime.connection_incarnation() {
+        return Err(conflict("migration source changed".into()));
+    }
+    let migration = &state.runtime.migration;
+    let _gate = migration.gate.lock().await;
+    let mut active = migration.active.lock().expect("migration lock");
+    if let Some(current) = active.as_ref()
+        && (current.target != request.target
+            || current.ready
+            || current.error.is_none()
+            || migration.armed.load(Ordering::Acquire))
+    {
+        return Err(conflict(
+            "only a failed, unarmed preparation can be reset".into(),
+        ));
+    }
+    *active = None;
+    state.store.sync_feed().forget_consumer(&consumer(&state));
+    Ok(Json(
+        serde_json::json!({"incarnation": state.runtime.connection_incarnation(), "reset": true}),
     ))
 }
 
@@ -163,7 +226,7 @@ fn target(state: &SharedState) -> Result<Target, String> {
         .lock()
         .expect("migration lock");
     let active = active.as_ref().ok_or("no migration")?;
-    if Instant::now() >= active.deadline || state.runtime.is_draining() {
+    if (!active.ready && Instant::now() >= active.deadline) || state.runtime.is_draining() {
         return Err("migration expired or draining".into());
     }
     if let Some(error) = &active.error {
@@ -236,6 +299,7 @@ async fn acknowledge_inner(state: &SharedState) -> Result<(), String> {
         if !feed.enabled() || confirmed < feed.floor() {
             return Err("migration feed history was lost".into());
         }
+        feed.note_consumer(&consumer(state), confirmed);
         if confirmed >= head {
             return verify_remote(state, Vec::new()).await;
         }
@@ -562,6 +626,110 @@ mod tests {
         for ack in acks {
             ack.await.unwrap().unwrap();
         }
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn a_paused_controller_does_not_expire_a_healthy_bridge_or_its_feed_pin() {
+        let source = test_context(|_| {}).await;
+        let destination = test_context(|_| {}).await;
+        let (url, server) = serve(destination.state.clone()).await;
+        let target = activate(&source.state, url, &destination.state);
+        wait_ready(&source.state, &target).await;
+        source
+            .state
+            .runtime
+            .migration
+            .active
+            .lock()
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .deadline = Instant::now() - Duration::from_secs(1);
+        source.state.store.sync_feed().clear_consumers();
+        tokio::time::timeout(Duration::from_secs(3), async {
+            while source.state.store.sync_feed().consumers().is_empty() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        acknowledge(&source.state).await.unwrap();
+        let receipt = prepare(
+            State(source.state.clone()),
+            Json(PrepareRequest {
+                incarnation: source.state.runtime.connection_incarnation().to_owned(),
+                target: target.clone(),
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(receipt["ready"], true);
+        assert!(
+            reset(
+                State(source.state.clone()),
+                Json(PrepareRequest {
+                    incarnation: source.state.runtime.connection_incarnation().to_owned(),
+                    target,
+                })
+            )
+            .await
+            .is_err(),
+            "reset must never remove an armed bridge"
+        );
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn failed_unarmed_preparation_can_be_reset_without_restarting_the_writer() {
+        let source = test_context(|_| {}).await;
+        let destination = test_context(|_| {}).await;
+        let (url, server) = serve(destination.state.clone()).await;
+        let target = activate(&source.state, url, &destination.state);
+        *source.state.runtime.migration.active.lock().unwrap() = Some(Active {
+            target: target.clone(),
+            deadline: Instant::now() - Duration::from_secs(1),
+            confirmed: 0,
+            ready: false,
+            error: None,
+        });
+        let request = || PrepareRequest {
+            incarnation: source.state.runtime.connection_incarnation().to_owned(),
+            target: target.clone(),
+        };
+        assert!(
+            reset(State(source.state.clone()), Json(request()))
+                .await
+                .is_err(),
+            "cannot reset while a preparation worker might still be running"
+        );
+        source
+            .state
+            .runtime
+            .migration
+            .active
+            .lock()
+            .unwrap()
+            .as_mut()
+            .unwrap()
+            .error = Some("injected failure".into());
+        assert!(
+            reset(
+                State(source.state.clone()),
+                Json(PrepareRequest {
+                    incarnation: "previous-process".into(),
+                    target: target.clone(),
+                })
+            )
+            .await
+            .is_err()
+        );
+        let receipt = reset(State(source.state.clone()), Json(request()))
+            .await
+            .unwrap();
+        assert_eq!(receipt["reset"], true);
+        acknowledge(&source.state).await.unwrap();
+        wait_ready(&source.state, &target).await;
         server.abort();
     }
 

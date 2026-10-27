@@ -288,3 +288,8 @@ must precede endpoint demotion; endpoint observation must name that exact pod
 UID. Controller retries must not substitute a restarted or different target.
 This candidate remains unqualified until runtime tests and a no-retry staging
 migration pass, including recovery from interrupted preparation.
+
+[Thin migration handoff and retry](thin-migration.md) defines the destination
+binding, runtime acknowledgment bridge and restricted reset procedure. Source
+node unselection stops new moves, not deletions already issued; a ready bridge
+cannot be reset to bypass an incomplete handoff.

@@ -259,3 +259,9 @@ retention. A fixed preparation deadline, bounded verification batches and a
 single verification worker prevent unbounded work. This is not a serving grant
 or permission to bypass cache capacity. Its implementation is still awaiting
 Linux tests, failure recovery qualification and live staging rehearsal.
+
+A ready migration bridge must survive the preparation deadline and controller
+pauses. Its bounded weak-reference task retains the feed pin until draining;
+release that pin on failed preparation or draining. The internal reset API may
+clear only a completed failed unarmed attempt and must serialize with write
+acknowledgments. Never use it to abandon a ready bridge after endpoint movement.
