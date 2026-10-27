@@ -44,9 +44,29 @@ jobs:
 
 ## Android emulators {#android-emulators}
 
-Hardware-accelerated Android emulators currently work directly in a Linux job, but not inside Docker or a job-level `container`. The Docker daemon does not have access to `/dev/kvm`, so adding `--device /dev/kvm` fails with a missing-device error.
+Forward `/dev/kvm` explicitly when running a hardware-accelerated Android emulator inside Docker:
 
-Run the emulator in a native job without a `container` setting. See <.localized_link href="/guides/features/runners#android-emulators">Android emulators on Linux</.localized_link> for setup.
+```sh
+docker run --rm --device /dev/kvm ghcr.io/my-org/android-ci:latest ./gradlew :app:pixel6DebugAndroidTest
+```
+
+For a GitHub Actions job-level container, add the device to `options`:
+
+```yaml
+jobs:
+  android-test:
+    runs-on: tuist-linux
+    container:
+      image: ghcr.io/my-org/android-ci:latest
+      options: --device /dev/kvm
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./gradlew :app:pixel6DebugAndroidTest
+```
+
+Use an image with your Android SDK, emulator, Java runtime, and emulator libraries. Replace the test command with your project's Gradle Managed Device task; it starts the configured device for you. The `docker run` example assumes the image also contains your project. Device forwarding does not install the Android tools. You don't need `--privileged`, `sudo`, or a permission-changing setup step to access KVM, including when the container runs as a non-root user.
+
+For setup in a native job, see <.localized_link href="/guides/features/runners#android-emulators">Android emulators on Linux</.localized_link>.
 
 ## Service containers {#service-containers}
 

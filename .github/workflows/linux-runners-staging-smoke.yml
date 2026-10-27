@@ -390,6 +390,11 @@ jobs:
           ls -l /dev/kvm
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'emulator'
           "$ANDROID_HOME/emulator/emulator" -accel-check
+      - name: Create KVM guests inside Docker as root and nobody
+        run: |
+          docker run --rm --device /dev/kvm \
+            -v "$PWD/infra/kata-kvm-kernel:/check:ro" \
+            ubuntu:24.04 sh /check/check-kvm.sh
       - name: Run the API 34 x86_64 instrumented test
         working-directory: infra/kata-kvm-kernel/android-smoke
         run: gradle --no-daemon --stacktrace :app:pixel6DebugAndroidTest
@@ -414,3 +419,17 @@ jobs:
             infra/kata-kvm-kernel/android-smoke/**/build/outputs/androidTest-results/
             infra/kata-kvm-kernel/android-smoke/**/build/outputs/managed_device_android_test_additional_output/
           if-no-files-found: warn
+
+  nested-kvm-container:
+    if: ${{ inputs.nested_kvm }}
+    permissions:
+      contents: read
+    runs-on: ${{ inputs.runner_label }}
+    timeout-minutes: 10
+    container:
+      image: ubuntu:24.04
+      options: --device /dev/kvm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create KVM guests inside a job container as root and nobody
+        run: sh infra/kata-kvm-kernel/check-kvm.sh

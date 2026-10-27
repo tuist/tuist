@@ -74,7 +74,7 @@ jobs:
 
 Use the Java version required by your Android Gradle Plugin and replace the test task with your project's managed-device task. Configure an **x86_64** system image. Choose a runner shape with enough memory for both Gradle and the emulators; concurrent devices share the job's CPU and memory allocation.
 
-Run the emulator directly in the job as the normal runner user. `sudo` in this example is only for installing operating-system packages. Hardware-accelerated emulators inside Docker or a job-level `container` are <.localized_link href="/guides/features/runners/docker#android-emulators">not currently supported</.localized_link>.
+Run the emulator as the normal runner user. `sudo` in this example is only for installing operating-system packages. For Docker or a job-level `container`, explicitly <.localized_link href="/guides/features/runners/docker#android-emulators">forward `/dev/kvm`</.localized_link>.
 
 Emulators use nested virtualization, so their timings can differ from a physical Android device. Treat emulator benchmarks as measurements of that CI environment, rather than physical-device performance.
 
