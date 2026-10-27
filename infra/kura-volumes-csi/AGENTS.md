@@ -139,6 +139,10 @@ Enrollment changes the desired layout; the controller's source-node gate paces
 legacy migration. Cordon one source and set `tuist.dev/kura-lvm-migrate=true`
 only after checking sufficient compatible spare capacity for its claims. Do not
 select multiple nodes or use ordinary node evacuation to bypass this gate.
+Unselected instances retain their old pod templates so ordinary restarts still
+fit legacy nodes. If an instance has legacy claims across different hosts, the
+shared-template transition holds until a separate placement/recovery plan is
+completed; do not treat that topology as a qualified automatic migration.
 Wait for its volumes to be reclaimed and replacements to finish backfill before
 reinstalling it. The verified rebuilt node supplies capacity for the next move;
 this does not require duplicating an entire multi-node fleet. A single-host

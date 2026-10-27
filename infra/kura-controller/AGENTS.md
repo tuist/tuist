@@ -248,6 +248,10 @@ Regional LVM enrollment alone must not delete legacy claims. Require exactly
 one Node annotated `tuist.dev/kura-lvm-migrate=true`, cordoned, with a prepared
 Ready/schedulable LVM landing node matching the actual StatefulSet selector.
 Only claims pinned to that source may migrate; other legacy replicas stay held.
+Preserve the old replacement template until all an instance's remaining legacy
+claims belong to the selected source. A shared StatefulSet template cannot
+request LVM on an unconverted sibling's host after an unrelated restart;
+cross-host legacy instances require a placement/recovery plan before migration.
 The landing check is not a reservation: preflight the whole source node's disk,
 CPU, memory and placement constraints before selection. Never reformat until
 all its claims have moved and replacement replicas have completed backfill.

@@ -3576,6 +3576,9 @@ func (r *KuraInstanceReconciler) reconcileDataStorageResize(ctx context.Context,
 	if fencedServing(instance) {
 		return r.reconcileFencedDataStorageResize(ctx, instance)
 	}
+	if held, err := r.lvmMigrationTemplateHeld(ctx, instance); err != nil || held {
+		return true, err
+	}
 	desired := storageQuantity(instance)
 	if desired.IsZero() {
 		return false, nil

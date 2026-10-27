@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"testing"
 
 	kurav1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
@@ -23,13 +24,15 @@ func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 		paused, single, wantDelete                bool
 		skipMark, uncordoned, multiple, noLanding bool
 		sourceOrdinal                             int
+		otherLegacy, colocated                    bool
 	}{
-		{name: "same class legacy file rebuilds one replica", backing: "file", cycle: backfillCycleComplete, wantDelete: true},
+		{name: "same class legacy file rebuilds one replica", colocated: true, backing: "file", cycle: backfillCycleComplete, wantDelete: true},
 		{name: "old driver without backing is migrated", cycle: backfillCycleComplete, wantDelete: true},
 		{name: "verified LVM is preserved", backing: "lvm", cycle: backfillCycleComplete},
 		{name: "backfill in progress holds both copies", backing: "file", cycle: "running"},
 		{name: "operator pause holds both copies", backing: "file", cycle: backfillCycleComplete, paused: true},
 		{name: "single copy holds for a standby", backing: "file", cycle: backfillCycleComplete, single: true},
+		{name: "cross-host legacy claims hold the whole template", backing: "file", cycle: backfillCycleComplete, otherLegacy: true},
 		{name: "regional enrollment alone holds legacy claims", backing: "file", cycle: backfillCycleComplete, skipMark: true},
 		{name: "no prepared landing node holds the source", backing: "file", cycle: backfillCycleComplete, noLanding: true},
 		{name: "source must be cordoned", backing: "file", cycle: backfillCycleComplete, uncordoned: true},
@@ -52,6 +55,11 @@ func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 			}
 			sts.Spec.VolumeClaimTemplates[0].Spec.StorageClassName = ptr(encryptedLocalStorageClass)
 			sts.Spec.Template.Spec.Containers[0].Resources.Requests[kuraDiskResource] = resource.MustParse("32Gi")
+			templateHeld := tc.skipMark || tc.noLanding || tc.uncordoned || tc.multiple || tc.otherLegacy
+			if templateHeld {
+				delete(sts.Spec.Template.Spec.Containers[0].Resources.Requests, kuraDiskResource)
+				sts.Spec.Template.Spec.Containers[0].Resources.Requests[corev1.ResourceEphemeralStorage] = resource.MustParse("32Gi")
+			}
 			objects := []client.Object{f.instance, sts}
 			if !tc.noLanding {
 				objects = append(objects, &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "prepared-spare"}, Status: corev1.NodeStatus{Allocatable: corev1.ResourceList{kuraDiskResource: resource.MustParse("64Gi")}, Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}}}})
@@ -64,13 +72,22 @@ func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 				claim.Status.Phase = corev1.ClaimBound
 				pod := f.servingPod(i, "100m")
 				pod.Spec.NodeName = fmt.Sprintf("source-%d", i)
+				if tc.colocated {
+					pod.Spec.NodeName = "source-0"
+				}
 				node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: pod.Spec.NodeName}, Spec: corev1.NodeSpec{Unschedulable: !tc.uncordoned}}
 				if !tc.skipMark && (i == tc.sourceOrdinal || tc.multiple) {
 					node.Annotations = map[string]string{lvmMigrationNodeAnnotation: "true"}
 				}
 				pv := &corev1.PersistentVolume{ObjectMeta: metav1.ObjectMeta{Name: claim.Spec.VolumeName}, Spec: corev1.PersistentVolumeSpec{PersistentVolumeSource: corev1.PersistentVolumeSource{CSI: &corev1.CSIPersistentVolumeSource{Driver: "kura-volumes.tuist.dev", VolumeHandle: claim.Spec.VolumeName, VolumeAttributes: map[string]string{"backing": tc.backing}}}}}
 				pv.Spec.NodeAffinity = &corev1.VolumeNodeAffinity{Required: &corev1.NodeSelector{NodeSelectorTerms: []corev1.NodeSelectorTerm{{MatchExpressions: []corev1.NodeSelectorRequirement{{Key: encryptedLocalTopologyKey, Operator: corev1.NodeSelectorOpIn, Values: []string{node.Name}}}}}}}
-				objects = append(objects, claim, pod, pv, node)
+				if !tc.otherLegacy && !tc.colocated && i != tc.sourceOrdinal {
+					pv.Spec.CSI.VolumeAttributes["backing"] = "lvm"
+				}
+				objects = append(objects, claim, pod, pv)
+				if !tc.colocated || i == 0 {
+					objects = append(objects, node)
+				}
 				if i != tc.sourceOrdinal {
 					objects = append(objects, &corev1.Endpoints{ObjectMeta: metav1.ObjectMeta{Name: f.instance.Name, Namespace: f.instance.Namespace}, Subsets: []corev1.EndpointSubset{{Addresses: []corev1.EndpointAddress{{IP: "10.0.0.2", TargetRef: &corev1.ObjectReference{Name: pod.Name}}}}}})
 				}
@@ -82,6 +99,18 @@ func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 			_, err := r.reconcileDataStorageResize(context.Background(), f.instance)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if templateHeld {
+				if err := r.reconcileStatefulSetDuringResize(context.Background(), f.instance); err != nil {
+					t.Fatal(err)
+				}
+				got := &appsv1.StatefulSet{}
+				if err := c.Get(context.Background(), client.ObjectKeyFromObject(sts), got); err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(sts.Spec, got.Spec) {
+					t.Fatal("waiting for node selection changed the legacy replacement template")
+				}
 			}
 			if tc.wantDelete {
 				for i := 0; i < 2; i++ {

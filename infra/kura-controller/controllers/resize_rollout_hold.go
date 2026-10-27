@@ -27,6 +27,9 @@ const resizeRolloutHoldAnnotation = "kura.tuist.dev/resize-rollout-hold"
 // leaving the template untouched, so the template keeps following the
 // instance (the CPU schedule cap in particular) without rolling a running pod.
 func (r *KuraInstanceReconciler) reconcileStatefulSetDuringResize(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if held, err := r.lvmMigrationTemplateHeld(ctx, instance); err != nil || held {
+		return err
+	}
 	held, err := r.holdRolloutForResize(ctx, instance)
 	if err != nil || !held {
 		return err
