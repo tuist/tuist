@@ -203,7 +203,9 @@ func (d *Driver) openLUKS(ctx context.Context, v volume, device string, unformat
 		return err
 	}
 	if thin != nil {
-		args = append(args, "--allow-discards")
+		// Submit from the crypto workers instead of passing thin writes through
+		// the additional dm-crypt submission queue. Keep encryption workqueues.
+		args = append(args, "--allow-discards", "--perf-submit_from_crypt_cpus")
 	}
 	args = append(args, device, v.mapper)
 	if _, err := d.run(ctx, key, "cryptsetup", args...); err != nil {

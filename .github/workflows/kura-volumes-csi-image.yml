@@ -46,12 +46,53 @@ jobs:
         working-directory: infra/kura-volumes-csi
         run: go vet ./...
 
+  thin-stack:
+    if: github.repository == 'tuist/tuist' && github.event_name == 'workflow_dispatch'
+    # Device-mapper fault tests need their own disposable VM, never a shared
+    # staging host or a container with access to a runner host's block devices.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        chunk-kib: [64, 512]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/kura-volumes-csi/go.mod
+          cache-dependency-path: infra/kura-volumes-csi/go.sum
+      - name: Install disposable stack prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lvm2 cryptsetup xfsprogs thin-provisioning-tools ruby fio
+          sudo modprobe dm_thin_pool
+          test "$(df --output=avail -B1 /var/tmp | tail -1)" -gt 30000000000
+      - name: Qualify the actual CSI driver
+        shell: bash
+        working-directory: infra/kura-volumes-csi
+        run: |
+          go test -c -o /tmp/kura-thin-driver.test ./internal/driver
+          sudo env KURA_THIN_DISPOSABLE_VM=1 KURA_THIN_CHUNK_KIB=${{ matrix.chunk-kib }} /tmp/kura-thin-driver.test -test.run '^TestThinRealStack$' -test.v -test.timeout 15m | tee /tmp/kura-thin-driver.log
+      - name: Qualify reclamation and the quota counterexample
+        run: |
+          sudo env KURA_THIN_DISPOSABLE_VM=1 KURA_THIN_CHUNK_KIB=${{ matrix.chunk-kib }} ruby infra/kura-volumes-csi/thin/stack_test.rb > /tmp/kura-thin-stack.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: thin-stack-${{ matrix.chunk-kib }}
+          path: |
+            /tmp/kura-thin-driver.log
+            /tmp/kura-thin-stack.json
+
   # Builds on every run (a Dockerfile broken on a PR must not surface only
   # after merge on main); pushes to ghcr only outside pull_request events,
   # which also keeps fork PRs away from the registry.
   build:
-    needs: test
-    if: github.repository == 'tuist/tuist'
+    needs: [test, thin-stack]
+    # The VM qualification is dispatch-only; a PR still builds its image.
+    # A failed or cancelled qualification must never publish a candidate.
+    if: always() && github.repository == 'tuist/tuist' && needs.test.result == 'success' && (needs.thin-stack.result == 'success' || needs.thin-stack.result == 'skipped')
     runs-on: tuist-linux
     steps:
       - uses: actions/checkout@v4

@@ -629,3 +629,8 @@ from changing the default controller image.
 The manually dispatched Kura runtime-image workflow validates formatting, Clippy
 and unit tests before publishing a staging SHA candidate. It keeps the PR draft
 while allowing Linux validation when the local platform toolchain is unavailable.
+
+The CSI image dispatch requires real thin-stack qualification in disposable
+GitHub-hosted Ubuntu VMs (64 and 512 KiB chunks) before publishing. These tests
+create only private loop-backed VGs; never move them onto shared staging hosts.
+PR builds retain the ordinary unit-test/image path.

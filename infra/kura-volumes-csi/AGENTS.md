@@ -178,3 +178,8 @@ immutable PV/PVC ownership and its own disk-capacity field. PVC writes/events
 are namespaced to `kura`. Cluster administrators and privileged host access
 remain trusted. Never claim hosted OpenBao custody before the live migration gates
 in `security/key-management.md` pass.
+
+Thin mappings additionally enable discard and `--perf-submit_from_crypt_cpus`;
+legacy mappings keep their existing settings. Fresh thin pools use 512 KiB
+chunks. These are measured candidates, not permission to enable overcommit;
+retain the physical allocation and safety gates in `thin/validation.md`.

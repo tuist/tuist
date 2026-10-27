@@ -11,6 +11,8 @@ abort 'requires root inside a disposable Linux VM and KURA_THIN_DISPOSABLE_VM=1'
 
 class Fixture
   MIB = 1 << 20
+  CHUNK_KIB = Integer(ENV.fetch('KURA_THIN_CHUNK_KIB', '512'))
+  raise 'qualification requires 64 or 512 KiB chunks' unless [64, 512].include?(CHUNK_KIB)
   attr_reader :results
 
   def initialize
@@ -44,7 +46,7 @@ class Fixture
       lvm: run('lvm', 'version').lines.first.strip,
       cryptsetup: run('cryptsetup', '--version').strip,
       xfs: run('mkfs.xfs', '-V').strip,
-      backing: '24 GiB sparse file on disposable VM disk; 64 KiB thin chunks; no snapshots'
+      backing: "24 GiB sparse file on disposable VM disk; #{CHUNK_KIB} KiB thin chunks; no snapshots"
     }
     file = File.join(@dir, 'pv.img')
     File.open(file, 'wb', 0600) { |f| f.truncate(24 << 30) }
@@ -53,7 +55,7 @@ class Fixture
     run('pvcreate', '-y', @loop)
     run('vgcreate', @vg, @loop)
     run('lvcreate', '-y', '--type', 'thin-pool', '-L', '8G', '--poolmetadatasize', '128M',
-        '--chunksize', '64K', '--discards', 'nopassdown', '-n', 'pool', @vg)
+        '--chunksize', "#{CHUNK_KIB}K", '--discards', 'nopassdown', '-n', 'pool', @vg)
     run('lvchange', '--errorwhenfull', 'y', "#{@vg}/pool")
     %w[a b churn].each { |name| create(name, thin: true) }
     create('thick', thin: false)
@@ -70,7 +72,7 @@ class Fixture
     run('cryptsetup', 'luksFormat', '--type', 'luks2', '--cipher', 'aes-xts-plain64', '--key-size', '512',
         '--pbkdf', 'pbkdf2', '--pbkdf-force-iterations', '1000', '--batch-mode', '--key-file=-', device, input: @key)
     @mappers << mapper
-    run('cryptsetup', 'open', '--allow-discards', '--key-file=-', device, mapper, input: @key)
+    run('cryptsetup', 'open', '--allow-discards', *(thin ? ['--perf-submit_from_crypt_cpus'] : []), '--key-file=-', device, mapper, input: @key)
     run('mkfs.xfs', '-q', '-K', '-f', '-m', 'reflink=0', '-l', 'size=64m', "/dev/mapper/#{mapper}")
     path = File.join(@dir, name)
     FileUtils.mkdir_p(path)
@@ -101,7 +103,7 @@ class Fixture
     raise 'unexpected pool status' unless f[2] == 'thin-pool'
     meta_used, meta_total = f[4].split('/').map(&:to_i)
     data_used, data_total = f[5].split('/').map(&:to_i)
-    {volumes: vols, pool_data_used: data_used * 65536, pool_data_total: data_total * 65536,
+    {volumes: vols, pool_data_used: data_used * CHUNK_KIB * 1024, pool_data_total: data_total * CHUNK_KIB * 1024,
      pool_metadata_used: meta_used * 4096, pool_metadata_total: meta_total * 4096, flags: f[7..]}
   end
 
@@ -196,7 +198,7 @@ class Fixture
     run('lvchange', '--discards', mode, "#{@vg}/pool")
     %w[a b churn].each do |name|
       run('lvchange', '-ay', "#{@vg}/#{name}")
-      run('cryptsetup', 'open', '--allow-discards', '--key-file=-', "/dev/#{@vg}/#{name}", mapper(name), input: @key)
+      run('cryptsetup', 'open', '--allow-discards', '--perf-submit_from_crypt_cpus', '--key-file=-', "/dev/#{@vg}/#{name}", mapper(name), input: @key)
       run('mount', '-t', 'xfs', '-o', 'nodev,nosuid,noatime,prjquota', "/dev/mapper/#{mapper(name)}", path(name))
     end
   end

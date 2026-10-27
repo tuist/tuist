@@ -450,3 +450,16 @@ REAPI module-cache traffic uses the same action cache and content-addressed blob
 ## Account identity
 
 The configured tenant remains the permanent storage and peer identity across account renames. A separate atomic snapshot of the current authorization handle, retained aliases and ready endpoint targets is refreshed by enrollment, heartbeat and managed discovery. HTTP and REAPI use current grants while retaining the original key namespace. With the default-off per-account endpoint-migration gate enabled, regional client hostnames follow the current name after DNS/HTTPS activation; historical client names remain covered by DNS, TLS and ingress for 90 days after renaming away from them. Name reservations and analytics attribution survive URL expiry. Only explicitly capable HTTP clients receive non-cacheable 307 redirects, while gRPC uses routing aliases. The control plane reserves historical handles against reuse. See [account renames](account-renames.md) for compatibility, migration audits and rollout gates.
+
+### Planned thin-storage connection handoff
+
+After the controller observes Service and peer endpoint handoff, it calls the
+internal mTLS `POST /_internal/connections/retire` with the process incarnation
+reported by `/status/rollout`. The runtime continues serving and replicating,
+but HTTP/1 responses close their connection after the complete response. An
+accept-time lease counts the old connection cohort through response completion;
+new probes do not keep that cohort alive. HTTP/2 connections retain their bounded
+connection lifetime. Only a matching incarnation with zero old connections lets
+the controller delete the thin-migration donor. An old runtime, failed call, or
+process restart holds the move. This complements catch-up and endpoint checks;
+it neither fences serving authority nor adds synchronous replication guarantees.

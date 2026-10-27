@@ -24,8 +24,8 @@ raise 'reserved pool name' if options[:pool] == 'data' || options[:pool].start_w
 data, metadata = options.values_at(:data_mib, :metadata_mib)
 raise 'explicit bounded sizes required' unless data && metadata && data.between?(1024, 2**30) && metadata.between?(64, 16384)
 raise 'invalid reserve/slot profile' unless options[:reserve_mib].between?(64, data - 1) && options[:metadata_reserve_mib].between?(16, metadata - 1) && options[:max_volumes].between?(1, 1024)
-# 64 KiB chunks, 128 bytes/chunk, 1 MiB/device, plus the explicit reserve.
-minimum_metadata = (data * 16 * 128 + (2**20 - 1)) / 2**20 + options[:max_volumes] + options[:metadata_reserve_mib]
+# 512 KiB chunks, 128 bytes/chunk, 1 MiB/device, plus the explicit reserve.
+minimum_metadata = (data * 2 * 128 + (2**20 - 1)) / 2**20 + options[:max_volumes] + options[:metadata_reserve_mib]
 raise "metadata must be at least #{minimum_metadata} MiB" if metadata < minimum_metadata
 targets, error, status = Open3.capture3('dmsetup', 'targets')
 raise "cannot inspect kernel device-mapper targets: #{error}" unless status.success?
@@ -45,7 +45,7 @@ raise 'pool already exists; inspect it instead of mutating it' if rows.any? { |r
 free = Integer(run.call('vgs', '--noheadings', '--units', 'b', '--nosuffix', '-o', 'vg_free', options[:vg]).strip, 10)
 # Account for both metadata and LVM's metadata spare, plus extent rounding.
 raise 'insufficient unallocated VG space' if free < (data + 2 * metadata + 16) * 2**20
-run.call('lvcreate', '--yes', '--type', 'thin-pool', '--size', "#{data}M", '--poolmetadatasize', "#{metadata}M", '--chunksize', '64K', '--zero', 'y', '--discards', 'passdown', '--name', options[:pool], options[:vg])
+run.call('lvcreate', '--yes', '--type', 'thin-pool', '--size', "#{data}M", '--poolmetadatasize', "#{metadata}M", '--chunksize', '512K', '--zero', 'y', '--discards', 'passdown', '--name', options[:pool], options[:vg])
 run.call('lvchange', '--errorwhenfull', 'y', "#{options[:vg]}/#{options[:pool]}")
 configuration = {pool: options[:pool], data_reserve_bytes: options[:reserve_mib] * 2**20, metadata_reserve_bytes: options[:metadata_reserve_mib] * 2**20, max_volumes: options[:max_volumes]}
 File.open(config_path, File::WRONLY | File::CREAT | File::EXCL, 0600) { |f| f.write(JSON.generate(configuration)); f.fsync }

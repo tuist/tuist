@@ -52,6 +52,13 @@ func TestThinRealStack(t *testing.T) {
 	if os.Geteuid() != 0 {
 		t.Fatal("requires root in disposable VM")
 	}
+	chunk := os.Getenv("KURA_THIN_CHUNK_KIB")
+	if chunk == "" {
+		chunk = "512"
+	}
+	if chunk != "64" && chunk != "512" {
+		t.Fatal("qualification requires 64 or 512 KiB chunks")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	root, err := os.MkdirTemp("/var/tmp", "kura-thin-csi-")
@@ -106,7 +113,7 @@ func TestThinRealStack(t *testing.T) {
 	})
 	run("pvcreate", "--yes", loop)
 	run("vgcreate", vg, loop)
-	run("lvcreate", "--yes", "--type", "thin-pool", "--size", "16G", "--poolmetadatasize", "512M", "--chunksize", "64K", "--discards", "passdown", "--name", "tenant_pool", vg)
+	run("lvcreate", "--yes", "--type", "thin-pool", "--size", "16G", "--poolmetadatasize", "512M", "--chunksize", chunk+"K", "--discards", "passdown", "--name", "tenant_pool", vg)
 	run("lvchange", "--errorwhenfull", "y", vg+"/tenant_pool")
 	state := filepath.Join(root, "state")
 	if err = os.Mkdir(state, 0700); err != nil {
