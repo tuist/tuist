@@ -1,0 +1,6 @@
+# NEW short-lived store only; retain the old store/policy until its plans drain.
+replicas: 1
+lifecycle:
+  expirationDays: 3
+nodeSelector:
+  node.cluster.x-k8s.io/pool: kura-ovh-gra-runners

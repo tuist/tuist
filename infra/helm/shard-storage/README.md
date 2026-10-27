@@ -1,37 +1,56 @@
 # Linux shard artifact storage
 
-This independently released chart runs Garage on OVH Kura cache hosts in
-Gravelines, reached over the private vRack by OVH Linux runners. The production
-overlay uses three replicas on three different hosts; the default remains one
-node for the existing staging experiment.
+This independently released chart runs Garage on OVH hosts in Gravelines,
+reached over the private vRack by OVH Linux runners. Start with one node per
+environment: this is a transfer optimization with rebuildable artifacts, not
+an authoritative storage service. Three-node replication remains an optional
+future topology, not a prerequisite for the initial rollout.
 It is disabled by default. It stores disposable Mix `_build` archives and Cargo
 nextest archives; losing the volume requires rerunning the build job. It does
 not store the authoritative shard plan or change Xcode artifact routing.
 
-The `scw-local-nvme` provisioner enforces the 200 GiB PVC with an XFS project
-quota. The pod requests the same amount of `ephemeral-storage` for scheduler
+The `scw-local-nvme` provisioner enforces the configured PVC with an XFS project
+quota (200 GiB by default, 3 TiB in the production overlay). The pod requests
+the same amount of `ephemeral-storage` for scheduler
 accounting and carries `tuist.dev/region` for Kura capacity admission. Install
 in `kura`, where that admission reads region reservations. Admission uses the
-current pressure threshold; it does not gain another 200 GiB when Garage is
-installed. Check existing region and node headroom before installation. Do not
+current pressure threshold; installing Garage consumes existing capacity.
+Check existing region and node headroom before installation. Do not
 reduce the PVC or change its storage class to work around a full node.
 
 Garage uses path-style S3 on a ClusterIP at port 3900. Singleton RPC binds to
 loopback. Replicated stores allow RPC on 3901 only between their own pods and
 DNS to CoreDNS; a separate headless Service publishes peer addresses even before
 readiness. The admin health listener is not exposed by a Service or NetworkPolicy.
-The lifecycle CronJob applies 31-day expiration and one-day incomplete multipart
-abortion. Server cleanup still applies the account's normal 7–30 day retention.
-If an operator extends shard retention beyond 30 days, increase the backstop
-first. Confirm the CronJob has completed successfully before enrollment.
+Fresh environment overlays apply **three-day archive expiration** and one-day
+incomplete multipart abortion through S3 lifecycle. This applies only to this
+store's disposable Mix/Cargo archives: shard plans, test results, Xcode artifacts,
+and default/Tigris storage keep their existing retention. Server cleanup still
+runs under the account's normal policy and safely deletes already-expired
+prefixes. The shorter local archive lifetime takes precedence over that policy.
+
+The three-day window is measured from object creation, not the end of a test run.
+It allows ordinary queue delays and retries, but does not lease artifacts to
+active jobs: a consumer delayed beyond the window must rerun the build. Old plan
+metadata can still be queried and can yield a signed URL whose object has expired;
+there is no new API-level expiry response or automatic rebuild. Lifecycle expiry
+and physical space reclamation are asynchronous, so three days is not a hard
+capacity bound. Monitor actual disk use and reclamation before broad enrollment.
+
+Keep the default 31-day policy for the existing staging store. Use the environment
+overlay on a **new release/target** to introduce shorter retention, or stop old
+store enrollment and let its existing retention drain before shortening it.
+Never silently apply a shorter lifecycle to retained artifacts. Confirm the
+policy Job has completed and read back the policy before enrollment.
 
 ## Configuration
 
 Provision a 1Password item with `rpc-secret` (32 random bytes, hex encoded),
 `access-key-id` and `secret-access-key`. Set `externalSecrets.item` to that item.
 In singleton mode, Garage 2.5's `--single-node --default-bucket` initializes the
-persisted layout, key and bucket. Production uses the bootstrap below instead;
-those flags cannot be used with replication. The access key is a Garage key ID, e.g. `GK` followed by 24 hex
+persisted layout, key and bucket in every initial environment. Optional replicated
+stores use the manual bootstrap below; those flags cannot be used with replication.
+The access key is a Garage key ID, e.g. `GK` followed by 24 hex
 digits; use a random 32-byte hex secret. Retain those credentials across restarts.
 For rotation use Garage's key-management commands; changing the default-key env
 variables alone does not revoke an existing key.
@@ -63,28 +82,72 @@ the Garage item. Never commit populated secrets in values files.
 
 `gra-v1` is an immutable storage identity. Never repoint an existing ID at a
 different store or bucket. Add a new ID when replacing a store. Keep old IDs,
-credentials and Services available until their plans expire and cleanup finishes.
+credentials and Services available until retained artifacts expire and application
+cleanup finishes, even if lifecycle has already removed the bytes.
 Disabling enrollment leaves reads, multipart operations and cleanup on the
 persisted target. Missing configuration returns an error; it never redirects
 those operations to Tigris.
 
-## Production replication and initial bootstrap
+## Initial single-node deployment
 
-Install a **new release** using `values-production.yaml` and an independent
+Use `values-staging.yaml`, `values-canary.yaml`, or `values-production.yaml` on a
+fresh store. All select one replica and three-day archive expiration. Staging
+and canary default to 200 GiB for functional validation; production reserves
+3 TiB on one suitably sized OVH host. A mirrored pair of 3.84 TB NVMe disks is
+one candidate, subject to actual allocatable disk after OS/reserves. Keep usage
+below about 3 TB decimal to leave room within the quota. There is no three-way
+replication multiplier: the usable dataset is stored once. This is a starting
+capacity, not a measured demand estimate; compare retained bytes and daily
+upload volume with the window before widening enrollment.
+
+Do not place the production store on `cwmt8` or infer capacity from a host count.
+Its previously measured 341 GiB unreserved cannot satisfy 3 TiB. Provision and
+verify one appropriate host, then set its exact pool/placement and vRack before
+installation. The default legacy `kura-dedibox` selector is an OVH cache-pool
+label, not evidence of available storage. Canary also needs a Gravelines host;
+its Canadian OVH cache node is not a local substitute. Staging's existing
+singleton can continue under its current policy without buying another host.
+A fresh parallel staging store needs its own capacity while old artifacts drain.
+
+### Singleton maintenance and recovery
+
+The StatefulSet uses `OnDelete` in both topologies. A chart/image update does not
+automatically restart the sole serving pod. For maintenance, disable new-plan
+enrollment, check queued/running consumers, and schedule a restart after they
+finish, or accept that affected jobs may need retrying. Rehearse the exact Garage
+version pair first. Preserve the PVC, node identity and credentials; verify an
+old artifact checksum and a fresh multipart upload/read after restart, then
+reenable enrollment. Disabling enrollment alone does not stop existing consumers.
+
+There is no zero-downtime upgrade or host-failure guarantee. While Garage is down,
+new plans can fall back to the account/default store, while existing local plans
+remain pinned and fail until it returns. An ordinary restart preserves the disk;
+permanent disk/host loss requires rerunning affected build jobs on a new immutable
+store target. Local RAID reduces individual-disk risk but is not a second host.
+For incompatible upgrades, retain the old store until its artifacts drain, or
+use temporary separate capacity and a new target. Never repoint an existing ID.
+
+## Optional future replication and initial bootstrap
+
+Install a **new release** using the environment overlay followed by
+`values-replicated.yaml`, and an independent
 immutable target ID (for example `gra-replicated-v1`). Never change the existing
 staging release from one to three replicas. Garage does not support changing
 the replication factor in place; Helm rejects a replica-count change when it
 can look up the existing StatefulSet. Offline rendering cannot enforce that
-guard. Keep any old release, target and credentials until its plans expire.
+guard. Keep any old release, target and credentials until its retained artifacts
+expire and application cleanup finishes.
 
-Production uses replication factor 3 with consistent reads/writes (quorum 2).
+The optional replicated topology uses factor 3 with consistent reads/writes (quorum 2).
 Two replicas require both for writes, so they would not meet the maintenance
 availability requirement. Required hostname anti-affinity places each replica
 on a different OVH host in the selected pool. All three remain in Gravelines:
 this protects against one host outage, not a site outage. Each reserves a
-200 GiB local PVC and 200 GiB of scheduler capacity: 600 GiB raw, at most
-200 GiB logical before metadata/headroom. The initial layout below advertises
-180 GB per node to leave headroom. Both metadata and data fsync are enabled.
+3 TiB local PVC and 3 TiB of scheduler capacity with the production overlay:
+9 TiB reserved, at most 3 TiB logical before metadata/headroom. The example
+layout below advertises 3000 GB per node to leave headroom. Adjust this to the
+actual PVC size when qualifying with smaller test volumes. Both metadata and
+data fsync are enabled.
 
 Discovery and layout initialization are a deliberate **manual bootstrap gap**.
 Public node IDs only exist after the initial start. We use stable peer DNS seeds
@@ -115,7 +178,7 @@ for i in 0 1 2; do
   printf '    - "%s"\n' "$shard_peer" >> shard-peers.yaml
   g node connect "$shard_peer"
   shard_host=$(k get pod "$shard_release-$i" -o jsonpath='{.spec.nodeName}')
-  g layout assign -z "$shard_host" -c 180GB "$shard_id"
+  g layout assign -z "$shard_host" -c 3000GB "$shard_id"
 done
 g layout show
 g layout apply --version 1
@@ -123,8 +186,8 @@ g json-api GetClusterHealth
 ```
 
 Keep `shard-peers.yaml` (public IDs, no secrets) with the environment's deployment
-values and include it in every subsequent Helm upgrade alongside the production
-overlay and secret item reference. Roll all three pods once using the procedure
+values and include it in every subsequent Helm upgrade alongside the environment
+and replicated overlays and secret item reference. Roll all three pods once using the procedure
 below **before enrollment**, so every process loads the stable DNS seeds. Peers
 retain their identities on their PVCs; DNS permits reconnecting after pod IPs
 change. Never bootstrap a replacement volume with an old node's identity.
@@ -138,7 +201,7 @@ create `shards` with `garage bucket create shards` and grant that key
 `garage bucket allow --read --write --owner shards --key <key-id>`. Verify the
 lifecycle CronJob and authenticated multipart S3 access before activation.
 
-## Maintenance while artifacts are in use
+## Optional replicated-store maintenance
 
 The S3 Service and target identity remain stable during a compatible Garage
 upgrade. With one replica stopped, the remaining two can read uploaded artifacts
@@ -162,8 +225,8 @@ For each compatible version upgrade or host maintenance:
    transfer; allow it to settle. Do not proceed while replicas are catching up.
    Capture metadata snapshots
    and the layout using the release-specific backup procedure before upgrades.
-3. Apply the reviewed image/configuration with Helm, preserving the production
-   overlay and peer values. Evict **one** pod through the Kubernetes eviction
+3. Apply the reviewed image/configuration with Helm, preserving the environment
+   and replicated overlays and peer values. Evict **one** pod through the Kubernetes eviction
    API (or drain that host respecting PDBs). Do not scale down, delete the PVC,
    force a drain or use a simultaneous `rollout restart`. Wait for that same
    ordinal/PVC to return and repeat the full health, repair and backlog checks
@@ -206,19 +269,20 @@ storage node must not block server deployments.
    column and target configuration before enabling the account flag.
 2. Check Kura headroom, provision secrets, and install this chart separately as
    a new production release in namespace `kura`, with `enabled=true` and
-   `values-production.yaml`. Complete the bootstrap above. The default
+   the environment overlay. Use singleton initialization for the initial rollout;
+   use the manual bootstrap only for the optional three-node topology. The default
    placement selects `kura-dedibox`, the historical pool label now used by the
    OVH EU-West fleet in Gravelines. The former Dedibox hosts have been retired;
    the label remains because existing KuraInstances, local PVs and gateways
-   depend on it. Verify all three selected hosts' OVH provider identity, Gravelines
-   location and private route before enrollment. Staging and canary require
-   deliberate placement overrides. Preserve staging fixture archives. Canary
-   cannot prove Gravelines locality.
+   depend on it. Verify the selected host's OVH provider identity, Gravelines
+   location, allocatable disk and private route before enrollment. Staging and
+   canary require deliberate placement overrides. Preserve staging fixture archives.
 3. Confirm full cluster health and the lifecycle policy, then perform a multipart
    upload/download/delete smoke test with disposable bytes from a server pod
    and an enrolled runner. Test each replica's restart against the same PVC and
-   reads/writes with one node offline. Re-measure the replicated store: the
-   single-node staging timings do not establish three-replica performance.
+   preserved data after recovery. During a singleton outage, existing local
+   plans must remain pinned and fail; new plans should fall back. Existing
+   timings describe one staging setup, not the new hardware or workload.
 4. Complete the drained [Linux private-network enrollment](../../kura-controller/linux-runner-private-cache.md)
    for every runner eligible for the workflow. Verify the private route to the
    storage host; a configured vRack template alone is insufficient. Only then
@@ -236,8 +300,8 @@ storage node must not block server deployments.
    select Garage only with a valid account/site/Linux grant and a successful
    bounded authenticated bucket probe. Custom account S3 storage is preserved.
 7. Verify creation, reference and plan-ID upload routes, download, rerun, and
-   expiration cleanup. A single replica outage must retain reads and writes.
-   In an isolated test, lose quorum: new plans should use the default store
+   expiration cleanup, including the shorter local lifetime. In an isolated
+   test, stop the store: new plans should use the default store
    while existing plans fail without switching stores. Disable the flag
    and verify existing Garage plans still work. Use the existing CI timing data
    to assess the rollout; a separate measurement PR is not a prerequisite.
@@ -260,8 +324,11 @@ its replacement, and rerun affected build jobs.
 Run `mise run helm:shard-storage`, `mise run helm:linux-vrack`, and
 `mise run helm:rack-independence` from `infra/`. These render manifests only.
 They do not establish live routing, quota enforcement or S3 interoperability.
-Before production enrollment, qualify the rendered replicated chart in an
-isolated test release: distinct random multipart objects before and during each
+For the initial singleton, verify same-PVC restart persistence, new-plan
+fallback, pinned existing-plan failure, recovery, multipart cleanup and policy
+readback. Validate shortened expiration on disposable data; setting a lifecycle
+policy alone does not prove elapsed-time deletion or timely space reclamation.
+Before adopting optional replication, qualify it in an isolated test release: distinct random multipart objects before and during each
 one-node outage, checksum reads through the stable Service, rejection of a second
 eviction, and completed recovery on the same PVC before the next outage. Repeat
 using the exact image version pair and the production private route. Do not use

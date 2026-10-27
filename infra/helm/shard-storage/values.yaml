@@ -2,7 +2,7 @@ enabled: false
 image: dxflrs/garage:v2.5.0
 region: eu-west
 bucket: shards
-# Only 1 (development/staging) and 3 (production) are supported. Never change
+# Start with 1 in every environment; 3 is an optional future topology. Never change
 # this on an existing release: create a new store and immutable target instead.
 replicas: 1
 cluster:
@@ -31,8 +31,8 @@ externalSecrets:
   item: ""
 serverNamespace: tuist
 runnerNamespace: tuist-runners
-# Backstop above the longest default plan retention (30 days). Increase this
-# before increasing TUIST_SHARD_BUNDLE_RETENTION_DAYS beyond 30.
+# Preserve the existing staging experiment's policy. Fresh environment overlays
+# use a separate 3-day archive lifetime; plan/result retention is unchanged.
 lifecycle:
   expirationDays: 31
   abortMultipartDays: 1

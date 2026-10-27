@@ -1,0 +1,4 @@
+# NEW store on an enrolled OVH Gravelines host; supply its placement and secret.
+replicas: 1
+lifecycle:
+  expirationDays: 3

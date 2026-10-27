@@ -5,7 +5,14 @@
     "replicas": {
       "type": "integer",
       "enum": [1, 3],
-      "description": "Immutable store replication factor; production uses three replicas."
+      "description": "Immutable store replication factor; start with one, optionally use three on a new store."
+    },
+    "lifecycle": {
+      "type": "object",
+      "properties": {
+        "expirationDays": {"type": "integer", "minimum": 1},
+        "abortMultipartDays": {"type": "integer", "minimum": 1}
+      }
     },
     "cluster": {
       "type": "object",

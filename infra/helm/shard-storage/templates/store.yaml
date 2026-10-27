@@ -108,11 +108,11 @@ spec:
   {{- if $replicated }}
   # OrderedReady deadlocks before a fresh cluster has a layout and quorum.
   podManagementPolicy: Parallel
-  # Readiness proves quorum, not completed repairs. An operator must wait for
-  # all replicas to catch up before evicting the next pod (see README).
+  {{- end }}
+  # Singleton restarts interrupt transfers; replicated readiness alone does not
+  # prove catch-up. Both require operator-controlled maintenance (see README).
   updateStrategy:
     type: OnDelete
-  {{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/name: shard-storage
