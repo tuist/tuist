@@ -9,6 +9,7 @@ defmodule TuistWeb.Plugs.BrowserTelemetryPlug do
 
   alias Tuist.Accounts
   alias Tuist.Environment
+  alias TuistWeb.BrowserTelemetry.Deduplication
   alias TuistWeb.BrowserTelemetry.Enrichment
   alias TuistWeb.Plugs.SameOriginCSRFExemptionPlug
   alias TuistWeb.RemoteIp
@@ -77,6 +78,15 @@ defmodule TuistWeb.Plugs.BrowserTelemetryPlug do
   end
 
   defp forward(conn, receiver_url, payload) do
+    case Deduplication.deliver(payload, &send_payload(receiver_url, &1)) do
+      {:ok, _} -> respond(conn, 202)
+      _ -> conn |> put_resp_header("retry-after", "1") |> respond(503)
+    end
+  rescue
+    _error in [DBConnection.ConnectionError, Postgrex.Error] -> respond(conn, 503)
+  end
+
+  defp send_payload(receiver_url, payload) do
     # No retries: an ambiguous timeout can mean Alloy accepted the batch. Faro
     # sees the failure; the gateway must not silently multiply measurements.
     case Req.post(receiver_url,
@@ -86,8 +96,8 @@ defmodule TuistWeb.Plugs.BrowserTelemetryPlug do
            connect_options: [timeout: 1_000],
            receive_timeout: 2_000
          ) do
-      {:ok, %{status: status}} when status in 200..299 -> respond(conn, 202)
-      _ -> respond(conn, 503)
+      {:ok, %{status: status}} when status in 200..299 -> {:ok, :accepted}
+      _ -> {:error, :receiver_unavailable}
     end
   end
 

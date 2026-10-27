@@ -1,5 +1,8 @@
 # Helm Charts
 
+- Browser RUM alert definitions and validation live in `k8s-monitoring/browser-rum.md`.
+  Keep unique-only rules paused until replay classification has a full 24-hour
+  baseline. The liveness zero fallback must share the sum's empty label set.
 - Model dependencies by capability (`objectStorage`), not implementation brand (`minio`); support embedded and external modes where practical.
 - Keep independently released workloads in standalone charts rather than growing the main umbrella chart. Atlas deployment has [its own guidance](atlas/AGENTS.md).
 - Validate with `helm lint` and `helm template` using the chart's CI placeholder values, then production overlays. Cluster installs are not local validation; follow [infra access rules](../AGENTS.md#cluster-access-for-agents).

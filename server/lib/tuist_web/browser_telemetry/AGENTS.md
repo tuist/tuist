@@ -10,6 +10,13 @@ and challenge pages, overwrites reserved context, and preserves measurements.
 - Keep automation unknown until evidence-backed correlation exists. Do not
   introduce browser-version, viewport or ASN exclusions here.
 - Add no user/account identity or Loki stream labels for correlation IDs.
+- `Deduplication` fingerprints the bounded session, navigation, measurement ID
+  and LCP value. It marks acknowledged replays `duplicate`, first deliveries
+  `unique`, and incomplete identities `untracked`, including repeats in a batch.
+  Keep changed LCP values separate. Overwrite browser-supplied status and preserve
+  all raw values/events; unique-only queries must retain a coverage alert.
+- The literal `unknown` and blank identifiers are missing metadata, not valid
+  navigation/session identifiers. Do not let them collapse independent reports.
 - Update the schema contract, paused rules and staged rollout together in
   `infra/helm/k8s-monitoring/browser-rum.md`; update `server/data-export.md`
   whenever telemetry collection changes.

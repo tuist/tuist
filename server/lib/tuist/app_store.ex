@@ -6,7 +6,7 @@ defmodule Tuist.AppStore do
   `Tuist.GitHub.Releases`.
   """
 
-  alias Tuist.KeyValueStore
+  alias Tuist.Marketing.ReleaseMetadata
 
   require Logger
 
@@ -23,7 +23,8 @@ defmodule Tuist.AppStore do
     if Tuist.Environment.dev?() do
       nil
     else
-      KeyValueStore.get_or_update(
+      ReleaseMetadata.get_or_update(
+        :app_store,
         [__MODULE__, "app_store_latest_ios_app_version"],
         [ttl: Keyword.get(opts, :ttl, @ttl)],
         fn ->
