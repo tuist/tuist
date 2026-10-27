@@ -18,9 +18,6 @@ Source for the standalone `tuist/install` composite action. See
   compatible restore prefix; keep archive paths relative and escape glob syntax.
 - Always force pinned installation, including hits and forks. Publication is a
   server decision; snapshots must contain only contributor-readable data.
-- Reconcile stale registry download versions after cache restoration and before
-  forced installation. Preserve matching records, edited dependencies, artifacts
-  and prebuilts; never rewrite the lockfile or retry with resolution enabled.
 - Keep distributions self-contained and never install/upgrade the CLI here.
 - Validate with `node --test .github/actions/install/action.test.mjs`, ShellCheck,
   and actionlint. Tests stub external tools and do not demonstrate live mounts.

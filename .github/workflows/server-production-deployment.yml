@@ -1494,8 +1494,7 @@ jobs:
       - name: Setup Tuist
         run: tuist setup
       - name: Install Tuist dependencies
-        # Use this commit's registry-state fix before the standalone action releases.
-        uses: ./.github/actions/install
+        uses: tuist/install@v1
         with:
           cache-key: server-deploy-acceptance-workspace
       - name: Initialize TuistCacheEE submodule

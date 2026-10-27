@@ -5,10 +5,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
-const { reconcileWorkspace } = require('./reconcile-workspace.cjs');
 
 const action = path.dirname(fileURLToPath(import.meta.url));
 function fixture(t) {
@@ -187,8 +183,7 @@ test('standalone package works outside the source checkout and never overwrites 
   const output = path.join(f.root, 'standalone action');
   const pack = () => spawnSync('bash', [path.join(action, 'scripts/package.sh'), output], { encoding: 'utf8' });
   success(pack());
-  assert.deepEqual(fs.readdirSync(output).sort(), ['LICENSE.md', 'README.md', 'SOURCE_COMMIT', 'action.yml', 'install.sh', 'prepare.sh', 'reconcile-workspace.cjs']);
-  assert.deepEqual(require(path.join(output, 'reconcile-workspace.cjs')).reconcileWorkspace(path.join(f.workspace, '.build')), []);
+  assert.deepEqual(fs.readdirSync(output).sort(), ['LICENSE.md', 'README.md', 'SOURCE_COMMIT', 'action.yml', 'install.sh', 'prepare.sh']);
   assert.match(fs.readFileSync(path.join(output, 'SOURCE_COMMIT'), 'utf8'), /^[a-f0-9]{40}\n$/);
   success(f.install(success(f.prepare({}, output)), {}, output));
   assert.notEqual(pack().status, 0);
@@ -248,74 +243,4 @@ test('size reaches the cache volume and never the GitHub archive', () => {
   assert.match(definition, /\n  size:\n    description: [^\n]+\n    default: ""\n/);
   assert.match(step('volume'), /^        size: \$\{\{ inputs\.size \}\}$/m);
   assert.doesNotMatch(step('archive'), /size/);
-});
-
-test('registry version changes forget only stale downloads and preserve the lockfile and cached files', t => {
-  const f = fixture(t);
-  const pkg = f.pkg('Tuist');
-  const scratch = path.join(pkg, '.build');
-  const registry = (identity, version) => ({
-    packageRef: { identity, kind: 'registry' }, state: { name: 'registryDownload', version },
-  });
-  const stale = registry('MobileNativeFoundation.XCLogParser', '0.2.49');
-  const retained = [
-    registry('example.unchanged', '1.0.0'),
-    registry('example.unpinned', '1.0.0'),
-    { packageRef: { identity: 'example.edited' }, state: { name: 'edited' } },
-    { packageRef: { identity: 'example.git' }, state: { name: 'sourceControlCheckout' } },
-    { packageRef: { identity: 'local' }, state: { name: 'fileSystem', path: '/local' } },
-  ];
-  const state = { version: 7, object: {
-    dependencies: [stale, ...retained], artifacts: [{ path: '/cached/binary' }], prebuilts: [{ version: '1.0.0' }],
-  } };
-  const lockfile = JSON.stringify({ version: 3, pins: [
-    { identity: 'mobilenativefoundation.xclogparser', kind: 'registry', state: { version: '0.2.50' } },
-    { identity: 'example.unchanged', kind: 'registry', state: { version: '1.0.0' } },
-    { identity: 'example.edited', kind: 'registry', state: { version: '2.0.0' } },
-  ] });
-  f.write(path.join(pkg, 'Package.resolved'), lockfile);
-  f.write(path.join(scratch, 'workspace-state.json'), JSON.stringify(state));
-  f.write(path.join(scratch, 'dependency-cache/sources/manifest.swift'), 'cached source');
-  assert.deepEqual(reconcileWorkspace(scratch), ['MobileNativeFoundation.XCLogParser: 0.2.49 -> 0.2.50']);
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(scratch, 'workspace-state.json'), 'utf8')), {
-    ...state, object: { ...state.object, dependencies: retained },
-  });
-  assert.equal(fs.readFileSync(path.join(pkg, 'Package.resolved'), 'utf8'), lockfile);
-  assert.equal(fs.readFileSync(path.join(scratch, 'dependency-cache/sources/manifest.swift'), 'utf8'), 'cached source');
-  const after = fs.readFileSync(path.join(scratch, 'workspace-state.json'), 'utf8');
-  assert.deepEqual(reconcileWorkspace(scratch), []);
-  assert.equal(fs.readFileSync(path.join(scratch, 'workspace-state.json'), 'utf8'), after);
-});
-
-test('cold workspaces are untouched and invalid metadata fails without overwriting it', t => {
-  const f = fixture(t);
-  f.pkg();
-  const scratch = path.join(f.workspace, '.build');
-  assert.deepEqual(reconcileWorkspace(scratch), []);
-  assert.equal(fs.existsSync(scratch), false);
-  for (const contents of ['invalid JSON', '{"object":{}}']) {
-    f.write(path.join(scratch, 'workspace-state.json'), contents);
-    assert.throws(() => reconcileWorkspace(scratch));
-    assert.equal(fs.readFileSync(path.join(scratch, 'workspace-state.json'), 'utf8'), contents);
-  }
-});
-
-test('legacy source-control lockfiles need no registry reconciliation', t => {
-  const f = fixture(t);
-  f.pkg();
-  const scratch = path.join(f.workspace, '.build');
-  const contents = '{"version":4,"object":{"dependencies":[]}}';
-  f.write(path.join(scratch, 'workspace-state.json'), contents);
-  f.write(path.join(f.workspace, 'Package.resolved'), '{"version":1,"object":{"pins":[]}}');
-  assert.deepEqual(reconcileWorkspace(scratch), []);
-  assert.equal(fs.readFileSync(path.join(scratch, 'workspace-state.json'), 'utf8'), contents);
-});
-
-test('registry reconciliation runs after either cache restore and before forced installation', () => {
-  const definition = fs.readFileSync(path.join(action, 'action.yml'), 'utf8');
-  const reconcile = definition.indexOf('- name: Reconcile restored registry versions');
-  assert.ok(reconcile > definition.indexOf('- id: volume'));
-  assert.ok(reconcile > definition.indexOf('- id: archive'));
-  assert.ok(reconcile < definition.indexOf('- name: Install dependencies'));
-  assert.match(definition, /require\(`\$\{process.env.TUIST_INSTALL_ACTION_PATH\}\/reconcile-workspace.cjs`\)/);
 });

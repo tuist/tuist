@@ -46,17 +46,6 @@ runs:
         path: ${{ steps.prepare.outputs.archive-path }}
         key: ${{ steps.prepare.outputs.archive-key }}
         restore-keys: ${{ steps.prepare.outputs.archive-prefix }}
-    - name: Reconcile restored registry versions
-      uses: actions/github-script@v7
-      env:
-        TUIST_INSTALL_SCRATCH_PATH: ${{ steps.prepare.outputs.scratch-path }}
-        TUIST_INSTALL_ACTION_PATH: ${{ github.action_path }}
-      with:
-        script: |
-          const { reconcileWorkspace } = require(`${process.env.TUIST_INSTALL_ACTION_PATH}/reconcile-workspace.cjs`);
-          for (const change of reconcileWorkspace(process.env.TUIST_INSTALL_SCRATCH_PATH)) {
-            core.info(`Refreshing SwiftPM registry state: ${change}`);
-          }
     - name: Install dependencies
       shell: bash
       env:
