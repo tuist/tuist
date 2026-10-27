@@ -648,7 +648,7 @@ defmodule Tuist.Runners.Dispatch do
   """
   def resolve_dispatch_target(account, requested_labels) when is_list(requested_labels) do
     with {:error, :no_matching_profile} <- resolve_profile(account, requested_labels) do
-      resolve_legacy_pool(requested_labels)
+      resolve_legacy_pool(account, requested_labels)
     end
   end
 
@@ -669,6 +669,12 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
+  # vRack routes are host-wide, so account opt-in selects a disjoint Linux host
+  # cohort while both cohorts keep using the same regional Kura instances.
+  defp profile_pool_name(account, %{platform: :linux} = profile) do
+    linux_pool_name(account, Catalog.pool_name(profile))
+  end
+
   # An account on the `runner_site` flag runs on the rack whenever it runs the
   # profile's pool and can serve it, and on the rented fleet otherwise. In an
   # env that rents no macOS fleet the rack is the only home, so its jobs wait
@@ -683,12 +689,20 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  defp resolve_legacy_pool(requested_labels) do
+  defp linux_pool_name(account, pool_name) do
+    if FeatureFlags.runner_linux_vrack_enabled?(account) do
+      Map.get(Environment.runners_linux_vrack_pools(), pool_name, pool_name)
+    else
+      pool_name
+    end
+  end
+
+  defp resolve_legacy_pool(account, requested_labels) do
     case match_pool(requested_labels) do
       {:ok, %{name: name, dispatch_label: label} = pool} ->
         {:ok,
          %{
-           pool_name: name,
+           pool_name: if(pool.platform == :linux, do: linux_pool_name(account, name), else: name),
            requested_dispatch_label: label,
            platform: pool.platform,
            vcpus: pool.vcpus,
@@ -722,6 +736,7 @@ defmodule Tuist.Runners.Dispatch do
 
       {:ok, items} ->
         items
+        |> Enum.reject(&(get_in(&1, ["metadata", "labels", "tuist.dev/network-cohort"]) == "vrack"))
         |> Enum.map(&pool_summary/1)
         |> Enum.reject(&is_nil/1)
         |> Enum.filter(fn %{dispatch_label: label} ->

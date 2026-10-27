@@ -1,7 +1,7 @@
 # cluster-api-provider-tuist
 
 - OVH cache vRack reconciliation is additive on the Ready path, scoped by the
-  environment ConfigMap and cache taint. Persist address reservations across
+  environment ConfigMap and cache taint, or explicit `spec.vRackID` on Kata runners. Persist address reservations across
   Machine deletion, preserve main-table unreachable guards for existing Machines,
   retire owned guards only after authoritative Machine removal, and advertise
   private topology only after every participant installs the same membership.
@@ -2876,9 +2876,9 @@ the fleet key + a known sudo password) and marked *before* it joins the pool. Th
 
 1. **Pre-order the box** in the provider console (out of band; the controllers
    never order). OVH ADVANCE-1 for EU-West and the US cache regions, ADVANCE-2 for
-   ap-southeast, RISE-L (production) or RISE-S (staging, canary) in Gravelines
+   ap-southeast, RISE-L (production) or RISE-M (staging, canary) in Gravelines
    for the Linux runner pool. The RISE range's
-   EU-datacenter plan codes (`25risel01-v1-eu`, `25rises01-v1-eu`) are orderable
+   EU-datacenter plan codes (for example `25risel01-v1-eu`) are orderable
    on OVHcloud US, so a Gravelines box stays on the one `ovh-us` endpoint every
    OVH fleet shares. Stock per plan and datacenter is public and needs no token:
    `GET https://api.us.ovhcloud.com/1.0/dedicated/server/datacenter/availabilities`.

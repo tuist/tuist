@@ -82,6 +82,10 @@ Helm-installed resource; publishing it is a separate rollout step.
   Managed staging, canary and production enable both settings for their own
   provisioned OVH vRack. Runtime publication still waits for matching host route
   attestations; this does not enable topology for other providers.
+  OVH Kata runner hosts participate only with an explicit matching
+  `ovhFleets.<fleet>.machine.vRackID`; legacy hosts without private NICs must
+  remain unenrolled. See `../kura-controller/linux-runner-private-cache.md`
+  for regional-cache reuse, the required staging migration, and rollback.
 
 - Production public EU-West runs on three `ovhFleets.eu-west` nodes. Managed
   Dedibox support is removed after all Machine release finalizers completed
@@ -91,7 +95,10 @@ Helm-installed resource; publishing it is a separate rollout step.
   explicit post-deployment cleanup. Follow [the cleanup runbook](../kura-controller/eu-west-ovh-migration.md#post-retirement-cleanup).
   Production EU-West ingress discovers OVH gateway Node addresses automatically.
   Preserve the `kura-dedibox` selector and `scw-local-nvme` StorageClass because
-  OVH uses both. Public staging/canary validation uses OVH `ca-east`; retain the
+  OVH uses both. Staging reuses its prepared Gravelines host as ordinary EU-West
+  capacity after retiring the private Linux experiment; its platform overlay
+  enables the same public EU-West gateway as production. Staging also retains
+  OVH `ca-east` for remote comparisons; canary uses `ca-east`. Retain the
   separate Scaleway Elastic Metal Mac runner cache (`kuraFleet`) and Mac fleets.
 - Stable cache DNS infrastructure is enabled in managed staging, canary, and production. Canary advertises and hands out stable endpoints once ready; staging and production require the `kura_stable_hostname` account/global feature flag, absent by default, with no server environment rollout toggles or account allowlist. Keep environment owner IDs and vault credentials separate. Certificate readiness is an operator bootstrap check, not a routine deployment gate; see `../cache-dns/README.md`.
 - `pomerium/templates/access-tiers.yaml` extends the shared `view` tier with `get`/`list`/`watch` on `dnsendpoints.externaldns.k8s.io` in all namespaces. Keep DNS inspection in this read tier, scoped to that resource; DNS mutation and Secret access are not part of this grant. The Pomerium deployment workflow applies this chart to staging, canary, and production on merge.
@@ -227,3 +234,22 @@ Helm-installed resource; publishing it is a separate rollout step.
 Keep the chart-facing [server scaling guide](tuist/README.md#scaling-the-server) aligned with the cookie, private networking and membership-verification contracts below.
 
 Cluster formation requires a stable shared cookie Secret, a fixed distribution listener, allowed EPMD/distribution ingress, and a headless service. More than one server replica requires clustering. Managed canary runs two replicas so actual membership is exercised before production promotion. Do not promote until the proof-cache and authoritative authentication rollouts are stable and OAuth entity operations no longer depend on replicated invalidations. Boruta's cache and membership supervision still starts; the entity callbacks, not that lifecycle, are disabled. The stable private cookie connects different image versions during rolling upgrades; the first migration from image-baked cookies still creates old/new islands. Qualify PubSub, Oban PG notifications and peer replacement across the actual versions. Offline/GitOps renderers without live Secret lookup must use a separately managed `cookieExistingSecret`; a missing key in an existing generated Secret fails rather than silently rotating it. Managed staging/canary/production configure `server.cluster.externalSecret` with `cookieExistingSecret: tuist-server-cluster-cookie`: the dedicated ESO resource reads `SERVER_CLUSTER_COOKIE/password` from each environment's own 1Password vault, never the shared server-config Secret. It renders only when clustering is enabled, uses `refreshPolicy: OnChange` so source edits alone do not propagate on a timer, and requires an explicit sync during coordinated rotation; self-host defaults require no ESO. Missing/empty source data must not trigger cookie generation. `test-cluster-cookie.py` checks ownership, all three environment overlays, web-only references and invalid configurations in Helm CI. Bootstrap, rebuild and coordinated rotation are documented in [onboarding](../k8s/onboarding.md#5e-durable-server-distribution-cookies). Cookie rotation requires coordinated process replacement. The chart guard rejects previously accepted unclustered multi-web configurations because live PubSub/PG notifications must cross replicas; it is not a runtime replica-count detector. See the [self-host clustering upgrade guidance](../../server/priv/docs/en/guides/server/self-host/server.md#multi-replica-clustering).
+
+- Linux vRack rollout uses default-off account flag `runner_linux_vrack` to select
+  shape-equivalent isolated pools. `runnersFleetLinux.vrack.enabled` only renders
+  pools/mappings with zero warm floors and a disjoint host `fleetSelector`.
+  Shared managed values prepare them in all three environments; self-hosted
+  defaults stay off. Canary's RISE-M replacement passed ordinary-runner
+  acceptance on 2026-10-26 but remains unenrolled in vRack, so prepared pools
+  alone do not qualify it for account enrollment. The preparation switch
+  must never set vRack on ordinary fleet templates. Keep resource sizing and the
+  cache-volume DaemonSet's coverage of both cohorts aligned. Validate with
+  `infra/mise/tasks/helm/linux-vrack.sh`. Host cohort membership must persist
+  through CAPI reconciliation before actor enrollment; a Node-only relabel is
+  insufficient. Flag withdrawal preserves recorded jobs, mappings and routes
+  until those jobs finish.
+  Staging and canary target one RISE-M each. Their ordinary/vRack qualification
+  therefore runs sequentially across drained host transitions; excluded jobs
+  queue while ordinary capacity is absent. A RISE-S-to-RISE-M template update
+  under OnDelete does not replace the live host: prepare the new box first,
+  then explicitly drain and retire the old Machine.
