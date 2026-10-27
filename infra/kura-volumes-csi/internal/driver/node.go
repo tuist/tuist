@@ -47,6 +47,21 @@ func (d *Driver) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRe
 	}
 	defer unlock()
 
+	thin, err := d.readThin(v)
+	if err != nil {
+		return nil, err
+	}
+	if req.GetVolumeContext()["layout"] == ThinLayout && thin == nil {
+		return nil, status.Error(codes.FailedPrecondition, "thin volume record missing")
+	}
+	if thin != nil {
+		if mode != encryptionLUKS2 {
+			return nil, status.Error(codes.FailedPrecondition, "thin layout requires encryption")
+		}
+		if err = d.verifyThin(ctx, v, thin); err != nil {
+			return nil, err
+		}
+	}
 	_, isLV, err := d.lvSize(ctx, v)
 	if err != nil {
 		return nil, err
@@ -63,6 +78,11 @@ func (d *Driver) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRe
 		return nil, err
 	}
 	if mounted {
+		if thin != nil {
+			if err = d.finishThinStage(ctx, v, thin, staging); err != nil {
+				return nil, err
+			}
+		}
 		return &csi.NodeStageVolumeResponse{}, nil
 	}
 
@@ -101,7 +121,12 @@ func (d *Driver) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRe
 		// The marker is removed before the first mount, so any filesystem
 		// signature present now comes from an interrupted format of this
 		// same volume and forcing over it loses nothing.
-		if _, err := d.run(ctx, nil, "mkfs.xfs", "-q", "-K", "-f", v.mapperPath()); err != nil {
+		args := []string{"-q", "-K", "-f"}
+		if thin != nil {
+			args = append(args, "-m", "reflink=0", "-l", "size=64m")
+		}
+		args = append(args, v.mapperPath())
+		if _, err := d.run(ctx, nil, "mkfs.xfs", args...); err != nil {
 			return nil, err
 		}
 		if err := os.Remove(v.marker); err != nil {
@@ -115,8 +140,17 @@ func (d *Driver) NodeStageVolume(ctx context.Context, req *csi.NodeStageVolumeRe
 	if err := os.MkdirAll(staging, 0o750); err != nil {
 		return nil, status.Errorf(codes.Internal, "create staging path: %v", err)
 	}
-	if _, err := d.run(ctx, nil, "mount", "-t", "xfs", "-o", "nodev,nosuid,noatime", v.mapperPath(), staging); err != nil {
+	options := "nodev,nosuid,noatime"
+	if thin != nil {
+		options += ",prjquota"
+	}
+	if _, err := d.run(ctx, nil, "mount", "-t", "xfs", "-o", options, v.mapperPath(), staging); err != nil {
 		return nil, err
+	}
+	if thin != nil {
+		if err = d.finishThinStage(ctx, v, thin, staging); err != nil {
+			return nil, err
+		}
 	}
 	d.logger.Info("staged volume", "volume_id", v.id, "device", device)
 	return &csi.NodeStageVolumeResponse{}, nil
@@ -163,7 +197,16 @@ func (d *Driver) openLUKS(ctx context.Context, v volume, device string, unformat
 	// dm-crypt's default workqueues spread the cipher across CPUs. Bypassing
 	// them (--perf-no_*_workqueue) pins a volume's crypto to one core and
 	// measured a 70% drop in sequential throughput for 6us at queue depth 1.
-	if _, err := d.run(ctx, key, "cryptsetup", "open", "--type", "luks2", "--key-file=-", device, v.mapper); err != nil {
+	args := []string{"open", "--type", "luks2", "--key-file=-"}
+	thin, err := d.readThin(v)
+	if err != nil {
+		return err
+	}
+	if thin != nil {
+		args = append(args, "--allow-discards")
+	}
+	args = append(args, device, v.mapper)
+	if _, err := d.run(ctx, key, "cryptsetup", args...); err != nil {
 		return err
 	}
 	if luks && stored == 0 {
@@ -189,11 +232,21 @@ func (d *Driver) NodeUnstageVolume(ctx context.Context, req *csi.NodeUnstageVolu
 	}
 	defer unlock()
 
+	thin, err := d.readThin(v)
+	if err != nil {
+		return nil, err
+	}
+	if thin != nil && len(thin.Targets) > 0 {
+		return nil, status.Error(codes.FailedPrecondition, "unpublish thin targets before unstaging")
+	}
 	m, err := d.mountAt(staging)
 	if err != nil {
 		return nil, err
 	}
 	if m != nil {
+		if _, err = d.volumeMounted(staging, v); err != nil {
+			return nil, err
+		}
 		if _, err := d.run(ctx, nil, "umount", staging); err != nil {
 			return nil, err
 		}
@@ -255,6 +308,40 @@ func (d *Driver) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolu
 	if !staged {
 		return nil, status.Errorf(codes.FailedPrecondition, "volume %s is not staged at %s", v.id, staging)
 	}
+	thin, err := d.readThin(v)
+	if err != nil {
+		return nil, err
+	}
+	if thin != nil {
+		if err = d.verifyThin(ctx, v, thin); err != nil {
+			return nil, err
+		}
+		uid := req.GetVolumeContext()["csi.storage.k8s.io/pod.uid"]
+		if !podUIDPattern.MatchString(uid) {
+			return nil, status.Error(codes.InvalidArgument, "thin publication requires kubelet pod UID")
+		}
+		if thin.PodUID != "" && thin.PodUID != uid {
+			return nil, status.Error(codes.FailedPrecondition, "volume still belongs to another pod incarnation")
+		}
+		if thin.StagingPath != staging {
+			return nil, status.Error(codes.FailedPrecondition, "thin staging path mismatch")
+		}
+		if err = d.applyThinQuota(ctx, thin); err != nil {
+			return nil, err
+		}
+		if thin.Targets == nil {
+			thin.Targets = map[string]string{}
+		}
+		if thin.PodUID == "" {
+			thin.Generation++
+			thin.LastOperation = ""
+		}
+		thin.PodUID = uid
+		thin.Targets[target] = uid
+		if err = d.saveThin(v, thin); err != nil {
+			return nil, err
+		}
+	}
 	published, err := d.volumeMounted(target, v)
 	if err != nil {
 		return nil, err
@@ -295,12 +382,30 @@ func (d *Driver) NodeUnpublishVolume(ctx context.Context, req *csi.NodeUnpublish
 		return nil, err
 	}
 	if m != nil {
+		if _, err = d.volumeMounted(target, v); err != nil {
+			return nil, err
+		}
 		if _, err := d.run(ctx, nil, "umount", target); err != nil {
 			return nil, err
 		}
 	}
 	if err := os.Remove(target); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, status.Errorf(codes.Internal, "remove target path: %v", err)
+	}
+	thin, err := d.readThin(v)
+	if err != nil {
+		return nil, err
+	}
+	if thin != nil {
+		delete(thin.Targets, target)
+		if len(thin.Targets) == 0 && thin.PodUID != "" {
+			thin.PodUID = ""
+			thin.Generation++
+			thin.LastOperation = ""
+		}
+		if err = d.saveThin(v, thin); err != nil {
+			return nil, err
+		}
 	}
 	return &csi.NodeUnpublishVolumeResponse{}, nil
 }

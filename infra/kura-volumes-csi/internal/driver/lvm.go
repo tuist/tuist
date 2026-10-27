@@ -143,6 +143,16 @@ func wipeDeviceHeader(path string, size int64) error {
 // size less every logical volume that is not one, such as the node's /data.
 // It is false when the driver has no volume group or the node lacks it.
 func (d *Driver) KuraDiskCapacity(ctx context.Context) (int64, bool, error) {
+	if d.thin.Pool != "" {
+		snapshot, err := d.ThinStatus(ctx)
+		// Withdrawing capacity is safer than retaining an old observation. The
+		// CSI admission lock remains authoritative even before this patch lands.
+		if err != nil || !snapshot.Healthy {
+			return 0, true, nil
+		}
+		return snapshot.UsableBytes, true, nil
+	}
+
 	if d.volumeGroup == "" {
 		return 0, false, nil
 	}

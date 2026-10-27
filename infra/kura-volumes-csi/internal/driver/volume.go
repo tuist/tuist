@@ -58,6 +58,25 @@ func (d *Driver) volume(id string) (volume, error) {
 // goroutines and any other process on the node. It polls so a cancelled
 // request releases its wait instead of blocking a gRPC worker.
 func (d *Driver) lockVolume(ctx context.Context, v volume) (func(), error) {
+	if d.thin.Pool == "" {
+		return d.lockFile(ctx, v)
+	}
+	poolUnlock, err := d.lockPool(ctx)
+	if err != nil {
+		return nil, err
+	}
+	unlock, err := d.lockFile(ctx, v)
+	if err != nil {
+		poolUnlock()
+		return nil, err
+	}
+	return func() { unlock(); poolUnlock() }, nil
+}
+func (d *Driver) lockPool(ctx context.Context) (func(), error) {
+	return d.lockFile(ctx, volume{id: "thin-pool", lock: filepath.Join(d.stateDir, ".thin-pool.lock")})
+}
+func (d *Driver) lockFile(ctx context.Context, v volume) (func(), error) {
+
 	for {
 		f, err := os.OpenFile(v.lock, os.O_RDWR|os.O_CREATE|syscall.O_NOFOLLOW, 0o600)
 		if err != nil {

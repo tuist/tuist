@@ -55,6 +55,17 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 		return nil, err
 	}
 	defer unlock()
+	if layout := req.GetParameters()["layout"]; layout != "" {
+		if layout != ThinLayout {
+			return nil, status.Error(codes.InvalidArgument, "unsupported storage layout")
+		}
+		return d.createThin(ctx, v, capacity, req)
+	}
+	if r, e := d.readThin(v); e != nil {
+		return nil, e
+	} else if r != nil {
+		return nil, status.Error(codes.AlreadyExists, "volume has the thin layout")
+	}
 
 	response := &csi.CreateVolumeResponse{Volume: &csi.Volume{
 		VolumeId:           v.id,
@@ -85,6 +96,9 @@ func (d *Driver) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest)
 		return response, nil
 	}
 
+	if d.thin.Pool != "" {
+		return nil, status.Error(codes.FailedPrecondition, "prepared thin nodes only accept the thin layout for new volumes")
+	}
 	free, hasVolumeGroup, err := d.volumeGroupFree(ctx)
 	if err != nil {
 		return nil, err
@@ -213,11 +227,41 @@ func (d *Driver) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest)
 	}
 	defer unlock()
 
+	thin, err := d.readThin(v)
+	if err != nil {
+		return nil, err
+	}
+	if thin != nil && d.thin.Pool == "" {
+		return nil, status.Error(codes.FailedPrecondition, "thin configuration required")
+	}
+	if thin != nil && len(thin.Targets) > 0 {
+		return nil, status.Error(codes.FailedPrecondition, "thin publication cleanup incomplete")
+	}
 	lvSize, isLV, err := d.lvSize(ctx, v)
 	if err != nil {
 		return nil, err
 	}
 	if isLV {
+		if thin != nil {
+			if thin.LVUUID == "" {
+				marker, e := fileExists(v.marker)
+				if e != nil || !marker {
+					return nil, status.Error(codes.FailedPrecondition, "incomplete thin create lacks format intent")
+				}
+				rows, e := d.thinLVs(ctx)
+				if e != nil {
+					return nil, e
+				}
+				for _, row := range rows {
+					if row.Name == v.id {
+						thin.LVUUID = row.UUID
+					}
+				}
+			}
+			if err := d.verifyThin(ctx, v, thin); err != nil {
+				return nil, err
+			}
+		}
 		active, _, err := d.mapperBacking(ctx, v)
 		if err != nil {
 			return nil, err
@@ -227,6 +271,20 @@ func (d *Driver) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest)
 		}
 		if err := d.removeLV(ctx, v, lvSize); err != nil {
 			return nil, err
+		}
+	}
+	if thin != nil {
+		rows, e := d.thinLVs(ctx)
+		if e != nil {
+			return nil, e
+		}
+		for _, row := range rows {
+			if row.Name == v.id {
+				return nil, status.Error(codes.FailedPrecondition, "LV deletion has not completed")
+			}
+		}
+		if len(thin.Targets) > 0 {
+			return nil, status.Error(codes.FailedPrecondition, "thin publication cleanup incomplete")
 		}
 	}
 	info, err := imageInfo(v)
@@ -261,7 +319,7 @@ func (d *Driver) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest)
 			return nil, status.Errorf(codes.Internal, "wipe volume header: %v", err)
 		}
 	}
-	for _, path := range []string{v.image, v.temp, v.marker, v.keyVersion, v.keyVersionTemp, v.lock} {
+	for _, path := range []string{v.image, v.temp, v.marker, v.keyVersion, v.keyVersionTemp, d.thinRecordPath(v), d.thinRecordPath(v) + ".new", v.lock} {
 		if err := removeIfExists(path); err != nil {
 			return nil, status.Errorf(codes.Internal, "remove %s: %v", path, err)
 		}

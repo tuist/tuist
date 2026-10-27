@@ -69,6 +69,14 @@ spec:
             {{- with .Values.kuraVolumesCSI.volumeGroup }}
             - --volume-group={{ . }}
             {{- end }}
+            {{- with .Values.kuraVolumesCSI.thin }}
+            {{- if .pool }}
+            - --thin-pool={{ .pool }}
+            - --thin-data-reserve-bytes={{ .dataReserveBytes | int64 }}
+            - --thin-metadata-reserve-bytes={{ .metadataReserveBytes | int64 }}
+            - --thin-max-volumes={{ .maxVolumes }}
+            {{- end }}
+            {{- end }}
           env:
             - name: NODE_NAME
               valueFrom:

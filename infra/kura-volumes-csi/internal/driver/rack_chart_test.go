@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -44,6 +45,9 @@ func TestRackPluginHasIndependentReleaseAndSameHostContract(t *testing.T) {
 		if err != nil {
 			t.Fatalf("helm: %v\n%s", err, out)
 		}
+		if chart == isolated && (!strings.Contains(string(out), "podInfoOnMount: true") || !strings.Contains(string(out), "name: kura-thin-encrypted-nvme") || !strings.Contains(string(out), "topology.kura-volumes.tuist.dev/node-layout")) {
+			t.Fatal("thin class or pod UID contract missing")
+		}
 		dec := yamlutil.NewYAMLOrJSONDecoder(bytes.NewReader(out), 4096)
 		var sets []appsv1.DaemonSet
 		for {
@@ -65,6 +69,15 @@ func TestRackPluginHasIndependentReleaseAndSameHostContract(t *testing.T) {
 	rack := render(filepath.Join(root, "rack-nodes"), "tuist-rack-nodes")
 	if len(main) != 1 || len(rack) != 1 {
 		t.Fatalf("main=%d rack=%d", len(main), len(rack))
+	}
+	thinArgs := []string{"--set", "kuraVolumesCSI.thin.pool=tenants"}
+	tm := render(isolated, "tuist", thinArgs...)
+	tr := render(filepath.Join(root, "rack-nodes"), "tuist-rack-nodes", thinArgs...)
+	if !reflect.DeepEqual(tm[0].Spec.Template.Spec.Containers, tr[0].Spec.Template.Spec.Containers) {
+		t.Fatal("thin rack args drift")
+	}
+	if !strings.Contains(strings.Join(tm[0].Spec.Template.Spec.Containers[0].Args, " "), "--thin-pool=tenants") {
+		t.Fatal("thin configuration missing")
 	}
 	a, b := main[0], rack[0]
 	if a.Name == b.Name || a.Spec.Selector.MatchLabels["app.kubernetes.io/instance"] == b.Spec.Selector.MatchLabels["app.kubernetes.io/instance"] {

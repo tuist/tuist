@@ -10,3 +10,5 @@ DaemonSet excludes those pools. Shared driver identity, RBAC and StorageClasses
 remain in the main release. Keep host mounts, projected key identity and sidecars
 identical; `infra/kura-volumes-csi/internal/driver/rack_chart_test.go` verifies
 parity and distinct ownership. Preserve the driver while any claim exists.
+
+The same per-node thin configuration and allocator socket contract applies to racks. Shared thin StorageClass/topology and pod UID settings remain owned by the main release.

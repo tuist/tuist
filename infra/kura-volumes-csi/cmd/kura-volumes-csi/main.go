@@ -40,6 +40,10 @@ func main() {
 	tokenPath := flag.String("token-path", "/var/run/secrets/kura-volume-keys/token", "projected service account token presented to the key service")
 	logLevel := flag.String("log-level", "info", "debug, info, warn or error")
 	advertiseInterval := flag.Duration("advertise-interval", time.Minute, "how often the node's Kura disk capacity is advertised; 0 disables it")
+	thinPool := flag.String("thin-pool", "", "explicitly prepared thin pool; empty disables thin provisioning")
+	thinDataReserve := flag.Int64("thin-data-reserve-bytes", 1<<30, "physical pool data safety reserve")
+	thinMetadataReserve := flag.Int64("thin-metadata-reserve-bytes", 64<<20, "physical pool metadata safety reserve")
+	thinMaxVolumes := flag.Int("thin-max-volumes", 128, "maximum thin devices including pending and retained volumes")
 	flag.Parse()
 
 	var level slog.Level
@@ -48,13 +52,13 @@ func main() {
 		os.Exit(2)
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
-	if err := run(logger, *endpoint, *nodeID, *stateDir, *reserveBytes, *volumeGroup, *keyServiceURL, *tokenPath, *advertiseInterval); err != nil {
+	if err := run(logger, *endpoint, *nodeID, *stateDir, *reserveBytes, *volumeGroup, *keyServiceURL, *tokenPath, *advertiseInterval, driver.ThinConfig{Pool: *thinPool, DataReserveBytes: *thinDataReserve, MetadataReserveBytes: *thinMetadataReserve, MaxVolumes: *thinMaxVolumes}); err != nil {
 		logger.Error("kura-volumes-csi failed", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(logger *slog.Logger, endpoint, nodeID, stateDir string, reserveBytes int64, volumeGroup, keyServiceURL, tokenPath string, advertiseInterval time.Duration) error {
+func run(logger *slog.Logger, endpoint, nodeID, stateDir string, reserveBytes int64, volumeGroup, keyServiceURL, tokenPath string, advertiseInterval time.Duration, thin driver.ThinConfig) error {
 	socket, err := socketPath(endpoint)
 	if err != nil {
 		return err
@@ -62,7 +66,14 @@ func run(logger *slog.Logger, endpoint, nodeID, stateDir string, reserveBytes in
 	if err := checkKeyServiceURL(keyServiceURL); err != nil {
 		return err
 	}
+	if thin.Pool == "" {
+		thin, err = driver.LoadThinConfig(stateDir)
+		if err != nil {
+			return err
+		}
+	}
 	d, err := driver.New(driver.Config{
+		Thin:         thin,
 		NodeID:       nodeID,
 		StateDir:     stateDir,
 		ReserveBytes: reserveBytes,
@@ -94,6 +105,14 @@ func run(logger *slog.Logger, endpoint, nodeID, stateDir string, reserveBytes in
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
+	if thin.Pool != "" {
+		go func() {
+			if err := d.ServeThinAPI(ctx); err != nil {
+				logger.Error("thin allocator API failed", "error", err)
+				stop()
+			}
+		}()
+	}
 	if advertiseInterval > 0 {
 		patcher, err := nodecapacity.NewInClusterPatcher()
 		if err != nil {

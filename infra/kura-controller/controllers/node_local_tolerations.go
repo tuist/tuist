@@ -43,6 +43,7 @@ func nodeLocalTolerations(instance *kurav1alpha1.KuraInstance, sts *appsv1.State
 }
 
 const (
+	thinLocalStorageClass      = "kura-thin-encrypted-nvme"
 	lvmLocalStorageClass       = "kura-lvm-nvme"
 	localPathStorageClass      = "scw-local-nvme"
 	encryptedLocalStorageClass = "kura-encrypted-nvme"
@@ -54,5 +55,5 @@ const (
 // nodeLocalStorageClass reports whether a storage class carves volumes on one
 // node's disk, so a bound volume can never follow its pod to another host.
 func nodeLocalStorageClass(name string) bool {
-	return name == lvmLocalStorageClass || name == localPathStorageClass || name == encryptedLocalStorageClass
+	return name == thinLocalStorageClass || name == lvmLocalStorageClass || name == localPathStorageClass || name == encryptedLocalStorageClass
 }

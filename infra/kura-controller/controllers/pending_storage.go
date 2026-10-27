@@ -19,7 +19,7 @@ import (
 // Recreate only unscheduled pods after publishing the smaller template; serving
 // replicas follow the ordinary rolling update and retain their cache volumes.
 func (r *KuraInstanceReconciler) replacePendingPodsForStorageDecrease(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
-	desired := storageQuantity(instance)
+	desired := diskReservation(instance)
 	if desired.IsZero() {
 		return nil
 	}

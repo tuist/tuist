@@ -1,10 +1,11 @@
 # Thin encrypted Kura volumes
 
-Status: design and local stack qualification, 2026-10-27. This supersedes the
-thick-volume target for PR #14152. The production driver in this branch still
-creates thick LVs; the interfaces below are proposed, not implemented. Do not
-merge or enroll on the assumption that this document changes runtime behavior.
-Local observations and outstanding acceptance gates are in [validation.md](validation.md).
+Status: conservative thin CSI implementation, 2026-10-27. The implemented
+`ceiling-backed-v1` API and rollout contract are in [interface.md](interface.md).
+This document also records requirements for a future shared admission mode;
+`shared-grants-v1` is **not implemented or qualified**. PR #14152 remains draft
+while qualification and staging evidence are collected. Local evidence and
+outstanding acceptance gates are in [validation.md](validation.md).
 
 Related work: [LVM and encryption #14152](https://github.com/tuist/tuist/pull/14152)
 and [disk sharing #14825](https://github.com/tuist/tuist/pull/14825). The latter
@@ -25,7 +26,7 @@ adding `-V` to lvcreate and enabling discard is not sufficient. Implement and
 qualify the storage interface before merging this replacement design; enable
 physical overcommit only after the additional shared-mode gate passes.
 
-Two admission modes have different promises:
+The implemented conservative mode and blocked future mode have different promises:
 
 | Mode | Physical commitment | Scheduler reservation | Can aggregate virtual ceilings exceed pool capacity? |
 | --- | --- | --- | --- |

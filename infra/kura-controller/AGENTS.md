@@ -1,6 +1,6 @@
 # Kura Controller
 
-This module contains the Kubernetes controller that reconciles Kura account endpoint custom resources.
+Owns `KuraInstance` / `KuraGateway` product workload lifecycle, not CAPI node lifecycle. Run `go test ./...` here; align API changes with [chart CRDs](../helm/tuist/crds/).
 
 ## Scope
 - Opt-in phase-one serving/recovery: [serving-authority.md](serving-authority.md).
@@ -49,10 +49,6 @@ This module contains the Kubernetes controller that reconciles Kura account endp
   Disabled by default; no RBAC, token-mount, or JIT policy changes. See
   [`connectivity-diagnostics.md`](connectivity-diagnostics.md) for bounds and rollout:
   the environment change rolls selected instances under their existing strategy.
-
-- API group: `kura.tuist.dev`
-- Primary resource: `KuraInstance`
-- Controller output: Kubernetes workload resources for one account-region Kura deployment. The customer plane is fronted by a shared regional ingress (deployed via Helm), not a per-account gateway.
 
 ## Account renames
 
@@ -164,6 +160,14 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
 
 ## Private runner entrance
 
+Linux runners reuse existing regional Kura instances on one `runners-linux`
+host pool. Every account receives the direct internal Service URL; vRack is a
+host-network rollout without an account flag or WAN relay. See
+[linux-runner-private-cache.md](linux-runner-private-cache.md) for drained
+enrollment, canary qualification and staging migration prerequisites. Preserve
+macOS private-cache behavior, existing primary selection and move identities.
+Keep validation outputs in workflow artifacts and retain staging fixture backups.
+
 Runner instances share the managed StatefulSet rollout, preferred co-location, disruption budget, primary routing, mesh and drain. Kubernetes defaults new sets to RollingUpdate; leave a live operator-set update strategy intact. Primary selection prefers full ring visibility but falls back to a fresh Ready/serving writer when no fully joined member remains, so a restarting sibling cannot pin traffic to a dead pod.
 
 `privateHost` opts a private instance into the existing HTTP/gRPC ingress and certificate path, with a host-network ingress class and valid nonempty `clientCIDRs`. Private gateways retain their per-instance certificate and do not select the shared public wildcard, even if a legacy publicHost remains. Private client DNS prefers the selected primary's node initially, then retains its healthy published gateway. Pod List order cannot move it. Public peer DNS stays public. Private gateway-backed pods carry `tuist.dev/host-network-gateway=true`; the managed Helm CiliumNetworkPolicy admits only cache-port traffic from host/remote-node identities, while nginx enforces external client CIDRs.
@@ -230,7 +234,7 @@ The controller image also packages the stateless `cmd/cache-activation` gateway,
   `ephemeral-storage`. Legacy regions keep request-only ephemeral admission.
   Pending-pod shrink recovery and resize holds must compare the selected disk
   resource and preserve operator pauses. `kura-lvm-nvme` is node-local just
-  like the encrypted class. See [LVM rollout](../kura-volumes-csi/lvm-rollout.md).
+  like the encrypted class.
 
 LVM enrollment treats a PVC without CSI `backing: lvm` evidence as a storage
 migration even when its class is unchanged. Hold the template before changing
@@ -239,3 +243,19 @@ single replica. Before each deletion require fresh Ready/completed-backfill
 reports from its siblings. Mark `kura.tuist.dev/lvm-rebuild` on the outgoing pod,
 demote it from client and peer roles, and wait for observed endpoint handoff.
 Positive-fence backing migrations remain explicit recovery holds.
+
+Regional LVM enrollment alone must not delete legacy claims. Require exactly
+one Node annotated `tuist.dev/kura-lvm-migrate=true`, cordoned, with a prepared
+Ready/schedulable LVM landing node matching the actual StatefulSet selector.
+Only claims pinned to that source may migrate; other legacy replicas stay held.
+Preserve the old replacement template until all an instance's remaining legacy
+claims belong to the selected source. A shared StatefulSet template cannot
+request LVM on an unconverted sibling's host after an unrelated restart;
+cross-host legacy instances require a placement/recovery plan before migration.
+The landing check is not a reservation: preflight the whole source node's disk,
+CPU, memory and placement constraints before selection. Never reformat until
+all its claims have moved and replacement replicas have completed backfill.
+Rebuild and verify the emptied node, clear the selection, then select the next.
+Already-LVM volume growth retains its normal per-replica path.
+
+- `kura-thin-encrypted-nvme` selects prepared nodes and reserves the complete virtual ceiling (cache ceiling + workspace + filesystem/encryption overhead) as `tuist.dev/kura-disk`. PVC size remains the useful cache ceiling. Keep `diskReservation` aligned with CSI's versioned sizing policy. Thick-to-thin moves retain the single-source-node migration gate; a thick PV is not a verified thin destination.
