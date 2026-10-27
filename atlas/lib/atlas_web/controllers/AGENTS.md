@@ -20,6 +20,10 @@ Invalid/missing path UUIDs return 404. Invalid fields return 422 with sanitized 
 
 Controller regressions live in `test/atlas_web/controllers/native_controller_test.exs`. Profile descriptions use `users.description`; see the retention/provider/export rules in `data-export.md`.
 
+## Native Moodboard capture
+
+`NativeMoodboardController` uses the same bearer-only `no-store` pipeline, before dynamic resource routes. POST `/api/native/moodboard/suggestions` accepts only `url`/`content`, returns `{suggestions: {title, description, tags, generated}}`, and never publishes. Invalid source is 422; per-user throttling is 429. PUT `/api/native/moodboard/captures/:request_id` accepts top-level editable resource fields and returns `{saved: true, resource_id}`. Actor-scoped exact retries are replay-safe while the resource exists; altered reuse is 409, invalid/duplicate URL fields are 422. No owner selector or model-authored URL is accepted. Route dispatch logging is disabled to avoid recording source bodies. Domain/provider boundaries are in [Moodboard](../../atlas/moodboard/AGENTS.md).
+
 ## Native Orbit
 
 `AtlasWeb.NativeOrbitController` serves fixed routes under `/api/native/orbit/threads`, declared before the dynamic native resource routes and protected by the same bearer-only, `no-store` pipeline. Older servers answer the list route with the dynamic resource's 404, which clients treat as unsupported. Domain rules live in [Orbit](../../atlas/orbit/AGENTS.md). Threads a caller cannot read return `404 {"error":"not_found"}`, indistinguishable from missing ones.

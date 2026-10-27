@@ -1,7 +1,7 @@
 # Flux on the management cluster
 
 Flux reconciles management-cluster desired state from git onto the
-self-hosted CAPI + caph **management cluster** (single-node Talos). This is
+self-hosted CAPI + caph **management cluster** (three-node Talos). This is
 **Pillar 1** of [hive/specs/72](https://hive.tuist.dev/specs/72): continuous
 GitOps reconciliation, so drift is corrected on an interval instead of only
 on merge, and no routine change needs the break-glass kubeconfig.
@@ -234,7 +234,7 @@ node count — it changes which controller owns it.
 ## Health of Flux itself
 
 A down reconciler stops correcting drift without breaking anything visible, so
-Flux is watched from Grafana Cloud, which evaluates outside this single-node
+Flux is watched from Grafana Cloud, which evaluates outside this management
 cluster. Two rules are live (`infra/helm/k8s-monitoring/alerts.md`):
 
 - **`Flux - reconciliation has stalled fleet-wide`** on

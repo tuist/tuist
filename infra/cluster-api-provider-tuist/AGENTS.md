@@ -1,7 +1,7 @@
-# cluster-api-provider-tuist
+# Cluster API Provider
 
 - OVH cache vRack reconciliation is additive on the Ready path, scoped by the
-  environment ConfigMap and cache taint. Persist address reservations across
+  environment ConfigMap and cache taint, or explicit `spec.vRackID` on Kata runners. Persist address reservations across
   Machine deletion, preserve main-table unreachable guards for existing Machines,
   retire owned guards only after authoritative Machine removal, and advertise
   private topology only after every participant installs the same membership.
@@ -2092,6 +2092,12 @@ kubectl get node <host> -o jsonpath='{.status.addresses}'
 
 ## Host macOS updates
 
+The [macOS TCP clock runbook](macos-tcp-clock.md) records the October 26, 2026
+long-uptime Tahoe incident, the safe binary installer, and the required drained
+OS maintenance wave. Releasing an operator fixes the installer; it does not
+upgrade the host kernel. Fleet provisioning OS families do not enforce a minimum
+point release on already-adopted machines.
+
 Host macOS updates are operator-run waves, one drained host at a time. They are
 never automatic and not driven by MDM: NanoMDM cannot enforce update policy.
 `bootstrap.Run` and the drift loop (`installSoftwareUpdatePolicy`, part of
@@ -2818,10 +2824,9 @@ fleet size from there. No `kubectl create secret` calls.
 
 ## Build
 
+Run `go test ./...` and `go build ./...` here. For image changes, the Docker build context is the repository root:
+
 ```bash
-cd infra/cluster-api-provider-tuist
-go test ./...
-go build ./...
 docker build -f Dockerfile -t ghcr.io/tuist/capi-provider-scaleway-applesilicon:dev ../..
 ```
 
@@ -2870,9 +2875,9 @@ the fleet key + a known sudo password) and marked *before* it joins the pool. Th
 
 1. **Pre-order the box** in the provider console (out of band; the controllers
    never order). OVH ADVANCE-1 for EU-West and the US cache regions, ADVANCE-2 for
-   ap-southeast, RISE-L (production) or RISE-S (staging, canary) in Gravelines
+   ap-southeast, RISE-L (production) or RISE-M (staging, canary) in Gravelines
    for the Linux runner pool. The RISE range's
-   EU-datacenter plan codes (`25risel01-v1-eu`, `25rises01-v1-eu`) are orderable
+   EU-datacenter plan codes (for example `25risel01-v1-eu`) are orderable
    on OVHcloud US, so a Gravelines box stays on the one `ovh-us` endpoint every
    OVH fleet shares. Stock per plan and datacenter is public and needs no token:
    `GET https://api.us.ovhcloud.com/1.0/dedicated/server/datacenter/availabilities`.

@@ -30,7 +30,9 @@ null, i.e. a present key with no value.
 {{- $hostName := required "each rackFleet.hosts entry needs a name" $host.name }}
 {{- /* A host at another site than `rackFleet.site` takes that site's block in
 `rackFleet.sites`: its SSH ingress (the site's edges, never the default site's)
-and its Node's fleet, so the default site's pools never place a runner on it.
+and, while the site's runners are off, its own Node fleet, so the rack's pools
+never place a runner on it. Once the site's runners are on, its Node joins the
+rack fleet the rack's pools select (`tuist.rackSiteFleetName`).
 */}}
 {{- $siteFleet := "" }}
 {{- $siteSSHIngress := $.Values.rackFleet.sshIngressAllowCIDRs }}
@@ -39,6 +41,9 @@ and its Node's fleet, so the default site's pools never place a runner on it.
 {{- fail (printf "rackFleet.hosts[%s].site is %q, which is neither rackFleet.site nor a key of rackFleet.sites" $hostName $host.site) }}
 {{- end }}
 {{- $siteFleet = include "tuist.rackSiteFleetName" (dict "root" $ "site" $host.site) }}
+{{- if eq $siteFleet $fleetName }}
+{{- $siteFleet = "" }}
+{{- end }}
 {{- $siteSSHIngress = dig $host.site "sshIngressAllowCIDRs" (list) $.Values.rackFleet.sites }}
 {{- end }}
 ---

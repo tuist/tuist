@@ -43,8 +43,8 @@
   }
 
   & [data-part="actions"] {
-    flex-shrink: 0;
     display: flex;
+    flex-shrink: 0;
     gap: var(--noora-spacing-4);
   }
 

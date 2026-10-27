@@ -4,8 +4,10 @@ def _atlas_widget_extension_impl(ctx):
     variant = ctx["attr"]["sdk_variant"]
     sdk = "iphonesimulator" if variant == "simulator" else "iphoneos"
     bundle_id = ctx["attr"]["bundle_id"]
-    if bundle_id not in ["dev.tuist.atlas.live-activity", "dev.tuist.atlas.settings-preview.live-activity"]:
-        fail("atlas_widget_extension requires an Atlas Live Activity bundle identifier")
+    share = bundle_id == "dev.tuist.atlas.share"
+    product = "AtlasShare" if share else "AtlasLiveActivity"
+    if bundle_id not in ["dev.tuist.atlas.live-activity", "dev.tuist.atlas.settings-preview.live-activity", "dev.tuist.atlas.share"]:
+        fail("Expected an Atlas extension bundle identifier")
     sources = glob(ctx["srcs"])
     if not sources or [source for source in sources if not source.endswith(".swift")]:
         fail("atlas_widget_extension requires only Swift sources, including its WidgetBundle entry point")
@@ -38,9 +40,9 @@ def _atlas_widget_extension_impl(ctx):
         host_tree_sha256(sdk_path),
         host_tree_sha256(compiler_dir + "/../lib"),
     ])
-    bundle = declare_output("AtlasLiveActivity.appex")
-    executable = declare_output("AtlasLiveActivity.appex/AtlasLiveActivity")
-    info_plist = declare_output("AtlasLiveActivity.appex/Info.plist")
+    bundle = declare_output(product + ".appex")
+    executable = declare_output(product + ".appex/" + product)
+    info_plist = declare_output(product + ".appex/Info.plist")
     module_cache = ctx["build_dir"] + "/ModuleCache/" + content_sha256(identity)
     substitutions = {
         "ATLAS_ACTIVITY_BUNDLE_ID": bundle_id,
@@ -58,17 +60,18 @@ def _atlas_widget_extension_impl(ctx):
             compiler, "-disable-sandbox", "-sdk", sdk_path,
             "-target", "arm64-apple-ios17.0" + ("-simulator" if variant == "simulator" else ""),
             "-emit-executable", "-parse-as-library", "-application-extension",
-            "-module-name", "AtlasLiveActivity", "-module-cache-path", module_cache,
-            "-framework", "Foundation", "-framework", "SwiftUI",
-            "-framework", "WidgetKit", "-framework", "ActivityKit",
+            "-module-name", product, "-module-cache-path", module_cache,
+            "-framework", "Foundation",
             "-Xlinker", "-application_extension",
             "-Xlinker", "-e", "-Xlinker", "_NSExtensionMain",
-            "-Xlinker", "-u", "-Xlinker", "_main",
             "-Xlinker", "-rpath", "-Xlinker", "@executable_path/Frameworks",
             "-Xlinker", "-rpath", "-Xlinker", "@executable_path/../../Frameworks",
             "-Xclang-linker", "-isysroot" + sdk_path,
             "-o", executable,
-        ] + sources,
+        ] + (["-framework", "UIKit", "-framework", "Social", "-framework", "UniformTypeIdentifiers"] if share else [
+            "-framework", "SwiftUI", "-framework", "WidgetKit", "-framework", "ActivityKit",
+            "-Xlinker", "-u", "-Xlinker", "_main",
+        ]) + sources,
         inputs = sources,
         outputs = [executable],
         clean_paths = [module_cache],
@@ -76,19 +79,20 @@ def _atlas_widget_extension_impl(ctx):
         env = env,
         toolchain_identity = identity,
         identifier = "atlas_widget_compile",
-        display_name = "Compile Atlas Live Activity",
+        display_name = "Compile " + product,
     )
     # System extension startup and Swift's WidgetBundle entry metadata must coexist.
     # Explicitly retain main alongside the executable's NSExtensionMain entry point.
     codesign = host_command([xcrun, "--find", "codesign"], env = env).strip()
+    entitlements = ["ios/Share/AtlasShare.entitlements"] if share else []
     run_action(
-        argv = [codesign, "--force", "--sign", "-", "--timestamp=none", bundle],
-        inputs = [executable, info_plist],
+        argv = [codesign, "--force", "--sign", "-", "--timestamp=none"] + (["--entitlements", entitlements[0]] if share else []) + [bundle],
+        inputs = [executable, info_plist] + entitlements,
         outputs = [bundle],
         env = env,
         toolchain_identity = "atlas.widget.codesign.v1\x00" + codesign + "\x00" + host_file_sha256(codesign),
         identifier = "atlas_widget_sign",
-        display_name = "Sign Atlas Live Activity (ad hoc)",
+        display_name = "Sign " + product + " (ad hoc)",
     )
     return {
         "label_id": ctx["label"]["id"],
@@ -100,7 +104,7 @@ def _atlas_widget_extension_impl(ctx):
         "bundle_id": bundle_id,
         "platform": "ios",
         "sdk_variant": variant,
-        "product_name": "AtlasLiveActivity",
+        "product_name": product,
     }
 
 atlas_widget_extension = target_kind(

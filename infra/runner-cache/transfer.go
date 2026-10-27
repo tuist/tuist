@@ -231,9 +231,15 @@ func (t *HTTPTransfer) fetch(ctx context.Context, url, archive string, maxBytes 
 	if _, err = file.Seek(offset, io.SeekStart); err != nil {
 		return err
 	}
+	if offset > 0 {
+		// A partial left by an older agent may already hold a large dirty prefix.
+		if err = file.Sync(); err != nil {
+			return err
+		}
+	}
 	watchdog.Reset(stall)
 	body := &progressReader{r: response.Body, progress: func() { watchdog.Reset(stall) }}
-	written, err := io.Copy(file, io.LimitReader(body, limit+1-offset))
+	written, err := io.Copy(newWritebackWriter(file), io.LimitReader(body, limit+1-offset))
 	if err != nil {
 		cause := context.Cause(ctx)
 		if errors.Is(cause, errDownloadStalled) {

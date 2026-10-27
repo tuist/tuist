@@ -1,8 +1,6 @@
-# macOS + Xcode Image
+# macOS + Xcode Base Image
 
-In-house replacement for `ghcr.io/cirruslabs/macos-tahoe-xcode:N`.
-A Tart VM image that bundles macOS Tahoe + a **single** Xcode +
-the dev tools customer iOS/macOS workflows expect.
+Layer 1 shared by runner and xcresult-processor Tart images. Keep Xcode/dev-tool installation here, not duplicated in downstream runtime layers.
 
 Built by `.github/workflows/macos-xcode-image.yml` on
 workflow_dispatch (we trigger it whenever Apple ships a new Xcode

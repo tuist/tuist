@@ -113,7 +113,8 @@ func drainingNodePredicate() predicate.Predicate {
 		if !ok {
 			return false
 		}
-		return node.Spec.Unschedulable || !node.DeletionTimestamp.IsZero() || hasPowerBudgetTaint(node)
+		return node.Spec.Unschedulable || !node.DeletionTimestamp.IsZero() || hasPowerBudgetTaint(node) ||
+			nodeNotReady(node)
 	})
 }
 
@@ -152,6 +153,12 @@ func (r *RunnerPoolReconciler) enqueueAllRunnerPools(ctx context.Context, _ clie
 // a chain over its breaker's budget. Its jobs finish, and the autoscaler
 // replaces its idle runners on hosts that are not held.
 //
+// So does a node NotReady for nodeUnreachableRetireAfter, such as every mini
+// of a rack site that went dark: its idle runners cannot claim, and until they
+// are gone the autoscaler counts them as warm capacity instead of replacing
+// them at the sites still up. A runner that claimed a job is never idle, so it
+// is left to finish or to be lost with its node.
+//
 // A node that cannot be read is reported as not draining. Reaping is
 // destructive and an unreadable node is ambiguous — a transient read
 // failure must not be able to retire warm capacity fleet-wide. A Pod
@@ -165,5 +172,6 @@ func (r *RunnerPoolReconciler) nodeIsDraining(ctx context.Context, name string) 
 		}
 		return false, fmt.Errorf("get node %s: %w", name, err)
 	}
-	return node.Spec.Unschedulable || !node.DeletionTimestamp.IsZero() || hasPowerBudgetTaint(node), nil
+	return node.Spec.Unschedulable || !node.DeletionTimestamp.IsZero() || hasPowerBudgetTaint(node) ||
+		nodeUnreachable(node, r.now()), nil
 }

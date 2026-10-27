@@ -61,6 +61,14 @@ type RunnerPoolSpec struct {
 	// same Mac mini hosts) or split (dedicated capacity per image).
 	FleetSelector string `json:"fleetSelector"`
 
+	// Site, when set, pins the pool's Pods to the rack site's Nodes
+	// (`node.cluster.x-k8s.io/rack-site=<site>`) within its fleet. A rack
+	// fleet spans every site whose runners are on, so a pool that must run
+	// at one site, such as a smoke pool testing that rack, names it. Empty
+	// places the pool anywhere in its fleet.
+	// +optional
+	Site string `json:"site,omitempty"`
+
 	// DispatchLabel is the GitHub Actions runner label customers
 	// put in `runs-on` to target this fleet. The webhook handler
 	// matches `workflow_job.labels` against every pool's

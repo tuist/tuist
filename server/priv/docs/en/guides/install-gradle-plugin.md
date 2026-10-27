@@ -9,6 +9,8 @@
 
 Tuist provides a Gradle plugin that integrates with your Gradle project to enable features like <.localized_link href="/guides/features/cache/gradle-cache">remote build caching</.localized_link> and <.localized_link href="/guides/features/build-insights/gradle">build insights</.localized_link>. This guide walks you through installing and configuring the plugin.
 
+The plugin requires Gradle 8.12.1 or later.
+
 ## 1. Initialize Tuist {#initialize-tuist}
 
 Run the following command in your Gradle project root:
@@ -57,6 +59,19 @@ tuist auth whoami --url http://localhost:8080
 Keep the hostname spelling consistent. For example, a login stored for `localhost` is separate from one stored for `127.0.0.1`.
 
 For automated runners, follow the <.localized_link href="/guides/integrations/continuous-integration#authentication">continuous integration authentication guide</.localized_link> to configure authentication for your environment.
+
+## Configuration cache and Isolated Projects {#configuration-cache-and-isolated-projects}
+
+The plugin supports Gradle's configuration cache and [Isolated Projects](https://docs.gradle.org/current/userguide/isolated_projects.html). Keep the plugin in `settings.gradle.kts`; you do not need to apply it separately to each subproject.
+
+Tuist does not enable either feature automatically. To opt in, add the following to `gradle.properties`:
+
+```properties
+org.gradle.configuration-cache=true
+org.gradle.unsafe.isolated-projects=true
+```
+
+Your build scripts and other plugins must also support these features. Gradle reports compatibility problems when storing the configuration cache.
 
 ## Configuration reference {#configuration-reference}
 

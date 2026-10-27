@@ -271,6 +271,9 @@ excluded =
             name == "connect_claude_provider" ->
           "Personal provider credentials and device-login lifecycle are not workflow capabilities."
 
+        String.contains?(name, "moodboard") ->
+          "Shared Moodboard resources and discussions require dedicated ownership-aware workflow adapters; dashboard/MCP access does not enroll workflow behaviors."
+
         name == "send_test_push_notification" ->
           "Personal device consent and push-test delivery are not workflow capabilities; notification delivery requires an explicit durable adapter."
 

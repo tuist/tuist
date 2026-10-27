@@ -1180,7 +1180,7 @@ func (b *LocalImages) Prefetch(ctx context.Context, slot Slot) error {
 // lineage without a used copy here installs a speculative master, which pressure
 // eviction takes before the masters jobs used.
 func (b *LocalImages) prefetch(ctx context.Context, slot Slot, spare bool) error {
-	return b.fetchMaster(ctx, slot, func(master, older string) error {
+	return b.fetchMaster(ctx, slot, false, func(master, older string) error {
 		if spare && (older == "" || speculative(older)) {
 			_ = os.WriteFile(master+".spare", nil, 0600)
 		}
@@ -1188,12 +1188,18 @@ func (b *LocalImages) prefetch(ctx context.Context, slot Slot, spare bool) error
 	})
 }
 
+type masterFetch struct {
+	done chan struct{}
+	err  error
+}
+
 // fetchMaster downloads the slot's master into staging without the scope lock,
 // so jobs and maintenance keep using the lineage's local masters while it runs,
 // then installs it under the lock and calls installed there with the newest
-// older master. A master already local, or one another fetch is downloading,
-// is left to that copy.
-func (b *LocalImages) fetchMaster(ctx context.Context, slot Slot, installed func(master, older string) error) error {
+// older master. With wait set, concurrent callers wait for that installation
+// or their own context without canceling the fetch they joined; otherwise they
+// leave it to the active fetch. Only the installing caller runs installed.
+func (b *LocalImages) fetchMaster(ctx context.Context, slot Slot, wait bool, installed func(master, older string) error) (err error) {
 	master := b.master(slot)
 	if _, err := os.Stat(master); err == nil {
 		return nil
@@ -1207,10 +1213,30 @@ func (b *LocalImages) fetchMaster(ctx context.Context, slot Slot, installed func
 	// One name per saved version, so the next attempt resumes the archive an
 	// interrupted one left beside it. Maintenance removes it once abandoned.
 	download := filepath.Join(staging, fmt.Sprintf("%s-%d-%s.img", slot.Scope, slot.BaseGeneration, slot.ContentDigest))
-	if _, busy := b.fetching.LoadOrStore(download, struct{}{}); busy {
-		return nil
+	fetch := &masterFetch{done: make(chan struct{})}
+	if active, busy := b.fetching.LoadOrStore(download, fetch); busy {
+		if !wait {
+			return nil
+		}
+		pending := active.(*masterFetch)
+		select {
+		case <-pending.done:
+			return pending.err
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
-	defer b.fetching.Delete(download)
+	defer func() {
+		fetch.err = err
+		b.fetching.Delete(download)
+		close(fetch.done)
+	}()
+	// Another fetch may have finished between the first stat and registration.
+	if _, err := os.Stat(master); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
 	_ = os.Remove(download)
 	defer os.Remove(download)
 	if err := b.operation(slot, "restore", "remote", func() error { return b.Transfer.Download(ctx, slot, download) }); err != nil {

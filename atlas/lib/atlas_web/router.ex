@@ -214,6 +214,9 @@ defmodule AtlasWeb.Router do
     delete "/orbit/threads/:id/participants/:user_id", NativeOrbitController, :remove_participant
     post "/orbit/threads/:id/runs/:run_id/cancel", NativeOrbitController, :cancel_run
 
+    post "/moodboard/suggestions", NativeMoodboardController, :suggest, log: false
+    put "/moodboard/captures/:request_id", NativeMoodboardController, :capture, log: false
+
     get "/profile", NativeController, :profile
     patch "/profile", NativeController, :update_profile
     get "/:resource", NativeController, :index
@@ -383,6 +386,8 @@ defmodule AtlasWeb.Router do
       live "/outbound/email/inbox", EmailMailboxLive, :inbox
       live "/outbound/email/outbox", EmailMailboxLive, :outbox
       live "/outbound/email/outbox/:id", EmailMailboxLive, :sent_email
+      live "/library/moodboard", MoodboardLive, :index
+      live "/library/moodboard/:id", MoodboardShowLive, :show
       live "/library/notes", NotesLive, :index
       live "/library/notes/new", NotesLive, :new
       live "/library/notes/:id", NotesLive, :show

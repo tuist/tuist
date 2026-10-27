@@ -1,12 +1,19 @@
 defmodule Tuist.Runners.Sites do
   @moduledoc """
-  Whether a site can serve the jobs routed to one of its catalog pools. A pool
-  is down when no Node of its fleet is Ready, schedulable and large enough for
-  its guest (`:no_capacity`), or when its oldest queued job has outwaited the
-  stall bound while nothing at the site held or took a claim (`:stalled`). The
-  bound is longer while no such Node holds the pool's golden image, since a
-  cold pull is not an outage. A busy site is up, and so is one whose cluster
-  state cannot be read.
+  Where rack runners are, and whether the rack can serve its pools.
+
+  A rack pool spans every site whose runners are on, so a queued job is bound
+  to its Xcode and shape, not to a site: the Node of the runner that claims it
+  decides the site (`claim_site/2`). A runner may pass over a job for a short
+  while to leave it to the site where its account's runner cache is warm
+  (`prefer_cache_site/3`).
+
+  A pool is down when no Node of its fleet, at any site, is Ready, schedulable
+  and large enough for its guest (`:no_capacity`), or when its oldest queued
+  job has outwaited the stall bound while nothing in the fleet held or took a
+  claim (`:stalled`). The bound is longer while no such Node holds the pool's
+  golden image, since a cold pull is not an outage. A busy pool is up, and so
+  is one whose cluster state cannot be read.
   """
 
   import Ecto.Query
@@ -15,7 +22,9 @@ defmodule Tuist.Runners.Sites do
   alias Tuist.KeyValueStore
   alias Tuist.Kubernetes.Client
   alias Tuist.Kubernetes.Quantity
+  alias Tuist.Kura
   alias Tuist.Repo
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claim
   alias Tuist.Runners.WorkflowJob
 
@@ -23,10 +32,13 @@ defmodule Tuist.Runners.Sites do
 
   @fleet_label "tuist.dev/fleet"
   @golden_label_prefix "tuist.dev/golden-"
+  @site_label "node.cluster.x-k8s.io/rack-site"
   @warm_stall_seconds 600
   @cold_stall_seconds 1_800
   @status_ttl_ms 30_000
   @read_timeout to_timeout(second: 5)
+  @node_site_ttl_ms to_timeout(minute: 10)
+  @cache_site_grace_seconds 60
 
   def available?(site_pool) when is_binary(site_pool) do
     status =
@@ -58,6 +70,84 @@ defmodule Tuist.Runners.Sites do
   end
 
   def cache_name, do: :tuist
+
+  @doc """
+  The site a runner of `fleet_name` on `node_name` claims at: the Node's
+  `node.cluster.x-k8s.io/rack-site` label, else the pool's site
+  (`Catalog.fleet_site/1`), which is also the answer while the Node cannot be
+  read. A host lent to another env registers in that env's cluster without the
+  label. `nil` for a pool that is not racked at a site, without reading the
+  Node.
+  """
+  def claim_site(fleet_name, node_name) do
+    case Catalog.fleet_site(fleet_name) do
+      nil -> nil
+      pool_site -> node_site(node_name) || pool_site
+    end
+  end
+
+  defp node_site(node_name) when is_binary(node_name) and node_name != "" do
+    [__MODULE__, :node_site, node_name]
+    |> KeyValueStore.get_or_update([cache: cache_name(), ttl: @node_site_ttl_ms, cache_errors: false], fn ->
+      case Client.get_node(node_name, timeout: @read_timeout) do
+        {:ok, node} -> {:ok, get_in(node, ["metadata", "labels", @site_label])}
+        other -> {:error, other}
+      end
+    end)
+    |> case do
+      {:ok, site} when is_binary(site) and site != "" ->
+        site
+
+      {:ok, _no_label} ->
+        nil
+
+      {:error, reason} ->
+        Logger.warning("runners: could not read the claiming Node's site; using its pool's",
+          node: node_name,
+          reason: inspect(reason)
+        )
+
+        nil
+    end
+  end
+
+  defp node_site(_node_name), do: nil
+
+  @doc """
+  Drops from `candidates` the jobs a runner at `site` leaves, for now, to the
+  site where their account's runner cache is warm: the account has a runner
+  cache at another site and none at `site` (`Kura.runner_cache_elsewhere/2`),
+  and the job has queued for less than #{@cache_site_grace_seconds} seconds.
+  While that site has an idle runner it takes the job first. While it is busy
+  or dark the job runs here once the grace has passed, so no job waits longer
+  than that for its cache. With no site, or one site, nothing is dropped.
+  """
+  def prefer_cache_site(candidates, site, now \\ DateTime.utc_now())
+
+  def prefer_cache_site([_ | _] = candidates, site, now) when is_binary(site) do
+    elsewhere =
+      candidates
+      |> Enum.map(& &1.account_id)
+      |> Enum.uniq()
+      |> Kura.runner_cache_elsewhere(site)
+
+    if MapSet.size(elsewhere) == 0 do
+      candidates
+    else
+      waited_since = DateTime.add(now, -@cache_site_grace_seconds, :second)
+
+      Enum.reject(candidates, fn candidate ->
+        MapSet.member?(elsewhere, candidate.account_id) and within_grace?(candidate, waited_since)
+      end)
+    end
+  end
+
+  def prefer_cache_site(candidates, _site, _now), do: candidates
+
+  defp within_grace?(%{enqueued_at: %DateTime{} = enqueued_at}, waited_since),
+    do: DateTime.after?(enqueued_at, waited_since)
+
+  defp within_grace?(_candidate, _waited_since), do: false
 
   defp fits?(node, spec) do
     ready?(node) and get_in(node, ["spec", "unschedulable"]) != true and
