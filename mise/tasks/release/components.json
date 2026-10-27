@@ -225,7 +225,7 @@
       "tag_regex": "^linux-runner-image@[0-9]+\\.[0-9]+\\.[0-9]+$",
       "cliff_config": "infra/linux-runner-image/cliff.toml",
       "initial_version": "0.1.0",
-      "include_paths": ["infra/linux-runner-image/**/*"]
+      "include_paths": ["infra/linux-runner-image/**/*", "infra/certificate-trust/policy.json", "infra/certificate-trust/java-store.sh", "infra/certificate-trust/pem-store.sh"]
     },
     {
       "name": "runners-controller",
