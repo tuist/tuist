@@ -43,6 +43,7 @@ struct AtlasApp: App {
             .onChange(of: scenePhase) { _, phase in
                 authentication.liveActivity.setActive(phase == .active)
                 if phase == .active {
+                    authentication.sharedItems?.reload()
                     Task { await appearance.refresh(); await authentication.pushNotifications.refresh() }
                 }
             }
@@ -75,8 +76,11 @@ struct AtlasApp: App {
                                presence: authentication.presence, navigation: navigation,
                                automation: authentication) {
                 AtlasSettingsView(server: server, accounts: authentication.accountSettings, signOut: authentication.signOut,
-                                  profileRequest: authentication.businessRequest, notifications: authentication.pushNotifications)
+                                  profileRequest: authentication.businessRequest, notifications: authentication.pushNotifications,
+                                  sharedItems: authentication.sharedItems)
             }
+            .modifier(AtlasSharedItemsPresentation(model: authentication.sharedItems,
+                                                   protectedWork: navigation.hasVisibleProtectedWork))
             .safeAreaInset(edge: .bottom) {
                 if let message = authentication.errorMessage {
                     Text(message).foregroundStyle(.red).padding()
