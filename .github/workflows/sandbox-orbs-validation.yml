@@ -121,7 +121,16 @@ jobs:
           test "$RUNNER_ENVIRONMENT" = github-hosted
           test -c /dev/kvm
           sudo apt-get update -qq
-          sudo apt-get install -y xfsprogs libvips-dev
+          sudo apt-get install -y --no-install-recommends xfsprogs
+      - uses: actions/cache/restore@v4
+        id: mix-cache
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: orb-live-mix-${{ runner.os }}-${{ hashFiles('server/mix.lock', 'mise.toml') }}-${{ github.sha }}
+          restore-keys: |
+            orb-live-mix-${{ runner.os }}-${{ hashFiles('server/mix.lock', 'mise.toml') }}-
       - uses: ./.github/actions/setup-server-mix
         with:
           mise-install-args: erlang elixir
@@ -133,6 +142,12 @@ jobs:
           export TUIST_SERVER_TEST_CLICKHOUSE_DB=tuist_amp_orbs_live
           mix compile
           bash mise/tasks/db/migrate.sh --create --no-compile
+      - uses: actions/cache/save@v4
+        with:
+          path: |
+            server/deps
+            server/_build
+          key: ${{ steps.mix-cache.outputs.cache-primary-key }}
       - name: Install isolated Kubernetes tools
         working-directory: infra
         run: |
