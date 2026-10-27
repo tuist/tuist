@@ -29,7 +29,7 @@ fi
 # refresh and its cross-process locking. A supplied token remains useful for
 # controlled deployments, whose operator must rotate it before expiry.
 if [[ -z "${TUIST_TOKEN:-}" ]]; then
-    TUIST_TOKEN=$(tuist auth token --url "$TUIST_URL")
+    TUIST_TOKEN=$(timeout 30 tuist auth token --url "$TUIST_URL")
     export TUIST_TOKEN
 fi
 : "${TUIST_TOKEN:?Tuist authentication returned no token}"

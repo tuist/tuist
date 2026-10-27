@@ -1,6 +1,6 @@
 # Amp Orbs on Tuist Linux sandboxes
 
-This adapter implements [Amp's self-hosted Orb dispatch contract](https://ampcode.com/docs/orbs/self-hosted) using the account-admin Tuist sandbox API. Run `amp orb provider` on an always-on controller with outbound access to Amp and Tuist. Amp supplies spawn/pause/delete jobs; Tuist places each Orb in a Firecracker VM on the shared Linux fleet. No inbound connection from Amp or direct access to sandboxd's admin API is needed.
+This adapter implements [Amp's self-hosted Orb dispatch contract](https://ampcode.com/docs/orbs/self-hosted) using the account-admin Tuist sandbox API. Run `amp orb provider` on an always-on Linux controller with Bash, curl, jq, GNU coreutils (`timeout`), and outbound access to Amp and Tuist. Amp supplies spawn/pause/delete jobs; Tuist places each Orb in a Firecracker VM on the shared Linux fleet. No inbound connection from Amp or direct access to sandboxd's admin API is needed.
 
 ## Install
 
