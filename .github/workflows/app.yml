@@ -126,7 +126,8 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        uses: tuist/install@v1
+        # Use this commit's registry-state fix before the standalone action releases.
+        uses: ./.github/actions/install
         with:
           cache-key: app-macos-workspace-${{ github.job }}
       - name: Update CFBundleVersion
@@ -177,7 +178,8 @@ jobs:
         if: github.event.pull_request.head.repo.fork != true
         run: tuist setup
       - name: Install Tuist dependencies
-        uses: tuist/install@v1
+        # Use this commit's registry-state fix before the standalone action releases.
+        uses: ./.github/actions/install
         with:
           cache-key: app-macos-workspace-${{ github.job }}
       - name: Update CFBundleVersion

@@ -58,9 +58,10 @@ jobs:
       - name: Prepare composite fixture
         shell: bash
         run: |
-          mkdir -p "$RUNNER_TEMP/install-test-bin" "$GITHUB_WORKSPACE/install-fixture/Tuist"
+          mkdir -p "$RUNNER_TEMP/install-test-bin" "$GITHUB_WORKSPACE/install-fixture/Tuist/.build"
           echo '// swift-tools-version: 6.0' > install-fixture/Tuist/Package.swift
-          echo '{"pins":[]}' > install-fixture/Tuist/Package.resolved
+          echo '{"version":3,"pins":[{"identity":"example.library","kind":"registry","state":{"version":"0.2.50"}}]}' > install-fixture/Tuist/Package.resolved
+          echo '{"version":7,"object":{"dependencies":[{"packageRef":{"identity":"example.library","kind":"registry"},"state":{"name":"registryDownload","version":"0.2.49"}}]}}' > install-fixture/Tuist/.build/workspace-state.json
           cat > "$RUNNER_TEMP/install-test-bin/tuist-cache-volume" <<'CLIENT'
           #!/bin/bash
           set -eu
@@ -77,6 +78,8 @@ jobs:
             [[ -d "$GITHUB_WORKSPACE/install-fixture/Tuist/.build" ]]
           fi
           mkdir -p "$GITHUB_WORKSPACE/install-fixture/Tuist/.build"
+          [[ -f "$GITHUB_WORKSPACE/install-fixture/Tuist/.build/workspace-state.json" ]]
+          ! grep -q '0.2.49' "$GITHUB_WORKSPACE/install-fixture/Tuist/.build/workspace-state.json"
           touch "$RUNNER_TEMP/install-executed"
           CLI
           if [[ "$EXPECTED_BACKEND" == github ]]; then

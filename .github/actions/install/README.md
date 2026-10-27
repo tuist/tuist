@@ -89,7 +89,15 @@ installation for every dependency graph.
 ## What is retained
 
 Both backends retain workspace state, cached manifest JSON, downloaded sources,
-and native compiled manifests. The action explicitly sets:
+and native compiled manifests. After restoration, the action removes registry
+download records from `workspace-state.json` when their versions disagree with
+the committed lockfile. SwiftPM can otherwise keep the old version during a
+forced resolve and incorrectly reject the lockfile. Sources, artifacts,
+prebuilts, edited dependencies and matching workspace records remain intact.
+The reconciliation runs through GitHub's bundled Node runtime; it needs no
+additional tool installation. Installation still validates the lockfile with
+forced resolved versions and fails for genuinely incompatible requirements.
+The action explicitly sets:
 
 ```text
 --force-resolved-versions
