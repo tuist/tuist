@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -50,8 +49,6 @@ const (
 )
 
 var errUnsupportedReadinessProbe = errors.New("readinessProbe handler is not supported by tart-kubelet (only httpGet and tcpSocket)")
-
-var errHTTPProbeStatus = errors.New("HTTP probe failed with statuscode")
 
 // readinessHTTPClient is shared by every prober. Mirrors the kubelet:
 // no keep-alives (each probe is a fresh connection, so a wedged
@@ -103,9 +100,6 @@ type readinessProber struct {
 	ready     bool
 	successes int
 	failures  int
-	everReady bool
-	// answered is whether the guest itself answered the latest probe.
-	answered bool
 
 	cancel context.CancelFunc
 	done   chan struct{}
@@ -150,7 +144,6 @@ func newReadinessProber(
 		failureThreshold: failureThreshold,
 		onResult:         onResult,
 		ready:            initiallyReady,
-		everReady:        initiallyReady,
 	}
 }
 
@@ -189,15 +182,6 @@ func (p *readinessProber) Ready() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.ready
-}
-
-// NeverReady reports whether the guest answered its latest probe and no
-// probe has ever made the Pod Ready. A probe that never reached the guest
-// (a broken host-to-guest path) says nothing about what it is running.
-func (p *readinessProber) NeverReady() bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.answered && !p.everReady
 }
 
 func (p *readinessProber) run(ctx context.Context, done chan struct{}) {
@@ -251,8 +235,6 @@ func (p *readinessProber) record(err error) {
 			p.ready = false
 		}
 	}
-	p.answered = err == nil || errors.Is(err, errHTTPProbeStatus) || errors.Is(err, syscall.ECONNREFUSED)
-	p.everReady = p.everReady || p.ready
 	ready := p.ready
 	p.mu.Unlock()
 	if p.onResult != nil {
@@ -328,7 +310,7 @@ func (p *readinessProber) checkHTTP(ctx context.Context, ip string, action *core
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxReadinessResponseBytes))
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusBadRequest {
-		return fmt.Errorf("%w: %d", errHTTPProbeStatus, resp.StatusCode)
+		return fmt.Errorf("HTTP probe failed with statuscode: %d", resp.StatusCode)
 	}
 	return nil
 }
