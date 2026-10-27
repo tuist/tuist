@@ -147,11 +147,13 @@ pub async fn serve_public_http(
                 let accepted_at = tokio::time::Instant::now();
                 let router = router.clone();
                 let state = state.clone();
+                let connection_lease = state.runtime.public_connection();
                 let config = config.clone();
                 let semaphore = semaphore.clone();
                 let shutdown = connection_recycle_signal(&shutdown_rx, &drain_rx);
                 tokio::spawn(
                     async move {
+                        let _connection_lease = connection_lease;
                         if let Err(error) = serve_connection(stream, router, state, config, semaphore, configure_http2, accepted_at, shutdown).await {
                             log_connection_error(connection_error_log, address, peer, accepted_at.elapsed(), &error);
                         }
@@ -212,7 +214,7 @@ async fn serve_connection(
         let Some((mut parsed, artifact)) = classified else {
             return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
         };
-        let keep_alive = request_wants_keep_alive(&parsed);
+        let keep_alive = request_wants_keep_alive(&parsed) && !state.runtime.retiring_connections();
         let request_started_at = Instant::now();
         let Ok(permit) = semaphore.clone().try_acquire_owned() else {
             return serve_hyper(stream, router, configure_http2, accepted_at, shutdown).await;
@@ -461,6 +463,7 @@ pub async fn serve_public_tls(
     listener: TcpListener,
     router: Router,
     tls_config: Arc<rustls::ServerConfig>,
+    runtime: Arc<crate::runtime::RuntimeState>,
     mut shutdown_rx: watch::Receiver<bool>,
     drain_rx: watch::Receiver<bool>,
     configure_http2: Http2BuilderConfig,
@@ -486,10 +489,12 @@ pub async fn serve_public_tls(
                 }
                 let accepted_at = tokio::time::Instant::now();
                 let acceptor = acceptor.clone();
+                let connection_lease = runtime.public_connection();
                 let router = router.clone();
                 let shutdown = connection_recycle_signal(&shutdown_rx, &drain_rx);
                 tokio::spawn(
                     async move {
+                        let _connection_lease = connection_lease;
                         let stream = match tokio::time::timeout(
                             TLS_HANDSHAKE_TIMEOUT,
                             acceptor.accept(stream),

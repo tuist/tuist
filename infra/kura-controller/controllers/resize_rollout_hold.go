@@ -126,6 +126,33 @@ func (r *KuraInstanceReconciler) releaseResizeRolloutHold(ctx context.Context, i
 	if ready < replicas(instance) {
 		return nil
 	}
+	if diskResource(instance) == kuraDiskResource {
+		if sts.Status.UpdateRevision == "" {
+			return nil
+		}
+		// A held template can change during migration. Roll those remaining
+		// pods through the same connection handoff instead of letting the
+		// StatefulSet immediately terminate a still-serving donor.
+		for i := range pods.Items {
+			pod := &pods.Items[i]
+			if pod.Labels[appsv1.ControllerRevisionHashLabelKey] == sts.Status.UpdateRevision {
+				continue
+			}
+			ordinal, ok := podOrdinal(pod.Name, instance.Name)
+			if !ok {
+				return nil
+			}
+			released, err := r.lvmHandoverReady(ctx, instance, int32(ordinal))
+			if err != nil || !released {
+				return err
+			}
+			err = r.Delete(ctx, pod, &client.DeleteOptions{Preconditions: &metav1.Preconditions{UID: &pod.UID, ResourceVersion: &pod.ResourceVersion}})
+			if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {
+				return nil
+			}
+			return err
+		}
+	}
 
 	before := sts.DeepCopy()
 	delete(sts.Annotations, resizeRolloutHoldAnnotation)

@@ -309,6 +309,10 @@ fn public_routes() -> Router<SharedState> {
 fn internal_routes() -> Router<SharedState> {
     Router::new()
         .route(ROUTE_INTERNAL_STATUS, get(internal_status))
+        .route(
+            "/_internal/connections/retire",
+            post(retire_public_connections),
+        )
         .route("/_internal/handover/verify", post(crate::handover::verify))
         .route(
             "/_internal/handover/descriptors",
@@ -1329,7 +1333,7 @@ async fn reject_draining_public_requests(
         return draining_response(version);
     }
 
-    if state.runtime.is_draining() && is_http1(version) {
+    if (state.runtime.is_draining() || state.runtime.retiring_connections()) && is_http1(version) {
         response.headers_mut().insert(
             axum::http::header::CONNECTION,
             HeaderValue::from_static("close"),
@@ -1900,6 +1904,27 @@ async fn ready(State(state): State<SharedState>) -> impl IntoResponse {
         .into_response()
 }
 
+#[derive(serde::Deserialize)]
+struct RetireConnectionsRequest {
+    incarnation: String,
+}
+
+// Internal mTLS surface only. This retires transport reuse, not serving rights:
+// requests still obey the normal authority, admission and replication checks.
+async fn retire_public_connections(
+    State(state): State<SharedState>,
+    Json(request): Json<RetireConnectionsRequest>,
+) -> Response {
+    if request.incarnation != state.runtime.connection_incarnation() {
+        return error_response(StatusCode::CONFLICT, "runtime incarnation changed");
+    }
+    Json(serde_json::json!({
+        "incarnation": state.runtime.connection_incarnation(),
+        "remaining_connections": state.runtime.retire_public_connections(),
+    }))
+    .into_response()
+}
+
 async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
     let status = state.rollout_status_report().await;
     // `backfill_initial_cycle` is the catch-up gate contract consumers
@@ -1926,6 +1951,7 @@ async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
         // Only a process that bound the gRPC-only listener gets this far with
         // it set, so the kura-controller switches the gateway's gRPC on it.
         "gateway_grpc_port": state.config.gateway_grpc_port,
+        "connection_incarnation": state.runtime.connection_incarnation(),
     }))
 }
 
@@ -5954,6 +5980,45 @@ mod tests {
             response.headers().get(axum::http::header::CONNECTION),
             Some(&HeaderValue::from_static("close"))
         );
+    }
+
+    #[tokio::test]
+    async fn connection_retirement_is_internal_and_incarnation_bound() {
+        let context = test_context(|_| {}).await;
+        let runtime = &context.state.runtime;
+        let request = |incarnation: &str| {
+            Request::builder()
+                .method("POST")
+                .uri("/_internal/connections/retire")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({"incarnation": incarnation}).to_string(),
+                ))
+                .unwrap()
+        };
+        let response = public_router(context.state.clone())
+            .oneshot(request(runtime.connection_incarnation()))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert!(!runtime.retiring_connections());
+        let response = internal_router(context.state.clone())
+            .oneshot(request("previous-process"))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        assert!(!runtime.retiring_connections());
+        let connection = runtime.public_connection();
+        let response = internal_router(context.state.clone())
+            .oneshot(request(runtime.connection_incarnation()))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: serde_json::Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), 4096).await.unwrap()).unwrap();
+        assert_eq!(body["remaining_connections"], 1);
+        assert!(!runtime.is_draining());
+        drop(connection);
     }
 
     #[tokio::test]

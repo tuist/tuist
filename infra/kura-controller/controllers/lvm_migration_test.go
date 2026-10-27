@@ -67,6 +67,9 @@ func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 				sts.Spec.Template.Spec.Containers[0].Resources.Requests[corev1.ResourceEphemeralStorage] = resource.MustParse("32Gi")
 			}
 			objects := []client.Object{f.instance, sts}
+			if tc.thin {
+				objects = append(objects, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: peerTLSSecretName(f.instance), Namespace: f.instance.Namespace}})
+			}
 			if !tc.noLanding {
 				objects = append(objects, &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "prepared-spare", Labels: map[string]string{"tuist.dev/kura-thin-ready": "true", "node.cluster.x-k8s.io/pool": "kura"}}, Status: corev1.NodeStatus{Allocatable: corev1.ResourceList{kuraDiskResource: resource.MustParse("64Gi")}, Conditions: []corev1.NodeCondition{{Type: corev1.NodeReady, Status: corev1.ConditionTrue}}}})
 			}
@@ -77,6 +80,7 @@ func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 				claim.Spec.VolumeName = fmt.Sprintf("pv-%d", i)
 				claim.Status.Phase = corev1.ClaimBound
 				pod := f.servingPod(i, "100m")
+				pod.Status.PodIP = fmt.Sprintf("10.0.0.%d", i+1)
 				pod.Spec.NodeName = fmt.Sprintf("source-%d", i)
 				if tc.colocated {
 					pod.Spec.NodeName = "source-0"
@@ -98,10 +102,10 @@ func TestLVMMigrationPreservesDonorAndHonorsGates(t *testing.T) {
 					objects = append(objects, &corev1.Endpoints{ObjectMeta: metav1.ObjectMeta{Name: f.instance.Name, Namespace: f.instance.Namespace}, Subsets: []corev1.EndpointSubset{{Addresses: []corev1.EndpointAddress{{IP: "10.0.0.2", TargetRef: &corev1.ObjectReference{Name: pod.Name}}}}}})
 				}
 
-				statuses[pod.Name] = runtimeStatus{Ready: true, BackfillInitialCycle: tc.cycle}
+				statuses[pod.Name] = runtimeStatus{Ready: true, BackfillInitialCycle: tc.cycle, ConnectionIncarnation: "current-boot"}
 			}
 			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(objects...).Build()
-			r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: fakeRuntimeStatusClient{statuses: statuses}}
+			r := &KuraInstanceReconciler{Client: c, Scheme: scheme, RuntimeStatusClient: fakeRuntimeStatusClient{statuses: statuses}, PublicConnectionRetirer: stubConnectionRetirer{ready: true}}
 			_, err := r.reconcileDataStorageResize(context.Background(), f.instance)
 			if err != nil {
 				t.Fatal(err)

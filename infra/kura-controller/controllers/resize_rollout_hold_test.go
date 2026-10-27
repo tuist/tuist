@@ -545,7 +545,11 @@ func TestLVMResizeHoldWaitsForFreshCatchUp(t *testing.T) {
 			f.instance.Spec.DiskResource = string(kuraDiskResource)
 			f.instance.Spec.StorageClassName = thinLocalStorageClass
 			sts := f.statefulSet(onDelete(), "600m", resizeHeld())
+			sts.Status.UpdateRevision = "current"
 			pods := []*corev1.Pod{f.servingPod(0, "600m"), f.servingPod(1, "600m")}
+			for _, pod := range pods {
+				pod.Labels[appsv1.ControllerRevisionHashLabelKey] = "current"
+			}
 			samples := map[string]runtimeStatus{
 				pods[0].Name: {Ready: true, State: "serving", WriterLockOwned: true, BackfillInitialCycle: backfillCycleComplete},
 				pods[1].Name: {Ready: true, State: "serving", WriterLockOwned: true, BackfillInitialCycle: tc.cycle, invalidObservation: tc.invalid, BackfillBudgetExhaustedRealPeers: tc.exhausted},
@@ -565,6 +569,45 @@ func TestLVMResizeHoldWaitsForFreshCatchUp(t *testing.T) {
 			released := got.Spec.UpdateStrategy.Type == appsv1.RollingUpdateStatefulSetStrategyType
 			if released != tc.release {
 				t.Fatalf("released = %v, want %v", released, tc.release)
+			}
+		})
+	}
+}
+
+func TestLVMResizeRetainsHoldWhileRollingAChangedTemplate(t *testing.T) {
+	for _, retired := range []bool{false, true} {
+		t.Run(fmt.Sprintf("retired=%v", retired), func(t *testing.T) {
+			f := newResizeHoldFixture(600)
+			f.instance.Spec.StorageClassName = thinLocalStorageClass
+			f.instance.Spec.DiskResource = string(kuraDiskResource)
+			sts := f.statefulSet(onDelete(), "600m", resizeHeld())
+			sts.Status.UpdateRevision = "new"
+			old, donor := f.servingPod(0, "600m"), f.servingPod(1, "600m")
+			old.Status.PodIP = "10.0.0.1"
+			old.Labels[appsv1.ControllerRevisionHashLabelKey] = "old"
+			old.Annotations = map[string]string{lvmRebuildAnnotation: "true"}
+			donor.Labels[appsv1.ControllerRevisionHashLabelKey] = "new"
+			endpoints := &corev1.Endpoints{ObjectMeta: metav1.ObjectMeta{Name: f.instance.Name, Namespace: f.instance.Namespace}, Subsets: []corev1.EndpointSubset{{Addresses: []corev1.EndpointAddress{{IP: "10.0.0.2", TargetRef: &corev1.ObjectReference{Name: donor.Name}}}}}}
+			c := fake.NewClientBuilder().WithScheme(meshTestScheme(t)).WithObjects(f.instance, sts, old, donor, f.claim(0, "32Gi"), f.claim(1, "32Gi"), endpoints, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: peerTLSSecretName(f.instance), Namespace: f.instance.Namespace}}).Build()
+			sample := runtimeStatus{Ready: true, BackfillInitialCycle: backfillCycleComplete, ConnectionIncarnation: "current-boot"}
+			r := &KuraInstanceReconciler{Client: c, RuntimeStatusClient: fakeRuntimeStatusClient{statuses: map[string]runtimeStatus{old.Name: sample, donor.Name: sample}}, PublicConnectionRetirer: stubConnectionRetirer{ready: retired}}
+			if err := r.releaseResizeRolloutHold(context.Background(), f.instance); err != nil {
+				t.Fatal(err)
+			}
+			got := &appsv1.StatefulSet{}
+			if err := c.Get(context.Background(), client.ObjectKeyFromObject(sts), got); err != nil {
+				t.Fatal(err)
+			}
+			if got.Spec.UpdateStrategy.Type != appsv1.OnDeleteStatefulSetStrategyType {
+				t.Fatal("released automatic rollout before manually handing off the stale template")
+			}
+			if exists := objectExists(t, c, old.DeepCopy()); exists == retired {
+				t.Fatalf("old pod exists=%v retired=%v", exists, retired)
+			}
+			for _, obj := range []client.Object{donor.DeepCopy(), f.claim(0, "32Gi"), f.claim(1, "32Gi")} {
+				if !objectExists(t, c, obj) {
+					t.Fatal("template rollout discarded its donor or a cache claim")
+				}
 			}
 		})
 	}

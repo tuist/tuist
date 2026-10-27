@@ -3,7 +3,7 @@ use std::{
     io::Write,
     path::Path,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -58,7 +58,27 @@ impl TrafficState {
     }
 }
 
+// Each public connection keeps its cohort alive until all response bytes finish.
+// Retirement swaps cohorts once, so health probes and new connections cannot
+// hide an old keep-alive connection or prevent the old cohort from draining.
+#[derive(Default)]
+struct PublicConnections {
+    current: Arc<AtomicUsize>,
+    retired: Option<Arc<AtomicUsize>>,
+}
+
+pub(crate) struct PublicConnectionLease(Arc<AtomicUsize>);
+impl Drop for PublicConnectionLease {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
 pub struct RuntimeState {
+    connection_incarnation: String,
+    retiring_connections: AtomicBool,
+    public_connections: Mutex<PublicConnections>,
+
     pub authority: Arc<crate::serving_authority::ServingAuthority>,
     draining: AtomicBool,
     drain_requested: Notify,
@@ -86,6 +106,10 @@ impl RuntimeState {
     pub fn with_authority(authority: Arc<crate::serving_authority::ServingAuthority>) -> Arc<Self> {
         Arc::new(Self {
             authority,
+            connection_incarnation: uuid::Uuid::new_v4().to_string(),
+            retiring_connections: AtomicBool::new(false),
+            public_connections: Mutex::new(PublicConnections::default()),
+
             draining: AtomicBool::new(false),
             drain_requested: Notify::new(),
             serving: AtomicBool::new(false),
@@ -98,6 +122,39 @@ impl RuntimeState {
             public_request_latency_sampled_at_ms: AtomicU64::new(0),
             inflight_changed: Notify::new(),
         })
+    }
+
+    pub fn connection_incarnation(&self) -> &str {
+        &self.connection_incarnation
+    }
+
+    pub(crate) fn public_connection(&self) -> PublicConnectionLease {
+        let connections = self
+            .public_connections
+            .lock()
+            .expect("connection cohort lock");
+        connections.current.fetch_add(1, Ordering::AcqRel);
+        PublicConnectionLease(connections.current.clone())
+    }
+
+    pub fn retiring_connections(&self) -> bool {
+        self.retiring_connections.load(Ordering::Acquire)
+    }
+
+    pub fn retire_public_connections(&self) -> usize {
+        let mut connections = self
+            .public_connections
+            .lock()
+            .expect("connection cohort lock");
+        if connections.retired.is_none() {
+            connections.retired = Some(std::mem::take(&mut connections.current));
+            self.retiring_connections.store(true, Ordering::Release);
+        }
+        connections
+            .retired
+            .as_ref()
+            .expect("retired cohort")
+            .load(Ordering::Acquire)
     }
 
     pub fn request_drain(&self) -> bool {
@@ -607,5 +664,25 @@ mod tests {
         );
         assert_eq!(runtime.public_latency_pressure_divisor(100), 3);
         assert_eq!(runtime.public_latency_pressure_divisor(0), 1);
+    }
+    #[test]
+    fn retirement_tracks_only_the_original_connection_cohort() {
+        let runtime = RuntimeState::new();
+        let first = runtime.public_connection();
+        let second = runtime.public_connection();
+        assert_eq!(runtime.retire_public_connections(), 2);
+        assert!(runtime.retiring_connections());
+        assert!(!runtime.is_draining());
+        let replacement = runtime.public_connection();
+        drop(first);
+        assert_eq!(runtime.retire_public_connections(), 1);
+        drop(second);
+        assert_eq!(runtime.retire_public_connections(), 0);
+        drop(replacement);
+        assert_eq!(runtime.retire_public_connections(), 0);
+        assert_ne!(
+            runtime.connection_incarnation(),
+            RuntimeState::new().connection_incarnation()
+        );
     }
 }

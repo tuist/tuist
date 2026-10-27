@@ -14,7 +14,7 @@ const lvmRebuildAnnotation = "kura.tuist.dev/lvm-rebuild"
 
 // Mark the departing pod before touching its volume. Primary and peer role
 // selection consume this intent on the next pass; only observed endpoint
-// handoff permits deletion. Existing connections get the normal pod drain.
+// handoff permits retirement; thin migration also waits for existing connections.
 func (r *KuraInstanceReconciler) lvmHandoverReady(ctx context.Context, instance *kurav1.KuraInstance, ordinal int32) (bool, error) {
 	name := fmt.Sprintf("%s-%d", instance.Name, ordinal)
 	pod := &corev1.Pod{}
@@ -36,5 +36,9 @@ func (r *KuraInstanceReconciler) lvmHandoverReady(ctx context.Context, instance 
 	if err != nil || !served {
 		return false, err
 	}
-	return r.peerPlaneReleased(ctx, instance, name)
+	released, err := r.peerPlaneReleased(ctx, instance, name)
+	if err != nil || !released {
+		return false, err
+	}
+	return r.lvmConnectionsRetired(ctx, instance, pod)
 }

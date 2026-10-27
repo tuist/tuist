@@ -521,12 +521,14 @@ async fn initialize_and_serve(
             .map_err(|error| format!("failed to bind public HTTPS listener: {error}"))?;
         let https_shutdown_rx = public_shutdown_rx.clone();
         let https_drain_rx = public_drain_rx.clone();
+        let https_runtime = state.runtime.clone();
         Some(tokio::spawn(
             async move {
                 if let Err(error) = accelerated_file_serving::serve_public_tls(
                     https_listener,
                     https_router,
                     tls_config,
+                    https_runtime,
                     https_shutdown_rx,
                     https_drain_rx,
                     configure_http_builder,
@@ -2133,6 +2135,59 @@ mod tests {
         let _ = server.await;
     }
 
+    #[tokio::test]
+    async fn planned_retirement_finishes_http1_response_before_closing() {
+        use http_body_util::{BodyExt, Empty};
+        use hyper_util::rt::TokioIo;
+        let context = test_context(|_| {}).await;
+        let state = context.state.clone();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (shutdown, shutdown_rx) = watch::channel(false);
+        let server = tokio::spawn(accelerated_file_serving::serve_public_http(
+            listener,
+            crate::http::public_router(state.clone()),
+            state.clone(),
+            state.config.accelerated_file_serving.clone(),
+            shutdown_rx,
+            public_drain_signal(state.runtime.clone()),
+            configure_http_builder,
+            accelerated_file_serving::ConnectionErrorLog::Debug,
+        ));
+        let stream = tokio::net::TcpStream::connect(address).await.unwrap();
+        let (mut sender, connection) = hyper::client::conn::http1::handshake(TokioIo::new(stream))
+            .await
+            .unwrap();
+        let connection = tokio::spawn(connection);
+        let request = || {
+            hyper::Request::builder()
+                .uri("/up")
+                .header("host", "localhost")
+                .body(Empty::<bytes::Bytes>::new())
+                .unwrap()
+        };
+        let response = sender.send_request(request()).await.unwrap();
+        assert_eq!(response.status(), 200);
+        response.into_body().collect().await.unwrap();
+        assert_eq!(state.runtime.retire_public_connections(), 1);
+        let response = sender
+            .send_request(request())
+            .await
+            .expect("retirement must finish the next response, not reset it");
+        assert_eq!(response.status(), 200);
+        assert_eq!(response.headers()["connection"], "close");
+        response.into_body().collect().await.unwrap();
+        tokio::time::timeout(Duration::from_secs(2), connection)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(state.runtime.retire_public_connections(), 0);
+        assert!(!state.runtime.is_draining());
+        shutdown.send(true).unwrap();
+        server.await.unwrap().unwrap();
+    }
+
     // A Kura pod drains (preStop's SIGUSR1) well before it terminates, and
     // refuses every request in between. An HTTP/2 connection that was open
     // when the drain began must get a GOAWAY right then, so the gRPC channel
@@ -2577,6 +2632,7 @@ mod tests {
             listener,
             cohosted_router(state.clone(), crate::reapi::routes(state.clone())),
             tls_config,
+            state.runtime.clone(),
             shutdown_rx,
             public_drain_signal(state.runtime.clone()),
             configure_http_builder,

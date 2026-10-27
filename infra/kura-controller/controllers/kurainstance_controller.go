@@ -173,6 +173,7 @@ type KuraInstanceReconciler struct {
 	NodeLocalRuntimeStatusClient RuntimeStatusClient
 	PeerDNSResolver              PeerDNSResolver
 	PeerPathProber               PeerPathProber
+	PublicConnectionRetirer      PublicConnectionRetirer
 
 	// MetricsClient sources the readings behind requests.cpu. Nil leaves
 	// every instance on the cold-start constant.
@@ -239,6 +240,7 @@ func (tlsPeerPathProber) Probe(ctx context.Context, address string, serverName s
 }
 
 type runtimeStatus struct {
+	ConnectionIncarnation      string `json:"connection_incarnation"`
 	invalidObservation         bool
 	ServingAuthority           servingReport `json:"serving_authority"`
 	Ready                      bool          `json:"ready"`

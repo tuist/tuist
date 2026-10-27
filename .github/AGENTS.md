@@ -625,3 +625,7 @@ keep planning read-only and refuse a new request over active or failed status.
 Manual Kura controller image builds from branches publish only immutable SHA
 candidates; only main updates `latest`. This keeps staging storage rehearsals
 from changing the default controller image.
+
+The manually dispatched Kura runtime-image workflow validates formatting, Clippy
+and unit tests before publishing a staging SHA candidate. It keeps the PR draft
+while allowing Linux validation when the local platform toolchain is unavailable.
