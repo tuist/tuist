@@ -13,6 +13,9 @@ ARG BUILDER_IMAGE="${DOCKER_IMAGE_PREFIX}hexpm/elixir:${ELIXIR_VERSION}-erlang-$
 ARG RUNNER_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}debian:${DEBIAN_RUNNER_VERSION}"
 ARG SWIFT_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}swift:6.2-bookworm"
 ARG NODE_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}node:22-slim"
+ARG CADDY_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}caddy:2.11.4-alpine"
+
+FROM ${CADDY_IMAGE} AS registry-proxy
 
 # ========================================
 # Stage: Swift parser builder
@@ -22,6 +25,8 @@ ARG NODE_IMAGE="${DOCKER_OFFICIAL_IMAGE_PREFIX}node:22-slim"
 # server or as an Oban processor pod depending on TUIST_PROCESSOR_MODE.
 # ========================================
 FROM ${SWIFT_IMAGE} AS swift-builder
+
+COPY --from=registry-proxy /usr/bin/caddy /usr/local/bin/caddy
 
 RUN apt-get update -qq && apt-get install -y -qq unzip > /dev/null 2>&1 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -34,10 +39,31 @@ COPY server/native/xcactivitylog_nif/Sources/ Sources/
 COPY server/native/xcactivitylog_nif/Tests/ Tests/
 COPY server/native/xcactivitylog_nif/.swiftpm/ .swiftpm/
 
-RUN swift build -c release --replace-scm-with-registry --product xcactivitylog-parser && \
-    cp .build/release/xcactivitylog-parser /nif/xcactivitylog-parser && \
-    mkdir -p /nif/swift-libs && \
-    cp -a /usr/lib/swift/linux/lib*.so* /nif/swift-libs/
+# Swift 6.2 crashes on concurrent HTTP/2 registry redirects (swift-corelibs-
+# foundation#5524). Match the CLI's Linux jobs: use HTTP/1.1 on loopback while
+# Caddy verifies HTTPS upstream. Neither Caddy nor its config ships at runtime.
+RUN bash -euo pipefail <<'SH'
+caddy reverse-proxy \
+    --from http://127.0.0.1:8080 --to https://registry.tuist.dev --change-host-header \
+    > /tmp/registry-proxy.log 2>&1 &
+proxy_pid=$!
+trap 'kill "$proxy_pid" 2>/dev/null || true' EXIT
+for attempt in $(seq 1 30); do
+    if (exec 3<>/dev/tcp/127.0.0.1/8080) 2>/dev/null; then
+        break
+    fi
+    if ! kill -0 "$proxy_pid" 2>/dev/null || [ "$attempt" -eq 30 ]; then
+        cat /tmp/registry-proxy.log >&2
+        exit 1
+    fi
+    sleep 1
+done
+swift package-registry set --allow-insecure-http http://127.0.0.1:8080/api/registry/swift
+swift build -c release --replace-scm-with-registry --product xcactivitylog-parser
+cp .build/release/xcactivitylog-parser /nif/xcactivitylog-parser
+mkdir -p /nif/swift-libs
+cp -a /usr/lib/swift/linux/lib*.so* /nif/swift-libs/
+SH
 
 # Isolate the shipped artifacts so downstream COPYs do not materialize the
 # Swift toolchain and .build tree on a fresh BuildKit worker.

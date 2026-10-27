@@ -20,6 +20,7 @@ let package = Package(
     ],
     dependencies: [
         .package(
+            name: "XCLogParser",
             url: "https://github.com/MobileNativeFoundation/XCLogParser.git",
             revision: "d0c3c685d3e32606ef04a21cacf7ab0dfbe19362" // 0.2.50
         ),

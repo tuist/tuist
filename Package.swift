@@ -2078,6 +2078,7 @@ let package = Package(
         .package(id: "facebook.zstd", from: "1.5.0"),
         .package(id: "chrisaljoudi.swift-log-oslog", .upToNextMajor(from: "0.2.2")),
         .package(
+            name: "XCLogParser",
             url: "https://github.com/MobileNativeFoundation/XCLogParser.git",
             revision: "d0c3c685d3e32606ef04a21cacf7ab0dfbe19362" // 0.2.50
         ),

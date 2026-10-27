@@ -1,5 +1,5 @@
 {
-  "originHash" : "2fca74bf7537044ac295b90abc3bbbb99b1940782f299ac4435cbe2dc2207bae",
+  "originHash" : "2e4c04844dce7f06f37a5d3ece24f9ebc064145082a87e3c46127e381548fbe7",
   "pins" : [
     {
       "identity" : "1024jp.gzipswift",
@@ -438,14 +438,6 @@
       }
     },
     {
-      "identity" : "mobilenativefoundation.xclogparser",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/MobileNativeFoundation/XCLogParser.git",
-      "state" : {
-        "revision" : "d0c3c685d3e32606ef04a21cacf7ab0dfbe19362"
-      }
-    },
-    {
       "identity" : "onevcat.rainbow",
       "kind" : "registry",
       "location" : "",
@@ -717,6 +709,14 @@
       "originalLocation" : "https://github.com/tuist/ZIPFoundation",
       "state" : {
         "version" : "0.9.22"
+      }
+    },
+    {
+      "identity" : "xclogparser",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/MobileNativeFoundation/XCLogParser.git",
+      "state" : {
+        "revision" : "d0c3c685d3e32606ef04a21cacf7ab0dfbe19362"
       }
     }
   ],
