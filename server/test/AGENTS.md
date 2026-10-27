@@ -35,6 +35,7 @@ This directory contains ExUnit tests for the Tuist Server.
 - Portal-template event assertions should parse the rendered HTML and match attributes on the same element; never assume serialized attribute order or adjacency.
 - Prepared builds start in a fresh VM without compiler-loaded modules. Load a module explicitly before inspecting its exports; `function_exported?/3` does not load it.
 - Tests are `async: true` by default; avoid global state and make architectural changes to support concurrency.
+- Correlated-crash regressions cover both cross-run receipt orders, in-report retries, unchanged raw failures, ordinary assertions within a crash burst, excluded automation aggregates and stable immutable report identity. Boundary tests keep small/single-module bursts and unknown or measured failures eligible.
 - Controller tests that exercise resource loaders must return actual `Account`/`Project` structs, including visibility, rather than incomplete maps. Mocked controller-unit requests should disable shared loader caching or use an isolated cache; retain production privacy reloads.
 - Tests run with a clean database.
 - Authenticated attribution coverage in `tuist_web/controllers/api/report_attribution_test.exs` exercises creation-response metadata across native and legacy routes, shared versus individual credentials, forged actor fields, and matching persisted attribution, including same-ID retries by a different authorized user. Unsigned response regressions keep parent/child claims unverified and duplicate headers Unknown. Exercise the actual Mix formatter's older wire shape, absent/future contract versions, rejection of undeclared/nested fields, and native Cargo test responses without broadening the authenticated-only Cargo build endpoint. Claims remain opaque labels, never account lookups or authorization inputs.
@@ -75,9 +76,6 @@ This directory contains ExUnit tests for the Tuist Server.
 - Shared Swift/Elixir report identities: `cli/Tests/Fixtures/JUnitIdentity/AGENTS.md`.
 
 - Kura private gateway coverage belongs in the region and Kubernetes provisioner suites, with dispatch/activation coverage in `tuist/kura_test.exs`. Cover stale generations, expired observations, incomplete gateway readiness, environment hostname isolation, two replicas and retained legacy NodePorts.
-- Linux cluster-DNS runner cache coverage must include failed initial readiness,
-  HTTP/transport outages retaining the old heartbeat, stale/missing heartbeat
-  WAN fallback, and successful recovery on the same active instance.
 
 - Private endpoint regressions should prove that old `lastReconciledAt` does not invalidate a fresh endpoint check, while repeatedly reading the same `endpointLastCheckedAt` cannot renew `last_ready_at`. Revision digest tests should cover order-independent CIDRs and reuse the module's canonical text hashing.
 
@@ -143,11 +141,12 @@ This directory contains ExUnit tests for the Tuist Server.
 - Mimic creates original-module copies lazily on the first stub, expect or reject. Before any mock is installed, call the real module directly for sanity checks; use `Mimic.call_original/3` only after mocking is initialized, such as inside a counting expectation. Run these regressions alone as well as in suites to catch order dependencies.
 - Cold activation coverage must continue past regional readiness, synchronize stable intent without a minute tick, reject stale generations, stop for ineligible instances, and retain a bounded polling budget across snoozes and transient API failures.
 
-- Linux private-cache rollout regressions cover default-off behavior in every environment, actor isolation and global opt-outs, dispatch fallback with an existing active PN cache, admission requiring recent Linux jobs, and flag withdrawal/re-enrollment while jobs retain a draining endpoint.
 - Zero-hit secondary retirement tests cover ten complete reported UTC days, the exact instance-age boundary, unknown age, missing/duplicate reports, hits anywhere in the window or today, a surviving region with hits, primary exclusion, the rollout gate, and unchanged 28-day low-traffic retirement.
 
-- Kura wrapping-key tests must preserve passphrases through root/KMS rewrap,
+- Kura wrapping-key tests must preserve passphrases through root/OpenBao rewrap,
   include retired versions, refuse concurrent overwrite, and cover unavailable
-  keys and recovery from an older key record. KMS HTTP fakes assert exact ARN,
-  context, projected identity and sanitized failures; they are not evidence of
-  live AWS IAM, CloudTrail or database backup restore success.
+  keys and recovery from an older key record. OpenBao HTTP fakes assert pinned backend,
+  context, projected identity and sanitized failures. The disposable integration
+  check exercises real Kubernetes login and Transit; it is not evidence of
+  hosted recovery, audit delivery or database backup restore success.
+- Linux vRack flag tests cover every environment's default-off behavior, account isolation and opt-out, profile/legacy routing, direct-label bypass rejection, missing pool configuration, and unchanged alternate-pool resource accounting. Helm regression tests assert disjoint selectors and unchanged ordinary capacity.
