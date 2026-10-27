@@ -1,6 +1,4 @@
-# Components (Web Layer)
-
-This area owns shared UI components for LiveView and templates.
+# Web Components
 
 ## Responsibilities
 
@@ -37,13 +35,8 @@ This area owns shared UI components for LiveView and templates.
 ## Boundaries
 
 - The workload configuration switch is a stable native button with `role="switch"`, using Noora's track/thumb styles. LiveView owns its checked/expanded state and form visibility together; do not add a client machine or shared Noora reconnect behavior for this presentation-only control.
-- Domain logic belongs in `server/lib/tuist` contexts.
-- Frontend assets are in `server/assets`.
 
-## Related Context
-
-- Web layer overview: `server/lib/tuist_web/AGENTS.md`
-- Business logic: `server/lib/tuist/AGENTS.md`
+## Shared dashboard contracts
 
 - `recorded_build_timeline` wraps Gradle/Bazel loading and coverage states around the same `BuildTimeline` component. Non-Xcode inspectors display recorded operation categories and task outcomes, including cache hits, skipped work and unknown outcomes; they hide logs when no per-step logs are recorded.
 

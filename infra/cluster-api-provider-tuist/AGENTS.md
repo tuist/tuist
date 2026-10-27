@@ -1,4 +1,4 @@
-# cluster-api-provider-tuist
+# Cluster API Provider
 
 - OVH runner public egress is opt-in through `capi.ovhRunnerEgress`. Keep
   Machine-UID address reservations until policy withdrawal and confirmed host
@@ -2836,10 +2836,9 @@ fleet size from there. No `kubectl create secret` calls.
 
 ## Build
 
+Run `go test ./...` and `go build ./...` here. For image changes, the Docker build context is the repository root:
+
 ```bash
-cd infra/cluster-api-provider-tuist
-go test ./...
-go build ./...
 docker build -f Dockerfile -t ghcr.io/tuist/capi-provider-scaleway-applesilicon:dev ../..
 ```
 

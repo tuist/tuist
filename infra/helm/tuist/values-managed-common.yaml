@@ -551,14 +551,6 @@ observability:
   # the platform chart. The chart's embedded observability stack stays off.
   enabled: false
 
-# Prepare the same account-gated pools in staging, canary and production.
-# Zero warm floors add no hosts; enroll runner_linux_vrack only after the
-# environment has qualified, isolated vRack capacity. Self-host defaults off.
-runnersFleetLinux:
-  vrack:
-    enabled: true
-    nodePool: runners-linux-vrack
-
 # macOS Profile catalog: the baseline shared across every managed
 # env. `xcodeVersions` is an image-matrix fact and is the same
 # everywhere; per-env files declare `xcodeOverrides` keyed by

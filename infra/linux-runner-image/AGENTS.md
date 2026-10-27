@@ -1,13 +1,6 @@
 # Linux Runner Image
 
-OCI image hosted on the **Linux runner fleet** (Hetzner Cloud
-nodes selected via `tuist.dev/fleet=<runnersFleetLinuxName>`). One
-ephemeral GitHub Actions runner per Pod, one job per runner. The
-same image runs in two roles within a Pod (see "Credential split"
-below): a `poller` init container and a `runner` main container.
-
-This is the Linux analog of `infra/runner-image/` (the Tart-based
-macOS image). Same single-shot lifecycle, much simpler substrate.
+One ephemeral GitHub Actions runner per Pod/job. Pod isolation and lifecycle are owned by [runners-controller](../runners-controller/AGENTS.md).
 
 ## What's in the image
 
@@ -176,8 +169,9 @@ root, or trimming externals from the image, breaks job containers
 
 ## Build
 
+From this directory:
+
 ```bash
-cd infra/linux-runner-image
 docker build --pull -t ghcr.io/tuist/tuist-linux-runner:dev .
 ```
 

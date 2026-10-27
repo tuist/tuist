@@ -700,8 +700,8 @@ ovhFleets:
     machine:
       adoptDisplayNamePrefix: tuist-runners-ovh-staging
       offer: rise-m
-      # Ordinary hosts stay unenrolled. Move a drained host into the isolated
-      # vRack cohort before setting its live Machine's vRackID explicitly.
+      # Existing hosts are enrolled during drained network maintenance.
+      # All jobs share the direct regional cache path and runner pool.
       # Prefix-matched, so any gra* datacenter.
       datacenter: gra
       os: ubuntu_24.04

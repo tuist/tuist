@@ -1,6 +1,4 @@
-# Server Private Assets (Migrations, Seeds)
-
-This directory contains database migrations and other private assets.
+# Server Migrations, Documentation and Private Assets
 
 - Correlated runner-crash exclusions add a default-false boolean exclusion flag to case executions and filter future commit/automation evidence. Preserve existing provenance filters and historical aggregate states; migrate all ClickHouse deployments before rolling out writers. Roll back application writers before dropping the column.
 
@@ -139,3 +137,5 @@ This directory contains database migrations and other private assets.
 - The Grafana guide distinguishes the neutral percentile-based failed-or-slow metric from explicit duration targets, documents paired cache savings/coverage, and points native failure classification to build details and category filters rather than default table columns.
 
 - Cache-volume writer policy adds an empty-default exact branch list on volumes and auto-default commit intent and nullable additional-branch grant provenance on uses. Preserve existing volume identity, clear epochs and default-branch permissions; document policy data in the export inventory. `runner_cache_volume_uses.commit_mode` and `runner_cache_volumes.writer_branches` are no longer read.
+
+- SSO compatibility removal materializes existing implicit Okta/custom memberships into roles/users_roles before runtime behavior switches. Preserve explicit roles and Google behavior. Retain the unused legacy column until all old releases are gone; do not backfill domain verification or recheck timestamps as part of this switch.

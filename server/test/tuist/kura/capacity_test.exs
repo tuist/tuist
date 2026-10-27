@@ -23,7 +23,7 @@ defmodule Tuist.Kura.CapacityTest do
   # arithmetic under test is the arithmetic production does.
   @node_allocatable_bytes 847_551_469_804
   @allocatable_gib trunc(@node_allocatable_bytes / @gib)
-  @pressure_line_gib trunc(@allocatable_gib * 0.85)
+  @pressure_line_gib trunc(@allocatable_gib * 0.90)
   # us-east co-locates an account's two replicas on one box, so a new instance
   # reserves its plan's starting claim twice.
   @air_instance_gib 8 * 2
@@ -276,10 +276,22 @@ defmodule Tuist.Kura.CapacityTest do
   end
 
   describe "pressure_line_gib/1" do
-    test "leaves kubelet's eviction margin below allocatable" do
+    test "retains ten percent of allocatable in addition to kubelet's reserve" do
       installed(1)
 
-      assert Capacity.pressure_line_gib(@region) == trunc(@allocatable_gib * 0.85)
+      assert Capacity.pressure_line_gib(@region) == trunc(@allocatable_gib * 0.90)
+    end
+
+    test "admits an enterprise instance in Singapore's previously reserved margin" do
+      stub(Environment, :kura_capacity_admission_required?, fn -> true end)
+      stub_pool([disk_box("singapore", 745, [pool_pod(%{"ephemeral-storage" => "622Gi"})])])
+
+      assert Capacity.pressure_line_gib(@region) == 670
+      assert Capacity.room_for?(@region, :enterprise)
+
+      stub_pool([disk_box("singapore", 745, [pool_pod(%{"ephemeral-storage" => "639Gi"})])])
+
+      refute Capacity.room_for?(@region, :enterprise)
     end
   end
 
@@ -893,15 +905,14 @@ defmodule Tuist.Kura.CapacityTest do
     end
 
     test "has no room where admission would refuse the instance, however much the nodes have free" do
-      # us-west on 2026-09-17: one box, 789 GiB allocatable, 664 GiB reserved.
-      # The box has 125 GiB free, but admission stops at 85% of allocatable,
-      # 670 GiB, which leaves 6 GiB against the 16 GiB two Air claims reserve.
+      # One box with 789 GiB allocatable and 704 GiB reserved has 85 GiB
+      # scheduler headroom, but only 6 GiB below the 710 GiB admission line.
       stub(Environment, :kura_capacity_admission_required?, fn -> true end)
 
       stub_pool([
         pool_box("box-1",
           allocatable: %{"ephemeral-storage" => "789Gi"},
-          pods: [pool_pod(%{"ephemeral-storage" => "664Gi"})]
+          pods: [pool_pod(%{"ephemeral-storage" => "704Gi"})]
         )
       ])
 
@@ -911,7 +922,7 @@ defmodule Tuist.Kura.CapacityTest do
       stub_pool([
         pool_box("box-1",
           allocatable: %{"ephemeral-storage" => "789Gi"},
-          pods: [pool_pod(%{"ephemeral-storage" => "654Gi"})]
+          pods: [pool_pod(%{"ephemeral-storage" => "694Gi"})]
         )
       ])
 
@@ -923,7 +934,7 @@ defmodule Tuist.Kura.CapacityTest do
       stub(Environment, :kura_capacity_admission_required?, fn -> true end)
       stub_pool([pool_box("box-1", allocatable: %{"ephemeral-storage" => "100Gi"})])
 
-      # 85 GiB of headroom less a provisioning Enterprise instance's 32.
+      # 90 GiB of headroom less a provisioning Enterprise instance's 32.
       account = account(:enterprise)
       instance(account, :provisioning)
 
