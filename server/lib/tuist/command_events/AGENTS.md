@@ -8,6 +8,7 @@ This context owns command event ingestion and analytics retrieval.
 - Resolve associated user/project metadata and normalize enums.
 - Manage result bundle storage keys and signed download URLs.
 - Enqueue command event ingestion into the buffer.
+- `Event.changeset/1` captures recorded argument arrays before constructing the legacy space-joined string. `command_arguments_recorded` distinguishes unknown historical/legacy boundaries from a recorded empty array. Never split historical strings or infer effective generation scope from missing arguments. Keep the legacy string and its filters compatible; list hydration reads new columns from canonical `command_events`, not optimized index tables.
 
 ## Boundaries
 - HTTP/API and UI code live in `server/lib/tuist_web`.

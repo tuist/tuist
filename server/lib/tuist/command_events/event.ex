@@ -30,6 +30,8 @@ defmodule Tuist.CommandEvents.Event do
     field :name, Ch, type: "String"
     field :subcommand, Ch, type: "Nullable(String)"
     field :command_arguments, Ch, type: "Nullable(String)"
+    field :command_arguments_array, {:array, :string}, default: []
+    field :command_arguments_recorded, Ch, type: "Bool", default: false
     field :duration, Ch, type: "Int32"
     field :client_id, Ch, type: "String"
     field :tuist_version, Ch, type: "String"
@@ -91,6 +93,7 @@ defmodule Tuist.CommandEvents.Event do
       # local build can reference it), falling back to a server-generated UUIDv7 when absent or nil.
       |> Map.update(:id, id, fn existing -> existing || id end)
       |> normalize_status()
+      |> capture_command_arguments()
       |> Map.update(:command_arguments, "", fn
         args when is_list(args) -> Enum.join(args, " ")
         args when is_binary(args) -> args
@@ -104,6 +107,32 @@ defmodule Tuist.CommandEvents.Event do
 
     event_attrs
   end
+
+  def recorded_command_arguments(%{command_arguments_recorded: true, command_arguments_array: arguments}), do: arguments
+
+  def recorded_command_arguments(_event), do: nil
+
+  defp capture_command_arguments(attrs) do
+    arguments = Map.get(attrs, :command_arguments)
+
+    cond do
+      string_list?(arguments) ->
+        attrs
+        |> Map.put(:command_arguments_array, arguments)
+        |> Map.put(:command_arguments_recorded, true)
+
+      Map.get(attrs, :command_arguments_recorded) == true and
+          string_list?(Map.get(attrs, :command_arguments_array)) ->
+        attrs
+
+      true ->
+        attrs
+        |> Map.put(:command_arguments_array, [])
+        |> Map.put(:command_arguments_recorded, false)
+    end
+  end
+
+  defp string_list?(arguments), do: is_list(arguments) and Enum.all?(arguments, &is_binary/1)
 
   defp normalize_status(attrs) do
     if Map.has_key?(attrs, :status) do

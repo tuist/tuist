@@ -45,9 +45,16 @@ defmodule TuistWeb.API.Schemas.Run do
         description: "Subcommand of the run"
       },
       command_arguments: %Schema{
+        type: :string,
+        nullable: true,
+        description: "Recorded command arguments joined with spaces. Argument boundaries are not preserved."
+      },
+      command_arguments_array: %Schema{
         type: :array,
+        nullable: true,
         items: %Schema{type: :string},
-        description: "Arguments passed to the command"
+        description:
+          "Arguments as recorded by the CLI, preserving argument boundaries. Null when unavailable for historical or legacy reports. An empty array means an explicitly recorded empty argument list. Missing or null must be treated as unknown, not as a generation without focus queries. Does not describe effective configuration or which targets were generated from source."
       },
       tuist_version: %Schema{
         type: :string,

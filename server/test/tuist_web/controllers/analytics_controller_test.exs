@@ -32,6 +32,35 @@ defmodule TuistWeb.AnalyticsControllerTest do
   end
 
   describe "POST /api/analytics" do
+    test "preserves the existing client's argument array through ingestion", %{conn: conn, user: user} do
+      account = Accounts.get_account_from_user(user)
+      project = ProjectsFixtures.project_fixture(account_id: account.id)
+      arguments = ["generate", "--configuration", "Debug Scheme", "FocusedTargetName", ""]
+
+      response =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/analytics?project_id=#{account.name}/#{project.name}", %{
+          name: "generate",
+          subcommand: "generate",
+          command_arguments: arguments,
+          duration: 100,
+          tuist_version: "1.0.0",
+          swift_version: "5.0",
+          macos_version: "10.15",
+          params: %{},
+          is_ci: false,
+          client_id: "client-id"
+        })
+        |> json_response(:ok)
+
+      Buffer.flush()
+      assert {:ok, event} = CommandEvents.get_command_event_by_id(response["id"])
+      assert event.command_arguments == Enum.join(arguments, " ")
+      assert CommandEvents.Event.recorded_command_arguments(event) == arguments
+    end
+
     test "errors if it authentices as a project from a non-CI environment", %{
       conn: conn,
       user: user

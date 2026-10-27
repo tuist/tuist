@@ -222,14 +222,8 @@ defmodule Tuist.CommandEvents do
   end
 
   defp insert_command_event(event, project) do
-    # Process the command arguments to be a string for both databases
     processed_event =
       Map.merge(event, %{
-        command_arguments:
-          if(is_list(Map.get(event, :command_arguments)),
-            do: Enum.join(Map.get(event, :command_arguments), " "),
-            else: Map.get(event, :command_arguments)
-          ),
         error_message: truncate_error_message(Map.get(event, :error_message)),
         created_at: Map.get(event, :created_at, Time.utc_now())
       })

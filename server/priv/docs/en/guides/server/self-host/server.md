@@ -188,6 +188,8 @@ Tuist uses [ClickHouse](https://clickhouse.com/) for storing and querying large 
 >
 > The Docker image's entrypoint automatically runs any pending ClickHouse schema migrations before starting the service.
 
+For deployments that override the image entrypoint, complete database migrations before starting the upgraded server or processor replicas. With an existing database, Helm deployments can use `server.migrationJob.enabled=true` and `server.migrationJob.asHook=true` to run migrations as a pre-upgrade hook; otherwise, run and verify migrations as a separate deployment stage. New binaries may select newly added columns on every request, so running a migration Job alongside the upgraded replicas is not sufficient. On replicated ClickHouse, verify schema changes on every serving replica before sending traffic to new binaries. Rolling back application code can leave additive columns in place; do not remove them while any consumer still uses them.
+
 The bundled Docker Compose and Helm embedded ClickHouse configurations lower the ClickHouse text log level from the image's `trace` default to `information`, which is where most of the `system.text_log` volume comes from. Both can also cap ClickHouse's own `system.*` operational log tables, which are otherwise unbounded, but that is off by default — see below. External ClickHouse deployments should configure these operational logs directly in their ClickHouse service.
 
 #### ClickHouse replication topology {#clickhouse-replication-topology}

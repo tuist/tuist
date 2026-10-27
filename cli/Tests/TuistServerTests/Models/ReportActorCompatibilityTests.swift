@@ -48,7 +48,7 @@ struct ReportActorCompatibilityTests {
         #expect(test.test_case_runs.first?.actor?.source == test.actor?.source)
 
         payload.merge([
-            "id": 42, "subcommand": "", "command_arguments": [String](), "tuist_version": "4.0",
+            "id": 42, "subcommand": "", "command_arguments": "", "tuist_version": "4.0",
             "swift_version": "6.0", "macos_version": "15.0", "status": "success", "is_ci": false,
             "git_commit_sha": "", "git_ref": "", "git_branch": "main", "ran_at": 1_790_812_800,
         ]) { _, new in new }

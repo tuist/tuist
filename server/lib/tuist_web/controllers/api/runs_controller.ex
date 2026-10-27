@@ -14,6 +14,7 @@ defmodule TuistWeb.API.RunsController do
   alias OpenApiSpex.Schema
   alias Tuist.Builds
   alias Tuist.Builds.CASOutput
+  alias Tuist.CommandEvents.Event
   alias Tuist.Tests
   alias Tuist.VCS.RemoteURL
   alias TuistWeb.API.Responses
@@ -231,6 +232,7 @@ defmodule TuistWeb.API.RunsController do
       :remote_test_target_hits,
       :preview_id
     ])
+    |> Map.put(:command_arguments_array, Event.recorded_command_arguments(event))
     |> Map.put(:status, status_to_string(event.status))
     |> Map.put(:is_ci, event.is_ci)
     |> Map.put(

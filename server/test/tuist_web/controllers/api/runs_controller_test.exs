@@ -13,6 +13,7 @@ defmodule TuistWeb.API.RunsControllerTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistWeb.API.Schemas.Run
   alias TuistWeb.Authentication
 
   defp get_builds_for_project(project_id, opts \\ []) do
@@ -59,6 +60,40 @@ defmodule TuistWeb.API.RunsControllerTest do
       assert length(run_urls) == 2
       assert Enum.at(run_urls, 0) =~ run_three.id
       assert Enum.at(run_urls, 1) =~ run_two.id
+    end
+
+    for {label, arguments, expected} <- [
+          {"recorded", ["generate", "--configuration", "Debug Scheme", "FocusedTargetName", ""],
+           ["generate", "--configuration", "Debug Scheme", "FocusedTargetName", ""]},
+          {"empty", [], []},
+          {"legacy", "generate --configuration Debug Scheme", nil}
+        ] do
+      test "returns #{label} arguments without changing the legacy string", %{conn: conn, user: user, project: project} do
+        arguments = unquote(Macro.escape(arguments))
+        expected = unquote(Macro.escape(expected))
+        event = CommandEventsFixtures.command_event_fixture(project_id: project.id, command_arguments: arguments)
+
+        for query <- ["", "?name=generate"] do
+          response =
+            conn
+            |> get("/api/projects/#{user.account.name}/#{project.name}/runs#{query}")
+            |> json_response(:ok)
+
+          assert [run] = response["runs"]
+          assert run["id"] == event.id
+          assert run["command_arguments"] == event.command_arguments
+          assert Map.fetch!(run, "command_arguments_array") == expected
+
+          schema = %OpenApiSpex.Schema{
+            type: :object,
+            properties: Map.take(Run.schema().properties, [:command_arguments, :command_arguments_array]),
+            required: [:command_arguments]
+          }
+
+          assert {:ok, _} =
+                   OpenApiSpex.cast_value(Map.take(run, ["command_arguments", "command_arguments_array"]), schema)
+        end
+      end
     end
 
     test "defaults to a page size of 20", %{conn: conn, user: user, project: project} do

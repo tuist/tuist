@@ -10445,11 +10445,18 @@ components:
           x-struct:
           x-validate:
         command_arguments:
-          description: Arguments passed to the command
+          description: Recorded command arguments joined with spaces. Argument boundaries are not preserved.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
+        command_arguments_array:
+          description: Arguments as recorded by the CLI, preserving argument boundaries. Null when unavailable for historical or legacy reports. An empty array means an explicitly recorded empty argument list. Missing or null must be treated as unknown, not as a generation without focus queries. Does not describe effective configuration or which targets were generated from source.
           items:
             type: string
             x-struct:
             x-validate:
+          nullable: true
           type: array
           x-struct:
           x-validate:
@@ -15120,6 +15127,16 @@ paths:
                     description: Command arguments used.
                     nullable: true
                     type: string
+                    x-struct:
+                    x-validate:
+                  command_arguments_array:
+                    description: Arguments as recorded by the CLI, preserving argument boundaries. Null when unavailable for historical or legacy reports. An empty array means an explicitly recorded empty argument list. Missing or null must be treated as unknown, not as a generation without focus queries. Does not describe effective configuration or which targets were generated from source.
+                    items:
+                      type: string
+                      x-struct:
+                      x-validate:
+                    nullable: true
+                    type: array
                     x-struct:
                     x-validate:
                   duration:
@@ -43480,6 +43497,16 @@ paths:
                           description: Command arguments used.
                           nullable: true
                           type: string
+                          x-struct:
+                          x-validate:
+                        command_arguments_array:
+                          description: Arguments as recorded by the CLI, preserving argument boundaries. Null when unavailable for historical or legacy reports. An empty array means an explicitly recorded empty argument list. Missing or null must be treated as unknown, not as a generation without focus queries. Does not describe effective configuration or which targets were generated from source.
+                          items:
+                            type: string
+                            x-struct:
+                            x-validate:
+                          nullable: true
+                          type: array
                           x-struct:
                           x-validate:
                         duration:

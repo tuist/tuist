@@ -68,6 +68,56 @@ defmodule Tuist.CommandEvents.EventTest do
       assert result.command_arguments == "tuist generate --verbose"
     end
 
+    test "preserves argument boundaries independently of the legacy string" do
+      arguments = ["generate", "--configuration", "Debug Scheme", "Focused Target", "", "🎯", "a\"b", "a\\b"]
+      result = Event.changeset(%{command_arguments: arguments})
+
+      assert result.command_arguments == Enum.join(arguments, " ")
+      assert result.command_arguments_array == arguments
+      assert result.command_arguments_recorded
+      assert Event.recorded_command_arguments(result) == arguments
+      assert Event.changeset(result) == result
+    end
+
+    test "distinguishes an empty argument list from a single empty argument" do
+      for arguments <- [[], [""]] do
+        result = Event.changeset(%{command_arguments: arguments})
+
+        assert result.command_arguments == ""
+        assert result.command_arguments_array == arguments
+        assert result.command_arguments_recorded
+        assert Event.recorded_command_arguments(result) == arguments
+      end
+    end
+
+    test "does not infer boundaries from legacy or missing arguments" do
+      for attrs <- [
+            %{},
+            %{command_arguments: nil},
+            %{command_arguments: "generate Debug Scheme"},
+            %{command_arguments: 123},
+            %{command_arguments: ["generate", 123]}
+          ] do
+        result = Event.changeset(attrs)
+
+        assert result.command_arguments_array == []
+        refute result.command_arguments_recorded
+        assert Event.recorded_command_arguments(result) == nil
+      end
+    end
+
+    test "discards invalid recorded arrays" do
+      result =
+        Event.changeset(%{
+          command_arguments: "generate",
+          command_arguments_array: [123],
+          command_arguments_recorded: true
+        })
+
+      refute result.command_arguments_recorded
+      assert result.command_arguments_array == []
+    end
+
     test "preserves command_arguments when already a string" do
       attrs = %{command_arguments: "tuist generate --verbose"}
       result = Event.changeset(attrs)
