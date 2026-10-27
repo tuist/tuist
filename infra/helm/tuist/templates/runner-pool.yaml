@@ -483,7 +483,7 @@ metadata:
   namespace: {{ $namespace | quote }}
   {{- if eq $runtimeClass "kata-qemu" }}
   annotations:
-    tuist.dev/runtime-class-revision: {{ ternary (printf "%s|nested-kvm=v1" $kataRuntimeClassRevision | sha256sum) $kataRuntimeClassRevision $nested | quote }}
+    tuist.dev/runtime-class-revision: {{ ternary (printf "%s|nested-kvm=v2" $kataRuntimeClassRevision | sha256sum) $kataRuntimeClassRevision $nested | quote }}
   {{- end }}
   labels:
     {{- $labels | nindent 4 }}
@@ -585,7 +585,7 @@ metadata:
   namespace: {{ $namespace | quote }}
   {{- if eq $shapeRuntimeClass "kata-qemu" }}
   annotations:
-    tuist.dev/runtime-class-revision: {{ ternary (printf "%s|nested-kvm=v1" $kataRuntimeClassRevision | sha256sum) $kataRuntimeClassRevision $nested | quote }}
+    tuist.dev/runtime-class-revision: {{ ternary (printf "%s|nested-kvm=v2" $kataRuntimeClassRevision | sha256sum) $kataRuntimeClassRevision $nested | quote }}
   {{- end }}
   labels:
     {{- $labels | nindent 4 }}
