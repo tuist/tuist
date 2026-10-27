@@ -384,7 +384,6 @@
           />
         </:actions>
         <div data-part="widgets">
-          <% used_change = storage_trend(data.analytics.storage, :used_bytes, @analytics_period) %>
           <% hit_rate_change =
             hit_rate_trend(
               data.analytics.activity.hit_rate,
@@ -396,17 +395,13 @@
             id="volume-used"
             legend_color={metric_color("used_bytes")}
             title={dgettext("dashboard_runners", "Used space")}
-            value={storage_value(data.analytics.storage, :used_bytes)}
-            trend_value={used_change.value}
-            trend_value_label={used_change.value_label}
-            trend_label={used_change.label}
-            trend_type={:neutral}
+            value={saved_space(volume, metrics)}
             description={
-              storage_description(List.last(data.analytics.storage) || %{}, :unmeasured_copies)
+              dgettext(
+                "dashboard_runners",
+                "Size of the current saved cache, independent of the selected date range."
+              )
             }
-            selected={@detail_metric == "used_bytes"}
-            phx_click="select_detail_metric"
-            phx_value_widget="used_bytes"
           />
           <.widget
             id="volume-hit-rate"

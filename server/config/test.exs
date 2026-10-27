@@ -125,6 +125,9 @@ config :tuist, TuistWeb.Endpoint,
 # transition machinery so its invariants remain covered while that work lands.
 config :tuist, :kura_warm_handoffs_enabled, true
 
+# Exercise the hosted DNS-verification policy unless a test explicitly stubs it.
+config :tuist, :sso_require_login_domain_verification, true
+
 config :tuist,
   api_pipeline_producer_module: Broadway.DummyProducer,
   api_pipeline_producer_options: []

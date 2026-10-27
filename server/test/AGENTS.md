@@ -3,6 +3,8 @@
 - Automation batch/notification tests cover bounded dispatch, scoped watermark ordering, current-condition rechecks, ledger-based retries, stale alert cancellation, encrypted queued destinations, and Slack retry/discard results. Existing evaluation unit tests execute the transition step synchronously; exercise the real Oban dispatch boundary in `alert_evaluation_batch_worker_test.exs`.
 
 ## Testing Guidelines
+- `tuist/accounts/sso_login_domain_trust_test.exs` and Authentication settings/API/callback tests cover strict default-off DNS verification policy parsing, explicit opt-in independently of hosted mode, ordinary organization-administrator configuration, preserved UI/API authorization, domain-matched enrollment/linking, deterministic discovery and ambiguity, later requiring DNS, and recheck independence. `config/test.exs` opts into verification for the hosted regression baseline; stub `Environment.sso_require_login_domain_verification?/0` to false for no-DNS cases, never mutate global configuration. Retain query-count assertions under both policies, Google independence, rejected-save rendering, and successful administrator SSO before enforcement. Whole-account cross-organization email linking without DNS is deliberate for trusted instances.
+
 - Browser telemetry receipt tests use independent PostgreSQL connections to
   verify concurrent overlapping batches, acknowledgment/failure handling and
   stale-owner recovery. Keep pure identity and gateway error-path tests alongside
