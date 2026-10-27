@@ -5,6 +5,7 @@ defmodule Tuist.Application do
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
   alias Tuist.Application.EndpointDrainer
+  alias Tuist.Application.FinchPools
   alias Tuist.Application.RuntimeChildren
   alias Tuist.Builds.Build
   alias Tuist.Builds.BuildFile
@@ -559,8 +560,8 @@ defmodule Tuist.Application do
           # pool, so the fallback pool must handle primary-storage-level load.
           :default => [
             size:
-              max(
-                TuistCommon.FinchPools.download_pool_size(active_download_queue_concurrencies()),
+              FinchPools.default_pool_size(
+                Application.fetch_env!(:tuist, Oban)[:queues],
                 Environment.s3_pool_size()
               ),
             count: Environment.s3_pool_count(),
@@ -607,21 +608,6 @@ defmodule Tuist.Application do
         end)
 
       Map.merge(base_pools, additional_pools)
-    end
-  end
-
-  defp active_download_queue_concurrencies do
-    :tuist
-    |> Application.fetch_env!(Oban)
-    |> Keyword.get(:queues, [])
-    |> case do
-      queues when is_list(queues) ->
-        queues
-        |> Keyword.take([:process_build, :process_xcresult])
-        |> Keyword.values()
-
-      _ ->
-        []
     end
   end
 
