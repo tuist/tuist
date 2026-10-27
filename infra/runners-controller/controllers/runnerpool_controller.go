@@ -92,6 +92,10 @@ type RunnerPoolReconciler struct {
 	APIReader client.Reader
 	Scheme    *runtime.Scheme
 
+	// SandboxesNamespace holds the daemon allocations that cannot be freed by
+	// draining runner Pods. Empty disables sandbox accounting.
+	SandboxesNamespace string
+
 	// SessionsClient closes a Pod's billing session immediately before
 	// the reap deletes it — see reapRunner for why the ordering matters.
 	// nil disables reporting; the reap itself still runs.

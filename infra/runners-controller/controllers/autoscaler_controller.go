@@ -451,12 +451,8 @@ func (s podShape) key() string {
 // memory-per-vCPU is richer than its host's. Per-node `min` answers the
 // question kube-scheduler will actually be asked.
 //
-// darwin only, deliberately. Linux runner Pods are kata microVMs that
-// pin memory per sandbox while CPU is intentionally oversubscribed, so a
-// CPU quotient there would cap a fleet that is not CPU-bound; and those
-// hosts are homogeneous, so the byte budget is already exact.
-//
-// An empty result (no nodes, or a non-darwin pool) disables the cap.
+// Both platforms schedule on CPU and memory requests. Linux sandbox daemon
+// allocations come off each node before computing its runner seats.
 func (r *AutoscalerReconciler) shapePlacementCaps(
 	ctx context.Context,
 	pool *tuistv1.RunnerPool,
@@ -472,6 +468,15 @@ func (r *AutoscalerReconciler) shapePlacementCaps(
 	var nodes corev1.NodeList
 	if err := r.List(ctx, &nodes, fleetNodeSelector(pool)); err != nil {
 		return nil, fmt.Errorf("list %s fleet nodes for shape caps: %w", pool.Spec.OS, err)
+	}
+	if pool.Spec.OS == "linux" {
+		daemons, err := r.sandboxDaemons(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for i := range nodes.Items {
+			nodes.Items[i] = *nodeWithoutSandboxes(&nodes.Items[i], daemons)
+		}
 	}
 
 	caps := make(map[string]int32, len(shapes))
@@ -702,7 +707,11 @@ func (r *AutoscalerReconciler) fleetAllocatableMemory(ctx context.Context, fleet
 	// not cover, and they move: counting them here is what hands memory to
 	// the warm pools when a carve-out shrinks and takes it back when one
 	// grows.
-	budget := int64(float64(total)*reserve) - sandboxMemoryOnNodes(r.sandboxDaemons(ctx), included)
+	daemons, err := r.sandboxDaemons(ctx)
+	if err != nil {
+		return 0, err
+	}
+	budget := int64(float64(total)*reserve) - sandboxMemoryOnNodes(daemons, included)
 	return max(budget, 0), nil
 }
 

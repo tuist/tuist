@@ -5,6 +5,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
   alias Tuist.Accounts.AuthenticatedAccount
+  alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Sandboxes.Capacity
   alias Tuist.Sandboxes.Nodes
@@ -13,6 +14,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
   alias TuistWeb.Authentication
 
   setup %{conn: conn} do
+    stub(Environment, :tuist_hosted?, fn -> true end)
     user = AccountsFixtures.user_fixture(preload: [:account])
 
     conn =
@@ -25,7 +27,7 @@ defmodule TuistWeb.API.SandboxesControllerTest do
 
   describe "account flag" do
     test "answers 404 in production for an account without the sandboxes flag", %{conn: conn, account: account} do
-      stub(Tuist.Environment, :env, fn -> :prod end)
+      stub(Environment, :env, fn -> :prod end)
       stub(FunWithFlags, :enabled?, fn :sandboxes, [for: _account] -> false end)
       reject(&Capacity.place/1)
 

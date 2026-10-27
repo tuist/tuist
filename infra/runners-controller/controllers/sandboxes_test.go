@@ -117,7 +117,10 @@ func TestSandboxDaemonsReadWhatTheSchedulerCountsAndWhatAGrowthWaitsFor(t *testi
 		unbound,
 	)
 
-	daemons := r.sandboxDaemons(context.Background())
+	daemons, err := r.sandboxDaemons(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
 	sort.Slice(daemons, func(a, b int) bool { return daemons[a].name < daemons[b].name })
 	if len(daemons) != 2 {
 		t.Fatalf("daemons = %+v, want the two bound ones", daemons)
@@ -134,8 +137,8 @@ func TestSandboxDaemonsAreOffWithoutANamespace(t *testing.T) {
 	r, _ := sandboxFixture(t, sandboxDaemonPod("sandboxd-a", "node-a", 16, 8, true))
 	r.SandboxesNamespace = ""
 
-	if daemons := r.sandboxDaemons(context.Background()); len(daemons) != 0 {
-		t.Fatalf("daemons = %+v, want none when the chart runs no sandboxes", daemons)
+	if daemons, err := r.sandboxDaemons(context.Background()); len(daemons) != 0 || err != nil {
+		t.Fatalf("daemons = %+v, err = %v, want none when the chart runs no sandboxes", daemons, err)
 	}
 }
 
@@ -268,5 +271,194 @@ func TestAutoscaler_RemembersARetiredRunnerAfterItLeavesTheAPI(t *testing.T) {
 	reconcileOnce(t, r, pool.Name)
 	if marked := markedPods(t, c, pool.Name); len(marked) != 0 {
 		t.Fatalf("marked = %v, want no second runner for the same 1 GiB growth", marked)
+	}
+}
+
+func TestSandboxShapeCapsUsePerNodeAllocations(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		asked, allocated int64
+	}{
+		{"steady", 40, 40},
+		{"deferred growth", 40, 1},
+		{"unapplied shrink", 1, 40},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := linuxNodeWithResources("node-a", "runners-linux", 32, 64*1024)
+			b := linuxNodeWithResources("node-b", "runners-linux", 32, 64*1024)
+			r, _ := sandboxFixture(t, a, b)
+			// The daemon namespace is deliberately absent from the cache.
+			r.APIReader = fake.NewClientBuilder().WithScheme(r.Scheme).WithObjects(
+				sandboxDaemonPod("sandboxd", a.Name, tc.asked, tc.allocated, tc.asked > tc.allocated),
+			).Build()
+			shape := podShape{cpuMilli: 8000, memoryMB: 32 * 1024}
+			caps, err := r.shapePlacementCaps(context.Background(), linuxFleetPool("large", 1, 32768, 0, 4), map[string]podShape{shape.key(): shape})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if caps[shape.key()] != 2 {
+				t.Fatalf("caps = %v, want two seats on node-b and none on node-a", caps)
+			}
+			var original corev1.Node
+			if err := r.Get(context.Background(), client.ObjectKey{Name: a.Name}, &original); err != nil {
+				t.Fatal(err)
+			}
+			if original.Status.Allocatable.Memory().Value() != 64*gib {
+				t.Fatal("accounting mutated the node's allocatable")
+			}
+		})
+	}
+}
+
+func TestSandboxDaemonCountsUntilTerminationFinishes(t *testing.T) {
+	pod := sandboxDaemonPod("draining", "node-a", 16, 8, true)
+	stamp := metav1.NewTime(preemptionNow)
+	pod.DeletionTimestamp = &stamp
+	pod.Finalizers = []string{"test/draining"}
+	done := sandboxDaemonPod("done", "node-a", 16, 16, false)
+	done.Status.Phase = corev1.PodSucceeded
+	r, _ := sandboxFixture(t, pod, done)
+	daemons, err := r.sandboxDaemons(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(daemons) != 1 || daemons[0].memory != 16*gib || daemons[0].deferred != 0 {
+		t.Fatalf("daemons = %+v, want draining allocation without further preemption", daemons)
+	}
+}
+
+type sandboxReadFailure struct{ client.Reader }
+
+func (r sandboxReadFailure) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	if _, ok := list.(*corev1.PodList); ok {
+		return fmt.Errorf("sandbox namespace unavailable")
+	}
+	return r.Reader.List(ctx, list, opts...)
+}
+
+func TestSandboxReadFailureDoesNotReserveAHost(t *testing.T) {
+	pool := linuxMidPool()
+	starved := kataPod(pendingPod("large", pool.Name, 5*time.Minute), 16000, 32768)
+	r := reservationReconciler(pool, linuxSmallPool(), riseLNode("node-a"), riseLNode("node-b"), starved)
+	r.SandboxesNamespace = "tuist-sandboxes"
+	r.APIReader = sandboxReadFailure{Reader: r.Client}
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err == nil {
+		t.Fatal("want sandbox read failure")
+	}
+	for _, name := range []string{"node-a", "node-b"} {
+		if isReserved(nodeByName(t, r, name)) {
+			t.Fatalf("reserved %s without knowing its sandbox allocation", name)
+		}
+	}
+}
+
+func TestReservationCountsSandboxMemoryBesideRunningJobs(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		asked, allocated int64
+	}{
+		{"growth", 32, 1}, {"shrink", 1, 32},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pool := linuxMidPool()
+			starved := kataPod(pendingPod("large", pool.Name, 45*time.Second), 16000, 32768)
+			a, b := riseLNode("node-a"), riseLNode("node-b")
+			a.Status.Allocatable[corev1.ResourceMemory] = resource.MustParse("64Gi")
+			b.Status.Allocatable[corev1.ResourceMemory] = resource.MustParse("64Gi")
+			r := reservationReconciler(pool, linuxSmallPool(), a, b, starved,
+				kataPod(placedPod("a-job", linuxSmallPoolName, a.Name, "owner"), 2000, 8192),
+				kataPod(placedPod("a-warm", linuxSmallPoolName, a.Name, ""), 2000, 8192),
+				kataPod(placedPod("b-job", linuxSmallPoolName, b.Name, "owner"), 2000, 8192),
+				kataPod(placedPod("b-warm", linuxSmallPoolName, b.Name, ""), 2000, 8192),
+				sandboxDaemonPod("sandboxd", a.Name, tc.asked, tc.allocated, tc.asked > tc.allocated),
+			)
+			r.SandboxesNamespace = "tuist-sandboxes"
+			if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+				t.Fatal(err)
+			}
+			if isReserved(nodeByName(t, r, a.Name)) {
+				t.Fatal("node-a cannot fit the runner plus Kata overhead beside its sandbox allocation")
+			}
+			if !isReserved(nodeByName(t, r, b.Name)) {
+				t.Fatal("node-b should be reserved once idle runners can make room")
+			}
+		})
+	}
+}
+
+func TestReservationWaitsForJobsWhenSandboxMemoryPreventsEarlyFit(t *testing.T) {
+	pool := linuxMidPool()
+	starved := kataPod(pendingPod("large", pool.Name, 45*time.Second), 16000, 32768)
+	a, b := riseLNode("node-a"), riseLNode("node-b")
+	a.Status.Allocatable[corev1.ResourceMemory] = resource.MustParse("80Gi")
+	b.Status.Allocatable[corev1.ResourceMemory] = resource.MustParse("80Gi")
+	r := reservationReconciler(pool, linuxSmallPool(), a, b, starved,
+		kataPod(placedPod("a-job", "job", a.Name, "owner"), 2000, 16384),
+		kataPod(placedPod("a-warm", linuxSmallPoolName, a.Name, ""), 2000, 8192),
+		kataPod(placedPod("b-job", "job", b.Name, "owner"), 2000, 16384),
+		kataPod(placedPod("b-warm", linuxSmallPoolName, b.Name, ""), 2000, 8192),
+		sandboxDaemonPod("sandboxd-a", a.Name, 32, 32, false),
+		sandboxDaemonPod("sandboxd-b", b.Name, 32, 32, false),
+	)
+	r.SandboxesNamespace = "tuist-sandboxes"
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{a.Name, b.Name} {
+		if isReserved(nodeByName(t, r, name)) {
+			t.Fatalf("%s cannot clear until a running job finishes", name)
+		}
+	}
+	// After the normal grace, a progressive drain is still useful: the shape
+	// fits beside the daemon once the running job finishes naturally.
+	r.Now = func() time.Time { return reservationNow.Add(3 * time.Minute) }
+	if err := r.reconcileReservation(context.Background(), pool, []corev1.Pod{*starved}); err != nil {
+		t.Fatal(err)
+	}
+	if !isReserved(nodeByName(t, r, a.Name)) {
+		t.Fatal("want a progressive drain after the full grace")
+	}
+}
+
+func TestSandboxShapeCapsIncludeDaemonCPURequest(t *testing.T) {
+	node := linuxNodeWithResources("node-a", "runners-linux", 16, 64*1024)
+	pod := sandboxDaemonPod("sandboxd", node.Name, 1, 1, false)
+	pod.Spec.Containers[0].Resources.Requests[corev1.ResourceCPU] = resource.MustParse("250m")
+	r, _ := sandboxFixture(t, node, pod)
+	shape := podShape{cpuMilli: 8000, memoryMB: 8192}
+	caps, err := r.shapePlacementCaps(context.Background(), linuxFleetPool("small", 1, 8192, 0, 4), map[string]podShape{shape.key(): shape})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if caps[shape.key()] != 1 {
+		t.Fatalf("caps = %v, want one 8-CPU runner beside the daemon's 250m", caps)
+	}
+}
+
+func TestSandboxAccountingPropagatesReadFailures(t *testing.T) {
+	r, _ := sandboxFixture(t, linuxNodeWithResources("node-a", "runners-linux", 32, 64*1024))
+	r.APIReader = sandboxReadFailure{Reader: r.Client}
+	pool := linuxFleetPool("small", 1, 8192, 0, 4)
+	shape := podShape{cpuMilli: 8000, memoryMB: 8192}
+	if _, err := r.shapePlacementCaps(context.Background(), pool, map[string]podShape{shape.key(): shape}); err == nil {
+		t.Fatal("want unknown sandbox allocation to fail shape calculation")
+	}
+	if _, err := r.fleetAllocatableMemory(context.Background(), "runners-linux"); err == nil {
+		t.Fatal("want unknown sandbox allocation to fail byte-budget calculation")
+	}
+}
+
+func TestSandboxMemoryKeepsAppliedResourcesDuringShrink(t *testing.T) {
+	pod := sandboxDaemonPod("sandboxd", "node-a", 1, 1, false)
+	pod.Status.ContainerStatuses[0].Resources = &corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("40Gi")},
+	}
+	r, _ := sandboxFixture(t, pod)
+	daemons, err := r.sandboxDaemons(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(daemons) != 1 || daemons[0].memory != 40*gib {
+		t.Fatalf("daemons = %+v, want the still-applied 40 GiB", daemons)
 	}
 }

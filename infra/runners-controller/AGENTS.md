@@ -162,7 +162,8 @@ Reconciles `RunnerPool` Pods/per-Pod SAs and desired replicas. Run `go test ./..
     `TUIST_SANDBOXES_NAMESPACE`, an env var so a controller release that
     predates it ignores the chart setting it) share these nodes. Their
     memory is subtracted from the budget after the reserve fraction: the
-    larger of each daemon Pod's request and what the kubelet allocated,
+    largest of each daemon Pod's request, what the kubelet allocated and
+    the container resources it still reports as applied,
     which is what the scheduler counts. The Tuist server resizes those Pods
     in place, growing a node's carve-out when sandboxes need more than the
     floor and shrinking it back once they pause, so warm pools shrink while
@@ -180,7 +181,13 @@ Reconciles `RunnerPool` Pods/per-Pod SAs and desired replicas. Run `go test ./..
     leave the API before the kubelet applies the growth, and the next tick
     would otherwise retire another runner for it. Daemon Pods are read
     through the uncached `APIReader`, since the manager caches only the
-    runners namespace; a failed read budgets the fleet without them.
+    runners namespace. A failed read propagates to the existing autoscaler
+    fallback and prevents sandbox preemption or new host reservation.
+    Per-node shape caps and reservation calculations subtract the same
+    allocation plus the daemon's CPU request, including pending shrinks and
+    terminating daemons. Never write the adjusted allocatable back to a Node.
+    See [sharing policy](../sandboxd/fleet-sharing.md) for the proposed
+    coordination between CI demand and sandbox growth.
   - macOS: budget = sum of allocatable memory across nodes labeled
     `tuist.dev/fleet=<FleetSelector>` + `kubernetes.io/os=darwin`,
     unscaled; cost = `spec.podMemoryMB` (no RuntimeClass — the guest is
@@ -294,7 +301,9 @@ Reconciles `RunnerPool` Pods/per-Pod SAs and desired replicas. Run `go test ./..
     idle runners and no seat in flight, or, on Linux, the starved Pod's
     request plus RuntimeClass overhead fits beside the host's jobs, seats in
     flight and non-runner Pods once its idle runners are retired. Pods
-    outside the runners namespace are not counted. The RunnerPool reconciler
+    outside the runners namespace are not counted except sandbox daemons,
+    whose allocation is read separately and cannot be drained by retiring
+    runners. The RunnerPool reconciler
     then taints one eligible host
     `tuist.dev/reserved-for=<pool>:NoSchedule`, preferring a host that
     clears at once, then the fewest running jobs and, among those, one

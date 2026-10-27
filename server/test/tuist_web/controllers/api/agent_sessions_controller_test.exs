@@ -4,6 +4,7 @@ defmodule TuistWeb.API.AgentSessionsControllerTest do
 
   import TuistTestSupport.Fixtures.SandboxesFixtures
 
+  alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Sandboxes.AgentSession
   alias Tuist.Sandboxes.Anthropic.ControlPlane
@@ -11,6 +12,7 @@ defmodule TuistWeb.API.AgentSessionsControllerTest do
   alias TuistWeb.Authentication
 
   setup %{conn: conn} do
+    stub(Environment, :tuist_hosted?, fn -> true end)
     user = AccountsFixtures.user_fixture(preload: [:account])
 
     conn =

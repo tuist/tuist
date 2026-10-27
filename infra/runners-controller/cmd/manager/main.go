@@ -130,6 +130,7 @@ func main() {
 	if err := (&controllers.RunnerPoolReconciler{
 		Client:              mgr.GetClient(),
 		APIReader:           mgr.GetAPIReader(),
+		SandboxesNamespace:  sandboxesNS,
 		Scheme:              mgr.GetScheme(),
 		SessionsClient:      sessionsClient,
 		DispatchURL:         dispatchURL,

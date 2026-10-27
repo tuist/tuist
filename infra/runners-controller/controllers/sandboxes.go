@@ -9,10 +9,10 @@ import (
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
 )
@@ -36,49 +36,77 @@ const (
 type sandboxDaemon struct {
 	name string
 	node string
-	// memory is the larger of what the Pod asks for and what the kubelet
-	// has allocated it, which is what the scheduler counts on the node.
-	memory int64
+	// memory is the largest of the request, allocated resources and applied
+	// container resources, so an incomplete shrink never frees memory early.
+	memory   int64
+	cpuMilli int64
 	// deferred is how many more bytes a growth the kubelet deferred is
 	// waiting for on the node.
 	deferred int64
 }
 
 // sandboxDaemons lists the bound sandbox daemon Pods. The sandboxes namespace
-// is outside the manager's cache, so the read is uncached. A failed read is
-// logged and reads as no daemons: the fleet then budgets as it did before
-// sandboxes shared it.
-func (r *AutoscalerReconciler) sandboxDaemons(ctx context.Context) []sandboxDaemon {
-	if r.SandboxesNamespace == "" {
-		return nil
-	}
+// is outside the manager's cache, so the read is uncached. Unknown capacity
+// must not be treated as free capacity, especially before reserving a host.
+func (r *AutoscalerReconciler) sandboxDaemons(ctx context.Context) ([]sandboxDaemon, error) {
 	var reader client.Reader = r.Client
 	if r.APIReader != nil {
 		reader = r.APIReader
 	}
+	return listSandboxDaemons(ctx, reader, r.SandboxesNamespace)
+}
+
+func listSandboxDaemons(ctx context.Context, reader client.Reader, namespace string) ([]sandboxDaemon, error) {
+	if namespace == "" {
+		return nil, nil
+	}
 	var pods corev1.PodList
-	if err := reader.List(ctx, &pods, client.InNamespace(r.SandboxesNamespace), client.MatchingLabels{sandboxdLabel: "true"}); err != nil {
-		log.FromContext(ctx).Error(err, "list sandbox daemons; budgeting the fleet without them")
-		return nil
+	if err := reader.List(ctx, &pods, client.InNamespace(namespace), client.MatchingLabels{sandboxdLabel: "true"}); err != nil {
+		return nil, fmt.Errorf("list sandbox daemons: %w", err)
 	}
 	daemons := make([]sandboxDaemon, 0, len(pods.Items))
 	for i := range pods.Items {
 		pod := &pods.Items[i]
-		if pod.Spec.NodeName == "" || !isAlive(pod) {
+		if pod.Spec.NodeName == "" || pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
 			continue
 		}
 		asked, allocated := daemonMemory(pod)
 		daemon := sandboxDaemon{name: pod.Name, node: pod.Spec.NodeName, memory: max(asked, allocated)}
-		if resizeDeferred(pod) && asked > allocated {
+		footprint := podFootprint(pod)
+		daemon.cpuMilli = footprint.Cpu().MilliValue()
+		// A deleting daemon still holds its allocation while it pauses VMs.
+		if pod.DeletionTimestamp.IsZero() && resizeDeferred(pod) && asked > allocated {
 			daemon.deferred = asked - allocated
 		}
 		daemons = append(daemons, daemon)
 	}
-	return daemons
+	return daemons, nil
 }
 
-// daemonMemory returns the daemon container's requested memory and what the
-// kubelet has allocated it, which trails the request while a resize waits.
+// nodeWithoutSandboxes is a calculation-only copy. Runner occupancy is still
+// counted by the allocator/reservation logic, but daemon allocations cannot
+// become runner seats. Never patch this adjusted allocatable back to a Node.
+func nodeWithoutSandboxes(node *corev1.Node, daemons []sandboxDaemon) *corev1.Node {
+	available := node.DeepCopy()
+	for _, daemon := range daemons {
+		if daemon.node != node.Name {
+			continue
+		}
+		for name, used := range (corev1.ResourceList{
+			corev1.ResourceMemory: *resource.NewQuantity(daemon.memory, resource.BinarySI),
+			corev1.ResourceCPU:    *resource.NewMilliQuantity(daemon.cpuMilli, resource.DecimalSI),
+		}) {
+			if quantity, ok := available.Status.Allocatable[name]; ok {
+				quantity.Sub(used)
+				available.Status.Allocatable[name] = quantity
+			}
+		}
+	}
+	return available
+}
+
+// daemonMemory returns requested memory and the larger of allocated/applied
+// memory, both of which can trail the request while a resize waits.
 func daemonMemory(pod *corev1.Pod) (asked, allocated int64) {
 	for _, c := range pod.Spec.Containers {
 		if c.Name == sandboxdContainer {
@@ -97,6 +125,11 @@ func daemonMemory(pod *corev1.Pod) (asked, allocated int64) {
 		} else if cs.Resources != nil {
 			if q, ok := cs.Resources.Requests[corev1.ResourceMemory]; ok {
 				allocated = q.Value()
+			}
+		}
+		if cs.Resources != nil {
+			if q, ok := cs.Resources.Requests[corev1.ResourceMemory]; ok {
+				allocated = max(allocated, q.Value())
 			}
 		}
 	}
@@ -209,7 +242,11 @@ func (r *AutoscalerReconciler) preemptForSandboxGrowth(
 		inFleet[nodes.Items[i].Name] = true
 	}
 	deficits := map[string]int64{}
-	for _, d := range r.sandboxDaemons(ctx) {
+	daemons, err := r.sandboxDaemons(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, d := range daemons {
 		if d.deferred > 0 && inFleet[d.node] {
 			deficits[d.node] += d.deferred
 		}

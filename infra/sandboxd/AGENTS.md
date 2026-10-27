@@ -302,6 +302,8 @@ acknowledged by the server's poller; the worker never polls.
 
 ## Not yet
 
+Runner/sandbox capacity policy and rollout gates: [fleet-sharing.md](fleet-sharing.md).
+
 Diff snapshots, userfaultfd restore from object storage, cross-node resume,
 per-account egress policy, non-root execution in the guest, Claude Code
 self-hosted runners.
