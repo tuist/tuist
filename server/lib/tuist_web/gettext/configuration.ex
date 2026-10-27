@@ -10,6 +10,11 @@ defmodule TuistWeb.Gettext.Configuration do
       end
 
     quote bind_quoted: [allowed_locales: allowed_locales] do
+      # Gettext compiles each locale/domain module in a ParallelCompiler async task that
+      # waits on the plural module. If it is not compiled yet, the compiler only resumes
+      # those tasks on its 10s threshold tick, stalling cold compiles for ~30 minutes.
+      require TuistWeb.Gettext.Plural
+
       use Gettext.Backend,
         otp_app: :tuist,
         allowed_locales: allowed_locales,
