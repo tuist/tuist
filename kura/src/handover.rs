@@ -34,7 +34,7 @@ const DESCRIPTOR_BATCH_METADATA_BYTES: usize = 256 * 1024;
 const MAX_VERIFIED_CONTENT: usize = 2_000_000;
 const CONTENT_WALK_DEADLINE_MARGIN_MS: u64 = 30_000;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Intent {
     pub id: String,
     pub destination: Holder,
