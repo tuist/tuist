@@ -75,6 +75,15 @@ run of this workflow in HEAD's history with a successful `… / Deploy to tuist`
 job. Do not use the deployments API: other workflows record deployments to the
 same environment. When the base cannot be resolved, the push deploys.
 
+Sandbox guest templates publish through `sandbox-image.yml`, called by both
+server deployment workflows. Keep template-only changes in the production
+path gate, require publication before every deploy leg, and promote one source
+version through canary and production. Source tags must remain stable across
+unrelated server changes. Pre-built server deploys without a template override
+preserve the live template; never fall back to an old chart pin on rollback.
+Validate with `mise exec -- node --test .github/scripts/sandbox-deployment.test.mjs` and
+actionlint on the three workflows. PR image validation has read-only permissions.
+
 ## Atlas deployment validation
 
 `workflows/atlas-deployment-validation.yml` runs the standalone Compose/Helm

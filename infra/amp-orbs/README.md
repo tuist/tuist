@@ -4,7 +4,7 @@ This adapter implements [Amp's self-hosted Orb dispatch contract](https://ampcod
 
 ## Install
 
-1. Deploy the sandbox substrate and matching controller introduced by #12886, apply the `amp_orb_id` migration, and deploy this server. Build and publish the updated `infra/sandbox-image` template and select its immutable tag in the sandbox chart. Existing VMs keep their original rootfs; they do not gain Amp through a template upgrade.
+1. Deploy the sandbox substrate and matching controller introduced by #12886, apply the `amp_orb_id` migration, and deploy this server. Normal server deployments publish the updated `infra/sandbox-image` template and select its immutable tag automatically (see below). Existing VMs keep their original rootfs; they do not gain Amp through a template upgrade.
 2. Enable the account's `sandboxes` feature flag. The existing five-live-sandbox limit includes paused Orbs. Arrange disk capacity before increasing that limit; long-lived Orbs continue to reserve their full disk ceiling.
 3. Install Amp and Tuist on the controller, together with Bash, curl and jq. Create the `amp-provider` service user with a writable home and authenticate it with `tuist auth login --url <Tuist URL>` as an account administrator. With `TUIST_TOKEN` unset, each dispatch uses `tuist auth token --url` to refresh credentials through the CLI; revoked authorization still requires a new login. In Amp workspace Settings → Orbs, add a provider and store its token in the controller's secret environment. Use an account administrator's Tuist bearer token for the API, not a project/CI credential.
 4. Install `dispatch.sh` at `/opt/tuist-amp-orbs/dispatch.sh`, executable. Supply the following environment through your service manager's protected environment file:
@@ -26,7 +26,16 @@ Start `amp orb provider /opt/tuist-amp-orbs/dispatch.sh`. An example systemd ser
 
 Choose this provider in Amp's new-thread Orb picker, or run `amp -ox 'your prompt' --orb-provider <provider-name>`. Amp clones the repository, applies `.agents/setup` and manages Git credentials. Tuist launches `amp orb bootstrap` as `user` with `/home/user` writable and passwordless sudo. `/home/user/workspace` points to `/workspace/amp` on the VM's separately budgeted workspace disk.
 
+## Template deployment
+
+`server-production-deployment.yml` treats guest image and publisher changes as deployable. Before canary, it calls `sandbox-image.yml` to test and publish the template, then passes the same `sandbox_template_image_tag` to canary and production through the existing acceptance gates. The existing hotfix path also requires a successfully published template. Staging is an independently dispatched server deployment; a fresh deployment builds/selects its template automatically too.
+
+The tag is `sha-<12-character source commit>`, resolved from the last guest image, publisher workflow or version-resolver change reachable from the deployment commit. Unrelated server changes reuse the published image and do not roll sandboxd merely to change the template tag. Publication is serialized, existing tags are reused, and registry authentication/network failures stop the publisher. A new template tag changes the DaemonSet's init image and template directory; its rollout installs the image on each sandbox node. Existing Orb disks remain on their original guest image.
+
+For a server-only rollback or re-promotion (`image_tag` supplied), the workflow preserves the template currently configured on sandboxd unless `sandbox_template_image_tag` is explicitly supplied. It fails if it cannot determine that live version; a first installation with a pre-built server must supply the template tag. The fixed template tags in managed Helm values are bootstrap defaults for direct chart users, overridden by normal deployments. The sandboxd daemon image remains separately pinned.
+
 ## Lifecycle and persistence
+
 
 - **Spawn:** find/create by account and Orb ID, obtain the usual CI-first admission grant, resume if needed, record an active residency, then invoke Amp bootstrap with the new token. Retried jobs reuse the same VM. A placed VM in error is preserved for diagnosis rather than silently replaced. A failed placement without a node can be retried.
 - **Active turn:** no Tuist wall-clock expiry. Residency protects the detached Amp process from idle pause and CI reclaim. Amp owns idle detection. If the provider is down, active Orbs can keep consuming RAM until it reconnects and delivers pause/delete; monitor provider availability and reconcile these explicitly.
@@ -54,6 +63,8 @@ Rollback: stop the provider, explicitly pause active Orbs, and retain their rows
 
 ```sh
 node --test infra/amp-orbs/dispatch.test.mjs
+# Includes Helm rendering; mise supplies the pinned helm/yq tools.
+mise exec -- node --test .github/scripts/sandbox-deployment.test.mjs
 bash -n infra/amp-orbs/dispatch.sh infra/sandbox-image/orb-bootstrap.sh
 # From server/, with isolated test databases:
 mix test test/tuist/sandboxes/amp_orbs_test.exs \

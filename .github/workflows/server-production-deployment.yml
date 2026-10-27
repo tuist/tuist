@@ -276,7 +276,7 @@ jobs:
           # Docs under k8s-monitoring are in paths-ignore and never deploy.
           deployable_paths="$(printf '%s\n' "$changed" \
             | grep -vE '^infra/helm/k8s-monitoring/.*\.md$' \
-            | grep -E '^(server/|codebase-search/|registry/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)' \
+            | grep -E '^(server/|codebase-search/|registry/|tuist_common/|noora/|infra/kura-controller/|infra/sandbox-image/|\.github/scripts/sandbox-(image-version|image-exists|template-tag)\.sh$|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment|sandbox-image)\.yml)' \
             || true)"
           if [ -n "$deployable_paths" ]; then
             echo "Deployable paths changed since $base:"
@@ -1164,6 +1164,26 @@ jobs:
   # optionally with a pre-built image_tag). This cascade's own dispatch only
   # redeploys main's head.
   # --------------------------------------------------------------------------
+  build-sandbox-template:
+    name: Publish sandbox template
+    needs: [check-releases]
+    if: >-
+      always() &&
+      needs.check-releases.result == 'success' &&
+      (
+        needs.check-releases.outputs.deployable-changed == 'true' ||
+        needs.check-releases.outputs.linux-runner-image-should-release == 'true' ||
+        needs.check-releases.outputs.runners-controller-should-release == 'true' ||
+        needs.check-releases.outputs.stable-egress-controller-should-release == 'true' ||
+        needs.check-releases.outputs.egress-tree-agent-should-release == 'true' ||
+        needs.check-releases.outputs.capi-scaleway-should-release == 'true' ||
+        needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
+        needs.check-releases.outputs.kura-changed == 'true'
+      )
+    uses: ./.github/workflows/sandbox-image.yml
+    with:
+      commit_sha: ${{ github.sha }}
+
   build:
     name: Build server image
     needs: [check-releases]
@@ -1414,12 +1434,12 @@ jobs:
   # fast-path ships straight to production without waiting on the canary
   # cascade.
   canary:
-    needs: [check-releases, build, build-images, build-xcresult-processor-release, tag-infra-releases, kura-release]
+    needs: [check-releases, build, build-images, build-sandbox-template, build-xcresult-processor-release, tag-infra-releases, kura-release]
     # `build` runs under `if: always()` so it survives the many skipped sibling
     # release jobs. A plain-`if` dependent of an `always()`-guarded job gets
     # caught by skip-propagation and is itself skipped even when `build`
     # succeeded, so the whole deploy tail must re-assert success explicitly.
-    if: ${{ always() && needs.build.result == 'success' && needs.build-images.result == 'success' && needs.build-xcresult-processor-release.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
+    if: ${{ always() && needs.build.result == 'success' && needs.build-images.result == 'success' && needs.build-sandbox-template.result == 'success' && needs.build-xcresult-processor-release.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
     # server-deployment.yml's build-kura-runtime job requests id-token: write;
     # a reusable workflow's permissions are validated against the caller at
     # startup, so this leg must grant the callee's full permission union.
@@ -1435,6 +1455,7 @@ jobs:
       kura_controller_image_tag: ${{ needs.build.outputs.image_tag }}
       codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
       registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
+      sandbox_template_image_tag: ${{ needs.build-sandbox-template.outputs.image_tag }}
       xcresult_processor_release_digest: ${{ needs.build-xcresult-processor-release.outputs.tarball_digest }}
       install_platform: ${{ needs.check-releases.outputs.platform-changed != 'false' }}
       install_observability: ${{ needs.check-releases.outputs.observability-changed != 'false' }}
@@ -1764,6 +1785,7 @@ jobs:
         check-releases,
         build,
         build-images,
+        build-sandbox-template,
         build-xcresult-processor-release,
         canary,
         acceptance-tests,
@@ -1776,6 +1798,7 @@ jobs:
       always() &&
       needs.build.result == 'success' &&
       needs.build-images.result == 'success' &&
+      needs.build-sandbox-template.result == 'success' &&
       needs.build-xcresult-processor-release.result == 'success' &&
       needs.tag-infra-releases.result == 'success' &&
       needs.canary.result == 'success' &&
@@ -1797,6 +1820,7 @@ jobs:
       kura_controller_image_tag: ${{ needs.build.outputs.image_tag }}
       codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
       registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
+      sandbox_template_image_tag: ${{ needs.build-sandbox-template.outputs.image_tag }}
       xcresult_processor_release_digest: ${{ needs.build-xcresult-processor-release.outputs.tarball_digest }}
       install_platform: ${{ needs.check-releases.outputs.platform-changed != 'false' }}
       install_observability: ${{ needs.check-releases.outputs.observability-changed != 'false' }}
@@ -1810,8 +1834,8 @@ jobs:
   # `always() && needs.build.result == 'success'` guard mirrors `canary`
   # (see its comment) so this leg is not skip-propagated away.
   production-hotfix:
-    needs: [check-releases, build, build-images, build-xcresult-processor-release, tag-infra-releases, kura-release]
-    if: ${{ always() && needs.build.result == 'success' && needs.build-images.result == 'success' && needs.build-xcresult-processor-release.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix == 'true' }}
+    needs: [check-releases, build, build-images, build-sandbox-template, build-xcresult-processor-release, tag-infra-releases, kura-release]
+    if: ${{ always() && needs.build.result == 'success' && needs.build-images.result == 'success' && needs.build-sandbox-template.result == 'success' && needs.build-xcresult-processor-release.result == 'success' && needs.tag-infra-releases.result == 'success' && needs.check-releases.outputs.is-hotfix == 'true' }}
     # See `canary` above: grant the callee's full permission union.
     permissions:
       contents: read
@@ -1825,6 +1849,7 @@ jobs:
       kura_controller_image_tag: ${{ needs.build.outputs.image_tag }}
       codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
       registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
+      sandbox_template_image_tag: ${{ needs.build-sandbox-template.outputs.image_tag }}
       xcresult_processor_release_digest: ${{ needs.build-xcresult-processor-release.outputs.tarball_digest }}
       install_platform: ${{ needs.check-releases.outputs.platform-changed != 'false' }}
       install_observability: ${{ needs.check-releases.outputs.observability-changed != 'false' }}
