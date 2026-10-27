@@ -20,6 +20,7 @@ data:
     [admin]
     api_bind_addr = "[::]:3903"
 ---
+{{- if .Values.externalSecrets.enabled }}
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -37,6 +38,7 @@ spec:
         key: {{ printf "%s/%s" (required "externalSecrets.item is required" $.Values.externalSecrets.item) $key | quote }}
     {{- end }}
 ---
+{{- end }}
 apiVersion: v1
 kind: Service
 metadata:

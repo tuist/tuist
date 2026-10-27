@@ -30,6 +30,11 @@ digits; use a random 32-byte hex secret. Retain those credentials across restart
 For rotation use Garage's key-management commands; changing the default-key env
 variables alone does not revoke an existing key.
 
+An installation with separately managed credentials may set
+`externalSecrets.enabled=false` and provision a Secret named after the release
+with those same three fields. Retain the Secret with the volume; never place
+credentials in Helm values or rendered release metadata.
+
 Provision another 1Password item whose password is the JSON map below. Reference
 it through `server.externalSecrets.shardStorage.item` in the main Tuist chart.
 This supplies `TUIST_SHARD_STORAGE_TARGETS` to the server. Use the same S3 key as
