@@ -46,7 +46,7 @@ defmodule ShardBenchmark do
           end
           opts = [environment: environment, shard_total: 2]
           ref = "#{ref_base}-#{mib}-#{round}-#{mode}"
-          plan = ok(Shards.create_plan(ref, ["Fixture.One", "Fixture.Two"], [], opts))
+          {plan, plan_s} = timed(fn -> ok(Shards.create_plan(ref, ["Fixture.One", "Fixture.Two"], [], opts)) end)
           {%{"data" => %{"upload_id" => upload}}, start_s} = timed(fn -> ok(HTTP.project_request(:post, "/tests/shards/upload/start", %{reference: ref}, opts)) end)
           chunks = File.stream!(archive, 64 * 1_048_576)
           callback = fn chunk, number ->
@@ -65,7 +65,7 @@ defmodule ShardBenchmark do
             end
           end)
           {_, complete_s} = timed(fn -> ok(HTTP.project_request(:post, "/tests/shards/upload/complete", %{reference: ref, upload_id: upload, parts: parts}, opts)) end)
-          shard = ok(Shards.fetch(ref, 0, opts))
+          {shard, lookup_s} = timed(fn -> ok(Shards.fetch(ref, 0, opts)) end)
           url = shard["download_url"]
           true = is_binary(url)
           downloaded = Path.join(output, "download.tar.gz")
@@ -74,7 +74,7 @@ defmodule ShardBenchmark do
           extracted = Path.join(output, "extracted")
           {_, extract_s} = timed(fn -> ok(Shards.extract(downloaded, extracted)) end)
           true = hash(Path.join(extracted, "payload")) == expected
-          row = %{mode: mode, round: round, payload_mib: mib, archive_bytes: bytes, plan_id: plan["id"], reference: ref, upload_start_s: start_s, upload_transfer_s: transfer_s, upload_complete_s: complete_s, upload_total_s: start_s + transfer_s + complete_s, download_s: download_s, extract_s: extract_s, sha256: archive_hash, verified: true}
+          row = %{mode: mode, round: round, payload_mib: mib, archive_bytes: bytes, plan_id: plan["id"], reference: ref, plan_create_s: plan_s, shard_lookup_s: lookup_s, finished_at: DateTime.to_iso8601(DateTime.utc_now()), upload_start_s: start_s, upload_transfer_s: transfer_s, upload_complete_s: complete_s, upload_total_s: start_s + transfer_s + complete_s, download_s: download_s, extract_s: extract_s, sha256: archive_hash, verified: true}
           File.write!(rows, JSON.encode!(row) <> "\n", [:append])
           IO.puts(JSON.encode!(row))
           File.rm!(downloaded)
