@@ -158,11 +158,15 @@ type dockerHTTPClient struct {
 	http               *http.Client
 }
 
-func newDockerHTTPClient(timeout time.Duration) *dockerHTTPClient {
+func newDockerHTTPClient(timeout time.Duration) (*dockerHTTPClient, error) {
+	client, err := newCacheHTTPClient(timeout)
+	if err != nil {
+		return nil, err
+	}
 	return &dockerHTTPClient{
 		endpoint: os.Getenv("TUIST_CACHE_VOLUME_URL"), pod: os.Getenv("TUIST_CACHE_VOLUME_POD"), uid: os.Getenv("TUIST_CACHE_VOLUME_UID"),
-		http: &http.Client{Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
-	}
+		http: client,
+	}, nil
 }
 
 func (c *dockerHTTPClient) newRequest(ctx context.Context, path string) (*http.Request, error) {
@@ -172,7 +176,7 @@ func (c *dockerHTTPClient) newRequest(ctx context.Context, path string) (*http.R
 	body, _ := json.Marshal(map[string]any{"pod_name": c.pod, "pod_uid": c.uid})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint+path, bytes.NewReader(body))
 	if err != nil {
-		return nil, err
+		return nil, cacheRequestError{err}
 	}
 	req.Header.Set("Content-Type", "application/json")
 	return req, nil
@@ -195,7 +199,7 @@ func (c *dockerHTTPClient) seen(ctx context.Context) error {
 	}
 	response, err := c.http.Do(req)
 	if err != nil {
-		return err
+		return cacheRequestError{err}
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusNoContent {
@@ -469,7 +473,11 @@ func dockerSocket() string {
 func dockerLinux() string {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	client := newDockerHTTPClient(20 * time.Second)
+	client, err := newDockerHTTPClient(20 * time.Second)
+	if err != nil {
+		return "unavailable (request)"
+	}
+	defer client.http.CloseIdleConnections()
 	return dockerJob(ctx, linuxCacheRoot, dockerStatePath, client.request, func(message dockerMessage) (string, error) {
 		return sendDocker(dockerSocket(), message)
 	})
@@ -477,14 +485,18 @@ func dockerLinux() string {
 
 // dockerTeardownLinux runs after the runner exits, outside the job's time.
 func dockerTeardownLinux() string {
-	client := newDockerHTTPClient(15 * time.Second)
 	return dockerTeardown(dockerStatePath, func(message dockerMessage) (string, error) {
 		return sendDocker(dockerSocket(), message)
 	}, func() dockerMergeOffer {
 		// The host may download the saved head first; this runs after the job.
 		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
 		defer cancel()
-		offer, err := newDockerHTTPClient(6 * time.Minute).merge(ctx)
+		client, err := newDockerHTTPClient(6 * time.Minute)
+		if err != nil {
+			return dockerMergeOffer{}
+		}
+		defer client.http.CloseIdleConnections()
+		offer, err := client.merge(ctx)
 		if err != nil {
 			return dockerMergeOffer{}
 		}
@@ -492,6 +504,11 @@ func dockerTeardownLinux() string {
 	}, dockerImageIDs, func() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
+		client, err := newDockerHTTPClient(15 * time.Second)
+		if err != nil {
+			return err
+		}
+		defer client.http.CloseIdleConnections()
 		return client.seen(ctx)
 	})
 }
