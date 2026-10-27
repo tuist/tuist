@@ -673,6 +673,9 @@ jobs:
 
           INCLUDE_PATHS=(
             --include-path "infra/xcresult-processor-image/**/*"
+            --include-path "infra/certificate-trust/policy.json"
+            --include-path "infra/certificate-trust/pem-store.sh"
+            --include-path "infra/certificate-trust/controls/**/*"
           )
 
           echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
