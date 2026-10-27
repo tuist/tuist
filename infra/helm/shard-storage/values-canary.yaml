@@ -1,4 +1,6 @@
-# NEW store on an enrolled OVH Gravelines host; supply its placement and secret.
+# NEW store on the dedicated OVH Gravelines host; supply its secret item.
 replicas: 1
+nodeSelector:
+  node.cluster.x-k8s.io/pool: shard-storage
 lifecycle:
   expirationDays: 3
