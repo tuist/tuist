@@ -591,19 +591,20 @@ defmodule Tuist.Kura.Rollouts do
   defp insert_wave_assignments(rollout, assignments) do
     timestamp = now()
 
-    rows =
-      Enum.map(assignments, fn {account_id, wave} ->
-        %{
-          id: Ecto.UUID.generate(),
-          kura_rollout_id: rollout.id,
-          account_id: account_id,
-          wave: wave,
-          inserted_at: timestamp,
-          updated_at: timestamp
-        }
-      end)
+    assignments
+    |> Stream.map(fn {account_id, wave} ->
+      %{
+        id: Ecto.UUID.generate(),
+        kura_rollout_id: rollout.id,
+        account_id: account_id,
+        wave: wave,
+        inserted_at: timestamp,
+        updated_at: timestamp
+      }
+    end)
+    |> Stream.chunk_every(1_000)
+    |> Enum.each(&Repo.insert_all(RolloutWaveAssignment, &1))
 
-    {_count, _} = Repo.insert_all(RolloutWaveAssignment, rows)
     :ok
   end
 
