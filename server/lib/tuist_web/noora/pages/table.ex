@@ -148,7 +148,7 @@ defmodule TuistWeb.Noora.Pages.Table do
         <.tag_cell label={preview.platform} icon={preview.icon} />
       </:col>
       <:col :let={preview} label="Track">
-        <.badge_cell label={preview.track} color="information" style="light-fill" />
+        <.badge_cell label={preview.track} color="information" style="light-fill" size="large" />
       </:col>
       <:col :let={preview} label="Status">
         <.status_badge_cell status={preview.status} label={preview.label} />

@@ -45,7 +45,6 @@ defmodule TuistWeb.Noora.Pages do
        Pages.Select,
        Pages.ShortcutKey,
        Pages.Sidebar,
-       Pages.StatusBadge,
        Pages.TabMenu,
        Pages.Table,
        Pages.Tag,

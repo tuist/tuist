@@ -565,6 +565,9 @@ defmodule TuistWeb.Router do
   scope "/" do
     pipe_through [:open_api, :browser_noora]
 
+    # The status badge moved into the badge page.
+    redirect("/noora/status-badge", "/noora/badge", :permanent)
+
     live_session :noora do
       live "/noora", NooraLive, metadata: %{type: :marketing, robots_txt: false}
       live "/noora/:page", NooraLive, metadata: %{type: :marketing, robots_txt: false}

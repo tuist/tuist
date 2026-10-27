@@ -28,6 +28,18 @@ defmodule TuistWeb.Noora.NooraLiveTest do
     assert_raise NotFoundError, fn -> live(conn, ~p"/noora/unknown") end
   end
 
+  test "redirects the former status badge page to the badge page", %{conn: conn} do
+    conn = get(conn, "/noora/status-badge")
+
+    assert redirected_to(conn, 301) == "/noora/badge"
+  end
+
+  test "documents the status badge on the badge page", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/noora/badge")
+
+    assert has_element?(view, ".noora-status-badge[data-status=success]", "Passed")
+  end
+
   test "shows each example's source next to its live preview", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/noora/button")
 
