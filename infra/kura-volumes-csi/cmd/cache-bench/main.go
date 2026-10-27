@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	mathrand "math/rand/v2"
 	"net/http"
 	"net/url"
 	"os"
@@ -21,6 +22,7 @@ import (
 type object struct {
 	Key  string
 	Body []byte
+	Size int
 }
 type result struct {
 	Phase    string   `json:"phase"`
@@ -39,6 +41,7 @@ func main() {
 	tok := flag.String("token-file", "", "scoped token")
 	account := flag.String("account", "", "fixture account")
 	out := flag.String("out", "/tmp/bench.json", "report")
+	workingSet := flag.Bool("working-set", false, "seed and read a 1 GiB working set without retaining bodies in the client")
 	flag.Parse()
 	if *base == "" || *account == "" {
 		panic("fixture required")
@@ -55,7 +58,7 @@ func main() {
 			_, e = rand.Read(b)
 			must(e)
 			h := sha256.Sum256(b)
-			o[i] = object{"thin-bench-" + hex.EncodeToString(h[:]), b}
+			o[i] = object{"thin-bench-" + hex.EncodeToString(h[:]), b, size}
 		}
 		return o
 	}
@@ -96,8 +99,17 @@ func main() {
 							msg = err.Error()
 						} else if res.StatusCode < 200 || res.StatusCode >= 300 {
 							msg = fmt.Sprintf("HTTP %d %.100s", res.StatusCode, b)
-						} else if method == "GET" && !bytes.Equal(b, o.Body) {
-							msg = "checksum mismatch"
+						} else if method == "GET" {
+							if o.Body != nil {
+								if !bytes.Equal(b, o.Body) {
+									msg = "checksum mismatch"
+								}
+							} else {
+								digest := sha256.Sum256(b)
+								if len(b) != o.Size || "thin-bench-"+hex.EncodeToString(digest[:]) != o.Key {
+									msg = "checksum mismatch"
+								}
+							}
 						}
 					}
 					ms := float64(time.Since(t).Nanoseconds()) / 1e6
@@ -109,7 +121,7 @@ func main() {
 							r.Errors = append(r.Errors, msg)
 						}
 					} else {
-						total += int64(len(o.Body))
+						total += int64(o.Size)
 					}
 					mu.Unlock()
 				}
@@ -134,6 +146,20 @@ func main() {
 		if r.Failures > 0 {
 			os.Exit(1)
 		}
+	}
+	if *workingSet {
+		var corpus []object
+		for batch := 0; batch < 4; batch++ {
+			objects := makeObjects(64, 4<<20)
+			run(fmt.Sprintf("working_set_put_%02d", batch), "PUT", objects)
+			for _, o := range objects {
+				o.Body = nil
+				corpus = append(corpus, o)
+			}
+		}
+		mathrand.Shuffle(len(corpus), func(i, j int) { corpus[i], corpus[j] = corpus[j], corpus[i] })
+		run("working_set_get", "GET", corpus)
+		return
 	}
 	small := makeObjects(400, 16<<10)
 	run("small_put", "PUT", small)

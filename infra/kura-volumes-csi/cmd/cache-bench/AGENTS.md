@@ -22,3 +22,9 @@ does not guarantee a small working set. Use correctly sized fixtures.
 
 Run `go test ./...` and `go vet ./...` from the CSI module after edits. Do not
 run the load against production or use global cache-dropping on shared hosts.
+
+`-working-set` seeds 1 GiB in four bounded batches, retains only object hashes
+and sizes in the client, then reads all objects in shuffled order with checksum
+verification. Use a runtime memory limit below that corpus size. This exercises
+a working set larger than memory without global cache-dropping, but is not proof
+that every read is cold. Keep the same mode and client limits on both layouts.

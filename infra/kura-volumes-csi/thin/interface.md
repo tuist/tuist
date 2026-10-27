@@ -35,7 +35,12 @@ equal. This conservative mode does not realize the projected shared-XFS regional
 capacity gains. CSI independently serializes admission and rejects any create
 whose complete virtual size does not fit, even if Kubernetes scheduled the pod.
 
-Pool geometry is explicit: 64 KiB chunks are the qualification profile, chunk
+Pool geometry is explicit: fresh pools use 512 KiB chunks; the driver also
+qualifies existing 64 KiB pools. Changing geometry requires a new pool. Larger
+chunks reduce mapping overhead but retain more allocation around small live
+extents. Thin LUKS mappings retain encryption workqueues and submit writes from
+those workers (`--perf-submit_from_crypt_cpus`); the flag applies at mapping open,
+not retroactively to already open mappings. Pool chunk
 zeroing must be enabled, discard must be processed, and `error_if_no_space` must
 be set. Data reserves are at least 64 MiB. Metadata provisioning must cover
 128 bytes per pool chunk, 1 MiB per admitted device slot, plus at least 16 MiB

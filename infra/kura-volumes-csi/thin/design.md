@@ -45,7 +45,10 @@ The `data` LV remains a separate thick XFS filesystem for host state. The thin
 pool has separately sized data and metadata LVs, a metadata spare for repair,
 and unallocated VG recovery headroom. A metadata spare is not active metadata
 capacity. Pool sizing must leave explicit reserves; do not allocate 100%FREE.
-Start qualification with 64 KiB chunks; changing chunk size requires a new pool.
+Use 512 KiB chunks for fresh pools, retaining qualification for existing 64 KiB
+pools. Changing chunk size requires a new pool. Larger chunks can retain more
+physical allocation around small live filesystem extents; this is another reason
+quota/free-space observations cannot substitute for physical mapped counters.
 Prohibit snapshots, external origins, deduplication, unmanaged thin LVs and raw
 block publication in the qualified pool. They change allocation/accounting
 assumptions and require a new qualification profile.
