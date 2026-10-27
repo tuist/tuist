@@ -9,7 +9,6 @@ defmodule AtlasWeb.ProjectLive.Alerts do
 
   alias Atlas.Engineering.Alerts
   alias Atlas.Engineering.Alerts.Rule
-  alias Atlas.Engineering.Errors
   alias Atlas.Users
 
   def attach(socket) do
@@ -19,9 +18,6 @@ defmodule AtlasWeb.ProjectLive.Alerts do
     if socket.assigns.can_view_alerts? do
       socket
       |> assign(:can_manage?, Users.has_scope?(user, "engineering:write"))
-      |> assign(:preview_rule, nil)
-      |> assign(:preview_result, nil)
-      |> assign(:preview_form, to_form(%{"at" => DateTime.to_iso8601(DateTime.utc_now())}, as: :preview))
       |> reset_form()
       |> load_rules()
       |> attach_hook(:project_alerts, :handle_event, &handle_event/3)
@@ -102,31 +98,6 @@ defmodule AtlasWeb.ProjectLive.Alerts do
   defp handle_event("rule_modal_open_change", %{"open" => false}, socket), do: {:halt, reset_form(socket)}
   defp handle_event("rule_modal_open_change", _params, socket), do: {:halt, socket}
 
-  defp handle_event("select_preview", %{"id" => id}, socket) do
-    case project_rule(socket, id) do
-      {:ok, %Rule{trigger: :event_spike} = rule} ->
-        {:halt, socket |> assign(:preview_rule, rule) |> assign(:preview_result, nil)}
-
-      _ ->
-        {:halt, socket}
-    end
-  end
-
-  defp handle_event("preview_rule", %{"preview" => %{"at" => at}}, socket) do
-    result =
-      with %Rule{id: id} <- socket.assigns.preview_rule,
-           {:ok, %Rule{trigger: :event_spike} = rule} <- project_rule(socket, id),
-           true <- Errors.enabled?(),
-           {:ok, at, _} <- DateTime.from_iso8601(at),
-           {:ok, matches} <- Alerts.spike_matches(rule, at) do
-        {:ok, matches}
-      else
-        _ -> {:error, gettext("Could not evaluate this window. Check the time and error storage availability.")}
-      end
-
-    {:halt, socket |> assign(:preview_result, result) |> assign(:preview_form, to_form(%{"at" => at}, as: :preview))}
-  end
-
   defp handle_event(_event, _params, socket), do: {:cont, socket}
 
   def section(assigns) do
@@ -156,15 +127,6 @@ defmodule AtlasWeb.ProjectLive.Alerts do
             </:col>
             <:col :let={{_id, rule}} label="">
               <.button_cell>
-                <:button :if={rule.trigger == :event_spike}>
-                  <.button
-                    label={gettext("Preview")}
-                    phx-click="select_preview"
-                    phx-value-id={rule.id}
-                    variant="secondary"
-                    size="small"
-                  />
-                </:button>
                 <:button :if={@can_manage?}>
                   <.button
                     label={gettext("Edit")}
@@ -193,54 +155,11 @@ defmodule AtlasWeb.ProjectLive.Alerts do
                 icon="bell"
                 title={gettext("No error alert rules")}
                 subtitle={
-                  gettext(
-                    "Create a disabled rule, preview historical windows, then enable it explicitly."
-                  )
+                  gettext("Create a disabled rule, then enable it when you are ready to send alerts.")
                 }
               />
             </:empty_state>
           </.table>
-        </.card_section>
-      </.card>
-
-      <.card :if={@preview_rule} title={gettext("Historical preview")} icon="history">
-        <.card_section>
-          <.form
-            id="error-alert-preview"
-            for={@preview_form}
-            phx-submit="preview_rule"
-            data-part="form"
-          >
-            <p data-part="context-text">{@preview_rule.name}</p>
-            <.text_input
-              field={@preview_form[:at]}
-              label={gettext("Window ending at (ISO8601)")}
-              required
-              hint={
-                gettext(
-                  "Read-only: never sends alerts. Missing retained history is not evidence of a healthy period."
-                )
-              }
-            />
-            <.button label={gettext("Evaluate window")} variant="secondary" size="medium" />
-            <.alert
-              :if={match?({:error, _}, @preview_result)}
-              status="error"
-              size="small"
-              title={elem(@preview_result, 1)}
-            />
-            <div
-              :if={match?({:ok, _}, @preview_result)}
-              id="error-alert-preview-result"
-              data-part="context-text"
-            >
-              <p>{gettext("Matching issues: %{count}", count: length(elem(@preview_result, 1)))}</p>
-              <p :for={match <- elem(@preview_result, 1)}>
-                <.link navigate={~p"/engineering/errors/#{match.issue_id}"}>{match.issue_id}</.link>
-                {gettext("%{count} events", count: match.event_count)}
-              </p>
-            </div>
-          </.form>
         </.card_section>
       </.card>
     </section>
