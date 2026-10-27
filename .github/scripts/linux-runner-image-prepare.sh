@@ -20,7 +20,12 @@ trap 'exit 143' TERM
 
 jq -c '[.[] | select(.kind == "RunnerPool" and .spec.os == "linux") | {
   namespace: .metadata.namespace, fleet: .spec.fleetSelector,
-  image: .spec.image, runtime: (.spec.runtimeClass // "")
+  image: .spec.image,
+  # Managed kata-qemu uses the host default overlayfs snapshotter (see
+  # helm/tuist/templates/kata-qemu.yaml). A native pull populates that store
+  # without reserving a 2560 MiB VM on every host. Unknown runtimes retain
+  # their own handler because they may use a different snapshotter.
+  runtime: (if .spec.runtimeClass == "kata-qemu" then "" else (.spec.runtimeClass // "") end)
 }] | unique[]' "$render" > "$work/targets"
 [[ -s "$work/targets" ]] || exit 0
 deadline=$((SECONDS + ${LINUX_IMAGE_PREPARE_TIMEOUT_SECONDS:-600}))

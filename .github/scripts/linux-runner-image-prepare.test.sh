@@ -50,7 +50,7 @@ grep -q 'delete -f.*--ignore-not-found --wait=false' "$work/calls"
 jq -e --arg image "$image" '.spec.template.spec |
   .containers[0].image == $image and .containers[0].imagePullPolicy == "IfNotPresent"
   and .containers[0].command == ["/bin/sleep","infinity"]
-  and .runtimeClassName == "kata-qemu" and .automountServiceAccountToken == false
+  and .runtimeClassName == null and .automountServiceAccountToken == false
   and .priorityClassName == null and .volumes == null
   and .nodeSelector == {"kubernetes.io/os":"linux","kubernetes.io/arch":"amd64","node.cluster.x-k8s.io/pool":"runners-linux"}
   and (.tolerations | length == 2)' "$work/applied.json" >/dev/null
@@ -108,13 +108,23 @@ jq 'map(select(.spec.os == "linux") | del(.spec.runtimeClass))' "$work/render.js
 run "$work/native.json"
 jq -e '.spec.template.spec.runtimeClassName == null' "$work/applied.json" >/dev/null
 reset
+jq '.[1].spec.runtimeClass = ""' "$work/render.json" > "$work/shared-store.json"
+run "$work/shared-store.json"
+test "$(grep -c 'apply -f' "$work/calls")" = 1
+reset
+jq 'map(select(.spec.os == "linux") | .spec.runtimeClass = "custom-runtime")' "$work/render.json" > "$work/custom.json"
+run "$work/custom.json"
+jq -e '.spec.template.spec.runtimeClassName == "custom-runtime"' "$work/applied.json" >/dev/null
+reset
 jq '.[1].spec.fleetSelector = "other-fleet"' "$work/render.json" > "$work/multiple.json"
 run "$work/multiple.json"
 test "$(grep -c 'apply -f' "$work/calls")" = 2
 
 # Exercise wrong-image/runtime rejection directly (the fake kubectl otherwise
 # fills these from the applied DaemonSet).
-jq --slurpfile ds "$work/applied.json" '.items |= map(.spec.containers = $ds[0].spec.template.spec.containers | .spec.runtimeClassName = "kata-qemu")' "$work/ready-pods.json" > "$work/matching.json"
+jq --slurpfile ds "$work/applied.json" '.items |= map(.spec.containers = $ds[0].spec.template.spec.containers | .spec.runtimeClassName = $ds[0].spec.template.spec.runtimeClassName)' "$work/ready-pods.json" > "$work/matching.json"
+jq -e --arg uid current-ds --slurpfile manifest "$work/applied.json" --slurpfile pods "$work/matching.json" \
+  -f "$root/.github/scripts/linux-runner-image-ready.jq" "$work/ready-nodes.json" >/dev/null
 for mutation in '.items[0].spec.containers[0].image = "old:image"' '.items[0].spec.runtimeClassName = "other"'; do
   jq "$mutation" "$work/matching.json" > "$work/wrong.json"
   if jq -e --arg uid current-ds --slurpfile manifest "$work/applied.json" --slurpfile pods "$work/wrong.json" \

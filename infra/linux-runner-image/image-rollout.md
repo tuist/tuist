@@ -46,13 +46,17 @@ also covers manual pins and rollback releases without relying on a prior release
 announcement. Pulling starts during deployment, rather than immediately on
 publication; normal jobs continue using the existing pools during preparation.
 
-One temporary DaemonSet per unique namespace/fleet/runtime/image starts only
-`/bin/sleep`, with no dispatch token, host mounts, or job registration. It uses
-the pool's runtime class to exercise the same image store and unpacking path.
+One temporary DaemonSet per unique namespace/fleet/preparation-runtime/image starts only
+`/bin/sleep`, with no dispatch token, host mounts, or job registration. Managed
+`kata-qemu` pools use a native preparation pod: Kata and the default runtime
+share containerd's default overlayfs snapshotter, so the native pull populates
+the same image store without reserving the RuntimeClass's 2560 MiB VM overhead.
+Unknown runtime classes retain their own handler because their snapshotter may
+differ. Keep this mapping in sync if the managed Kata snapshotter changes.
 It selects Linux amd64 nodes in that fleet and tolerates the runner-tier and
 temporary pool-reservation taints. It uses the default priority, with no priority
-elevation over runner jobs. Kata pods
-incur the configured VM overhead; a completely full host may wait for a slot.
+elevation over runner jobs. A completely full host can still wait for its small
+CPU and memory request to fit.
 
 The gate re-reads nodes and pods until every Ready, schedulable host has a
 running container for the exact image, runtime and DaemonSet UID. New hosts
@@ -82,7 +86,7 @@ failure, cleanup, duplicate pools, runtime selection, and first installation
 using a fake kubectl. The Helm CI suite also renders all managed environments
 and tests the adjacent KVM gate.
 
-Linux image PR builds export a baseline OCI image and `mode=max` cache. Then
+Linux image PR and manual validation builds export a baseline OCI image and `mode=max` cache. Then
 `verify-layer-reuse.sh` changes only `dispatch-poll.sh`, creates a fresh BuildKit
 builder, imports that exported cache, and builds again. `compare-layers.mjs`
 compares compressed layer digests and sizes, requiring a nonempty delta of at
@@ -98,3 +102,27 @@ Before production promotion, exercise the gate in staging with a real image and
 confirm temporary pods disappear. The first release changes layer boundaries
 and base pins and can be a large pull. Measure subsequent script-only releases;
 the optimization does not promise small pulls for deliberate toolchain updates.
+
+## Release benchmark
+
+The Linux Runner Image workflow's manual `benchmark` mode compares a supplied
+`benchmark_base` commit with the dispatched revision. It builds the base twice
+using fresh builders without imported caches (the previous production release
+configuration), then builds the candidate twice, exporting/importing an isolated
+GHCR `mode=max` cache. The second build in each arm appends the same comment to
+`dispatch-poll.sh`. Image and cache tags include the workflow run ID and attempt;
+the benchmark never writes `latest`, semver tags, or the production build cache.
+
+It records build/export wall time, compressed layer sizes and reuse, then runs
+three pull samples per arm. Each sample gets its own disposable Docker daemon
+and storage volume, pulls the seed image, and times the update including
+unpacking. Arm order alternates between samples. This measures update pulls
+with the prior release cached, without pruning or changing the host's image
+store. Docker pull timings are an isolated registry/unpack measurement, not a
+measurement of production kubelet, Kata boot, or job queue latency.
+
+The artifact retains source revisions, Docker/Buildx versions, manifests,
+per-build/pull logs, raw timings, and `results.json`. It uploads partial evidence
+on failure too. Build timings include image push and (for the candidate) cache
+export; they exclude builder bootstrap. Cold seed costs and update costs are
+reported separately. Keep the PR draft while running either manual mode.
