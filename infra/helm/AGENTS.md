@@ -20,6 +20,8 @@ Helm-installed resource; publishing it is a separate rollout step.
 
 ## Conventions
 
+- SSO DNS verification is an explicit deployment policy: `server.ssoRequireLoginDomainVerification` defaults false and is enabled in managed-common, preview, and pentest values. Inject `TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION` into every server runtime, including migrations, registry sync, and the separate xcresult processor. `tuist/test-sso-domain-verification.py` checks rendered wiring; never infer the policy from `server.hosted`.
+
 - Canary keeps one RISE-M in Gravelines on the shared `runners-linux` pool.
   Preserve its Machine identity and OnDelete strategy. Drain before explicitly
   enrolling the existing Machine in vRack; a template update does not backfill

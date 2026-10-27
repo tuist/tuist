@@ -566,6 +566,53 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
   end
 
   describe "PUT /api/organizations/:organization_name" do
+    test "ordinary organization administrators can disable SSO under instance trust", %{conn: conn, user: user} do
+      AccountsFixtures.organization_fixture(
+        name: "tuist-org",
+        creator: user,
+        sso_provider: :google,
+        sso_organization_id: "example.com"
+      )
+
+      stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/organizations/tuist-org", sso_provider: "none")
+
+      assert json_response(conn, :ok)["sso_provider"] == nil
+    end
+
+    test "instance trust does not bypass ordinary organization authorization", %{conn: conn, user: user} do
+      AccountsFixtures.organization_fixture(name: "tuist-org")
+      stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/organizations/tuist-org", sso_provider: "none")
+
+      assert json_response(conn, :forbidden)
+    end
+
+    test "allows an ordinary organization administrator to configure Google under instance trust", %{conn: conn} do
+      domain = unique_sso_domain()
+      user = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+      AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+      stub(Environment, :sso_require_login_domain_verification?, fn -> false end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/organizations/tuist-org", sso_provider: "google", sso_organization_id: domain)
+
+      assert json_response(conn, :ok)["sso_provider"] == "google"
+    end
+
     test "updates an organization with SSO settings when user's google hosted domain is equal to the new value",
          %{conn: conn} do
       # Given
