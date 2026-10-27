@@ -100,6 +100,8 @@ type readinessProber struct {
 	ready     bool
 	successes int
 	failures  int
+	probed    bool
+	everReady bool
 
 	cancel context.CancelFunc
 	done   chan struct{}
@@ -144,6 +146,7 @@ func newReadinessProber(
 		failureThreshold: failureThreshold,
 		onResult:         onResult,
 		ready:            initiallyReady,
+		everReady:        initiallyReady,
 	}
 }
 
@@ -182,6 +185,14 @@ func (p *readinessProber) Ready() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.ready
+}
+
+// NeverReady reports whether at least one probe has completed and none
+// has ever made the Pod Ready.
+func (p *readinessProber) NeverReady() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.probed && !p.everReady
 }
 
 func (p *readinessProber) run(ctx context.Context, done chan struct{}) {
@@ -235,6 +246,8 @@ func (p *readinessProber) record(err error) {
 			p.ready = false
 		}
 	}
+	p.probed = true
+	p.everReady = p.everReady || p.ready
 	ready := p.ready
 	p.mu.Unlock()
 	if p.onResult != nil {

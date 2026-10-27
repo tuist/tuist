@@ -28,6 +28,9 @@ func (r *Reconciler) drainPod(ctx context.Context, pod *corev1.Pod) (bool, error
 		if _, exited := entry.Run.Exited(); exited {
 			return false, nil
 		}
+		if neverServed(pod, entry) {
+			return false, nil
+		}
 	} else {
 		running, err := r.Tart.IsRunning(ctx, entry.VMName)
 		if err != nil {
@@ -41,6 +44,19 @@ func (r *Reconciler) drainPod(ctx context.Context, pod *corev1.Pod) (bool, error
 		return true, fmt.Errorf("VM has no drain status share")
 	}
 	return requestGuestDrain(entry.StatusDir, string(pod.UID))
+}
+
+// neverServed reports whether a VM this agent booted never passed its
+// readinessProbe: it never had an IP, or its probes ran and all failed. The
+// processor's /ready requires Postgres, ClickHouse and an unpaused queue, so
+// such a guest has no work to drain, and a release that cannot start would
+// never acknowledge. A recovered VM's earlier readiness is unknown, so callers
+// only ask for VMs with a Run handle.
+func neverServed(pod *corev1.Pod, entry *Entry) bool {
+	if probe, err := readinessProbeFor(pod); probe == nil || err != nil {
+		return false
+	}
+	return entry.Readiness == nil || entry.Readiness.NeverReady()
 }
 
 func requestGuestDrain(dir, uid string) (bool, error) {

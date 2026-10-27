@@ -369,6 +369,7 @@ status share. Before teardown the Pod controller writes the Pod UID to
 `drain-request`, then requeues until a bounded regular `drain-complete` file
 contains that UID. Missing/unsafe files hold the VM and finalizer; an expired
 grace period is not acknowledgement. Explicit zero-grace deletion bypasses this
-gate. Keep the request durable across kubelet recovery, never wait inside the
+gate, and so does a VM this agent booted whose readinessProbe never passed;
+a recovered VM has no readiness history and keeps it. Keep the request durable across kubelet recovery, never wait inside the
 single reconcile worker, and never accept another Pod's acknowledgement. See
 [host maintenance](../cluster-api-provider-tuist/scaleway-os-maintenance.md).

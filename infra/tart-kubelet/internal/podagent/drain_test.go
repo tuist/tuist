@@ -1,10 +1,20 @@
 package podagent
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"syscall"
 	"testing"
+	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
+
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
 
 const drainTestUID = "b1abef64-43be-40c8-b78d-49d18c261fed"
@@ -61,5 +71,88 @@ func TestDrainRejectsSymlinksAndFIFOs(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestDrainSkipsABootedProcessorThatNeverPassedReadiness(t *testing.T) {
+	r, pod, entry := newBootedProcessor(t)
+	entry.Readiness.record(errors.New("connection refused"))
+
+	assertDrain(t, r, pod, entry, false)
+}
+
+func TestDrainSkipsABootedProcessorWhoseGuestNeverHadAnIP(t *testing.T) {
+	r, pod, entry := newBootedProcessor(t)
+	entry.Readiness = nil
+
+	assertDrain(t, r, pod, entry, false)
+}
+
+func TestDrainWaitsForABootedProcessorBeforeItsFirstProbe(t *testing.T) {
+	r, pod, entry := newBootedProcessor(t)
+
+	assertDrain(t, r, pod, entry, true)
+}
+
+func TestDrainWaitsForABootedProcessorThatWasReady(t *testing.T) {
+	r, pod, entry := newBootedProcessor(t)
+	entry.Readiness.record(nil)
+	entry.Readiness.record(errors.New("connection refused"))
+	if entry.Readiness.Ready() {
+		t.Fatal("expected the failed probe to make the Pod NotReady")
+	}
+
+	assertDrain(t, r, pod, entry, true)
+}
+
+func TestDrainWaitsForARecoveredProcessorThatIsNotReady(t *testing.T) {
+	r, pod, entry := newRunningGuest(t, tcpProbe())
+	pod.UID = types.UID(drainTestUID)
+	pod.Annotations = map[string]string{gracefulDrainAnnotation: "xcresult-v1"}
+	entry.StatusDir = t.TempDir()
+	entry.Readiness = newReadinessProber(pod.Spec.Containers[0], time.Now(), false, nil)
+	entry.Readiness.record(errors.New("connection refused"))
+
+	assertDrain(t, r, pod, entry, true)
+}
+
+func newBootedProcessor(t *testing.T) (*Reconciler, *corev1.Pod, *Entry) {
+	t.Helper()
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:   "tuist",
+			Name:        "xcresult-processor",
+			UID:         types.UID(drainTestUID),
+			Annotations: map[string]string{gracefulDrainAnnotation: "xcresult-v1"},
+		},
+		Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "xcresult-processor", ReadinessProbe: tcpProbe()}}},
+	}
+	entry := &Entry{
+		VMName:    "vm-processor",
+		Run:       &tart.RunHandle{},
+		StatusDir: t.TempDir(),
+		Readiness: newReadinessProber(pod.Spec.Containers[0], time.Now(), false, nil),
+	}
+	store := NewStore()
+	store.Put(pod.Namespace, pod.Name, entry)
+	return &Reconciler{Store: store}, pod, entry
+}
+
+func tcpProbe() *corev1.Probe {
+	return &corev1.Probe{
+		ProbeHandler:     corev1.ProbeHandler{TCPSocket: &corev1.TCPSocketAction{Port: intstr.FromInt32(9092)}},
+		FailureThreshold: 1,
+	}
+}
+
+func assertDrain(t *testing.T, r *Reconciler, pod *corev1.Pod, entry *Entry, wantWaiting bool) {
+	t.Helper()
+	waiting, err := r.drainPod(context.Background(), pod)
+	if err != nil || waiting != wantWaiting {
+		t.Fatalf("drainPod = %v, %v; want waiting=%v", waiting, err, wantWaiting)
+	}
+	_, statErr := os.Stat(filepath.Join(entry.StatusDir, "drain-request"))
+	if requested := statErr == nil; requested != wantWaiting {
+		t.Fatalf("drain request written = %v, want %v", requested, wantWaiting)
 	}
 }

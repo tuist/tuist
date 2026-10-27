@@ -94,7 +94,12 @@ survives a kubelet restart. Missing acknowledgement holds the finalizer and VM
 even after the nominal grace period; it never silently converts a timeout into
 a successful drain. Explicit force deletion with zero grace bypasses the gate
 and can interrupt a job. A guest that has already exited can be cleaned up.
-This contract also protects ordinary processor rolling deployments after the
+So can a VM the running tart-kubelet booted whose guest never passed its
+readiness probe (no IP, or every probe failed): `/ready` requires Postgres,
+ClickHouse and an unpaused queue, so it has no work to drain, and a release
+that crashes on boot would otherwise hold its own replacement forever. A VM
+recovered after a tart-kubelet restart has no readiness history and keeps the
+gate. This contract also protects ordinary processor rolling deployments after the
 Pods have adopted it.
 
 ## First rollout and rollback
