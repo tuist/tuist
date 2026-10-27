@@ -134,6 +134,8 @@ jobs:
           bash infra/helm/k8s-monitoring/test-kura-latency-query.sh
       - name: Test production metric write rules with Alloy
         run: python3 infra/helm/k8s-monitoring/test-metric-cost-controls.py
+      - name: Test runner macOS host health alerts
+        run: bash infra/helm/k8s-monitoring/test-runner-macos-host-alerts.sh
 
   render:
     name: Render
@@ -239,6 +241,10 @@ jobs:
       # Check cookie ownership after the full manifest render validation.
       - name: Test cluster cookie ownership and managed environment wiring
         run: python3 infra/helm/tuist/test-cluster-cookie.py
+      - name: CNPG promotion stays in the environment write tier
+        run: |
+          mise use -g yq@4.52.5
+          bash infra/helm/pomerium/test-access-tiers.sh
       # A release a deploy waits on must not run pods on a rack node, or a dark
       # rack fails every deploy. See "Deploys and the rack's health" in
       # infra/rack-nodes/AGENTS.md.
@@ -246,6 +252,8 @@ jobs:
         run: infra/mise/tasks/helm/rack-independence.sh
       - name: Server pods drain and the edge retries only unsent requests
         run: infra/mise/tasks/helm/server-rollout.sh
+      - name: Linux vRack rollout keeps runner cohorts isolated
+        run: infra/mise/tasks/helm/linux-vrack.sh
       # The xcresult processor chart renders the tuist chart's processor
       # templates for the tuist release it names, which the loop above cannot
       # express either.

@@ -1,22 +1,4 @@
-# Slack (Context)
-
-This context owns Slack app installations and reporting workflows.
-
-## Responsibilities
-- `Client.deliver_once/2` is the durable automation transport: explicit connect/pool/receive bounds, no Req retries or redirects, and distinct rate-limit, permanent-rejection and transient-failure results. The automation delivery worker persists progress and coordinates channel cooldowns across replicas. Keep legacy reporting transports compatible.
-- Store and manage Slack installation records for accounts.
-- Generate Slack report payloads from analytics and bundle metrics.
-- Deliver scheduled Slack notifications via background workers.
-
-## Boundaries
-- HTTP/API and UI code live in `server/lib/tuist_web`.
-- Configuration belongs in `server/config`.
-- Schema changes and migrations live in `server/priv`.
-
-## Guardrails
-- Slack installation data is customer data; update `server/data-export.md` on schema changes.
-
-## Local end-to-end testing
+# Slack OAuth: local end-to-end testing
 
 Slack's OAuth redirect URI must be HTTPS, and the URI Tuist sends to Slack is built by `Tuist.Environment.app_url/1` from `TUIST_SERVER_URL`. By default `mise/utilities/dev_instance_env.sh` exports `TUIST_SERVER_URL=http://localhost:<port>` per worktree, which Slack rejects. To exercise the real OAuth round-trip:
 
@@ -33,7 +15,7 @@ Slack's OAuth redirect URI must be HTTPS, and the URI Tuist sends to Slack is bu
 
 Revert the manifest's `redirect_urls` back to `https://tuist.dev/integrations/slack/callback` when you're done, and stop the tunnel. The dev Slack credentials (the `SLACK` item in the 1Password `Development` vault, sourced via fnox — see `server/fnox.toml`) are the dev app's credentials — they don't need to change for this loop.
 
-Test user creds (from the seed): `tuistrocks@tuist.dev` / `tuistrocks`. If login fails with "Invalid email or password" despite those creds, the password hash in your local DB has drifted from the seed. Reset it with the salted bcrypt the auth path expects:
+If the seed login fails with "Invalid email or password", reset the local password hash with the salted bcrypt the auth path expects:
 
 ```bash
 mise exec -- mix run -e '
@@ -47,7 +29,6 @@ mise exec -- mix run -e '
 
 The `<> secret_key_password` is required — `Tuist.Accounts.User.valid_password?/2` salts every comparison with it.
 
-## Related Context
-- Parent business logic: `server/lib/tuist/AGENTS.md`
-- Web layer: `server/lib/tuist_web/AGENTS.md`
-- Migrations: `server/priv/AGENTS.md`
+## Durable automation delivery
+
+`Client.deliver_once/2` is the durable automation transport: explicit connect/pool/receive bounds, no Req retries or redirects, and distinct rate-limit, permanent-rejection and transient-failure results. The automation delivery worker persists progress and coordinates channel cooldowns across replicas. Keep legacy reporting transports compatible.

@@ -31,6 +31,10 @@ const maxPaths = 16
 var keyPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_./-]{0,199}$`)
 var directoryPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var sizePattern = regexp.MustCompile(`(?i)^([0-9]{1,3})gb$`)
+
+// reservedKeys name the volumes Tuist manages itself, which no job can request.
+var reservedKeys = map[string]string{"checkout": "cached checkouts", "docker": "the Docker cache"}
+
 var errInvalidPath = errors.New("invalid cache path")
 var errArguments = errors.New("invalid arguments")
 var errExecutionPending = errors.New("GitHub had not yet reported which job this runner is running, so the Tuist server could not authorize a volume in time")
@@ -49,12 +53,19 @@ func parseSize(value string) (int64, error) {
 }
 
 func main() {
+	if len(os.Args) >= 2 && os.Args[1] == "dind" {
+		if err := runDind(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) >= 2 && (os.Args[1] == "mount-server" || os.Args[1] == "mount-worker") {
 		var err error
 		if os.Args[1] == "mount-worker" && (len(os.Args) == 2 || (len(os.Args) == 3 && os.Args[2] == "local")) {
 			err = mountWorker(len(os.Args) == 3)
 		} else if os.Args[1] == "mount-server" && len(os.Args) == 4 {
-			err = serveMounts(os.Args[2], os.Args[3])
+			err = serveMounts(os.Args[2], os.Args[3], nil)
 		} else {
 			err = errors.New("invalid mount helper arguments")
 		}
@@ -81,6 +92,16 @@ func main() {
 		} else {
 			fmt.Println("Tuist cached checkout: " + checkoutLinux(opts.checkout))
 		}
+		return
+	}
+	if opts.docker {
+		// Never fails the job: without a data root dockerd keeps its ephemeral one.
+		fmt.Println("Tuist Docker cache: " + dockerLinux())
+		return
+	}
+	if opts.dockerTeardown {
+		// Never fails the teardown: without a report the host withholds the data root.
+		fmt.Println("Tuist Docker cache teardown: " + dockerTeardownLinux())
 		return
 	}
 	if opts.export {
@@ -115,12 +136,14 @@ func main() {
 }
 
 type options struct {
-	detach   bool
-	checkout string
-	export   bool
-	key      string
-	targets  []string
-	size     int64
+	detach         bool
+	checkout       string
+	export         bool
+	docker         bool
+	dockerTeardown bool
+	key            string
+	targets        []string
+	size           int64
 }
 
 // parseArguments validates the command line before anything is acquired. The
@@ -131,6 +154,8 @@ func parseArguments(args []string, output io.Writer) (options, error) {
 	detach := flags.Bool("detach-all", false, "Detach macOS volumes after the job")
 	checkout := flags.String("checkout", "", "Mount the job's cached checkout at this workspace (before the first step)")
 	export := flags.Bool("checkout-export", false, "Hand the host what the job's checkout added (after the job)")
+	docker := flags.Bool("docker", false, "Move dockerd onto the job's Docker cache volume (before the first step)")
+	dockerTeardown := flags.Bool("docker-teardown", false, "Clean and hand back the job's Docker cache volume (after the job)")
 	key := flags.String("key", "", "Stable cache name; change it to invalidate")
 	var targets paths
 	flags.Var(&targets, "path", "Directory to cache (repeatable, up to 16; relative to the working directory)")
@@ -148,8 +173,17 @@ func parseArguments(args []string, output io.Writer) (options, error) {
 	if *export {
 		return options{export: true}, nil
 	}
+	if *docker {
+		return options{docker: true}, nil
+	}
+	if *dockerTeardown {
+		return options{dockerTeardown: true}, nil
+	}
 	if *detach {
 		return options{detach: true}, nil
+	}
+	if reserved, ok := reservedKeys[*key]; ok {
+		return options{}, fmt.Errorf("the cache volume key %q is reserved for %s; choose another key", *key, reserved)
 	}
 	if !keyPattern.MatchString(*key) || len(targets) == 0 {
 		return options{}, errors.New("usage: tuist-cache-volume --key NAME --path DIR [--path DIR] [--size NGB]")

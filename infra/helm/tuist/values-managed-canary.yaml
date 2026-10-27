@@ -230,11 +230,10 @@ server:
     # legacy cache writer was disabled.
     - name: SWIFT_REGISTRY_SYNC_ENABLED
       value: "true"
-    # Single web replica shares this pool between request handling and the
-    # in-node Oban queues (default: 10). Sized well above the default-queue
-    # concurrency so the steady AlertEvaluationWorker load can't starve web
-    # checkouts. Comfortably under CNPG max_connections (100): 30 web + 10
-    # processor + replication/monitoring/superuser overhead.
+    # Each of the two web replicas shares this direct pool between requests
+    # and in-node Oban queues (default: 10). Keep checkout headroom without
+    # increasing application concurrency. The CNPG budget below includes
+    # both outgoing pools during their 60 s termination grace period.
     - name: TUIST_DATABASE_POOL_SIZE
       value: "30"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
@@ -460,6 +459,15 @@ postgresql:
     # mirror the production tuning shape so canary catches any regression
     # before it reaches prod.
     parameters:
+      # One rollout: 2 old + 2 new web pods x 30 = 120 direct connections.
+      # maxSurge=1 excludes terminating pods; maxSurge=0 would not bound
+      # their pools either. Allow 2 overlapping PgBouncers x 3 db/user
+      # pairs x 20 = 120 more (processor + xcresult share tuist_processor,
+      # Swift sync has its own role, auth uses postgres/cnpg_pooler_pgbouncer).
+      # Add 30 for other direct users, notifier/leader, admin/monitoring and
+      # reserved slots: 270, plus 30 spare. max_client_conn=200 is only a
+      # client admission limit. See infra/cnpg/README.md for assumptions.
+      max_connections: "300"
       shared_buffers: "2GB"
       effective_cache_size: "6GB"
       work_mem: "32MB"
@@ -634,23 +642,7 @@ ovhFleet:
 # OVH_FLEET_SSH and the one `endpoint` the reconciler resolves for every OVH
 # fleet.
 ovhFleets:
-  # Canary half of the OVH Linux runner move: production is going to RISE-L in
-  # Gravelines (see values-managed-production.yaml), and this is the box that
-  # exercises the integration in front of it. RISE-S rather than RISE-L on
-  # purpose: same Zen 5 AM5 family, same single-thread class (4,643 vs 4,728),
-  # same soft-RAID NVMe layout and the same OVHDedicatedMachine code path, at a
-  # third of the cost. Canary does not need production throughput; it needs to
-  # run the production integration.
-  #
-  # OVH RISE-S bare metal in Gravelines: Ryzen 7 9700X, 8c/16t, 64 GB,
-  # 2x512 GB NVMe soft RAID. RISE-S rather than production's RISE-L on purpose:
-  # same Zen 5 AM5 family, same single-thread class, same soft-RAID NVMe layout
-  # and the same OVHDedicatedMachine code path, at a third of the cost. This env
-  # does not need production throughput, it needs to exercise the production
-  # integration.
-  #
-  # The one thing this shape cannot rehearse is the private link: RISE-S has no
-  # vRack option, where RISE-L carries 1 Gbit/s.
+  # One shared RISE-M pool; every Linux job uses the regional Kura instance.
   runners-linux:
     enabled: true
     # MUST equal the number of boxes prepped and marked for this env. Too high
@@ -664,15 +656,12 @@ ovhFleets:
     # fleet must share one value, because the reconciler resolves a single
     # OVH_ENDPOINT for all of them.
     endpoint: ovh-us
-    # The pool the Linux Runner Profiles select on.
     nodePool: runners-linux
     machine:
       adoptDisplayNamePrefix: tuist-runners-ovh-canary
-      # Case-insensitive substring of the box's commercialRange, which the
-      # catalog bills as "RISE-S | AMD Ryzen 7 9700X". The range token alone
-      # matches without depending on how the CPU suffix is spelled on the server
-      # object. A value matching nothing adopts nothing, silently.
-      offer: rise-s
+      offer: rise-m
+      # Backfill existing OnDelete hosts during drained network enrollment.
+      vRackID: pn-2024092
       # Prefix-matched, so any gra* datacenter.
       datacenter: gra
       os: ubuntu_24.04

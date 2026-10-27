@@ -223,6 +223,72 @@ describe("fetchStatusFromGrafana", () => {
     expect(snapshot.recentIncidents.map((i) => i.id)).toEqual(["fresh"]);
   });
 
+  it("preserves each key update's historical status after the incident is resolved", async () => {
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
+      if (url.endsWith("FieldsService.GetFields")) {
+        return Response.json({ fields: [] });
+      }
+      if (url.endsWith("StatusService.QueryOrgStatuses")) {
+        return Response.json({
+          configurations: [
+            {
+              statuses: [
+                { statusID: "active-id", name: "Active", category: "active" },
+                { statusID: "resolved-id", slug: "completed", category: "resolved" },
+                { statusID: "identified-id", slug: "identified", category: "active" },
+                { statusID: "monitoring-id", name: "Monitoring", category: "active" },
+              ],
+            },
+          ],
+        });
+      }
+      if (url.endsWith("IncidentsService.QueryIncidents")) {
+        return Response.json({
+          incidents: body.query.queryString.includes("status:active")
+            ? []
+            : [
+                {
+                  incidentID: "resolved-incident",
+                  title: "Server errors",
+                  status: "resolved",
+                  closedTime: "2026-05-05T11:00:00.000Z",
+                },
+              ],
+        });
+      }
+      if (url.endsWith("KeyUpdatesService.QueryKeyUpdates")) {
+        return Response.json({
+          keyUpdates: [
+            { statusID: "resolved-id", content: "Service has recovered." },
+            { statusID: "monitoring-id", title: "Resolved", content: "Still monitoring." },
+            { statusID: "identified-id", title: "Pool exhausted", content: "Cause identified." },
+            { statusID: "active-id", content: "We are investigating." },
+            { statusID: "unknown-id", content: "Historical status is unavailable." },
+            { content: "No historical status was recorded." },
+            { title: "Monitoring", content: "Legacy update with a status title." },
+          ],
+        });
+      }
+      throw new Error(`unmocked URL: ${url}`);
+    }) as typeof fetch;
+
+    const snapshot = await fetchStatusFromGrafana(ENV);
+
+    expect(snapshot.recentIncidents[0]?.status).toBe("resolved");
+    expect(snapshot.recentIncidents[0]?.updates.map((update) => update.status)).toEqual([
+      "resolved",
+      "monitoring",
+      "identified",
+      "investigating",
+      "investigating",
+      "investigating",
+      "monitoring",
+    ]);
+    expect(snapshot.recentIncidents[0]?.updates[2]?.title).toBe("Pool exhausted");
+  });
+
   it("loads every key update for an incident and uses its summary as a fallback", async () => {
     const keyUpdateBodies: Array<Record<string, unknown>> = [];
     let keyUpdatePage = 0;
@@ -231,6 +297,9 @@ describe("fetchStatusFromGrafana", () => {
       const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
       if (url.endsWith("FieldsService.GetFields")) {
         return new Response(JSON.stringify({ fields: [] }));
+      }
+      if (url.endsWith("StatusService.QueryOrgStatuses")) {
+        return Response.json({ configurations: [] });
       }
       if (url.endsWith("IncidentsService.QueryIncidents")) {
         const isActive = JSON.stringify(body).includes("status:active");
@@ -366,6 +435,9 @@ describe("fetchStatusFromGrafana", () => {
       const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
       if (url.endsWith("FieldsService.GetFields")) {
         return Promise.resolve(new Response(JSON.stringify({ fields: [] })));
+      }
+      if (url.endsWith("StatusService.QueryOrgStatuses")) {
+        return Promise.resolve(Response.json({ configurations: [] }));
       }
       if (url.endsWith("IncidentsService.QueryIncidents")) {
         const incidents = JSON.stringify(body).includes("status:active") ? active : recent;

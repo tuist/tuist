@@ -1,6 +1,6 @@
-# Server Private Assets (Migrations, Seeds)
+# Server Migrations, Documentation and Private Assets
 
-This directory contains database migrations and other private assets.
+- Correlated runner-crash exclusions add a default-false boolean exclusion flag to case executions and filter future commit/automation evidence. Preserve existing provenance filters and historical aggregate states; migrate all ClickHouse deployments before rolling out writers. Roll back application writers before dropping the column.
 
 ## Origin integration
 
@@ -51,6 +51,7 @@ This directory contains database migrations and other private assets.
 - `repo/seed_cargo_xcode_test_states.exs` adds matched healthy, flaky, flaky-muted, muted, and skipped scenarios to `cargo-demo` and `xcode-demo` after both comparison seeds. It uses `Tests.update_test_case/3` so audit events and current-state projections remain authoritative, and seeds seven synthetic CI histories per project without duplicating them on reruns. These are visual comparison scenarios, not claims of nextest quarantine enforcement.
 - `repo/seed_xcode_comparison.exs` adds a public `tuistrocks/xcode-demo` project to the Cargo demo's isolated development database, with 42 synthetic builds and 42 test runs over two weeks. Run after `seed_cargo_analytics.exs`; reruns preserve existing data. It intentionally leaves unsupported demo categories, such as previews and cache activity, empty rather than inventing measurements; the separate recorded-cache replay seed fills cache activity from actual fixtures.
 - `repo/seed_cargo_analytics.exs` seeds a public `tuistrocks/cargo-demo` project with synthetic compiler observations, diagnostics, nextest successes/failures/skips/retries, and a binary-level shard plan. Run it in an isolated development database. Existing demo data is retained on reruns; the script prints the dashboard URLs and local login credentials.
+- `repo/seed_docker_cache.exs` gives the `tuist` organization four image cache volumes (two saved with image inventories, one waiting for its first save, one cleared) and a week of jobs that mounted them, with matching workflow jobs and "Initialize containers" steps (about 5 s reused, about 48 s cold) so an image cache volume's page has a hit rate, Initialize containers statistics and images to show. Run it after `seeds.exs`; reruns replace only what it seeded. It prints the page URLs and local login credentials.
 - Runner job steps use weighted durations that sum to the job duration, reserving at least one second for each remaining step in the seeded jobs.
 - Gradle build seeds populate requested tasks from their generated task list, preferring assemble entry points. Keep build metadata consistent with the tasks shown in analytics.
 - Shard seed reinsertion must strip Ecto associations, including `:actor_account`, while preserving persisted actor fields. Associations cannot be passed to `IngestRepo.insert_all/3`.
@@ -137,3 +138,5 @@ This directory contains database migrations and other private assets.
 - The Grafana guide distinguishes the neutral percentile-based failed-or-slow metric from explicit duration targets, documents paired cache savings/coverage, and points native failure classification to build details and category filters rather than default table columns.
 
 - Cache-volume writer policy adds an empty-default exact branch list on volumes and auto-default commit intent and nullable additional-branch grant provenance on uses. Preserve existing volume identity, clear epochs and default-branch permissions; document policy data in the export inventory. `runner_cache_volume_uses.commit_mode` and `runner_cache_volumes.writer_branches` are no longer read.
+
+- SSO compatibility removal materializes existing implicit Okta/custom memberships into roles/users_roles before runtime behavior switches. Preserve explicit roles and Google behavior. Retain the unused legacy column until all old releases are gone; do not backfill domain verification or recheck timestamps as part of this switch.

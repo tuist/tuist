@@ -4,11 +4,28 @@ Workflows live in `workflows/`, reusable actions in `actions/`, and supporting
 scripts in `scripts/`. Changes to privileged workflows must keep contributor
 content separate from executable code.
 
+`mgmt-cluster-tests.yml` checks the management health gates, disruption budgets
+and reconciliation shell scripts without credentials on PRs and main.
+`mgmt-cluster-apply.yml` synchronizes Flannel arguments and verifies private
+endpoints plus cross-node pod traffic after Talos patches; webhook PDBs apply
+after the replicas and External Secrets release. Keep public firewall removal
+and the private API-target switch after that network rollout, as documented in
+`infra/k8s/mgmt/talos/README.md`.
+
+Management backup changes must pass `test-ha-followups.cjs`. After the Talos
+API-access patch, the apply workflow deploys the backup-only Talos ServiceAccount
+and verifies a real snapshot upload from every control-plane node. It never
+deletes the old static credential automatically; the operator verification task
+can do so only after all uploads succeed. Keep failure paths and Secret cleanup
+guards covered without credentials.
+
 Helm CI also watches hosted dashboard changes. Monitoring cost-control tests
 start the production Alloy image to compile log selectors, exercise rendered
 remote-write rules against a local Prometheus receiver, and check all migrated
 latency queries across mixed-version rollout states. These checks need no cloud
 credentials and must never write to the production telemetry destinations.
+Helm CI also tests the runner macOS host-health rules with promtool, including
+fixed kernels, uptime thresholds, stale samples and failed collection.
 The Helm render job also runs `infra/helm/tuist/test-cluster-cookie.py` offline:
 check all managed environment cookie references and Secret ownership without
 reading 1Password or logging rendered cookie values.
@@ -254,6 +271,10 @@ time separately, and distinguish actual attachment/hits from empty-directory
 fallback. Retaining only an external source/native-manifest cache is possible,
 but rebuilds workspace state and manifest JSON; benchmark it separately before
 changing the retained layout.
+
+The SwiftPM build job runs `e2e/global_flags.bats` against its newly built CLI.
+Resolve the products directory with `--show-bin-path` and test its unmodified
+outputs, including manifest loading and ProjectDescription helper compilation.
 
 ## Server deploy cascade volumes
 

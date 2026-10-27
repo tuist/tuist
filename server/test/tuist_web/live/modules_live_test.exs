@@ -357,7 +357,9 @@ defmodule TuistWeb.ModulesLiveTest do
     {:ok, lv, _html} =
       live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/modules")
 
-    assert lv |> render_async(2000) |> table_rows() == 25
+    # The initial render waits for real ClickHouse analytics; page patches below
+    # reuse that snapshot and do not need another database round trip.
+    assert lv |> render_async(5000) |> table_rows() == 25
 
     # Paging forward leaves the remaining five on the last page.
     html = render_patch(lv, "?after=Module25")

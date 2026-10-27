@@ -15,6 +15,11 @@
       "watts": 8000
     }
   ],
+  "power_budget": {
+    "chain_amps": 13,
+    "other_watts": 0,
+    "note": "A chain stops taking new runner VMs at 13 A, under its 16 A breaker with room for the dual-PSU gear a feed loss moves onto it. Everything at BER1 hangs off a transfer switch (ber1-ats-1 carries the critical gear), so the switches meter the whole rack and the site's budget is the contracted power in effect."
+  },
   "credentials": {
     "vault": "pqwnigzdk46jpjvofoqpeuhmgq",
     "username": "tuist",

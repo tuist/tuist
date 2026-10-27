@@ -10,6 +10,7 @@ on:
       - "cli/Sources/**"
       - "cli/Tests/**"
       - "cli/Templates/**"
+      - "e2e/global_flags.bats"
       # cas-plugin (the Xcode CAS dylib + tuist-cas-proxy) is built and shipped
       # inside the CLI, so its changes must run the CLI builds.
       - "cas-plugin/**"
@@ -41,6 +42,7 @@ on:
       - "cli/Sources/**"
       - "cli/Tests/**"
       - "cli/Templates/**"
+      - "e2e/global_flags.bats"
       # cas-plugin (the Xcode CAS dylib + tuist-cas-proxy) is built and shipped
       # inside the CLI, so its changes must run the CLI builds.
       - "cas-plugin/**"
@@ -162,7 +164,7 @@ jobs:
       - uses: tuist/module-cache@v1
       - uses: ./.github/actions/mise
         with:
-          install_args: "tuist"
+          install_args: "tuist bats"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
@@ -179,6 +181,10 @@ jobs:
         run: swift package --cache-path "$PWD/.build/dependency-cache" resolve --replace-scm-with-registry
       - name: Build
         run: swift build --cache-path "$PWD/.build/dependency-cache" --configuration debug --replace-scm-with-registry --force-resolved-versions
+      - name: Test global flags
+        run: |
+          bin_path="$(swift build --cache-path "$PWD/.build/dependency-cache" --configuration debug --replace-scm-with-registry --force-resolved-versions --show-bin-path)"
+          TUIST_EXECUTABLE="$bin_path/tuist" bats --print-output-on-failure e2e/global_flags.bats
 
   cli-linux-build:
     name: Linux Build

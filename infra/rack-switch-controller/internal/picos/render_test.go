@@ -18,13 +18,13 @@ func lines(items []Item) []string {
 
 func TestDesired(t *testing.T) {
 	cfg := &v1alpha1.SwitchConfig{
-		Hostname: "ber2-tor-a",
+		Hostname: "larch-tor-a",
 		VLANs:    []v1alpha1.VLAN{{ID: 1, Name: "default"}, {ID: 10, Name: "machines"}, {ID: 4000, Name: "mgmt"}},
 		LAGs:     []v1alpha1.LAG{{ID: 1, Name: "edge-a", Ports: []int{29, 30}}},
 		Ports: []v1alpha1.PortConfig{
-			{Port: 1, Description: "ber2-mini-01", NativeVLAN: 10},
+			{Port: 1, Description: "larch-mini-01", NativeVLAN: 10},
 			{Port: 2},
-			{Port: 24, Description: "ber2-pdu-b", NativeVLAN: 4000},
+			{Port: 24, Description: "larch-pdu-b", NativeVLAN: 4000},
 			{Port: 29, NativeVLAN: 1, TaggedVLANs: []int{4000, 10}},
 			{Port: 30, NativeVLAN: 1, TaggedVLANs: []int{4000, 10}},
 		},
@@ -39,15 +39,15 @@ func TestDesired(t *testing.T) {
 		`set interface aggregate-ethernet ae1 family ethernet-switching port-mode trunk`,
 		`set interface aggregate-ethernet ae1 family ethernet-switching vlan members 10`,
 		`set interface aggregate-ethernet ae1 family ethernet-switching vlan members 4000`,
-		`set interface gigabit-ethernet te-1/1/1 description "ber2-mini-01"`,
+		`set interface gigabit-ethernet te-1/1/1 description "larch-mini-01"`,
 		`set interface gigabit-ethernet te-1/1/1 family ethernet-switching native-vlan-id 10`,
-		`set interface gigabit-ethernet te-1/1/24 description "ber2-pdu-b"`,
+		`set interface gigabit-ethernet te-1/1/24 description "larch-pdu-b"`,
 		`set interface gigabit-ethernet te-1/1/24 family ethernet-switching native-vlan-id 4000`,
 		`set interface gigabit-ethernet te-1/1/29 ether-options 802.3ad ae1`,
 		`set interface gigabit-ethernet te-1/1/30 ether-options 802.3ad ae1`,
 		`set protocols lacp interface te-1/1/29 rate fast`,
 		`set protocols lacp interface te-1/1/30 rate fast`,
-		`set system hostname "ber2-tor-a"`,
+		`set system hostname "larch-tor-a"`,
 		`set vlans vlan-id 10 vlan-name "machines"`,
 		`set vlans vlan-id 4000 vlan-name "mgmt"`,
 	}
@@ -79,14 +79,14 @@ func TestDifferenceOrdersDeletesBeforeSets(t *testing.T) {
 		{Path: "interface gigabit-ethernet te-1/1/29 ether-options 802.3ad", Value: "ae1"},
 		{Path: "interface gigabit-ethernet te-1/1/5 family ethernet-switching vlan members", Value: "10", List: true},
 		{Path: "interface gigabit-ethernet te-1/1/5 family ethernet-switching port-mode", Value: "trunk"},
-		{Path: "system hostname", Value: `"ber2-tor-a"`},
+		{Path: "system hostname", Value: `"larch-tor-a"`},
 	}
 	got := Difference(observed, desired, owned)
 	want := []string{
 		"delete interface gigabit-ethernet te-1/1/5 family ethernet-switching vlan members 20",
 		"delete interface aggregate-ethernet ae2",
 		"delete vlans vlan-id 20",
-		`set system hostname "ber2-tor-a"`,
+		`set system hostname "larch-tor-a"`,
 		`set vlans vlan-id 10 vlan-name "machines"`,
 		"set interface aggregate-ethernet ae1 aggregated-ether-options lacp enable true",
 		"set interface gigabit-ethernet te-1/1/29 ether-options 802.3ad ae1",

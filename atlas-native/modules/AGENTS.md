@@ -37,6 +37,13 @@ Compiler/frontend/Clang/linker bytes, SDK and toolchain library
 trees identify the action and isolate its cleaned module cache. Do not copy private
 Once prelude helpers or weaken this identity to a version string.
 
+The same rule also accepts `dev.tuist.atlas.share`, producing `AtlasShare.appex`
+from `ios/Share/*.swift` with UIKit/Social instead of WidgetKit. Its Objective-C
+principal class uses `_NSExtensionMain` directly, with no Swift `@main` retention.
+Only Share receives the exact App Group entitlement. Both production hosts depend
+on and embed their matching Share target; the isolated Settings preview does not.
+`embed-widget.sh` accepts only the two known extension names and preserves siblings.
+
 Run `/bin/bash modules/check-widget.sh <path-to-AtlasLiveActivity-executable>` on
 macOS for the built production simulator, device, and Settings preview extensions.
 This public Mach-O gate uses `xcrun nm` and `otool` to require a defined Swift

@@ -656,7 +656,8 @@ defmodule Tuist.AccountsTest do
           sso_provider: :okta,
           sso_organization_id: provider_organization_id,
           sso_automatic_enrollment: true,
-          sso_legacy_email_domain_fallback: true,
+          sso_login_domain: "tuist.dev",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
           oauth2_client_id: "client-id",
           oauth2_client_secret: "client-secret"
         )
@@ -2061,7 +2062,8 @@ defmodule Tuist.AccountsTest do
           sso_provider: :okta,
           sso_organization_id: provider_organization_id,
           sso_automatic_enrollment: true,
-          sso_legacy_email_domain_fallback: true,
+          sso_login_domain: "tuist.dev",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
           oauth2_client_id: "client-id",
           oauth2_client_secret: "client-secret"
         )
@@ -3508,7 +3510,8 @@ defmodule Tuist.AccountsTest do
           sso_provider: :okta,
           sso_organization_id: provider_organization_id,
           sso_automatic_enrollment: true,
-          sso_legacy_email_domain_fallback: true,
+          sso_login_domain: "tuist.dev",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
           oauth2_client_id: "client-id",
           oauth2_client_secret: "client-secret"
         )
@@ -3578,7 +3581,8 @@ defmodule Tuist.AccountsTest do
           oauth2_client_id: "client-id",
           oauth2_client_secret: "client-secret",
           sso_automatic_enrollment: true,
-          sso_legacy_email_domain_fallback: true
+          sso_login_domain: "tuist.dev",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z]
         )
 
       # Create an SSO user
@@ -4464,7 +4468,7 @@ defmodule Tuist.AccountsTest do
                Accounts.sso_organization_for_user_email("someone@example.com")
     end
 
-    test "preserves provider-identifier discovery for a legacy organization" do
+    test "does not discover a former compatibility-mode organization for nonmembers" do
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :oauth2,
@@ -4477,9 +4481,10 @@ defmodule Tuist.AccountsTest do
           oauth2_user_info_url: "https://example.com/userinfo"
         )
 
-      assert {:ok, discovered_organization} =
-               Accounts.sso_organization_for_user_email("someone@example.com")
-
+      assert {:error, :not_found} = Accounts.sso_organization_for_user_email("someone@example.com")
+      member = AccountsFixtures.user_fixture(email: "member@example.com")
+      Accounts.add_user_to_organization(member, organization)
+      assert {:ok, discovered_organization} = Accounts.sso_organization_for_user_email(member.email)
       assert discovered_organization.id == organization.id
     end
 
@@ -4606,7 +4611,7 @@ defmodule Tuist.AccountsTest do
       assert Accounts.sso_automatic_enrollment_allowed?(organization, "person@secondary.example")
     end
 
-    test "preserves automatic enrollment for a legacy custom-provider organization" do
+    test "blocks enrollment for a former compatibility-mode organization without a domain" do
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :oauth2,
@@ -4620,12 +4625,12 @@ defmodule Tuist.AccountsTest do
           oauth2_user_info_url: "https://login.vendor.example/userinfo"
         )
 
-      assert Accounts.sso_automatic_enrollment_allowed?(organization, "person@unrelated.example")
-      assert Accounts.sso_new_user_enrollment_allowed?(organization, "person@unrelated.example", false)
+      refute Accounts.sso_automatic_enrollment_allowed?(organization, "person@unrelated.example")
+      refute Accounts.sso_new_user_enrollment_allowed?(organization, "person@unrelated.example", false)
       refute Accounts.sso_identity_linking_allowed?(organization, "person@unrelated.example")
     end
 
-    test "keeps a legacy organization's enrollment unchanged while its login domain is unverified" do
+    test "blocks enrollment for a former compatibility-mode organization with an unverified domain" do
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :oauth2,
@@ -4641,11 +4646,12 @@ defmodule Tuist.AccountsTest do
           oauth2_user_info_url: "https://login.vendor.example/userinfo"
         )
 
-      assert Accounts.sso_automatic_enrollment_allowed?(organization, "person@example.com")
-      assert Accounts.sso_new_user_enrollment_allowed?(organization, "person@example.com", false)
-      assert Accounts.sso_automatic_enrollment_allowed?(organization, "person@unrelated.example")
-      assert Accounts.sso_new_user_enrollment_allowed?(organization, "person@unrelated.example", false)
+      refute Accounts.sso_automatic_enrollment_allowed?(organization, "person@example.com")
+      refute Accounts.sso_new_user_enrollment_allowed?(organization, "person@example.com", false)
+      refute Accounts.sso_automatic_enrollment_allowed?(organization, "person@unrelated.example")
+      refute Accounts.sso_new_user_enrollment_allowed?(organization, "person@unrelated.example", false)
 
+      refute Accounts.sso_new_user_enrollment_allowed?(organization, "person@example.com", true)
       refute Accounts.sso_identity_linking_allowed?(organization, "person@example.com")
     end
 
@@ -4676,7 +4682,9 @@ defmodule Tuist.AccountsTest do
 
       assert {:ok, verified_organization} = Accounts.verify_sso_login_domain(organization)
       assert verified_organization.sso_login_domain_verified_at
-      refute verified_organization.sso_legacy_email_domain_fallback
+
+      assert verified_organization.sso_login_domain_last_verified_at ==
+               verified_organization.sso_login_domain_verified_at
     end
 
     test "keeps the domain pending when the expected text record is absent" do
@@ -6460,14 +6468,14 @@ defmodule Tuist.AccountsTest do
       refute Accounts.sso_enforced_for_email?("unknown@example-sso.com")
     end
 
-    test "preserves enforcement for an unknown email in a legacy organization" do
+    test "does not enforce SSO for a nonmember through the retired compatibility flag" do
       _org =
         sso_enforced_organization_fixture(
           sso_organization_id: "example.okta.com",
           sso_legacy_email_domain_fallback: true
         )
 
-      assert Accounts.sso_enforced_for_email?("unknown@example.com")
+      refute Accounts.sso_enforced_for_email?("unknown@example.com")
     end
 
     test "does not use the provider identifier for a new organization" do

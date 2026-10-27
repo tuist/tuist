@@ -172,10 +172,11 @@ defmodule TuistWeb.RunnersController do
   #     in by `serve_claim`: can this fleet's runtime resolve and route
   #     `*.svc.cluster.local` at all (Linux kata Pods always; macOS
   #     Tart VMs only in environments that wired the tailnet route).
-  #   * locality — the fleet's platform and site, which
+  #   * locality — the fleet's platform and the site the claiming runner's
+  #     Node is at (`Tuist.Runners.Sites.claim_site/2`), which
   #     `runner_cache_endpoint_url/3` matches against the private
   #     region's `runner_platforms` and `site`, so a node co-located with
-  #     one fleet never serves a fleet on the wrong side of a WAN.
+  #     one site never serves a runner on the wrong side of a WAN.
   defp dispatch_response(
          credential,
          account,

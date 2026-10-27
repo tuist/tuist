@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"time"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
@@ -142,12 +143,12 @@ func load() (*frameworks, error) {
 // together with an error for each part that failed, so one missing source
 // never costs the others.
 func Read() (Readings, []error) {
+	host, errs := readHostHealth(hostCommandOutput, time.Now())
+	r := Readings{HostHealth: host}
 	f, err := load()
 	if err != nil {
-		return Readings{}, []error{fmt.Errorf("load frameworks: %w", err)}
+		return r, append(errs, fmt.Errorf("load frameworks: %w", err))
 	}
-	var r Readings
-	var errs []error
 	if err := f.readTemperatures(&r); err != nil {
 		errs = append(errs, fmt.Errorf("temperatures: %w", err))
 	}

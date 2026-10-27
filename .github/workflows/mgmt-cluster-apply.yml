@@ -4,8 +4,8 @@ name: Mgmt Cluster Apply
 # mgmt-cluster workloads (etcd-snapshot CronJob, Tailscale daemon) to
 # our self-hosted CAPI mgmt cluster on push to main when the relevant
 # paths change. The `hetzner` and `talos` jobs also reconcile the mgmt
-# node's Hetzner resources and Talos machine config patches
-# (infra/k8s/mgmt/talos/README.md).
+# control-plane nodes: their Hetzner servers and resources, joining new
+# nodes, and Talos machine config patches (infra/k8s/mgmt/talos/README.md).
 #
 # Why a workflow instead of Argo CD / Flux: the mgmt cluster has a tiny
 # manifest surface (one ClusterClass, four Cluster CRs, and a few mgmt-side
@@ -60,6 +60,7 @@ on:
       - 'infra/k8s/mgmt/hetzner-robot-controller.yaml'
       - 'infra/k8s/mgmt/observability-namespace.yaml'
       - 'infra/k8s/mgmt/controller-replicas.yaml'
+      - 'infra/k8s/mgmt/controller-pdbs.yaml'
       - 'infra/k8s/mgmt/external-secrets-values.yaml'
       - 'infra/k8s/mgmt/talos/hetzner.yaml'
       - 'infra/k8s/mgmt/talos/patches/**'
@@ -111,19 +112,22 @@ jobs:
 
   talos:
     name: Talos patches
-    # Patches can depend on Hetzner resources (a node's private network
-    # interface), so they apply only after that job succeeded.
+    # Joining needs the servers the Hetzner job creates, and patches can
+    # depend on Hetzner resources (a node's private network interface), so
+    # this job runs only after that one succeeded.
     needs: hetzner
     if: github.repository == 'tuist/tuist' && github.ref == 'refs/heads/main'
-    # Applies infra/k8s/mgmt/talos/patches/ to every control-plane node
-    # through a Job inside the mgmt cluster, which calls the Talos API with
-    # a credential Talos mints for namespace mgmt-talos. The Talos API
-    # itself stays tailnet-only. A patch that changes the API server
-    # restarts it, so the kubectl job waits for this one.
+    # Joins the control-plane nodes in infra/k8s/mgmt/talos/hetzner.yaml
+    # that are not in the cluster yet, then applies
+    # infra/k8s/mgmt/talos/patches/ to every control-plane node, through
+    # Jobs inside the mgmt cluster that call the Talos API with a credential
+    # Talos mints for namespace mgmt-talos. The Talos API itself stays
+    # tailnet-only. A patch that changes the API server restarts it, so the
+    # kubectl job waits for this one.
     runs-on: ubuntu-latest
     environment:
       name: mgmt-cluster-apply
-    timeout-minutes: 45
+    timeout-minutes: 90
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
@@ -159,7 +163,8 @@ jobs:
       name: mgmt-cluster-apply
     # `kubectl diff` can be slow against the Cluster API CRDs when many
     # Machines are changing, so leave enough room for the visibility step.
-    timeout-minutes: 35
+    # Backup verification can wait up to ten minutes per control-plane node.
+    timeout-minutes: 65
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
@@ -368,6 +373,11 @@ jobs:
             --namespace external-secrets \
             -f infra/k8s/mgmt/external-secrets-values.yaml \
             --atomic --cleanup-on-fail --wait --timeout 10m
+      - name: Protect admission webhooks during node maintenance
+        run: |
+          kubectl apply -f infra/k8s/mgmt/controller-pdbs.yaml
+      - name: Verify etcd snapshots from every control-plane node
+        run: infra/mise/tasks/mgmt/verify-etcd-snapshot.sh
       - name: Install management-cluster monitoring
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}

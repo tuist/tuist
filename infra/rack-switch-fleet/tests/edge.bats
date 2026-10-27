@@ -481,8 +481,20 @@ STUB
     run fleet_edge_path "$SITE_FILE"
     [ "$status" -eq 0 ]
     [[ "$output" == *"edge_vlan_bond wan0 4001"* ]]
-    [[ "$output" != *"149.6.170."* ]]
+    # the path never sets the WAN address or a route through it; it names
+    # them only to give up what the edge's install took on its own
+    ! grep -E '^ *ip (addr|route) (add|replace) .*149\.6\.170\.' <<<"$output"
     [[ "$output" != *"2001:978:"* ]]
+    [[ "$output" == *"edge_vlan_bond wan0 4001
+if [ -s /run/rack-edge/first-wan ]; then
+  read -r first_wan </run/rack-edge/first-wan
+  case \"\$first_wan\" in
+    wan0) ip route del default via 149.6.170.30 dev wan0 metric 50 2>/dev/null || true
+      ip addr del 149.6.170.31/31 dev wan0 2>/dev/null || true ;;
+    *) ip link del \"\$first_wan\" 2>/dev/null || true ;;
+  esac
+  rm -f /run/rack-edge/first-wan
+fi"* ]]
     # the edge trunks carry the WAN VLAN tagged, and the WAN ports untagged and
     # alone, with no spanning tree towards the upstream
     for tor in ber1-tor-a ber1-tor-b; do
@@ -1021,6 +1033,24 @@ STUB
     # protocol included, so a restart of networkd adds no second one
     [[ "$output" == *'ip route replace default via "$peer_address" dev vrrp0 metric 200 proto static'* ]]
     [ "$(grep -c '^  ber1-edge-' <<<"$install")" -eq 2 ]
+}
+
+@test "each edge's install carries the site's static WAN once its address is known, for the first edge of a site to take on its own" {
+    source "$FLEET_ROOT/lib/edge.sh"
+    run fleet_edge_install "$SITE_FILE"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"      peer: 10.255.255.1
+    wan:
+      vlan: 4001
+      address: 149.6.170.31/31
+      gateway: 149.6.170.30"* ]]
+    [ "$(grep -c '^    wan:$' <<<"$output")" -eq 2 ]
+    # before the carrier assigns it, the edges carry no WAN to take
+    jq '.management.edge.wan |= {vlan}' "$SITE_FILE" > "$BATS_TEST_TMPDIR/nowanaddress.json"
+    run fleet_edge_install "$BATS_TEST_TMPDIR/nowanaddress.json"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"vrrp:"* ]]
+    [[ "$output" != *"wan:"* ]]
 }
 
 @test "a site with no WAN gives its edges' installs no way out over VRRP, so they keep DHCP on their uplinks" {

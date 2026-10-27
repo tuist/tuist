@@ -12136,3 +12136,364 @@ msgstr ""
 #, elixir-autogen, elixir-format
 msgid "Use for Orbit"
 msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:279
+#, elixir-autogen, elixir-format
+msgid "Save a link, an excerpt, or an idea. Add your own context."
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:159
+#, elixir-autogen, elixir-format
+msgid "A shared pool of things that spark ideas. Save a reference. See where it leads."
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:164
+#: lib/atlas_web/live/moodboard_live.ex:278
+#, elixir-autogen, elixir-format
+msgid "Add resource"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:236
+#, elixir-autogen, elixir-format
+msgid "Added by %{name}"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:201
+#, elixir-autogen, elixir-format
+msgid "Collect articles, websites, videos, and ideas worth coming back to. Add the first resource here or through MCP."
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:278
+#, elixir-autogen, elixir-format
+msgid "Edit resource"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:304
+#, elixir-autogen, elixir-format
+msgid "Link"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:195
+#, elixir-autogen, elixir-format
+msgid "Make room for inspiration"
+msgstr ""
+
+#: lib/atlas_web/components/layouts/dashboard.html.heex:287
+#: lib/atlas_web/live/moodboard_live.ex:18
+#: lib/atlas_web/live/moodboard_live.ex:157
+#, elixir-autogen, elixir-format
+msgid "Moodboard"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:194
+#, elixir-autogen, elixir-format
+msgid "No resources found"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:319
+#, elixir-autogen, elixir-format
+msgid "Preview image override (optional)"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:263
+#, elixir-autogen, elixir-format
+msgid "Previous"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:338
+#, elixir-autogen, elixir-format
+msgid "Remove resource"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:342
+#, elixir-autogen, elixir-format
+msgid "Remove this resource from Moodboard?"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:257
+#, elixir-autogen, elixir-format
+msgid "Resource pages"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:101
+#, elixir-autogen, elixir-format
+msgid "Resource removed."
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:84
+#, elixir-autogen, elixir-format
+msgid "Resource saved to Moodboard."
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:356
+#, elixir-autogen, elixir-format
+msgid "Save resource"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:176
+#, elixir-autogen, elixir-format
+msgid "Search ideas, source text, and conversations"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:175
+#, elixir-autogen, elixir-format
+msgid "Search resources"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:185
+#, elixir-autogen, elixir-format
+msgid "Tag: %{tag} ×"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:327
+#, elixir-autogen, elixir-format
+msgid "Tags (comma-separated)"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:91
+#: lib/atlas_web/live/moodboard_live.ex:105
+#, elixir-autogen, elixir-format
+msgid "This resource is no longer available."
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:65
+#, elixir-autogen, elixir-format
+msgid "This resource is not yours to edit."
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:199
+#, elixir-autogen, elixir-format
+msgid "Try another search or tag, or go back to the first page."
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:313
+#, elixir-autogen, elixir-format
+msgid "Why it's worth saving"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex:237
+#, elixir-autogen, elixir-format
+msgid "a teammate"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "A preview wasn't available. Private, deleted, or blocked links can still be saved."
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Add comment"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex
+#, elixir-autogen, elixir-format
+msgid "Add original text or a quote. Required when there is no link."
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex
+#, elixir-autogen, elixir-format
+msgid "Article"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Back to Moodboard"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Comment added."
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Contributor's note"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex
+#, elixir-autogen, elixir-format
+msgid "Discuss"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Discussion"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#: lib/atlas_web/live/moodboard_live.ex
+#, elixir-autogen, elixir-format
+msgid "Finding a preview…"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "From the source"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex
+#, elixir-autogen, elixir-format
+msgid "Image"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex
+#, elixir-autogen, elixir-format
+msgid "Images, videos, and article text are discovered automatically after saving."
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex
+#, elixir-autogen, elixir-format
+msgid "Link (optional for text)"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "More comments"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Only the author can remove a comment."
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Only the contributor can refresh this preview."
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#: lib/atlas_web/live/moodboard_live.ex
+#, elixir-autogen, elixir-format
+msgid "Open original"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Previous comments"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Read extracted text"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Refresh preview"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Remove this comment?"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Resource"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Resource not found."
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Shared by %{name}"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex
+#, elixir-autogen, elixir-format
+msgid "Text"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Text or excerpt"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex
+#, elixir-autogen, elixir-format
+msgid "Text or excerpt (optional)"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex
+#, elixir-autogen, elixir-format
+msgid "Text resource"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex
+#, elixir-autogen, elixir-format
+msgid "Video"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "What caught your eye? Start the conversation."
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Your comment"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Added by"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Comment pages"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Filter by %{tag}"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "No comments on this page"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "No comments yet"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Only the contributor can remove this resource."
+msgstr ""
+
+#: lib/atlas_web/components/moodboard_components.ex
+#, elixir-autogen, elixir-format
+msgid "Preview ready"
+msgstr ""
+
+#: lib/atlas_web/components/moodboard_components.ex
+#, elixir-autogen, elixir-format
+msgid "Preview unavailable"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_show_live.ex
+#, elixir-autogen, elixir-format
+msgid "Preview updated"
+msgstr ""
+
+#: lib/atlas_web/components/moodboard_components.ex
+#, elixir-autogen, elixir-format
+msgid "Remove this resource and its discussion from Moodboard?"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex
+#, elixir-autogen, elixir-format
+msgid "Resources"
+msgstr ""
+
+#: lib/atlas_web/live/moodboard_live.ex
+#, elixir-autogen, elixir-format
+msgid "Search: %{query}"
+msgstr ""

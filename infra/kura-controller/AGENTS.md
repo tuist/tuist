@@ -1,6 +1,6 @@
 # Kura Controller
 
-This module contains the Kubernetes controller that reconciles Kura account endpoint custom resources.
+Owns `KuraInstance` / `KuraGateway` product workload lifecycle, not CAPI node lifecycle. Run `go test ./...` here; align API changes with [chart CRDs](../helm/tuist/crds/).
 
 ## Scope
 - Opt-in phase-one serving/recovery: [serving-authority.md](serving-authority.md).
@@ -49,10 +49,6 @@ This module contains the Kubernetes controller that reconciles Kura account endp
   Disabled by default; no RBAC, token-mount, or JIT policy changes. See
   [`connectivity-diagnostics.md`](connectivity-diagnostics.md) for bounds and rollout:
   the environment change rolls selected instances under their existing strategy.
-
-- API group: `kura.tuist.dev`
-- Primary resource: `KuraInstance`
-- Controller output: Kubernetes workload resources for one account-region Kura deployment. The customer plane is fronted by a shared regional ingress (deployed via Helm), not a per-account gateway.
 
 ## Account renames
 
@@ -162,6 +158,14 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
 - cert-manager must be installed in the cluster before turning on `--grpc-cluster-issuer`. The controller does not provision the issuer itself. The flag name is historical: it now backs only the per-instance public-host `Certificate` that instances outside `--public-tls-secret-name` fall back to (gRPC co-hosts on the public host; there is no separate gRPC certificate).
 
 ## Private runner entrance
+
+Linux runners reuse existing regional Kura instances on one `runners-linux`
+host pool. Every account receives the direct internal Service URL; vRack is a
+host-network rollout without an account flag or WAN relay. See
+[linux-runner-private-cache.md](linux-runner-private-cache.md) for drained
+enrollment, canary qualification and staging migration prerequisites. Preserve
+macOS private-cache behavior, existing primary selection and move identities.
+Keep validation outputs in workflow artifacts and retain staging fixture backups.
 
 Runner instances share the managed StatefulSet rollout, preferred co-location, disruption budget, primary routing, mesh and drain. Kubernetes defaults new sets to RollingUpdate; leave a live operator-set update strategy intact. Primary selection prefers full ring visibility but falls back to a fresh Ready/serving writer when no fully joined member remains, so a restarting sibling cannot pin traffic to a dead pod.
 

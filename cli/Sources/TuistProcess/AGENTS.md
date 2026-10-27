@@ -1,15 +1,5 @@
-# TuistProcess (CLI Module)
+# TuistProcess
 
-This module provides process execution helpers and process lifecycle utilities.
-
-## Responsibilities
-- Run background processes with controlled environment and silent output.
-
-## Boundaries
-- Keep CLI command wiring in `cli/Sources/TuistKit`.
-- Keep shared low-level utilities in `cli/Sources/TuistSupport`.
-
-## Invariants
 - On macOS, Cargo sessions explicitly preserve valid pipe descriptors from `CARGO_MAKEFLAGS` (`--jobserver-auth`/`--jobserver-fds`) through both captured and inherited process spawning. Darwin's default close-on-exec otherwise breaks rustc's jobserver. Only the two validated descriptors are inherited, and only inside an observed Cargo session; do not disable descriptor isolation globally.
 - `CommandRunner.runInheritingOutput` preserves inherited stdin/stdout/stderr and the foreground process group for transparent command decoration. It does not collect output. Cargo uses it for primary commands except standard plain-Cargo test reporting, which uses `runWithOutputHandler` to tee streams and parse libtest results; metadata and compiler observation use captured streams. The protocol default forwards to captured execution for alternate runners.
 - `CommandRunner.runWithOutputHandler` calls a synchronous Sendable handler from each dedicated pipe-reader thread, never an unbounded event queue or stderr collector. Handlers must be thread-safe; a slow handler applies pipe backpressure. It preserves inherited stdin/process group and reports failures with empty stderr because the handler already received it. Start both `FileHandle.consumeOutput` readers before spawning, and close parent writers once spawned so EOF is observable. Reap the primary command independently of EOF; descendants can retain inherited pipe writers. Drain already-buffered data before stopping. Allow 250 ms of idle time after exit and at most two seconds waiting for more post-exit data, excluding the union of time spent blocked inside output handlers from both clocks. Check readiness without blocking before polling so a periodic descendant cannot evade the deadline. Drain buffered data first, and cap continuously writing descendants at 8 MB per stream after exit. When a reader stops short of EOF, call `onIncompleteOutput` so callers discard partial captures; never drop the primary command's buffered tail because a downstream consumer stalled. Preserve the primary exit status even when draining fails. Protocol defaults for alternate runners delegate to captured execution.
@@ -21,9 +11,6 @@ This module provides process execution helpers and process lifecycle utilities.
 - Unit tests live in `cli/Tests/TuistProcessTests` and run on macOS (Xcode) and Linux (`swift test`).
 - Post-exit drain timing tests use `CommandRunner(maximumConcurrentProcesses: 1)` so their five-second bounds do not include waiting for unrelated tests on the shared process limiter. Preserve the elapsed-time, incomplete-output and primary-exit-status assertions.
 - `drainsBothPipesWithoutSchedulingOutputConsumptionTasks` deterministically holds the post-spawn worker before consumer tasks are created and verifies that a child finishes writing 1 MiB to each pipe during that hold, with all bytes subsequently delivered.
-
-## Related Context
-- cli/Sources/TuistSupport/AGENTS.md
 
 ## Integration coverage
 

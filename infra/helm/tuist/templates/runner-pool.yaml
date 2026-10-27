@@ -79,6 +79,11 @@ spec:
   failing loudly.
   */}}
   fleetSelector: {{ $pool.fleetSelector | default $hostFleetName | quote }}
+  {{- /* A pool racked at a site runs only on that site's minis, even once the
+  rack fleet spans several sites: the `ber1` smoke pool tests that rack. */}}
+  {{- with $pool.site }}
+  site: {{ . | quote }}
+  {{- end }}
   dispatchLabel: {{ $dispatchLabel | quote }}
   runnerLabels:
     {{- range $runnerLabels }}
@@ -132,21 +137,24 @@ rebuilt. An xcodeVersion entry can override `imageTag` to pin a specific tag
 dispatch with a `:<profile>-<git-sha>` tag).
 
 The catalog renders once per placement: the rented fleet, and, with
-`rackFleet.runners.enabled`, the rack fleet at its site. A rack placement's
-pools are named `<release>-runner-pool-macos-<site>-<xcode-dashes>[-<shape>]`
-(the site before the Xcode, so the shape suffix `Catalog` matches on stays
-last), select the rack fleet, and carry `tuist.dev/site`. Selecting their own
-fleet is what keeps the autoscaling arithmetic right: the runners-controller
-apportions a capacity domain across the pools sharing an OS and
-`fleetSelector`, so the rack's pools split the rack's guest slots and the
-rented fleet's split the rented fleet's, and neither counts the other's
-memory. The image and runner labels are the Xcode's, the same on every
+`rackFleet.runners.enabled`, the rack fleet. The rack placement's pools are
+named `<release>-runner-pool-macos-<site>-<xcode-dashes>[-<shape>]` after
+`rackFleet.site` (the site before the Xcode, so the shape suffix `Catalog`
+matches on stays last), select the rack fleet, and carry `tuist.dev/site`.
+The rack fleet spans every site whose runners are on (`tuist.rackSiteFleetName`),
+so one pool per Xcode and shape serves them all: a queued job is bound to its
+Xcode and shape, and the site whose runner claims it runs it. Selecting their
+own fleet is what keeps the autoscaling arithmetic right: the
+runners-controller apportions a capacity domain across the pools sharing an OS
+and `fleetSelector`, so the rack's pools split the rack's guest slots at every
+site and the rented fleet's split the rented fleet's, and neither counts the
+other's memory. The image and runner labels are the Xcode's, the same on every
 placement; pod sizing is the shape's unless the rack gives that shape a bigger
 guest (`rackFleet.runners.guestShapes`); replicas, autoscaling and rollout are
 the placement's own (`runnersFleet.xcodeOverrides` for the rented fleet,
 `rackFleet.runners` for the rack). The server routes an account's profile to
-a site's pool only when the account is enabled on the `runner_site` flag and
-the site has that pool (`tuist.rackCatalogPools`, TUIST_RUNNERS_SITE_POOLS).
+the rack's pool only when the account is enabled on the `runner_site` flag and
+the rack has that pool (`tuist.rackCatalogPools`, TUIST_RUNNERS_SITE_POOLS).
 */}}
 {{- /*
 Per-env tuning (replicas, pod sizing, autoscaling, runtime class)
@@ -219,7 +227,14 @@ the catalog at a site instead (`tuist.runnersFleetRentsMacOS`).
 {{- end }}
 {{- $rackPools := include "tuist.rackCatalogPools" . | fromJsonArray }}
 {{- if $rackPools }}
-{{- $rackRunners := .Values.rackFleet.runners }}
+{{- /*
+One rack placement: its pools select the rack fleet, which every site whose
+runners are on joins (`tuist.rackSiteFleetName`), so each pool spans those
+sites and the runners-controller apportions all of their guest slots among the
+rack's pools. A dark site's Nodes drop out of that budget, and the pools'
+queued jobs run at the sites still up. Named after `rackFleet.site`.
+*/}}
+{{- $rackRunners := .Values.rackFleet.runners | default dict }}
 {{- $rackShapeOverrides := $rackRunners.shapes | default dict }}
 {{- /*
 A non-default shape runs on the rack only where `rackFleet.runners.shapes`
@@ -479,6 +494,10 @@ spec:
   {{- if $.Values.runnersFleetLinux.cacheVolumes.enabled }}
   cacheVolumeRoot: {{ $.Values.runnersFleetLinux.cacheVolumes.hostPath | quote }}
   cacheVolumeURL: {{ printf "http://%s.%s.svc.cluster.local:8090" (include "tuist.componentName" (dict "root" $ "component" "runner-cache-volumes")) $namespace | quote }}
+  {{- $dockerCache := $.Values.runnersFleetLinux.cacheVolumes.dockerCache }}
+  {{- if and $dockerCache.enabled (or (empty $dockerCache.pools) (has $poolName $dockerCache.pools)) }}
+  dockerCache: true
+  {{- end }}
   {{- end }}
   replicas: {{ $replicas }}
   image: {{ $image | quote }}
@@ -573,6 +592,10 @@ spec:
   {{- if $.Values.runnersFleetLinux.cacheVolumes.enabled }}
   cacheVolumeRoot: {{ $.Values.runnersFleetLinux.cacheVolumes.hostPath | quote }}
   cacheVolumeURL: {{ printf "http://%s.%s.svc.cluster.local:8090" (include "tuist.componentName" (dict "root" $ "component" "runner-cache-volumes")) $namespace | quote }}
+  {{- $dockerCache := $.Values.runnersFleetLinux.cacheVolumes.dockerCache }}
+  {{- if and $dockerCache.enabled (or (empty $dockerCache.pools) (has $poolName $dockerCache.pools)) }}
+  dockerCache: true
+  {{- end }}
   {{- end }}
   replicas: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
   image: {{ $shapeImage | quote }}
