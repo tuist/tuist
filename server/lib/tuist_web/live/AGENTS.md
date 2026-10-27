@@ -1,6 +1,4 @@
-# Live (Web Layer)
-
-This area owns LiveView pages and components for the web UI.
+# LiveViews
 
 ## Responsibilities
 - Xcode, Gradle, Bazel, Mix, Cargo and Once build details share `Components.BuildMetadata` for environment presentation. Build Details contains invocation/result/source/actor information and custom metadata, including invocation configuration such as Xcode configuration and Mix environment. Present metadata fields flow in DOM order through one shared responsive grid rather than independently sized rows; mark command fields with `data-field="command"` to retain a full-width command line. Place the initially collapsed Build environment card immediately below Build Details on Overview only, grouping existing version/host fields with recognized metadata observations. Preserve first-class API/storage fields, show legacy version-only reports, and omit the card only when no environment fields or observations exist. Once reuses only its existing version/host class, without new collection or protocol changes. Keep map entries single-rendered, unknown/invalid values raw and privacy/trust boundaries intact; do not infer the build host from an uploader or Kura server. See `server/docs/build-metadata.md`.
@@ -59,12 +57,8 @@ This area owns LiveView pages and components for the web UI.
 
 ## Boundaries
 - The common LiveView macro installs `LayoutLive` observability hooks for mount, params, events, async completions and messages. Refresh context on each callback so its new OTel span has the current selected-resource IDs and observed flag cohorts, not just mount attributes. Embedded views must not attach the router-only params hook. Layout resource loading establishes the target before downstream mount work; this is attribution, never authorization.
-- Domain logic belongs in `server/lib/tuist` contexts.
-- Frontend assets are in `server/assets`.
 
-## Related Context
-- Web layer overview: `server/lib/tuist_web/AGENTS.md`
-- Business logic: `server/lib/tuist/AGENTS.md`
+## Toolchain, runner and analytics contracts
 
 - Gradle task analytics live under Builds at `/builds/tasks` in `GradleTasksLive`. Omit the Tasks list heading and subtitle; retain the task name on detail pages. Task executions use the Gradle build runs Project cell (root project name and tags) and shared Ran by badge (CI, account name, or Unknown), retaining whole-row navigation to the execution detail. Task outcome badges use Succeeded (green), Failed (red), cache hits (blue), Up-to-date (purple), and skipped/no-source (neutral), consistently with the per-build tasks table. They follow the Test Case Runs table pattern: search, sorting, Branch filter, outcome/Ran by badges, duration, relative timestamps, and pagination. Task details show analytics and Task executions, with no Execution profile card. They have only Executions, Cache hit rate, and duration widgets; Executions is selected by default, and an inherited Tasks widget selection on detail falls back to Executions. Use the Builds-style Environment dropdown beside the date picker; limit table filters to Branch, applying the same cohort to analytics and history. Widget and metric selections replace the current browser history entry so Back returns to the preceding page. Use the shared Noora filter and sort menus in the task table toolbar, active filter chips, selectable widgets and chart for task analytics. The Cache hit rate widget charts a percentage from 0–100 with percentage-point trends (higher is better). Non-cacheable/unknown tasks show an explicit unavailable state without a numeric rate or trend. Legacy hits/misses widget URLs select hit rate. The duration widget defaults to p90 and switches between average and p50/p90/p99, using lowercase percentile labels. Keep cumulative task time in the table only. The duration chart includes the average and all three percentile series with a selectable legend, connects across unsampled intervals, and marks recorded samples (including genuine zero durations); duration increases are negative (red) and decreases positive (green); show “No change” when both values are zero, absolute changes when only the previous value is zero, and percentages otherwise; task duration columns use p50/p90/p99 like test cases. Show 0% for cacheable tasks without hits. When no hit rate is available, show Not cacheable or Unknown cacheability badges. Use Noora table cells for consistent column alignment and the Test Runs section spacing. Let the Noora table own horizontal scrolling so outer wrappers do not clip its border. Keep metrics in `Tuist.Gradle` and its subcontexts.
 
@@ -153,3 +147,5 @@ This area owns LiveView pages and components for the web UI.
 - Gradle cache savings query the immediately preceding equal-duration range with identical filters for a neutral comparison. Keep missing previous reports distinct from recorded zero; zero baselines use absolute change without division.
 
 - Cache saving policy is edited on runner profiles, not volumes. The profile modal content renders through a portal, so drive its cache branch form with `render_hook` in tests.
+
+- Authentication settings preserve saved enrollment/enforcement when the login domain is unverified and show enrollment as paused. Validation events must not silently turn off those saved policies. New enablement requires verification; removing compatibility mode must not prevent saving unrelated fields.
