@@ -14,6 +14,7 @@ This context owns Slack app installations and reporting workflows.
 
 ## Guardrails
 - Slack installation data is customer data; update `server/data-export.md` on schema changes.
+- Archived report channels are permanent destination failures: after delivery, lock and reload the project, clear only the destination that was attempted, then discard the job. Preserve replacement destinations, the installation, unrelated destinations and `last_reported_at`; cleanup failures must still propagate for retry. Never hold the lock during the Slack request.
 
 ## Local end-to-end testing
 

@@ -18,12 +18,13 @@ defmodule Tuist.Slack.Client do
   @chat_post_message_url "https://slack.com/api/chat.postMessage"
 
   # Slack incoming-webhook error strings that mean the destination is dead
-  # and further attempts will keep failing until the user re-authorizes the
-  # app: token revoked, workspace uninstalled the app, service or team is
-  # gone. Slack returns these as a plain-text body alongside a 400/401/403
-  # (or 404 for `no_service`, already handled by the status-only clause).
+  # and further attempts will keep failing until the user changes the
+  # destination: token revoked, workspace uninstalled the app, service or
+  # team is gone, or the channel is archived. Slack returns these as a
+  # plain-text body alongside a 4xx response (or 404 for `no_service`,
+  # already handled by the status-only clause).
   # See https://api.slack.com/messaging/webhooks#handling_errors.
-  @permanent_webhook_errors ~w(invalid_token no_service no_service_id no_team team_disabled action_prohibited)
+  @permanent_webhook_errors ~w(invalid_token no_service no_service_id no_team team_disabled action_prohibited channel_is_archived)
 
   @doc """
   Exchanges an OAuth authorization code for an `incoming-webhook` token.
