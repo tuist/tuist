@@ -102,8 +102,7 @@ defmodule TuistWeb.BrowserTelemetry.Enrichment do
     end
   end
 
-  defp present?(value),
-    do: is_binary(value) and byte_size(value) in 1..256 and String.trim(value) not in ["", "unknown"]
+  defp present?(value), do: is_binary(value) and byte_size(value) in 1..256 and String.trim(value) not in ["", "unknown"]
 
   defp map(value) when is_map(value), do: value
   defp map(_), do: %{}

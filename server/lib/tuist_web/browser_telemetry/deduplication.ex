@@ -28,9 +28,7 @@ defmodule TuistWeb.BrowserTelemetry.Deduplication do
     end)
   end
 
-  def key(%{"type" => "web-vitals", "values" => %{"lcp" => lcp}, "context" => context}, %{
-        "session" => %{"id" => session}
-      })
+  def key(%{"type" => "web-vitals", "values" => %{"lcp" => lcp}, "context" => context}, %{"session" => %{"id" => session}})
       when is_number(lcp) and lcp >= 0 and is_map(context) do
     navigation = context["navigation_entry_id"]
     id = context["id"]
