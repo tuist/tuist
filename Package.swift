@@ -150,6 +150,7 @@ var tuistServerDependencies: [Target.Dependency] = [
     "TuistEnvironment",
     "TuistLogging",
     "TuistHTTP",
+    "TuistOIDC",
     "TuistThreadSafe",
     "TuistOpener",
     "TuistUniqueIDGenerator",

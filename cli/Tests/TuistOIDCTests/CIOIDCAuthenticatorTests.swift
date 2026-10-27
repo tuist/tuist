@@ -109,6 +109,40 @@ struct CIOIDCAuthenticatorTests {
         }
     }
 
+    @Test(.withMockedEnvironment())
+    func canFetchFreshOIDCToken_is_true_on_github_actions_with_id_token_permissions() throws {
+        let environment = try #require(Environment.mocked)
+        environment.variables = [
+            "GITHUB_ACTIONS": "true",
+            "ACTIONS_ID_TOKEN_REQUEST_URL": "https://token.actions.githubusercontent.com",
+            "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "some-token",
+        ]
+
+        #expect(subject.canFetchFreshOIDCToken())
+    }
+
+    @Test(.withMockedEnvironment())
+    func canFetchFreshOIDCToken_is_false_without_github_actions_id_token_permissions() throws {
+        let environment = try #require(Environment.mocked)
+        environment.variables = [
+            "GITHUB_ACTIONS": "true",
+            "ACTIONS_ID_TOKEN_REQUEST_URL": "https://token.actions.githubusercontent.com",
+        ]
+
+        #expect(!subject.canFetchFreshOIDCToken())
+    }
+
+    @Test(.withMockedEnvironment())
+    func canFetchFreshOIDCToken_is_false_on_providers_that_expose_a_single_token() throws {
+        let environment = try #require(Environment.mocked)
+        environment.variables = [
+            "CIRCLECI": "true",
+            "CIRCLE_OIDC_TOKEN_V2": "circle-oidc-token-v2",
+        ]
+
+        #expect(!subject.canFetchFreshOIDCToken())
+    }
+
     @Test
     func github_actions_request_failure_error_description_is_actionable() {
         let error = CIOIDCAuthenticatorError.gitHubActionsOIDCTokenRequestFailed(

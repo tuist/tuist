@@ -3,8 +3,12 @@ import Mockable
 import TuistEnvironment
 
 @Mockable
-public protocol CIOIDCAuthenticating {
+public protocol CIOIDCAuthenticating: Sendable {
     func fetchOIDCToken() async throws -> String
+
+    /// Whether the CI provider can mint a new OIDC token on demand during the job, as opposed to
+    /// exposing a single token issued when the job started.
+    func canFetchFreshOIDCToken() -> Bool
 }
 
 enum CIOIDCAuthenticatorError: LocalizedError, Equatable {
@@ -67,6 +71,12 @@ public struct CIOIDCAuthenticator: CIOIDCAuthenticating {
         }
 
         throw CIOIDCAuthenticatorError.unsupportedCIEnvironment
+    }
+
+    public func canFetchFreshOIDCToken() -> Bool {
+        isGitHubActionsEnvironment
+            && Environment.current.variables["ACTIONS_ID_TOKEN_REQUEST_URL"] != nil
+            && Environment.current.variables["ACTIONS_ID_TOKEN_REQUEST_TOKEN"] != nil
     }
 
     // MARK: - GitHub Actions
