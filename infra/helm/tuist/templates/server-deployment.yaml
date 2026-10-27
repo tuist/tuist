@@ -302,8 +302,6 @@ spec:
             # Pod actually polls, regardless of the helm release name.
             - name: TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX
               value: {{ include "tuist.componentName" (dict "root" . "component" "runner-pool-linux") | quote }}
-            - name: TUIST_RUNNERS_LINUX_CACHE_RELAY
-              value: {{ .Values.kuraController.runnerCacheRelay.enabled | quote }}
             {{- with .Values.runnersFleetLinux.pools }}
             # Operator-defined pools predate persisted runner resources.
             # Inject their pod sizing so new replicas can account for queued

@@ -386,9 +386,6 @@ capi:
     cidr: 172.30.242.0/24
 
 kuraController:
-  # Qualify the relay and per-job cache path here before production enrollment.
-  runnerCacheRelay:
-    enabled: true
   privateReplication:
     enabled: true
   stableDNS:
@@ -645,8 +642,7 @@ ovhFleet:
 # OVH_FLEET_SSH and the one `endpoint` the reconciler resolves for every OVH
 # fleet.
 ovhFleets:
-  # One shared RISE-M pool. Cache-path selection is per account at job claim.
-  # Enroll the existing host only after the ordinary WAN relay is qualified.
+  # One shared RISE-M pool; every Linux job uses the regional Kura instance.
   runners-linux:
     enabled: true
     # MUST equal the number of boxes prepped and marked for this env. Too high
@@ -664,8 +660,7 @@ ovhFleets:
     machine:
       adoptDisplayNamePrefix: tuist-runners-ovh-canary
       offer: rise-m
-      # Existing OnDelete hosts require explicit enrollment after the WAN
-      # relay is deployed and validated. No separate runner cohort is needed.
+      # Backfill existing OnDelete hosts during drained network enrollment.
       vRackID: pn-2024092
       # Prefix-matched, so any gra* datacenter.
       datacenter: gra

@@ -160,17 +160,12 @@ Rollout observation reads the StatefulSet from the informer cache in the same re
 ## Private runner entrance
 
 Linux runners reuse existing regional Kura instances on one `runners-linux`
-host pool. The default-off `runner_linux_vrack` account flag selects the direct
-internal cache URL at claim; ordinary jobs use an owner-bound Service alias
-through a shared WAN relay on non-private Hetzner general nodes. No separate
-runner cohort, cache instance or capacity is allocated. See
-[linux-runner-private-cache.md](linux-runner-private-cache.md) for relay-first
-rollout, canary qualification and the separate staging migration prerequisites.
-The relay's implementation contract is in
-[internal/runnerrelay/AGENTS.md](internal/runnerrelay/AGENTS.md).
-Preserve macOS private-cache behavior, existing primary selection and move
-identities. Keep raw validation outputs in workflow artifacts. Additional cache
-host orders remain on hold; the staging fixture backups must be retained.
+host pool. Every account receives the direct internal Service URL; vRack is a
+host-network rollout without an account flag or WAN relay. See
+[linux-runner-private-cache.md](linux-runner-private-cache.md) for drained
+enrollment, canary qualification and staging migration prerequisites. Preserve
+macOS private-cache behavior, existing primary selection and move identities.
+Keep validation outputs in workflow artifacts and retain staging fixture backups.
 
 Runner instances share the managed StatefulSet rollout, preferred co-location, disruption budget, primary routing, mesh and drain. Kubernetes defaults new sets to RollingUpdate; leave a live operator-set update strategy intact. Primary selection prefers full ring visibility but falls back to a fresh Ready/serving writer when no fully joined member remains, so a restarting sibling cannot pin traffic to a dead pod.
 

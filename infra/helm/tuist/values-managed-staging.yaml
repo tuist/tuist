@@ -696,8 +696,8 @@ ovhFleets:
     machine:
       adoptDisplayNamePrefix: tuist-runners-ovh-staging
       offer: rise-m
-      # Enroll existing hosts only after the ordinary WAN relay is qualified.
-      # Cache-path selection is per account; runner pool membership stays fixed.
+      # Existing hosts are enrolled during drained network maintenance.
+      # All jobs share the direct regional cache path and runner pool.
       # Prefix-matched, so any gra* datacenter.
       datacenter: gra
       os: ubuntu_24.04

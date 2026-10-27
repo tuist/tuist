@@ -43,8 +43,7 @@ The design and the alternatives considered are in [`sites.md`](sites.md).
 
 ## Linux cache paths
 
-Linux profiles and legacy labels keep the shared runner pool regardless of the
-`runner_linux_vrack` flag. The claim endpoint resolves the account's cache URL:
-ordinary managed jobs use the WAN relay; enrolled jobs use the same instance's
-direct Service. Keep this independent of profile sizing, fleet accounting and
-macOS site selection. Old internal cohort labels remain hidden during rollout.
+Linux profiles and legacy labels keep one shared runner pool. Every account uses
+the existing regional Kura Service directly; vRack enrollment changes transport
+at the host level. Keep profile sizing, fleet accounting and macOS site selection
+independent. Old internal cohort labels remain hidden during rolling upgrades.

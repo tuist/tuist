@@ -19,5 +19,3 @@
 
 ## Guardrails
 - Preserve the ClickHouse query limits and keep external table functions, cluster table functions, and unrestricted system metadata inaccessible.
-
-- `runner_linux_vrack` is an account-scoped, default-off Linux cache-path flag. Initial rollout enrolls only Tuist after relay and private-path qualification; disabling changes new claims to the WAN relay without removing host routes or partitioning runner capacity.

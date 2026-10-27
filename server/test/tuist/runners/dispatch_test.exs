@@ -914,13 +914,12 @@ defmodule Tuist.Runners.DispatchTest do
     end
   end
 
-  describe "Linux cache flags do not partition runner capacity" do
-    test "enrolled and excluded accounts resolve to the same profile pool" do
+  describe "Linux jobs share runner capacity" do
+    test "different accounts resolve to the same profile pool" do
       account = enabled_account()
       other = enabled_account()
       {:ok, profile} = Profiles.create(account, %{name: "vrack-test", platform: :linux, vcpus: 2, memory_gb: 8})
       {:ok, _} = Profiles.create(other, %{name: "vrack-test", platform: :linux, vcpus: 2, memory_gb: 8})
-      FunWithFlags.enable(:runner_linux_vrack, for_actor: account)
 
       for actor <- [account, other] do
         assert {:ok, %{pool_name: name}} = Dispatch.resolve_dispatch_target(actor, ["tuist-vrack-test"])
@@ -930,7 +929,6 @@ defmodule Tuist.Runners.DispatchTest do
 
     test "legacy labels keep their pool and retired internal labels stay hidden" do
       account = enabled_account()
-      FunWithFlags.enable(:runner_linux_vrack, for_actor: account)
       normal = [name: "linux-shared", label: "linux-legacy"] |> pool_cr() |> put_in(["spec", "os"], "linux")
 
       retired = %{

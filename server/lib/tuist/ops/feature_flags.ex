@@ -21,8 +21,6 @@ defmodule Tuist.Ops.FeatureFlags do
   alias Tuist.Repo
 
   @catalog [
-    {:runner_linux_vrack, "account",
-     "Default-off direct private cache path for Linux jobs; ordinary jobs use the WAN relay on the same runner pool."},
     {:immutable_shard_reports, "account", "Opt-in immutable shard plans; coverage-enabled accounts remain excluded."},
     {:kura_positive_fence, "account",
      "Opt-in managed positive-fence serving authority. Activation is sticky; disabling cannot restore legacy serving."},
@@ -49,7 +47,6 @@ defmodule Tuist.Ops.FeatureFlags do
   @fields ~w(operation scope account_id project_id percentage expected_revision reason change_id actor interface)
 
   @evaluators %{
-    runner_linux_vrack: {FeatureFlags, :runner_linux_vrack_enabled?},
     immutable_shard_reports: {FeatureFlags, :immutable_shard_reports_enabled?},
     kura_positive_fence: {FeatureFlags, :kura_positive_fence_enabled?},
     kura_placement_served_signal: {FeatureFlags, :kura_placement_served_signal_enabled?},

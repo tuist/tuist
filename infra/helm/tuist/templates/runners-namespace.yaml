@@ -277,18 +277,6 @@ spec:
         # Kura listener.
         - protocol: TCP
           port: 4000
-    {{- if .Values.kuraController.runnerCacheRelay.enabled }}
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: {{ .Values.kuraController.namespace }}
-          podSelector:
-            matchLabels:
-              app.kubernetes.io/name: kura-runner-wan-relay
-      ports:
-        - protocol: TCP
-          port: 8080
-    {{- end }}
 ---
 # Dispatch-egress policy: lets a runner Pod reach the in-cluster
 # Tuist server's dispatch endpoint. Split out from the base policy

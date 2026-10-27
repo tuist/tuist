@@ -2014,11 +2014,6 @@ defmodule Tuist.Environment do
     System.get_env("TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX", "tuist-runner-pool-linux")
   end
 
-  @doc "Whether managed Linux jobs have an ordinary cache relay outside the private network."
-  def runners_linux_cache_relay_enabled? do
-    System.get_env("TUIST_RUNNERS_LINUX_CACHE_RELAY") == "true"
-  end
-
   @doc """
   Same role as `runners_linux_pool_name_prefix/0`, for the macOS fleet.
   Helm renders the prefix into the `RunnerPool` CR names and injects it

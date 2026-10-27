@@ -173,8 +173,6 @@ pdcAgent:
       memory: 1Gi
 
 kuraController:
-  runnerCacheRelay:
-    enabled: false
   servingAuthority:
     enabled: false
   privateReplication:

@@ -137,6 +137,6 @@
 
 - Zero-hit secondary retirement tests cover ten complete reported UTC days, the exact instance-age boundary, unknown age, missing/duplicate reports, hits anywhere in the window or today, a surviving region with hits, primary exclusion, the rollout gate, and unchanged 28-day low-traffic retirement.
 
-- Linux cache-path tests cover default-off behavior, account isolation, direct versus relay URLs for the same existing instance, and unchanged profile/legacy pool selection. Helm checks preserve one runner cohort and keep relay replicas outside private-network hosts.
+- Linux runner tests preserve shared profile/legacy pool selection across accounts and direct regional Kura endpoint selection. Helm checks preserve one runner cohort with no relay or account-path configuration.
 
 - SSO switch regressions seed the retired database flag directly through the fixture, without restoring it to the runtime schema. Cover member-only discovery, linked sign-in/enforcement, denied unverified enrollment/account creation, signed-in link confirmation, editable saved policies, and materialization of implicit memberships without overwriting explicit roles.

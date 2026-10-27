@@ -166,7 +166,6 @@ type KuraInstanceReconciler struct {
 
 	OTLPTracesEndpoint  string
 	Environment         string
-	RunnerCacheRelay    bool
 	PrivateReplication  bool
 	RuntimeStatusClient RuntimeStatusClient
 	// NodeLocalRuntimeStatusClient samples the pods of instances with
@@ -1801,10 +1800,7 @@ func (r *KuraInstanceReconciler) reconcileService(ctx context.Context, instance 
 		service.Spec.Ports = ports()
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-	return r.reconcileRunnerCacheRelay(ctx, instance)
+	return err
 }
 
 // reconcileExternalService publishes the co-hosted cache port on a
