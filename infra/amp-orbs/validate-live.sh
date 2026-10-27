@@ -62,7 +62,9 @@ api_server=$(kubectl config view -o jsonpath='{.clusters[0].cluster.server}')
 export KUBERNETES_SERVICE_HOST=127.0.0.1
 export KUBERNETES_SERVICE_PORT="${api_server##*:}"
 
-truncate -s 24G "$work/data.xfs"
+# Budget the default 10 GiB workspace, 8 GiB rootfs, memory snapshots and
+# shared template. A real repository clone cannot fit the 1 GiB smoke fixture.
+truncate -s 40G "$work/data.xfs"
 loop=$(sudo losetup --find --show "$work/data.xfs")
 sudo mkfs.xfs -q -m reflink=1 "$loop"
 sudo mount "$loop" "$work/data"
@@ -72,7 +74,7 @@ export TUIST_URL=http://127.0.0.1:4187
 export TUIST_SERVER_TEST_PORT=4187
 export TUIST_SERVER_TEST_POSTGRES_DB=tuist_amp_orbs_live
 export TUIST_SERVER_TEST_CLICKHOUSE_DB=tuist_amp_orbs_live
-export TUIST_ORB_WORKSPACE_GB=1 ORB_IMAGE=default
+export TUIST_ORB_WORKSPACE_GB=10 ORB_IMAGE=default
 [[ $(command -v mix) != */shims/* ]]
 (cd "$root/server"; exec env -u AMP_ORB_PROVIDER_TOKEN \
   TUIST_SERVER_TEST_POSTGRES_DB=tuist_amp_orbs_live \
@@ -93,7 +95,7 @@ source "$work/provider.env"
 docker run -d --name "$daemon" --privileged --cgroupns=host --network=host --dns=1.1.1.1 --memory=6g \
   -v "$work/data:/data/sandboxes" -v "$work/node-token:/var/run/secrets/tuist/token:ro" \
   -e SERVER_URL="$TUIST_URL" -e NODE_NAME="$node" -e ADMIN_ADDR=127.0.0.1:9471 \
-  -e TEMPLATE_TAG=validation -e DISK_BUDGET_GIB=22 -e BOOT_TIMEOUT=120s \
+  -e TEMPLATE_TAG=validation -e DISK_BUDGET_GIB=36 -e BOOT_TIMEOUT=120s \
   -e TEMPLATE_BOOT_TIMEOUT=180s -e SHUTDOWN_TIMEOUT=60s \
   sandbox-orbs-daemon:validation >/dev/null
 for _ in {1..120}; do
