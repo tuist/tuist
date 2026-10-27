@@ -327,3 +327,8 @@ and seven-day master eviction. The server owns scope, trust and clear epochs.
   superblock checks, then the use is rebased on the server (`Rebaser`, the
   `rebase` image operation; a conflict is `ErrSuperseded`) and published as any
   branch. Without a merge a branch whose HEAD moved stays `ErrSuperseded`.
+
+- Replacement-image tests must keep the original inode allocated (rename it
+  aside before creating the replacement). Unlinking and immediately recreating
+  a file can reuse its inode on Linux, so it does not reliably exercise the
+  different-inode guard.
