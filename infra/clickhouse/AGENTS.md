@@ -1,8 +1,15 @@
-# ClickHouse access recovery
+# ClickHouse access recovery and Keeper migration
 
 This directory owns the recovery fallback for the ClickHouse operator identity.
 Managed deployments reconcile the same state through `Tuist.Release.migrate`
 before every server rollout.
+
+The [Keeper local-storage runbook](keeper-local-storage.md) owns the staged
+Cloud Volume handoff. Its Helm support is disabled by default. Preserve member
+IDs and quorum; copy only stopped members and remove cloud mounts in a second
+handoff. Keep production deployment automation paused until the final local
+node mapping is committed. Existing cloud PVCs are stale after local writes,
+not an automatic rollback source. Node replacement requires explicit recovery.
 
 ## Guardrails
 

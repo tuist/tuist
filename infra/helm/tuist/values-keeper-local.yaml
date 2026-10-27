@@ -1,0 +1,18 @@
+# Explicit migration overlay; never include in the normal deployment until
+# all members have been migrated and nodeNames are recorded in the env values.
+# See infra/clickhouse/keeper-local-storage.md. Rendering fails until real
+# node names are supplied, one per Keeper ordinal.
+clickhouse:
+  managed:
+    keeper:
+      nodeSelector:
+        node.cluster.x-k8s.io/pool: keeper
+      tolerations:
+        - key: tuist.dev/keeper
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      localVolume:
+        enabled: true
+        migrateFromCloud: true
+        nodeNames: []

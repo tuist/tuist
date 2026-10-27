@@ -21,6 +21,14 @@ Helm-installed resource; publishing it is a separate rollout step.
 
 ## Conventions
 
+- Keeper local storage is opt-in. Follow
+  [the staged migration](../clickhouse/keeper-local-storage.md) before enabling
+  it on an existing ensemble. Preserve identities, copy stopped members one at
+  a time, and keep `OnDelete` plus retained, ordinal-bound local PVs. The final
+  environment values must record the real node names with `migrateFromCloud`
+  disabled before regular deployments resume. Never bootstrap empty local
+  directories or restore stale cloud PVCs automatically.
+
 - Canary's Linux runner fleet selects one RISE-M in Gravelines. Prepare its OS
   and fleet SSH key before adoption. The fleet uses OnDelete, so deploying the
   offer change preserves the old RISE-S until an explicit drained replacement.

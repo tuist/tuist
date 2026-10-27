@@ -2,6 +2,10 @@
 {{- $m := .Values.clickhouse.managed }}
 {{- $chName := include "tuist.componentName" (dict "root" . "component" "clickhouse") }}
 {{- $keeperName := include "tuist.componentName" (dict "root" . "component" "clickhouse-keeper") }}
+{{- $keeperLocal := $m.keeper.localVolume.enabled }}
+{{- if and $m.keeper.localVolume.migrateFromCloud (not $keeperLocal) }}
+{{- fail "Keeper migrateFromCloud requires localVolume.enabled" }}
+{{- end }}
 {{- /*
 Managed in-cluster ClickHouse: the shape Tuist operates itself, as opposed to
 `embedded` (a single unreplicated pod for self-hosters and previews) and
@@ -124,6 +128,8 @@ data:
         <asynchronous_metrics>true</asynchronous_metrics>
       </prometheus>
     </clickhouse>
+  copy-state.sh: |
+    {{- .Files.Get "files/keeper-copy-state.sh" | nindent 4 }}
 {{- if $m.persistence.localVolume.enabled }}
 {{- $nodeNames := $m.persistence.localVolume.nodeNames | default list }}
 {{- if ne (len $nodeNames) (int $m.replicas) }}
@@ -376,6 +382,14 @@ spec:
   serviceName: {{ $keeperName }}-headless
   replicas: {{ $m.keeper.replicas }}
   podManagementPolicy: Parallel
+  {{- if $keeperLocal }}
+  # Neither a Helm upgrade nor a failed readiness check may advance migration.
+  updateStrategy:
+    type: OnDelete
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  {{- end }}
   selector:
     matchLabels:
       {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse-keeper") | nindent 6 }}
@@ -395,6 +409,13 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with $m.keeper.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if $keeperLocal }}
+      terminationGracePeriodSeconds: 120
+      {{- end }}
       {{- if gt (int $m.keeper.replicas) 1 }}
       affinity:
         podAntiAffinity:
@@ -406,6 +427,23 @@ spec:
       {{- end }}
       securityContext:
         fsGroup: 101
+      {{- if and $keeperLocal $m.keeper.localVolume.migrateFromCloud }}
+      initContainers:
+        - name: copy-keeper-state
+          image: "{{ $m.image.repository }}:{{ $m.image.tag }}"
+          command: [/bin/bash, /migration/copy-state.sh]
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: config
+              mountPath: /migration
+              readOnly: true
+            - name: data
+              mountPath: /legacy
+              readOnly: true
+            - name: data-local
+              mountPath: /local
+      {{- end }}
       containers:
         - name: keeper
           image: "{{ $m.image.repository }}:{{ $m.image.tag }}"
@@ -417,6 +455,10 @@ spec:
               # The Raft server id has to match this pod's ordinal, and the
               # config can only read it from the environment.
               export KEEPER_SERVER_ID=$(( ${HOSTNAME##*-} + 1 ))
+              {{- if $keeperLocal }}
+              # A missing local disk must not bootstrap a new, empty ensemble.
+              test "$(cat /var/lib/clickhouse-keeper/.tuist-keeper-member)" = "${HOSTNAME##*-}"
+              {{- end }}
               exec clickhouse-keeper --config-file /etc/clickhouse-keeper/keeper.xml
           ports:
             - name: client
@@ -430,14 +472,22 @@ spec:
               command:
                 - /bin/bash
                 - -c
+                {{- if $keeperLocal }}
+                # Require a serving role; rollout gates also check quorum and lag.
+                - "timeout 5 bash -c 'exec 3<>/dev/tcp/127.0.0.1/{{ $m.keeper.clientPort }}; printf srvr >&3; cat <&3' | grep -Eq '^Mode: (leader|follower)$'"
+                {{- else }}
                 - "echo ruok | timeout 3 bash -c 'exec 3<>/dev/tcp/127.0.0.1/{{ $m.keeper.clientPort }}; cat >&3; head -c 4 <&3' | grep -q imok"
+                {{- end }}
             initialDelaySeconds: 10
             periodSeconds: 10
+            {{- if $keeperLocal }}
+            timeoutSeconds: 6
+            {{- end }}
           volumeMounts:
             - name: config
               mountPath: /etc/clickhouse-keeper/keeper.xml
               subPath: keeper.xml
-            - name: data
+            - name: {{ ternary "data-local" "data" $keeperLocal }}
               mountPath: /var/lib/clickhouse-keeper
           resources:
             {{- toYaml $m.keeper.resources | nindent 12 }}
@@ -446,6 +496,7 @@ spec:
           configMap:
             name: {{ $keeperName }}-config
   volumeClaimTemplates:
+    {{- if or (not $keeperLocal) $m.keeper.localVolume.migrateFromCloud }}
     - metadata:
         name: data
       spec:
@@ -457,6 +508,17 @@ spec:
         {{- with $m.keeper.storageClassName }}
         storageClassName: {{ . }}
         {{- end }}
+    {{- end }}
+    {{- if $keeperLocal }}
+    - metadata:
+        name: data-local
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: {{ $keeperName }}-local
+        resources:
+          requests:
+            storage: {{ $m.keeper.storageSize }}
+    {{- end }}
 ---
 apiVersion: apps/v1
 kind: StatefulSet

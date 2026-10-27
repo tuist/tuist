@@ -22,6 +22,10 @@ fixed kernels, uptime thresholds, stale samples and failed collection.
 The Helm render job also runs `infra/helm/tuist/test-cluster-cookie.py` offline:
 check all managed environment cookie references and Secret ownership without
 reading 1Password or logging rendered cookie values.
+Keeper storage checks render each handoff phase and rehearse the three-member
+state copy in disposable Docker containers, including writes with one member
+stopped and restarts after removing the original test disks. They use no cluster
+credentials and must never connect to a deployed Keeper ensemble.
 
 The existing runner-image release workflow runs the portable TCC report tests
 on PRs with read-only permissions and without persisted checkout credentials

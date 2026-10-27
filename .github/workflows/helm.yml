@@ -250,6 +250,10 @@ jobs:
         run: infra/mise/tasks/helm/server-rollout.sh
       - name: Linux vRack rollout keeps runner cohorts isolated
         run: infra/mise/tasks/helm/linux-vrack.sh
+      - name: Keeper local storage preserves member state and quorum
+        run: |
+          infra/mise/tasks/helm/keeper-local.sh
+          infra/mise/tasks/helm/keeper-local-rehearsal.sh
       # The xcresult processor chart renders the tuist chart's processor
       # templates for the tuist release it names, which the loop above cannot
       # express either.

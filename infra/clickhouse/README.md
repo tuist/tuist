@@ -84,3 +84,9 @@ After recovery, confirm `SHOW GRANTS FOR tuist_ops` contains only the managed
 role assignment. The server refuses to start the operator repository if its
 connection string uses the same username as the application ClickHouse
 connection.
+
+## Keeper local storage
+
+For moving the existing Keeper ensemble off Cloud Volumes, follow the
+[staged local-storage migration](keeper-local-storage.md). It preserves member
+identities and requires two controlled StatefulSet handoffs.

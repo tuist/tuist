@@ -197,6 +197,11 @@ Routes `tuist.dev/api/registry/*` to the standalone registry frontend at `regist
 SQL files for per-table GRANTs that don't fit CNPG's `managed.roles[]` declarative surface (`tuist_processor` writes on Oban tables and scoped updates to Bazel staging rows, including `bazel_profile_uploads`; `tuist_ops_ro` extras on top of `pg_read_all_data`). The actual `Cluster` / `ScheduledBackup` / ESO Secret manifests are rendered by the main Helm chart whenever `postgresql.cnpg.enabled` is true or `postgresql.mode == "cnpg"`; this directory holds only the operator-run SQL that can't fit in the chart.
 
 ### `clickhouse/` — ClickHouse access recovery and migration runbook
+Keeper's Cloud Volume removal is a separate, opt-in operation documented in
+[`clickhouse/keeper-local-storage.md`](clickhouse/keeper-local-storage.md).
+Production first provisions the dedicated `md-keeper` pool; it does not switch
+live storage until the explicit member-by-member handoff. Preserve its local
+disks by retaining `OnDelete` upgrades and disabled automatic remediation.
 Recovery fallback for the restricted ClickHouse identity reconciled automatically by the server migration release task and Helm chart. See [`clickhouse/README.md`](clickhouse/README.md). The runbook for moving an environment's ClickHouse onto the in-cluster server is [`clickhouse/migration.md`](clickhouse/migration.md), and each of its steps runs as a one-off Job through `mise run clickhouse:migration` from `infra/`.
 
 ### `rack-switch-prep/` — first-touch provisioning for BER1 rack switches

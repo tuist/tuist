@@ -1,0 +1,93 @@
+{{- if and .Values.clickhouse.managed.enabled .Values.clickhouse.managed.keeper.localVolume.enabled }}
+{{- $m := .Values.clickhouse.managed }}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "clickhouse-keeper") }}
+{{- $nodes := $m.keeper.localVolume.nodeNames }}
+{{- if or (ne (len $nodes) (int $m.keeper.replicas)) (ne (len (uniq $nodes)) (len $nodes)) }}
+{{- fail "Keeper localVolume.nodeNames requires one distinct node per member, in ordinal order" }}
+{{- end }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ $name }}-local
+  annotations:
+    helm.sh/resource-policy: keep
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $name }}
+spec:
+  minAvailable: {{ add (div (int $m.keeper.replicas) 2) 1 }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "clickhouse-keeper") | nindent 6 }}
+{{- range $i, $node := $nodes }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ $name }}-local-{{ $i }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  capacity:
+    storage: {{ $m.keeper.storageSize }}
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ $name }}-local
+  claimRef:
+    namespace: {{ $.Release.Namespace }}
+    name: data-local-{{ $name }}-{{ $i }}
+  local:
+    path: /var/lib/tuist/clickhouse-keeper
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: [{{ $node | quote }}]
+---
+# A local PV requires its directory before kubelet can mount it. This Job
+# creates only the directory; it never formats a disk or removes old data.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}-prepare-{{ $i }}-{{ list $node $m.image $m.keeper.tolerations | toJson | sha256sum | trunc 8 }}
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/hostname: {{ $node | quote }}
+      {{- with $m.keeper.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: prepare
+          image: "{{ $m.image.repository }}:{{ $m.image.tag }}"
+          command: [/bin/bash, -ec, 'chown 101:101 /data; chmod 750 /data; df -h /data']
+          securityContext:
+            runAsUser: 0
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          hostPath:
+            path: /var/lib/tuist/clickhouse-keeper
+            type: DirectoryOrCreate
+{{- end }}
+{{- end }}

@@ -92,6 +92,13 @@ production. See the pool comment in `cluster-production.yaml`.
 
 ## Worker health checks
 
+Production's `md-keeper` is three ccx13 workers in the `tuist-keeper` spread
+placement group, reserved by a Keeper taint. It uses VM-local disks and therefore
+overrides automatic remediation with `unhealthyInRange: "[0-0]"` and upgrades
+with `OnDelete`. Node replacement requires explicit one-member recovery; see
+[the Keeper migration runbook](../../clickhouse/keeper-local-storage.md).
+Provisioning this pool alone does not move the live Keeper pods or volumes.
+
 Each MachineDeployment class in the ClusterClass defines a
 `MachineHealthCheck`: Ready `Unknown` or `False` for 5 minutes on cloud
 workers, and 10 minutes on bare metal, where remediation stays disabled. A

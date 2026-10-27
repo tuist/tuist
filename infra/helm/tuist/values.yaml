@@ -3799,14 +3799,22 @@ clickhouse:
       storageSize: 10Gi
       storageClassName: ""
       # Where the members run, which every cluster with more than one node
-      # pool should set rather than leave empty. Keeper belongs on the general
-      # pool: it is small control-plane metadata, and co-locating it with a
+      # pool should set rather than leave empty. Use the general pool for cloud
+      # volumes or a dedicated pool for local disks. Co-locating it with a
       # data replica would let one host failure take both the data and the
       # quorum that makes it writable. Empty means the scheduler decides, and
       # it will happily put a member on a pool that is sized for one workload
       # and has no headroom for another, which is how production's first
       # deploy of this server rolled back with ClickHouse healthy.
       nodeSelector: {}
+      tolerations: []
+      # Existing ensembles need the staged handoff in infra/clickhouse/keeper-local-storage.md.
+      # Local volumes retain their node affinity on failure; never silently
+      # start the same Raft member with an empty directory on a different node.
+      localVolume:
+        enabled: false
+        nodeNames: []
+        migrateFromCloud: false
       resources:
         requests:
           cpu: 100m
