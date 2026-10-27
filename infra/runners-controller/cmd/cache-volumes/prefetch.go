@@ -40,9 +40,11 @@ func (p *prefetcher) start(identity cachevolumes.Identity) bool {
 	}
 	for i, pending := range p.pending {
 		if pending.Scope == identity.Scope {
-			if pending.BaseGeneration >= identity.BaseGeneration {
+			if pending.BaseGeneration > identity.BaseGeneration {
 				return false
 			}
+			// Even for the same head, retain the newest use: a queued job may
+			// finish and release its download authorization before we get to it.
 			p.pending[i] = identity
 			return true
 		}

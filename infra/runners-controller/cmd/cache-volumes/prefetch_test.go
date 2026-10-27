@@ -92,8 +92,11 @@ func TestPrefetchQueuesOtherLineagesAndCoalescesNewerHeads(t *testing.T) {
 	if p.start(cachevolumes.Identity{Scope: "b", BaseGeneration: 7}) {
 		t.Fatal("replaced latest queued head with stale head")
 	}
+	if !p.start(cachevolumes.Identity{Scope: "b", BaseGeneration: 8, ID: "latest-use"}) {
+		t.Fatal("did not refresh the queued head's use identity")
+	}
 	release <- struct{}{}
-	if next := <-started; next.Scope != "b" || next.BaseGeneration != 8 {
+	if next := <-started; next.Scope != "b" || next.BaseGeneration != 8 || next.ID != "latest-use" {
 		t.Fatalf("next = %+v", next)
 	}
 	release <- struct{}{}
