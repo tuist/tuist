@@ -13,8 +13,9 @@ passphrase, Secret value or backup object was retrieved. No production mutation
 was performed. The staging identity could not create ValidatingAdmissionPolicies
 or update ClusterRoles. Those objects required the normal deployment workflow.
 No durable OpenBao service is configured in this repository. The disposable
-staging validation below passed; permanent deployment, operator custody and
-matching database recovery validation remain prerequisites.
+staging validations below cover the provider and the full compiled server/CSI
+path with a persisted fixture key. Permanent deployment, operator custody,
+external audit delivery and full database/off-cluster recovery remain prerequisites.
 
 ## Staging admission rollout
 
@@ -42,8 +43,9 @@ The source-code rewrap fixes and KMS provider were tested locally; this
 chart-only rollout intentionally kept the server on `sha-ef07ca13e38d` and did
 not activate those modules. That rollout is historical admission evidence, not
 validation of the subsequent OpenBao provider. Its separate staging proof is
-recorded below. Persisted account-key migration, durable audit delivery and a
-matching database/volume restore remain pending.
+recorded below. Persisted account-key migration and matching recovery were not
+part of that admission rollout; the later full-path fixture exercise is recorded below. Durable audit
+delivery and full database recovery remain separate operational gates.
 
 ## OpenBao staging validation (October 27)
 
@@ -101,9 +103,83 @@ custody and a local audit file. It does not establish hosted HA, durable audit
 delivery, production operator/unseal custody, or a matching database restore.
 The LUKS file was mounted manually on a CSI-provisioned diagnostic LV; the test
 did not switch the live CSI key URL or exercise the full encrypted CSI
-`NodeStageVolume`/issuance endpoint with OpenBao. Persisted account-key migration
-and that full release/CSI cutover remain explicit gates. No production mutation
-was performed, and normal staging storage retains its existing roots.
+`NodeStageVolume`/issuance endpoint with OpenBao. The subsequent full-path test
+below covers those technical gates with a persisted fixture key. No production
+mutation was performed, and normal staging storage retains its existing roots.
+
+## Full server, persisted-key and CSI qualification (October 27)
+
+The [full server build/deployment](https://github.com/tuist/tuist/actions/runs/40510524695)
+installed `ghcr.io/tuist/tuist:sha-408bff8a92e1`. This was the compiled release,
+not dynamically loaded source. The staging integration branch preserved the
+existing KVM/LVM configuration and pinned the other deployed component images.
+The [provider configuration rollout](https://github.com/tuist/tuist/actions/runs/40516636290)
+enabled verified TLS and projected OpenBao identity on the actual web server.
+`wrapNewShares: false` kept other accounts' new keys on the existing wrapper.
+Only a scoped administrative release process selected OpenBao as the rewrap
+destination for the synthetic account; the normal web process could decrypt
+both providers throughout.
+
+The independent OpenBao 2.7.1 fixture used three voting Raft members on three
+Kubernetes nodes, separate 10 GiB persistent block claims, a private TLS CA and
+a derived, non-exportable Transit key. Its HMAC-protected audit files lived on
+those claims and survived member restarts. Its test-only 3-of-5 Shamir material
+was held in private fixture state; this is not distributed operator custody or
+an unattended-unseal design.
+
+A synthetic account had a real persisted `kura_tenant_keys` row and a live
+ownership reference for a **1 GiB encrypted CSI LV** on Paris. The actual CSI
+node identity called the normal HTTPS issuance endpoint and mounted XFS for an
+unprivileged probe containing a **1 MiB random object**. The initial ownership
+fixture was inadvertently subject to runner-cache retirement, correctly causing
+403 mount denials; correcting its synthetic lifecycle record resolved that
+fixture issue without weakening authorization.
+
+Completed checks:
+
+- The new release reopened the original legacy-wrapped volume. Rewrapping the
+  persisted row to OpenBao then reopening through real kubelet/CSI preserved
+  the PV identity, LUKS UUID and SHA-256 checksum. No LUKS reformat or keyslot
+  change occurred.
+- Restarting the OpenBao leader left it sealed while the other two members
+  elected a leader. A fresh CSI stage succeeded during that member loss.
+  Unsealing recovered the restarted member. Transit rotation and rewrap to
+  envelope version 2 also preserved the volume's contents across close/reopen.
+- Matching encrypted fixture-row and Raft snapshots were saved before rotation.
+  Restoring the older Raft snapshot into warm processes still allowed the newer
+  envelope to decrypt, so that result was not accepted as backup proof. After
+  restarting all members and closing the volume, the newer database envelope
+  correctly failed actual CSI staging against the older restored key state.
+  Restoring the matching version-1 fixture row then reopened the same volume
+  with its checksum unchanged. Recovery verification must use cold processes
+  and closed mappings; a successful warm decrypt alone is insufficient.
+- With all OpenBao members stopped, the already-mounted object remained
+  readable. After unstage closed the dm-crypt mapping, a new CSI stage failed
+  closed on the key-service dependency. This confirms both the outage boundary
+  and why revocation does not invalidate an already-open mapping.
+
+- Restoring the three members and unsealing them recovered real CSI staging
+  after the total outage, with the original checksum intact.
+- Reverse rewrap selected the legacy root while retaining OpenBao decryption.
+  The database then contained zero OpenBao-dependent rows. With OpenBao stopped
+  again, a fresh CSI stage still reopened the unchanged volume. Normal deletion
+  reclaimed the encrypted LV, and the synthetic account/key records were removed.
+
+The [cleanup deployment](https://github.com/tuist/tuist/actions/runs/40520199674)
+removed the temporary provider configuration and reviewer ServiceAccount,
+ClusterRole and binding. Their absence was verified through the live API. All
+fixture Pods, Services, ConfigMaps, TLS Secret and claims were removed. The
+three block PVs used `Retain`; after verifying their exact fixture ownership and
+Released state, their policy was changed to `Delete` and reclamation completed.
+All **12 existing Kura pods** retained UID/readiness and CSI stayed **3/3 Ready**.
+Staging keeps the newly built server with OpenBao disabled and its existing
+legacy roots. No production resources were changed.
+
+This fixture does not restore an entire CNPG cluster, prove off-cluster backup
+durability, qualify permanent audit delivery,
+or establish operator unseal availability. The new source-node migration gate
+is covered by controller regressions, separately from this key-service test;
+this is not a new physical multi-host storage-migration rehearsal.
 
 ## Custody and dedicated deployment
 
@@ -360,4 +436,6 @@ kind delete cluster --name kura-key-security
 The admission test deliberately grants its local fixture identity cluster-admin
 so admission must independently reject attacks. It refuses other context names
 and removes its temporary token file. Never install that test role on staging
-or production. Hosted OpenBao activation and recovery/audit drills remain gates; the CSI chart rollout is recorded above.
+or production. Permanent hosted activation, full database/off-cluster recovery
+and external audit delivery remain operational gates; the completed scoped
+server/CSI qualification is recorded above.

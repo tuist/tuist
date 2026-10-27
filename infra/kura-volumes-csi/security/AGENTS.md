@@ -25,7 +25,11 @@ checks and the migration/recovery runbook. Parent: `../AGENTS.md`.
   deployed. OpenBao has no automatic HSM boundary: document the seal and backup
   custody. Never store unseal shares alongside the application or claim hosted
   recovery/audit verification from local tests.
-- The disposable staging proof in `key-management.md` loaded production source
-  in an isolated release process and manually reopened a LUKS file on a
-  diagnostic CSI LV. It is not a full server-image/CSI key-endpoint cutover,
-  persistent tenant-key migration, or durable OpenBao deployment.
+- Distinguish the earlier source-loaded/manual-LUKS staging proof from the
+  later compiled server, persisted fixture-key and real CSI endpoint exercise
+  in `key-management.md`. Neither establishes permanent operator custody,
+  external audit delivery or full CNPG/off-cluster disaster recovery.
+- Snapshot recovery verification must use cold OpenBao processes and closed
+  volume mappings. Warm processes still decrypted a newer envelope after an
+  older Raft snapshot was restored; only a cold restart proved the matching
+  database recovery point was required.
