@@ -15,8 +15,7 @@ on:
       - "server/L10N/**"
       - "server/priv/docs/L10N.md"
       - "server/priv/docs/L10N/**"
-      - "server/priv/docs/en/guides/install-tuist.md"
-      - "server/priv/docs/en/guides/features/cache.md"
+      - "server/priv/docs/en/**/*.md"
 
   pull_request:
     paths:
@@ -24,6 +23,8 @@ on:
       - "translate_test.exs"
       - ".github/workflows/l10n.yml"
       - ".github/scripts/restore-translations*"
+      - "server/L10N.md"
+      - "server/priv/docs/L10N.md"
 
 permissions:
   contents: read
