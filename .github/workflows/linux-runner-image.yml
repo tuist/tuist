@@ -66,7 +66,7 @@ jobs:
   build:
     needs: cache-mounts
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
-    runs-on: tuist-linux
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -137,7 +137,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: infra/linux-runner-image
-          file: infra/linux-runner-image/Dockerfile
+          file: infra/linux-runner-image/Dockerfile.shard-staging
           # Linux runners run on Hetzner Robot bare-metal x86 boxes
           # at v1. arm64 is a future option (Ampere-based SKUs) and
           # can land as an additive `platforms:` entry.

@@ -1,0 +1,2 @@
+FROM ghcr.io/tuist/tuist-linux-runner@sha256:36ef755d1d8edbd54c3c6a30b87cab6f23af0383e8f37f0126e298a1032324dc
+COPY --chmod=755 run-job.sh /usr/local/bin/run-job.sh
