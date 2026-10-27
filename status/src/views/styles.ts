@@ -144,7 +144,7 @@ a.visually-hidden:focus {
   clip: auto;
   z-index: 1;
   margin: 0;
-  border-radius: var(--noora-radius-medium, 8px);
+  border-radius: var(--noora-radius-4);
   background: var(--noora-surface-background-primary);
   padding: var(--noora-spacing-3) var(--noora-spacing-5);
   width: auto;
