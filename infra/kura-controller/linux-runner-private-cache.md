@@ -189,7 +189,7 @@ instances and local volumes. Do not create another logical region on the same
 pool: region-specific storage reservation accounting would give it a second
 budget.
 
-1. Complete staging qualification, then review/merge and deploy the provider
+1. Complete non-production qualification, then review/merge and deploy the provider
    through the normal main-branch pipeline. Preserve unrelated runtime pins.
 2. Record the production account's existing EU-West Service, instance ID,
    backend Node, public-client health and cache performance before enrollment.
@@ -248,6 +248,42 @@ The new host has no `vRackID`; leave `runner_linux_vrack` off until its isolated
 cohort and private transport are qualified. An enabled flag with no eligible
 hosts would leave jobs queued. No second runner or dedicated cache-host order
 is required for the single-host sequential qualification plan.
+
+### Canary qualification transition
+
+Canary can qualify account isolation, private transport and Gradle remote
+restores before staging is migrated. Its existing `ca-east` instance remains
+the target, so this does not measure Gravelines-local cache latency. The simple
+Gradle smoke accepts `runner_label=tuist-canary-linux`,
+`server_url=https://canary.tuist.dev`, `project=tuist/tuist` and
+`gradle_cache=true`; the real-compilation and comparative latency helpers still
+require staging/EU-West and must not be reported as canary validation.
+
+The canary overlay declares the existing `runners-linux` fleet resource as
+`nodePool: runners-linux-vrack` with `machine.vRackID: pn-2024092` for this
+maintenance transition. Keep its resource name, adoption prefix, replica count
+and OnDelete strategy. Deployment is gated on these operator steps:
+
+1. Finish the ordinary-path baseline, cordon the existing RISE-M and verify
+   all runner jobs and idle pollers have drained. Confirm no active Linux job
+   depends on it before deploying the chart change.
+2. Deploy through the reviewed Helm path. Human JIT elevation permits host
+   operations but deliberately does not permit MachineDeployment or MachineSet
+   edits. Verify template labels propagate through the existing MachineSet,
+   Machine and Node without replacing the Machine or changing its provider ID.
+3. While still cordoned, backfill the existing OVHDedicatedMachine's `vRackID`
+   from the reviewed template. Verify private readiness, reciprocal routes and
+   full-MTU reachability on runner and cache before enabling only Tuist's actor.
+4. Uncordon for controlled positive jobs. Verify dispatch, exact runner Node,
+   existing cache instance, private-NIC traffic and matching Gradle remote
+   restores. An excluded account must resolve to ordinary pools and queue while
+   this single host is isolated; it must never fall through to the vRack host.
+
+This overlay change does not enable the account flag. Do not deploy it as an
+unattended fleet change or leave ordinary Linux demand queued indefinitely.
+Returning the host to ordinary service requires a drained, reviewed chart and
+network restoration; skipping a repeated rollback test does not remove that
+maintenance responsibility. Staging and production remain unchanged.
 Do not bridge environments to simulate the topology. Configuration parity is
 not live transport validation: each environment still needs enrolled/excluded-
 account runs and path verification, sequentially with a single runner host.

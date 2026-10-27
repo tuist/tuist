@@ -185,6 +185,10 @@ the preserved older fixture's pre-existing fenced state and backup location.
 Canary's RISE-M replacement passed ordinary Kata runner/cache acceptance on
 2026-10-26; the old RISE-S has left the cluster. This hardware cutover did not
 enroll the replacement in vRack or qualify the account-gated private path.
+Canary can be qualified before the staging migration. Its maintenance overlay
+targets the isolated cohort, but deployment requires draining the host first
+and explicit enrollment of the existing OnDelete Machine. The Canadian cache
+qualifies transport and isolation, not Gravelines-local latency.
 Do not create a second logical region on the public pool: storage
 reservations are accounted by region. Preserve macOS private-cache behavior.
 

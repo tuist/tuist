@@ -86,6 +86,11 @@ Helm-installed resource; publishing it is a separate rollout step.
   `ovhFleets.<fleet>.machine.vRackID`; legacy hosts without private NICs must
   remain unenrolled. See `../kura-controller/linux-runner-private-cache.md`
   for regional-cache reuse, the required staging migration, and rollback.
+  Canary's single-runner qualification overlay moves the existing fleet to
+  `runners-linux-vrack` and declares `pn-2024092`. Deploy only after the existing
+  host is cordoned and drained; verify persistent CAPI labels before backfilling
+  its OnDelete Machine's vRack ID. Ordinary Linux demand queues during this
+  maintenance window. See the runbook's canary qualification transition.
 
 - Production public EU-West runs on three `ovhFleets.eu-west` nodes. Managed
   Dedibox support is removed after all Machine release finalizers completed
