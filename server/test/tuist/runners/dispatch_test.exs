@@ -914,62 +914,31 @@ defmodule Tuist.Runners.DispatchTest do
     end
   end
 
-  describe "account-gated Linux vRack dispatch" do
-    setup do
+  describe "Linux jobs share runner capacity" do
+    test "different accounts resolve to the same profile pool" do
       account = enabled_account()
       other = enabled_account()
       {:ok, profile} = Profiles.create(account, %{name: "vrack-test", platform: :linux, vcpus: 2, memory_gb: 8})
       {:ok, _} = Profiles.create(other, %{name: "vrack-test", platform: :linux, vcpus: 2, memory_gb: 8})
-      standard = Catalog.pool_name(profile)
-      isolated = "#{Tuist.Environment.runners_linux_pool_name_prefix()}-vrack-2vcpu-8gb"
-      stub(Tuist.Environment, :runners_linux_vrack_pools, fn -> %{standard => isolated} end)
-      %{account: account, other: other, standard: standard, isolated: isolated}
-    end
 
-    test "only the enrolled account changes pools; disable restores normal dispatch", ctx do
-      for account <- [ctx.account, ctx.other] do
-        assert {:ok, %{pool_name: name}} = Dispatch.resolve_dispatch_target(account, ["tuist-vrack-test"])
-        assert name == ctx.standard
+      for actor <- [account, other] do
+        assert {:ok, %{pool_name: name}} = Dispatch.resolve_dispatch_target(actor, ["tuist-vrack-test"])
+        assert name == Catalog.pool_name(profile)
       end
-
-      FunWithFlags.enable(:runner_linux_vrack, for_actor: ctx.account)
-
-      assert {:ok, %{pool_name: name, vcpus: 2, memory_gb: 8}} =
-               Dispatch.resolve_dispatch_target(ctx.account, ["tuist-vrack-test"])
-
-      assert name == ctx.isolated
-      assert {:ok, %{pool_name: name}} = Dispatch.resolve_dispatch_target(ctx.other, ["tuist-vrack-test"])
-      assert name == ctx.standard
-
-      FunWithFlags.disable(:runner_linux_vrack, for_actor: ctx.account)
-      assert {:ok, %{pool_name: name}} = Dispatch.resolve_dispatch_target(ctx.account, ["tuist-vrack-test"])
-      assert name == ctx.standard
     end
 
-    test "enabled account stays on normal fleet if isolated pools are not deployed", ctx do
-      FunWithFlags.enable(:runner_linux_vrack, for_actor: ctx.account)
-      stub(Tuist.Environment, :runners_linux_vrack_pools, fn -> %{} end)
-      assert {:ok, %{pool_name: name}} = Dispatch.resolve_dispatch_target(ctx.account, ["tuist-vrack-test"])
-      assert name == ctx.standard
-    end
+    test "legacy labels keep their pool and retired internal labels stay hidden" do
+      account = enabled_account()
+      normal = [name: "linux-shared", label: "linux-legacy"] |> pool_cr() |> put_in(["spec", "os"], "linux")
 
-    test "legacy labels use the same account gate and cannot target isolated pools directly", ctx do
-      normal = pool_cr(name: ctx.standard, label: "linux-legacy")
-
-      isolated = %{
-        "metadata" => %{"name" => ctx.isolated, "labels" => %{"tuist.dev/network-cohort" => "vrack"}},
+      retired = %{
+        "metadata" => %{"name" => "linux-vrack", "labels" => %{"tuist.dev/network-cohort" => "vrack"}},
         "spec" => %{"dispatchLabel" => "linux-internal-vrack", "os" => "linux"}
       }
 
-      normal = put_in(normal, ["spec", "os"], "linux")
-      stub(Client, :list_runner_pools, fn _ -> {:ok, [normal, isolated]} end)
-
-      FunWithFlags.enable(:runner_linux_vrack, for_actor: ctx.account)
-      assert {:ok, %{pool_name: name}} = Dispatch.resolve_dispatch_target(ctx.account, ["linux-legacy"])
-      assert name == ctx.isolated
-      assert {:ok, %{pool_name: name}} = Dispatch.resolve_dispatch_target(ctx.other, ["linux-legacy"])
-      assert name == ctx.standard
-      assert {:error, :no_matching_pool} = Dispatch.resolve_dispatch_target(ctx.other, ["linux-internal-vrack"])
+      stub(Client, :list_runner_pools, fn _ -> {:ok, [normal, retired]} end)
+      assert {:ok, %{pool_name: "linux-shared"}} = Dispatch.resolve_dispatch_target(account, ["linux-legacy"])
+      assert {:error, :no_matching_pool} = Dispatch.resolve_dispatch_target(account, ["linux-internal-vrack"])
     end
   end
 

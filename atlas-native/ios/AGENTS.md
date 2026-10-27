@@ -4,6 +4,13 @@ SwiftUI owns presentation; Rust owns OAuth, Orbit session state and allowlisted 
 Keep shared section strings/routes in the Rust navigation catalog. Do not add a web
 view, source interpreter or independent networking/token-refresh implementation.
 
+Moodboard's share extension and protected App Group inbox live in [Share](Share/AGENTS.md).
+`AtlasSharedItems` owns host review and exact uncertain-save retries; `AtlasSharedItemsView`
+offers review from Profile and a foreground banner without replacing active drafts.
+Authentication publishes a random recipient/server pair, not credentials, and purges it
+on logout/new login. Suggestion callbacks must preserve concurrent typing and notes.
+The share-sheet recipient is captured on entry; account changes must reject that sheet's save.
+
 `AtlasAuthentication` is the MainActor coordinator for credential mutation and shared
 in-flight refresh. Persist rotations before requests, fence both successes and errors
 by session generation, and discard cancelled/late responses. Blocking Rust calls run

@@ -52,6 +52,39 @@ defmodule Atlas.Moodboard do
 
   def create_resource(_attrs, _user, _opts), do: {:error, :authentication_required}
 
+  def capture_resource(request_id, attrs, user, opts \\ [])
+
+  def capture_resource(request_id, attrs, %User{} = user, opts) when is_map(attrs) do
+    with {:ok, request_id} <- Ecto.UUID.cast(request_id),
+         true <- Enum.all?(Map.keys(attrs), &(&1 in ~w(title url content description tags image_url))) do
+      # Serialize even the first insert. The actor-scoped request identity and hash
+      # survive later resource edits, so a lost response cannot duplicate a text share.
+      hash = :sha256 |> :crypto.hash(:erlang.term_to_binary(Enum.sort(attrs))) |> Base.encode16(case: :lower)
+
+      Repo.transaction(fn ->
+        Repo.query!("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", ["moodboard:#{user.id}:#{request_id}"])
+
+        case Repo.get_by(Resource, created_by_id: user.id, capture_id: request_id) do
+          nil ->
+            %Resource{created_by_id: user.id, capture_id: request_id, capture_hash: hash}
+            |> Resource.changeset(attrs)
+            |> prepare_preview()
+            |> persist_resource(:insert, "moodboard_resource.created", user, opts)
+
+          %Resource{capture_hash: ^hash} = resource ->
+            Repo.preload(resource, :created_by)
+
+          _ ->
+            Repo.rollback(:capture_conflict)
+        end
+      end)
+    else
+      _ -> {:error, :invalid_capture}
+    end
+  end
+
+  def capture_resource(_request_id, _attrs, _user, _opts), do: {:error, :authentication_required}
+
   def update_resource(id, attrs, user, opts \\ []) do
     mutate_owned_resource(id, user, fn resource ->
       resource

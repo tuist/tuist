@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+    <key>CFBundleIdentifier</key><string>dev.tuist.atlas.share</string>
+    <key>CFBundleExecutable</key><string>AtlasShare</string>
+    <key>CFBundleName</key><string>AtlasShare</string>
+    <key>CFBundleDisplayName</key><string>Atlas</string>
+    <key>CFBundlePackageType</key><string>XPC!</string>
+    <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+    <key>CFBundleShortVersionString</key><string>0.1.0</string>
+    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleSupportedPlatforms</key><array><string>$(ATLAS_SUPPORTED_PLATFORM)</string></array>
+    <key>DTPlatformName</key><string>$(ATLAS_PLATFORM_NAME)</string>
+    <key>MinimumOSVersion</key><string>17.0</string>
+    <key>UIDeviceFamily</key><array><integer>1</integer><integer>2</integer></array>
+    <key>NSExtension</key><dict>
+        <key>NSExtensionPointIdentifier</key><string>com.apple.share-services</string>
+        <key>NSExtensionPrincipalClass</key><string>ShareViewController</string>
+        <key>NSExtensionAttributes</key><dict>
+            <key>NSExtensionActivationRule</key><dict>
+                <key>NSExtensionActivationSupportsText</key><true/>
+                <key>NSExtensionActivationSupportsWebURLWithMaxCount</key><integer>1</integer>
+            </dict>
+        </dict>
+    </dict>
+</dict></plist>
