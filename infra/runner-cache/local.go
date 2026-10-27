@@ -71,6 +71,9 @@ type LocalImages struct {
 	MeasureFS        func(string) (int64, int64, error)
 	FreeBytes        func(string) (uint64, error)
 	FreeBytesContext func(context.Context, string) (uint64, error)
+	// ReclaimWait bounds rechecks for deferred filesystem reclamation after a
+	// pressure eviction, before removing another master. Zero disables the wait.
+	ReclaimWait time.Duration
 	// Reclaim makes room in another cache sharing this filesystem, after local
 	// masters have been evicted. It must preserve all active reservations.
 	Reclaim func(context.Context, uint64) error
@@ -286,6 +289,34 @@ func (b *LocalImages) freeBytes(ctx context.Context) (uint64, error) {
 	return b.FreeBytes(b.Root)
 }
 
+// waitForReclaim gives deferred inode cleanup time to make deleted blocks
+// available. Never count an unlinked file's bytes: live reflinks can retain them.
+func (b *LocalImages) waitForReclaim(ctx context.Context, minimum uint64) error {
+	if b.ReclaimWait <= 0 {
+		return nil
+	}
+	deadline := time.NewTimer(b.ReclaimWait)
+	defer deadline.Stop()
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		free, err := b.freeBytes(ctx)
+		if err != nil || free >= minimum {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-deadline.C:
+			return nil
+		case <-tick.C:
+		}
+	}
+}
+
 // Reflinks share physical extents, so admission uses filesystem free space,
 // exactly like the APFS manager, rather than summing logical image sizes.
 func (b *LocalImages) reserve(ctx context.Context) error {
@@ -384,6 +415,9 @@ func (b *LocalImages) evictForRoom(ctx context.Context, path, reason string, min
 	done := b.Observe.With(masterSubject(path)).Start("evict", reason)
 	err = b.evictMaster(path, reason, append([]any{"needed_bytes", minimum, "free_bytes", free}, SubjectFrom(ctx).ForFields()...)...)
 	done(err)
+	if err == nil && free < minimum {
+		err = b.waitForReclaim(ctx, minimum)
+	}
 	return err
 }
 
