@@ -77,7 +77,7 @@ struct AtlasApp: App {
                                automation: authentication) {
                 AtlasSettingsView(server: server, accounts: authentication.accountSettings, signOut: authentication.signOut,
                                   profileRequest: authentication.businessRequest, notifications: authentication.pushNotifications,
-                                  sharedItems: authentication.sharedItems)
+                                  sharedItems: authentication.sharedItems, connections: authentication.connectionSettings)
             }
             .modifier(AtlasSharedItemsPresentation(model: authentication.sharedItems,
                                                    protectedWork: navigation.hasVisibleProtectedWork))
