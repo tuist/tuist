@@ -58,7 +58,9 @@ func TestCheckoutGitRepackInheritsMemoryLimitsWithoutChangingGuestConfig(t *test
 		if event.Event == "cmd_name" && event.Name == "pack-objects" {
 			packChild = event.Sid
 		}
-		if event.Event == "def_param" && event.Scope == "command" {
+		// Older Git omits scope; its last value for each key includes the
+		// command overrides after repository config, in precedence order.
+		if event.Event == "def_param" && (event.Scope == "command" || event.Scope == "") {
 			if children[event.Sid] == nil {
 				children[event.Sid] = map[string]string{}
 			}
