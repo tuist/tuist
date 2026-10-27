@@ -2,6 +2,18 @@
 
 Atlas's personal LLM connections are separate from Tuist Server customer data and from Atlas's operator-configured inference providers.
 
+## Engineering error alert rules
+
+`alert_rules` belongs to `projects` through `project_id` and stores operator-authored names, trigger/tier, enabled state, event-count threshold, nullable `threshold_window_minutes` (1–60 for `event_spike`), exact environment, minimum severity, cooldown, and Slack or webhook destination settings. Receiver URLs can contain authentication credentials; signing secrets are also sensitive stored configuration. Rules remain until explicitly deleted or their project is deleted. Project deletion cascades rules and their notification records; existing backups retain their normal policy.
+
+`alert_notifications` references `alert_rules` and stores the error-issue subject UUID, firing time, sent/failed/skipped status, failure diagnostic and metadata. Spike metadata adds environment, distinct event count, window minutes and evaluation time alongside the existing lifetime issue count. There is no automatic notification expiry. `oban_jobs` stores rule/issue IDs, reason and environment for queued deliveries; existing Oban pruning applies. Historical previews read retained `errors_events` without copying events or sending notifications, and add no event collection or retention policy.
+
+Webhook destinations receive issue ID/title/culprit/severity/status, lifetime count, first/last seen times and dashboard URL; project/rule IDs, rule name/tier/trigger/reason; environment, window counts, evaluation/send timestamps, random delivery UUID and stable rule/issue/environment grouping key. Slack receives the corresponding formatted issue and count information. These configured external services retain delivery data under their own policies. Atlas sends only `alert.fired`, not recovery events.
+
+`alert_rule.created`, `.updated` and `.deleted` audits retain actor/interface, rule/project IDs, rule label, dashboard path and non-secret configuration changes. Notification rows retain delivery outcomes. The `save_error_alert_rule` tool audit omits all submitted arguments, including rejected inputs, to avoid retaining receiver credentials; list results and edit forms never expose saved webhook URLs or signing secrets. Audit history can outlive deleted rules.
+
+For a verified organizational export, select all `alert_rules` by project ID and join all `alert_notifications` through rule ID. Include related queued jobs and audits by rule target or actor. Export non-secret destination metadata, never live receiver URLs or signing secrets through dashboard/MCP/email. Fetch retained source events separately from ClickHouse by project/issue ID. The management list and point-in-time preview are not complete legal exports. No object-storage paths are added.
+
 ## Tuist feature flag operation audits
 
 Atlas stores no local feature flag rules or evaluation snapshots. Tuist Server owns the persisted gates and authoritative, atomic change audit. Atlas sends the authenticated operator's Atlas user UUID and email, the execution interface (`mcp`, `worker` or `api`), change UUID, reason, expected revision, operation/scope and any Tuist account/project ID or rollout percentage to the internal Tuist feature flag API. These are operator actions, not end-user analytics.

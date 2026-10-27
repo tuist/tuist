@@ -1,4 +1,5 @@
 #projects,
+#project-alerts,
 #project-show {
   display: flex;
   flex-direction: column;
@@ -350,4 +351,10 @@
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-regular) var(--noora-font-body-small);
   }
+}
+
+#project-alerts [data-part="context-text"] {
+  color: var(--noora-surface-label-primary);
+  font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  overflow-wrap: anywhere;
 }

@@ -175,6 +175,15 @@ defmodule AtlasWeb.ProjectLive.Show do
       </div>
 
       <.card title={gettext("Settings")} icon="apps">
+        <:actions>
+          <.button
+            id="project-error-alerts"
+            navigate={~p"/engineering/projects/#{@project.id}/alerts"}
+            label={gettext("Error alerts")}
+            variant="secondary"
+            size="medium"
+          />
+        </:actions>
         <.card_section>
           <.form
             id="edit-project-form"

@@ -15,7 +15,7 @@ defmodule Atlas.Engineering.Alerts.Workers.DeliverRuleTest do
   test "concurrent replicas cannot both deliver within a rule's cooldown" do
     parent = self()
     notifications = start_supervised!({Agent, fn -> [] end})
-    rule = %Rule{id: Ecto.UUID.generate(), destination_type: :slack}
+    rule = %Rule{id: Ecto.UUID.generate(), trigger: :event_rate, destination_type: :slack}
     issue = %Issue{id: Ecto.UUID.generate()}
 
     # Exercise real locks/connections without committing project fixtures that
@@ -92,6 +92,83 @@ defmodule Atlas.Engineering.Alerts.Workers.DeliverRuleTest do
     Repo.update_all(from(r in Rule, where: r.id == ^rule.id), set: [enabled: false])
     stub(SlackDestination, :deliver, fn _rule, _issue, _reason, _opts -> flunk("disabled rule delivered") end)
     assert :ok = DeliverRule.perform(job(rule, issue))
+  end
+
+  test "a windowed spike sends signed, environment-scoped webhook evidence and observes cooldown" do
+    {rule, issue} = spike_fixtures()
+    parent = self()
+    stub(Alerts, :spike_matches, fn _rule, _at, _opts -> {:ok, [%{issue_id: issue.id, event_count: 107}]} end)
+
+    stub(Req, :post, fn _url, opts ->
+      send(parent, {:webhook, opts[:headers], opts[:body]})
+      {:ok, %Req.Response{status: 202}}
+    end)
+
+    job = %Oban.Job{
+      args: %{"rule_id" => rule.id, "subject_id" => issue.id, "reason" => "event_spike", "environment" => "staging"}
+    }
+
+    assert :ok = DeliverRule.perform(job)
+    assert_receive {:webhook, headers, encoded}
+    body = JSON.decode!(encoded)
+    assert body["environment"] == "prod"
+    assert body["rule"]["tier"] == "incident"
+    assert body["signal"]["event_count"] == 107
+    assert body["signal"]["window_minutes"] == 5
+    assert body["issue"]["event_count"] == 10
+    assert body["grouping_key"] == "atlas:#{rule.id}:#{issue.id}:prod"
+    signature = :crypto.mac(:hmac, :sha256, rule.webhook_signing_secret, encoded) |> Base.encode16(case: :lower)
+    assert {"x-atlas-signature", "sha256=" <> signature} in headers
+
+    assert :ok = DeliverRule.perform(job)
+    refute_receive {:webhook, _, _}
+
+    assert [%Notification{metadata: %{"signal" => %{"event_count" => 107}}}] =
+             Repo.all(from(n in Notification, where: n.rule_id == ^rule.id and n.status == :sent))
+  end
+
+  test "stale spikes do not page and query failures remain retryable rather than healthy" do
+    {rule, issue} = spike_fixtures()
+    job = %Oban.Job{args: %{"rule_id" => rule.id, "subject_id" => issue.id, "reason" => "event_spike"}}
+    stub(Req, :post, fn _, _ -> flunk("a stale or unqueryable spike must not send") end)
+
+    stub(Alerts, :spike_matches, fn _, _, _ -> {:ok, []} end)
+    assert :ok = DeliverRule.perform(job)
+
+    stub(Alerts, :spike_matches, fn _, _, _ -> {:error, :spike_query_failed} end)
+    assert {:error, :spike_query_failed} = DeliverRule.perform(job)
+    assert Repo.all(from(n in Notification, where: n.rule_id == ^rule.id)) == []
+  end
+
+  test "changing a rule trigger invalidates queued cumulative and regression firings" do
+    stub(SlackDestination, :deliver, fn _, _, _, _ -> flunk("a firing from the previous trigger must not send") end)
+
+    for {previous, current} <- [{:event_rate, :regression}, {:regression, :event_rate}] do
+      {_project, rule, issue} = fixtures()
+      {:ok, rule} = Alerts.update_rule(rule, %{trigger: current})
+      stale = %Oban.Job{args: %{"rule_id" => rule.id, "subject_id" => issue.id, "reason" => Atom.to_string(previous)}}
+
+      assert :ok = DeliverRule.perform(stale)
+      assert Repo.all(from(n in Notification, where: n.rule_id == ^rule.id)) == []
+    end
+  end
+
+  defp spike_fixtures do
+    {_project, rule, issue} = fixtures()
+
+    {:ok, rule} =
+      Alerts.update_rule(rule, %{
+        trigger: :event_spike,
+        tier: :incident,
+        threshold_event_count: 100,
+        threshold_window_minutes: 5,
+        environment: "prod",
+        min_level: :error,
+        destination_type: :webhook,
+        webhook_url: "https://receiver.example.org/private-integration"
+      })
+
+    {rule, issue}
   end
 
   defp job(rule, issue) do

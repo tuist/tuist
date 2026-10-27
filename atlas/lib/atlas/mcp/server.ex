@@ -77,6 +77,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.DeleteEmailAudience
   alias Atlas.MCP.Tools.DeleteEngineeringDomain
   alias Atlas.MCP.Tools.DeleteEngineeringProject
+  alias Atlas.MCP.Tools.DeleteErrorAlertRule
   alias Atlas.MCP.Tools.DeleteFinancing
   alias Atlas.MCP.Tools.DeleteInsurancePolicy
   alias Atlas.MCP.Tools.DeleteManualFinanceInvoice
@@ -203,6 +204,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.ListEmailSubscribers
   alias Atlas.MCP.Tools.ListEngineeringDomains
   alias Atlas.MCP.Tools.ListEngineeringProjects
+  alias Atlas.MCP.Tools.ListErrorAlertRules
   alias Atlas.MCP.Tools.ListErrorIssues
   alias Atlas.MCP.Tools.ListFeatureInterests
   alias Atlas.MCP.Tools.ListFinanceAccounts
@@ -247,6 +249,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.PlaceAssetInService
   alias Atlas.MCP.Tools.PollChatGPTProviderLogin
   alias Atlas.MCP.Tools.PrepareGTMOpportunityOutreach
+  alias Atlas.MCP.Tools.PreviewErrorAlertRule
   alias Atlas.MCP.Tools.PublishPOC
   alias Atlas.MCP.Tools.QueryTuistClickhouse
   alias Atlas.MCP.Tools.QueryTuistPostgres
@@ -277,6 +280,7 @@ defmodule Atlas.MCP.Server do
   alias Atlas.MCP.Tools.RotateDomainErrorDsn
   alias Atlas.MCP.Tools.RotateProjectErrorDsn
   alias Atlas.MCP.Tools.RunGTMSignalSearch
+  alias Atlas.MCP.Tools.SaveErrorAlertRule
   alias Atlas.MCP.Tools.SaveMemory
   alias Atlas.MCP.Tools.SearchApolloOutreach
   alias Atlas.MCP.Tools.SearchAtlas
@@ -544,6 +548,8 @@ defmodule Atlas.MCP.Server do
   ]
   @feature_flag_read_tools [ListTuistFeatureFlags, GetTuistFeatureFlag, EvaluateTuistFeatureFlags]
   @feature_flag_write_tools [UpdateTuistFeatureFlag]
+  @error_alert_read_tools [ListErrorAlertRules, PreviewErrorAlertRule]
+  @error_alert_write_tools [SaveErrorAlertRule, DeleteErrorAlertRule]
   @automation_read_tools Interfaces.tools(:read)
   @automation_write_tools Interfaces.tools(:write)
   @static_tools [
@@ -865,7 +871,9 @@ defmodule Atlas.MCP.Server do
     UnpublishPOC
   ]
 
-  @static_tools @static_tools ++ @automation_read_tools ++ @automation_write_tools
+  @static_tools @static_tools ++
+                  @automation_read_tools ++
+                  @automation_write_tools ++ @error_alert_read_tools ++ @error_alert_write_tools
 
   def static_tools, do: @static_tools
 
@@ -875,6 +883,8 @@ defmodule Atlas.MCP.Server do
       module in @admin_tools -> ["admin:read"]
       module in @feature_flag_write_tools -> ["feature_flags:write"]
       module in @feature_flag_read_tools -> ["feature_flags:read"]
+      module in @error_alert_read_tools -> ["engineering:read"]
+      module in @error_alert_write_tools -> ["engineering:write"]
       module == GetErrorEventContexts -> ["engineering:read"]
       true -> []
     end
@@ -986,7 +996,7 @@ defmodule Atlas.MCP.Server do
   defp tool_allowed?(conn, tool_module) do
     admin_tool_allowed?(conn, tool_module) and automation_tool_allowed?(conn, tool_module) and
       approval_tool_allowed?(conn, tool_module) and feature_flag_tool_allowed?(conn, tool_module) and
-      error_context_tool_allowed?(conn, tool_module) and
+      error_context_tool_allowed?(conn, tool_module) and error_alert_tool_allowed?(conn, tool_module) and
       (not restricted_mcp_session?(conn) or tool_group(tool_module) in allowed_tool_groups(conn))
   end
 
@@ -1008,6 +1018,10 @@ defmodule Atlas.MCP.Server do
   # Tuist's internal API tools share the "Production systems" identity toggle.
   # Feature flag tools additionally require their dedicated role scopes.
   defp tool_group(tool_module) when tool_module in @tuist_server_tools, do: "observability"
+
+  defp tool_group(tool_module) when tool_module in @error_alert_read_tools or tool_module in @error_alert_write_tools,
+    do: "observability"
+
   defp tool_group(GetErrorEventContexts), do: "observability"
   defp tool_group(_tool_module), do: "default"
 
@@ -1015,6 +1029,14 @@ defmodule Atlas.MCP.Server do
     do: Atlas.Users.has_scope?(Tool.current_user(conn), "engineering:read")
 
   defp error_context_tool_allowed?(_conn, _tool_module), do: true
+
+  defp error_alert_tool_allowed?(conn, tool_module) when tool_module in @error_alert_read_tools,
+    do: Atlas.Users.has_scope?(Tool.current_user(conn), "engineering:read")
+
+  defp error_alert_tool_allowed?(conn, tool_module) when tool_module in @error_alert_write_tools,
+    do: Atlas.Users.has_scope?(Tool.current_user(conn), "engineering:write")
+
+  defp error_alert_tool_allowed?(_conn, _tool_module), do: true
 
   defp feature_flag_tool_allowed?(conn, tool_module) when tool_module in @feature_flag_read_tools do
     Atlas.TuistFeatureFlags.allowed_context?(conn) and
@@ -1082,7 +1104,7 @@ defmodule Atlas.MCP.Server do
   end
 
   defp audit_arguments(name, _arguments)
-       when name in ~w(update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login),
+       when name in ~w(save_error_alert_rule update_my_profile connect_claude_provider start_chatgpt_provider_login poll_chatgpt_provider_login cancel_chatgpt_provider_login),
        do: %{}
 
   defp audit_arguments(_name, arguments), do: arguments

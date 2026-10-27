@@ -389,6 +389,7 @@ defmodule AtlasWeb.Router do
       live "/library/notes/new", NotesLive, :new
       live "/library/notes/:id", NotesLive, :show
       live "/engineering/projects", ProjectLive.Index, :index
+      live "/engineering/projects/:id/alerts", ProjectLive.Alerts, :index
       live "/engineering/projects/:id", ProjectLive.Show, :show
       live "/engineering/domains", DomainLive.Index, :index
       live "/engineering/domains/:id", DomainLive.Show, :show

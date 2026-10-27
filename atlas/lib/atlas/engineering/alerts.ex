@@ -5,8 +5,8 @@ defmodule Atlas.Engineering.Alerts do
 
   A rule describes:
 
-    * **when** to alert — a `trigger` on a supported `source` (v1 wires
-      `:error_issue` with the `:event_rate` and `:regression` triggers).
+    * **when** to alert — an error issue's cumulative `:event_rate`,
+      time-windowed `:event_spike`, or `:regression`.
     * **for which project** — every rule belongs to exactly one
       `Atlas.Engineering.Projects.Project`.
     * **where** to send the alert — either a Slack channel on Atlas's
@@ -21,6 +21,9 @@ defmodule Atlas.Engineering.Alerts do
   enqueues an Oban job per matching rule; the job re-checks the cooldown
   before inserting the notification row, so two events arriving for the
   same issue at the same time cannot both send.
+
+  `Workers.EvaluateSpikes` runs separately each minute against committed
+  ClickHouse events. The incident tier is receiver routing metadata, not a declaration.
   """
 
   import Ecto.Query
@@ -88,14 +91,59 @@ defmodule Atlas.Engineering.Alerts do
   defp audit_rule(action, %Rule{} = rule, extra_metadata \\ %{}) do
     metadata =
       %{"project_id" => rule.project_id, "source" => rule.source, "trigger" => rule.trigger}
-      |> Map.merge(extra_metadata)
+      |> Map.merge(
+        Map.drop(extra_metadata, [:webhook_url, :webhook_signing_secret, "webhook_url", "webhook_signing_secret"])
+      )
 
     Audit.record(action, %{
       target_type: "alert_rule",
       target_id: rule.id,
       target_label: rule.name,
-      metadata: metadata
+      metadata: Map.put(metadata, "path", "/engineering/projects/#{rule.project_id}/alerts")
     })
+  end
+
+  @doc """
+  Counts distinct events per issue in `(at - window, at]`, scoped to the rule's
+  project, environment and minimum level. Unlike `event_rate`, this never uses
+  lifetime issue counters. Query failures stay errors, not healthy zero counts.
+  Passing an earlier `at` performs the same read-only historical evaluation.
+  """
+  def spike_matches(%Rule{trigger: :event_spike} = rule, %DateTime{} = at, opts \\ []) do
+    from = DateTime.add(at, -rule.threshold_window_minutes * 60, :second)
+    issue_id = Keyword.get(opts, :issue_id)
+    issue_filter = if issue_id, do: "AND issue_id = {issue_id:String}", else: ""
+
+    levels =
+      Rule.levels() |> Enum.filter(&(level_severity(&1) >= level_severity(rule.min_level))) |> Enum.map(&to_string/1)
+
+    query = """
+    SELECT issue_id, uniqExact(event_id) AS events
+    FROM errors_events
+    WHERE project_id = {project_id:String}
+      AND environment = {environment:String}
+      AND level IN {levels:Array(String)}
+      AND timestamp > {from:DateTime64(6)}
+      AND timestamp <= {to:DateTime64(6)}
+      #{issue_filter}
+    GROUP BY issue_id
+    HAVING events >= {threshold:UInt64}
+    """
+
+    params = %{
+      "project_id" => rule.project_id,
+      "environment" => rule.environment,
+      "levels" => levels,
+      "from" => from,
+      "to" => at,
+      "threshold" => rule.threshold_event_count,
+      "issue_id" => issue_id || ""
+    }
+
+    case Ecto.Adapters.SQL.query(Atlas.ClickHouseRepo, query, params) do
+      {:ok, %{rows: rows}} -> {:ok, Enum.map(rows, fn [id, count] -> %{issue_id: id, event_count: count} end)}
+      {:error, _} -> {:error, :spike_query_failed}
+    end
   end
 
   @doc """
@@ -163,7 +211,7 @@ defmodule Atlas.Engineering.Alerts do
 
   defp environment_matches?(%Rule{environment: env}, %{environment: event_env}), do: env == event_env
 
-  defp environment_matches?(_rule, _context), do: true
+  defp environment_matches?(_rule, _context), do: false
 
   defp fire_reason(%Rule{trigger: :regression}, %Issue{status: :unresolved}, %{status: :resolved}), do: :regression
 

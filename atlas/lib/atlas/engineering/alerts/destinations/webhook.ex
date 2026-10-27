@@ -16,7 +16,7 @@ defmodule Atlas.Engineering.Alerts.Destinations.Webhook do
   @user_agent "Atlas-Alerts/1.0"
 
   def deliver(%Rule{} = rule, %Issue{} = issue, reason, opts \\ []) do
-    body = build_body(rule, issue, reason)
+    body = build_body(rule, issue, reason, opts)
     encoded = JSON.encode!(body)
     signature = sign(encoded, rule.webhook_signing_secret)
 
@@ -44,10 +44,15 @@ defmodule Atlas.Engineering.Alerts.Destinations.Webhook do
     end
   end
 
-  defp build_body(%Rule{} = rule, %Issue{} = issue, reason) do
+  defp build_body(%Rule{} = rule, %Issue{} = issue, reason, opts) do
+    environment = Keyword.get(opts, :environment, rule.environment)
+
     %{
       "delivery_id" => Ecto.UUID.generate(),
       "event" => "alert.fired",
+      "grouping_key" => "atlas:#{rule.id}:#{issue.id}:#{environment}",
+      "environment" => environment,
+      "signal" => Keyword.get(opts, :signal, %{}),
       "rule" => %{
         "id" => rule.id,
         "name" => rule.name,
