@@ -81,6 +81,17 @@ no schema or stored-data migration is involved. The registry cache can remain.
 
 ## Validation
 
+The normal production cascade deploys canary, then requires Runners Acceptance
+to pass before promotion. Each Linux target runs a native job and an actual
+Docker job container. Native coverage includes non-root/KVM access, executable
+clients and hooks, Android SDK contents and write access, Docker, Go compilation,
+setup-beam, Kura's authenticated round trip, process file limits, and 1.2 million
+rootfs files. The container probe checks workspace/actions/externals mounts,
+checkout, the forwarded cache endpoint, and environment-file round trips.
+The gate rejects missing, skipped, or failed Linux probes, and the dispatch
+watchdog bounds pickup for both jobs. The hourly production run uses the same
+coverage. The existing hotfix path bypasses this normal acceptance gate.
+
 `bash .github/scripts/linux-runner-image-prepare.test.sh` exercises readiness,
 failure, cleanup, duplicate pools, runtime selection, and first installation
 using a fake kubectl. The Helm CI suite also renders all managed environments
