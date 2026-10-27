@@ -74,3 +74,14 @@ repository-wide SDK pins, management replacement guards, OTP and Kura integratio
 checks belong with those integrations as they land. They are not replaced by
 skips or passing placeholders here. Product/runtime/artifact qualification and
 owner-approved release/rollout remain separate gates.
+
+The infrastructure SDK integration requires Go 1.26.10 in the root workspace
+and every independently built infrastructure module, including the nested
+GitLab executor and macOS host payloads. It retains `godebug default=go1.25`
+(`go1.23` for kube-impersonator) to avoid changing unrelated runtime defaults.
+The workflow runs the explicit-root probe under both retained defaults and
+checks these module directives. Grafana's separate workspace has its own owner.
+Go 1.26.10 also filters returned Darwin platform chains in `crypto/x509`, but
+Linux tests and Darwin cross-compilation do not qualify nil-root native trust.
+Existing artifacts must be rebuilt; no image or host rollout follows from a
+module directive alone.

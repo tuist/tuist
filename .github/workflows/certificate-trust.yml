@@ -4,11 +4,17 @@ on:
   pull_request:
     paths:
       - infra/certificate-trust/**
+      - go.work
+      - infra/**/go.mod
+      - kube-impersonator/go.mod
       - .github/workflows/certificate-trust.yml
   push:
     branches: [main]
     paths:
       - infra/certificate-trust/**
+      - go.work
+      - infra/**/go.mod
+      - kube-impersonator/go.mod
       - .github/workflows/certificate-trust.yml
   workflow_dispatch:
 
@@ -48,3 +54,29 @@ jobs:
         run: go run .
       - name: Check shell syntax
         run: bash -n pem-store.sh && bash -n java-store.sh
+
+  compatibility:
+    runs-on: tuist-linux
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        baseline: [go1.25, go1.23]
+    env:
+      GOWORK: 'off'
+      GOTOOLCHAIN: local
+      TRUST_EXPECTED_GO_SDK: go1.26.10
+    defaults:
+      run:
+        working-directory: infra/certificate-trust
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/certificate-trust/go.mod
+          cache: false
+      - name: Qualify compiler distrust with retained runtime defaults
+        run: |
+          go mod edit -godebug=default=${{ matrix.baseline }}
+          go run .
