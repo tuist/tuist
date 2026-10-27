@@ -5,11 +5,13 @@ on:
     paths:
       - infra/certificate-trust/**
       - .github/workflows/certificate-trust.yml
+      - infra/macos-log-shipper/**
   push:
     branches: [main]
     paths:
       - infra/certificate-trust/**
       - .github/workflows/certificate-trust.yml
+      - infra/macos-log-shipper/**
   workflow_dispatch:
 
 permissions:
@@ -48,3 +50,9 @@ jobs:
         run: go run .
       - name: Check shell syntax
         run: bash -n pem-store.sh && bash -n java-store.sh
+      - name: Race-test standalone log shipper HTTPS clients and wire controls
+        run: go -C ../macos-log-shipper test -race -count=1 ./...
+      - name: Test static log shipper build configuration
+        env:
+          CGO_ENABLED: '0'
+        run: go -C ../macos-log-shipper test -count=1 ./...
