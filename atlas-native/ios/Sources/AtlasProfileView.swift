@@ -7,6 +7,7 @@ struct AtlasSettingsView: View {
     var profileRequest: (([String: Any]) async throws -> Data)?
     var notifications: AtlasPushNotifications?
     var sharedItems: AtlasSharedItems?
+    var connections: AtlasConnections?
     @State private var profile: AtlasNativeProfile?
     @State private var profileError: String?
     @State private var editor: AtlasProfileEditorModel?
@@ -85,6 +86,16 @@ struct AtlasSettingsView: View {
             }
             if let notifications, profile?.pushNotifications?.ios == true {
                 AtlasPushSettingsView(notifications: notifications)
+            }
+            if let connections {
+                Section {
+                    NavigationLink {
+                        AtlasConnectionsView(model: connections)
+                    } label: {
+                        Label("Connections", systemImage: "link")
+                    }
+                    .accessibilityIdentifier("profile-connections")
+                }
             }
             Section {
                 accountLink(.claude) { AtlasClaudeAccountView(accounts: accounts) }

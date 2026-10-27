@@ -1,4 +1,3 @@
-import AtlasAuthFFI
 import AuthenticationServices
 import Foundation
 import SwiftUI
@@ -13,20 +12,6 @@ enum AtlasLoginProvider: String {
     case google
 }
 
-enum AtlasAuthBridge {
-    static func execute(_ input: String) async throws -> String {
-        try await Task.detached(priority: .userInitiated) {
-            try input.withCString { pointer in
-                guard let result = atlas_auth_execute(pointer) else {
-                    throw AtlasAuthenticationError(kind: "internal", message: "Could not complete sign-in.")
-                }
-                defer { atlas_auth_free(result) }
-                return String(cString: result)
-            }
-        }.value
-    }
-}
-
 @MainActor
 final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthenticationPresentationContextProviding {
     @Published private(set) var server: URL?
@@ -37,6 +22,7 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
     private var browser: ASWebAuthenticationSession?
     private var apiWaiters: [CheckedContinuation<Void, Never>] = []
     private var accountModel: AtlasAIAccounts?
+    private var connectionsModel: AtlasConnections?
     private var presenceModel: AtlasPresence?
     @Published private(set) var sharedItems: AtlasSharedItems?
     private var sessionIdentity = UUID()
@@ -68,6 +54,22 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
             return try await self.aiAccounts(action)
         }
         accountModel = model
+        return model
+    }
+
+    var connectionSettings: AtlasConnections {
+        if let connectionsModel { return connectionsModel }
+        let identity = sessionIdentity
+        let model = AtlasConnections(request: authenticatedRequest(operation: "connections")) { [weak self] url in
+            guard let self, self.server != nil, self.sessionIdentity == identity, self.browser == nil else {
+                throw CancellationError()
+            }
+            defer { self.browser = nil }
+            let callback = try await self.authenticate(url)
+            guard self.sessionIdentity == identity else { throw CancellationError() }
+            return callback
+        }
+        connectionsModel = model
         return model
     }
 
@@ -149,6 +151,10 @@ final class AtlasAuthentication: NSObject, ObservableObject, ASWebAuthentication
         try AtlasSecureStorage.delete("session")
         presenceModel?.setActive(false)
         presenceModel = nil
+        connectionsModel?.invalidate()
+        connectionsModel = nil
+        browser?.cancel()
+        browser = nil
         server = nil
         accountModel = nil
         sessionIdentity = UUID()
