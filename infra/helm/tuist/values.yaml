@@ -529,6 +529,7 @@ server:
   appUrl: http://tuist.local
   logLevel: info
   hosted: false
+  ssoRequireLoginDomainVerification: false
   # Cloudflare Turnstile protects self-service browser registration on hosted
   # deployments. When `enabled` is true, TUIST_TURNSTILE_ENABLED is set on the
   # deployment and the site/secret keys are synced from the TURNSTILE 1Password
