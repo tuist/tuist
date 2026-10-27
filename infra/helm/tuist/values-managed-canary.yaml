@@ -383,6 +383,10 @@ pdcAgent:
     - tuist-tuist-clickhouse.tuist-canary.svc.cluster.local:8123
 
 capi:
+  ovhRunnerEgress:
+    enabled: true
+    vrackID: pn-2024092
+    cidr: "5.196.103.232/29"
   ovhPrivateNetwork:
     enabled: true
     vrackID: pn-2024092

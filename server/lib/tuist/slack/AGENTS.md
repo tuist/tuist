@@ -1,4 +1,10 @@
-# Slack OAuth: local end-to-end testing
+# Slack
+
+## Report destination cleanup
+
+- Archived report channels are permanent destination failures: after delivery, lock and reload the project, clear only the destination that was attempted, then discard the job. Preserve replacement destinations, the installation, unrelated destinations and `last_reported_at`; cleanup failures must still propagate for retry. Never hold the lock during the Slack request.
+
+## OAuth: local end-to-end testing
 
 Automation notifications use `Client.deliver_once/2`: one bounded HTTP request without Req retries or redirects, returning snooze for rate limits, error for transient failures, and discard for permanent rejections. Oban owns retries; keep the existing reporting transports compatible.
 

@@ -38,6 +38,17 @@ Helm-installed resource; publishing it is a separate rollout step.
   (a rollback, or a staging deploy of an older branch) leaves the driver
   running: only it can unmount, close and delete existing volumes. Remove it
   by hand once no `kura-encrypted-nvme` PV is left.
+
+- `capi.ovhRunnerEgress` keeps its disabled ConfigMap and cleanup RBAC present
+  while the provider withdraws runner policies and host addresses. Reservations
+  belong to the controller, never Helm. Staging/canary values enable egress;
+  align their public block with the cache vRack before deployment. Production
+  stays disabled until advance allowlisting and qualification are complete. Preserve
+  `node_network_info` for the MAC-based
+  bandwidth alerts. See [OVH runner egress](../cluster-api-provider-tuist/docs/ovh-runner-egress.md).
+
+- SSO DNS verification is an explicit deployment policy: `server.ssoRequireLoginDomainVerification` defaults false and is enabled in managed-common, preview, and pentest values. Inject `TUIST_SSO_REQUIRE_LOGIN_DOMAIN_VERIFICATION` into every server runtime, including migrations, registry sync, and the separate xcresult processor. `tuist/test-sso-domain-verification.py` checks rendered wiring; never infer the policy from `server.hosted`.
+
 - Canary keeps one RISE-M in Gravelines on the shared `runners-linux` pool.
   Preserve its Machine identity and OnDelete strategy. Drain before explicitly
   enrolling the existing Machine in vRack; a template update does not backfill
