@@ -57,7 +57,6 @@ defmodule Tuist.Accounts do
     :sso_login_domain_verification_token,
     :sso_login_domain_verified_at,
     :sso_automatic_enrollment,
-    :sso_legacy_email_domain_fallback,
     :oauth2_client_id,
     :oauth2_client_secret,
     :oauth2_encrypted_client_secret,
@@ -430,7 +429,6 @@ defmodule Tuist.Accounts do
           |> normalize_sso_configuration_attr_keys()
           |> drop_sso_login_domain_verification_attrs()
           |> Map.put(:sso_provider, sso_provider)
-          |> prepare_sso_legacy_fallback_attrs(organization)
           |> prepare_sso_login_domain_attrs(organization)
           |> maybe_rename_secret(
             :oauth2_client_secret,
@@ -545,28 +543,11 @@ defmodule Tuist.Accounts do
     end)
   end
 
-  defp prepare_sso_legacy_fallback_attrs(attrs, organization) do
-    provider_changed? =
-      Map.has_key?(attrs, :sso_provider) and attrs.sso_provider != organization.sso_provider
-
-    organization_id_changed? =
-      Map.has_key?(attrs, :sso_organization_id) and
-        attrs.sso_organization_id != organization.sso_organization_id
-
-    if organization.sso_legacy_email_domain_fallback and
-         (provider_changed? or organization_id_changed?) do
-      Map.put(attrs, :sso_legacy_email_domain_fallback, false)
-    else
-      attrs
-    end
-  end
-
   defp drop_sso_login_domain_verification_attrs(attrs) do
     Map.drop(attrs, [
       :sso_login_domain_verification_token,
       :sso_login_domain_verified_at,
-      :sso_login_domain_last_verified_at,
-      :sso_legacy_email_domain_fallback
+      :sso_login_domain_last_verified_at
     ])
   end
 
@@ -591,7 +572,6 @@ defmodule Tuist.Accounts do
       attrs
       |> normalize_sso_configuration_attr_keys()
       |> drop_sso_login_domain_verification_attrs()
-      |> prepare_sso_legacy_fallback_attrs(organization)
       |> prepare_sso_login_domain_attrs(organization)
 
     Multi.new()
@@ -660,7 +640,6 @@ defmodule Tuist.Accounts do
     sso_login_domain_verified_at = Keyword.get(opts, :sso_login_domain_verified_at)
     sso_automatic_enrollment = Keyword.get(opts, :sso_automatic_enrollment, false)
     sso_default_role = Keyword.get(opts, :sso_default_role, "user")
-    sso_legacy_email_domain_fallback = Keyword.get(opts, :sso_legacy_email_domain_fallback, false)
     oauth2_client_id = Keyword.get(opts, :oauth2_client_id)
     oauth2_client_secret = Keyword.get(opts, :oauth2_client_secret)
     oauth2_authorize_url = Keyword.get(opts, :oauth2_authorize_url)
@@ -679,7 +658,6 @@ defmodule Tuist.Accounts do
         sso_login_domain_verified_at: sso_login_domain_verified_at,
         sso_automatic_enrollment: sso_automatic_enrollment,
         sso_default_role: sso_default_role,
-        sso_legacy_email_domain_fallback: sso_legacy_email_domain_fallback,
         oauth2_client_id: oauth2_client_id,
         oauth2_encrypted_client_secret: oauth2_client_secret,
         oauth2_authorize_url: oauth2_authorize_url,
@@ -1702,9 +1680,7 @@ defmodule Tuist.Accounts do
   @doc """
   Returns true when single sign-on is enforced for the given email. Existing
   users are resolved through organization membership. Unknown users are
-  resolved through a verified login email domain. Organizations configured
-  before domain verification was introduced temporarily retain the previous
-  provider-identifier heuristic until they verify a domain.
+  resolved through a verified login email domain.
 
   Used by the auth.md agent-registration flow to refuse minting MCP credentials
   for SSO-managed users via mailbox proof or trusted agent-provider assertions:
@@ -1795,15 +1771,10 @@ defmodule Tuist.Accounts do
         false
 
       domain ->
-        legacy_organization_ids = legacy_sso_organization_ids_for_domain(domain)
-
         Repo.exists?(
           from(o in Organization,
             where: o.sso_enforced == true and o.sso_provider in [:okta, :oauth2],
-            where:
-              (o.sso_login_domain == ^domain and not is_nil(o.sso_login_domain_verified_at)) or
-                (o.sso_legacy_email_domain_fallback == true and
-                   o.sso_organization_id in ^legacy_organization_ids)
+            where: o.sso_login_domain == ^domain and not is_nil(o.sso_login_domain_verified_at)
           )
         )
     end
@@ -2608,8 +2579,6 @@ defmodule Tuist.Accounts do
         {:error, :not_found}
 
       domain ->
-        legacy_organization_ids = legacy_sso_organization_ids_for_domain(domain)
-
         verified_organization =
           Repo.one(
             from(o in Organization,
@@ -2619,21 +2588,7 @@ defmodule Tuist.Accounts do
             )
           )
 
-        legacy_organization =
-          fn ->
-            Repo.one(
-              from(o in Organization,
-                where: o.sso_provider in [:okta, :oauth2],
-                where:
-                  o.sso_legacy_email_domain_fallback == true and
-                    o.sso_organization_id in ^legacy_organization_ids,
-                order_by: [asc: o.id],
-                limit: 1
-              )
-            )
-          end
-
-        case verified_organization || legacy_organization.() do
+        case verified_organization do
           %Organization{} = organization -> {:ok, organization}
           nil -> {:error, :not_found}
         end
@@ -2641,11 +2596,6 @@ defmodule Tuist.Accounts do
   end
 
   def sso_automatic_enrollment_allowed?(%Organization{sso_automatic_enrollment: false}, _email), do: false
-
-  def sso_automatic_enrollment_allowed?(
-        %Organization{sso_automatic_enrollment: true, sso_legacy_email_domain_fallback: true},
-        _email
-      ), do: true
 
   def sso_automatic_enrollment_allowed?(%Organization{sso_provider: :google, sso_automatic_enrollment: true}, _email),
     do: true
@@ -2667,9 +2617,8 @@ defmodule Tuist.Accounts do
   def sso_new_user_enrollment_allowed?(%Organization{} = organization, email, invitation?) when is_boolean(invitation?) do
     trusted_email_domain? = sso_identity_linking_allowed?(organization, email)
 
-    (sso_automatic_enrollment_allowed?(organization, email) and
-       (organization.sso_legacy_email_domain_fallback || trusted_email_domain?)) or
-      (invitation? and trusted_email_domain?)
+    trusted_email_domain? and
+      (sso_automatic_enrollment_allowed?(organization, email) or invitation?)
   end
 
   def sso_new_user_enrollment_allowed?(_organization, _email, _invitation?), do: false
@@ -2685,14 +2634,6 @@ defmodule Tuist.Accounts do
   end
 
   def sso_identity_linking_allowed?(%Organization{}, _email), do: false
-
-  defp legacy_sso_organization_ids_for_domain(domain) do
-    [
-      domain,
-      String.replace(domain, ".com", ".okta.com"),
-      "https://#{domain}"
-    ]
-  end
 
   defp email_domain(email) when is_binary(email) do
     case String.split(email, "@") do

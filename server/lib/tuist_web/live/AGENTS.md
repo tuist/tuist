@@ -153,3 +153,5 @@ This area owns LiveView pages and components for the web UI.
 - Gradle cache savings query the immediately preceding equal-duration range with identical filters for a neutral comparison. Keep missing previous reports distinct from recorded zero; zero baselines use absolute change without division.
 
 - Cache saving policy is edited on runner profiles, not volumes. The profile modal content renders through a portal, so drive its cache branch form with `render_hook` in tests.
+
+- Authentication settings preserve saved enrollment/enforcement when the login domain is unverified and show enrollment as paused. Validation events must not silently turn off those saved policies. New enablement requires verification; removing compatibility mode must not prevent saving unrelated fields.
