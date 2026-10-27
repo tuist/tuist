@@ -404,7 +404,7 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   `reset` and the teardown reports it, so that job replaces the saved data root;
   any other failure remounts the ephemeral root. It switches at most once per pod. The hook records `/home/runner/.tuist-docker.json`.
 - After the runner exits, `run-job.sh` runs `--docker-teardown`. With a mounted
-  volume the supervisor removes every container, volume and non-default network,
+  volume the supervisor removes every container, ordinary volume and non-default network,
   keeps each image under an internal `tuist-docker-cache:<id>` reference and
   removes its registry tags and digests, so every later reference resolves and
   is authorized against its registry again; it drops images no job pulled, ran or
@@ -423,6 +423,31 @@ PID/mount namespaces. Roll out controller and runner image together on idle pods
   repository's next jobs get one. Neither ever affects the exit code.
 - `planDockerTeardown` decides what survives: a job used an image when one of its
   containers ran it or it has a registry reference (teardown removed every one
-  the last time). `changed` compares image IDs and build-cache bytes with the
-  mount, or a used image whose saved last use is a day old, so an unchanged data
-  root is not republished.
+  the last time). `changed` compares image IDs, useful BuildKit records and
+  explicitly retained builder-volume metadata with the mount, or a used image
+  whose saved last use is a day old. Ignore transient `source.local` records and
+  ordinary layer access times; include `exec.cachemount` access times because
+  their contents can change without a size change. Never gate new build work on
+  a 1 GB size delta. Build-only jobs mark Docker seen even with no loaded images.
+- `.github/actions/setup-docker-builder` opts into a stable, keyed Buildx
+  `docker-container` volume with `keep-state: true`. Only local volumes with the
+  exact hashed name and `dev.tuist.cache=buildkit` label survive cleanup; custom
+  volume drivers/options are refused. Snapshot their tree metadata without
+  following symlinks, bounded by teardown's context and one million entries.
+  Default upstream setup with a random name and `keep-state: false` is ephemeral.
+- Merge different BuildKit volume keys, selecting this job's complete state for
+  a key it changed, otherwise the head's state. Never splice BuildKit databases.
+  If the daemon's embedded build cache changed, merge images into the branch so
+  that new build work survives; concurrent embedded caches use last-writer state.
+  Stop/remove BuildKit containers before copying their volume state. A failed
+  copy withholds publication. Builder state remains inside the guest's ext4 data
+  root; the host never parses it. The action configures BuildKit GC near 10 GB
+  per key, within the existing whole-image capacity/publication limits.
+- `TUIST_TEST_DOCKER_CACHE=1` enables the real Docker integration suite in a
+  disposable privileged Docker 28 DinD container, never on a shared daemon.
+  It creates an ext4 image, compiles a Go program, tears down/unmounts, then
+  starts fresh daemons and clients for identical and changed-source builds.
+  Require layer hits, the prior job's mutable-cache marker, correct new outputs,
+  publication eligibility and removal of ordinary service volumes for both
+  drivers. CI keeps its timing log; these are controlled integration measurements,
+  not production or end-to-end job benchmarks.
