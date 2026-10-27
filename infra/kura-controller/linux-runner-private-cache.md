@@ -169,40 +169,25 @@ measurement record. Confirm no extra Kura instances/volumes appear. Include
 concurrent builds and monitor errors, p95, queueing, CPU, memory, disk and link
 pressure. Test public-client access throughout because it shares the instance.
 
-## Historical measurements, not validation of the final topology
+## Historical validation
 
-[Recorded evidence and methodology](validation/linux-runner-pn-2026-10-26/README.md)
-preserve the earlier dedicated-instance experiment. Forty Gradle invocations
-passed, including twenty remote hits with matching checksums:
-
-| Payload | Operation | Canadian WAN median | Nearby PN median | Paired speedup |
-| --- | --- | --- | --- | --- |
-| 1 MiB | Cold upload | 1.317 s | 0.570 s | 2.32× |
-| 1 MiB | Remote restore | 1.110 s | 0.531 s | 2.13× |
-| 64 MiB | Cold upload | 6.074 s | 3.729 s | 1.63× |
-| 64 MiB | Remote restore | 4.963 s | 2.765 s | 1.80× |
-
-Persistent metadata-hit p50/p95 was **79.541/79.897 ms WAN** versus
-**0.854/1.439 ms PN**; all 1,600 measured HTTP requests passed. Fresh connections
-included roughly 57 ms of hostname lookup on both paths. Packet captures
-confirmed vRack on both sides; the Canadian endpoint still crossed the Atlantic.
-
-Those results used the removed dedicated instance, with 750 Mbps configured
-egress versus the Canadian cache's 500 Mbps. They do not isolate latency from
-bandwidth, hardware or storage. Production's existing cache is already in
-Gravelines: neither the speedups nor the former flag rollback drills establish
-performance or rollback for the final reuse approach. New live validation after
-the staging transition remains required.
+[PR #14766](https://github.com/tuist/tuist/pull/14766) records the Gradle and
+HTTP latency measurements, methodology, workflow links and limitations from
+the earlier dedicated-instance experiment. Those results compare Gravelines
+with Canada over vRack; they do not qualify the final regional-instance reuse,
+account isolation or rollback. Production already has caches in Gravelines.
+Fresh validation after the staging transition remains required. Keep new run
+outputs in workflow artifacts and report their results in the PR.
 
 ## Production rollout and rollback
 
-The [recorded inventory](validation/linux-runner-pn-2026-10-26/production-network-inventory.json)
-identified ten RISE-L runners in Gravelines (1 Gbps private/public, no OLA)
-and six existing ADVANCE cache hosts (25 Gbps private / 3 Gbps public) on
-`kura-dedibox`. Cache-host CPU was 1–3% and memory 14–32% in a read-only snapshot;
-that does not establish peak/disk/host-loss capacity. Keep the existing instances
-and local volumes. Do not create another logical region on the same pool:
-region-specific storage reservation accounting would give it a second budget.
+Refresh the production inventory and load before selecting hosts. The
+inventory recorded in PR #14766 found ten RISE-L runners and six existing
+ADVANCE cache hosts in Gravelines; that historical snapshot does not establish
+current capacity or peak/disk/host-loss headroom. Keep the existing regional
+instances and local volumes. Do not create another logical region on the same
+pool: region-specific storage reservation accounting would give it a second
+budget.
 
 1. Complete staging qualification, then review/merge and deploy the provider
    through the normal main-branch pipeline. Preserve unrelated runtime pins.
@@ -246,8 +231,8 @@ the fleet remains one replica with OnDelete. After verifying no local PVs,
 cordoning the old Node, and waiting for every runner to finish or be reaped,
 the old Machine was deleted through CAPI. Its provider released
 `ns3269803.ip-37-187-149.eu` and submitted the normal clean reinstall. Its
-Machine, OVHDedicatedMachine and Node are gone; OVH billing cancellation is
-still a separate user action.
+Machine, OVHDedicatedMachine and Node are gone. The user subsequently confirmed
+cancellation of its OVH contract.
 
 The replacement Node `tuist-tuist-ovh-fleet-runners-linux-gnbmk-jgl25` reached
 NodeReady and KataRuntimeReady, with XFS project-quota accounting/enforcement
@@ -255,8 +240,7 @@ enabled and healthy RAID1 root, boot and data arrays. Three Kata runners warmed.
 A fresh [Linux acceptance job](https://github.com/tuist/tuist/actions/runs/40411336722/job/121882539963)
 ran on that Node and passed dispatch, file limits, OIDC authentication and a
 byte-matching 1 MiB CAS write/read through the existing Canadian Kura endpoint.
-The [cutover record](validation/linux-runner-pn-2026-10-26/canary-rise-m-cutover.txt)
-binds the GitHub runner identity to the replacement Node and records the limits.
+PR #14766 records the runner identity, host checks and qualification limits.
 
 This qualified the ordinary runner path only. The final account-gated feature
 refactor has not been deployed or live-qualified by this hardware replacement.

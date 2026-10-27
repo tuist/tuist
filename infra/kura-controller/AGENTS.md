@@ -168,7 +168,9 @@ no Linux runner-specific cache region. The default-off account flag
 `runner_linux_vrack` selects isolated runner pools on enrolled hosts. See
 [linux-runner-private-cache.md](linux-runner-private-cache.md) for the required
 staging experiment cleanup before deployment, physical-path qualification and
-production rollout. Additional cache-host orders are on hold. Shared managed
+production rollout. Historical measurements and validation results are recorded
+in PR #14766; reusable probes publish new outputs as workflow artifacts.
+Additional cache-host orders are on hold. Shared managed
 values prepare disjoint runner pools in staging, canary and production;
 no account or Machine is enrolled automatically. `spec.vRackID` opts in a whole
 host; ordinary hosts must remain unenrolled. Preserve cohort membership in
