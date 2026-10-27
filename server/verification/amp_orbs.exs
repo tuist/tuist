@@ -60,7 +60,7 @@ defmodule AmpOrbVerification do
     }
 
     if state != previous do
-      json = Jason.encode!(state)
+      json = JSON.encode!(state)
       File.write!(Path.join(directory, "state.json.tmp"), json)
       File.rename!(Path.join(directory, "state.json.tmp"), Path.join(directory, "state.json"))
       IO.puts(json)
