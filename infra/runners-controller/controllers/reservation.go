@@ -828,10 +828,14 @@ func (r *RunnerPoolReconciler) fleetNodesFrom(
 func fleetNodeSelector(pool *tuistv1.RunnerPool) client.MatchingLabels {
 	switch pool.Spec.OS {
 	case "linux":
-		return client.MatchingLabels{
+		labels := client.MatchingLabels{
 			fleetNodePoolLabel: pool.Spec.FleetSelector,
 			nodeOSLabel:        "linux",
 		}
+		if pool.Spec.NestedVirtualization {
+			labels[podtemplate.KVMNodeLabel] = "true"
+		}
+		return labels
 	default:
 		return client.MatchingLabels{
 			macosFleetLabel: pool.Spec.FleetSelector,

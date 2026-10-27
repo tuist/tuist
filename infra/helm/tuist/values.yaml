@@ -2952,6 +2952,19 @@ runnersFleetLinux:
     maxConcurrentPerNode: 6
     # Starts after the scheduler binds the Pod to a node. 0 disables.
     startTimeoutSeconds: 300
+  # Hardware-accelerated nested guests (x86_64 Android emulators) for pools
+  # that set `nestedVirtualization: true`. Enabling this deploys the
+  # kvm-device-plugin DaemonSet onto the hosts the CAPI provider has
+  # labelled `tuist.dev/kata-kvm=true`; it changes nothing for other pools.
+  # A nested pool's Pods boot the provider-installed KVM guest kernel and
+  # request `devices.tuist.dev/kvm`, which adds /dev/kvm to the runner
+  # container. See infra/runners-controller/AGENTS.md "Nested
+  # virtualization".
+  nestedVirtualization:
+    enabled: false
+    # KVM is shared, so this only caps how many nested Pods one host
+    # admits at once. Memory runs out first in practice.
+    devicesPerNode: 16
   # Value of the `node.cluster.x-k8s.io/pool=` label CAPI's
   # label-sync propagates from the runner MachineDeployment to
   # each runner Node. Must match the
@@ -2975,7 +2988,7 @@ runnersFleetLinux:
     # Example entry:
     # - name: ubuntu-22-04
     #   replicas: 0          # static target; ignored when autoscaling is enabled.
-    #   runnerImage: ""      # Required. Digest-pinned in production.
+    #   runnerImage: ""      # Defaults to shapeRunnerImage. Digest-pinned in production.
     #   dispatchLabel: ""    # Required. The label customers put in `runs-on`.
     #   runnerLabels:
     #     - self-hosted
@@ -2989,6 +3002,10 @@ runnersFleetLinux:
     #   # the kata-qemu microVM is the safety boundary that keeps
     #   # the privileged sidecar off the bare-metal host kernel.
     #   runtimeClass: kata-qemu
+    #   # Optional. Gives the runner container /dev/kvm for nested guests
+    #   # such as Android emulators. Needs kata-qemu and
+    #   # `runnersFleetLinux.nestedVirtualization.enabled`.
+    #   nestedVirtualization: false
     #   provisioning:
     #     maxConcurrentPerNode: 6
     #     startTimeoutSeconds: 300

@@ -25,6 +25,10 @@ name: Linux Runners Staging Smoke Test
 on:
   workflow_dispatch:
     inputs:
+      nested_kvm:
+        description: Run only the Android Managed Device and Macrobenchmark check on the KVM pool
+        type: boolean
+        default: false
       gradle_cache:
         description: Run only the Gradle container cache check
         type: boolean
@@ -76,7 +80,7 @@ permissions: {}
 
 jobs:
   smoke:
-    if: ${{ !inputs.gradle_cache }}
+    if: ${{ !inputs.gradle_cache && !inputs.nested_kvm }}
     # Single-label form. `tuist-staging-linux` is the pool's unique
     # dispatch label and is sufficient to pick a runner — no need
     # to also list `self-hosted` (which is advertised on the runner
@@ -148,7 +152,7 @@ jobs:
   # empty and only shows up here — the `smoke` job above keeps
   # passing either way.
   container-smoke:
-    if: ${{ !inputs.gradle_cache }}
+    if: ${{ !inputs.gradle_cache && !inputs.nested_kvm }}
     runs-on: tuist-staging-linux
     timeout-minutes: 15
     # The only job here that reads repo state: `actions/checkout`
@@ -208,7 +212,7 @@ jobs:
   # kata_virtiofs.go in infra/cluster-api-provider-tuist); this keeps more files
   # than the default allows and fails on a host still running with it.
   file-budget:
-    if: ${{ !inputs.gradle_cache }}
+    if: ${{ !inputs.gradle_cache && !inputs.nested_kvm }}
     runs-on: tuist-staging-linux
     timeout-minutes: 15
     steps:
@@ -226,7 +230,7 @@ jobs:
           echo "Kept 1.2 million files without exhausting virtiofsd's file budget."
 
   gradle-cache:
-    if: ${{ inputs.gradle_cache }}
+    if: ${{ inputs.gradle_cache && !inputs.nested_kvm }}
     permissions:
       contents: read
       id-token: write
@@ -336,3 +340,54 @@ jobs:
           name: gradle-real-cache-smoke
           path: /__w/_temp/gradle-real-cache-smoke/*.log
           if-no-files-found: error
+
+  nested-kvm:
+    if: ${{ inputs.nested_kvm }}
+    permissions:
+      contents: read
+    runs-on: tuist-staging-linux-kvm
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+          cache-disabled: true
+      - name: Verify unprivileged nested KVM acceleration
+        run: |
+          set -euo pipefail
+          test "$(id -u)" != 0
+          test -c /dev/kvm && test -r /dev/kvm && test -w /dev/kvm
+          id
+          uname -a
+          ls -l /dev/kvm
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'emulator'
+          "$ANDROID_HOME/emulator/emulator" -accel-check
+      - name: Run the API 34 x86_64 instrumented test
+        working-directory: infra/kata-kvm-kernel/android-smoke
+        run: gradle --no-daemon --stacktrace :app:pixel6DebugAndroidTest
+      - name: Measure 15 cold starts with Macrobenchmark
+        working-directory: infra/kata-kvm-kernel/android-smoke
+        run: gradle --no-daemon --stacktrace :benchmark:pixel6BenchmarkAndroidTest
+      - name: Require executed tests and benchmark samples
+        working-directory: infra/kata-kvm-kernel/android-smoke
+        run: |
+          set -euo pipefail
+          grep -R 'testcase.*runsInsideTheAndroidGuest' app/build/outputs/androidTest-results/
+          grep -R 'testcase.*coldStartup' benchmark/build/outputs/androidTest-results/
+          find benchmark/build/outputs -name '*benchmarkData.json' -print -exec cat {} \;
+          test -n "$(find benchmark/build/outputs -name '*benchmarkData.json' -print -quit)"
+      - name: Save Android test reports and benchmark traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nested-kvm-android-results
+          path: |
+            infra/kata-kvm-kernel/android-smoke/**/build/reports/androidTests/
+            infra/kata-kvm-kernel/android-smoke/**/build/outputs/androidTest-results/
+            infra/kata-kvm-kernel/android-smoke/**/build/outputs/managed_device_android_test_additional_output/
+          if-no-files-found: warn

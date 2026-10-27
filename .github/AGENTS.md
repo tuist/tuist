@@ -601,3 +601,13 @@ publishing newer source; never replace an immutable version.
 Kura CSI's rack plugin is deployed by the independent, unwaited rack-nodes
 release with the same pinned CSI image as the main release. Its offline chart
 regression needs Helm; the CSI workflow installs it before running Go tests.
+
+## Nested KVM runner acceptance
+
+`linux-runners-staging-smoke.yml` has a manual `nested_kvm` mode, isolated from
+its ordinary smoke and cache jobs. It targets `tuist-staging-linux-kvm` as a
+native, non-root job and requires working emulator acceleration before running
+an API 34 x86_64 Gradle Managed Device instrumented test and 15 cold-start
+Macrobenchmark iterations. The pinned fixture and its contract live in
+`infra/kata-kvm-kernel/android-smoke/AGENTS.md`. Retain test results and traces
+on failure too; do not accept a successful build that executed no tests.

@@ -2175,6 +2175,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       manifest = KubernetesController.manifest("kura-tuist-ber1", "0.5.2", account, region, %Server{})
       assert manifest["spec"]["storageClassName"] == "kura-encrypted-nvme"
       assert manifest["spec"]["diskResource"] == "tuist.dev/kura-disk"
+      assert manifest["spec"]["replicas"] == 2
 
       assert KubernetesController.manifest_revision(%Server{account: account}, region) ==
                manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"]
