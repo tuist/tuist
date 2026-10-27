@@ -109,14 +109,6 @@ server:
     # Root keys that wrap per-tenant Kura volume keys (KURA_VOLUME_ROOT_KEYS).
     kuraVolumeRootKeys:
       enabled: true
-    # Temporary full-release qualification: only the isolated rewrap process
-    # selects OpenBao for the synthetic account. Normal writes remain legacy.
-    kuraVolumeOpenBao:
-      enabled: true
-      wrapNewShares: false
-      address: https://kura-openbao-full.tuist-staging.svc:8200
-      role: kura-staging-qualification
-      caConfigMap: kura-openbao-full-ca
     originAppKey:
       enabled: true
     externalSecrets:
