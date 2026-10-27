@@ -1,6 +1,7 @@
 # Linux shard artifact storage
 
-This independently released chart runs one Garage node on an EU-West Kura host.
+This independently released chart runs one Garage node on an OVH Kura cache
+host in Gravelines, reached over the private vRack by OVH Linux runners.
 It is disabled by default. It stores disposable Mix `_build` archives and Cargo
 nextest archives; losing the volume requires rerunning the build job. It does
 not store the authoritative shard plan or change Xcode artifact routing.
@@ -73,9 +74,13 @@ storage node must not block server deployments.
    column and target configuration before enabling the account flag.
 2. Check Kura headroom, provision secrets, and install this chart separately as
    release `shard-storage` in namespace `kura`, with `enabled=true`. The default
-   placement selects `kura-dedibox`; staging and canary require deliberate
-   placement overrides. Preserve staging fixture archives. Canary cannot prove
-   Gravelines locality.
+   placement selects `kura-dedibox`, the historical pool label now used by the
+   OVH EU-West fleet in Gravelines. The former Dedibox hosts have been retired;
+   the label remains because existing KuraInstances, local PVs and gateways
+   depend on it. Verify the selected host's OVH provider identity, Gravelines
+   location and private route before enrollment. Staging and canary require
+   deliberate placement overrides. Preserve staging fixture archives. Canary
+   cannot prove Gravelines locality.
 3. Confirm readiness and the lifecycle policy, then perform a multipart
    upload/download/delete smoke test with disposable bytes from a server pod
    and an enrolled runner. Test a pod restart against the same PVC.

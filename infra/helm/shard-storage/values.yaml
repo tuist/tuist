@@ -6,6 +6,8 @@ storage:
   className: scw-local-nvme
   size: 200Gi
 nodeSelector:
+  # Historical label for the OVH EU-West cache fleet in Gravelines. The
+  # Dedibox machines are retired; existing PVs/gateways still use this label.
   node.cluster.x-k8s.io/pool: kura-dedibox
 tolerations:
   - key: tuist.dev/kura-cache
