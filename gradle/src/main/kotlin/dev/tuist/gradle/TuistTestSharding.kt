@@ -7,23 +7,34 @@ import dev.tuist.gradle.api.model.Shard
 import dev.tuist.gradle.api.model.ShardPlan
 import okhttp3.OkHttpClient
 import org.gradle.api.DefaultTask
+import org.gradle.api.IsolatedAction
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.configuration.BuildFeatures
+import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.logging.Logging
-import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
+import org.gradle.api.provider.Provider
+import org.gradle.api.provider.ValueSource
+import org.gradle.api.provider.ValueSourceParameters
 import org.gradle.api.services.BuildService
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.Optional
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
+import org.gradle.api.tasks.WriteProperties
 import org.gradle.api.tasks.testing.Test
 import retrofit2.Call
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.UUID
+import java.util.Properties
 import java.util.concurrent.TimeUnit
+import javax.inject.Inject
 
 class TuistTestShardingService(
     private val shardsApi: ShardsApi,
@@ -130,6 +141,62 @@ private fun createShardsApi(
         .create(ShardsApi::class.java)
 }
 
+abstract class TuistShardValueSource : ValueSource<Shard, TuistShardValueSource.Params> {
+    interface Params : ValueSourceParameters {
+        val serverUrl: Property<String>
+        val tuistProject: Property<String>
+        val useEnvironmentProxy: Property<Boolean>
+        val projectDir: DirectoryProperty
+        val shardIndex: Property<Int>
+        val shardReference: Property<String>
+    }
+
+    override fun obtain(): Shard {
+        val httpClients = TuistHttpClients(useEnvironmentProxy = parameters.useEnvironmentProxy.get())
+        val config = ServerConfigurationProvider(
+            project = parameters.tuistProject.orNull,
+            serverUrl = parameters.serverUrl.get(),
+            projectDir = parameters.projectDir.asFile.get(),
+            httpClients = httpClients
+        ).getConfiguration()
+        val service = TuistTestShardingService(
+            baseUrl = parameters.serverUrl.get(),
+            token = config.token,
+            accountHandle = config.accountHandle,
+            projectHandle = config.projectHandle,
+            httpClients = httpClients
+        )
+        val reference = parameters.shardReference.orNull ?: service.deriveReference()
+            ?: throw org.gradle.api.GradleException(
+                "Could not derive shard reference. Set TUIST_SHARD_REFERENCE or run in a supported CI environment."
+            )
+        // Only assignments affect configuration, not expiring artifact download URLs.
+        val shard = service.getShard(reference, parameters.shardIndex.get())
+        return shard.copy(
+            downloadUrls = emptyList(),
+            downloadUrl = null,
+            // Gradle 8's isolation codec does not preserve Gson's LinkedTreeMap entries.
+            suites = shard.suites.mapValues { it.value.toList() }.toMap()
+        )
+    }
+}
+
+internal class PublishTuistTestModule : IsolatedAction<Project> {
+    override fun execute(project: Project) {
+        if (TuistGradleConfig.from(project)?.stressRepetition != null) return
+        val testTaskNames = project.tasks.withType(Test::class.java).names.sorted().joinToString(",")
+        val moduleName = testModuleName(project)
+        val descriptor = project.tasks.register("tuistTestModule", WriteProperties::class.java) {
+            property("module", moduleName)
+            property("testTasks", testTaskNames)
+            destinationFile.set(project.layout.buildDirectory.file("tuist/test-module.properties"))
+        }
+        project.configurations.consumable("tuistTestModule") {
+            outgoing.artifact(descriptor.flatMap { it.destinationFile })
+        }
+    }
+}
+
 abstract class TuistPrepareTestShardsTask : DefaultTask() {
 
     private enum class CIProvider {
@@ -174,9 +241,13 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
     @get:Input
     var useEnvironmentProxy: Boolean = true
 
-    /** Module names, as test insights reports them, of the projects that have the sharded test tasks. */
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val moduleDescriptors: ConfigurableFileCollection
+
     @get:Input
-    abstract val modules: ListProperty<String>
+    @get:Optional
+    abstract val testTaskName: Property<String>
 
     @get:Input
     @get:Optional
@@ -202,7 +273,20 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
                 "Could not derive shard reference. Set TUIST_SHARD_REFERENCE or run in a supported CI environment."
             )
 
-        val modules = modules.get()
+        val requestedTask = testTaskName.orNull
+        val modules = moduleDescriptors.files.mapNotNull { file ->
+            val properties = Properties().apply { file.inputStream().use { load(it) } }
+            val tasks = properties.getProperty("testTasks").split(',').filter { it.isNotEmpty() }
+            if (if (requestedTask == null) tasks.isNotEmpty() else requestedTask in tasks) {
+                properties.getProperty("module")
+            } else null
+        }.sorted()
+        if (modules.isEmpty()) {
+            throw org.gradle.api.GradleException(
+                if (requestedTask == null) "No test tasks found." else
+                    "No test task named '$requestedTask' found. Set -PtuistShardTestTask to the test task the shards run, for example testDebugUnitTest."
+            )
+        }
         logger.lifecycle("Tuist: Planning the test suites of ${modules.size} module(s): ${modules.joinToString(", ")}")
 
         val gradleBuildId = (buildInsightsService.orNull as? TuistBuildInsightsService)?.buildId
@@ -328,98 +412,50 @@ abstract class TuistPrepareTestShardsTask : DefaultTask() {
 internal fun testModuleName(project: Project): String =
     if (project.path == ":") project.name else project.path
 
-private fun testModules(rootProject: Project, testTaskName: String?): List<String> {
-    val modules = rootProject.allprojects
-        .filter { project ->
-            val testTaskNames = project.tasks.withType(Test::class.java).names
-            if (testTaskName == null) testTaskNames.isNotEmpty() else testTaskName in testTaskNames
-        }
-        .map(::testModuleName)
-        .sorted()
-
-    if (modules.isEmpty()) {
-        throw org.gradle.api.GradleException(
-            if (testTaskName == null) {
-                "No test tasks found."
-            } else {
-                "No test task named '$testTaskName' found. Set -PtuistShardTestTask to the test task the shards run, for example testDebugUnitTest."
-            }
-        )
-    }
-    return modules
-}
-
-abstract class TuistTestShardingPlugin : Plugin<Project> {
+abstract class TuistTestShardingPlugin @Inject constructor(
+    private val buildFeatures: BuildFeatures
+) : Plugin<Project> {
 
     private val logger = Logging.getLogger(TuistTestShardingPlugin::class.java)
 
     override fun apply(project: Project) {
-        // Only apply the sharding plugin to the root project to avoid duplicate task registration
-        // and filter configuration when the plugin is applied transitively to subprojects.
-        if (project !== project.rootProject) return
-
         val config = TuistGradleConfig.from(project) ?: return
         val providers = project.providers
 
-        val prepareTestShards = project.tasks.register("tuistPrepareTestShards", TuistPrepareTestShardsTask::class.java)
-        prepareTestShards.configure {
-            group = "tuist"
-            description = "Create a shard plan on the Tuist server from the test suites recorded for the projects' test tasks"
-            serverUrl = config.url
-            tuistProject = config.project
-            useEnvironmentProxy = config.network.proxy
-            rootDirectory.set(project.rootProject.layout.projectDirectory)
-            outputDirectory.set(project.layout.projectDirectory)
-            project.gradle.sharedServices.registrations.findByName("tuistBuildInsights")?.service?.let { service ->
-                buildInsightsService.set(service)
-                usesService(service)
+        if (project.path == ":") {
+            val moduleDependencies = project.configurations.dependencyScope("tuistTestModuleDependencies") {
+                config.projectPaths.forEach { path ->
+                    dependencies.add(project.dependencies.project(mapOf("path" to path, "configuration" to "tuistTestModule")))
+                }
             }
-
-            // Subprojects are evaluated first because configuration on demand leaves them
-            // unconfigured when the task is requested by path. The modules are resolved when the
-            // task graph is built, after every project is configured.
-            val testTaskName = providers.gradleProperty("tuistShardTestTask").orNull
-            val rootProject = project
-            rootProject.subprojects.forEach { rootProject.evaluationDependsOn(it.path) }
-            modules.set(project.provider { testModules(rootProject, testTaskName) })
-            gitBranch.set(providers.of(GitInfoValueSource::class.java) {}.map { it.branch() })
-
-            providers.gradleProperty("tuistShardMax").orNull?.toIntOrNull()?.let { shardMax = it }
-            providers.gradleProperty("tuistShardMin").orNull?.toIntOrNull()?.let { shardMin = it }
-            providers.gradleProperty("tuistShardMaxDuration").orNull?.toIntOrNull()?.let { shardMaxDuration = it }
-            providers.environmentVariable("TUIST_SHARD_REFERENCE").orNull?.let { shardReference = it }
+            val moduleDescriptors = project.configurations.resolvable("tuistTestModuleDescriptors") {
+                extendsFrom(moduleDependencies.get())
+            }
+            project.tasks.register("tuistPrepareTestShards", TuistPrepareTestShardsTask::class.java) {
+                group = "tuist"
+                description = "Create a shard plan on the Tuist server from the test suites recorded for the projects' test tasks"
+                serverUrl = config.url
+                tuistProject = config.project
+                useEnvironmentProxy = config.network.proxy
+                rootDirectory.set(project.layout.projectDirectory)
+                outputDirectory.set(project.layout.projectDirectory)
+                this.moduleDescriptors.from(moduleDescriptors)
+                testTaskName.set(providers.gradleProperty("tuistShardTestTask"))
+                gitBranch.set(providers.of(GitInfoValueSource::class.java) {}.map { it.branch() })
+                project.gradle.sharedServices.registrations.findByName("tuistBuildInsights")?.service?.let { service ->
+                    buildInsightsService.set(service)
+                    usesService(service)
+                }
+                providers.gradleProperty("tuistShardMax").orNull?.toIntOrNull()?.let { shardMax = it }
+                providers.gradleProperty("tuistShardMin").orNull?.toIntOrNull()?.let { shardMin = it }
+                providers.gradleProperty("tuistShardMaxDuration").orNull?.toIntOrNull()?.let { shardMaxDuration = it }
+                providers.environmentVariable("TUIST_SHARD_REFERENCE").orNull?.let { shardReference = it }
+            }
         }
 
-        val shardIndexStr = providers.environmentVariable("TUIST_SHARD_INDEX").orNull ?: return
-        val shardIndex = shardIndexStr.toIntOrNull()
-        if (shardIndex == null) {
-            logger.warn("Tuist: TUIST_SHARD_INDEX is not a valid integer: $shardIndexStr")
-            return
-        }
-
-        val httpClients = TuistHttpClients(useEnvironmentProxy = config.network.proxy)
-        val serverConfig = ServerConfigurationProvider(
-            project = config.project,
-            serverUrl = config.url,
-            projectDir = project.rootProject.projectDir,
-            httpClients = httpClients
-        ).getConfiguration()
-        val shardingService = TuistTestShardingService(
-            baseUrl = config.url,
-            token = serverConfig.token,
-            accountHandle = serverConfig.accountHandle,
-            projectHandle = serverConfig.projectHandle,
-            httpClients = httpClients
-        )
-
-        val reference = providers.environmentVariable("TUIST_SHARD_REFERENCE").orNull ?: shardingService.deriveReference()
-            ?: throw org.gradle.api.GradleException(
-                "Could not derive shard reference. Set TUIST_SHARD_REFERENCE or run in a supported CI environment."
-            )
-
-        logger.lifecycle("Tuist: Test sharding active — shard index $shardIndex, reference $reference")
-
-        val shard = shardingService.getShard(reference, shardIndex)
+        val shard = config.shard ?: return
+        val shardIndex = config.shardIndex!!
+        if (project.path == ":") logger.lifecycle("Tuist: Test sharding active — shard index $shardIndex")
 
         val suitesByModule = shard.suites
         // The final shard of a plan selects no modules. It runs every test task, excluding the
@@ -439,32 +475,34 @@ abstract class TuistTestShardingPlugin : Plugin<Project> {
             )
         }
 
-        // Set shard context on the test insights service so it's included in the test report
-        project.gradle.sharedServices.registrations.findByName("tuistTestInsights")?.let { registration ->
-            val service = registration.service.orNull
-            if (service is TuistTestInsightsService) {
-                service.shardPlanId = shard.shardPlanId.toString()
-                service.shardIndex = shardIndex
-            }
-        }
+        @Suppress("UNCHECKED_CAST")
+        val insights = project.gradle.sharedServices.registrations
+            .findByName("tuistTestInsights")!!.service as Provider<TuistTestInsightsService>
 
         // Configured rather than set in a task action, so the filter is part of the test task's
         // build cache key and shards cannot load each other's results.
-        project.allprojects {
-            val moduleName = testModuleName(this)
-            val moduleSuites = suitesByModule[moduleName].orEmpty()
-            val skippedSuites = skippedSuitesByModule[moduleName].orEmpty()
-            tasks.withType(Test::class.java).configureEach {
-                filter.isFailOnNoMatchingTests = false
-                when {
-                    isCatchAll -> skippedSuites.forEach { filter.excludeTestsMatching(it) }
-                    moduleSuites.isEmpty() -> onlyIf("Tuist shard $shardIndex has no test suites in $moduleName") { false }
-                    else -> moduleSuites.forEach { filter.includeTestsMatching(it) }
+        val moduleName = testModuleName(project)
+        val moduleSuites = suitesByModule[moduleName].orEmpty()
+        val skippedSuites = skippedSuitesByModule[moduleName].orEmpty()
+        project.tasks.withType(Test::class.java).configureEach {
+            usesService(insights)
+            filter.isFailOnNoMatchingTests = false
+            when {
+                isCatchAll -> skippedSuites.forEach { filter.excludeTestsMatching(it) }
+                moduleSuites.isEmpty() -> onlyIf("Tuist shard $shardIndex has no test suites in $moduleName") { false }
+                else -> moduleSuites.forEach { filter.includeTestsMatching(it) }
+            }
+            doFirst {
+                insights.get().apply {
+                    shardPlanId = shard.shardPlanId.toString()
+                    this.shardIndex = shardIndex
                 }
             }
         }
 
-        if (!isCatchAll) excludeTestTasksWithoutSuites(project, suitesByModule.keys)
+        if (!isCatchAll && project.path == ":" && !buildFeatures.isolatedProjects.active.get()) {
+            excludeTestTasksWithoutSuites(project, suitesByModule.keys)
+        }
     }
 
     // Excluded like `-x`, so the test tasks of projects without suites in the shard leave the
