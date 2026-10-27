@@ -6,6 +6,7 @@ defmodule TuistWeb.Plugs.BrowserTelemetryPlugTest do
   import Plug.Test
 
   alias Tuist.Accounts
+  alias Tuist.BrowserTelemetry.Receipts
   alias Tuist.Environment
   alias TuistWeb.Plugs.BrowserTelemetryPlug
 
@@ -123,6 +124,35 @@ defmodule TuistWeb.Plugs.BrowserTelemetryPlugTest do
       expect(Req, :post, fn @receiver, _options -> result end)
       assert call(request()).status == 503
     end
+  end
+
+  test "busy receipts and database failures return retryable errors without forwarding" do
+    payload = put_in(payload(), ["measurements", Access.at(0), "context", "id"], "measurement")
+    reject(Req, :post, 2)
+
+    expect(Receipts, :deliver, fn [_key], _forward -> {:error, :in_progress} end)
+    response = payload |> JSON.encode!() |> request() |> call()
+    assert response.status == 503
+    assert get_resp_header(response, "retry-after") == ["1"]
+
+    expect(Receipts, :deliver, fn [_key], _forward -> raise DBConnection.ConnectionError, "unavailable" end)
+    assert payload |> JSON.encode!() |> request() |> call() |> Map.fetch!(:status) == 503
+  end
+
+  test "receipt classification overwrites a forged duplicate flag and reaches Alloy" do
+    payload =
+      payload()
+      |> put_in(["measurements", Access.at(0), "context", "id"], "measurement")
+      |> put_in(["measurements", Access.at(0), "context", "rum_deduplication"], "duplicate")
+
+    expect(Receipts, :deliver, fn [_key], forward -> forward.(MapSet.new()) end)
+
+    expect(Req, :post, fn @receiver, options ->
+      assert hd(options[:json]["measurements"])["context"]["rum_deduplication"] == "unique"
+      {:ok, %Req.Response{status: 202}}
+    end)
+
+    assert payload |> JSON.encode!() |> request() |> call() |> Map.fetch!(:status) == 202
   end
 
   test "leaves other routes alone and disables an unconfigured collector" do
