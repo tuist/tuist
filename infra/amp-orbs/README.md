@@ -67,6 +67,16 @@ The checked-in driver is deliberately restricted to GitHub-hosted disposable run
 
 This credential-free check substitutes only the Amp bootstrap process inside its disposable guest. It proves real VM lifecycle behavior, not an authenticated Amp connection, the Tuist HTTP/database path, fleet admission or Kubernetes rollout. A complete live test additionally needs an isolated Tuist control plane and a dedicated Amp provider. Register it in workspace Settings → Orbs, retain its provider token privately, and choose it explicitly in a new test thread. An Amp API key is only needed to automate sending messages; a human can send them through the UI. The PR validation job never receives Amp credentials.
 
+### Authenticated isolated validation
+
+Manually dispatch the same workflow with `live_amp=true` and a dedicated provider token in the temporary repository secret `AMP_ORB_ISOLATED_VALIDATION_TOKEN`. Remove that secret after the run. For the staging provider, the source credential is the `Amp Orb Provider` password item in the `tuist-k8s-staging` 1Password vault; storing it there does not start a staging provider. Stop any existing provider using the token before this test.
+
+This mode starts disposable PostgreSQL/ClickHouse databases, the actual Tuist HTTP endpoint in test configuration, a kind Kubernetes API for genuine ServiceAccount TokenReview, and sandboxd with real Firecracker. The daemon runs outside kind with a token bound to its temporary identity Pod. It uses fixed memory capacity; the managed runner controller and elastic fleet admission are outside this check. No shared cluster is contacted and no images are published. Only the manually dispatched live step receives the Amp secret.
+
+When the job prints `READY`, select that provider explicitly in Amp and start one disposable thread. Send `Run echo first-turn > /workspace/amp/from-amp-first and report success`, then pause the Orb. The job verifies released residency and no remaining VMM, restarts the provider, and prints the second `READY`. Continue the same thread with `Read /workspace/amp/from-amp-first, then run echo second-turn > /workspace/amp/from-amp-second and report success`; leave it running until the job confirms both markers, then pause it. The observer checks the same PostgreSQL mapping and an independently started process's PID, start time and advancing counter across resume. It deletes the test sandbox twice through the production adapter, checks the mapping is gone, and removes its local infrastructure. Delete the disposable Amp thread afterwards; its VM no longer exists.
+
+The interactive phase times out after 30 minutes and cleans up on exit. Logs/artifacts contain selected lifecycle metadata, not provider logs, guest consoles, environment files, kubeconfigs or credentials. This does not validate the production build/configuration, multi-replica behavior, fleet-controller admission or a Kubernetes rollout. The normal PR job remains credential-free.
+
 ## Local validation
 
 
