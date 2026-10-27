@@ -218,7 +218,7 @@ socket, the poller and the caller share a replica:
 - `TuistWeb.Plugs.RequireSandboxesPlug` gates both account APIs on
   `FeatureFlags.sandboxes_enabled?/1` (an explicit `:sandboxes` flag on
   canary and production), and the poller manager only runs pollers for
-  flagged accounts. Accounts get at most 50 live sandboxes, the shapes
+  flagged accounts. Accounts get at most 5 live sandboxes, the shapes
   in `Sandbox.shapes/0` and workspaces up to 100 GB.
 - `TuistWeb.API.SandboxesController`: account-admin API under
   `/api/accounts/:account_handle/sandboxes` (agent environments,

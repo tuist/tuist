@@ -39,7 +39,7 @@ defmodule Tuist.Sandboxes do
   # belongs to a caller that died mid-operation (a web pod stopped during a
   # deploy): the node's report decides what it is now.
   @stuck_after_seconds 150
-  @max_live_sandboxes_per_account 50
+  @max_live_sandboxes_per_account 5
   @live_states [:creating, :running, :resuming, :paused]
 
   def default_template, do: @default_template

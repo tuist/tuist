@@ -6,7 +6,9 @@ defmodule Tuist.Repo.Migrations.AddSandboxAllocations do
       add :allocation_observed_at, :utc_datetime_usec
       add :allocation_memory_bytes, :bigint
       add :allocation_free_bytes, :bigint
-      add :allocation_reclaim, :boolean, null: false, default: true
+      # Existing rows have no grant. Admission requires an explicit false
+      # together with a fresh observation, so NULL safely denies new work.
+      add :allocation_reclaim, :boolean
     end
   end
 end

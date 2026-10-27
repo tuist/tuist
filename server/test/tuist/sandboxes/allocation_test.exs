@@ -54,6 +54,12 @@ defmodule Tuist.Sandboxes.AllocationTest do
     reject(&KubernetesClient.resize_sandbox_daemon_memory/3)
     assert {:error, :no_capacity} = Sandboxes.begin_residency(sandbox, "missing")
     assert {:error, :no_capacity} = Capacity.grow(node, @gib, 0)
+
+    # Pre-migration rows have NULL allocation fields and must also fail closed.
+    row |> Ecto.Changeset.change(allocation_reclaim: nil) |> Repo.update!()
+    assert {:error, :no_capacity} = Sandboxes.begin_residency(sandbox, "uninitialized")
+    assert {:error, :no_capacity} = Capacity.grow(node, @gib, 0)
+
     assert :ok = Capacity.update_allocation(grant(node))
     assert {:ok, _} = Sandboxes.begin_residency(sandbox, "allowed")
 

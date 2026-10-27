@@ -38,5 +38,9 @@ defmodule TuistWeb.SandboxAllocationsControllerTest do
     assert Repo.get!(SandboxNode, payload["node"]).allocation_memory_bytes == payload["memory_bytes"]
     assert conn |> post("/api/internal/sandboxes/allocation", payload) |> response(409)
     assert conn |> post("/api/internal/sandboxes/allocation", Map.put(payload, "memory_bytes", -1)) |> response(400)
+
+    for field <- ["node", "pod", "observed_at"] do
+      assert conn |> post("/api/internal/sandboxes/allocation", Map.put(payload, field, 123)) |> response(400)
+    end
   end
 end

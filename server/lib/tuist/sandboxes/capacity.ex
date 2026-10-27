@@ -106,42 +106,11 @@ defmodule Tuist.Sandboxes.Capacity do
         "free_bytes" => free,
         "reclaim" => reclaim
       })
-      when is_binary(name) and is_binary(pod) and is_binary(observed) and is_integer(memory) and memory >= 0 and
-             is_integer(free) and free >= 0 and is_boolean(reclaim) do
-    with true <- valid_name?(name) and valid_name?(pod),
-         {:ok, timestamp, 0} <- DateTime.from_iso8601(observed),
-         age = DateTime.diff(DateTime.utc_now(), timestamp, :millisecond),
-         true <- age >= -1000 and age < @allocation_ttl_seconds * 1000 do
-      result =
-        Repo.transaction(fn ->
-          lock(name)
-          row = Repo.get(SandboxNode, name)
-
-          if row && row.allocation_observed_at && DateTime.compare(timestamp, row.allocation_observed_at) != :gt,
-            do: Repo.rollback(:stale_allocation)
-
-          limit = if row && row.pod_name == pod, do: row.memory_limit_bytes, else: @gib
-
-          (row || %SandboxNode{name: name})
-          |> SandboxNode.changeset(%{
-            pod_name: pod,
-            memory_limit_bytes: limit,
-            allocation_observed_at: timestamp,
-            allocation_memory_bytes: memory,
-            allocation_free_bytes: free,
-            allocation_reclaim: reclaim
-          })
-          |> Repo.insert_or_update!()
-
-          # Enqueue in this transaction: a server restart after acknowledgement
-          # cannot lose the reclaim. Repeated grants also retry failed pauses.
-          enqueue_reclaim(name)
-        end)
-
-      case result do
-        {:ok, _} -> :ok
-        {:error, reason} -> {:error, reason}
-      end
+      when is_integer(memory) and memory >= 0 and is_integer(free) and free >= 0 and is_boolean(reclaim) do
+    with true <- valid_name?(name),
+         true <- valid_name?(pod),
+         {:ok, timestamp} <- allocation_timestamp(observed) do
+      store_allocation(name, pod, timestamp, memory, free, reclaim)
     else
       _ -> {:error, :invalid_allocation}
     end
@@ -149,14 +118,71 @@ defmodule Tuist.Sandboxes.Capacity do
 
   def update_allocation(_params), do: {:error, :invalid_allocation}
 
-  defp valid_name?(name), do: byte_size(name) in 1..253 and Regex.match?(~r/^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$/, name)
+  defp valid_name?(name) when is_binary(name),
+    do: byte_size(name) in 1..253 and Regex.match?(~r/^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$/, name)
+
+  defp valid_name?(_name), do: false
+
+  defp allocation_timestamp(observed) when is_binary(observed) do
+    with {:ok, timestamp, 0} <- DateTime.from_iso8601(observed),
+         true <- fresh_allocation?(timestamp) do
+      {:ok, timestamp}
+    else
+      _ -> {:error, :invalid_allocation}
+    end
+  end
+
+  defp allocation_timestamp(_observed), do: {:error, :invalid_allocation}
+
+  defp fresh_allocation?(timestamp) do
+    age = DateTime.diff(DateTime.utc_now(), timestamp, :millisecond)
+    age >= -1000 and age < @allocation_ttl_seconds * 1000
+  end
+
+  defp store_allocation(name, pod, timestamp, memory, free, reclaim) do
+    fn ->
+      lock(name)
+      row = Repo.get(SandboxNode, name)
+      ensure_newer_allocation!(row, timestamp)
+
+      (row || %SandboxNode{name: name})
+      |> SandboxNode.changeset(%{
+        pod_name: pod,
+        memory_limit_bytes: allocation_memory_limit(row, pod),
+        allocation_observed_at: timestamp,
+        allocation_memory_bytes: memory,
+        allocation_free_bytes: free,
+        allocation_reclaim: reclaim
+      })
+      |> Repo.insert_or_update!()
+
+      # Enqueue in this transaction: a server restart after acknowledgement
+      # cannot lose the reclaim. Repeated grants also retry failed pauses.
+      enqueue_reclaim(name)
+    end
+    |> Repo.transaction()
+    |> case do
+      {:ok, _} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp ensure_newer_allocation!(%SandboxNode{allocation_observed_at: %DateTime{} = previous}, timestamp) do
+    if DateTime.compare(timestamp, previous) != :gt, do: Repo.rollback(:stale_allocation)
+  end
+
+  defp ensure_newer_allocation!(_row, _timestamp), do: :ok
+
+  defp allocation_memory_limit(%SandboxNode{pod_name: pod, memory_limit_bytes: limit}, pod), do: limit
+  defp allocation_memory_limit(_row, _pod), do: @gib
 
   def enqueue_reclaim(node_name, released \\ false) do
     if released do
-      Repo.transaction(fn ->
-        lock(node_name)
-        Repo.update_all(from(n in SandboxNode, where: n.name == ^node_name), set: [grown_at: nil])
-      end)
+      {:ok, _updated} =
+        Repo.transaction(fn ->
+          lock(node_name)
+          Repo.update_all(from(n in SandboxNode, where: n.name == ^node_name), set: [grown_at: nil])
+        end)
     end
 
     %{node: node_name} |> ReclaimCapacityWorker.new() |> Oban.insert!()
@@ -195,30 +221,7 @@ defmodule Tuist.Sandboxes.Capacity do
   # Non-elastic nodes remain usable for standalone development daemons.
   defp allocation_allows?(node, needed) do
     if elastic?(node) do
-      outcome =
-        case Repo.get(SandboxNode, node.name) do
-          %SandboxNode{
-            pod_name: pod,
-            allocation_reclaim: false,
-            allocation_observed_at: %DateTime{} = at,
-            allocation_memory_bytes: bytes
-          }
-          when is_integer(bytes) ->
-            age = DateTime.diff(DateTime.utc_now(), at, :millisecond)
-
-            cond do
-              pod != node.elastic.pod_name -> :replaced_pod
-              age < -1000 or age >= @allocation_ttl_seconds * 1000 -> :expired
-              bytes < needed -> :allocation_limit
-              true -> :allowed
-            end
-
-          %SandboxNode{allocation_reclaim: true} ->
-            :ci_reclaim
-
-          _ ->
-            :missing_grant
-        end
+      outcome = allocation_outcome(Repo.get(SandboxNode, node.name), node, needed)
 
       :telemetry.execute([:tuist, :sandboxes, :capacity], %{duration: 0}, %{
         node: node.name,
@@ -231,6 +234,28 @@ defmodule Tuist.Sandboxes.Capacity do
       true
     end
   end
+
+  defp allocation_outcome(
+         %SandboxNode{
+           pod_name: pod,
+           allocation_reclaim: false,
+           allocation_observed_at: %DateTime{} = at,
+           allocation_memory_bytes: bytes
+         },
+         node,
+         needed
+       )
+       when is_integer(bytes) do
+    cond do
+      pod != node.elastic.pod_name -> :replaced_pod
+      not fresh_allocation?(at) -> :expired
+      bytes < needed -> :allocation_limit
+      true -> :allowed
+    end
+  end
+
+  defp allocation_outcome(%SandboxNode{allocation_reclaim: true}, _node, _needed), do: :ci_reclaim
+  defp allocation_outcome(_row, _node, _needed), do: :missing_grant
 
   @doc "Checks a new turn on an already-running VM under the node admission lock."
   def admit_turn(%Sandbox{node_name: name}, apply) when is_binary(name) do
@@ -798,25 +823,13 @@ defmodule Tuist.Sandboxes.Capacity do
 
   defp memory_quantity(_quantity), do: 0
 
-  defp resize(%{name: node_name, elastic: %{pod_name: pod_name}} = node, limit) do
+  defp resize(%{name: node_name} = node, limit) do
     # Serialize the API write as well as the desired-state update. A delayed
     # shrink must never overwrite a newer growth (or vice versa).
     fn ->
       lock(node_name)
 
-      case Repo.get(SandboxNode, node_name) do
-        %SandboxNode{pod_name: ^pod_name, memory_limit_bytes: ^limit} ->
-          if limit > (reported_limit(node) || 0) and not allocation_allows?(node, limit),
-            do: Repo.rollback(:no_capacity)
-
-          case resize_pod(node_name, pod_name, limit) do
-            :ok -> :ok
-            {:error, reason} -> Repo.rollback(reason)
-          end
-
-        _ ->
-          Repo.rollback(:superseded)
-      end
+      apply_resize(node, Repo.get(SandboxNode, node_name), limit)
     end
     |> Repo.transaction()
     |> case do
@@ -824,6 +837,22 @@ defmodule Tuist.Sandboxes.Capacity do
       {:error, reason} -> {:error, reason}
     end
   end
+
+  defp apply_resize(
+         %{name: node_name, elastic: %{pod_name: pod_name}} = node,
+         %SandboxNode{pod_name: pod_name, memory_limit_bytes: limit},
+         limit
+       ) do
+    if limit > (reported_limit(node) || 0) and not allocation_allows?(node, limit),
+      do: Repo.rollback(:no_capacity)
+
+    case resize_pod(node_name, pod_name, limit) do
+      :ok -> :ok
+      {:error, reason} -> Repo.rollback(reason)
+    end
+  end
+
+  defp apply_resize(_node, _row, _limit), do: Repo.rollback(:superseded)
 
   defp resize_pod(node_name, pod_name, limit) do
     case KubernetesClient.resize_sandbox_daemon_memory(Environment.sandboxes_namespace(), pod_name, limit) do
@@ -944,9 +973,9 @@ defmodule Tuist.Sandboxes.Capacity do
     nodes
     |> Enum.filter(&elastic?/1)
     |> Enum.map(&{&1, &1.elastic.memory_ceiling_bytes - @daemon_reserve_bytes - reserved_bytes(&1.name)})
-    |> Enum.filter(fn {_node, room} -> room >= charge end)
-    |> Enum.filter(fn {node, _room} ->
-      allocation_allows?(node, round_up_to_step(reserved_bytes(node.name) + charge + @daemon_reserve_bytes))
+    |> Enum.filter(fn {node, room} ->
+      room >= charge and
+        allocation_allows?(node, round_up_to_step(reserved_bytes(node.name) + charge + @daemon_reserve_bytes))
     end)
     |> Enum.sort_by(fn {node, _room} ->
       row = Repo.get(SandboxNode, node.name)

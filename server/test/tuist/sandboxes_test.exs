@@ -554,8 +554,9 @@ defmodule Tuist.SandboxesTest do
   describe "limits and shapes" do
     test "refuses a create past the account's live sandbox limit" do
       account = account_fixture()
+      assert Sandboxes.max_live_sandboxes_per_account() == 5
 
-      for _ <- 1..Sandboxes.max_live_sandboxes_per_account(),
+      for _ <- 1..5,
           do: sandbox_fixture(account: account, state: :paused, node_name: "node-a")
 
       reject(&Capacity.place/1)
