@@ -1,0 +1,3 @@
+# Install as a NEW release/target. Does not enable enrollment or deploy itself.
+# Supply the environment's externalSecrets.item separately.
+replicas: 3

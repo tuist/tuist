@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "replicas": {
+      "type": "integer",
+      "enum": [1, 3],
+      "description": "Immutable store replication factor; production uses three replicas."
+    },
+    "cluster": {
+      "type": "object",
+      "properties": {
+        "bootstrapPeers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[0-9a-f]{64}@.+:[0-9]+$"}
+        }
+      }
+    }
+  }
+}

@@ -2,6 +2,14 @@
 {{- if ne .Release.Namespace "kura" }}
 {{- fail "shard-storage must be installed in kura so capacity admission counts its reservation" }}
 {{- end }}
+{{- $replicated := eq (int .Values.replicas) 3 }}
+{{- if not (or (eq (int .Values.replicas) 1) $replicated) }}
+{{- fail "shard-storage supports replicas=1 or replicas=3; two replicas cannot retain write quorum during maintenance" }}
+{{- end }}
+{{- $existing := lookup "apps/v1" "StatefulSet" .Release.Namespace .Release.Name }}
+{{- if and $existing (ne (int $existing.spec.replicas) (int .Values.replicas)) }}
+{{- fail "do not change replication factor on an existing store: install a new release with a new storage target ID" }}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -11,9 +19,17 @@ data:
     metadata_dir = "/storage/meta"
     data_dir = "/storage/data"
     db_engine = "sqlite"
-    replication_factor = 1
+    replication_factor = {{ .Values.replicas }}
+    {{- if $replicated }}
+    consistency_mode = "consistent"
+    metadata_fsync = true
+    data_fsync = true
+    rpc_bind_addr = "[::]:3901"
+    bootstrap_peers = {{ .Values.cluster.bootstrapPeers | toJson }}
+    {{- else }}
     rpc_bind_addr = "127.0.0.1:3901"
     rpc_public_addr = "127.0.0.1:3901"
+    {{- end }}
     [s3_api]
     s3_region = "garage"
     api_bind_addr = "[::]:3900"
@@ -53,13 +69,50 @@ spec:
       port: 3900
       targetPort: s3
 ---
+{{- if $replicated }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-peers
+spec:
+  type: ClusterIP
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: shard-storage
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: rpc
+      port: 3901
+      targetPort: rpc
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: shard-storage
+      app.kubernetes.io/instance: {{ .Release.Name }}
+---
+{{- end }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: {{ .Release.Name }}
 spec:
-  serviceName: {{ .Release.Name }}
-  replicas: 1
+  serviceName: {{ .Release.Name }}{{ if $replicated }}-peers{{ end }}
+  replicas: {{ .Values.replicas }}
+  {{- if $replicated }}
+  # OrderedReady deadlocks before a fresh cluster has a layout and quorum.
+  podManagementPolicy: Parallel
+  # Readiness proves quorum, not completed repairs. An operator must wait for
+  # all replicas to catch up before evicting the next pod (see README).
+  updateStrategy:
+    type: OnDelete
+  {{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/name: shard-storage
@@ -71,9 +124,20 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
         tuist.dev/region: {{ .Values.region | quote }}
       annotations:
-        checksum/config: {{ printf "%s/%s" .Values.region .Values.bucket | sha256sum }}
+        checksum/config: {{ printf "%s/%s/%v/%s" .Values.region .Values.bucket .Values.replicas (toJson .Values.cluster.bootstrapPeers) | sha256sum }}
     spec:
       automountServiceAccountToken: false
+      {{- if $replicated }}
+      terminationGracePeriodSeconds: 120
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: shard-storage
+                  app.kubernetes.io/instance: {{ .Release.Name }}
+      {{- end }}
       nodeSelector:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
       tolerations:
@@ -89,7 +153,11 @@ spec:
         - name: garage
           image: {{ .Values.image | quote }}
           command: ["/garage"]
+          {{- if $replicated }}
+          args: ["server"]
+          {{- else }}
           args: ["server", "--single-node", "--default-bucket"]
+          {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -101,6 +169,7 @@ spec:
                 secretKeyRef:
                   name: {{ .Release.Name }}
                   key: rpc-secret
+            {{- if not $replicated }}
             - name: GARAGE_DEFAULT_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
@@ -113,11 +182,16 @@ spec:
                   key: secret-access-key
             - name: GARAGE_DEFAULT_BUCKET
               value: {{ .Values.bucket | quote }}
+            {{- end }}
           ports:
             - name: s3
               containerPort: 3900
             - name: health
               containerPort: 3903
+            {{- if $replicated }}
+            - name: rpc
+              containerPort: 3901
+            {{- end }}
           readinessProbe:
             httpGet:
               path: /health
@@ -163,7 +237,31 @@ spec:
       app.kubernetes.io/name: shard-storage
       app.kubernetes.io/instance: {{ .Release.Name }}
   policyTypes: [Ingress, Egress]
+  {{- if $replicated }}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: shard-storage
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - protocol: TCP
+          port: 3901
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+  {{- else }}
   egress: []
+  {{- end }}
   ingress:
     - from:
         - namespaceSelector:
@@ -179,4 +277,14 @@ spec:
       ports:
         - protocol: TCP
           port: 3900
+    {{- if $replicated }}
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: shard-storage
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - protocol: TCP
+          port: 3901
+    {{- end }}
 {{- end }}

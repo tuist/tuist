@@ -2,6 +2,13 @@ enabled: false
 image: dxflrs/garage:v2.5.0
 region: eu-west
 bucket: shards
+# Only 1 (development/staging) and 3 (production) are supported. Never change
+# this on an existing release: create a new store and immutable target instead.
+replicas: 1
+cluster:
+  # Public node IDs, not credentials. Populate after initial bootstrap with
+  # <node-id>@<release>-N.<release>-peers.kura.svc.cluster.local:3901.
+  bootstrapPeers: []
 storage:
   className: scw-local-nvme
   size: 200Gi
